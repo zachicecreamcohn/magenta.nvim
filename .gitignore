@@ -1,1 +1,11 @@
+# Development dependencies
+deps/
 vendor/plenary.nvim
+
+# Lua
+*.rock
+*.src.rock
+luacov.*
+
+# Misc
+.DS_Store

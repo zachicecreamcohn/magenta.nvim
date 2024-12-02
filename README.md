@@ -19,6 +19,36 @@ Click on `Use this template`
 
 ![](https://docs.github.com/assets/cb-36544/images/help/repository/use-this-template-button.png)
 
+## Installation
+
+Choose your preferred package manager:
+
+### [lazy.nvim](https://github.com/folke/lazy.nvim)
+```lua
+{
+    "denislantsman/magenta.nvim",
+    dependencies = {
+        "MunifTanjim/nui.nvim"
+    }
+}
+```
+
+### [packer.nvim](https://github.com/wbthomason/packer.nvim)
+```lua
+use {
+    'denislantsman/magenta.nvim',
+    requires = {
+        'MunifTanjim/nui.nvim'
+    }
+}
+```
+
+### [vim-plug](https://github.com/junegunn/vim-plug)
+```vim
+Plug 'MunifTanjim/nui.nvim'
+Plug 'denislantsman/magenta.nvim'
+```
+
 ## Features and structure
 
 - 100% Lua
@@ -27,6 +57,11 @@ Click on `Use this template`
   - check for formatting errors (Stylua)
   - vimdocs autogeneration from README.md file
   - luarocks release (LUAROCKS_API_KEY secret configuration required)
+
+## Requirements
+
+- Neovim >= 0.8.0
+- [nui.nvim](https://github.com/MunifTanjim/nui.nvim) - UI Component Library for Neovim
 
 ### Plugin structure
 
