@@ -102,12 +102,8 @@ local function append_to_main(opts)
   local lines = vim.split(opts.text, '\n', {})
   if #lines == 0 then return end
 
-  local top_line = vim.api.nvim_buf_line_count(main_area.bufnr) + 1;
 
-  if opts.scrolltop then
-    require('magenta.util.scroll_buffer').scroll_buffer(main_area.bufnr, top_line)
-  end
-
+  local top_line = vim.api.nvim_buf_line_count(main_area.bufnr);
   local last_line = vim.api.nvim_buf_get_lines(main_area.bufnr, -2, -1, false)[1] or ""
 
   vim.api.nvim_buf_set_option(main_area.bufnr, 'modifiable', true)
@@ -119,9 +115,13 @@ local function append_to_main(opts)
 
   vim.api.nvim_buf_set_option(main_area.bufnr, 'modifiable', false)
 
-  -- Scroll to bottom
-  local final_line = vim.api.nvim_buf_line_count(main_area.bufnr)
-  vim.api.nvim_win_set_cursor(main_area.winid, { final_line, 0 })
+  if opts.scrolltop then
+    local offset = #lines > 1 and 1 or 0
+    require('magenta.util.scroll_buffer').scroll_buffer(main_area.bufnr, top_line + offset)
+  else
+    local final_line = vim.api.nvim_buf_line_count(main_area.bufnr)
+    vim.api.nvim_win_set_cursor(main_area.winid, { final_line, 0 })
+  end
 end
 
 -- Function to send message to Anthropic
