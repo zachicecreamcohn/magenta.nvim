@@ -1,0 +1,22 @@
+{
+    "$schema": "https://raw.githubusercontent.com/sumneko/vscode-lua/master/setting/schema.json",
+    "runtime": {
+        "version": "LuaJIT"
+    },
+    "workspace": {
+        "library": [
+            "${3rd}/luv/library",
+            "${3rd}/busted/library",
+            "${3rd}/luassert/library",
+            "${3rd}/plenary.nvim/lua"
+        ],
+        "checkThirdParty": false,
+        "maxPreload": 2000,
+        "preloadFileSize": 1000
+    },
+    "diagnostics": {
+        "globals": [
+            "vim"
+        ]
+    }
+}
