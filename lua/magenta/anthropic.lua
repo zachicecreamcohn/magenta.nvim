@@ -38,7 +38,7 @@ end
 ---Get the API key from config or environment
 ---@return string|nil, string? error
 function Client:get_api_key()
-  local log = require("magenta.log")
+  local log = require("magenta.log").log
   log.debug("Getting API key")
   if self.config.api_key then
     log.debug("Using API key from config")
@@ -175,7 +175,7 @@ function Client:request(payload, actions, opts)
 
   local job = self.opts.post(request_opts)
 
-  local log = require("magenta.log")
+  local log = require("magenta.log").log
   if job and job.args then
     log.debug("Request command: %s", vim.inspect(job.args))
   end

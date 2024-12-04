@@ -1,4 +1,4 @@
-local log = require('magenta.log')
+local log = require('magenta.log').log
 
 local M = {}
 
@@ -92,16 +92,21 @@ function M.setup(opts)
   -- end, {})
 end
 
--- Function to append text to the main area
----@param text string Text to append
-local function append_to_main(text)
+---@param opts {text: string, scrolltop: boolean?} Options for appending text
+local function append_to_main(opts)
   if not main_area or not main_area.bufnr then
     log.error("Cannot append to main area - not initialized")
     return
   end
 
-  local lines = vim.split(text, '\n', {})
+  local lines = vim.split(opts.text, '\n', {})
   if #lines == 0 then return end
+
+  local top_line = vim.api.nvim_buf_line_count(main_area.bufnr) + 1;
+
+  if opts.scrolltop then
+    require('magenta.util.scroll_buffer').scroll_buffer(main_area.bufnr, top_line)
+  end
 
   local last_line = vim.api.nvim_buf_get_lines(main_area.bufnr, -2, -1, false)[1] or ""
 
@@ -137,7 +142,7 @@ function M.send_message()
   vim.api.nvim_buf_set_lines(input_area.bufnr, 0, -1, false, { "" })
 
   -- Add user message to main area
-  append_to_main("\nUser: " .. message .. "\n\nAssistant: ")
+  append_to_main { text = "\nUser: " .. message .. "\n\nAssistant: ", scrolltop = true }
 
   -- Send to Anthropic with streaming
   anthropic_client:request({
@@ -147,12 +152,12 @@ function M.send_message()
     callback = function(err, text)
       if err then
         log.error("Anthropic API error:", err)
-        append_to_main("\nError: " .. err .. "\n")
+        append_to_main { text = "\nError: " .. err .. "\n" }
         return
       end
 
       log.debug("Received stream text:", text)
-      append_to_main(text)
+      append_to_main({ text = text })
     end,
     done = function()
       log.debug("Request completed")
@@ -181,8 +186,9 @@ function M.show_sidebar()
     relative = "editor",
     size = M.config.sidebar_width,
     win_options = {
-      wrap = true, -- Changed to true for better text display
+      wrap = true,
       number = false,
+      relativenumber = false,
       cursorline = true,
     },
   })
@@ -193,6 +199,7 @@ function M.show_sidebar()
     win_options = {
       wrap = true,
       number = false,
+      relativenumber = false,
     },
   })
 
