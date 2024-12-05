@@ -136,6 +136,12 @@ function Sidebar:show_sidebar()
 
   vim.api.nvim_buf_set_lines(self.input_area.bufnr, 0, -1, false, { "Enter text here..." })
 
+  vim.keymap.set('n', '<CR>', '<cmd>MagentaSend<CR>', {
+    buffer = self.input_area.bufnr,
+    silent = true,
+    desc = "Send message from Magenta sidebar"
+  })
+
   return self.input_area
 end
 
