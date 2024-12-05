@@ -22,7 +22,7 @@ local default_config = {
 }
 
 ---@param config? table
----@return table
+---@return AnthropicClient
 function Client.new(config)
   local opts = vim.tbl_deep_extend("force", default_config, config or {})
 
@@ -54,7 +54,7 @@ function Client:get_api_key()
 end
 
 ---@class AnthropicRequestActions
----@field callback fun(err: nil|string, chunk: nil|table) Callback function for request completion
+---@field callback fun(err: nil|string, chunk: nil|string) Callback function for request completion
 ---@field done? fun() Function to run when request is complete
 ---@field on_stream? fun(chunk: string) Function to handle streaming chunks
 

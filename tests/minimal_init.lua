@@ -6,12 +6,12 @@ local function ensure_deps()
     if vim.fn.isdirectory(deps_path) == 0 then
         vim.fn.mkdir(deps_path, "p")
     end
-    
+
     local deps = {
         ["plenary.nvim"] = "https://github.com/nvim-lua/plenary.nvim",
         ["nui.nvim"] = "https://github.com/MunifTanjim/nui.nvim"
     }
-    
+
     for name, url in pairs(deps) do
         local dep_path = deps_path .. "/" .. name
         if vim.fn.isdirectory(dep_path) == 0 then

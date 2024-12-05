@@ -1,4 +1,4 @@
-local log = require('magenta.log').log
+local log = require('magenta.log').log;
 
 local M = {}
 
@@ -6,7 +6,6 @@ local M = {}
 ---@field sidebar_width number Width of the sidebar
 ---@field position string Position of the sidebar ("left" or "right")
 ---@field anthropic table Configuration for the Anthropic client
--- Default configuration
 local default_config = {
   sidebar_width = 80,
   position = "left",
@@ -17,13 +16,14 @@ local default_config = {
   }
 }
 
--- Store the user's configuration
-M.config = {}
+M.config = vim.tbl_deep_extend("force", default_config, {})
 
--- Store the sidebar instance and components
+
 local sidebar = nil
 local input_area = nil
 local main_area = nil
+
+---@type AnthropicClient
 local anthropic_client = nil
 
 -- Initialize the plugin with user config
@@ -31,10 +31,8 @@ function M.setup(opts)
   log.debug("Setting up magenta with opts:", opts)
   M.config = vim.tbl_deep_extend("force", default_config, opts or {})
 
-  -- Initialize Anthropic client
   anthropic_client = require("magenta.anthropic").new(M.config.anthropic)
 
-  -- Safely require nui components
   local ok, err = pcall(function()
     -- Try to load all required nui components
     local Layout = require("nui.layout")
@@ -156,8 +154,10 @@ function M.send_message()
         return
       end
 
-      log.debug("Received stream text:", text)
-      append_to_main({ text = text })
+      if text then
+        log.debug("Received stream text:", text)
+        append_to_main({ text = text })
+      end
     end,
     done = function()
       log.debug("Request completed")

@@ -1,6 +1,7 @@
 local M = {}
 
-M.log = require('plenary.log').new({
+local plenary_log = require('plenary.log')
+M.log = plenary_log.new({
     plugin = 'magenta',
     level = "trace",
 })
