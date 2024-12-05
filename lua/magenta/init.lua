@@ -21,16 +21,29 @@ M.config = vim.tbl_deep_extend("force", default_config, {})
 
 ---@type AnthropicClient
 local anthropic_client = nil
+
+---@type SidebarModule
+local sidebar_module = nil
+
+---@type Sidebar
 local sidebar = nil
 
 -- Initialize the plugin with user config
 function M.setup(opts)
+  require('magenta.util.check_deps').check_deps({
+    "nui.split",
+    "nui.layout",
+    "plenary.curl"
+  })
+
   log.debug("Setting up magenta with opts:", opts)
   M.config = vim.tbl_deep_extend("force", default_config, opts or {})
 
   anthropic_client = require("magenta.anthropic").new(M.config.anthropic)
-  sidebar = require('magenta.sidebar')
-  sidebar.setup()
+  sidebar_module = require('magenta.sidebar')
+  sidebar_module.setup()
+
+  sidebar = sidebar_module.Sidebar.new()
 
   -- Add command to view logs
   vim.api.nvim_create_user_command("MagentaLogs", function()
@@ -69,13 +82,12 @@ end
 
 
 function M.show_sidebar()
-  if not sidebar then
-    log.error("sidebar not initialized")
-    vim.notify("Input area not initialized", vim.log.levels.ERROR)
+  if not sidebar_module then
+    log.error("sidebar_module not initialized")
     return
   end
 
-  local input_area = sidebar.show_sidebar()
+  local input_area = sidebar:show_sidebar()
   log.debug("Setting up buffer-local command in input buffer")
   vim.api.nvim_buf_create_user_command(input_area.bufnr, "MagentaSend", function()
     M.send_message()
@@ -84,7 +96,7 @@ end
 
 function M.hide_sidebar()
   if sidebar then
-    sidebar.hide_sidebar()
+    sidebar:hide_sidebar()
   end
 end
 
@@ -95,10 +107,10 @@ function M.send_message()
     vim.notify("Input area not initialized", vim.log.levels.ERROR)
     return
   end
-  local message = sidebar.pop_message()
+  local message = sidebar:pop_message()
 
   -- Add user message to main area
-  sidebar.append_to_main { text = "\nUser: " .. message .. "\n\nAssistant: ", scrolltop = true }
+  sidebar:append_to_main { text = "\nUser: " .. message .. "\n\nAssistant: ", scrolltop = true }
 
   -- Send to Anthropic with streaming
   anthropic_client:request({
@@ -108,13 +120,13 @@ function M.send_message()
     callback = function(err, text)
       if err then
         log.error("Anthropic API error:", err)
-        sidebar.append_to_main { text = "\nError: " .. err .. "\n" }
+        sidebar:append_to_main { text = "\nError: " .. err .. "\n" }
         return
       end
 
       if text then
         log.debug("Received stream text:", text)
-        sidebar.append_to_main({ text = text })
+        sidebar:append_to_main({ text = text })
       end
     end,
     done = function()

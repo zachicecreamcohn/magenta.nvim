@@ -1,5 +1,9 @@
 local log = require('magenta.log').log;
 
+---@class SidebarModule
+---@field config table Configuration options
+---@field sidebar Sidebar The Sidebar class
+---@field setup fun(opts: table?) Set up the sidebar with optional config
 local M = {}
 
 local default_config = {
@@ -7,39 +11,34 @@ local default_config = {
   position = "left",
 }
 
-M.sidebar = nil
-M.input_area = nil
-M.main_area = nil
-
-
 M.config = vim.tbl_deep_extend("force", default_config, {})
 
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", default_config, opts or {})
-
-  local ok, err = pcall(function()
-    local Layout = require("nui.layout")
-    local Split = require("nui.split")
-
-    M.components = {
-      Layout = Layout,
-      Split = Split
-    }
-    log.debug("Successfully loaded nui components")
-  end)
-
-  if not ok then
-    log.error("Failed to load nui.nvim components:", err)
-    vim.notify(
-      "Failed to load nui.nvim components. Please ensure nui.nvim is installed.\nError: " .. err,
-      vim.log.levels.ERROR
-    )
-    return
-  end
 end
 
-function M.append_to_main(opts)
-  if not M.main_area or not M.main_area.bufnr then
+---@class Sidebar
+---@field sidebar NuiLayout|nil The main layout container
+---@field input_area NuiSplit|nil The bottom input split
+---@field main_area NuiSplit|nil The main content split
+local Sidebar = {}
+Sidebar.__index = Sidebar
+
+M.Sidebar = Sidebar
+
+---Creates a new Sidebar instance
+---@return Sidebar
+function Sidebar.new()
+  local self = setmetatable({}, Sidebar)
+  self.sidebar = nil
+  self.input_area = nil
+  self.main_area = nil
+  return self
+end
+
+---@param opts {text: string, scrolltop: boolean?} Options for appending text
+function Sidebar:append_to_main(opts)
+  if not self.main_area or not self.main_area.bufnr then
     log.error("Cannot append to main area - not initialized")
     return
   end
@@ -48,60 +47,54 @@ function M.append_to_main(opts)
   if #lines == 0 then return end
 
 
-  local top_line = vim.api.nvim_buf_line_count(M.main_area.bufnr);
-  local last_line = vim.api.nvim_buf_get_lines(M.main_area.bufnr, -2, -1, false)[1] or ""
+  local top_line = vim.api.nvim_buf_line_count(self.main_area.bufnr);
+  local last_line = vim.api.nvim_buf_get_lines(self.main_area.bufnr, -2, -1, false)[1] or ""
 
-  vim.api.nvim_buf_set_option(M.main_area.bufnr, 'modifiable', true)
-  vim.api.nvim_buf_set_lines(M.main_area.bufnr, -2, -1, false, { last_line .. lines[1] })
+  vim.api.nvim_buf_set_option(self.main_area.bufnr, 'modifiable', true)
+  vim.api.nvim_buf_set_lines(self.main_area.bufnr, -2, -1, false, { last_line .. lines[1] })
 
   if #lines > 1 then
-    vim.api.nvim_buf_set_lines(M.main_area.bufnr, -1, -1, false, vim.list_slice(lines, 2))
+    vim.api.nvim_buf_set_lines(self.main_area.bufnr, -1, -1, false, vim.list_slice(lines, 2))
   end
 
-  vim.api.nvim_buf_set_option(M.main_area.bufnr, 'modifiable', false)
+  vim.api.nvim_buf_set_option(self.main_area.bufnr, 'modifiable', false)
 
   if opts.scrolltop then
     local offset = #lines > 1 and 1 or 0
-    require('magenta.util.scroll_buffer').scroll_buffer(M.main_area.bufnr, top_line + offset)
+    require('magenta.util.scroll_buffer').scroll_buffer(self.main_area.bufnr, top_line + offset)
   else
-    local final_line = vim.api.nvim_buf_line_count(M.main_area.bufnr)
-    vim.api.nvim_win_set_cursor(M.main_area.winid, { final_line, 0 })
+    local final_line = vim.api.nvim_buf_line_count(self.main_area.bufnr)
+    vim.api.nvim_win_set_cursor(self.main_area.winid, { final_line, 0 })
   end
 end
 
-function M.pop_message()
-  if not M.input_area then
+---@return string The current message text
+function Sidebar:pop_message()
+  if not self.input_area then
     return ""
   end
 
-  local lines = vim.api.nvim_buf_get_lines(M.input_area.bufnr, 0, -1, false)
+  local lines = vim.api.nvim_buf_get_lines(self.input_area.bufnr, 0, -1, false)
   local message = table.concat(lines, "\n")
 
   log.debug("Message content:", message)
   -- Clear input area
-  vim.api.nvim_buf_set_lines(M.input_area.bufnr, 0, -1, false, { "" })
+  vim.api.nvim_buf_set_lines(self.input_area.bufnr, 0, -1, false, { "" })
 
   return message
 end
 
-function M.show_sidebar()
-  if not M.components then
-    log.error("Plugin not initialized")
-    vim.notify("Plugin not initialized. Please call require('magenta').setup()", vim.log.levels.ERROR)
-    return
-  end
-
+---@return NuiSplit Returns the input area split if successful
+function Sidebar:show_sidebar()
   log.debug("Showing sidebar")
-  if M.sidebar then
-    log.debug("showing existing sidebar")
-    M.sidebar:show()
-    return
+  if self.sidebar then
+    self:hide_sidebar()
   end
 
-  local Layout = M.components.Layout
-  local Split = M.components.Split
+  local Layout = require('nui.layout')
+  local Split = require('nui.split')
 
-  M.main_area = Split({
+  self.main_area = Split({
     relative = "editor",
     size = M.config.sidebar_width,
     win_options = {
@@ -112,7 +105,7 @@ function M.show_sidebar()
     },
   })
 
-  M.input_area = Split({
+  self.input_area = Split({
     relative = "editor",
     size = M.config.sidebar_width,
     win_options = {
@@ -122,37 +115,40 @@ function M.show_sidebar()
     },
   })
 
-  M.sidebar = Layout(
+  self.sidebar = Layout(
     {
       relative = "editor",
       position = M.config.position,
       size = M.config.sidebar_width,
     },
     Layout.Box({
-      Layout.Box(M.main_area, { size = "80%" }),
-      Layout.Box(M.input_area, { size = "20%" }),
+      Layout.Box(self.main_area, { size = "80%" }),
+      Layout.Box(self.input_area, { size = "20%" }),
     }, { dir = "col" })
   )
 
   log.debug("Mounting sidebar")
-  M.sidebar:mount()
+  self.sidebar:mount()
 
   local content = { "Magenta Sidebar", "============", ""}
-  vim.api.nvim_buf_set_lines(M.main_area.bufnr, 0, -1, false, content)
-  vim.bo[M.main_area.bufnr].modifiable = false
+  vim.api.nvim_buf_set_lines(self.main_area.bufnr, 0, -1, false, content)
+  vim.bo[self.main_area.bufnr].modifiable = false
 
-  vim.api.nvim_buf_set_lines(M.input_area.bufnr, 0, -1, false, { "Enter text here..." })
+  vim.api.nvim_buf_set_lines(self.input_area.bufnr, 0, -1, false, { "Enter text here..." })
 
-  return M.input_area
+  return self.input_area
 end
 
-function M.hide_sidebar()
-  if M.sidebar then
-    log.debug("Hiding sidebar")
-    M.sidebar:hide()
-  else
-    log.debug("No sidebar to hide")
+function Sidebar:hide_sidebar()
+  if not self.sidebar then
+    log.debug("Sidebar not visible")
+    return
   end
+  log.debug("unmounting sidebar")
+  self.sidebar:unmount()
+  self.sidebar = nil
+  self.input_area = nil
+  self.main_area = nil
 end
 
 
