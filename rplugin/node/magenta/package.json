@@ -1,0 +1,19 @@
+{
+  "name": "magenta.nvim",
+  "version": "1.0.0",
+  "scripts": {},
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@swc-node/register": "^1.10.9",
+    "@swc/core": "^1.10.0",
+    "@types/node": "^20.10.5",
+    "neovim": "^5.3.0",
+    "typescript": "^5.3.3"
+  },
+  "devDependencies": {},
+  "module": "src/index.js",
+  "main": "src/index.js",
+  "repository": "git@github.com:dlants/magenta.nvim.git",
+  "author": "Denis Lantsman <dlantsman@amplify.com>",
+  "license": "MIT"
+}

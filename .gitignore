@@ -9,3 +9,6 @@ luacov.*
 
 # Misc
 .DS_Store
+
+# bun / typescript
+node_modules
