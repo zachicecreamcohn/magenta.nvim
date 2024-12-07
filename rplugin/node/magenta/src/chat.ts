@@ -1,5 +1,4 @@
-import { MessageParam } from '@anthropic-ai/sdk';
-import { Neovim, NvimPlugin } from 'neovim';
+import Anthropic from '@anthropic-ai/sdk';
 
 export interface Part {
   content: string;
@@ -17,9 +16,9 @@ export interface Message {
 
 export class Chat {
   private messages: Message[] = [];
-  private currentMessage: Message | null = null;
+  private currentMessage?: Message;
 
-  constructor(private nvim: Neovim) {}
+  constructor() { }
 
   addMessage(role: Message['role'], content: string): Message {
     const message: Message = {
@@ -55,7 +54,7 @@ export class Chat {
   }
 
   finishCurrentMessage() {
-    this.currentMessage = null;
+    delete this.currentMessage;
   }
 
   getCurrentMessage(): string {
@@ -63,7 +62,7 @@ export class Chat {
     return this.currentMessage.parts.map(part => part.content).join('');
   }
 
-  getMessages(): MessageParam[] {
+  getMessages(): Anthropic.MessageParam[] {
     return this.messages.map(msg => ({
       role: msg.role,
       content: msg.parts.map(part => part.content).join('')
@@ -72,7 +71,7 @@ export class Chat {
 
   clear() {
     this.messages = [];
-    this.currentMessage = null;
+    delete this.currentMessage;
   }
 
   render(): string {

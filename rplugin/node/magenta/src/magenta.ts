@@ -2,17 +2,20 @@ import { AnthropicClient } from './anthropic';
 import { Neovim, NvimPlugin } from 'neovim';
 import { Sidebar } from './sidebar';
 import { Chat } from './chat';
+import { Logger } from './logger'
 
 class Magenta {
   private anthropicClient: AnthropicClient;
   private sidebar: Sidebar;
   private chat: Chat;
+  private logger: Logger;
 
   constructor(private nvim: Neovim, plugin: NvimPlugin) {
-    console.error('Hello from magenta')
-    this.anthropicClient = new AnthropicClient();
-    this.sidebar = new Sidebar(this.nvim);
-    this.chat = new Chat(this.nvim);
+    this.logger = new Logger(this.nvim, { level: 'trace' });
+    this.logger.debug(`Initializing plugin`)
+    this.anthropicClient = new AnthropicClient(this.logger);
+    this.sidebar = new Sidebar(this.nvim, this.logger);
+    this.chat = new Chat();
 
     plugin.registerCommand('Magenta', (args: string[]) => this.command(args), {
       nargs: '1'
@@ -20,11 +23,13 @@ class Magenta {
   }
 
   async command(args: string[]): Promise<void> {
+    this.logger.debug(`Received command ${args[0]}`)
     switch (args[0]) {
-      case 'toggle':
+      case 'toggle': {
         const inputBuffer = await this.sidebar.toggle();
-        this.nvim.lua(`vim.keymap.set('n', '<leader>x', ':Magenta send<CR>', { buffer = ${inputBuffer.id} })`);
+        await this.nvim.lua(`vim.keymap.set('n', '<leader>x', ':Magenta send<CR>', { buffer = ${inputBuffer.id} })`);
         break;
+      }
 
       case 'send':
         await this.sendMessage();
@@ -35,25 +40,26 @@ class Magenta {
         break;
 
       default:
-        await this.nvim.outWrite(`Unrecognized command ${args[0]}\n`);
+        this.logger.error(`Unrecognized command ${args[0]}\n`);
     }
   }
 
   private async sendMessage() {
     const message = await this.sidebar.getMessage();
+    this.logger.trace(`current message: ${message}`)
     if (!message) return;
 
-    // Add user message to chat and display
     this.chat.addMessage('user', message);
-    await this.sidebar.appendToMain({
+    this.chat.addMessage('assistant', '');
+    await this.sidebar.appendToDisplayBuffer({
       text: `\nUser: ${message}\n\nAssistant: `,
       scrollTop: false
     });
 
-    // Stream the assistant's response
-    this.anthropicClient.sendMessage(this.chat.getMessages(), (text) => {
+    this.anthropicClient.sendMessage(this.chat.getMessages(), async (text) => {
+      this.logger.trace(`stream received text ${text}`)
       this.chat.appendToCurrentMessage(text);
-      this.sidebar.appendToMain({
+      await this.sidebar.appendToDisplayBuffer({
         text,
         scrollTop: false
       });
@@ -61,7 +67,14 @@ class Magenta {
   }
 }
 
+let singleton: Magenta | undefined = undefined;
+
 module.exports = (plugin: NvimPlugin) => {
-  console.log('registering plugin')
-  new Magenta(plugin.nvim, plugin)
+  plugin.setOptions({
+    // dev: true,
+    // alwaysInit: true
+  })
+  if (!singleton) {
+    singleton = new Magenta(plugin.nvim, plugin)
+  }
 }

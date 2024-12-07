@@ -10,7 +10,12 @@
     "neovim": "^5.3.0",
     "typescript": "^5.3.3"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@eslint/js": "^9.16.0",
+    "eslint": "^9.16.0",
+    "globals": "^15.13.0",
+    "typescript-eslint": "^8.17.0"
+  },
   "module": "src/index.js",
   "main": "src/index.js",
   "repository": "git@github.com:dlants/magenta.nvim.git",
