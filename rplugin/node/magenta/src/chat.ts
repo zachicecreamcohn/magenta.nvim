@@ -7,11 +7,29 @@ export interface Part {
   endMark?: number;
 }
 
-export interface Message {
-  role: 'user' | 'assistant';
-  parts: Part[];
-  startMark?: number;
-  endMark?: number;
+type Role = 'user' | 'assistant'
+
+export class Message {
+  constructor(public data: {
+    role: Role;
+    parts: Part[];
+    startMark?: number;
+    endMark?: number;
+  }) { }
+
+  append(text: string, type: Part['type'] = 'text') {
+    const lastPart = this.data.parts[this.data.parts.length - 1];
+    if (lastPart && lastPart.type === type) {
+      lastPart.content += text;
+    } else {
+      this.data.parts.push({
+        content: text,
+        type
+      });
+    }
+  }
+
+
 }
 
 export class Chat {
@@ -20,52 +38,23 @@ export class Chat {
 
   constructor() { }
 
-  addMessage(role: Message['role'], content: string): Message {
-    const message: Message = {
+  addMessage(role: Role, content: string): Message {
+    const message: Message = new Message({
       role,
       parts: [{
         content,
         type: 'text'
       }]
-    };
+    });
 
     this.messages.push(message);
     return message;
   }
 
-  appendToCurrentMessage(text: string, type: Part['type'] = 'text') {
-    if (!this.currentMessage) {
-      this.currentMessage = {
-        role: 'assistant',
-        parts: []
-      };
-      this.messages.push(this.currentMessage);
-    }
-
-    const lastPart = this.currentMessage.parts[this.currentMessage.parts.length - 1];
-    if (lastPart && lastPart.type === type) {
-      lastPart.content += text;
-    } else {
-      this.currentMessage.parts.push({
-        content: text,
-        type
-      });
-    }
-  }
-
-  finishCurrentMessage() {
-    delete this.currentMessage;
-  }
-
-  getCurrentMessage(): string {
-    if (!this.currentMessage) return '';
-    return this.currentMessage.parts.map(part => part.content).join('');
-  }
-
   getMessages(): Anthropic.MessageParam[] {
     return this.messages.map(msg => ({
-      role: msg.role,
-      content: msg.parts.map(part => part.content).join('')
+      role: msg.data.role,
+      content: msg.data.parts.map(part => part.content).join('')
     }));
   }
 
@@ -76,8 +65,8 @@ export class Chat {
 
   render(): string {
     return this.messages.map(msg => {
-      const role = msg.role.charAt(0).toUpperCase() + msg.role.slice(1);
-      const content = msg.parts.map(part => part.content).join('');
+      const role = msg.data.role.charAt(0).toUpperCase() + msg.data.role.slice(1);
+      const content = msg.data.parts.map(part => part.content).join('');
       return `${role}: ${content}`;
     }).join('\n\n');
   }

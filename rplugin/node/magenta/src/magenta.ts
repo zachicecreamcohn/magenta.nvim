@@ -50,15 +50,16 @@ class Magenta {
     if (!message) return;
 
     this.chat.addMessage('user', message);
-    this.chat.addMessage('assistant', '');
+    const currentMessage = this.chat.addMessage('assistant', '');
     await this.sidebar.appendToDisplayBuffer({
       text: `\nUser: ${message}\n\nAssistant: `,
       scrollTop: false
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     this.anthropicClient.sendMessage(this.chat.getMessages(), async (text) => {
       this.logger.trace(`stream received text ${text}`)
-      this.chat.appendToCurrentMessage(text);
+      currentMessage.append(text);
       await this.sidebar.appendToDisplayBuffer({
         text,
         scrollTop: false
