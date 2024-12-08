@@ -9,16 +9,11 @@ class Magenta {
   private anthropicClient: AnthropicClient;
   private sidebar: Sidebar;
 
-  constructor(private context: Context, plugin: NvimPlugin, private chat: Chat) {
+  constructor(private context: Context, private chat: Chat) {
     this.context.logger.debug(`Initializing plugin`)
     this.anthropicClient = new AnthropicClient(this.context.logger);
     this.sidebar = new Sidebar(this.context.nvim, this.context.logger);
 
-    plugin.registerCommand('Magenta', (args: string[]) => this.command(args).catch((err: Error) => {
-      this.context.logger.error(err)
-    }), {
-      nargs: '1'
-    })
   }
 
   async command(args: string[]): Promise<void> {
@@ -59,11 +54,11 @@ class Magenta {
 
   static async init(plugin: NvimPlugin, logger: Logger) {
     const chat = await Chat.init({ nvim: plugin.nvim, logger })
-    return new Magenta({ nvim: plugin.nvim, logger }, plugin, chat)
+    return new Magenta({ nvim: plugin.nvim, logger }, chat)
   }
 }
 
-let singletonPromise: Promise<Magenta> | undefined = undefined;
+let init: { magenta: Promise<Magenta>, logger: Logger } | undefined = undefined;
 
 module.exports = (plugin: NvimPlugin) => {
   plugin.setOptions({
@@ -71,13 +66,29 @@ module.exports = (plugin: NvimPlugin) => {
     // alwaysInit: true
   })
 
-  if (!singletonPromise) {
+  if (!init) {
     const logger = new Logger(plugin.nvim, { level: 'trace' });
     process.on('uncaughtException', (error) => {
       logger.error(error);
       process.exit(1);
     });
 
-    singletonPromise = Magenta.init(plugin, logger)
+    init = {
+      magenta: Magenta.init(plugin, logger),
+      logger
+    }
   }
+
+  plugin.registerCommand('Magenta', async (args: string[]) => {
+    try {
+      const magenta = await init!.magenta
+      await magenta.command(args)
+    } catch (err) {
+      init!.logger.error(err as Error)
+    }
+  }, {
+
+    nargs: '1'
+  })
+
 }
