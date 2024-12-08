@@ -48,47 +48,26 @@ export class Message {
     const lines = text.split('\n');
     if (lines.length === 0) return;
 
-    // Get the current position of our message using the marks
-    // const startPos = await this.nvim.callFunction('nvim_buf_get_extmark_by_id', [
-    //   this.displayBuffer.id,
-    //   1, // namespace id
-    //   this.data.startMark,
-    //   {}
-    // ]) as [number, number];
-
-    // do a trace log of all of the following params
     logger.trace(`getExtMark ${typeof nvim}, ${this.chat.displayBuffer.id}, ${this.chat.namespace}, ${this.data.endMark}`)
-    const endPos = await getExtMark({
+    const [endRow, endCol] = await getExtMark({
       nvim,
       buffer: this.chat.displayBuffer,
       namespace: this.chat.namespace,
       markId: this.data.endMark,
     });
 
-    logger.trace(`endPos ${JSON.stringify(endPos)}`)
+    logger.trace(`endPos ${JSON.stringify([endRow, endCol])}`)
 
     await this.chat.displayBuffer.setOption('modifiable', true);
 
-    const lastLines = await this.chat.displayBuffer.getLines({
-      start: endPos[0] - 1,
-      end: endPos[0],
-      strictIndexing: false
-    });
-    const lastLine = lastLines.length ? lastLines[0] : '';
-
-    await this.chat.displayBuffer.setLines(lastLine + lines[0], {
-      start: endPos[0] - 1,
-      end: endPos[0],
-      strictIndexing: false
-    });
-
-    if (lines.length > 1) {
-      await this.chat.displayBuffer.setLines(lines.slice(1), {
-        start: endPos[0],
-        end: endPos[0],
-        strictIndexing: false
-      });
-    }
+    await nvim.call('nvim_buf_set_text', [
+      this.chat.displayBuffer.id,
+      endRow,
+      endCol,
+      endRow,
+      endCol,
+      lines
+    ]);
 
     await this.chat.displayBuffer.setOption('modifiable', false);
   }
@@ -134,7 +113,7 @@ export class Chat {
       nvim,
       buffer: this.displayBuffer,
       namespace: this.namespace,
-      row: bufLength + messageLines.length,
+      row: bufLength + messageLines.length - 1,
       col: 0
     });
 
