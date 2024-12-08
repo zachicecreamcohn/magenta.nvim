@@ -86,7 +86,6 @@ export class Chat {
 
     const bufLength = await this.displayBuffer.length;
 
-    // Add a blank line before message
     await this.displayBuffer.setLines([''], {
       start: bufLength,
       end: bufLength,
@@ -101,7 +100,7 @@ export class Chat {
       col: 0
     });
 
-    const messageLines = [...lines, '<endmessage>'];
+    const messageLines = [...lines, '<end>'];
 
     await this.displayBuffer.setLines(messageLines, {
       start: bufLength,
@@ -125,7 +124,7 @@ export class Chat {
   async addMessage(role: Role, content?: string): Promise<Message> {
     const rolePrefix = role.charAt(0).toUpperCase() + role.slice(1) + ': ';
     const contentLines = content ? content.split('\n') : [];
-    const messageLines = [rolePrefix, ...contentLines];
+    const messageLines = ['', rolePrefix, '', ...contentLines];
 
     const { startMark, endMark } = await this.createMessageShell(messageLines);
 
