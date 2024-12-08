@@ -21,16 +21,16 @@ export class AnthropicClient {
     const buf: string[] = [];
     let flushInProgress: boolean = false;
 
-    function flushBuffer() {
+    const flushBuffer = () => {
       if (buf.length && !flushInProgress) {
         const text = buf.join('');
         buf.splice(0);
 
         flushInProgress = true;
 
-
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        onText(text).finally(() => {
+        onText(text).catch((e: Error) => {
+          this.logger.error(e)
+        }).finally(() => {
           flushInProgress = false;
           setInterval(flushBuffer, 1)
         })

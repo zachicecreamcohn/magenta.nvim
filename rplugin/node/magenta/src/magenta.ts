@@ -1,33 +1,31 @@
 import { AnthropicClient } from './anthropic';
-import { Neovim, NvimPlugin } from 'neovim';
+import { NvimPlugin } from 'neovim';
 import { Sidebar } from './sidebar';
 import { Chat } from './chat';
 import { Logger } from './logger'
+import { Context } from './types';
 
 class Magenta {
   private anthropicClient: AnthropicClient;
   private sidebar: Sidebar;
-  private chat: Chat;
-  private logger: Logger;
 
-  constructor(private nvim: Neovim, plugin: NvimPlugin) {
-    this.logger = new Logger(this.nvim, { level: 'trace' });
-    this.logger.debug(`Initializing plugin`)
-    this.anthropicClient = new AnthropicClient(this.logger);
-    this.sidebar = new Sidebar(this.nvim, this.logger);
-    this.chat = new Chat();
+  constructor(private context: Context, plugin: NvimPlugin, private chat: Chat) {
+    this.context.logger.debug(`Initializing plugin`)
+    this.anthropicClient = new AnthropicClient(this.context.logger);
+    this.sidebar = new Sidebar(this.context.nvim, this.context.logger);
 
-    plugin.registerCommand('Magenta', (args: string[]) => this.command(args), {
+    plugin.registerCommand('Magenta', (args: string[]) => this.command(args).catch((err: Error) => {
+      this.context.logger.error(err)
+    }), {
       nargs: '1'
     })
   }
 
   async command(args: string[]): Promise<void> {
-    this.logger.debug(`Received command ${args[0]}`)
+    this.context.logger.debug(`Received command ${args[0]}`)
     switch (args[0]) {
       case 'toggle': {
-        const inputBuffer = await this.sidebar.toggle();
-        await this.nvim.lua(`vim.keymap.set('n', '<leader>x', ':Magenta send<CR>', { buffer = ${inputBuffer.id} })`);
+        await this.sidebar.toggle(this.chat.displayBuffer);
         break;
       }
 
@@ -40,42 +38,46 @@ class Magenta {
         break;
 
       default:
-        this.logger.error(`Unrecognized command ${args[0]}\n`);
+        this.context.logger.error(`Unrecognized command ${args[0]}\n`);
     }
   }
 
   private async sendMessage() {
     const message = await this.sidebar.getMessage();
-    this.logger.trace(`current message: ${message}`)
+    this.context.logger.trace(`current message: ${message}`)
     if (!message) return;
 
-    this.chat.addMessage('user', message);
-    const currentMessage = this.chat.addMessage('assistant', '');
-    await this.sidebar.appendToDisplayBuffer({
-      text: `\nUser: ${message}\n\nAssistant: `,
-      scrollTop: false
-    });
+    await this.chat.addMessage('user', message);
+    const currentMessage = await this.chat.addMessage('assistant', '');
 
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
     this.anthropicClient.sendMessage(this.chat.getMessages(), async (text) => {
-      this.logger.trace(`stream received text ${text}`)
-      currentMessage.append(text);
-      await this.sidebar.appendToDisplayBuffer({
-        text,
-        scrollTop: false
-      });
+      this.context.logger.trace(`stream received text ${text}`)
+      await currentMessage.append(text);
     });
+  }
+
+  static async init(plugin: NvimPlugin, logger: Logger) {
+    const chat = await Chat.init({ nvim: plugin.nvim, logger })
+    return new Magenta({ nvim: plugin.nvim, logger }, plugin, chat)
   }
 }
 
-let singleton: Magenta | undefined = undefined;
+let singletonPromise: Promise<Magenta> | undefined = undefined;
 
 module.exports = (plugin: NvimPlugin) => {
   plugin.setOptions({
     // dev: true,
     // alwaysInit: true
   })
-  if (!singleton) {
-    singleton = new Magenta(plugin.nvim, plugin)
+
+  if (!singletonPromise) {
+    const logger = new Logger(plugin.nvim, { level: 'trace' });
+    process.on('uncaughtException', (error) => {
+      logger.error(error);
+      process.exit(1);
+    });
+
+    singletonPromise = Magenta.init(plugin, logger)
   }
 }
