@@ -1,12 +1,26 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { Buffer } from 'neovim'
-import { Context } from './types';
-import { getExtMark, setExtMark } from './utils/extmarks';
-import { ToolResultBlockParam } from '@anthropic-ai/sdk/resources';
-import { GetFileToolUseRequest } from './tools';
+import Anthropic from "@anthropic-ai/sdk";
+import { Buffer } from "neovim";
+import { Context } from "./types";
+import {
+  createMarkedSpaces,
+  getExtMark,
+  Mark,
+  replaceBetweenMarks,
+} from "./utils/extmarks";
+import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources";
+import { GetFileToolUseRequest } from "./tools";
+import {
+  appendToTextPart,
+  createTextPart,
+  createToolUsePart,
+  Line,
+  Part,
+  partToMessageParam,
+  renderPart,
+  ToolUsePart,
+} from "./part";
 
-export type Part = Anthropic.TextBlockParam | GetFileToolUseRequest | Anthropic.ToolResultBlockParam;
-type Role = 'user' | 'assistant'
+type Role = "user" | "assistant";
 
 export class Message {
   constructor(
@@ -14,171 +28,185 @@ export class Message {
     public data: {
       role: Role;
       parts: Part[];
-      startMark: number;
-      endMark: number;
-    }
-  ) { }
+      startMark: Mark;
+      endMark: Mark;
+    },
+  ) {}
 
-  async appendText(text: string) {
-    const lastPart = this.data.parts[this.data.parts.length - 1];
-    if (lastPart && lastPart.type === 'text') {
-      lastPart.text += text;
-    } else {
-      this.data.parts.push({
-        text,
-        type: 'text'
-      });
-    }
-
-    await this.appendToDisplayBuffer(text);
-  }
-
-  async addToolUse(toolUse: GetFileToolUseRequest) {
-    // Add a visual indicator in the buffer
-    const summary = `🔧 Using tool: ${toolUse.name} <${toolUse.input.path}>`;
-    await this.appendToDisplayBuffer(`\n${summary}\n`);
-
-    // Add the tool use to the message parts
-    this.data.parts.push(toolUse);
-  }
-
-  private async appendToDisplayBuffer(text: string) {
-    const { nvim, logger } = this.chat.context;
-    logger.trace(`appendToDisplayBuffer ${text}`)
-    const lines = text.split('\n');
-    if (lines.length === 0) return;
-
-    logger.trace(`getExtMark ${typeof nvim}, ${this.chat.displayBuffer.id}, ${this.chat.namespace}, ${this.data.endMark}`)
-    const [endRow, endCol] = await getExtMark({
-      nvim,
+  // Create a shell right before the endMark for this message
+  async createPartShell() {
+    const [row, col] = await getExtMark({
+      nvim: this.chat.context.nvim,
       buffer: this.chat.displayBuffer,
       namespace: this.chat.namespace,
       markId: this.data.endMark,
     });
 
-    logger.trace(`endPos ${JSON.stringify([endRow, endCol])}`)
+    return createMarkedSpaces({
+      nvim: this.chat.context.nvim,
+      buffer: this.chat.displayBuffer,
+      namespace: this.chat.namespace,
+      row,
+      col,
+    });
+  }
 
-    await this.chat.displayBuffer.setOption('modifiable', true);
+  async appendText(text: string) {
+    const lastPart = this.data.parts[this.data.parts.length - 1];
+    if (lastPart && lastPart.type === "text") {
+      await appendToTextPart(lastPart, text, {
+        nvim: this.chat.context.nvim,
+        buffer: this.chat.displayBuffer,
+        namespace: this.chat.namespace,
+      });
+    } else {
+      const { startMark, endMark } = await this.createPartShell();
+      const textPart = await createTextPart({
+        text,
+        startMark,
+        endMark,
+        nvim: this.chat.context.nvim,
+        buffer: this.chat.displayBuffer,
+        namespace: this.chat.namespace,
+      });
 
-    await nvim.call('nvim_buf_set_text', [
-      this.chat.displayBuffer.id,
-      endRow,
-      endCol,
-      endRow,
-      endCol,
-      lines
-    ]);
+      this.data.parts.push(textPart);
+    }
+  }
 
-    await this.chat.displayBuffer.setOption('modifiable', false);
+  async addToolUse(toolUse: GetFileToolUseRequest) {
+    const { startMark, endMark } = await this.createPartShell();
+    const toolUsePart = await createToolUsePart({
+      toolUse,
+      startMark,
+      endMark,
+      nvim: this.chat.context.nvim,
+      buffer: this.chat.displayBuffer,
+      namespace: this.chat.namespace,
+    });
+
+    this.data.parts.push(toolUsePart);
+    this.chat.context.logger.trace(
+      `Registering part with tool use id ${toolUse.id}`,
+    );
+    this.chat.registerToolUse(toolUsePart);
   }
 }
 
+export type ChatState =
+  | {
+      state: "pending-user-input";
+    }
+  | {
+      state: "streaming-response";
+    }
+  | {
+      state: "awaiting-tool-use";
+    };
+
 export class Chat {
   private messages: Message[] = [];
+  private toolParts: {
+    [tool_use_id: string]: ToolUsePart;
+  } = {};
 
-  private constructor(public displayBuffer: Buffer, public namespace: number, public context: Context) {
-  }
+  private constructor(
+    public displayBuffer: Buffer,
+    public namespace: number,
+    public context: Context,
+  ) {}
 
-  private async createMessageShell(lines: string[]): Promise<{ startMark: number; endMark: number }> {
-    const { nvim } = this.context;
-
-    await this.displayBuffer.setOption('modifiable', true);
-
+  async addMessage(role: Role, content?: string): Promise<Message> {
     const bufLength = await this.displayBuffer.length;
 
-    await this.displayBuffer.setLines([''], {
+    await this.displayBuffer.setOption("modifiable", true);
+    this.context.logger.trace(`creating new message at ${bufLength}`);
+    await this.displayBuffer.setLines([""], {
       start: bufLength,
       end: bufLength,
-      strictIndexing: false
+      strictIndexing: false,
     });
+    await this.displayBuffer.setOption("modifiable", false);
 
-    const startMark = await setExtMark({
-      nvim,
+    const { startMark, endMark } = await createMarkedSpaces({
+      nvim: this.context.nvim,
       buffer: this.displayBuffer,
       namespace: this.namespace,
       row: bufLength,
-      col: 0
+      col: 0,
     });
+    this.context.logger.trace(
+      `creating new message shell at marks ${startMark}, ${endMark}`,
+    );
 
-    const messageLines = [...lines, '<end>'];
+    const rolePrefix = (role.charAt(0).toUpperCase() +
+      role.slice(1) +
+      ": ") as Line;
+    const messageHeaderLines = ["", rolePrefix, ""] as Line[];
 
-    await this.displayBuffer.setLines(messageLines, {
-      start: bufLength,
-      end: bufLength + 1,
-      strictIndexing: false
-    });
-
-    const endMark = await setExtMark({
-      nvim,
+    this.context.logger.trace(`calling replaceBetweenMarks`);
+    await replaceBetweenMarks({
+      nvim: this.context.nvim,
       buffer: this.displayBuffer,
+      startMark,
+      endMark,
+      lines: messageHeaderLines,
       namespace: this.namespace,
-      row: bufLength + messageLines.length - 1,
-      col: 0
     });
 
-    await this.displayBuffer.setOption('modifiable', false);
-
-    return { startMark, endMark };
-  }
-
-  async addMessage(role: Role, content?: string): Promise<Message> {
-    const rolePrefix = role.charAt(0).toUpperCase() + role.slice(1) + ': ';
-    const contentLines = content ? content.split('\n') : [];
-    const messageLines = ['', rolePrefix, '', ...contentLines];
-
-    const { startMark, endMark } = await this.createMessageShell(messageLines);
-
-    const parts: Part[] = [];
-    if (content) {
-      parts.push({
-        type: 'text',
-        text: content
-      });
-    }
-
+    this.context.logger.trace(`creating message`);
     const message = new Message(this, {
       role,
-      parts,
+      parts: [],
       startMark,
-      endMark
+      endMark,
     });
-
     this.messages.push(message);
-    return message;
-  }
 
-  async addToolUseMessage(toolResults: ToolResultBlockParam[]) {
-    // Format concise summaries for display
-    const messageLines = ['Tool Results:'];
-    for (const result of toolResults) {
-      const status = result.is_error ? '❌' : '✓';
-
-      if (result.is_error) {
-        messageLines.push(`${status} Failed to read file`);
-      } else {
-        messageLines.push(`${status} Read file successfully`);
-      }
+    if (content) {
+      this.context.logger.trace(`Appending content to message`);
+      await message.appendText(content);
     }
 
-    const { startMark, endMark } = await this.createMessageShell(messageLines);
-
-    // Create a new user message with the full tool results
-    const message = new Message(this, {
-      role: 'user',
-      parts: toolResults,
-      startMark,
-      endMark
-    });
-
-    this.messages.push(message);
     return message;
   }
 
   getMessages(): Anthropic.MessageParam[] {
-    return this.messages.map(msg => ({
+    return this.messages.map((msg) => ({
       role: msg.data.role,
-      content: msg.data.parts,
+      content: msg.data.parts.map(partToMessageParam),
     }));
+  }
+
+  registerToolUse(part: ToolUsePart) {
+    this.toolParts[part.request.id] = part;
+  }
+
+  async updateToolUse(
+    req: GetFileToolUseRequest,
+    response: ToolResultBlockParam,
+  ) {
+    if (response.tool_use_id != req.id) {
+      throw new Error(
+        `response tool_use_id ${response.tool_use_id} != req.id ${req.id}`,
+      );
+    }
+
+    const part = this.toolParts[req.id];
+    if (!part) {
+      throw new Error(`unable to find toolUse with id ${req.id}`);
+    }
+
+    part.state = {
+      state: "done",
+      response,
+    };
+
+    await renderPart(part, {
+      nvim: this.context.nvim,
+      buffer: this.displayBuffer,
+      namespace: this.namespace,
+    });
   }
 
   clear() {
@@ -188,13 +216,13 @@ export class Chat {
   static async init(context: Context) {
     const { nvim, logger } = context;
 
-    const namespace = await nvim.createNamespace('magenta-chat');
-    const displayBuffer = await nvim.createBuffer(false, true) as Buffer;
-    logger.trace(`displayBuffer: ${displayBuffer.id}`)
+    const namespace = await nvim.createNamespace("magenta-chat");
+    const displayBuffer = (await nvim.createBuffer(false, true)) as Buffer;
+    logger.trace(`displayBuffer: ${displayBuffer.id}`);
 
-    await displayBuffer.setOption('buftype', 'nofile');
-    await displayBuffer.setOption('swapfile', false);
-    await displayBuffer.setOption('modifiable', false);
+    await displayBuffer.setOption("buftype", "nofile");
+    await displayBuffer.setOption("swapfile", false);
+    await displayBuffer.setOption("modifiable", false);
 
     return new Chat(displayBuffer, namespace, context);
   }
