@@ -27,9 +27,16 @@ class Magenta {
         break;
       }
 
-      case "send":
+      case "send": {
+        const message = await this.sidebar.getMessage();
+        this.context.logger.trace(`current message: ${message}`);
+        if (!message) return;
+
+        await this.chat.addMessage("user", message);
+
         await this.sendMessage();
         break;
+      }
 
       case "clear":
         this.chat.clear();
@@ -41,13 +48,7 @@ class Magenta {
   }
 
   private async sendMessage() {
-    const message = await this.sidebar.getMessage();
-    this.context.logger.trace(`current message: ${message}`);
-    if (!message) return;
-
-    await this.chat.addMessage("user", message);
     const currentMessage = await this.chat.addMessage("assistant", "");
-
     const toolRequests = await this.anthropicClient.sendMessage(
       this.chat.getMessages(),
       async (text) => {
@@ -64,9 +65,14 @@ class Magenta {
       await Promise.all(
         toolRequests.map(async (req) => {
           const response = await TOOLS.get_file.execRequest(req, this.context);
-          await this.chat.updateToolUse(req, response);
+          await this.chat.handleToolResponse(req, response);
         }),
       );
+
+      // there were tool requests that all finished, so send a followup
+      if (!this.chat.hasPendingTools()) {
+        await this.sendMessage();
+      }
     }
   }
 

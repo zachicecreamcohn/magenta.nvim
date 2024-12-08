@@ -4,6 +4,7 @@ import { GetFileToolUseRequest } from "./tools";
 import { Buffer } from "neovim";
 import { Neovim } from "neovim";
 import { assertUnreachable } from "./utils/assertUnreachable";
+import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources";
 
 /** A line that's meant to be sent to neovim. Should not contain newlines
  */
@@ -30,6 +31,9 @@ export type TextPart = {
   param: Anthropic.TextBlockParam;
 };
 
+/** This is just to display the initial tool request, and also provide a place where the user can
+ * respond to things that require manual confirmation.
+ */
 export type ToolUsePart = {
   type: "tool-use";
   startMark: Mark;
@@ -38,7 +42,18 @@ export type ToolUsePart = {
   state: ToolUseState;
 };
 
-export type Part = TextPart | ToolUsePart;
+/** This is the actual result. It will show up in chat in the order that tool use was approved.
+ * (to keep things chronological for the LLM).
+ */
+export type ToolResultPart = {
+  type: "tool-result";
+  startMark: Mark;
+  endMark: Mark;
+  request: GetFileToolUseRequest;
+  response: Anthropic.ToolResultBlockParam;
+};
+
+export type Part = TextPart | ToolUsePart | ToolResultPart;
 
 function renderPartToLines(part: Part): Line[] {
   switch (part.type) {
@@ -62,6 +77,23 @@ function renderPartToLines(part: Part): Line[] {
       }
       return [summary, stateText];
     }
+    case "tool-result": {
+      const summary = `🔧 Tool result: ${part.request.name}` as Line;
+      let stateText: Line;
+      switch (part.response.is_error) {
+        case true:
+          stateText = "❌ Error" as Line;
+          break;
+        case undefined:
+        case false:
+          stateText = "✅ Success" as Line;
+          break;
+        default:
+          assertUnreachable(part.response.is_error);
+      }
+      return [summary, stateText];
+    }
+
     default:
       assertUnreachable(part);
   }
@@ -166,14 +198,49 @@ export async function createToolUsePart({
   return part;
 }
 
+export async function createToolResponsePart({
+  toolUse,
+  toolResponse,
+  startMark,
+  endMark,
+  nvim,
+  buffer,
+  namespace,
+}: {
+  toolResponse: ToolResultBlockParam;
+  toolUse: GetFileToolUseRequest;
+  startMark: Mark;
+  endMark: Mark;
+  nvim: Neovim;
+  buffer: Buffer;
+  namespace: number;
+}): Promise<ToolResultPart> {
+  const part: ToolResultPart = {
+    type: "tool-result",
+    startMark,
+    endMark,
+    request: toolUse,
+    response: toolResponse,
+  };
+
+  await renderPart(part, { nvim, buffer, namespace });
+
+  return part;
+}
+
 export function partToMessageParam(
   part: Part,
-): Anthropic.TextBlockParam | Anthropic.ToolUseBlockParam {
+):
+  | Anthropic.TextBlockParam
+  | Anthropic.ToolUseBlockParam
+  | Anthropic.ToolResultBlockParam {
   switch (part.type) {
     case "text":
       return part.param;
     case "tool-use":
       return part.request;
+    case "tool-result":
+      return part.response;
     default:
       assertUnreachable(part);
   }

@@ -12,6 +12,7 @@ import { GetFileToolUseRequest } from "./tools";
 import {
   appendToTextPart,
   createTextPart,
+  createToolResponsePart,
   createToolUsePart,
   Line,
   Part,
@@ -91,6 +92,25 @@ export class Message {
     );
     this.chat.registerToolUse(toolUsePart);
   }
+
+  async addToolResponse(
+    toolUse: GetFileToolUseRequest,
+    response: ToolResultBlockParam,
+  ) {
+    const { startMark, endMark } = await this.createPartShell();
+    const toolUsePart = await createToolResponsePart({
+      toolUse,
+      toolResponse: response,
+      startMark,
+      endMark,
+      nvim: this.chat.context.nvim,
+      buffer: this.chat.displayBuffer,
+      namespace: this.chat.namespace,
+    });
+
+    this.data.parts.push(toolUsePart);
+    this.chat.context.logger.trace(`Adding tool response for id ${toolUse.id}`);
+  }
 }
 
 export type ChatState =
@@ -109,6 +129,8 @@ export class Chat {
   private toolParts: {
     [tool_use_id: string]: ToolUsePart;
   } = {};
+
+  private pendingTools: Set<string> = new Set();
 
   private constructor(
     public displayBuffer: Buffer,
@@ -180,12 +202,13 @@ export class Chat {
 
   registerToolUse(part: ToolUsePart) {
     this.toolParts[part.request.id] = part;
+    this.pendingTools.add(part.request.id);
   }
 
-  async updateToolUse(
+  async handleToolResponse(
     req: GetFileToolUseRequest,
     response: ToolResultBlockParam,
-  ) {
+  ): Promise<void> {
     if (response.tool_use_id != req.id) {
       throw new Error(
         `response tool_use_id ${response.tool_use_id} != req.id ${req.id}`,
@@ -202,11 +225,25 @@ export class Chat {
       response,
     };
 
+    this.pendingTools.delete(req.id);
+
     await renderPart(part, {
       nvim: this.context.nvim,
       buffer: this.displayBuffer,
       namespace: this.namespace,
     });
+
+    const lastMessage = this.messages[this.messages.length - 1];
+    let responseMessage = lastMessage;
+    if (lastMessage.data.role != "user") {
+      responseMessage = await this.addMessage("user");
+    }
+
+    await responseMessage.addToolResponse(req, response);
+  }
+
+  hasPendingTools() {
+    return this.pendingTools.size > 0;
   }
 
   clear() {
