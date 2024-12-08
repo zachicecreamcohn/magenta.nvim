@@ -2,14 +2,10 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Buffer } from 'neovim'
 import { Context } from './types';
 import { getExtMark, setExtMark } from './utils/extmarks';
+import { ToolResultBlockParam } from '@anthropic-ai/sdk/resources';
+import { GetFileToolUseRequest } from './tools';
 
-export interface Part {
-  content: string;
-  type: 'text' | 'code' | 'error';
-  startMark?: number;
-  endMark?: number;
-}
-
+export type Part = Anthropic.TextBlockParam | GetFileToolUseRequest | Anthropic.ToolResultBlockParam;
 type Role = 'user' | 'assistant'
 
 export class Message {
@@ -23,18 +19,27 @@ export class Message {
     }
   ) { }
 
-  async append(text: string, type: Part['type'] = 'text') {
+  async appendText(text: string) {
     const lastPart = this.data.parts[this.data.parts.length - 1];
-    if (lastPart && lastPart.type === type) {
-      lastPart.content += text;
+    if (lastPart && lastPart.type === 'text') {
+      lastPart.text += text;
     } else {
       this.data.parts.push({
-        content: text,
-        type
+        text,
+        type: 'text'
       });
     }
 
     await this.appendToDisplayBuffer(text);
+  }
+
+  async addToolUse(toolUse: GetFileToolUseRequest) {
+    // Add a visual indicator in the buffer
+    const summary = `🔧 Using tool: ${toolUse.name} <${toolUse.input.path}>`;
+    await this.appendToDisplayBuffer(`\n${summary}\n`);
+
+    // Add the tool use to the message parts
+    this.data.parts.push(toolUse);
   }
 
   private async appendToDisplayBuffer(text: string) {
@@ -95,52 +100,62 @@ export class Chat {
   private constructor(public displayBuffer: Buffer, public namespace: number, public context: Context) {
   }
 
-  async addMessage(role: Role, content?: string): Promise<Message> {
-    const { nvim, logger } = this.context;
+  private async createMessageShell(lines: string[]): Promise<{ startMark: number; endMark: number }> {
+    const { nvim } = this.context;
 
-    logger.trace(`addMessage`)
     await this.displayBuffer.setOption('modifiable', true);
 
     const bufLength = await this.displayBuffer.length;
-    logger.trace(`bufLength ${bufLength}`)
 
+    // Add a blank line before message
     await this.displayBuffer.setLines([''], {
       start: bufLength,
       end: bufLength,
       strictIndexing: false
     });
 
-    logger.trace(`setting mark for ns ${this.namespace}`)
     const startMark = await setExtMark({
       nvim,
       buffer: this.displayBuffer,
       namespace: this.namespace,
       row: bufLength,
       col: 0
-    })
+    });
 
-    logger.trace(`startMark ${startMark}`)
+    const messageLines = [...lines, '<endmessage>'];
 
-    const rolePrefix = role.charAt(0).toUpperCase() + role.slice(1) + ': ';
-    const contentLines = content ? content.split('\n') : []
-    const messageLines = ['', rolePrefix, ...contentLines, '<endmessage>']
-    logger.trace(`messageLines: ${JSON.stringify(messageLines, null, 2)}`)
     await this.displayBuffer.setLines(messageLines, {
       start: bufLength,
       end: bufLength + 1,
       strictIndexing: false
     });
 
-    const endMark = await setExtMark({ nvim, buffer: this.displayBuffer, namespace: this.namespace, row: bufLength + 1, col: 0 })
+    const endMark = await setExtMark({
+      nvim,
+      buffer: this.displayBuffer,
+      namespace: this.namespace,
+      row: bufLength + messageLines.length,
+      col: 0
+    });
 
     await this.displayBuffer.setOption('modifiable', false);
 
-    const parts: Part[] = []
+    return { startMark, endMark };
+  }
+
+  async addMessage(role: Role, content?: string): Promise<Message> {
+    const rolePrefix = role.charAt(0).toUpperCase() + role.slice(1) + ': ';
+    const contentLines = content ? content.split('\n') : [];
+    const messageLines = [rolePrefix, ...contentLines];
+
+    const { startMark, endMark } = await this.createMessageShell(messageLines);
+
+    const parts: Part[] = [];
     if (content) {
       parts.push({
         type: 'text',
-        content: content
-      })
+        text: content
+      });
     }
 
     const message = new Message(this, {
@@ -154,10 +169,37 @@ export class Chat {
     return message;
   }
 
+  async addToolUseMessage(toolResults: ToolResultBlockParam[]) {
+    // Format concise summaries for display
+    const messageLines = ['Tool Results:'];
+    for (const result of toolResults) {
+      const status = result.is_error ? '❌' : '✓';
+
+      if (result.is_error) {
+        messageLines.push(`${status} Failed to read file`);
+      } else {
+        messageLines.push(`${status} Read file successfully`);
+      }
+    }
+
+    const { startMark, endMark } = await this.createMessageShell(messageLines);
+
+    // Create a new user message with the full tool results
+    const message = new Message(this, {
+      role: 'user',
+      parts: toolResults,
+      startMark,
+      endMark
+    });
+
+    this.messages.push(message);
+    return message;
+  }
+
   getMessages(): Anthropic.MessageParam[] {
     return this.messages.map(msg => ({
       role: msg.data.role,
-      content: msg.data.parts.map(part => part.content).join('')
+      content: msg.data.parts,
     }));
   }
 

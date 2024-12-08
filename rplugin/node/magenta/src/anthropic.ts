@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Logger } from './logger'
+import { TOOLS, GetFileToolUseRequest } from './tools'
 
 export class AnthropicClient {
   private client: Anthropic;
@@ -16,7 +17,7 @@ export class AnthropicClient {
     });
   }
 
-  async sendMessage(messages: Array<Anthropic.MessageParam>, onText: (text: string) => Promise<void>) {
+  async sendMessage(messages: Array<Anthropic.MessageParam>, onText: (text: string) => Promise<void>): Promise<GetFileToolUseRequest[]> {
     this.logger.trace(`initializing stream with messages: ${JSON.stringify(messages, null, 2)}`)
     const buf: string[] = [];
     let flushInProgress: boolean = false;
@@ -37,19 +38,26 @@ export class AnthropicClient {
       }
     }
 
-    try {
-      const stream = this.client.messages.stream({
-        messages,
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 1024,
-      }).on('text', (text: string) => {
-        buf.push(text);
-        flushBuffer()
-      });
+    const stream = this.client.messages.stream({
+      messages,
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 1024,
+      system: `You are a coding assistant to a software engineer, inside a neovim plugin called Magenta. Be concise.`,
+      tool_choice: {
+        type: 'auto',
+        disable_parallel_tool_use: false
+      },
+      tools: Object.values(TOOLS).map((t) => t.spec())
+    }).on('text', (text: string) => {
+      buf.push(text);
+      flushBuffer()
+    }).on('inputJson', (_delta, snapshot) => {
+      this.logger.debug(`inputJson: ${JSON.stringify(snapshot)}`)
+    });
 
-      await stream.finalMessage();
-    } catch (e: unknown) {
-      this.logger.error(e as Error)
-    }
+    const response = await stream.finalMessage()
+    const toolRequests = response.content.filter((c): c is GetFileToolUseRequest => c.type == 'tool_use')
+    this.logger.debug('toolRequests: ' + JSON.stringify(toolRequests))
+    return toolRequests;
   }
 }

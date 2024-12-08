@@ -4,6 +4,7 @@ import { Sidebar } from './sidebar';
 import { Chat } from './chat';
 import { Logger } from './logger'
 import { Context } from './types';
+import { TOOLS } from './tools';
 
 class Magenta {
   private anthropicClient: AnthropicClient;
@@ -45,11 +46,21 @@ class Magenta {
     await this.chat.addMessage('user', message);
     const currentMessage = await this.chat.addMessage('assistant', '');
 
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    this.anthropicClient.sendMessage(this.chat.getMessages(), async (text) => {
+    const toolRequests = await this.anthropicClient.sendMessage(this.chat.getMessages(), async (text) => {
       this.context.logger.trace(`stream received text ${text}`)
-      await currentMessage.append(text);
+      await currentMessage.appendText(text);
     });
+
+    if (toolRequests.length) {
+      // First register all tool use requests
+      for (const request of toolRequests) {
+        await currentMessage.addToolUse(request);
+      }
+
+      // Then execute them and add the results
+      const responses = await Promise.all(toolRequests.map((r) => TOOLS.get_file.execRequest(r, this.context)));
+      await this.chat.addToolUseMessage(responses);
+    }
   }
 
   static async init(plugin: NvimPlugin, logger: Logger) {

@@ -1,11 +1,12 @@
-import { Neovim } from "neovim";
-
 export type Options = {
   level: 'debug' | 'info' | 'trace'
 }
 
 export class Logger {
-  constructor(private nvim: Neovim, private options: Options = { level: 'debug' }) { }
+  constructor(private nvim: {
+    outWriteLine: (message: string) => Promise<void>,
+    errWriteLine: (message: string) => Promise<void>
+  }, private options: Options = { level: 'debug' }) { }
 
   log(message: string) {
     console.log(message);
