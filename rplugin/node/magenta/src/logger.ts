@@ -1,12 +1,16 @@
 export type Options = {
-  level: 'debug' | 'info' | 'trace'
-}
+  level: "debug" | "info" | "trace";
+};
 
 export class Logger {
-  constructor(private nvim: {
-    outWriteLine: (message: string) => Promise<void>,
-    errWriteLine: (message: string) => Promise<void>
-  }, private options: Options = { level: 'debug' }) { }
+  constructor(
+    private nvim: {
+      outWriteLine: (message: string) => Promise<void>;
+      errWrite: (message: string) => Promise<void>;
+      errWriteLine: (message: string) => Promise<void>;
+    },
+    private options: Options = { level: "debug" },
+  ) {}
 
   log(message: string) {
     console.log(message);
@@ -15,7 +19,7 @@ export class Logger {
   }
 
   debug(message: string) {
-    if (this.options.level == 'debug' || this.options.level == 'trace') {
+    if (this.options.level == "debug" || this.options.level == "trace") {
       console.log(message);
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       this.nvim.outWriteLine(message);
@@ -23,7 +27,7 @@ export class Logger {
   }
 
   trace(message: string) {
-    if (this.options.level == 'trace') {
+    if (this.options.level == "trace") {
       console.log(message);
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       this.nvim.outWriteLine(message);
@@ -32,7 +36,17 @@ export class Logger {
 
   error(error: Error | string) {
     console.error(error);
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    this.nvim.errWriteLine(typeof error == 'string' ? error : error.toString());
+    if (typeof error == "string") {
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      this.nvim.errWriteLine(error);
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      this.nvim.errWriteLine(error.message);
+
+      if (error.stack) {
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        this.nvim.errWrite(error.stack);
+      }
+    }
   }
 }

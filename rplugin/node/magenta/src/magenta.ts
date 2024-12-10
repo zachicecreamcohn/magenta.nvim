@@ -4,11 +4,15 @@ import { Sidebar } from "./sidebar";
 import { Chat } from "./chat";
 import { Logger } from "./logger";
 import { Context } from "./types";
-import { TOOLS } from "./tools";
+import { TOOLS } from "./tools/index";
+import { assertUnreachable } from "./utils/assertUnreachable";
+import { ToolProcess } from "./tools/types";
+import { Moderator } from "./moderator";
 
 class Magenta {
   private anthropicClient: AnthropicClient;
   private sidebar: Sidebar;
+  private moderator: Moderator;
 
   constructor(
     private context: Context,
@@ -17,6 +21,21 @@ class Magenta {
     this.context.logger.debug(`Initializing plugin`);
     this.anthropicClient = new AnthropicClient(this.context.logger);
     this.sidebar = new Sidebar(this.context.nvim, this.context.logger);
+    this.moderator = new Moderator(
+      this.context,
+      // on tool result
+      (req, res) => {
+        this.chat
+          .addToolResponse(req, res)
+          .catch((err) => this.context.logger.error(err as Error));
+      },
+      // autorespond
+      () => {
+        this.sendMessage().catch((err) =>
+          this.context.logger.error(err as Error),
+        );
+      },
+    );
   }
 
   async command(args: string[]): Promise<void> {
@@ -48,9 +67,11 @@ class Magenta {
   }
 
   private async sendMessage() {
+    const messages = this.chat.getMessages();
+
     const currentMessage = await this.chat.addMessage("assistant", "");
     const toolRequests = await this.anthropicClient.sendMessage(
-      this.chat.getMessages(),
+      messages,
       async (text) => {
         this.context.logger.trace(`stream received text ${text}`);
         await currentMessage.appendText(text);
@@ -59,19 +80,22 @@ class Magenta {
 
     if (toolRequests.length) {
       for (const request of toolRequests) {
-        await currentMessage.addToolUse(request);
-      }
+        let process: ToolProcess;
+        switch (request.name) {
+          case "get_file": {
+            process = TOOLS[request.name].execRequest(request, this.context);
+            break;
+          }
+          case "insert": {
+            process = TOOLS[request.name].execRequest(request, this.context);
+            break;
+          }
+          default:
+            assertUnreachable(request);
+        }
 
-      await Promise.all(
-        toolRequests.map(async (req) => {
-          const response = await TOOLS.get_file.execRequest(req, this.context);
-          await this.chat.handleToolResponse(req, response);
-        }),
-      );
-
-      // there were tool requests that all finished, so send a followup
-      if (!this.chat.hasPendingTools()) {
-        await this.sendMessage();
+        this.moderator.registerProcess(process);
+        await currentMessage.addToolUse(request, process);
       }
     }
   }
@@ -85,10 +109,7 @@ class Magenta {
 let init: { magenta: Promise<Magenta>; logger: Logger } | undefined = undefined;
 
 module.exports = (plugin: NvimPlugin) => {
-  plugin.setOptions({
-    // dev: true,
-    // alwaysInit: true
-  });
+  plugin.setOptions({});
 
   if (!init) {
     const logger = new Logger(plugin.nvim, { level: "trace" });

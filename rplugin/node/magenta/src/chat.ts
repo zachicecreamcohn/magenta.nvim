@@ -8,18 +8,16 @@ import {
   replaceBetweenMarks,
 } from "./utils/extmarks";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources";
-import { GetFileToolUseRequest } from "./tools";
 import {
-  appendToTextPart,
-  createTextPart,
-  createToolResponsePart,
-  createToolUsePart,
   Line,
   Part,
   partToMessageParam,
-  renderPart,
+  TextPart,
+  ToolResultPart,
   ToolUsePart,
 } from "./part";
+import { ToolRequest } from "./tools";
+import { ToolProcess } from "./tools/types";
 
 type Role = "user" | "assistant";
 
@@ -54,62 +52,53 @@ export class Message {
 
   async appendText(text: string) {
     const lastPart = this.data.parts[this.data.parts.length - 1];
-    if (lastPart && lastPart.type === "text") {
-      await appendToTextPart(lastPart, text, {
-        nvim: this.chat.context.nvim,
-        buffer: this.chat.displayBuffer,
-        namespace: this.chat.namespace,
-      });
+    if (lastPart && lastPart instanceof TextPart) {
+      await lastPart.append(text);
     } else {
       const { startMark, endMark } = await this.createPartShell();
-      const textPart = await createTextPart({
-        text,
-        startMark,
-        endMark,
-        nvim: this.chat.context.nvim,
-        buffer: this.chat.displayBuffer,
-        namespace: this.chat.namespace,
-      });
+      const textPart = new TextPart(
+        { type: "text", text },
+        {
+          ...this.chat.context,
+          startMark,
+          endMark,
+          buffer: this.chat.displayBuffer,
+          namespace: this.chat.namespace,
+        },
+      );
+      await textPart.render();
 
       this.data.parts.push(textPart);
     }
   }
 
-  async addToolUse(toolUse: GetFileToolUseRequest) {
+  async addToolUse(request: ToolRequest, process: ToolProcess) {
     const { startMark, endMark } = await this.createPartShell();
-    const toolUsePart = await createToolUsePart({
-      toolUse,
+    const toolUsePart = new ToolUsePart(request, process, {
+      ...this.chat.context,
       startMark,
       endMark,
-      nvim: this.chat.context.nvim,
       buffer: this.chat.displayBuffer,
       namespace: this.chat.namespace,
     });
+    await toolUsePart.render();
 
     this.data.parts.push(toolUsePart);
-    this.chat.context.logger.trace(
-      `Registering part with tool use id ${toolUse.id}`,
-    );
-    this.chat.registerToolUse(toolUsePart);
   }
 
-  async addToolResponse(
-    toolUse: GetFileToolUseRequest,
-    response: ToolResultBlockParam,
-  ) {
+  async addToolResponse(request: ToolRequest, response: ToolResultBlockParam) {
     const { startMark, endMark } = await this.createPartShell();
-    const toolUsePart = await createToolResponsePart({
-      toolUse,
-      toolResponse: response,
+    const toolUsePart = new ToolResultPart(request, response, {
+      ...this.chat.context,
       startMark,
       endMark,
-      nvim: this.chat.context.nvim,
       buffer: this.chat.displayBuffer,
       namespace: this.chat.namespace,
     });
+    await toolUsePart.render();
 
     this.data.parts.push(toolUsePart);
-    this.chat.context.logger.trace(`Adding tool response for id ${toolUse.id}`);
+    this.chat.context.logger.trace(`Adding tool response for id ${request.id}`);
   }
 }
 
@@ -126,11 +115,6 @@ export type ChatState =
 
 export class Chat {
   private messages: Message[] = [];
-  private toolParts: {
-    [tool_use_id: string]: ToolUsePart;
-  } = {};
-
-  private pendingTools: Set<string> = new Set();
 
   private constructor(
     public displayBuffer: Buffer,
@@ -200,50 +184,13 @@ export class Chat {
     }));
   }
 
-  registerToolUse(part: ToolUsePart) {
-    this.toolParts[part.request.id] = part;
-    this.pendingTools.add(part.request.id);
-  }
-
-  async handleToolResponse(
-    req: GetFileToolUseRequest,
-    response: ToolResultBlockParam,
-  ): Promise<void> {
-    if (response.tool_use_id != req.id) {
-      throw new Error(
-        `response tool_use_id ${response.tool_use_id} != req.id ${req.id}`,
-      );
-    }
-
-    const part = this.toolParts[req.id];
-    if (!part) {
-      throw new Error(`unable to find toolUse with id ${req.id}`);
-    }
-
-    part.state = {
-      state: "done",
-      response,
-    };
-
-    this.pendingTools.delete(req.id);
-
-    await renderPart(part, {
-      nvim: this.context.nvim,
-      buffer: this.displayBuffer,
-      namespace: this.namespace,
-    });
-
-    const lastMessage = this.messages[this.messages.length - 1];
-    let responseMessage = lastMessage;
+  async addToolResponse(request: ToolRequest, result: ToolResultBlockParam) {
+    let lastMessage = this.messages[this.messages.length - 1];
     if (lastMessage.data.role != "user") {
-      responseMessage = await this.addMessage("user");
+      lastMessage = await this.addMessage("user");
     }
 
-    await responseMessage.addToolResponse(req, response);
-  }
-
-  hasPendingTools() {
-    return this.pendingTools.size > 0;
+    await lastMessage.addToolResponse(request, result);
   }
 
   clear() {
