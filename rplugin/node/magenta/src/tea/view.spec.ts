@@ -22,7 +22,6 @@ await test.describe("Neovim Plugin Tests", async () => {
   });
 
   await test("basic rendering & update", async () => {
-    console.log("in test");
     const buffer = (await nvim.createBuffer(false, true)) as Buffer;
     await buffer.setLines([""], { start: 0, end: 0, strictIndexing: false });
     const namespace = await nvim.createNamespace("test");

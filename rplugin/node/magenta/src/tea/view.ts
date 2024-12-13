@@ -10,7 +10,6 @@ export type Position = {
 export interface MountPoint {
   nvim: Neovim;
   buffer: Buffer;
-  namespace: number;
   startPos: Position;
   endPos: Position;
 }

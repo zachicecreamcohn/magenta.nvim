@@ -1,5 +1,7 @@
 import { attach, NeovimClient } from "neovim";
 import { spawn } from "child_process";
+import { MountedVDOM } from "../src/tea/view.js";
+import { assertUnreachable } from "../src/utils/assertUnreachable.js";
 
 process.env.NVIM_LOG_FILE = "/tmp/nvim.log"; // Helpful for debugging
 process.env.NVIM_NODE_LOG_FILE = "/tmp/nvim-node.log"; // Helpful for debugging
@@ -46,5 +48,21 @@ export class NeovimTestHelper {
       this.nvimProcess.kill();
       this.nvimProcess = undefined;
     }
+  }
+}
+
+export function extractMountTree(mounted: MountedVDOM): unknown {
+  switch (mounted.type) {
+    case "string":
+      return mounted;
+    case "node":
+      return {
+        type: "node",
+        children: mounted.children.map(extractMountTree),
+        startPos: mounted.startPos,
+        endPos: mounted.endPos,
+      };
+    default:
+      assertUnreachable(mounted);
   }
 }
