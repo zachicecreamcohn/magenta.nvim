@@ -1,6 +1,9 @@
 import { attach, NeovimClient } from "neovim";
 import { spawn } from "child_process";
 
+process.env.NVIM_LOG_FILE = "/tmp/nvim.log"; // Helpful for debugging
+process.env.NVIM_NODE_LOG_FILE = "/tmp/nvim-node.log"; // Helpful for debugging
+
 export class NeovimTestHelper {
   private nvimProcess?: ReturnType<typeof spawn>;
   private nvimClient?: NeovimClient;
@@ -15,31 +18,21 @@ export class NeovimTestHelper {
         {
           env: {
             ...process.env,
-            NVIM_LOG_FILE: "/tmp/nvim.log", // Helpful for debugging
           },
         },
       );
+
       this.nvimProcess.on("error", (err) => {
         reject(err);
       });
 
-      this.nvimProcess.stdout!.on("data", (data) => {
-        console.log(`stdout: ${data}`);
-      });
-
-      this.nvimProcess.stderr!.on("data", (data) => {
-        console.log(`stderr: ${data}`);
-      });
-
-      // Wait briefly for process to start
-      setTimeout(() => {
-        try {
-          this.nvimClient = attach({ proc: this.nvimProcess });
-          resolve(this.nvimClient);
-        } catch (err) {
-          reject(err as Error);
-        }
-      }, 100);
+      try {
+        this.nvimClient = attach({ proc: this.nvimProcess });
+        resolve(this.nvimClient);
+        console.error("Neovim started");
+      } catch (err) {
+        reject(err as Error);
+      }
     });
   }
 

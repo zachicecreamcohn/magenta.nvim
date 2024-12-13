@@ -2,7 +2,6 @@ import globals from "globals";
 import pluginJs from "@eslint/js";
 import tseslint from "typescript-eslint";
 
-
 /** @type {import('eslint').Linter.Config[]} */
 export default [
   { files: ["**/*.{js,mjs,cjs,ts}"] },
@@ -19,8 +18,12 @@ export default [
   },
   {
     rules: {
-      '@typescript-eslint/no-floating-promises': 'error',
-      'no-void': ['error', { allowAsStatement: true }]
-    }
-  }
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { varsIgnorePattern: "^_" },
+      ],
+      "no-void": ["error", { allowAsStatement: true }],
+    },
+  },
 ];
