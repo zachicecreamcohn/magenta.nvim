@@ -2,6 +2,7 @@
   "name": "magenta.nvim",
   "version": "1.0.0",
   "scripts": {},
+  "type": "module",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
     "@swc-node/register": "^1.10.9",
