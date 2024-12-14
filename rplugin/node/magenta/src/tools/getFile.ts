@@ -1,11 +1,11 @@
 import * as Anthropic from "@anthropic-ai/sdk";
-import { Context } from "../types";
-import { getBufferIfOpen } from "../utils/buffers";
-import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources";
+import { Context } from "../types.js";
+import { getBufferIfOpen } from "../utils/buffers.js";
 import fs from "fs";
 import path from "path";
-import { Line } from "../part";
-import { assertUnreachable } from "../utils/assertUnreachable";
+import { Line } from "../part.js";
+import { assertUnreachable } from "../utils/assertUnreachable.js";
+import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
 
 type State =
   | {

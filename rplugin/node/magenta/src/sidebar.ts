@@ -1,28 +1,33 @@
 import { Neovim, Buffer, Window } from "neovim";
-import { Logger } from "./logger";
+import { Logger } from "./logger.js";
 
 /** This will mostly manage the window toggle
  */
 export class Sidebar {
-  private state: {
-    state: 'not-loaded'
-  } | {
-    state: 'loaded';
-    visible: boolean;
-    displayBuffer: Buffer;
-    inputBuffer: Buffer;
-    displayWindow: Window;
-    inputWindow: Window;
-  }
+  private state:
+    | {
+        state: "not-loaded";
+      }
+    | {
+        state: "loaded";
+        visible: boolean;
+        displayBuffer: Buffer;
+        inputBuffer: Buffer;
+        displayWindow: Window;
+        inputWindow: Window;
+      };
 
-  constructor(private nvim: Neovim, private logger: Logger) {
-    this.state = { state: 'not-loaded' }
+  constructor(
+    private nvim: Neovim,
+    private logger: Logger,
+  ) {
+    this.state = { state: "not-loaded" };
   }
 
   /** returns the input buffer when it was created
    */
   async toggle(displayBuffer: Buffer): Promise<void> {
-    if (this.state.state == 'not-loaded') {
+    if (this.state.state == "not-loaded") {
       await this.create(displayBuffer);
     } else {
       if (this.state.visible) {
@@ -35,31 +40,35 @@ export class Sidebar {
 
   private async create(displayBuffer: Buffer): Promise<Buffer> {
     const { nvim, logger } = this;
-    logger.trace(`sidebar.create`)
-    const totalHeight = await nvim.getOption('lines') as number;
-    const cmdHeight = await nvim.getOption('cmdheight') as number;
+    logger.trace(`sidebar.create`);
+    const totalHeight = (await nvim.getOption("lines")) as number;
+    const cmdHeight = (await nvim.getOption("cmdheight")) as number;
     const width = 80;
     const displayHeight = Math.floor((totalHeight - cmdHeight) * 0.8);
     const inputHeight = totalHeight - displayHeight - 2;
 
-    await nvim.command('leftabove vsplit')
+    await nvim.command("leftabove vsplit");
     const displayWindow = await nvim.window;
     displayWindow.width = width;
-    await nvim.lua(`vim.api.nvim_win_set_buf(${displayWindow.id}, ${displayBuffer.id})`)
+    await nvim.lua(
+      `vim.api.nvim_win_set_buf(${displayWindow.id}, ${displayBuffer.id})`,
+    );
 
-    const inputBuffer = await this.nvim.createBuffer(false, true) as Buffer;
+    const inputBuffer = (await this.nvim.createBuffer(false, true)) as Buffer;
 
-    await nvim.command('below split')
+    await nvim.command("below split");
     const inputWindow = await nvim.window;
     inputWindow.height = inputHeight;
-    await nvim.lua(`vim.api.nvim_win_set_buf(${inputWindow.id}, ${inputBuffer.id})`)
+    await nvim.lua(
+      `vim.api.nvim_win_set_buf(${inputWindow.id}, ${inputBuffer.id})`,
+    );
 
-    await inputBuffer.setOption('buftype', 'nofile');
-    await inputBuffer.setOption('swapfile', false);
-    await inputBuffer.setLines(['> '], {
+    await inputBuffer.setOption("buftype", "nofile");
+    await inputBuffer.setOption("swapfile", false);
+    await inputBuffer.setLines(["> "], {
       start: 0,
       end: -1,
-      strictIndexing: false
+      strictIndexing: false,
     });
 
     const winOptions = {
@@ -74,30 +83,30 @@ export class Sidebar {
       await inputWindow.setOption(key, value);
     }
 
-    await inputBuffer.request('nvim_buf_set_keymap', [inputBuffer,
-      'n',
-      '<CR>',
-      ':Magenta send<CR>',
-      { silent: true, noremap: true }
+    await inputBuffer.request("nvim_buf_set_keymap", [
+      inputBuffer,
+      "n",
+      "<CR>",
+      ":Magenta send<CR>",
+      { silent: true, noremap: true },
     ]);
 
-    logger.trace(`sidebar.create setting state`)
+    logger.trace(`sidebar.create setting state`);
     this.state = {
-      state: 'loaded',
+      state: "loaded",
       visible: true,
       displayBuffer,
       inputBuffer,
       displayWindow,
-      inputWindow
-    }
-
+      inputWindow,
+    };
 
     return inputBuffer;
   }
 
-  async hide() { }
+  async hide() {}
 
-  async show() { }
+  async show() {}
 
   async scrollTop() {
     // const { displayWindow } = await this.getWindowIfVisible();
@@ -112,42 +121,47 @@ export class Sidebar {
     // }
   }
 
-  async getWindowIfVisible(): Promise<{ displayWindow?: Window, inputWindow?: Window }> {
-    if (this.state.state != 'loaded') {
+  async getWindowIfVisible(): Promise<{
+    displayWindow?: Window;
+    inputWindow?: Window;
+  }> {
+    if (this.state.state != "loaded") {
       return {};
     }
 
     const { displayWindow, inputWindow } = this.state;
-    const displayWindowValid = await displayWindow.valid
-    const inputWindowValid = await inputWindow.valid
+    const displayWindowValid = await displayWindow.valid;
+    const inputWindowValid = await inputWindow.valid;
 
     return {
       displayWindow: displayWindowValid ? displayWindow : undefined,
-      inputWindow: inputWindowValid ? inputWindow : undefined
-    }
+      inputWindow: inputWindowValid ? inputWindow : undefined,
+    };
   }
 
   async getMessage(): Promise<string> {
-    if (this.state.state != 'loaded') {
-      this.logger.trace(`sidebar state is ${this.state.state} in getMessage`)
-      return '';
+    if (this.state.state != "loaded") {
+      this.logger.trace(`sidebar state is ${this.state.state} in getMessage`);
+      return "";
     }
 
-    const { inputBuffer } = this.state
+    const { inputBuffer } = this.state;
 
     const lines = await inputBuffer.getLines({
       start: 0,
       end: -1,
-      strictIndexing: false
-    })
+      strictIndexing: false,
+    });
 
-    this.logger.trace(`sidebar got lines ${JSON.stringify(lines)} from inputBuffer`)
-    const message = lines.join('\n');
-    await inputBuffer.setLines([''], {
+    this.logger.trace(
+      `sidebar got lines ${JSON.stringify(lines)} from inputBuffer`,
+    );
+    const message = lines.join("\n");
+    await inputBuffer.setLines([""], {
       start: 0,
       end: -1,
-      strictIndexing: false
-    })
+      strictIndexing: false,
+    });
 
     return message;
   }

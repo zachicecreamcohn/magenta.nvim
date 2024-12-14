@@ -1,13 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Buffer } from "neovim";
-import { Context } from "./types";
+import { Context } from "./types.js";
 import {
   createMarkedSpaces,
   getExtMark,
   Mark,
   replaceBetweenMarks,
-} from "./utils/extmarks";
-import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources";
+} from "./utils/extmarks.js";
+import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
 import {
   Line,
   Part,
@@ -15,9 +15,9 @@ import {
   TextPart,
   ToolResultPart,
   ToolUsePart,
-} from "./part";
-import { ToolRequest } from "./tools";
-import { ToolProcess } from "./tools/types";
+} from "./part.js";
+import { ToolProcess } from "./tools/types.js";
+import { ToolRequest } from "./tools/index.js";
 
 type Role = "user" | "assistant";
 

@@ -1,6 +1,6 @@
-import { FileToolProcess, GetFileToolUseRequest } from "./getFile";
-import { InsertProcess, InsertToolUseRequest } from "./insert";
-import { Context } from "../types";
+import { FileToolProcess, GetFileToolUseRequest } from "./getFile.js";
+import { InsertProcess, InsertToolUseRequest } from "./insert.js";
+import { Context } from "../types.js";
 
 export type ToolRequest = GetFileToolUseRequest | InsertToolUseRequest;
 

@@ -1,13 +1,13 @@
-import { AnthropicClient } from "./anthropic";
+import { AnthropicClient } from "./anthropic.js";
 import { NvimPlugin } from "neovim";
-import { Sidebar } from "./sidebar";
-import { Chat } from "./chat";
-import { Logger } from "./logger";
-import { Context } from "./types";
-import { TOOLS } from "./tools/index";
-import { assertUnreachable } from "./utils/assertUnreachable";
-import { ToolProcess } from "./tools/types";
-import { Moderator } from "./moderator";
+import { Sidebar } from "./sidebar.js";
+import { Chat } from "./chat.js";
+import { Logger } from "./logger.js";
+import { Context } from "./types.js";
+import { TOOLS } from "./tools/index.js";
+import { assertUnreachable } from "./utils/assertUnreachable.js";
+import { ToolProcess } from "./tools/types.js";
+import { Moderator } from "./moderator.js";
 
 class Magenta {
   private anthropicClient: AnthropicClient;

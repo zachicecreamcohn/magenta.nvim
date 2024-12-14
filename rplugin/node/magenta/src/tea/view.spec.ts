@@ -24,7 +24,6 @@ await test.describe("Neovim Plugin Tests", async () => {
   await test("basic rendering & update", async () => {
     const buffer = (await nvim.createBuffer(false, true)) as Buffer;
     await buffer.setLines([""], { start: 0, end: 0, strictIndexing: false });
-    const namespace = await nvim.createNamespace("test");
 
     await buffer.setOption("modifiable", false);
 
@@ -35,7 +34,6 @@ await test.describe("Neovim Plugin Tests", async () => {
       mount: {
         nvim,
         buffer,
-        namespace,
         startPos: { row: 0, col: 0 },
         endPos: { row: 0, col: 0 },
       },

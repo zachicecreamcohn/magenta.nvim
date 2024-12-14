@@ -1,6 +1,6 @@
 import { Buffer } from "neovim";
 import * as path from "path";
-import { Context } from "../types";
+import { Context } from "../types.js";
 
 export async function getBufferIfOpen({
   context,

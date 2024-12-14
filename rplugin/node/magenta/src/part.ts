@@ -1,10 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { Mark, insertBeforeMark, replaceBetweenMarks } from "./utils/extmarks";
-import { ToolRequest } from "./tools/index";
+import {
+  Mark,
+  insertBeforeMark,
+  replaceBetweenMarks,
+} from "./utils/extmarks.js";
+import { ToolRequest } from "./tools/index.js";
 import { Buffer } from "neovim";
-import { assertUnreachable } from "./utils/assertUnreachable";
-import { ToolProcess } from "./tools/types";
-import { Context } from "./types";
+import { assertUnreachable } from "./utils/assertUnreachable.js";
+import { ToolProcess } from "./tools/types.js";
+import { Context } from "./types.js";
 
 /** A line that's meant to be sent to neovim. Should not contain newlines
  */

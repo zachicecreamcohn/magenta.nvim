@@ -41,6 +41,13 @@ export type MountedComponentNode = {
 
 export type MountedVDOM = MountedStringNode | MountedComponentNode;
 
+export type MountedView<P> = {
+  render(props: P): Promise<void>;
+  /** for testing
+   */
+  _getMountedNode(): MountedVDOM;
+};
+
 export async function mountView<P>({
   view,
   mount,
@@ -49,12 +56,7 @@ export async function mountView<P>({
   view: View<P>;
   mount: MountPoint;
   props: P;
-}): Promise<{
-  render(props: P): Promise<void>;
-  /** for testing
-   */
-  _getMountedNode(): MountedVDOM;
-}> {
+}): Promise<MountedView<P>> {
   let mountedNode = await render({ vdom: view(props), mount });
   return {
     async render(props) {

@@ -1,13 +1,11 @@
-import { createSignal } from './signal';
-import {View as RenderView } from './view'
+import { d, MountedView, MountPoint, mountView, VDOMNode } from "./view.js";
 
+export type Dispatch<Msg> = (msg: Msg) => void;
 
 export type Update<Msg, Model> = (
   msg: Msg,
   model: Model,
 ) => [Model] | [Model, Thunk<Msg> | undefined];
-
-export type Dispatch<Msg> = (msg: Msg) => void;
 
 export type View<Msg, Model> = ({
   model,
@@ -15,10 +13,7 @@ export type View<Msg, Model> = ({
 }: {
   model: Model;
   dispatch: Dispatch<Msg>;
-}) => RenderView<{
-  model: Accessor<Model>;
-  dispatch: Dispatch<Msg>
-}>;
+}) => VDOMNode;
 
 export interface Subscription<SubscriptionType extends string> {
   /** Must be unique!
@@ -57,90 +52,101 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
     subscriptionManager: SubscriptionManager<SubscriptionType, Msg>;
   };
 }) {
-  let dispatchRef: { current: Dispatch<Msg> | undefined } = {
-    current: undefined,
+  let currentState: AppState<Model> = {
+    status: "running",
+    model: initialModel,
+  };
+  let root:
+    | MountedView<{ currentState: AppState<Model>; dispatch: Dispatch<Msg> }>
+    | undefined;
+
+  const dispatch = (msg: Msg) => {
+    if (currentState.status == "error") {
+      return currentState;
+    }
+
+    try {
+      const [nextModel, thunk] = update(msg, currentState.model);
+
+      if (thunk) {
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        thunk(dispatch);
+      }
+
+      currentState = { status: "running", model: nextModel };
+      updateSubs(currentState);
+
+      if (root) {
+        // schedule a re-render
+        root.render({ currentState, dispatch }).catch((err) => {
+          console.error(err);
+          throw err;
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      currentState = { status: "error", error: (e as Error).message };
+    }
   };
 
-  function App() {
-    const [appState, setAppState] = createSignal({
-      status: "running",
-      model: initialModel,
+  const subs: {
+    [id: string]: Subscription<SubscriptionType>;
+  } = {};
+
+  function updateSubs(currentState: AppState<Model>) {
+    if (!sub) return;
+    if (currentState.status != "running") return;
+
+    const subscriptionManager = sub.subscriptionManager;
+    const currentSubscriptions = subs;
+
+    const nextSubs = sub.subscriptions(currentState.model);
+    const nextSubsMap: { [id: string]: Subscription<SubscriptionType> } = {};
+
+    // Add new subs
+    nextSubs.forEach((sub) => {
+      nextSubsMap[sub.id] = sub;
+      if (!subscriptionManager[sub.id]) {
+        subscriptionManager[sub.id].subscribe(dispatch);
+        currentSubscriptions[sub.id] = sub;
+      }
     });
 
-    const subs: {
-      [id: string]: Subscription<SubscriptionType>;
-    } = {};
+    // Remove old subs
+    Object.keys(currentSubscriptions).forEach((id) => {
+      if (!nextSubsMap[id]) {
+        subscriptionManager[id as SubscriptionType].unsubscribe();
+        delete subs[id];
+      }
+    });
 
-    const dispatch = useCallback((msg: Msg) => {
-      setAppState((currentState) => {
-        if (currentState.status == "error") {
-          return currentState;
-        }
+    return () => {};
+  }
 
-        try {
-          const [nextModel, thunk] = update(msg, currentState.model);
+  updateSubs(currentState);
 
-          if (thunk) {
-            // purposefully do not await
-            thunk(dispatch);
-          }
-
-          return { status: "running", model: nextModel };
-        } catch (e) {
-          console.error(e);
-          return { status: "error", error: (e as Error).message };
-        }
-      });
-    }, []);
-
-    dispatchRef.current = dispatch;
-
-    React.useEffect(() => {
-      if (!sub) return;
-      if (appState.status != "running") return;
-
-      const subscriptionManager = sub.subscriptionManager;
-      const currentSubscriptions = subs.current;
-
-      const nextSubs = sub.subscriptions(appState.model);
-      const nextSubsMap: { [id: string]: Subscription<SubscriptionType> } = {};
-
-      // Add new subs
-      nextSubs.forEach((sub) => {
-        nextSubsMap[sub.id] = sub;
-        if (!subscriptionManager[sub.id]) {
-          subscriptionManager[sub.id].subscribe(dispatch);
-          currentSubscriptions[sub.id] = sub;
-        }
-      });
-
-      // Remove old subs
-      Object.keys(currentSubscriptions).forEach((id) => {
-        if (!nextSubsMap[id]) {
-          subscriptionManager[id as SubscriptionType].unsubscribe();
-          delete subs.current[id];
-        }
-      });
-
-      return () => {};
-    }, [appState]);
-
-    return (
-      <div>
-        {appState.status == "running" ? (
-          <View model={appState.model} dispatch={dispatch} />
-        ) : (
-          <div>Error: {appState.error}</div>
-        )}
-      </div>
-    );
+  function App({
+    currentState,
+    dispatch,
+  }: {
+    currentState: AppState<Model>;
+    dispatch: Dispatch<Msg>;
+  }) {
+    return d`${
+      currentState.status == "running"
+        ? View({ model: currentState.model, dispatch })
+        : d`Error: ${currentState.error}`
+    }`;
   }
 
   return {
-    mount(element: Element) {
-      const root = createRoot(element);
-      flushSync(() => root.render(<App />));
-      return { root, dispatchRef };
+    async mount(mount: MountPoint) {
+      root = await mountView({
+        view: App,
+        mount,
+        props: { currentState, dispatch },
+      });
+      return { root, dispatch };
     },
   };
 }

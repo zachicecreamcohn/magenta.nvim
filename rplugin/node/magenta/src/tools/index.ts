@@ -1,5 +1,5 @@
-import { FileTool, GetFileToolUseRequest } from "./getFile";
-import { InsertTool, InsertToolUseRequest } from "./insert";
+import { FileTool, GetFileToolUseRequest } from "./getFile.js";
+import { InsertTool, InsertToolUseRequest } from "./insert.js";
 
 export const TOOLS = {
   get_file: new FileTool(),
