@@ -19,7 +19,7 @@ export class AnthropicClient {
 
   async sendMessage(
     messages: Array<Anthropic.MessageParam>,
-    onText: (text: string) => Promise<void>,
+    onText: (text: string) => void,
   ): Promise<ToolRequest[]> {
     this.logger.trace(
       `initializing stream with messages: ${JSON.stringify(messages, null, 2)}`,
@@ -34,14 +34,12 @@ export class AnthropicClient {
 
         flushInProgress = true;
 
-        onText(text)
-          .catch((e: Error) => {
-            this.logger.error(e);
-          })
-          .finally(() => {
-            flushInProgress = false;
-            setInterval(flushBuffer, 1);
-          });
+        try {
+          onText(text);
+        } finally {
+          flushInProgress = false;
+          setInterval(flushBuffer, 1);
+        }
       }
     };
 

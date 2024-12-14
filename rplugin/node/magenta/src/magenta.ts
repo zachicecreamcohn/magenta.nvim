@@ -1,33 +1,45 @@
 import { AnthropicClient } from "./anthropic.js";
 import { NvimPlugin } from "neovim";
 import { Sidebar } from "./sidebar.js";
-import { view as chatView } from "./chat/chat.js";
+import {
+  Model as ChatModel,
+  Msg as ChatMsg,
+  getMessages,
+  view as chatView,
+  update as chatUpdate,
+} from "./chat/chat.js";
 import { Logger } from "./logger.js";
 import { Context } from "./types.js";
 import { TOOLS } from "./tools/index.js";
 import { assertUnreachable } from "./utils/assertUnreachable.js";
 import { ToolProcess } from "./tools/types.js";
 import { Moderator } from "./moderator.js";
+import { App, createApp } from "./tea/tea.js";
 
 class Magenta {
   private anthropicClient: AnthropicClient;
   private sidebar: Sidebar;
   private moderator: Moderator;
+  private chat: App<ChatMsg, ChatModel>;
 
-  constructor(
-    private context: Context,
-    private chat: Chat,
-  ) {
+  constructor(private context: Context) {
     this.context.logger.debug(`Initializing plugin`);
     this.anthropicClient = new AnthropicClient(this.context.logger);
     this.sidebar = new Sidebar(this.context.nvim, this.context.logger);
+    this.chat = createApp({
+      initialModel: { messages: [] },
+      update: chatUpdate,
+      View: chatView,
+    });
     this.moderator = new Moderator(
       this.context,
       // on tool result
-      (req, res) => {
-        this.chat
-          .addToolResponse(req, res)
-          .catch((err) => this.context.logger.error(err as Error));
+      (request, response) => {
+        this.chat.dispatch({
+          type: "add-tool-response",
+          request,
+          response,
+        });
       },
       // autorespond
       () => {
@@ -42,7 +54,15 @@ class Magenta {
     this.context.logger.debug(`Received command ${args[0]}`);
     switch (args[0]) {
       case "toggle": {
-        await this.sidebar.toggle(this.chat.displayBuffer);
+        const buffers = await this.sidebar.toggle();
+        if (buffers) {
+          await this.chat.mount({
+            nvim: this.context.nvim,
+            buffer: buffers.displayBuffer,
+            startPos: { row: 0, col: 0 },
+            endPos: { row: 0, col: 0 },
+          });
+        }
         break;
       }
 
@@ -51,14 +71,18 @@ class Magenta {
         this.context.logger.trace(`current message: ${message}`);
         if (!message) return;
 
-        await this.chat.addMessage("user", message);
+        this.chat.dispatch({
+          type: "add-message",
+          role: "user",
+          content: message,
+        });
 
         await this.sendMessage();
         break;
       }
 
       case "clear":
-        this.chat.clear();
+        this.chat.dispatch({ type: "clear" });
         break;
 
       default:
@@ -67,14 +91,22 @@ class Magenta {
   }
 
   private async sendMessage() {
-    const messages = this.chat.getMessages();
+    const state = this.chat.getState();
+    if (state.status != "running") {
+      this.context.logger.error(`chat is not running.`);
+      return;
+    }
 
-    const currentMessage = await this.chat.addMessage("assistant", "");
+    const messages = getMessages(state.model);
+
     const toolRequests = await this.anthropicClient.sendMessage(
       messages,
-      async (text) => {
+      (text) => {
         this.context.logger.trace(`stream received text ${text}`);
-        await currentMessage.appendText(text);
+        this.chat.dispatch({
+          type: "stream-response",
+          text,
+        });
       },
     );
 
@@ -95,18 +127,17 @@ class Magenta {
         }
 
         this.moderator.registerProcess(process);
-        await currentMessage.addToolUse(request, process);
+        this.chat.dispatch({
+          type: "add-tool-use",
+          request,
+          process,
+        });
       }
     }
   }
-
-  static async init(plugin: NvimPlugin, logger: Logger) {
-    const chat = await Chat.init({ nvim: plugin.nvim, logger });
-    return new Magenta({ nvim: plugin.nvim, logger }, chat);
-  }
 }
 
-let init: { magenta: Promise<Magenta>; logger: Logger } | undefined = undefined;
+let init: { magenta: Magenta; logger: Logger } | undefined = undefined;
 
 module.exports = (plugin: NvimPlugin) => {
   plugin.setOptions({});
@@ -119,7 +150,7 @@ module.exports = (plugin: NvimPlugin) => {
     });
 
     init = {
-      magenta: Magenta.init(plugin, logger),
+      magenta: new Magenta({ nvim: plugin.nvim, logger }),
       logger,
     };
   }
@@ -128,7 +159,7 @@ module.exports = (plugin: NvimPlugin) => {
     "Magenta",
     async (args: string[]) => {
       try {
-        const magenta = await init!.magenta;
+        const magenta = init!.magenta;
         await magenta.command(args);
       } catch (err) {
         init!.logger.error(err as Error);

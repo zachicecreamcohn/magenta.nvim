@@ -1,9 +1,8 @@
 import type { NeovimClient, Buffer } from "neovim";
-import { NeovimTestHelper } from "../../test/preamble.js";
-import { d, MountedVDOM, mountView } from "./view.js";
+import { extractMountTree, NeovimTestHelper } from "../../test/preamble.js";
+import { d, mountView } from "./view.js";
 import * as assert from "assert";
 import { test } from "node:test";
-import { assertUnreachable } from "../utils/assertUnreachable.js";
 
 await test.describe("Neovim Plugin Tests", async () => {
   let helper: NeovimTestHelper;
@@ -165,19 +164,3 @@ await test.describe("Neovim Plugin Tests", async () => {
     );
   });
 });
-
-function extractMountTree(mounted: MountedVDOM): unknown {
-  switch (mounted.type) {
-    case "string":
-      return mounted;
-    case "node":
-      return {
-        type: "node",
-        children: mounted.children.map(extractMountTree),
-        startPos: mounted.startPos,
-        endPos: mounted.endPos,
-      };
-    default:
-      assertUnreachable(mounted);
-  }
-}

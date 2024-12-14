@@ -57,8 +57,8 @@ export type MountedVDOM =
 
 export type MountedView<P> = {
   render(props: P): Promise<void>;
-  /** for testing
-   */
+  unmount(): void;
+  /** for testing */
   _getMountedNode(): MountedVDOM;
 };
 
@@ -80,6 +80,9 @@ export async function mountView<P>({
         nextRoot: next,
         mount,
       });
+    },
+    unmount() {
+      // TODO
     },
     _getMountedNode: () => mountedNode,
   };

@@ -1,7 +1,7 @@
-import { Neovim } from "neovim"
-import { Logger } from "./logger.js"
+import { Neovim } from "neovim";
+import { Logger } from "./logger.js";
 
 export type Context = {
-  nvim: Neovim,
-  logger: Logger
-}
+  nvim: Neovim;
+  logger: Logger;
+};

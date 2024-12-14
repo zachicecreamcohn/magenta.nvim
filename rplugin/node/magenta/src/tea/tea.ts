@@ -38,6 +38,13 @@ type AppState<Model> =
       error: string;
     };
 
+export type App<Msg, Model> = {
+  mount(mount: MountPoint): Promise<void>;
+  unmount(): void;
+  dispatch: Dispatch<Msg>;
+  getState(): AppState<Model>;
+};
+
 export function createApp<Model, Msg, SubscriptionType extends string>({
   initialModel,
   update,
@@ -51,7 +58,7 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
     subscriptions: (model: Model) => Subscription<SubscriptionType>[];
     subscriptionManager: SubscriptionManager<SubscriptionType, Msg>;
   };
-}) {
+}): App<Msg, Model> {
   let currentState: AppState<Model> = {
     status: "running",
     model: initialModel,
@@ -146,7 +153,16 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
         mount,
         props: { currentState, dispatch },
       });
-      return { root, dispatch };
+    },
+    unmount() {
+      if (root) {
+        root.unmount();
+        root = undefined;
+      }
+    },
+    dispatch,
+    getState() {
+      return currentState;
     },
   };
 }

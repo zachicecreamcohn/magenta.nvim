@@ -3,7 +3,7 @@ import { Context } from "../types.js";
 import { getBufferIfOpen } from "../utils/buffers.js";
 import fs from "fs";
 import path from "path";
-import { Line } from "../part.js";
+import { Line } from "../chat/part.js";
 import { assertUnreachable } from "../utils/assertUnreachable.js";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
 

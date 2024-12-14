@@ -62,6 +62,10 @@ export function extractMountTree(mounted: MountedVDOM): unknown {
         startPos: mounted.startPos,
         endPos: mounted.endPos,
       };
+
+    case "array":
+      return mounted;
+
     default:
       assertUnreachable(mounted);
   }

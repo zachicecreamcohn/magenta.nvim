@@ -6,11 +6,10 @@ import { Logger } from "./logger.js";
 export class Sidebar {
   private state:
     | {
-        state: "not-loaded";
+        state: "hidden";
       }
     | {
-        state: "loaded";
-        visible: boolean;
+        state: "visible";
         displayBuffer: Buffer;
         inputBuffer: Buffer;
         displayWindow: Window;
@@ -21,24 +20,26 @@ export class Sidebar {
     private nvim: Neovim,
     private logger: Logger,
   ) {
-    this.state = { state: "not-loaded" };
+    this.state = { state: "hidden" };
+    // TODO: also probably need to set up some autocommands to detect if the user closes the scratch buffers
   }
 
-  /** returns the input buffer when it was created
+  /** returns buffers when they are visible
    */
-  async toggle(displayBuffer: Buffer): Promise<void> {
-    if (this.state.state == "not-loaded") {
-      await this.create(displayBuffer);
+  async toggle(): Promise<
+    { displayBuffer: Buffer; inputBuffer: Buffer } | undefined
+  > {
+    if (this.state.state == "hidden") {
+      return await this.create();
     } else {
-      if (this.state.visible) {
-        await this.hide();
-      } else {
-        await this.show();
-      }
+      await this.destroy();
     }
   }
 
-  private async create(displayBuffer: Buffer): Promise<Buffer> {
+  private async create(): Promise<{
+    displayBuffer: Buffer;
+    inputBuffer: Buffer;
+  }> {
     const { nvim, logger } = this;
     logger.trace(`sidebar.create`);
     const totalHeight = (await nvim.getOption("lines")) as number;
@@ -49,6 +50,7 @@ export class Sidebar {
 
     await nvim.command("leftabove vsplit");
     const displayWindow = await nvim.window;
+    const displayBuffer = (await this.nvim.createBuffer(false, true)) as Buffer;
     displayWindow.width = width;
     await nvim.lua(
       `vim.api.nvim_win_set_buf(${displayWindow.id}, ${displayBuffer.id})`,
@@ -93,20 +95,23 @@ export class Sidebar {
 
     logger.trace(`sidebar.create setting state`);
     this.state = {
-      state: "loaded",
-      visible: true,
+      state: "visible",
       displayBuffer,
       inputBuffer,
       displayWindow,
       inputWindow,
     };
 
-    return inputBuffer;
+    return { displayBuffer, inputBuffer };
   }
 
-  async hide() {}
+  async destroy() {
+    this.state = {
+      state: "hidden",
+    };
 
-  async show() {}
+    // TODO: clean up buffers
+  }
 
   async scrollTop() {
     // const { displayWindow } = await this.getWindowIfVisible();
@@ -125,7 +130,7 @@ export class Sidebar {
     displayWindow?: Window;
     inputWindow?: Window;
   }> {
-    if (this.state.state != "loaded") {
+    if (this.state.state != "visible") {
       return {};
     }
 
@@ -140,7 +145,7 @@ export class Sidebar {
   }
 
   async getMessage(): Promise<string> {
-    if (this.state.state != "loaded") {
+    if (this.state.state != "visible") {
       this.logger.trace(`sidebar state is ${this.state.state} in getMessage`);
       return "";
     }
