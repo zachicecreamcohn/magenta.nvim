@@ -156,7 +156,9 @@ export async function update({
             ...current,
             children: nextChildren,
             startPos,
-            endPos: nextChildren[nextChildren.length - 1].endPos,
+            endPos: nextChildren.length
+              ? nextChildren[nextChildren.length - 1].endPos
+              : updatePos(current.endPos),
           };
           return nextMountedNode;
         } else {
@@ -179,6 +181,9 @@ export async function update({
           const nextChild = nextNode.children[i];
           nextChildren.push(await visitNode(currentChild, nextChild));
         }
+        let endPos = nextChildren.length
+          ? nextChildren[nextChildren.length - 1].endPos
+          : updatePos(current.endPos);
 
         if (current.children.length > nextNode.children.length) {
           const oldChildrenEndPos = updatePos(
@@ -187,7 +192,7 @@ export async function update({
           // remove all the nodes between the end of the last child and where the remaining children would go.
           await replaceBetweenPositions({
             ...mount,
-            startPos: nextChildren[nextChildren.length - 1].endPos,
+            startPos: endPos,
             endPos: oldChildrenEndPos,
             lines: [],
           });
@@ -201,19 +206,17 @@ export async function update({
             childIdx += 1
           ) {
             nextChildren.push(
-              await insertNode(
-                nextNode.children[childIdx],
-                nextChildren[nextChildren.length - 1].endPos,
-              ),
+              await insertNode(nextNode.children[childIdx], endPos),
             );
           }
+          endPos = nextChildren[nextChildren.length - 1].endPos;
         }
 
         const nextMountedNode = {
           ...current,
           children: nextChildren,
           startPos,
-          endPos: nextChildren[nextChildren.length - 1].endPos,
+          endPos,
         };
         return nextMountedNode;
       }

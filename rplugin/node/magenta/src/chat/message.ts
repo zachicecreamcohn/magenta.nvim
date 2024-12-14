@@ -67,7 +67,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
 
 export const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
   model,
-}) => d`\
+}) => d`
 ### ${model.role}:
 
 ${model.parts.map((part) => partView({ model: part }))}`;
