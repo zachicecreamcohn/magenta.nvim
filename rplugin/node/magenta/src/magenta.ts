@@ -1,7 +1,7 @@
 import { AnthropicClient } from "./anthropic.js";
 import { NvimPlugin } from "neovim";
 import { Sidebar } from "./sidebar.js";
-import { Chat } from "./chat.js";
+import { view as chatView } from "./chat/chat.js";
 import { Logger } from "./logger.js";
 import { Context } from "./types.js";
 import { TOOLS } from "./tools/index.js";

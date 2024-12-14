@@ -1,5 +1,7 @@
 import { render } from "./render.js";
+import { replaceBetweenPositions } from "./util.js";
 import {
+  ArrayVDOMNode,
   ComponentVDOMNode,
   MountedVDOM,
   MountPoint,
@@ -83,6 +85,38 @@ export async function update({
     return rendered;
   }
 
+  async function insertNode(
+    node: VDOMNode,
+    pos: Position,
+  ): Promise<MountedVDOM> {
+    const rendered = await render({
+      vdom: node,
+      mount: {
+        ...mount,
+        startPos: pos,
+        endPos: pos,
+      },
+    });
+
+    const oldEndPos = pos;
+    const newEndPos = rendered.endPos;
+
+    if (newEndPos.row > oldEndPos.row) {
+      accumulatedEdit.deltaRow += newEndPos.row - oldEndPos.row;
+      // things on this endRow at pos X are at delta = X - oldEndPos.col
+      // they will now be in a new row at newEndPos.col + delta
+      //   = X + newEndPos.col - oldEndPos.col
+      // so we need to save newEndPos.col - oldEndPos.col
+      accumulatedEdit.deltaCol = newEndPos.col - oldEndPos.col;
+    } else {
+      // this is a single-line edit. We just need to adjust the column
+      accumulatedEdit.deltaCol += newEndPos.col - oldEndPos.col;
+    }
+
+    accumulatedEdit.lastEditRow = oldEndPos.row;
+    return rendered;
+  }
+
   async function visitNode(
     current: MountedVDOM,
     next: VDOMNode,
@@ -128,6 +162,60 @@ export async function update({
         } else {
           return await replaceNode(current, next);
         }
+      }
+
+      case "array": {
+        const nextNode = next as ArrayVDOMNode;
+        // have to update startPos before processing the children since we assume that positions are always processed
+        // in document order!
+        const startPos = updatePos(current.startPos);
+        const nextChildren = [];
+        for (
+          let i = 0;
+          i < Math.min(current.children.length, nextNode.children.length);
+          i += 1
+        ) {
+          const currentChild = current.children[i];
+          const nextChild = nextNode.children[i];
+          nextChildren.push(await visitNode(currentChild, nextChild));
+        }
+
+        if (current.children.length > nextNode.children.length) {
+          const oldChildrenEndPos = updatePos(
+            current.children[current.children.length - 1].endPos,
+          );
+          // remove all the nodes between the end of the last child and where the remaining children would go.
+          await replaceBetweenPositions({
+            ...mount,
+            startPos: nextChildren[nextChildren.length - 1].endPos,
+            endPos: oldChildrenEndPos,
+            lines: [],
+          });
+        }
+
+        if (nextNode.children.length > current.children.length) {
+          // append missing nodes
+          for (
+            let childIdx = current.children.length;
+            childIdx < nextNode.children.length;
+            childIdx += 1
+          ) {
+            nextChildren.push(
+              await insertNode(
+                nextNode.children[childIdx],
+                nextChildren[nextChildren.length - 1].endPos,
+              ),
+            );
+          }
+        }
+
+        const nextMountedNode = {
+          ...current,
+          children: nextChildren,
+          startPos,
+          endPos: nextChildren[nextChildren.length - 1].endPos,
+        };
+        return nextMountedNode;
       }
     }
   }

@@ -1,4 +1,5 @@
-import { Line } from "../part.js";
+import { Line } from "../chat/part.js";
+import { assertUnreachable } from "../utils/assertUnreachable.js";
 import { calculatePosition, replaceBetweenPositions } from "./util.js";
 import { MountedVDOM, MountPoint, VDOMNode } from "./view.js";
 
@@ -22,31 +23,53 @@ export async function render({
         children: NodePosition[];
         start: number;
         end: number;
+      }
+    | {
+        type: "array";
+        children: NodePosition[];
+        start: number;
+        end: number;
       };
 
   // First pass: build the complete string and create tree structure with positions
   let content = "";
 
   function traverse(node: VDOMNode): NodePosition {
-    if (node.type === "string") {
-      const start = content.length;
-      content += node.content;
-      return {
-        type: "string",
-        content: node.content,
-        start,
-        end: content.length,
-      };
-    } else {
-      const start = content.length;
-      const children = node.children.map(traverse);
-      return {
-        type: "node",
-        template: node.template,
-        children,
-        start,
-        end: content.length,
-      };
+    switch (node.type) {
+      case "string": {
+        const start = content.length;
+        content += node.content;
+        return {
+          type: "string",
+          content: node.content,
+          start,
+          end: content.length,
+        };
+      }
+      case "node": {
+        const start = content.length;
+        const children = node.children.map(traverse);
+        return {
+          type: "node",
+          template: node.template,
+          children,
+          start,
+          end: content.length,
+        };
+      }
+      case "array": {
+        const start = content.length;
+        const children = node.children.map(traverse);
+        return {
+          type: "array",
+          children,
+          start,
+          end: content.length,
+        };
+      }
+      default: {
+        assertUnreachable(node);
+      }
     }
   }
 
@@ -62,22 +85,31 @@ export async function render({
     const startPos = calculatePosition(mountPos, content, node.start);
     const endPos = calculatePosition(mountPos, content, node.end);
 
-    if (node.type === "string") {
-      return {
-        type: "string",
-        content: node.content,
-        startPos,
-        endPos,
-      };
-    } else {
-      const children = node.children.map(assignPositions);
-      return {
-        type: "node",
-        template: node.template,
-        children,
-        startPos,
-        endPos,
-      };
+    switch (node.type) {
+      case "string":
+        return {
+          type: "string",
+          content: node.content,
+          startPos,
+          endPos,
+        };
+      case "node":
+        return {
+          type: "node",
+          template: node.template,
+          children: node.children.map(assignPositions),
+          startPos,
+          endPos,
+        };
+      case "array":
+        return {
+          type: "array",
+          children: node.children.map(assignPositions),
+          startPos,
+          endPos,
+        };
+      default:
+        assertUnreachable(node);
     }
   }
 

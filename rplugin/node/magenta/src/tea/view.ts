@@ -21,8 +21,12 @@ export type ComponentVDOMNode = {
   children: VDOMNode[];
   template: TemplateStringsArray;
 };
+export type ArrayVDOMNode = {
+  type: "array";
+  children: VDOMNode[];
+};
 
-export type VDOMNode = StringVDOMNode | ComponentVDOMNode;
+export type VDOMNode = StringVDOMNode | ComponentVDOMNode | ArrayVDOMNode;
 
 export type MountedStringNode = {
   type: "string";
@@ -39,7 +43,17 @@ export type MountedComponentNode = {
   endPos: Position;
 };
 
-export type MountedVDOM = MountedStringNode | MountedComponentNode;
+export type MountedArrayNode = {
+  type: "array";
+  children: MountedVDOM[];
+  startPos: Position;
+  endPos: Position;
+};
+
+export type MountedVDOM =
+  | MountedStringNode
+  | MountedComponentNode
+  | MountedArrayNode;
 
 export type MountedView<P> = {
   render(props: P): Promise<void>;
@@ -73,13 +87,15 @@ export async function mountView<P>({
 
 export function d(
   template: TemplateStringsArray,
-  ...values: (VDOMNode | string)[]
+  ...values: (VDOMNode[] | VDOMNode | string)[]
 ): VDOMNode {
   const children: VDOMNode[] = [{ type: "string", content: template[0] }];
 
   for (let i = 0; i < values.length; i++) {
     if (typeof values[i] == "string") {
       children.push({ type: "string", content: values[i] as string });
+    } else if (Array.isArray(values[i])) {
+      children.push({ type: "array", children: values[i] as VDOMNode[] });
     } else {
       children.push(values[i] as VDOMNode);
     }
