@@ -1,6 +1,6 @@
 import type { NeovimClient, Buffer } from "neovim";
-import { extractMountTree, NeovimTestHelper } from "../../test/preamble.js";
-import { d, mountView } from "./view.js";
+import { extractMountTree, NeovimTestHelper } from "../../test/preamble.ts";
+import { d, mountView } from "./view.ts";
 import * as assert from "assert";
 import { test } from "node:test";
 

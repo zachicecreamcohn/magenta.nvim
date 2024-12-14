@@ -1,5 +1,5 @@
 import { Neovim, Buffer, Window } from "neovim";
-import { Logger } from "./logger.js";
+import { Logger } from "./logger.ts";
 
 /** This will mostly manage the window toggle
  */

@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { Logger } from "./logger.js";
-import { TOOLS, ToolRequest } from "./tools/index.js";
+import { Logger } from "./logger.ts";
+import { TOOLS, ToolRequest } from "./tools/index.ts";
 
 export class AnthropicClient {
   private client: Anthropic;

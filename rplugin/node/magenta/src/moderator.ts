@@ -1,8 +1,8 @@
 // as in a debate, moderator keeps track of tool state and manages turn taking in the conversation
 
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
-import { ToolProcess, ToolRequest } from "./tools/types.js";
-import { Context } from "./types.js";
+import { ToolProcess, ToolRequest } from "./tools/types.ts";
+import { Context } from "./types.ts";
 
 export class Moderator {
   private toolProcesses: {

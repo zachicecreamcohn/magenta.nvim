@@ -1,6 +1,6 @@
 import { Buffer, Neovim } from "neovim";
-import { render } from "./render.js";
-import { update } from "./update.js";
+import { render } from "./render.ts";
+import { update } from "./update.ts";
 
 export type Position = {
   row: number;

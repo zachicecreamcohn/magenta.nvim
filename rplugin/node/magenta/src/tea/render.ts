@@ -1,7 +1,7 @@
-import { Line } from "../chat/part.js";
-import { assertUnreachable } from "../utils/assertUnreachable.js";
-import { calculatePosition, replaceBetweenPositions } from "./util.js";
-import { MountedVDOM, MountPoint, VDOMNode } from "./view.js";
+import { Line } from "../chat/part.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { calculatePosition, replaceBetweenPositions } from "./util.ts";
+import { MountedVDOM, MountPoint, VDOMNode } from "./view.ts";
 
 export async function render({
   vdom,

@@ -1,5 +1,5 @@
 import { Buffer, Neovim } from "neovim";
-import { Line } from "../chat/part.js";
+import { Line } from "../chat/part.ts";
 
 export type Mark = number & { __mark: true };
 export type MarkOpts = { details: { is_start: boolean } };

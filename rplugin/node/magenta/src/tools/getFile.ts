@@ -1,10 +1,10 @@
 import * as Anthropic from "@anthropic-ai/sdk";
-import { Context } from "../types.js";
-import { getBufferIfOpen } from "../utils/buffers.js";
+import { Context } from "../types.ts";
+import { getBufferIfOpen } from "../utils/buffers.ts";
 import fs from "fs";
 import path from "path";
-import { Line } from "../chat/part.js";
-import { assertUnreachable } from "../utils/assertUnreachable.js";
+import { Line } from "../chat/part.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
 
 type State =
@@ -162,7 +162,7 @@ export class FileTool {
           filePath: {
             type: "string",
             description:
-              "the path, relative to the project root, of the file. e.g. ./src/index.js",
+              "the path, relative to the project root, of the file. e.g. ./src/index.ts",
           },
         },
         required: ["path"],
@@ -176,6 +176,6 @@ export type GetFileToolUseRequest = {
   id: string; //"toolu_01UJtsBsBED9bwkonjqdxji4"
   name: "get_file";
   input: {
-    filePath: string; //"./src/index.js"
+    filePath: string; //"./src/index.ts"
   };
 };

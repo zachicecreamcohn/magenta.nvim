@@ -1,5 +1,5 @@
-import { render } from "./render.js";
-import { replaceBetweenPositions } from "./util.js";
+import { render } from "./render.ts";
+import { replaceBetweenPositions } from "./util.ts";
 import {
   ArrayVDOMNode,
   ComponentVDOMNode,
@@ -8,7 +8,7 @@ import {
   Position,
   StringVDOMNode,
   VDOMNode,
-} from "./view.js";
+} from "./view.ts";
 
 export async function update({
   currentRoot,

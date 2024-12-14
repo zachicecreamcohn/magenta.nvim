@@ -1,8 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { ToolRequest } from "../tools/index.js";
-import { assertUnreachable } from "../utils/assertUnreachable.js";
-import { ToolProcess } from "../tools/types.js";
-import { d, View } from "../tea/view.js";
+import { ToolRequest } from "../tools/index.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { ToolProcess } from "../tools/types.ts";
+import { d, View } from "../tea/view.ts";
 
 /** A line that's meant to be sent to neovim. Should not contain newlines
  */

@@ -1,20 +1,20 @@
-import { AnthropicClient } from "./anthropic.js";
+import { AnthropicClient } from "./anthropic.ts";
 import { NvimPlugin } from "neovim";
-import { Sidebar } from "./sidebar.js";
+import { Sidebar } from "./sidebar.ts";
 import {
   Model as ChatModel,
   Msg as ChatMsg,
   getMessages,
   view as chatView,
   update as chatUpdate,
-} from "./chat/chat.js";
-import { Logger } from "./logger.js";
-import { Context } from "./types.js";
-import { TOOLS } from "./tools/index.js";
-import { assertUnreachable } from "./utils/assertUnreachable.js";
-import { ToolProcess } from "./tools/types.js";
-import { Moderator } from "./moderator.js";
-import { App, createApp } from "./tea/tea.js";
+} from "./chat/chat.ts";
+import { Logger } from "./logger.ts";
+import { Context } from "./types.ts";
+import { TOOLS } from "./tools/index.ts";
+import { assertUnreachable } from "./utils/assertUnreachable.ts";
+import { ToolProcess } from "./tools/types.ts";
+import { Moderator } from "./moderator.ts";
+import { App, createApp } from "./tea/tea.ts";
 
 class Magenta {
   private anthropicClient: AnthropicClient;
@@ -30,6 +30,7 @@ class Magenta {
       initialModel: { messages: [] },
       update: chatUpdate,
       View: chatView,
+      context,
     });
     this.moderator = new Moderator(
       this.context,
@@ -62,7 +63,9 @@ class Magenta {
             startPos: { row: 0, col: 0 },
             endPos: { row: 0, col: 0 },
           });
+          this.context.logger.trace(`Chat rendered.`);
         }
+
         break;
       }
 
@@ -153,6 +156,8 @@ module.exports = (plugin: NvimPlugin) => {
       magenta: new Magenta({ nvim: plugin.nvim, logger }),
       logger,
     };
+
+    logger.log(`Magenta initialized.`);
   }
 
   plugin.registerCommand(

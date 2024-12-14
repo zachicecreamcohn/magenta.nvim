@@ -1,6 +1,6 @@
 import { Neovim, Buffer } from "neovim";
-import { Position } from "./view.js";
-import { Line } from "../chat/part.js";
+import { Position } from "./view.ts";
+import { Line } from "../chat/part.ts";
 
 export async function replaceBetweenPositions({
   nvim,

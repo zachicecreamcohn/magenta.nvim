@@ -1,9 +1,9 @@
 import * as Anthropic from "@anthropic-ai/sdk";
-import { Context } from "../types.js";
+import { Context } from "../types.ts";
 import {} from "@anthropic-ai/sdk";
 import { Buffer } from "neovim";
-import { Line } from "../chat/part.js";
-import { assertUnreachable } from "../utils/assertUnreachable.js";
+import { Line } from "../chat/part.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
 
 type State =

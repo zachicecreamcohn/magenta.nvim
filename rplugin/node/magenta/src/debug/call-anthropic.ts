@@ -1,5 +1,5 @@
-import { AnthropicClient } from "../anthropic.js";
-import { Logger } from "../logger.js";
+import { AnthropicClient } from "../anthropic.ts";
+import { Logger } from "../logger.ts";
 
 const logger = new Logger(
   {
@@ -19,7 +19,7 @@ async function run() {
     [
       {
         role: "user",
-        content: "try reading the contents of the file ./src/index.js",
+        content: "try reading the contents of the file tmp",
       },
     ],
     (text) => {

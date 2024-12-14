@@ -1,16 +1,16 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
-import { toMessageParam } from "./part.js";
+import { toMessageParam } from "./part.ts";
 import {
   Model as Message,
   Msg as MessageMsg,
   update as updateMessage,
   view as messageView,
-} from "./message.js";
-import { ToolRequest } from "../tools/index.js";
-import { Dispatch, Update } from "../tea/tea.js";
-import { ToolProcess } from "../tools/types.js";
-import { d, View } from "../tea/view.js";
+} from "./message.ts";
+import { ToolRequest } from "../tools/index.ts";
+import { Dispatch, Update } from "../tea/tea.ts";
+import { ToolProcess } from "../tools/types.ts";
+import { d, View } from "../tea/view.ts";
 
 export type Role = "user" | "assistant";
 
@@ -78,23 +78,46 @@ export const update: Update<Msg, Model> = (msg, model) => {
     }
 
     case "message-msg": {
-      // TODO
+      const [nextMessage] = updateMessage(msg.msg, model.messages[msg.idx]);
+      model.messages[msg.idx] = nextMessage;
       return [model];
     }
 
     case "stream-response": {
-      // TODO
+      const lastMessage = model.messages[model.messages.length - 1];
+      if (lastMessage?.role !== "assistant") {
+        model.messages.push({
+          role: "assistant",
+          parts: [],
+        });
+      }
+      const [nextMessage] = updateMessage(
+        { type: "append-text", text: msg.text },
+        model.messages[model.messages.length - 1],
+      );
+      model.messages[model.messages.length - 1] = nextMessage;
       return [model];
     }
 
     case "add-tool-use": {
-      // TODO
+      const lastMessage = model.messages[model.messages.length - 1];
+      if (lastMessage?.role !== "assistant") {
+        model.messages.push({
+          role: "assistant",
+          parts: [],
+        });
+      }
+      const [nextMessage] = updateMessage(
+        { type: "add-tool-use", request: msg.request, process: msg.process },
+        model.messages[model.messages.length - 1],
+      );
+      model.messages[model.messages.length - 1] = nextMessage;
       return [model];
     }
 
     case "add-tool-response": {
       let lastMessage = model.messages[model.messages.length - 1];
-      if (lastMessage.role != "user") {
+      if (lastMessage?.role !== "user") {
         lastMessage = {
           role: "user",
           parts: [],

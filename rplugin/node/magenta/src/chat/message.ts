@@ -1,11 +1,11 @@
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
-import { Model as Part, view as partView } from "./part.js";
-import { ToolProcess } from "../tools/types.js";
-import { ToolRequest } from "../tools/index.js";
-import { Role } from "./chat.js";
-import { Dispatch, Update } from "../tea/tea.js";
-import { assertUnreachable } from "../utils/assertUnreachable.js";
-import { d, View } from "../tea/view.js";
+import { Model as Part, view as partView } from "./part.ts";
+import { ToolProcess } from "../tools/types.ts";
+import { ToolRequest } from "../tools/index.ts";
+import { Role } from "./chat.ts";
+import { Dispatch, Update } from "../tea/tea.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { d, View } from "../tea/view.ts";
 
 export type Model = {
   role: Role;
@@ -32,7 +32,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
   switch (msg.type) {
     case "append-text": {
       const lastPart = model.parts[model.parts.length - 1];
-      if (lastPart.type == "text") {
+      if (lastPart && lastPart.type == "text") {
         lastPart.text += msg.text;
       } else {
         model.parts.push({

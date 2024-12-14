@@ -1,4 +1,5 @@
-import { d, MountedView, MountPoint, mountView, VDOMNode } from "./view.js";
+import { Context } from "../types.ts";
+import { d, MountedView, MountPoint, mountView, VDOMNode } from "./view.ts";
 
 export type Dispatch<Msg> = (msg: Msg) => void;
 
@@ -50,10 +51,12 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
   update,
   View,
   sub,
+  context
 }: {
   initialModel: Model;
   update: Update<Msg, Model>;
   View: View<Msg, Model>;
+  context: Context;
   sub?: {
     subscriptions: (model: Model) => Subscription<SubscriptionType>[];
     subscriptionManager: SubscriptionManager<SubscriptionType, Msg>;
@@ -68,6 +71,7 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
     | undefined;
 
   const dispatch = (msg: Msg) => {
+    context.logger.trace(`dispatched msg ${JSON.stringify(msg)}`)
     if (currentState.status == "error") {
       return currentState;
     }
@@ -84,14 +88,14 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
       updateSubs(currentState);
 
       if (root) {
-        // schedule a re-render
+        context.logger.trace(`starting render`)
         root.render({ currentState, dispatch }).catch((err) => {
-          console.error(err);
+          context.logger.error(err as Error);
           throw err;
         });
       }
     } catch (e) {
-      console.error(e);
+      context.logger.error(e as Error)
       currentState = { status: "error", error: (e as Error).message };
     }
   };
