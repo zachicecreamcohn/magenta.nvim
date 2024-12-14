@@ -64,7 +64,12 @@ export function extractMountTree(mounted: MountedVDOM): unknown {
       };
 
     case "array":
-      return mounted;
+      return {
+        type: "array",
+        children: mounted.children.map(extractMountTree),
+        startPos: mounted.startPos,
+        endPos: mounted.endPos,
+      };
 
     default:
       assertUnreachable(mounted);

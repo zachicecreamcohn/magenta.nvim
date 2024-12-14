@@ -92,8 +92,10 @@ export function d(
   template: TemplateStringsArray,
   ...values: (VDOMNode[] | VDOMNode | string)[]
 ): VDOMNode {
-  const children: VDOMNode[] = [{ type: "string", content: template[0] }];
-
+  const children: VDOMNode[] = [];
+  if (template[0].length) {
+    children.push({ type: "string", content: template[0] });
+  }
   for (let i = 0; i < values.length; i++) {
     if (typeof values[i] == "string") {
       children.push({ type: "string", content: values[i] as string });
@@ -102,7 +104,9 @@ export function d(
     } else {
       children.push(values[i] as VDOMNode);
     }
-    children.push({ type: "string", content: template[i + 1] });
+    if (template[i + 1].length > 0) {
+      children.push({ type: "string", content: template[i + 1] });
+    }
   }
 
   return { type: "node", children: children, template: template };

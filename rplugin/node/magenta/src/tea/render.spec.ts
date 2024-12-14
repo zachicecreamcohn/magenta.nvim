@@ -354,4 +354,182 @@ third line`;
       },
     );
   });
+
+  await test("rendering empty array", async () => {
+    const view = ({ arr }: { arr: string[] }) => d`${arr.map((c) => d`${c}`)}`;
+    const mountedView = await mountView({
+      view,
+      props: { arr: [] },
+      mount: {
+        nvim,
+        buffer,
+        startPos: { row: 0, col: 0 },
+        endPos: { row: 0, col: 0 },
+      },
+    });
+
+    const lines = await buffer.getLines({
+      start: 0,
+      end: 1,
+      strictIndexing: false,
+    });
+
+    assert.equal(lines[0], "");
+
+    assert.deepStrictEqual(
+      await extractMountTree(mountedView._getMountedNode()),
+      {
+        type: "node",
+        startPos: {
+          row: 0,
+          col: 0,
+        },
+        endPos: {
+          row: 0,
+          col: 0,
+        },
+        children: [
+          {
+            children: [],
+            endPos: {
+              col: 0,
+              row: 0,
+            },
+            startPos: {
+              col: 0,
+              row: 0,
+            },
+            type: "array",
+          },
+        ],
+      },
+    );
+  });
+
+  await test.only("rendering array", async () => {
+    const view = ({ arr }: { arr: string[] }) => d`${arr.map((c) => d`${c}`)}`;
+    const mountedView = await mountView({
+      view,
+      props: { arr: ["1", "\n", "2"] },
+      mount: {
+        nvim,
+        buffer,
+        startPos: { row: 0, col: 0 },
+        endPos: { row: 0, col: 0 },
+      },
+    });
+
+    const lines = await buffer.getLines({
+      start: 0,
+      end: 2,
+      strictIndexing: false,
+    });
+
+    assert.deepStrictEqual(lines, ["1", "2"]);
+
+    assert.deepStrictEqual(
+      await extractMountTree(mountedView._getMountedNode()),
+      {
+        type: "node",
+        children: [
+          {
+            type: "array",
+            children: [
+              {
+                type: "node",
+                children: [
+                  {
+                    type: "string",
+                    content: "1",
+                    startPos: {
+                      row: 0,
+                      col: 0,
+                    },
+                    endPos: {
+                      row: 0,
+                      col: 1,
+                    },
+                  },
+                ],
+                startPos: {
+                  row: 0,
+                  col: 0,
+                },
+                endPos: {
+                  row: 0,
+                  col: 1,
+                },
+              },
+              {
+                type: "node",
+                children: [
+                  {
+                    type: "string",
+                    content: "\n",
+                    startPos: {
+                      row: 0,
+                      col: 1,
+                    },
+                    endPos: {
+                      row: 1,
+                      col: 0,
+                    },
+                  },
+                ],
+                startPos: {
+                  row: 0,
+                  col: 1,
+                },
+                endPos: {
+                  row: 1,
+                  col: 0,
+                },
+              },
+              {
+                type: "node",
+                children: [
+                  {
+                    type: "string",
+                    content: "2",
+                    startPos: {
+                      row: 1,
+                      col: 0,
+                    },
+                    endPos: {
+                      row: 1,
+                      col: 1,
+                    },
+                  },
+                ],
+                startPos: {
+                  row: 1,
+                  col: 0,
+                },
+                endPos: {
+                  row: 1,
+                  col: 1,
+                },
+              },
+            ],
+            startPos: {
+              row: 0,
+              col: 0,
+            },
+            endPos: {
+              row: 1,
+              col: 1,
+            },
+          },
+        ],
+        startPos: {
+          row: 0,
+          col: 0,
+        },
+        endPos: {
+          row: 1,
+          col: 1,
+        },
+      },
+    );
+  });
 });
