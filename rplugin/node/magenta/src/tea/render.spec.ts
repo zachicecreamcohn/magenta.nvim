@@ -29,7 +29,6 @@ await test.describe("tea/render.spec.ts", async () => {
       view,
       props: {},
       mount: {
-        nvim,
         buffer,
         startPos: { row: 0, col: 0 },
         endPos: { row: 0, col: 0 },
@@ -107,7 +106,6 @@ third line`;
       view,
       props: {},
       mount: {
-        nvim,
         buffer,
         startPos: { row: 0, col: 0 },
         endPos: { row: 0, col: 0 },
@@ -191,7 +189,6 @@ third line`;
       view,
       props: {},
       mount: {
-        nvim,
         buffer,
         startPos: { row: 0, col: 0 },
         endPos: { row: 0, col: 0 },
@@ -273,7 +270,6 @@ third line`;
       view,
       props: {},
       mount: {
-        nvim,
         buffer,
         startPos: { row: 0, col: 0 },
         endPos: { row: 0, col: 0 },
@@ -361,7 +357,6 @@ third line`;
       view,
       props: { arr: [] },
       mount: {
-        nvim,
         buffer,
         startPos: { row: 0, col: 0 },
         endPos: { row: 0, col: 0 },
@@ -412,7 +407,6 @@ third line`;
       view,
       props: { arr: ["1", "\n", "2"] },
       mount: {
-        nvim,
         buffer,
         startPos: { row: 0, col: 0 },
         endPos: { row: 0, col: 0 },

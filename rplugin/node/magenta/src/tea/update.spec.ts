@@ -29,7 +29,6 @@ await test.describe("tea/update.spec.ts", async () => {
       view,
       props: { prop: "" },
       mount: {
-        nvim,
         buffer,
         startPos: { row: 0, col: 0 },
         endPos: { row: 0, col: 0 },
@@ -99,7 +98,6 @@ await test.describe("tea/update.spec.ts", async () => {
       view,
       props: { prop1: "", prop2: "" },
       mount: {
-        nvim,
         buffer,
         startPos: { row: 0, col: 0 },
         endPos: { row: 0, col: 0 },

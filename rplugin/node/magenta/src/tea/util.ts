@@ -1,22 +1,21 @@
-import { Neovim, Buffer } from "neovim";
+import { Buffer } from "neovim";
 import { Position } from "./view.ts";
 import { Line } from "../chat/part.ts";
+import { context } from "../context.ts";
 
 export async function replaceBetweenPositions({
-  nvim,
   buffer,
   startPos,
   endPos,
   lines,
 }: {
-  nvim: Neovim;
   buffer: Buffer;
   startPos: Position;
   endPos: Position;
   lines: Line[];
 }) {
   await buffer.setOption("modifiable", true);
-  await nvim.call("nvim_buf_set_text", [
+  await context.nvim.call("nvim_buf_set_text", [
     buffer.id,
     startPos.row,
     startPos.col,

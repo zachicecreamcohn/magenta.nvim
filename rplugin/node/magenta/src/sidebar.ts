@@ -1,5 +1,5 @@
-import { Neovim, Buffer, Window } from "neovim";
-import { Logger } from "./logger.ts";
+import { Buffer, Window } from "neovim";
+import { context } from "./context.ts";
 
 /** This will mostly manage the window toggle
  */
@@ -16,10 +16,7 @@ export class Sidebar {
         inputWindow: Window;
       };
 
-  constructor(
-    private nvim: Neovim,
-    private logger: Logger,
-  ) {
+  constructor() {
     this.state = { state: "hidden" };
     // TODO: also probably need to set up some autocommands to detect if the user closes the scratch buffers
   }
@@ -32,7 +29,7 @@ export class Sidebar {
     if (this.state.state == "hidden") {
       return await this.create();
     } else {
-      await this.destroy();
+      this.destroy();
     }
   }
 
@@ -40,7 +37,7 @@ export class Sidebar {
     displayBuffer: Buffer;
     inputBuffer: Buffer;
   }> {
-    const { nvim, logger } = this;
+    const { nvim, logger } = context;
     logger.trace(`sidebar.create`);
     const totalHeight = (await nvim.getOption("lines")) as number;
     const cmdHeight = (await nvim.getOption("cmdheight")) as number;
@@ -50,13 +47,13 @@ export class Sidebar {
 
     await nvim.command("leftabove vsplit");
     const displayWindow = await nvim.window;
-    const displayBuffer = (await this.nvim.createBuffer(false, true)) as Buffer;
+    const displayBuffer = (await nvim.createBuffer(false, true)) as Buffer;
     displayWindow.width = width;
     await nvim.lua(
       `vim.api.nvim_win_set_buf(${displayWindow.id}, ${displayBuffer.id})`,
     );
 
-    const inputBuffer = (await this.nvim.createBuffer(false, true)) as Buffer;
+    const inputBuffer = (await nvim.createBuffer(false, true)) as Buffer;
 
     await nvim.command("below split");
     const inputWindow = await nvim.window;
@@ -105,7 +102,7 @@ export class Sidebar {
     return { displayBuffer, inputBuffer };
   }
 
-  async destroy() {
+  destroy() {
     this.state = {
       state: "hidden",
     };
@@ -146,7 +143,9 @@ export class Sidebar {
 
   async getMessage(): Promise<string> {
     if (this.state.state != "visible") {
-      this.logger.trace(`sidebar state is ${this.state.state} in getMessage`);
+      context.logger.trace(
+        `sidebar state is ${this.state.state} in getMessage`,
+      );
       return "";
     }
 
@@ -158,7 +157,7 @@ export class Sidebar {
       strictIndexing: false,
     });
 
-    this.logger.trace(
+    context.logger.trace(
       `sidebar got lines ${JSON.stringify(lines)} from inputBuffer`,
     );
     const message = lines.join("\n");

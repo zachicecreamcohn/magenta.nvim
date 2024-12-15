@@ -1,11 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { Logger } from "./logger.ts";
+import { context } from "./context.ts";
 import { TOOL_SPECS, ToolRequest } from "./tools/toolManager.ts";
 
 export class AnthropicClient {
   private client: Anthropic;
 
-  constructor(private logger: Logger) {
+  constructor() {
     const apiKey = process.env.ANTHROPIC_API_KEY;
 
     if (!apiKey) {
@@ -21,7 +21,7 @@ export class AnthropicClient {
     messages: Array<Anthropic.MessageParam>,
     onText: (text: string) => void,
   ): Promise<ToolRequest[]> {
-    this.logger.trace(
+    context.logger.trace(
       `initializing stream with messages: ${JSON.stringify(messages, null, 2)}`,
     );
     const buf: string[] = [];
@@ -60,14 +60,14 @@ export class AnthropicClient {
         flushBuffer();
       })
       .on("inputJson", (_delta, snapshot) => {
-        this.logger.debug(`inputJson: ${JSON.stringify(snapshot)}`);
+        context.logger.debug(`inputJson: ${JSON.stringify(snapshot)}`);
       });
 
     const response = await stream.finalMessage();
     const toolRequests = response.content.filter(
       (c): c is ToolRequest => c.type == "tool_use",
     );
-    this.logger.debug("toolRequests: " + JSON.stringify(toolRequests));
+    context.logger.debug("toolRequests: " + JSON.stringify(toolRequests));
     return toolRequests;
   }
 }

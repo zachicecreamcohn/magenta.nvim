@@ -55,18 +55,16 @@ export const update: Update<Msg, Model> = (msg, model) => {
                 [request.id]: getFileModel,
               },
             },
-            (dispatch, context) =>
-              thunk(
-                (msg) =>
-                  dispatch({
-                    type: "tool-msg",
-                    id: request.id,
-                    msg: {
-                      type: "get-file",
-                      msg,
-                    },
-                  }),
-                context,
+            (dispatch) =>
+              thunk((msg) =>
+                dispatch({
+                  type: "tool-msg",
+                  id: request.id,
+                  msg: {
+                    type: "get-file",
+                    msg,
+                  },
+                }),
               ),
           ];
         }
@@ -81,18 +79,16 @@ export const update: Update<Msg, Model> = (msg, model) => {
                 [request.id]: insertModel,
               },
             },
-            (dispatch, context) =>
-              thunk(
-                (msg) =>
-                  dispatch({
-                    type: "tool-msg",
-                    id: request.id,
-                    msg: {
-                      type: "insert",
-                      msg,
-                    },
-                  }),
-                context,
+            (dispatch) =>
+              thunk((msg) =>
+                dispatch({
+                  type: "tool-msg",
+                  id: request.id,
+                  msg: {
+                    type: "insert",
+                    msg,
+                  },
+                }),
               ),
           ];
         }
@@ -123,18 +119,16 @@ export const update: Update<Msg, Model> = (msg, model) => {
               },
             },
             thunk
-              ? (dispatch, context) =>
-                  thunk(
-                    (innerMsg) =>
-                      dispatch({
-                        type: "tool-msg",
-                        id: msg.id,
-                        msg: {
-                          type: "get-file",
-                          msg: innerMsg,
-                        },
-                      }),
-                    context,
+              ? (dispatch) =>
+                  thunk((innerMsg) =>
+                    dispatch({
+                      type: "tool-msg",
+                      id: msg.id,
+                      msg: {
+                        type: "get-file",
+                        msg: innerMsg,
+                      },
+                    }),
                   )
               : undefined,
           ];
@@ -155,18 +149,16 @@ export const update: Update<Msg, Model> = (msg, model) => {
               },
             },
             thunk
-              ? (dispatch, context) =>
-                  thunk(
-                    (innerMsg) =>
-                      dispatch({
-                        type: "tool-msg",
-                        id: msg.id,
-                        msg: {
-                          type: "insert",
-                          msg: innerMsg,
-                        },
-                      }),
-                    context,
+              ? (dispatch) =>
+                  thunk((innerMsg) =>
+                    dispatch({
+                      type: "tool-msg",
+                      id: msg.id,
+                      msg: {
+                        type: "insert",
+                        msg: innerMsg,
+                      },
+                    }),
                   )
               : undefined,
           ];

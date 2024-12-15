@@ -6,6 +6,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
 import { Thunk, Update } from "../tea/tea.ts";
 import { d, VDOMNode } from "../tea/view.ts";
+import { context } from "../context.ts";
 
 export type Model = {
   autoRespond: boolean;
@@ -55,11 +56,10 @@ export function initModel(request: GetFileToolUseRequest): [Model, Thunk<Msg>] {
   };
   return [
     model,
-    async (dispatch, context) => {
+    async (dispatch) => {
       const filePath = model.request.input.filePath;
       context.logger.trace(`request: ${JSON.stringify(model.request)}`);
       const bufferContents = await getBufferIfOpen({
-        context: context,
         relativePath: filePath,
       });
 

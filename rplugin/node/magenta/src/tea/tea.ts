@@ -1,5 +1,5 @@
-import { Context } from "../types.ts";
 import { d, MountedView, MountPoint, mountView, VDOMNode } from "./view.ts";
+import { context } from "../context.ts";
 
 export type Dispatch<Msg> = (msg: Msg) => void;
 
@@ -52,13 +52,11 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
   View,
   sub,
   onUpdate,
-  context,
 }: {
   initialModel: Model;
   update: Update<Msg, Model>;
   View: View<Msg, Model>;
   onUpdate?: (msg: Msg, model: Model) => void;
-  context: Context;
   sub?: {
     subscriptions: (model: Model) => Subscription<SubscriptionType>[];
     subscriptionManager: SubscriptionManager<SubscriptionType, Msg>;
@@ -86,7 +84,7 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
 
       if (thunk) {
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        thunk(dispatch, context);
+        thunk(dispatch);
       }
 
       currentState = { status: "running", model: nextModel };
@@ -196,10 +194,7 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
   };
 }
 
-export type Thunk<Msg> = (
-  dispatch: Dispatch<Msg>,
-  context: Context,
-) => Promise<void>;
+export type Thunk<Msg> = (dispatch: Dispatch<Msg>) => Promise<void>;
 
 export function wrapThunk<MsgType extends string, InnerMsg>(
   msgType: MsgType,
@@ -208,19 +203,17 @@ export function wrapThunk<MsgType extends string, InnerMsg>(
   if (!thunk) {
     return undefined;
   }
-  return (
-    dispatch: Dispatch<{ type: MsgType; msg: InnerMsg }>,
-    context: Context,
-  ) => thunk((msg: InnerMsg) => dispatch({ type: msgType, msg }), context);
+  return (dispatch: Dispatch<{ type: MsgType; msg: InnerMsg }>) =>
+    thunk((msg: InnerMsg) => dispatch({ type: msgType, msg }));
 }
 
 export function chainThunks<Msg>(
   ...thunks: (Thunk<Msg> | undefined)[]
 ): Thunk<Msg> {
-  return async (dispatch, context) => {
+  return async (dispatch) => {
     for (const thunk of thunks) {
       if (thunk) {
-        await thunk(dispatch, context);
+        await thunk(dispatch);
       }
     }
   };

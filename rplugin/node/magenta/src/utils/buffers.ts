@@ -1,12 +1,10 @@
 import { Buffer } from "neovim";
 import * as path from "path";
-import { Context } from "../types.ts";
+import { context } from "../context.ts";
 
 export async function getBufferIfOpen({
-  context,
   relativePath,
 }: {
-  context: Context;
   relativePath: string;
 }): Promise<
   | { status: "ok"; result: string; buffer: Buffer }

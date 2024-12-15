@@ -4,6 +4,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
 import { Thunk, Update } from "../tea/tea.ts";
 import { d, VDOMNode } from "../tea/view.ts";
+import { context } from "../context.ts";
 
 export type Model = {
   autoRespond: boolean;
@@ -67,7 +68,7 @@ export function initModel(request: InsertToolUseRequest): [Model, Thunk<Msg>] {
 
   return [
     model,
-    async (dispatch, context) => {
+    async (dispatch) => {
       const { nvim } = context;
       const filePath = request.input.filePath;
 

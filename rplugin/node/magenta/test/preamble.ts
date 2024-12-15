@@ -2,6 +2,8 @@ import { attach, NeovimClient } from "neovim";
 import { spawn } from "child_process";
 import { MountedVDOM } from "../src/tea/view.ts";
 import { assertUnreachable } from "../src/utils/assertUnreachable.ts";
+import { setContext } from "../src/context.ts";
+import { Logger } from "../src/logger.ts";
 
 process.env.NVIM_LOG_FILE = "/tmp/nvim.log"; // Helpful for debugging
 process.env.NVIM_NODE_LOG_FILE = "/tmp/nvim-node.log"; // Helpful for debugging
@@ -30,6 +32,16 @@ export class NeovimTestHelper {
 
       try {
         this.nvimClient = attach({ proc: this.nvimProcess });
+        setContext({
+          nvim: this.nvimClient,
+          logger: {
+            log: console.log,
+            debug: console.log,
+            trace: console.log,
+            error: console.error,
+          } as Logger,
+        });
+
         resolve(this.nvimClient);
         console.error("Neovim started");
       } catch (err) {

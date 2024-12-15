@@ -1,4 +1,4 @@
-import { Buffer, Neovim } from "neovim";
+import { Buffer } from "neovim";
 import { render } from "./render.ts";
 import { update } from "./update.ts";
 
@@ -8,7 +8,6 @@ export type Position = {
 };
 
 export interface MountPoint {
-  nvim: Neovim;
   buffer: Buffer;
   startPos: Position;
   endPos: Position;

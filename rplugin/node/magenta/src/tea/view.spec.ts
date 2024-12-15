@@ -31,7 +31,6 @@ await test.describe("Neovim Plugin Tests", async () => {
       view,
       props: { helloTo: "world" },
       mount: {
-        nvim,
         buffer,
         startPos: { row: 0, col: 0 },
         endPos: { row: 0, col: 0 },

@@ -3,10 +3,10 @@ import { NvimPlugin } from "neovim";
 import { Sidebar } from "./sidebar.ts";
 import * as Chat from "./chat/chat.ts";
 import { Logger } from "./logger.ts";
-import { Context } from "./types.ts";
 import { App, createApp } from "./tea/tea.ts";
 import * as ToolManager from "./tools/toolManager.ts";
 import { d } from "./tea/view.ts";
+import { setContext, context } from "./context.ts";
 
 class Magenta {
   private anthropicClient: AnthropicClient;
@@ -14,23 +14,21 @@ class Magenta {
   private chat: App<Chat.Msg, Chat.Model>;
   private toolManager: App<ToolManager.Msg, ToolManager.Model>;
 
-  constructor(private context: Context) {
-    this.context.logger.debug(`Initializing plugin`);
-    this.anthropicClient = new AnthropicClient(this.context.logger);
-    this.sidebar = new Sidebar(this.context.nvim, this.context.logger);
+  constructor() {
+    context.logger.debug(`Initializing plugin`);
+    this.anthropicClient = new AnthropicClient();
+    this.sidebar = new Sidebar();
 
     this.chat = createApp({
       initialModel: { messages: [] },
       update: Chat.update,
       View: Chat.view,
-      context,
     });
 
     this.toolManager = createApp({
       initialModel: ToolManager.initModel(),
       update: ToolManager.update,
       View: () => d``,
-      context,
       onUpdate: (msg, model) => {
         if (msg.type == "tool-msg") {
           if (msg.msg.msg.type == "finish") {
@@ -53,7 +51,7 @@ class Magenta {
 
               if (shouldRespond) {
                 this.sendMessage().catch((err) =>
-                  this.context.logger.error(err as Error),
+                  context.logger.error(err as Error),
                 );
               }
             }
@@ -64,18 +62,17 @@ class Magenta {
   }
 
   async command(args: string[]): Promise<void> {
-    this.context.logger.debug(`Received command ${args[0]}`);
+    context.logger.debug(`Received command ${args[0]}`);
     switch (args[0]) {
       case "toggle": {
         const buffers = await this.sidebar.toggle();
         if (buffers) {
           await this.chat.mount({
-            nvim: this.context.nvim,
             buffer: buffers.displayBuffer,
             startPos: { row: 0, col: 0 },
             endPos: { row: 0, col: 0 },
           });
-          this.context.logger.trace(`Chat rendered.`);
+          context.logger.trace(`Chat rendered.`);
         }
 
         break;
@@ -83,7 +80,7 @@ class Magenta {
 
       case "send": {
         const message = await this.sidebar.getMessage();
-        this.context.logger.trace(`current message: ${message}`);
+        context.logger.trace(`current message: ${message}`);
         if (!message) return;
 
         this.chat.dispatch({
@@ -101,14 +98,14 @@ class Magenta {
         break;
 
       default:
-        this.context.logger.error(`Unrecognized command ${args[0]}\n`);
+        context.logger.error(`Unrecognized command ${args[0]}\n`);
     }
   }
 
   private async sendMessage() {
     const state = this.chat.getState();
     if (state.status != "running") {
-      this.context.logger.error(`chat is not running.`);
+      context.logger.error(`chat is not running.`);
       return;
     }
 
@@ -117,7 +114,7 @@ class Magenta {
     const toolRequests = await this.anthropicClient.sendMessage(
       messages,
       (text) => {
-        this.context.logger.trace(`stream received text ${text}`);
+        context.logger.trace(`stream received text ${text}`);
         this.chat.dispatch({
           type: "stream-response",
           text,
@@ -148,13 +145,18 @@ module.exports = (plugin: NvimPlugin) => {
 
   if (!init) {
     const logger = new Logger(plugin.nvim, { level: "trace" });
+    setContext({
+      nvim: plugin.nvim,
+      logger,
+    });
+
     process.on("uncaughtException", (error) => {
       logger.error(error);
       process.exit(1);
     });
 
     init = {
-      magenta: new Magenta({ nvim: plugin.nvim, logger }),
+      magenta: new Magenta(),
       logger,
     };
 
