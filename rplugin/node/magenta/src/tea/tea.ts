@@ -115,6 +115,7 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
           throw err;
         })
         .finally(() => {
+          renderPromise = undefined;
           if (reRender) {
             reRender = false;
             render();

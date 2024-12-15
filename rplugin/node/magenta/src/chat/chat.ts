@@ -89,11 +89,13 @@ export const update: Update<Msg, Model> = (msg, model) => {
           parts: [],
         });
       }
+
       const [nextMessage] = updateMessage(
         { type: "append-text", text: msg.text },
         model.messages[model.messages.length - 1],
       );
       model.messages[model.messages.length - 1] = nextMessage;
+
       return [model];
     }
 
