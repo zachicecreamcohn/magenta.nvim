@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Logger } from "./logger.ts";
-import { TOOLS, ToolRequest } from "./tools/index.ts";
+import { TOOL_SPECS, ToolRequest } from "./tools/toolManager.ts";
 
 export class AnthropicClient {
   private client: Anthropic;
@@ -53,7 +53,7 @@ export class AnthropicClient {
           type: "auto",
           disable_parallel_tool_use: false,
         },
-        tools: Object.values(TOOLS).map((t) => t.spec()),
+        tools: TOOL_SPECS,
       })
       .on("text", (text: string) => {
         buf.push(text);

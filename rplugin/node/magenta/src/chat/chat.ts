@@ -7,9 +7,8 @@ import {
   update as updateMessage,
   view as messageView,
 } from "./message.ts";
-import { ToolRequest } from "../tools/index.ts";
+import { ToolRequest } from "../tools/toolManager.ts";
 import { Dispatch, Update } from "../tea/tea.ts";
-import { ToolProcess } from "../tools/types.ts";
 import { d, View } from "../tea/view.ts";
 
 export type Role = "user" | "assistant";
@@ -47,7 +46,6 @@ export type Msg =
   | {
       type: "add-tool-use";
       request: ToolRequest;
-      process: ToolProcess;
     }
   | {
       type: "add-tool-response";
@@ -108,7 +106,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
         });
       }
       const [nextMessage] = updateMessage(
-        { type: "add-tool-use", request: msg.request, process: msg.process },
+        { type: "add-tool-use", request: msg.request },
         model.messages[model.messages.length - 1],
       );
       model.messages[model.messages.length - 1] = nextMessage;

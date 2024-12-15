@@ -1,24 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { ToolRequest } from "../tools/index.ts";
+import { ToolRequest } from "../tools/toolManager.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { ToolProcess } from "../tools/types.ts";
 import { d, View } from "../tea/view.ts";
 
 /** A line that's meant to be sent to neovim. Should not contain newlines
  */
 export type Line = string & { __line: true };
-
-export type ToolUseState =
-  | {
-      state: "processing";
-    }
-  | {
-      state: "pending-approval";
-    }
-  | {
-      state: "done";
-      response: Anthropic.ToolResultBlockParam;
-    };
 
 export type Model =
   | {
@@ -28,7 +15,6 @@ export type Model =
   | {
       type: "tool-use";
       request: ToolRequest;
-      process: ToolProcess;
     }
   | {
       type: "tool-response";

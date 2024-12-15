@@ -1,175 +1,165 @@
 import * as Anthropic from "@anthropic-ai/sdk";
-import { Context } from "../types.ts";
 import { getBufferIfOpen } from "../utils/buffers.ts";
 import fs from "fs";
 import path from "path";
-import { Line } from "../chat/part.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
+import { Thunk, Update } from "../tea/tea.ts";
+import { d, VDOMNode } from "../tea/view.ts";
 
-type State =
-  | {
-      state: "processing";
-    }
-  | {
-      state: "pending-user-action";
-    }
-  | {
-      state: "done";
-      result: ToolResultBlockParam;
-    };
-
-export class FileToolProcess {
-  public readonly autoRespond = true;
-  private _state: State;
-  private subscriptions: Map<string, (state: State) => void> = new Map();
-
-  get state(): State {
-    return this._state;
-  }
-
-  private set state(newState: State) {
-    this._state = newState;
-    this.notify();
-  }
-
-  constructor(
-    public request: GetFileToolUseRequest,
-    private context: Context,
-  ) {
-    this._state = { state: "processing" };
-
-    this.process().catch((err) => this.context.logger.error(err as Error));
-  }
-
-  async process() {
-    const { nvim } = this.context;
-    const filePath = this.request.input.filePath;
-    this.context.logger.trace(`request: ${JSON.stringify(this.request)}`);
-    const bufferContents = await getBufferIfOpen({
-      context: this.context,
-      relativePath: filePath,
-    });
-
-    if (bufferContents.status === "ok") {
-      this.state = {
-        state: "done",
-        result: {
-          type: "tool_result",
-          tool_use_id: this.request.id,
-          content: bufferContents.result,
-          is_error: false,
-        },
+export type Model = {
+  autoRespond: boolean;
+  request: GetFileToolUseRequest;
+  state:
+    | {
+        state: "processing";
+      }
+    | {
+        state: "pending-user-action";
+      }
+    | {
+        state: "done";
+        result: ToolResultBlockParam;
       };
-      return;
-    }
+};
 
-    if (bufferContents.status === "error") {
-      this.state = {
-        state: "done",
-        result: {
-          type: "tool_result",
-          tool_use_id: this.request.id,
-          content: bufferContents.error,
-          is_error: true,
+export type Msg = {
+  type: "finish";
+  result: ToolResultBlockParam;
+};
+
+export const update: Update<Msg, Model> = (msg, model) => {
+  switch (msg.type) {
+    case "finish":
+      return [
+        {
+          ...model,
+          state: {
+            state: "done",
+            result: msg.result,
+          },
         },
-      };
-      return;
-    }
+      ];
+    default:
+      assertUnreachable(msg.type);
+  }
+};
 
-    try {
-      const cwd = (await nvim.call("getcwd")) as string;
-      const absolutePath = path.resolve(cwd, filePath);
+export function initModel(request: GetFileToolUseRequest): [Model, Thunk<Msg>] {
+  const model: Model = {
+    autoRespond: true,
+    request,
+    state: {
+      state: "processing",
+    },
+  };
+  return [
+    model,
+    async (dispatch, context) => {
+      const filePath = model.request.input.filePath;
+      context.logger.trace(`request: ${JSON.stringify(model.request)}`);
+      const bufferContents = await getBufferIfOpen({
+        context: context,
+        relativePath: filePath,
+      });
 
-      if (!absolutePath.startsWith(cwd)) {
-        this.state = {
-          state: "done",
+      if (bufferContents.status === "ok") {
+        dispatch({
+          type: "finish",
           result: {
             type: "tool_result",
-            tool_use_id: this.request.id,
-            content: "The path must be inside of neovim cwd",
-            is_error: true,
+            tool_use_id: model.request.id,
+            content: bufferContents.result,
+            is_error: false,
           },
-        };
+        });
         return;
       }
 
-      const fileContent = await fs.promises.readFile(absolutePath, "utf-8");
-      this.state = {
-        state: "done",
-        result: {
-          type: "tool_result",
-          tool_use_id: this.request.id,
-          content: fileContent,
-          is_error: false,
-        },
-      };
-      return;
-    } catch (error) {
-      this.state = {
-        state: "done",
-        result: {
-          type: "tool_result",
-          tool_use_id: this.request.id,
-          content: `Failed to read file: ${(error as Error).message}`,
-          is_error: true,
-        },
-      };
-    }
-  }
-
-  subscribe(callback: (state: State) => void): () => void {
-    const token = Math.random().toString(36).substring(2);
-    this.subscriptions.set(token, callback);
-
-    return () => {
-      this.subscriptions.delete(token);
-    };
-  }
-
-  private notify(): void {
-    this.subscriptions.forEach((callback) => callback(this.state));
-  }
-
-  getLines(): Line[] {
-    switch (this.state.state) {
-      case "processing":
-        return ["⚙️ Processing" as Line];
-      case "pending-user-action":
-        return ["⏳ Pending approval" as Line];
-      case "done":
-        return ["✅ Complete" as Line];
-      default:
-        assertUnreachable(this.state);
-    }
-  }
-}
-
-export class FileTool {
-  constructor() {}
-
-  execRequest(request: GetFileToolUseRequest, context: Context) {
-    return new FileToolProcess(request, context);
-  }
-
-  spec(): Anthropic.Anthropic.Tool {
-    return {
-      name: "get_file",
-      description: `Get the full contents of a file in the project directory.`,
-      input_schema: {
-        type: "object",
-        properties: {
-          filePath: {
-            type: "string",
-            description:
-              "the path, relative to the project root, of the file. e.g. ./src/index.ts",
+      if (bufferContents.status === "error") {
+        dispatch({
+          type: "finish",
+          result: {
+            type: "tool_result",
+            tool_use_id: request.id,
+            content: bufferContents.error,
+            is_error: true,
           },
-        },
-        required: ["path"],
-      },
-    };
+        });
+        return;
+      }
+
+      try {
+        const cwd = (await context.nvim.call("getcwd")) as string;
+        const absolutePath = path.resolve(cwd, filePath);
+
+        if (!absolutePath.startsWith(cwd)) {
+          dispatch({
+            type: "finish",
+            result: {
+              type: "tool_result",
+              tool_use_id: model.request.id,
+              content: "The path must be inside of neovim cwd",
+              is_error: true,
+            },
+          });
+          return;
+        }
+
+        const fileContent = await fs.promises.readFile(absolutePath, "utf-8");
+        dispatch({
+          type: "finish",
+          result: {
+            type: "tool_result",
+            tool_use_id: model.request.id,
+            content: fileContent,
+            is_error: false,
+          },
+        });
+        return;
+      } catch (error) {
+        dispatch({
+          type: "finish",
+          result: {
+            type: "tool_result",
+            tool_use_id: model.request.id,
+            content: `Failed to read file: ${(error as Error).message}`,
+            is_error: true,
+          },
+        });
+      }
+    },
+  ];
+}
+
+export function view({ model }: { model: Model }): VDOMNode {
+  switch (model.state.state) {
+    case "processing":
+      return d`⚙️ Reading file ${model.request.input.filePath}`;
+    case "pending-user-action":
+      return d`⏳ Pending approval to read file ${model.request.input.filePath}`;
+    case "done":
+      return d`✅ Finished reading file ${model.request.input.filePath}`;
+    default:
+      assertUnreachable(model.state);
   }
 }
+
+export const spec: Anthropic.Anthropic.Tool = {
+  name: "get_file",
+  description: `Get the full contents of a file in the project directory.`,
+  input_schema: {
+    type: "object",
+    properties: {
+      filePath: {
+        type: "string",
+        description:
+          "the path, relative to the project root, of the file. e.g. ./src/index.ts",
+      },
+    },
+    required: ["path"],
+  },
+};
 
 export type GetFileToolUseRequest = {
   type: "tool_use";

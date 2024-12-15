@@ -1,54 +1,66 @@
 import { AnthropicClient } from "./anthropic.ts";
 import { NvimPlugin } from "neovim";
 import { Sidebar } from "./sidebar.ts";
-import {
-  Model as ChatModel,
-  Msg as ChatMsg,
-  getMessages,
-  view as chatView,
-  update as chatUpdate,
-} from "./chat/chat.ts";
+import * as Chat from "./chat/chat.ts";
 import { Logger } from "./logger.ts";
 import { Context } from "./types.ts";
-import { TOOLS } from "./tools/index.ts";
-import { assertUnreachable } from "./utils/assertUnreachable.ts";
-import { ToolProcess } from "./tools/types.ts";
-import { Moderator } from "./moderator.ts";
 import { App, createApp } from "./tea/tea.ts";
+import * as ToolManager from "./tools/toolManager.ts";
+import { d } from "./tea/view.ts";
 
 class Magenta {
   private anthropicClient: AnthropicClient;
   private sidebar: Sidebar;
-  private moderator: Moderator;
-  private chat: App<ChatMsg, ChatModel>;
+  private chat: App<Chat.Msg, Chat.Model>;
+  private toolManager: App<ToolManager.Msg, ToolManager.Model>;
 
   constructor(private context: Context) {
     this.context.logger.debug(`Initializing plugin`);
     this.anthropicClient = new AnthropicClient(this.context.logger);
     this.sidebar = new Sidebar(this.context.nvim, this.context.logger);
+
     this.chat = createApp({
       initialModel: { messages: [] },
-      update: chatUpdate,
-      View: chatView,
+      update: Chat.update,
+      View: Chat.view,
       context,
     });
-    this.moderator = new Moderator(
-      this.context,
-      // on tool result
-      (request, response) => {
-        this.chat.dispatch({
-          type: "add-tool-response",
-          request,
-          response,
-        });
+
+    this.toolManager = createApp({
+      initialModel: ToolManager.initModel(),
+      update: ToolManager.update,
+      View: () => d``,
+      context,
+      onUpdate: (msg, model) => {
+        if (msg.type == "tool-msg") {
+          if (msg.msg.msg.type == "finish") {
+            const toolModel = model.toolModels[msg.id];
+            const response = msg.msg.msg.result;
+            this.chat.dispatch({
+              type: "add-tool-response",
+              request: toolModel.request,
+              response,
+            });
+
+            if (toolModel.autoRespond) {
+              let shouldRespond = true;
+              for (const tool of Object.values(model.toolModels)) {
+                if (tool.state.state != "done") {
+                  shouldRespond = false;
+                  break;
+                }
+              }
+
+              if (shouldRespond) {
+                this.sendMessage().catch((err) =>
+                  this.context.logger.error(err as Error),
+                );
+              }
+            }
+          }
+        }
       },
-      // autorespond
-      () => {
-        this.sendMessage().catch((err) =>
-          this.context.logger.error(err as Error),
-        );
-      },
-    );
+    });
   }
 
   async command(args: string[]): Promise<void> {
@@ -100,7 +112,7 @@ class Magenta {
       return;
     }
 
-    const messages = getMessages(state.model);
+    const messages = Chat.getMessages(state.model);
 
     const toolRequests = await this.anthropicClient.sendMessage(
       messages,
@@ -115,25 +127,14 @@ class Magenta {
 
     if (toolRequests.length) {
       for (const request of toolRequests) {
-        let process: ToolProcess;
-        switch (request.name) {
-          case "get_file": {
-            process = TOOLS[request.name].execRequest(request, this.context);
-            break;
-          }
-          case "insert": {
-            process = TOOLS[request.name].execRequest(request, this.context);
-            break;
-          }
-          default:
-            assertUnreachable(request);
-        }
+        this.toolManager.dispatch({
+          type: "init-tool-use",
+          request,
+        });
 
-        this.moderator.registerProcess(process);
         this.chat.dispatch({
           type: "add-tool-use",
           request,
-          process,
         });
       }
     }

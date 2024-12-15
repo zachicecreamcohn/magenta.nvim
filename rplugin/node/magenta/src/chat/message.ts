@@ -1,7 +1,6 @@
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
 import { Model as Part, view as partView } from "./part.ts";
-import { ToolProcess } from "../tools/types.ts";
-import { ToolRequest } from "../tools/index.ts";
+import { ToolRequest } from "../tools/toolManager.ts";
 import { Role } from "./chat.ts";
 import { Dispatch, Update } from "../tea/tea.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
@@ -20,7 +19,6 @@ export type Msg =
   | {
       type: "add-tool-use";
       request: ToolRequest;
-      process: ToolProcess;
     }
   | {
       type: "add-tool-response";
@@ -47,7 +45,6 @@ export const update: Update<Msg, Model> = (msg, model) => {
       model.parts.push({
         type: "tool-use",
         request: msg.request,
-        process: msg.process,
       });
       break;
 

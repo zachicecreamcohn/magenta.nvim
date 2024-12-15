@@ -51,11 +51,13 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
   update,
   View,
   sub,
-  context
+  onUpdate,
+  context,
 }: {
   initialModel: Model;
   update: Update<Msg, Model>;
   View: View<Msg, Model>;
+  onUpdate?: (msg: Msg, model: Model) => void;
   context: Context;
   sub?: {
     subscriptions: (model: Model) => Subscription<SubscriptionType>[];
@@ -70,8 +72,11 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
     | MountedView<{ currentState: AppState<Model>; dispatch: Dispatch<Msg> }>
     | undefined;
 
+  let renderPromise: Promise<void> | undefined;
+  let reRender = false;
+
   const dispatch = (msg: Msg) => {
-    context.logger.trace(`dispatched msg ${JSON.stringify(msg)}`)
+    context.logger.trace(`dispatched msg ${JSON.stringify(msg)}`);
     if (currentState.status == "error") {
       return currentState;
     }
@@ -81,24 +86,44 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
 
       if (thunk) {
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        thunk(dispatch);
+        thunk(dispatch, context);
       }
 
       currentState = { status: "running", model: nextModel };
       updateSubs(currentState);
 
-      if (root) {
-        context.logger.trace(`starting render`)
-        root.render({ currentState, dispatch }).catch((err) => {
-          context.logger.error(err as Error);
-          throw err;
-        });
+      if (renderPromise) {
+        reRender = true;
+      } else {
+        render();
+      }
+
+      if (onUpdate) {
+        onUpdate(msg, currentState.model);
       }
     } catch (e) {
-      context.logger.error(e as Error)
+      context.logger.error(e as Error);
       currentState = { status: "error", error: (e as Error).message };
     }
   };
+
+  function render() {
+    context.logger.trace(`starting render`);
+    if (root) {
+      renderPromise = root
+        .render({ currentState, dispatch })
+        .catch((err) => {
+          context.logger.error(err as Error);
+          throw err;
+        })
+        .finally(() => {
+          if (reRender) {
+            reRender = false;
+            render();
+          }
+        });
+    }
+  }
 
   const subs: {
     [id: string]: Subscription<SubscriptionType>;
@@ -171,7 +196,10 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
   };
 }
 
-export type Thunk<Msg> = (dispatch: Dispatch<Msg>) => Promise<void>;
+export type Thunk<Msg> = (
+  dispatch: Dispatch<Msg>,
+  context: Context,
+) => Promise<void>;
 
 export function wrapThunk<MsgType extends string, InnerMsg>(
   msgType: MsgType,
@@ -180,17 +208,19 @@ export function wrapThunk<MsgType extends string, InnerMsg>(
   if (!thunk) {
     return undefined;
   }
-  return (dispatch: Dispatch<{ type: MsgType; msg: InnerMsg }>) =>
-    thunk((msg: InnerMsg) => dispatch({ type: msgType, msg }));
+  return (
+    dispatch: Dispatch<{ type: MsgType; msg: InnerMsg }>,
+    context: Context,
+  ) => thunk((msg: InnerMsg) => dispatch({ type: msgType, msg }), context);
 }
 
 export function chainThunks<Msg>(
   ...thunks: (Thunk<Msg> | undefined)[]
 ): Thunk<Msg> {
-  return async (dispatch) => {
+  return async (dispatch, context) => {
     for (const thunk of thunks) {
       if (thunk) {
-        await thunk(dispatch);
+        await thunk(dispatch, context);
       }
     }
   };
