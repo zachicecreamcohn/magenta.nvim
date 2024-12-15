@@ -106,7 +106,9 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
   };
 
   function render() {
-    context.logger.trace(`starting render`);
+    context.logger.trace(
+      `starting render of model ${JSON.stringify(currentState, null, 2)}`,
+    );
     if (root) {
       renderPromise = root
         .render({ currentState, dispatch })
@@ -118,6 +120,7 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
           renderPromise = undefined;
           if (reRender) {
             reRender = false;
+            context.logger.trace(`scheduling followup render`);
             render();
           }
         });

@@ -1,29 +1,30 @@
+/* eslint-disable @typescript-eslint/no-floating-promises */
 import type { NeovimClient, Buffer } from "neovim";
 import { NeovimTestHelper } from "../../test/preamble.ts";
 import { d, mountView } from "./view.ts";
 import * as assert from "assert";
-import { test } from "node:test";
+import { describe, it, before, beforeEach, afterEach } from "node:test";
 
-await test.describe("tea/update.spec.ts", async () => {
+describe("tea/update.spec.ts", () => {
   let helper: NeovimTestHelper;
   let nvim: NeovimClient;
   let buffer: Buffer;
 
-  test.before(() => {
+  before(() => {
     helper = new NeovimTestHelper();
   });
 
-  test.beforeEach(async () => {
+  beforeEach(async () => {
     nvim = await helper.startNvim();
     buffer = (await nvim.createBuffer(false, true)) as Buffer;
     await buffer.setOption("modifiable", false);
   });
 
-  test.afterEach(() => {
+  afterEach(() => {
     helper.stopNvim();
   });
 
-  await test("updates to and from empty string", async () => {
+  it("updates to and from empty string", async () => {
     const view = (props: { prop: string }) => d`1${props.prop}3`;
     const mountedView = await mountView({
       view,
@@ -91,7 +92,7 @@ await test.describe("tea/update.spec.ts", async () => {
     }
   });
 
-  await test("updates to multiple items in the same line", async () => {
+  it("updates to multiple items in the same line", async () => {
     const view = (props: { prop1: string; prop2: string }) =>
       d`${props.prop1}${props.prop2}`;
     const mountedView = await mountView({
@@ -201,6 +202,91 @@ await test.describe("tea/update.spec.ts", async () => {
         lines,
         ["", "1", "1", "", "2", "2"],
         "should handle updating a prop on a moving line",
+      );
+    }
+  });
+
+  it("array nodes", async () => {
+    const view = (props: { items: string[] }) =>
+      d`${props.items.map((s) => d`${s}`)}`;
+
+    const mountedView = await mountView<{ items: string[] }>({
+      view,
+      props: { items: [] },
+      mount: {
+        buffer,
+        startPos: { row: 0, col: 0 },
+        endPos: { row: 0, col: 0 },
+      },
+    });
+
+    {
+      const lines = await buffer.getLines({
+        start: 0,
+        end: 1,
+        strictIndexing: false,
+      });
+
+      assert.equal(
+        lines[0],
+        "",
+        "should handle multiple empty interpolations in a row",
+      );
+    }
+
+    await mountedView.render({ items: ["1", "2"] });
+    {
+      const lines = await buffer.getLines({
+        start: 0,
+        end: 1,
+        strictIndexing: false,
+      });
+
+      assert.equal(
+        lines[0],
+        "12",
+        "should handle going from empty to segments on the same line",
+      );
+    }
+
+    await mountedView.render({ items: [] });
+    {
+      const lines = await buffer.getLines({
+        start: 0,
+        end: 1,
+        strictIndexing: false,
+      });
+
+      assert.equal(lines[0], "", "should handle shortened array");
+    }
+
+    await mountedView.render({ items: ["1\n1\n1\n", "2\n2"] });
+    {
+      const lines = await buffer.getLines({
+        start: 0,
+        end: -1,
+        strictIndexing: false,
+      });
+
+      assert.deepStrictEqual(
+        lines,
+        ["1", "1", "1", "2", "2"],
+        "should handle multiline array items",
+      );
+    }
+
+    await mountedView.render({ items: ["1\n1\n11", "22\n2"] });
+    {
+      const lines = await buffer.getLines({
+        start: 0,
+        end: -1,
+        strictIndexing: false,
+      });
+
+      assert.deepStrictEqual(
+        lines,
+        ["1", "1", "1122", "2"],
+        "should handle multiline array updates",
       );
     }
   });
