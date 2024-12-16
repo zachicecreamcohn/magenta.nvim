@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { renderTool, ToolModel } from "../tools/toolManager.ts";
+import * as ToolManager from "../tools/toolManager.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, View } from "../tea/view.ts";
+import { Dispatch } from "../tea/tea.ts";
 
 /** A line that's meant to be sent to neovim. Should not contain newlines
  */
@@ -14,21 +15,27 @@ export type Model =
     }
   | {
       type: "tool-request";
-      toolModel: ToolModel;
+      requestId: ToolManager.ToolRequestId;
     }
   | {
       type: "tool-response";
-      toolModel: ToolModel;
+      requestId: ToolManager.ToolRequestId;
       response: Anthropic.ToolResultBlockParam;
     };
 
-export const view: View<{ model: Model }> = ({ model }) => {
+export const view: View<{
+  model: Model;
+  toolManager: ToolManager.Model;
+  dispatch: Dispatch<ToolManager.Msg>;
+}> = ({ model, dispatch, toolManager }) => {
   switch (model.type) {
     case "text":
       return d`${model.text}`;
     case "tool-request":
-    case "tool-response":
-      return renderTool(model.toolModel);
+    case "tool-response": {
+      const toolModel = toolManager.toolModels[model.requestId];
+      return ToolManager.renderTool(toolModel, dispatch);
+    }
     default:
       assertUnreachable(model);
   }
@@ -36,6 +43,7 @@ export const view: View<{ model: Model }> = ({ model }) => {
 
 export function toMessageParam(
   part: Model,
+  toolManager: ToolManager.Model,
 ):
   | Anthropic.TextBlockParam
   | Anthropic.ToolUseBlockParam
@@ -43,8 +51,10 @@ export function toMessageParam(
   switch (part.type) {
     case "text":
       return part;
-    case "tool-request":
-      return part.toolModel.request;
+    case "tool-request": {
+      const toolModel = toolManager.toolModels[part.requestId];
+      return toolModel.request;
+    }
     case "tool-response":
       return part.response;
     default:

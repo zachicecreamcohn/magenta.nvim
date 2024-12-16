@@ -1,7 +1,7 @@
-import { AnthropicClient } from "../anthropic.ts";
+import { getClient } from "../anthropic.ts";
 import { Logger } from "../logger.ts";
 import { setContext } from "../context.ts";
-import { Neovim } from "neovim";
+import { Neovim, NvimPlugin } from "neovim";
 
 const logger = new Logger(
   {
@@ -15,12 +15,13 @@ const logger = new Logger(
 );
 
 setContext({
+  plugin: undefined as unknown as NvimPlugin,
   nvim: undefined as unknown as Neovim,
   logger,
 });
 
 async function run() {
-  const client = new AnthropicClient();
+  const client = getClient();
 
   await client.sendMessage(
     [

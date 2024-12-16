@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { context } from "./context.ts";
 import { TOOL_SPECS, ToolRequest } from "./tools/toolManager.ts";
 
-export class AnthropicClient {
+class AnthropicClient {
   private client: Anthropic;
 
   constructor() {
@@ -70,4 +70,14 @@ export class AnthropicClient {
     context.logger.debug("toolRequests: " + JSON.stringify(toolRequests));
     return toolRequests;
   }
+}
+
+let client: AnthropicClient | undefined;
+
+// lazy load so we have a chance to init context before constructing the class
+export function getClient() {
+  if (!client) {
+    client = new AnthropicClient();
+  }
+  return client;
 }

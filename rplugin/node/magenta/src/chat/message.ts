@@ -1,6 +1,6 @@
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
 import { Model as Part, view as partView } from "./part.ts";
-import { ToolModel } from "../tools/toolManager.ts";
+import * as ToolManager from "../tools/toolManager.ts";
 import { Role } from "./chat.ts";
 import { Dispatch, Update } from "../tea/tea.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
@@ -18,16 +18,16 @@ export type Msg =
     }
   | {
       type: "add-tool-use";
-      toolModel: ToolModel;
+      requestId: ToolManager.ToolRequestId;
     }
   | {
       type: "add-tool-response";
-      toolModel: ToolModel;
+      requestId: ToolManager.ToolRequestId;
       response: ToolResultBlockParam;
     }
   | {
-      type: "tool-model-update";
-      toolModel: ToolModel;
+      type: "tool-manager-msg";
+      msg: ToolManager.Msg;
     };
 
 export const update: Update<Msg, Model> = (msg, model) => {
@@ -48,27 +48,20 @@ export const update: Update<Msg, Model> = (msg, model) => {
     case "add-tool-use":
       model.parts.push({
         type: "tool-request",
-        toolModel: msg.toolModel,
+        requestId: msg.requestId,
       });
       break;
 
     case "add-tool-response":
       model.parts.push({
         type: "tool-response",
-        toolModel: msg.toolModel,
+        requestId: msg.requestId,
         response: msg.response,
       });
       break;
 
-    case "tool-model-update": {
-      for (const part of model.parts) {
-        if (
-          (part.type == "tool-request" || part.type == "tool-response") &&
-          part.toolModel.request.id == msg.toolModel.request.id
-        ) {
-          part.toolModel = msg.toolModel;
-        }
-      }
+    case "tool-manager-msg": {
+      // do nothing. This will be handled by the tool manager
       return [model];
     }
 
@@ -78,9 +71,12 @@ export const update: Update<Msg, Model> = (msg, model) => {
   return [model];
 };
 
-export const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
-  model,
-}) =>
+export const view: View<{
+  model: Model;
+  toolManager: ToolManager.Model;
+  dispatch: Dispatch<Msg>;
+}> = ({ model, toolManager, dispatch }) =>
   d`### ${model.role}:\n${model.parts.map(
-    (part) => d`${partView({ model: part })}\n`,
+    (part) =>
+      d`${partView({ model: part, toolManager, dispatch: (msg) => dispatch({ type: "tool-manager-msg", msg }) })}\n`,
   )}`;

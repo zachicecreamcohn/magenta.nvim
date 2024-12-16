@@ -1,4 +1,4 @@
-import { attach, NeovimClient } from "neovim";
+import { attach, NeovimClient, NvimPlugin } from "neovim";
 import { spawn } from "child_process";
 import { MountedVDOM } from "../src/tea/view.ts";
 import { assertUnreachable } from "../src/utils/assertUnreachable.ts";
@@ -33,6 +33,7 @@ export class NeovimTestHelper {
       try {
         this.nvimClient = attach({ proc: this.nvimProcess });
         setContext({
+          plugin: undefined as unknown as NvimPlugin,
           nvim: this.nvimClient,
           logger: {
             log: console.log,

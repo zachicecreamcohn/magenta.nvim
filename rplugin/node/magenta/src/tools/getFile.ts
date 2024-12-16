@@ -7,6 +7,7 @@ import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
 import { Thunk, Update } from "../tea/tea.ts";
 import { d, VDOMNode } from "../tea/view.ts";
 import { context } from "../context.ts";
+import { ToolRequestId } from "./toolManager.ts";
 
 export type Model = {
   type: "get-file";
@@ -165,7 +166,7 @@ export const spec: Anthropic.Anthropic.Tool = {
 
 export type GetFileToolUseRequest = {
   type: "tool_use";
-  id: string; //"toolu_01UJtsBsBED9bwkonjqdxji4"
+  id: ToolRequestId; //"toolu_01UJtsBsBED9bwkonjqdxji4"
   name: "get_file";
   input: {
     filePath: string; //"./src/index.ts"

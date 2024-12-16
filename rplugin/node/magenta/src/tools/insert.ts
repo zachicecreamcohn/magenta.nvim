@@ -3,8 +3,9 @@ import { Buffer } from "neovim";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
 import { Dispatch, Update } from "../tea/tea.ts";
-import { d, VDOMNode } from "../tea/view.ts";
+import { d, VDOMNode, withBindings } from "../tea/view.ts";
 import { context } from "../context.ts";
+import { ToolRequestId } from "./toolManager.ts";
 
 export type Model = {
   type: "insert";
@@ -13,6 +14,9 @@ export type Model = {
   state:
     | {
         state: "pending-user-action";
+      }
+    | {
+        state: "editing-diff";
       }
     | {
         state: "done";
@@ -56,7 +60,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
   }
 };
 
-export function initModel(request: InsertToolUseRequest) {
+export function initModel(request: InsertToolUseRequest): [Model] {
   const model: Model = {
     type: "insert",
     autoRespond: false,
@@ -133,10 +137,39 @@ export function insertThunk(model: Model) {
   };
 }
 
-export function view({ model }: { model: Model }): VDOMNode {
-  return d`Insert operation ${
-    model.state.state === "done" ? "completed" : "in progress"
-  }`;
+export function view({
+  model,
+  dispatch,
+}: {
+  model: Model;
+  dispatch: Dispatch<Msg>;
+}): VDOMNode {
+  return d`Insert ${(
+    model.request.input.content.match(/\n/g) || []
+  ).length.toString()} into file ${model.request.input.filePath}
+${toolStatusView({ model, dispatch })}`;
+}
+
+function toolStatusView({
+  model,
+  dispatch,
+}: {
+  model: Model;
+  dispatch: Dispatch<Msg>;
+}): VDOMNode {
+  switch (model.state.state) {
+    case "pending-user-action":
+      return withBindings(d`[review diff]`, {
+        Enter: () =>
+          dispatch({
+            type: "display-diff",
+          }),
+      });
+    case "editing-diff":
+      return d`Editing diff`;
+    case "done":
+      return d`Done`;
+  }
 }
 
 export const spec: Anthropic.Anthropic.Tool = {
@@ -164,7 +197,7 @@ export const spec: Anthropic.Anthropic.Tool = {
 
 export type InsertToolUseRequest = {
   type: "tool_use";
-  id: string;
+  id: ToolRequestId;
   name: "insert";
   input: {
     filePath: string;

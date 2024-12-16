@@ -1,6 +1,6 @@
 import * as GetFile from "./getFile.ts";
 import * as Insert from "./insert.ts";
-import { Update } from "../tea/tea.ts";
+import { Dispatch, Update } from "../tea/tea.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 
 export type ToolRequest =
@@ -9,20 +9,30 @@ export type ToolRequest =
 
 export type ToolModel = GetFile.Model | Insert.Model;
 
+export type ToolRequestId = string & { __toolRequestId: true };
+
 export const TOOL_SPECS = [GetFile.spec, Insert.spec];
 
 export type Model = {
   toolModels: {
-    [id: string]: GetFile.Model | Insert.Model;
+    [id: ToolRequestId]: GetFile.Model | Insert.Model;
   };
 };
 
-export function renderTool(model: ToolModel) {
+export function renderTool(model: ToolModel, dispatch: Dispatch<Msg>) {
   switch (model.type) {
     case "get-file":
       return GetFile.view({ model });
     case "insert":
-      return Insert.view({ model });
+      return Insert.view({
+        model,
+        dispatch: (msg) =>
+          dispatch({
+            type: "tool-msg",
+            id: model.request.id,
+            msg: { type: "insert", msg },
+          }),
+      });
     default:
       assertUnreachable(model);
   }
@@ -35,7 +45,7 @@ export type Msg =
     }
   | {
       type: "tool-msg";
-      id: string;
+      id: ToolRequestId;
       msg:
         | {
             type: "get-file";
@@ -83,7 +93,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
         }
 
         case "insert": {
-          const [insertModel, thunk] = Insert.initModel(request);
+          const [insertModel] = Insert.initModel(request);
           return [
             {
               ...model,
@@ -92,17 +102,6 @@ export const update: Update<Msg, Model> = (msg, model) => {
                 [request.id]: insertModel,
               },
             },
-            (dispatch) =>
-              thunk((msg) =>
-                dispatch({
-                  type: "tool-msg",
-                  id: request.id,
-                  msg: {
-                    type: "insert",
-                    msg,
-                  },
-                }),
-              ),
           ];
         }
         default:

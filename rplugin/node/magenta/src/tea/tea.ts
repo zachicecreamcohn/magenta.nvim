@@ -250,3 +250,11 @@ export function chainThunks<Msg>(
     }
   };
 }
+
+export function parallelThunks<Msg>(
+  ...thunks: (Thunk<Msg> | undefined)[]
+): Thunk<Msg> {
+  return async (dispatch) => {
+    await Promise.all(thunks.map((t) => t && t(dispatch)));
+  };
+}
