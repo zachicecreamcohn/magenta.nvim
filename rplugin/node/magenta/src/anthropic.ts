@@ -21,9 +21,6 @@ class AnthropicClient {
     messages: Array<Anthropic.MessageParam>,
     onText: (text: string) => void,
   ): Promise<ToolRequest[]> {
-    context.logger.trace(
-      `initializing stream with messages: ${JSON.stringify(messages, null, 2)}`,
-    );
     const buf: string[] = [];
     let flushInProgress: boolean = false;
 

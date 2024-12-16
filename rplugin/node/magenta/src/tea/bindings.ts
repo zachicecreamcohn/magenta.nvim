@@ -1,6 +1,6 @@
-import { MountedVDOM, MountPoint, Position } from "./view.ts";
-import { context } from "../context.ts";
+import { MountedVDOM, Position } from "./view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { context } from "../context.ts";
 
 export type BindingKey = "Enter";
 export type Bindings = Partial<{
@@ -15,11 +15,18 @@ export function getBindings(
     compare(cursor, mountedNode.startPos) > 0 ||
     compare(cursor, mountedNode.endPos) < 0
   ) {
+    context.logger.trace(
+      `binding: ${JSON.stringify(cursor)} is outside of the range ${JSON.stringify(mountedNode.startPos)} : ${JSON.stringify(mountedNode.endPos)}`,
+    );
     return undefined;
   }
 
   switch (mountedNode.type) {
     case "string":
+      context.logger.trace(
+        `Found binding for node ${mountedNode.type} in the range ${JSON.stringify(mountedNode.startPos)} : ${JSON.stringify(mountedNode.endPos)}`,
+      );
+
       return mountedNode.bindings;
     case "node":
     case "array": {
@@ -30,6 +37,9 @@ export function getBindings(
           return childBindings;
         }
       }
+      context.logger.trace(
+        `Found binding for node ${mountedNode.type} in the range ${JSON.stringify(mountedNode.startPos)} : ${JSON.stringify(mountedNode.endPos)}`,
+      );
       return mountedNode.bindings;
     }
     default:

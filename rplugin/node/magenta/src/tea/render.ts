@@ -1,6 +1,6 @@
 import { Line } from "../chat/part.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { Bindings } from "./mappings.ts";
+import { Bindings } from "./bindings.ts";
 import { calculatePosition, replaceBetweenPositions } from "./util.ts";
 import { MountedVDOM, MountPoint, VDOMNode } from "./view.ts";
 

@@ -1,6 +1,13 @@
-import { d, MountedView, MountPoint, mountView, VDOMNode } from "./view.ts";
+import {
+  d,
+  MountedView,
+  MountPoint,
+  mountView,
+  prettyPrintMountedNode,
+  VDOMNode,
+} from "./view.ts";
 import { context } from "../context.ts";
-import { BindingKey, getBindings } from "./mappings.ts";
+import { BindingKey, getBindings } from "./bindings.ts";
 
 export type Dispatch<Msg> = (msg: Msg) => void;
 
@@ -109,9 +116,6 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
   };
 
   function render() {
-    context.logger.trace(
-      `starting render of model ${JSON.stringify(currentState, null, 2)}`,
-    );
     if (root) {
       renderPromise = root
         .render({ currentState, dispatch })
@@ -192,7 +196,7 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
         mount.buffer.id,
         "n",
         "<CR>",
-        ":call MagentaOnEnter()",
+        ":call MagentaOnEnter()<CR>",
         { noremap: true, silent: true },
       ]);
 
@@ -201,7 +205,15 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
           const window = await context.nvim.window;
           const [row, col] = await window.cursor;
           if (root) {
-            const bindings = getBindings(root._getMountedNode(), { row, col });
+            context.logger.trace(
+              `Trying to find bindings for node ${prettyPrintMountedNode(root._getMountedNode())}`,
+            );
+
+            // win_get_cursor is 1-indexed, while our positions are 0-indexed
+            const bindings = getBindings(root._getMountedNode(), {
+              row: row - 1,
+              col,
+            });
             if (bindings && bindings[key]) {
               bindings[key]();
             }

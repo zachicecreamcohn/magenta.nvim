@@ -4,7 +4,7 @@ import * as Chat from "./chat/chat.ts";
 import { Logger } from "./logger.ts";
 import { App, createApp } from "./tea/tea.ts";
 import { setContext, context } from "./context.ts";
-import { BindingKey } from "./tea/mappings.ts";
+import { BindingKey } from "./tea/bindings.ts";
 
 class Magenta {
   private sidebar: Sidebar;

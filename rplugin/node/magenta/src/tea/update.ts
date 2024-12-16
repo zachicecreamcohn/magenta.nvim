@@ -42,10 +42,6 @@ export async function update({
   nextRoot: VDOMNode;
   mount: MountPoint;
 }): Promise<MountedVDOM> {
-  context.logger.trace(`Updating...
-currentRoot: ${JSON.stringify(currentRoot, null, 2)}
-nextRoot: ${JSON.stringify(nextRoot, null, 2)}`);
-
   // keep track of the edits that have happened in the doc so far, so we can apply them to future nodes.
   const accumulatedEdit: {
     deltaRow: number;

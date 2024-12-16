@@ -1,7 +1,8 @@
 import { Buffer } from "neovim";
 import { render } from "./render.ts";
 import { update } from "./update.ts";
-import { Bindings } from "./mappings.ts";
+import { Bindings } from "./bindings.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
 
 export type Position = {
   row: number;
@@ -63,6 +64,35 @@ export type MountedVDOM =
   | MountedStringNode
   | MountedComponentNode
   | MountedArrayNode;
+
+export function prettyPrintMountedNode(node: MountedVDOM) {
+  let body = "";
+  switch (node.type) {
+    case "string":
+      body = node.content;
+      break;
+    case "node":
+    case "array": {
+      const childLines = node.children
+        .map(prettyPrintMountedNode)
+        .flatMap((c) => c.split("\n").map((s) => "  " + s));
+      body = `children:\n` + childLines.join("\n");
+      break;
+    }
+    default:
+      assertUnreachable(node);
+  }
+
+  const bindings = node.bindings
+    ? `{${Object.keys(node.bindings).join(", ")}}`
+    : "";
+
+  return `${prettyPrintPos(node.startPos)}-${prettyPrintPos(node.endPos)} (${node.type})  ${bindings} ${body}`;
+}
+
+function prettyPrintPos(pos: Position) {
+  return `[${pos.row}, ${pos.col}]`;
+}
 
 export type MountedView<P> = {
   render(props: P): Promise<void>;
