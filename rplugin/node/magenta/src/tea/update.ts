@@ -151,7 +151,11 @@ nextRoot: ${JSON.stringify(nextRoot, null, 2)}`);
     switch (current.type) {
       case "string":
         if (current.content == (next as StringVDOMNode).content) {
-          return updateNodePos(current as unknown as CurrentMountedVDOM);
+          const updatedNode = updateNodePos(
+            current as unknown as CurrentMountedVDOM,
+          );
+          updatedNode.bindings = next.bindings;
+          return updatedNode;
         } else {
           return await replaceNode(
             current as unknown as CurrentMountedVDOM,
@@ -185,6 +189,7 @@ nextRoot: ${JSON.stringify(nextRoot, null, 2)}`);
             endPos: nextChildren.length
               ? nextChildren[nextChildren.length - 1].endPos
               : updatePos(current.endPos as CurrentPosition),
+            bindings: next.bindings,
           };
           return nextMountedNode;
         } else {
@@ -251,6 +256,7 @@ nextRoot: ${JSON.stringify(nextRoot, null, 2)}`);
           children: nextChildren,
           startPos,
           endPos: nextChildrenEndPos,
+          bindings: next.bindings,
         };
         return nextMountedNode;
       }

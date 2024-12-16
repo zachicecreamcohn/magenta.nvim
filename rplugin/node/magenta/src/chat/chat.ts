@@ -9,7 +9,8 @@ import {
 } from "./message.ts";
 import { ToolModel } from "../tools/toolManager.ts";
 import { Dispatch, Update } from "../tea/tea.ts";
-import { d, View } from "../tea/view.ts";
+import { d, View, withBindings } from "../tea/view.ts";
+import { context } from "../context.ts";
 
 export type Role = "user" | "assistant";
 
@@ -173,15 +174,18 @@ export const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
   model,
   dispatch,
 }) => {
-  return d`# Chat\n${model.messages.map(
-    (m, idx) =>
-      d`${messageView({
-        model: m,
-        dispatch: (msg) => {
-          dispatch({ type: "message-msg", msg, idx });
-        },
-      })}\n`,
-  )}`;
+  return withBindings(
+    d`# Chat\n${model.messages.map(
+      (m, idx) =>
+        d`${messageView({
+          model: m,
+          dispatch: (msg) => {
+            dispatch({ type: "message-msg", msg, idx });
+          },
+        })}\n`,
+    )}`,
+    { Enter: () => context.logger.debug("hello, binding") },
+  );
 };
 
 export function getMessages(model: Model): Anthropic.MessageParam[] {

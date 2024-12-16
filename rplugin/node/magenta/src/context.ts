@@ -1,7 +1,8 @@
-import { Neovim } from "neovim";
+import { Neovim, NvimPlugin } from "neovim";
 import { Logger } from "./logger.ts";
 
 export type Context = {
+  plugin: NvimPlugin;
   nvim: Neovim;
   logger: Logger;
 };

@@ -1,6 +1,7 @@
 import { Buffer } from "neovim";
 import { render } from "./render.ts";
 import { update } from "./update.ts";
+import { Bindings } from "./mappings.ts";
 
 export type Position = {
   row: number;
@@ -14,15 +15,21 @@ export interface MountPoint {
 }
 
 export type View<P> = (props: P) => VDOMNode;
-export type StringVDOMNode = { type: "string"; content: string };
+export type StringVDOMNode = {
+  type: "string";
+  content: string;
+  bindings?: Bindings;
+};
 export type ComponentVDOMNode = {
   type: "node";
   children: VDOMNode[];
   template: TemplateStringsArray;
+  bindings?: Bindings;
 };
 export type ArrayVDOMNode = {
   type: "array";
   children: VDOMNode[];
+  bindings?: Bindings;
 };
 
 export type VDOMNode = StringVDOMNode | ComponentVDOMNode | ArrayVDOMNode;
@@ -32,6 +39,7 @@ export type MountedStringNode = {
   content: string;
   startPos: Position;
   endPos: Position;
+  bindings?: Bindings;
 };
 
 export type MountedComponentNode = {
@@ -40,6 +48,7 @@ export type MountedComponentNode = {
   children: MountedVDOM[];
   startPos: Position;
   endPos: Position;
+  bindings?: Bindings;
 };
 
 export type MountedArrayNode = {
@@ -47,6 +56,7 @@ export type MountedArrayNode = {
   children: MountedVDOM[];
   startPos: Position;
   endPos: Position;
+  bindings?: Bindings;
 };
 
 export type MountedVDOM =
@@ -71,6 +81,7 @@ export async function mountView<P>({
   props: P;
 }): Promise<MountedView<P>> {
   let mountedNode = await render({ vdom: view(props), mount });
+
   return {
     async render(props) {
       const next = view(props);
@@ -109,4 +120,13 @@ export function d(
   }
 
   return { type: "node", children: children, template: template };
+}
+
+/** Replace the bindings for this node
+ */
+export function withBindings(node: VDOMNode, bindings: Bindings) {
+  return {
+    ...node,
+    bindings,
+  };
 }

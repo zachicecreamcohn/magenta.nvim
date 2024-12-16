@@ -1,5 +1,6 @@
 import { d, MountedView, MountPoint, mountView, VDOMNode } from "./view.ts";
 import { context } from "../context.ts";
+import { BindingKey, getBindings } from "./mappings.ts";
 
 export type Dispatch<Msg> = (msg: Msg) => void;
 
@@ -40,7 +41,9 @@ type AppState<Model> =
     };
 
 export type App<Msg, Model> = {
-  mount(mount: MountPoint): Promise<void>;
+  mount(mount: MountPoint): Promise<{
+    onKey(key: BindingKey): void;
+  }>;
   unmount(): void;
   dispatch: Dispatch<Msg>;
   getState(): AppState<Model>;
@@ -184,6 +187,31 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
         mount,
         props: { currentState, dispatch },
       });
+
+      await context.nvim.call("nvim_buf_set_keymap", [
+        mount.buffer.id,
+        "n",
+        "<CR>",
+        ":call MagentaOnEnter()",
+        { noremap: true, silent: true },
+      ]);
+
+      return {
+        async onKey(key: BindingKey) {
+          const window = await context.nvim.window;
+          const [row, col] = await window.cursor;
+          if (root) {
+            const bindings = getBindings(root._getMountedNode(), { row, col });
+            if (bindings && bindings[key]) {
+              bindings[key]();
+            }
+          } else {
+            context.logger.debug(
+              `Got onKey event ${key}, but root is no longer mounted.`,
+            );
+          }
+        },
+      };
     },
     unmount() {
       if (root) {

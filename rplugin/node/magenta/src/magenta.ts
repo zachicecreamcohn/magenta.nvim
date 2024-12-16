@@ -7,11 +7,13 @@ import { App, createApp } from "./tea/tea.ts";
 import * as ToolManager from "./tools/toolManager.ts";
 import { d } from "./tea/view.ts";
 import { setContext, context } from "./context.ts";
+import { BindingKey } from "./tea/mappings.ts";
 
 class Magenta {
   private anthropicClient: AnthropicClient;
   private sidebar: Sidebar;
   private chat: App<Chat.Msg, Chat.Model>;
+  private chatRoot: { onKey(key: BindingKey): void } | undefined;
   private toolManager: App<ToolManager.Msg, ToolManager.Model>;
 
   constructor() {
@@ -75,12 +77,14 @@ class Magenta {
       case "toggle": {
         const buffers = await this.sidebar.toggle();
         if (buffers) {
-          await this.chat.mount({
+          this.chatRoot = await this.chat.mount({
             buffer: buffers.displayBuffer,
             startPos: { row: 0, col: 0 },
             endPos: { row: 0, col: 0 },
           });
           context.logger.trace(`Chat rendered.`);
+        } else {
+          // TODO: maybe set this.chatRoot to undefined?
         }
 
         break;
@@ -146,6 +150,12 @@ class Magenta {
       }
     }
   }
+
+  onKey(key: BindingKey) {
+    if (this.chatRoot) {
+      this.chatRoot.onKey(key);
+    }
+  }
 }
 
 let init: { magenta: Magenta; logger: Logger } | undefined = undefined;
@@ -156,6 +166,7 @@ module.exports = (plugin: NvimPlugin) => {
   if (!init) {
     const logger = new Logger(plugin.nvim, { level: "trace" });
     setContext({
+      plugin,
       nvim: plugin.nvim,
       logger,
     });
@@ -187,4 +198,8 @@ module.exports = (plugin: NvimPlugin) => {
       nargs: "1",
     },
   );
+
+  context.plugin.registerFunction("MagentaOnEnter", () => {
+    init?.magenta.onKey("Enter");
+  });
 };

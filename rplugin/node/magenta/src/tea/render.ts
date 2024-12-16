@@ -1,5 +1,6 @@
 import { Line } from "../chat/part.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { Bindings } from "./mappings.ts";
 import { calculatePosition, replaceBetweenPositions } from "./util.ts";
 import { MountedVDOM, MountPoint, VDOMNode } from "./view.ts";
 
@@ -16,6 +17,7 @@ export async function render({
         content: string;
         start: number;
         end: number;
+        bindings?: Bindings;
       }
     | {
         type: "node";
@@ -23,12 +25,14 @@ export async function render({
         children: NodePosition[];
         start: number;
         end: number;
+        bindings?: Bindings;
       }
     | {
         type: "array";
         children: NodePosition[];
         start: number;
         end: number;
+        bindings?: Bindings;
       };
 
   // First pass: build the complete string and create tree structure with positions
@@ -44,6 +48,7 @@ export async function render({
           content: node.content,
           start,
           end: content.length,
+          bindings: node.bindings,
         };
       }
       case "node": {
@@ -55,6 +60,7 @@ export async function render({
           children,
           start,
           end: content.length,
+          bindings: node.bindings,
         };
       }
       case "array": {
@@ -65,6 +71,7 @@ export async function render({
           children,
           start,
           end: content.length,
+          bindings: node.bindings,
         };
       }
       default: {
@@ -92,6 +99,7 @@ export async function render({
           content: node.content,
           startPos,
           endPos,
+          bindings: node.bindings,
         };
       case "node":
         return {
@@ -100,6 +108,7 @@ export async function render({
           children: node.children.map(assignPositions),
           startPos,
           endPos,
+          bindings: node.bindings,
         };
       case "array":
         return {
@@ -107,6 +116,7 @@ export async function render({
           children: node.children.map(assignPositions),
           startPos,
           endPos,
+          bindings: node.bindings,
         };
       default:
         assertUnreachable(node);
