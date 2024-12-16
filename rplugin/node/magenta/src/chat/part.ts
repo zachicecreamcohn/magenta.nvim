@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { ToolRequest } from "../tools/toolManager.ts";
+import { renderTool, ToolModel } from "../tools/toolManager.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, View } from "../tea/view.ts";
 
@@ -13,12 +13,12 @@ export type Model =
       text: string;
     }
   | {
-      type: "tool-use";
-      request: ToolRequest;
+      type: "tool-request";
+      toolModel: ToolModel;
     }
   | {
       type: "tool-response";
-      request: ToolRequest;
+      toolModel: ToolModel;
       response: Anthropic.ToolResultBlockParam;
     };
 
@@ -26,11 +26,9 @@ export const view: View<{ model: Model }> = ({ model }) => {
   switch (model.type) {
     case "text":
       return d`${model.text}`;
-    case "tool-use":
-      return d`Attempting to use tool ${model.request.type}`;
+    case "tool-request":
     case "tool-response":
-      return d`🔧 Tool response: ${model.request.name}
-${model.response.is_error ? "❌ Error" : "✅ Success"}`;
+      return renderTool(model.toolModel);
     default:
       assertUnreachable(model);
   }
@@ -45,8 +43,8 @@ export function toMessageParam(
   switch (part.type) {
     case "text":
       return part;
-    case "tool-use":
-      return part.request;
+    case "tool-request":
+      return part.toolModel.request;
     case "tool-response":
       return part.response;
     default:

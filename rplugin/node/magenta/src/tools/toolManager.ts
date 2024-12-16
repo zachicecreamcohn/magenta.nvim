@@ -7,6 +7,8 @@ export type ToolRequest =
   | GetFile.GetFileToolUseRequest
   | Insert.InsertToolUseRequest;
 
+export type ToolModel = GetFile.Model | Insert.Model;
+
 export const TOOL_SPECS = [GetFile.spec, Insert.spec];
 
 export type Model = {
@@ -14,6 +16,17 @@ export type Model = {
     [id: string]: GetFile.Model | Insert.Model;
   };
 };
+
+export function renderTool(model: ToolModel) {
+  switch (model.type) {
+    case "get-file":
+      return GetFile.view({ model });
+    case "insert":
+      return Insert.view({ model });
+    default:
+      assertUnreachable(model);
+  }
+}
 
 export type Msg =
   | {

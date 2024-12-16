@@ -401,7 +401,7 @@ third line`;
     );
   });
 
-  await test.only("rendering array", async () => {
+  await test("rendering array", async () => {
     const view = ({ arr }: { arr: string[] }) => d`${arr.map((c) => d`${c}`)}`;
     const mountedView = await mountView({
       view,

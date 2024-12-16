@@ -9,6 +9,7 @@ import { d, VDOMNode } from "../tea/view.ts";
 import { context } from "../context.ts";
 
 export type Model = {
+  type: "get-file";
   autoRespond: boolean;
   request: GetFileToolUseRequest;
   state:
@@ -48,6 +49,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
 
 export function initModel(request: GetFileToolUseRequest): [Model, Thunk<Msg>] {
   const model: Model = {
+    type: "get-file",
     autoRespond: true,
     request,
     state: {

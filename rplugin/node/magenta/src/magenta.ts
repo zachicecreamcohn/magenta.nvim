@@ -31,12 +31,20 @@ class Magenta {
       View: () => d``,
       onUpdate: (msg, model) => {
         if (msg.type == "tool-msg") {
+          const toolModel = model.toolModels[msg.id];
+
+          // sync toolModel state w/ all the messages where it appears
+          this.chat.dispatch({
+            type: "tool-model-update",
+            toolModel,
+          });
+
           if (msg.msg.msg.type == "finish") {
             const toolModel = model.toolModels[msg.id];
             const response = msg.msg.msg.result;
             this.chat.dispatch({
               type: "add-tool-response",
-              request: toolModel.request,
+              toolModel,
               response,
             });
 
@@ -128,11 +136,13 @@ class Magenta {
           type: "init-tool-use",
           request,
         });
-
-        this.chat.dispatch({
-          type: "add-tool-use",
-          request,
-        });
+        const toolManagerModel = this.toolManager.getState();
+        if (toolManagerModel.status == "running") {
+          this.chat.dispatch({
+            type: "add-tool-use",
+            toolModel: toolManagerModel.model.toolModels[request.id],
+          });
+        }
       }
     }
   }

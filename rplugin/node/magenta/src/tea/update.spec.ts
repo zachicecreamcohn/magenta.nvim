@@ -206,6 +206,101 @@ describe("tea/update.spec.ts", () => {
     }
   });
 
+  it("keeping track of edit distance", async () => {
+    const view = (props: { prop1: string; prop2: string }) =>
+      d`${props.prop1}${props.prop2}`;
+    const mountedView = await mountView({
+      view,
+      props: { prop1: "", prop2: "" },
+      mount: {
+        buffer,
+        startPos: { row: 0, col: 0 },
+        endPos: { row: 0, col: 0 },
+      },
+    });
+
+    await mountedView.render({ prop1: "1\n111", prop2: "22" });
+    {
+      const lines = await buffer.getLines({
+        start: 0,
+        end: -1,
+        strictIndexing: false,
+      });
+
+      assert.deepStrictEqual(lines, ["1", "11122"]);
+    }
+
+    await mountedView.render({ prop1: "1\n11", prop2: "22" });
+    {
+      const lines = await buffer.getLines({
+        start: 0,
+        end: 6,
+        strictIndexing: false,
+      });
+
+      assert.deepStrictEqual(
+        lines,
+        ["1", "1122"],
+        "should handle shifting back a second interpolation by dropping columns",
+      );
+    }
+
+    await mountedView.render({ prop1: "11", prop2: "22" });
+    {
+      const lines = await buffer.getLines({
+        start: 0,
+        end: 6,
+        strictIndexing: false,
+      });
+
+      assert.deepStrictEqual(
+        lines,
+        ["1122"],
+        "should handle shifting back a second interpolation by dropping rows and columns",
+      );
+    }
+  });
+
+  it("conditional renders", async () => {
+    const childView = (props: { prop: boolean }) =>
+      d`${props.prop ? "Success" : "Error"}`;
+
+    const parentView = (props: { items: boolean[] }) =>
+      d`${props.items.map((i) => childView({ prop: i }))}`;
+
+    const mountedView = await mountView({
+      view: parentView,
+      props: { items: [true, false] },
+      mount: {
+        buffer,
+        startPos: { row: 0, col: 0 },
+        endPos: { row: 0, col: 0 },
+      },
+    });
+
+    await mountedView.render({ items: [true, true] });
+    {
+      const lines = await buffer.getLines({
+        start: 0,
+        end: -1,
+        strictIndexing: false,
+      });
+
+      assert.deepStrictEqual(lines, ["SuccessSuccess"]);
+    }
+
+    await mountedView.render({ items: [false, false, true] });
+    {
+      const lines = await buffer.getLines({
+        start: 0,
+        end: -1,
+        strictIndexing: false,
+      });
+
+      assert.deepStrictEqual(lines, ["ErrorErrorSuccess"]);
+    }
+  });
+
   it("array nodes", async () => {
     const view = (props: { items: string[] }) =>
       d`${props.items.map((s) => d`${s}`)}`;
@@ -286,6 +381,45 @@ describe("tea/update.spec.ts", () => {
       assert.deepStrictEqual(
         lines,
         ["1", "1", "1122", "2"],
+        "should handle multiline array updates",
+      );
+    }
+  });
+
+  it("message w parts", async () => {
+    type Message = { role: string; parts: string[] };
+    const view = (props: { messages: Message[] }) =>
+      d`${props.messages.map(
+        (m) => d`###${m.role}:
+${m.parts.map((p) => d`${p}\n`)}`,
+      )}`;
+
+    const mountedView = await mountView<{ messages: Message[] }>({
+      view,
+      props: { messages: [{ role: "user", parts: ["Success"] }] },
+      mount: {
+        buffer,
+        startPos: { row: 0, col: 0 },
+        endPos: { row: 0, col: 0 },
+      },
+    });
+
+    await mountedView.render({
+      messages: [
+        { role: "user", parts: ["Success"] },
+        { role: "assistant", parts: ["test"] },
+      ],
+    });
+    {
+      const lines = await buffer.getLines({
+        start: 0,
+        end: -1,
+        strictIndexing: false,
+      });
+
+      assert.deepStrictEqual(
+        lines,
+        ["###user:", "Success", "###assistant:", "test", ""],
         "should handle multiline array updates",
       );
     }

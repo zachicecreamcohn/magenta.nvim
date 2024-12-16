@@ -7,6 +7,7 @@ import { d, VDOMNode } from "../tea/view.ts";
 import { context } from "../context.ts";
 
 export type Model = {
+  type: "insert";
   autoRespond: boolean;
   request: InsertToolUseRequest;
   state:
@@ -59,6 +60,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
 
 export function initModel(request: InsertToolUseRequest): [Model, Thunk<Msg>] {
   const model: Model = {
+    type: "insert",
     autoRespond: false,
     request,
     state: {

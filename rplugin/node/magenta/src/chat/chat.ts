@@ -7,7 +7,7 @@ import {
   update as updateMessage,
   view as messageView,
 } from "./message.ts";
-import { ToolRequest } from "../tools/toolManager.ts";
+import { ToolModel } from "../tools/toolManager.ts";
 import { Dispatch, Update } from "../tea/tea.ts";
 import { d, View } from "../tea/view.ts";
 
@@ -45,12 +45,16 @@ export type Msg =
     }
   | {
       type: "add-tool-use";
-      request: ToolRequest;
+      toolModel: ToolModel;
     }
   | {
       type: "add-tool-response";
-      request: ToolRequest;
+      toolModel: ToolModel;
       response: ToolResultBlockParam;
+    }
+  | {
+      type: "tool-model-update";
+      toolModel: ToolModel;
     }
   | {
       type: "clear";
@@ -108,7 +112,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
         });
       }
       const [nextMessage] = updateMessage(
-        { type: "add-tool-use", request: msg.request },
+        { type: "add-tool-use", toolModel: msg.toolModel },
         model.messages[model.messages.length - 1],
       );
       model.messages[model.messages.length - 1] = nextMessage;
@@ -128,7 +132,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
       const [next] = updateMessage(
         {
           type: "add-tool-response",
-          request: msg.request,
+          toolModel: msg.toolModel,
           response: msg.response,
         },
         lastMessage,
@@ -136,6 +140,29 @@ export const update: Update<Msg, Model> = (msg, model) => {
       model.messages.splice(model.messages.length - 1, 1, next);
       return [model];
     }
+
+    case "tool-model-update": {
+      const nextMessages: Model["messages"] = [];
+      for (const message of model.messages) {
+        const [next] = updateMessage(
+          {
+            type: "tool-model-update",
+            toolModel: msg.toolModel,
+          },
+          message,
+        );
+
+        nextMessages.push(next);
+      }
+
+      return [
+        {
+          ...model,
+          messages: nextMessages,
+        },
+      ];
+    }
+
     case "clear": {
       return [{ messages: [] }];
     }
@@ -146,15 +173,15 @@ export const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
   model,
   dispatch,
 }) => {
-  return d`# Chat
-${model.messages.map((m, idx) =>
-  messageView({
-    model: m,
-    dispatch: (msg) => {
-      dispatch({ type: "message-msg", msg, idx });
-    },
-  }),
-)}`;
+  return d`# Chat\n${model.messages.map(
+    (m, idx) =>
+      d`${messageView({
+        model: m,
+        dispatch: (msg) => {
+          dispatch({ type: "message-msg", msg, idx });
+        },
+      })}\n`,
+  )}`;
 };
 
 export function getMessages(model: Model): Anthropic.MessageParam[] {
