@@ -7,6 +7,8 @@ export class Sidebar {
   private state:
     | {
         state: "hidden";
+        displayBuffer?: Buffer;
+        inputBuffer?: Buffer;
       }
     | {
         state: "visible";
@@ -18,7 +20,19 @@ export class Sidebar {
 
   constructor() {
     this.state = { state: "hidden" };
-    // TODO: also probably need to set up some autocommands to detect if the user closes the scratch buffers
+  }
+
+  async onWinClosed() {
+    if (this.state.state == "visible") {
+      const [displayWindowValid, inputWindowValid] = await Promise.all([
+        this.state.displayWindow.valid,
+        this.state.inputWindow.valid,
+      ]);
+
+      if (!(displayWindowValid && inputWindowValid)) {
+        await this.hide();
+      }
+    }
   }
 
   /** returns buffers when they are visible
@@ -27,18 +41,22 @@ export class Sidebar {
     { displayBuffer: Buffer; inputBuffer: Buffer } | undefined
   > {
     if (this.state.state == "hidden") {
-      return await this.create();
+      return await this.show();
     } else {
-      this.destroy();
+      await this.hide();
     }
   }
 
-  private async create(): Promise<{
+  private async show(): Promise<{
     displayBuffer: Buffer;
     inputBuffer: Buffer;
   }> {
     const { nvim, logger } = context;
-    logger.trace(`sidebar.create`);
+    const {
+      displayBuffer: existingDisplayBuffer,
+      inputBuffer: existingInputBuffer,
+    } = this.state;
+    logger.trace(`sidebar.show`);
     const totalHeight = (await nvim.getOption("lines")) as number;
     const cmdHeight = (await nvim.getOption("cmdheight")) as number;
     const width = 80;
@@ -47,13 +65,26 @@ export class Sidebar {
 
     await nvim.command("leftabove vsplit");
     const displayWindow = await nvim.window;
-    const displayBuffer = (await nvim.createBuffer(false, true)) as Buffer;
     displayWindow.width = width;
+
+    let displayBuffer;
+    if (existingDisplayBuffer) {
+      displayBuffer = existingDisplayBuffer;
+    } else {
+      displayBuffer = (await nvim.createBuffer(false, true)) as Buffer;
+      await displayBuffer.setOption("bufhidden", "hide");
+    }
     await nvim.lua(
       `vim.api.nvim_win_set_buf(${displayWindow.id}, ${displayBuffer.id})`,
     );
 
-    const inputBuffer = (await nvim.createBuffer(false, true)) as Buffer;
+    let inputBuffer;
+    if (existingInputBuffer) {
+      inputBuffer = existingInputBuffer;
+    } else {
+      inputBuffer = (await nvim.createBuffer(false, true)) as Buffer;
+      await inputBuffer.setOption("bufhidden", "hide");
+    }
 
     await nvim.command("below split");
     const inputWindow = await nvim.window;
@@ -102,12 +133,21 @@ export class Sidebar {
     return { displayBuffer, inputBuffer };
   }
 
-  destroy() {
-    this.state = {
-      state: "hidden",
-    };
-
-    // TODO: clean up buffers
+  async hide() {
+    if (this.state.state == "visible") {
+      const { displayWindow, inputWindow, displayBuffer, inputBuffer } =
+        this.state;
+      try {
+        await Promise.all([displayWindow.close(), inputWindow.close()]);
+      } catch {
+        // windows may fail to close if they're already closed
+      }
+      this.state = {
+        state: "hidden",
+        displayBuffer,
+        inputBuffer,
+      };
+    }
   }
 
   async scrollTop() {

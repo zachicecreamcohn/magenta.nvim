@@ -72,6 +72,10 @@ class Magenta {
       this.chatRoot.onKey(key);
     }
   }
+
+  async onWinClosed() {
+    await this.sidebar.onWinClosed();
+  }
 }
 
 let init: { magenta: Magenta; logger: Logger } | undefined = undefined;
@@ -112,6 +116,18 @@ module.exports = (plugin: NvimPlugin) => {
     },
     {
       nargs: "1",
+    },
+  );
+
+  plugin.registerAutocmd(
+    "WinClosed",
+    () => {
+      init!.magenta
+        .onWinClosed()
+        .catch((err: Error) => context.logger.error(err));
+    },
+    {
+      pattern: "*",
     },
   );
 

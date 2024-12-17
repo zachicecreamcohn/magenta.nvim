@@ -1,5 +1,4 @@
 import { render } from "./render.ts";
-import { context } from "../context.ts";
 import { replaceBetweenPositions } from "./util.ts";
 import {
   ArrayVDOMNode,
