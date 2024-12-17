@@ -1,4 +1,3 @@
-import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
 import { Model as Part, view as partView } from "./part.ts";
 import * as ToolManager from "../tools/toolManager.ts";
 import { Role } from "./chat.ts";
@@ -19,11 +18,6 @@ export type Msg =
   | {
       type: "add-tool-use";
       requestId: ToolManager.ToolRequestId;
-    }
-  | {
-      type: "add-tool-response";
-      requestId: ToolManager.ToolRequestId;
-      response: ToolResultBlockParam;
     }
   | {
       type: "tool-manager-msg";
@@ -49,14 +43,6 @@ export const update: Update<Msg, Model> = (msg, model) => {
       model.parts.push({
         type: "tool-request",
         requestId: msg.requestId,
-      });
-      break;
-
-    case "add-tool-response":
-      model.parts.push({
-        type: "tool-response",
-        requestId: msg.requestId,
-        response: msg.response,
       });
       break;
 

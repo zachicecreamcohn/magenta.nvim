@@ -2,6 +2,7 @@ import * as GetFile from "./getFile.ts";
 import * as Insert from "./insert.ts";
 import { Dispatch, Update } from "../tea/tea.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages.mjs";
 
 export type ToolRequest =
   | GetFile.GetFileToolUseRequest
@@ -18,6 +19,17 @@ export type Model = {
     [id: ToolRequestId]: GetFile.Model | Insert.Model;
   };
 };
+
+export function getToolResult(model: ToolModel): ToolResultBlockParam {
+  switch (model.type) {
+    case "get-file":
+      return GetFile.getToolResult(model);
+    case "insert":
+      return Insert.getToolResult(model);
+    default:
+      return assertUnreachable(model);
+  }
+}
 
 export function renderTool(model: ToolModel, dispatch: Dispatch<Msg>) {
   switch (model.type) {

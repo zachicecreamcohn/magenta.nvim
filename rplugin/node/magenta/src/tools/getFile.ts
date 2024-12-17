@@ -148,6 +148,27 @@ export function view({ model }: { model: Model }): VDOMNode {
   }
 }
 
+export function getToolResult(model: Model): ToolResultBlockParam {
+  switch (model.state.state) {
+    case "processing":
+      return {
+        type: "tool_result",
+        tool_use_id: model.request.id,
+        content: `This tool use is being processed. Please proceed with your answer or address other parts of the question.`,
+      };
+    case "pending-user-action":
+      return {
+        type: "tool_result",
+        tool_use_id: model.request.id,
+        content: `Waiting for a user action to finish processing this tool use. Please proceed with your answer or address other parts of the question.`,
+      };
+    case "done":
+      return model.state.result;
+    default:
+      assertUnreachable(model.state);
+  }
+}
+
 export const spec: Anthropic.Anthropic.Tool = {
   name: "get_file",
   description: `Get the full contents of a file in the project directory.`,

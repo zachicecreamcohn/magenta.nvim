@@ -1,5 +1,4 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
 import { toMessageParam } from "./part.ts";
 import {
   Model as Message,
@@ -7,7 +6,6 @@ import {
   update as updateMessage,
   view as messageView,
 } from "./message.ts";
-import { ToolModel } from "../tools/toolManager.ts";
 import {
   Dispatch,
   parallelThunks,
@@ -98,8 +96,12 @@ export const update: Update<Msg, Model> = (msg, model) => {
       const lastMessage = model.messages[model.messages.length - 1];
       if (lastMessage && lastMessage.role == "user") {
         return [model, sendMessage(model)];
+      } else {
+        context.logger.error(
+          `Cannot send when the last message has role ${lastMessage && lastMessage.role}`,
+        );
+        return [model];
       }
-      return [model];
     }
 
     case "message-msg": {
@@ -165,7 +167,6 @@ export const update: Update<Msg, Model> = (msg, model) => {
         model.toolManager,
       );
       model.toolManager = nextToolManager;
-      let nextModel = model;
       let thunk: Thunk<Msg> | undefined = wrapThunk(
         "tool-manager-msg",
         toolManagerThunk,
@@ -173,8 +174,6 @@ export const update: Update<Msg, Model> = (msg, model) => {
       if (msg.msg.type == "tool-msg" && msg.msg.msg.msg.type == "finish") {
         const toolModel = nextToolManager.toolModels[msg.msg.id];
 
-        const response = msg.msg.msg.msg.result;
-        [nextModel] = addToolResponse(model, toolModel, response);
         if (toolModel.autoRespond) {
           let shouldRespond = true;
           for (const tool of Object.values(model.toolManager.toolModels)) {
@@ -189,7 +188,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
           }
         }
       }
-      return [nextModel, thunk];
+      return [model, thunk];
     }
 
     case "clear": {
@@ -221,32 +220,6 @@ function sendMessage(model: Model): Thunk<Msg> {
   };
 }
 
-function addToolResponse(
-  model: Model,
-  toolModel: ToolModel,
-  response: ToolResultBlockParam,
-): [Model] {
-  let lastMessage = model.messages[model.messages.length - 1];
-  if (lastMessage?.role !== "user") {
-    lastMessage = {
-      role: "user",
-      parts: [],
-    };
-    model.messages.push(lastMessage);
-  }
-
-  const [next] = updateMessage(
-    {
-      type: "add-tool-response",
-      requestId: toolModel.request.id,
-      response,
-    },
-    lastMessage,
-  );
-  model.messages.splice(model.messages.length - 1, 1, next);
-  return [model];
-}
-
 export const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
   model,
   dispatch,
@@ -267,8 +240,32 @@ export const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
 };
 
 export function getMessages(model: Model): Anthropic.MessageParam[] {
-  return model.messages.map((msg) => ({
-    role: msg.role,
-    content: msg.parts.map((p) => toMessageParam(p, model.toolManager)),
-  }));
+  return model.messages.flatMap((msg) => {
+    const messageContent = [];
+    const toolResponseContent = [];
+
+    for (const part of msg.parts) {
+      const { param, result } = toMessageParam(part, model.toolManager);
+      messageContent.push(param);
+      if (result) {
+        toolResponseContent.push(result);
+      }
+    }
+
+    const out: Anthropic.MessageParam[] = [
+      {
+        role: msg.role,
+        content: messageContent,
+      },
+    ];
+
+    if (toolResponseContent.length) {
+      out.push({
+        role: "user",
+        content: toolResponseContent,
+      });
+    }
+
+    return out;
+  });
 }

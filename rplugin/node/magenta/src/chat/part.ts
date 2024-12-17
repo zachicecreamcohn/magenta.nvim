@@ -16,11 +16,6 @@ export type Model =
   | {
       type: "tool-request";
       requestId: ToolManager.ToolRequestId;
-    }
-  | {
-      type: "tool-response";
-      requestId: ToolManager.ToolRequestId;
-      response: Anthropic.ToolResultBlockParam;
     };
 
 export const view: View<{
@@ -31,8 +26,7 @@ export const view: View<{
   switch (model.type) {
     case "text":
       return d`${model.text}`;
-    case "tool-request":
-    case "tool-response": {
+    case "tool-request": {
       const toolModel = toolManager.toolModels[model.requestId];
       return ToolManager.renderTool(toolModel, dispatch);
     }
@@ -44,19 +38,22 @@ export const view: View<{
 export function toMessageParam(
   part: Model,
   toolManager: ToolManager.Model,
-):
-  | Anthropic.TextBlockParam
-  | Anthropic.ToolUseBlockParam
-  | Anthropic.ToolResultBlockParam {
+): {
+  param: Anthropic.TextBlockParam | Anthropic.ToolUseBlockParam;
+  result?: Anthropic.ToolResultBlockParam;
+} {
   switch (part.type) {
     case "text":
-      return part;
+      return { param: part };
+
     case "tool-request": {
       const toolModel = toolManager.toolModels[part.requestId];
-      return toolModel.request;
+      return {
+        param: toolModel.request,
+        result: ToolManager.getToolResult(toolModel),
+      };
     }
-    case "tool-response":
-      return part.response;
+
     default:
       return assertUnreachable(part);
   }

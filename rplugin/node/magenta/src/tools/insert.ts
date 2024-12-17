@@ -121,8 +121,6 @@ export function insertThunk(model: Model) {
       await nvim.command("vsplit");
       await nvim.command(`b ${scratchBuffer.id}`);
       await nvim.command("diffthis");
-
-      dispatch({ type: "display-diff" });
     } catch (error) {
       dispatch({
         type: "finish",
@@ -169,6 +167,27 @@ function toolStatusView({
       return d`Editing diff`;
     case "done":
       return d`Done`;
+  }
+}
+
+export function getToolResult(model: Model): ToolResultBlockParam {
+  switch (model.state.state) {
+    case "editing-diff":
+      return {
+        type: "tool_result",
+        tool_use_id: model.request.id,
+        content: `The user is reviewing the change. Please proceed with your answer or address other parts of the question.`,
+      };
+    case "pending-user-action":
+      return {
+        type: "tool_result",
+        tool_use_id: model.request.id,
+        content: `Waiting for a user action to finish processing this tool use. Please proceed with your answer or address other parts of the question.`,
+      };
+    case "done":
+      return model.state.result;
+    default:
+      assertUnreachable(model.state);
   }
 }
 

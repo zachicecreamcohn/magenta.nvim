@@ -56,8 +56,11 @@ class AnthropicClient {
         buf.push(text);
         flushBuffer();
       })
+      .on("error", (error: Error) => {
+        context.logger.error(error)
+      })
       .on("inputJson", (_delta, snapshot) => {
-        context.logger.debug(`inputJson: ${JSON.stringify(snapshot)}`);
+        context.logger.debug(`anthropic stream inputJson: ${JSON.stringify(snapshot)}`);
       });
 
     const response = await stream.finalMessage();
