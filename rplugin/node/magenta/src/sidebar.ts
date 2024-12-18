@@ -159,14 +159,19 @@ export class Sidebar {
       for (let lineIdx = lines.length - 1; lineIdx >= 0; lineIdx -= 1) {
         const line = lines[lineIdx];
         if (line.startsWith("### user:")) {
-          pos = [lineIdx, 0];
+          // nvim_buf_set_cursor is 1-indexed in the row coordinate
+          pos = [lineIdx + 1, 0];
           break;
         }
       }
 
       if (pos) {
         displayWindow.cursor = pos;
-        await context.nvim.command("normal! zt");
+        // execute zt in the target window
+        await context.nvim.lua(`\
+vim.api.nvim_win_call(${displayWindow.id}, function()
+  vim.cmd('normal! zt')
+end)`);
       }
     }
   }
