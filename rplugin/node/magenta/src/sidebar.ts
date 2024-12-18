@@ -150,17 +150,25 @@ export class Sidebar {
     }
   }
 
-  async scrollTop() {
-    // const { displayWindow } = await this.getWindowIfVisible();
-    // if (displayWindow) {
-    //   if (opts.scrollTop) {
-    //     const offset = lines.length > 1 ? 1 : 0;
-    //     displayWindow.cursor = [topLine + offset, 0]
-    //   } else {
-    //     const finalLine = await this.state.displayBuffer.length;
-    //     displayWindow.cursor = [finalLine, 0]
-    //   }
-    // }
+  async scrollToLastUserMessage() {
+    const { displayWindow } = await this.getWindowIfVisible();
+    if (displayWindow) {
+      const displayBuffer = await displayWindow.buffer;
+      const lines = await displayBuffer.getLines();
+      let pos: [number, number] | undefined = undefined;
+      for (let lineIdx = lines.length - 1; lineIdx >= 0; lineIdx -= 1) {
+        const line = lines[lineIdx];
+        if (line.startsWith("### user:")) {
+          pos = [lineIdx, 0];
+          break;
+        }
+      }
+
+      if (pos) {
+        displayWindow.cursor = pos;
+        await context.nvim.command("normal! zt");
+      }
+    }
   }
 
   async getWindowIfVisible(): Promise<{

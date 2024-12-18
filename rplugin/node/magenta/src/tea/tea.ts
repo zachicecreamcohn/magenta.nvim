@@ -47,10 +47,13 @@ type AppState<Model> =
       error: string;
     };
 
+export type MountedApp = {
+  onKey(key: BindingKey): void;
+  waitForRender(): Promise<void>;
+};
+
 export type App<Msg, Model> = {
-  mount(mount: MountPoint): Promise<{
-    onKey(key: BindingKey): void;
-  }>;
+  mount(mount: MountPoint): Promise<MountedApp>;
   unmount(): void;
   dispatch: Dispatch<Msg>;
   getState(): AppState<Model>;
@@ -201,6 +204,12 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
       ]);
 
       return {
+        async waitForRender() {
+          if (renderPromise) {
+            await renderPromise;
+          }
+        },
+
         async onKey(key: BindingKey) {
           const window = await context.nvim.window;
           const [row, col] = await window.cursor;

@@ -2,20 +2,20 @@ import { NvimPlugin } from "neovim";
 import { Sidebar } from "./sidebar.ts";
 import * as Chat from "./chat/chat.ts";
 import { Logger } from "./logger.ts";
-import { App, createApp } from "./tea/tea.ts";
+import { App, createApp, MountedApp } from "./tea/tea.ts";
 import { setContext, context } from "./context.ts";
 import { BindingKey } from "./tea/bindings.ts";
 
 class Magenta {
   private sidebar: Sidebar;
-  private chat: App<Chat.Msg, Chat.Model>;
-  private chatRoot: { onKey(key: BindingKey): void } | undefined;
+  private chatApp: App<Chat.Msg, Chat.Model>;
+  private mountedChatApp: MountedApp | undefined;
 
   constructor() {
     context.logger.debug(`Initializing plugin`);
     this.sidebar = new Sidebar();
 
-    this.chat = createApp({
+    this.chatApp = createApp({
       initialModel: Chat.initModel(),
       update: Chat.update,
       View: Chat.view,
@@ -27,17 +27,14 @@ class Magenta {
     switch (args[0]) {
       case "toggle": {
         const buffers = await this.sidebar.toggle();
-        if (buffers) {
-          this.chatRoot = await this.chat.mount({
+        if (buffers && !this.mountedChatApp) {
+          this.mountedChatApp = await this.chatApp.mount({
             buffer: buffers.displayBuffer,
             startPos: { row: 0, col: 0 },
-            endPos: { row: 0, col: 0 },
+            endPos: { row: -1, col: -1 },
           });
-          context.logger.trace(`Chat rendered.`);
-        } else {
-          // TODO: maybe set this.chatRoot to undefined?
+          context.logger.trace(`Chat mounted.`);
         }
-
         break;
       }
 
@@ -46,20 +43,26 @@ class Magenta {
         context.logger.trace(`current message: ${message}`);
         if (!message) return;
 
-        this.chat.dispatch({
+        this.chatApp.dispatch({
           type: "add-message",
           role: "user",
           content: message,
         });
 
-        this.chat.dispatch({
+        this.chatApp.dispatch({
           type: "send-message",
         });
+
+        if (this.mountedChatApp) {
+          await this.mountedChatApp.waitForRender();
+        }
+        await this.sidebar.scrollToLastUserMessage();
+
         break;
       }
 
       case "clear":
-        this.chat.dispatch({ type: "clear" });
+        this.chatApp.dispatch({ type: "clear" });
         break;
 
       default:
@@ -68,8 +71,8 @@ class Magenta {
   }
 
   onKey(key: BindingKey) {
-    if (this.chatRoot) {
-      this.chatRoot.onKey(key);
+    if (this.mountedChatApp) {
+      this.mountedChatApp.onKey(key);
     }
   }
 
