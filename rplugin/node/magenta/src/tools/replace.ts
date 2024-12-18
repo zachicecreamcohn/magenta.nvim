@@ -7,9 +7,9 @@ import { ToolRequestId } from "./toolManager.ts";
 import { displayDiffs } from "./diff.ts";
 
 export type Model = {
-  type: "insert";
+  type: "replace";
   autoRespond: boolean;
-  request: InsertToolUseRequest;
+  request: ReplaceToolRequest;
   state:
     | {
         state: "pending-user-action";
@@ -59,9 +59,9 @@ export const update: Update<Msg, Model> = (msg, model) => {
   }
 };
 
-export function initModel(request: InsertToolUseRequest): [Model] {
+export function initModel(request: ReplaceToolRequest): [Model] {
   const model: Model = {
-    type: "insert",
+    type: "replace",
     autoRespond: false,
     request,
     state: {
@@ -80,8 +80,9 @@ export function insertThunk(model: Model) {
         request.input.filePath,
         [
           {
-            type: "insert-after",
-            insertAfter: request.input.insertAfter,
+            type: "replace",
+            start: request.input.start,
+            end: request.input.end,
             content: request.input.content,
           },
         ],
@@ -168,34 +169,41 @@ export function getToolResult(model: Model): ToolResultBlockParam {
 
 export const spec: Anthropic.Anthropic.Tool = {
   name: "insert",
-  description: "Insert content after a specified string in a file",
+  description: "Replace text between two strings in a file.",
   input_schema: {
     type: "object",
     properties: {
       filePath: {
         type: "string",
-        description: "Path to the file to modify",
+        description: "Path of the file to modify.",
       },
-      insertAfter: {
+      start: {
         type: "string",
-        description: "String after which to insert the content",
+        description:
+          "We will replace text starting with this string. This string is included in the text that is replaced. Please provide a minimal string that uniquely identifies a location in the file.",
+      },
+      end: {
+        type: "string",
+        description:
+          "We will replace text until we encounter this string. This string is included in the text that is replaced. Please provide a minimal string that uniquely identifies a location in the file.",
       },
       content: {
         type: "string",
         description: "Content to insert",
       },
     },
-    required: ["filePath", "insertAfter", "content"],
+    required: ["filePath", "start", "end", "content"],
   },
 };
 
-export type InsertToolUseRequest = {
+export type ReplaceToolRequest = {
   type: "tool_use";
   id: ToolRequestId;
-  name: "insert";
+  name: "replace";
   input: {
     filePath: string;
-    insertAfter: string;
+    start: string;
+    end: string;
     content: string;
   };
 };

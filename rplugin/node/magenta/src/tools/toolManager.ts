@@ -1,22 +1,24 @@
 import * as GetFile from "./getFile.ts";
 import * as Insert from "./insert.ts";
+import * as Replace from "./replace.ts";
 import { Dispatch, Update } from "../tea/tea.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages.mjs";
 
 export type ToolRequest =
   | GetFile.GetFileToolUseRequest
-  | Insert.InsertToolUseRequest;
+  | Insert.InsertToolUseRequest
+  | Replace.ReplaceToolRequest;
 
-export type ToolModel = GetFile.Model | Insert.Model;
+export type ToolModel = GetFile.Model | Insert.Model | Replace.Model;
 
 export type ToolRequestId = string & { __toolRequestId: true };
 
-export const TOOL_SPECS = [GetFile.spec, Insert.spec];
+export const TOOL_SPECS = [GetFile.spec, Insert.spec, Replace.spec];
 
 export type Model = {
   toolModels: {
-    [id: ToolRequestId]: GetFile.Model | Insert.Model;
+    [id: ToolRequestId]: ToolModel;
   };
 };
 
@@ -26,6 +28,9 @@ export function getToolResult(model: ToolModel): ToolResultBlockParam {
       return GetFile.getToolResult(model);
     case "insert":
       return Insert.getToolResult(model);
+    case "replace":
+      return Replace.getToolResult(model);
+
     default:
       return assertUnreachable(model);
   }
@@ -45,6 +50,17 @@ export function renderTool(model: ToolModel, dispatch: Dispatch<Msg>) {
             msg: { type: "insert", msg },
           }),
       });
+    case "replace":
+      return Replace.view({
+        model,
+        dispatch: (msg) =>
+          dispatch({
+            type: "tool-msg",
+            id: model.request.id,
+            msg: { type: "insert", msg },
+          }),
+      });
+
     default:
       assertUnreachable(model);
   }
@@ -53,7 +69,10 @@ export function renderTool(model: ToolModel, dispatch: Dispatch<Msg>) {
 export type Msg =
   | {
       type: "init-tool-use";
-      request: GetFile.GetFileToolUseRequest | Insert.InsertToolUseRequest;
+      request:
+        | GetFile.GetFileToolUseRequest
+        | Insert.InsertToolUseRequest
+        | Replace.ReplaceToolRequest;
     }
   | {
       type: "tool-msg";
@@ -66,6 +85,10 @@ export type Msg =
         | {
             type: "insert";
             msg: Insert.Msg;
+          }
+        | {
+            type: "replace";
+            msg: Replace.Msg;
           };
     };
 
@@ -116,6 +139,20 @@ export const update: Update<Msg, Model> = (msg, model) => {
             },
           ];
         }
+
+        case "replace": {
+          const [insertModel] = Replace.initModel(request);
+          return [
+            {
+              ...model,
+              toolModels: {
+                ...model.toolModels,
+                [request.id]: insertModel,
+              },
+            },
+          ];
+        }
+
         default:
           return assertUnreachable(request);
       }
@@ -180,6 +217,36 @@ export const update: Update<Msg, Model> = (msg, model) => {
                       id: msg.id,
                       msg: {
                         type: "insert",
+                        msg: innerMsg,
+                      },
+                    }),
+                  )
+              : undefined,
+          ];
+        }
+
+        case "replace": {
+          const [nextToolModel, thunk] = Replace.update(
+            msg.msg.msg,
+            toolModel as Replace.Model,
+          );
+
+          return [
+            {
+              ...model,
+              toolModels: {
+                ...model.toolModels,
+                [msg.id]: nextToolModel,
+              },
+            },
+            thunk
+              ? (dispatch) =>
+                  thunk((innerMsg) =>
+                    dispatch({
+                      type: "tool-msg",
+                      id: msg.id,
+                      msg: {
+                        type: "replace",
                         msg: innerMsg,
                       },
                     }),
