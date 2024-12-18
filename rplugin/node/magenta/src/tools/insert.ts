@@ -170,17 +170,20 @@ export function getToolResult(model: Model): ToolResultBlockParam {
 
 export const spec: Anthropic.Anthropic.Tool = {
   name: "insert",
-  description: "Insert content after a specified string in a file",
+  description:
+    "Insert content after the specified string in a file. You can also use this tool to create new files.",
   input_schema: {
     type: "object",
     properties: {
       filePath: {
         type: "string",
-        description: "Path to the file to modify",
+        description:
+          "Path to the file to modify. The file will be created if it does not exist yet.",
       },
       insertAfter: {
         type: "string",
-        description: "String after which to insert the content",
+        description:
+          "String after which to insert the content. This text will not be changed. This should be the literal text of the file - regular expressions are not allowed. Provide just enough text to uniquely identify a location in the file. Provide the empty string to insert at the beginning of the file.",
       },
       content: {
         type: "string",

@@ -81,10 +81,10 @@ export async function displayDiffs(
       }
 
       case "replace": {
-        const insertStart = content.indexOf(edit.start);
-        const insertEnd = content.indexOf(edit.end);
+        const replaceStart = content.indexOf(edit.start);
+        const replaceEnd = content.slice(replaceStart).indexOf(edit.end);
 
-        if (insertStart == -1) {
+        if (replaceStart == -1) {
           dispatch({
             type: "error",
             error: `Unable to find start location of string ${edit.start} in file ${filePath}`,
@@ -92,7 +92,7 @@ export async function displayDiffs(
           continue;
         }
 
-        if (insertEnd == -1) {
+        if (replaceEnd == -1) {
           dispatch({
             type: "error",
             error: `Unable to find end location of string ${edit.end} in file ${filePath}`,
@@ -100,9 +100,9 @@ export async function displayDiffs(
           continue;
         }
         content =
-          content.slice(0, insertStart) +
+          content.slice(0, replaceStart) +
           edit.content +
-          content.slice(insertEnd + edit.end.length);
+          content.slice(replaceEnd + edit.end.length);
 
         break;
       }

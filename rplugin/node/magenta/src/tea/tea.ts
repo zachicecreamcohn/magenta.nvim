@@ -96,8 +96,9 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
       const [nextModel, thunk] = update(msg, currentState.model);
 
       if (thunk) {
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        thunk(dispatch);
+        thunk(dispatch).catch((err) => {
+          context.logger.error(err as Error);
+        });
       }
 
       currentState = { status: "running", model: nextModel };

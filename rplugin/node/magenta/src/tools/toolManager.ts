@@ -1,6 +1,7 @@
 import * as GetFile from "./getFile.ts";
 import * as Insert from "./insert.ts";
 import * as Replace from "./replace.ts";
+import * as ListBuffers from "./listBuffers.ts";
 import { Dispatch, Update } from "../tea/tea.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages.mjs";
@@ -8,13 +9,23 @@ import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages.mjs";
 export type ToolRequest =
   | GetFile.GetFileToolUseRequest
   | Insert.InsertToolUseRequest
-  | Replace.ReplaceToolRequest;
+  | Replace.ReplaceToolRequest
+  | ListBuffers.ListBuffersToolRequest;
 
-export type ToolModel = GetFile.Model | Insert.Model | Replace.Model;
+export type ToolModel =
+  | GetFile.Model
+  | Insert.Model
+  | Replace.Model
+  | ListBuffers.Model;
 
 export type ToolRequestId = string & { __toolRequestId: true };
 
-export const TOOL_SPECS = [GetFile.spec, Insert.spec, Replace.spec];
+export const TOOL_SPECS = [
+  GetFile.spec,
+  Insert.spec,
+  Replace.spec,
+  ListBuffers.spec,
+];
 
 export type Model = {
   toolModels: {
@@ -30,6 +41,8 @@ export function getToolResult(model: ToolModel): ToolResultBlockParam {
       return Insert.getToolResult(model);
     case "replace":
       return Replace.getToolResult(model);
+    case "list-buffers":
+      return ListBuffers.getToolResult(model);
 
     default:
       return assertUnreachable(model);
@@ -40,6 +53,8 @@ export function renderTool(model: ToolModel, dispatch: Dispatch<Msg>) {
   switch (model.type) {
     case "get-file":
       return GetFile.view({ model });
+    case "list-buffers":
+      return ListBuffers.view({ model });
     case "insert":
       return Insert.view({
         model,
@@ -71,6 +86,7 @@ export type Msg =
       type: "init-tool-use";
       request:
         | GetFile.GetFileToolUseRequest
+        | ListBuffers.ListBuffersToolRequest
         | Insert.InsertToolUseRequest
         | Replace.ReplaceToolRequest;
     }
@@ -81,6 +97,10 @@ export type Msg =
         | {
             type: "get-file";
             msg: GetFile.Msg;
+          }
+        | {
+            type: "list-buffers";
+            msg: ListBuffers.Msg;
           }
         | {
             type: "insert";
@@ -120,6 +140,30 @@ export const update: Update<Msg, Model> = (msg, model) => {
                   id: request.id,
                   msg: {
                     type: "get-file",
+                    msg,
+                  },
+                }),
+              ),
+          ];
+        }
+
+        case "list_buffers": {
+          const [listBuffersModel, thunk] = ListBuffers.initModel(request);
+          return [
+            {
+              ...model,
+              toolModels: {
+                ...model.toolModels,
+                [request.id]: listBuffersModel,
+              },
+            },
+            (dispatch) =>
+              thunk((msg) =>
+                dispatch({
+                  type: "tool-msg",
+                  id: request.id,
+                  msg: {
+                    type: "list-buffers",
                     msg,
                   },
                 }),
@@ -187,6 +231,36 @@ export const update: Update<Msg, Model> = (msg, model) => {
                       id: msg.id,
                       msg: {
                         type: "get-file",
+                        msg: innerMsg,
+                      },
+                    }),
+                  )
+              : undefined,
+          ];
+        }
+
+        case "list-buffers": {
+          const [nextToolModel, thunk] = ListBuffers.update(
+            msg.msg.msg,
+            toolModel as ListBuffers.Model,
+          );
+
+          return [
+            {
+              ...model,
+              toolModels: {
+                ...model.toolModels,
+                [msg.id]: nextToolModel,
+              },
+            },
+            thunk
+              ? (dispatch) =>
+                  thunk((innerMsg) =>
+                    dispatch({
+                      type: "tool-msg",
+                      id: msg.id,
+                      msg: {
+                        type: "list-buffers",
                         msg: innerMsg,
                       },
                     }),
