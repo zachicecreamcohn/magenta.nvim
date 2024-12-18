@@ -64,6 +64,7 @@ export class Sidebar {
     const inputHeight = totalHeight - displayHeight - 2;
 
     await nvim.command("leftabove vsplit");
+    await nvim.command("clearjumps");
     const displayWindow = await nvim.window;
     displayWindow.width = width;
 
@@ -73,29 +74,33 @@ export class Sidebar {
     } else {
       displayBuffer = (await nvim.createBuffer(false, true)) as Buffer;
       await displayBuffer.setOption("bufhidden", "hide");
+      await displayBuffer.setOption("buftype", "nofile");
+      await displayBuffer.setOption("swapfile", false);
+      await displayBuffer.setOption("filetype", "markdown");
     }
     await nvim.lua(
       `vim.api.nvim_win_set_buf(${displayWindow.id}, ${displayBuffer.id})`,
     );
-
     let inputBuffer;
     if (existingInputBuffer) {
       inputBuffer = existingInputBuffer;
     } else {
       inputBuffer = (await nvim.createBuffer(false, true)) as Buffer;
       await inputBuffer.setOption("bufhidden", "hide");
+      await inputBuffer.setOption("buftype", "nofile");
+      await inputBuffer.setOption("swapfile", false);
+      await inputBuffer.setOption("filetype", "markdown");
     }
 
     await nvim.command("below split");
+    await nvim.command("clearjumps");
     const inputWindow = await nvim.window;
     inputWindow.height = inputHeight;
     await nvim.lua(
       `vim.api.nvim_win_set_buf(${inputWindow.id}, ${inputBuffer.id})`,
     );
 
-    await inputBuffer.setOption("buftype", "nofile");
-    await inputBuffer.setOption("swapfile", false);
-    await inputBuffer.setLines(["> "], {
+    await inputBuffer.setLines([""], {
       start: 0,
       end: -1,
       strictIndexing: false,
@@ -103,6 +108,7 @@ export class Sidebar {
 
     const winOptions = {
       wrap: true,
+      linebreak: true,
       number: false,
       relativenumber: false,
       cursorline: true,
@@ -112,6 +118,8 @@ export class Sidebar {
       await displayWindow.setOption(key, value);
       await inputWindow.setOption(key, value);
     }
+    await displayWindow.setOption("winbar", "Magenta Chat");
+    await inputWindow.setOption("winbar", "Magenta Input");
 
     await inputBuffer.request("nvim_buf_set_keymap", [
       inputBuffer,

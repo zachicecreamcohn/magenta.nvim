@@ -225,7 +225,7 @@ export const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
   dispatch,
 }) => {
   return withBindings(
-    d`# Chat\n${model.messages.map(
+    d`${model.messages.map(
       (m, idx) =>
         d`${messageView({
           model: m,
