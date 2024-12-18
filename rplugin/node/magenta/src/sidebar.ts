@@ -1,5 +1,6 @@
 import { Buffer, Window } from "neovim";
 import { context } from "./context.ts";
+export const WIDTH = 80;
 
 /** This will mostly manage the window toggle
  */
@@ -59,14 +60,13 @@ export class Sidebar {
     logger.trace(`sidebar.show`);
     const totalHeight = (await nvim.getOption("lines")) as number;
     const cmdHeight = (await nvim.getOption("cmdheight")) as number;
-    const width = 80;
     const displayHeight = Math.floor((totalHeight - cmdHeight) * 0.8);
     const inputHeight = totalHeight - displayHeight - 2;
 
     await nvim.command("leftabove vsplit");
     await nvim.command("clearjumps");
     const displayWindow = await nvim.window;
-    displayWindow.width = width;
+    displayWindow.width = WIDTH;
 
     let displayBuffer;
     if (existingDisplayBuffer) {
@@ -119,7 +119,11 @@ export class Sidebar {
       await inputWindow.setOption(key, value);
     }
     await displayWindow.setOption("winbar", "Magenta Chat");
+    // set var so we can avoid closing this window when displaying a diff
+    await displayWindow.setVar("magenta", true);
     await inputWindow.setOption("winbar", "Magenta Input");
+    // set var so we can avoid closing this window when displaying a diff
+    await inputWindow.setVar("magenta", true);
 
     await inputBuffer.request("nvim_buf_set_keymap", [
       inputBuffer,

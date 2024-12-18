@@ -1,11 +1,10 @@
 import * as Anthropic from "@anthropic-ai/sdk";
-import { Buffer } from "neovim";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
 import { Dispatch, Update } from "../tea/tea.ts";
 import { d, VDOMNode, withBindings } from "../tea/view.ts";
-import { context } from "../context.ts";
 import { ToolRequestId } from "./toolManager.ts";
+import { displayDiffs } from "./diff.ts";
 
 export type Model = {
   type: "insert";
@@ -76,51 +75,14 @@ export function initModel(request: InsertToolUseRequest): [Model] {
 export function insertThunk(model: Model) {
   const request = model.request;
   return async (dispatch: Dispatch<Msg>) => {
-    const { nvim } = context;
-    const filePath = request.input.filePath;
-
     try {
-      await nvim.command(`vsplit ${filePath}`);
-      const fileBuffer = await nvim.buffer;
-      await nvim.command("diffthis");
-
-      const lines = await fileBuffer.getLines({
-        start: 0,
-        end: -1,
-        strictIndexing: false,
-      });
-
-      const scratchBuffer = (await nvim.createBuffer(false, true)) as Buffer;
-      await scratchBuffer.setLines(lines, {
-        start: 0,
-        end: -1,
-        strictIndexing: false,
-      });
-
-      let lineNumber = 0;
-      let currentPos = 0;
-      const content = lines.join("\n");
-      const insertLocation =
-        content.indexOf(request.input.insertAfter) +
-        request.input.insertAfter.length;
-
-      while (currentPos < insertLocation) {
-        currentPos = content.indexOf("\n", currentPos);
-        if (currentPos === -1 || currentPos > insertLocation) break;
-        lineNumber++;
-        currentPos++;
-      }
-
-      const insertLines = request.input.content.split("\n");
-      await scratchBuffer.setLines(insertLines, {
-        start: lineNumber + 1,
-        end: lineNumber + 1,
-        strictIndexing: true,
-      });
-
-      await nvim.command("vsplit");
-      await nvim.command(`b ${scratchBuffer.id}`);
-      await nvim.command("diffthis");
+      await displayDiffs(request.input.filePath, [
+        {
+          type: "insert-after",
+          insertAfter: request.input.insertAfter,
+          content: request.input.content,
+        },
+      ]);
     } catch (error) {
       dispatch({
         type: "finish",
