@@ -5,6 +5,7 @@ import { Dispatch, Update } from "../tea/tea.ts";
 import { d, VDOMNode, withBindings } from "../tea/view.ts";
 import { ToolRequestId } from "./toolManager.ts";
 import { displayDiffs } from "./diff.ts";
+import { context } from "../context.ts";
 
 export type Model = {
   type: "insert";
@@ -97,6 +98,7 @@ export function insertThunk(model: Model) {
           }),
       );
     } catch (error) {
+      context.logger.error(error as Error);
       dispatch({
         type: "finish",
         result: {

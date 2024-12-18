@@ -29,7 +29,10 @@ export async function displayDiffs(
   edits: Edit[],
   dispatch: Dispatch<Msg>,
 ) {
-  const { nvim } = context;
+  const { nvim, logger } = context;
+  logger.trace(
+    `Attempting to displayDiff for edits ${JSON.stringify(edits, null, 2)}`,
+  );
 
   // first, check to see if any windows *other than* the magenta plugin windows are open, and close them.
   const windows = await nvim.windows;

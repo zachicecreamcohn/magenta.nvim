@@ -57,7 +57,7 @@ export function renderTool(model: ToolModel, dispatch: Dispatch<Msg>) {
           dispatch({
             type: "tool-msg",
             id: model.request.id,
-            msg: { type: "insert", msg },
+            msg: { type: "replace", msg },
           }),
       });
 

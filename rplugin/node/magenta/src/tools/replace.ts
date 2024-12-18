@@ -5,6 +5,7 @@ import { Dispatch, Update } from "../tea/tea.ts";
 import { d, VDOMNode, withBindings } from "../tea/view.ts";
 import { ToolRequestId } from "./toolManager.ts";
 import { displayDiffs } from "./diff.ts";
+import { context } from "../context.ts";
 
 export type Model = {
   type: "replace";
@@ -98,6 +99,7 @@ export function insertThunk(model: Model) {
           }),
       );
     } catch (error) {
+      context.logger.error(error as Error);
       dispatch({
         type: "finish",
         result: {
@@ -142,7 +144,11 @@ function toolStatusView({
     case "editing-diff":
       return d`Editing diff`;
     case "done":
-      return d`Done`;
+      if (model.state.result.is_error) {
+        return d`Error: ${JSON.stringify(model.state.result.content, null, 2)}`;
+      } else {
+        return d`Done`;
+      }
   }
 }
 
@@ -168,7 +174,7 @@ export function getToolResult(model: Model): ToolResultBlockParam {
 }
 
 export const spec: Anthropic.Anthropic.Tool = {
-  name: "insert",
+  name: "replace",
   description: "Replace text between two strings in a file.",
   input_schema: {
     type: "object",
@@ -180,16 +186,16 @@ export const spec: Anthropic.Anthropic.Tool = {
       start: {
         type: "string",
         description:
-          "We will replace text starting with this string. This string is included in the text that is replaced. Please provide a minimal string that uniquely identifies a location in the file.",
+          "Replace content starting with this text. This text is included in what will be replaced. Please provide just enough text to uniquely identify a location in the file.",
       },
       end: {
         type: "string",
         description:
-          "We will replace text until we encounter this string. This string is included in the text that is replaced. Please provide a minimal string that uniquely identifies a location in the file.",
+          "Replace content until we encounter this text. This text is included in what will be replaced. Please provide just enough text to uniquely identify a location in the file.",
       },
       content: {
         type: "string",
-        description: "Content to insert",
+        description: "New content that will replace the existing text.",
       },
     },
     required: ["filePath", "start", "end", "content"],
