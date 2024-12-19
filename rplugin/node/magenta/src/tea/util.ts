@@ -1,4 +1,4 @@
-import { Buffer } from "neovim";
+import { Buffer as NvimBuffer } from "neovim";
 import { Position } from "./view.ts";
 import { Line } from "../chat/part.ts";
 import { context } from "../context.ts";
@@ -9,7 +9,7 @@ export async function replaceBetweenPositions({
   endPos,
   lines,
 }: {
-  buffer: Buffer;
+  buffer: NvimBuffer;
   startPos: Position;
   endPos: Position;
   lines: Line[];
@@ -45,4 +45,17 @@ export function calculatePosition(
   }
 
   return { row, col };
+}
+
+export async function logBuffer(buffer: NvimBuffer) {
+  const lines = await buffer.getLines({
+    start: 0,
+    end: -1,
+    strictIndexing: false,
+  });
+  context.logger.log("buffer:\n" + lines.join("\n") + "\nend");
+}
+
+export function strWidthInBytes(str: string) {
+  return Buffer.byteLength(str, "utf8");
 }

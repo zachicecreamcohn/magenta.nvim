@@ -1,10 +1,12 @@
+import { context } from "../context.ts";
 import { render } from "./render.ts";
-import { replaceBetweenPositions } from "./util.ts";
+import { logBuffer, replaceBetweenPositions } from "./util.ts";
 import {
   ArrayVDOMNode,
   ComponentVDOMNode,
   MountedVDOM,
   MountPoint,
+  prettyPrintMountedNode,
   StringVDOMNode,
   VDOMNode,
 } from "./view.ts";
@@ -76,9 +78,16 @@ export async function update({
     current: CurrentMountedVDOM,
     next: VDOMNode,
   ): Promise<NextMountedVDOM> {
+    await logBuffer(mount.buffer);
     // udpate the node pos based on previous edits, to see where the content of this node is now, part-way
     // through the update
     const nextPos = updateNodePos(current);
+    context.logger.trace(
+      `replacing node ${prettyPrintMountedNode(current as unknown as MountedVDOM)}\nwith:\n${JSON.stringify(next)}`,
+    );
+    context.logger.trace(
+      `updateNodePos is ${JSON.stringify(nextPos.startPos)}: ${JSON.stringify(nextPos.endPos)}`,
+    );
 
     // replace the range with the new vdom
     const rendered = (await render({
@@ -103,6 +112,9 @@ export async function update({
     }
 
     accumulatedEdit.lastEditRow = newEndPos.row;
+
+    await logBuffer(mount.buffer);
+
     return rendered;
   }
 
@@ -139,6 +151,7 @@ export async function update({
     current: MountedVDOM,
     next: VDOMNode,
   ): Promise<NextMountedVDOM> {
+    context.logger.trace(`visiting node ${prettyPrintMountedNode(current)}`);
     if (current.type != next.type) {
       return await replaceNode(current as unknown as CurrentMountedVDOM, next);
     }

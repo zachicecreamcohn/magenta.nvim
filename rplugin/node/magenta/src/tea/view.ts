@@ -3,6 +3,7 @@ import { render } from "./render.ts";
 import { update } from "./update.ts";
 import { Bindings } from "./bindings.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { context } from "../context.ts";
 
 export type Position = {
   row: number;
@@ -115,11 +116,15 @@ export async function mountView<P>({
   return {
     async render(props) {
       const next = view(props);
+      context.logger.trace(
+        `before update: ${prettyPrintMountedNode(mountedNode)}`,
+      );
       mountedNode = await update({
         currentRoot: mountedNode,
         nextRoot: next,
         mount,
       });
+      context.logger.trace(`updated: ${prettyPrintMountedNode(mountedNode)}`);
     },
     unmount() {
       // TODO

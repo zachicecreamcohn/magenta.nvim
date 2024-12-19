@@ -1,7 +1,11 @@
 import { Line } from "../chat/part.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { Bindings } from "./bindings.ts";
-import { calculatePosition, replaceBetweenPositions } from "./util.ts";
+import {
+  calculatePosition,
+  replaceBetweenPositions,
+  strWidthInBytes,
+} from "./util.ts";
 import { MountedVDOM, MountPoint, VDOMNode } from "./view.ts";
 
 export async function render({
@@ -41,36 +45,36 @@ export async function render({
   function traverse(node: VDOMNode): NodePosition {
     switch (node.type) {
       case "string": {
-        const start = content.length;
+        const start = strWidthInBytes(content);
         content += node.content;
         return {
           type: "string",
           content: node.content,
           start,
-          end: content.length,
+          end: strWidthInBytes(content),
           bindings: node.bindings,
         };
       }
       case "node": {
-        const start = content.length;
+        const start = strWidthInBytes(content);
         const children = node.children.map(traverse);
         return {
           type: "node",
           template: node.template,
           children,
           start,
-          end: content.length,
+          end: strWidthInBytes(content),
           bindings: node.bindings,
         };
       }
       case "array": {
-        const start = content.length;
+        const start = strWidthInBytes(content);
         const children = node.children.map(traverse);
         return {
           type: "array",
           children,
           start,
-          end: content.length,
+          end: strWidthInBytes(content),
           bindings: node.bindings,
         };
       }

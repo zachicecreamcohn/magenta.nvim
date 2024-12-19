@@ -67,7 +67,12 @@ export class NeovimTestHelper {
 export function extractMountTree(mounted: MountedVDOM): unknown {
   switch (mounted.type) {
     case "string":
-      return mounted;
+      return {
+        type: "string",
+        startPos: mounted.startPos,
+        endPos: mounted.endPos,
+        content: mounted.content,
+      };
     case "node":
       return {
         type: "node",

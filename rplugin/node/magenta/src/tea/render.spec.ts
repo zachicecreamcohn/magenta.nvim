@@ -1,29 +1,30 @@
+/* eslint-disable @typescript-eslint/no-floating-promises */
 import type { NeovimClient, Buffer } from "neovim";
 import { extractMountTree, NeovimTestHelper } from "../../test/preamble.ts";
 import { d, mountView } from "./view.ts";
 import * as assert from "assert";
-import { test } from "node:test";
+import { describe, before, beforeEach, afterEach, it } from "node:test";
 
-await test.describe("tea/render.spec.ts", async () => {
+await describe("tea/render.spec.ts", () => {
   let helper: NeovimTestHelper;
   let nvim: NeovimClient;
   let buffer: Buffer;
 
-  test.before(() => {
+  before(() => {
     helper = new NeovimTestHelper();
   });
 
-  test.beforeEach(async () => {
+  beforeEach(async () => {
     nvim = await helper.startNvim();
     buffer = (await nvim.createBuffer(false, true)) as Buffer;
     await buffer.setOption("modifiable", false);
   });
 
-  test.afterEach(() => {
+  afterEach(() => {
     helper.stopNvim();
   });
 
-  await test("rendering empty string", async () => {
+  it("rendering empty string", async () => {
     const view = () => d`1${""}2`;
     const mountedView = await mountView({
       view,
@@ -97,7 +98,7 @@ await test.describe("tea/render.spec.ts", async () => {
     );
   });
 
-  await test("rendering multi-line interpolation", async () => {
+  it("rendering multi-line interpolation", async () => {
     const multiLineValue = `first line
 second line
 third line`;
@@ -178,7 +179,7 @@ third line`;
     );
   });
 
-  await test("rendering multi-line template with interpolation", async () => {
+  it("rendering multi-line template with interpolation", async () => {
     const name = "world";
     const view = () => d`
       Hello
@@ -263,7 +264,7 @@ third line`;
     );
   });
 
-  await test("rendering nested interpolation", async () => {
+  it("rendering nested interpolation", async () => {
     const inner = d`(inner)`;
     const view = () => d`outer${inner}end`;
     const mountedView = await mountView({
@@ -351,7 +352,7 @@ third line`;
     );
   });
 
-  await test("rendering empty array", async () => {
+  it("rendering empty array", async () => {
     const view = ({ arr }: { arr: string[] }) => d`${arr.map((c) => d`${c}`)}`;
     const mountedView = await mountView({
       view,
@@ -401,7 +402,7 @@ third line`;
     );
   });
 
-  await test("rendering array", async () => {
+  it("rendering array", async () => {
     const view = ({ arr }: { arr: string[] }) => d`${arr.map((c) => d`${c}`)}`;
     const mountedView = await mountView({
       view,
