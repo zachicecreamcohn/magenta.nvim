@@ -57,5 +57,5 @@ export async function logBuffer(buffer: NvimBuffer) {
 }
 
 export function strWidthInBytes(str: string) {
-  return Buffer.byteLength(str, "utf8");
+  return Buffer.byteLength(str, "utf-8");
 }

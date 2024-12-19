@@ -3,7 +3,7 @@ import type { NeovimClient, Buffer as NvimBuffer } from "neovim";
 import { NeovimTestHelper } from "../../test/preamble.ts";
 import * as assert from "node:assert";
 import { describe, it, before, beforeEach, afterEach } from "node:test";
-import { replaceBetweenPositions } from "./util.ts";
+import { replaceBetweenPositions, strWidthInBytes } from "./util.ts";
 import { Line } from "../chat/part.ts";
 
 describe("tea/util.spec.ts", () => {
@@ -22,6 +22,36 @@ describe("tea/util.spec.ts", () => {
 
   afterEach(() => {
     helper.stopNvim();
+  });
+
+  it("strWidthInBytes", async () => {
+    const symbols = ["", "a", "⚙️", "⏳", "⚠️", "👀", "✅"];
+    const expectedWidths = [0, 1, 6, 3, 6, 4, 3];
+    for (let idx = 0; idx < symbols.length; idx += 1) {
+      assert.equal(
+        strWidthInBytes(symbols[idx]),
+        expectedWidths[idx],
+        symbols[idx],
+      );
+    }
+
+    await buffer.setLines(symbols, {
+      start: 0,
+      end: -1,
+      strictIndexing: false,
+    });
+
+    await nvim.lua(
+      `function getLineWidth(lineIdx) return #(vim.api.nvim_buf_get_lines(${buffer.id}, lineIdx, lineIdx + 1, false)[1]) end`,
+    );
+
+    for (let idx = 0; idx < symbols.length; idx += 1) {
+      assert.equal(
+        await nvim.lua(`return getLineWidth(${idx})`),
+        expectedWidths[idx],
+        `len("${symbols[idx]}")`,
+      );
+    }
   });
 
   it("replacing a single line", async () => {
@@ -61,7 +91,7 @@ describe("tea/util.spec.ts", () => {
     await replaceBetweenPositions({
       buffer,
       startPos: { row: 0, col: 0 },
-      endPos: { row: 0, col: Buffer.byteLength(str, "utf8") },
+      endPos: { row: 0, col: strWidthInBytes(str) },
       lines: ["✅"] as Line[],
     });
 
@@ -71,7 +101,7 @@ describe("tea/util.spec.ts", () => {
         end: -1,
         strictIndexing: false,
       });
-      assert.equal(lines.join("\n"), "✅", "replacing a single line string");
+      assert.equal(lines.join("\n"), "✅", "replacing unicode");
     }
   });
 
