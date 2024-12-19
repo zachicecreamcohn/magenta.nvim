@@ -135,19 +135,19 @@ function toolStatusView({
 }): VDOMNode {
   switch (model.state.state) {
     case "pending-user-action":
-      return withBindings(d`[review diff]`, {
+      return withBindings(d`[👀 review diff]`, {
         Enter: () =>
           dispatch({
             type: "display-diff",
           }),
       });
     case "editing-diff":
-      return d`Editing diff`;
+      return d`⏳ Editing diff`;
     case "done":
       if (model.state.result.is_error) {
-        return d`Error: ${JSON.stringify(model.state.result.content, null, 2)}`;
+        return d`⚠️ Error: ${JSON.stringify(model.state.result.content, null, 2)}`;
       } else {
-        return d`Done`;
+        return d`✅ Done`;
       }
   }
 }
