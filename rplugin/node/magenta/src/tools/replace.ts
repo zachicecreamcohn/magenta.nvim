@@ -186,12 +186,20 @@ export const spec: Anthropic.Anthropic.Tool = {
       start: {
         type: "string",
         description:
-          "Replace content starting with this text. This should be the literal text of the file - regular expressions are not supported. This text is included in what will be replaced. Please provide just enough text to uniquely identify a location in the file.",
+          `Replace content starting with this text.\
+This should be the literal text of the file - regular expressions are not supported.\
+This text is included in what will be replaced.\
+Please provide just enough text to uniquely identify a location in the file.\
+If multiple locations in the file match this text, the first location will be used as a starting point.`,
       },
       end: {
         type: "string",
         description:
-          "Replace content until we encounter this text. This should be the literal text of the file - regular expressions are not supported. This text is included in what will be replaced. Please provide just enough text to uniquely identify a location in the file.",
+          `Replace content until we encounter this text.\
+This should be the literal text of the file - regular expressions are not supported.\
+This text is included in what will be replaced.\
+Please provide just enough text to uniquely identify a location in the file.
+If multiple locations in the file match this text, the first match after start will be used as the ending point.`,
       },
       content: {
         type: "string",
