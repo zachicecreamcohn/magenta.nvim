@@ -5,6 +5,7 @@ import { Logger } from "./logger.ts";
 import { App, createApp, MountedApp } from "./tea/tea.ts";
 import { setContext, context } from "./context.ts";
 import { BindingKey } from "./tea/bindings.ts";
+import { pos } from "./tea/view.ts";
 
 class Magenta {
   private sidebar: Sidebar;
@@ -30,8 +31,8 @@ class Magenta {
         if (buffers && !this.mountedChatApp) {
           this.mountedChatApp = await this.chatApp.mount({
             buffer: buffers.displayBuffer,
-            startPos: { row: 0, col: 0 },
-            endPos: { row: -1, col: -1 },
+            startPos: pos(0, 0),
+            endPos: pos(-1, -1),
           });
           context.logger.trace(`Chat mounted.`);
         }

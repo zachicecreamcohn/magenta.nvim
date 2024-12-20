@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import type { NeovimClient, Buffer } from "neovim";
 import { extractMountTree, NeovimTestHelper } from "../../test/preamble.ts";
-import { d, mountView } from "./view.ts";
+import { d, mountView, pos } from "./view.ts";
 import * as assert from "assert";
 import { describe, before, beforeEach, afterEach, it } from "node:test";
 
@@ -31,8 +31,8 @@ await describe("tea/render.spec.ts", () => {
       props: {},
       mount: {
         buffer,
-        startPos: { row: 0, col: 0 },
-        endPos: { row: 0, col: 0 },
+        startPos: pos(0, 0),
+        endPos: pos(0, 0),
       },
     });
 
@@ -108,8 +108,8 @@ third line`;
       props: {},
       mount: {
         buffer,
-        startPos: { row: 0, col: 0 },
-        endPos: { row: 0, col: 0 },
+        startPos: pos(0, 0),
+        endPos: pos(0, 0),
       },
     });
 
@@ -191,8 +191,8 @@ third line`;
       props: {},
       mount: {
         buffer,
-        startPos: { row: 0, col: 0 },
-        endPos: { row: 0, col: 0 },
+        startPos: pos(0, 0),
+        endPos: pos(0, 0),
       },
     });
 
@@ -272,8 +272,8 @@ third line`;
       props: {},
       mount: {
         buffer,
-        startPos: { row: 0, col: 0 },
-        endPos: { row: 0, col: 0 },
+        startPos: pos(0, 0),
+        endPos: pos(0, 0),
       },
     });
 
@@ -359,8 +359,8 @@ third line`;
       props: { arr: [] },
       mount: {
         buffer,
-        startPos: { row: 0, col: 0 },
-        endPos: { row: 0, col: 0 },
+        startPos: pos(0, 0),
+        endPos: pos(0, 0),
       },
     });
 
@@ -409,8 +409,8 @@ third line`;
       props: { arr: ["1", "\n", "2"] },
       mount: {
         buffer,
-        startPos: { row: 0, col: 0 },
-        endPos: { row: 0, col: 0 },
+        startPos: pos(0, 0),
+        endPos: pos(0, 0),
       },
     });
 

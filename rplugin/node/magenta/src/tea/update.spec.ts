@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import type { NeovimClient, Buffer } from "neovim";
 import { NeovimTestHelper } from "../../test/preamble.ts";
-import { d, mountView } from "./view.ts";
+import { d, mountView, pos } from "./view.ts";
 import * as assert from "assert";
 import { describe, it, before, beforeEach, afterEach } from "node:test";
 
@@ -31,8 +31,8 @@ describe("tea/update.spec.ts", () => {
       props: { prop: "" },
       mount: {
         buffer,
-        startPos: { row: 0, col: 0 },
-        endPos: { row: 0, col: 0 },
+        startPos: pos(0, 0),
+        endPos: pos(0, 0),
       },
     });
 
@@ -100,8 +100,8 @@ describe("tea/update.spec.ts", () => {
       props: { prop1: "", prop2: "" },
       mount: {
         buffer,
-        startPos: { row: 0, col: 0 },
-        endPos: { row: 0, col: 0 },
+        startPos: pos(0, 0),
+        endPos: pos(0, 0),
       },
     });
 
@@ -214,8 +214,8 @@ describe("tea/update.spec.ts", () => {
       props: { prop1: "", prop2: "" },
       mount: {
         buffer,
-        startPos: { row: 0, col: 0 },
-        endPos: { row: 0, col: 0 },
+        startPos: pos(0, 0),
+        endPos: pos(0, 0),
       },
     });
 
@@ -273,8 +273,8 @@ describe("tea/update.spec.ts", () => {
       props: { items: [true, false] },
       mount: {
         buffer,
-        startPos: { row: 0, col: 0 },
-        endPos: { row: 0, col: 0 },
+        startPos: pos(0, 0),
+        endPos: pos(0, 0),
       },
     });
 
@@ -310,8 +310,8 @@ describe("tea/update.spec.ts", () => {
       props: { items: [] },
       mount: {
         buffer,
-        startPos: { row: 0, col: 0 },
-        endPos: { row: 0, col: 0 },
+        startPos: pos(0, 0),
+        endPos: pos(0, 0),
       },
     });
 
@@ -399,8 +399,8 @@ ${m.parts.map((p) => d`${p}\n`)}`,
       props: { messages: [{ role: "user", parts: ["Success"] }] },
       mount: {
         buffer,
-        startPos: { row: 0, col: 0 },
-        endPos: { row: 0, col: 0 },
+        startPos: pos(0, 0),
+        endPos: pos(0, 0),
       },
     });
 

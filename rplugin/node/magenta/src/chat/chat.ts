@@ -13,7 +13,7 @@ import {
   Update,
   wrapThunk,
 } from "../tea/tea.ts";
-import { d, View, withBindings } from "../tea/view.ts";
+import { d, View } from "../tea/view.ts";
 import { context } from "../context.ts";
 import * as ToolManager from "../tools/toolManager.ts";
 import { getClient } from "../anthropic.ts";
@@ -224,19 +224,16 @@ export const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
   model,
   dispatch,
 }) => {
-  return withBindings(
-    d`${model.messages.map(
-      (m, idx) =>
-        d`${messageView({
-          model: m,
-          toolManager: model.toolManager,
-          dispatch: (msg) => {
-            dispatch({ type: "message-msg", msg, idx });
-          },
-        })}\n`,
-    )}`,
-    { Enter: () => context.logger.debug("hello, binding") },
-  );
+  return d`${model.messages.map(
+    (m, idx) =>
+      d`${messageView({
+        model: m,
+        toolManager: model.toolManager,
+        dispatch: (msg) => {
+          dispatch({ type: "message-msg", msg, idx });
+        },
+      })}\n`,
+  )}`;
 };
 
 export function getMessages(model: Model): Anthropic.MessageParam[] {

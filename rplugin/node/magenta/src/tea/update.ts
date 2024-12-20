@@ -3,6 +3,7 @@ import { render } from "./render.ts";
 import { logBuffer, replaceBetweenPositions } from "./util.ts";
 import {
   ArrayVDOMNode,
+  ByteIdx,
   ComponentVDOMNode,
   MountedVDOM,
   MountPoint,
@@ -12,8 +13,8 @@ import {
 } from "./view.ts";
 
 // a number in the coordinate system of the buffer before the update
-type CurrentNumber = number & { __current: true };
-type NextNumber = number & { __next: true };
+type CurrentNumber = ByteIdx & { __current: true };
+type NextNumber = ByteIdx & { __next: true };
 type CurrentPosition = {
   row: CurrentNumber;
   col: CurrentNumber;

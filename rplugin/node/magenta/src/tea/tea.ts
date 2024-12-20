@@ -1,5 +1,7 @@
 import {
+  ByteIdx,
   d,
+  MountedVDOM,
   MountedView,
   MountPoint,
   mountView,
@@ -49,6 +51,7 @@ type AppState<Model> =
 
 export type MountedApp = {
   onKey(key: BindingKey): void;
+  getMountedNode(): MountedVDOM;
   waitForRender(): Promise<void>;
 };
 
@@ -64,12 +67,16 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
   update,
   View,
   sub,
+  suppressThunks,
   onUpdate,
 }: {
   initialModel: Model;
   update: Update<Msg, Model>;
   View: View<Msg, Model>;
   onUpdate?: (msg: Msg, model: Model) => void;
+  /** During testing, we probably don't want thunks to run
+   */
+  suppressThunks?: boolean;
   sub?: {
     subscriptions: (model: Model) => Subscription<SubscriptionType>[];
     subscriptionManager: SubscriptionManager<SubscriptionType, Msg>;
@@ -95,7 +102,8 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
     try {
       const [nextModel, thunk] = update(msg, currentState.model);
 
-      if (thunk) {
+      if (thunk && !suppressThunks) {
+        context.logger.trace(`starting thunk`);
         thunk(dispatch).catch((err) => {
           context.logger.error(err as Error);
         });
@@ -205,6 +213,10 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
       ]);
 
       return {
+        getMountedNode() {
+          return root!._getMountedNode();
+        },
+
         async waitForRender() {
           if (renderPromise) {
             await renderPromise;
@@ -213,7 +225,7 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
 
         async onKey(key: BindingKey) {
           const window = await context.nvim.window;
-          const [row, col] = await window.cursor;
+          const [row, col] = (await window.cursor) as [ByteIdx, ByteIdx];
           if (root) {
             context.logger.trace(
               `Trying to find bindings for node ${prettyPrintMountedNode(root._getMountedNode())}`,
@@ -221,7 +233,7 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
 
             // win_get_cursor is 1-indexed, while our positions are 0-indexed
             const bindings = getBindings(root._getMountedNode(), {
-              row: row - 1,
+              row: (row - 1) as ByteIdx,
               col,
             });
             if (bindings && bindings[key]) {

@@ -5,10 +5,15 @@ import { Bindings } from "./bindings.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { context } from "../context.ts";
 
+export type ByteIdx = number & { __byteIdx: true };
 export type Position = {
-  row: number;
-  col: number;
+  row: ByteIdx;
+  col: ByteIdx;
 };
+
+export function pos(row: number, col: number) {
+  return {row, col} as Position
+}
 
 export interface MountPoint {
   buffer: Buffer;
@@ -70,7 +75,7 @@ export function prettyPrintMountedNode(node: MountedVDOM) {
   let body = "";
   switch (node.type) {
     case "string":
-      body = node.content;
+      body = JSON.stringify(node.content);
       break;
     case "node":
     case "array": {

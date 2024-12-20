@@ -3,10 +3,15 @@ import type { NeovimClient, Buffer as NvimBuffer } from "neovim";
 import { NeovimTestHelper } from "../../test/preamble.ts";
 import * as assert from "node:assert";
 import { describe, it, before, beforeEach, afterEach } from "node:test";
-import { replaceBetweenPositions, strWidthInBytes } from "./util.ts";
+import {
+  calculatePosition,
+  replaceBetweenPositions,
+  strWidthInBytes,
+} from "./util.ts";
 import { Line } from "../chat/part.ts";
+import { pos } from "./view.ts";
 
-describe("tea/util.spec.ts", () => {
+describe.only("tea/util.spec.ts", () => {
   let helper: NeovimTestHelper;
   let nvim: NeovimClient;
   let buffer: NvimBuffer;
@@ -54,6 +59,49 @@ describe("tea/util.spec.ts", () => {
     }
   });
 
+  it("calculatePosition", () => {
+    assert.deepStrictEqual(
+      calculatePosition(pos(0, 0), Buffer.from(""), 0),
+      { row: 0, col: 0 },
+      "empty string",
+    );
+
+    assert.deepStrictEqual(
+      calculatePosition(pos(1, 5), Buffer.from(""), 0),
+      { row: 1, col: 5 },
+      "empty string from non-0 pos",
+    );
+
+    assert.deepStrictEqual(
+      calculatePosition(pos(1, 5), Buffer.from("abc"), 2),
+      { row: 1, col: 7 },
+      "move within the same string",
+    );
+
+    assert.deepStrictEqual(
+      calculatePosition(pos(1, 5), Buffer.from("⚙️"), 6),
+      { row: 1, col: 11 },
+      "move within the same string, unicode",
+    );
+    assert.deepStrictEqual(
+      calculatePosition(pos(1, 5), Buffer.from(`abc\n`), 4),
+      { row: 2, col: 0 },
+      "move to a new line",
+    );
+
+    assert.deepStrictEqual(
+      calculatePosition(pos(1, 5), Buffer.from("⚙️\n"), 7),
+      { row: 2, col: 0 },
+      "move to a new line after unicode",
+    );
+
+    assert.deepStrictEqual(
+      calculatePosition(pos(1, 5), Buffer.from("⚙️\nabc"), 10),
+      { row: 2, col: 3 },
+      "move to a new line and then a few characters after",
+    );
+  });
+
   it("replacing a single line", async () => {
     await buffer.setLines(["abcdef"], {
       start: 0,
@@ -64,8 +112,8 @@ describe("tea/util.spec.ts", () => {
     await buffer.setOption("modifiable", false);
     await replaceBetweenPositions({
       buffer,
-      startPos: { row: 0, col: 0 },
-      endPos: { row: 0, col: 3 },
+      startPos: pos(0, 0),
+      endPos: pos(0, 3),
       lines: ["1"] as Line[],
     });
 
@@ -90,8 +138,8 @@ describe("tea/util.spec.ts", () => {
     await buffer.setOption("modifiable", false);
     await replaceBetweenPositions({
       buffer,
-      startPos: { row: 0, col: 0 },
-      endPos: { row: 0, col: strWidthInBytes(str) },
+      startPos: pos(0, 0),
+      endPos: pos(0, strWidthInBytes(str)),
       lines: ["✅"] as Line[],
     });
 
@@ -115,8 +163,8 @@ describe("tea/util.spec.ts", () => {
     await buffer.setOption("modifiable", false);
     await replaceBetweenPositions({
       buffer,
-      startPos: { row: 0, col: 3 },
-      endPos: { row: 1, col: 3 },
+      startPos: pos(0, 3),
+      endPos: pos(1, 3),
       lines: ["1", "2"] as Line[],
     });
 

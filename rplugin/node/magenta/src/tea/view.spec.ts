@@ -1,6 +1,6 @@
 import type { NeovimClient, Buffer } from "neovim";
 import { extractMountTree, NeovimTestHelper } from "../../test/preamble.ts";
-import { d, mountView } from "./view.ts";
+import { d, mountView, pos } from "./view.ts";
 import * as assert from "assert";
 import { test } from "node:test";
 
@@ -32,8 +32,8 @@ await test.describe("Neovim Plugin Tests", async () => {
       props: { helloTo: "world" },
       mount: {
         buffer,
-        startPos: { row: 0, col: 0 },
-        endPos: { row: 0, col: 0 },
+        startPos: pos(0, 0),
+        endPos: pos(0, 0),
       },
     });
 

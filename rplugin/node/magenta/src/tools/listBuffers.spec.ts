@@ -1,14 +1,14 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import type { NeovimClient, Buffer } from "neovim";
 import { NeovimTestHelper } from "../../test/preamble.ts";
-import * as GetFile from "./getFile.ts";
+import * as ListBuffers from "./listBuffers.ts";
 import * as assert from "assert";
 import { ToolRequestId } from "./toolManager.ts";
 import { createApp } from "../tea/tea.ts";
 import { test, describe, it } from "node:test";
 import { pos } from "../tea/view.ts";
 
-describe("tea/getFile.spec.ts", () => {
+describe("tea/listBuffers.spec.ts", () => {
   let helper: NeovimTestHelper;
   let nvim: NeovimClient;
   let buffer: Buffer;
@@ -28,19 +28,17 @@ describe("tea/getFile.spec.ts", () => {
   });
 
   it("render the getFile tool.", async () => {
-    const [model, _thunk] = GetFile.initModel({
+    const [model, _thunk] = ListBuffers.initModel({
       type: "tool_use",
       id: "request_id" as ToolRequestId,
-      name: "get_file",
-      input: {
-        filePath: "./file.txt",
-      },
+      name: "list_buffers",
+      input: {},
     });
 
     const app = createApp({
       initialModel: model,
-      update: GetFile.update,
-      View: GetFile.view,
+      update: ListBuffers.update,
+      View: ListBuffers.view,
     });
 
     const mountedApp = await app.mount({
@@ -55,15 +53,15 @@ describe("tea/getFile.spec.ts", () => {
       (
         await buffer.getLines({ start: 0, end: -1, strictIndexing: false })
       ).join("\n"),
-      `⚙️ Reading file ./file.txt`,
-      "initialRender is as expected",
+      `⚙️ Grabbing buffers...`,
+      "initial render of list buffers tool is as expected",
     );
     app.dispatch({
       type: "finish",
       result: {
         type: "tool_result",
         tool_use_id: "request_id" as ToolRequestId,
-        content: "file content",
+        content: "buffer list",
       },
     });
 
@@ -72,7 +70,7 @@ describe("tea/getFile.spec.ts", () => {
       (
         await buffer.getLines({ start: 0, end: -1, strictIndexing: false })
       ).join("\n"),
-      `✅ Finished reading file ./file.txt`,
+      `✅ Finished getting buffers.`,
       "initialRender is as expected",
     );
   });

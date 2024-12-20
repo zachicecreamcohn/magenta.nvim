@@ -1,5 +1,5 @@
 import { Buffer as NvimBuffer } from "neovim";
-import { Position } from "./view.ts";
+import { ByteIdx, Position } from "./view.ts";
 import { Line } from "../chat/part.ts";
 import { context } from "../context.ts";
 
@@ -15,35 +15,46 @@ export async function replaceBetweenPositions({
   lines: Line[];
 }) {
   await buffer.setOption("modifiable", true);
-  await context.nvim.call("nvim_buf_set_text", [
-    buffer.id,
-    startPos.row,
-    startPos.col,
-    endPos.row,
-    endPos.col,
-    lines,
-  ]);
+  try {
+    await context.nvim.call("nvim_buf_set_text", [
+      buffer.id,
+      startPos.row,
+      startPos.col,
+      endPos.row,
+      endPos.col,
+      lines,
+    ]);
+  } catch (e) {
+    console.error(
+      `Unable to replaceBetweenPositions ${JSON.stringify({ startPos, endPos })}: ${e as string}`,
+    );
+    throw e;
+  }
   await buffer.setOption("modifiable", true);
 }
 
 export function calculatePosition(
   startPos: Position,
-  text: string,
+  buf: Buffer,
   indexInText: number,
 ): Position {
   let { row, col } = startPos;
   let currentIndex = 0;
 
   while (currentIndex < indexInText) {
-    if (text[currentIndex] === "\n") {
+    // 10 == '\n' in hex
+    if (buf[currentIndex] == 10) {
       row++;
-      col = 0;
+      col = 0 as ByteIdx;
     } else {
       col++;
     }
     currentIndex++;
   }
 
+  context.logger.trace(
+    `${JSON.stringify(startPos)} + ${buf.toString()}[${indexInText}] = ${JSON.stringify({ row, col })}`,
+  );
   return { row, col };
 }
 
@@ -57,5 +68,5 @@ export async function logBuffer(buffer: NvimBuffer) {
 }
 
 export function strWidthInBytes(str: string) {
-  return Buffer.byteLength(str, "utf-8");
+  return Buffer.from(str, "utf8").byteLength;
 }
