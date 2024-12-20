@@ -60,6 +60,10 @@ export type Msg =
       text: string;
     }
   | {
+      type: "stream-error";
+      error: Error;
+    }
+  | {
       type: "init-tool-use";
       request: Result<ToolManager.ToolRequest, { rawRequest: unknown }>;
     }
@@ -132,6 +136,28 @@ export const update: Update<Msg, Model> = (msg, model) => {
 
       const [nextMessage] = updateMessage(
         { type: "append-text", text: msg.text },
+        model.messages[model.messages.length - 1],
+      );
+      model.messages[model.messages.length - 1] = nextMessage;
+
+      return [model];
+    }
+
+    case "stream-error": {
+      const lastMessage = model.messages[model.messages.length - 1];
+      if (lastMessage?.role !== "assistant") {
+        model.messages.push({
+          role: "assistant",
+          parts: [],
+        });
+      }
+
+      const [nextMessage] = updateMessage(
+        {
+          type: "append-text",
+          text: `Stream Error: ${msg.error.message}
+${msg.error.stack}`,
+        },
         model.messages[model.messages.length - 1],
       );
       model.messages[model.messages.length - 1] = nextMessage;
@@ -221,13 +247,23 @@ function sendMessage(model: Model): Thunk<Msg> {
   return async function (dispatch: Dispatch<Msg>) {
     const messages = getMessages(model);
 
-    const toolRequests = await getClient().sendMessage(messages, (text) => {
-      context.logger.trace(`stream received text ${text}`);
-      dispatch({
-        type: "stream-response",
-        text,
-      });
-    });
+    const toolRequests = await getClient().sendMessage(
+      messages,
+      (text) => {
+        context.logger.trace(`stream received text ${text}`);
+        dispatch({
+          type: "stream-response",
+          text,
+        });
+      },
+      (error) => {
+        context.logger.trace(`stream received error ${error}`);
+        dispatch({
+          type: "stream-error",
+          error,
+        });
+      },
+    );
 
     if (toolRequests.length) {
       for (const request of toolRequests) {

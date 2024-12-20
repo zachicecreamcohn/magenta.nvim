@@ -25,6 +25,7 @@ class AnthropicClient {
   async sendMessage(
     messages: Array<Anthropic.MessageParam>,
     onText: (text: string) => void,
+    onError: (error: Error) => void,
   ): Promise<Result<ToolRequest, { rawRequest: unknown }>[]> {
     const buf: string[] = [];
     let flushInProgress: boolean = false;
@@ -49,7 +50,7 @@ class AnthropicClient {
       .stream({
         messages,
         model: "claude-3-5-sonnet-20241022",
-        max_tokens: 1024,
+        max_tokens: 4096,
         system: `You are a coding assistant to a software engineer, inside a neovim plugin called Magenta.
 Be concise. You can use multiple tools at once, so try to minimize round trips.`,
         tool_choice: {
@@ -62,9 +63,7 @@ Be concise. You can use multiple tools at once, so try to minimize round trips.`
         buf.push(text);
         flushBuffer();
       })
-      .on("error", (error: Error) => {
-        context.logger.error(error);
-      })
+      .on("error", onError)
       .on("inputJson", (_delta, snapshot) => {
         context.logger.debug(
           `anthropic stream inputJson: ${JSON.stringify(snapshot)}`,
@@ -72,6 +71,11 @@ Be concise. You can use multiple tools at once, so try to minimize round trips.`
       });
 
     const response = await stream.finalMessage();
+
+    if (response.stop_reason === 'max_tokens') {
+      onError(new Error('Response exceeded max_tokens limit'));
+    }
+
     const toolRequests = response.content
       .filter((c): c is ToolRequest => c.type == "tool_use")
       .map((c) => validateToolRequest(c));
