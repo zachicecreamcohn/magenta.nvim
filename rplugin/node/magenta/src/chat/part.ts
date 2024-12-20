@@ -16,6 +16,11 @@ export type Model =
   | {
       type: "tool-request";
       requestId: ToolManager.ToolRequestId;
+    }
+  | {
+      type: "malformed-tool-request";
+      error: string;
+      rawRequest: unknown;
     };
 
 export const view: View<{
@@ -26,6 +31,11 @@ export const view: View<{
   switch (model.type) {
     case "text":
       return d`${model.text}`;
+
+    case "malformed-tool-request":
+      return d`Malformed Tool request: ${model.error}
+${JSON.stringify(model.rawRequest, null, 2)}`;
+
     case "tool-request": {
       const toolModel = toolManager.toolModels[model.requestId];
       return ToolManager.renderTool(toolModel, dispatch);
@@ -51,6 +61,15 @@ export function toMessageParam(
       return {
         param: toolModel.request,
         result: ToolManager.getToolResult(toolModel),
+      };
+    }
+
+    case "malformed-tool-request": {
+      return {
+        param: {
+          type: "text",
+          text: `Malformed tool request: ${part.error}`,
+        },
       };
     }
 

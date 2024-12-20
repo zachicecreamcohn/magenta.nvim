@@ -6,6 +6,7 @@ import { d, VDOMNode, withBindings } from "../tea/view.ts";
 import { ToolRequestId } from "./toolManager.ts";
 import { displayDiffs } from "./diff.ts";
 import { context } from "../context.ts";
+import { Result } from "../utils/result.ts";
 
 export type Model = {
   type: "replace";
@@ -219,3 +220,62 @@ export type ReplaceToolRequest = {
     content: string;
   };
 };
+
+export function validateToolRequest(req: unknown): Result<ReplaceToolRequest> {
+  if (typeof req != "object" || req == null) {
+    return { status: "error", error: "received a non-object" };
+  }
+
+  const req2 = req as { [key: string]: unknown };
+
+  if (req2.type != "tool_use") {
+    return { status: "error", error: "expected req.type to be tool_use" };
+  }
+
+  if (typeof req2.id != "string") {
+    return { status: "error", error: "expected req.id to be a string" };
+  }
+
+  if (req2.name != "replace") {
+    return { status: "error", error: "expected req.name to be insert" };
+  }
+
+  if (typeof req2.input != "object" || req2.input == null) {
+    return { status: "error", error: "expected req.input to be an object" };
+  }
+
+  const input = req2.input as { [key: string]: unknown };
+
+  if (typeof input.filePath != "string") {
+    return {
+      status: "error",
+      error: "expected req.input.filePath to be a string",
+    };
+  }
+
+  if (typeof input.start != "string") {
+    return {
+      status: "error",
+      error: "expected req.input.start to be a string",
+    };
+  }
+
+  if (typeof input.end != "string") {
+    return {
+      status: "error",
+      error: "expected req.input.end to be a string",
+    };
+  }
+
+  if (typeof input.content != "string") {
+    return {
+      status: "error",
+      error: "expected req.input.content to be a string",
+    };
+  }
+
+  return {
+    status: "ok",
+    value: req as ReplaceToolRequest,
+  };
+}

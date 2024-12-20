@@ -5,12 +5,37 @@ import * as ListBuffers from "./listBuffers.ts";
 import { Dispatch, Update } from "../tea/tea.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages.mjs";
+import { extendError, Result } from "../utils/result.ts";
 
 export type ToolRequest =
   | GetFile.GetFileToolUseRequest
   | Insert.InsertToolUseRequest
   | Replace.ReplaceToolRequest
   | ListBuffers.ListBuffersToolRequest;
+
+export function validateToolRequest(
+  req: unknown,
+): Result<ToolRequest, { rawRequest: unknown }> {
+  const type = (req as { [key: string]: unknown } | undefined)?.name;
+  switch (type) {
+    case "get_file":
+      return extendError(GetFile.validateToolRequest(req), { rawRequest: req });
+    case "insert":
+      return extendError(Insert.validateToolRequest(req), { rawRequest: req });
+    case "replace":
+      return extendError(Replace.validateToolRequest(req), { rawRequest: req });
+    case "list_buffers":
+      return extendError(ListBuffers.validateToolRequest(req), {
+        rawRequest: req,
+      });
+    default:
+      return {
+        status: "error",
+        error: `Unexpected request type ${type as string}`,
+        rawRequest: req,
+      };
+  }
+}
 
 export type ToolModel =
   | GetFile.Model
@@ -35,13 +60,13 @@ export type Model = {
 
 export function getToolResult(model: ToolModel): ToolResultBlockParam {
   switch (model.type) {
-    case "get-file":
+    case "get_file":
       return GetFile.getToolResult(model);
     case "insert":
       return Insert.getToolResult(model);
     case "replace":
       return Replace.getToolResult(model);
-    case "list-buffers":
+    case "list_buffers":
       return ListBuffers.getToolResult(model);
 
     default:
@@ -51,9 +76,9 @@ export function getToolResult(model: ToolModel): ToolResultBlockParam {
 
 export function renderTool(model: ToolModel, dispatch: Dispatch<Msg>) {
   switch (model.type) {
-    case "get-file":
+    case "get_file":
       return GetFile.view({ model });
-    case "list-buffers":
+    case "list_buffers":
       return ListBuffers.view({ model });
     case "insert":
       return Insert.view({
@@ -84,22 +109,18 @@ export function renderTool(model: ToolModel, dispatch: Dispatch<Msg>) {
 export type Msg =
   | {
       type: "init-tool-use";
-      request:
-        | GetFile.GetFileToolUseRequest
-        | ListBuffers.ListBuffersToolRequest
-        | Insert.InsertToolUseRequest
-        | Replace.ReplaceToolRequest;
+      request: ToolRequest;
     }
   | {
       type: "tool-msg";
       id: ToolRequestId;
       msg:
         | {
-            type: "get-file";
+            type: "get_file";
             msg: GetFile.Msg;
           }
         | {
-            type: "list-buffers";
+            type: "list_buffers";
             msg: ListBuffers.Msg;
           }
         | {
@@ -122,6 +143,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
   switch (msg.type) {
     case "init-tool-use": {
       const request = msg.request;
+
       switch (request.name) {
         case "get_file": {
           const [getFileModel, thunk] = GetFile.initModel(request);
@@ -139,7 +161,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
                   type: "tool-msg",
                   id: request.id,
                   msg: {
-                    type: "get-file",
+                    type: "get_file",
                     msg,
                   },
                 }),
@@ -163,7 +185,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
                   type: "tool-msg",
                   id: request.id,
                   msg: {
-                    type: "list-buffers",
+                    type: "list_buffers",
                     msg,
                   },
                 }),
@@ -209,7 +231,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
       }
 
       switch (msg.msg.type) {
-        case "get-file": {
+        case "get_file": {
           const [nextToolModel, thunk] = GetFile.update(
             msg.msg.msg,
             toolModel as GetFile.Model,
@@ -230,7 +252,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
                       type: "tool-msg",
                       id: msg.id,
                       msg: {
-                        type: "get-file",
+                        type: "get_file",
                         msg: innerMsg,
                       },
                     }),
@@ -239,7 +261,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
           ];
         }
 
-        case "list-buffers": {
+        case "list_buffers": {
           const [nextToolModel, thunk] = ListBuffers.update(
             msg.msg.msg,
             toolModel as ListBuffers.Model,
@@ -260,7 +282,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
                       type: "tool-msg",
                       id: msg.id,
                       msg: {
-                        type: "list-buffers",
+                        type: "list_buffers",
                         msg: innerMsg,
                       },
                     }),

@@ -12,7 +12,7 @@ export type Position = {
 };
 
 export function pos(row: number, col: number) {
-  return {row, col} as Position
+  return { row, col } as Position;
 }
 
 export interface MountPoint {

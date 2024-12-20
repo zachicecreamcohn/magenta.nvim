@@ -8,9 +8,10 @@ import { Thunk, Update } from "../tea/tea.ts";
 import { d, VDOMNode } from "../tea/view.ts";
 import { context } from "../context.ts";
 import { ToolRequestId } from "./toolManager.ts";
+import { Result } from "../utils/result.ts";
 
 export type Model = {
-  type: "get-file";
+  type: "get_file";
   autoRespond: boolean;
   request: GetFileToolUseRequest;
   state:
@@ -50,7 +51,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
 
 export function initModel(request: GetFileToolUseRequest): [Model, Thunk<Msg>] {
   const model: Model = {
-    type: "get-file",
+    type: "get_file",
     autoRespond: true,
     request,
     state: {
@@ -193,3 +194,43 @@ export type GetFileToolUseRequest = {
     filePath: string; //"./src/index.ts"
   };
 };
+
+export function validateToolRequest(
+  req: unknown,
+): Result<GetFileToolUseRequest> {
+  if (typeof req != "object" || req == null) {
+    return { status: "error", error: "received a non-object" };
+  }
+
+  const req2 = req as { [key: string]: unknown };
+
+  if (req2.type != "tool_use") {
+    return { status: "error", error: "expected req.type to be tool_use" };
+  }
+
+  if (typeof req2.id != "string") {
+    return { status: "error", error: "expected req.id to be a string" };
+  }
+
+  if (req2.name != "get_file") {
+    return { status: "error", error: "expected req.name to be insert" };
+  }
+
+  if (typeof req2.input != "object" || req2.input == null) {
+    return { status: "error", error: "expected req.input to be an object" };
+  }
+
+  const input = req2.input as { [key: string]: unknown };
+
+  if (typeof input.filePath != "string") {
+    return {
+      status: "error",
+      error: "expected req.input.filePath to be a string",
+    };
+  }
+
+  return {
+    status: "ok",
+    value: req as GetFileToolUseRequest,
+  };
+}

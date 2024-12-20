@@ -17,6 +17,7 @@ import { d, View } from "../tea/view.ts";
 import { context } from "../context.ts";
 import * as ToolManager from "../tools/toolManager.ts";
 import { getClient } from "../anthropic.ts";
+import { Result } from "../utils/result.ts";
 
 export type Role = "user" | "assistant";
 
@@ -60,7 +61,7 @@ export type Msg =
     }
   | {
       type: "init-tool-use";
-      request: ToolManager.ToolRequest;
+      request: Result<ToolManager.ToolRequest, { rawRequest: unknown }>;
     }
   | {
       type: "send-message";
@@ -139,12 +140,6 @@ export const update: Update<Msg, Model> = (msg, model) => {
     }
 
     case "init-tool-use": {
-      const [nextToolManager, toolManagerThunk] = ToolManager.update(
-        { type: "init-tool-use", request: msg.request },
-        model.toolManager,
-      );
-      model.toolManager = nextToolManager;
-
       const lastMessage = model.messages[model.messages.length - 1];
       if (lastMessage?.role !== "assistant") {
         model.messages.push({
@@ -153,12 +148,37 @@ export const update: Update<Msg, Model> = (msg, model) => {
         });
       }
 
-      const [nextMessage] = updateMessage(
-        { type: "add-tool-use", requestId: msg.request.id },
-        model.messages[model.messages.length - 1],
-      );
-      model.messages[model.messages.length - 1] = nextMessage;
-      return [model, wrapThunk("tool-manager-msg", toolManagerThunk)];
+      if (msg.request.status == "error") {
+        const [nextMessage] = updateMessage(
+          {
+            type: "add-part",
+            part: {
+              type: "malformed-tool-request",
+              error: msg.request.error,
+              rawRequest: msg.request.rawRequest,
+            },
+          },
+          model.messages[model.messages.length - 1],
+        );
+        model.messages[model.messages.length - 1] = nextMessage;
+        return [model];
+      } else {
+        const [nextToolManager, toolManagerThunk] = ToolManager.update(
+          { type: "init-tool-use", request: msg.request.value },
+          model.toolManager,
+        );
+        model.toolManager = nextToolManager;
+
+        const [nextMessage] = updateMessage(
+          {
+            type: "add-part",
+            part: { type: "tool-request", requestId: msg.request.value.id },
+          },
+          model.messages[model.messages.length - 1],
+        );
+        model.messages[model.messages.length - 1] = nextMessage;
+        return [model, wrapThunk("tool-manager-msg", toolManagerThunk)];
+      }
     }
 
     case "tool-manager-msg": {

@@ -6,9 +6,10 @@ import { Thunk, Update } from "../tea/tea.ts";
 import { d, VDOMNode } from "../tea/view.ts";
 import { context } from "../context.ts";
 import { ToolRequestId } from "./toolManager.ts";
+import { Result } from "../utils/result.ts";
 
 export type Model = {
-  type: "list-buffers";
+  type: "list_buffers";
   autoRespond: boolean;
   request: ListBuffersToolRequest;
   state:
@@ -47,7 +48,7 @@ export function initModel(
   request: ListBuffersToolRequest,
 ): [Model, Thunk<Msg>] {
   const model: Model = {
-    type: "list-buffers",
+    type: "list_buffers",
     autoRespond: true,
     request,
     state: {
@@ -122,3 +123,34 @@ export type ListBuffersToolRequest = {
   input: {};
   name: "list_buffers";
 };
+
+export function validateToolRequest(
+  req: unknown,
+): Result<ListBuffersToolRequest> {
+  if (typeof req != "object" || req == null) {
+    return { status: "error", error: "received a non-object" };
+  }
+
+  const req2 = req as { [key: string]: unknown };
+
+  if (req2.type != "tool_use") {
+    return { status: "error", error: "expected req.type to be tool_use" };
+  }
+
+  if (typeof req2.id != "string") {
+    return { status: "error", error: "expected req.id to be a string" };
+  }
+
+  if (req2.name != "list_buffers") {
+    return { status: "error", error: "expected req.name to be insert" };
+  }
+
+  if (typeof req2.input != "object" || req2.input == null) {
+    return { status: "error", error: "expected req.input to be an object" };
+  }
+
+  return {
+    status: "ok",
+    value: req as ListBuffersToolRequest,
+  };
+}

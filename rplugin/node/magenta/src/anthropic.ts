@@ -1,6 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { context } from "./context.ts";
-import { TOOL_SPECS, ToolRequest } from "./tools/toolManager.ts";
+import {
+  TOOL_SPECS,
+  ToolRequest,
+  validateToolRequest,
+} from "./tools/toolManager.ts";
+import { Result } from "./utils/result.ts";
 
 class AnthropicClient {
   private client: Anthropic;
@@ -20,7 +25,7 @@ class AnthropicClient {
   async sendMessage(
     messages: Array<Anthropic.MessageParam>,
     onText: (text: string) => void,
-  ): Promise<ToolRequest[]> {
+  ): Promise<Result<ToolRequest, { rawRequest: unknown }>[]> {
     const buf: string[] = [];
     let flushInProgress: boolean = false;
 
@@ -67,9 +72,9 @@ Be concise. You can use multiple tools at once, so try to minimize round trips.`
       });
 
     const response = await stream.finalMessage();
-    const toolRequests = response.content.filter(
-      (c): c is ToolRequest => c.type == "tool_use",
-    );
+    const toolRequests = response.content
+      .filter((c): c is ToolRequest => c.type == "tool_use")
+      .map((c) => validateToolRequest(c));
     context.logger.debug("toolRequests: " + JSON.stringify(toolRequests));
     return toolRequests;
   }

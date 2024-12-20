@@ -1,4 +1,4 @@
-import { Model as Part, view as partView } from "./part.ts";
+import * as Part from "./part.ts";
 import * as ToolManager from "../tools/toolManager.ts";
 import { Role } from "./chat.ts";
 import { Dispatch, Update } from "../tea/tea.ts";
@@ -7,7 +7,7 @@ import { d, View } from "../tea/view.ts";
 
 export type Model = {
   role: Role;
-  parts: Part[];
+  parts: Part.Model[];
 };
 
 export type Msg =
@@ -16,8 +16,8 @@ export type Msg =
       text: string;
     }
   | {
-      type: "add-tool-use";
-      requestId: ToolManager.ToolRequestId;
+      type: "add-part";
+      part: Part.Model;
     }
   | {
       type: "tool-manager-msg";
@@ -39,11 +39,8 @@ export const update: Update<Msg, Model> = (msg, model) => {
       break;
     }
 
-    case "add-tool-use":
-      model.parts.push({
-        type: "tool-request",
-        requestId: msg.requestId,
-      });
+    case "add-part":
+      model.parts.push(msg.part);
       break;
 
     case "tool-manager-msg": {
@@ -64,5 +61,5 @@ export const view: View<{
 }> = ({ model, toolManager, dispatch }) =>
   d`### ${model.role}:\n${model.parts.map(
     (part) =>
-      d`${partView({ model: part, toolManager, dispatch: (msg) => dispatch({ type: "tool-manager-msg", msg }) })}\n`,
+      d`${Part.view({ model: part, toolManager, dispatch: (msg) => dispatch({ type: "tool-manager-msg", msg }) })}\n`,
   )}`;

@@ -61,17 +61,20 @@ describe("tea/chat.spec.ts", () => {
 
     app.dispatch({
       type: "stream-response",
-      text: "Sure, let me use the list-buffers tool.",
+      text: "Sure, let me use the list_buffers tool.",
     });
     await mountedApp.waitForRender();
 
     app.dispatch({
       type: "init-tool-use",
       request: {
-        type: "tool_use",
-        id: "request-id" as ToolRequestId,
-        input: {},
-        name: "list_buffers",
+        status: "ok",
+        value: {
+          type: "tool_use",
+          id: "request-id" as ToolRequestId,
+          input: {},
+          name: "list_buffers",
+        },
       },
     });
     await mountedApp.waitForRender();
@@ -83,7 +86,7 @@ describe("tea/chat.spec.ts", () => {
         "Can you look at my list of buffers?",
         "",
         "### assistant:",
-        "Sure, let me use the list-buffers tool.",
+        "Sure, let me use the list_buffers tool.",
         "⚙️ Grabbing buffers...",
         "",
         "",
@@ -301,7 +304,7 @@ describe("tea/chat.spec.ts", () => {
                                           col: 39,
                                         },
                                         content:
-                                          "Sure, let me use the list-buffers tool.",
+                                          "Sure, let me use the list_buffers tool.",
                                       },
                                     ],
                                     startPos: {
@@ -465,7 +468,7 @@ describe("tea/chat.spec.ts", () => {
         type: "tool-msg",
         id: "request-id" as ToolRequestId,
         msg: {
-          type: "list-buffers",
+          type: "list_buffers",
           msg: {
             type: "finish",
             result: {
@@ -486,7 +489,7 @@ describe("tea/chat.spec.ts", () => {
         "Can you look at my list of buffers?",
         "",
         "### assistant:",
-        "Sure, let me use the list-buffers tool.",
+        "Sure, let me use the list_buffers tool.",
         "✅ Finished getting buffers.",
         "",
         "",
