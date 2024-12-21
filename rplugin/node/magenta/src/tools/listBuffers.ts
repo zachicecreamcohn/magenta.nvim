@@ -64,7 +64,7 @@ export function initModel(
       const bufferPaths = await Promise.all(
         buffers.map(async (buffer) => {
           const fullPath = await buffer.name;
-          return path.relative(cwd, fullPath);
+          return fullPath.length ? path.relative(cwd, fullPath) : "";
         }),
       );
 
@@ -73,7 +73,7 @@ export function initModel(
         result: {
           type: "tool_result",
           tool_use_id: request.id,
-          content: bufferPaths.join("\n"),
+          content: bufferPaths.filter((p) => p.length).join("\n"),
         },
       });
     },
@@ -124,6 +124,7 @@ export type ListBuffersToolRequest = {
   name: "list_buffers";
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function displayRequest(_request: ListBuffersToolRequest) {
   return `list_buffers: {}`;
 }
