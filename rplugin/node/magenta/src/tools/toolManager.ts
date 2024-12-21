@@ -2,17 +2,19 @@ import * as GetFile from "./getFile.ts";
 import * as Insert from "./insert.ts";
 import * as Replace from "./replace.ts";
 import * as ListBuffers from "./listBuffers.ts";
-import { Dispatch, Update } from "../tea/tea.ts";
+import * as ListDirectory from "./listDirectory.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages.mjs";
 import { extendError, Result } from "../utils/result.ts";
 import { d, withBindings } from "../tea/view.ts";
+import { Dispatch, Update } from "../tea/tea.ts";
 
 export type ToolRequest =
   | GetFile.GetFileToolUseRequest
   | Insert.InsertToolUseRequest
   | Replace.ReplaceToolRequest
-  | ListBuffers.ListBuffersToolRequest;
+  | ListBuffers.ListBuffersToolRequest
+  | ListDirectory.ListDirectoryToolUseRequest;
 
 export function validateToolRequest(
   req: unknown,
@@ -29,6 +31,10 @@ export function validateToolRequest(
       return extendError(ListBuffers.validateToolRequest(req), {
         rawRequest: req,
       });
+    case "list_directory":
+      return extendError(ListDirectory.validateToolRequest(req), {
+        rawRequest: req,
+      });
     default:
       return {
         status: "error",
@@ -42,7 +48,8 @@ export type ToolModel =
   | GetFile.Model
   | Insert.Model
   | Replace.Model
-  | ListBuffers.Model;
+  | ListBuffers.Model
+  | ListDirectory.Model;
 
 export type ToolRequestId = string & { __toolRequestId: true };
 
@@ -51,6 +58,7 @@ export const TOOL_SPECS = [
   Insert.spec,
   Replace.spec,
   ListBuffers.spec,
+  ListDirectory.spec,
 ];
 
 export type ToolModelWrapper = {
@@ -75,7 +83,8 @@ export function getToolResult(model: ToolModel): ToolResultBlockParam {
       return Replace.getToolResult(model);
     case "list_buffers":
       return ListBuffers.getToolResult(model);
-
+    case "list_directory":
+      return ListDirectory.getToolResult(model);
     default:
       return assertUnreachable(model);
   }
@@ -91,6 +100,8 @@ function displayRequest(model: ToolModel): string {
       return Replace.displayRequest(model.request);
     case "list_buffers":
       return ListBuffers.displayRequest(model.request);
+    case "list_directory":
+      return ListDirectory.displayRequest(model.request);
 
     default:
       return assertUnreachable(model);
@@ -137,6 +148,9 @@ function renderToolContents(model: ToolModel, dispatch: Dispatch<Msg>) {
 
     case "list_buffers":
       return ListBuffers.view({ model });
+
+    case "list_directory":
+      return ListDirectory.view({ model });
 
     case "insert":
       return Insert.view({
@@ -187,6 +201,10 @@ export type Msg =
         | {
             type: "list_buffers";
             msg: ListBuffers.Msg;
+          }
+        | {
+            type: "list_directory";
+            msg: ListDirectory.Msg;
           }
         | {
             type: "insert";
@@ -288,6 +306,16 @@ export const update: Update<Msg, Model> = (msg, model) => {
           return [model];
         }
 
+        case "list_directory": {
+          const [listDirModel] = ListDirectory.initModel(request);
+          model.toolWrappers[request.id] = {
+            model: listDirModel,
+            showRequest: false,
+            showResult: false,
+          };
+          return [model];
+        }
+
         default:
           return assertUnreachable(request);
       }
@@ -342,6 +370,31 @@ export const update: Update<Msg, Model> = (msg, model) => {
                       id: msg.id,
                       msg: {
                         type: "list_buffers",
+                        msg: innerMsg,
+                      },
+                    }),
+                  )
+              : undefined,
+          ];
+        }
+
+        case "list_directory": {
+          const [nextToolModel, thunk] = ListDirectory.update(
+            msg.msg.msg,
+            toolWrapper.model as ListDirectory.Model,
+          );
+          toolWrapper.model = nextToolModel;
+
+          return [
+            model,
+            thunk
+              ? (dispatch) =>
+                  thunk((innerMsg) =>
+                    dispatch({
+                      type: "tool-msg",
+                      id: msg.id,
+                      msg: {
+                        type: "list_directory",
                         msg: innerMsg,
                       },
                     }),

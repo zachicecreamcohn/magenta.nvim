@@ -61,7 +61,7 @@ export const view: View<{
   toolManager: ToolManager.Model;
   dispatch: Dispatch<Msg>;
 }> = ({ model, toolManager, dispatch }) =>
-  d`### ${model.role}:\n${model.parts.map(
+  d`# ${model.role}:\n${model.parts.map(
     (part, partIdx) =>
       d`${Part.view({
         model: part,

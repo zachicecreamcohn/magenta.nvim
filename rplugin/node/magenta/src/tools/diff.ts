@@ -82,7 +82,7 @@ export async function displayDiffs(
 
       case "replace": {
         const replaceStart = content.indexOf(edit.start);
-        const replaceEnd = content.slice(replaceStart).indexOf(edit.end);
+        const replaceEnd = content.indexOf(edit.end, replaceStart);
 
         if (replaceStart == -1) {
           dispatch({
