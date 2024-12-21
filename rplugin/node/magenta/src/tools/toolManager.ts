@@ -6,6 +6,7 @@ import { Dispatch, Update } from "../tea/tea.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages.mjs";
 import { extendError, Result } from "../utils/result.ts";
+import { d, withBindings } from "../tea/view.ts";
 
 export type ToolRequest =
   | GetFile.GetFileToolUseRequest
@@ -54,7 +55,11 @@ export const TOOL_SPECS = [
 
 export type Model = {
   toolModels: {
-    [id: ToolRequestId]: ToolModel;
+    [id: ToolRequestId]: {
+      model: ToolModel;
+      showRequest: boolean;
+      showResult: boolean;
+    };
   };
 };
 
@@ -74,12 +79,40 @@ export function getToolResult(model: ToolModel): ToolResultBlockParam {
   }
 }
 
-export function renderTool(model: ToolModel, dispatch: Dispatch<Msg>) {
+export function renderTool(
+  model: Model["toolModels"][ToolRequestId],
+  dispatch: Dispatch<Msg>,
+) {
+  return withBindings(
+    d`${renderToolContents(model.model, dispatch)}${
+      model.showRequest
+        ? d`\n${JSON.stringify(model.model.request, null, 2)}`
+        : ""
+    }${
+      model.showResult && model.model.state.state == "done"
+        ? d`\n${JSON.stringify(model.model.state.result, null, 2)}`
+        : ""
+    }`,
+    {
+      Enter: () =>
+        dispatch({
+          type: "toggle-display",
+          id: model.model.request.id,
+          showRequest: !model.showRequest,
+          showResult: !model.showResult,
+        }),
+    },
+  );
+}
+
+function renderToolContents(model: ToolModel, dispatch: Dispatch<Msg>) {
   switch (model.type) {
     case "get_file":
       return GetFile.view({ model });
+
     case "list_buffers":
       return ListBuffers.view({ model });
+
     case "insert":
       return Insert.view({
         model,
@@ -90,6 +123,7 @@ export function renderTool(model: ToolModel, dispatch: Dispatch<Msg>) {
             msg: { type: "insert", msg },
           }),
       });
+
     case "replace":
       return Replace.view({
         model,
@@ -110,6 +144,12 @@ export type Msg =
   | {
       type: "init-tool-use";
       request: ToolRequest;
+    }
+  | {
+      type: "toggle-display";
+      id: ToolRequestId;
+      showRequest: boolean;
+      showResult: boolean;
     }
   | {
       type: "tool-msg";
@@ -141,6 +181,17 @@ export function initModel(): Model {
 
 export const update: Update<Msg, Model> = (msg, model) => {
   switch (msg.type) {
+    case "toggle-display": {
+      const toolModel = model.toolModels[msg.id];
+      if (!toolModel) {
+        throw new Error(`Could not find tool use with request id ${msg.id}`);
+      }
+
+      toolModel.showRequest = msg.showRequest;
+      toolModel.showResult = msg.showResult;
+
+      return [model];
+    }
     case "init-tool-use": {
       const request = msg.request;
 
@@ -234,7 +285,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
         case "get_file": {
           const [nextToolModel, thunk] = GetFile.update(
             msg.msg.msg,
-            toolModel as GetFile.Model,
+            toolModel.model as GetFile.Model,
           );
 
           return [
@@ -242,7 +293,11 @@ export const update: Update<Msg, Model> = (msg, model) => {
               ...model,
               toolModels: {
                 ...model.toolModels,
-                [msg.id]: nextToolModel,
+                [msg.id]: {
+                  model: nextToolModel,
+                  showRequest: false,
+                  showResult: false,
+                },
               },
             },
             thunk
@@ -264,7 +319,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
         case "list_buffers": {
           const [nextToolModel, thunk] = ListBuffers.update(
             msg.msg.msg,
-            toolModel as ListBuffers.Model,
+            toolModel.model as ListBuffers.Model,
           );
 
           return [
@@ -294,7 +349,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
         case "insert": {
           const [nextToolModel, thunk] = Insert.update(
             msg.msg.msg,
-            toolModel as Insert.Model,
+            toolModel.model as Insert.Model,
           );
 
           return [
@@ -324,7 +379,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
         case "replace": {
           const [nextToolModel, thunk] = Replace.update(
             msg.msg.msg,
-            toolModel as Replace.Model,
+            toolModel.model as Replace.Model,
           );
 
           return [

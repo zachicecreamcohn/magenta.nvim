@@ -204,8 +204,6 @@ ${msg.error.stack}`,
             part: {
               type: "tool-request",
               requestId: msg.request.value.id,
-              displayRequest: false,
-              displayResult: false,
             },
           },
           model.messages[model.messages.length - 1],
@@ -228,10 +226,10 @@ ${msg.error.stack}`,
       if (msg.msg.type == "tool-msg" && msg.msg.msg.msg.type == "finish") {
         const toolModel = nextToolManager.toolModels[msg.msg.id];
 
-        if (toolModel.autoRespond) {
+        if (toolModel.model.autoRespond) {
           let shouldRespond = true;
           for (const tool of Object.values(model.toolManager.toolModels)) {
-            if (tool.state.state != "done") {
+            if (tool.model.state.state != "done") {
               shouldRespond = false;
               break;
             }
