@@ -221,6 +221,17 @@ export type ReplaceToolRequest = {
   };
 };
 
+export function displayRequest(request: ReplaceToolRequest) {
+  return `replace: {
+    filePath: ${request.input.filePath}
+    start: "${request.input.start}"
+    end: "${request.input.end}"
+    content: \`\`\`
+${request.input.content}
+\`\`\`
+}`;
+}
+
 export function validateToolRequest(req: unknown): Result<ReplaceToolRequest> {
   if (typeof req != "object" || req == null) {
     return { status: "error", error: "received a non-object" };

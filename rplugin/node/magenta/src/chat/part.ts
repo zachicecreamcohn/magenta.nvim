@@ -52,7 +52,12 @@ export const view: View<{
 ${JSON.stringify(model.rawRequest, null, 2)}`;
 
     case "tool-request": {
-      const toolModel = toolManager.toolModels[model.requestId];
+      const toolModel = toolManager.toolWrappers[model.requestId];
+      if (!toolModel) {
+        throw new Error(
+          `Unable to find model with requestId ${model.requestId}`,
+        );
+      }
       return ToolManager.renderTool(toolModel, (msg) =>
         dispatch({
           type: "tool-manager-msg",
@@ -77,7 +82,7 @@ export function toMessageParam(
       return { param: part };
 
     case "tool-request": {
-      const toolModel = toolManager.toolModels[part.requestId];
+      const toolModel = toolManager.toolWrappers[part.requestId];
       return {
         param: toolModel.model.request,
         result: ToolManager.getToolResult(toolModel.model),

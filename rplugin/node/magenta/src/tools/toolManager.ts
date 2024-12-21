@@ -53,13 +53,15 @@ export const TOOL_SPECS = [
   ListBuffers.spec,
 ];
 
+export type ToolModelWrapper = {
+  model: ToolModel;
+  showRequest: boolean;
+  showResult: boolean;
+};
+
 export type Model = {
-  toolModels: {
-    [id: ToolRequestId]: {
-      model: ToolModel;
-      showRequest: boolean;
-      showResult: boolean;
-    };
+  toolWrappers: {
+    [id: ToolRequestId]: ToolModelWrapper;
   };
 };
 
@@ -79,20 +81,43 @@ export function getToolResult(model: ToolModel): ToolResultBlockParam {
   }
 }
 
+function displayRequest(model: ToolModel): string {
+  switch (model.type) {
+    case "get_file":
+      return GetFile.displayRequest(model.request);
+    case "insert":
+      return Insert.displayRequest(model.request);
+    case "replace":
+      return Replace.displayRequest(model.request);
+    case "list_buffers":
+      return ListBuffers.displayRequest(model.request);
+
+    default:
+      return assertUnreachable(model);
+  }
+}
+
+function displayResult(model: ToolModel) {
+  if (model.state.state == "done") {
+    const result = model.state.result;
+    if (result.is_error) {
+      return `\nError: ${result.content as string}`;
+    } else {
+      return `\nResult:\n\`\`\`\n${result.content as string}\n\`\`\``;
+    }
+  } else {
+    return "";
+  }
+}
+
 export function renderTool(
-  model: Model["toolModels"][ToolRequestId],
+  model: Model["toolWrappers"][ToolRequestId],
   dispatch: Dispatch<Msg>,
 ) {
   return withBindings(
     d`${renderToolContents(model.model, dispatch)}${
-      model.showRequest
-        ? d`\n${JSON.stringify(model.model.request, null, 2)}`
-        : ""
-    }${
-      model.showResult && model.model.state.state == "done"
-        ? d`\n${JSON.stringify(model.model.state.result, null, 2)}`
-        : ""
-    }`,
+      model.showRequest ? d`\n${displayRequest(model.model)}` : ""
+    }${model.showResult ? displayResult(model.model) : ""}`,
     {
       Enter: () =>
         dispatch({
@@ -175,37 +200,37 @@ export type Msg =
 
 export function initModel(): Model {
   return {
-    toolModels: {},
+    toolWrappers: {},
   };
 }
 
 export const update: Update<Msg, Model> = (msg, model) => {
   switch (msg.type) {
     case "toggle-display": {
-      const toolModel = model.toolModels[msg.id];
-      if (!toolModel) {
+      const toolWrapper = model.toolWrappers[msg.id];
+      if (!toolWrapper) {
         throw new Error(`Could not find tool use with request id ${msg.id}`);
       }
 
-      toolModel.showRequest = msg.showRequest;
-      toolModel.showResult = msg.showResult;
+      toolWrapper.showRequest = msg.showRequest;
+      toolWrapper.showResult = msg.showResult;
 
       return [model];
     }
+
     case "init-tool-use": {
       const request = msg.request;
 
       switch (request.name) {
         case "get_file": {
           const [getFileModel, thunk] = GetFile.initModel(request);
+          model.toolWrappers[request.id] = {
+            model: getFileModel,
+            showRequest: false,
+            showResult: false,
+          };
           return [
-            {
-              ...model,
-              toolModels: {
-                ...model.toolModels,
-                [request.id]: getFileModel,
-              },
-            },
+            model,
             (dispatch) =>
               thunk((msg) =>
                 dispatch({
@@ -222,14 +247,13 @@ export const update: Update<Msg, Model> = (msg, model) => {
 
         case "list_buffers": {
           const [listBuffersModel, thunk] = ListBuffers.initModel(request);
+          model.toolWrappers[request.id] = {
+            model: listBuffersModel,
+            showRequest: false,
+            showResult: false,
+          };
           return [
-            {
-              ...model,
-              toolModels: {
-                ...model.toolModels,
-                [request.id]: listBuffersModel,
-              },
-            },
+            model,
             (dispatch) =>
               thunk((msg) =>
                 dispatch({
@@ -246,28 +270,22 @@ export const update: Update<Msg, Model> = (msg, model) => {
 
         case "insert": {
           const [insertModel] = Insert.initModel(request);
-          return [
-            {
-              ...model,
-              toolModels: {
-                ...model.toolModels,
-                [request.id]: insertModel,
-              },
-            },
-          ];
+          model.toolWrappers[request.id] = {
+            model: insertModel,
+            showRequest: false,
+            showResult: false,
+          };
+          return [model];
         }
 
         case "replace": {
-          const [insertModel] = Replace.initModel(request);
-          return [
-            {
-              ...model,
-              toolModels: {
-                ...model.toolModels,
-                [request.id]: insertModel,
-              },
-            },
-          ];
+          const [replaceModel] = Replace.initModel(request);
+          model.toolWrappers[request.id] = {
+            model: replaceModel,
+            showRequest: false,
+            showResult: false,
+          };
+          return [model];
         }
 
         default:
@@ -276,8 +294,8 @@ export const update: Update<Msg, Model> = (msg, model) => {
     }
 
     case "tool-msg": {
-      const toolModel = model.toolModels[msg.id];
-      if (!toolModel) {
+      const toolWrapper = model.toolWrappers[msg.id];
+      if (!toolWrapper) {
         throw new Error(`Expected to find tool with id ${msg.id}`);
       }
 
@@ -285,21 +303,12 @@ export const update: Update<Msg, Model> = (msg, model) => {
         case "get_file": {
           const [nextToolModel, thunk] = GetFile.update(
             msg.msg.msg,
-            toolModel.model as GetFile.Model,
+            toolWrapper.model as GetFile.Model,
           );
+          toolWrapper.model = nextToolModel;
 
           return [
-            {
-              ...model,
-              toolModels: {
-                ...model.toolModels,
-                [msg.id]: {
-                  model: nextToolModel,
-                  showRequest: false,
-                  showResult: false,
-                },
-              },
-            },
+            model,
             thunk
               ? (dispatch) =>
                   thunk((innerMsg) =>
@@ -319,17 +328,12 @@ export const update: Update<Msg, Model> = (msg, model) => {
         case "list_buffers": {
           const [nextToolModel, thunk] = ListBuffers.update(
             msg.msg.msg,
-            toolModel.model as ListBuffers.Model,
+            toolWrapper.model as ListBuffers.Model,
           );
+          toolWrapper.model = nextToolModel;
 
           return [
-            {
-              ...model,
-              toolModels: {
-                ...model.toolModels,
-                [msg.id]: nextToolModel,
-              },
-            },
+            model,
             thunk
               ? (dispatch) =>
                   thunk((innerMsg) =>
@@ -349,17 +353,12 @@ export const update: Update<Msg, Model> = (msg, model) => {
         case "insert": {
           const [nextToolModel, thunk] = Insert.update(
             msg.msg.msg,
-            toolModel.model as Insert.Model,
+            toolWrapper.model as Insert.Model,
           );
+          toolWrapper.model = nextToolModel;
 
           return [
-            {
-              ...model,
-              toolModels: {
-                ...model.toolModels,
-                [msg.id]: nextToolModel,
-              },
-            },
+            model,
             thunk
               ? (dispatch) =>
                   thunk((innerMsg) =>
@@ -379,17 +378,12 @@ export const update: Update<Msg, Model> = (msg, model) => {
         case "replace": {
           const [nextToolModel, thunk] = Replace.update(
             msg.msg.msg,
-            toolModel.model as Replace.Model,
+            toolWrapper.model as Replace.Model,
           );
+          toolWrapper.model = nextToolModel;
 
           return [
-            {
-              ...model,
-              toolModels: {
-                ...model.toolModels,
-                [msg.id]: nextToolModel,
-              },
-            },
+            model,
             thunk
               ? (dispatch) =>
                   thunk((innerMsg) =>

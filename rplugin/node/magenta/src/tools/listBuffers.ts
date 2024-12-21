@@ -124,6 +124,10 @@ export type ListBuffersToolRequest = {
   name: "list_buffers";
 };
 
+export function displayRequest(_request: ListBuffersToolRequest) {
+  return `list_buffers: {}`;
+}
+
 export function validateToolRequest(
   req: unknown,
 ): Result<ListBuffersToolRequest> {

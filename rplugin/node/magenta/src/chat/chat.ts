@@ -224,11 +224,11 @@ ${msg.error.stack}`,
         toolManagerThunk,
       );
       if (msg.msg.type == "tool-msg" && msg.msg.msg.msg.type == "finish") {
-        const toolModel = nextToolManager.toolModels[msg.msg.id];
+        const toolModel = nextToolManager.toolWrappers[msg.msg.id];
 
         if (toolModel.model.autoRespond) {
           let shouldRespond = true;
-          for (const tool of Object.values(model.toolManager.toolModels)) {
+          for (const tool of Object.values(model.toolManager.toolWrappers)) {
             if (tool.model.state.state != "done") {
               shouldRespond = false;
               break;

@@ -210,6 +210,16 @@ export type InsertToolUseRequest = {
   };
 };
 
+export function displayRequest(request: InsertToolUseRequest) {
+  return `insert: {
+    filePath: ${request.input.filePath}
+    insertAfter: "${request.input.insertAfter}"
+    content: \`\`\`
+${request.input.content}
+\`\`\`
+}`;
+}
+
 export function validateToolRequest(
   req: unknown,
 ): Result<InsertToolUseRequest> {

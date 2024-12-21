@@ -195,6 +195,12 @@ export type GetFileToolUseRequest = {
   };
 };
 
+export function displayRequest(request: GetFileToolUseRequest) {
+  return `get_file: {
+    filePath: ${request.input.filePath}
+}`;
+}
+
 export function validateToolRequest(
   req: unknown,
 ): Result<GetFileToolUseRequest> {
