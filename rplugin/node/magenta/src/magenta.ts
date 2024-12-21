@@ -4,7 +4,7 @@ import * as Chat from "./chat/chat.ts";
 import { Logger } from "./logger.ts";
 import { App, createApp, MountedApp } from "./tea/tea.ts";
 import { setContext, context } from "./context.ts";
-import { BindingKey } from "./tea/bindings.ts";
+import { BINDING_KEYS, BindingKey } from "./tea/bindings.ts";
 import { pos } from "./tea/view.ts";
 
 class Magenta {
@@ -71,9 +71,14 @@ class Magenta {
     }
   }
 
-  onKey(key: BindingKey) {
+  onKey(args: string[]) {
+    const key = args[0];
     if (this.mountedChatApp) {
-      this.mountedChatApp.onKey(key);
+      if (BINDING_KEYS[key as BindingKey]) {
+        this.mountedChatApp.onKey(key as BindingKey);
+      } else {
+        context.logger.error(`Unexpected MagentaKey ${key}`);
+      }
     }
   }
 
@@ -123,6 +128,21 @@ module.exports = (plugin: NvimPlugin) => {
     },
   );
 
+  plugin.registerCommand(
+    "MagentaKey",
+    (args: string[]) => {
+      try {
+        const magenta = init!.magenta;
+        magenta.onKey(args);
+      } catch (err) {
+        init!.logger.error(err as Error);
+      }
+    },
+    {
+      nargs: "1",
+    },
+  );
+
   plugin.registerAutocmd(
     "WinClosed",
     () => {
@@ -134,8 +154,4 @@ module.exports = (plugin: NvimPlugin) => {
       pattern: "*",
     },
   );
-
-  context.plugin.registerFunction("MagentaOnEnter", () => {
-    init?.magenta.onKey("Enter");
-  });
 };

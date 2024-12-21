@@ -2,7 +2,11 @@ import { MountedVDOM, Position } from "./view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { context } from "../context.ts";
 
-export type BindingKey = "Enter";
+export const BINDING_KEYS = {
+  Enter: "<CR>",
+} as const;
+
+export type BindingKey = keyof typeof BINDING_KEYS;
 export type Bindings = Partial<{
   [key in BindingKey]: () => void;
 }>;

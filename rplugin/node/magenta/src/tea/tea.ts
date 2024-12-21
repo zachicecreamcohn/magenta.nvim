@@ -9,7 +9,7 @@ import {
   VDOMNode,
 } from "./view.ts";
 import { context } from "../context.ts";
-import { BindingKey, getBindings } from "./bindings.ts";
+import { BINDING_KEYS, BindingKey, getBindings } from "./bindings.ts";
 
 export type Dispatch<Msg> = (msg: Msg) => void;
 
@@ -204,13 +204,16 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
         props: { currentState, dispatch },
       });
 
-      await context.nvim.call("nvim_buf_set_keymap", [
-        mount.buffer.id,
-        "n",
-        "<CR>",
-        ":call MagentaOnEnter()<CR>",
-        { noremap: true, silent: true },
-      ]);
+      for (const key in BINDING_KEYS) {
+        const vimKey = BINDING_KEYS[key as BindingKey];
+        await context.nvim.call("nvim_buf_set_keymap", [
+          mount.buffer.id,
+          "n",
+          vimKey,
+          ":MagentaKey Enter<CR>",
+          { noremap: true, silent: true },
+        ]);
+      }
 
       return {
         getMountedNode() {
