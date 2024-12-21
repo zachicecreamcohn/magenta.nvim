@@ -20,8 +20,9 @@ export type Msg =
       part: Part.Model;
     }
   | {
-      type: "tool-manager-msg";
-      msg: ToolManager.Msg;
+      type: "part-msg";
+      partIdx: number;
+      msg: Part.Msg;
     };
 
 export const update: Update<Msg, Model> = (msg, model) => {
@@ -43,8 +44,9 @@ export const update: Update<Msg, Model> = (msg, model) => {
       model.parts.push(msg.part);
       break;
 
-    case "tool-manager-msg": {
-      // do nothing. This will be handled by the tool manager
+    case "part-msg": {
+      const [nextPart] = Part.update(msg.msg, model.parts[msg.partIdx]);
+      model.parts[msg.partIdx] = nextPart;
       return [model];
     }
 
@@ -60,6 +62,10 @@ export const view: View<{
   dispatch: Dispatch<Msg>;
 }> = ({ model, toolManager, dispatch }) =>
   d`### ${model.role}:\n${model.parts.map(
-    (part) =>
-      d`${Part.view({ model: part, toolManager, dispatch: (msg) => dispatch({ type: "tool-manager-msg", msg }) })}\n`,
+    (part, partIdx) =>
+      d`${Part.view({
+        model: part,
+        toolManager,
+        dispatch: (msg) => dispatch({ type: "part-msg", partIdx, msg }),
+      })}\n`,
   )}`;

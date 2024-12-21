@@ -113,9 +113,12 @@ export const update: Update<Msg, Model> = (msg, model) => {
       const [nextMessage] = updateMessage(msg.msg, model.messages[msg.idx]);
       model.messages[msg.idx] = nextMessage;
 
-      if (msg.msg.type == "tool-manager-msg") {
+      if (
+        msg.msg.type == "part-msg" &&
+        msg.msg.msg.type == "tool-manager-msg"
+      ) {
         const [nextToolManager, toolManagerThunk] = ToolManager.update(
-          msg.msg.msg,
+          msg.msg.msg.msg,
           model.toolManager,
         );
         model.toolManager = nextToolManager;
@@ -198,7 +201,12 @@ ${msg.error.stack}`,
         const [nextMessage] = updateMessage(
           {
             type: "add-part",
-            part: { type: "tool-request", requestId: msg.request.value.id },
+            part: {
+              type: "tool-request",
+              requestId: msg.request.value.id,
+              displayRequest: false,
+              displayResult: false,
+            },
           },
           model.messages[model.messages.length - 1],
         );

@@ -31,7 +31,10 @@ async function run() {
       },
     ],
     (text) => {
-      console.log("text: " + text);
+      console.log("stream-text: " + text);
+    },
+    (err) => {
+      console.error(err);
     },
   );
 }
