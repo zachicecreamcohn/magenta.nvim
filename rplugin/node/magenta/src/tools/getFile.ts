@@ -182,7 +182,7 @@ export const spec: Anthropic.Anthropic.Tool = {
           "the path, relative to the project root, of the file. e.g. ./src/index.ts",
       },
     },
-    required: ["path"],
+    required: ["filePath"],
   },
 };
 

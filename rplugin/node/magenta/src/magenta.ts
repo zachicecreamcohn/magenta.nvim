@@ -1,4 +1,4 @@
-import { NvimPlugin } from "neovim";
+import { NvimPlugin, Buffer as NvimBuffer } from "neovim";
 import { Sidebar } from "./sidebar.ts";
 import * as Chat from "./chat/chat.ts";
 import { Logger } from "./logger.ts";
@@ -6,7 +6,7 @@ import { App, createApp, MountedApp } from "./tea/tea.ts";
 import { setContext, context } from "./context.ts";
 import { BINDING_KEYS, BindingKey } from "./tea/bindings.ts";
 import { pos } from "./tea/view.ts";
-import { delay } from "./utils/async.ts";
+// import { delay } from "./utils/async.ts";
 
 class Magenta {
   private sidebar: Sidebar;
@@ -18,34 +18,34 @@ class Magenta {
 
     this.chatApp = createApp({
       initialModel: Chat.initModel(),
-      sub: {
-        subscriptions: (model) => {
-          if (model.messageInFlight) {
-            return [{ id: "ticker" } as const];
-          }
-          return [];
-        },
-        subscriptionManager: {
-          ticker: {
-            subscribe(dispatch) {
-              let running = true;
-              const tick = async () => {
-                while (running) {
-                  dispatch({ type: "tick" });
-                  await delay(100);
-                }
-              };
-
-              // eslint-disable-next-line @typescript-eslint/no-floating-promises
-              tick();
-
-              return () => {
-                running = false;
-              };
-            },
-          },
-        },
-      },
+      // sub: {
+      //   subscriptions: (model) => {
+      //     if (model.messageInFlight) {
+      //       return [{ id: "ticker" } as const];
+      //     }
+      //     return [];
+      //   },
+      //   subscriptionManager: {
+      //     ticker: {
+      //       subscribe(dispatch) {
+      //         let running = true;
+      //         const tick = async () => {
+      //           while (running) {
+      //             dispatch({ type: "tick" });
+      //             await delay(100);
+      //           }
+      //         };
+      //
+      //         // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      //         tick();
+      //
+      //         return () => {
+      //           running = false;
+      //         };
+      //       },
+      //     },
+      //   },
+      // },
       update: Chat.update,
       View: Chat.view,
     });
@@ -94,6 +94,15 @@ class Magenta {
         this.chatApp.dispatch({ type: "clear" });
         break;
 
+      case "hover": {
+        const window = await context.nvim.window;
+        const buffer = await window.buffer;
+        const [row1indexed, col] = await window.cursor;
+
+        this.requestHover(buffer, row1indexed - 1, col);
+        break;
+      }
+
       default:
         context.logger.error(`Unrecognized command ${args[0]}\n`);
     }
@@ -112,6 +121,26 @@ class Magenta {
 
   async onWinClosed() {
     await this.sidebar.onWinClosed();
+  }
+
+  requestHover(buffer: NvimBuffer, row: number, col: number): void {
+    context.nvim
+      .lua(
+        `
+        vim.lsp.buf_request_all(${buffer.id}, 'textDocument/hover', {
+          textDocument = {
+              uri = vim.uri_from_bufnr(${buffer.id})
+          },
+          position = {
+              line = ${row},
+              character = ${col}
+          }
+        }, function(responses)
+          vim.fn.Magenta_lsp_response(responses)
+        end)
+      `,
+      )
+      .catch((err) => context.logger.error(err as Error));
   }
 }
 
@@ -181,5 +210,15 @@ module.exports = (plugin: NvimPlugin) => {
     {
       pattern: "*",
     },
+  );
+
+  plugin.registerFunction(
+    "Magenta_lsp_response",
+    (result: unknown) => {
+      context.logger.log(
+        `Magenta_lsp_response got callback ${JSON.stringify(result)}`,
+      );
+    },
+    {},
   );
 };
