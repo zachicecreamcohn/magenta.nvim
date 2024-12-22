@@ -93,7 +93,9 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
   let reRender = false;
 
   const dispatch = (msg: Msg) => {
-    context.logger.debug(`dispatched msg ${JSON.stringify(msg)}`);
+    if ((msg as { type: string }).type != "tick") {
+      context.logger.debug(`dispatched msg ${JSON.stringify(msg)}`);
+    }
     if (currentState.status == "error") {
       return currentState;
     }
@@ -145,7 +147,7 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
     }
   }
 
-  const subs: {
+  const currentSubs: {
     [id: string]: {
       sub: Subscription<SubscriptionType>;
       unsubscribe: () => void;
@@ -154,32 +156,37 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
 
   function updateSubs(currentState: AppState<Model>) {
     if (!sub) return;
-    if (currentState.status != "running") return;
+    if (currentState.status != "running") {
+      for (const subId in currentSubs) {
+        const { unsubscribe } = currentSubs[subId];
+        unsubscribe();
+        delete currentSubs[subId];
+      }
+      return;
+    }
 
     const subscriptionManager = sub.subscriptionManager;
 
     const nextSubs = sub.subscriptions(currentState.model);
     const nextSubsMap: { [id: string]: Subscription<SubscriptionType> } = {};
 
-    // Add new subs
-    nextSubs.forEach((sub) => {
+    for (const sub of nextSubs) {
       nextSubsMap[sub.id] = sub;
-      if (!subs[sub.id]) {
+      if (!currentSubs[sub.id]) {
         const unsubscribe = subscriptionManager[sub.id].subscribe(dispatch);
-        subs[sub.id] = {
+        currentSubs[sub.id] = {
           sub,
           unsubscribe,
         };
       }
-    });
+    }
 
-    // Remove old subs
-    Object.keys(subs).forEach((id) => {
+    for (const id in currentSubs) {
       if (!nextSubsMap[id]) {
-        subs[id as SubscriptionType].unsubscribe();
-        delete subs[id];
+        currentSubs[id as SubscriptionType].unsubscribe();
+        delete currentSubs[id];
       }
-    });
+    }
   }
 
   updateSubs(currentState);

@@ -310,13 +310,26 @@ export const update: Update<Msg, Model> = (msg, model) => {
         }
 
         case "list_directory": {
-          const [listDirModel] = ListDirectory.initModel(request);
+          const [listDirModel, thunk] = ListDirectory.initModel(request);
           model.toolWrappers[request.id] = {
             model: listDirModel,
             showRequest: false,
             showResult: false,
           };
-          return [model];
+          return [
+            model,
+            (dispatch) =>
+              thunk((msg) =>
+                dispatch({
+                  type: "tool-msg",
+                  id: request.id,
+                  msg: {
+                    type: "list_directory",
+                    msg,
+                  },
+                }),
+              ),
+          ];
         }
 
         default:

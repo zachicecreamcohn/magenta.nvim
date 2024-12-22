@@ -98,7 +98,7 @@ async function listDirectoryBFS(
         }
       }
     } catch (error) {
-      console.error(`Error reading directory ${currentPath}:`, error);
+      context.logger.error(error as Error);
     }
   }
 
@@ -139,6 +139,7 @@ export function initModel(
         }
 
         const files = await listDirectoryBFS(absolutePath, cwd);
+        context.logger.debug(`files: ${files.join("\n")}`);
         dispatch({
           type: "finish",
           result: {

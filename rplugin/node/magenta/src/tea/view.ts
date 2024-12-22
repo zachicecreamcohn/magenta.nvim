@@ -71,29 +71,44 @@ export type MountedVDOM =
   | MountedComponentNode
   | MountedArrayNode;
 
-export function prettyPrintMountedNode(node: MountedVDOM) {
-  let body = "";
-  switch (node.type) {
-    case "string":
-      body = JSON.stringify(node.content);
-      break;
-    case "node":
-    case "array": {
-      const childLines = node.children
-        .map(prettyPrintMountedNode)
-        .flatMap((c) => c.split("\n").map((s) => "  " + s));
-      body = `children:\n` + childLines.join("\n");
-      break;
+export function prettyPrintMountedNode(root: MountedVDOM) {
+  const stack: { node: MountedVDOM; indent: number }[] = [
+    { node: root, indent: 0 },
+  ];
+  const output: string[] = [];
+  while (stack.length) {
+    const { node, indent } = stack.pop()!;
+
+    let body = "";
+    switch (node.type) {
+      case "string":
+        body = JSON.stringify(node.content);
+        break;
+      case "node":
+      case "array": {
+        for (
+          let childIdx = node.children.length - 1;
+          childIdx >= 0;
+          childIdx--
+        ) {
+          stack.push({ node: node.children[childIdx], indent: indent + 2 });
+        }
+        break;
+      }
+      default:
+        assertUnreachable(node);
     }
-    default:
-      assertUnreachable(node);
+
+    const bindings = node.bindings
+      ? `{${Object.keys(node.bindings).join(", ")}}`
+      : "";
+
+    output.push(
+      `${" ".repeat(indent)}${prettyPrintPos(node.startPos)}-${prettyPrintPos(node.endPos)} (${node.type})  ${bindings} ${body}`,
+    );
   }
 
-  const bindings = node.bindings
-    ? `{${Object.keys(node.bindings).join(", ")}}`
-    : "";
-
-  return `${prettyPrintPos(node.startPos)}-${prettyPrintPos(node.endPos)} (${node.type})  ${bindings} ${body}`;
+  return output.join("\n");
 }
 
 function prettyPrintPos(pos: Position) {

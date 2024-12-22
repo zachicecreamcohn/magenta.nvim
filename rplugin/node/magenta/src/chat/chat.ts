@@ -144,9 +144,21 @@ export const update: Update<Msg, Model> = (msg, model) => {
       );
       model.messages[msg.idx] = nextMessage;
 
+      let toolManagerMsg;
       if (msg.msg.type == "tool-manager-msg") {
+        toolManagerMsg = msg.msg.msg;
+      }
+
+      if (
+        msg.msg.type == "part-msg" &&
+        msg.msg.msg.type == "tool-manager-msg"
+      ) {
+        toolManagerMsg = msg.msg.msg.msg;
+      }
+
+      if (toolManagerMsg) {
         const [nextToolManager, toolManagerThunk] = ToolManager.update(
-          msg.msg.msg,
+          toolManagerMsg,
           model.toolManager,
         );
         model.toolManager = nextToolManager;
