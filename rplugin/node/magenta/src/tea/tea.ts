@@ -34,8 +34,7 @@ export interface Subscription<SubscriptionType extends string> {
 
 export type SubscriptionManager<SubscriptionType extends string, Msg> = {
   [K in SubscriptionType]: {
-    subscribe(dispatch: Dispatch<Msg>): void;
-    unsubscribe(): void;
+    subscribe(dispatch: Dispatch<Msg>): () => void;
   };
 };
 
@@ -94,7 +93,7 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
   let reRender = false;
 
   const dispatch = (msg: Msg) => {
-    context.logger.trace(`dispatched msg ${JSON.stringify(msg)}`);
+    context.logger.debug(`dispatched msg ${JSON.stringify(msg)}`);
     if (currentState.status == "error") {
       return currentState;
     }
@@ -147,7 +146,10 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
   }
 
   const subs: {
-    [id: string]: Subscription<SubscriptionType>;
+    [id: string]: {
+      sub: Subscription<SubscriptionType>;
+      unsubscribe: () => void;
+    };
   } = {};
 
   function updateSubs(currentState: AppState<Model>) {
@@ -155,7 +157,6 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
     if (currentState.status != "running") return;
 
     const subscriptionManager = sub.subscriptionManager;
-    const currentSubscriptions = subs;
 
     const nextSubs = sub.subscriptions(currentState.model);
     const nextSubsMap: { [id: string]: Subscription<SubscriptionType> } = {};
@@ -163,21 +164,22 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
     // Add new subs
     nextSubs.forEach((sub) => {
       nextSubsMap[sub.id] = sub;
-      if (!subscriptionManager[sub.id]) {
-        subscriptionManager[sub.id].subscribe(dispatch);
-        currentSubscriptions[sub.id] = sub;
+      if (!subs[sub.id]) {
+        const unsubscribe = subscriptionManager[sub.id].subscribe(dispatch);
+        subs[sub.id] = {
+          sub,
+          unsubscribe,
+        };
       }
     });
 
     // Remove old subs
-    Object.keys(currentSubscriptions).forEach((id) => {
+    Object.keys(subs).forEach((id) => {
       if (!nextSubsMap[id]) {
-        subscriptionManager[id as SubscriptionType].unsubscribe();
+        subs[id as SubscriptionType].unsubscribe();
         delete subs[id];
       }
     });
-
-    return () => {};
   }
 
   updateSubs(currentState);

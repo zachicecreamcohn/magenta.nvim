@@ -114,7 +114,10 @@ function displayResult(model: ToolModel) {
     if (result.is_error) {
       return `\nError: ${result.content as string}`;
     } else {
-      return `\nResult:\n\`\`\`\n${result.content as string}\n\`\`\``;
+      return `\nResult:
+\`\`\`
+${result.content as string}
+\`\`\``;
     }
   } else {
     return "";

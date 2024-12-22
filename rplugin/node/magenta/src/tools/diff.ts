@@ -3,30 +3,19 @@ import { Buffer } from "neovim";
 import { WIDTH } from "../sidebar.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { Dispatch } from "../tea/tea.ts";
-
-type Edit =
-  | {
-      type: "insert-after";
-      insertAfter: string;
-      content: string;
-    }
-  | {
-      type: "replace";
-      start: string;
-      end: string;
-      content: string;
-    };
+import { ReplaceToolRequest } from "./replace.ts";
+import { InsertToolUseRequest } from "./insert.ts";
 
 type Msg = {
   type: "error";
-  error: string;
+  message: string;
 };
 
 /** Helper to bring up an editing interface for the given file path.
  */
 export async function displayDiffs(
   filePath: string,
-  edits: Edit[],
+  edits: (ReplaceToolRequest | InsertToolUseRequest)[],
   dispatch: Dispatch<Msg>,
 ) {
   const { nvim, logger } = context;
@@ -69,40 +58,34 @@ export async function displayDiffs(
   let content: string = lines.join("\n");
 
   for (const edit of edits) {
-    switch (edit.type) {
-      case "insert-after": {
+    switch (edit.name) {
+      case "insert": {
         const insertLocation =
-          content.indexOf(edit.insertAfter) + edit.insertAfter.length;
+          content.indexOf(edit.input.insertAfter) +
+          edit.input.insertAfter.length;
         content =
           content.slice(0, insertLocation) +
-          edit.content +
+          edit.input.content +
           content.slice(insertLocation);
         break;
       }
 
       case "replace": {
-        const replaceStart = content.indexOf(edit.start);
-        const replaceEnd = content.indexOf(edit.end, replaceStart);
+        const replaceStart = content.indexOf(edit.input.match);
+        const replaceEnd = replaceStart + edit.input.match.length;
 
         if (replaceStart == -1) {
           dispatch({
             type: "error",
-            error: `Unable to find start location of string ${edit.start} in file ${filePath}`,
+            message: `Unable to find match parameter ${edit.input.match} in file ${filePath}`,
           });
           continue;
         }
 
-        if (replaceEnd == -1) {
-          dispatch({
-            type: "error",
-            error: `Unable to find end location of string ${edit.end} in file ${filePath}`,
-          });
-          continue;
-        }
         content =
           content.slice(0, replaceStart) +
-          edit.content +
-          content.slice(replaceEnd + edit.end.length);
+          edit.input.replace +
+          content.slice(replaceEnd);
 
         break;
       }

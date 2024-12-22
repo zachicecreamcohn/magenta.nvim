@@ -2,37 +2,24 @@ import * as Anthropic from "@anthropic-ai/sdk";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
 import { Dispatch, Update } from "../tea/tea.ts";
-import { d, VDOMNode, withBindings } from "../tea/view.ts";
+import { d, VDOMNode } from "../tea/view.ts";
 import { ToolRequestId } from "./toolManager.ts";
-import { displayDiffs } from "./diff.ts";
-import { context } from "../context.ts";
 import { Result } from "../utils/result.ts";
 
 export type Model = {
   type: "replace";
   autoRespond: boolean;
   request: ReplaceToolRequest;
-  state:
-    | {
-        state: "pending-user-action";
-      }
-    | {
-        state: "editing-diff";
-      }
-    | {
-        state: "done";
-        result: ToolResultBlockParam;
-      };
+  state: {
+    state: "done";
+    result: ToolResultBlockParam;
+  };
 };
 
-export type Msg =
-  | {
-      type: "finish";
-      result: ToolResultBlockParam;
-    }
-  | {
-      type: "display-diff";
-    };
+export type Msg = {
+  type: "finish";
+  result: ToolResultBlockParam;
+};
 
 export const update: Update<Msg, Model> = (msg, model) => {
   switch (msg.type) {
@@ -46,72 +33,27 @@ export const update: Update<Msg, Model> = (msg, model) => {
           },
         },
       ];
-    case "display-diff":
-      return [
-        {
-          ...model,
-          state: {
-            state: "pending-user-action",
-          },
-        },
-        insertThunk(model),
-      ];
     default:
-      assertUnreachable(msg);
+      assertUnreachable(msg.type);
   }
 };
 
 export function initModel(request: ReplaceToolRequest): [Model] {
   const model: Model = {
     type: "replace",
-    autoRespond: false,
+    autoRespond: true,
     request,
     state: {
-      state: "pending-user-action",
+      state: "done",
+      result: {
+        tool_use_id: request.id,
+        type: "tool_result",
+        content: `The user will review your proposed change. Please assume that your change will be accepted and address the remaining parts of the question.`,
+      },
     },
   };
 
   return [model];
-}
-
-export function insertThunk(model: Model) {
-  const request = model.request;
-  return async (dispatch: Dispatch<Msg>) => {
-    try {
-      await displayDiffs(
-        request.input.filePath,
-        [
-          {
-            type: "replace",
-            start: request.input.start,
-            end: request.input.end,
-            content: request.input.content,
-          },
-        ],
-        (msg) =>
-          dispatch({
-            type: "finish",
-            result: {
-              type: "tool_result",
-              tool_use_id: model.request.id,
-              content: msg.error,
-              is_error: true,
-            },
-          }),
-      );
-    } catch (error) {
-      context.logger.error(error as Error);
-      dispatch({
-        type: "finish",
-        result: {
-          type: "tool_result",
-          tool_use_id: request.id,
-          content: `Error: ${(error as Error).message}`,
-          is_error: true,
-        },
-      });
-    }
-  };
 }
 
 export function view({
@@ -121,62 +63,43 @@ export function view({
   model: Model;
   dispatch: Dispatch<Msg>;
 }): VDOMNode {
-  return d`Insert ${(
-    model.request.input.content.match(/\n/g) || []
-  ).length.toString()} into file ${model.request.input.filePath}
+  return d`Replace [[ +${(
+    model.request.input.replace.match(/\n/g) || []
+  ).length.toString()} / -${(
+    model.request.input.match.match(/\n/g) || []
+  ).length.toString()} ]] in ${model.request.input.filePath}
 ${toolStatusView({ model, dispatch })}`;
 }
 
 function toolStatusView({
   model,
-  dispatch,
 }: {
   model: Model;
   dispatch: Dispatch<Msg>;
 }): VDOMNode {
   switch (model.state.state) {
-    case "pending-user-action":
-      return withBindings(d`[👀 review diff]`, {
-        Enter: () =>
-          dispatch({
-            type: "display-diff",
-          }),
-      });
-    case "editing-diff":
-      return d`⏳ Editing diff`;
     case "done":
       if (model.state.result.is_error) {
         return d`⚠️ Error: ${JSON.stringify(model.state.result.content, null, 2)}`;
       } else {
-        return d`✅ Done`;
+        return d`Awaiting user review.`;
       }
   }
 }
 
 export function getToolResult(model: Model): ToolResultBlockParam {
   switch (model.state.state) {
-    case "editing-diff":
-      return {
-        type: "tool_result",
-        tool_use_id: model.request.id,
-        content: `The user is reviewing the change. Please proceed with your answer or address other parts of the question.`,
-      };
-    case "pending-user-action":
-      return {
-        type: "tool_result",
-        tool_use_id: model.request.id,
-        content: `Waiting for a user action to finish processing this tool use. Please proceed with your answer or address other parts of the question.`,
-      };
     case "done":
       return model.state.result;
     default:
-      assertUnreachable(model.state);
+      assertUnreachable(model.state.state);
   }
 }
 
 export const spec: Anthropic.Anthropic.Tool = {
   name: "replace",
-  description: "Replace text between two strings in a file.",
+  description: `Replace the given text in a file. \
+Break up replace opertations into multiple, smaller tool invocations to avoid repeating large sections of the existing code.`,
   input_schema: {
     type: "object",
     properties: {
@@ -184,28 +107,18 @@ export const spec: Anthropic.Anthropic.Tool = {
         type: "string",
         description: "Path of the file to modify.",
       },
-      start: {
+      match: {
         type: "string",
-        description: `Replace content starting with this text.\
-This should be the literal text of the file - regular expressions are not supported.\
-This text is included in what will be replaced.\
-Please provide just enough text to uniquely identify a location in the file.\
-If multiple locations in the file match this text, the first location will be used as a starting point.`,
+        description: `Replace this text. \
+This should be the literal text of the file. Regular expressions are not supported. \
+If multiple locations in the file match this text, the first match will be used.`,
       },
-      end: {
-        type: "string",
-        description: `Replace content until we encounter this text.\
-This should be the literal text of the file - regular expressions are not supported.\
-This text is included in what will be replaced.\
-Please provide just enough text to uniquely identify a location in the file.
-If multiple locations in the file match this text, the first match after start will be used as the ending point.`,
-      },
-      content: {
+      replace: {
         type: "string",
         description: "New content that will replace the existing text.",
       },
     },
-    required: ["filePath", "start", "end", "content"],
+    required: ["filePath", "match", "replace"],
   },
 };
 
@@ -215,19 +128,21 @@ export type ReplaceToolRequest = {
   name: "replace";
   input: {
     filePath: string;
-    start: string;
-    end: string;
-    content: string;
+    match: string;
+    replace: string;
   };
 };
 
 export function displayRequest(request: ReplaceToolRequest) {
   return `replace: {
     filePath: ${request.input.filePath}
-    start: "${request.input.start}"
-    end: "${request.input.end}"
-    content: \`\`\`
-${request.input.content}
+    match:
+\`\`\`
+${request.input.match}"
+\`\`\`
+    replace:
+\`\`\`
+${request.input.replace}
 \`\`\`
 }`;
 }
@@ -264,24 +179,17 @@ export function validateToolRequest(req: unknown): Result<ReplaceToolRequest> {
     };
   }
 
-  if (typeof input.start != "string") {
+  if (typeof input.match != "string") {
     return {
       status: "error",
-      error: "expected req.input.start to be a string",
+      error: "expected req.input.match to be a string",
     };
   }
 
-  if (typeof input.end != "string") {
+  if (typeof input.replace != "string") {
     return {
       status: "error",
-      error: "expected req.input.end to be a string",
-    };
-  }
-
-  if (typeof input.content != "string") {
-    return {
-      status: "error",
-      error: "expected req.input.content to be a string",
+      error: "expected req.input.replace to be a string",
     };
   }
 

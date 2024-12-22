@@ -1,11 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { toMessageParam } from "./part.ts";
-import {
-  Model as Message,
-  Msg as MessageMsg,
-  update as updateMessage,
-  view as messageView,
-} from "./message.ts";
+import * as Message from "./message.ts";
 import {
   Dispatch,
   parallelThunks,
@@ -34,22 +29,26 @@ export type ChatState =
 
 export function initModel(): Model {
   return {
+    messageInFlight: undefined,
     messages: [],
     toolManager: ToolManager.initModel(),
   };
 }
 
 export type Model = {
-  messages: Message[];
+  messageInFlight: Date | undefined;
+  messages: Message.Model[];
   toolManager: ToolManager.Model;
+};
+type WrappedMessageMsg = {
+  type: "message-msg";
+  msg: Message.Msg;
+  idx: number;
 };
 
 export type Msg =
-  | {
-      type: "message-msg";
-      msg: MessageMsg;
-      idx: number;
-    }
+  | WrappedMessageMsg
+  | { type: "tick" }
   | {
       type: "add-message";
       role: Role;
@@ -71,6 +70,10 @@ export type Msg =
       type: "send-message";
     }
   | {
+      type: "message-in-flight";
+      messageInFlight: boolean;
+    }
+  | {
       type: "clear";
     }
   | {
@@ -78,22 +81,46 @@ export type Msg =
       msg: ToolManager.Msg;
     };
 
+function wrapMessageThunk(
+  messageIdx: number,
+  thunk: Thunk<Message.Msg> | undefined,
+): Thunk<WrappedMessageMsg> | undefined {
+  if (!thunk) {
+    return undefined;
+  }
+  return (dispatch: Dispatch<WrappedMessageMsg>) =>
+    thunk((msg: Message.Msg) =>
+      dispatch({ type: "message-msg", idx: messageIdx, msg }),
+    );
+}
+
 export const update: Update<Msg, Model> = (msg, model) => {
   switch (msg.type) {
+    case "tick":
+      return [model];
     case "add-message": {
-      let message: Message = {
+      let message: Message.Model = {
         role: msg.role,
         parts: [],
+        edits: {},
       };
 
+      let messageThunk;
       if (msg.content) {
-        const [next] = updateMessage(
+        const [next, thunk] = Message.update(
           { type: "append-text", text: msg.content },
           message,
+          model.toolManager,
         );
         message = next;
+        messageThunk = thunk;
       }
       model.messages.push(message);
+      return [model, wrapMessageThunk(model.messages.length - 1, messageThunk)];
+    }
+
+    case "message-in-flight": {
+      model.messageInFlight = msg.messageInFlight ? new Date() : undefined;
       return [model];
     }
 
@@ -110,22 +137,43 @@ export const update: Update<Msg, Model> = (msg, model) => {
     }
 
     case "message-msg": {
-      const [nextMessage] = updateMessage(msg.msg, model.messages[msg.idx]);
+      const [nextMessage, messageThunk] = Message.update(
+        msg.msg,
+        model.messages[msg.idx],
+        model.toolManager,
+      );
       model.messages[msg.idx] = nextMessage;
 
-      if (
-        msg.msg.type == "part-msg" &&
-        msg.msg.msg.type == "tool-manager-msg"
-      ) {
+      if (msg.msg.type == "tool-manager-msg") {
         const [nextToolManager, toolManagerThunk] = ToolManager.update(
-          msg.msg.msg.msg,
+          msg.msg.msg,
           model.toolManager,
         );
         model.toolManager = nextToolManager;
-        return [model, wrapThunk("tool-manager-msg", toolManagerThunk)];
+        return [
+          model,
+          parallelThunks<Msg>(
+            wrapMessageThunk(msg.idx, messageThunk),
+            wrapThunk("tool-manager-msg", toolManagerThunk),
+          ),
+        ];
       }
 
-      return [model];
+      if (msg.msg.type == "diff-error") {
+        const message = model.messages[msg.idx];
+        const edit = message.edits[msg.msg.filePath];
+        edit.status = {
+          status: "error",
+          message: msg.msg.error,
+        };
+
+        // TODO: maybe update request status with error?
+        // for (const requestId of edit.requestIds) {
+        // }
+        return [model];
+      }
+
+      return [model, wrapMessageThunk(msg.idx, messageThunk)];
     }
 
     case "stream-response": {
@@ -134,16 +182,18 @@ export const update: Update<Msg, Model> = (msg, model) => {
         model.messages.push({
           role: "assistant",
           parts: [],
+          edits: {},
         });
       }
 
-      const [nextMessage] = updateMessage(
+      const [nextMessage, messageThunk] = Message.update(
         { type: "append-text", text: msg.text },
         model.messages[model.messages.length - 1],
+        model.toolManager,
       );
       model.messages[model.messages.length - 1] = nextMessage;
 
-      return [model];
+      return [model, wrapMessageThunk(model.messages.length - 1, messageThunk)];
     }
 
     case "stream-error": {
@@ -152,20 +202,22 @@ export const update: Update<Msg, Model> = (msg, model) => {
         model.messages.push({
           role: "assistant",
           parts: [],
+          edits: {},
         });
       }
 
-      const [nextMessage] = updateMessage(
+      const [nextMessage, messageThunk] = Message.update(
         {
           type: "append-text",
           text: `Stream Error: ${msg.error.message}
 ${msg.error.stack}`,
         },
         model.messages[model.messages.length - 1],
+        model.toolManager,
       );
       model.messages[model.messages.length - 1] = nextMessage;
 
-      return [model];
+      return [model, wrapMessageThunk(model.messages.length - 1, messageThunk)];
     }
 
     case "init-tool-use": {
@@ -174,23 +226,25 @@ ${msg.error.stack}`,
         model.messages.push({
           role: "assistant",
           parts: [],
+          edits: {},
         });
       }
 
       if (msg.request.status == "error") {
-        const [nextMessage] = updateMessage(
+        const [nextMessage, messageThunk] = Message.update(
           {
-            type: "add-part",
-            part: {
-              type: "malformed-tool-request",
-              error: msg.request.error,
-              rawRequest: msg.request.rawRequest,
-            },
+            type: "add-malformed-tool-reqeust",
+            error: msg.request.error,
+            rawRequest: msg.request.rawRequest,
           },
           model.messages[model.messages.length - 1],
+          model.toolManager,
         );
         model.messages[model.messages.length - 1] = nextMessage;
-        return [model];
+        return [
+          model,
+          wrapMessageThunk(model.messages.length - 1, messageThunk),
+        ];
       } else {
         const [nextToolManager, toolManagerThunk] = ToolManager.update(
           { type: "init-tool-use", request: msg.request.value },
@@ -198,18 +252,22 @@ ${msg.error.stack}`,
         );
         model.toolManager = nextToolManager;
 
-        const [nextMessage] = updateMessage(
+        const [nextMessage, messageThunk] = Message.update(
           {
-            type: "add-part",
-            part: {
-              type: "tool-request",
-              requestId: msg.request.value.id,
-            },
+            type: "add-tool-request",
+            requestId: msg.request.value.id,
           },
           model.messages[model.messages.length - 1],
+          model.toolManager,
         );
         model.messages[model.messages.length - 1] = nextMessage;
-        return [model, wrapThunk("tool-manager-msg", toolManagerThunk)];
+        return [
+          model,
+          parallelThunks<Msg>(
+            wrapMessageThunk(model.messages.length - 1, messageThunk),
+            wrapThunk("tool-manager-msg", toolManagerThunk),
+          ),
+        ];
       }
     }
 
@@ -236,7 +294,14 @@ ${msg.error.stack}`,
           }
 
           if (shouldRespond) {
+            context.logger.debug(
+              `Got autoRespond message & no messages are pending, autoresponding.`,
+            );
             thunk = parallelThunks<Msg>(thunk, sendMessage(model));
+          } else {
+            context.logger.debug(
+              `Got autoRespond message but some messages are pending. Not responding.`,
+            );
           }
         }
       }
@@ -253,25 +318,31 @@ function sendMessage(model: Model): Thunk<Msg> {
   return async function (dispatch: Dispatch<Msg>) {
     const messages = getMessages(model);
 
-    const toolRequests = await getClient().sendMessage(
-      messages,
-      (text) => {
-        context.logger.trace(`stream received text ${text}`);
-        dispatch({
-          type: "stream-response",
-          text,
-        });
-      },
-      (error) => {
-        context.logger.trace(`stream received error ${error}`);
-        dispatch({
-          type: "stream-error",
-          error,
-        });
-      },
-    );
+    dispatch({ type: "message-in-flight", messageInFlight: true });
+    let toolRequests;
+    try {
+      toolRequests = await getClient().sendMessage(
+        messages,
+        (text) => {
+          context.logger.trace(`stream received text ${text}`);
+          dispatch({
+            type: "stream-response",
+            text,
+          });
+        },
+        (error) => {
+          context.logger.trace(`stream received error ${error}`);
+          dispatch({
+            type: "stream-error",
+            error,
+          });
+        },
+      );
+    } finally {
+      dispatch({ type: "message-in-flight", messageInFlight: false });
+    }
 
-    if (toolRequests.length) {
+    if (toolRequests?.length) {
       for (const request of toolRequests) {
         dispatch({
           type: "init-tool-use",
@@ -282,20 +353,32 @@ function sendMessage(model: Model): Thunk<Msg> {
   };
 }
 
+const MESSAGE_ANIMATION = [".", "..", "..."];
+
 export const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
   model,
   dispatch,
 }) => {
   return d`${model.messages.map(
     (m, idx) =>
-      d`${messageView({
+      d`${Message.view({
         model: m,
         toolManager: model.toolManager,
         dispatch: (msg) => {
           dispatch({ type: "message-msg", msg, idx });
         },
       })}\n`,
-  )}`;
+  )}${
+    model.messageInFlight
+      ? d`Awaiting response ${
+          MESSAGE_ANIMATION[
+            Math.floor(
+              (new Date().getTime() - model.messageInFlight.getTime()) / 333,
+            ) % 3
+          ]
+        }`
+      : ""
+  }`;
 };
 
 export function getMessages(model: Model): Anthropic.MessageParam[] {

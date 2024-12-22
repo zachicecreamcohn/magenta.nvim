@@ -1,6 +1,6 @@
 import { context } from "../context.ts";
 import { render } from "./render.ts";
-import { logBuffer, replaceBetweenPositions } from "./util.ts";
+import { replaceBetweenPositions } from "./util.ts";
 import {
   ArrayVDOMNode,
   ByteIdx,
@@ -79,7 +79,6 @@ export async function update({
     current: CurrentMountedVDOM,
     next: VDOMNode,
   ): Promise<NextMountedVDOM> {
-    await logBuffer(mount.buffer);
     // udpate the node pos based on previous edits, to see where the content of this node is now, part-way
     // through the update
     const nextPos = updateNodePos(current);
@@ -113,8 +112,6 @@ export async function update({
     }
 
     accumulatedEdit.lastEditRow = newEndPos.row;
-
-    await logBuffer(mount.buffer);
 
     return rendered;
   }

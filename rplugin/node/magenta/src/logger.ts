@@ -35,7 +35,12 @@ export class Logger {
   }
 
   error(error: Error | string) {
-    console.error(error);
+    try {
+      console.error(error);
+    } catch {
+      // nothing to do
+    }
+
     if (typeof error == "string") {
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       this.nvim.errWriteLine(error);
@@ -44,8 +49,12 @@ export class Logger {
       this.nvim.errWriteLine(error.message);
 
       if (error.stack) {
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        this.nvim.errWrite(error.stack);
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-floating-promises
+          this.nvim.errWrite(error.stack);
+        } catch {
+          // nothing to do
+        }
       }
     }
   }

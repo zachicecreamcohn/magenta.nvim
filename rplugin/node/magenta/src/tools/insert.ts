@@ -2,37 +2,24 @@ import * as Anthropic from "@anthropic-ai/sdk";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/index.mjs";
 import { Dispatch, Update } from "../tea/tea.ts";
-import { d, VDOMNode, withBindings } from "../tea/view.ts";
+import { d, VDOMNode } from "../tea/view.ts";
 import { ToolRequestId } from "./toolManager.ts";
-import { displayDiffs } from "./diff.ts";
-import { context } from "../context.ts";
 import { Result } from "../utils/result.ts";
 
 export type Model = {
   type: "insert";
   autoRespond: boolean;
   request: InsertToolUseRequest;
-  state:
-    | {
-        state: "pending-user-action";
-      }
-    | {
-        state: "editing-diff";
-      }
-    | {
-        state: "done";
-        result: ToolResultBlockParam;
-      };
+  state: {
+    state: "done";
+    result: ToolResultBlockParam;
+  };
 };
 
-export type Msg =
-  | {
-      type: "finish";
-      result: ToolResultBlockParam;
-    }
-  | {
-      type: "display-diff";
-    };
+export type Msg = {
+  type: "finish";
+  result: ToolResultBlockParam;
+};
 
 export const update: Update<Msg, Model> = (msg, model) => {
   switch (msg.type) {
@@ -46,71 +33,27 @@ export const update: Update<Msg, Model> = (msg, model) => {
           },
         },
       ];
-    case "display-diff":
-      return [
-        {
-          ...model,
-          state: {
-            state: "pending-user-action",
-          },
-        },
-        insertThunk(model),
-      ];
     default:
-      assertUnreachable(msg);
+      assertUnreachable(msg.type);
   }
 };
 
 export function initModel(request: InsertToolUseRequest): [Model] {
   const model: Model = {
     type: "insert",
-    autoRespond: false,
+    autoRespond: true,
     request,
     state: {
-      state: "pending-user-action",
+      state: "done",
+      result: {
+        tool_use_id: request.id,
+        type: "tool_result",
+        content: `The user will review your proposed change. Please assume that your change will be accepted and address the remaining parts of the question.`,
+      },
     },
   };
 
   return [model];
-}
-
-export function insertThunk(model: Model) {
-  const request = model.request;
-  return async (dispatch: Dispatch<Msg>) => {
-    try {
-      await displayDiffs(
-        request.input.filePath,
-        [
-          {
-            type: "insert-after",
-            insertAfter: request.input.insertAfter,
-            content: request.input.content,
-          },
-        ],
-        (msg) =>
-          dispatch({
-            type: "finish",
-            result: {
-              type: "tool_result",
-              tool_use_id: model.request.id,
-              content: msg.error,
-              is_error: true,
-            },
-          }),
-      );
-    } catch (error) {
-      context.logger.error(error as Error);
-      dispatch({
-        type: "finish",
-        result: {
-          type: "tool_result",
-          tool_use_id: request.id,
-          content: `Error: ${(error as Error).message}`,
-          is_error: true,
-        },
-      });
-    }
-  };
 }
 
 export function view({
@@ -122,54 +65,32 @@ export function view({
 }): VDOMNode {
   return d`Insert ${(
     model.request.input.content.match(/\n/g) || []
-  ).length.toString()} lines into file ${model.request.input.filePath}
+  ).length.toString()} lines.
 ${toolStatusView({ model, dispatch })}`;
 }
 
 function toolStatusView({
   model,
-  dispatch,
 }: {
   model: Model;
   dispatch: Dispatch<Msg>;
 }): VDOMNode {
   switch (model.state.state) {
-    case "pending-user-action":
-      return withBindings(d`[👀 review diff]`, {
-        Enter: () =>
-          dispatch({
-            type: "display-diff",
-          }),
-      });
-    case "editing-diff":
-      return d`⏳Editing diff`;
     case "done":
       if (model.state.result.is_error) {
         return d`⚠️ Error: ${JSON.stringify(model.state.result.content, null, 2)}`;
       } else {
-        return d`✅ Done`;
+        return d`Awaiting user review.`;
       }
   }
 }
 
 export function getToolResult(model: Model): ToolResultBlockParam {
   switch (model.state.state) {
-    case "editing-diff":
-      return {
-        type: "tool_result",
-        tool_use_id: model.request.id,
-        content: `The user is reviewing the change. Please proceed with your answer or address other parts of the question.`,
-      };
-    case "pending-user-action":
-      return {
-        type: "tool_result",
-        tool_use_id: model.request.id,
-        content: `Waiting for a user action to finish processing this tool use. Please proceed with your answer or address other parts of the question.`,
-      };
     case "done":
       return model.state.result;
     default:
-      assertUnreachable(model.state);
+      assertUnreachable(model.state.state);
   }
 }
 
@@ -214,7 +135,8 @@ export function displayRequest(request: InsertToolUseRequest) {
   return `insert: {
     filePath: ${request.input.filePath}
     insertAfter: "${request.input.insertAfter}"
-    content: \`\`\`
+    content:
+\`\`\`
 ${request.input.content}
 \`\`\`
 }`;

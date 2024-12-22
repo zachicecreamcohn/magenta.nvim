@@ -6,6 +6,7 @@ import { App, createApp, MountedApp } from "./tea/tea.ts";
 import { setContext, context } from "./context.ts";
 import { BINDING_KEYS, BindingKey } from "./tea/bindings.ts";
 import { pos } from "./tea/view.ts";
+import { delay } from "./utils/async.ts";
 
 class Magenta {
   private sidebar: Sidebar;
@@ -13,11 +14,38 @@ class Magenta {
   private mountedChatApp: MountedApp | undefined;
 
   constructor() {
-    context.logger.debug(`Initializing plugin`);
     this.sidebar = new Sidebar();
 
     this.chatApp = createApp({
       initialModel: Chat.initModel(),
+      sub: {
+        subscriptions: (model) => {
+          if (model.messageInFlight) {
+            return [{ id: "ticker" } as const];
+          }
+          return [];
+        },
+        subscriptionManager: {
+          ticker: {
+            subscribe(dispatch) {
+              let running = true;
+              const tick = async () => {
+                while (running) {
+                  dispatch({ type: "tick" });
+                  await delay(100);
+                }
+              };
+
+              // eslint-disable-next-line @typescript-eslint/no-floating-promises
+              tick();
+
+              return () => {
+                running = false;
+              };
+            },
+          },
+        },
+      },
       update: Chat.update,
       View: Chat.view,
     });
@@ -93,7 +121,7 @@ module.exports = (plugin: NvimPlugin) => {
   plugin.setOptions({});
 
   if (!init) {
-    const logger = new Logger(plugin.nvim, { level: "trace" });
+    const logger = new Logger(plugin.nvim, { level: "debug" });
     setContext({
       plugin,
       nvim: plugin.nvim,
