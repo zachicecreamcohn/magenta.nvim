@@ -1,5 +1,8 @@
 <img width="1376" alt="Screenshot 2024-12-22 at 3 40 02 PM" src="https://github.com/user-attachments/assets/df372c55-8c30-468d-8bd2-47047534fe92" />
 
+<img width="1658" alt="Screenshot 2024-12-22 at 4 22 44 PM" src="https://github.com/user-attachments/assets/45c0e90a-0944-4e9e-8f2b-c0d779542d45" />
+
+
 magenta.nvim is a plugin for agent-assisted LLM development in neovim.
 
 Rather than writing complex code to automatically provide context to the LLM, magenta is built around the idea that you can just expose tools to the LLM and have it decide what it needs to do. I'm banking on the fact that flagship models will get better and better at tool use, though eventually pairing this with a model that's tuned for tool use and editing 
