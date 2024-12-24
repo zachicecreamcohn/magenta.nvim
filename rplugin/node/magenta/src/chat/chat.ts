@@ -406,6 +406,18 @@ export function getMessages(model: Model): Anthropic.MessageParam[] {
       }
     }
 
+    for (const filePath in msg.edits) {
+      for (const requestId of msg.edits[filePath].requestIds) {
+        const toolWrapper = model.toolManager.toolWrappers[requestId];
+        if (!toolWrapper) {
+          throw new Error(`Expected to find tool use with requestId ${requestId}`)
+        }
+
+        messageContent.push(toolWrapper.model.request)
+        toolResponseContent.push(ToolManager.getToolResult(toolWrapper.model))
+      }
+    }
+
     const out: Anthropic.MessageParam[] = [
       {
         role: msg.role,

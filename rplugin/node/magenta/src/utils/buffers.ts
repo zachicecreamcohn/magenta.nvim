@@ -40,3 +40,50 @@ export async function getBufferIfOpen({
 
   return { status: "not-found" };
 }
+
+export async function getOrOpenBuffer({
+  relativePath,
+}: {
+  relativePath: string;
+}): Promise<
+  | { status: "ok"; result: string; buffer: Buffer }
+  | { status: "error"; error: string }
+> {
+  // First try to get the buffer if it's already open
+  const existingBuffer = await getBufferIfOpen({ relativePath });
+
+  if (existingBuffer.status === "error") {
+    return existingBuffer;
+  }
+
+  if (existingBuffer.status === "ok") {
+    return existingBuffer;
+  }
+
+  const cwd = (await context.nvim.call("getcwd")) as string;
+  const absolutePath = path.resolve(cwd, relativePath);
+
+  if (!absolutePath.startsWith(cwd)) {
+    return { status: "error", error: "The path must be inside of neovim cwd" };
+  }
+
+  try {
+    await context.nvim.call(`bufadd('${absolutePath}')`);
+
+    //TODO
+    const bufnr = await nvim.call('bufadd', ['path/to/your/file.txt']);
+    await nvim.call('bufload', [bufnr]);
+
+    const existingBuffer = await getBufferIfOpen({ relativePath });
+    if (existingBuffer.status == "error" || existingBuffer.status == "ok") {
+      return existingBuffer;
+    } else {
+      return { status: "error", error: "Unable to open file." };
+    }
+  } catch (error) {
+    return {
+      status: "error",
+      error: `Failed to open buffer: ${(error as Error).message}`,
+    };
+  }
+}

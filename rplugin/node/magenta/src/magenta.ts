@@ -1,4 +1,4 @@
-import { NvimPlugin, Buffer as NvimBuffer } from "neovim";
+import { NvimPlugin } from "neovim";
 import { Sidebar } from "./sidebar.ts";
 import * as Chat from "./chat/chat.ts";
 import { Logger } from "./logger.ts";
@@ -6,6 +6,7 @@ import { App, createApp, MountedApp } from "./tea/tea.ts";
 import { setContext, context } from "./context.ts";
 import { BINDING_KEYS, BindingKey } from "./tea/bindings.ts";
 import { pos } from "./tea/view.ts";
+import { Lsp } from "./lsp.ts";
 // import { delay } from "./utils/async.ts";
 
 class Magenta {
@@ -94,15 +95,6 @@ class Magenta {
         this.chatApp.dispatch({ type: "clear" });
         break;
 
-      case "hover": {
-        const window = await context.nvim.window;
-        const buffer = await window.buffer;
-        const [row1indexed, col] = await window.cursor;
-
-        this.requestHover(buffer, row1indexed - 1, col);
-        break;
-      }
-
       default:
         context.logger.error(`Unrecognized command ${args[0]}\n`);
     }
@@ -122,26 +114,6 @@ class Magenta {
   async onWinClosed() {
     await this.sidebar.onWinClosed();
   }
-
-  requestHover(buffer: NvimBuffer, row: number, col: number): void {
-    context.nvim
-      .lua(
-        `
-        vim.lsp.buf_request_all(${buffer.id}, 'textDocument/hover', {
-          textDocument = {
-              uri = vim.uri_from_bufnr(${buffer.id})
-          },
-          position = {
-              line = ${row},
-              character = ${col}
-          }
-        }, function(responses)
-          vim.fn.Magenta_lsp_response(responses)
-        end)
-      `,
-      )
-      .catch((err) => context.logger.error(err as Error));
-  }
 }
 
 let init: { magenta: Magenta; logger: Logger } | undefined = undefined;
@@ -155,6 +127,7 @@ module.exports = (plugin: NvimPlugin) => {
       plugin,
       nvim: plugin.nvim,
       logger,
+      lsp: new Lsp(plugin.nvim, logger),
     });
 
     process.on("uncaughtException", (error) => {
@@ -215,9 +188,7 @@ module.exports = (plugin: NvimPlugin) => {
   plugin.registerFunction(
     "Magenta_lsp_response",
     (result: unknown) => {
-      context.logger.log(
-        `Magenta_lsp_response got callback ${JSON.stringify(result)}`,
-      );
+      context.lsp.onLspResponse(result);
     },
     {},
   );

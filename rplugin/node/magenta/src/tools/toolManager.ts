@@ -3,6 +3,7 @@ import * as Insert from "./insert.ts";
 import * as Replace from "./replace.ts";
 import * as ListBuffers from "./listBuffers.ts";
 import * as ListDirectory from "./listDirectory.ts";
+import * as Hover from "./hover.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages.mjs";
 import { extendError, Result } from "../utils/result.ts";
@@ -14,7 +15,8 @@ export type ToolRequest =
   | Insert.InsertToolUseRequest
   | Replace.ReplaceToolRequest
   | ListBuffers.ListBuffersToolRequest
-  | ListDirectory.ListDirectoryToolUseRequest;
+  | ListDirectory.ListDirectoryToolUseRequest
+  | Hover.HoverToolUseRequest;
 
 export function validateToolRequest(
   req: unknown,
@@ -35,6 +37,10 @@ export function validateToolRequest(
       return extendError(ListDirectory.validateToolRequest(req), {
         rawRequest: req,
       });
+    case "hover":
+      return extendError(Hover.validateToolRequest(req), {
+        rawRequest: req,
+      });
     default:
       return {
         status: "error",
@@ -49,7 +55,8 @@ export type ToolModel =
   | Insert.Model
   | Replace.Model
   | ListBuffers.Model
-  | ListDirectory.Model;
+  | ListDirectory.Model
+  | Hover.Model;
 
 export type ToolRequestId = string & { __toolRequestId: true };
 
@@ -59,6 +66,7 @@ export const TOOL_SPECS = [
   Replace.spec,
   ListBuffers.spec,
   ListDirectory.spec,
+  Hover.spec,
 ];
 
 export type ToolModelWrapper = {
@@ -85,6 +93,8 @@ export function getToolResult(model: ToolModel): ToolResultBlockParam {
       return ListBuffers.getToolResult(model);
     case "list_directory":
       return ListDirectory.getToolResult(model);
+    case "hover":
+      return Hover.getToolResult(model);
     default:
       return assertUnreachable(model);
   }
@@ -102,7 +112,8 @@ function displayRequest(model: ToolModel): string {
       return ListBuffers.displayRequest(model.request);
     case "list_directory":
       return ListDirectory.displayRequest(model.request);
-
+    case "hover":
+      return Hover.displayRequest(model.request);
     default:
       return assertUnreachable(model);
   }
@@ -177,6 +188,11 @@ function renderToolContents(model: ToolModel, dispatch: Dispatch<Msg>) {
           }),
       });
 
+    case "hover":
+      return Hover.view({
+        model,
+      });
+
     default:
       assertUnreachable(model);
   }
@@ -216,6 +232,10 @@ export type Msg =
         | {
             type: "replace";
             msg: Replace.Msg;
+          }
+        | {
+            type: "hover";
+            msg: Hover.Msg;
           };
     };
 
@@ -325,6 +345,29 @@ export const update: Update<Msg, Model> = (msg, model) => {
                   id: request.id,
                   msg: {
                     type: "list_directory",
+                    msg,
+                  },
+                }),
+              ),
+          ];
+        }
+
+        case "hover": {
+          const [hoverModel, thunk] = Hover.initModel(request);
+          model.toolWrappers[request.id] = {
+            model: hoverModel,
+            showRequest: false,
+            showResult: false,
+          };
+          return [
+            model,
+            (dispatch) =>
+              thunk((msg) =>
+                dispatch({
+                  type: "tool-msg",
+                  id: request.id,
+                  msg: {
+                    type: "hover",
                     msg,
                   },
                 }),
@@ -461,6 +504,31 @@ export const update: Update<Msg, Model> = (msg, model) => {
                       id: msg.id,
                       msg: {
                         type: "replace",
+                        msg: innerMsg,
+                      },
+                    }),
+                  )
+              : undefined,
+          ];
+        }
+
+        case "hover": {
+          const [nextToolModel, thunk] = Hover.update(
+            msg.msg.msg,
+            toolWrapper.model as Hover.Model,
+          );
+          toolWrapper.model = nextToolModel;
+
+          return [
+            model,
+            thunk
+              ? (dispatch) =>
+                  thunk((innerMsg) =>
+                    dispatch({
+                      type: "tool-msg",
+                      id: msg.id,
+                      msg: {
+                        type: "hover",
                         msg: innerMsg,
                       },
                     }),

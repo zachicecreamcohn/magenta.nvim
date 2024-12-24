@@ -2,6 +2,7 @@ import { getClient } from "../anthropic.ts";
 import { Logger } from "../logger.ts";
 import { setContext } from "../context.ts";
 import { Neovim, NvimPlugin } from "neovim";
+import { Lsp } from "../lsp.ts";
 
 const logger = new Logger(
   {
@@ -18,6 +19,7 @@ setContext({
   plugin: undefined as unknown as NvimPlugin,
   nvim: undefined as unknown as Neovim,
   logger,
+  lsp: undefined as unknown as Lsp
 });
 
 async function run() {

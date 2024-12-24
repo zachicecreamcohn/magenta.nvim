@@ -70,6 +70,7 @@ ${JSON.stringify(model.rawRequest, null, 2)}`;
   }
 };
 
+
 export function toMessageParam(
   part: Model,
   toolManager: ToolManager.Model,
@@ -82,10 +83,10 @@ export function toMessageParam(
       return { param: part };
 
     case "tool-request": {
-      const toolModel = toolManager.toolWrappers[part.requestId];
+      const toolWrapper = toolManager.toolWrappers[part.requestId];
       return {
-        param: toolModel.model.request,
-        result: ToolManager.getToolResult(toolModel.model),
+        param: toolWrapper.model.request,
+        result: ToolManager.getToolResult(toolWrapper.model),
       };
     }
 
