@@ -255,7 +255,10 @@ ${msg.error.stack}`,
         model.messages[model.messages.length - 1] = nextMessage;
         return [
           model,
-          wrapMessageThunk(model.messages.length - 1, messageThunk),
+          parallelThunks(
+            wrapMessageThunk(model.messages.length - 1, messageThunk),
+            maybeAutorespond(model),
+          ),
         ];
       } else {
         const [nextToolManager, toolManagerThunk] = ToolManager.update(
@@ -278,6 +281,7 @@ ${msg.error.stack}`,
           parallelThunks<Msg>(
             wrapMessageThunk(model.messages.length - 1, messageThunk),
             wrapThunk("tool-manager-msg", toolManagerThunk),
+            maybeAutorespond(model),
           ),
         ];
       }
@@ -289,35 +293,14 @@ ${msg.error.stack}`,
         model.toolManager,
       );
       model.toolManager = nextToolManager;
-      let thunk: Thunk<Msg> | undefined = wrapThunk(
-        "tool-manager-msg",
-        toolManagerThunk,
-      );
-      if (msg.msg.type == "tool-msg" && msg.msg.msg.msg.type == "finish") {
-        const toolModel = nextToolManager.toolWrappers[msg.msg.id];
-
-        if (toolModel.model.autoRespond) {
-          let shouldRespond = true;
-          for (const tool of Object.values(model.toolManager.toolWrappers)) {
-            if (tool.model.state.state != "done") {
-              shouldRespond = false;
-              break;
-            }
-          }
-
-          if (shouldRespond) {
-            context.logger.debug(
-              `Got autoRespond message & no messages are pending, autoresponding.`,
-            );
-            thunk = parallelThunks<Msg>(thunk, sendMessage(model));
-          } else {
-            context.logger.debug(
-              `Got autoRespond message but some messages are pending. Not responding.`,
-            );
-          }
-        }
-      }
-      return [model, thunk];
+      const respondThunk = maybeAutorespond(model);
+      return [
+        model,
+        parallelThunks(
+          wrapThunk("tool-manager-msg", toolManagerThunk),
+          respondThunk,
+        ),
+      ];
     }
 
     case "clear": {
@@ -325,6 +308,48 @@ ${msg.error.stack}`,
     }
   }
 };
+
+/** If the agent is waiting on tool use, check the last message to see if all tools have been resolved. If so,
+ * automatically respond.
+ */
+function maybeAutorespond(model: Model): Thunk<Msg> | undefined {
+  if (
+    !(
+      model.conversation.state == "stopped" &&
+      model.conversation.stopReason == "tool_use"
+    )
+  ) {
+    return;
+  }
+
+  const lastMessage = model.messages[model.messages.length - 1];
+  if (!(lastMessage && lastMessage.role == "assistant")) {
+    return;
+  }
+
+  function isBlocking(requestId: ToolManager.ToolRequestId) {
+    const toolWrapper = model.toolManager.toolWrappers[requestId];
+    return toolWrapper.model.state.state != "done";
+  }
+
+  for (const part of lastMessage.parts) {
+    if (part.type == "tool-request") {
+      if (isBlocking(part.requestId)) {
+        return;
+      }
+    }
+  }
+
+  for (const filePath in lastMessage.edits) {
+    for (const requestId of lastMessage.edits[filePath].requestIds) {
+      if (isBlocking(requestId)) {
+        return;
+      }
+    }
+  }
+
+  return sendMessage(model);
+}
 
 function sendMessage(model: Model): Thunk<Msg> {
   return async function (dispatch: Dispatch<Msg>) {

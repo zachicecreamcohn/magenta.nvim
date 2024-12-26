@@ -12,7 +12,6 @@ import { Result } from "../utils/result.ts";
 
 export type Model = {
   type: "get_file";
-  autoRespond: boolean;
   request: GetFileToolUseRequest;
   state:
     | {
@@ -52,7 +51,6 @@ export const update: Update<Msg, Model> = (msg, model) => {
 export function initModel(request: GetFileToolUseRequest): [Model, Thunk<Msg>] {
   const model: Model = {
     type: "get_file",
-    autoRespond: true,
     request,
     state: {
       state: "processing",

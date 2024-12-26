@@ -11,7 +11,6 @@ import { Buffer as NvimBuffer } from "neovim";
 
 export type Model = {
   type: "hover";
-  autoRespond: boolean;
   request: HoverToolUseRequest;
   state:
     | {
@@ -48,7 +47,6 @@ export const update: Update<Msg, Model> = (msg, model) => {
 export function initModel(request: HoverToolUseRequest): [Model, Thunk<Msg>] {
   const model: Model = {
     type: "hover",
-    autoRespond: true,
     request,
     state: {
       state: "processing",

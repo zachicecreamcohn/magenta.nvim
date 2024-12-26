@@ -131,7 +131,7 @@ export class Lsp {
 //         contents: {
 //           kind: "markdown",
 //           value:
-//             '\n```typescript\ntype Model = {\n    type: "hover";\n    autoRespond: boolean;\n    request: HoverToolUseRequest;\n    state: {\n        state: "processing";\n    } | {\n        state: "done";\n        result: ToolResultBlockParam;\n    };\n}\n```\n',
+//             '\n```typescript\ntype Model = {\n    type: "hover";\n    request: HoverToolUseRequest;\n    state: {\n        state: "processing";\n    } | {\n        state: "done";\n        result: ToolResultBlockParam;\n    };\n}\n```\n',
 //         },
 //       },
 //     },
