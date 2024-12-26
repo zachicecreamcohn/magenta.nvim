@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+
 import { toMessageParam } from "./part.ts";
 import * as Message from "./message.ts";
 import {
@@ -11,32 +12,31 @@ import {
 import { d, View } from "../tea/view.ts";
 import { context } from "../context.ts";
 import * as ToolManager from "../tools/toolManager.ts";
-import { getClient } from "../anthropic.ts";
+import { getClient, StopReason } from "../anthropic.ts";
 import { Result } from "../utils/result.ts";
 
 export type Role = "user" | "assistant";
 
-export type ChatState =
-  | {
-      state: "pending-user-input";
-    }
-  | {
-      state: "streaming-response";
-    }
-  | {
-      state: "awaiting-tool-use";
-    };
-
 export function initModel(): Model {
   return {
-    messageInFlight: undefined,
+    conversation: { state: "stopped", stopReason: "end_turn" },
     messages: [],
     toolManager: ToolManager.initModel(),
   };
 }
 
+export type ConversationState =
+  | {
+      state: "message-in-flight";
+      sendDate: Date;
+    }
+  | {
+      state: "stopped";
+      stopReason: StopReason;
+    };
+
 export type Model = {
-  messageInFlight: Date | undefined;
+  conversation: ConversationState;
   messages: Message.Model[];
   toolManager: ToolManager.Model;
 };
@@ -70,8 +70,8 @@ export type Msg =
       type: "send-message";
     }
   | {
-      type: "message-in-flight";
-      messageInFlight: boolean;
+      type: "conversation-state";
+      conversation: ConversationState;
     }
   | {
       type: "clear";
@@ -119,8 +119,8 @@ export const update: Update<Msg, Model> = (msg, model) => {
       return [model, wrapMessageThunk(model.messages.length - 1, messageThunk)];
     }
 
-    case "message-in-flight": {
-      model.messageInFlight = msg.messageInFlight ? new Date() : undefined;
+    case "conversation-state": {
+      model.conversation = msg.conversation;
       return [model];
     }
 
@@ -330,10 +330,16 @@ function sendMessage(model: Model): Thunk<Msg> {
   return async function (dispatch: Dispatch<Msg>) {
     const messages = getMessages(model);
 
-    dispatch({ type: "message-in-flight", messageInFlight: true });
-    let toolRequests;
+    dispatch({
+      type: "conversation-state",
+      conversation: {
+        state: "message-in-flight",
+        sendDate: new Date(),
+      },
+    });
+    let res;
     try {
-      toolRequests = await getClient().sendMessage(
+      res = await getClient().sendMessage(
         messages,
         (text) => {
           context.logger.trace(`stream received text ${text}`);
@@ -351,11 +357,17 @@ function sendMessage(model: Model): Thunk<Msg> {
         },
       );
     } finally {
-      dispatch({ type: "message-in-flight", messageInFlight: false });
+      dispatch({
+        type: "conversation-state",
+        conversation: {
+          state: "stopped",
+          stopReason: res?.stopReason || "end_turn",
+        },
+      });
     }
 
-    if (toolRequests?.length) {
-      for (const request of toolRequests) {
+    if (res.toolRequests?.length) {
+      for (const request of res.toolRequests) {
         dispatch({
           type: "init-tool-use",
           request,
@@ -381,15 +393,16 @@ export const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
         },
       })}\n`,
   )}${
-    model.messageInFlight
+    model.conversation.state == "message-in-flight"
       ? d`Awaiting response ${
           MESSAGE_ANIMATION[
             Math.floor(
-              (new Date().getTime() - model.messageInFlight.getTime()) / 333,
+              (new Date().getTime() - model.conversation.sendDate.getTime()) /
+                333,
             ) % 3
           ]
         }`
-      : ""
+      : d`Stopped (${model.conversation.stopReason || ""})`
   }`;
 };
 
@@ -410,11 +423,13 @@ export function getMessages(model: Model): Anthropic.MessageParam[] {
       for (const requestId of msg.edits[filePath].requestIds) {
         const toolWrapper = model.toolManager.toolWrappers[requestId];
         if (!toolWrapper) {
-          throw new Error(`Expected to find tool use with requestId ${requestId}`)
+          throw new Error(
+            `Expected to find tool use with requestId ${requestId}`,
+          );
         }
 
-        messageContent.push(toolWrapper.model.request)
-        toolResponseContent.push(ToolManager.getToolResult(toolWrapper.model))
+        messageContent.push(toolWrapper.model.request);
+        toolResponseContent.push(ToolManager.getToolResult(toolWrapper.model));
       }
     }
 

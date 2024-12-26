@@ -6,6 +6,9 @@ import {
   validateToolRequest,
 } from "./tools/toolManager.ts";
 import { Result } from "./utils/result.ts";
+import { Message } from "@anthropic-ai/sdk/src/resources/messages.js";
+
+export type StopReason = Message["stop_reason"];
 
 class AnthropicClient {
   private client: Anthropic;
@@ -26,7 +29,10 @@ class AnthropicClient {
     messages: Array<Anthropic.MessageParam>,
     onText: (text: string) => void,
     onError: (error: Error) => void,
-  ): Promise<Result<ToolRequest, { rawRequest: unknown }>[]> {
+  ): Promise<{
+    toolRequests: Result<ToolRequest, { rawRequest: unknown }>[];
+    stopReason: StopReason;
+  }> {
     const buf: string[] = [];
     let flushInProgress: boolean = false;
 
@@ -72,15 +78,16 @@ Be concise. You can use multiple tools at once, so try to minimize round trips.`
 
     const response = await stream.finalMessage();
 
-    if (response.stop_reason === 'max_tokens') {
-      onError(new Error('Response exceeded max_tokens limit'));
+    if (response.stop_reason === "max_tokens") {
+      onError(new Error("Response exceeded max_tokens limit"));
     }
 
     const toolRequests = response.content
       .filter((c): c is ToolRequest => c.type == "tool_use")
       .map((c) => validateToolRequest(c));
-    context.logger.debug("toolRequests: " + JSON.stringify(toolRequests));
-    return toolRequests;
+    context.logger.trace("toolRequests: " + JSON.stringify(toolRequests));
+    context.logger.trace("stopReason: " + response.stop_reason);
+    return { toolRequests, stopReason: response.stop_reason };
   }
 }
 

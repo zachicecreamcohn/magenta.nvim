@@ -4,6 +4,7 @@ import { MountedVDOM } from "../src/tea/view.ts";
 import { assertUnreachable } from "../src/utils/assertUnreachable.ts";
 import { setContext } from "../src/context.ts";
 import { Logger } from "../src/logger.ts";
+import { Lsp } from "../src/lsp.ts";
 
 process.env.NVIM_LOG_FILE = "/tmp/nvim.log"; // Helpful for debugging
 process.env.NVIM_NODE_LOG_FILE = "/tmp/nvim-node.log"; // Helpful for debugging
@@ -32,15 +33,17 @@ export class NeovimTestHelper {
 
       try {
         this.nvimClient = attach({ proc: this.nvimProcess });
+        const logger = {
+          log: console.log,
+          debug: console.log,
+          trace: console.log,
+          error: console.error,
+        } as Logger;
         setContext({
           plugin: undefined as unknown as NvimPlugin,
           nvim: this.nvimClient,
-          logger: {
-            log: console.log,
-            debug: console.log,
-            trace: console.log,
-            error: console.error,
-          } as Logger,
+          lsp: new Lsp(this.nvimClient, logger),
+          logger: logger,
         });
 
         resolve(this.nvimClient);

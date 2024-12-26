@@ -188,7 +188,7 @@ module.exports = (plugin: NvimPlugin) => {
   plugin.registerFunction(
     "Magenta_lsp_response",
     (result: unknown) => {
-      context.lsp.onLspResponse(result);
+      context.lsp.onLspResponse(result as any);
     },
     {},
   );

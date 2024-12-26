@@ -68,11 +68,8 @@ export async function getOrOpenBuffer({
   }
 
   try {
-    await context.nvim.call(`bufadd('${absolutePath}')`);
-
-    //TODO
-    const bufnr = await nvim.call('bufadd', ['path/to/your/file.txt']);
-    await nvim.call('bufload', [bufnr]);
+    const bufnr = await context.nvim.call('bufadd', [absolutePath]) as number;
+    await context.nvim.call('bufload', [bufnr]);
 
     const existingBuffer = await getBufferIfOpen({ relativePath });
     if (existingBuffer.status == "error" || existingBuffer.status == "ok") {

@@ -109,6 +109,7 @@ export const update = (
         case "get_file":
         case "list_buffers":
         case "hover":
+        case "find_references":
         case "list_directory":
           model.parts.push({
             type: "tool-request",

@@ -4,6 +4,7 @@ import * as Replace from "./replace.ts";
 import * as ListBuffers from "./listBuffers.ts";
 import * as ListDirectory from "./listDirectory.ts";
 import * as Hover from "./hover.ts";
+import * as FindReferences from "./findReferences.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages.mjs";
 import { extendError, Result } from "../utils/result.ts";
@@ -16,7 +17,8 @@ export type ToolRequest =
   | Replace.ReplaceToolRequest
   | ListBuffers.ListBuffersToolRequest
   | ListDirectory.ListDirectoryToolUseRequest
-  | Hover.HoverToolUseRequest;
+  | Hover.HoverToolUseRequest
+  | FindReferences.ReferencesToolUseRequest;
 
 export function validateToolRequest(
   req: unknown,
@@ -41,6 +43,10 @@ export function validateToolRequest(
       return extendError(Hover.validateToolRequest(req), {
         rawRequest: req,
       });
+    case "find_references":
+      return extendError(FindReferences.validateToolRequest(req), {
+        rawRequest: req,
+      });
     default:
       return {
         status: "error",
@@ -56,7 +62,8 @@ export type ToolModel =
   | Replace.Model
   | ListBuffers.Model
   | ListDirectory.Model
-  | Hover.Model;
+  | Hover.Model
+  | FindReferences.Model;
 
 export type ToolRequestId = string & { __toolRequestId: true };
 
@@ -67,6 +74,7 @@ export const TOOL_SPECS = [
   ListBuffers.spec,
   ListDirectory.spec,
   Hover.spec,
+  FindReferences.spec,
 ];
 
 export type ToolModelWrapper = {
@@ -95,6 +103,8 @@ export function getToolResult(model: ToolModel): ToolResultBlockParam {
       return ListDirectory.getToolResult(model);
     case "hover":
       return Hover.getToolResult(model);
+    case "find_references":
+      return FindReferences.getToolResult(model);
     default:
       return assertUnreachable(model);
   }
@@ -114,6 +124,8 @@ function displayRequest(model: ToolModel): string {
       return ListDirectory.displayRequest(model.request);
     case "hover":
       return Hover.displayRequest(model.request);
+    case "find_references":
+      return FindReferences.displayRequest(model.request);
     default:
       return assertUnreachable(model);
   }
@@ -193,6 +205,11 @@ function renderToolContents(model: ToolModel, dispatch: Dispatch<Msg>) {
         model,
       });
 
+    case "find_references":
+      return FindReferences.view({
+        model,
+      });
+
     default:
       assertUnreachable(model);
   }
@@ -236,6 +253,10 @@ export type Msg =
         | {
             type: "hover";
             msg: Hover.Msg;
+          }
+        | {
+            type: "find_references";
+            msg: FindReferences.Msg;
           };
     };
 
@@ -368,6 +389,29 @@ export const update: Update<Msg, Model> = (msg, model) => {
                   id: request.id,
                   msg: {
                     type: "hover",
+                    msg,
+                  },
+                }),
+              ),
+          ];
+        }
+
+        case "find_references": {
+          const [findReferencesModel, thunk] = FindReferences.initModel(request);
+          model.toolWrappers[request.id] = {
+            model: findReferencesModel,
+            showRequest: false,
+            showResult: false,
+          };
+          return [
+            model,
+            (dispatch) =>
+              thunk((msg) =>
+                dispatch({
+                  type: "tool-msg",
+                  id: request.id,
+                  msg: {
+                    type: "find_references",
                     msg,
                   },
                 }),
@@ -529,6 +573,31 @@ export const update: Update<Msg, Model> = (msg, model) => {
                       id: msg.id,
                       msg: {
                         type: "hover",
+                        msg: innerMsg,
+                      },
+                    }),
+                  )
+              : undefined,
+          ];
+        }
+
+        case "find_references": {
+          const [nextToolModel, thunk] = FindReferences.update(
+            msg.msg.msg,
+            toolWrapper.model as FindReferences.Model,
+          );
+          toolWrapper.model = nextToolModel;
+
+          return [
+            model,
+            thunk
+              ? (dispatch) =>
+                  thunk((innerMsg) =>
+                    dispatch({
+                      type: "tool-msg",
+                      id: msg.id,
+                      msg: {
+                        type: "find_references",
                         msg: innerMsg,
                       },
                     }),
