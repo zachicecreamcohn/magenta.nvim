@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/sumneko/vscode-lua/master/setting/schema.json",
+  "Lua.diagnostics.globals": ["vim"],
+  "Lua.workspace.library": ["lua", "${3rd}/luv/library"],
+  "Lua.workspace.checkThirdParty": false,
+  "Lua.runtime.version": "LuaJIT",
+  "Lua.workspace.ignoreDir": ["lua_modules", ".git"],
+  "Lua.diagnostics.disable": ["different-requires"]
+}
