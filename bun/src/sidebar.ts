@@ -114,7 +114,7 @@ export class Sidebar {
       true, // enter the input window
       {
         win: displayWindow.id, // split inside this window
-        vertical: "below",
+        split: 'below',
         width: WIDTH,
         height: inputHeight,
         style: "minimal",

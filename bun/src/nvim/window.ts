@@ -24,9 +24,8 @@ export class NvimWindow {
   }
 
   clearjumps() {
-    return context.nvim.call("nvim_win_call", [
-      this.id,
-      `vim.cmd('clearjumps')`,
+    return context.nvim.call("nvim_command", [
+      `call win_execute(${this.id}, 'clearjumps')`,
     ]);
   }
 
