@@ -6,96 +6,90 @@ import { assertUnreachable } from "../src/utils/assertUnreachable.ts";
 import { setContext } from "../src/context.ts";
 import { Lsp } from "../src/lsp.ts";
 import path from "path";
+import { delay } from "../src/utils/async.ts";
 
 export const MAGENTA_SOCK = "/tmp/magenta-test.sock";
 
-export class NeovimTestHelper {
-  private nvimProcess: ReturnType<typeof spawn> | undefined;
-  private nvimClient: Nvim | undefined;
+export async function withNvimProcess(fn: () => Promise<void>) {
+  try {
+    await unlink(MAGENTA_SOCK);
+  } catch (e) {
+    if ((e as { code: string }).code !== "ENOENT") {
+      console.error(e);
+    }
+  }
 
-  startNvim(): Promise<Nvim> {
-    return new Promise(async (resolve, reject) => {
-      try {
-        try {
-          await unlink(MAGENTA_SOCK);
-        } catch (e) {
-          if ((e as { code: string }).code !== "ENOENT") {
-            console.error(e);
-          }
-        }
+  const nvimProcess = spawn(
+    "nvim",
+    [
+      "--headless",
+      "-n",
+      "--clean",
+      "--listen",
+      MAGENTA_SOCK,
+      "-u",
+      "minimal-init.lua",
+    ],
+    {
+      // root dir relative to this file
+      cwd: path.resolve(path.dirname(__filename), "../../"),
+    },
+  );
 
-        this.nvimProcess = spawn(
-          "nvim",
-          [
-            "--headless",
-            "-n",
-            "--clean",
-            "--listen",
-            MAGENTA_SOCK,
-            "-u",
-            "minimal-init.lua",
-          ],
-          {
-            // root dir relative to this file
-            cwd: path.resolve(path.dirname(__filename), "../../"),
-          },
+  if (!nvimProcess.pid) {
+    throw new Error("Failed to start nvim process");
+  }
+
+  try {
+    nvimProcess.on("error", (err) => {
+      throw err;
+    });
+
+    nvimProcess.on("exit", (code, signal) => {
+      if (code !== 1) {
+        throw new Error(
+          `Nvim process exited with code ${code} and signal ${signal}`,
         );
-
-        if (!this.nvimProcess.pid) {
-          throw new Error("Failed to start nvim process");
-        }
-
-        this.nvimProcess.on("error", (err) => {
-          reject(err);
-        });
-
-        this.nvimProcess.on("exit", (code, signal) => {
-          if (code !== 1) {
-            console.log(
-              `Nvim process exited with code ${code} and signal ${signal}`,
-            );
-          }
-        });
-
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        this.nvimClient = await attach({
-          socket: MAGENTA_SOCK,
-          client: { name: "magenta" },
-          logging: { level: "debug" },
-        });
-
-        await this.nvimClient.call("nvim_exec_lua", [
-          `\
-require('magenta').bridge(${this.nvimClient.channelId})
-`,
-          [],
-        ]);
-
-        setContext({
-          nvim: this.nvimClient,
-          lsp: new Lsp(this.nvimClient),
-        });
-
-        resolve(this.nvimClient);
-        this.nvimClient!.logger!.info("Nvim started");
-      } catch (err) {
-        reject(err);
       }
     });
-  }
 
-  stopNvim(): void {
-    if (this.nvimClient) {
-      this.nvimClient?.detach();
-      this.nvimClient = undefined;
-    }
+    // give enough time for socket to be created
+    await delay(500);
 
-    if (this.nvimProcess) {
-      this.nvimProcess.kill();
-      this.nvimProcess = undefined;
-    }
+    await fn();
+  } finally {
+    nvimProcess.kill();
   }
+}
+
+export async function withNvimClient(fn: (nvim: Nvim) => Promise<void>) {
+  return await withNvimProcess(async () => {
+    const nvim = await attach({
+      socket: MAGENTA_SOCK,
+      client: { name: "magenta" },
+      logging: { level: "debug" },
+    });
+
+    await nvim.call("nvim_exec_lua", [
+      `\
+        require('magenta').bridge(${nvim.channelId})
+      `,
+      [],
+    ]);
+
+    setContext({
+      nvim: nvim,
+      lsp: new Lsp(nvim),
+    });
+
+    nvim!.logger!.info("Nvim started");
+
+    try {
+      await fn(nvim);
+    } finally {
+      nvim.detach();
+    }
+  });
 }
 
 export function extractMountTree(mounted: MountedVDOM): unknown {

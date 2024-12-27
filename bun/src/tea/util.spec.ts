@@ -1,7 +1,4 @@
-import type { Nvim } from "bunvim";
-import { NeovimTestHelper } from "../../test/preamble.ts";
-import * as assert from "node:assert";
-import { describe, it, beforeAll, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect } from "bun:test";
 import {
   calculatePosition,
   replaceBetweenPositions,
@@ -9,173 +6,161 @@ import {
 } from "./util.ts";
 import { pos } from "./view.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
+import { withNvimClient } from "../../test/preamble.ts";
+import type { Position0Indexed } from "../nvim/window.ts";
 
 describe("tea/util.spec.ts", () => {
-  let helper: NeovimTestHelper;
-  let nvim: Nvim;
-  let buffer: NvimBuffer;
-
-  beforeAll(() => {
-    helper = new NeovimTestHelper();
-  });
-
-  beforeEach(async () => {
-    nvim = await helper.startNvim();
-    buffer = await NvimBuffer.create(false, true);
-  });
-
-  afterEach(() => {
-    helper.stopNvim();
-  });
-
   it("strWidthInBytes", async () => {
-    const symbols = ["", "a", "⚙️", "⏳", "⚠️", "👀", "✅"] as Line[];
-    const expectedWidths = [0, 1, 6, 3, 6, 4, 3];
-    for (let idx = 0; idx < symbols.length; idx += 1) {
-      assert.equal(
-        strWidthInBytes(symbols[idx]),
-        expectedWidths[idx],
-        symbols[idx],
-      );
-    }
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true);
+      const symbols = ["", "a", "⚙️", "⏳", "⚠️", "👀", "✅"] as Line[];
+      const expectedWidths = [0, 1, 6, 3, 6, 4, 3];
+      for (let idx = 0; idx < symbols.length; idx += 1) {
+        expect(strWidthInBytes(symbols[idx]), symbols[idx]).toEqual(
+          expectedWidths[idx],
+        );
+      }
 
-    await buffer.setLines({
-      start: 0,
-      end: -1,
-      lines: symbols,
+      await buffer.setLines({
+        start: 0,
+        end: -1,
+        lines: symbols,
+      });
+
+      await nvim.call("nvim_exec_lua", [
+        `function getLineWidth(lineIdx) return #(vim.api.nvim_buf_get_lines(${buffer.id}, lineIdx, lineIdx + 1, false)[1]) end`,
+        [],
+      ]);
+
+      for (let idx = 0; idx < symbols.length; idx += 1) {
+        expect(
+          await nvim.call("nvim_exec_lua", [`return getLineWidth(${idx})`, []]),
+          `len("${symbols[idx]}")`,
+        ).toEqual(expectedWidths[idx]);
+      }
     });
-
-    await nvim.call("nvim_exec_lua", [
-      `function getLineWidth(lineIdx) return #(vim.api.nvim_buf_get_lines(${buffer.id}, lineIdx, lineIdx + 1, false)[1]) end`,
-      [],
-    ]);
-
-    for (let idx = 0; idx < symbols.length; idx += 1) {
-      assert.equal(
-        await nvim.call("nvim_exec_lua", [`return getLineWidth(${idx})`, []]),
-        expectedWidths[idx],
-        `len("${symbols[idx]}")`,
-      );
-    }
   });
 
   it("calculatePosition", () => {
-    assert.deepStrictEqual(
+    expect(
       calculatePosition(pos(0, 0), Buffer.from(""), 0),
-      { row: 0, col: 0 },
       "empty string",
-    );
+    ).toEqual({ row: 0, col: 0 } as Position0Indexed);
 
-    assert.deepStrictEqual(
+    expect(
       calculatePosition(pos(1, 5), Buffer.from(""), 0),
-      { row: 1, col: 5 },
       "empty string from non-0 pos",
-    );
+    ).toEqual({ row: 1, col: 5 } as Position0Indexed);
 
-    assert.deepStrictEqual(
+    expect(
       calculatePosition(pos(1, 5), Buffer.from("abc"), 2),
-      { row: 1, col: 7 },
       "move within the same string",
-    );
+    ).toEqual({ row: 1, col: 7 } as Position0Indexed);
 
-    assert.deepStrictEqual(
+    expect(
       calculatePosition(pos(1, 5), Buffer.from("⚙️"), 6),
-      { row: 1, col: 11 },
       "move within the same string, unicode",
-    );
-    assert.deepStrictEqual(
+    ).toEqual({ row: 1, col: 11 } as Position0Indexed);
+    expect(
       calculatePosition(pos(1, 5), Buffer.from(`abc\n`), 4),
-      { row: 2, col: 0 },
       "move to a new line",
-    );
+    ).toEqual({ row: 2, col: 0 } as Position0Indexed);
 
-    assert.deepStrictEqual(
+    expect(
       calculatePosition(pos(1, 5), Buffer.from("⚙️\n"), 7),
-      { row: 2, col: 0 },
       "move to a new line after unicode",
-    );
+    ).toEqual({ row: 2, col: 0 } as Position0Indexed);
 
-    assert.deepStrictEqual(
+    expect(
       calculatePosition(pos(1, 5), Buffer.from("⚙️\nabc"), 10),
-      { row: 2, col: 3 },
       "move to a new line and then a few characters after",
-    );
+    ).toEqual({ row: 2, col: 3 } as Position0Indexed);
   });
 
   it("replacing a single line", async () => {
-    await buffer.setLines({
-      start: 0,
-      end: -1,
-      lines: ["abcdef"] as Line[],
-    });
-
-    await buffer.setOption("modifiable", false);
-    await replaceBetweenPositions({
-      buffer,
-      startPos: pos(0, 0),
-      endPos: pos(0, 3),
-      lines: ["1"] as Line[],
-    });
-
-    {
-      const lines = await buffer.getLines({
+    await withNvimClient(async () => {
+      const buffer = await NvimBuffer.create(false, true);
+      await buffer.setLines({
         start: 0,
         end: -1,
+        lines: ["abcdef"] as Line[],
       });
-      assert.equal(lines.join("\n"), "1def", "replacing a single line string");
-    }
-  });
 
-  it("replacing unicode", async () => {
-    const str = "⚙️";
-    await buffer.setLines({
-      lines: [str] as Line[],
-      start: 0,
-      end: -1,
+      await buffer.setOption("modifiable", false);
+      await replaceBetweenPositions({
+        buffer,
+        startPos: pos(0, 0),
+        endPos: pos(0, 3),
+        lines: ["1"] as Line[],
+      });
+
+      {
+        const lines = await buffer.getLines({
+          start: 0,
+          end: -1,
+        });
+        expect(lines.join("\n"), "replacing a single line string").toEqual(
+          "1def",
+        );
+      }
     });
 
-    await buffer.setOption("modifiable", false);
-    await replaceBetweenPositions({
-      buffer,
-      startPos: pos(0, 0),
-      endPos: pos(0, strWidthInBytes(str)),
-      lines: ["✅"] as Line[],
-    });
+    it("replacing unicode", async () => {
+      await withNvimClient(async () => {
+        const buffer = await NvimBuffer.create(false, true);
+        const str = "⚙️";
+        await buffer.setLines({
+          lines: [str] as Line[],
+          start: 0,
+          end: -1,
+        });
 
-    {
-      const lines = await buffer.getLines({
-        start: 0,
-        end: -1,
+        await buffer.setOption("modifiable", false);
+        await replaceBetweenPositions({
+          buffer,
+          startPos: pos(0, 0),
+          endPos: pos(0, strWidthInBytes(str)),
+          lines: ["✅"] as Line[],
+        });
+
+        {
+          const lines = await buffer.getLines({
+            start: 0,
+            end: -1,
+          });
+          expect(lines.join("\n"), "replacing unicode").toEqual("✅");
+        }
       });
-      assert.equal(lines.join("\n"), "✅", "replacing unicode");
-    }
+    });
   });
 
   it("replacing across multiple lines", async () => {
-    await buffer.setLines({
-      lines: ["abcdef", "hijklm"] as Line[],
-      start: 0,
-      end: -1,
-    });
-
-    await buffer.setOption("modifiable", false);
-    await replaceBetweenPositions({
-      buffer,
-      startPos: pos(0, 3),
-      endPos: pos(1, 3),
-      lines: ["1", "2"] as Line[],
-    });
-
-    {
-      const lines = await buffer.getLines({
+    await withNvimClient(async () => {
+      const buffer = await NvimBuffer.create(false, true);
+      await buffer.setLines({
+        lines: ["abcdef", "hijklm"] as Line[],
         start: 0,
         end: -1,
       });
-      assert.equal(
-        lines.join("\n"),
-        `abc1\n2klm`,
-        "replacing with a shorter string shrinks the rest of the string",
-      );
-    }
+
+      await buffer.setOption("modifiable", false);
+      await replaceBetweenPositions({
+        buffer,
+        startPos: pos(0, 3),
+        endPos: pos(1, 3),
+        lines: ["1", "2"] as Line[],
+      });
+
+      {
+        const lines = await buffer.getLines({
+          start: 0,
+          end: -1,
+        });
+        expect(
+          lines.join("\n"),
+          "replacing with a shorter string shrinks the rest of the string",
+        ).toEqual(`abc1\n2klm`);
+      }
+    });
   });
 });

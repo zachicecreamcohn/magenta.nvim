@@ -117,7 +117,7 @@ exports[`tea/chat.spec.ts chat render and a few updates 1`] = `
                       "type": "array",
                     },
                     {
-                      "children": [],
+                      "content": "",
                       "endPos": {
                         "col": 0,
                         "row": 2,
@@ -126,7 +126,7 @@ exports[`tea/chat.spec.ts chat render and a few updates 1`] = `
                         "col": 0,
                         "row": 2,
                       },
-                      "type": "array",
+                      "type": "string",
                     },
                   ],
                   "endPos": {
@@ -365,7 +365,7 @@ exports[`tea/chat.spec.ts chat render and a few updates 1`] = `
                       "type": "array",
                     },
                     {
-                      "children": [],
+                      "content": "",
                       "endPos": {
                         "col": 0,
                         "row": 6,
@@ -374,7 +374,7 @@ exports[`tea/chat.spec.ts chat render and a few updates 1`] = `
                         "col": 0,
                         "row": 6,
                       },
-                      "type": "array",
+                      "type": "string",
                     },
                   ],
                   "endPos": {

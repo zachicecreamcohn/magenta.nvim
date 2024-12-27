@@ -29,8 +29,10 @@ export async function displayDiffs(
   const windows = await getAllWindows();
   const magentaWindows = [];
   for (const window of windows) {
+    context.nvim.logger?.info(`checking getvar for window ${window.id}`);
     if (await window.getVar("magenta")) {
       // save these so we can reset their width later
+      context.nvim.logger?.info(`getVar(magenta) was true`);
       magentaWindows.push(window);
       continue;
     }

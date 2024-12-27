@@ -38,7 +38,12 @@ export class NvimWindow {
   }
 
   getVar(name: string) {
-    return context.nvim.call("nvim_win_get_var", [this.id, name]);
+    try {
+      return context.nvim.call("nvim_win_get_var", [this.id, name]);
+    } catch (e) {
+      context.nvim.logger?.warn(`getVar(${name}) failed: ${JSON.stringify(e)}`);
+      return undefined;
+    }
   }
 
   setVar(name: string, value: unknown) {

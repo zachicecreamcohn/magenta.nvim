@@ -179,11 +179,14 @@ export const update = (
               },
             );
           } catch (error) {
-            context.nvim.logger?.error(error as Error);
+            context.nvim.logger?.error(
+              new Error(`diff-error: ${JSON.stringify(error)}`),
+            );
+
             dispatch({
               type: "diff-error",
               filePath: msg.filePath,
-              error: (error as Error).message,
+              error: JSON.stringify(error),
             });
           }
         },
@@ -203,7 +206,7 @@ export const view: View<{
   const fileEdits = [];
   for (const filePath in model.edits) {
     const edit = model.edits[filePath];
-    const reviewEdits = withBindings(d`**[👀 review edits ]**`, {
+    const reviewEdit = withBindings(d`**[👀 review edits ]**`, {
       "<CR>": () =>
         dispatch({
           type: "init-edit",
@@ -212,25 +215,33 @@ export const view: View<{
     });
 
     fileEdits.push(
-      d`Edit ${filePath} (${edit.requestIds.length.toString()} edits).${edit.status.status == "error" ? d`\nError applying edit: ${edit.status.message}\n` : ""}
-${reviewEdits}
-${model.edits[filePath].requestIds.map((requestId) =>
-  ToolManager.renderTool(toolManager.toolWrappers[requestId], (msg) =>
-    dispatch({
-      type: "tool-manager-msg",
-      msg,
-    }),
-  ),
+      d`  ${filePath} (${edit.requestIds.length.toString()} edits).${edit.status.status == "error" ? d`\nError applying edit: ${edit.status.message}\n` : ""} ${reviewEdit}
+${model.edits[filePath].requestIds.map(
+  (requestId) =>
+    d`    ${ToolManager.renderTool(toolManager.toolWrappers[requestId], (msg) =>
+      dispatch({
+        type: "tool-manager-msg",
+        msg,
+      }),
+    )}`,
 )}\n`,
     );
   }
 
-  return d`# ${model.role}:\n${model.parts.map(
-    (part, partIdx) =>
-      d`${Part.view({
-        model: part,
-        toolManager,
-        dispatch: (msg) => dispatch({ type: "part-msg", partIdx, msg }),
-      })}\n`,
-  )}${fileEdits}`;
+  return d`\
+# ${model.role}:
+${model.parts.map(
+  (part, partIdx) =>
+    d`${Part.view({
+      model: part,
+      toolManager,
+      dispatch: (msg) => dispatch({ type: "part-msg", partIdx, msg }),
+    })}\n`,
+)}${
+    fileEdits.length
+      ? d`
+Edits:
+${fileEdits}`
+      : ""
+  }`;
 };
