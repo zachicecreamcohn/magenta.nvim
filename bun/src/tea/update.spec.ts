@@ -2,14 +2,14 @@
 import { NeovimTestHelper } from "../../test/preamble.ts";
 import { d, mountView, pos } from "./view.ts";
 import * as assert from "assert";
-import { describe, it, before, beforeEach, afterEach } from "node:test";
+import { describe, it, beforeAll, beforeEach, afterEach } from "bun:test";
 import { NvimBuffer } from "../nvim/buffer.ts";
 
 describe("tea/update.spec.ts", () => {
   let helper: NeovimTestHelper;
   let buffer: NvimBuffer;
 
-  before(() => {
+  beforeAll(() => {
     helper = new NeovimTestHelper();
   });
 

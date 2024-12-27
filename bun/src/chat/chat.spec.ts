@@ -4,7 +4,7 @@ import * as Chat from "./chat.ts";
 import * as assert from "assert";
 import { type ToolRequestId } from "../tools/toolManager.ts";
 import { createApp } from "../tea/tea.ts";
-import { test, describe, it } from "node:test";
+import { afterEach, beforeAll, beforeEach, describe, it } from "bun:test";
 import { pos } from "../tea/view.ts";
 import { NvimBuffer } from "../nvim/buffer.ts";
 
@@ -12,17 +12,17 @@ describe("tea/chat.spec.ts", () => {
   let helper: NeovimTestHelper;
   let buffer: NvimBuffer;
 
-  test.before(() => {
+  beforeAll(() => {
     helper = new NeovimTestHelper();
   });
 
-  test.beforeEach(async () => {
+  beforeEach(async () => {
     await helper.startNvim();
     buffer = await NvimBuffer.create(false, true);
     await buffer.setOption("modifiable", false);
   });
 
-  test.afterEach(() => {
+  afterEach(() => {
     helper.stopNvim();
   });
 

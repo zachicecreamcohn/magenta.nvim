@@ -2,7 +2,7 @@
 import type { Nvim } from "bunvim";
 import { NeovimTestHelper } from "../../test/preamble.ts";
 import * as assert from "node:assert";
-import { describe, it, before, beforeEach, afterEach } from "node:test";
+import { describe, it, beforeAll, beforeEach, afterEach } from "bun:test";
 import {
   calculatePosition,
   replaceBetweenPositions,
@@ -16,7 +16,7 @@ describe.only("tea/util.spec.ts", () => {
   let nvim: Nvim;
   let buffer: NvimBuffer;
 
-  before(() => {
+  beforeAll(() => {
     helper = new NeovimTestHelper();
   });
 

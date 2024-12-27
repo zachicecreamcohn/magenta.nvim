@@ -1,25 +1,25 @@
 import { extractMountTree, NeovimTestHelper } from "../../test/preamble.ts";
 import { d, mountView, pos } from "./view.ts";
 import * as assert from "assert";
-import { test } from "node:test";
+import { describe, it, beforeAll, beforeEach, afterEach } from "bun:test";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 
-await test.describe("Neovim Plugin Tests", async () => {
+describe.only("Neovim Plugin Tests", async () => {
   let helper: NeovimTestHelper;
 
-  test.before(() => {
+  beforeAll(() => {
     helper = new NeovimTestHelper();
   });
 
-  test.beforeEach(async () => {
+  beforeEach(async () => {
     await helper.startNvim();
   });
 
-  test.afterEach(() => {
+  afterEach(() => {
     helper.stopNvim();
   });
 
-  await test("basic rendering & update", async () => {
+  it.only("basic rendering & update", async () => {
     const buffer = await NvimBuffer.create(false, true);
     await buffer.setLines({ start: 0, end: 0, lines: [""] as Line[] });
 

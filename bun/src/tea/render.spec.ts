@@ -2,14 +2,14 @@
 import { extractMountTree, NeovimTestHelper } from "../../test/preamble.ts";
 import { d, mountView, pos } from "./view.ts";
 import * as assert from "assert";
-import { describe, before, beforeEach, afterEach, it } from "node:test";
+import { describe, beforeAll, beforeEach, afterEach, it } from "bun:test";
 import { NvimBuffer } from "../nvim/buffer.ts";
 
-await describe("tea/render.spec.ts", () => {
+describe("tea/render.spec.ts", () => {
   let helper: NeovimTestHelper;
   let buffer: NvimBuffer;
 
-  before(() => {
+  beforeAll(() => {
     helper = new NeovimTestHelper();
   });
 
