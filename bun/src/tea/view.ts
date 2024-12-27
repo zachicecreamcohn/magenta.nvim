@@ -131,17 +131,11 @@ export async function mountView<P>({
   return {
     async render(props) {
       const next = view(props);
-      context.nvim.logger?.debug(
-        `before update: ${prettyPrintMountedNode(mountedNode)}`,
-      );
       mountedNode = await update({
         currentRoot: mountedNode,
         nextRoot: next,
         mount,
       });
-      context.nvim.logger?.debug(
-        `updated: ${prettyPrintMountedNode(mountedNode)}`,
-      );
     },
     unmount() {
       // TODO

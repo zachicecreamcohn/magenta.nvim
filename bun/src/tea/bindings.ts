@@ -3,11 +3,9 @@ import { type Position0Indexed } from "../nvim/window.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { context } from "../context.ts";
 
-export const BINDING_KEYS = {
-  Enter: "<CR>",
-} as const;
+export const BINDING_KEYS = ["<CR>"] as const;
 
-export type BindingKey = keyof typeof BINDING_KEYS;
+export type BindingKey = (typeof BINDING_KEYS)[number];
 export type Bindings = Partial<{
   [key in BindingKey]: () => void;
 }>;

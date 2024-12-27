@@ -51,9 +51,6 @@ export function calculatePosition(
     currentIndex++;
   }
 
-  context.nvim.logger?.debug(
-    `${JSON.stringify(startPos)} + ${buf.toString()}[${indexInText}] = ${JSON.stringify({ row, col })}`,
-  );
   return { row, col };
 }
 

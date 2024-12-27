@@ -158,7 +158,7 @@ export function renderTool(
       model.showRequest ? d`\n${displayRequest(model.model)}` : ""
     }${model.showResult ? displayResult(model.model) : ""}`,
     {
-      Enter: () =>
+      "<CR>": () =>
         dispatch({
           type: "toggle-display",
           id: model.model.request.id,

@@ -71,9 +71,8 @@ export class NvimWindow {
   }
 
   zt() {
-    return context.nvim.call("nvim_win_call", [
-      this.id,
-      `vim.cmd('normal! zt')`,
+    return context.nvim.call("nvim_command", [
+      `call win_execute(${this.id}, 'normal! zt')`,
     ]);
   }
 }

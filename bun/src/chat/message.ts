@@ -204,7 +204,7 @@ export const view: View<{
   for (const filePath in model.edits) {
     const edit = model.edits[filePath];
     const reviewEdits = withBindings(d`**[👀 review edits ]**`, {
-      Enter: () =>
+      "<CR>": () =>
         dispatch({
           type: "init-edit",
           filePath,

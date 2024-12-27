@@ -367,14 +367,12 @@ function sendMessage(model: Model): Thunk<Msg> {
       res = await getClient().sendMessage(
         messages,
         (text) => {
-          context.nvim.logger?.debug(`stream received text ${text}`);
           dispatch({
             type: "stream-response",
             text,
           });
         },
         (error) => {
-          context.nvim.logger?.debug(`stream received error ${error}`);
           dispatch({
             type: "stream-error",
             error,

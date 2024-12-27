@@ -42,7 +42,6 @@ export async function render({
   let currentByteWidth: ByteIdx = 0 as ByteIdx;
 
   function traverse(node: VDOMNode): NodePosition {
-    context.nvim.logger?.debug(`traversing node ${JSON.stringify(node)}`);
     switch (node.type) {
       case "string": {
         const start = currentByteWidth;
@@ -90,7 +89,6 @@ export async function render({
   const positionTree = traverse(vdom);
 
   const content = contents.join("");
-  context.nvim.logger?.debug(`content: "${content}"`);
   await replaceBetweenPositions({
     ...mount,
     lines: content.split("\n") as Line[],
@@ -98,7 +96,6 @@ export async function render({
 
   const mountPos = mount.startPos;
   const contentBuf = Buffer.from(content, "utf-8");
-  context.nvim.logger?.debug(`contentBuf: "${contentBuf.toString()}"`);
   function assignPositions(node: NodePosition): MountedVDOM {
     const startPos = calculatePosition(mountPos, contentBuf, node.start);
     const endPos = calculatePosition(mountPos, contentBuf, node.end);

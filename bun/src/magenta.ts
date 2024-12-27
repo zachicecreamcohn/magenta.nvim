@@ -15,7 +15,11 @@ const ENV = {
   DEV: Boolean(process.env["IS_DEV"]),
 };
 
+// these should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
+const MAGENTA_ON_WINDOW_CLOSED = "magentaWindowClosed";
+const MAGENTA_KEY = "magentaKey";
+const MAGENTA_LSP_RESPONSE = "magentaLspResponse";
 
 export class Magenta {
   private sidebar: Sidebar;
@@ -111,10 +115,12 @@ export class Magenta {
   onKey(args: string[]) {
     const key = args[0];
     if (this.mountedChatApp) {
-      if (BINDING_KEYS[key as BindingKey]) {
+      if (BINDING_KEYS.indexOf(key as BindingKey) > -1) {
         this.mountedChatApp.onKey(key as BindingKey);
       } else {
-        context.nvim.logger?.error(`Unexpected MagentaKey ${key}`);
+        context.nvim.logger?.error(
+          `Unexpected MagentaKey ${JSON.stringify(key)}`,
+        );
       }
     }
   }
@@ -150,6 +156,30 @@ export class Magenta {
       }
     });
 
+    nvim.onNotification(MAGENTA_ON_WINDOW_CLOSED, async () => {
+      try {
+        await magenta.onWinClosed();
+      } catch (err) {
+        nvim.logger?.error(err as Error);
+      }
+    });
+
+    nvim.onNotification(MAGENTA_KEY, (args) => {
+      try {
+        magenta.onKey(args as string[]);
+      } catch (err) {
+        nvim.logger?.error(err as Error);
+      }
+    });
+
+    nvim.onNotification(MAGENTA_LSP_RESPONSE, (args) => {
+      try {
+        context.lsp.onLspResponse(args[0]);
+      } catch (err) {
+        nvim.logger?.error(err as Error);
+      }
+    });
+
     await nvim.call("nvim_exec_lua", [
       `\
 require('magenta').bridge(${nvim.channelId})
@@ -157,40 +187,5 @@ require('magenta').bridge(${nvim.channelId})
       [],
     ]);
     nvim.logger?.info(`Magenta initialized.`);
-
-    // plugin.registerCommand(
-    //   "MagentaKey",
-    //   (args: string[]) => {
-    //     try {
-    //       const magenta = init!.magenta;
-    //       magenta.onKey(args);
-    //     } catch (err) {
-    //       init!.logger.error(err as Error);
-    //     }
-    //   },
-    //   {
-    //     nargs: "1",
-    //   },
-    // );
-    //
-    // plugin.registerAutocmd(
-    //   "WinClosed",
-    //   () => {
-    //     init!.magenta
-    //     .onWinClosed()
-    //     .catch((err: Error) => context.logger.error(err));
-    //   },
-    //   {
-    //     pattern: "*",
-    //   },
-    // );
-    //
-    // plugin.registerFunction(
-    //   "Magenta_lsp_response",
-    //   (result: unknown) => {
-    //     context.lsp.onLspResponse(result as any);
-    //   },
-    //   {},
-    // );
   }
 }

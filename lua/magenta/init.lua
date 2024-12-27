@@ -3,6 +3,7 @@ local M = {}
 
 M.setup = function()
   M.start(true)
+  vim.api.nvim_set_keymap("n", "<leader>m", ":Magenta toggle<CR>", {silent = true, noremap = true})
 end
 
 M.start = function(silent)
@@ -39,10 +40,31 @@ M.bridge = function(channelId)
     end,
     {nargs = 1}
   )
-end
 
-M.lsp_response = function(channelId, requestId, response)
-  vim.rpcnotify(channelId, "magentaLspResponse", {requestId, response})
+  vim.api.nvim_create_autocmd(
+    "WinClosed",
+    {
+      pattern = "*",
+      callback = function()
+        vim.rpcnotify(channelId, "magentaWindowClosed", {})
+      end
+    }
+  )
+
+  M.listenToBufKey = function(bufnr, vimKey)
+    vim.keymap.set(
+      "n",
+      vimKey,
+      function()
+        vim.rpcnotify(channelId, "magentaKey", vimKey)
+      end,
+      {buffer = bufnr, noremap = true, silent = true}
+    )
+  end
+
+  M.lsp_response = function(requestId, response)
+    vim.rpcnotify(channelId, "magentaLspResponse", {requestId, response})
+  end
 end
 
 return M

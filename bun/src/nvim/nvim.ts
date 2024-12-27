@@ -25,13 +25,14 @@ export async function getAllWindows() {
 }
 
 export async function getcwd() {
-  const cwd = (await context.nvim.call("nvim_eval", ["getcwd"])) as
-    | string
-    | null;
-  if (typeof cwd != "string") {
+  const res = await context.nvim.call("nvim_exec2", [
+    "echo getcwd()",
+    { output: true },
+  ]);
+  if (typeof res.output != "string") {
     throw new Error(`Unable to get cwd`);
   }
-  return cwd;
+  return res.output;
 }
 
 export function diffthis() {

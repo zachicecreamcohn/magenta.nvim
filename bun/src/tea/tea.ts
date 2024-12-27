@@ -94,9 +94,7 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
   let reRender = false;
 
   const dispatch = (msg: Msg) => {
-    if ((msg as { type: string }).type != "tick") {
-      context.nvim.logger?.debug(`dispatched msg ${JSON.stringify(msg)}`);
-    }
+    context.nvim.logger?.debug(`dispatch msg: ${JSON.stringify(msg)}`);
     if (currentState.status == "error") {
       currentState;
       return;
@@ -215,14 +213,10 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
         props: { currentState, dispatch },
       });
 
-      for (const key in BINDING_KEYS) {
-        const vimKey = BINDING_KEYS[key as BindingKey];
-        await context.nvim.call("nvim_buf_set_keymap", [
-          mount.buffer.id,
-          "n",
-          vimKey,
-          ":MagentaKey Enter<CR>",
-          { noremap: true, silent: true },
+      for (const vimKey of BINDING_KEYS) {
+        await context.nvim.call("nvim_exec_lua", [
+          `require('magenta').listenToBufKey(${mount.buffer.id}, "${vimKey}")`,
+          [],
         ]);
       }
 

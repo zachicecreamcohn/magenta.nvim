@@ -41,7 +41,7 @@ export class Lsp {
               character = ${col}
           }
         }, function(responses)
-          require('magenta').lsp_response(${this.nvim.channelId}, "${requestId}", responses)
+          require('magenta').lsp_response("${requestId}", responses)
         end)
       `,
           [],
@@ -77,7 +77,7 @@ export class Lsp {
               includeDeclaration = true
           }
         }, function(responses)
-          require('magenta').lsp_response(${this.nvim.channelId}, "${requestId}", responses)
+          require('magenta').lsp_response("${requestId}", responses)
         end)
       `,
           [],
@@ -103,6 +103,7 @@ export class Lsp {
   }
 
   onLspResponse(result: unknown) {
+    this.nvim.logger?.debug(`onLspResponse: ${JSON.stringify(result)}`);
     const [requestId, res] = result as [number, unknown];
     const request = this.requests[requestId];
     if (!request) {

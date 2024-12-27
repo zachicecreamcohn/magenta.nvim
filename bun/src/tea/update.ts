@@ -85,12 +85,6 @@ export async function update({
     // udpate the node pos based on previous edits, to see where the content of this node is now, part-way
     // through the update
     const nextPos = updateNodePos(current);
-    context.nvim.logger?.debug(
-      `replacing node ${prettyPrintMountedNode(current as unknown as MountedVDOM)}\nwith:\n${JSON.stringify(next)}`,
-    );
-    context.nvim.logger?.debug(
-      `updateNodePos is ${JSON.stringify(nextPos.startPos)}: ${JSON.stringify(nextPos.endPos)}`,
-    );
 
     // replace the range with the new vdom
     const rendered = (await render({
@@ -152,9 +146,6 @@ export async function update({
     current: MountedVDOM,
     next: VDOMNode,
   ): Promise<NextMountedVDOM> {
-    context.nvim.logger?.debug(
-      `visiting node ${prettyPrintMountedNode(current)}`,
-    );
     if (current.type != next.type) {
       return await replaceNode(current as unknown as CurrentMountedVDOM, next);
     }
