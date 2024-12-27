@@ -5,6 +5,7 @@ import { type MountedVDOM } from "../src/tea/view.ts";
 import { assertUnreachable } from "../src/utils/assertUnreachable.ts";
 import { setContext } from "../src/context.ts";
 import { Lsp } from "../src/lsp.ts";
+import path from "path";
 
 export const MAGENTA_SOCK = "/tmp/magenta-test.sock";
 
@@ -25,18 +26,24 @@ export class NeovimTestHelper {
 
         this.nvimProcess = spawn(
           "nvim",
-          ["--headless", "-n", "--clean", "--listen", MAGENTA_SOCK],
+          [
+            "--headless",
+            "-n",
+            "--clean",
+            "--listen",
+            MAGENTA_SOCK,
+            "-u",
+            "minimal-init.lua",
+          ],
           {
-            stdio: ["pipe", "pipe", "pipe"],
+            // root dir relative to this file
+            cwd: path.resolve(path.dirname(__filename), "../../"),
           },
         );
 
         if (!this.nvimProcess.pid) {
           throw new Error("Failed to start nvim process");
         }
-
-        this.nvimProcess.stdout!.pipe(process.stdout);
-        this.nvimProcess.stderr!.pipe(process.stderr);
 
         this.nvimProcess.on("error", (err) => {
           reject(err);
@@ -57,6 +64,13 @@ export class NeovimTestHelper {
           client: { name: "magenta" },
           logging: { level: "debug" },
         });
+
+        await this.nvimClient.call("nvim_exec_lua", [
+          `\
+require('magenta').bridge(${this.nvimClient.channelId})
+`,
+          [],
+        ]);
 
         setContext({
           nvim: this.nvimClient,
@@ -113,3 +127,8 @@ export function extractMountTree(mounted: MountedVDOM): unknown {
       assertUnreachable(mounted);
   }
 }
+
+process.on("uncaughtException", (err) => {
+  console.error(err);
+  process.exit(1);
+});

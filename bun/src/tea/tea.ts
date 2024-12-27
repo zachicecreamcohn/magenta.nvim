@@ -214,10 +214,14 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
       });
 
       for (const vimKey of BINDING_KEYS) {
-        await context.nvim.call("nvim_exec_lua", [
-          `require('magenta').listenToBufKey(${mount.buffer.id}, "${vimKey}")`,
-          [],
-        ]);
+        try {
+          await context.nvim.call("nvim_exec_lua", [
+            `require('magenta').listenToBufKey(${mount.buffer.id}, "${vimKey}")`,
+            [],
+          ]);
+        } catch (e) {
+          throw new Error(`failed to nvim_exec_lua: ${JSON.stringify(e)}`);
+        }
       }
 
       return {

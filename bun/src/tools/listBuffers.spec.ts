@@ -1,10 +1,15 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import { NeovimTestHelper } from "../../test/preamble.ts";
 import * as ListBuffers from "./listBuffers.ts";
-import * as assert from "assert";
 import { type ToolRequestId } from "./toolManager.ts";
 import { createApp } from "../tea/tea.ts";
-import { describe, it, beforeAll, beforeEach, afterEach } from "bun:test";
+import {
+  describe,
+  it,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  expect,
+} from "bun:test";
 import { pos } from "../tea/view.ts";
 import { NvimBuffer } from "../nvim/buffer.ts";
 
@@ -48,11 +53,13 @@ describe("tea/listBuffers.spec.ts", () => {
 
     await mountedApp.waitForRender();
 
-    assert.equal(
-      (await buffer.getLines({ start: 0, end: -1 })).join("\n"),
-      `⚙️ Grabbing buffers...`,
-      "initial render of list buffers tool is as expected",
-    );
+    const content = (await buffer.getLines({ start: 0, end: -1 })).join("\n");
+
+    expect(
+      content,
+      // "initial render of list buffers tool is as expected",
+    ).toBe(`⚙️ Grabbing buffers...`);
+
     app.dispatch({
       type: "finish",
       result: {
@@ -63,10 +70,9 @@ describe("tea/listBuffers.spec.ts", () => {
     });
 
     await mountedApp.waitForRender();
-    assert.equal(
+    expect(
       (await buffer.getLines({ start: 0, end: -1 })).join("\n"),
-      `✅ Finished getting buffers.`,
       "initialRender is as expected",
-    );
+    ).toBe(`✅ Finished getting buffers.`);
   });
 });

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import type { Nvim } from "bunvim";
 import { NeovimTestHelper } from "../../test/preamble.ts";
 import * as assert from "node:assert";
@@ -11,7 +10,7 @@ import {
 import { pos } from "./view.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 
-describe.only("tea/util.spec.ts", () => {
+describe("tea/util.spec.ts", () => {
   let helper: NeovimTestHelper;
   let nvim: Nvim;
   let buffer: NvimBuffer;

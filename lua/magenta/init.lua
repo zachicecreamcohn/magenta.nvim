@@ -6,6 +6,11 @@ M.setup = function()
   vim.api.nvim_set_keymap("n", "<leader>m", ":Magenta toggle<CR>", {silent = true, noremap = true})
 end
 
+M.testSetup = function()
+  -- do not start. The test runner will start the process for us.
+  vim.api.nvim_set_keymap("n", "<leader>m", ":Magenta toggle<CR>", {silent = true, noremap = true})
+end
+
 M.start = function(silent)
   if not silent then
     vim.notify("magenta: init", vim.log.levels.INFO)

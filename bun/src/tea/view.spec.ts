@@ -4,7 +4,7 @@ import * as assert from "assert";
 import { describe, it, beforeAll, beforeEach, afterEach } from "bun:test";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 
-describe.only("Neovim Plugin Tests", async () => {
+describe("Neovim Plugin Tests", async () => {
   let helper: NeovimTestHelper;
 
   beforeAll(() => {
@@ -19,7 +19,7 @@ describe.only("Neovim Plugin Tests", async () => {
     helper.stopNvim();
   });
 
-  it.only("basic rendering & update", async () => {
+  it("basic rendering & update", async () => {
     const buffer = await NvimBuffer.create(false, true);
     await buffer.setLines({ start: 0, end: 0, lines: [""] as Line[] });
 

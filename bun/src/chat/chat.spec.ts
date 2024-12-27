@@ -1,12 +1,18 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import { extractMountTree, NeovimTestHelper } from "../../test/preamble.ts";
 import * as Chat from "./chat.ts";
-import * as assert from "assert";
 import { type ToolRequestId } from "../tools/toolManager.ts";
 import { createApp } from "../tea/tea.ts";
-import { afterEach, beforeAll, beforeEach, describe, it } from "bun:test";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 import { pos } from "../tea/view.ts";
-import { NvimBuffer } from "../nvim/buffer.ts";
+import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 
 describe("tea/chat.spec.ts", () => {
   let helper: NeovimTestHelper;
@@ -26,7 +32,7 @@ describe("tea/chat.spec.ts", () => {
     helper.stopNvim();
   });
 
-  it("chat render and a few updates", async () => {
+  it.only("chat render and a few updates", async () => {
     const model = Chat.initModel();
 
     const app = createApp({
@@ -44,11 +50,11 @@ describe("tea/chat.spec.ts", () => {
 
     await mountedApp.waitForRender();
 
-    assert.equal(
-      (await buffer.getLines({ start: 0, end: -1 })).join("\n"),
-      ``,
+    expect(
+      await buffer.getLines({ start: 0, end: -1 }),
       "initial render of chat works",
-    );
+    ).toEqual(["Stopped (end_turn)"] as Line[]);
+
     app.dispatch({
       type: "add-message",
       role: "user",
@@ -76,388 +82,23 @@ describe("tea/chat.spec.ts", () => {
     });
     await mountedApp.waitForRender();
 
-    assert.deepStrictEqual(
+    expect(
       await buffer.getLines({ start: 0, end: -1 }),
-      [
-        "### user:",
-        "Can you look at my list of buffers?",
-        "",
-        "### assistant:",
-        "Sure, let me use the list_buffers tool.",
-        "⚙️ Grabbing buffers...",
-        "",
-        "",
-      ],
       "in-progress render is as expected",
-    );
-    assert.deepStrictEqual(
+    ).toEqual([
+      "# user:",
+      "Can you look at my list of buffers?",
+      "",
+      "# assistant:",
+      "Sure, let me use the list_buffers tool.",
+      "⚙️ Grabbing buffers...",
+      "",
+      "Stopped (end_turn)",
+    ] as Line[]);
+
+    expect(
       await extractMountTree(mountedApp.getMountedNode()),
-      {
-        type: "node",
-        children: [
-          {
-            type: "node",
-            children: [
-              {
-                type: "array",
-                children: [
-                  {
-                    type: "node",
-                    children: [
-                      {
-                        type: "node",
-                        children: [
-                          {
-                            type: "string",
-                            startPos: {
-                              row: 0,
-                              col: 0,
-                            },
-                            endPos: {
-                              row: 0,
-                              col: 4,
-                            },
-                            content: "### ",
-                          },
-                          {
-                            type: "string",
-                            startPos: {
-                              row: 0,
-                              col: 4,
-                            },
-                            endPos: {
-                              row: 0,
-                              col: 8,
-                            },
-                            content: "user",
-                          },
-                          {
-                            type: "string",
-                            startPos: {
-                              row: 0,
-                              col: 8,
-                            },
-                            endPos: {
-                              row: 1,
-                              col: 0,
-                            },
-                            content: ":\n",
-                          },
-                          {
-                            type: "array",
-                            children: [
-                              {
-                                type: "node",
-                                children: [
-                                  {
-                                    type: "node",
-                                    children: [
-                                      {
-                                        type: "string",
-                                        startPos: {
-                                          row: 1,
-                                          col: 0,
-                                        },
-                                        endPos: {
-                                          row: 1,
-                                          col: 35,
-                                        },
-                                        content:
-                                          "Can you look at my list of buffers?",
-                                      },
-                                    ],
-                                    startPos: {
-                                      row: 1,
-                                      col: 0,
-                                    },
-                                    endPos: {
-                                      row: 1,
-                                      col: 35,
-                                    },
-                                  },
-                                  {
-                                    type: "string",
-                                    startPos: {
-                                      row: 1,
-                                      col: 35,
-                                    },
-                                    endPos: {
-                                      row: 2,
-                                      col: 0,
-                                    },
-                                    content: "\n",
-                                  },
-                                ],
-                                startPos: {
-                                  row: 1,
-                                  col: 0,
-                                },
-                                endPos: {
-                                  row: 2,
-                                  col: 0,
-                                },
-                              },
-                            ],
-                            startPos: {
-                              row: 1,
-                              col: 0,
-                            },
-                            endPos: {
-                              row: 2,
-                              col: 0,
-                            },
-                          },
-                        ],
-                        startPos: {
-                          row: 0,
-                          col: 0,
-                        },
-                        endPos: {
-                          row: 2,
-                          col: 0,
-                        },
-                      },
-                      {
-                        type: "string",
-                        startPos: {
-                          row: 2,
-                          col: 0,
-                        },
-                        endPos: {
-                          row: 3,
-                          col: 0,
-                        },
-                        content: "\n",
-                      },
-                    ],
-                    startPos: {
-                      row: 0,
-                      col: 0,
-                    },
-                    endPos: {
-                      row: 3,
-                      col: 0,
-                    },
-                  },
-                  {
-                    type: "node",
-                    children: [
-                      {
-                        type: "node",
-                        children: [
-                          {
-                            type: "string",
-                            startPos: {
-                              row: 3,
-                              col: 0,
-                            },
-                            endPos: {
-                              row: 3,
-                              col: 4,
-                            },
-                            content: "### ",
-                          },
-                          {
-                            type: "string",
-                            startPos: {
-                              row: 3,
-                              col: 4,
-                            },
-                            endPos: {
-                              row: 3,
-                              col: 13,
-                            },
-                            content: "assistant",
-                          },
-                          {
-                            type: "string",
-                            startPos: {
-                              row: 3,
-                              col: 13,
-                            },
-                            endPos: {
-                              row: 4,
-                              col: 0,
-                            },
-                            content: ":\n",
-                          },
-                          {
-                            type: "array",
-                            children: [
-                              {
-                                type: "node",
-                                children: [
-                                  {
-                                    type: "node",
-                                    children: [
-                                      {
-                                        type: "string",
-                                        startPos: {
-                                          row: 4,
-                                          col: 0,
-                                        },
-                                        endPos: {
-                                          row: 4,
-                                          col: 39,
-                                        },
-                                        content:
-                                          "Sure, let me use the list_buffers tool.",
-                                      },
-                                    ],
-                                    startPos: {
-                                      row: 4,
-                                      col: 0,
-                                    },
-                                    endPos: {
-                                      row: 4,
-                                      col: 39,
-                                    },
-                                  },
-                                  {
-                                    type: "string",
-                                    startPos: {
-                                      row: 4,
-                                      col: 39,
-                                    },
-                                    endPos: {
-                                      row: 5,
-                                      col: 0,
-                                    },
-                                    content: "\n",
-                                  },
-                                ],
-                                startPos: {
-                                  row: 4,
-                                  col: 0,
-                                },
-                                endPos: {
-                                  row: 5,
-                                  col: 0,
-                                },
-                              },
-                              {
-                                type: "node",
-                                children: [
-                                  {
-                                    type: "node",
-                                    children: [
-                                      {
-                                        type: "string",
-                                        startPos: {
-                                          row: 5,
-                                          col: 0,
-                                        },
-                                        endPos: {
-                                          row: 5,
-                                          col: 26,
-                                        },
-                                        content: "⚙️ Grabbing buffers...",
-                                      },
-                                    ],
-                                    startPos: {
-                                      row: 5,
-                                      col: 0,
-                                    },
-                                    endPos: {
-                                      row: 5,
-                                      col: 26,
-                                    },
-                                  },
-                                  {
-                                    type: "string",
-                                    startPos: {
-                                      row: 5,
-                                      col: 26,
-                                    },
-                                    endPos: {
-                                      row: 6,
-                                      col: 0,
-                                    },
-                                    content: "\n",
-                                  },
-                                ],
-                                startPos: {
-                                  row: 5,
-                                  col: 0,
-                                },
-                                endPos: {
-                                  row: 6,
-                                  col: 0,
-                                },
-                              },
-                            ],
-                            startPos: {
-                              row: 4,
-                              col: 0,
-                            },
-                            endPos: {
-                              row: 6,
-                              col: 0,
-                            },
-                          },
-                        ],
-                        startPos: {
-                          row: 3,
-                          col: 0,
-                        },
-                        endPos: {
-                          row: 6,
-                          col: 0,
-                        },
-                      },
-                      {
-                        type: "string",
-                        startPos: {
-                          row: 6,
-                          col: 0,
-                        },
-                        endPos: {
-                          row: 7,
-                          col: 0,
-                        },
-                        content: "\n",
-                      },
-                    ],
-                    startPos: {
-                      row: 3,
-                      col: 0,
-                    },
-                    endPos: {
-                      row: 7,
-                      col: 0,
-                    },
-                  },
-                ],
-                startPos: {
-                  row: 0,
-                  col: 0,
-                },
-                endPos: {
-                  row: 7,
-                  col: 0,
-                },
-              },
-            ],
-            startPos: {
-              row: 0,
-              col: 0,
-            },
-            endPos: {
-              row: 7,
-              col: 0,
-            },
-          },
-        ],
-        startPos: {
-          row: 0,
-          col: 0,
-        },
-        endPos: {
-          row: 7,
-          col: 0,
-        },
-      },
-    );
+    ).toMatchSnapshot();
 
     app.dispatch({
       type: "tool-manager-msg",
@@ -479,19 +120,18 @@ describe("tea/chat.spec.ts", () => {
     });
     await mountedApp.waitForRender();
 
-    assert.deepStrictEqual(
+    expect(
       await buffer.getLines({ start: 0, end: -1 }),
-      [
-        "### user:",
-        "Can you look at my list of buffers?",
-        "",
-        "### assistant:",
-        "Sure, let me use the list_buffers tool.",
-        "✅ Finished getting buffers.",
-        "",
-        "",
-      ],
-      "in-progress render is as expected",
-    );
+      "finished render is as expected",
+    ).toEqual([
+      "# user:",
+      "Can you look at my list of buffers?",
+      "",
+      "# assistant:",
+      "Sure, let me use the list_buffers tool.",
+      "✅ Finished getting buffers.",
+      "",
+      "Stopped (end_turn)",
+    ] as Line[]);
   });
 });
