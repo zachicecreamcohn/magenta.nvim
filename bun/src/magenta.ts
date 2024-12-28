@@ -1,20 +1,12 @@
 import { Sidebar } from "./sidebar.ts";
 import * as Chat from "./chat/chat.ts";
 import * as TEA from "./tea/tea.ts";
-import { setContext, context } from "./context.ts";
+import { context } from "./context.ts";
 import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
 import { pos } from "./tea/view.ts";
-import { Lsp } from "./lsp.ts";
-import { attach, type LogLevel } from "bunvim";
+import type { Nvim } from "bunvim";
 
 // import { delay } from "./utils/async.ts";
-// These values are set by neovim when starting the bun process
-const ENV = {
-  NVIM: process.env["NVIM"],
-  LOG_LEVEL: process.env["LOG_LEVEL"] as LogLevel | undefined,
-  DEV: Boolean(process.env["IS_DEV"]),
-};
-
 // these should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
 const MAGENTA_ON_WINDOW_CLOSED = "magentaWindowClosed";
@@ -22,9 +14,9 @@ const MAGENTA_KEY = "magentaKey";
 const MAGENTA_LSP_RESPONSE = "magentaLspResponse";
 
 export class Magenta {
-  private sidebar: Sidebar;
-  private chatApp: TEA.App<Chat.Msg, Chat.Model>;
-  private mountedChatApp: TEA.MountedApp | undefined;
+  public sidebar: Sidebar;
+  public chatApp: TEA.App<Chat.Msg, Chat.Model>;
+  public mountedChatApp: TEA.MountedApp | undefined;
 
   constructor() {
     this.sidebar = new Sidebar();
@@ -64,9 +56,9 @@ export class Magenta {
     });
   }
 
-  async command(args: string[]): Promise<void> {
-    context.nvim.logger?.debug(`Received command ${args[0]}`);
-    switch (args[0]) {
+  async command(command: string): Promise<void> {
+    context.nvim.logger?.debug(`Received command ${command}`);
+    switch (command) {
       case "toggle": {
         const buffers = await this.sidebar.toggle();
         if (buffers && !this.mountedChatApp) {
@@ -108,7 +100,7 @@ export class Magenta {
         break;
 
       default:
-        context.nvim.logger?.error(`Unrecognized command ${args[0]}\n`);
+        context.nvim.logger?.error(`Unrecognized command ${command}\n`);
     }
   }
 
@@ -129,28 +121,11 @@ export class Magenta {
     await this.sidebar.onWinClosed();
   }
 
-  static async start() {
-    if (!ENV.NVIM) throw Error("socket missing");
-    const nvim = await attach({
-      socket: ENV.NVIM,
-      client: { name: "magenta" },
-      logging: { level: ENV.LOG_LEVEL },
-    });
-
-    setContext({
-      nvim,
-      lsp: new Lsp(nvim),
-    });
-
-    process.on("uncaughtException", (error) => {
-      nvim.logger?.error(error);
-      process.exit(1);
-    });
-
+  static async start(nvim: Nvim) {
     const magenta = new Magenta();
     nvim.onNotification(MAGENTA_COMMAND, async (args: unknown[]) => {
       try {
-        await magenta.command(args as string[]);
+        await magenta.command(args[0] as string);
       } catch (err) {
         nvim.logger?.error(err as Error);
       }
@@ -187,5 +162,6 @@ require('magenta').bridge(${nvim.channelId})
       [],
     ]);
     nvim.logger?.info(`Magenta initialized.`);
+    return magenta;
   }
 }

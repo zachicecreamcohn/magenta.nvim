@@ -36,5 +36,5 @@ export async function getcwd() {
 }
 
 export function diffthis() {
-  return context.nvim.call("nvim_eval", ["diffthis"]);
+  return context.nvim.call("nvim_command", ["diffthis"]);
 }

@@ -107,7 +107,8 @@ export async function displayDiffs(
     lines: content.split("\n") as Line[],
   });
 
-  (await nvim.call("nvim_open_win", [
+  await scratchBuffer.setName(`diff_${filePath}`);
+  await nvim.call("nvim_open_win", [
     scratchBuffer.id,
     true,
     {
@@ -116,7 +117,8 @@ export async function displayDiffs(
       width: WIDTH,
       style: "minimal",
     },
-  ])) as WindowId;
+  ]);
+
   await diffthis();
 
   // now that both diff buffers are open, adjust the magenta window width again

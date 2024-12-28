@@ -13,7 +13,7 @@ export const WIDTH = 80;
 /** This will mostly manage the window toggle
  */
 export class Sidebar {
-  private state:
+  public state:
     | {
         state: "hidden";
         displayBuffer?: NvimBuffer;
@@ -114,7 +114,7 @@ export class Sidebar {
       true, // enter the input window
       {
         win: displayWindow.id, // split inside this window
-        split: 'below',
+        split: "below",
         width: WIDTH,
         height: inputHeight,
         style: "minimal",

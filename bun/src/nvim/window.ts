@@ -14,6 +14,20 @@ export type Position0Indexed = {
   col: ByteIdx;
 };
 
+export function pos0to1(pos: Position0Indexed): Position1Indexed {
+  return {
+    row: pos.row + 1,
+    col: pos.col,
+  } as Position1Indexed;
+}
+
+export function pos1to0(pos: Position1Indexed): Position0Indexed {
+  return {
+    row: pos.row - 1,
+    col: pos.col,
+  } as Position0Indexed;
+}
+
 export type WindowId = number & { __winId: true };
 
 export class NvimWindow {
@@ -33,13 +47,17 @@ export class NvimWindow {
     return context.nvim.call("nvim_win_set_width", [this.id, width]);
   }
 
+  getOption(name: string) {
+    return context.nvim.call("nvim_win_get_option", [this.id, name]);
+  }
+
   setOption(name: string, value: unknown) {
     return context.nvim.call("nvim_win_set_option", [this.id, name, value]);
   }
 
-  getVar(name: string) {
+  async getVar(name: string) {
     try {
-      return context.nvim.call("nvim_win_get_var", [this.id, name]);
+      return await context.nvim.call("nvim_win_get_var", [this.id, name]);
     } catch (e) {
       context.nvim.logger?.warn(`getVar(${name}) failed: ${JSON.stringify(e)}`);
       return undefined;

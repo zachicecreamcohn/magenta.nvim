@@ -3,3 +3,67 @@ export function delay(ms: number) {
     setTimeout(resolve, ms);
   });
 }
+
+export class Defer<T> {
+  public promise: Promise<T>;
+  public resolve: (val: T) => void;
+  public reject: (err: Error) => void;
+  public resolved: boolean = false;
+
+  constructor() {
+    let resolve: typeof this.resolve;
+    let reject: typeof this.reject;
+
+    this.resolve = (val) => {
+      if (resolve != undefined) {
+        resolve(val);
+      }
+      this.resolved = true;
+    };
+
+    this.reject = (err) => {
+      if (reject != undefined) {
+        reject(err);
+      }
+      this.resolved = true;
+    };
+
+    this.promise = new Promise((fnRes, fnRej) => {
+      resolve = fnRes;
+      reject = fnRej;
+    });
+  }
+}
+
+/** poll fn until it returns.
+ */
+export async function pollUntil<T>(
+  fn: (() => Promise<T>) | (() => T),
+  opts: { timeout: number; message?: string } = { timeout: 1000 },
+): Promise<T> {
+  const start = new Date().getTime();
+  let lastError;
+  while (true) {
+    if (new Date().getTime() - start > opts.timeout) {
+      if (opts.message) {
+        throw new Error(opts.message);
+      }
+
+      if (lastError) {
+        throw lastError;
+      }
+
+      throw new Error(`pollUntil timeout`);
+    }
+
+    try {
+      const res = fn();
+      const val = (res as Promise<unknown>).then ? await res : res;
+      return val;
+    } catch (e) {
+      lastError = e;
+    }
+
+    await delay(100);
+  }
+}

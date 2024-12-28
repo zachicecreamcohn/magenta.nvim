@@ -18,9 +18,6 @@ export function getBindings(
     compare(cursor, mountedNode.startPos) > 0 ||
     compare(cursor, mountedNode.endPos) < 0
   ) {
-    context.nvim.logger?.debug(
-      `binding: ${JSON.stringify(cursor)} is outside of the range ${JSON.stringify(mountedNode.startPos)} : ${JSON.stringify(mountedNode.endPos)}`,
-    );
     return undefined;
   }
 

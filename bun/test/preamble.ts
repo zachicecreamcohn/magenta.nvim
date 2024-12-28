@@ -7,6 +7,9 @@ import { setContext } from "../src/context.ts";
 import { Lsp } from "../src/lsp.ts";
 import path from "path";
 import { delay } from "../src/utils/async.ts";
+import { Magenta } from "../src/magenta.ts";
+import { withMockClient } from "../src/anthropic-mock.ts";
+import { NvimDriver } from "./driver.ts";
 
 export const MAGENTA_SOCK = "/tmp/magenta-test.sock";
 
@@ -89,6 +92,30 @@ export async function withNvimClient(fn: (nvim: Nvim) => Promise<void>) {
     } finally {
       nvim.detach();
     }
+  });
+}
+
+export async function withDriver(fn: (driver: NvimDriver) => Promise<void>) {
+  return await withNvimProcess(async () => {
+    const nvim = await attach({
+      socket: MAGENTA_SOCK,
+      client: { name: "magenta" },
+      logging: { level: "debug" },
+    });
+
+    setContext({
+      nvim,
+      lsp: new Lsp(nvim),
+    });
+
+    await withMockClient(async (mockAnthropic) => {
+      const magenta = await Magenta.start(nvim);
+      try {
+        await fn(new NvimDriver(nvim, magenta, mockAnthropic));
+      } finally {
+        nvim.detach();
+      }
+    });
   });
 }
 

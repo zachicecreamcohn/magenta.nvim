@@ -9,7 +9,18 @@ import { type Result } from "./utils/result.ts";
 
 export type StopReason = Anthropic.Message["stop_reason"];
 
-class AnthropicClient {
+export interface AnthropicClient {
+  sendMessage(
+    messages: Array<Anthropic.MessageParam>,
+    onText: (text: string) => void,
+    onError: (error: Error) => void,
+  ): Promise<{
+    toolRequests: Result<ToolRequest, { rawRequest: unknown }>[];
+    stopReason: StopReason;
+  }>;
+}
+
+class AnthropicClientImpl implements AnthropicClient {
   private client: Anthropic;
 
   constructor() {
@@ -93,9 +104,13 @@ Be concise. You can use multiple tools at once, so try to minimize round trips.`
 let client: AnthropicClient | undefined;
 
 // lazy load so we have a chance to init context before constructing the class
-export function getClient() {
+export function getClient(): AnthropicClient {
   if (!client) {
-    client = new AnthropicClient();
+    client = new AnthropicClientImpl();
   }
   return client;
+}
+
+export function setClient(c: AnthropicClient | undefined) {
+  client = c;
 }
