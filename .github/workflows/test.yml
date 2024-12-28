@@ -25,7 +25,9 @@ jobs:
         bun-version-file: ".bun-version"
 
     - name: Install dependencies
+      working-directory: ./bun
       run: bun install --frozen-lockfile
 
     - name: Run tests
+      working-directory: ./bun
       run: bun test
