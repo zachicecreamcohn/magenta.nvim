@@ -1,4 +1,4 @@
-import { context } from "../context.ts";
+import type { Nvim } from "bunvim";
 import { NvimBuffer, type BufNr } from "./buffer.ts";
 
 export type Row0Indexed = number & { __row0Indexed: true };
@@ -31,70 +31,68 @@ export function pos1to0(pos: Position1Indexed): Position0Indexed {
 export type WindowId = number & { __winId: true };
 
 export class NvimWindow {
-  constructor(public readonly id: WindowId) {}
+  constructor(
+    public readonly id: WindowId,
+    private nvim: Nvim,
+  ) {}
 
   valid(): Promise<boolean> {
-    return context.nvim.call("nvim_win_is_valid", [this.id]);
+    return this.nvim.call("nvim_win_is_valid", [this.id]);
   }
 
   clearjumps() {
-    return context.nvim.call("nvim_command", [
+    return this.nvim.call("nvim_command", [
       `call win_execute(${this.id}, 'clearjumps')`,
     ]);
   }
 
   setWidth(width: number) {
-    return context.nvim.call("nvim_win_set_width", [this.id, width]);
+    return this.nvim.call("nvim_win_set_width", [this.id, width]);
   }
 
   getOption(name: string) {
-    return context.nvim.call("nvim_win_get_option", [this.id, name]);
+    return this.nvim.call("nvim_win_get_option", [this.id, name]);
   }
 
   setOption(name: string, value: unknown) {
-    return context.nvim.call("nvim_win_set_option", [this.id, name, value]);
+    return this.nvim.call("nvim_win_set_option", [this.id, name, value]);
   }
 
   async getVar(name: string) {
     try {
-      return await context.nvim.call("nvim_win_get_var", [this.id, name]);
+      return await this.nvim.call("nvim_win_get_var", [this.id, name]);
     } catch (e) {
-      context.nvim.logger?.warn(`getVar(${name}) failed: ${JSON.stringify(e)}`);
+      this.nvim.logger?.warn(`getVar(${name}) failed: ${JSON.stringify(e)}`);
       return undefined;
     }
   }
 
   setVar(name: string, value: unknown) {
-    return context.nvim.call("nvim_win_set_var", [this.id, name, value]);
+    return this.nvim.call("nvim_win_set_var", [this.id, name, value]);
   }
 
   close(force: boolean = false) {
-    return context.nvim.call("nvim_win_close", [this.id, force]);
+    return this.nvim.call("nvim_win_close", [this.id, force]);
   }
 
   async buffer(): Promise<NvimBuffer> {
-    const bufNr = (await context.nvim.call("nvim_win_get_buf", [
+    const bufNr = (await this.nvim.call("nvim_win_get_buf", [
       this.id,
     ])) as BufNr;
-    return new NvimBuffer(bufNr);
+    return new NvimBuffer(bufNr, this.nvim);
   }
 
   async getCursor(): Promise<Position1Indexed> {
-    const [row, col] = await context.nvim.call("nvim_win_get_cursor", [
-      this.id,
-    ]);
+    const [row, col] = await this.nvim.call("nvim_win_get_cursor", [this.id]);
     return { row, col } as Position1Indexed;
   }
 
   setCursor(pos: Position1Indexed) {
-    return context.nvim.call("nvim_win_set_cursor", [
-      this.id,
-      [pos.row, pos.col],
-    ]);
+    return this.nvim.call("nvim_win_set_cursor", [this.id, [pos.row, pos.col]]);
   }
 
   zt() {
-    return context.nvim.call("nvim_command", [
+    return this.nvim.call("nvim_command", [
       `call win_execute(${this.id}, 'normal! zt')`,
     ]);
   }

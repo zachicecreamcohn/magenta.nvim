@@ -7,14 +7,15 @@ import { withNvimClient } from "../../test/preamble.ts";
 
 describe("tea/update.spec.ts", () => {
   it("updates to and from empty string", async () => {
-    await withNvimClient(async () => {
-      const buffer = await NvimBuffer.create(false, true);
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
       const view = (props: { prop: string }) => d`1${props.prop}3`;
       const mountedView = await mountView({
         view,
         props: { prop: "" },
         mount: {
+          nvim,
           buffer,
           startPos: pos(0, 0),
           endPos: pos(0, 0),
@@ -74,8 +75,8 @@ describe("tea/update.spec.ts", () => {
   });
 
   it("updates to multiple items in the same line", async () => {
-    await withNvimClient(async () => {
-      const buffer = await NvimBuffer.create(false, true);
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
 
       const view = (props: { prop1: string; prop2: string }) =>
@@ -84,6 +85,7 @@ describe("tea/update.spec.ts", () => {
         view,
         props: { prop1: "", prop2: "" },
         mount: {
+          nvim,
           buffer,
           startPos: pos(0, 0),
           endPos: pos(0, 0),
@@ -186,8 +188,8 @@ describe("tea/update.spec.ts", () => {
   });
 
   it("keeping track of edit distance", async () => {
-    await withNvimClient(async () => {
-      const buffer = await NvimBuffer.create(false, true);
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
 
       const view = (props: { prop1: string; prop2: string }) =>
@@ -196,6 +198,7 @@ describe("tea/update.spec.ts", () => {
         view,
         props: { prop1: "", prop2: "" },
         mount: {
+          nvim,
           buffer,
           startPos: pos(0, 0),
           endPos: pos(0, 0),
@@ -243,8 +246,8 @@ describe("tea/update.spec.ts", () => {
   });
 
   it("conditional renders", async () => {
-    await withNvimClient(async () => {
-      const buffer = await NvimBuffer.create(false, true);
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
 
       const childView = (props: { prop: boolean }) =>
@@ -257,6 +260,7 @@ describe("tea/update.spec.ts", () => {
         view: parentView,
         props: { items: [true, false] },
         mount: {
+          nvim,
           buffer,
           startPos: pos(0, 0),
           endPos: pos(0, 0),
@@ -286,8 +290,8 @@ describe("tea/update.spec.ts", () => {
   });
 
   it("array nodes", async () => {
-    await withNvimClient(async () => {
-      const buffer = await NvimBuffer.create(false, true);
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
 
       const view = (props: { items: string[] }) =>
@@ -297,6 +301,7 @@ describe("tea/update.spec.ts", () => {
         view,
         props: { items: [] },
         mount: {
+          nvim,
           buffer,
           startPos: pos(0, 0),
           endPos: pos(0, 0),
@@ -371,8 +376,8 @@ describe("tea/update.spec.ts", () => {
   });
 
   it("message w parts", async () => {
-    await withNvimClient(async () => {
-      const buffer = await NvimBuffer.create(false, true);
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
 
       type Message = { role: string; parts: string[] };
@@ -386,6 +391,7 @@ ${m.parts.map((p) => d`${p}\n`)}`,
         view,
         props: { messages: [{ role: "user", parts: ["Success"] }] },
         mount: {
+          nvim,
           buffer,
           startPos: pos(0, 0),
           endPos: pos(0, 0),

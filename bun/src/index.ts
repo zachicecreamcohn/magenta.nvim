@@ -1,6 +1,4 @@
-import { Lsp } from "./lsp.ts";
 import { attach, type LogLevel } from "bunvim";
-import { setContext } from "./context.ts";
 import { Magenta } from "./magenta.ts";
 
 // These values are set by neovim when starting the bun process
@@ -15,11 +13,6 @@ const nvim = await attach({
   socket: ENV.NVIM,
   client: { name: "magenta" },
   logging: { level: ENV.LOG_LEVEL },
-});
-
-setContext({
-  nvim,
-  lsp: new Lsp(nvim),
 });
 
 process.on("uncaughtException", (error) => {

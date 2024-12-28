@@ -5,10 +5,10 @@ import path from "path";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type Thunk, type Update } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
-import { context } from "../context.ts";
 import { type ToolRequestId } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import { getcwd } from "../nvim/nvim.ts";
+import type { Nvim } from "bunvim";
 
 export type Model = {
   type: "get_file";
@@ -48,7 +48,10 @@ export const update: Update<Msg, Model> = (msg, model) => {
   }
 };
 
-export function initModel(request: GetFileToolUseRequest): [Model, Thunk<Msg>] {
+export function initModel(
+  request: GetFileToolUseRequest,
+  context: { nvim: Nvim },
+): [Model, Thunk<Msg>] {
   const model: Model = {
     type: "get_file",
     request,
@@ -63,6 +66,7 @@ export function initModel(request: GetFileToolUseRequest): [Model, Thunk<Msg>] {
       context.nvim.logger?.debug(`request: ${JSON.stringify(model.request)}`);
       const bufferContents = await getBufferIfOpen({
         relativePath: filePath,
+        context,
       });
 
       if (bufferContents.status === "ok") {
@@ -92,7 +96,7 @@ export function initModel(request: GetFileToolUseRequest): [Model, Thunk<Msg>] {
       }
 
       try {
-        const cwd = await getcwd();
+        const cwd = await getcwd(context.nvim);
         const absolutePath = path.resolve(cwd, filePath);
 
         if (!absolutePath.startsWith(cwd)) {

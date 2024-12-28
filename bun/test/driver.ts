@@ -53,18 +53,23 @@ export class NvimDriver {
     return this.magenta.sidebar.state;
   }
 
-  async assertDisplayBufferContains(text: string): Promise<Position0Indexed> {
+  async assertDisplayBufferContains(
+    text: string,
+    start: number = 0,
+  ): Promise<Position0Indexed> {
     return pollUntil(async () => {
       const displayBuffer = this.getDisplayBuffer();
       const lines = await displayBuffer.getLines({ start: 0, end: -1 });
-      const content = lines.join("\n");
+      const content = lines.slice(start).join("\n");
       const index = content.indexOf(text);
       if (index == -1) {
-        throw new Error(`Unable to find text ${text} in displayBuffer`);
+        throw new Error(
+          `Unable to find text ${text} after line ${start} in displayBuffer`,
+        );
       }
 
       return calculatePosition(
-        { row: 0, col: 0 } as Position0Indexed,
+        { row: start, col: 0 } as Position0Indexed,
         Buffer.from(content),
         index,
       );
@@ -89,10 +94,17 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
   async assertWindowCount(n: number) {
     return await pollUntil(
       async () => {
-        const windows = await getAllWindows();
+        const windows = await getAllWindows(this.nvim);
         if (windows.length != n) {
+          const windowDetails = await Promise.all(
+            windows.map(async (w) => {
+              const buffer = await w.buffer();
+              const name = await buffer.getName();
+              return `window ${w.id} containing buffer "${name}"`;
+            }),
+          );
           throw new Error(
-            `Expected ${n} windows to appear, but saw ${windows.length}`,
+            `Expected ${n} windows to appear, but saw ${windows.length}: [${windowDetails.join(", ")}]`,
           );
         }
 
@@ -107,14 +119,24 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
   ): Promise<NvimWindow> {
     return await pollUntil(
       async () => {
-        const windows = await getAllWindows();
+        const windows = await getAllWindows(this.nvim);
         for (const window of windows) {
           if (await predicate(window)) {
             return window;
           }
         }
 
-        throw new Error(`No window matched predicate`);
+        const windowDetails = await Promise.all(
+          windows.map(async (w) => {
+            const buffer = await w.buffer();
+            const name = await buffer.getName();
+            return `window ${w.id} containing buffer "${name}"`;
+          }),
+        );
+
+        throw new Error(
+          `No window matched predicate ${predicate.toString()}: [${windowDetails.join(", ")}]`,
+        );
       },
       { timeout: 200 },
     );

@@ -1,14 +1,17 @@
-import { context } from "../context.ts";
+import type { Nvim } from "bunvim";
 
 export type Line = string & { __line: true };
 export type BufNr = number & { __bufnr: true };
 export type Mode = "n" | "i" | "v";
 
 export class NvimBuffer {
-  constructor(public readonly id: BufNr) {}
+  constructor(
+    public readonly id: BufNr,
+    private nvim: Nvim,
+  ) {}
 
   setOption(option: string, value: unknown) {
-    return context.nvim.call("nvim_buf_set_option", [this.id, option, value]);
+    return this.nvim.call("nvim_buf_set_option", [this.id, option, value]);
   }
 
   setLines({
@@ -20,7 +23,7 @@ export class NvimBuffer {
     end: number;
     lines: Line[];
   }) {
-    return context.nvim.call("nvim_buf_set_lines", [
+    return this.nvim.call("nvim_buf_set_lines", [
       this.id,
       start,
       end,
@@ -36,7 +39,7 @@ export class NvimBuffer {
     start: number;
     end: number;
   }): Promise<Line[]> {
-    const lines = await context.nvim.call("nvim_buf_get_lines", [
+    const lines = await this.nvim.call("nvim_buf_get_lines", [
       this.id,
       start,
       end,
@@ -59,7 +62,7 @@ export class NvimBuffer {
       noremap?: boolean;
     };
   }) {
-    return context.nvim.call("nvim_buf_set_keymap", [
+    return this.nvim.call("nvim_buf_set_keymap", [
       this.id,
       mode,
       lhs,
@@ -69,26 +72,26 @@ export class NvimBuffer {
   }
 
   getName() {
-    return context.nvim.call("nvim_buf_get_name", [this.id]);
+    return this.nvim.call("nvim_buf_get_name", [this.id]);
   }
 
   setName(name: string) {
-    return context.nvim.call("nvim_buf_set_name", [this.id, name]);
+    return this.nvim.call("nvim_buf_set_name", [this.id, name]);
   }
 
-  static async create(listed: boolean, scratch: boolean) {
-    const bufNr = (await context.nvim.call("nvim_create_buf", [
+  static async create(listed: boolean, scratch: boolean, nvim: Nvim) {
+    const bufNr = (await nvim.call("nvim_create_buf", [
       listed,
       scratch,
     ])) as BufNr;
-    return new NvimBuffer(bufNr);
+    return new NvimBuffer(bufNr, nvim);
   }
 
-  static async bufadd(absolutePath: string) {
-    const bufNr = (await context.nvim.call("nvim_eval", [
+  static async bufadd(absolutePath: string, nvim: Nvim) {
+    const bufNr = (await nvim.call("nvim_eval", [
       `bufadd("${absolutePath}")`,
     ])) as BufNr;
-    await context.nvim.call("nvim_eval", [`bufload(${bufNr})`]);
-    return new NvimBuffer(bufNr);
+    await nvim.call("nvim_eval", [`bufload(${bufNr})`]);
+    return new NvimBuffer(bufNr, nvim);
   }
 }

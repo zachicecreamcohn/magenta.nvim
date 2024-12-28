@@ -1,4 +1,4 @@
-import { context } from "./context.ts";
+import type { Nvim } from "bunvim";
 import { NvimBuffer, type Line } from "./nvim/buffer.ts";
 import { getOption } from "./nvim/nvim.ts";
 import {
@@ -27,7 +27,7 @@ export class Sidebar {
         inputWindow: NvimWindow;
       };
 
-  constructor() {
+  constructor(private nvim: Nvim) {
     this.state = { state: "hidden" };
   }
 
@@ -61,15 +61,13 @@ export class Sidebar {
     displayBuffer: NvimBuffer;
     inputBuffer: NvimBuffer;
   }> {
-    const { nvim } = context;
-    const logger = nvim.logger;
     const {
       displayBuffer: existingDisplayBuffer,
       inputBuffer: existingInputBuffer,
     } = this.state;
-    logger?.debug(`sidebar.show`);
-    const totalHeight = (await getOption("lines")) as number;
-    const cmdHeight = (await getOption("cmdheight")) as number;
+    this.nvim.logger?.debug(`sidebar.show`);
+    const totalHeight = (await getOption("lines", this.nvim)) as number;
+    const cmdHeight = (await getOption("cmdheight", this.nvim)) as number;
     const displayHeight = Math.floor((totalHeight - cmdHeight) * 0.8);
     const inputHeight = totalHeight - displayHeight - 2;
 
@@ -79,13 +77,13 @@ export class Sidebar {
     if (existingDisplayBuffer) {
       displayBuffer = existingDisplayBuffer;
     } else {
-      displayBuffer = await NvimBuffer.create(false, true);
+      displayBuffer = await NvimBuffer.create(false, true, this.nvim);
       await displayBuffer.setOption("bufhidden", "hide");
       await displayBuffer.setOption("buftype", "nofile");
       await displayBuffer.setOption("swapfile", false);
       await displayBuffer.setOption("filetype", "markdown");
     }
-    const displayWindowId = (await nvim.call("nvim_open_win", [
+    const displayWindowId = (await this.nvim.call("nvim_open_win", [
       displayBuffer.id,
       false,
       {
@@ -96,20 +94,20 @@ export class Sidebar {
         style: "minimal",
       },
     ])) as WindowId;
-    const displayWindow = new NvimWindow(displayWindowId);
+    const displayWindow = new NvimWindow(displayWindowId, this.nvim);
 
     let inputBuffer: NvimBuffer;
     if (existingInputBuffer) {
       inputBuffer = existingInputBuffer;
     } else {
-      inputBuffer = (await NvimBuffer.create(false, true)) as NvimBuffer;
+      inputBuffer = await NvimBuffer.create(false, true, this.nvim);
       await inputBuffer.setOption("bufhidden", "hide");
       await inputBuffer.setOption("buftype", "nofile");
       await inputBuffer.setOption("swapfile", false);
       await inputBuffer.setOption("filetype", "markdown");
     }
 
-    const inputWindowId = (await nvim.call("nvim_open_win", [
+    const inputWindowId = (await this.nvim.call("nvim_open_win", [
       inputBuffer.id,
       true, // enter the input window
       {
@@ -121,7 +119,7 @@ export class Sidebar {
       },
     ])) as WindowId;
 
-    const inputWindow = new NvimWindow(inputWindowId);
+    const inputWindow = new NvimWindow(inputWindowId, this.nvim);
     await inputWindow.clearjumps();
 
     await inputBuffer.setLines({
@@ -156,7 +154,7 @@ export class Sidebar {
       opts: { silent: true, noremap: true },
     });
 
-    logger?.debug(`sidebar.create setting state`);
+    this.nvim.logger?.debug(`sidebar.create setting state`);
     this.state = {
       state: "visible",
       displayBuffer,
@@ -228,7 +226,7 @@ export class Sidebar {
 
   async getMessage(): Promise<string> {
     if (this.state.state != "visible") {
-      context.nvim.logger?.debug(
+      this.nvim.logger?.debug(
         `sidebar state is ${this.state.state} in getMessage`,
       );
       return "";
@@ -241,7 +239,7 @@ export class Sidebar {
       end: -1,
     });
 
-    context.nvim.logger?.debug(
+    this.nvim.logger?.debug(
       `sidebar got lines ${JSON.stringify(lines)} from inputBuffer`,
     );
     const message = lines.join("\n");

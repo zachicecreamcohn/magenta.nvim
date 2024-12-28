@@ -8,19 +8,22 @@ import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 
 describe("tea/chat.spec.ts", () => {
   it("chat render and a few updates", async () => {
-    await withNvimClient(async () => {
-      const buffer = await NvimBuffer.create(false, true);
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
-      const model = Chat.initModel();
+      const chatModel = Chat.init({ nvim, lsp: undefined as any });
+      const model = chatModel.initModel();
 
       const app = createApp({
+        nvim,
         initialModel: model,
-        update: Chat.update,
-        View: Chat.view,
+        update: chatModel.update,
+        View: chatModel.view,
         suppressThunks: true,
       });
 
       const mountedApp = await app.mount({
+        nvim,
         buffer,
         startPos: pos(0, 0),
         endPos: pos(-1, -1),

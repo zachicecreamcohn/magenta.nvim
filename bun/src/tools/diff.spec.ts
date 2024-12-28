@@ -66,7 +66,7 @@ describe("tea/diff.spec.ts", () => {
     });
   });
 
-  it("replace in existing file", async () => {
+  it.only("replace in existing file", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
@@ -135,6 +135,95 @@ Paints its colors in the light.`,
       expect(diffText).toEqual(
         "In gardens wild and flowing free,\nMagenta blooms for all to see.\nNature's canvas, bold and bright,\nPaints its colors in the light.",
       );
+    });
+  });
+
+  it.only("multiple messages editing same file", async () => {
+    await withDriver(async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(
+        `Write me a short poem in the file poem.txt`,
+      );
+      await driver.send();
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "ok, here is a poem",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              type: "tool_use",
+              id: "id" as ToolRequestId,
+              name: "insert",
+              input: {
+                filePath: "poem.txt",
+                insertAfter: "",
+                content: "a poem",
+              },
+            },
+          },
+        ],
+      });
+
+      let reviewPos;
+      {
+        reviewPos = await driver.assertDisplayBufferContains("review edits");
+
+        await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
+        await driver.assertWindowCount(4);
+
+        const diffWin = await driver.findWindow(async (w) => {
+          const buf = await w.buffer();
+          const name = await buf.getName();
+          return /poem.txt_message_2_diff$/.test(name);
+        });
+        await diffWin.close();
+      }
+
+      await driver.inputMagentaText(`Another one!`);
+      await driver.send();
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "ok, here is another poem",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              type: "tool_use",
+              id: "id" as ToolRequestId,
+              name: "insert",
+              input: {
+                filePath: "poem.txt",
+                insertAfter: "",
+                content: "another poem",
+              },
+            },
+          },
+        ],
+      });
+
+      {
+        const nextReviewPos = await driver.assertDisplayBufferContains(
+          "review edits",
+          reviewPos.row + 1,
+        );
+
+        await driver.triggerDisplayBufferKey(nextReviewPos, "<CR>");
+        await driver.assertWindowCount(4);
+
+        const diffWin = await driver.findWindow(async (w) => {
+          const buf = await w.buffer();
+          const name = await buf.getName();
+          return /poem.txt_message_4_diff$/.test(name);
+        });
+
+        const diffText = (
+          await (await diffWin.buffer()).getLines({ start: 0, end: -1 })
+        ).join("\n");
+        expect(diffText).toEqual("another poem");
+      }
     });
   });
 });

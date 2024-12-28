@@ -1,4 +1,4 @@
-import { context } from "../context.ts";
+import type { Nvim } from "bunvim";
 import type { Line, NvimBuffer } from "../nvim/buffer.ts";
 import type { ByteIdx, Position0Indexed } from "../nvim/window.ts";
 
@@ -7,11 +7,13 @@ export async function replaceBetweenPositions({
   startPos,
   endPos,
   lines,
+  context,
 }: {
   buffer: NvimBuffer;
   startPos: Position0Indexed;
   endPos: Position0Indexed;
   lines: Line[];
+  context: { nvim: Nvim };
 }) {
   await buffer.setOption("modifiable", true);
   try {
@@ -54,7 +56,7 @@ export function calculatePosition(
   return { row, col };
 }
 
-export async function logBuffer(buffer: NvimBuffer) {
+export async function logBuffer(buffer: NvimBuffer, context: { nvim: Nvim }) {
   const lines = await buffer.getLines({
     start: 0,
     end: -1,

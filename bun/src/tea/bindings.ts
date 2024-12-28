@@ -1,7 +1,6 @@
 import { type MountedVDOM } from "./view.ts";
 import { type Position0Indexed } from "../nvim/window.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { context } from "../context.ts";
 
 export const BINDING_KEYS = ["<CR>"] as const;
 
@@ -23,10 +22,6 @@ export function getBindings(
 
   switch (mountedNode.type) {
     case "string":
-      context.nvim.logger?.debug(
-        `Found binding for node ${mountedNode.type} in the range ${JSON.stringify(mountedNode.startPos)} : ${JSON.stringify(mountedNode.endPos)}`,
-      );
-
       return mountedNode.bindings;
     case "node":
     case "array": {
@@ -37,9 +32,6 @@ export function getBindings(
           return childBindings;
         }
       }
-      context.nvim.logger?.debug(
-        `Found binding for node ${mountedNode.type} in the range ${JSON.stringify(mountedNode.startPos)} : ${JSON.stringify(mountedNode.endPos)}`,
-      );
       return mountedNode.bindings;
     }
     default:

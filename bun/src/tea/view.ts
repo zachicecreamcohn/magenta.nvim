@@ -2,15 +2,16 @@ import { render } from "./render.ts";
 import { update } from "./update.ts";
 import { type Bindings } from "./bindings.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { context } from "../context.ts";
 import type { NvimBuffer } from "../nvim/buffer.ts";
 import { type Position0Indexed } from "../nvim/window.ts";
+import type { Nvim } from "bunvim";
 
 export function pos(row: number, col: number) {
   return { row, col } as Position0Indexed;
 }
 
 export interface MountPoint {
+  nvim: Nvim;
   buffer: NvimBuffer;
   startPos: Position0Indexed;
   endPos: Position0Indexed;

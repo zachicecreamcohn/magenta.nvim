@@ -4,11 +4,11 @@ import path from "path";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Thunk, Update } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
-import { context } from "../context.ts";
 import type { ToolRequestId } from "./toolManager.ts";
 import type { Result } from "../utils/result.ts";
 import * as ignore from "ignore";
 import { getcwd } from "../nvim/nvim.ts";
+import type { Nvim } from "bunvim";
 
 export type Model = {
   type: "list_directory";
@@ -61,6 +61,7 @@ async function readGitignore(cwd: string): Promise<ignore.Ignore> {
 async function listDirectoryBFS(
   startPath: string,
   cwd: string,
+  context: { nvim: Nvim },
 ): Promise<string[]> {
   const ig = await readGitignore(cwd);
   const queue: string[] = [startPath];
@@ -107,6 +108,7 @@ async function listDirectoryBFS(
 
 export function initModel(
   request: ListDirectoryToolUseRequest,
+  context: { nvim: Nvim },
 ): [Model, Thunk<Msg>] {
   const model: Model = {
     type: "list_directory",
@@ -121,7 +123,7 @@ export function initModel(
     model,
     async (dispatch) => {
       try {
-        const cwd = await getcwd();
+        const cwd = await getcwd(context.nvim);
         const dirPath = request.input.dirPath || ".";
         const absolutePath = path.resolve(cwd, dirPath);
 
@@ -138,7 +140,7 @@ export function initModel(
           return;
         }
 
-        const files = await listDirectoryBFS(absolutePath, cwd);
+        const files = await listDirectoryBFS(absolutePath, cwd, context);
         context.nvim.logger?.debug(`files: ${files.join("\n")}`);
         dispatch({
           type: "finish",

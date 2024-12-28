@@ -9,23 +9,28 @@ import { withNvimClient } from "../../test/preamble.ts";
 describe("tea/listBuffers.spec.ts", () => {
   it("render the getFile tool.", async () => {
     await withNvimClient(async (nvim) => {
-      const buffer = await NvimBuffer.create(false, true);
+      const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
 
-      const [model, _thunk] = ListBuffers.initModel({
-        type: "tool_use",
-        id: "request_id" as ToolRequestId,
-        name: "list_buffers",
-        input: {},
-      });
+      const [model, _thunk] = ListBuffers.initModel(
+        {
+          type: "tool_use",
+          id: "request_id" as ToolRequestId,
+          name: "list_buffers",
+          input: {},
+        },
+        { nvim },
+      );
 
       const app = createApp({
+        nvim,
         initialModel: model,
         update: ListBuffers.update,
         View: ListBuffers.view,
       });
 
       const mountedApp = await app.mount({
+        nvim,
         buffer,
         startPos: pos(0, 0),
         endPos: pos(-1, -1),

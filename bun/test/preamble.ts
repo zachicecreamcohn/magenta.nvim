@@ -3,19 +3,16 @@ import { unlink } from "node:fs/promises";
 import { spawn } from "child_process";
 import { type MountedVDOM } from "../src/tea/view.ts";
 import { assertUnreachable } from "../src/utils/assertUnreachable.ts";
-import { setContext } from "../src/context.ts";
-import { Lsp } from "../src/lsp.ts";
 import path from "path";
 import { delay } from "../src/utils/async.ts";
 import { Magenta } from "../src/magenta.ts";
 import { withMockClient } from "../src/anthropic-mock.ts";
 import { NvimDriver } from "./driver.ts";
 
-export const MAGENTA_SOCK = "/tmp/magenta-test.sock";
-
-export async function withNvimProcess(fn: () => Promise<void>) {
+const SOCK = `/tmp/magenta-test.sock`;
+export async function withNvimProcess(fn: (sock: string) => Promise<void>) {
   try {
-    await unlink(MAGENTA_SOCK);
+    await unlink(SOCK);
   } catch (e) {
     if ((e as { code: string }).code !== "ENOENT") {
       console.error(e);
@@ -24,15 +21,7 @@ export async function withNvimProcess(fn: () => Promise<void>) {
 
   const nvimProcess = spawn(
     "nvim",
-    [
-      "--headless",
-      "-n",
-      "--clean",
-      "--listen",
-      MAGENTA_SOCK,
-      "-u",
-      "minimal-init.lua",
-    ],
+    ["--headless", "-n", "--clean", "--listen", SOCK, "-u", "minimal-init.lua"],
     {
       // root dir relative to this file
       cwd: path.resolve(path.dirname(__filename), "../../"),
@@ -59,16 +48,17 @@ export async function withNvimProcess(fn: () => Promise<void>) {
     // give enough time for socket to be created
     await delay(500);
 
-    await fn();
+    await fn(SOCK);
   } finally {
-    nvimProcess.kill();
+    const res = nvimProcess.kill();
+    console.log(`Killed process ${nvimProcess.pid} with result ${res}`);
   }
 }
 
 export async function withNvimClient(fn: (nvim: Nvim) => Promise<void>) {
-  return await withNvimProcess(async () => {
+  return await withNvimProcess(async (sock) => {
     const nvim = await attach({
-      socket: MAGENTA_SOCK,
+      socket: sock,
       client: { name: "magenta" },
       logging: { level: "debug" },
     });
@@ -79,11 +69,6 @@ export async function withNvimClient(fn: (nvim: Nvim) => Promise<void>) {
       `,
       [],
     ]);
-
-    setContext({
-      nvim: nvim,
-      lsp: new Lsp(nvim),
-    });
 
     nvim!.logger!.info("Nvim started");
 
@@ -96,16 +81,11 @@ export async function withNvimClient(fn: (nvim: Nvim) => Promise<void>) {
 }
 
 export async function withDriver(fn: (driver: NvimDriver) => Promise<void>) {
-  return await withNvimProcess(async () => {
+  return await withNvimProcess(async (sock) => {
     const nvim = await attach({
-      socket: MAGENTA_SOCK,
+      socket: sock,
       client: { name: "magenta" },
       logging: { level: "debug" },
-    });
-
-    setContext({
-      nvim,
-      lsp: new Lsp(nvim),
     });
 
     await withMockClient(async (mockAnthropic) => {

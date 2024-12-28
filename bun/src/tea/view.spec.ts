@@ -6,8 +6,8 @@ import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 
 describe("Neovim Plugin Tests", async () => {
   it("basic rendering & update", async () => {
-    await withNvimClient(async () => {
-      const buffer = await NvimBuffer.create(false, true);
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setLines({ start: 0, end: 0, lines: [""] as Line[] });
 
       await buffer.setOption("modifiable", false);
@@ -17,6 +17,7 @@ describe("Neovim Plugin Tests", async () => {
         view,
         props: { helloTo: "world" },
         mount: {
+          nvim,
           buffer,
           startPos: pos(0, 0),
           endPos: pos(0, 0),

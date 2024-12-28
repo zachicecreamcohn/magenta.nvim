@@ -1,4 +1,3 @@
-import { context } from "../context.ts";
 import type { ByteIdx, Row0Indexed } from "../nvim/window.ts";
 import { render } from "./render.ts";
 import { replaceBetweenPositions } from "./util.ts";
@@ -7,7 +6,6 @@ import {
   type ComponentVDOMNode,
   type MountedVDOM,
   type MountPoint,
-  prettyPrintMountedNode,
   type StringVDOMNode,
   type VDOMNode,
 } from "./view.ts";
@@ -233,6 +231,7 @@ export async function update({
             startPos: nextChildrenEndPos,
             endPos: oldChildrenEndPos,
             lines: [],
+            context: { nvim: mount.nvim },
           });
         }
 

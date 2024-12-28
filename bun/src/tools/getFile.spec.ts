@@ -9,25 +9,30 @@ import { withNvimClient } from "../../test/preamble.ts";
 
 describe("tea/getFile.spec.ts", () => {
   it("render the getFile tool.", async () => {
-    await withNvimClient(async () => {
-      const buffer = await NvimBuffer.create(false, true);
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
-      const [model, _thunk] = GetFile.initModel({
-        type: "tool_use",
-        id: "request_id" as ToolRequestId,
-        name: "get_file",
-        input: {
-          filePath: "./file.txt",
+      const [model, _thunk] = GetFile.initModel(
+        {
+          type: "tool_use",
+          id: "request_id" as ToolRequestId,
+          name: "get_file",
+          input: {
+            filePath: "./file.txt",
+          },
         },
-      });
+        { nvim },
+      );
 
       const app = createApp({
+        nvim,
         initialModel: model,
         update: GetFile.update,
         View: GetFile.view,
       });
 
       const mountedApp = await app.mount({
+        nvim,
         buffer,
         startPos: pos(0, 0),
         endPos: pos(-1, -1),

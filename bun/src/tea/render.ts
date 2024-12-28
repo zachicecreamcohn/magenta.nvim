@@ -1,4 +1,3 @@
-import { context } from "../context.ts";
 import type { Line } from "../nvim/buffer.ts";
 import type { ByteIdx } from "../nvim/window.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
@@ -91,6 +90,7 @@ export async function render({
   const content = contents.join("");
   await replaceBetweenPositions({
     ...mount,
+    context: { nvim: mount.nvim },
     lines: content.split("\n") as Line[],
   });
 

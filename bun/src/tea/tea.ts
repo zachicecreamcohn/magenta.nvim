@@ -4,13 +4,12 @@ import {
   type MountedView,
   type MountPoint,
   mountView,
-  prettyPrintMountedNode,
   type VDOMNode,
 } from "./view.ts";
-import { context } from "../context.ts";
 import { BINDING_KEYS, type BindingKey, getBindings } from "./bindings.ts";
 import { getCurrentWindow } from "../nvim/nvim.ts";
 import type { Row0Indexed } from "../nvim/window.ts";
+import type { Nvim } from "bunvim";
 
 export type Dispatch<Msg> = (msg: Msg) => void;
 
@@ -63,6 +62,7 @@ export type App<Msg, Model> = {
 };
 
 export function createApp<Model, Msg, SubscriptionType extends string>({
+  nvim,
   initialModel,
   update,
   View,
@@ -70,6 +70,7 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
   suppressThunks,
   onUpdate,
 }: {
+  nvim: Nvim;
   initialModel: Model;
   update: Update<Msg, Model>;
   View: View<Msg, Model>;
@@ -94,7 +95,7 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
   let reRender = false;
 
   const dispatch = (msg: Msg) => {
-    context.nvim.logger?.debug(`dispatch msg: ${JSON.stringify(msg)}`);
+    nvim.logger?.debug(`dispatch msg: ${JSON.stringify(msg)}`);
     if (currentState.status == "error") {
       currentState;
       return;
@@ -104,9 +105,9 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
       const [nextModel, thunk] = update(msg, currentState.model);
 
       if (thunk && !suppressThunks) {
-        context.nvim.logger?.debug(`starting thunk`);
+        nvim.logger?.debug(`starting thunk`);
         thunk(dispatch).catch((err) => {
-          context.nvim.logger?.error(err as Error);
+          nvim.logger?.error(err as Error);
         });
       }
 
@@ -123,7 +124,7 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
         onUpdate(msg, currentState.model);
       }
     } catch (e) {
-      context.nvim.logger?.error(e as Error);
+      nvim.logger?.error(e as Error);
       currentState = { status: "error", error: (e as Error).message };
     }
   };
@@ -133,14 +134,14 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
       renderPromise = root
         .render({ currentState, dispatch })
         .catch((err) => {
-          context.nvim.logger?.error(err as Error);
+          nvim.logger?.error(err as Error);
           throw err;
         })
         .finally(() => {
           renderPromise = undefined;
           if (reRender) {
             reRender = false;
-            context.nvim.logger?.debug(`scheduling followup render`);
+            nvim.logger?.debug(`scheduling followup render`);
             render();
           }
         });
@@ -215,7 +216,7 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
 
       for (const vimKey of BINDING_KEYS) {
         try {
-          await context.nvim.call("nvim_exec_lua", [
+          await nvim.call("nvim_exec_lua", [
             `require('magenta').listenToBufKey(${mount.buffer.id}, "${vimKey}")`,
             [],
           ]);
@@ -236,13 +237,16 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
         },
 
         async onKey(key: BindingKey) {
-          const window = await getCurrentWindow();
+          const window = await getCurrentWindow(mount.nvim);
+          const buffer = await window.buffer();
+          if (buffer.id != mount.buffer.id) {
+            nvim.logger?.warn(
+              `Got onKey event ${key}, but current window is not showing mounted buffer`,
+            );
+            return;
+          }
           const { row, col } = await window.getCursor();
           if (root) {
-            context.nvim.logger?.debug(
-              `Trying to find bindings for node ${prettyPrintMountedNode(root._getMountedNode())}`,
-            );
-
             // win_get_cursor is 1-indexed, while our positions are 0-indexed
             const bindings = getBindings(root._getMountedNode(), {
               row: (row - 1) as Row0Indexed,
@@ -252,7 +256,7 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
               bindings[key]();
             }
           } else {
-            context.nvim.logger?.debug(
+            nvim.logger?.debug(
               `Got onKey event ${key}, but root is no longer mounted.`,
             );
           }

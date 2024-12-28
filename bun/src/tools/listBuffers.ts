@@ -6,6 +6,7 @@ import { d, type VDOMNode } from "../tea/view.ts";
 import { type ToolRequestId } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import { getAllBuffers, getcwd } from "../nvim/nvim.ts";
+import type { Nvim } from "bunvim";
 
 export type Model = {
   type: "list_buffers";
@@ -45,6 +46,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
 
 export function initModel(
   request: ListBuffersToolRequest,
+  context: { nvim: Nvim },
 ): [Model, Thunk<Msg>] {
   const model: Model = {
     type: "list_buffers",
@@ -57,8 +59,8 @@ export function initModel(
   return [
     model,
     async (dispatch) => {
-      const buffers = await getAllBuffers();
-      const cwd = await getcwd();
+      const buffers = await getAllBuffers(context.nvim);
+      const cwd = await getcwd(context.nvim);
       const bufferPaths = await Promise.all(
         buffers.map(async (buffer) => {
           const fullPath = await buffer.getName();

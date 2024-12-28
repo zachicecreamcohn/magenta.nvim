@@ -5,8 +5,8 @@ import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 
 describe("tea/render.spec.ts", () => {
   it("rendering empty string", async () => {
-    await withNvimClient(async () => {
-      const buffer = await NvimBuffer.create(false, true);
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
 
       const view = () => d`1${""}2`;
@@ -14,6 +14,7 @@ describe("tea/render.spec.ts", () => {
         view,
         props: {},
         mount: {
+          nvim,
           buffer,
           startPos: pos(0, 0),
           endPos: pos(0, 0),
@@ -34,8 +35,8 @@ describe("tea/render.spec.ts", () => {
   });
 
   it("rendering multi-line interpolation", async () => {
-    await withNvimClient(async () => {
-      const buffer = await NvimBuffer.create(false, true);
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
 
       const multiLineValue = `first line
@@ -46,6 +47,7 @@ third line`;
         view,
         props: {},
         mount: {
+          nvim,
           buffer,
           startPos: pos(0, 0),
           endPos: pos(0, 0),
@@ -70,8 +72,8 @@ third line`;
   });
 
   it("rendering multi-line template with interpolation", async () => {
-    await withNvimClient(async () => {
-      const buffer = await NvimBuffer.create(false, true);
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
 
       const name = "world";
@@ -84,6 +86,7 @@ third line`;
         view,
         props: {},
         mount: {
+          nvim,
           buffer,
           startPos: pos(0, 0),
           endPos: pos(0, 0),
@@ -110,8 +113,8 @@ third line`;
   });
 
   it("rendering nested interpolation", async () => {
-    await withNvimClient(async () => {
-      const buffer = await NvimBuffer.create(false, true);
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
 
       const inner = d`(inner)`;
@@ -120,6 +123,7 @@ third line`;
         view,
         props: {},
         mount: {
+          nvim,
           buffer,
           startPos: pos(0, 0),
           endPos: pos(0, 0),
@@ -140,8 +144,8 @@ third line`;
   });
 
   it("rendering empty array", async () => {
-    await withNvimClient(async () => {
-      const buffer = await NvimBuffer.create(false, true);
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
 
       const view = ({ arr }: { arr: string[] }) =>
@@ -150,6 +154,7 @@ third line`;
         view,
         props: { arr: [] },
         mount: {
+          nvim,
           buffer,
           startPos: pos(0, 0),
           endPos: pos(0, 0),
@@ -170,8 +175,8 @@ third line`;
   });
 
   it("rendering array", async () => {
-    await withNvimClient(async () => {
-      const buffer = await NvimBuffer.create(false, true);
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
 
       const view = ({ arr }: { arr: string[] }) =>
@@ -180,6 +185,7 @@ third line`;
         view,
         props: { arr: ["1", "\n", "2"] },
         mount: {
+          nvim,
           buffer,
           startPos: pos(0, 0),
           endPos: pos(0, 0),

@@ -1,10 +1,10 @@
 import { Sidebar } from "./sidebar.ts";
 import * as Chat from "./chat/chat.ts";
 import * as TEA from "./tea/tea.ts";
-import { context } from "./context.ts";
 import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
 import { pos } from "./tea/view.ts";
 import type { Nvim } from "bunvim";
+import { Lsp } from "./lsp.ts";
 
 // import { delay } from "./utils/async.ts";
 // these should match lua/magenta/init.lua
@@ -18,11 +18,16 @@ export class Magenta {
   public chatApp: TEA.App<Chat.Msg, Chat.Model>;
   public mountedChatApp: TEA.MountedApp | undefined;
 
-  constructor() {
-    this.sidebar = new Sidebar();
+  constructor(
+    public nvim: Nvim,
+    public lsp: Lsp,
+  ) {
+    this.sidebar = new Sidebar(this.nvim);
 
+    const chatModel = Chat.init({ nvim, lsp });
     this.chatApp = TEA.createApp({
-      initialModel: Chat.initModel(),
+      nvim: this.nvim,
+      initialModel: chatModel.initModel(),
       // sub: {
       //   subscriptions: (model) => {
       //     if (model.messageInFlight) {
@@ -51,30 +56,31 @@ export class Magenta {
       //     },
       //   },
       // },
-      update: Chat.update,
-      View: Chat.view,
+      update: chatModel.update,
+      View: chatModel.view,
     });
   }
 
   async command(command: string): Promise<void> {
-    context.nvim.logger?.debug(`Received command ${command}`);
+    this.nvim.logger?.debug(`Received command ${command}`);
     switch (command) {
       case "toggle": {
         const buffers = await this.sidebar.toggle();
         if (buffers && !this.mountedChatApp) {
           this.mountedChatApp = await this.chatApp.mount({
+            nvim: this.nvim,
             buffer: buffers.displayBuffer,
             startPos: pos(0, 0),
             endPos: pos(-1, -1),
           });
-          context.nvim.logger?.debug(`Chat mounted.`);
+          this.nvim.logger?.debug(`Chat mounted.`);
         }
         break;
       }
 
       case "send": {
         const message = await this.sidebar.getMessage();
-        context.nvim.logger?.debug(`current message: ${message}`);
+        this.nvim.logger?.debug(`current message: ${message}`);
         if (!message) return;
 
         this.chatApp.dispatch({
@@ -100,7 +106,7 @@ export class Magenta {
         break;
 
       default:
-        context.nvim.logger?.error(`Unrecognized command ${command}\n`);
+        this.nvim.logger?.error(`Unrecognized command ${command}\n`);
     }
   }
 
@@ -110,9 +116,7 @@ export class Magenta {
       if (BINDING_KEYS.indexOf(key as BindingKey) > -1) {
         this.mountedChatApp.onKey(key as BindingKey);
       } else {
-        context.nvim.logger?.error(
-          `Unexpected MagentaKey ${JSON.stringify(key)}`,
-        );
+        this.nvim.logger?.error(`Unexpected MagentaKey ${JSON.stringify(key)}`);
       }
     }
   }
@@ -122,7 +126,8 @@ export class Magenta {
   }
 
   static async start(nvim: Nvim) {
-    const magenta = new Magenta();
+    const lsp = new Lsp(nvim);
+    const magenta = new Magenta(nvim, lsp);
     nvim.onNotification(MAGENTA_COMMAND, async (args: unknown[]) => {
       try {
         await magenta.command(args[0] as string);
@@ -149,7 +154,7 @@ export class Magenta {
 
     nvim.onNotification(MAGENTA_LSP_RESPONSE, (args) => {
       try {
-        context.lsp.onLspResponse(args[0]);
+        lsp.onLspResponse(args[0]);
       } catch (err) {
         nvim.logger?.error(err as Error);
       }

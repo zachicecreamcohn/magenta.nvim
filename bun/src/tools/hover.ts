@@ -1,12 +1,13 @@
 import * as Anthropic from "@anthropic-ai/sdk";
 import { type Thunk, type Update } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
-import { context } from "../context.ts";
 import { type ToolRequestId } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { getOrOpenBuffer } from "../utils/buffers.ts";
 import type { NvimBuffer } from "../nvim/buffer.ts";
+import type { Nvim } from "bunvim";
+import type { Lsp } from "../lsp.ts";
 
 export type Model = {
   type: "hover";
@@ -43,7 +44,13 @@ export const update: Update<Msg, Model> = (msg, model) => {
   }
 };
 
-export function initModel(request: HoverToolUseRequest): [Model, Thunk<Msg>] {
+export function initModel(
+  request: HoverToolUseRequest,
+  context: {
+    nvim: Nvim;
+    lsp: Lsp;
+  },
+): [Model, Thunk<Msg>] {
   const model: Model = {
     type: "hover",
     request,
@@ -59,6 +66,7 @@ export function initModel(request: HoverToolUseRequest): [Model, Thunk<Msg>] {
       context.nvim.logger?.debug(`request: ${JSON.stringify(model.request)}`);
       const bufferResult = await getOrOpenBuffer({
         relativePath: filePath,
+        context,
       });
 
       let buffer: NvimBuffer;

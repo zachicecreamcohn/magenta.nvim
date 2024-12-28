@@ -1,19 +1,24 @@
 import { NvimBuffer } from "../nvim/buffer.ts";
 import * as path from "path";
-import { context } from "../context.ts";
 import { getAllBuffers, getcwd } from "../nvim/nvim.ts";
+import type { Nvim } from "bunvim";
 
 export async function getBufferIfOpen({
   relativePath,
+  context,
 }: {
   relativePath: string;
+  context: { nvim: Nvim };
 }): Promise<
   | { status: "ok"; result: string; buffer: NvimBuffer }
   | { status: "error"; error: string }
   | { status: "not-found" }
 > {
   // Get all buffers and nvim's cwd
-  const [buffers, cwd] = await Promise.all([getAllBuffers(), getcwd()]);
+  const [buffers, cwd] = await Promise.all([
+    getAllBuffers(context.nvim),
+    getcwd(context.nvim),
+  ]);
 
   // Convert relative path to absolute
   context.nvim.logger?.debug(`getcwd: ${cwd}`);
@@ -41,14 +46,16 @@ export async function getBufferIfOpen({
 
 export async function getOrOpenBuffer({
   relativePath,
+  context,
 }: {
   relativePath: string;
+  context: { nvim: Nvim };
 }): Promise<
   | { status: "ok"; result: string; buffer: NvimBuffer }
   | { status: "error"; error: string }
 > {
   // First try to get the buffer if it's already open
-  const existingBuffer = await getBufferIfOpen({ relativePath });
+  const existingBuffer = await getBufferIfOpen({ relativePath, context });
 
   if (existingBuffer.status === "error") {
     return existingBuffer;
@@ -58,7 +65,7 @@ export async function getOrOpenBuffer({
     return existingBuffer;
   }
 
-  const cwd = await getcwd();
+  const cwd = await getcwd(context.nvim);
   const absolutePath = path.resolve(cwd, relativePath);
 
   if (!absolutePath.startsWith(cwd)) {
@@ -66,9 +73,9 @@ export async function getOrOpenBuffer({
   }
 
   try {
-    await NvimBuffer.bufadd(absolutePath);
+    await NvimBuffer.bufadd(absolutePath, context.nvim);
 
-    const existingBuffer = await getBufferIfOpen({ relativePath });
+    const existingBuffer = await getBufferIfOpen({ relativePath, context });
     if (existingBuffer.status == "error" || existingBuffer.status == "ok") {
       return existingBuffer;
     } else {

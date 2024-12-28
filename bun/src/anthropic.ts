@@ -1,11 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { context } from "./context.ts";
-import {
-  TOOL_SPECS,
-  type ToolRequest,
-  validateToolRequest,
-} from "./tools/toolManager.ts";
+import * as ToolManager from "./tools/toolManager.ts";
 import { type Result } from "./utils/result.ts";
+import type { Nvim } from "bunvim";
+import type { Lsp } from "./lsp.ts";
 
 export type StopReason = Anthropic.Message["stop_reason"];
 
@@ -15,15 +12,20 @@ export interface AnthropicClient {
     onText: (text: string) => void,
     onError: (error: Error) => void,
   ): Promise<{
-    toolRequests: Result<ToolRequest, { rawRequest: unknown }>[];
+    toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;
   }>;
 }
 
 class AnthropicClientImpl implements AnthropicClient {
   private client: Anthropic;
+  private toolManagerModel;
 
-  constructor() {
+  constructor(
+    private nvim: Nvim,
+    lsp: Lsp,
+  ) {
+    this.toolManagerModel = ToolManager.init({ nvim, lsp });
     const apiKey = process.env.ANTHROPIC_API_KEY;
 
     if (!apiKey) {
@@ -40,7 +42,7 @@ class AnthropicClientImpl implements AnthropicClient {
     onText: (text: string) => void,
     onError: (error: Error) => void,
   ): Promise<{
-    toolRequests: Result<ToolRequest, { rawRequest: unknown }>[];
+    toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;
   }> {
     const buf: string[] = [];
@@ -73,7 +75,7 @@ Be concise. You can use multiple tools at once, so try to minimize round trips.`
           type: "auto",
           disable_parallel_tool_use: false,
         },
-        tools: TOOL_SPECS,
+        tools: ToolManager.TOOL_SPECS,
       })
       .on("text", (text: string) => {
         buf.push(text);
@@ -81,7 +83,7 @@ Be concise. You can use multiple tools at once, so try to minimize round trips.`
       })
       .on("error", onError)
       .on("inputJson", (_delta, snapshot) => {
-        context.nvim.logger?.debug(
+        this.nvim.logger?.debug(
           `anthropic stream inputJson: ${JSON.stringify(snapshot)}`,
         );
       });
@@ -93,10 +95,10 @@ Be concise. You can use multiple tools at once, so try to minimize round trips.`
     }
 
     const toolRequests = response.content
-      .filter((c): c is ToolRequest => c.type == "tool_use")
-      .map((c) => validateToolRequest(c));
-    context.nvim.logger?.debug("toolRequests: " + JSON.stringify(toolRequests));
-    context.nvim.logger?.debug("stopReason: " + response.stop_reason);
+      .filter((c): c is ToolManager.ToolRequest => c.type == "tool_use")
+      .map((c) => this.toolManagerModel.validateToolRequest(c));
+    this.nvim.logger?.debug("toolRequests: " + JSON.stringify(toolRequests));
+    this.nvim.logger?.debug("stopReason: " + response.stop_reason);
     return { toolRequests, stopReason: response.stop_reason };
   }
 }
@@ -104,9 +106,9 @@ Be concise. You can use multiple tools at once, so try to minimize round trips.`
 let client: AnthropicClient | undefined;
 
 // lazy load so we have a chance to init context before constructing the class
-export function getClient(): AnthropicClient {
+export function getClient(nvim: Nvim, lsp: Lsp): AnthropicClient {
   if (!client) {
-    client = new AnthropicClientImpl();
+    client = new AnthropicClientImpl(nvim, lsp);
   }
   return client;
 }
