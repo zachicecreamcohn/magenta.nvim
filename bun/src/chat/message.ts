@@ -7,7 +7,9 @@ import { d, type View, withBindings } from "../tea/view.ts";
 import { displayDiffs } from "../tools/diff.ts";
 import { context } from "../context.ts";
 
+export type MessageId = string & { __messageId: true };
 export type Model = {
+  id: MessageId;
   role: Role;
   parts: Part.Model[];
   edits: {
@@ -148,9 +150,10 @@ export const update = (
         model,
         async (dispatch: Dispatch<Msg>) => {
           try {
-            await displayDiffs(
-              msg.filePath,
-              edits.requestIds.map((requestId) => {
+            await displayDiffs({
+              filePath: msg.filePath,
+              diffId: model.id,
+              edits: edits.requestIds.map((requestId) => {
                 const toolWrapper = toolManager.toolWrappers[requestId];
                 if (!toolWrapper) {
                   throw new Error(
@@ -170,14 +173,14 @@ export const update = (
 
                 return toolWrapper.model.request;
               }),
-              (err) => {
+              dispatch: (err) => {
                 dispatch({
                   type: "diff-error",
                   filePath: msg.filePath,
                   error: err.message,
                 });
               },
-            );
+            });
           } catch (error) {
             context.nvim.logger?.error(
               new Error(`diff-error: ${JSON.stringify(error)}`),

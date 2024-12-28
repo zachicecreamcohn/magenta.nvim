@@ -15,11 +15,21 @@ type Msg = {
 
 /** Helper to bring up an editing interface for the given file path.
  */
-export async function displayDiffs(
-  filePath: string,
-  edits: (ReplaceToolRequest | InsertToolUseRequest)[],
-  dispatch: Dispatch<Msg>,
-) {
+export async function displayDiffs({
+  filePath,
+  diffId,
+  edits,
+  dispatch,
+}: {
+  filePath: string;
+  /** used to uniquely identify the scratch buffer. This is useful to figure out which
+   * buffers are still open for editing. Also helpful if you simultaneously open two diffs of the same
+   * file.
+   */
+  diffId: string;
+  edits: (ReplaceToolRequest | InsertToolUseRequest)[];
+  dispatch: Dispatch<Msg>;
+}) {
   const { nvim } = context;
   nvim.logger?.debug(
     `Attempting to displayDiff for edits ${JSON.stringify(edits, null, 2)}`,
@@ -101,13 +111,15 @@ export async function displayDiffs(
   }
 
   const scratchBuffer = await NvimBuffer.create(false, true);
+
+  await scratchBuffer.setOption("bufhidden", "wipe");
   await scratchBuffer.setLines({
     start: 0,
     end: -1,
     lines: content.split("\n") as Line[],
   });
 
-  await scratchBuffer.setName(`diff_${filePath}`);
+  await scratchBuffer.setName(`${filePath}_${diffId}_diff`);
   await nvim.call("nvim_open_win", [
     scratchBuffer.id,
     true,

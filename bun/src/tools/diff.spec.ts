@@ -4,7 +4,7 @@ import type { ToolRequestId } from "./toolManager";
 import * as path from "path";
 
 describe("tea/diff.spec.ts", () => {
-  it.only("basic diff flow", async () => {
+  it("insert into new file", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
@@ -54,8 +54,7 @@ describe("tea/diff.spec.ts", () => {
       const diffWin = await driver.findWindow(async (w) => {
         const buf = await w.buffer();
         const name = await buf.getName();
-        console.log(`name: ${name}`);
-        return path.basename(name) == "diff_poem.txt";
+        return /poem.txt_message_2_diff$/.test(name);
       });
 
       expect(await diffWin.getOption("diff")).toBe(true);
@@ -64,6 +63,78 @@ describe("tea/diff.spec.ts", () => {
         await (await diffWin.buffer()).getLines({ start: 0, end: -1 })
       ).join("\n");
       expect(diffText).toEqual("a poem");
+    });
+  });
+
+  it("replace in existing file", async () => {
+    await withDriver(async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(
+        `Update the poem in the file bun/test/fixtures/poem.txt`,
+      );
+      await driver.send();
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "ok, I will try to rewrite the poem in that file",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              type: "tool_use",
+              id: "id" as ToolRequestId,
+              name: "replace",
+              input: {
+                filePath: "bun/test/fixtures/poem.txt",
+                match: `Moonlight whispers through the trees,
+Silver shadows dance with ease.
+Stars above like diamonds bright,
+Paint their stories in the night.`,
+                replace: `In gardens wild and flowing free,
+Magenta blooms for all to see.
+Nature's canvas, bold and bright,
+Paints its colors in the light.`,
+              },
+            },
+          },
+        ],
+      });
+
+      const reviewPos =
+        await driver.assertDisplayBufferContains("review edits");
+
+      await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
+      await driver.assertWindowCount(4);
+
+      const poemWin = await driver.findWindow(async (w) => {
+        const buf = await w.buffer();
+        const name = await buf.getName();
+        return /bun\/test\/fixtures\/poem.txt$/.test(name);
+      });
+
+      expect(await poemWin.getOption("diff")).toBe(true);
+
+      const poemText = (
+        await (await poemWin.buffer()).getLines({ start: 0, end: -1 })
+      ).join("\n");
+      expect(poemText).toEqual(
+        "Moonlight whispers through the trees,\nSilver shadows dance with ease.\nStars above like diamonds bright,\nPaint their stories in the night.",
+      );
+
+      const diffWin = await driver.findWindow(async (w) => {
+        const buf = await w.buffer();
+        const name = await buf.getName();
+        return /bun\/test\/fixtures\/poem.txt_message_2_diff$/.test(name);
+      });
+
+      expect(await diffWin.getOption("diff")).toBe(true);
+
+      const diffText = (
+        await (await diffWin.buffer()).getLines({ start: 0, end: -1 })
+      ).join("\n");
+      expect(diffText).toEqual(
+        "In gardens wild and flowing free,\nMagenta blooms for all to see.\nNature's canvas, bold and bright,\nPaints its colors in the light.",
+      );
     });
   });
 });

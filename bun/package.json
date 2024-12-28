@@ -8,8 +8,10 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.33.1",
+    "@types/lodash": "^4.17.13",
     "bunvim": "^1.1.13",
-    "ignore": "^7.0.0"
+    "ignore": "^7.0.0",
+    "lodash": "^4.17.21"
   },
   "scripts": {
     "start": "bun run src/index.ts"

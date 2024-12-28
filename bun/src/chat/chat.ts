@@ -14,6 +14,7 @@ import { context } from "../context.ts";
 import * as ToolManager from "../tools/toolManager.ts";
 import { getClient, type StopReason } from "../anthropic.ts";
 import { type Result } from "../utils/result.ts";
+import lodash from "lodash";
 
 export type Role = "user" | "assistant";
 
@@ -100,6 +101,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
       return [model];
     case "add-message": {
       let message: Message.Model = {
+        id: lodash.uniqueId("message_") as Message.MessageId,
         role: msg.role,
         parts: [],
         edits: {},
@@ -192,6 +194,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
       const lastMessage = model.messages[model.messages.length - 1];
       if (lastMessage?.role !== "assistant") {
         model.messages.push({
+          id: lodash.uniqueId("message_") as Message.MessageId,
           role: "assistant",
           parts: [],
           edits: {},
@@ -212,6 +215,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
       const lastMessage = model.messages[model.messages.length - 1];
       if (lastMessage?.role !== "assistant") {
         model.messages.push({
+          id: lodash.uniqueId("message_") as Message.MessageId,
           role: "assistant",
           parts: [],
           edits: {},
@@ -236,6 +240,7 @@ ${msg.error.stack}`,
       const lastMessage = model.messages[model.messages.length - 1];
       if (lastMessage?.role !== "assistant") {
         model.messages.push({
+          id: lodash.uniqueId("message_") as Message.MessageId,
           role: "assistant",
           parts: [],
           edits: {},
