@@ -12,6 +12,6 @@
     "ignore": "^7.0.0"
   },
   "scripts": {
-    "start": "bun run src/index.ts"
+    "start": "bun run bun/index.ts"
   }
 }

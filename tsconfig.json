@@ -17,6 +17,6 @@
    // "noPropertyAccessFromIndexSignature": true,
     // "noUncheckedIndexedAccess": true
   },
-  "include": ["src/**/*", "test/**/*"],
+  "include": ["bun/**/*"],
   "exclude": ["**/node_modules/**"]
 }
