@@ -17,7 +17,7 @@ M.start = function(silent)
   end
 
   local __filename = debug.getinfo(1, "S").source:sub(2)
-  local plugin_root = vim.fn.fnamemodify(__filename, ":p:h:h:h") .. "/bun/"
+  local plugin_root = vim.fn.fnamemodify(__filename, ":p:h:h:h") .. "/"
 
   local env = {
     IS_DEV = false,
