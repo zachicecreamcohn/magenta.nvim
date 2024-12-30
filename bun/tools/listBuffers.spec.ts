@@ -4,7 +4,7 @@ import { createApp } from "../tea/tea.ts";
 import { describe, it, expect } from "bun:test";
 import { pos } from "../tea/view.ts";
 import { NvimBuffer } from "../nvim/buffer.ts";
-import { withNvimClient } from "../../test/preamble.ts";
+import { withNvimClient } from "../test/preamble.ts";
 
 describe("tea/listBuffers.spec.ts", () => {
   it("render the getFile tool.", async () => {

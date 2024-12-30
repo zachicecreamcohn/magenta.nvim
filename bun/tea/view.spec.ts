@@ -1,4 +1,4 @@
-import { extractMountTree, withNvimClient } from "../../test/preamble.ts";
+import { extractMountTree, withNvimClient } from "../test/preamble.ts";
 import { d, mountView, pos } from "./view.ts";
 import * as assert from "assert";
 import { describe, it } from "bun:test";

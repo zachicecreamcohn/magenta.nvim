@@ -6,7 +6,7 @@ import {
 } from "./util.ts";
 import { pos } from "./view.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
-import { withNvimClient } from "../../test/preamble.ts";
+import { withNvimClient } from "../test/preamble.ts";
 import type { Position0Indexed } from "../nvim/window.ts";
 
 describe("tea/util.spec.ts", () => {
