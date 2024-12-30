@@ -5,7 +5,7 @@ import { createApp } from "../tea/tea.ts";
 import { describe, it } from "bun:test";
 import { pos } from "../tea/view.ts";
 import { NvimBuffer } from "../nvim/buffer.ts";
-import { withNvimClient } from "../../test/preamble.ts";
+import { withNvimClient } from "../test/preamble.ts";
 
 describe("tea/getFile.spec.ts", () => {
   it("render the getFile tool.", async () => {
@@ -42,8 +42,7 @@ describe("tea/getFile.spec.ts", () => {
 
       assert.equal(
         (await buffer.getLines({ start: 0, end: -1 })).join("\n"),
-        `⚙️ Reading file ./file.txt`,
-        "initialRender is as expected",
+        `⚙️ Reading file ./file.txt`
       );
       app.dispatch({
         type: "finish",
@@ -57,8 +56,7 @@ describe("tea/getFile.spec.ts", () => {
       await mountedApp.waitForRender();
       assert.equal(
         (await buffer.getLines({ start: 0, end: -1 })).join("\n"),
-        `✅ Finished reading file ./file.txt`,
-        "initialRender is as expected",
+        `✅ Finished reading file ./file.txt`
       );
     });
   });

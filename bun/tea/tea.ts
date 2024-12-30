@@ -26,18 +26,6 @@ export type View<Msg, Model> = ({
   dispatch: Dispatch<Msg>;
 }) => VDOMNode;
 
-export interface Subscription<SubscriptionType extends string> {
-  /** Must be unique!
-   */
-  id: SubscriptionType;
-}
-
-export type SubscriptionManager<SubscriptionType extends string, Msg> = {
-  [K in SubscriptionType]: {
-    subscribe(dispatch: Dispatch<Msg>): () => void;
-  };
-};
-
 type AppState<Model> =
   | {
       status: "running";
@@ -50,6 +38,7 @@ type AppState<Model> =
 
 export type MountedApp = {
   onKey(key: BindingKey): void;
+  render(): void;
   getMountedNode(): MountedVDOM;
   waitForRender(): Promise<void>;
 };
@@ -61,12 +50,11 @@ export type App<Msg, Model> = {
   getState(): AppState<Model>;
 };
 
-export function createApp<Model, Msg, SubscriptionType extends string>({
+export function createApp<Model, Msg>({
   nvim,
   initialModel,
   update,
   View,
-  sub,
   suppressThunks,
   onUpdate,
 }: {
@@ -78,10 +66,6 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
   /** During testing, we probably don't want thunks to run
    */
   suppressThunks?: boolean;
-  sub?: {
-    subscriptions: (model: Model) => Subscription<SubscriptionType>[];
-    subscriptionManager: SubscriptionManager<SubscriptionType, Msg>;
-  };
 }): App<Msg, Model> {
   let currentState: AppState<Model> = {
     status: "running",
@@ -104,21 +88,20 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
     try {
       const [nextModel, thunk] = update(msg, currentState.model);
 
-      if (thunk && !suppressThunks) {
-        nvim.logger?.debug(`starting thunk`);
-        thunk(dispatch).catch((err) => {
-          nvim.logger?.error(err as Error);
-        });
+      if (thunk) {
+        if (suppressThunks) {
+          nvim.logger?.debug(`thunk suppressed`);
+        } else {
+          nvim.logger?.debug(`starting thunk`);
+          thunk(dispatch).catch((err) => {
+            nvim.logger?.error(err as Error);
+          });
+        }
       }
 
       currentState = { status: "running", model: nextModel };
-      updateSubs(currentState);
 
-      if (renderPromise) {
-        reRender = true;
-      } else {
-        render();
-      }
+      render();
 
       if (onUpdate) {
         onUpdate(msg, currentState.model);
@@ -130,67 +113,32 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
   };
 
   function render() {
-    if (root) {
-      renderPromise = root
-        .render({ currentState, dispatch })
-        .catch((err) => {
-          nvim.logger?.error(err as Error);
-          throw err;
-        })
-        .finally(() => {
-          renderPromise = undefined;
-          if (reRender) {
-            reRender = false;
-            nvim.logger?.debug(`scheduling followup render`);
-            render();
-          }
-        });
-    }
-  }
-
-  const currentSubs: {
-    [id: string]: {
-      sub: Subscription<SubscriptionType>;
-      unsubscribe: () => void;
-    };
-  } = {};
-
-  function updateSubs(currentState: AppState<Model>) {
-    if (!sub) return;
-    if (currentState.status != "running") {
-      for (const subId in currentSubs) {
-        const { unsubscribe } = currentSubs[subId];
-        unsubscribe();
-        delete currentSubs[subId];
-      }
-      return;
-    }
-
-    const subscriptionManager = sub.subscriptionManager;
-
-    const nextSubs = sub.subscriptions(currentState.model);
-    const nextSubsMap: { [id: string]: Subscription<SubscriptionType> } = {};
-
-    for (const sub of nextSubs) {
-      nextSubsMap[sub.id] = sub;
-      if (!currentSubs[sub.id]) {
-        const unsubscribe = subscriptionManager[sub.id].subscribe(dispatch);
-        currentSubs[sub.id] = {
-          sub,
-          unsubscribe,
-        };
-      }
-    }
-
-    for (const id in currentSubs) {
-      if (!nextSubsMap[id]) {
-        currentSubs[id as SubscriptionType].unsubscribe();
-        delete currentSubs[id];
+    nvim.logger?.info(`render`);
+    if (renderPromise) {
+      reRender = true;
+      nvim.logger?.info(`re-render scheduled`);
+    } else {
+      if (root) {
+        nvim.logger?.info(
+          `init renderPromise of state ${JSON.stringify(currentState, null, 2)}`,
+        );
+        renderPromise = root
+          .render({ currentState, dispatch })
+          .catch((err) => {
+            nvim.logger?.error(err as Error);
+            throw err;
+          })
+          .finally(() => {
+            renderPromise = undefined;
+            if (reRender) {
+              reRender = false;
+              nvim.logger?.debug(`followup render triggered`);
+              render();
+            }
+          });
       }
     }
   }
-
-  updateSubs(currentState);
 
   function App({
     currentState,
@@ -228,6 +176,10 @@ export function createApp<Model, Msg, SubscriptionType extends string>({
       return {
         getMountedNode() {
           return root!._getMountedNode();
+        },
+
+        async render() {
+          render();
         },
 
         async waitForRender() {

@@ -1,4 +1,4 @@
-import { extractMountTree, withNvimClient } from "../../test/preamble.ts";
+import { extractMountTree, withNvimClient } from "../test/preamble.ts";
 import * as Chat from "./chat.ts";
 import { type ToolRequestId } from "../tools/toolManager.ts";
 import { createApp } from "../tea/tea.ts";

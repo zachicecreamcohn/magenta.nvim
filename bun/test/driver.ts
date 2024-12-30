@@ -1,12 +1,12 @@
 import { type Nvim } from "bunvim";
-import type { Magenta } from "../src/magenta";
-import type { Line } from "../src/nvim/buffer";
-import type { MockClient } from "../src/anthropic-mock";
-import { NvimWindow, pos0to1, type Position0Indexed } from "../src/nvim/window";
-import { pollUntil } from "../src/utils/async";
-import { calculatePosition } from "../src/tea/util";
-import type { BindingKey } from "../src/tea/bindings";
-import { getAllWindows } from "../src/nvim/nvim";
+import type { Magenta } from "../magenta";
+import type { Line } from "../nvim/buffer";
+import type { MockClient } from "../anthropic-mock";
+import { NvimWindow, pos0to1, type Position0Indexed } from "../nvim/window";
+import { pollUntil } from "../utils/async";
+import { calculatePosition } from "../tea/util";
+import type { BindingKey } from "../tea/bindings";
+import { getAllWindows } from "../nvim/nvim";
 
 export class NvimDriver {
   constructor(
@@ -140,5 +140,9 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
       },
       { timeout: 200 },
     );
+  }
+
+  async editFile(filePath: string): Promise<void> {
+    await this.nvim.call("nvim_exec2", [`edit ${filePath}`, {}]);
   }
 }

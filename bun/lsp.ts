@@ -1,5 +1,6 @@
 import { type Nvim } from "bunvim";
 import type { NvimBuffer } from "./nvim/buffer.ts";
+import type { PositionString } from "./nvim/window.ts";
 
 export class Lsp {
   private requestCounter = 0;
@@ -21,8 +22,7 @@ export class Lsp {
 
   requestHover(
     buffer: NvimBuffer,
-    row: number,
-    col: number,
+    pos: PositionString,
   ): Promise<LspHoverResponse> {
     return new Promise<LspHoverResponse>((resolve, reject) => {
       const requestId = this.getRequestId();
@@ -37,8 +37,8 @@ export class Lsp {
               uri = vim.uri_from_bufnr(${buffer.id})
           },
           position = {
-              line = ${row},
-              character = ${col}
+              line = ${pos.row},
+              character = ${pos.col}
           }
         }, function(responses)
           require('magenta').lsp_response("${requestId}", responses)
@@ -54,8 +54,7 @@ export class Lsp {
 
   requestReferences(
     buffer: NvimBuffer,
-    row: number,
-    col: number,
+    pos: PositionString,
   ): Promise<LspReferencesResponse> {
     return new Promise((resolve, reject) => {
       const requestId = this.getRequestId();
@@ -70,8 +69,8 @@ export class Lsp {
               uri = vim.uri_from_bufnr(${buffer.id})
           },
           position = {
-              line = ${row},
-              character = ${col}
+              line = ${pos.row},
+              character = ${pos.col}
           },
           context = {
               includeDeclaration = true

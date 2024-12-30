@@ -1,12 +1,12 @@
 import { attach, type Nvim } from "bunvim";
 import { unlink } from "node:fs/promises";
 import { spawn } from "child_process";
-import { type MountedVDOM } from "../src/tea/view.ts";
-import { assertUnreachable } from "../src/utils/assertUnreachable.ts";
+import { type MountedVDOM } from "../tea/view.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import path from "path";
-import { delay } from "../src/utils/async.ts";
-import { Magenta } from "../src/magenta.ts";
-import { withMockClient } from "../src/anthropic-mock.ts";
+import { delay } from "../utils/async.ts";
+import { Magenta } from "../magenta.ts";
+import { withMockClient } from "../anthropic-mock.ts";
 import { NvimDriver } from "./driver.ts";
 
 const SOCK = `/tmp/magenta-test.sock`;

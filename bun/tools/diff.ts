@@ -88,13 +88,23 @@ export async function displayDiffs({
       }
 
       case "replace": {
-        const replaceStart = content.indexOf(edit.input.match);
-        const replaceEnd = replaceStart + edit.input.match.length;
+        const replaceStart = content.indexOf(edit.input.startLine);
+        const replaceEnd =
+          content.indexOf(edit.input.endLine, replaceStart) +
+          edit.input.endLine.length;
 
         if (replaceStart == -1) {
           dispatch({
             type: "error",
-            message: `Unable to find match parameter ${edit.input.match} in file ${filePath}`,
+            message: `Unable to find startLine ${edit.input.startLine} in file ${filePath}`,
+          });
+          continue;
+        }
+
+        if (replaceEnd == -1) {
+          dispatch({
+            type: "error",
+            message: `Unable to find endLine ${edit.input.endLine} in file ${filePath}`,
           });
           continue;
         }

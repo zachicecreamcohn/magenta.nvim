@@ -234,7 +234,7 @@ ${model.edits[filePath].requestIds.map(
           type: "tool-manager-msg",
           msg,
         }),
-    )}`,
+    )}\n`,
 )}\n`,
       );
     }

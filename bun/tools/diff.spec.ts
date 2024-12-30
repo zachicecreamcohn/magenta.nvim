@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { withDriver } from "../../test/preamble";
+import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "./toolManager";
 import * as path from "path";
 
-describe("tea/diff.spec.ts", () => {
+describe("bun/tools/diff.spec.ts", () => {
   it("insert into new file", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
@@ -66,7 +66,7 @@ describe("tea/diff.spec.ts", () => {
     });
   });
 
-  it.only("replace in existing file", async () => {
+  it("replace in existing file", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
@@ -86,10 +86,8 @@ describe("tea/diff.spec.ts", () => {
               name: "replace",
               input: {
                 filePath: "bun/test/fixtures/poem.txt",
-                match: `Moonlight whispers through the trees,
-Silver shadows dance with ease.
-Stars above like diamonds bright,
-Paint their stories in the night.`,
+                startLine: `Moonlight whispers through the trees,`,
+                endLine: `Paint their stories in the night.`,
                 replace: `In gardens wild and flowing free,
 Magenta blooms for all to see.
 Nature's canvas, bold and bright,
@@ -138,7 +136,7 @@ Paints its colors in the light.`,
     });
   });
 
-  it.only("multiple messages editing same file", async () => {
+  it("multiple messages editing same file", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(

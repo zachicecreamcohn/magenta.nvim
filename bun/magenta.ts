@@ -6,8 +6,7 @@ import { pos } from "./tea/view.ts";
 import type { Nvim } from "bunvim";
 import { Lsp } from "./lsp.ts";
 
-// import { delay } from "./utils/async.ts";
-// these should match lua/magenta/init.lua
+// these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
 const MAGENTA_ON_WINDOW_CLOSED = "magentaWindowClosed";
 const MAGENTA_KEY = "magentaKey";
@@ -28,34 +27,6 @@ export class Magenta {
     this.chatApp = TEA.createApp({
       nvim: this.nvim,
       initialModel: chatModel.initModel(),
-      // sub: {
-      //   subscriptions: (model) => {
-      //     if (model.messageInFlight) {
-      //       return [{ id: "ticker" } as const];
-      //     }
-      //     return [];
-      //   },
-      //   subscriptionManager: {
-      //     ticker: {
-      //       subscribe(dispatch) {
-      //         let running = true;
-      //         const tick = async () => {
-      //           while (running) {
-      //             dispatch({ type: "tick" });
-      //             await delay(100);
-      //           }
-      //         };
-      //
-      //         // eslint-disable-next-line @typescript-eslint/no-floating-promises
-      //         tick();
-      //
-      //         return () => {
-      //           running = false;
-      //         };
-      //       },
-      //     },
-      //   },
-      // },
       update: chatModel.update,
       View: chatModel.view,
     });

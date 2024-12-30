@@ -24,6 +24,9 @@ jobs:
       with:
         bun-version-file: ".bun-version"
 
+    - name: Install typescript-language-server
+      run: bun add -g typescript-language-server typescript
+
     - name: Install dependencies
       run: bun install --frozen-lockfile
 

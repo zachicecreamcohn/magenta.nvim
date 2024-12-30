@@ -1,9 +1,8 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import { d, mountView, pos } from "./view.ts";
 import * as assert from "assert";
 import { describe, it } from "bun:test";
 import { NvimBuffer } from "../nvim/buffer.ts";
-import { withNvimClient } from "../../test/preamble.ts";
+import { withNvimClient } from "../test/preamble.ts";
 
 describe("tea/update.spec.ts", () => {
   it("updates to and from empty string", async () => {

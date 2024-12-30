@@ -7,7 +7,6 @@ import { type Result } from "../utils/result.ts";
 
 export type Model = {
   type: "replace";
-  autoRespond: boolean;
   request: ReplaceToolRequest;
   state: {
     state: "done";
@@ -40,7 +39,6 @@ export const update: Update<Msg, Model> = (msg, model) => {
 export function initModel(request: ReplaceToolRequest): [Model] {
   const model: Model = {
     type: "replace",
-    autoRespond: true,
     request,
     state: {
       state: "done",
@@ -62,12 +60,13 @@ export function view({
   model: Model;
   dispatch: Dispatch<Msg>;
 }): VDOMNode {
-  return d`Replace [[ +${(
-    model.request.input.replace.match(/\n/g) || []
-  ).length.toString()} / -${(
-    model.request.input.match.match(/\n/g) || []
-  ).length.toString()} ]] in ${model.request.input.filePath}
-${toolStatusView({ model, dispatch })}`;
+  return d`Replace [[ -? / +${countLines(
+    model.request.input.replace,
+  ).toString()} ]] in ${model.request.input.filePath} ${toolStatusView({ model, dispatch })}`;
+}
+
+function countLines(str: string) {
+  return (str.match(/\n/g) || []).length + 1;
 }
 
 function toolStatusView({
@@ -108,18 +107,24 @@ Break up replace opertations into multiple, smaller tool invocations to avoid re
         type: "string",
         description: "Path of the file to modify.",
       },
-      match: {
+      startLine: {
         type: "string",
-        description: `Replace this text. \
-This should be the literal text of the file. Regular expressions are not supported. \
-If multiple locations in the file match this text, the first match will be used.`,
+        description: `Replace text starting with and including this line.
+This should be the exact and complete single line, including indentation.
+If multiple locations in the file match this line, the first line will be used.`,
+      },
+      endLine: {
+        type: "string",
+        description: `Replace text up to and including this line.
+This should be the exact and complete single line, including indentation.
+If multiple locations in the file match this line, the first line will be used.`,
       },
       replace: {
         type: "string",
         description: "New content that will replace the existing text.",
       },
     },
-    required: ["filePath", "match", "replace"],
+    required: ["filePath", "startLine", "endLine", "replace"],
   },
 };
 
@@ -129,7 +134,8 @@ export type ReplaceToolRequest = {
   name: "replace";
   input: {
     filePath: string;
-    match: string;
+    startLine: string;
+    endLine: string;
     replace: string;
   };
 };
@@ -139,7 +145,9 @@ export function displayRequest(request: ReplaceToolRequest) {
     filePath: ${request.input.filePath}
     match:
 \`\`\`
-${request.input.match}"
+${request.input.startLine}
+...
+${request.input.endLine}
 \`\`\`
     replace:
 \`\`\`
@@ -180,10 +188,17 @@ export function validateToolRequest(req: unknown): Result<ReplaceToolRequest> {
     };
   }
 
-  if (typeof input.match != "string") {
+  if (typeof input.startLine != "string") {
     return {
       status: "error",
-      error: "expected req.input.match to be a string",
+      error: "expected req.input.startLine to be a string",
+    };
+  }
+
+  if (typeof input.endLine != "string") {
+    return {
+      status: "error",
+      error: "expected req.input.endLine to be a string",
     };
   }
 
