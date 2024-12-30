@@ -4,7 +4,7 @@ import { withDriver } from "../test/preamble";
 import { pollUntil } from "../utils/async.ts";
 
 describe("bun/tools/findReferences.spec.ts", () => {
-  it.only("findReferences end-to-end", async () => {
+  it("findReferences end-to-end", async () => {
     await withDriver(async (driver) => {
       await driver.editFile("bun/test/fixtures/test.ts");
       await driver.showSidebar();

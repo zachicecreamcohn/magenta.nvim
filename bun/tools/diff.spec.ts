@@ -86,10 +86,8 @@ describe("bun/tools/diff.spec.ts", () => {
               name: "replace",
               input: {
                 filePath: "bun/test/fixtures/poem.txt",
-                match: `Moonlight whispers through the trees,
-Silver shadows dance with ease.
-Stars above like diamonds bright,
-Paint their stories in the night.`,
+                startLine: `Moonlight whispers through the trees,`,
+                endLine: `Paint their stories in the night.`,
                 replace: `In gardens wild and flowing free,
 Magenta blooms for all to see.
 Nature's canvas, bold and bright,
