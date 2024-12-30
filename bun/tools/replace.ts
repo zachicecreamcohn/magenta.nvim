@@ -62,12 +62,15 @@ export function view({
   model: Model;
   dispatch: Dispatch<Msg>;
 }): VDOMNode {
-  return d`Replace [[ +${(
-    model.request.input.replace.match(/\n/g) || []
-  ).length.toString()} / -${(
-    model.request.input.match.match(/\n/g) || []
-  ).length.toString()} ]] in ${model.request.input.filePath}
-${toolStatusView({ model, dispatch })}`;
+  return d`Replace [[ -${countLines(
+    model.request.input.match,
+  ).toString()} / +${countLines(
+    model.request.input.replace,
+  ).toString()} ]] in ${model.request.input.filePath} ${toolStatusView({ model, dispatch })}`;
+}
+
+function countLines(str: string) {
+  return (str.match(/\n/g) || []).length + 1;
 }
 
 function toolStatusView({
@@ -139,7 +142,7 @@ export function displayRequest(request: ReplaceToolRequest) {
     filePath: ${request.input.filePath}
     match:
 \`\`\`
-${request.input.match}"
+${request.input.match}
 \`\`\`
     replace:
 \`\`\`
