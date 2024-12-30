@@ -7,7 +7,6 @@ import { type Result } from "../utils/result.ts";
 
 export type Model = {
   type: "insert";
-  autoRespond: boolean;
   request: InsertToolUseRequest;
   state: {
     state: "done";
@@ -40,7 +39,6 @@ export const update: Update<Msg, Model> = (msg, model) => {
 export function initModel(request: InsertToolUseRequest): [Model] {
   const model: Model = {
     type: "insert",
-    autoRespond: true,
     request,
     state: {
       state: "done",

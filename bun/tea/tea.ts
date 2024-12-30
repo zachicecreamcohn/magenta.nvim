@@ -95,9 +95,10 @@ export function createApp<Model, Msg>({
         });
       }
 
-      render();
 
       currentState = { status: "running", model: nextModel };
+
+      render();
 
       if (onUpdate) {
         onUpdate(msg, currentState.model);
@@ -109,10 +110,13 @@ export function createApp<Model, Msg>({
   };
 
   function render() {
+    nvim.logger?.info(`render`)
     if (renderPromise) {
       reRender = true;
+      nvim.logger?.info(`re-render scheduled`)
     } else {
       if (root) {
+        nvim.logger?.info(`init renderPromise of state ${JSON.stringify(currentState, null, 2)}`)
         renderPromise = root
           .render({ currentState, dispatch })
           .catch((err) => {
@@ -123,7 +127,7 @@ export function createApp<Model, Msg>({
             renderPromise = undefined;
             if (reRender) {
               reRender = false;
-              nvim.logger?.debug(`scheduling followup render`);
+              nvim.logger?.debug(`followup render triggered`);
               render();
             }
           });

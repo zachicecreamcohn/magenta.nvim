@@ -10,7 +10,6 @@ import type { Nvim } from "bunvim";
 
 export type Model = {
   type: "list_buffers";
-  autoRespond: boolean;
   request: ListBuffersToolRequest;
   state:
     | {
@@ -50,7 +49,6 @@ export function initModel(
 ): [Model, Thunk<Msg>] {
   const model: Model = {
     type: "list_buffers",
-    autoRespond: true,
     request,
     state: {
       state: "processing",

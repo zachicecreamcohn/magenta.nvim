@@ -6,8 +6,8 @@ import { pos } from "../tea/view.ts";
 import { NvimBuffer } from "../nvim/buffer.ts";
 import { withNvimClient } from "../test/preamble.ts";
 
-describe("tea/listBuffers.spec.ts", () => {
-  it("render the getFile tool.", async () => {
+describe("bun/tools/listBuffers.spec.ts", () => {
+  it("render the listBuffers tool.", async () => {
     await withNvimClient(async (nvim) => {
       const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
@@ -42,7 +42,6 @@ describe("tea/listBuffers.spec.ts", () => {
 
       expect(
         content,
-        // "initial render of list buffers tool is as expected",
       ).toBe(`⚙️ Grabbing buffers...`);
 
       app.dispatch({
@@ -56,8 +55,7 @@ describe("tea/listBuffers.spec.ts", () => {
 
       await mountedApp.waitForRender();
       expect(
-        (await buffer.getLines({ start: 0, end: -1 })).join("\n"),
-        "initialRender is as expected",
+        (await buffer.getLines({ start: 0, end: -1 })).join("\n")
       ).toBe(`✅ Finished getting buffers.`);
     });
   });

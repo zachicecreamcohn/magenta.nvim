@@ -6,8 +6,6 @@ import { pos } from "./tea/view.ts";
 import type { Nvim } from "bunvim";
 import { Lsp } from "./lsp.ts";
 
-import { delay } from "./utils/async.ts";
-
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
 const MAGENTA_ON_WINDOW_CLOSED = "magentaWindowClosed";
@@ -32,17 +30,6 @@ export class Magenta {
       update: chatModel.update,
       View: chatModel.view,
     });
-
-    this.animate();
-  }
-
-  async animate() {
-    while (true) {
-      if (this.mountedChatApp) {
-        this.mountedChatApp.render();
-      }
-      await delay(333);
-    }
   }
 
   async command(command: string): Promise<void> {

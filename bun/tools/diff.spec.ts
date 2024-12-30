@@ -3,7 +3,7 @@ import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "./toolManager";
 import * as path from "path";
 
-describe("tea/diff.spec.ts", () => {
+describe("bun/tools/diff.spec.ts", () => {
   it("insert into new file", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
@@ -66,7 +66,7 @@ describe("tea/diff.spec.ts", () => {
     });
   });
 
-  it.only("replace in existing file", async () => {
+  it("replace in existing file", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
@@ -138,7 +138,7 @@ Paints its colors in the light.`,
     });
   });
 
-  it.only("multiple messages editing same file", async () => {
+  it("multiple messages editing same file", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
