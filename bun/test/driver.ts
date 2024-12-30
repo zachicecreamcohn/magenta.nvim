@@ -141,4 +141,8 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
       { timeout: 200 },
     );
   }
+
+  async editFile(filePath: string): Promise<void> {
+    await this.nvim.call("nvim_exec2", [`edit ${filePath}`, {}]);
+  }
 }

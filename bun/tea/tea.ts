@@ -88,13 +88,16 @@ export function createApp<Model, Msg>({
     try {
       const [nextModel, thunk] = update(msg, currentState.model);
 
-      if (thunk && !suppressThunks) {
-        nvim.logger?.debug(`starting thunk`);
-        thunk(dispatch).catch((err) => {
-          nvim.logger?.error(err as Error);
-        });
+      if (thunk) {
+        if (suppressThunks) {
+          nvim.logger?.debug(`thunk suppressed`);
+        } else {
+          nvim.logger?.debug(`starting thunk`);
+          thunk(dispatch).catch((err) => {
+            nvim.logger?.error(err as Error);
+          });
+        }
       }
-
 
       currentState = { status: "running", model: nextModel };
 
@@ -110,13 +113,15 @@ export function createApp<Model, Msg>({
   };
 
   function render() {
-    nvim.logger?.info(`render`)
+    nvim.logger?.info(`render`);
     if (renderPromise) {
       reRender = true;
-      nvim.logger?.info(`re-render scheduled`)
+      nvim.logger?.info(`re-render scheduled`);
     } else {
       if (root) {
-        nvim.logger?.info(`init renderPromise of state ${JSON.stringify(currentState, null, 2)}`)
+        nvim.logger?.info(
+          `init renderPromise of state ${JSON.stringify(currentState, null, 2)}`,
+        );
         renderPromise = root
           .render({ currentState, dispatch })
           .catch((err) => {

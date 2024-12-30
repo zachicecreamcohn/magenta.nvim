@@ -1,12 +1,11 @@
 import * as Anthropic from "@anthropic-ai/sdk";
-import path from "path";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Thunk, Update } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
 import { type ToolRequestId } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
-import { getAllBuffers, getcwd } from "../nvim/nvim.ts";
 import type { Nvim } from "bunvim";
+import { parseLsResponse } from "../utils/lsBuffers.ts";
 
 export type Model = {
   type: "list_buffers";
@@ -57,21 +56,35 @@ export function initModel(
   return [
     model,
     async (dispatch) => {
-      const buffers = await getAllBuffers(context.nvim);
-      const cwd = await getcwd(context.nvim);
-      const bufferPaths = await Promise.all(
-        buffers.map(async (buffer) => {
-          const fullPath = await buffer.getName();
-          return fullPath.length ? path.relative(cwd, fullPath) : "";
-        }),
-      );
+      const lsResponse = await context.nvim.call("nvim_exec2", [
+        "ls",
+        { output: true },
+      ]);
+
+      const result = parseLsResponse(lsResponse.output as string);
+      const content = result
+        .map((bufEntry) => {
+          let out = "";
+          if (bufEntry.flags.active) {
+            out += "active ";
+          }
+          if (bufEntry.flags.modified) {
+            out += "modified ";
+          }
+          if (bufEntry.flags.terminal) {
+            out += "terminal ";
+          }
+          out += bufEntry.filePath;
+          return out;
+        })
+        .join("\n");
 
       dispatch({
         type: "finish",
         result: {
           type: "tool_result",
           tool_use_id: request.id,
-          content: bufferPaths.filter((p) => p.length).join("\n"),
+          content,
         },
       });
     },
@@ -108,7 +121,9 @@ export function getToolResult(
 
 export const spec: Anthropic.Anthropic.Tool = {
   name: "list_buffers",
-  description: `List the file paths of all the buffers the user currently has open. This can be useful to understand the context of what the user is trying to do.`,
+  description: `List all the buffers the user currently has open.
+This will be similar to the output of :buffers in neovim, so buffers will be listed in the order they were opened, with the most recent buffers last.
+This can be useful to understand the context of what the user is trying to do.`,
   input_schema: {
     type: "object",
     properties: {},
