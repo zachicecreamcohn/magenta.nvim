@@ -1,6 +1,11 @@
 import type { Nvim } from "bunvim";
 import type { Line, NvimBuffer } from "../nvim/buffer.ts";
-import type { ByteIdx, Position0Indexed } from "../nvim/window.ts";
+import type {
+  PositionString,
+  ByteIdx,
+  Position0Indexed,
+  StringIdx,
+} from "../nvim/window.ts";
 
 export async function replaceBetweenPositions({
   buffer,
@@ -37,16 +42,38 @@ export async function replaceBetweenPositions({
 export function calculatePosition(
   startPos: Position0Indexed,
   buf: Buffer,
-  indexInText: number,
+  indexInText: ByteIdx,
 ): Position0Indexed {
   let { row, col } = startPos;
-  let currentIndex = 0;
+  let currentIndex: ByteIdx = 0 as ByteIdx;
 
   while (currentIndex < indexInText) {
     // 10 == '\n' in hex
     if (buf[currentIndex] == 10) {
       row++;
       col = 0 as ByteIdx;
+    } else {
+      col++;
+    }
+    currentIndex++;
+  }
+
+  return { row, col };
+}
+
+export function calculateStringPosition(
+  startPos: PositionString,
+  content: string,
+  indexInText: StringIdx,
+): PositionString {
+  let { row, col } = startPos;
+  let currentIndex = 0 as StringIdx;
+
+  while (currentIndex < indexInText) {
+    // 10 == '\n' in hex
+    if (content[currentIndex] == "\n") {
+      row++;
+      col = 0 as StringIdx;
     } else {
       col++;
     }

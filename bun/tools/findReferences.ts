@@ -7,11 +7,15 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { getOrOpenBuffer } from "../utils/buffers.ts";
 import type { NvimBuffer } from "../nvim/buffer.ts";
 import type { Nvim } from "bunvim";
-import type { Lsp } from "../lsp.ts";
+import path from "path";
+import { getcwd } from "../nvim/nvim.ts";
+import type { Lsp } from "../lsp.ts";import { getcwd } from "../nvim/nvim.ts";
+import path from "path";
+import { calculateStringPosition } from "../tea/util.ts";
+import type { PositionString, StringIdx } from "../nvim/window.ts";
 
 export type Model = {
   type: "find_references";
-  autoRespond: boolean;
   request: ReferencesToolUseRequest;
   state:
     | {
@@ -51,7 +55,6 @@ export function initModel(
 ): [Model, Thunk<Msg>] {
   const model: Model = {
     type: "find_references",
-    autoRespond: true,
     request,
     state: {
       state: "processing",
@@ -62,7 +65,6 @@ export function initModel(
     async (dispatch) => {
       const { lsp, nvim } = context;
       const filePath = model.request.input.filePath;
-      context.nvim.logger?.debug(`request: ${JSON.stringify(model.request)}`);
       const bufferResult = await getOrOpenBuffer({
         relativePath: filePath,
         context: { nvim },
@@ -85,31 +87,11 @@ export function initModel(
         });
         return;
       }
+      const symbolStart = bufferContent.indexOf(
+        model.request.input.symbol,
+      ) as StringIdx;
 
-      let searchText = bufferContent;
-      let startOffset = 0;
-
-      // If context is provided, find it first
-      if (model.request.input.context) {
-        const contextIndex = bufferContent.indexOf(model.request.input.context);
-        if (contextIndex === -1) {
-          dispatch({
-            type: "finish",
-            result: {
-              type: "tool_result",
-              tool_use_id: model.request.id,
-              content: `Context not found in file.`,
-              is_error: true,
-            },
-          });
-          return;
-        }
-        searchText = model.request.input.context;
-        startOffset = contextIndex;
-      }
-
-      const symbolIndex = searchText.indexOf(model.request.input.symbol);
-      if (symbolIndex === -1) {
+      if (symbolStart === -1) {
         dispatch({
           type: "finish",
           result: {
@@ -122,22 +104,22 @@ export function initModel(
         return;
       }
 
-      const absoluteSymbolIndex = startOffset + symbolIndex;
-      const precedingText = bufferContent.substring(0, absoluteSymbolIndex);
-      const row = precedingText.split("\n").length - 1;
-      const lastNewline = precedingText.lastIndexOf("\n");
-      const col =
-        lastNewline === -1
-          ? absoluteSymbolIndex
-          : absoluteSymbolIndex - lastNewline - 1;
+      const symbolPos = calculateStringPosition(
+        { row: 0, col: 0 } as PositionString,
+        bufferContent,
+        (symbolStart + model.request.input.symbol.length - 1) as StringIdx,
+      );
 
       try {
-        const result = await lsp.requestReferences(buffer, row, col);
+        const cwd = await getcwd(nvim);
+        const result = await lsp.requestReferences(buffer, symbolPos);
         let content = "";
         for (const lspResult of result) {
           if (lspResult != null && lspResult.result) {
             for (const ref of lspResult.result) {
-              content += `${ref.uri}:${ref.range.start.line + 1}:${ref.range.start.character}\n`;
+              const uri = ref.uri.startsWith('file://') ? ref.uri.slice(7) : ref.uri;
+              const relativePath = path.relative(cwd, uri);
+              content += `${relativePath}:${ref.range.start.line + 1}:${ref.range.start.character}\n`;
             }
           }
         }
@@ -204,14 +186,9 @@ export const spec: Anthropic.Anthropic.Tool = {
       },
       symbol: {
         type: "string",
-        description:
-          "The symbol to find references for. We will use the first occurrence of the symbol.",
-      },
-      context: {
-        type: "string",
-        description: `Optionally, you can disambiguate which instance of the symbol you want to find references for. \
-If context is provided, we will first find the first instance of context in the file, and then look for the symbol inside the context. \
-This should be the literal text of the file. Regular expressions are not allowed.`,
+        description: `The symbol to find references for.
+We will use the first occurrence of the symbol.
+We will use the right-most character of this string, so if the string is "a.b.c", we will find references for c.`,
       },
     },
     required: ["filePath", "symbol"],
@@ -224,7 +201,6 @@ export type ReferencesToolUseRequest = {
   input: {
     filePath: string;
     symbol: string;
-    context?: string;
   };
   name: "find_references";
 };
@@ -269,13 +245,6 @@ export function validateToolRequest(
 
   if (typeof input.symbol != "string") {
     return { status: "error", error: "expected input.symbol to be a string" };
-  }
-
-  if (input.context && typeof input.context != "string") {
-    return {
-      status: "error",
-      error: "input.context must be a string if provided",
-    };
   }
 
   return {
