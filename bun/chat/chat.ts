@@ -421,7 +421,7 @@ ${msg.error.stack}`,
     };
   }
 
-  const MESSAGE_ANIMATION = [".", "..", "..."];
+  const MESSAGE_ANIMATION = ["⠁", "⠂", "⠄", "⠂"];
 
   const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
     model,
@@ -443,7 +443,7 @@ ${msg.error.stack}`,
               Math.floor(
                 (new Date().getTime() - model.conversation.sendDate.getTime()) /
                   333,
-              ) % 3
+              ) % MESSAGE_ANIMATION.length
             ]
           }`
         : d`Stopped (${model.conversation.stopReason || ""})`
