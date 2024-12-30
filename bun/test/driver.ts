@@ -2,7 +2,12 @@ import { type Nvim } from "bunvim";
 import type { Magenta } from "../magenta";
 import type { Line } from "../nvim/buffer";
 import type { MockClient } from "../anthropic-mock";
-import { NvimWindow, pos0to1, type Position0Indexed } from "../nvim/window";
+import {
+  NvimWindow,
+  pos0to1,
+  type ByteIdx,
+  type Position0Indexed,
+} from "../nvim/window";
 import { pollUntil } from "../utils/async";
 import { calculatePosition } from "../tea/util";
 import type { BindingKey } from "../tea/bindings";
@@ -61,10 +66,10 @@ export class NvimDriver {
       const displayBuffer = this.getDisplayBuffer();
       const lines = await displayBuffer.getLines({ start: 0, end: -1 });
       const content = lines.slice(start).join("\n");
-      const index = content.indexOf(text);
+      const index = Buffer.from(content).indexOf(text) as ByteIdx;
       if (index == -1) {
         throw new Error(
-          `Unable to find text ${text} after line ${start} in displayBuffer`,
+          `Unable to find text:\n"${text}"\nafter line ${start} in displayBuffer.\ndisplayBuffer content:\n${content}`,
         );
       }
 

@@ -207,6 +207,37 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
     return [model];
   };
 
+  const renderEdit = (
+    toolManager: ToolManager.Model,
+    requestId: ToolManager.ToolRequestId,
+    dispatch: Dispatch<Msg>,
+  ) => {
+    return withBindings(
+      d`    ${toolManagerModel.renderTool(
+        toolManager.toolWrappers[requestId],
+        (msg) =>
+          dispatch({
+            type: "tool-manager-msg",
+            msg,
+          }),
+      )}\n`,
+      {
+        "<CR>": () => {
+          const model = toolManager.toolWrappers[requestId];
+          dispatch({
+            type: "tool-manager-msg",
+            msg: {
+              type: "toggle-display",
+              id: model.model.request.id,
+              showRequest: !model.showRequest,
+              showResult: !model.showResult,
+            },
+          });
+        },
+      },
+    );
+  };
+
   const view: View<{
     model: Model;
     toolManager: ToolManager.Model;
@@ -225,16 +256,8 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
 
       fileEdits.push(
         d`  ${filePath} (${edit.requestIds.length.toString()} edits).${edit.status.status == "error" ? d`\nError applying edit: ${edit.status.message}\n` : ""} ${reviewEdit}
-${model.edits[filePath].requestIds.map(
-  (requestId) =>
-    d`    ${toolManagerModel.renderTool(
-      toolManager.toolWrappers[requestId],
-      (msg) =>
-        dispatch({
-          type: "tool-manager-msg",
-          msg,
-        }),
-    )}\n`,
+${model.edits[filePath].requestIds.map((requestId) =>
+  renderEdit(toolManager, requestId, dispatch),
 )}\n`,
       );
     }

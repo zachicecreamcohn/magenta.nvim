@@ -90,13 +90,13 @@ export async function displayDiffs({
       case "replace": {
         const replaceStart = content.indexOf(edit.input.startLine);
         const replaceEnd =
-          content.indexOf(edit.input.endLine, replaceStart) +
+          content.indexOf(edit.input.endLine, replaceStart - 1) +
           edit.input.endLine.length;
 
         if (replaceStart == -1) {
           dispatch({
             type: "error",
-            message: `Unable to find startLine ${edit.input.startLine} in file ${filePath}`,
+            message: `Unable to find startLine "${edit.input.startLine}" in file ${filePath}`,
           });
           continue;
         }
@@ -104,7 +104,7 @@ export async function displayDiffs({
         if (replaceEnd == -1) {
           dispatch({
             type: "error",
-            message: `Unable to find endLine ${edit.input.endLine} in file ${filePath}`,
+            message: `Unable to find endLine "${edit.input.endLine}" in file ${filePath}`,
           });
           continue;
         }
