@@ -199,8 +199,7 @@ export class Sidebar {
       }
 
       if (pos) {
-        displayWindow.setCursor(pos);
-        // execute zt in the target window
+        await displayWindow.setCursor(pos);
         await displayWindow.zt();
       }
     }

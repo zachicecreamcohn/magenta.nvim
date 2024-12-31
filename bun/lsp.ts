@@ -47,7 +47,7 @@ export class Lsp {
           [],
         ])
         .catch((err: Error) => {
-          this.rejectRequest(requestId, err as Error);
+          this.rejectRequest(requestId, err);
         });
     });
   }
@@ -82,7 +82,7 @@ export class Lsp {
           [],
         ])
         .catch((err: Error) => {
-          this.rejectRequest(requestId, err as Error);
+          this.rejectRequest(requestId, err);
         });
     });
   }

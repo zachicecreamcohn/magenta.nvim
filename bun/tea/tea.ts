@@ -39,13 +39,13 @@ type AppState<Model> =
 export type MountedApp = {
   onKey(key: BindingKey): void;
   render(): void;
+  unmount(): void;
   getMountedNode(): MountedVDOM;
   waitForRender(): Promise<void>;
 };
 
 export type App<Msg, Model> = {
   mount(mount: MountPoint): Promise<MountedApp>;
-  unmount(): void;
   dispatch: Dispatch<Msg>;
   getState(): AppState<Model>;
 };
@@ -81,7 +81,6 @@ export function createApp<Model, Msg>({
   const dispatch = (msg: Msg) => {
     nvim.logger?.debug(`dispatch msg: ${JSON.stringify(msg)}`);
     if (currentState.status == "error") {
-      currentState;
       return;
     }
 
@@ -178,7 +177,14 @@ export function createApp<Model, Msg>({
           return root!._getMountedNode();
         },
 
-        async render() {
+        unmount() {
+          if (root) {
+            root.unmount();
+            root = undefined;
+          }
+        },
+
+        render() {
           render();
         },
 
@@ -214,12 +220,6 @@ export function createApp<Model, Msg>({
           }
         },
       };
-    },
-    unmount() {
-      if (root) {
-        root.unmount();
-        root = undefined;
-      }
     },
     dispatch,
     getState() {

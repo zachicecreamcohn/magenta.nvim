@@ -39,8 +39,8 @@ export class NvimDriver {
     });
   }
 
-  async send() {
-    this.magenta.command("send");
+  send() {
+    return this.magenta.command("send");
   }
 
   getDisplayBuffer() {
@@ -84,7 +84,7 @@ export class NvimDriver {
   async triggerDisplayBufferKey(pos: Position0Indexed, key: BindingKey) {
     const { displayWindow } = this.getVisibleState();
     await this.nvim.call("nvim_set_current_win", [displayWindow.id]);
-    displayWindow.setCursor(pos0to1(pos));
+    await displayWindow.setCursor(pos0to1(pos));
 
     await this.nvim.call("nvim_exec_lua", [
       `\

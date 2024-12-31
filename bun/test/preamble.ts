@@ -1,10 +1,10 @@
 import { attach, type Nvim } from "bunvim";
-import { unlink } from "node:fs/promises";
+import { unlink, exists } from "node:fs/promises";
 import { spawn } from "child_process";
 import { type MountedVDOM } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import path from "path";
-import { delay } from "../utils/async.ts";
+import { pollUntil } from "../utils/async.ts";
 import { Magenta } from "../magenta.ts";
 import { withMockClient } from "../anthropic-mock.ts";
 import { NvimDriver } from "./driver.ts";
@@ -13,6 +13,7 @@ const SOCK = `/tmp/magenta-test.sock`;
 export async function withNvimProcess(fn: (sock: string) => Promise<void>) {
   try {
     await unlink(SOCK);
+    console.log("unlinked socket");
   } catch (e) {
     if ((e as { code: string }).code !== "ENOENT") {
       console.error(e);
@@ -45,8 +46,16 @@ export async function withNvimProcess(fn: (sock: string) => Promise<void>) {
       }
     });
 
-    // give enough time for socket to be created
-    await delay(500);
+    await pollUntil(
+      async () => {
+        if (await exists(SOCK)) {
+          console.log("socket ready");
+          return true;
+        }
+        throw new Error("socket not ready");
+      },
+      { timeout: 500 },
+    );
 
     await fn(SOCK);
   } finally {
@@ -70,12 +79,13 @@ export async function withNvimClient(fn: (nvim: Nvim) => Promise<void>) {
       [],
     ]);
 
-    nvim!.logger!.info("Nvim started");
+    nvim.logger!.info("Nvim started");
 
     try {
       await fn(nvim);
     } finally {
       nvim.detach();
+      console.log(`detached nvim`);
     }
   });
 }
@@ -93,7 +103,9 @@ export async function withDriver(fn: (driver: NvimDriver) => Promise<void>) {
       try {
         await fn(new NvimDriver(nvim, magenta, mockAnthropic));
       } finally {
+        magenta.destroy();
         nvim.detach();
+        console.log(`detached nvim`);
       }
     });
   });

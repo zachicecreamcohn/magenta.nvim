@@ -96,6 +96,13 @@ export class Magenta {
     await this.sidebar.onWinClosed();
   }
 
+  destroy() {
+    if (this.mountedChatApp) {
+      this.mountedChatApp.unmount();
+      this.mountedChatApp = undefined;
+    }
+  }
+
   static async start(nvim: Nvim) {
     const lsp = new Lsp(nvim);
     const magenta = new Magenta(nvim, lsp);

@@ -42,7 +42,7 @@ export async function pollUntil<T>(
   opts: { timeout: number; message?: string } = { timeout: 1000 },
 ): Promise<T> {
   const start = new Date().getTime();
-  let lastError;
+  let lastError: Error | undefined;
   while (true) {
     if (new Date().getTime() - start > opts.timeout) {
       if (opts.message) {
@@ -61,7 +61,7 @@ export async function pollUntil<T>(
       const val = (res as Promise<unknown>).then ? await res : res;
       return val;
     } catch (e) {
-      lastError = e;
+      lastError = e as Error;
     }
 
     await delay(100);

@@ -96,6 +96,7 @@ Follow existing patterns and code structure.`,
         );
       });
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const response: Anthropic.Message = await stream.finalMessage();
 
     if (response.stop_reason === "max_tokens") {

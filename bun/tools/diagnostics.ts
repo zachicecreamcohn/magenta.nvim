@@ -115,10 +115,12 @@ export const spec: Anthropic.Anthropic.Tool = {
 export type DiagnosticsToolRequest = {
   type: "tool_use";
   id: ToolRequestId;
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   input: {};
   name: "diagnostics";
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function displayRequest(_request: DiagnosticsToolRequest) {
   return `diagnostics: {}`;
 }

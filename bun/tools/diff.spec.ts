@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "./toolManager";
 import * as path from "path";
+import type { Line } from "../nvim/buffer";
 
 describe("bun/tools/diff.spec.ts", () => {
   it("insert into new file", async () => {
@@ -66,7 +67,7 @@ describe("bun/tools/diff.spec.ts", () => {
     });
   });
 
-  it.only("insert into a large file", async () => {
+  it("insert into a large file", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
@@ -87,7 +88,7 @@ describe("bun/tools/diff.spec.ts", () => {
               input: {
                 filePath: "bun/test/fixtures/toolManager.ts",
                 insertAfter: "",
-                content: "a short poem",
+                content: "a poem\n",
               },
             },
           },
@@ -100,31 +101,18 @@ describe("bun/tools/diff.spec.ts", () => {
       await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
       await driver.assertWindowCount(4);
 
-      const poemWin = await driver.findWindow(async (w) => {
-        const buf = await w.buffer();
-        const name = await buf.getName();
-        return path.basename(name) == "poem.txt";
-      });
-
-      expect(await poemWin.getOption("diff")).toBe(true);
-
-      const poemText = (
-        await (await poemWin.buffer()).getLines({ start: 0, end: -1 })
-      ).join("\n");
-      expect(poemText).toEqual("");
-
       const diffWin = await driver.findWindow(async (w) => {
         const buf = await w.buffer();
         const name = await buf.getName();
-        return /poem.txt_message_2_diff$/.test(name);
+        return /toolManager.ts_message_2_diff$/.test(name);
       });
 
       expect(await diffWin.getOption("diff")).toBe(true);
 
-      const diffText = (
-        await (await diffWin.buffer()).getLines({ start: 0, end: -1 })
-      ).join("\n");
-      expect(diffText).toEqual("a poem");
+      const diffText = await (
+        await diffWin.buffer()
+      ).getLines({ start: 0, end: -1 });
+      expect(diffText[0]).toEqual("a poem" as Line);
     });
   });
 

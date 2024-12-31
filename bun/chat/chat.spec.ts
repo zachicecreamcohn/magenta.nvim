@@ -11,6 +11,7 @@ describe("tea/chat.spec.ts", () => {
     await withNvimClient(async (nvim) => {
       const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
       const chatModel = Chat.init({ nvim, lsp: undefined as any });
       const model = chatModel.initModel();
 

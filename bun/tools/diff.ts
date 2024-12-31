@@ -154,6 +154,6 @@ export async function displayDiffs({
 
   // now that both diff buffers are open, adjust the magenta window width again
   for (const window of magentaWindows) {
-    window.setWidth(WIDTH);
+    await window.setWidth(WIDTH);
   }
 }

@@ -4,7 +4,7 @@ import * as assert from "assert";
 import { describe, it } from "bun:test";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 
-describe("Neovim Plugin Tests", async () => {
+describe("Neovim Plugin Tests", () => {
   it("basic rendering & update", async () => {
     await withNvimClient(async (nvim) => {
       const buffer = await NvimBuffer.create(false, true, nvim);

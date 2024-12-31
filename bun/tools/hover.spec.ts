@@ -59,7 +59,7 @@ describe("bun/tools/hover.spec.ts", () => {
       expect(result).toEqual({
         tool_use_id: toolRequestId,
         type: "tool_result",
-        content: `(markdown):\n\n\`\`\`typescript\n(property) c: \"test\"\n\`\`\`\n\n`,
+        content: `(markdown):\n\n\`\`\`typescript\n(property) c: "test"\n\`\`\`\n\n`,
       });
     });
   });
