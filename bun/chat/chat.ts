@@ -188,7 +188,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
           const edit = message.edits[msg.msg.filePath];
           edit.status = {
             status: "error",
-            message: msg.msg.error,
+            message: msg.msg.message,
           };
 
           // TODO: maybe update request status with error?

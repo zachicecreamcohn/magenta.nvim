@@ -49,7 +49,8 @@ export type Msg =
   | {
       type: "diff-error";
       filePath: string;
-      error: string;
+      requestId?: ToolManager.ToolRequestId;
+      message: string;
     }
   | {
       type: "part-msg";
@@ -135,12 +136,12 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
       }
 
       case "diff-error": {
-        // NOTE: nothing to do, should be handled by chat
+        // NOTE: nothing to do, should be handled by parent (chat)
         return [model];
       }
 
       case "tool-manager-msg": {
-        // NOTE: nothing to do, should be handled by chat
+        // NOTE: nothing to do, should be handled by parent (chat)
         return [model];
       }
 
@@ -179,13 +180,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
 
                   return toolWrapper.model.request;
                 }),
-                dispatch: (err) => {
-                  dispatch({
-                    type: "diff-error",
-                    filePath: msg.filePath,
-                    error: err.message,
-                  });
-                },
+                dispatch: (msg) => dispatch(msg),
               });
             } catch (error) {
               nvim.logger?.error(
@@ -195,7 +190,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
               dispatch({
                 type: "diff-error",
                 filePath: msg.filePath,
-                error: JSON.stringify(error),
+                message: JSON.stringify(error),
               });
             }
           },
@@ -255,7 +250,11 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
       });
 
       fileEdits.push(
-        d`  ${filePath} (${edit.requestIds.length.toString()} edits).${edit.status.status == "error" ? d`\nError applying edit: ${edit.status.message}\n` : ""} ${reviewEdit}
+        d`  ${filePath} (${edit.requestIds.length.toString()} edits). ${reviewEdit}${
+          edit.status.status == "error"
+            ? d`\nError applying edit: ${edit.status.message}`
+            : ""
+        }
 ${model.edits[filePath].requestIds.map((requestId) =>
   renderEdit(toolManager, requestId, dispatch),
 )}\n`,

@@ -7,9 +7,12 @@ import { diffthis, getAllWindows } from "../nvim/nvim.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 import { type WindowId } from "../nvim/window.ts";
 import type { Nvim } from "bunvim";
+import type { ToolRequestId } from "./toolManager.ts";
 
 type Msg = {
-  type: "error";
+  type: "diff-error";
+  filePath: string;
+  requestId: ToolRequestId;
   message: string;
 };
 
@@ -95,7 +98,9 @@ export async function displayDiffs({
 
         if (replaceStart == -1) {
           dispatch({
-            type: "error",
+            type: "diff-error",
+            filePath,
+            requestId: edit.id,
             message: `Unable to find startLine "${edit.input.startLine}" in file ${filePath}`,
           });
           continue;
@@ -103,7 +108,9 @@ export async function displayDiffs({
 
         if (replaceEnd == -1) {
           dispatch({
-            type: "error",
+            type: "diff-error",
+            filePath,
+            requestId: edit.id,
             message: `Unable to find endLine "${edit.input.endLine}" in file ${filePath}`,
           });
           continue;

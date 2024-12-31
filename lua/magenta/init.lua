@@ -24,17 +24,22 @@ M.start = function(silent)
     LOG_LEVEL = "debug"
   }
 
-  vim.fn.jobstart(
+  local job_id = vim.fn.jobstart(
     "bun run start",
     {
       cwd = plugin_root,
       stdin = "null",
-      on_exit = Utils.log_exit(env.LOG_LEVEL),
-      on_stdout = Utils.log_job(env.LOG_LEVEL),
-      on_stderr = Utils.log_job(env.LOG_LEVEL),
+      on_exit = Utils.log_exit(env.LOG_LEVEL ),
+      on_stdout = Utils.log_job(env.LOG_LEVEL, false),
+      on_stderr = Utils.log_job(env.LOG_LEVEL, true),
       env = env
     }
   )
+
+  if job_id <= 0 then
+    vim.api.nvim_err_writeln("Failed to start magenta server. Error code: " .. job_id)
+    return
+  end
 end
 
 M.bridge = function(channelId)

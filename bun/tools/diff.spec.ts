@@ -66,6 +66,68 @@ describe("bun/tools/diff.spec.ts", () => {
     });
   });
 
+  it.only("insert into a large file", async () => {
+    await withDriver(async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(
+        `Add a short poem to the end of toolManager.ts`,
+      );
+      await driver.send();
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "ok, here is a poem",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              type: "tool_use",
+              id: "id" as ToolRequestId,
+              name: "insert",
+              input: {
+                filePath: "bun/test/fixtures/toolManager.ts",
+                insertAfter: "",
+                content: "a short poem",
+              },
+            },
+          },
+        ],
+      });
+
+      const reviewPos =
+        await driver.assertDisplayBufferContains("review edits");
+
+      await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
+      await driver.assertWindowCount(4);
+
+      const poemWin = await driver.findWindow(async (w) => {
+        const buf = await w.buffer();
+        const name = await buf.getName();
+        return path.basename(name) == "poem.txt";
+      });
+
+      expect(await poemWin.getOption("diff")).toBe(true);
+
+      const poemText = (
+        await (await poemWin.buffer()).getLines({ start: 0, end: -1 })
+      ).join("\n");
+      expect(poemText).toEqual("");
+
+      const diffWin = await driver.findWindow(async (w) => {
+        const buf = await w.buffer();
+        const name = await buf.getName();
+        return /poem.txt_message_2_diff$/.test(name);
+      });
+
+      expect(await diffWin.getOption("diff")).toBe(true);
+
+      const diffText = (
+        await (await diffWin.buffer()).getLines({ start: 0, end: -1 })
+      ).join("\n");
+      expect(diffText).toEqual("a poem");
+    });
+  });
+
   it("replace in existing file", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
@@ -226,4 +288,126 @@ Paints its colors in the light.`,
   });
 
   it.todo("replace a single line");
+
+  it("failed edit is not fatal", async () => {
+    await withDriver(async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(
+        `Update the poem in the file bun/test/fixtures/poem.txt`,
+      );
+      await driver.send();
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "ok, I will try to rewrite the poem in that file",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              type: "tool_use",
+              id: "id1" as ToolRequestId,
+              name: "replace",
+              input: {
+                filePath: "bun/test/fixtures/poem.txt",
+                startLine: `bogus line...`,
+                endLine: `Paint their stories in the night.`,
+                replace: `Replace text`,
+              },
+            },
+          },
+          {
+            status: "ok",
+            value: {
+              type: "tool_use",
+              id: "id2" as ToolRequestId,
+              name: "insert",
+              input: {
+                filePath: "bun/test/fixtures/poem.txt",
+                insertAfter: `Paint their stories in the night.`,
+                content: `Added text`,
+              },
+            },
+          },
+        ],
+      });
+
+      const reviewPos =
+        await driver.assertDisplayBufferContains("review edits");
+
+      await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
+      await driver.assertWindowCount(4);
+
+      const poemWin = await driver.findWindow(async (w) => {
+        const buf = await w.buffer();
+        const name = await buf.getName();
+        return /bun\/test\/fixtures\/poem.txt$/.test(name);
+      });
+
+      expect(await poemWin.getOption("diff")).toBe(true);
+
+      const poemText = (
+        await (await poemWin.buffer()).getLines({ start: 0, end: -1 })
+      ).join("\n");
+      expect(poemText).toEqual(
+        "Moonlight whispers through the trees,\nSilver shadows dance with ease.\nStars above like diamonds bright,\nPaint their stories in the night.",
+      );
+
+      const diffWin = await driver.findWindow(async (w) => {
+        const buf = await w.buffer();
+        const name = await buf.getName();
+        return /bun\/test\/fixtures\/poem.txt_message_2_diff$/.test(name);
+      });
+
+      expect(await diffWin.getOption("diff")).toBe(true);
+
+      const diffText = (
+        await (await diffWin.buffer()).getLines({ start: 0, end: -1 })
+      ).join("\n");
+      expect(diffText).toEqual(
+        "Moonlight whispers through the trees,\nSilver shadows dance with ease.\nStars above like diamonds bright,\nPaint their stories in the night.Added text",
+      );
+
+      const detailsPos = await driver.assertDisplayBufferContains("Replace");
+      await driver.triggerDisplayBufferKey(detailsPos, "<CR>");
+
+      await driver.assertDisplayBufferContains(`\
+# assistant:
+ok, I will try to rewrite the poem in that file
+
+Edits:
+  bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
+Error applying edit: Unable to find startLine "bogus line..." in file bun/test/fixtures/poem.txt
+    Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+replace: {
+    filePath: bun/test/fixtures/poem.txt
+    match:
+\`\`\`
+bogus line...
+...
+Paint their stories in the night.
+\`\`\`
+    replace:
+\`\`\`
+Replace text
+\`\`\`
+}
+Result:
+\`\`\`
+The user will review your proposed change. Please assume that your change will be accepted and address the remaining parts of the question.
+\`\`\`
+    Insert 0 lines.
+Awaiting user review.`);
+      await driver.triggerDisplayBufferKey(detailsPos, "<CR>");
+      await driver.assertDisplayBufferContains(`\
+# assistant:
+ok, I will try to rewrite the poem in that file
+
+Edits:
+  bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
+Error applying edit: Unable to find startLine "bogus line..." in file bun/test/fixtures/poem.txt
+    Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+    Insert 0 lines.
+Awaiting user review.`);
+    });
+  });
 });

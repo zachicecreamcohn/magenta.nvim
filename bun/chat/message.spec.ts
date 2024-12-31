@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, it } from "bun:test";
 import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "../tools/toolManager";
 
