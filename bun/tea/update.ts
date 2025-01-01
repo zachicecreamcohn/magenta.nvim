@@ -84,7 +84,6 @@ export async function update({
     // through the update
     const nextPos = updateNodePos(current);
 
-    // replace the range with the new vdom
     const rendered = (await render({
       vdom: next,
       mount: {
@@ -138,6 +137,29 @@ export async function update({
 
     accumulatedEdit.lastEditRow = newEndPos.row;
     return rendered;
+  }
+
+  async function deleteNodes({
+    startPos,
+    endPos,
+  }: {
+    startPos: NextPosition;
+    endPos: NextPosition;
+  }) {
+    // remove all the nodes between the end of the last child and where the remaining children would go.
+    await replaceBetweenPositions({
+      ...mount,
+      startPos,
+      endPos,
+      lines: [],
+      context: { nvim: mount.nvim },
+    });
+    accumulatedEdit.deltaRow += startPos.row - endPos.row;
+    if (accumulatedEdit.lastEditRow == endPos.row) {
+      accumulatedEdit.deltaCol += startPos.col - endPos.col;
+    } else {
+      accumulatedEdit.deltaCol = startPos.col - endPos.col;
+    }
   }
 
   async function visitNode(
@@ -226,12 +248,9 @@ export async function update({
               .endPos as CurrentPosition,
           );
           // remove all the nodes between the end of the last child and where the remaining children would go.
-          await replaceBetweenPositions({
-            ...mount,
+          await deleteNodes({
             startPos: nextChildrenEndPos,
             endPos: oldChildrenEndPos,
-            lines: [],
-            context: { nvim: mount.nvim },
           });
         }
 

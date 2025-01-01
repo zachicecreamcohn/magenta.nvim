@@ -1,8 +1,7 @@
 import { d, mountView, pos } from "./view.ts";
-import * as assert from "assert";
-import { describe, it } from "bun:test";
-import { NvimBuffer } from "../nvim/buffer.ts";
-import { withNvimClient } from "../test/preamble.ts";
+import { describe, expect, it } from "bun:test";
+import { NvimBuffer, type Line } from "../nvim/buffer.ts";
+import { extractMountTree, withNvimClient } from "../test/preamble.ts";
 
 describe("tea/update.spec.ts", () => {
   it("updates to and from empty string", async () => {
@@ -27,7 +26,7 @@ describe("tea/update.spec.ts", () => {
           end: 1,
         });
 
-        assert.equal(lines[0], "13");
+        expect(lines[0]).toEqual("13" as Line);
       }
 
       await mountedView.render({ prop: "2" });
@@ -38,7 +37,7 @@ describe("tea/update.spec.ts", () => {
           end: 1,
         });
 
-        assert.equal(lines[0], "123");
+        expect(lines[0]).toEqual("123" as Line);
       }
 
       await mountedView.render({ prop: "" });
@@ -48,7 +47,7 @@ describe("tea/update.spec.ts", () => {
           end: 1,
         });
 
-        assert.equal(lines[0], "13");
+        expect(lines[0]).toEqual("13" as Line);
       }
 
       await mountedView.render({ prop: "\n" });
@@ -58,7 +57,7 @@ describe("tea/update.spec.ts", () => {
           end: 2,
         });
 
-        assert.deepStrictEqual(lines, ["1", "3"]);
+        expect(lines).toEqual(["1", "3"] as Line[]);
       }
 
       await mountedView.render({ prop: "" });
@@ -68,7 +67,7 @@ describe("tea/update.spec.ts", () => {
           end: 2,
         });
 
-        assert.deepStrictEqual(lines, ["13"]);
+        expect(lines).toEqual(["13"] as Line[]);
       }
     });
   });
@@ -97,11 +96,10 @@ describe("tea/update.spec.ts", () => {
           end: 1,
         });
 
-        assert.equal(
+        expect(
           lines[0],
-          "",
           "should handle multiple empty interpolations in a row",
-        );
+        ).toEqual("" as Line);
       }
 
       await mountedView.render({ prop1: "1", prop2: "2" });
@@ -111,11 +109,10 @@ describe("tea/update.spec.ts", () => {
           end: 1,
         });
 
-        assert.equal(
+        expect(
           lines[0],
-          "12",
           "should handle going from empty to segments on the same line",
-        );
+        ).toEqual("12" as Line);
       }
 
       await mountedView.render({ prop1: "11", prop2: "22" });
@@ -125,11 +122,10 @@ describe("tea/update.spec.ts", () => {
           end: 1,
         });
 
-        assert.equal(
+        expect(
           lines[0],
-          "1122",
           "should handle growing multiple segments on the same line",
-        );
+        ).toEqual("1122" as Line);
       }
 
       await mountedView.render({ prop1: "1", prop2: "2" });
@@ -139,11 +135,10 @@ describe("tea/update.spec.ts", () => {
           end: 1,
         });
 
-        assert.equal(
+        expect(
           lines[0],
-          "12",
           "should handle shrinking multiple segments on the same line",
-        );
+        ).toEqual("12" as Line);
       }
 
       await mountedView.render({ prop1: "1", prop2: "2" });
@@ -153,11 +148,10 @@ describe("tea/update.spec.ts", () => {
           end: 1,
         });
 
-        assert.equal(
+        expect(
           lines[0],
-          "12",
           "should handle shrinking multiple segments on the same line",
-        );
+        ).toEqual("12" as Line);
       }
 
       await mountedView.render({ prop1: "1\n111", prop2: "22" });
@@ -167,7 +161,7 @@ describe("tea/update.spec.ts", () => {
           end: 2,
         });
 
-        assert.deepStrictEqual(lines, ["1", "11122"]);
+        expect(lines).toEqual(["1", "11122"] as Line[]);
       }
 
       await mountedView.render({ prop1: "\n1\n1\n", prop2: "\n2\n2" });
@@ -177,10 +171,8 @@ describe("tea/update.spec.ts", () => {
           end: 6,
         });
 
-        assert.deepStrictEqual(
-          lines,
-          ["", "1", "1", "", "2", "2"],
-          "should handle updating a prop on a moving line",
+        expect(lines, "should handle updating a prop on a moving line").toEqual(
+          ["", "1", "1", "", "2", "2"] as Line[],
         );
       }
     });
@@ -211,7 +203,7 @@ describe("tea/update.spec.ts", () => {
           end: -1,
         });
 
-        assert.deepStrictEqual(lines, ["1", "11122"]);
+        expect(lines).toEqual(["1", "11122"] as Line[]);
       }
 
       await mountedView.render({ prop1: "1\n11", prop2: "22" });
@@ -221,11 +213,10 @@ describe("tea/update.spec.ts", () => {
           end: 6,
         });
 
-        assert.deepStrictEqual(
+        expect(
           lines,
-          ["1", "1122"],
           "should handle shifting back a second interpolation by dropping columns",
-        );
+        ).toEqual(["1", "1122"] as Line[]);
       }
 
       await mountedView.render({ prop1: "11", prop2: "22" });
@@ -235,11 +226,10 @@ describe("tea/update.spec.ts", () => {
           end: 6,
         });
 
-        assert.deepStrictEqual(
+        expect(
           lines,
-          ["1122"],
           "should handle shifting back a second interpolation by dropping rows and columns",
-        );
+        ).toEqual(["1122"] as Line[]);
       }
     });
   });
@@ -273,7 +263,7 @@ describe("tea/update.spec.ts", () => {
           end: -1,
         });
 
-        assert.deepStrictEqual(lines, ["SuccessSuccess"]);
+        expect(lines).toEqual(["SuccessSuccess"] as Line[]);
       }
 
       await mountedView.render({ items: [false, false, true] });
@@ -283,7 +273,7 @@ describe("tea/update.spec.ts", () => {
           end: -1,
         });
 
-        assert.deepStrictEqual(lines, ["ErrorErrorSuccess"]);
+        expect(lines).toEqual(["ErrorErrorSuccess"] as Line[]);
       }
     });
   });
@@ -313,11 +303,10 @@ describe("tea/update.spec.ts", () => {
           end: 1,
         });
 
-        assert.equal(
+        expect(
           lines[0],
-          "",
           "should handle multiple empty interpolations in a row",
-        );
+        ).toEqual("" as Line);
       }
 
       await mountedView.render({ items: ["1", "2"] });
@@ -327,11 +316,10 @@ describe("tea/update.spec.ts", () => {
           end: 1,
         });
 
-        assert.equal(
+        expect(
           lines[0],
-          "12",
           "should handle going from empty to segments on the same line",
-        );
+        ).toEqual("12" as Line);
       }
 
       await mountedView.render({ items: [] });
@@ -341,7 +329,7 @@ describe("tea/update.spec.ts", () => {
           end: 1,
         });
 
-        assert.equal(lines[0], "", "should handle shortened array");
+        expect(lines[0], "should handle shortened array").toEqual("" as Line);
       }
 
       await mountedView.render({ items: ["1\n1\n1\n", "2\n2"] });
@@ -351,11 +339,13 @@ describe("tea/update.spec.ts", () => {
           end: -1,
         });
 
-        assert.deepStrictEqual(
-          lines,
-          ["1", "1", "1", "2", "2"],
-          "should handle multiline array items",
-        );
+        expect(lines, "should handle multiline array items").toEqual([
+          "1",
+          "1",
+          "1",
+          "2",
+          "2",
+        ] as Line[]);
       }
 
       await mountedView.render({ items: ["1\n1\n11", "22\n2"] });
@@ -365,12 +355,149 @@ describe("tea/update.spec.ts", () => {
           end: -1,
         });
 
-        assert.deepStrictEqual(
+        expect(lines, "should handle multiline array updates").toEqual([
+          "1",
+          "1",
+          "1122",
+          "2",
+        ] as Line[]);
+      }
+    });
+  });
+
+  it("nodes after array nodes", async () => {
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
+      await buffer.setOption("modifiable", false);
+
+      const view = (props: { items: string[] }) =>
+        d`${props.items.map((s) => d`${s}`)}${d`end`}`;
+
+      const mountedView = await mountView<{ items: string[] }>({
+        view,
+        props: { items: [] },
+        mount: {
+          nvim,
+          buffer,
+          startPos: pos(0, 0),
+          endPos: pos(0, 0),
+        },
+      });
+
+      {
+        const lines = await buffer.getLines({
+          start: 0,
+          end: 1,
+        });
+
+        expect(
+          lines[0],
+          "should handle multiple empty interpolations in a row",
+        ).toEqual("end" as Line);
+      }
+
+      await mountedView.render({ items: ["\n", "\n"] });
+      {
+        const lines = await buffer.getLines({
+          start: 0,
+          end: -1,
+        });
+
+        expect(
           lines,
-          ["1", "1", "1122", "2"],
-          "should handle multiline array updates",
+          "should handle going from empty to segments on the same line",
+        ).toEqual(["", "", "end"] as Line[]);
+      }
+
+      await mountedView.render({ items: [] });
+      {
+        const lines = await buffer.getLines({
+          start: 0,
+          end: -1,
+        });
+
+        expect(lines, "should handle array dropping lines").toEqual([
+          "end",
+        ] as Line[]);
+      }
+
+      expect(extractMountTree(mountedView._getMountedNode())).toEqual({
+        type: "node",
+        startPos: { row: 0, col: 0 },
+        endPos: { row: 0, col: 3 },
+        children: [
+          {
+            type: "array",
+            startPos: { row: 0, col: 0 },
+            endPos: { row: 0, col: 0 },
+            children: [],
+          },
+          {
+            type: "node",
+            startPos: { row: 0, col: 0 },
+            endPos: { row: 0, col: 3 },
+            children: [
+              {
+                type: "string",
+                startPos: { row: 0, col: 0 },
+                endPos: { row: 0, col: 3 },
+                content: "end",
+              },
+            ],
+          },
+        ],
+      });
+
+      await mountedView.render({ items: ["\n", "\n123"] });
+      {
+        const lines = await buffer.getLines({
+          start: 0,
+          end: -1,
+        });
+
+        expect(lines, "should handle array dropping lines and columns").toEqual(
+          ["", "", "123end"] as Line[],
         );
       }
+
+      await mountedView.render({ items: [] });
+      {
+        const lines = await buffer.getLines({
+          start: 0,
+          end: -1,
+        });
+
+        expect(lines, "should handle array dropping lines").toEqual([
+          "end",
+        ] as Line[]);
+      }
+
+      expect(extractMountTree(mountedView._getMountedNode())).toEqual({
+        type: "node",
+        startPos: { row: 0, col: 0 },
+        endPos: { row: 0, col: 3 },
+        children: [
+          {
+            type: "array",
+            startPos: { row: 0, col: 0 },
+            endPos: { row: 0, col: 0 },
+            children: [],
+          },
+          {
+            type: "node",
+            startPos: { row: 0, col: 0 },
+            endPos: { row: 0, col: 3 },
+            children: [
+              {
+                type: "string",
+                startPos: { row: 0, col: 0 },
+                endPos: { row: 0, col: 3 },
+                content: "end",
+              },
+            ],
+          },
+        ],
+      });
     });
   });
 
@@ -409,11 +536,13 @@ ${m.parts.map((p) => d`${p}\n`)}`,
           end: -1,
         });
 
-        assert.deepStrictEqual(
-          lines,
-          ["###user:", "Success", "###assistant:", "test", ""],
-          "should handle multiline array updates",
-        );
+        expect(lines, "should handle multiline array updates").toEqual([
+          "###user:",
+          "Success",
+          "###assistant:",
+          "test",
+          "",
+        ] as Line[]);
       }
     });
   });

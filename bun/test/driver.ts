@@ -43,12 +43,22 @@ export class NvimDriver {
     return this.magenta.command("send");
   }
 
+  clear() {
+    return this.magenta.command("clear");
+  }
+
   getDisplayBuffer() {
     const displayBuffer = this.magenta.sidebar.state.displayBuffer;
     if (!displayBuffer) {
       throw new Error(`sidebar displayBuffer not initialized yet`);
     }
     return displayBuffer;
+  }
+
+  async getDisplayBufferText() {
+    const displayBuffer = this.getDisplayBuffer();
+    const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+    return lines.join("\n");
   }
 
   getVisibleState() {
@@ -78,6 +88,19 @@ export class NvimDriver {
         Buffer.from(content),
         index,
       );
+    });
+  }
+
+  async assertDisplayBufferContent(text: string): Promise<void> {
+    return pollUntil(async () => {
+      const displayBuffer = this.getDisplayBuffer();
+      const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+      const content = lines.join("\n");
+      if (content != text) {
+        throw new Error(
+          `display buffer content does not match text:\n"${text}"\ndisplayBuffer content:\n${content}`,
+        );
+      }
     });
   }
 

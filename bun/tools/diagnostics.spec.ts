@@ -4,7 +4,7 @@ import { withDriver } from "../test/preamble";
 import { delay, pollUntil } from "../utils/async.ts";
 
 describe("bun/tools/diagnostics.spec.ts", () => {
-  it.only("diagnostics end-to-end", async () => {
+  it("diagnostics end-to-end", async () => {
     await withDriver(async (driver) => {
       await driver.editFile("bun/test/fixtures/test.ts");
       await driver.showSidebar();
