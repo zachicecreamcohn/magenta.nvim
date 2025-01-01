@@ -80,6 +80,12 @@ export class Sidebar {
       await displayBuffer.setOption("buftype", "nofile");
       await displayBuffer.setOption("swapfile", false);
       await displayBuffer.setOption("filetype", "markdown");
+      await displayBuffer.setKeymap({
+        mode: "n",
+        lhs: "<leader>c",
+        rhs: ":Magenta clear<CR>",
+        opts: { silent: true, noremap: true },
+      });
     }
     const displayWindowId = (await this.nvim.call("nvim_open_win", [
       displayBuffer.id,
@@ -103,6 +109,19 @@ export class Sidebar {
       await inputBuffer.setOption("buftype", "nofile");
       await inputBuffer.setOption("swapfile", false);
       await inputBuffer.setOption("filetype", "markdown");
+      await inputBuffer.setKeymap({
+        mode: "n",
+        lhs: "<CR>",
+        rhs: ":Magenta send<CR>",
+        opts: { silent: true, noremap: true },
+      });
+
+      await inputBuffer.setKeymap({
+        mode: "n",
+        lhs: "<leader>c",
+        rhs: ":Magenta clear<CR>",
+        opts: { silent: true, noremap: true },
+      });
     }
 
     const inputWindowId = (await this.nvim.call("nvim_open_win", [
@@ -144,13 +163,6 @@ export class Sidebar {
     await inputWindow.setOption("winbar", "Magenta Input");
     // set var so we can avoid closing this window when displaying a diff
     await inputWindow.setVar("magenta", true);
-
-    await inputBuffer.setKeymap({
-      mode: "n",
-      lhs: "<CR>",
-      rhs: ":Magenta send<CR>",
-      opts: { silent: true, noremap: true },
-    });
 
     this.nvim.logger?.debug(`sidebar.create setting state`);
     this.state = {
