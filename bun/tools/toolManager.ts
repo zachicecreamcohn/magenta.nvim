@@ -6,6 +6,7 @@ import * as ListBuffers from "./listBuffers.ts";
 import * as ListDirectory from "./listDirectory.ts";
 import * as Hover from "./hover.ts";
 import * as FindReferences from "./findReferences.ts";
+import * as Diagnostics from "./diagnostics.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { extendError, type Result } from "../utils/result.ts";
 import { d, withBindings } from "../tea/view.ts";
@@ -20,7 +21,8 @@ export type ToolRequest =
   | ListBuffers.ListBuffersToolRequest
   | ListDirectory.ListDirectoryToolUseRequest
   | Hover.HoverToolUseRequest
-  | FindReferences.ReferencesToolUseRequest;
+  | FindReferences.ReferencesToolUseRequest
+  | Diagnostics.DiagnosticsToolRequest;
 
 export type ToolModel =
   | GetFile.Model
@@ -29,7 +31,8 @@ export type ToolModel =
   | ListBuffers.Model
   | ListDirectory.Model
   | Hover.Model
-  | FindReferences.Model;
+  | FindReferences.Model
+  | Diagnostics.Model;
 
 export type ToolRequestId = string & { __toolRequestId: true };
 
@@ -41,6 +44,7 @@ export const TOOL_SPECS = [
   ListDirectory.spec,
   Hover.spec,
   FindReferences.spec,
+  Diagnostics.spec,
 ];
 
 export type ToolModelWrapper = {
@@ -97,6 +101,10 @@ export type Msg =
         | {
             type: "find_references";
             msg: FindReferences.Msg;
+          }
+        | {
+            type: "diagnostics";
+            msg: Diagnostics.Msg;
           };
     };
 
@@ -134,6 +142,10 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
         return extendError(FindReferences.validateToolRequest(req), {
           rawRequest: req,
         });
+      case "diagnostics":
+        return extendError(Diagnostics.validateToolRequest(req), {
+          rawRequest: req,
+        });
       default:
         return {
           status: "error",
@@ -161,6 +173,8 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
         return Hover.getToolResult(model);
       case "find_references":
         return FindReferences.getToolResult(model);
+      case "diagnostics":
+        return Diagnostics.getToolResult(model);
       default:
         return assertUnreachable(model);
     }
@@ -182,6 +196,8 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
         return Hover.displayRequest(model.request);
       case "find_references":
         return FindReferences.displayRequest(model.request);
+      case "diagnostics":
+        return Diagnostics.displayRequest(model.request);
       default:
         return assertUnreachable(model);
     }
@@ -263,6 +279,11 @@ ${result.content as string}
 
       case "find_references":
         return FindReferences.view({
+          model,
+        });
+
+      case "diagnostics":
+        return Diagnostics.view({
           model,
         });
 
@@ -430,6 +451,31 @@ ${result.content as string}
                     id: request.id,
                     msg: {
                       type: "find_references",
+                      msg,
+                    },
+                  }),
+                ),
+            ];
+          }
+
+          case "diagnostics": {
+            const [diagnosticsModel, thunk] = Diagnostics.initModel(request, {
+              nvim,
+            });
+            model.toolWrappers[request.id] = {
+              model: diagnosticsModel,
+              showRequest: false,
+              showResult: false,
+            };
+            return [
+              model,
+              (dispatch) =>
+                thunk((msg) =>
+                  dispatch({
+                    type: "tool-msg",
+                    id: request.id,
+                    msg: {
+                      type: "diagnostics",
                       msg,
                     },
                   }),
@@ -616,6 +662,31 @@ ${result.content as string}
                         id: msg.id,
                         msg: {
                           type: "find_references",
+                          msg: innerMsg,
+                        },
+                      }),
+                    )
+                : undefined,
+            ];
+          }
+
+          case "diagnostics": {
+            const [nextToolModel, thunk] = Diagnostics.update(
+              msg.msg.msg,
+              toolWrapper.model as Diagnostics.Model,
+            );
+            toolWrapper.model = nextToolModel;
+
+            return [
+              model,
+              thunk
+                ? (dispatch) =>
+                    thunk((innerMsg) =>
+                      dispatch({
+                        type: "tool-msg",
+                        id: msg.id,
+                        msg: {
+                          type: "diagnostics",
                           msg: innerMsg,
                         },
                       }),

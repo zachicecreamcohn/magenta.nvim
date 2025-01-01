@@ -93,7 +93,8 @@ export function createApp<Model, Msg>({
         } else {
           nvim.logger?.debug(`starting thunk`);
           thunk(dispatch).catch((err) => {
-            nvim.logger?.error(err as Error);
+            console.error(err);
+            nvim.logger?.error(JSON.stringify(err));
           });
         }
       }

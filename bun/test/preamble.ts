@@ -57,8 +57,7 @@ export async function withNvimProcess(fn: (sock: string) => Promise<void>) {
 
     await fn(SOCK);
   } finally {
-    const res = nvimProcess.kill();
-    console.log(`Killed process ${nvimProcess.pid} with result ${res}`);
+    nvimProcess.kill();
   }
 }
 

@@ -7,7 +7,7 @@ import {
 import { pos } from "./view.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 import { withNvimClient } from "../test/preamble.ts";
-import type { Position0Indexed } from "../nvim/window.ts";
+import type { ByteIdx, Position0Indexed } from "../nvim/window.ts";
 
 describe("tea/util.spec.ts", () => {
   it("strWidthInBytes", async () => {
@@ -43,36 +43,36 @@ describe("tea/util.spec.ts", () => {
 
   it("calculatePosition", () => {
     expect(
-      calculatePosition(pos(0, 0), Buffer.from(""), 0),
+      calculatePosition(pos(0, 0), Buffer.from(""), 0 as ByteIdx),
       "empty string",
     ).toEqual({ row: 0, col: 0 } as Position0Indexed);
 
     expect(
-      calculatePosition(pos(1, 5), Buffer.from(""), 0),
+      calculatePosition(pos(1, 5), Buffer.from(""), 0 as ByteIdx),
       "empty string from non-0 pos",
     ).toEqual({ row: 1, col: 5 } as Position0Indexed);
 
     expect(
-      calculatePosition(pos(1, 5), Buffer.from("abc"), 2),
+      calculatePosition(pos(1, 5), Buffer.from("abc"), 2 as ByteIdx),
       "move within the same string",
     ).toEqual({ row: 1, col: 7 } as Position0Indexed);
 
     expect(
-      calculatePosition(pos(1, 5), Buffer.from("⚙️"), 6),
+      calculatePosition(pos(1, 5), Buffer.from("⚙️"), 6 as ByteIdx),
       "move within the same string, unicode",
     ).toEqual({ row: 1, col: 11 } as Position0Indexed);
     expect(
-      calculatePosition(pos(1, 5), Buffer.from(`abc\n`), 4),
+      calculatePosition(pos(1, 5), Buffer.from(`abc\n`), 4 as ByteIdx),
       "move to a new line",
     ).toEqual({ row: 2, col: 0 } as Position0Indexed);
 
     expect(
-      calculatePosition(pos(1, 5), Buffer.from("⚙️\n"), 7),
+      calculatePosition(pos(1, 5), Buffer.from("⚙️\n"), 7 as ByteIdx),
       "move to a new line after unicode",
     ).toEqual({ row: 2, col: 0 } as Position0Indexed);
 
     expect(
-      calculatePosition(pos(1, 5), Buffer.from("⚙️\nabc"), 10),
+      calculatePosition(pos(1, 5), Buffer.from("⚙️\nabc"), 10 as ByteIdx),
       "move to a new line and then a few characters after",
     ).toEqual({ row: 2, col: 3 } as Position0Indexed);
   });

@@ -7,12 +7,11 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { getOrOpenBuffer } from "../utils/buffers.ts";
 import type { NvimBuffer } from "../nvim/buffer.ts";
 import type { Nvim } from "bunvim";
-import path from "path";
+import type { Lsp } from "../lsp.ts";
 import { getcwd } from "../nvim/nvim.ts";
-import type { Lsp } from "../lsp.ts";import { getcwd } from "../nvim/nvim.ts";
-import path from "path";
 import { calculateStringPosition } from "../tea/util.ts";
 import type { PositionString, StringIdx } from "../nvim/window.ts";
+import path from "path";
 
 export type Model = {
   type: "find_references";
@@ -117,7 +116,9 @@ export function initModel(
         for (const lspResult of result) {
           if (lspResult != null && lspResult.result) {
             for (const ref of lspResult.result) {
-              const uri = ref.uri.startsWith('file://') ? ref.uri.slice(7) : ref.uri;
+              const uri = ref.uri.startsWith("file://")
+                ? ref.uri.slice(7)
+                : ref.uri;
               const relativePath = path.relative(cwd, uri);
               content += `${relativePath}:${ref.range.start.line + 1}:${ref.range.start.character}\n`;
             }

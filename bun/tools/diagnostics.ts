@@ -5,6 +5,7 @@ import { d, type VDOMNode } from "../tea/view.ts";
 import { type ToolRequestId } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import type { Nvim } from "bunvim";
+import { parseLsResponse } from "../utils/lsBuffers.ts";
 
 export type Model = {
   type: "diagnostics";
@@ -41,6 +42,38 @@ export const update: Update<Msg, Model> = (msg, model) => {
   }
 };
 
+type DiagnosticsRes = {
+  end_col: number;
+  message: string;
+  namespace: number;
+  col: number;
+  code: number;
+  end_lnum: number;
+  source: string;
+  lnum: number;
+  user_data: {
+    lsp: {
+      code: number;
+      message: string;
+      range: {
+        start: {
+          character: number;
+          line: number;
+        };
+        end: {
+          character: number;
+          line: number;
+        };
+      };
+      tags: [];
+      source: string;
+      severity: number;
+    };
+  };
+  bufnr: number;
+  severity: number;
+};
+
 export function initModel(
   request: DiagnosticsToolRequest,
   context: { nvim: Nvim },
@@ -55,12 +88,34 @@ export function initModel(
   return [
     model,
     async (dispatch) => {
-      const diagnostics = await context.nvim.call("nvim_exec_lua", [
-        `return vim.diagnostic.get(nil)`,
-        [],
+      context.nvim.logger?.debug(`in diagnostics initModel`);
+      let diagnostics;
+      try {
+        diagnostics = (await context.nvim.call("nvim_exec_lua", [
+          `return vim.diagnostic.get(nil)`,
+          [],
+        ])) as DiagnosticsRes[];
+      } catch (e) {
+        throw new Error(`failed to nvim_exec_lua: ${JSON.stringify(e)}`);
+      }
+      const lsResponse = await context.nvim.call("nvim_exec2", [
+        "ls",
+        { output: true },
       ]);
 
-      const content = JSON.stringify(diagnostics, null, 2);
+      const result = parseLsResponse(lsResponse.output as string);
+      const bufMap: { [bufId: string]: string } = {};
+      for (const res of result) {
+        bufMap[res.id] = res.filePath;
+      }
+
+      const content = diagnostics
+        .map(
+          (d) =>
+            `file: ${bufMap[d.bufnr]} source: ${d.source}, severity: ${d.severity}, message: "${d.message}"`,
+        )
+        .join("\n");
+      context.nvim.logger?.debug(`got diagnostics content: ${content}`);
 
       dispatch({
         type: "finish",

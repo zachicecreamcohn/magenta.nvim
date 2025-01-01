@@ -15,3 +15,5 @@ const val: Nested = {
 };
 
 console.log(val.a.b.c);
+
+val.a.b.d = 'error'

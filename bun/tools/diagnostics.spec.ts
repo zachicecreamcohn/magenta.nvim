@@ -1,19 +1,19 @@
 import { type ToolRequestId } from "./toolManager.ts";
 import { describe, it, expect } from "bun:test";
 import { withDriver } from "../test/preamble";
-import { pollUntil } from "../utils/async.ts";
+import { delay, pollUntil } from "../utils/async.ts";
 
-describe("bun/tools/hover.spec.ts", () => {
-  it("hover end-to-end", async () => {
+describe("bun/tools/diagnostics.spec.ts", () => {
+  it.only("diagnostics end-to-end", async () => {
     await withDriver(async (driver) => {
       await driver.editFile("bun/test/fixtures/test.ts");
       await driver.showSidebar();
 
-      await driver.inputMagentaText(`Try hovering a symbol`);
+      await driver.inputMagentaText(`Try getting the diagnostics`);
       await driver.send();
 
-      // wait for ts_ls to start/attach
       const toolRequestId = "id" as ToolRequestId;
+      await delay(2000);
       await driver.mockAnthropic.respond({
         stopReason: "tool_use",
         text: "ok, here goes",
@@ -23,11 +23,8 @@ describe("bun/tools/hover.spec.ts", () => {
             value: {
               type: "tool_use",
               id: toolRequestId,
-              name: "hover",
-              input: {
-                filePath: "bun/test/fixtures/test.ts",
-                symbol: "val.a.b.c",
-              },
+              name: "diagnostics",
+              input: {},
             },
           },
         ],
@@ -60,7 +57,7 @@ describe("bun/tools/hover.spec.ts", () => {
       expect(result).toEqual({
         tool_use_id: toolRequestId,
         type: "tool_result",
-        content: `(markdown):\n\n\`\`\`typescript\n(property) c: "test"\n\`\`\`\n\n`,
+        content: `file: bun/test/fixtures/test.ts source: typescript, severity: 1, message: "Property 'd' does not exist on type '{ c: "test"; }'."`,
       });
     });
   });

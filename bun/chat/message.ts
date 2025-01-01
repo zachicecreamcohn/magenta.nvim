@@ -119,6 +119,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
           case "hover":
           case "find_references":
           case "list_directory":
+          case "diagnostics":
             model.parts.push({
               type: "tool-request",
               requestId: msg.requestId,
