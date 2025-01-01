@@ -275,7 +275,64 @@ Paints its colors in the light.`,
     });
   });
 
-  it.todo("replace a single line");
+  it("replace a single line", async () => {
+    await withDriver(async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(
+        `Update line 2 in bun/test/fixtures/poem.txt`,
+      );
+      await driver.send();
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "I'll update that line",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              type: "tool_use",
+              id: "id" as ToolRequestId,
+              name: "replace",
+              input: {
+                filePath: "bun/test/fixtures/poem.txt",
+                startLine: "Silver shadows dance with ease.",
+                endLine: "Silver shadows dance with ease.",
+                replace: "Golden moonbeams dance with ease.",
+              },
+            },
+          },
+        ],
+      });
+
+      const reviewPos =
+        await driver.assertDisplayBufferContains("review edits");
+      await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
+      await driver.assertWindowCount(4);
+
+      const poemWin = await driver.findWindow(async (w) => {
+        const buf = await w.buffer();
+        const name = await buf.getName();
+        return /bun\/test\/fixtures\/poem.txt$/.test(name);
+      });
+
+      expect(await poemWin.getOption("diff")).toBe(true);
+
+      const diffWin = await driver.findWindow(async (w) => {
+        const buf = await w.buffer();
+        const name = await buf.getName();
+        return /poem.txt_message_2_diff$/.test(name);
+      });
+
+      expect(await diffWin.getOption("diff")).toBe(true);
+
+      const diffText = (
+        await (await diffWin.buffer()).getLines({ start: 0, end: -1 })
+      ).join("\n");
+      expect(diffText).toEqual(
+        "Moonlight whispers through the trees,\nGolden moonbeams dance with ease.\nStars above like diamonds bright,\nPaint their stories in the night.",
+      );
+    });
+  });
 
   it("failed edit is not fatal", async () => {
     await withDriver(async (driver) => {
