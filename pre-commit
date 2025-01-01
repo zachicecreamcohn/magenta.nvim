@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+
+# Run typecheck
+echo "Running typecheck..."
+bun x tsc --noEmit || exit 1
+
+# Run eslint
+echo "Running eslint..."
+bun x eslint . || exit 1
+
+# Run prettier
+echo "Running prettier check..."
+bun x prettier --check . || exit 1
+
+exit 0

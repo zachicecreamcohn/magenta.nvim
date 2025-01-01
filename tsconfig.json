@@ -13,8 +13,8 @@
     "target": "ESNext",
     "types": ["bun-types"],
     "verbatimModuleSyntax": true,
-    "exactOptionalPropertyTypes": true,
-   // "noPropertyAccessFromIndexSignature": true,
+    "exactOptionalPropertyTypes": true
+    // "noPropertyAccessFromIndexSignature": true,
     // "noUncheckedIndexedAccess": true
   },
   "include": ["bun/**/*", "package.json", "eslint.confing.ms"],

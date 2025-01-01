@@ -1,4 +1,5 @@
 # magenta.nvim
+
 <img width="1376" alt="Screenshot 2024-12-22 at 3 40 02 PM" src="https://github.com/user-attachments/assets/df372c55-8c30-468d-8bd2-47047534fe92" />
 <img width="1658" alt="Screenshot 2024-12-22 at 4 22 44 PM" src="https://github.com/user-attachments/assets/45c0e90a-0944-4e9e-8f2b-c0d779542d45" />
 
@@ -38,6 +39,7 @@ You can see
 # Why it's cool
 
 Some cool things I've gotten to work so far:
+
 - It uses [bun](https://bun.sh/) for faster startup, a lower memory footprint, and ease of development with Typescript.
 - It uses the new [rpc-pased remote plugin setup](https://github.com/dlants/magenta.nvim/issues/1). This means more flexible plugin development (can easily use both lua and typescript), and no need for :UpdateRemotePlugins! (h/t [wallpants](https://github.com/wallpants/bunvim)).
 - The state of the plugin is managed via an elm-inspired architecture (The Elm Architecture or [TEA](https://github.com/evancz/elm-architecture-tutorial)) [code](https://github.com/dlants/magenta.nvim/blob/main/bun/tea/tea.ts). This makes it very predictable for code generation, and makes adding new functionality really easy and robust, as well as [eases testing](https://github.com/dlants/magenta.nvim/blob/main/bun/chat/chat.spec.ts) and makes some cool future features possible (like the ability to save a chat state into a file and restore previous chats from file on startup).

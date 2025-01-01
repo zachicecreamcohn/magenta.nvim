@@ -42,7 +42,7 @@ describe("tea/getFile.spec.ts", () => {
 
       assert.equal(
         (await buffer.getLines({ start: 0, end: -1 })).join("\n"),
-        `⚙️ Reading file ./file.txt`
+        `⚙️ Reading file ./file.txt`,
       );
       app.dispatch({
         type: "finish",
@@ -56,7 +56,7 @@ describe("tea/getFile.spec.ts", () => {
       await mountedApp.waitForRender();
       assert.equal(
         (await buffer.getLines({ start: 0, end: -1 })).join("\n"),
-        `✅ Finished reading file ./file.txt`
+        `✅ Finished reading file ./file.txt`,
       );
     });
   });
