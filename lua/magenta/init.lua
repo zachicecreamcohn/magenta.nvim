@@ -24,12 +24,13 @@ M.start = function(silent)
     LOG_LEVEL = "debug"
   }
 
-  local job_id = vim.fn.jobstart(
+  local job_id =
+    vim.fn.jobstart(
     "bun run start",
     {
       cwd = plugin_root,
       stdin = "null",
-      on_exit = Utils.log_exit(env.LOG_LEVEL ),
+      on_exit = Utils.log_exit(env.LOG_LEVEL),
       on_stdout = Utils.log_job(env.LOG_LEVEL, false),
       on_stderr = Utils.log_job(env.LOG_LEVEL, true),
       env = env
@@ -75,6 +76,77 @@ M.bridge = function(channelId)
   M.lsp_response = function(requestId, response)
     vim.rpcnotify(channelId, "magentaLspResponse", {requestId, response})
   end
+end
+
+M.wait_for_lsp_attach = function(bufnr, capability, timeout_ms)
+  -- Default timeout of 1000ms if not specified
+  timeout_ms = timeout_ms or 1000
+
+  return vim.wait(
+    timeout_ms,
+    function()
+      local clients = vim.lsp.get_active_clients({bufnr = bufnr})
+      for _, client in ipairs(clients) do
+        if client.server_capabilities[capability] then
+          return true
+        end
+      end
+      return false
+    end
+  )
+end
+
+M.lsp_hover_request = function(requestId, bufnr, row, col)
+  local success = M.wait_for_lsp_attach(bufnr, "hoverProvider", 1000)
+  if not success then
+    M.lsp_response(requestId, "Timeout waiting for LSP client with hoverProvider to attach")
+    return
+  end
+
+  vim.lsp.buf_request_all(
+    bufnr,
+    "textDocument/hover",
+    {
+      textDocument = {
+        uri = vim.uri_from_bufnr(bufnr)
+      },
+      position = {
+        line = row,
+        character = col
+      }
+    },
+    function(responses)
+      M.lsp_response(requestId, responses)
+    end
+  )
+end
+
+M.lsp_references_request = function(requestId, bufnr, row, col)
+  local success = M.wait_for_lsp_attach(bufnr, "referencesProvider", 1000)
+  if not success then
+    M.lsp_response(requestId, "Timeout waiting for LSP client with referencesProvider to attach")
+    return
+  end
+
+  vim.lsp.buf_request_all(
+    bufnr,
+    "textDocument/references",
+    {
+      textDocument = {
+        uri = vim.uri_from_bufnr(bufnr)
+      },
+      position = {
+        line = row,
+        character = col
+      },
+      context = {
+        includeDeclaration = true
+      }
+    },
+    function(responses)
+      M.lsp_response(requestId, responses)
+    end
+  )
 end
 
 return M

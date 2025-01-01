@@ -118,9 +118,6 @@ export function createApp<Model, Msg>({
       nvim.logger?.info(`re-render scheduled`);
     } else {
       if (root) {
-        nvim.logger?.info(
-          `init renderPromise of state ${JSON.stringify(currentState, null, 2)}`,
-        );
         renderPromise = root
           .render({ currentState, dispatch })
           .catch((err) => {

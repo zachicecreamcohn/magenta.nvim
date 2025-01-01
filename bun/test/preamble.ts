@@ -13,7 +13,6 @@ const SOCK = `/tmp/magenta-test.sock`;
 export async function withNvimProcess(fn: (sock: string) => Promise<void>) {
   try {
     await unlink(SOCK);
-    console.log("unlinked socket");
   } catch (e) {
     if ((e as { code: string }).code !== "ENOENT") {
       console.error(e);
@@ -49,7 +48,6 @@ export async function withNvimProcess(fn: (sock: string) => Promise<void>) {
     await pollUntil(
       async () => {
         if (await exists(SOCK)) {
-          console.log("socket ready");
           return true;
         }
         throw new Error("socket not ready");
@@ -68,16 +66,48 @@ export async function withNvimClient(fn: (nvim: Nvim) => Promise<void>) {
   return await withNvimProcess(async (sock) => {
     const nvim = await attach({
       socket: sock,
-      client: { name: "magenta" },
+      client: { name: "test" },
       logging: { level: "debug" },
     });
 
     await nvim.call("nvim_exec_lua", [
       `\
         require('magenta').bridge(${nvim.channelId})
+
+        -- Set up message interception
+        local notify = vim.notify
+        vim.notify = function(msg, level, opts)
+          local channelId = ${nvim.channelId}
+          if channelId then
+            vim.rpcnotify(channelId, 'testMessage', {msg = msg, level = level})
+          end
+          notify(msg, level, opts)
+        end
       `,
       [],
     ]);
+
+    nvim.onNotification("testMessage", (args) => {
+      try {
+        const { msg, level } = args[0] as { msg: string; level: number };
+        switch (level) {
+          case 0: // ERROR
+            nvim.logger?.error(msg);
+            break;
+          case 2: // WARN
+            nvim.logger?.warn(msg);
+            break;
+          case 3: // INFO
+            nvim.logger?.info(msg);
+            break;
+          default: // DEBUG and others
+            nvim.logger?.debug(msg);
+        }
+      } catch (err) {
+        nvim.logger?.error(err as Error);
+      }
+    });
+    await nvim.call("nvim_exec_lua", [`vim.notify('test notify')`, []]);
 
     nvim.logger!.info("Nvim started");
 
@@ -85,7 +115,6 @@ export async function withNvimClient(fn: (nvim: Nvim) => Promise<void>) {
       await fn(nvim);
     } finally {
       nvim.detach();
-      console.log(`detached nvim`);
     }
   });
 }
@@ -94,18 +123,32 @@ export async function withDriver(fn: (driver: NvimDriver) => Promise<void>) {
   return await withNvimProcess(async (sock) => {
     const nvim = await attach({
       socket: sock,
-      client: { name: "magenta" },
+      client: { name: "test" },
       logging: { level: "debug" },
     });
 
     await withMockClient(async (mockAnthropic) => {
       const magenta = await Magenta.start(nvim);
+      await nvim.call("nvim_exec_lua", [
+        `\
+-- Set up message interception
+local notify = vim.notify
+vim.notify = function(msg, level, opts)
+  local channelId = ${nvim.channelId}
+  if channelId then
+    vim.rpcnotify(channelId, 'testMessage', {msg = msg, level = level})
+  end
+  notify(msg, level, opts)
+end
+
+`,
+        [],
+      ]);
       try {
         await fn(new NvimDriver(nvim, magenta, mockAnthropic));
       } finally {
         magenta.destroy();
         nvim.detach();
-        console.log(`detached nvim`);
       }
     });
   });

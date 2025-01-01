@@ -130,18 +130,17 @@ export class Magenta {
       }
     });
 
-    nvim.onNotification(MAGENTA_LSP_RESPONSE, (args) => {
+    nvim.onNotification(MAGENTA_LSP_RESPONSE, (...args) => {
       try {
-        lsp.onLspResponse(args[0]);
+        lsp.onLspResponse(args);
       } catch (err) {
-        nvim.logger?.error(err as Error);
+        console.error(err);
+        nvim.logger?.error(JSON.stringify(err));
       }
     });
 
     await nvim.call("nvim_exec_lua", [
-      `\
-require('magenta').bridge(${nvim.channelId})
-`,
+      `require('magenta').bridge(${nvim.channelId})`,
       [],
     ]);
     nvim.logger?.info(`Magenta initialized.`);

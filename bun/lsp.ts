@@ -31,23 +31,15 @@ export class Lsp {
       this.nvim.logger?.debug(`Initiating hover command...`);
       this.nvim
         .call("nvim_exec_lua", [
-          `
-        vim.lsp.buf_request_all(${buffer.id}, 'textDocument/hover', {
-          textDocument = {
-              uri = vim.uri_from_bufnr(${buffer.id})
-          },
-          position = {
-              line = ${pos.row},
-              character = ${pos.col}
-          }
-        }, function(responses)
-          require('magenta').lsp_response("${requestId}", responses)
-        end)
-      `,
+          `require('magenta').lsp_hover_request("${requestId}", ${buffer.id}, ${pos.row}, ${pos.col})`,
           [],
         ])
-        .catch((err: Error) => {
-          this.rejectRequest(requestId, err);
+        .catch((...args: string[][]) => {
+          console.log(`lsp request error: ${JSON.stringify(args)}`);
+          this.rejectRequest(
+            requestId,
+            new Error(args[0][1] as unknown as string),
+          );
         });
     });
   }
@@ -63,22 +55,7 @@ export class Lsp {
       this.nvim.logger?.debug(`Initiating references command...`);
       this.nvim
         .call("nvim_exec_lua", [
-          `
-        vim.lsp.buf_request_all(${buffer.id}, 'textDocument/references', {
-          textDocument = {
-              uri = vim.uri_from_bufnr(${buffer.id})
-          },
-          position = {
-              line = ${pos.row},
-              character = ${pos.col}
-          },
-          context = {
-              includeDeclaration = true
-          }
-        }, function(responses)
-          require('magenta').lsp_response("${requestId}", responses)
-        end)
-      `,
+          `require('magenta').lsp_references_request("${requestId}", ${buffer.id}, ${pos.row}, ${pos.col})`,
           [],
         ])
         .catch((err: Error) => {
@@ -103,7 +80,7 @@ export class Lsp {
 
   onLspResponse(result: unknown) {
     this.nvim.logger?.debug(`onLspResponse: ${JSON.stringify(result)}`);
-    const [requestId, res] = result as [number, unknown];
+    const [[[requestId, res]]] = result as [[[number, unknown]]];
     const request = this.requests[requestId];
     if (!request) {
       throw new Error(

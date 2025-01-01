@@ -4,7 +4,7 @@ import { withDriver } from "../test/preamble";
 import { pollUntil } from "../utils/async.ts";
 
 describe("bun/tools/hover.spec.ts", () => {
-  it("hover end-to-end", async () => {
+  it.only("hover end-to-end", async () => {
     await withDriver(async (driver) => {
       await driver.editFile("bun/test/fixtures/test.ts");
       await driver.showSidebar();
@@ -12,6 +12,7 @@ describe("bun/tools/hover.spec.ts", () => {
       await driver.inputMagentaText(`Try hovering a symbol`);
       await driver.send();
 
+      // wait for ts_ls to start/attach
       const toolRequestId = "id" as ToolRequestId;
       await driver.mockAnthropic.respond({
         stopReason: "tool_use",
@@ -53,7 +54,7 @@ describe("bun/tools/hover.spec.ts", () => {
 
           return toolWrapper.model.state.result;
         },
-        { timeout: 3000 },
+        { timeout: 5000 },
       );
 
       expect(result).toEqual({
