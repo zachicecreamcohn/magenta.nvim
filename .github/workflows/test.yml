@@ -33,6 +33,9 @@ jobs:
       - name: verify dependencies
         run: bun pm ls
 
+      - name: tsc version
+        run: bun x tsc --version
+
       - name: Run typecheck
         run: bun x tsc --noEmit
 
