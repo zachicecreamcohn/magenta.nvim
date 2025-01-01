@@ -4,9 +4,7 @@ import { getOption } from "./nvim/nvim.ts";
 import {
   type Position1Indexed,
   NvimWindow,
-  type ByteIdx,
   type WindowId,
-  type Row1Indexed,
 } from "./nvim/window.ts";
 export const WIDTH = 80;
 
@@ -186,20 +184,15 @@ export class Sidebar {
   async scrollToLastUserMessage() {
     const { displayWindow } = await this.getWindowIfVisible();
     if (displayWindow) {
+      console.log(`have displayWindow`);
       const displayBuffer = await displayWindow.buffer();
       const lines = await displayBuffer.getLines({ start: 0, end: -1 });
-      let pos: Position1Indexed | undefined = undefined;
-      for (let lineIdx = lines.length - 1; lineIdx >= 0; lineIdx -= 1) {
-        const line = lines[lineIdx];
-        if (line.startsWith("### user:")) {
-          // nvim_buf_set_cursor is 1-indexed in the row coordinate
-          pos = { row: (lineIdx + 1) as Row1Indexed, col: 0 as ByteIdx };
-          break;
-        }
-      }
-
-      if (pos) {
-        await displayWindow.setCursor(pos);
+      const lineIdx = lines.findLastIndex((l) => l == "# user:");
+      if (lineIdx != -1) {
+        await displayWindow.setCursor({
+          row: lineIdx + 1,
+          col: 0,
+        } as Position1Indexed);
         await displayWindow.zt();
       }
     }

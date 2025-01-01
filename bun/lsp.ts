@@ -93,26 +93,6 @@ export class Lsp {
   }
 }
 
-// sample hover request:
-// [
-//   "0",
-//   [
-//     null,
-//     {
-//       result: {
-//         range: {
-//           end: { character: 17, line: 11 },
-//           start: { character: 12, line: 11 },
-//         },
-//         contents: {
-//           kind: "markdown",
-//           value:
-//             '\n```typescript\ntype Model = {\n    type: "hover";\n    request: HoverToolUseRequest;\n    state: {\n        state: "processing";\n    } | {\n        state: "done";\n        result: ToolResultBlockParam;\n    };\n}\n```\n',
-//         },
-//       },
-//     },
-//   ],
-// ];
 type LspHoverResponse = (null | {
   result: {
     range: {

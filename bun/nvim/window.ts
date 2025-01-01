@@ -102,8 +102,18 @@ export class NvimWindow {
   }
 
   zt() {
-    return this.nvim.call("nvim_command", [
+    return this.nvim.call("nvim_exec2", [
       `call win_execute(${this.id}, 'normal! zt')`,
+      {},
     ]);
+  }
+
+  async topLine(): Promise<number> {
+    const res = await this.nvim.call("nvim_exec2", [
+      `echo line('w0', "${this.id}")`,
+      { output: true },
+    ]);
+
+    return Number(res.output);
   }
 }
