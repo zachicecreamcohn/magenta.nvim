@@ -28,10 +28,7 @@ jobs:
         run: bun add -g typescript-language-server typescript
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile --verbose
-
-      - name: verify dependencies
-        run: bun pm ls
+        run: bun install --frozen-lockfile
 
       - name: tsc version
         run: bun x tsc --version
