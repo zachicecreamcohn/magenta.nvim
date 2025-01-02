@@ -242,7 +242,15 @@ ${result.content as string}
   function renderToolContents(model: ToolModel, dispatch: Dispatch<Msg>) {
     switch (model.type) {
       case "get_file":
-        return GetFile.view({ model });
+        return GetFile.view({
+          model,
+          dispatch: (msg) =>
+            dispatch({
+              type: "tool-msg",
+              id: model.request.id,
+              msg: { type: "get_file", msg },
+            }),
+        });
 
       case "list_buffers":
         return ListBuffers.view({ model });
@@ -298,7 +306,7 @@ ${result.content as string}
     };
   }
 
-  const update: Update<Msg, Model> = (msg, model) => {
+  const update: Update<Msg, Model, { nvim: Nvim }> = (msg, model, context) => {
     switch (msg.type) {
       case "toggle-display": {
         const toolWrapper = model.toolWrappers[msg.id];
@@ -499,6 +507,7 @@ ${result.content as string}
             const [nextToolModel, thunk] = GetFile.update(
               msg.msg.msg,
               toolWrapper.model as GetFile.Model,
+              context,
             );
             toolWrapper.model = nextToolModel;
 

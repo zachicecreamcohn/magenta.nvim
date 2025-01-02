@@ -13,10 +13,13 @@ import type { Nvim } from "bunvim";
 
 export type Dispatch<Msg> = (msg: Msg) => void;
 
-export type Update<Msg, Model> = (
-  msg: Msg,
-  model: Model,
-) => [Model] | [Model, Thunk<Msg> | undefined];
+export type Update<Msg, Model, Context = undefined> = Context extends undefined
+  ? (msg: Msg, model: Model) => [Model] | [Model, Thunk<Msg> | undefined]
+  : (
+      msg: Msg,
+      model: Model,
+      context: Context,
+    ) => [Model] | [Model, Thunk<Msg> | undefined];
 
 export type View<Msg, Model> = ({
   model,

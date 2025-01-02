@@ -3,12 +3,13 @@ import { getBufferIfOpen } from "../utils/buffers.ts";
 import fs from "fs";
 import path from "path";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { type Thunk, type Update } from "../tea/tea.ts";
-import { d, type VDOMNode } from "../tea/view.ts";
+import { type Dispatch, type Thunk, type Update } from "../tea/tea.ts";
+import { d, withBindings, type View } from "../tea/view.ts";
 import { type ToolRequestId } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import type { Nvim } from "bunvim";
+import { readGitignore } from "./util.ts";
 
 export type Model = {
   type: "get_file";
@@ -16,6 +17,7 @@ export type Model = {
   state:
     | {
         state: "processing";
+        approved: boolean;
       }
     | {
         state: "pending-user-action";
@@ -26,12 +28,24 @@ export type Model = {
       };
 };
 
-export type Msg = {
-  type: "finish";
-  result: Anthropic.Anthropic.ToolResultBlockParam;
-};
+export type Msg =
+  | {
+      type: "finish";
+      result: Anthropic.Anthropic.ToolResultBlockParam;
+    }
+  | {
+      type: "request-user-approval";
+    }
+  | {
+      type: "user-approval";
+      approved: boolean;
+    };
 
-export const update: Update<Msg, Model> = (msg, model) => {
+export const update: Update<Msg, Model, { nvim: Nvim }> = (
+  msg,
+  model,
+  context: { nvim: Nvim },
+) => {
   switch (msg.type) {
     case "finish":
       return [
@@ -43,10 +57,133 @@ export const update: Update<Msg, Model> = (msg, model) => {
           },
         },
       ];
+    case "request-user-approval":
+      return [
+        {
+          ...model,
+          state: {
+            state: "pending-user-action",
+          },
+        },
+      ];
+    case "user-approval": {
+      if (model.state.state == "pending-user-action") {
+        if (msg.approved) {
+          const nextModel: Model = {
+            ...model,
+            state: { state: "processing", approved: true },
+          };
+          return [nextModel, readFileThunk(nextModel, context)];
+        } else {
+          return [
+            {
+              ...model,
+              state: {
+                state: "done",
+                result: {
+                  tool_use_id: model.request.id,
+                  type: "tool_result",
+                  content: `The user did not allow the reading of this file.`,
+                  is_error: true,
+                },
+              },
+            },
+          ];
+        }
+      } else {
+        throw new Error(
+          `Unexpected message ${msg.type} when model state is ${model.state.state}`,
+        );
+      }
+    }
     default:
-      assertUnreachable(msg.type);
+      assertUnreachable(msg);
   }
 };
+
+function readFileThunk(model: Model, context: { nvim: Nvim }) {
+  const thunk: Thunk<Msg> = async (dispatch: Dispatch<Msg>) => {
+    const filePath = model.request.input.filePath;
+    const cwd = await getcwd(context.nvim);
+    const absolutePath = path.resolve(cwd, filePath);
+    const relativePath = path.relative(cwd, absolutePath);
+
+    if (!(model.state.state === "processing" && model.state.approved)) {
+      if (!absolutePath.startsWith(cwd)) {
+        dispatch({ type: "request-user-approval" });
+        return;
+      }
+
+      if (relativePath.split(path.sep).some((part) => part.startsWith("."))) {
+        dispatch({ type: "request-user-approval" });
+        return;
+      }
+
+      const ig = await readGitignore(cwd);
+      if (ig.ignores(relativePath)) {
+        dispatch({ type: "request-user-approval" });
+        return;
+      }
+    }
+
+    const bufferContents = await getBufferIfOpen({
+      relativePath: filePath,
+      context,
+    });
+
+    if (bufferContents.status === "ok") {
+      dispatch({
+        type: "finish",
+        result: {
+          type: "tool_result",
+          tool_use_id: model.request.id,
+          content: bufferContents.result,
+          is_error: false,
+        },
+      });
+      return;
+    }
+
+    if (bufferContents.status === "error") {
+      dispatch({
+        type: "finish",
+        result: {
+          type: "tool_result",
+          tool_use_id: model.request.id,
+          content: bufferContents.error,
+          is_error: true,
+        },
+      });
+      return;
+    }
+
+    try {
+      const fileContent = await fs.promises.readFile(absolutePath, "utf-8");
+      dispatch({
+        type: "finish",
+        result: {
+          type: "tool_result",
+          tool_use_id: model.request.id,
+          content: fileContent,
+          is_error: false,
+        },
+      });
+      return;
+    } catch (error) {
+      dispatch({
+        type: "finish",
+        result: {
+          type: "tool_result",
+          tool_use_id: model.request.id,
+          content: `Failed to read file: ${(error as Error).message}`,
+          is_error: true,
+        },
+      });
+    }
+  };
+
+  return thunk;
+}
 
 export function initModel(
   request: GetFileToolUseRequest,
@@ -57,99 +194,39 @@ export function initModel(
     request,
     state: {
       state: "processing",
+      approved: false,
     },
   };
-  return [
-    model,
-    async (dispatch) => {
-      const filePath = model.request.input.filePath;
-      context.nvim.logger?.debug(`request: ${JSON.stringify(model.request)}`);
-      const bufferContents = await getBufferIfOpen({
-        relativePath: filePath,
-        context,
-      });
 
-      if (bufferContents.status === "ok") {
-        dispatch({
-          type: "finish",
-          result: {
-            type: "tool_result",
-            tool_use_id: model.request.id,
-            content: bufferContents.result,
-            is_error: false,
-          },
-        });
-        return;
-      }
-
-      if (bufferContents.status === "error") {
-        dispatch({
-          type: "finish",
-          result: {
-            type: "tool_result",
-            tool_use_id: request.id,
-            content: bufferContents.error,
-            is_error: true,
-          },
-        });
-        return;
-      }
-
-      try {
-        const cwd = await getcwd(context.nvim);
-        const absolutePath = path.resolve(cwd, filePath);
-
-        if (!absolutePath.startsWith(cwd)) {
-          dispatch({
-            type: "finish",
-            result: {
-              type: "tool_result",
-              tool_use_id: model.request.id,
-              content: "The path must be inside of neovim cwd",
-              is_error: true,
-            },
-          });
-          return;
-        }
-
-        const fileContent = await fs.promises.readFile(absolutePath, "utf-8");
-        dispatch({
-          type: "finish",
-          result: {
-            type: "tool_result",
-            tool_use_id: model.request.id,
-            content: fileContent,
-            is_error: false,
-          },
-        });
-        return;
-      } catch (error) {
-        dispatch({
-          type: "finish",
-          result: {
-            type: "tool_result",
-            tool_use_id: model.request.id,
-            content: `Failed to read file: ${(error as Error).message}`,
-            is_error: true,
-          },
-        });
-      }
-    },
-  ];
+  return [model, readFileThunk(model, context)];
 }
 
-export function view({ model }: { model: Model }): VDOMNode {
+export const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
+  model,
+  dispatch,
+}) => {
   switch (model.state.state) {
     case "processing":
       return d`⚙️ Reading file ${model.request.input.filePath}`;
     case "pending-user-action":
-      return d`⏳ Pending approval to read file ${model.request.input.filePath}`;
+      return d`⏳ May I read file \`${model.request.input.filePath}\`? ${withBindings(
+        d`**[ NO ]**`,
+        {
+          "<CR>": () => dispatch({ type: "user-approval", approved: false }),
+        },
+      )} ${withBindings(d`**[ OK ]**`, {
+        "<CR>": () => dispatch({ type: "user-approval", approved: true }),
+      })}`;
     case "done":
-      return d`✅ Finished reading file ${model.request.input.filePath}`;
+      if (model.state.result.is_error) {
+        return d`❌ Error reading file \`${model.request.input.filePath}\`: ${model.state.result.content as string}`;
+      } else {
+        return d`✅ Finished reading file \`${model.request.input.filePath}\``;
+      }
     default:
       assertUnreachable(model.state);
   }
-}
+};
 
 export function getToolResult(
   model: Model,
@@ -165,7 +242,7 @@ export function getToolResult(
       return {
         type: "tool_result",
         tool_use_id: model.request.id,
-        content: `Waiting for a user action to finish processing this tool use. Please proceed with your answer or address other parts of the question.`,
+        content: `Waiting for user approval to finish processing this tool use.`,
       };
     case "done":
       return model.state.result;

@@ -18,7 +18,7 @@ describe("tea/chat.spec.ts", () => {
       const app = createApp({
         nvim,
         initialModel: model,
-        update: chatModel.update,
+        update: (model, msg) => chatModel.update(model, msg, { nvim }),
         View: chatModel.view,
         suppressThunks: true,
       });
@@ -129,7 +129,7 @@ describe("tea/chat.spec.ts", () => {
       const app = createApp({
         nvim,
         initialModel: model,
-        update: chatModel.update,
+        update: (model, msg) => chatModel.update(model, msg, { nvim }),
         View: chatModel.view,
         suppressThunks: true,
       });

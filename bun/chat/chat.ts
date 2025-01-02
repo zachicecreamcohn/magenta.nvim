@@ -102,7 +102,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
       );
   }
 
-  const update: Update<Msg, Model> = (msg, model) => {
+  const update: Update<Msg, Model, { nvim: Nvim }> = (msg, model, context) => {
     switch (msg.type) {
       case "tick":
         return [model];
@@ -172,6 +172,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
           const [nextToolManager, toolManagerThunk] = toolManagerModel.update(
             toolManagerMsg,
             model.toolManager,
+            context,
           );
           model.toolManager = nextToolManager;
           return [
@@ -285,6 +286,7 @@ ${msg.error.stack}`,
           const [nextToolManager, toolManagerThunk] = toolManagerModel.update(
             { type: "init-tool-use", request: msg.request.value },
             model.toolManager,
+            context,
           );
           model.toolManager = nextToolManager;
 
@@ -312,6 +314,7 @@ ${msg.error.stack}`,
         const [nextToolManager, toolManagerThunk] = toolManagerModel.update(
           msg.msg,
           model.toolManager,
+          context,
         );
         model.toolManager = nextToolManager;
         const respondThunk = maybeAutorespond(model);

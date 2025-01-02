@@ -5,9 +5,9 @@ import { createApp } from "../tea/tea.ts";
 import { describe, it } from "bun:test";
 import { pos } from "../tea/view.ts";
 import { NvimBuffer } from "../nvim/buffer.ts";
-import { withNvimClient } from "../test/preamble.ts";
+import { withDriver, withNvimClient } from "../test/preamble.ts";
 
-describe("tea/getFile.spec.ts", () => {
+describe.only("tea/getFile.spec.ts", () => {
   it("render the getFile tool.", async () => {
     await withNvimClient(async (nvim) => {
       const buffer = await NvimBuffer.create(false, true, nvim);
@@ -24,10 +24,10 @@ describe("tea/getFile.spec.ts", () => {
         { nvim },
       );
 
-      const app = createApp({
+      const app = createApp<GetFile.Model, GetFile.Msg>({
         nvim,
         initialModel: model,
-        update: GetFile.update,
+        update: (model, msg) => GetFile.update(model, msg, { nvim }),
         View: GetFile.view,
       });
 
@@ -56,8 +56,138 @@ describe("tea/getFile.spec.ts", () => {
       await mountedApp.waitForRender();
       assert.equal(
         (await buffer.getLines({ start: 0, end: -1 })).join("\n"),
-        `✅ Finished reading file ./file.txt`,
+        `✅ Finished reading file \`./file.txt\``,
       );
+    });
+  });
+
+  it("getFile rejection", async () => {
+    await withDriver(async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(
+        `Try reading the file bun/test/fixtures/.secret`,
+      );
+      await driver.send();
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "ok, here goes",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              type: "tool_use",
+              id: "id" as ToolRequestId,
+              name: "get_file",
+              input: {
+                filePath: "bun/test/fixtures/.secret",
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains(`\
+May I read file \`bun/test/fixtures/.secret\`? **[ NO ]** **[ OK ]**`);
+      const noPos = await driver.assertDisplayBufferContains("**[ NO ]**");
+
+      await driver.triggerDisplayBufferKey(noPos, "<CR>");
+      await driver.assertDisplayBufferContains(`\
+Error reading file \`bun/test/fixtures/.secret\`: The user did not allow the reading of this file.`);
+    });
+  });
+
+  it("getFile approval", async () => {
+    await withDriver(async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(
+        `Try reading the file bun/test/fixtures/.secret`,
+      );
+      await driver.send();
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "ok, here goes",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              type: "tool_use",
+              id: "id" as ToolRequestId,
+              name: "get_file",
+              input: {
+                filePath: "bun/test/fixtures/.secret",
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains(`\
+May I read file \`bun/test/fixtures/.secret\`? **[ NO ]** **[ OK ]**`);
+      const okPos = await driver.assertDisplayBufferContains("**[ OK ]**");
+
+      await driver.triggerDisplayBufferKey(okPos, "<CR>");
+      await driver.assertDisplayBufferContains(`\
+Finished reading file \`bun/test/fixtures/.secret\``);
+    });
+  });
+
+  it("getFile requests approval for gitignored file", async () => {
+    await withDriver(async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(`Try reading the file node_modules/test`);
+      await driver.send();
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "ok, here goes",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              type: "tool_use",
+              id: "id" as ToolRequestId,
+              name: "get_file",
+              input: {
+                filePath: "node_modules/test",
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains(`\
+May I read file \`node_modules/test\`? **[ NO ]** **[ OK ]**`);
+    });
+  });
+
+  it("getFile requests approval for file outside cwd", async () => {
+    await withDriver(async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(`Try reading the file /tmp/file`);
+      await driver.send();
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "ok, here goes",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              type: "tool_use",
+              id: "id" as ToolRequestId,
+              name: "get_file",
+              input: {
+                filePath: "/tmp/file",
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains(`\
+May I read file \`/tmp/file\`? **[ NO ]** **[ OK ]**`);
     });
   });
 });

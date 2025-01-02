@@ -6,9 +6,9 @@ import type { Thunk, Update } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
 import type { ToolRequestId } from "./toolManager.ts";
 import type { Result } from "../utils/result.ts";
-import * as ignore from "ignore";
 import { getcwd } from "../nvim/nvim.ts";
 import type { Nvim } from "bunvim";
+import { readGitignore } from "./util.ts";
 
 export type Model = {
   type: "list_directory";
@@ -45,18 +45,6 @@ export const update: Update<Msg, Model> = (msg, model) => {
       assertUnreachable(msg.type);
   }
 };
-
-async function readGitignore(cwd: string): Promise<ignore.Ignore> {
-  const ig = ignore.default();
-  try {
-    const gitignorePath = path.join(cwd, ".gitignore");
-    const gitignoreContent = await fs.promises.readFile(gitignorePath, "utf8");
-    ig.add(gitignoreContent);
-  } catch {
-    // If .gitignore doesn't exist, just return empty ignore rules
-  }
-  return ig;
-}
 
 async function listDirectoryBFS(
   startPath: string,

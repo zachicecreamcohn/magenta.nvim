@@ -27,7 +27,7 @@ export class Magenta {
     this.chatApp = TEA.createApp({
       nvim: this.nvim,
       initialModel: chatModel.initModel(),
-      update: chatModel.update,
+      update: (model, msg) => chatModel.update(model, msg, { nvim }),
       View: chatModel.view,
     });
   }
