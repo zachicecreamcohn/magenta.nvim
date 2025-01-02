@@ -6,7 +6,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import path from "path";
 import { pollUntil } from "../utils/async.ts";
 import { Magenta } from "../magenta.ts";
-import { withMockClient } from "../anthropic-mock.ts";
+import { withMockClient } from "../providers/mock.ts";
 import { NvimDriver } from "./driver.ts";
 
 const SOCK = `/tmp/magenta-test.sock`;

@@ -1,8 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { type ToolRequest } from "./tools/toolManager.ts";
-import { type Result } from "./utils/result.ts";
-import { Defer, pollUntil } from "./utils/async.ts";
-import * as AnthropicClient from "./anthropic.ts";
+import { type ToolRequest } from "../tools/toolManager.ts";
+import { type Result } from "../utils/result.ts";
+import { Defer, pollUntil } from "../utils/async.ts";
+import { setClient, type Provider, type StopReason } from "./provider.ts";
 
 type MockRequest = {
   messages: Array<Anthropic.MessageParam>;
@@ -10,11 +10,11 @@ type MockRequest = {
   onError: (error: Error) => void;
   defer: Defer<{
     toolRequests: Result<ToolRequest, { rawRequest: unknown }>[];
-    stopReason: AnthropicClient.StopReason;
+    stopReason: StopReason;
   }>;
 };
 
-export class MockClient implements AnthropicClient.AnthropicClient {
+export class MockProvider implements Provider {
   public requests: MockRequest[] = [];
 
   async sendMessage(
@@ -23,7 +23,7 @@ export class MockClient implements AnthropicClient.AnthropicClient {
     onError: (error: Error) => void,
   ): Promise<{
     toolRequests: Result<ToolRequest, { rawRequest: unknown }>[];
-    stopReason: AnthropicClient.StopReason;
+    stopReason: StopReason;
   }> {
     const request: MockRequest = {
       messages,
@@ -52,7 +52,7 @@ export class MockClient implements AnthropicClient.AnthropicClient {
   }: {
     text?: string;
     toolRequests: Result<ToolRequest, { rawRequest: unknown }>[];
-    stopReason: AnthropicClient.StopReason;
+    stopReason: StopReason;
   }) {
     const lastRequest = await this.awaitPendingRequest();
 
@@ -67,12 +67,14 @@ export class MockClient implements AnthropicClient.AnthropicClient {
   }
 }
 
-export async function withMockClient(fn: (mock: MockClient) => Promise<void>) {
-  const mock = new MockClient();
-  AnthropicClient.setClient(mock);
+export async function withMockClient(
+  fn: (mock: MockProvider) => Promise<void>,
+) {
+  const mock = new MockProvider();
+  setClient(mock);
   try {
     await fn(mock);
   } finally {
-    AnthropicClient.setClient(undefined);
+    setClient(undefined);
   }
 }

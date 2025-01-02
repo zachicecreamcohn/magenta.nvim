@@ -1,23 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
-import * as ToolManager from "./tools/toolManager.ts";
-import { type Result } from "./utils/result.ts";
+import * as ToolManager from "../tools/toolManager.ts";
+import { type Result } from "../utils/result.ts";
 import type { Nvim } from "bunvim";
-import type { Lsp } from "./lsp.ts";
+import type { Lsp } from "../lsp.ts";
+import type { StopReason, Provider } from "./provider.ts";
 
-export type StopReason = Anthropic.Message["stop_reason"];
-
-export interface AnthropicClient {
-  sendMessage(
-    messages: Array<Anthropic.MessageParam>,
-    onText: (text: string) => void,
-    onError: (error: Error) => void,
-  ): Promise<{
-    toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
-    stopReason: StopReason;
-  }>;
-}
-
-class AnthropicClientImpl implements AnthropicClient {
+export class AnthropicProviderImpl implements Provider {
   private client: Anthropic;
   private toolManagerModel;
 
@@ -110,18 +98,4 @@ Follow existing patterns and code structure.`,
     this.nvim.logger?.debug("stopReason: " + response.stop_reason);
     return { toolRequests, stopReason: response.stop_reason };
   }
-}
-
-let client: AnthropicClient | undefined;
-
-// lazy load so we have a chance to init context before constructing the class
-export function getClient(nvim: Nvim, lsp: Lsp): AnthropicClient {
-  if (!client) {
-    client = new AnthropicClientImpl(nvim, lsp);
-  }
-  return client;
-}
-
-export function setClient(c: AnthropicClient | undefined) {
-  client = c;
 }

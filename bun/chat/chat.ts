@@ -11,11 +11,11 @@ import {
 } from "../tea/tea.ts";
 import { d, type View } from "../tea/view.ts";
 import * as ToolManager from "../tools/toolManager.ts";
-import { getClient, type StopReason } from "../anthropic.ts";
 import { type Result } from "../utils/result.ts";
 import { IdCounter } from "../utils/uniqueId.ts";
 import type { Nvim } from "bunvim";
 import type { Lsp } from "../lsp.ts";
+import { getClient, type StopReason } from "../providers/provider.ts";
 
 export type Role = "user" | "assistant";
 
