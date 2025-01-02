@@ -196,7 +196,6 @@ export class Sidebar {
   async scrollToLastUserMessage() {
     const { displayWindow } = await this.getWindowIfVisible();
     if (displayWindow) {
-      console.log(`have displayWindow`);
       const displayBuffer = await displayWindow.buffer();
       const lines = await displayBuffer.getLines({ start: 0, end: -1 });
       const lineIdx = lines.findLastIndex((l) => l == "# user:");

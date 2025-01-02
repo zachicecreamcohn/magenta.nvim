@@ -8,12 +8,15 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.33.1",
-    "bunvim": "git+https://github.com/dlants/bunvim.git",
+    "bunvim": "^1.1.13",
     "eslint": "^9.17.0",
     "ignore": "^7.0.0",
     "typescript-eslint": "^8.19.0"
   },
   "scripts": {
     "start": "bun run bun/index.ts"
+  },
+  "patchedDependencies": {
+    "bunvim@1.1.13": "patches/bunvim@1.1.13.patch"
   }
 }

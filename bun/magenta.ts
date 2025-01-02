@@ -67,7 +67,6 @@ export class Magenta {
         if (this.mountedChatApp) {
           await this.mountedChatApp.waitForRender();
         }
-        console.log(`scrollToLastUserMessage`);
         await this.sidebar.scrollToLastUserMessage();
 
         break;

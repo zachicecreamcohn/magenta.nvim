@@ -1,0 +1,75 @@
+diff --git a/src/attach.ts b/src/attach.ts
+index 48e277f7acf07e55b3571ead3ae2b0ecb6056c75..e66b316395ed395885df7cde5db56a1596ff4930 100644
+--- a/src/attach.ts
++++ b/src/attach.ts
+@@ -12,9 +12,9 @@ import {
+     type RPCRequest,
+     type RPCResponse,
+ } from "./types.ts";
++import net from 'node:net'
+ 
+ const packr = new Packr({ useRecords: false });
+-const unpackrStream = new UnpackrStream({ useRecords: false });
+ 
+ [0, 1, 2].forEach((type) => {
+     // https://neovim.io/doc/user/api.html#api-definitions
+@@ -41,26 +41,29 @@ export async function attach<ApiInfo extends BaseEvents = BaseEvents>({
+     let lastReqId = 0;
+     let handlerId = 0;
+ 
+-    const nvimSocket = await Bun.connect({
+-        unix: socket,
+-        socket: {
+-            binaryType: "uint8array",
+-            data(_, data) {
+-                // Sometimes RPC messages are split into multiple socket messages.
+-                // `unpackrStream` handles collecting all socket messages if the RPC message
+-                // is split and decoding it.
+-                unpackrStream.write(data);
+-            },
+-            error(_, error) {
+-                logger?.error("socket error", error);
+-            },
+-            end() {
+-                logger?.debug("connection closed by neovim");
+-            },
+-            close() {
+-                logger?.debug("connection closed by bunvim");
+-            },
+-        },
++    const unpackrStream = new UnpackrStream({ useRecords: false });
++    const nvimSocket = await new Promise<net.Socket>((resolve, reject) => {
++        const client = new net.Socket();
++        client.once("error", reject);
++        client.once("connect", () => {
++            client
++                .removeListener("error", reject)
++                .on("data", (data: Buffer) => {
++                    unpackrStream.write(data);
++                })
++                .on("error", (error) => {
++                    logger?.error("socket error", error);
++                })
++                .on("end", () => {
++                    logger?.debug("connection closed by neovim");
++                })
++                .on("close", () => {
++                    logger?.debug("connection closed by bunvim");
++                });
++            resolve(client);
++        });
++
++        client.connect(socket);
+     });
+ 
+     function processMessageOutQueue() {
+@@ -195,7 +198,8 @@ export async function attach<ApiInfo extends BaseEvents = BaseEvents>({
+             requestHandlers.set(method as string, callback);
+         },
+         detach() {
+-            nvimSocket.end();
++            nvimSocket.destroy();
++            unpackrStream.end();
+         },
+     };
+ }
