@@ -101,7 +101,20 @@ export class OpenAIProvider implements Provider {
       model: "gpt-4o",
       stream: true,
       messages: openaiMessages,
-      tools: [],
+      // see https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
+      // this recommends disabling parallel tool calls when strict adherence to schema is needed
+      parallel_tool_calls: false,
+      tools: ToolManager.TOOL_SPECS.map((s): OpenAI.ChatCompletionTool => {
+        return {
+          type: "function",
+          function: {
+            name: s.name,
+            description: s.description,
+            parameters: s.input_schema as OpenAI.FunctionParameters,
+            strict: true,
+          },
+        };
+      }),
     });
 
     const toolRequests = [];

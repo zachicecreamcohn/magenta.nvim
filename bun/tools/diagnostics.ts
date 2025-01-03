@@ -1,4 +1,3 @@
-import * as Anthropic from "@anthropic-ai/sdk";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Thunk, Update } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
@@ -6,7 +5,10 @@ import { type Result } from "../utils/result.ts";
 import type { Nvim } from "bunvim";
 import { parseLsResponse } from "../utils/lsBuffers.ts";
 import type { ToolRequest } from "./toolManager.ts";
-import type { ProviderToolResultContent } from "../providers/provider.ts";
+import type {
+  ProviderToolResultContent,
+  ProviderToolSpec,
+} from "../providers/provider.ts";
 
 export type Model = {
   type: "diagnostics";
@@ -162,7 +164,7 @@ export function getToolResult(model: Model): ProviderToolResultContent {
   }
 }
 
-export const spec: Anthropic.Anthropic.Tool = {
+export const spec: ProviderToolSpec = {
   name: "diagnostics",
   description: "Get all diagnostic messages in the workspace.",
   input_schema: {

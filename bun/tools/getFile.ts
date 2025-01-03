@@ -1,4 +1,3 @@
-import * as Anthropic from "@anthropic-ai/sdk";
 import { getBufferIfOpen } from "../utils/buffers.ts";
 import fs from "fs";
 import path from "path";
@@ -10,7 +9,10 @@ import { type Result } from "../utils/result.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import type { Nvim } from "bunvim";
 import { readGitignore } from "./util.ts";
-import type { ProviderToolResultContent } from "../providers/provider.ts";
+import type {
+  ProviderToolResultContent,
+  ProviderToolSpec,
+} from "../providers/provider.ts";
 
 export type Model = {
   type: "get_file";
@@ -254,7 +256,7 @@ export function getToolResult(model: Model): ProviderToolResultContent {
   }
 }
 
-export const spec: Anthropic.Anthropic.Tool = {
+export const spec: ProviderToolSpec = {
   name: "get_file",
   description: `Get the full contents of a file in the project directory.`,
   input_schema: {

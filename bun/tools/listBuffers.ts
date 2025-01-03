@@ -1,4 +1,3 @@
-import * as Anthropic from "@anthropic-ai/sdk";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Thunk, Update } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
@@ -6,7 +5,10 @@ import { type ToolRequest } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import type { Nvim } from "bunvim";
 import { parseLsResponse } from "../utils/lsBuffers.ts";
-import type { ProviderToolResultContent } from "../providers/provider.ts";
+import type {
+  ProviderToolResultContent,
+  ProviderToolSpec,
+} from "../providers/provider.ts";
 
 export type Model = {
   type: "list_buffers";
@@ -124,7 +126,7 @@ export function getToolResult(model: Model): ProviderToolResultContent {
   }
 }
 
-export const spec: Anthropic.Anthropic.Tool = {
+export const spec: ProviderToolSpec = {
   name: "list_buffers",
   description: `List all the buffers the user currently has open.
 This will be similar to the output of :buffers in neovim, so buffers will be listed in the order they were opened, with the most recent buffers last.

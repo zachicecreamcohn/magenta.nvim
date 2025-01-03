@@ -1,4 +1,3 @@
-import * as Anthropic from "@anthropic-ai/sdk";
 import { type Thunk, type Update } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
@@ -12,7 +11,10 @@ import { calculateStringPosition } from "../tea/util.ts";
 import type { PositionString, StringIdx } from "../nvim/window.ts";
 import path from "path";
 import type { ToolRequest } from "./toolManager.ts";
-import type { ProviderToolResultContent } from "../providers/provider.ts";
+import type {
+  ProviderToolResultContent,
+  ProviderToolSpec,
+} from "../providers/provider.ts";
 
 export type Model = {
   type: "find_references";
@@ -175,7 +177,7 @@ export function getToolResult(model: Model): ProviderToolResultContent {
   }
 }
 
-export const spec: Anthropic.Anthropic.Tool = {
+export const spec: ProviderToolSpec = {
   name: "find_references",
   description: "Find all references to a symbol in the workspace.",
   input_schema: {

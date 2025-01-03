@@ -1,10 +1,12 @@
-import * as Anthropic from "@anthropic-ai/sdk";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type Dispatch, type Update } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { ToolRequest } from "./toolManager.ts";
-import type { ProviderToolResultContent } from "../providers/provider.ts";
+import type {
+  ProviderToolResultContent,
+  ProviderToolSpec,
+} from "../providers/provider.ts";
 
 export type Model = {
   type: "replace";
@@ -102,7 +104,7 @@ export function getToolResult(model: Model): ProviderToolResultContent {
   }
 }
 
-export const spec: Anthropic.Anthropic.Tool = {
+export const spec: ProviderToolSpec = {
   name: "replace",
   description: `Replace the given text in a file. \
 Break up replace opertations into multiple, smaller tool invocations to avoid repeating large sections of the existing code.`,

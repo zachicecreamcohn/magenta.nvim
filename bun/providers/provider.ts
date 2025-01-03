@@ -2,6 +2,7 @@ import type { Result } from "../utils/result";
 import * as ToolManager from "../tools/toolManager.ts";
 import { AnthropicProvider } from "./anthropic.ts";
 import type { Nvim } from "bunvim";
+import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 
 export type StopReason =
   | "end_turn"
@@ -29,6 +30,12 @@ export type ProviderToolResultContent = {
   type: "tool_result";
   id: ToolManager.ToolRequestId;
   result: Result<string>;
+};
+
+export type ProviderToolSpec = {
+  name: string;
+  description: string;
+  input_schema: JSONSchemaType;
 };
 
 export type ProviderMessageContent =

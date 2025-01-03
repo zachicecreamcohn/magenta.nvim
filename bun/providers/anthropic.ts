@@ -103,7 +103,7 @@ Follow existing patterns and code structure.`,
           type: "auto",
           disable_parallel_tool_use: false,
         },
-        tools: ToolManager.TOOL_SPECS,
+        tools: ToolManager.TOOL_SPECS as Anthropic.Tool[],
       })
       .on("text", (text: string) => {
         buf.push(text);

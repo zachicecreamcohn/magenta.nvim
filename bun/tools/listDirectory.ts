@@ -1,4 +1,3 @@
-import * as Anthropic from "@anthropic-ai/sdk";
 import fs from "fs";
 import path from "path";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
@@ -9,7 +8,10 @@ import { getcwd } from "../nvim/nvim.ts";
 import type { Nvim } from "bunvim";
 import { readGitignore } from "./util.ts";
 import type { ToolRequest } from "./toolManager.ts";
-import type { ProviderToolResultContent } from "../providers/provider.ts";
+import type {
+  ProviderToolResultContent,
+  ProviderToolSpec,
+} from "../providers/provider.ts";
 
 export type Model = {
   type: "list_directory";
@@ -182,7 +184,7 @@ export function getToolResult(model: Model): ProviderToolResultContent {
   }
 }
 
-export const spec: Anthropic.Anthropic.Tool = {
+export const spec: ProviderToolSpec = {
   name: "list_directory",
   description: `List up to 100 files in a directory using breadth-first search, respecting .gitignore and hidden files`,
   input_schema: {

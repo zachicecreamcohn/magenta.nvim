@@ -3,8 +3,10 @@ import { type Dispatch, type Update } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { ToolRequest } from "./toolManager.ts";
-import type { ProviderToolResultContent } from "../providers/provider.ts";
-import * as Anthropic from "@anthropic-ai/sdk";
+import type {
+  ProviderToolResultContent,
+  ProviderToolSpec,
+} from "../providers/provider.ts";
 
 export type Model = {
   type: "insert";
@@ -99,7 +101,7 @@ export function getToolResult(model: Model): ProviderToolResultContent {
   }
 }
 
-export const spec: Anthropic.Anthropic.Tool = {
+export const spec: ProviderToolSpec = {
   name: "insert",
   description:
     "Insert content after the specified string in a file. You can also use this tool to create new files.",
