@@ -23,7 +23,6 @@ describe("bun/tools/diagnostics.spec.ts", () => {
             {
               status: "ok",
               value: {
-                type: "tool_use",
                 id: toolRequestId,
                 name: "diagnostics",
                 input: {},
@@ -57,9 +56,12 @@ describe("bun/tools/diagnostics.spec.ts", () => {
         );
 
         expect(result).toEqual({
-          tool_use_id: toolRequestId,
           type: "tool_result",
-          content: `file: bun/test/fixtures/test.ts source: typescript, severity: 1, message: "Property 'd' does not exist on type '{ c: "test"; }'."`,
+          id: toolRequestId,
+          result: {
+            status: "ok",
+            value: `file: bun/test/fixtures/test.ts source: typescript, severity: 1, message: "Property 'd' does not exist on type '{ c: "test"; }'."`,
+          },
         });
       });
     },

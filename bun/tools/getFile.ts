@@ -1,19 +1,22 @@
-import * as Anthropic from "@anthropic-ai/sdk";
 import { getBufferIfOpen } from "../utils/buffers.ts";
 import fs from "fs";
 import path from "path";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type Dispatch, type Thunk, type Update } from "../tea/tea.ts";
 import { d, withBindings, type View } from "../tea/view.ts";
-import { type ToolRequestId } from "./toolManager.ts";
+import { type ToolRequest } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import type { Nvim } from "bunvim";
 import { readGitignore } from "./util.ts";
+import type {
+  ProviderToolResultContent,
+  ProviderToolSpec,
+} from "../providers/provider.ts";
 
 export type Model = {
   type: "get_file";
-  request: GetFileToolUseRequest;
+  request: ToolRequest<"get_file">;
   state:
     | {
         state: "processing";
@@ -24,14 +27,14 @@ export type Model = {
       }
     | {
         state: "done";
-        result: Anthropic.Anthropic.ToolResultBlockParam;
+        result: ProviderToolResultContent;
       };
 };
 
 export type Msg =
   | {
       type: "finish";
-      result: Anthropic.Anthropic.ToolResultBlockParam;
+      result: Result<string>;
     }
   | {
       type: "request-user-approval";
@@ -53,7 +56,11 @@ export const update: Update<Msg, Model, { nvim: Nvim }> = (
           ...model,
           state: {
             state: "done",
-            result: msg.result,
+            result: {
+              type: "tool_result",
+              id: model.request.id,
+              result: msg.result,
+            },
           },
         },
       ];
@@ -81,10 +88,12 @@ export const update: Update<Msg, Model, { nvim: Nvim }> = (
               state: {
                 state: "done",
                 result: {
-                  tool_use_id: model.request.id,
                   type: "tool_result",
-                  content: `The user did not allow the reading of this file.`,
-                  is_error: true,
+                  id: model.request.id,
+                  result: {
+                    status: "error",
+                    error: `The user did not allow the reading of this file.`,
+                  },
                 },
               },
             },
@@ -135,10 +144,8 @@ function readFileThunk(model: Model, context: { nvim: Nvim }) {
       dispatch({
         type: "finish",
         result: {
-          type: "tool_result",
-          tool_use_id: model.request.id,
-          content: bufferContents.result,
-          is_error: false,
+          status: "ok",
+          value: bufferContents.result,
         },
       });
       return;
@@ -148,10 +155,8 @@ function readFileThunk(model: Model, context: { nvim: Nvim }) {
       dispatch({
         type: "finish",
         result: {
-          type: "tool_result",
-          tool_use_id: model.request.id,
-          content: bufferContents.error,
-          is_error: true,
+          status: "error",
+          error: bufferContents.error,
         },
       });
       return;
@@ -162,10 +167,8 @@ function readFileThunk(model: Model, context: { nvim: Nvim }) {
       dispatch({
         type: "finish",
         result: {
-          type: "tool_result",
-          tool_use_id: model.request.id,
-          content: fileContent,
-          is_error: false,
+          status: "ok",
+          value: fileContent,
         },
       });
       return;
@@ -173,10 +176,8 @@ function readFileThunk(model: Model, context: { nvim: Nvim }) {
       dispatch({
         type: "finish",
         result: {
-          type: "tool_result",
-          tool_use_id: model.request.id,
-          content: `Failed to read file: ${(error as Error).message}`,
-          is_error: true,
+          status: "error",
+          error: `Failed to read file: ${(error as Error).message}`,
         },
       });
     }
@@ -186,7 +187,7 @@ function readFileThunk(model: Model, context: { nvim: Nvim }) {
 }
 
 export function initModel(
-  request: GetFileToolUseRequest,
+  request: ToolRequest<"get_file">,
   context: { nvim: Nvim },
 ): [Model, Thunk<Msg>] {
   const model: Model = {
@@ -218,8 +219,8 @@ export const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
         "<CR>": () => dispatch({ type: "user-approval", approved: true }),
       })}`;
     case "done":
-      if (model.state.result.is_error) {
-        return d`❌ Error reading file \`${model.request.input.filePath}\`: ${model.state.result.content as string}`;
+      if (model.state.result.result.status == "error") {
+        return d`❌ Error reading file \`${model.request.input.filePath}\`: ${model.state.result.result.error}`;
       } else {
         return d`✅ Finished reading file \`${model.request.input.filePath}\``;
       }
@@ -228,21 +229,25 @@ export const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
   }
 };
 
-export function getToolResult(
-  model: Model,
-): Anthropic.Anthropic.ToolResultBlockParam {
+export function getToolResult(model: Model): ProviderToolResultContent {
   switch (model.state.state) {
     case "processing":
       return {
         type: "tool_result",
-        tool_use_id: model.request.id,
-        content: `This tool use is being processed. Please proceed with your answer or address other parts of the question.`,
+        id: model.request.id,
+        result: {
+          status: "ok",
+          value: `This tool use is being processed. Please proceed with your answer or address other parts of the question.`,
+        },
       };
     case "pending-user-action":
       return {
         type: "tool_result",
-        tool_use_id: model.request.id,
-        content: `Waiting for user approval to finish processing this tool use.`,
+        id: model.request.id,
+        result: {
+          status: "ok",
+          value: `Waiting for user approval to finish processing this tool use.`,
+        },
       };
     case "done":
       return model.state.result;
@@ -251,7 +256,7 @@ export function getToolResult(
   }
 }
 
-export const spec: Anthropic.Anthropic.Tool = {
+export const spec: ProviderToolSpec = {
   name: "get_file",
   description: `Get the full contents of a file in the project directory.`,
   input_schema: {
@@ -264,51 +269,23 @@ export const spec: Anthropic.Anthropic.Tool = {
       },
     },
     required: ["filePath"],
+    additionalProperties: false,
   },
 };
 
-export type GetFileToolUseRequest = {
-  type: "tool_use";
-  id: ToolRequestId; //"toolu_01UJtsBsBED9bwkonjqdxji4"
-  name: "get_file";
-  input: {
-    filePath: string; //"./src/index.ts"
-  };
+export type Input = {
+  filePath: string;
 };
 
-export function displayRequest(request: GetFileToolUseRequest) {
+export function displayInput(input: Input) {
   return `get_file: {
-    filePath: ${request.input.filePath}
+    filePath: ${input.filePath}
 }`;
 }
 
-export function validateToolRequest(
-  req: unknown,
-): Result<GetFileToolUseRequest> {
-  if (typeof req != "object" || req == null) {
-    return { status: "error", error: "received a non-object" };
-  }
-
-  const req2 = req as { [key: string]: unknown };
-
-  if (req2.type != "tool_use") {
-    return { status: "error", error: "expected req.type to be tool_use" };
-  }
-
-  if (typeof req2.id != "string") {
-    return { status: "error", error: "expected req.id to be a string" };
-  }
-
-  if (req2.name != "get_file") {
-    return { status: "error", error: "expected req.name to be insert" };
-  }
-
-  if (typeof req2.input != "object" || req2.input == null) {
-    return { status: "error", error: "expected req.input to be an object" };
-  }
-
-  const input = req2.input as { [key: string]: unknown };
-
+export function validateInput(input: {
+  [key: string]: unknown;
+}): Result<Input> {
   if (typeof input.filePath != "string") {
     return {
       status: "error",
@@ -318,6 +295,6 @@ export function validateToolRequest(
 
   return {
     status: "ok",
-    value: req as GetFileToolUseRequest,
+    value: input as Input,
   };
 }

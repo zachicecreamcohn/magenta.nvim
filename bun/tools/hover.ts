@@ -1,7 +1,5 @@
-import * as Anthropic from "@anthropic-ai/sdk";
 import { type Thunk, type Update } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
-import { type ToolRequestId } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { getOrOpenBuffer } from "../utils/buffers.ts";
@@ -10,23 +8,28 @@ import type { Nvim } from "bunvim";
 import type { Lsp } from "../lsp.ts";
 import { calculateStringPosition } from "../tea/util.ts";
 import type { PositionString, StringIdx } from "../nvim/window.ts";
+import type { ToolRequest } from "./toolManager.ts";
+import type {
+  ProviderToolResultContent,
+  ProviderToolSpec,
+} from "../providers/provider.ts";
 
 export type Model = {
   type: "hover";
-  request: HoverToolUseRequest;
+  request: ToolRequest<"hover">;
   state:
     | {
         state: "processing";
       }
     | {
         state: "done";
-        result: Anthropic.Anthropic.ToolResultBlockParam;
+        result: ProviderToolResultContent;
       };
 };
 
 export type Msg = {
   type: "finish";
-  result: Anthropic.Anthropic.ToolResultBlockParam;
+  result: Result<string>;
 };
 
 export const update: Update<Msg, Model> = (msg, model) => {
@@ -37,7 +40,11 @@ export const update: Update<Msg, Model> = (msg, model) => {
           ...model,
           state: {
             state: "done",
-            result: msg.result,
+            result: {
+              type: "tool_result",
+              id: model.request.id,
+              result: msg.result,
+            },
           },
         },
       ];
@@ -47,7 +54,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
 };
 
 export function initModel(
-  request: HoverToolUseRequest,
+  request: ToolRequest<"hover">,
   context: {
     nvim: Nvim;
     lsp: Lsp;
@@ -79,10 +86,8 @@ export function initModel(
         dispatch({
           type: "finish",
           result: {
-            type: "tool_result",
-            tool_use_id: model.request.id,
-            content: bufferResult.error,
-            is_error: true,
+            status: "error",
+            error: bufferResult.error,
           },
         });
         return;
@@ -95,10 +100,8 @@ export function initModel(
         dispatch({
           type: "finish",
           result: {
-            type: "tool_result",
-            tool_use_id: model.request.id,
-            content: `Symbol "${model.request.input.symbol}" not found in file.`,
-            is_error: true,
+            status: "error",
+            error: `Symbol "${model.request.input.symbol}" not found in file.`,
           },
         });
         return;
@@ -125,18 +128,16 @@ ${lspResult.result.contents.value}
         dispatch({
           type: "finish",
           result: {
-            type: "tool_result",
-            tool_use_id: model.request.id,
-            content,
+            status: "ok",
+            value: content,
           },
         });
       } catch (error) {
         dispatch({
           type: "finish",
           result: {
-            type: "tool_result",
-            tool_use_id: request.id,
-            content: `Error requesting hover: ${(error as Error).message}`,
+            status: "error",
+            error: `Error requesting hover: ${(error as Error).message}`,
           },
         });
       }
@@ -155,15 +156,16 @@ export function view({ model }: { model: Model }): VDOMNode {
   }
 }
 
-export function getToolResult(
-  model: Model,
-): Anthropic.Anthropic.ToolResultBlockParam {
+export function getToolResult(model: Model): ProviderToolResultContent {
   switch (model.state.state) {
     case "processing":
       return {
         type: "tool_result",
-        tool_use_id: model.request.id,
-        content: `This tool use is being processed.`,
+        id: model.request.id,
+        result: {
+          status: "ok",
+          value: `This tool use is being processed.`,
+        },
       };
     case "done":
       return model.state.result;
@@ -172,7 +174,7 @@ export function getToolResult(
   }
 }
 
-export const spec: Anthropic.Anthropic.Tool = {
+export const spec: ProviderToolSpec = {
   name: "hover",
   description:
     "Get hover information for a symbol in a file. This will use the attached lsp client if one is available.",
@@ -191,48 +193,22 @@ We will use the right-most character of this string, so if the string is "a.b.c"
       },
     },
     required: ["filePath", "symbol"],
+    additionalProperties: false,
   },
 };
 
-export type HoverToolUseRequest = {
-  type: "tool_use";
-  id: ToolRequestId;
-  input: {
-    filePath: string;
-    symbol: string;
-  };
-  name: "hover";
+export type Input = {
+  filePath: string;
+  symbol: string;
 };
 
-export function displayRequest(request: HoverToolUseRequest) {
-  return `hover: { filePath: "${request.input.filePath}", symbol: "${request.input.symbol}" }`;
+export function displayInput(input: Input) {
+  return `hover: { filePath: "${input.filePath}", symbol: "${input.symbol}" }`;
 }
 
-export function validateToolRequest(req: unknown): Result<HoverToolUseRequest> {
-  if (typeof req != "object" || req == null) {
-    return { status: "error", error: "received a non-object" };
-  }
-
-  const req2 = req as { [key: string]: unknown };
-
-  if (req2.type != "tool_use") {
-    return { status: "error", error: "expected req.type to be tool_use" };
-  }
-
-  if (typeof req2.id != "string") {
-    return { status: "error", error: "expected req.id to be a string" };
-  }
-
-  if (req2.name != "hover") {
-    return { status: "error", error: "expected req.name to be hover" };
-  }
-
-  if (typeof req2.input != "object" || req2.input == null) {
-    return { status: "error", error: "expected req.input to be an object" };
-  }
-
-  const input = req2.input as { [key: string]: unknown };
-
+export function validateInput(input: {
+  [key: string]: unknown;
+}): Result<Input> {
   if (typeof input.filePath != "string") {
     return { status: "error", error: "expected input.filePath to be a string" };
   }
@@ -243,6 +219,6 @@ export function validateToolRequest(req: unknown): Result<HoverToolUseRequest> {
 
   return {
     status: "ok",
-    value: req as HoverToolUseRequest,
+    value: input as Input,
   };
 }

@@ -55,7 +55,6 @@ describe("tea/chat.spec.ts", () => {
         request: {
           status: "ok",
           value: {
-            type: "tool_use",
             id: "request-id" as ToolRequestId,
             input: {},
             name: "list_buffers",
@@ -92,9 +91,8 @@ describe("tea/chat.spec.ts", () => {
             msg: {
               type: "finish",
               result: {
-                type: "tool_result",
-                tool_use_id: "request-id" as ToolRequestId,
-                content: "some buffer content",
+                status: "ok",
+                value: "some buffer content",
               },
             },
           },

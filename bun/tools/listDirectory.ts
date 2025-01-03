@@ -1,32 +1,35 @@
-import * as Anthropic from "@anthropic-ai/sdk";
 import fs from "fs";
 import path from "path";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Thunk, Update } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
-import type { ToolRequestId } from "./toolManager.ts";
 import type { Result } from "../utils/result.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import type { Nvim } from "bunvim";
 import { readGitignore } from "./util.ts";
+import type { ToolRequest } from "./toolManager.ts";
+import type {
+  ProviderToolResultContent,
+  ProviderToolSpec,
+} from "../providers/provider.ts";
 
 export type Model = {
   type: "list_directory";
   autoRespond: boolean;
-  request: ListDirectoryToolUseRequest;
+  request: ToolRequest<"list_directory">;
   state:
     | {
         state: "processing";
       }
     | {
         state: "done";
-        result: Anthropic.Anthropic.ToolResultBlockParam;
+        result: ProviderToolResultContent;
       };
 };
 
 export type Msg = {
   type: "finish";
-  result: Anthropic.Anthropic.ToolResultBlockParam;
+  result: Result<string>;
 };
 
 export const update: Update<Msg, Model> = (msg, model) => {
@@ -37,7 +40,11 @@ export const update: Update<Msg, Model> = (msg, model) => {
           ...model,
           state: {
             state: "done",
-            result: msg.result,
+            result: {
+              type: "tool_result",
+              id: model.request.id,
+              result: msg.result,
+            },
           },
         },
       ];
@@ -95,7 +102,7 @@ async function listDirectoryBFS(
 }
 
 export function initModel(
-  request: ListDirectoryToolUseRequest,
+  request: ToolRequest<"list_directory">,
   context: { nvim: Nvim },
 ): [Model, Thunk<Msg>] {
   const model: Model = {
@@ -119,10 +126,8 @@ export function initModel(
           dispatch({
             type: "finish",
             result: {
-              type: "tool_result",
-              tool_use_id: model.request.id,
-              content: "The path must be inside of neovim cwd",
-              is_error: true,
+              status: "error",
+              error: "The path must be inside of neovim cwd",
             },
           });
           return;
@@ -133,20 +138,16 @@ export function initModel(
         dispatch({
           type: "finish",
           result: {
-            type: "tool_result",
-            tool_use_id: model.request.id,
-            content: files.join("\n"),
-            is_error: false,
+            status: "ok",
+            value: files.join("\n"),
           },
         });
       } catch (error) {
         dispatch({
           type: "finish",
           result: {
-            type: "tool_result",
-            tool_use_id: model.request.id,
-            content: `Failed to list directory: ${(error as Error).message}`,
-            is_error: true,
+            status: "error",
+            error: `Failed to list directory: ${(error as Error).message}`,
           },
         });
       }
@@ -165,15 +166,16 @@ export function view({ model }: { model: Model }): VDOMNode {
   }
 }
 
-export function getToolResult(
-  model: Model,
-): Anthropic.Anthropic.ToolResultBlockParam {
+export function getToolResult(model: Model): ProviderToolResultContent {
   switch (model.state.state) {
     case "processing":
       return {
         type: "tool_result",
-        tool_use_id: model.request.id,
-        content: `This tool use is being processed. Please proceed with your answer or address other parts of the question.`,
+        id: model.request.id,
+        result: {
+          status: "ok",
+          value: `This tool use is being processed. Please proceed with your answer or address other parts of the question.`,
+        },
       };
     case "done":
       return model.state.result;
@@ -182,64 +184,35 @@ export function getToolResult(
   }
 }
 
-export const spec: Anthropic.Anthropic.Tool = {
+export const spec: ProviderToolSpec = {
   name: "list_directory",
-  description: `List up to 100 files in a directory using breadth-first search, respecting .gitignore and hidden files`,
+  description: `List up to 100 files in a directory using breadth-first search, respecting .gitignore and hidden files.`,
   input_schema: {
     type: "object",
     properties: {
       dirPath: {
         type: "string",
-        description:
-          "The directory path relative to cwd to list (defaults to '.')",
+        description: `The directory path relative to cwd. Use "." to list whole directory.`,
       },
     },
-    required: [],
+    required: ["dirPath"],
+    additionalProperties: false,
   },
 };
 
-export type ListDirectoryToolUseRequest = {
-  type: "tool_use";
-  id: ToolRequestId;
-  name: "list_directory";
-  input: {
-    dirPath?: string;
-  };
+export type Input = {
+  dirPath?: string;
 };
 
-export function displayRequest(request: ListDirectoryToolUseRequest) {
+export function displayInput(input: Input) {
   return `list_directory: {
-    dirPath: ${request.input.dirPath || "."}
+    dirPath: ${input.dirPath || "."}
 }`;
 }
 
-export function validateToolRequest(
-  req: unknown,
-): Result<ListDirectoryToolUseRequest> {
-  if (typeof req != "object" || req == null) {
-    return { status: "error", error: "received a non-object" };
-  }
-
-  const req2 = req as { [key: string]: unknown };
-
-  if (req2.type != "tool_use") {
-    return { status: "error", error: "expected req.type to be tool_use" };
-  }
-
-  if (typeof req2.id != "string") {
-    return { status: "error", error: "expected req.id to be a string" };
-  }
-
-  if (req2.name != "list_directory") {
-    return { status: "error", error: "expected req.name to be list_directory" };
-  }
-
-  if (typeof req2.input != "object" || req2.input == null) {
-    return { status: "error", error: "expected req.input to be an object" };
-  }
-
-  const input = req2.input as { [key: string]: unknown };
-
+export function validateInput(input: {
+  [key: string]: unknown;
+}): Result<Input> {
   if (input.dirPath !== undefined && typeof input.dirPath !== "string") {
     return {
       status: "error",
@@ -249,6 +222,6 @@ export function validateToolRequest(
 
   return {
     status: "ok",
-    value: req as ListDirectoryToolUseRequest,
+    value: input as Input,
   };
 }

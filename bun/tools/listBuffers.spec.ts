@@ -28,7 +28,6 @@ describe("bun/tools/listBuffers.spec.ts", () => {
           {
             status: "ok",
             value: {
-              type: "tool_use",
               id: toolRequestId,
               name: "list_buffers",
               input: {},
@@ -58,9 +57,12 @@ describe("bun/tools/listBuffers.spec.ts", () => {
       });
 
       expect(result).toEqual({
-        tool_use_id: toolRequestId,
+        id: toolRequestId,
         type: "tool_result",
-        content: `bun/test/fixtures/poem.txt\nactive bun/test/fixtures/poem2.txt`,
+        result: {
+          status: "ok",
+          value: `bun/test/fixtures/poem.txt\nactive bun/test/fixtures/poem2.txt`,
+        },
       });
     });
   });
@@ -72,7 +74,6 @@ describe("bun/tools/listBuffers.spec.ts", () => {
 
       const [model, _thunk] = ListBuffers.initModel(
         {
-          type: "tool_use",
           id: "request_id" as ToolRequestId,
           name: "list_buffers",
           input: {},
@@ -103,9 +104,8 @@ describe("bun/tools/listBuffers.spec.ts", () => {
       app.dispatch({
         type: "finish",
         result: {
-          type: "tool_result",
-          tool_use_id: "request_id" as ToolRequestId,
-          content: "buffer list",
+          status: "ok",
+          value: "buffer list",
         },
       });
 

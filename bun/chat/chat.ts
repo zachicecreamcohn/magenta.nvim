@@ -1,5 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
-
 import * as Part from "./part.ts";
 import * as Message from "./message.ts";
 import {
@@ -11,11 +9,17 @@ import {
 } from "../tea/tea.ts";
 import { d, type View } from "../tea/view.ts";
 import * as ToolManager from "../tools/toolManager.ts";
-import { getClient, type StopReason } from "../anthropic.ts";
 import { type Result } from "../utils/result.ts";
 import { IdCounter } from "../utils/uniqueId.ts";
 import type { Nvim } from "bunvim";
 import type { Lsp } from "../lsp.ts";
+import {
+  getClient,
+  type ProviderMessage,
+  type ProviderMessageContent,
+  type ProviderName,
+  type StopReason,
+} from "../providers/provider.ts";
 
 export type Role = "user" | "assistant";
 
@@ -30,6 +34,7 @@ export type ConversationState =
     };
 
 export type Model = {
+  provider: ProviderName;
   conversation: ConversationState;
   messages: Message.Model[];
   toolManager: ToolManager.Model;
@@ -42,7 +47,7 @@ type WrappedMessageMsg = {
 
 export type Msg =
   | WrappedMessageMsg
-  | { type: "tick" }
+  | { type: "choose-provider"; provider: ProviderName }
   | {
       type: "add-message";
       role: Role;
@@ -83,6 +88,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
 
   function initModel(): Model {
     return {
+      provider: "anthropic",
       conversation: { state: "stopped", stopReason: "end_turn" },
       messages: [],
       toolManager: toolManagerModel.initModel(),
@@ -104,8 +110,8 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
 
   const update: Update<Msg, Model, { nvim: Nvim }> = (msg, model, context) => {
     switch (msg.type) {
-      case "tick":
-        return [model];
+      case "choose-provider":
+        return [{ ...model, provider: msg.provider }];
       case "add-message": {
         let message: Message.Model = {
           id: idCounter.get() as Message.MessageId,
@@ -388,7 +394,7 @@ ${msg.error.stack}`,
       });
       let res;
       try {
-        res = await getClient(nvim, lsp).sendMessage(
+        res = await getClient(nvim, model.provider).sendMessage(
           messages,
           (text) => {
             dispatch({
@@ -453,13 +459,13 @@ ${msg.error.stack}`,
     }`;
   };
 
-  function getMessages(model: Model): Anthropic.MessageParam[] {
+  function getMessages(model: Model): ProviderMessage[] {
     return model.messages.flatMap((msg) => {
-      const messageContent = [];
-      const toolResponseContent = [];
+      const messageContent: ProviderMessageContent[] = [];
+      const toolResponseContent: ProviderMessageContent[] = [];
 
       for (const part of msg.parts) {
-        const { param, result } = partModel.toMessageParam(
+        const { content: param, result } = partModel.toMessageParam(
           part,
           model.toolManager,
         );
@@ -478,14 +484,18 @@ ${msg.error.stack}`,
             );
           }
 
-          messageContent.push(toolWrapper.model.request);
+          messageContent.push({
+            type: "tool_use",
+            request: toolWrapper.model.request,
+          });
+
           toolResponseContent.push(
             toolManagerModel.getToolResult(toolWrapper.model),
           );
         }
       }
 
-      const out: Anthropic.MessageParam[] = [
+      const out: ProviderMessage[] = [
         {
           role: msg.role,
           content: messageContent,

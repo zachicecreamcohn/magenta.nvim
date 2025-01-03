@@ -1,7 +1,7 @@
 import { type Nvim } from "bunvim";
 import type { Magenta } from "../magenta";
 import type { Line } from "../nvim/buffer";
-import type { MockClient } from "../anthropic-mock";
+import type { MockProvider } from "../providers/mock";
 import {
   NvimWindow,
   pos0to1,
@@ -17,7 +17,7 @@ export class NvimDriver {
   constructor(
     public nvim: Nvim,
     public magenta: Magenta,
-    public mockAnthropic: MockClient,
+    public mockAnthropic: MockProvider,
   ) {}
 
   async showSidebar() {

@@ -14,7 +14,6 @@ describe.only("tea/getFile.spec.ts", () => {
       await buffer.setOption("modifiable", false);
       const [model, _thunk] = GetFile.initModel(
         {
-          type: "tool_use",
           id: "request_id" as ToolRequestId,
           name: "get_file",
           input: {
@@ -47,9 +46,8 @@ describe.only("tea/getFile.spec.ts", () => {
       app.dispatch({
         type: "finish",
         result: {
-          type: "tool_result",
-          tool_use_id: "request_id" as ToolRequestId,
-          content: "file content",
+          status: "ok",
+          value: "file content",
         },
       });
 
@@ -76,7 +74,6 @@ describe.only("tea/getFile.spec.ts", () => {
           {
             status: "ok",
             value: {
-              type: "tool_use",
               id: "id" as ToolRequestId,
               name: "get_file",
               input: {
@@ -112,7 +109,6 @@ Error reading file \`bun/test/fixtures/.secret\`: The user did not allow the rea
           {
             status: "ok",
             value: {
-              type: "tool_use",
               id: "id" as ToolRequestId,
               name: "get_file",
               input: {
@@ -146,7 +142,6 @@ Finished reading file \`bun/test/fixtures/.secret\``);
           {
             status: "ok",
             value: {
-              type: "tool_use",
               id: "id" as ToolRequestId,
               name: "get_file",
               input: {
@@ -175,7 +170,6 @@ May I read file \`node_modules/test\`? **[ NO ]** **[ OK ]**`);
           {
             status: "ok",
             value: {
-              type: "tool_use",
               id: "id" as ToolRequestId,
               name: "get_file",
               input: {

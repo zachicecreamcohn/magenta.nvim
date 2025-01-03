@@ -1,10 +1,13 @@
-import Anthropic from "@anthropic-ai/sdk";
 import * as ToolManager from "../tools/toolManager.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, type View } from "../tea/view.ts";
 import { type Dispatch, type Update } from "../tea/tea.ts";
 import type { Lsp } from "../lsp.ts";
 import type { Nvim } from "bunvim";
+import type {
+  ProviderMessageContent,
+  ProviderToolResultContent,
+} from "../providers/provider.ts";
 
 export type Model =
   | {
@@ -49,7 +52,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
         return d`${model.text}`;
 
       case "malformed-tool-request":
-        return d`Malformed Tool request: ${model.error}
+        return d`Malformed tool request: ${model.error}
 ${JSON.stringify(model.rawRequest, null, 2)}`;
 
       case "tool-request": {
@@ -71,28 +74,31 @@ ${JSON.stringify(model.rawRequest, null, 2)}`;
     }
   };
 
-  function toMessageParam(
+  function toMessageContent(
     part: Model,
     toolManager: ToolManager.Model,
   ): {
-    param: Anthropic.TextBlockParam | Anthropic.ToolUseBlockParam;
-    result?: Anthropic.ToolResultBlockParam;
+    content: ProviderMessageContent;
+    result?: ProviderToolResultContent;
   } {
     switch (part.type) {
       case "text":
-        return { param: part };
+        return { content: part };
 
       case "tool-request": {
         const toolWrapper = toolManager.toolWrappers[part.requestId];
         return {
-          param: toolWrapper.model.request,
+          content: {
+            type: "tool_use",
+            request: toolWrapper.model.request,
+          },
           result: toolManagerModel.getToolResult(toolWrapper.model),
         };
       }
 
       case "malformed-tool-request": {
         return {
-          param: {
+          content: {
             type: "text",
             text: `Malformed tool request: ${part.error}`,
           },
@@ -106,6 +112,6 @@ ${JSON.stringify(model.rawRequest, null, 2)}`;
   return {
     update,
     view,
-    toMessageParam,
+    toMessageParam: toMessageContent,
   };
 }
