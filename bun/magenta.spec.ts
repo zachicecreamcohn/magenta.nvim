@@ -1,4 +1,4 @@
-import { describe, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { withDriver } from "./test/preamble";
 
 describe("bun/magenta.spec.ts", () => {
@@ -40,6 +40,38 @@ hello again
 huh?
 
 Stopped (end_turn)`);
+    });
+  });
+
+  it("can set provider", async () => {
+    await withDriver(async (driver) => {
+      {
+        const state = driver.magenta.chatApp.getState();
+        if (state.status != "running") {
+          throw new Error(`Expected state to be running`);
+        }
+
+        expect(state.model.provider).toBe("anthropic");
+      }
+      await driver.showSidebar();
+      const displayState = driver.getVisibleState();
+      {
+        const winbar = await displayState.inputWindow.getOption("winbar");
+        expect(winbar).toBe(`Magenta Input (anthropic)`);
+      }
+      await driver.nvim.call("nvim_command", ["Magenta provider openai"]);
+      {
+        const state = driver.magenta.chatApp.getState();
+        if (state.status != "running") {
+          throw new Error(`Expected state to be running`);
+        }
+
+        expect(state.model.provider).toBe("openai");
+      }
+      {
+        const winbar = await displayState.inputWindow.getOption("winbar");
+        expect(winbar).toBe(`Magenta Input (openai)`);
+      }
     });
   });
 });

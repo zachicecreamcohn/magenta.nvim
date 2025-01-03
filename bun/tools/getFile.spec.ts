@@ -7,7 +7,7 @@ import { pos } from "../tea/view.ts";
 import { NvimBuffer } from "../nvim/buffer.ts";
 import { withDriver, withNvimClient } from "../test/preamble.ts";
 
-describe.only("tea/getFile.spec.ts", () => {
+describe("tea/getFile.spec.ts", () => {
   it("render the getFile tool.", async () => {
     await withNvimClient(async (nvim) => {
       const buffer = await NvimBuffer.create(false, true, nvim);
