@@ -20,7 +20,6 @@ describe("bun/tools/diff.spec.ts", () => {
           {
             status: "ok",
             value: {
-              type: "tool_use",
               id: "id" as ToolRequestId,
               name: "insert",
               input: {
@@ -82,7 +81,6 @@ describe("bun/tools/diff.spec.ts", () => {
           {
             status: "ok",
             value: {
-              type: "tool_use",
               id: "id" as ToolRequestId,
               name: "insert",
               input: {
@@ -131,7 +129,6 @@ describe("bun/tools/diff.spec.ts", () => {
           {
             status: "ok",
             value: {
-              type: "tool_use",
               id: "id" as ToolRequestId,
               name: "replace",
               input: {
@@ -201,7 +198,6 @@ Paints its colors in the light.`,
           {
             status: "ok",
             value: {
-              type: "tool_use",
               id: "id" as ToolRequestId,
               name: "insert",
               input: {
@@ -239,7 +235,6 @@ Paints its colors in the light.`,
           {
             status: "ok",
             value: {
-              type: "tool_use",
               id: "id" as ToolRequestId,
               name: "insert",
               input: {
@@ -290,7 +285,6 @@ Paints its colors in the light.`,
           {
             status: "ok",
             value: {
-              type: "tool_use",
               id: "id" as ToolRequestId,
               name: "replace",
               input: {
@@ -349,7 +343,6 @@ Paints its colors in the light.`,
           {
             status: "ok",
             value: {
-              type: "tool_use",
               id: "id1" as ToolRequestId,
               name: "replace",
               input: {
@@ -363,7 +356,6 @@ Paints its colors in the light.`,
           {
             status: "ok",
             value: {
-              type: "tool_use",
               id: "id2" as ToolRequestId,
               name: "insert",
               input: {

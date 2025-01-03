@@ -21,7 +21,6 @@ describe("bun/tools/hover.spec.ts", () => {
           {
             status: "ok",
             value: {
-              type: "tool_use",
               id: toolRequestId,
               name: "hover",
               input: {
@@ -58,9 +57,12 @@ describe("bun/tools/hover.spec.ts", () => {
       );
 
       expect(result).toEqual({
-        tool_use_id: toolRequestId,
         type: "tool_result",
-        content: `(markdown):\n\n\`\`\`typescript\n(property) c: "test"\n\`\`\`\n\n`,
+        id: toolRequestId,
+        result: {
+          status: "ok",
+          value: `(markdown):\n\n\`\`\`typescript\n(property) c: "test"\n\`\`\`\n\n`,
+        },
       });
     });
   });

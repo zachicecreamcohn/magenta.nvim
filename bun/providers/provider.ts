@@ -1,15 +1,44 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import type { Result } from "../utils/result";
 import * as ToolManager from "../tools/toolManager.ts";
-import { AnthropicProviderImpl } from "./anthropic.ts";
+import { AnthropicProvider } from "./anthropic.ts";
 import type { Nvim } from "bunvim";
-import type { Lsp } from "../lsp.ts";
 
-export type StopReason = Anthropic.Message["stop_reason"];
+export type StopReason =
+  | "end_turn"
+  | "tool_use"
+  | "max_tokens"
+  | "content"
+  | "stop_sequence";
+
+export type ProviderMessage = {
+  role: "user" | "assistant";
+  content: string | Array<ProviderMessageContent>;
+};
+
+export type ProviderTextContent = {
+  type: "text";
+  text: string;
+};
+
+export type ProviderToolUseContent = {
+  type: "tool_use";
+  request: ToolManager.ToolRequest;
+};
+
+export type ProviderToolResultContent = {
+  type: "tool_result";
+  id: ToolManager.ToolRequestId;
+  result: Result<string>;
+};
+
+export type ProviderMessageContent =
+  | ProviderTextContent
+  | ProviderToolUseContent
+  | ProviderToolResultContent;
 
 export interface Provider {
   sendMessage(
-    messages: Array<Anthropic.MessageParam>,
+    messages: Array<ProviderMessage>,
     onText: (text: string) => void,
     onError: (error: Error) => void,
   ): Promise<{
@@ -21,9 +50,9 @@ export interface Provider {
 let client: Provider | undefined;
 
 // lazy load so we have a chance to init context before constructing the class
-export function getClient(nvim: Nvim, lsp: Lsp): Provider {
+export function getClient(nvim: Nvim): Provider {
   if (!client) {
-    client = new AnthropicProviderImpl(nvim, lsp);
+    client = new AnthropicProvider(nvim);
   }
   return client;
 }

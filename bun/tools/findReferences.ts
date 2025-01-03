@@ -1,7 +1,6 @@
 import * as Anthropic from "@anthropic-ai/sdk";
 import { type Thunk, type Update } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
-import { type ToolRequestId } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { getOrOpenBuffer } from "../utils/buffers.ts";
@@ -12,23 +11,25 @@ import { getcwd } from "../nvim/nvim.ts";
 import { calculateStringPosition } from "../tea/util.ts";
 import type { PositionString, StringIdx } from "../nvim/window.ts";
 import path from "path";
+import type { ToolRequest } from "./toolManager.ts";
+import type { ProviderToolResultContent } from "../providers/provider.ts";
 
 export type Model = {
   type: "find_references";
-  request: ReferencesToolUseRequest;
+  request: ToolRequest<"find_references">;
   state:
     | {
         state: "processing";
       }
     | {
         state: "done";
-        result: Anthropic.Anthropic.ToolResultBlockParam;
+        result: ProviderToolResultContent;
       };
 };
 
 export type Msg = {
   type: "finish";
-  result: Anthropic.Anthropic.ToolResultBlockParam;
+  result: Result<string>;
 };
 
 export const update: Update<Msg, Model> = (msg, model) => {
@@ -39,7 +40,11 @@ export const update: Update<Msg, Model> = (msg, model) => {
           ...model,
           state: {
             state: "done",
-            result: msg.result,
+            result: {
+              type: "tool_result",
+              id: model.request.id,
+              result: msg.result,
+            },
           },
         },
       ];
@@ -49,7 +54,7 @@ export const update: Update<Msg, Model> = (msg, model) => {
 };
 
 export function initModel(
-  request: ReferencesToolUseRequest,
+  request: ToolRequest<"find_references">,
   context: { nvim: Nvim; lsp: Lsp },
 ): [Model, Thunk<Msg>] {
   const model: Model = {
@@ -78,10 +83,8 @@ export function initModel(
         dispatch({
           type: "finish",
           result: {
-            type: "tool_result",
-            tool_use_id: model.request.id,
-            content: bufferResult.error,
-            is_error: true,
+            status: "error",
+            error: bufferResult.error,
           },
         });
         return;
@@ -94,10 +97,8 @@ export function initModel(
         dispatch({
           type: "finish",
           result: {
-            type: "tool_result",
-            tool_use_id: model.request.id,
-            content: `Symbol "${model.request.input.symbol}" not found in file.`,
-            is_error: true,
+            status: "error",
+            error: `Symbol "${model.request.input.symbol}" not found in file.`,
           },
         });
         return;
@@ -128,18 +129,16 @@ export function initModel(
         dispatch({
           type: "finish",
           result: {
-            type: "tool_result",
-            tool_use_id: model.request.id,
-            content: content || "No references found",
+            status: "ok",
+            value: content || "No references found",
           },
         });
       } catch (error) {
         dispatch({
           type: "finish",
           result: {
-            type: "tool_result",
-            tool_use_id: request.id,
-            content: `Error requesting references: ${(error as Error).message}`,
+            status: "error",
+            error: `Error requesting references: ${(error as Error).message}`,
           },
         });
       }
@@ -158,15 +157,16 @@ export function view({ model }: { model: Model }): VDOMNode {
   }
 }
 
-export function getToolResult(
-  model: Model,
-): Anthropic.Anthropic.ToolResultBlockParam {
+export function getToolResult(model: Model): ProviderToolResultContent {
   switch (model.state.state) {
     case "processing":
       return {
         type: "tool_result",
-        tool_use_id: model.request.id,
-        content: `This tool use is being processed.`,
+        id: model.request.id,
+        result: {
+          status: "ok",
+          value: `This tool use is being processed.`,
+        },
       };
     case "done":
       return model.state.result;
@@ -196,50 +196,18 @@ We will use the right-most character of this string, so if the string is "a.b.c"
   },
 };
 
-export type ReferencesToolUseRequest = {
-  type: "tool_use";
-  id: ToolRequestId;
-  input: {
-    filePath: string;
-    symbol: string;
-  };
-  name: "find_references";
+export type Input = {
+  filePath: string;
+  symbol: string;
 };
 
-export function displayRequest(request: ReferencesToolUseRequest) {
-  return `find_references: { filePath: "${request.input.filePath}", symbol: "${request.input.symbol}" }`;
+export function displayInput(input: Input) {
+  return `find_references: { filePath: "${input.filePath}", symbol: "${input.symbol}" }`;
 }
 
-export function validateToolRequest(
-  req: unknown,
-): Result<ReferencesToolUseRequest> {
-  if (typeof req != "object" || req == null) {
-    return { status: "error", error: "received a non-object" };
-  }
-
-  const req2 = req as { [key: string]: unknown };
-
-  if (req2.type != "tool_use") {
-    return { status: "error", error: "expected req.type to be tool_use" };
-  }
-
-  if (typeof req2.id != "string") {
-    return { status: "error", error: "expected req.id to be a string" };
-  }
-
-  if (req2.name != "find_references") {
-    return {
-      status: "error",
-      error: "expected req.name to be find_references",
-    };
-  }
-
-  if (typeof req2.input != "object" || req2.input == null) {
-    return { status: "error", error: "expected req.input to be an object" };
-  }
-
-  const input = req2.input as { [key: string]: unknown };
-
+export function validateInput(input: {
+  [key: string]: unknown;
+}): Result<Input> {
   if (typeof input.filePath != "string") {
     return { status: "error", error: "expected input.filePath to be a string" };
   }
@@ -250,6 +218,6 @@ export function validateToolRequest(
 
   return {
     status: "ok",
-    value: req as ReferencesToolUseRequest,
+    value: input as Input,
   };
 }

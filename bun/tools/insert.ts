@@ -1,22 +1,23 @@
-import * as Anthropic from "@anthropic-ai/sdk";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type Dispatch, type Update } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
-import { type ToolRequestId } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
+import type { ToolRequest } from "./toolManager.ts";
+import type { ProviderToolResultContent } from "../providers/provider.ts";
+import * as Anthropic from "@anthropic-ai/sdk";
 
 export type Model = {
   type: "insert";
-  request: InsertToolUseRequest;
+  request: ToolRequest<"insert">;
   state: {
     state: "done";
-    result: Anthropic.Anthropic.ToolResultBlockParam;
+    result: ProviderToolResultContent;
   };
 };
 
 export type Msg = {
   type: "finish";
-  result: Anthropic.Anthropic.ToolResultBlockParam;
+  result: Result<string>;
 };
 
 export const update: Update<Msg, Model> = (msg, model) => {
@@ -27,7 +28,11 @@ export const update: Update<Msg, Model> = (msg, model) => {
           ...model,
           state: {
             state: "done",
-            result: msg.result,
+            result: {
+              type: "tool_result",
+              id: model.request.id,
+              result: msg.result,
+            },
           },
         },
       ];
@@ -36,16 +41,19 @@ export const update: Update<Msg, Model> = (msg, model) => {
   }
 };
 
-export function initModel(request: InsertToolUseRequest): [Model] {
+export function initModel(request: ToolRequest<"insert">): [Model] {
   const model: Model = {
     type: "insert",
     request,
     state: {
       state: "done",
       result: {
-        tool_use_id: request.id,
         type: "tool_result",
-        content: `The user will review your proposed change. Please assume that your change will be accepted and address the remaining parts of the question.`,
+        id: request.id,
+        result: {
+          status: "ok",
+          value: `The user will review your proposed change. Please assume that your change will be accepted and address the remaining parts of the question.`,
+        },
       },
     },
   };
@@ -74,17 +82,15 @@ function toolStatusView({
 }): VDOMNode {
   switch (model.state.state) {
     case "done":
-      if (model.state.result.is_error) {
-        return d`⚠️ Error: ${JSON.stringify(model.state.result.content, null, 2)}`;
+      if (model.state.result.result.status == "error") {
+        return d`⚠️ Error: ${JSON.stringify(model.state.result.result.error, null, 2)}`;
       } else {
         return d`Awaiting user review.`;
       }
   }
 }
 
-export function getToolResult(
-  model: Model,
-): Anthropic.Anthropic.ToolResultBlockParam {
+export function getToolResult(model: Model): ProviderToolResultContent {
   switch (model.state.state) {
     case "done":
       return model.state.result;
@@ -119,55 +125,26 @@ export const spec: Anthropic.Anthropic.Tool = {
   },
 };
 
-export type InsertToolUseRequest = {
-  type: "tool_use";
-  id: ToolRequestId;
-  name: "insert";
-  input: {
-    filePath: string;
-    insertAfter: string;
-    content: string;
-  };
+export type Input = {
+  filePath: string;
+  insertAfter: string;
+  content: string;
 };
 
-export function displayRequest(request: InsertToolUseRequest) {
+export function displayInput(input: Input) {
   return `insert: {
-    filePath: ${request.input.filePath}
-    insertAfter: "${request.input.insertAfter}"
+    filePath: ${input.filePath}
+    insertAfter: "${input.insertAfter}"
     content:
 \`\`\`
-${request.input.content}
+${input.content}
 \`\`\`
 }`;
 }
 
-export function validateToolRequest(
-  req: unknown,
-): Result<InsertToolUseRequest> {
-  if (typeof req != "object" || req == null) {
-    return { status: "error", error: "received a non-object" };
-  }
-
-  const req2 = req as { [key: string]: unknown };
-
-  if (req2.type != "tool_use") {
-    return { status: "error", error: "expected req.type to be tool_use" };
-  }
-
-  if (typeof req2.id != "string") {
-    return { status: "error", error: "expected req.id to be a string" };
-  }
-
-  if (req2.name != "insert") {
-    return { status: "error", error: "expected req.name to be insert" };
-  }
-
-  if (typeof req2.input != "object" || req2.input == null) {
-    return { status: "error", error: "expected req.input to be an object" };
-  }
-
-  const input = req2.input as { [key: string]: unknown };
-
+export function validateInput(input: {
+  [key: string]: unknown;
+}): Result<Input> {
   if (typeof input.filePath != "string") {
     return {
       status: "error",
@@ -191,6 +168,6 @@ export function validateToolRequest(
 
   return {
     status: "ok",
-    value: req as InsertToolUseRequest,
+    value: input as Input,
   };
 }

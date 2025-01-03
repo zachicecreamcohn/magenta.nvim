@@ -1,5 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
-
 import * as Part from "./part.ts";
 import * as Message from "./message.ts";
 import {
@@ -15,7 +13,12 @@ import { type Result } from "../utils/result.ts";
 import { IdCounter } from "../utils/uniqueId.ts";
 import type { Nvim } from "bunvim";
 import type { Lsp } from "../lsp.ts";
-import { getClient, type StopReason } from "../providers/provider.ts";
+import {
+  getClient,
+  type ProviderMessage,
+  type ProviderMessageContent,
+  type StopReason,
+} from "../providers/provider.ts";
 
 export type Role = "user" | "assistant";
 
@@ -388,7 +391,7 @@ ${msg.error.stack}`,
       });
       let res;
       try {
-        res = await getClient(nvim, lsp).sendMessage(
+        res = await getClient(nvim).sendMessage(
           messages,
           (text) => {
             dispatch({
@@ -453,13 +456,13 @@ ${msg.error.stack}`,
     }`;
   };
 
-  function getMessages(model: Model): Anthropic.MessageParam[] {
+  function getMessages(model: Model): ProviderMessage[] {
     return model.messages.flatMap((msg) => {
-      const messageContent = [];
-      const toolResponseContent = [];
+      const messageContent: ProviderMessageContent[] = [];
+      const toolResponseContent: ProviderMessageContent[] = [];
 
       for (const part of msg.parts) {
-        const { param, result } = partModel.toMessageParam(
+        const { content: param, result } = partModel.toMessageParam(
           part,
           model.toolManager,
         );
@@ -478,14 +481,18 @@ ${msg.error.stack}`,
             );
           }
 
-          messageContent.push(toolWrapper.model.request);
+          messageContent.push({
+            type: "tool_use",
+            request: toolWrapper.model.request,
+          });
+
           toolResponseContent.push(
             toolManagerModel.getToolResult(toolWrapper.model),
           );
         }
       }
 
-      const out: Anthropic.MessageParam[] = [
+      const out: ProviderMessage[] = [
         {
           role: msg.role,
           content: messageContent,

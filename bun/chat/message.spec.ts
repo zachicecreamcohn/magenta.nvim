@@ -18,7 +18,6 @@ describe("bun/chat/message.spec.ts", () => {
           {
             status: "ok",
             value: {
-              type: "tool_use",
               id: "id1" as ToolRequestId,
               name: "replace",
               input: {
@@ -32,7 +31,6 @@ describe("bun/chat/message.spec.ts", () => {
           {
             status: "ok",
             value: {
-              type: "tool_use",
               id: "id2" as ToolRequestId,
               name: "replace",
               input: {

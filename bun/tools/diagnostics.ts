@@ -2,27 +2,28 @@ import * as Anthropic from "@anthropic-ai/sdk";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Thunk, Update } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
-import { type ToolRequestId } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import type { Nvim } from "bunvim";
 import { parseLsResponse } from "../utils/lsBuffers.ts";
+import type { ToolRequest } from "./toolManager.ts";
+import type { ProviderToolResultContent } from "../providers/provider.ts";
 
 export type Model = {
   type: "diagnostics";
-  request: DiagnosticsToolRequest;
+  request: ToolRequest<"diagnostics">;
   state:
     | {
         state: "processing";
       }
     | {
         state: "done";
-        result: Anthropic.Anthropic.ToolResultBlockParam;
+        result: ProviderToolResultContent;
       };
 };
 
 export type Msg = {
   type: "finish";
-  result: Anthropic.Anthropic.ToolResultBlockParam;
+  result: Result<string>;
 };
 
 export const update: Update<Msg, Model> = (msg, model) => {
@@ -33,7 +34,11 @@ export const update: Update<Msg, Model> = (msg, model) => {
           ...model,
           state: {
             state: "done",
-            result: msg.result,
+            result: {
+              type: "tool_result",
+              id: model.request.id,
+              result: msg.result,
+            },
           },
         },
       ];
@@ -75,7 +80,7 @@ type DiagnosticsRes = {
 };
 
 export function initModel(
-  request: DiagnosticsToolRequest,
+  request: ToolRequest<"diagnostics">,
   context: { nvim: Nvim },
 ): [Model, Thunk<Msg>] {
   const model: Model = {
@@ -120,9 +125,8 @@ export function initModel(
       dispatch({
         type: "finish",
         result: {
-          type: "tool_result",
-          tool_use_id: request.id,
-          content,
+          status: "ok",
+          value: content,
         },
       });
     },
@@ -140,15 +144,16 @@ export function view({ model }: { model: Model }): VDOMNode {
   }
 }
 
-export function getToolResult(
-  model: Model,
-): Anthropic.Anthropic.ToolResultBlockParam {
+export function getToolResult(model: Model): ProviderToolResultContent {
   switch (model.state.state) {
     case "processing":
       return {
         type: "tool_result",
-        tool_use_id: model.request.id,
-        content: `This tool use is being processed. Please proceed with your answer or address other parts of the question.`,
+        id: model.request.id,
+        result: {
+          status: "ok",
+          value: `This tool use is being processed. Please proceed with your answer or address other parts of the question.`,
+        },
       };
     case "done":
       return model.state.result;
@@ -167,46 +172,16 @@ export const spec: Anthropic.Anthropic.Tool = {
   },
 };
 
-export type DiagnosticsToolRequest = {
-  type: "tool_use";
-  id: ToolRequestId;
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-  input: {};
-  name: "diagnostics";
-};
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export type Input = {};
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function displayRequest(_request: DiagnosticsToolRequest) {
+export function displayInput() {
   return `diagnostics: {}`;
 }
 
-export function validateToolRequest(
-  req: unknown,
-): Result<DiagnosticsToolRequest> {
-  if (typeof req != "object" || req == null) {
-    return { status: "error", error: "received a non-object" };
-  }
-
-  const req2 = req as { [key: string]: unknown };
-
-  if (req2.type != "tool_use") {
-    return { status: "error", error: "expected req.type to be tool_use" };
-  }
-
-  if (typeof req2.id != "string") {
-    return { status: "error", error: "expected req.id to be a string" };
-  }
-
-  if (req2.name != "diagnostics") {
-    return { status: "error", error: "expected req.name to be diagnostics" };
-  }
-
-  if (typeof req2.input != "object" || req2.input == null) {
-    return { status: "error", error: "expected req.input to be an object" };
-  }
-
+export function validateInput(): Result<Input> {
   return {
     status: "ok",
-    value: req as DiagnosticsToolRequest,
+    value: {} as Input,
   };
 }

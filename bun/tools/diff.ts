@@ -1,13 +1,11 @@
 import { WIDTH } from "../sidebar.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Dispatch } from "../tea/tea.ts";
-import type { ReplaceToolRequest } from "./replace.ts";
-import type { InsertToolUseRequest } from "./insert.ts";
 import { diffthis, getAllWindows } from "../nvim/nvim.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 import { type WindowId } from "../nvim/window.ts";
 import type { Nvim } from "bunvim";
-import type { ToolRequestId } from "./toolManager.ts";
+import type { ToolRequest, ToolRequestId } from "./toolManager.ts";
 
 type Msg = {
   type: "diff-error";
@@ -31,7 +29,7 @@ export async function displayDiffs({
    * file.
    */
   diffId: string;
-  edits: (ReplaceToolRequest | InsertToolUseRequest)[];
+  edits: (ToolRequest<"replace"> | ToolRequest<"insert">)[];
   dispatch: Dispatch<Msg>;
   context: { nvim: Nvim };
 }) {

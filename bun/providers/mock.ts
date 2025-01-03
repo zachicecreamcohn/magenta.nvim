@@ -1,11 +1,15 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { type ToolRequest } from "../tools/toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import { Defer, pollUntil } from "../utils/async.ts";
-import { setClient, type Provider, type StopReason } from "./provider.ts";
+import {
+  setClient,
+  type Provider,
+  type ProviderMessage,
+  type StopReason,
+} from "./provider.ts";
 
 type MockRequest = {
-  messages: Array<Anthropic.MessageParam>;
+  messages: Array<ProviderMessage>;
   onText: (text: string) => void;
   onError: (error: Error) => void;
   defer: Defer<{
@@ -18,7 +22,7 @@ export class MockProvider implements Provider {
   public requests: MockRequest[] = [];
 
   async sendMessage(
-    messages: Array<Anthropic.MessageParam>,
+    messages: Array<ProviderMessage>,
     onText: (text: string) => void,
     onError: (error: Error) => void,
   ): Promise<{

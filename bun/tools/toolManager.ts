@@ -1,4 +1,3 @@
-import * as Anthropic from "@anthropic-ai/sdk";
 import * as GetFile from "./getFile.ts";
 import * as Insert from "./insert.ts";
 import * as Replace from "./replace.ts";
@@ -8,21 +7,47 @@ import * as Hover from "./hover.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as Diagnostics from "./diagnostics.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { extendError, type Result } from "../utils/result.ts";
+import { type Result } from "../utils/result.ts";
 import { d, withBindings } from "../tea/view.ts";
 import { type Dispatch, type Update } from "../tea/tea.ts";
 import type { Nvim } from "bunvim";
 import type { Lsp } from "../lsp.ts";
+import type { ProviderToolResultContent } from "../providers/provider.ts";
 
-export type ToolRequest =
-  | GetFile.GetFileToolUseRequest
-  | Insert.InsertToolUseRequest
-  | Replace.ReplaceToolRequest
-  | ListBuffers.ListBuffersToolRequest
-  | ListDirectory.ListDirectoryToolUseRequest
-  | Hover.HoverToolUseRequest
-  | FindReferences.ReferencesToolUseRequest
-  | Diagnostics.DiagnosticsToolRequest;
+type ToolMap = {
+  get_file: {
+    input: GetFile.Input;
+  };
+  insert: {
+    input: Insert.Input;
+  };
+  replace: {
+    input: Replace.Input;
+  };
+  list_buffers: {
+    input: ListBuffers.Input;
+  };
+  list_directory: {
+    input: ListDirectory.Input;
+  };
+  hover: {
+    input: Hover.Input;
+  };
+  find_references: {
+    input: FindReferences.Input;
+  };
+  diagnostics: {
+    input: Diagnostics.Input;
+  };
+};
+
+export type ToolName = keyof ToolMap;
+
+export type ToolRequest<Name extends ToolName = ToolName> = {
+  id: ToolRequestId;
+  name: Name;
+  input: ToolMap[Name]["input"];
+};
 
 export type ToolModel =
   | GetFile.Model
@@ -62,7 +87,7 @@ export type Model = {
 export type Msg =
   | {
       type: "init-tool-use";
-      request: ToolRequest;
+      request: ToolRequest<ToolName>;
     }
   | {
       type: "toggle-display";
@@ -108,56 +133,37 @@ export type Msg =
           };
     };
 
-export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
-  function validateToolRequest(
-    req: unknown,
-  ): Result<ToolRequest, { rawRequest: unknown }> {
-    const type = (req as { [key: string]: unknown } | undefined)?.["name"];
-    switch (type) {
-      case "get_file":
-        return extendError(GetFile.validateToolRequest(req), {
-          rawRequest: req,
-        });
-      case "insert":
-        return extendError(Insert.validateToolRequest(req), {
-          rawRequest: req,
-        });
-      case "replace":
-        return extendError(Replace.validateToolRequest(req), {
-          rawRequest: req,
-        });
-      case "list_buffers":
-        return extendError(ListBuffers.validateToolRequest(req), {
-          rawRequest: req,
-        });
-      case "list_directory":
-        return extendError(ListDirectory.validateToolRequest(req), {
-          rawRequest: req,
-        });
-      case "hover":
-        return extendError(Hover.validateToolRequest(req), {
-          rawRequest: req,
-        });
-      case "find_references":
-        return extendError(FindReferences.validateToolRequest(req), {
-          rawRequest: req,
-        });
-      case "diagnostics":
-        return extendError(Diagnostics.validateToolRequest(req), {
-          rawRequest: req,
-        });
-      default:
-        return {
-          status: "error",
-          error: `Unexpected request type ${type as string}`,
-          rawRequest: req,
-        };
-    }
+export function validateToolInput(
+  type: unknown,
+  args: { [key: string]: unknown },
+): Result<ToolMap[ToolName]["input"]> {
+  switch (type) {
+    case "get_file":
+      return GetFile.validateInput(args);
+    case "insert":
+      return Insert.validateInput(args);
+    case "replace":
+      return Replace.validateInput(args);
+    case "list_buffers":
+      return ListBuffers.validateInput();
+    case "list_directory":
+      return ListDirectory.validateInput(args);
+    case "hover":
+      return Hover.validateInput(args);
+    case "find_references":
+      return FindReferences.validateInput(args);
+    case "diagnostics":
+      return Diagnostics.validateInput();
+    default:
+      return {
+        status: "error",
+        error: `Unexpected request type ${type as string}`,
+      };
   }
+}
 
-  function getToolResult(
-    model: ToolModel,
-  ): Anthropic.Anthropic.ToolResultBlockParam {
+export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
+  function getToolResult(model: ToolModel): ProviderToolResultContent {
     switch (model.type) {
       case "get_file":
         return GetFile.getToolResult(model);
@@ -183,21 +189,21 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
   function displayRequest(model: ToolModel): string {
     switch (model.type) {
       case "get_file":
-        return GetFile.displayRequest(model.request);
+        return GetFile.displayInput(model.request.input);
       case "insert":
-        return Insert.displayRequest(model.request);
+        return Insert.displayInput(model.request.input);
       case "replace":
-        return Replace.displayRequest(model.request);
+        return Replace.displayInput(model.request.input);
       case "list_buffers":
-        return ListBuffers.displayRequest(model.request);
+        return ListBuffers.displayInput();
       case "list_directory":
-        return ListDirectory.displayRequest(model.request);
+        return ListDirectory.displayInput(model.request.input);
       case "hover":
-        return Hover.displayRequest(model.request);
+        return Hover.displayInput(model.request.input);
       case "find_references":
-        return FindReferences.displayRequest(model.request);
+        return FindReferences.displayInput(model.request.input);
       case "diagnostics":
-        return Diagnostics.displayRequest(model.request);
+        return Diagnostics.displayInput();
       default:
         return assertUnreachable(model);
     }
@@ -206,12 +212,12 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
   function displayResult(model: ToolModel) {
     if (model.state.state == "done") {
       const result = model.state.result;
-      if (result.is_error) {
-        return `\nError: ${result.content as string}`;
+      if (result.result.status == "error") {
+        return `\nError: ${result.result.error}`;
       } else {
         return `\nResult:
 \`\`\`
-${result.content as string}
+${result.result.value}
 \`\`\``;
       }
     } else {
@@ -325,7 +331,10 @@ ${result.content as string}
 
         switch (request.name) {
           case "get_file": {
-            const [getFileModel, thunk] = GetFile.initModel(request, { nvim });
+            const [getFileModel, thunk] = GetFile.initModel(
+              request as ToolRequest<"get_file">,
+              { nvim },
+            );
             model.toolWrappers[request.id] = {
               model: getFileModel,
               showRequest: false,
@@ -348,9 +357,12 @@ ${result.content as string}
           }
 
           case "list_buffers": {
-            const [listBuffersModel, thunk] = ListBuffers.initModel(request, {
-              nvim,
-            });
+            const [listBuffersModel, thunk] = ListBuffers.initModel(
+              request as ToolRequest<"list_buffers">,
+              {
+                nvim,
+              },
+            );
             model.toolWrappers[request.id] = {
               model: listBuffersModel,
               showRequest: false,
@@ -373,7 +385,9 @@ ${result.content as string}
           }
 
           case "insert": {
-            const [insertModel] = Insert.initModel(request);
+            const [insertModel] = Insert.initModel(
+              request as ToolRequest<"insert">,
+            );
             model.toolWrappers[request.id] = {
               model: insertModel,
               showRequest: false,
@@ -383,7 +397,9 @@ ${result.content as string}
           }
 
           case "replace": {
-            const [replaceModel] = Replace.initModel(request);
+            const [replaceModel] = Replace.initModel(
+              request as ToolRequest<"replace">,
+            );
             model.toolWrappers[request.id] = {
               model: replaceModel,
               showRequest: false,
@@ -393,9 +409,12 @@ ${result.content as string}
           }
 
           case "list_directory": {
-            const [listDirModel, thunk] = ListDirectory.initModel(request, {
-              nvim,
-            });
+            const [listDirModel, thunk] = ListDirectory.initModel(
+              request as ToolRequest<"list_directory">,
+              {
+                nvim,
+              },
+            );
             model.toolWrappers[request.id] = {
               model: listDirModel,
               showRequest: false,
@@ -418,7 +437,10 @@ ${result.content as string}
           }
 
           case "hover": {
-            const [hoverModel, thunk] = Hover.initModel(request, { nvim, lsp });
+            const [hoverModel, thunk] = Hover.initModel(
+              request as ToolRequest<"hover">,
+              { nvim, lsp },
+            );
             model.toolWrappers[request.id] = {
               model: hoverModel,
               showRequest: false,
@@ -442,7 +464,7 @@ ${result.content as string}
 
           case "find_references": {
             const [findReferencesModel, thunk] = FindReferences.initModel(
-              request,
+              request as ToolRequest<"find_references">,
               { nvim, lsp },
             );
             model.toolWrappers[request.id] = {
@@ -467,9 +489,12 @@ ${result.content as string}
           }
 
           case "diagnostics": {
-            const [diagnosticsModel, thunk] = Diagnostics.initModel(request, {
-              nvim,
-            });
+            const [diagnosticsModel, thunk] = Diagnostics.initModel(
+              request as ToolRequest<"diagnostics">,
+              {
+                nvim,
+              },
+            );
             model.toolWrappers[request.id] = {
               model: diagnosticsModel,
               showRequest: false,
@@ -492,7 +517,7 @@ ${result.content as string}
           }
 
           default:
-            return assertUnreachable(request);
+            return assertUnreachable(request.name);
         }
       }
 
@@ -715,7 +740,6 @@ ${result.content as string}
   };
 
   return {
-    validateToolRequest,
     getToolResult,
     update,
     initModel,

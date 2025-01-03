@@ -20,7 +20,6 @@ describe("bun/tools/findReferences.spec.ts", () => {
           {
             status: "ok",
             value: {
-              type: "tool_use",
               id: toolRequestId,
               name: "find_references",
               input: {
@@ -57,9 +56,12 @@ describe("bun/tools/findReferences.spec.ts", () => {
       );
 
       expect(result).toEqual({
-        tool_use_id: toolRequestId,
         type: "tool_result",
-        content: `bun/test/fixtures/test.ts:4:6\nbun/test/fixtures/test.ts:12:6\nbun/test/fixtures/test.ts:17:20\n`,
+        id: toolRequestId,
+        result: {
+          status: "ok",
+          value: `bun/test/fixtures/test.ts:4:6\nbun/test/fixtures/test.ts:12:6\nbun/test/fixtures/test.ts:17:20\n`,
+        },
       });
     });
   });
