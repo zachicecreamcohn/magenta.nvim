@@ -269,6 +269,7 @@ export const spec: ProviderToolSpec = {
       },
     },
     required: ["filePath"],
+    additionalProperties: false,
   },
 };
 

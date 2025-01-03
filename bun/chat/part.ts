@@ -52,7 +52,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
         return d`${model.text}`;
 
       case "malformed-tool-request":
-        return d`Malformed Tool request: ${model.error}
+        return d`Malformed tool request: ${model.error}
 ${JSON.stringify(model.rawRequest, null, 2)}`;
 
       case "tool-request": {

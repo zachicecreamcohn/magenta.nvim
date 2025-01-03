@@ -133,6 +133,7 @@ If multiple locations in the file match this line, the first line will be used.`
       },
     },
     required: ["filePath", "startLine", "endLine", "replace"],
+    additionalProperties: false,
   },
 };
 

@@ -135,6 +135,7 @@ This can be useful to understand the context of what the user is trying to do.`,
     type: "object",
     properties: {},
     required: [],
+    additionalProperties: false,
   },
 };
 

@@ -5,6 +5,7 @@ import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
 import { pos } from "./tea/view.ts";
 import type { Nvim } from "bunvim";
 import { Lsp } from "./lsp.ts";
+import { PROVIDER_NAMES, type ProviderName } from "./providers/provider.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
@@ -21,7 +22,7 @@ export class Magenta {
     public nvim: Nvim,
     public lsp: Lsp,
   ) {
-    this.sidebar = new Sidebar(this.nvim);
+    this.sidebar = new Sidebar(this.nvim, "anthropic");
 
     const chatModel = Chat.init({ nvim, lsp });
     this.chatApp = TEA.createApp({
@@ -32,9 +33,33 @@ export class Magenta {
     });
   }
 
-  async command(command: string): Promise<void> {
+  async setOpts(opts: unknown) {
+    if (typeof opts == "object") {
+      const optsObj = opts as { [key: string]: unknown };
+      if (optsObj["provider"]) {
+        await this.command(`provider ${optsObj["provider"] as string}`);
+      }
+    }
+  }
+
+  async command(input: string): Promise<void> {
+    const [command, ...rest] = input.trim().split(/\s+/);
     this.nvim.logger?.debug(`Received command ${command}`);
     switch (command) {
+      case "provider": {
+        const provider = rest[0];
+        if (PROVIDER_NAMES.indexOf(provider as ProviderName) !== -1) {
+          this.chatApp.dispatch({
+            type: "choose-provider",
+            provider: provider as ProviderName,
+          });
+          await this.sidebar.updateProvider(provider as ProviderName);
+        } else {
+          this.nvim.logger?.error(`Provider ${provider} is not supported.`);
+        }
+        break;
+      }
+
       case "toggle": {
         const buffers = await this.sidebar.toggle();
         if (buffers && !this.mountedChatApp) {
@@ -139,11 +164,12 @@ export class Magenta {
       }
     });
 
-    await nvim.call("nvim_exec_lua", [
-      `require('magenta').bridge(${nvim.channelId})`,
+    const opts = await nvim.call("nvim_exec_lua", [
+      `return require('magenta').bridge(${nvim.channelId})`,
       [],
     ]);
-    nvim.logger?.info(`Magenta initialized.`);
+    await magenta.setOpts(opts);
+    nvim.logger?.info(`Magenta initialized. ${JSON.stringify(opts)}`);
     return magenta;
   }
 }

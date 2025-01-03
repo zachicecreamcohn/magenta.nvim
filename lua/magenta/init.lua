@@ -1,7 +1,13 @@
 local Utils = require("magenta.utils")
 local M = {}
 
-M.setup = function()
+M.defaults = {
+  provider = "openai"
+}
+
+M.setup = function(opts)
+  M.options = vim.tbl_deep_extend("force", M.defaults, opts or {})
+
   M.start(true)
   vim.api.nvim_set_keymap("n", "<leader>m", ":Magenta toggle<CR>", {silent = true, noremap = true})
 end
@@ -49,7 +55,7 @@ M.bridge = function(channelId)
     function(opts)
       vim.rpcnotify(channelId, "magentaCommand", opts.args)
     end,
-    {nargs = 1}
+    {nargs = "+"}
   )
 
   vim.api.nvim_create_autocmd(
@@ -76,6 +82,8 @@ M.bridge = function(channelId)
   M.lsp_response = function(requestId, response)
     vim.rpcnotify(channelId, "magentaLspResponse", {requestId, response})
   end
+
+  return M.options
 end
 
 M.wait_for_lsp_attach = function(bufnr, capability, timeout_ms)

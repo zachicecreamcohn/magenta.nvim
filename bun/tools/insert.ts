@@ -124,6 +124,7 @@ export const spec: ProviderToolSpec = {
       },
     },
     required: ["filePath", "insertAfter", "content"],
+    additionalProperties: false,
   },
 };
 

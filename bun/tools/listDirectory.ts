@@ -186,17 +186,17 @@ export function getToolResult(model: Model): ProviderToolResultContent {
 
 export const spec: ProviderToolSpec = {
   name: "list_directory",
-  description: `List up to 100 files in a directory using breadth-first search, respecting .gitignore and hidden files`,
+  description: `List up to 100 files in a directory using breadth-first search, respecting .gitignore and hidden files.`,
   input_schema: {
     type: "object",
     properties: {
       dirPath: {
         type: "string",
-        description:
-          "The directory path relative to cwd to list (defaults to '.')",
+        description: `The directory path relative to cwd. Use "." to list whole directory.`,
       },
     },
-    required: [],
+    required: ["dirPath"],
+    additionalProperties: false,
   },
 };
 

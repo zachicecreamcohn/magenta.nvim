@@ -75,10 +75,10 @@ export async function withMockClient(
   fn: (mock: MockProvider) => Promise<void>,
 ) {
   const mock = new MockProvider();
-  setClient(mock);
+  setClient("anthropic", mock);
   try {
     await fn(mock);
   } finally {
-    setClient(undefined);
+    setClient("anthropic", undefined);
   }
 }

@@ -97,7 +97,11 @@ export function createApp<Model, Msg>({
           nvim.logger?.debug(`starting thunk`);
           thunk(dispatch).catch((err) => {
             console.error(err);
-            nvim.logger?.error(JSON.stringify(err));
+            const message =
+              err instanceof Error
+                ? `Error: ${err.message}\n${err.stack}`
+                : JSON.stringify(err);
+            nvim.logger?.error(`Thunk execution error: ${message}`);
           });
         }
       }
@@ -116,10 +120,8 @@ export function createApp<Model, Msg>({
   };
 
   function render() {
-    nvim.logger?.info(`render`);
     if (renderPromise) {
       reRender = true;
-      nvim.logger?.info(`re-render scheduled`);
     } else {
       if (root) {
         renderPromise = root

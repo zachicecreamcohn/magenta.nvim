@@ -4,15 +4,16 @@ import { extendError, type Result } from "../utils/result.ts";
 import type { StopReason, Provider, ProviderMessage } from "./provider.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { ToolName, ToolRequestId } from "../tools/toolManager.ts";
+import type { Nvim } from "bunvim";
 
 export class OpenAIProvider implements Provider {
   private client: OpenAI;
 
-  constructor() {
+  constructor(private nvim: Nvim) {
     const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
-      throw new Error("Anthropic API key not found in config or environment");
+      throw new Error("OPENAI_API_KEY key not found in environment");
     }
 
     this.client = new OpenAI({
@@ -84,11 +85,15 @@ export class OpenAIProvider implements Provider {
           m.role == "assistant" &&
           (messageContent.length || toolCalls.length)
         ) {
-          openaiMessages.push({
+          const mes: OpenAI.ChatCompletionMessageParam = {
             role: m.role,
             content: messageContent,
-            tool_calls: toolCalls.length ? toolCalls : [],
-          });
+          };
+
+          if (toolCalls.length) {
+            mes.tool_calls = toolCalls;
+          }
+          openaiMessages.push(mes);
         }
 
         if (toolResponses.length) {
@@ -110,8 +115,8 @@ export class OpenAIProvider implements Provider {
           function: {
             name: s.name,
             description: s.description,
-            parameters: s.input_schema as OpenAI.FunctionParameters,
             strict: true,
+            parameters: s.input_schema as OpenAI.FunctionParameters,
           },
         };
       }),
@@ -151,43 +156,54 @@ export class OpenAIProvider implements Provider {
     }
 
     return {
-      toolRequests: toolRequests.map((req) => {
-        const result = ((): Result<ToolManager.ToolRequest> => {
-          if (typeof req.id != "string") {
-            return { status: "error", error: "expected req.id to be a string" };
-          }
+      toolRequests: toolRequests
+        .filter((req) => req.id)
+        .map((req) => {
+          const result = ((): Result<ToolManager.ToolRequest> => {
+            this.nvim.logger?.debug(
+              `openai function call: ${JSON.stringify(req)}`,
+            );
 
-          const name = req.function?.name;
-          if (typeof name != "string") {
-            return {
-              status: "error",
-              error: "expected req.function.name to be a string",
-            };
-          }
+            if (typeof req.id != "string") {
+              return {
+                status: "error",
+                error: "expected req.id to be a string",
+              };
+            }
 
-          const input = ToolManager.validateToolInput(
-            name,
-            JSON.parse(req.function?.arguments || "") as {
-              [key: string]: unknown;
-            },
-          );
+            const name = req.function?.name;
+            if (typeof name != "string") {
+              return {
+                status: "error",
+                error: "expected req.function.name to be a string",
+              };
+            }
 
-          if (input.status == "ok") {
-            return {
-              status: "ok",
-              value: {
-                name: name as ToolName,
-                id: req.id as unknown as ToolRequestId,
-                input: input.value,
+            const input = ToolManager.validateToolInput(
+              name,
+              (req.function?.arguments
+                ? JSON.parse(req.function.arguments)
+                : {}) as {
+                [key: string]: unknown;
               },
-            };
-          } else {
-            return input;
-          }
-        })();
+            );
 
-        return extendError(result, { rawRequest: req });
-      }),
+            if (input.status == "ok") {
+              return {
+                status: "ok",
+                value: {
+                  name: name as ToolName,
+                  id: req.id as unknown as ToolRequestId,
+                  input: input.value,
+                },
+              };
+            } else {
+              return input;
+            }
+          })();
+
+          return extendError(result, { rawRequest: req });
+        }),
       stopReason: stopReason || "end_turn",
     };
   }

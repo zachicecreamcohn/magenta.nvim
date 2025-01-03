@@ -3,6 +3,11 @@ import * as ToolManager from "../tools/toolManager.ts";
 import { AnthropicProvider } from "./anthropic.ts";
 import type { Nvim } from "bunvim";
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
+import { OpenAIProvider } from "./openai.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
+
+export const PROVIDER_NAMES = ["anthropic", "openai"] as const;
+export type ProviderName = (typeof PROVIDER_NAMES)[number];
 
 export type StopReason =
   | "end_turn"
@@ -54,16 +59,30 @@ export interface Provider {
   }>;
 }
 
-let client: Provider | undefined;
+const clients: Partial<{ [providerName in ProviderName]: Provider }> = {};
 
 // lazy load so we have a chance to init context before constructing the class
-export function getClient(nvim: Nvim): Provider {
-  if (!client) {
-    client = new AnthropicProvider(nvim);
+export function getClient(nvim: Nvim, providerName: ProviderName): Provider {
+  if (!clients[providerName]) {
+    switch (providerName) {
+      case "anthropic":
+        clients[providerName] = new AnthropicProvider(nvim);
+        break;
+      case "openai":
+        clients[providerName] = new OpenAIProvider(nvim);
+        break;
+      default:
+        assertUnreachable(providerName);
+    }
   }
-  return client;
+
+  return clients[providerName];
 }
 
-export function setClient(c: Provider | undefined) {
-  client = c;
+export function setClient(providerName: ProviderName, c: Provider | undefined) {
+  if (c) {
+    clients[providerName] = c;
+  } else {
+    delete clients[providerName];
+  }
 }

@@ -17,6 +17,7 @@ import {
   getClient,
   type ProviderMessage,
   type ProviderMessageContent,
+  type ProviderName,
   type StopReason,
 } from "../providers/provider.ts";
 
@@ -33,6 +34,7 @@ export type ConversationState =
     };
 
 export type Model = {
+  provider: ProviderName;
   conversation: ConversationState;
   messages: Message.Model[];
   toolManager: ToolManager.Model;
@@ -45,7 +47,7 @@ type WrappedMessageMsg = {
 
 export type Msg =
   | WrappedMessageMsg
-  | { type: "tick" }
+  | { type: "choose-provider"; provider: ProviderName }
   | {
       type: "add-message";
       role: Role;
@@ -86,6 +88,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
 
   function initModel(): Model {
     return {
+      provider: "anthropic",
       conversation: { state: "stopped", stopReason: "end_turn" },
       messages: [],
       toolManager: toolManagerModel.initModel(),
@@ -107,8 +110,8 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
 
   const update: Update<Msg, Model, { nvim: Nvim }> = (msg, model, context) => {
     switch (msg.type) {
-      case "tick":
-        return [model];
+      case "choose-provider":
+        return [{ ...model, provider: msg.provider }];
       case "add-message": {
         let message: Message.Model = {
           id: idCounter.get() as Message.MessageId,
@@ -391,7 +394,7 @@ ${msg.error.stack}`,
       });
       let res;
       try {
-        res = await getClient(nvim).sendMessage(
+        res = await getClient(nvim, model.provider).sendMessage(
           messages,
           (text) => {
             dispatch({
