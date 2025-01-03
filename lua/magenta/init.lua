@@ -2,7 +2,7 @@ local Utils = require("magenta.utils")
 local M = {}
 
 M.defaults = {
-  provider = "openai"
+  provider = "anthropic"
 }
 
 M.setup = function(opts)

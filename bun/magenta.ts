@@ -34,7 +34,7 @@ export class Magenta {
   }
 
   async setOpts(opts: unknown) {
-    if (typeof opts == "object") {
+    if (typeof opts == "object" && opts != null) {
       const optsObj = opts as { [key: string]: unknown };
       if (optsObj["provider"]) {
         await this.command(`provider ${optsObj["provider"] as string}`);
