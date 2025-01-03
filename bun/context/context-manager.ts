@@ -109,11 +109,10 @@ ${fileContents.join("\n\n")}`,
     });
 
     if (bufferContents.status == "ok") {
-      return `\
-file \`${relativePath}\`:
-\`\`\`${path.extname(relativePath)}
-${bufferContents.result}
-\`\`\``;
+      return renderFile({
+        relFilePath: relativePath,
+        content: bufferContents.result,
+      });
     } else if (bufferContents.status == "error") {
       return `\
 Error trying to read file \`${relativePath}\`: ${bufferContents.error}`;
@@ -121,18 +120,29 @@ Error trying to read file \`${relativePath}\`: ${bufferContents.error}`;
 
     try {
       const fileContent = await fs.promises.readFile(absFilePath, "utf-8");
-      return `\
-file \`${relativePath}\`:
-\`\`\`${path.extname(relativePath)}
-${fileContent}
-\`\`\``;
+      return renderFile({ relFilePath: relativePath, content: fileContent });
     } catch (error) {
       return `\
 Error trying to read file \`${relativePath}\`: ${(error as Error).message}`;
     }
   }
 
+  function renderFile({
+    relFilePath,
+    content,
+  }: {
+    relFilePath: string;
+    content: string;
+  }) {
+    return `\
+Here are the contents of file \`${relFilePath}\`:
+\`\`\`
+${content}
+\`\`\``;
+  }
+
   return {
+    isContextEmpty,
     initModel,
     update,
     view,

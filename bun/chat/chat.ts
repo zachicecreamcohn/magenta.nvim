@@ -477,7 +477,8 @@ ${msg.error.stack}`,
           }`
         : d`Stopped (${model.conversation.stopReason || ""})`
     }${
-      model.conversation.state == "stopped"
+      model.conversation.state == "stopped" &&
+      !contextManagerModel.isContextEmpty(model.contextManager)
         ? d`\n${contextManagerModel.view({
             model: model.contextManager,
             dispatch: (msg) => dispatch({ type: "context-manager-msg", msg }),
@@ -544,6 +545,9 @@ ${msg.error.stack}`,
     );
 
     if (contextMessage) {
+      nvim.logger?.debug(
+        `Got context message: ${JSON.stringify(contextMessage)}`,
+      );
       messages.push(contextMessage);
     }
 

@@ -166,7 +166,11 @@ export class Magenta {
       try {
         await magenta.command(args[0] as string);
       } catch (err) {
-        nvim.logger?.error(err as Error);
+        nvim.logger?.error(
+          err instanceof Error
+            ? `Error executing command ${args[0] as string}: ${err.message}\n${err.stack}`
+            : JSON.stringify(err),
+        );
       }
     });
 

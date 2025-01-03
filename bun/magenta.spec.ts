@@ -76,7 +76,7 @@ Stopped (end_turn)`);
     });
   });
 
-  it.only("context-file end-to-end", async () => {
+  it("context-file end-to-end", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.nvim.call("nvim_command", [
@@ -109,8 +109,8 @@ file: \`./bun/test/fixtures/poem.txt\``);
         {
           content: `\
 Files:
-file \`bun/test/fixtures/poem.txt\`:
-\`\`\`.txt
+Here are the contents of file \`bun/test/fixtures/poem.txt\`:
+\`\`\`
 Moonlight whispers through the trees,
 Silver shadows dance with ease.
 Stars above like diamonds bright,
