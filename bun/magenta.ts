@@ -62,31 +62,34 @@ export class Magenta {
         break;
       }
 
-      case "context-file": {
-        const filePath = rest[0];
-        if (typeof filePath != "string") {
-          throw new Error(`context-file must be followed by a file path`);
-        }
+      case "context-files": {
+        const parts = input.trim().match(/[^\s']+|'([^']*)'|\S+/g) || [];
+        const paths = parts
+          .slice(1)
+          .map((str) => (str.startsWith("'") ? str.slice(1, -1) : str))
+          .map((str) => str.trim());
 
-        let absFilePath;
-        let relFilePath;
-        const cwd = await getcwd(this.nvim);
-        if (path.isAbsolute(filePath)) {
-          absFilePath = filePath;
-          relFilePath = path.relative(cwd, filePath);
-        } else {
-          absFilePath = path.resolve(cwd, filePath);
-          relFilePath = filePath;
-        }
+        for (const filePath of paths) {
+          let absFilePath;
+          let relFilePath;
+          const cwd = await getcwd(this.nvim);
+          if (path.isAbsolute(filePath)) {
+            absFilePath = filePath;
+            relFilePath = path.relative(cwd, filePath);
+          } else {
+            absFilePath = path.resolve(cwd, filePath);
+            relFilePath = filePath;
+          }
 
-        this.chatApp.dispatch({
-          type: "context-manager-msg",
-          msg: {
-            type: "add-file-context",
-            absFilePath,
-            relFilePath,
-          },
-        });
+          this.chatApp.dispatch({
+            type: "context-manager-msg",
+            msg: {
+              type: "add-file-context",
+              absFilePath,
+              relFilePath,
+            },
+          });
+        }
 
         break;
       }

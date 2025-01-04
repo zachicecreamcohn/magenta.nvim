@@ -54,7 +54,10 @@ export function initModel(request: ToolRequest<"replace">): [Model] {
         id: request.id,
         result: {
           status: "ok",
-          value: `The user will review your proposed change. Please assume that your change will be accepted and address the remaining parts of the question.`,
+          value: `\
+The user will review your proposed change.
+Assume that your change will be accepted and address other parts of the question, if any exist.
+Do not take more attempts at the same edit unless the user requests it.`,
         },
       },
     },
