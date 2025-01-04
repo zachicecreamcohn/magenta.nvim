@@ -153,3 +153,8 @@ export async function displayDiffs({
     await window.setWidth(WIDTH);
   }
 }
+
+export const REVIEW_PROMPT = `\
+The user will review your proposed change.
+Assume that your change will be accepted and address other parts of the question, if any exist.
+Do not take more attempts at the same edit unless the user requests it.`;
