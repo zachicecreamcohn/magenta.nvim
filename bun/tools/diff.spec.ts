@@ -26,12 +26,14 @@ describe("bun/tools/diff.spec.ts", () => {
               input: {
                 filePath: "poem.txt",
                 insertAfter: "",
-                content: "a poem",
+                content: "a poem\nwith some lines",
               },
             },
           },
         ],
       });
+
+      await driver.assertDisplayBufferContains("Insert 2 lines");
 
       const reviewPos =
         await driver.assertDisplayBufferContains("review edits");
@@ -63,7 +65,7 @@ describe("bun/tools/diff.spec.ts", () => {
       const diffText = (
         await (await diffWin.buffer()).getLines({ start: 0, end: -1 })
       ).join("\n");
-      expect(diffText).toEqual("a poem");
+      expect(diffText).toEqual("a poem\nwith some lines");
     });
   });
 

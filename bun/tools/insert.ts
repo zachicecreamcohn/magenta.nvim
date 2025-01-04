@@ -72,8 +72,8 @@ export function view({
   dispatch: Dispatch<Msg>;
 }): VDOMNode {
   return d`Insert ${(
-    model.request.input.content.match(/\n/g) || []
-  ).length.toString()} lines.
+    (model.request.input.content.match(/\n/g) || []).length + 1
+  ).toString()} lines.
 ${toolStatusView({ model, dispatch })}`;
 }
 
