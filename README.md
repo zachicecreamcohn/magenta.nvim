@@ -3,13 +3,14 @@
 <img width="1376" alt="Screenshot 2024-12-22 at 3 40 02 PM" src="https://github.com/user-attachments/assets/df372c55-8c30-468d-8bd2-47047534fe92" />
 <img width="1658" alt="Screenshot 2024-12-22 at 4 22 44 PM" src="https://github.com/user-attachments/assets/45c0e90a-0944-4e9e-8f2b-c0d779542d45" />
 
-magenta.nvim is a plugin for leveraging LLM agents in neovim. Think cursor-compose, cody or windsurf, but open source.
+magenta.nvim is a plugin for leveraging LLM agents in neovim. Think cursor-compose, cody or windsurf.
 
-Rather than writing complex code to compress your repo and send it to the LLM (like a repomap, etc...), magenta is built around the idea that the LLM can get ask for what it needs to via tools. Flagship models will continue to get better at tools use.
+Rather than writing complex code to compress your repo and send it to the LLM (like a repomap, etc...), magenta is built around the idea that the LLM can ask for what it needs to via tools.
+Flagship models will continue to get better at tools use, and as this happens, the gap between tools like magenta and other agentic tools will grow smaller.
 
-Alongside general tools like reading or editing a file, and listing a directory, this plugin also grants the LLM access to the language server via nvim's lsp client.
+Alongside tools like reading or editing a file, listing a directory, this plugin also grants the LLM access to the language server via nvim's lsp client.
 
-See the [implemented tools](https://github.com/dlants/magenta.nvim/tree/main/bun/tools).
+See the implemented tools [here](https://github.com/dlants/magenta.nvim/tree/main/bun/tools).
 
 # Installation (lazy.nvim)
 
@@ -26,19 +27,31 @@ Install [bun](https://bun.sh/)
 },
 ```
 
-The plugin will look for env variables for providers in the following env variables:
+The plugin will look for credentials for providers in the following env variables:
 anthropic: ANTHROPIC_API_KEY
 openai: OPENAI_API_KEY
 
 # Usage
 
-By default, `<leader>m` will toggle the input and display the magenta side panel. The chat window submits your query on `<CR>` in normal mode.
+Global keymaps are set [here](https://github.com/dlants/magenta.nvim/blob/main/lua/magenta/init.lua#L12).
+Input and display buffer keymaps are set [here](https://github.com/dlants/magenta.nvim/blob/main/bun/sidebar.ts#L87)
+Commands are all nested under `:Magenta <cmd>`, and can be found [here](https://github.com/dlants/magenta.nvim/blob/main/bun/magenta.ts#L54)
 
-The display window is not modifiable, however you can interact with some parts of the chat by pressing `<CR>`. For example, you can expand the tool request and responses to see their details, and you can trigger a diff to appear on file edits.
+TLDR:
+`<leader>mt` is for `:Magenta toggle`, will toggle the sidebar on and off.
+`<leader>mp` is for `:Magenta paste-selection`. In visual mode it will take the current selection and paste it into the input buffer.
+`<leader>mc` is for `:Magenta context-files` with your _current_ file. It will pin the current file to your context.
+`<leader>mf` is for `:Magenta context-files` it allows you to select files via fzf-lua, and will pin those files to your context. This requires that fzf-lua is installed.
 
-Currently there's not a way to invoke context-gathering commands yourself (#TODO), but you can ask the LLM to gather context via tools. For example: "I have some buffers open, could you see if you can change abc to xyz?".
+In the input buffer or the display buffer:
+`<leader>a` is for `:Magenta abort`, which will abort the current in-flight request.
+`<leader>c` is for `:Magenta clear`, which will clear the current chat.
 
-You can see
+The display buffer is not modifiable, however you can interact with some parts of the display buffer by pressing `<CR>`. For example, you can expand the tool request and responses to see their details, and you can trigger a diff to appear on file edits.
+
+- hit enter on a [review] message to pull up the diff to try and edit init
+- hit enter on a tool to see the details of the request & result. Enter again on any part of the expanded view to collapse it.
+- hit enter on a piece of context to remove it
 
 # Why it's cool
 
