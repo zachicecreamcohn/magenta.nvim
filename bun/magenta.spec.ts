@@ -44,6 +44,31 @@ Stopped (end_turn)`);
     });
   });
 
+  it("abort command should work", async () => {
+    await withDriver(async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(`hello`);
+      await driver.send();
+      await driver.assertDisplayBufferContent(`\
+# user:
+hello
+
+Awaiting response ⠁`);
+
+      await pollUntil(() => {
+        if (driver.mockAnthropic.requests.length != 1) {
+          throw new Error(`Expected a message to be pending.`);
+        }
+      });
+      const request =
+        driver.mockAnthropic.requests[driver.mockAnthropic.requests.length - 1];
+      expect(request.defer.resolved).toBe(false);
+
+      await driver.abort();
+      expect(request.defer.resolved).toBe(true);
+    });
+  });
+
   it("can set provider", async () => {
     await withDriver(async (driver) => {
       {

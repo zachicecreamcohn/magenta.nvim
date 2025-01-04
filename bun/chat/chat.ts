@@ -21,6 +21,7 @@ import {
   type ProviderName,
   type StopReason,
 } from "../providers/provider.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
 
 export type Role = "user" | "assistant";
 
@@ -81,6 +82,9 @@ export type Msg =
     }
   | {
       type: "clear";
+    }
+  | {
+      type: "abort";
     }
   | {
       type: "tool-manager-msg";
@@ -356,6 +360,19 @@ ${msg.error.stack}`,
       case "clear": {
         return [initModel()];
       }
+
+      case "abort": {
+        return [
+          model,
+          // eslint-disable-next-line @typescript-eslint/require-await
+          async () => {
+            getClient(nvim, model.provider).abort();
+          },
+        ];
+      }
+
+      default:
+        assertUnreachable(msg);
     }
   };
 

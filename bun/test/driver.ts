@@ -47,6 +47,10 @@ export class NvimDriver {
     return this.magenta.command("clear");
   }
 
+  abort() {
+    return this.magenta.command("abort");
+  }
+
   getDisplayBuffer() {
     const displayBuffer = this.magenta.sidebar.state.displayBuffer;
     if (!displayBuffer) {

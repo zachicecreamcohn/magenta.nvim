@@ -90,6 +90,12 @@ export class Sidebar {
         rhs: ":Magenta clear<CR>",
         opts: { silent: true, noremap: true },
       });
+      await displayBuffer.setKeymap({
+        mode: "n",
+        lhs: "<leader>a",
+        rhs: ":Magenta abort<CR>",
+        opts: { silent: true, noremap: true },
+      });
     }
     const displayWindowId = (await this.nvim.call("nvim_open_win", [
       displayBuffer.id,
@@ -119,11 +125,16 @@ export class Sidebar {
         rhs: ":Magenta send<CR>",
         opts: { silent: true, noremap: true },
       });
-
       await inputBuffer.setKeymap({
         mode: "n",
         lhs: "<leader>c",
         rhs: ":Magenta clear<CR>",
+        opts: { silent: true, noremap: true },
+      });
+      await inputBuffer.setKeymap({
+        mode: "n",
+        lhs: "<leader>a",
+        rhs: ":Magenta abort<CR>",
         opts: { silent: true, noremap: true },
       });
     }

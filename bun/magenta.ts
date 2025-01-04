@@ -135,6 +135,10 @@ export class Magenta {
         this.chatApp.dispatch({ type: "clear" });
         break;
 
+      case "abort":
+        this.chatApp.dispatch({ type: "abort" });
+        break;
+
       default:
         this.nvim.logger?.error(`Unrecognized command ${command}\n`);
     }

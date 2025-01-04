@@ -57,6 +57,8 @@ export interface Provider {
     toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;
   }>;
+
+  abort(): void;
 }
 
 const clients: Partial<{ [providerName in ProviderName]: Provider }> = {};

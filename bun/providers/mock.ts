@@ -21,6 +21,18 @@ type MockRequest = {
 export class MockProvider implements Provider {
   public requests: MockRequest[] = [];
 
+  abort() {
+    if (this.requests.length) {
+      const lastRequest = this.requests[this.requests.length - 1];
+      if (!lastRequest.defer.resolved) {
+        lastRequest.defer.resolve({
+          toolRequests: [],
+          stopReason: "end_turn",
+        });
+      }
+    }
+  }
+
   async sendMessage(
     messages: Array<ProviderMessage>,
     onText: (text: string) => void,
