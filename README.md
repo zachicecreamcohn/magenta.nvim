@@ -26,6 +26,10 @@ Install [bun](https://bun.sh/)
 },
 ```
 
+The plugin will look for env variables for providers in the following env variables:
+anthropic: ANTHROPIC_API_KEY
+openai: OPENAI_API_KEY
+
 # Usage
 
 By default, `<leader>m` will toggle the input and display the magenta side panel. The chat window submits your query on `<CR>` in normal mode.
