@@ -473,6 +473,18 @@ exports[`tea/chat.spec.ts chat render and a few updates 1`] = `
           },
           "type": "node",
         },
+        {
+          "content": "",
+          "endPos": {
+            "col": 18,
+            "row": 7,
+          },
+          "startPos": {
+            "col": 18,
+            "row": 7,
+          },
+          "type": "string",
+        },
       ],
       "endPos": {
         "col": 18,
