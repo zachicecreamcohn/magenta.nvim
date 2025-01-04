@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { withDriver } from "./test/preamble";
 import { pollUntil } from "./utils/async";
 import type { Position0Indexed } from "./nvim/window";
+import { FILE_PROMPT } from "./context/context-manager";
 
 describe("bun/magenta.spec.ts", () => {
   it("clear command should work", async () => {
@@ -102,7 +103,7 @@ Awaiting response ⠁`);
     });
   });
 
-  it.only("paste-selection command", async () => {
+  it("paste-selection command", async () => {
     await withDriver(async (driver) => {
       await driver.editFile("bun/test/fixtures/poem.txt");
       await driver.selectRange(
@@ -144,17 +145,9 @@ file: \`./bun/test/fixtures/poem.txt\``);
         driver.mockAnthropic.requests[driver.mockAnthropic.requests.length - 1];
       expect(request.messages).toEqual([
         {
-          content: [
-            {
-              text: "check out this file",
-              type: "text",
-            },
-          ],
-          role: "user",
-        },
-        {
           content: `\
-Files:
+${FILE_PROMPT}
+
 Here are the contents of file \`bun/test/fixtures/poem.txt\`:
 \`\`\`
 Moonlight whispers through the trees,
@@ -163,6 +156,15 @@ Stars above like diamonds bright,
 Paint their stories in the night.
 
 \`\`\``,
+          role: "user",
+        },
+        {
+          content: [
+            {
+              text: "check out this file",
+              type: "text",
+            },
+          ],
           role: "user",
         },
       ]);
@@ -192,17 +194,9 @@ file: \`./bun/test/fixtures/poem 3.txt\``);
         driver.mockAnthropic.requests[driver.mockAnthropic.requests.length - 1];
       expect(request.messages).toEqual([
         {
-          content: [
-            {
-              text: "check out this file",
-              type: "text",
-            },
-          ],
-          role: "user",
-        },
-        {
           content: `\
-Files:
+${FILE_PROMPT}
+
 Here are the contents of file \`bun/test/fixtures/poem.txt\`:
 \`\`\`
 Moonlight whispers through the trees,
@@ -217,6 +211,15 @@ Here are the contents of file \`bun/test/fixtures/poem 3.txt\`:
 poem3
 
 \`\`\``,
+          role: "user",
+        },
+        {
+          content: [
+            {
+              text: "check out this file",
+              type: "text",
+            },
+          ],
           role: "user",
         },
       ]);

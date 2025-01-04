@@ -89,8 +89,8 @@ ${fileContext}`;
 
     return {
       role: "user",
-      content: `\
-Files:
+      content: `${FILE_PROMPT}
+
 ${fileContents.join("\n\n")}`,
     };
   }
@@ -149,3 +149,7 @@ ${content}
     getContextMessage,
   };
 }
+
+export const FILE_PROMPT = `Files.
+This is the most up-to-date content of these files.
+Any other mentions of code or snippets from these files may be out of date.`;
