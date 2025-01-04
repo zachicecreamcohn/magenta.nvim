@@ -11,7 +11,7 @@ import {
 import { pollUntil } from "../utils/async";
 import { calculatePosition } from "../tea/util";
 import type { BindingKey } from "../tea/bindings";
-import { getAllWindows } from "../nvim/nvim";
+import { getAllWindows, getCurrentWindow } from "../nvim/nvim";
 
 export class NvimDriver {
   constructor(
@@ -51,12 +51,24 @@ export class NvimDriver {
     return this.magenta.command("abort");
   }
 
+  pasteSelection() {
+    return this.nvim.call("nvim_exec2", ["Magenta paste-selection", {}]);
+  }
+
   getDisplayBuffer() {
     const displayBuffer = this.magenta.sidebar.state.displayBuffer;
     if (!displayBuffer) {
       throw new Error(`sidebar displayBuffer not initialized yet`);
     }
     return displayBuffer;
+  }
+
+  getInputBuffer() {
+    const inputBuffer = this.magenta.sidebar.state.inputBuffer;
+    if (!inputBuffer) {
+      throw new Error(`sidebar inputBuffer not initialized yet`);
+    }
+    return inputBuffer;
   }
 
   async getDisplayBufferText() {
@@ -84,6 +96,29 @@ export class NvimDriver {
       if (index == -1) {
         throw new Error(
           `Unable to find text:\n"${text}"\nafter line ${start} in displayBuffer.\ndisplayBuffer content:\n${content}`,
+        );
+      }
+
+      return calculatePosition(
+        { row: start, col: 0 } as Position0Indexed,
+        Buffer.from(content),
+        index,
+      );
+    });
+  }
+
+  async assertInputBufferContains(
+    text: string,
+    start: number = 0,
+  ): Promise<Position0Indexed> {
+    return pollUntil(async () => {
+      const inputBuffer = this.getInputBuffer();
+      const lines = await inputBuffer.getLines({ start: 0, end: -1 });
+      const content = lines.slice(start).join("\n");
+      const index = Buffer.from(content).indexOf(text) as ByteIdx;
+      if (index == -1) {
+        throw new Error(
+          `Unable to find text:\n"${text}"\nafter line ${start} in inputBuffer.\ninputBuffer content:\n${content}`,
         );
       }
 
@@ -176,5 +211,16 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
 
   async editFile(filePath: string): Promise<void> {
     await this.nvim.call("nvim_exec2", [`edit ${filePath}`, {}]);
+  }
+
+  async selectRange(startPos: Position0Indexed, endPos: Position0Indexed) {
+    const window = await getCurrentWindow(this.nvim);
+    const buf = await window.buffer();
+
+    await window.setCursor(pos0to1(startPos));
+    await buf.setMark({ mark: "<", pos: pos0to1(startPos) });
+    await this.nvim.call("nvim_exec2", [`normal! v`, {}]);
+    await window.setCursor(pos0to1(endPos));
+    await buf.setMark({ mark: ">", pos: pos0to1(endPos) });
   }
 }

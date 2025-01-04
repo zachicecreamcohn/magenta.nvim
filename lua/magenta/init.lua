@@ -10,6 +10,7 @@ M.setup = function(opts)
 
   M.start(true)
   vim.api.nvim_set_keymap("n", "<leader>mt", ":Magenta toggle<CR>", {silent = true, noremap = true})
+  vim.api.nvim_set_keymap("v", "<leader>mp", ":Magenta paste-selection<CR>", {silent = true, noremap = true})
   vim.api.nvim_set_keymap(
     "n",
     "<leader>mc", -- like "magenta current"?
@@ -99,7 +100,10 @@ M.bridge = function(channelId)
     function(opts)
       vim.rpcnotify(channelId, "magentaCommand", opts.args)
     end,
-    {nargs = "+"}
+    {
+      nargs = "+",
+      range = true
+    }
   )
 
   vim.api.nvim_create_autocmd(

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { withDriver } from "./test/preamble";
 import { pollUntil } from "./utils/async";
+import type { Position0Indexed } from "./nvim/window";
 
 describe("bun/magenta.spec.ts", () => {
   it("clear command should work", async () => {
@@ -98,6 +99,26 @@ Awaiting response ⠁`);
         const winbar = await displayState.inputWindow.getOption("winbar");
         expect(winbar).toBe(`Magenta Input (openai)`);
       }
+    });
+  });
+
+  it.only("paste-selection command", async () => {
+    await withDriver(async (driver) => {
+      await driver.editFile("bun/test/fixtures/poem.txt");
+      await driver.selectRange(
+        { row: 0, col: 5 } as Position0Indexed,
+        { row: 2, col: 10 } as Position0Indexed,
+      );
+
+      await driver.pasteSelection();
+      await driver.assertInputBufferContains(`
+Here is a snippet from the file \`bun/test/fixtures/poem.txt\`
+\`\`\`txt
+ight whispers through the trees,
+Silver shadows dance with ease.
+Stars above
+\`\`\`
+`);
     });
   });
 

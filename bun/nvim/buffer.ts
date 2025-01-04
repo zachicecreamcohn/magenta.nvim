@@ -1,4 +1,5 @@
 import type { Nvim } from "bunvim";
+import type { Position0Indexed, Position1Indexed } from "./window";
 
 export type Line = string & { __line: true };
 export type BufNr = number & { __bufnr: true };
@@ -50,6 +51,34 @@ export class NvimBuffer {
       false,
     ]);
     return lines as Line[];
+  }
+
+  async getText({
+    startPos,
+    endPos,
+  }: {
+    startPos: Position0Indexed;
+    endPos: Position0Indexed;
+  }): Promise<Line[]> {
+    const lines = await this.nvim.call("nvim_buf_get_text", [
+      this.id,
+      startPos.row,
+      startPos.col,
+      endPos.row,
+      endPos.col,
+      {},
+    ]);
+    return lines as Line[];
+  }
+
+  setMark({ mark, pos }: { mark: string; pos: Position1Indexed }) {
+    return this.nvim.call("nvim_buf_set_mark", [
+      this.id,
+      mark,
+      pos.row,
+      pos.col,
+      {},
+    ]);
   }
 
   setKeymap({

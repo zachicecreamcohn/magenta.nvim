@@ -6,8 +6,11 @@ import { pos } from "./tea/view.ts";
 import type { Nvim } from "bunvim";
 import { Lsp } from "./lsp.ts";
 import { PROVIDER_NAMES, type ProviderName } from "./providers/provider.ts";
-import { getcwd } from "./nvim/nvim.ts";
+import { getCurrentBuffer, getcwd, getpos } from "./nvim/nvim.ts";
 import path from "node:path";
+import type { Line } from "./nvim/buffer.ts";
+import { pos1to0, type ByteIdx } from "./nvim/window.ts";
+import { getMarkdownExt } from "./utils/markdown.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
@@ -138,6 +141,50 @@ export class Magenta {
       case "abort":
         this.chatApp.dispatch({ type: "abort" });
         break;
+
+      case "paste-selection": {
+        const [startPos, endPos, cwd, currentBuffer] = await Promise.all([
+          getpos(this.nvim, "'<"),
+          getpos(this.nvim, "'>"),
+          getcwd(this.nvim),
+          getCurrentBuffer(this.nvim),
+        ]);
+
+        const lines = await currentBuffer.getText({
+          startPos: pos1to0({
+            row: startPos.row,
+            col: Math.max(0, startPos.col - 1) as ByteIdx,
+          }),
+          endPos: pos1to0(endPos),
+        });
+
+        const relFileName = path.relative(cwd, await currentBuffer.getName());
+        const content = `
+Here is a snippet from the file \`${relFileName}\`
+\`\`\`${getMarkdownExt(relFileName)}
+${lines.join("\n")}
+\`\`\`
+`;
+
+        let inputBuffer;
+        inputBuffer = this.sidebar.state.inputBuffer;
+        if (!inputBuffer) {
+          await this.command("toggle");
+        }
+
+        inputBuffer = this.sidebar.state.inputBuffer;
+        if (!inputBuffer) {
+          throw new Error(`Unable to init inputBuffer`);
+        }
+
+        await inputBuffer.setLines({
+          start: -1,
+          end: -1,
+          lines: content.split("\n") as Line[],
+        });
+
+        break;
+      }
 
       default:
         this.nvim.logger?.error(`Unrecognized command ${command}\n`);
