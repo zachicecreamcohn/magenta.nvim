@@ -1,6 +1,7 @@
 import { describe, it } from "bun:test";
 import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "../tools/toolManager";
+import { REVIEW_PROMPT } from "../tools/diff";
 
 describe("bun/chat/message.spec.ts", () => {
   it("display multiple edits to the same file, and edit details", async () => {
@@ -79,7 +80,7 @@ Replace 1
 }
 Result:
 \`\`\`
-The user will review your proposed change. Please assume that your change will be accepted and address the remaining parts of the question.
+${REVIEW_PROMPT}
 \`\`\`
     Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.`);
 

@@ -7,6 +7,7 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
+import { REVIEW_PROMPT } from "./diff.ts";
 
 export type Model = {
   type: "insert";
@@ -54,7 +55,7 @@ export function initModel(request: ToolRequest<"insert">): [Model] {
         id: request.id,
         result: {
           status: "ok",
-          value: `The user will review your proposed change. Please assume that your change will be accepted and address the remaining parts of the question.`,
+          value: REVIEW_PROMPT,
         },
       },
     },

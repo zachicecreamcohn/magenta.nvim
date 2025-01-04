@@ -10,7 +10,20 @@ M.setup = function(opts)
 
   M.start(true)
   vim.api.nvim_set_keymap("n", "<leader>mt", ":Magenta toggle<CR>", {silent = true, noremap = true})
-  vim.api.nvim_set_keymap("n", "<leader>mf", ":Magenta context-file %<CR>", {silent = true, noremap = true})
+  vim.api.nvim_set_keymap(
+    "n",
+    "<leader>mc", -- like "magenta current"?
+    "",
+    {
+      noremap = true,
+      silent = true,
+      callback = function()
+        local current_file = vim.fn.expand("%:p")
+        vim.cmd("Magenta context-files " .. vim.fn.shellescape(current_file))
+      end
+    }
+  )
+
   vim.api.nvim_set_keymap(
     "n",
     "<leader>mf",
@@ -19,8 +32,25 @@ M.setup = function(opts)
       noremap = true,
       silent = true,
       callback = function()
-        local current_file = vim.fn.expand("%:p")
-        vim.cmd("Magenta context-file " .. current_file)
+        local success, fzf = pcall(require, "fzf-lua")
+        if not success then
+          Utils.log_job("error", "fzf-lua is not installed")
+        end
+
+        fzf.files(
+          {
+            raw = true, -- return just the raw path strings
+            actions = {
+              ["default"] = function(selected)
+                local escaped_files = {}
+                for _, entry in ipairs(selected) do
+                  table.insert(escaped_files, vim.fn.shellescape(fzf.path.entry_to_file(entry).path))
+                end
+                vim.cmd("Magenta context-files " .. table.concat(escaped_files, " "))
+              end
+            }
+          }
+        )
       end
     }
   )

@@ -76,11 +76,11 @@ Stopped (end_turn)`);
     });
   });
 
-  it("context-file end-to-end", async () => {
+  it("context-files end-to-end", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.nvim.call("nvim_command", [
-        "Magenta context-file ./bun/test/fixtures/poem.txt",
+        "Magenta context-files './bun/test/fixtures/poem.txt'",
       ]);
 
       await driver.assertDisplayBufferContains(`\
@@ -115,6 +115,60 @@ Moonlight whispers through the trees,
 Silver shadows dance with ease.
 Stars above like diamonds bright,
 Paint their stories in the night.
+
+\`\`\``,
+          role: "user",
+        },
+      ]);
+    });
+  });
+
+  it("context-files multiple, weird path names", async () => {
+    await withDriver(async (driver) => {
+      await driver.showSidebar();
+      await driver.nvim.call("nvim_command", [
+        "Magenta context-files './bun/test/fixtures/poem.txt' './bun/test/fixtures/poem 3.txt'",
+      ]);
+
+      await driver.assertDisplayBufferContains(`\
+# context:
+file: \`./bun/test/fixtures/poem.txt\`
+file: \`./bun/test/fixtures/poem 3.txt\``);
+
+      await driver.inputMagentaText("check out this file");
+      await driver.send();
+      await pollUntil(() => {
+        if (driver.mockAnthropic.requests.length != 1) {
+          throw new Error(`Expected a message to be pending.`);
+        }
+      });
+      const request =
+        driver.mockAnthropic.requests[driver.mockAnthropic.requests.length - 1];
+      expect(request.messages).toEqual([
+        {
+          content: [
+            {
+              text: "check out this file",
+              type: "text",
+            },
+          ],
+          role: "user",
+        },
+        {
+          content: `\
+Files:
+Here are the contents of file \`bun/test/fixtures/poem.txt\`:
+\`\`\`
+Moonlight whispers through the trees,
+Silver shadows dance with ease.
+Stars above like diamonds bright,
+Paint their stories in the night.
+
+\`\`\`
+
+Here are the contents of file \`bun/test/fixtures/poem 3.txt\`:
+\`\`\`
+poem3
 
 \`\`\``,
           role: "user",

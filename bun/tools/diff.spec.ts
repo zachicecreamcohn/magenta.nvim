@@ -3,6 +3,7 @@ import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "./toolManager";
 import * as path from "path";
 import type { Line } from "../nvim/buffer";
+import { REVIEW_PROMPT } from "./diff";
 
 describe("bun/tools/diff.spec.ts", () => {
   it("insert into new file", async () => {
@@ -430,7 +431,7 @@ Replace text
 }
 Result:
 \`\`\`
-The user will review your proposed change. Please assume that your change will be accepted and address the remaining parts of the question.
+${REVIEW_PROMPT}
 \`\`\`
     Insert 0 lines.
 Awaiting user review.`);
