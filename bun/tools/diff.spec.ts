@@ -435,7 +435,7 @@ Result:
 \`\`\`
 ${REVIEW_PROMPT}
 \`\`\`
-    Insert 0 lines.
+    Insert 1 lines.
 Awaiting user review.`);
       await driver.triggerDisplayBufferKey(detailsPos, "<CR>");
       await driver.assertDisplayBufferContains(`\
@@ -446,7 +446,7 @@ Edits:
   bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
 Error applying edit: Unable to find startLine "bogus line..." in file bun/test/fixtures/poem.txt
     Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
-    Insert 0 lines.
+    Insert 1 lines.
 Awaiting user review.`);
     });
   });

@@ -505,7 +505,19 @@ ${msg.error.stack}`,
   };
 
   async function getMessages(model: Model): Promise<ProviderMessage[]> {
-    const messages = model.messages.flatMap((msg) => {
+    const messages = [];
+    const contextMessage = await contextManagerModel.getContextMessage(
+      model.contextManager,
+    );
+
+    if (contextMessage) {
+      nvim.logger?.debug(
+        `Got context message: ${JSON.stringify(contextMessage)}`,
+      );
+      messages.push(contextMessage);
+    }
+
+    const rest = model.messages.flatMap((msg) => {
       const messageContent: ProviderMessageContent[] = [];
       const toolResponseContent: ProviderMessageContent[] = [];
 
@@ -557,17 +569,7 @@ ${msg.error.stack}`,
       return out;
     });
 
-    const contextMessage = await contextManagerModel.getContextMessage(
-      model.contextManager,
-    );
-
-    if (contextMessage) {
-      nvim.logger?.debug(
-        `Got context message: ${JSON.stringify(contextMessage)}`,
-      );
-      messages.push(contextMessage);
-    }
-
+    messages.push(...rest);
     return messages;
   }
 
