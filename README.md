@@ -31,9 +31,12 @@ The plugin will look for credentials for providers in the following env variable
 # Usage
 
 ## keymaps
+
 Global keymaps are set [here](https://github.com/dlants/magenta.nvim/blob/main/lua/magenta/init.lua#L12).
-Input and display buffer keymaps are set [here](https://github.com/dlants/magenta.nvim/blob/main/bun/sidebar.ts#L87)
-Commands are all nested under `:Magenta <cmd>`, and can be found [here](https://github.com/dlants/magenta.nvim/blob/main/bun/magenta.ts#L54)
+
+Input and display buffer keymaps are set [here](https://github.com/dlants/magenta.nvim/blob/main/bun/sidebar.ts#L87).
+
+Commands are all nested under `:Magenta <cmd>`, and can be found [here](https://github.com/dlants/magenta.nvim/blob/main/bun/magenta.ts#L54).
 
 TLDR:
 
