@@ -57,6 +57,7 @@ The display buffer is not modifiable, however you can interact with some parts o
 - hit enter on a piece of context to remove it
 
 ## tools available to the LLM
+
 See the most up-to-date list of implemented tools [here](https://github.com/dlants/magenta.nvim/tree/main/bun/tools).
 
 - [x] list a directory (only in cwd, excluding hidden and gitignored files)
@@ -75,4 +76,6 @@ See the most up-to-date list of implemented tools [here](https://github.com/dlan
 - In order to use TEA, I had to build a VDOM-like system for rendering text into a buffer. This makes writing view code declarative. [code](https://github.com/dlants/magenta.nvim/blob/main/bun/tea/view.ts#L141) [example defining a tool view](https://github.com/dlants/magenta.nvim/blob/main/bun/tools/getFile.ts#L139)
 - we can leverage existing sdks to communicate with LLMs, and async/await to manage side-effect chains, which greatly speeds up development. For example, streaming responses was pretty easy to implement, and I think is typically one of the trickier parts of other LLM plugins. [code](https://github.com/dlants/magenta.nvim/blob/main/bun/anthropic.ts#L49)
 
-If you'd like to contribute, please reach out to me. My email is listed at my blog: dlants.me
+# Contributions
+
+See [the contributions guide](https://github.com/dlants/magenta.nvim/blob/main/CONTRIBUTING.md)
