@@ -24,8 +24,9 @@ Install [bun](https://bun.sh/)
 ```
 
 The plugin will look for credentials for providers in the following env variables:
-anthropic: ANTHROPIC_API_KEY
-openai: OPENAI_API_KEY
+
+- anthropic: ANTHROPIC_API_KEY
+- openai: OPENAI_API_KEY
 
 # Usage
 
