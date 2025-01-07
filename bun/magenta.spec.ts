@@ -79,7 +79,7 @@ Awaiting response ⠁`);
           throw new Error(`Expected state to be running`);
         }
 
-        expect(state.model.provider).toBe("anthropic");
+        expect(state.model.activeProvider).toBe("anthropic");
       }
       await driver.showSidebar();
       const displayState = driver.getVisibleState();
@@ -94,7 +94,7 @@ Awaiting response ⠁`);
           throw new Error(`Expected state to be running`);
         }
 
-        expect(state.model.provider).toBe("openai");
+        expect(state.model.activeProvider).toBe("openai");
       }
       {
         const winbar = await displayState.inputWindow.getOption("winbar");

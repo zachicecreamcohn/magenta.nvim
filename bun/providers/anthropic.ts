@@ -12,11 +12,18 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { MessageStream } from "@anthropic-ai/sdk/lib/MessageStream.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
 
+export type AnthropicOptions = {
+  model: "claude-3-5-sonnet-20241022";
+};
+
 export class AnthropicProvider implements Provider {
   private client: Anthropic;
   private request: MessageStream | undefined;
 
-  constructor(private nvim: Nvim) {
+  constructor(
+    private nvim: Nvim,
+    private options: AnthropicOptions,
+  ) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
 
     if (!apiKey) {
@@ -102,7 +109,7 @@ export class AnthropicProvider implements Provider {
       this.request = this.client.messages
         .stream({
           messages: anthropicMessages,
-          model: "claude-3-5-sonnet-20241022",
+          model: this.options.model,
           max_tokens: 4096,
           system: DEFAULT_SYSTEM_PROMPT,
           tool_choice: {

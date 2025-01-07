@@ -8,6 +8,10 @@ import type { Nvim } from "bunvim";
 import type { Stream } from "openai/streaming.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
 
+export type OpenAIOptions = {
+  model: "4o";
+};
+
 export class OpenAIProvider implements Provider {
   private client: OpenAI;
   private request: Stream<unknown> | undefined;
@@ -19,7 +23,10 @@ export class OpenAIProvider implements Provider {
     }
   }
 
-  constructor(private nvim: Nvim) {
+  constructor(
+    private nvim: Nvim,
+    private options: OpenAIOptions,
+  ) {
     const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
@@ -28,6 +35,7 @@ export class OpenAIProvider implements Provider {
 
     this.client = new OpenAI({
       apiKey,
+      baseURL: process.env.OPENAI_BASE_URL,
     });
   }
 
@@ -119,7 +127,7 @@ export class OpenAIProvider implements Provider {
 
     try {
       const stream = (this.request = await this.client.chat.completions.create({
-        model: "gpt-4o",
+        model: this.options.model,
         stream: true,
         messages: openaiMessages,
         // see https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs

@@ -5,6 +5,7 @@ import type { Nvim } from "bunvim";
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { OpenAIProvider } from "./openai.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import type { MagentaOptions } from "../options.ts";
 
 export const PROVIDER_NAMES = ["anthropic", "openai"] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
@@ -64,14 +65,18 @@ export interface Provider {
 const clients: Partial<{ [providerName in ProviderName]: Provider }> = {};
 
 // lazy load so we have a chance to init context before constructing the class
-export function getClient(nvim: Nvim, providerName: ProviderName): Provider {
+export function getClient(
+  nvim: Nvim,
+  providerName: ProviderName,
+  options: MagentaOptions,
+): Provider {
   if (!clients[providerName]) {
     switch (providerName) {
       case "anthropic":
-        clients[providerName] = new AnthropicProvider(nvim);
+        clients[providerName] = new AnthropicProvider(nvim, options.anthropic);
         break;
       case "openai":
-        clients[providerName] = new OpenAIProvider(nvim);
+        clients[providerName] = new OpenAIProvider(nvim, options.openai);
         break;
       default:
         assertUnreachable(providerName);

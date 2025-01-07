@@ -22,6 +22,7 @@ import {
   type StopReason,
 } from "../providers/provider.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { DEFAULT_OPTIONS, type MagentaOptions } from "../options.ts";
 
 export type Role = "user" | "assistant";
 
@@ -36,7 +37,8 @@ export type ConversationState =
     };
 
 export type Model = {
-  provider: ProviderName;
+  activeProvider: ProviderName;
+  options: MagentaOptions;
   conversation: ConversationState;
   messages: Message.Model[];
   toolManager: ToolManager.Model;
@@ -89,6 +91,10 @@ export type Msg =
   | {
       type: "tool-manager-msg";
       msg: ToolManager.Msg;
+    }
+  | {
+      type: "set-opts";
+      options: MagentaOptions;
     };
 
 export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
@@ -96,12 +102,12 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
   const partModel = Part.init({ nvim, lsp });
   const toolManagerModel = ToolManager.init({ nvim, lsp });
   const contextManagerModel = ContextManager.init({ nvim });
-
   const messageModel = Message.init({ nvim, lsp });
 
   function initModel(): Model {
     return {
-      provider: "anthropic",
+      options: DEFAULT_OPTIONS,
+      activeProvider: "anthropic",
       conversation: { state: "stopped", stopReason: "end_turn" },
       messages: [],
       toolManager: toolManagerModel.initModel(),
@@ -125,7 +131,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
   const update: Update<Msg, Model, { nvim: Nvim }> = (msg, model, context) => {
     switch (msg.type) {
       case "choose-provider":
-        return [{ ...model, provider: msg.provider }];
+        return [{ ...model, activeProvider: msg.provider }];
       case "add-message": {
         let message: Message.Model = {
           id: idCounter.get() as Message.MessageId,
@@ -366,9 +372,13 @@ ${msg.error.stack}`,
           model,
           // eslint-disable-next-line @typescript-eslint/require-await
           async () => {
-            getClient(nvim, model.provider).abort();
+            getClient(nvim, model.activeProvider, model.options).abort();
           },
         ];
+      }
+
+      case "set-opts": {
+        return [{ ...model, options: msg.options }];
       }
 
       default:
@@ -431,7 +441,11 @@ ${msg.error.stack}`,
       });
       let res;
       try {
-        res = await getClient(nvim, model.provider).sendMessage(
+        res = await getClient(
+          nvim,
+          model.activeProvider,
+          model.options,
+        ).sendMessage(
           messages,
           (text) => {
             dispatch({

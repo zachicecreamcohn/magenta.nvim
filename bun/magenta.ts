@@ -11,6 +11,7 @@ import path from "node:path";
 import type { Line } from "./nvim/buffer.ts";
 import { pos1to0, type ByteIdx } from "./nvim/window.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
+import { parseOptions } from "./options.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
@@ -39,12 +40,13 @@ export class Magenta {
   }
 
   async setOpts(opts: unknown) {
-    if (typeof opts == "object" && opts != null) {
-      const optsObj = opts as { [key: string]: unknown };
-      if (optsObj["provider"]) {
-        await this.command(`provider ${optsObj["provider"] as string}`);
-      }
-    }
+    const options = parseOptions(opts);
+    this.chatApp.dispatch({
+      type: "set-opts",
+      options,
+    });
+
+    await this.command(`provider ${options["provider"]}`);
   }
 
   async command(input: string): Promise<void> {
