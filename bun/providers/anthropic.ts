@@ -2,10 +2,15 @@ import Anthropic from "@anthropic-ai/sdk";
 import * as ToolManager from "../tools/toolManager.ts";
 import { extendError, type Result } from "../utils/result.ts";
 import type { Nvim } from "bunvim";
-import type { StopReason, Provider, ProviderMessage } from "./provider.ts";
+import {
+  type StopReason,
+  type Provider,
+  type ProviderMessage,
+} from "./provider.ts";
 import type { ToolRequestId } from "../tools/toolManager.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { MessageStream } from "@anthropic-ai/sdk/lib/MessageStream.mjs";
+import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
 
 export class AnthropicProvider implements Provider {
   private client: Anthropic;
@@ -99,16 +104,7 @@ export class AnthropicProvider implements Provider {
           messages: anthropicMessages,
           model: "claude-3-5-sonnet-20241022",
           max_tokens: 4096,
-          system: `\
-You are a coding assistant to a software engineer, inside a neovim plugin called magenta.nvim .
-Be concise.
-Do not narrate tool use.
-You can use multiple tools at once, so try to minimize round trips.
-First understand what’s already working - do not change or delete or break existing functionality.
-Look for the simplest possible fix.
-Avoid introducing unnecessary complexity.
-Don’t introduce new technologies without asking.
-Follow existing patterns and code structure.`,
+          system: DEFAULT_SYSTEM_PROMPT,
           tool_choice: {
             type: "auto",
             disable_parallel_tool_use: false,

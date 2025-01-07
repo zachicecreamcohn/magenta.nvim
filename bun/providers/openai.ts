@@ -6,6 +6,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { ToolName, ToolRequestId } from "../tools/toolManager.ts";
 import type { Nvim } from "bunvim";
 import type { Stream } from "openai/streaming.mjs";
+import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
 
 export class OpenAIProvider implements Provider {
   private client: OpenAI;
@@ -38,7 +39,12 @@ export class OpenAIProvider implements Provider {
     toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;
   }> {
-    const openaiMessages: OpenAI.ChatCompletionMessageParam[] = [];
+    const openaiMessages: OpenAI.ChatCompletionMessageParam[] = [
+      {
+        role: "system",
+        content: DEFAULT_SYSTEM_PROMPT,
+      },
+    ];
 
     for (const m of messages) {
       if (typeof m.content == "string") {
