@@ -14,7 +14,7 @@ Install [bun](https://bun.sh/)
 ```lua
 {
     "dlants/magenta.nvim",
-    lazy = false, -- you could also bind to <leader>m
+    lazy = false, -- you could also bind to <leader>mt
     build = "bun install --frozen-lockfile",
     config = function()
       require('magenta').setup()
@@ -22,10 +22,10 @@ Install [bun](https://bun.sh/)
 },
 ```
 
-The plugin will look for credentials for providers in the following env variables:
+The plugin will look for configuration for providers in the following env variables:
 
 - anthropic: ANTHROPIC_API_KEY
-- openai: OPENAI_API_KEY
+- openai: OPENAI_API_KEY, OPENAI_BASE_URL
 
 # Usage
 
