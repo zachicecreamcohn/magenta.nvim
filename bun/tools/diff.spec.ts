@@ -333,7 +333,7 @@ Paints its colors in the light.`,
     });
   });
 
-  it.only("failed edit is not fatal", async () => {
+  it("failed edit is not fatal", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(

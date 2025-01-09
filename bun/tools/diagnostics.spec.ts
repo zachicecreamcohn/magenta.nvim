@@ -1,7 +1,7 @@
 import { type ToolRequestId } from "./toolManager.ts";
 import { describe, it, expect } from "bun:test";
 import { withDriver } from "../test/preamble";
-import { delay, pollUntil } from "../utils/async.ts";
+import { pollUntil } from "../utils/async.ts";
 
 describe("bun/tools/diagnostics.spec.ts", () => {
   it(
@@ -15,7 +15,25 @@ describe("bun/tools/diagnostics.spec.ts", () => {
         await driver.send();
 
         const toolRequestId = "id" as ToolRequestId;
-        await delay(5000);
+
+        await pollUntil(
+          async () => {
+            const state = driver.magenta.chatApp.getState();
+            if (state.status != "running") {
+              throw new Error(`app crashed`);
+            }
+            const diagnostics = (await driver.nvim.call("nvim_exec_lua", [
+              `return vim.diagnostic.get(nil)`,
+              [],
+            ])) as unknown[];
+
+            if (diagnostics.length === 0) {
+              throw new Error("No diagnostics available yet");
+            }
+          },
+          { timeout: 5000 },
+        );
+
         await driver.mockAnthropic.respond({
           stopReason: "tool_use",
           text: "ok, here goes",
