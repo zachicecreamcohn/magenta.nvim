@@ -87,12 +87,9 @@ export class Magenta {
           }
 
           this.chatApp.dispatch({
-            type: "context-manager-msg",
-            msg: {
-              type: "add-file-context",
-              absFilePath,
-              relFilePath,
-            },
+            type: "add-file-context",
+            absFilePath,
+            relFilePath,
           });
         }
 

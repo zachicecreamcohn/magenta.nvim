@@ -1,10 +1,27 @@
 export class IdCounter {
-  private counter: number = 1;
+  private counter: Counter = new Counter();
   constructor(private prefix: string) {}
 
   get() {
-    const id = this.prefix + this.counter;
+    return this.prefix + this.counter.get();
+  }
+
+  last() {
+    return this.prefix + this.counter.last();
+  }
+}
+
+export class Counter {
+  private counter: number = 1;
+  constructor() {}
+
+  get() {
+    const val = this.counter;
     this.counter += 1;
-    return id;
+    return val;
+  }
+
+  last() {
+    return this.counter - 1;
   }
 }

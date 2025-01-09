@@ -19,6 +19,12 @@ export class NvimBuffer {
     return this.nvim.call("nvim_buf_set_option", [this.id, option, value]);
   }
 
+  getChangeTick() {
+    return this.nvim.call("nvim_buf_get_changedtick", [
+      this.id,
+    ]) as unknown as Promise<number>;
+  }
+
   setLines({
     start,
     end,

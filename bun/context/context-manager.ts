@@ -1,16 +1,17 @@
-import fs from "node:fs";
-import path from "node:path";
 import { d, withBindings, type View } from "../tea/view";
 import type { Dispatch, Update } from "../tea/tea";
 import { assertUnreachable } from "../utils/assertUnreachable";
 import type { ProviderMessage } from "../providers/provider";
-import { getcwd } from "../nvim/nvim";
 import type { Nvim } from "bunvim";
-import { getBufferIfOpen } from "../utils/buffers";
+import type { MessageId } from "../chat/message";
+import { BufferAndFileManager } from "./file-and-buffer-manager";
 
 export type Model = {
   files: {
-    [absFilePath: string]: { relFilePath: string };
+    [absFilePath: string]: {
+      relFilePath: string;
+      initialMessageId: MessageId;
+    };
   };
 };
 
@@ -19,6 +20,7 @@ export type Msg =
       type: "add-file-context";
       relFilePath: string;
       absFilePath: string;
+      messageId: MessageId;
     }
   | {
       type: "remove-file-context";
@@ -26,6 +28,8 @@ export type Msg =
     };
 
 export function init({ nvim }: { nvim: Nvim }) {
+  const bufferAndFileManager = new BufferAndFileManager(nvim);
+
   function initModel(): Model {
     return {
       files: {},
@@ -39,7 +43,10 @@ export function init({ nvim }: { nvim: Nvim }) {
             ...model,
             files: {
               ...model.files,
-              [msg.absFilePath]: { relFilePath: msg.relFilePath },
+              [msg.absFilePath]: {
+                relFilePath: msg.relFilePath,
+                initialMessageId: msg.messageId,
+              },
             },
           },
         ];
@@ -73,57 +80,56 @@ ${fileContext}`;
     return Object.keys(model.files).length == 0;
   }
 
-  async function getContextMessage(
+  async function getContextMessages(
+    currentMessageId: MessageId,
     model: Model,
-  ): Promise<ProviderMessage | undefined> {
+  ): Promise<{ messageId: MessageId; message: ProviderMessage }[] | undefined> {
     if (isContextEmpty(model)) {
       return undefined;
     }
 
-    const cwd = await getcwd(nvim);
-    const fileContents = await Promise.all(
+    return await Promise.all(
       Object.keys(model.files).map((absFilePath) =>
-        getFileContents({ absFilePath, cwd }),
+        getFileMessage({ absFilePath, currentMessageId }),
       ),
     );
-
-    return {
-      role: "user",
-      content: `${FILE_PROMPT}
-
-${fileContents.join("\n\n")}`,
-    };
   }
 
-  async function getFileContents({
+  async function getFileMessage({
     absFilePath,
-    cwd,
+    currentMessageId,
   }: {
     absFilePath: string;
-    cwd: string;
-  }): Promise<string> {
-    const relativePath = path.relative(cwd, absFilePath);
-    const bufferContents = await getBufferIfOpen({
-      relativePath,
-      context: { nvim },
-    });
+    currentMessageId: MessageId;
+  }): Promise<{ messageId: MessageId; message: ProviderMessage }> {
+    const res = await bufferAndFileManager.getFileContents(
+      absFilePath,
+      currentMessageId,
+    );
 
-    if (bufferContents.status == "ok") {
-      return renderFile({
-        relFilePath: relativePath,
-        content: bufferContents.result,
-      });
-    } else if (bufferContents.status == "error") {
-      return `\
-Error trying to read file \`${relativePath}\`: ${bufferContents.error}`;
-    }
+    switch (res.status) {
+      case "ok":
+        return {
+          messageId: res.value.messageId,
+          message: {
+            role: "user",
+            content: renderFile({
+              relFilePath: res.value.relFilePath,
+              content: res.value.content,
+            }),
+          },
+        };
 
-    try {
-      const fileContent = await fs.promises.readFile(absFilePath, "utf-8");
-      return renderFile({ relFilePath: relativePath, content: fileContent });
-    } catch (error) {
-      return `\
-Error trying to read file \`${relativePath}\`: ${(error as Error).message}`;
+      case "error":
+        return {
+          messageId: currentMessageId,
+          message: {
+            role: "user",
+            content: `Error reading file \`${absFilePath}\`: ${res.error}`,
+          },
+        };
+      default:
+        assertUnreachable(res);
     }
   }
 
@@ -146,10 +152,6 @@ ${content}
     initModel,
     update,
     view,
-    getContextMessage,
+    getContextMessages,
   };
 }
-
-export const FILE_PROMPT = `Files.
-This is the most up-to-date content of these files.
-Any other mentions of code or snippets from these files may be out of date.`;

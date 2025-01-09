@@ -80,7 +80,9 @@ export function initModel(
       let buffer: NvimBuffer;
       let bufferContent: string;
       if (bufferResult.status == "ok") {
-        bufferContent = bufferResult.result;
+        bufferContent = (
+          await bufferResult.buffer.getLines({ start: 0, end: -1 })
+        ).join("\n");
         buffer = bufferResult.buffer;
       } else {
         dispatch({
