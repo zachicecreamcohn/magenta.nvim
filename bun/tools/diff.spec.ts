@@ -414,7 +414,8 @@ Paints its colors in the light.`,
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-Replace [[ -1 / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -1 / +1 ]] in bun/test/fixtures/poem.txt ⚠️ Error: "Unable to find text \\"bogus line...\\" in file bun/test/fixtures/poem.txt"
+id: id1
 replace: {
     filePath: bun/test/fixtures/poem.txt
     match:
@@ -426,27 +427,20 @@ bogus line...
 Replace text
 \`\`\`
 }
-Result:
-\`\`\`
-The user will review your proposed change.
-Assume that your change will be accepted and address other parts of the question, if any exist.
-Do not take more attempts at the same edit unless the user requests it.
-\`\`\`
+Error: Unable to find text "bogus line..." in file bun/test/fixtures/poem.txt
 Insert 1 lines. Awaiting user review.
 
 Edits:
-  bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
-Error applying edit: Unable to find text "bogus line..." in file bun/test/fixtures/poem.txt`);
+  bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**`);
       await driver.triggerDisplayBufferKey(detailsPos, "<CR>");
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-Replace [[ -1 / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -1 / +1 ]] in bun/test/fixtures/poem.txt ⚠️ Error: "Unable to find text \\"bogus line...\\" in file bun/test/fixtures/poem.txt"
 Insert 1 lines. Awaiting user review.
 
 Edits:
-  bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
-Error applying edit: Unable to find text "bogus line..." in file bun/test/fixtures/poem.txt`);
+  bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**`);
     });
   });
 });

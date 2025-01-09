@@ -222,16 +222,30 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
         }
 
         if (msg.msg.type == "diff-error") {
-          const message = model.messages[msg.idx];
-          const edit = message.edits[msg.msg.filePath];
-          edit.status = {
-            status: "error",
-            message: msg.msg.message,
-          };
-
-          // TODO: maybe update request status with error?
-          // for (const requestId of edit.requestIds) {
-          // }
+          if (msg.msg.requestId) {
+            const toolWrapper =
+              model.toolManager.toolWrappers[msg.msg.requestId];
+            if (toolWrapper) {
+              toolWrapper.model.state = {
+                state: "done",
+                result: {
+                  type: "tool_result",
+                  id: msg.msg.requestId,
+                  result: {
+                    status: "error",
+                    error: msg.msg.message,
+                  },
+                },
+              };
+            }
+          } else {
+            const message = model.messages[msg.idx];
+            const edit = message.edits[msg.msg.filePath];
+            edit.status = {
+              status: "error",
+              message: msg.msg.message,
+            };
+          }
           return [model];
         }
 

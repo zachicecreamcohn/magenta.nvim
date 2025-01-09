@@ -4,7 +4,7 @@ import type { ToolRequestId } from "../tools/toolManager";
 import { REVIEW_PROMPT } from "../tools/diff";
 
 describe("bun/chat/message.spec.ts", () => {
-  it("display multiple edits to the same file, and edit details", async () => {
+  it.only("display multiple edits to the same file, and edit details", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
@@ -60,6 +60,7 @@ Edits:
 # assistant:
 ok, I will try to rewrite the poem in that file
 Replace [[ -2 / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+id: id1
 replace: {
     filePath: bun/test/fixtures/poem.txt
     match:
@@ -79,8 +80,7 @@ ${REVIEW_PROMPT}
 Replace [[ -2 / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
 
 Edits:
-  bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
-`);
+  bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**`);
 
       await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
 
