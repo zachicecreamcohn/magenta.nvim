@@ -10,7 +10,7 @@ export async function getBufferIfOpen({
   relativePath: string;
   context: { nvim: Nvim };
 }): Promise<
-  | { status: "ok"; result: string; buffer: NvimBuffer }
+  | { status: "ok"; buffer: NvimBuffer }
   | { status: "error"; error: string }
   | { status: "not-found" }
 > {
@@ -35,9 +35,7 @@ export async function getBufferIfOpen({
     const bufferName = await buffer.getName();
 
     if (bufferName === absolutePath) {
-      // Get buffer lines and join them with newlines
-      const lines = await buffer.getLines({ start: 0, end: -1 });
-      return { status: "ok", result: lines.join("\n"), buffer };
+      return { status: "ok", buffer };
     }
   }
 
@@ -51,8 +49,7 @@ export async function getOrOpenBuffer({
   relativePath: string;
   context: { nvim: Nvim };
 }): Promise<
-  | { status: "ok"; result: string; buffer: NvimBuffer }
-  | { status: "error"; error: string }
+  { status: "ok"; buffer: NvimBuffer } | { status: "error"; error: string }
 > {
   // First try to get the buffer if it's already open
   const existingBuffer = await getBufferIfOpen({ relativePath, context });

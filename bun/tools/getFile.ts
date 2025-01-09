@@ -145,7 +145,9 @@ function readFileThunk(model: Model, context: { nvim: Nvim }) {
         type: "finish",
         result: {
           status: "ok",
-          value: bufferContents.result,
+          value: (
+            await bufferContents.buffer.getLines({ start: 0, end: -1 })
+          ).join("\n"),
         },
       });
       return;

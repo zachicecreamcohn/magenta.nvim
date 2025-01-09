@@ -2,7 +2,6 @@ import { describe, expect, it } from "bun:test";
 import { withDriver } from "./test/preamble";
 import { pollUntil } from "./utils/async";
 import type { Position0Indexed } from "./nvim/window";
-import { FILE_PROMPT } from "./context/context-manager";
 
 describe("bun/magenta.spec.ts", () => {
   it("clear command should work", async () => {
@@ -146,8 +145,6 @@ file: \`./bun/test/fixtures/poem.txt\``);
       expect(request.messages).toEqual([
         {
           content: `\
-${FILE_PROMPT}
-
 Here are the contents of file \`bun/test/fixtures/poem.txt\`:
 \`\`\`
 Moonlight whispers through the trees,
@@ -195,8 +192,15 @@ file: \`./bun/test/fixtures/poem 3.txt\``);
       expect(request.messages).toEqual([
         {
           content: `\
-${FILE_PROMPT}
+Here are the contents of file \`bun/test/fixtures/poem 3.txt\`:
+\`\`\`
+poem3
 
+\`\`\``,
+          role: "user",
+        },
+        {
+          content: `\
 Here are the contents of file \`bun/test/fixtures/poem.txt\`:
 \`\`\`
 Moonlight whispers through the trees,
@@ -204,11 +208,68 @@ Silver shadows dance with ease.
 Stars above like diamonds bright,
 Paint their stories in the night.
 
-\`\`\`
+\`\`\``,
+          role: "user",
+        },
+        {
+          content: [
+            {
+              text: "check out this file",
+              type: "text",
+            },
+          ],
+          role: "user",
+        },
+      ]);
+    });
+  });
 
-Here are the contents of file \`bun/test/fixtures/poem 3.txt\`:
+  it("context message insert position", async () => {
+    await withDriver(async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(`hello`);
+      await driver.send();
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "sup?",
+        toolRequests: [],
+      });
+
+      await driver.nvim.call("nvim_command", [
+        "Magenta context-files './bun/test/fixtures/poem.txt'",
+      ]);
+
+      await driver.inputMagentaText("check out this file");
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      expect(request.messages).toEqual([
+        {
+          content: [
+            {
+              text: "hello",
+              type: "text",
+            },
+          ],
+          role: "user",
+        },
+        {
+          content: [
+            {
+              text: "sup?",
+              type: "text",
+            },
+          ],
+          role: "assistant",
+        },
+        {
+          content: `\
+Here are the contents of file \`bun/test/fixtures/poem.txt\`:
 \`\`\`
-poem3
+Moonlight whispers through the trees,
+Silver shadows dance with ease.
+Stars above like diamonds bright,
+Paint their stories in the night.
 
 \`\`\``,
           role: "user",

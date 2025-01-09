@@ -11,7 +11,7 @@ import {
 import { d, type View } from "../tea/view.ts";
 import * as ToolManager from "../tools/toolManager.ts";
 import { type Result } from "../utils/result.ts";
-import { IdCounter } from "../utils/uniqueId.ts";
+import { Counter } from "../utils/uniqueId.ts";
 import type { Nvim } from "bunvim";
 import type { Lsp } from "../lsp.ts";
 import {
@@ -37,6 +37,7 @@ export type ConversationState =
     };
 
 export type Model = {
+  lastUserMessageId: Message.MessageId;
   activeProvider: ProviderName;
   options: MagentaOptions;
   conversation: ConversationState;
@@ -57,6 +58,11 @@ export type Msg =
   | {
       type: "context-manager-msg";
       msg: ContextManager.Msg;
+    }
+  | {
+      type: "add-file-context";
+      absFilePath: string;
+      relFilePath: string;
     }
   | {
       type: "add-message";
@@ -98,7 +104,7 @@ export type Msg =
     };
 
 export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
-  const idCounter = new IdCounter("message_");
+  const counter = new Counter();
   const partModel = Part.init({ nvim, lsp });
   const toolManagerModel = ToolManager.init({ nvim, lsp });
   const contextManagerModel = ContextManager.init({ nvim });
@@ -106,6 +112,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
 
   function initModel(): Model {
     return {
+      lastUserMessageId: counter.last() as Message.MessageId,
       options: DEFAULT_OPTIONS,
       activeProvider: "anthropic",
       conversation: { state: "stopped", stopReason: "end_turn" },
@@ -134,11 +141,15 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
         return [{ ...model, activeProvider: msg.provider }];
       case "add-message": {
         let message: Message.Model = {
-          id: idCounter.get() as Message.MessageId,
+          id: counter.get() as Message.MessageId,
           role: msg.role,
           parts: [],
           edits: {},
         };
+
+        if (message.role == "user") {
+          model.lastUserMessageId = message.id;
+        }
 
         let messageThunk;
         if (msg.content) {
@@ -231,7 +242,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
         const lastMessage = model.messages[model.messages.length - 1];
         if (lastMessage?.role !== "assistant") {
           model.messages.push({
-            id: idCounter.get() as Message.MessageId,
+            id: counter.get() as Message.MessageId,
             role: "assistant",
             parts: [],
             edits: {},
@@ -255,7 +266,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
         const lastMessage = model.messages[model.messages.length - 1];
         if (lastMessage?.role !== "assistant") {
           model.messages.push({
-            id: idCounter.get() as Message.MessageId,
+            id: counter.get() as Message.MessageId,
             role: "assistant",
             parts: [],
             edits: {},
@@ -283,7 +294,7 @@ ${msg.error.stack}`,
         const lastMessage = model.messages[model.messages.length - 1];
         if (lastMessage?.role !== "assistant") {
           model.messages.push({
-            id: idCounter.get() as Message.MessageId,
+            id: counter.get() as Message.MessageId,
             role: "assistant",
             parts: [],
             edits: {},
@@ -356,6 +367,24 @@ ${msg.error.stack}`,
       case "context-manager-msg": {
         const [nextContextManager, contextManagerThunk] =
           contextManagerModel.update(msg.msg, model.contextManager);
+        model.contextManager = nextContextManager;
+        return [
+          model,
+          parallelThunks(wrapThunk("context-manager-msg", contextManagerThunk)),
+        ];
+      }
+
+      case "add-file-context": {
+        const [nextContextManager, contextManagerThunk] =
+          contextManagerModel.update(
+            {
+              type: "add-file-context",
+              absFilePath: msg.absFilePath,
+              relFilePath: msg.relFilePath,
+              messageId: model.lastUserMessageId,
+            },
+            model.contextManager,
+          );
         model.contextManager = nextContextManager;
         return [
           model,
@@ -519,19 +548,7 @@ ${msg.error.stack}`,
   };
 
   async function getMessages(model: Model): Promise<ProviderMessage[]> {
-    const messages = [];
-    const contextMessage = await contextManagerModel.getContextMessage(
-      model.contextManager,
-    );
-
-    if (contextMessage) {
-      nvim.logger?.debug(
-        `Got context message: ${JSON.stringify(contextMessage)}`,
-      );
-      messages.push(contextMessage);
-    }
-
-    const rest = model.messages.flatMap((msg) => {
+    const messages = model.messages.flatMap((msg) => {
       const messageContent: ProviderMessageContent[] = [];
       const toolResponseContent: ProviderMessageContent[] = [];
 
@@ -580,11 +597,35 @@ ${msg.error.stack}`,
         });
       }
 
-      return out;
+      return out.map((m) => ({
+        message: m,
+        messageId: msg.id,
+      }));
     });
 
-    messages.push(...rest);
-    return messages;
+    const contextMessages = await contextManagerModel.getContextMessages(
+      counter.last() as Message.MessageId,
+      model.contextManager,
+    );
+
+    if (contextMessages) {
+      nvim.logger?.debug(
+        `Got context messages: ${JSON.stringify(contextMessages)}`,
+      );
+
+      for (const contextMessage of contextMessages) {
+        // we want to insert the contextMessage before the corresponding user message
+        let idx = messages.findIndex(
+          (m) => m.messageId >= contextMessage.messageId,
+        );
+        if (idx == -1) {
+          idx = messages.length;
+        }
+        messages.splice(idx, 0, contextMessage);
+      }
+    }
+
+    return messages.map((m) => m.message);
   }
 
   return {

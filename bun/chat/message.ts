@@ -8,7 +8,7 @@ import { displayDiffs } from "../tools/diff.ts";
 import type { Lsp } from "../lsp.ts";
 import type { Nvim } from "bunvim";
 
-export type MessageId = string & { __messageId: true };
+export type MessageId = number & { __messageId: true };
 export type Model = {
   id: MessageId;
   role: Role;
@@ -160,7 +160,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
               await displayDiffs({
                 context: { nvim },
                 filePath: msg.filePath,
-                diffId: model.id,
+                diffId: `message_${model.id}`,
                 edits: edits.requestIds.map((requestId) => {
                   const toolWrapper = toolManager.toolWrappers[requestId];
                   if (!toolWrapper) {
