@@ -87,27 +87,15 @@ export async function displayDiffs({
       }
 
       case "replace": {
-        const replaceStart = content.indexOf(edit.input.startLine);
-        const replaceEnd =
-          content.indexOf(edit.input.endLine, replaceStart - 1) +
-          edit.input.endLine.length;
+        const replaceStart = content.indexOf(edit.input.find);
+        const replaceEnd = replaceStart + edit.input.find.length;
 
         if (replaceStart == -1) {
           dispatch({
             type: "diff-error",
             filePath,
             requestId: edit.id,
-            message: `Unable to find startLine "${edit.input.startLine}" in file ${filePath}`,
-          });
-          continue;
-        }
-
-        if (replaceEnd == -1) {
-          dispatch({
-            type: "diff-error",
-            filePath,
-            requestId: edit.id,
-            message: `Unable to find endLine "${edit.input.endLine}" in file ${filePath}`,
+            message: `Unable to find text "${edit.input.find}" in file ${filePath}`,
           });
           continue;
         }

@@ -71,7 +71,7 @@ export function view({
   model: Model;
   dispatch: Dispatch<Msg>;
 }): VDOMNode {
-  return d`Replace [[ -? / +${countLines(
+  return d`Replace [[ -${countLines(model.request.input.find).toString()} / +${countLines(
     model.request.input.replace,
   ).toString()} ]] in ${model.request.input.filePath} ${toolStatusView({ model, dispatch })}`;
 }
@@ -116,32 +116,25 @@ Break up replace opertations into multiple, smaller tool invocations to avoid re
         type: "string",
         description: "Path of the file to modify.",
       },
-      startLine: {
+      find: {
         type: "string",
-        description: `Replace text starting with and including this line.
-This should be the exact and complete single line, including indentation.
-If multiple locations in the file match this line, the first line will be used.`,
-      },
-      endLine: {
-        type: "string",
-        description: `Replace text up to and including this line.
-This should be the exact and complete single line, including indentation.
-If multiple locations in the file match this line, the first line will be used.`,
+        description: `The text to replace.
+This should be the exact and complete text to replace, including indentation. Regular expressions are not supported.
+If the text appears multiple times, only the first match will be replaced.`,
       },
       replace: {
         type: "string",
         description: "New content that will replace the existing text.",
       },
     },
-    required: ["filePath", "startLine", "endLine", "replace"],
+    required: ["filePath", "find", "replace"],
     additionalProperties: false,
   },
 };
 
 export type Input = {
   filePath: string;
-  startLine: string;
-  endLine: string;
+  find: string;
   replace: string;
 };
 
@@ -150,9 +143,7 @@ export function displayInput(input: Input) {
     filePath: ${input.filePath}
     match:
 \`\`\`
-${input.startLine}
-...
-${input.endLine}
+${input.find}
 \`\`\`
     replace:
 \`\`\`
@@ -171,17 +162,10 @@ export function validateInput(input: {
     };
   }
 
-  if (typeof input.startLine != "string") {
+  if (typeof input.find != "string") {
     return {
       status: "error",
-      error: "expected req.input.startLine to be a string",
-    };
-  }
-
-  if (typeof input.endLine != "string") {
-    return {
-      status: "error",
-      error: "expected req.input.endLine to be a string",
+      error: "expected req.input.find to be a string",
     };
   }
 

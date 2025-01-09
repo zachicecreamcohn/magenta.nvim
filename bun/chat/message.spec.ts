@@ -23,8 +23,7 @@ describe("bun/chat/message.spec.ts", () => {
               name: "replace",
               input: {
                 filePath: "bun/test/fixtures/poem.txt",
-                startLine: `Moonlight whispers through the trees,`,
-                endLine: `Silver shadows dance with ease.`,
+                find: `Moonlight whispers through the trees,\nSilver shadows dance with ease.`,
                 replace: `Replace 1`,
               },
             },
@@ -36,8 +35,7 @@ describe("bun/chat/message.spec.ts", () => {
               name: "replace",
               input: {
                 filePath: "bun/test/fixtures/poem.txt",
-                startLine: `Stars above like diamonds bright,`,
-                endLine: `Paint their stories in the night.`,
+                find: `Stars above like diamonds bright,\nPaint their stories in the night.`,
                 replace: `Replace 2`,
               },
             },
@@ -48,8 +46,8 @@ describe("bun/chat/message.spec.ts", () => {
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
-Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -2 / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -2 / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
 
 Edits:
   bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
@@ -61,13 +59,12 @@ Edits:
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -2 / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
 replace: {
     filePath: bun/test/fixtures/poem.txt
     match:
 \`\`\`
 Moonlight whispers through the trees,
-...
 Silver shadows dance with ease.
 \`\`\`
     replace:
@@ -79,7 +76,7 @@ Result:
 \`\`\`
 ${REVIEW_PROMPT}
 \`\`\`
-Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -2 / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
 
 Edits:
   bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
@@ -90,8 +87,8 @@ Edits:
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
-Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -2 / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -2 / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
 
 Edits:
   bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**

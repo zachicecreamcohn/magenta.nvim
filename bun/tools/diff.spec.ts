@@ -135,9 +135,13 @@ describe("bun/tools/diff.spec.ts", () => {
               name: "replace",
               input: {
                 filePath: "bun/test/fixtures/poem.txt",
-                startLine: `Moonlight whispers through the trees,`,
-                endLine: `Paint their stories in the night.`,
-                replace: `In gardens wild and flowing free,
+                find: `\
+Moonlight whispers through the trees,
+Silver shadows dance with ease.
+Stars above like diamonds bright,
+Paint their stories in the night.`,
+                replace: `\
+In gardens wild and flowing free,
 Magenta blooms for all to see.
 Nature's canvas, bold and bright,
 Paints its colors in the light.`,
@@ -291,8 +295,7 @@ Paints its colors in the light.`,
               name: "replace",
               input: {
                 filePath: "bun/test/fixtures/poem.txt",
-                startLine: "Silver shadows dance with ease.",
-                endLine: "Silver shadows dance with ease.",
+                find: "Silver shadows dance with ease.",
                 replace: "Golden moonbeams dance with ease.",
               },
             },
@@ -349,8 +352,7 @@ Paints its colors in the light.`,
               name: "replace",
               input: {
                 filePath: "bun/test/fixtures/poem.txt",
-                startLine: `bogus line...`,
-                endLine: `Paint their stories in the night.`,
+                find: `bogus line...`,
                 replace: `Replace text`,
               },
             },
@@ -412,14 +414,12 @@ Paints its colors in the light.`,
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -1 / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
 replace: {
     filePath: bun/test/fixtures/poem.txt
     match:
 \`\`\`
 bogus line...
-...
-Paint their stories in the night.
 \`\`\`
     replace:
 \`\`\`
@@ -436,17 +436,17 @@ Insert 1 lines. Awaiting user review.
 
 Edits:
   bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
-Error applying edit: Unable to find startLine "bogus line..." in file bun/test/fixtures/poem.txt`);
+Error applying edit: Unable to find text "bogus line..." in file bun/test/fixtures/poem.txt`);
       await driver.triggerDisplayBufferKey(detailsPos, "<CR>");
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -1 / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
 Insert 1 lines. Awaiting user review.
 
 Edits:
   bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
-Error applying edit: Unable to find startLine "bogus line..." in file bun/test/fixtures/poem.txt`);
+Error applying edit: Unable to find text "bogus line..." in file bun/test/fixtures/poem.txt`);
     });
   });
 });
