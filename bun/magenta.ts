@@ -6,7 +6,7 @@ import { pos } from "./tea/view.ts";
 import type { Nvim } from "bunvim";
 import { Lsp } from "./lsp.ts";
 import { PROVIDER_NAMES, type ProviderName } from "./providers/provider.ts";
-import { getCurrentBuffer, getcwd, getpos } from "./nvim/nvim.ts";
+import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
 import path from "node:path";
 import type { Line } from "./nvim/buffer.ts";
 import { pos1to0, type ByteIdx } from "./nvim/window.ts";
@@ -63,6 +63,8 @@ export class Magenta {
           await this.sidebar.updateProvider(provider as ProviderName);
         } else {
           this.nvim.logger?.error(`Provider ${provider} is not supported.`);
+          // eslint-disable-next-line @typescript-eslint/no-floating-promises
+          notifyErr(this.nvim, `Provider ${provider} is not supported.`);
         }
         break;
       }
@@ -187,6 +189,8 @@ ${lines.join("\n")}
 
       default:
         this.nvim.logger?.error(`Unrecognized command ${command}\n`);
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        notifyErr(this.nvim, `Unrecognized command ${command}\n`);
     }
   }
 
@@ -197,6 +201,8 @@ ${lines.join("\n")}
         this.mountedChatApp.onKey(key as BindingKey);
       } else {
         this.nvim.logger?.error(`Unexpected MagentaKey ${JSON.stringify(key)}`);
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        notifyErr(this.nvim, `Unexpected MagentaKey ${JSON.stringify(key)}`);
       }
     }
   }
@@ -224,6 +230,8 @@ ${lines.join("\n")}
             ? `Error executing command ${args[0] as string}: ${err.message}\n${err.stack}`
             : JSON.stringify(err),
         );
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        notifyErr(nvim, err);
       }
     });
 
@@ -247,7 +255,6 @@ ${lines.join("\n")}
       try {
         lsp.onLspResponse(args);
       } catch (err) {
-        console.error(err);
         nvim.logger?.error(JSON.stringify(err));
       }
     });

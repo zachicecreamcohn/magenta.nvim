@@ -73,3 +73,11 @@ export async function getpos(
 export function diffthis(nvim: Nvim) {
   return nvim.call("nvim_command", ["diffthis"]);
 }
+
+export function notifyErr(nvim: Nvim, err: unknown) {
+  return nvim.call("nvim_notify", [
+    `Thunk execution error: ${err instanceof Error ? err.message : JSON.stringify(err)}`,
+    3,
+    {},
+  ]);
+}

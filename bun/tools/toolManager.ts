@@ -231,7 +231,9 @@ ${result.result.value}
   ) {
     return withBindings(
       d`${renderToolContents(model.model, dispatch)}${
-        model.showRequest ? d`\nid: ${model.model.request.id}\n${displayRequestInput(model.model)}` : ""
+        model.showRequest
+          ? d`\nid: ${model.model.request.id}\n${displayRequestInput(model.model)}`
+          : ""
       }${model.showResult ? displayResult(model.model) : ""}`,
       {
         "<CR>": () =>

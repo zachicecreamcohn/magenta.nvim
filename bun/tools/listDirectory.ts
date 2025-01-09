@@ -56,7 +56,6 @@ export const update: Update<Msg, Model> = (msg, model) => {
 async function listDirectoryBFS(
   startPath: string,
   cwd: string,
-  context: { nvim: Nvim },
 ): Promise<string[]> {
   const ig = await readGitignore(cwd);
   const queue: string[] = [startPath];
@@ -66,35 +65,31 @@ async function listDirectoryBFS(
   while (queue.length > 0 && results.length < 100) {
     const currentPath = queue.shift()!;
 
-    try {
-      const entries = await fs.promises.readdir(currentPath, {
-        withFileTypes: true,
-      });
+    const entries = await fs.promises.readdir(currentPath, {
+      withFileTypes: true,
+    });
 
-      for (const entry of entries) {
-        const fullPath = path.join(currentPath, entry.name);
-        const relativePath = path.relative(cwd, fullPath);
+    for (const entry of entries) {
+      const fullPath = path.join(currentPath, entry.name);
+      const relativePath = path.relative(cwd, fullPath);
 
-        // Skip hidden files and respected gitignored files
-        if (entry.name.startsWith(".") || ig.ignores(relativePath)) {
-          continue;
-        }
+      // Skip hidden files and respected gitignored files
+      if (entry.name.startsWith(".") || ig.ignores(relativePath)) {
+        continue;
+      }
 
-        if (!fullPath.startsWith(cwd)) {
-          continue;
-        }
+      if (!fullPath.startsWith(cwd)) {
+        continue;
+      }
 
-        if (!seen.has(fullPath)) {
-          seen.add(fullPath);
-          results.push(relativePath);
+      if (!seen.has(fullPath)) {
+        seen.add(fullPath);
+        results.push(relativePath);
 
-          if (entry.isDirectory()) {
-            queue.push(fullPath);
-          }
+        if (entry.isDirectory()) {
+          queue.push(fullPath);
         }
       }
-    } catch (error) {
-      context.nvim.logger?.error(error as Error);
     }
   }
 
@@ -133,7 +128,7 @@ export function initModel(
           return;
         }
 
-        const files = await listDirectoryBFS(absolutePath, cwd, context);
+        const files = await listDirectoryBFS(absolutePath, cwd);
         context.nvim.logger?.debug(`files: ${files.join("\n")}`);
         dispatch({
           type: "finish",

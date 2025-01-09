@@ -1,5 +1,6 @@
 import { attach, type LogLevel } from "bunvim";
 import { Magenta } from "./magenta.ts";
+import { notifyErr } from "./nvim/nvim.ts";
 
 // These values are set by neovim when starting the bun process
 const ENV = {
@@ -16,6 +17,8 @@ const nvim = await attach({
 });
 
 process.on("uncaughtException", (error) => {
+  // eslint-disable-next-line @typescript-eslint/no-floating-promises
+  notifyErr(nvim, error);
   nvim.logger?.error(error);
   process.exit(1);
 });

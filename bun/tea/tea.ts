@@ -7,7 +7,7 @@ import {
   type VDOMNode,
 } from "./view.ts";
 import { BINDING_KEYS, type BindingKey, getBindings } from "./bindings.ts";
-import { getCurrentWindow } from "../nvim/nvim.ts";
+import { getCurrentWindow, notifyErr } from "../nvim/nvim.ts";
 import type { Row0Indexed } from "../nvim/window.ts";
 import type { Nvim } from "bunvim";
 
@@ -102,6 +102,9 @@ export function createApp<Model, Msg>({
                 ? `Error: ${err.message}\n${err.stack}`
                 : JSON.stringify(err);
             nvim.logger?.error(`Thunk execution error: ${message}`);
+
+            // eslint-disable-next-line @typescript-eslint/no-floating-promises
+            notifyErr(nvim, err);
           });
         }
       }
@@ -128,6 +131,8 @@ export function createApp<Model, Msg>({
           .render({ currentState, dispatch })
           .catch((err) => {
             nvim.logger?.error(err as Error);
+            // eslint-disable-next-line @typescript-eslint/no-floating-promises
+            notifyErr(nvim, err);
             throw err;
           })
           .finally(() => {
