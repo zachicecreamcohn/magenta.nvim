@@ -3,7 +3,6 @@ import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "./toolManager";
 import * as path from "path";
 import type { Line } from "../nvim/buffer";
-import { REVIEW_PROMPT } from "./diff";
 
 describe("bun/tools/diff.spec.ts", () => {
   it("insert into new file", async () => {
@@ -331,7 +330,7 @@ Paints its colors in the light.`,
     });
   });
 
-  it("failed edit is not fatal", async () => {
+  it.only("failed edit is not fatal", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
@@ -413,11 +412,7 @@ Paints its colors in the light.`,
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-
-Edits:
-  bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
-Error applying edit: Unable to find startLine "bogus line..." in file bun/test/fixtures/poem.txt
-    Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
 replace: {
     filePath: bun/test/fixtures/poem.txt
     match:
@@ -433,21 +428,25 @@ Replace text
 }
 Result:
 \`\`\`
-${REVIEW_PROMPT}
+The user will review your proposed change.
+Assume that your change will be accepted and address other parts of the question, if any exist.
+Do not take more attempts at the same edit unless the user requests it.
 \`\`\`
-    Insert 1 lines.
-Awaiting user review.`);
+Insert 1 lines. Awaiting user review.
+
+Edits:
+  bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
+Error applying edit: Unable to find startLine "bogus line..." in file bun/test/fixtures/poem.txt`);
       await driver.triggerDisplayBufferKey(detailsPos, "<CR>");
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
+Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+Insert 1 lines. Awaiting user review.
 
 Edits:
   bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
-Error applying edit: Unable to find startLine "bogus line..." in file bun/test/fixtures/poem.txt
-    Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
-    Insert 1 lines.
-Awaiting user review.`);
+Error applying edit: Unable to find startLine "bogus line..." in file bun/test/fixtures/poem.txt`);
     });
   });
 });

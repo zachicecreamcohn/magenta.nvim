@@ -48,11 +48,11 @@ describe("bun/chat/message.spec.ts", () => {
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
+Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
 
 Edits:
   bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
-    Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
-    Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
 `);
 
       const reviewPos = await driver.assertDisplayBufferContains("Replace");
@@ -61,10 +61,7 @@ Edits:
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-
-Edits:
-  bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
-    Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
 replace: {
     filePath: bun/test/fixtures/poem.txt
     match:
@@ -82,18 +79,22 @@ Result:
 \`\`\`
 ${REVIEW_PROMPT}
 \`\`\`
-    Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.`);
+Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+
+Edits:
+  bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
+`);
 
       await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
 
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
+Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
 
 Edits:
   bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
-    Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
-    Replace [[ -? / +1 ]] in bun/test/fixtures/poem.txt Awaiting user review.
 `);
     });
   });

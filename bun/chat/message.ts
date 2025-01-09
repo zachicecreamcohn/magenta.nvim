@@ -64,7 +64,6 @@ export type Msg =
 
 export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
   const partModel = Part.init({ nvim, lsp });
-  const toolManagerModel = ToolManager.init({ nvim, lsp });
 
   const update = (
     msg: Msg,
@@ -111,6 +110,12 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
             }
 
             model.edits[filePath].requestIds.push(msg.requestId);
+
+            model.parts.push({
+              type: "tool-request",
+              requestId: msg.requestId,
+            });
+
             return [model];
           }
 
@@ -203,37 +208,6 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
     return [model];
   };
 
-  const renderEdit = (
-    toolManager: ToolManager.Model,
-    requestId: ToolManager.ToolRequestId,
-    dispatch: Dispatch<Msg>,
-  ) => {
-    return withBindings(
-      d`    ${toolManagerModel.renderTool(
-        toolManager.toolWrappers[requestId],
-        (msg) =>
-          dispatch({
-            type: "tool-manager-msg",
-            msg,
-          }),
-      )}\n`,
-      {
-        "<CR>": () => {
-          const model = toolManager.toolWrappers[requestId];
-          dispatch({
-            type: "tool-manager-msg",
-            msg: {
-              type: "toggle-display",
-              id: model.model.request.id,
-              showRequest: !model.showRequest,
-              showResult: !model.showResult,
-            },
-          });
-        },
-      },
-    );
-  };
-
   const view: View<{
     model: Model;
     toolManager: ToolManager.Model;
@@ -255,10 +229,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
           edit.status.status == "error"
             ? d`\nError applying edit: ${edit.status.message}`
             : ""
-        }
-${model.edits[filePath].requestIds.map((requestId) =>
-  renderEdit(toolManager, requestId, dispatch),
-)}\n`,
+        }\n`,
       );
     }
 
