@@ -563,26 +563,6 @@ ${msg.error.stack}`,
         }
       }
 
-      for (const filePath in msg.edits) {
-        for (const requestId of msg.edits[filePath].requestIds) {
-          const toolWrapper = model.toolManager.toolWrappers[requestId];
-          if (!toolWrapper) {
-            throw new Error(
-              `Expected to find tool use with requestId ${requestId}`,
-            );
-          }
-
-          messageContent.push({
-            type: "tool_use",
-            request: toolWrapper.model.request,
-          });
-
-          toolResponseContent.push(
-            toolManagerModel.getToolResult(toolWrapper.model),
-          );
-        }
-      }
-
       const out: ProviderMessage[] = [
         {
           role: msg.role,

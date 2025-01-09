@@ -43,11 +43,8 @@ TLDR:
 - `<leader>mp` is for `:Magenta paste-selection`. In visual mode it will take the current selection and paste it into the input buffer.
 - `<leader>mc` is for `:Magenta context-files` with your _current_ file. It will pin the current file to your context.
 - `<leader>mf` is for `:Magenta context-files` it allows you to select files via fzf-lua, and will pin those files to your context. This requires that fzf-lua is installed.
-
-In the input buffer or the display buffer:
-
-- `<leader>a` is for `:Magenta abort`, which will abort the current in-flight request.
-- `<leader>c` is for `:Magenta clear`, which will clear the current chat.
+- `<leader>mc` is for `:Magenta clear`, which will clear the current chat.
+- `<leader>ma` is for `:Magenta abort`, which will abort the current in-flight request.
 
 The display buffer is not modifiable, however you can interact with some parts of the display buffer by pressing `<CR>`. For example, you can expand the tool request and responses to see their details, and you can trigger a diff to appear on file edits.
 

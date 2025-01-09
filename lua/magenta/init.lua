@@ -15,15 +15,18 @@ M.setup = function(opts)
   M.options = vim.tbl_deep_extend("force", M.defaults, opts or {})
 
   M.start(true)
-  vim.api.nvim_set_keymap("n", "<leader>mt", ":Magenta toggle<CR>", {silent = true, noremap = true})
-  vim.api.nvim_set_keymap("v", "<leader>mp", ":Magenta paste-selection<CR>", {silent = true, noremap = true})
+  vim.api.nvim_set_keymap("n", "<leader>mc", ":Magenta clear<CR>", {silent = true, noremap = true, desc = "Clear Magenta state"})
+  vim.api.nvim_set_keymap("n", "<leader>ma", ":Magenta abort<CR>", {silent = true, noremap = true, desc = "Abort current Magenta operation"})
+  vim.api.nvim_set_keymap("n", "<leader>mt", ":Magenta toggle<CR>", {silent = true, noremap = true, desc = "Toggle Magenta window"})
+  vim.api.nvim_set_keymap("v", "<leader>mp", ":Magenta paste-selection<CR>", {silent = true, noremap = true, desc = "Send selection to Magenta"})
   vim.api.nvim_set_keymap(
     "n",
-    "<leader>mc", -- like "magenta current"?
+    "<leader>mb", -- like "magenta buffer"?
     "",
     {
       noremap = true,
       silent = true,
+      desc = "Add current buffer to Magenta context",
       callback = function()
         local current_file = vim.fn.expand("%:p")
         vim.cmd("Magenta context-files " .. vim.fn.shellescape(current_file))
@@ -38,6 +41,7 @@ M.setup = function(opts)
     {
       noremap = true,
       silent = true,
+      desc = "Select files to add to Magenta context",
       callback = function()
         local success, fzf = pcall(require, "fzf-lua")
         if not success then
@@ -65,7 +69,7 @@ end
 
 M.testSetup = function()
   -- do not start. The test runner will start the process for us.
-  vim.api.nvim_set_keymap("n", "<leader>m", ":Magenta toggle<CR>", {silent = true, noremap = true})
+  vim.api.nvim_set_keymap("n", "<leader>m", ":Magenta toggle<CR>", {silent = true, noremap = true, desc = "Toggle Magenta window"})
 end
 
 M.start = function(silent)
@@ -108,7 +112,8 @@ M.bridge = function(channelId)
     end,
     {
       nargs = "+",
-      range = true
+      range = true,
+      desc = "Execute Magenta command"
     }
   )
 

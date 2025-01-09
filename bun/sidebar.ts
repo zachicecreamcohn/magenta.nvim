@@ -73,8 +73,6 @@ export class Sidebar {
     const displayHeight = Math.floor((totalHeight - cmdHeight) * 0.8);
     const inputHeight = totalHeight - displayHeight - 2;
 
-    // await nvim.command("clearjumps");
-
     let displayBuffer: NvimBuffer;
     if (existingDisplayBuffer) {
       displayBuffer = existingDisplayBuffer;
@@ -84,18 +82,6 @@ export class Sidebar {
       await displayBuffer.setOption("buftype", "nofile");
       await displayBuffer.setOption("swapfile", false);
       await displayBuffer.setOption("filetype", "markdown");
-      await displayBuffer.setKeymap({
-        mode: "n",
-        lhs: "<leader>c",
-        rhs: ":Magenta clear<CR>",
-        opts: { silent: true, noremap: true },
-      });
-      await displayBuffer.setKeymap({
-        mode: "n",
-        lhs: "<leader>a",
-        rhs: ":Magenta abort<CR>",
-        opts: { silent: true, noremap: true },
-      });
     }
     const displayWindowId = (await this.nvim.call("nvim_open_win", [
       displayBuffer.id,
@@ -123,18 +109,6 @@ export class Sidebar {
         mode: "n",
         lhs: "<CR>",
         rhs: ":Magenta send<CR>",
-        opts: { silent: true, noremap: true },
-      });
-      await inputBuffer.setKeymap({
-        mode: "n",
-        lhs: "<leader>c",
-        rhs: ":Magenta clear<CR>",
-        opts: { silent: true, noremap: true },
-      });
-      await inputBuffer.setKeymap({
-        mode: "n",
-        lhs: "<leader>a",
-        rhs: ":Magenta abort<CR>",
         opts: { silent: true, noremap: true },
       });
     }
