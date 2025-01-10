@@ -31,8 +31,6 @@ The plugin will look for configuration for providers in the following env variab
 
 ## Using vim-plug
 
-Example with the openai provider and lazy loading.
-
 ```lua
 local vim = vim
 local Plug = vim.fn['plug#']
@@ -40,18 +38,10 @@ local Plug = vim.fn['plug#']
 vim.call('plug#begin')
 Plug('dlants/magenta.vim', {
   ['do'] = 'bun install --frozen-lockfile',
-  ['on'] = 'Magenta',
 })
 vim.call('plug#end')
 
-local magenta = require('magenta')
-
-magenta.setup({ 
-  provider = 'openai',
-  openai = {
-    model = 'gpt-4o'
-  },
-})
+require('magenta').setup()
 ```
 
 # Usage
@@ -68,7 +58,7 @@ TLDR:
 
 - `<leader>mt` is for `:Magenta toggle`, will toggle the sidebar on and off.
 - `<leader>mp` is for `:Magenta paste-selection`. In visual mode it will take the current selection and paste it into the input buffer.
-- `<leader>mc` is for `:Magenta context-files` with your _current_ file. It will pin the current file to your context.
+- `<leader>mb` is for `:Magenta context-files` with your _current_ file. It will pin the current file to your context.
 - `<leader>mf` is for `:Magenta context-files` it allows you to select files via fzf-lua, and will pin those files to your context. This requires that fzf-lua is installed.
 - `<leader>mc` is for `:Magenta clear`, which will clear the current chat.
 - `<leader>ma` is for `:Magenta abort`, which will abort the current in-flight request.
