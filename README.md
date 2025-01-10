@@ -7,9 +7,16 @@ magenta.nvim is a plugin for leveraging LLM agents in neovim. Think cursor-compo
 Rather than writing complex code to compress your repo and send it to the LLM (like a repomap, etc...), magenta is built around the idea that the LLM can ask for what it needs to via tools.
 Flagship models will continue to get better at tools use, and as this happens, the gap between tools like magenta and other agentic tools will grow smaller.
 
-# Installation (lazy.nvim)
+# Installation
 
 Install [bun](https://bun.sh/)
+
+The plugin will look for configuration for providers in the following env variables:
+
+- anthropic: ANTHROPIC_API_KEY
+- openai: OPENAI_API_KEY, OPENAI_BASE_URL
+
+## Using lazy.nvim
 
 ```lua
 {
@@ -22,10 +29,30 @@ Install [bun](https://bun.sh/)
 },
 ```
 
-The plugin will look for configuration for providers in the following env variables:
+## Using vim-plug
 
-- anthropic: ANTHROPIC_API_KEY
-- openai: OPENAI_API_KEY, OPENAI_BASE_URL
+Example with the openai provider and lazy loading.
+
+```lua
+local vim = vim
+local Plug = vim.fn['plug#']
+
+vim.call('plug#begin')
+Plug('dlants/magenta.vim', {
+  ['do'] = 'bun install --frozen-lockfile',
+  ['on'] = 'Magenta',
+})
+vim.call('plug#end')
+
+local magenta = require('magenta')
+
+magenta.setup({ 
+  provider = 'openai',
+  openai = {
+    model = 'gpt-4o'
+  },
+})
+```
 
 # Usage
 
