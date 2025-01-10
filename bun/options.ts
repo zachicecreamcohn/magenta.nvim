@@ -14,7 +14,7 @@ export const DEFAULT_OPTIONS: MagentaOptions = {
     model: "claude-3-5-sonnet-20241022",
   },
   openai: {
-    model: "4o",
+    model: "gpt-4o",
   },
 };
 

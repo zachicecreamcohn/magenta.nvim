@@ -9,7 +9,7 @@ import type { Stream } from "openai/streaming.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
 
 export type OpenAIOptions = {
-  model: "4o";
+  model: "gpt-4o";
 };
 
 export class OpenAIProvider implements Provider {
