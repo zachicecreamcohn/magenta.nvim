@@ -102,7 +102,7 @@ Awaiting response ⠁`);
     });
   });
 
-  it.only("paste-selection command", async () => {
+  it("paste-selection command", async () => {
     await withDriver(async (driver) => {
       await driver.editFile("node/test/fixtures/poem.txt");
       await driver.selectRange(

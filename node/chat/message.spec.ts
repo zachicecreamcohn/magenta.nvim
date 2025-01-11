@@ -4,7 +4,7 @@ import type { ToolRequestId } from "../tools/toolManager";
 import { REVIEW_PROMPT } from "../tools/diff";
 
 describe("node/chat/message.spec.ts", () => {
-  it.only("display multiple edits to the same file, and edit details", async () => {
+  it("display multiple edits to the same file, and edit details", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(

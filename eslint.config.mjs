@@ -37,6 +37,20 @@ export default [
         },
       ],
       "no-void": ["error", { allowAsStatement: true }],
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "describe",
+          property: "only",
+          message:
+            "describe.only is not allowed as it may be committed accidentally",
+        },
+        {
+          object: "it",
+          property: "only",
+          message: "it.only is not allowed as it may be committed accidentally",
+        },
+      ],
     },
   },
 ];
