@@ -2,7 +2,6 @@
 
 Note! I am probably going to port this from bun to node, see https://github.com/dlants/magenta.nvim/issues/25
 
-
 ## issues and discussions
 
 I'd like to keep the issues down to just known bugs and things that I'm confident about implementing. Support questions and feature requests should go in the discussion board.

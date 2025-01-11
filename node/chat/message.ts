@@ -6,7 +6,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, type View, withBindings } from "../tea/view.ts";
 import { displayDiffs } from "../tools/diff.ts";
 import type { Lsp } from "../lsp.ts";
-import type { Nvim } from "bunvim";
+import type { Nvim } from "nvim-node";
 
 export type MessageId = number & { __messageId: true };
 export type Model = {

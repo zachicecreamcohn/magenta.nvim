@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { withDriver } from "./test/preamble";
 
 describe("bun/sidebar.spec.ts", () => {

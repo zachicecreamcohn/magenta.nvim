@@ -10,7 +10,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type Result } from "../utils/result.ts";
 import { d, withBindings } from "../tea/view.ts";
 import { type Dispatch, type Update } from "../tea/tea.ts";
-import type { Nvim } from "bunvim";
+import type { Nvim } from "nvim-node";
 import type { Lsp } from "../lsp.ts";
 import type { ProviderToolResultContent } from "../providers/provider.ts";
 

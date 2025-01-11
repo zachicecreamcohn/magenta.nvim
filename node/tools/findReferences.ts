@@ -4,7 +4,7 @@ import { type Result } from "../utils/result.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { getOrOpenBuffer } from "../utils/buffers.ts";
 import type { NvimBuffer } from "../nvim/buffer.ts";
-import type { Nvim } from "bunvim";
+import type { Nvim } from "nvim-node";
 import type { Lsp } from "../lsp.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import { calculateStringPosition } from "../tea/util.ts";

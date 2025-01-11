@@ -1,5 +1,5 @@
 import { withNvimClient } from "../test/preamble.ts";
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { BufferAndFileManager } from "./file-and-buffer-manager.ts";
 import path from "path";
 import fs from "fs";

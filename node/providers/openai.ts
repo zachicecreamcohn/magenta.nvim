@@ -4,7 +4,7 @@ import { extendError, type Result } from "../utils/result.ts";
 import type { StopReason, Provider, ProviderMessage } from "./provider.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { ToolName, ToolRequestId } from "../tools/toolManager.ts";
-import type { Nvim } from "bunvim";
+import type { Nvim } from "nvim-node";
 import type { Stream } from "openai/streaming.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
 

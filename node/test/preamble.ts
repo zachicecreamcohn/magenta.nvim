@@ -1,18 +1,22 @@
-import { attach, type Nvim } from "bunvim";
-import { unlink, exists } from "node:fs/promises";
+import { attach, type Nvim } from "nvim-node";
+import { unlink, access } from "node:fs/promises";
 import { spawn } from "child_process";
 import { type MountedVDOM } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import path from "path";
+import path from "node:path";
 import { pollUntil } from "../utils/async.ts";
 import { Magenta } from "../magenta.ts";
 import { withMockClient } from "../providers/mock.ts";
 import { NvimDriver } from "./driver.ts";
+import { Counter } from "../utils/uniqueId.ts";
 
-const SOCK = `/tmp/magenta-test.sock`;
+const counter = new Counter();
+
 export async function withNvimProcess(fn: (sock: string) => Promise<void>) {
+  const id = counter.get();
+  const sock = `/tmp/magenta-test-${id}.sock`;
   try {
-    await unlink(SOCK);
+    await unlink(sock);
   } catch (e) {
     if ((e as { code: string }).code !== "ENOENT") {
       console.error(e);
@@ -21,7 +25,7 @@ export async function withNvimProcess(fn: (sock: string) => Promise<void>) {
 
   const nvimProcess = spawn(
     "nvim",
-    ["--headless", "-n", "--clean", "--listen", SOCK, "-u", "minimal-init.lua"],
+    ["--headless", "-n", "--clean", "--listen", sock, "-u", "minimal-init.lua"],
     {
       // root dir relative to this file
       cwd: path.resolve(path.dirname(__filename), "../../"),
@@ -47,15 +51,17 @@ export async function withNvimProcess(fn: (sock: string) => Promise<void>) {
 
     await pollUntil(
       async () => {
-        if (await exists(SOCK)) {
+        try {
+          await access(sock);
           return true;
+        } catch (e) {
+          throw new Error(`socket ${sock} not ready: ${(e as Error).message}`);
         }
-        throw new Error("socket not ready");
       },
       { timeout: 500 },
     );
 
-    await fn(SOCK);
+    await fn(sock);
   } finally {
     nvimProcess.kill();
   }

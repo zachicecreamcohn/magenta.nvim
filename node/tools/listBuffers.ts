@@ -3,7 +3,7 @@ import type { Thunk, Update } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
 import { type ToolRequest } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
-import type { Nvim } from "bunvim";
+import type { Nvim } from "nvim-node";
 import { parseLsResponse } from "../utils/lsBuffers.ts";
 import type {
   ProviderToolResultContent,

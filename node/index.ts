@@ -1,4 +1,4 @@
-import { attach, type LogLevel } from "bunvim";
+import { attach, type LogLevel } from "nvim-node";
 import { Magenta } from "./magenta.ts";
 import { notifyErr } from "./nvim/nvim.ts";
 

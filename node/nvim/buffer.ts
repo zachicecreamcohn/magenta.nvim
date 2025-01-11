@@ -1,4 +1,4 @@
-import type { Nvim } from "bunvim";
+import type { Nvim } from "nvim-node";
 import type { Position0Indexed, Position1Indexed } from "./window";
 
 export type Line = string & { __line: true };

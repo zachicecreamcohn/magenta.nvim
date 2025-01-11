@@ -1,4 +1,4 @@
-import { type Nvim } from "bunvim";
+import { type Nvim } from "nvim-node";
 import type { Magenta } from "../magenta";
 import type { Line } from "../nvim/buffer";
 import type { MockProvider } from "../providers/mock";
@@ -12,7 +12,7 @@ import { pollUntil } from "../utils/async";
 import { calculatePosition } from "../tea/util";
 import type { BindingKey } from "../tea/bindings";
 import { getAllWindows, getCurrentWindow } from "../nvim/nvim";
-import { expect } from "bun:test";
+import { expect } from "vitest";
 
 export class NvimDriver {
   constructor(

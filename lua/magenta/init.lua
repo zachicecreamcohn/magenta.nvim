@@ -15,10 +15,30 @@ M.setup = function(opts)
   M.options = vim.tbl_deep_extend("force", M.defaults, opts or {})
 
   M.start(true)
-  vim.api.nvim_set_keymap("n", "<leader>mc", ":Magenta clear<CR>", {silent = true, noremap = true, desc = "Clear Magenta state"})
-  vim.api.nvim_set_keymap("n", "<leader>ma", ":Magenta abort<CR>", {silent = true, noremap = true, desc = "Abort current Magenta operation"})
-  vim.api.nvim_set_keymap("n", "<leader>mt", ":Magenta toggle<CR>", {silent = true, noremap = true, desc = "Toggle Magenta window"})
-  vim.api.nvim_set_keymap("v", "<leader>mp", ":Magenta paste-selection<CR>", {silent = true, noremap = true, desc = "Send selection to Magenta"})
+  vim.api.nvim_set_keymap(
+    "n",
+    "<leader>mc",
+    ":Magenta clear<CR>",
+    {silent = true, noremap = true, desc = "Clear Magenta state"}
+  )
+  vim.api.nvim_set_keymap(
+    "n",
+    "<leader>ma",
+    ":Magenta abort<CR>",
+    {silent = true, noremap = true, desc = "Abort current Magenta operation"}
+  )
+  vim.api.nvim_set_keymap(
+    "n",
+    "<leader>mt",
+    ":Magenta toggle<CR>",
+    {silent = true, noremap = true, desc = "Toggle Magenta window"}
+  )
+  vim.api.nvim_set_keymap(
+    "v",
+    "<leader>mp",
+    ":Magenta paste-selection<CR>",
+    {silent = true, noremap = true, desc = "Send selection to Magenta"}
+  )
   vim.api.nvim_set_keymap(
     "n",
     "<leader>mb", -- like "magenta buffer"?
@@ -69,7 +89,12 @@ end
 
 M.testSetup = function()
   -- do not start. The test runner will start the process for us.
-  vim.api.nvim_set_keymap("n", "<leader>m", ":Magenta toggle<CR>", {silent = true, noremap = true, desc = "Toggle Magenta window"})
+  vim.api.nvim_set_keymap(
+    "n",
+    "<leader>m",
+    ":Magenta toggle<CR>",
+    {silent = true, noremap = true, desc = "Toggle Magenta window"}
+  )
 end
 
 M.start = function(silent)
@@ -87,7 +112,7 @@ M.start = function(silent)
 
   local job_id =
     vim.fn.jobstart(
-    "bun run start",
+    "npm run start",
     {
       cwd = plugin_root,
       stdin = "null",

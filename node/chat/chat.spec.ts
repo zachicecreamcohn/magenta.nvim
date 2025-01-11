@@ -2,7 +2,7 @@ import { extractMountTree, withNvimClient } from "../test/preamble.ts";
 import * as Chat from "./chat.ts";
 import { type ToolRequestId } from "../tools/toolManager.ts";
 import { createApp } from "../tea/tea.ts";
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { pos } from "../tea/view.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 

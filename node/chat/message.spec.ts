@@ -1,4 +1,4 @@
-import { describe, it } from "bun:test";
+import { describe, it } from "vitest";
 import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "../tools/toolManager";
 import { REVIEW_PROMPT } from "../tools/diff";

@@ -1,6 +1,6 @@
 import { extractMountTree, withNvimClient } from "../test/preamble.ts";
 import { d, mountView, pos } from "./view.ts";
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 
 describe("tea/render.spec.ts", () => {

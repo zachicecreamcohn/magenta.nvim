@@ -1,5 +1,5 @@
 import { type ToolRequestId } from "./toolManager.ts";
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect } from "vitest";
 import { withDriver } from "../test/preamble";
 import { pollUntil } from "../utils/async.ts";
 

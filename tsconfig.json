@@ -11,12 +11,12 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ESNext",
-    "types": ["bun-types"],
+    "types": [],
     "verbatimModuleSyntax": true,
     "exactOptionalPropertyTypes": true
     // "noPropertyAccessFromIndexSignature": true,
     // "noUncheckedIndexedAccess": true
   },
-  "include": ["bun/**/*", "package.json", "eslint.confing.ms"],
+  "include": ["node/**/*", "package.json", "eslint.confing.ms"],
   "exclude": ["**/node_modules/**", "**/test/fixtures/**"]
 }

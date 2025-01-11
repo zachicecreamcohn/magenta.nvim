@@ -1,7 +1,7 @@
 import type { Result } from "../utils/result";
 import * as ToolManager from "../tools/toolManager.ts";
 import { AnthropicProvider } from "./anthropic.ts";
-import type { Nvim } from "bunvim";
+import type { Nvim } from "nvim-node";
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { OpenAIProvider } from "./openai.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";

@@ -1,7 +1,7 @@
 import { NvimBuffer } from "../nvim/buffer.ts";
 import * as path from "path";
 import { getAllBuffers, getcwd } from "../nvim/nvim.ts";
-import type { Nvim } from "bunvim";
+import type { Nvim } from "nvim-node";
 
 export async function getBufferIfOpen({
   relativePath,

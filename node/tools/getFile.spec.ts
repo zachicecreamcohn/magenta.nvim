@@ -2,7 +2,7 @@ import * as GetFile from "./getFile.ts";
 import * as assert from "assert";
 import type { ToolRequestId } from "./toolManager.ts";
 import { createApp } from "../tea/tea.ts";
-import { describe, it } from "bun:test";
+import { describe, it } from "vitest";
 import { pos } from "../tea/view.ts";
 import { NvimBuffer } from "../nvim/buffer.ts";
 import { withDriver, withNvimClient } from "../test/preamble.ts";

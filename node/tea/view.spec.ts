@@ -1,7 +1,7 @@
 import { extractMountTree, withNvimClient } from "../test/preamble.ts";
 import { d, mountView, pos } from "./view.ts";
 import * as assert from "assert";
-import { describe, it } from "bun:test";
+import { describe, it } from "vitest";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 
 describe("Neovim Plugin Tests", () => {

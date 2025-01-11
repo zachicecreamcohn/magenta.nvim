@@ -2,7 +2,7 @@ import { d, withBindings, type View } from "../tea/view";
 import type { Dispatch, Update } from "../tea/tea";
 import { assertUnreachable } from "../utils/assertUnreachable";
 import type { ProviderMessage } from "../providers/provider";
-import type { Nvim } from "bunvim";
+import type { Nvim } from "nvim-node";
 import type { MessageId } from "../chat/message";
 import { BufferAndFileManager } from "./file-and-buffer-manager";
 

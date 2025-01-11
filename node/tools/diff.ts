@@ -4,7 +4,7 @@ import type { Dispatch } from "../tea/tea.ts";
 import { diffthis, getAllWindows } from "../nvim/nvim.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 import { type WindowId } from "../nvim/window.ts";
-import type { Nvim } from "bunvim";
+import type { Nvim } from "nvim-node";
 import type { ToolRequest, ToolRequestId } from "./toolManager.ts";
 
 type Msg = {

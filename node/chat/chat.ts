@@ -12,7 +12,7 @@ import { d, type View } from "../tea/view.ts";
 import * as ToolManager from "../tools/toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import { Counter } from "../utils/uniqueId.ts";
-import type { Nvim } from "bunvim";
+import type { Nvim } from "nvim-node";
 import type { Lsp } from "../lsp.ts";
 import {
   getClient,

@@ -1,7 +1,7 @@
 import * as ListBuffers from "./listBuffers.ts";
 import { type ToolRequestId } from "./toolManager.ts";
 import { createApp } from "../tea/tea.ts";
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect } from "vitest";
 import { pos } from "../tea/view.ts";
 import { NvimBuffer } from "../nvim/buffer.ts";
 import { withNvimClient } from "../test/preamble.ts";

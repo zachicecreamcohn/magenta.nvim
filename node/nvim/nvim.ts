@@ -1,4 +1,4 @@
-import type { Nvim } from "bunvim";
+import type { Nvim } from "nvim-node";
 import { NvimBuffer, type BufNr } from "./buffer.ts";
 import { NvimWindow, type Position1Indexed, type WindowId } from "./window.ts";
 

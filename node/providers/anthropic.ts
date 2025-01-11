@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import * as ToolManager from "../tools/toolManager.ts";
 import { extendError, type Result } from "../utils/result.ts";
-import type { Nvim } from "bunvim";
+import type { Nvim } from "nvim-node";
 import {
   type StopReason,
   type Provider,
