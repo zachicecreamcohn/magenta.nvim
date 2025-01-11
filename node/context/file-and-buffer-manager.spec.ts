@@ -13,7 +13,7 @@ describe("Neovim Plugin Tests", () => {
       const bufferAndFileManager = new BufferAndFileManager(nvim);
       const cwd = await getcwd(nvim);
 
-      const absFilePath = path.resolve(cwd, "bun/test/fixtures/poem.txt");
+      const absFilePath = path.resolve(cwd, "node/test/fixtures/poem.txt");
       {
         const res = await bufferAndFileManager.getFileContents(
           absFilePath,
@@ -24,7 +24,7 @@ describe("Neovim Plugin Tests", () => {
           status: "ok",
           value: {
             messageId: 1 as MessageId,
-            relFilePath: "bun/test/fixtures/poem.txt",
+            relFilePath: "node/test/fixtures/poem.txt",
             content: `\
 Moonlight whispers through the trees,
 Silver shadows dance with ease.
@@ -48,7 +48,7 @@ Paint their stories in the night.
           status: "ok",
           value: {
             messageId: 1 as MessageId,
-            relFilePath: "bun/test/fixtures/poem.txt",
+            relFilePath: "node/test/fixtures/poem.txt",
             content: `\
 Moonlight whispers through the trees,
 Silver shadows dance with ease.
@@ -73,7 +73,7 @@ Paint their stories in the night.
           status: "ok",
           value: {
             messageId: 5 as MessageId,
-            relFilePath: "bun/test/fixtures/poem.txt",
+            relFilePath: "node/test/fixtures/poem.txt",
             content: `\
 Moonlight whispers through the trees,
 Silver shadows dance with ease.
@@ -105,7 +105,7 @@ Paint their stories in the night.
           status: "ok",
           value: {
             messageId: 7 as MessageId,
-            relFilePath: "bun/test/fixtures/poem.txt",
+            relFilePath: "node/test/fixtures/poem.txt",
             content: `new content`,
           },
         });

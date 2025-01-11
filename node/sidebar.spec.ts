@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { withDriver } from "./test/preamble";
 
-describe("bun/sidebar.spec.ts", () => {
+describe("node/sidebar.spec.ts", () => {
   it("send command should scroll to last user message", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();

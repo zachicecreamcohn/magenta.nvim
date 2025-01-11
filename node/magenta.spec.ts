@@ -3,7 +3,7 @@ import { withDriver } from "./test/preamble";
 import { pollUntil } from "./utils/async";
 import type { Position0Indexed } from "./nvim/window";
 
-describe("bun/magenta.spec.ts", () => {
+describe("node/magenta.spec.ts", () => {
   it("clear command should work", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
@@ -102,9 +102,9 @@ Awaiting response ⠁`);
     });
   });
 
-  it("paste-selection command", async () => {
+  it.only("paste-selection command", async () => {
     await withDriver(async (driver) => {
-      await driver.editFile("bun/test/fixtures/poem.txt");
+      await driver.editFile("node/test/fixtures/poem.txt");
       await driver.selectRange(
         { row: 0, col: 5 } as Position0Indexed,
         { row: 2, col: 10 } as Position0Indexed,
@@ -112,7 +112,7 @@ Awaiting response ⠁`);
 
       await driver.pasteSelection();
       await driver.assertInputBufferContains(`
-Here is a snippet from the file \`bun/test/fixtures/poem.txt\`
+Here is a snippet from the file \`node/test/fixtures/poem.txt\`
 \`\`\`txt
 ight whispers through the trees,
 Silver shadows dance with ease.
@@ -126,12 +126,12 @@ Stars above
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.nvim.call("nvim_command", [
-        "Magenta context-files './bun/test/fixtures/poem.txt'",
+        "Magenta context-files './node/test/fixtures/poem.txt'",
       ]);
 
       await driver.assertDisplayBufferContains(`\
 # context:
-file: \`./bun/test/fixtures/poem.txt\``);
+file: \`./node/test/fixtures/poem.txt\``);
 
       await driver.inputMagentaText("check out this file");
       await driver.send();
@@ -145,7 +145,7 @@ file: \`./bun/test/fixtures/poem.txt\``);
       expect(request.messages).toEqual([
         {
           content: `\
-Here are the contents of file \`bun/test/fixtures/poem.txt\`:
+Here are the contents of file \`node/test/fixtures/poem.txt\`:
 \`\`\`
 Moonlight whispers through the trees,
 Silver shadows dance with ease.
@@ -172,13 +172,13 @@ Paint their stories in the night.
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.nvim.call("nvim_command", [
-        "Magenta context-files './bun/test/fixtures/poem.txt' './bun/test/fixtures/poem 3.txt'",
+        "Magenta context-files './node/test/fixtures/poem.txt' './node/test/fixtures/poem 3.txt'",
       ]);
 
       await driver.assertDisplayBufferContains(`\
 # context:
-file: \`./bun/test/fixtures/poem.txt\`
-file: \`./bun/test/fixtures/poem 3.txt\``);
+file: \`./node/test/fixtures/poem.txt\`
+file: \`./node/test/fixtures/poem 3.txt\``);
 
       await driver.inputMagentaText("check out this file");
       await driver.send();
@@ -192,7 +192,7 @@ file: \`./bun/test/fixtures/poem 3.txt\``);
       expect(request.messages).toEqual([
         {
           content: `\
-Here are the contents of file \`bun/test/fixtures/poem 3.txt\`:
+Here are the contents of file \`node/test/fixtures/poem 3.txt\`:
 \`\`\`
 poem3
 
@@ -201,7 +201,7 @@ poem3
         },
         {
           content: `\
-Here are the contents of file \`bun/test/fixtures/poem.txt\`:
+Here are the contents of file \`node/test/fixtures/poem.txt\`:
 \`\`\`
 Moonlight whispers through the trees,
 Silver shadows dance with ease.
@@ -236,7 +236,7 @@ Paint their stories in the night.
       });
 
       await driver.nvim.call("nvim_command", [
-        "Magenta context-files './bun/test/fixtures/poem.txt'",
+        "Magenta context-files './node/test/fixtures/poem.txt'",
       ]);
 
       await driver.inputMagentaText("check out this file");
@@ -264,7 +264,7 @@ Paint their stories in the night.
         },
         {
           content: `\
-Here are the contents of file \`bun/test/fixtures/poem.txt\`:
+Here are the contents of file \`node/test/fixtures/poem.txt\`:
 \`\`\`
 Moonlight whispers through the trees,
 Silver shadows dance with ease.

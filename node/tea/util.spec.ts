@@ -105,34 +105,34 @@ describe("tea/util.spec.ts", () => {
         );
       }
     });
+  });
 
-    it("replacing unicode", async () => {
-      await withNvimClient(async (nvim) => {
-        const buffer = await NvimBuffer.create(false, true, nvim);
-        const str = "⚙️";
-        await buffer.setLines({
-          lines: [str] as Line[],
+  it("replacing unicode", async () => {
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
+      const str = "⚙️";
+      await buffer.setLines({
+        lines: [str] as Line[],
+        start: 0,
+        end: -1,
+      });
+
+      await buffer.setOption("modifiable", false);
+      await replaceBetweenPositions({
+        buffer,
+        startPos: pos(0, 0),
+        endPos: pos(0, strWidthInBytes(str)),
+        lines: ["✅"] as Line[],
+        context: { nvim },
+      });
+
+      {
+        const lines = await buffer.getLines({
           start: 0,
           end: -1,
         });
-
-        await buffer.setOption("modifiable", false);
-        await replaceBetweenPositions({
-          buffer,
-          startPos: pos(0, 0),
-          endPos: pos(0, strWidthInBytes(str)),
-          lines: ["✅"] as Line[],
-          context: { nvim },
-        });
-
-        {
-          const lines = await buffer.getLines({
-            start: 0,
-            end: -1,
-          });
-          expect(lines.join("\n"), "replacing unicode").toEqual("✅");
-        }
-      });
+        expect(lines.join("\n"), "replacing unicode").toEqual("✅");
+      }
     });
   });
 

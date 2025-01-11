@@ -63,7 +63,7 @@ describe("tea/getFile.spec.ts", () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
-        `Try reading the file bun/test/fixtures/.secret`,
+        `Try reading the file node/test/fixtures/.secret`,
       );
       await driver.send();
 
@@ -77,7 +77,7 @@ describe("tea/getFile.spec.ts", () => {
               id: "id" as ToolRequestId,
               name: "get_file",
               input: {
-                filePath: "bun/test/fixtures/.secret",
+                filePath: "node/test/fixtures/.secret",
               },
             },
           },
@@ -85,12 +85,12 @@ describe("tea/getFile.spec.ts", () => {
       });
 
       await driver.assertDisplayBufferContains(`\
-May I read file \`bun/test/fixtures/.secret\`? **[ NO ]** **[ OK ]**`);
+May I read file \`node/test/fixtures/.secret\`? **[ NO ]** **[ OK ]**`);
       const noPos = await driver.assertDisplayBufferContains("**[ NO ]**");
 
       await driver.triggerDisplayBufferKey(noPos, "<CR>");
       await driver.assertDisplayBufferContains(`\
-Error reading file \`bun/test/fixtures/.secret\`: The user did not allow the reading of this file.`);
+Error reading file \`node/test/fixtures/.secret\`: The user did not allow the reading of this file.`);
     });
   });
 
@@ -98,7 +98,7 @@ Error reading file \`bun/test/fixtures/.secret\`: The user did not allow the rea
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
-        `Try reading the file bun/test/fixtures/.secret`,
+        `Try reading the file node/test/fixtures/.secret`,
       );
       await driver.send();
 
@@ -112,7 +112,7 @@ Error reading file \`bun/test/fixtures/.secret\`: The user did not allow the rea
               id: "id" as ToolRequestId,
               name: "get_file",
               input: {
-                filePath: "bun/test/fixtures/.secret",
+                filePath: "node/test/fixtures/.secret",
               },
             },
           },
@@ -120,12 +120,12 @@ Error reading file \`bun/test/fixtures/.secret\`: The user did not allow the rea
       });
 
       await driver.assertDisplayBufferContains(`\
-May I read file \`bun/test/fixtures/.secret\`? **[ NO ]** **[ OK ]**`);
+May I read file \`node/test/fixtures/.secret\`? **[ NO ]** **[ OK ]**`);
       const okPos = await driver.assertDisplayBufferContains("**[ OK ]**");
 
       await driver.triggerDisplayBufferKey(okPos, "<CR>");
       await driver.assertDisplayBufferContains(`\
-Finished reading file \`bun/test/fixtures/.secret\``);
+Finished reading file \`node/test/fixtures/.secret\``);
     });
   });
 

@@ -3,12 +3,12 @@ import { describe, it, expect } from "vitest";
 import { withDriver } from "../test/preamble";
 import { pollUntil } from "../utils/async.ts";
 
-describe("bun/tools/diagnostics.spec.ts", () => {
+describe("node/tools/diagnostics.spec.ts", () => {
   it(
     "diagnostics end-to-end",
     async () => {
       await withDriver(async (driver) => {
-        await driver.editFile("bun/test/fixtures/test.ts");
+        await driver.editFile("node/test/fixtures/test.ts");
         await driver.showSidebar();
 
         await driver.inputMagentaText(`Try getting the diagnostics`);
@@ -78,7 +78,7 @@ describe("bun/tools/diagnostics.spec.ts", () => {
           id: toolRequestId,
           result: {
             status: "ok",
-            value: `file: bun/test/fixtures/test.ts source: typescript, severity: 1, message: "Property 'd' does not exist on type '{ c: "test"; }'."`,
+            value: `file: node/test/fixtures/test.ts source: typescript, severity: 1, message: "Property 'd' does not exist on type '{ c: "test"; }'."`,
           },
         });
       });

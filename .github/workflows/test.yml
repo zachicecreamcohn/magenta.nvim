@@ -35,4 +35,4 @@ jobs:
         run: npx prettier --check .
 
       - name: Run tests
-        run: npx vitest --threads=false
+        run: npx vitest

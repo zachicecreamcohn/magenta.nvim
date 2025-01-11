@@ -4,7 +4,7 @@ import type { ToolRequestId } from "./toolManager";
 import * as path from "path";
 import type { Line } from "../nvim/buffer";
 
-describe("bun/tools/diff.spec.ts", () => {
+describe("node/tools/diff.spec.ts", () => {
   it("insert into new file", async () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
@@ -86,7 +86,7 @@ describe("bun/tools/diff.spec.ts", () => {
               id: "id" as ToolRequestId,
               name: "insert",
               input: {
-                filePath: "bun/test/fixtures/toolManager.ts",
+                filePath: "node/test/fixtures/toolManager.ts",
                 insertAfter: "",
                 content: "a poem\n",
               },
@@ -120,7 +120,7 @@ describe("bun/tools/diff.spec.ts", () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
-        `Update the poem in the file bun/test/fixtures/poem.txt`,
+        `Update the poem in the file node/test/fixtures/poem.txt`,
       );
       await driver.send();
 
@@ -134,7 +134,7 @@ describe("bun/tools/diff.spec.ts", () => {
               id: "id" as ToolRequestId,
               name: "replace",
               input: {
-                filePath: "bun/test/fixtures/poem.txt",
+                filePath: "node/test/fixtures/poem.txt",
                 find: `\
 Moonlight whispers through the trees,
 Silver shadows dance with ease.
@@ -160,7 +160,7 @@ Paints its colors in the light.`,
       const poemWin = await driver.findWindow(async (w) => {
         const buf = await w.buffer();
         const name = await buf.getName();
-        return /bun\/test\/fixtures\/poem.txt$/.test(name);
+        return /node\/test\/fixtures\/poem.txt$/.test(name);
       });
 
       expect(await poemWin.getOption("diff")).toBe(true);
@@ -175,7 +175,7 @@ Paints its colors in the light.`,
       const diffWin = await driver.findWindow(async (w) => {
         const buf = await w.buffer();
         const name = await buf.getName();
-        return /bun\/test\/fixtures\/poem.txt_message_2_diff$/.test(name);
+        return /node\/test\/fixtures\/poem.txt_message_2_diff$/.test(name);
       });
 
       expect(await diffWin.getOption("diff")).toBe(true);
@@ -280,7 +280,7 @@ Paints its colors in the light.`,
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
-        `Update line 2 in bun/test/fixtures/poem.txt`,
+        `Update line 2 in node/test/fixtures/poem.txt`,
       );
       await driver.send();
 
@@ -294,7 +294,7 @@ Paints its colors in the light.`,
               id: "id" as ToolRequestId,
               name: "replace",
               input: {
-                filePath: "bun/test/fixtures/poem.txt",
+                filePath: "node/test/fixtures/poem.txt",
                 find: "Silver shadows dance with ease.",
                 replace: "Golden moonbeams dance with ease.",
               },
@@ -311,7 +311,7 @@ Paints its colors in the light.`,
       const poemWin = await driver.findWindow(async (w) => {
         const buf = await w.buffer();
         const name = await buf.getName();
-        return /bun\/test\/fixtures\/poem.txt$/.test(name);
+        return /node\/test\/fixtures\/poem.txt$/.test(name);
       });
 
       expect(await poemWin.getOption("diff")).toBe(true);
@@ -337,7 +337,7 @@ Paints its colors in the light.`,
     await withDriver(async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
-        `Update the poem in the file bun/test/fixtures/poem.txt`,
+        `Update the poem in the file node/test/fixtures/poem.txt`,
       );
       await driver.send();
 
@@ -351,7 +351,7 @@ Paints its colors in the light.`,
               id: "id1" as ToolRequestId,
               name: "replace",
               input: {
-                filePath: "bun/test/fixtures/poem.txt",
+                filePath: "node/test/fixtures/poem.txt",
                 find: `bogus line...`,
                 replace: `Replace text`,
               },
@@ -363,7 +363,7 @@ Paints its colors in the light.`,
               id: "id2" as ToolRequestId,
               name: "insert",
               input: {
-                filePath: "bun/test/fixtures/poem.txt",
+                filePath: "node/test/fixtures/poem.txt",
                 insertAfter: `Paint their stories in the night.`,
                 content: `Added text`,
               },
@@ -381,7 +381,7 @@ Paints its colors in the light.`,
       const poemWin = await driver.findWindow(async (w) => {
         const buf = await w.buffer();
         const name = await buf.getName();
-        return /bun\/test\/fixtures\/poem.txt$/.test(name);
+        return /node\/test\/fixtures\/poem.txt$/.test(name);
       });
 
       expect(await poemWin.getOption("diff")).toBe(true);
@@ -396,7 +396,7 @@ Paints its colors in the light.`,
       const diffWin = await driver.findWindow(async (w) => {
         const buf = await w.buffer();
         const name = await buf.getName();
-        return /bun\/test\/fixtures\/poem.txt_message_2_diff$/.test(name);
+        return /node\/test\/fixtures\/poem.txt_message_2_diff$/.test(name);
       });
 
       expect(await diffWin.getOption("diff")).toBe(true);
@@ -414,10 +414,10 @@ Paints its colors in the light.`,
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-Replace [[ -1 / +1 ]] in bun/test/fixtures/poem.txt ⚠️ Error: "Unable to find text \\"bogus line...\\" in file bun/test/fixtures/poem.txt"
+Replace [[ -1 / +1 ]] in node/test/fixtures/poem.txt ⚠️ Error: "Unable to find text \\"bogus line...\\" in file node/test/fixtures/poem.txt"
 id: id1
 replace: {
-    filePath: bun/test/fixtures/poem.txt
+    filePath: node/test/fixtures/poem.txt
     match:
 \`\`\`
 bogus line...
@@ -427,20 +427,20 @@ bogus line...
 Replace text
 \`\`\`
 }
-Error: Unable to find text "bogus line..." in file bun/test/fixtures/poem.txt
+Error: Unable to find text "bogus line..." in file node/test/fixtures/poem.txt
 Insert 1 lines. Awaiting user review.
 
 Edits:
-  bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**`);
+  node/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**`);
       await driver.triggerDisplayBufferKey(detailsPos, "<CR>");
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-Replace [[ -1 / +1 ]] in bun/test/fixtures/poem.txt ⚠️ Error: "Unable to find text \\"bogus line...\\" in file bun/test/fixtures/poem.txt"
+Replace [[ -1 / +1 ]] in node/test/fixtures/poem.txt ⚠️ Error: "Unable to find text \\"bogus line...\\" in file node/test/fixtures/poem.txt"
 Insert 1 lines. Awaiting user review.
 
 Edits:
-  bun/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**`);
+  node/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**`);
     });
   });
 });

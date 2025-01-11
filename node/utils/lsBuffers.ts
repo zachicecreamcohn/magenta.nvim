@@ -29,7 +29,7 @@ function parseFlags(flagStr: string): BufferFlags {
 
 /**
  * Parses the output of Neovim's :buffers command into structured data
- *lsResponse.output is like:  "  1  h   \"bun/test/fixtures/poem.txt\"   line 1\n  2  a   \"bun/test/fixtures/poem2.txt\"  line 1"
+ *lsResponse.output is like:  "  1  h   \"node/test/fixtures/poem.txt\"   line 1\n  2  a   \"node/test/fixtures/poem2.txt\"  line 1"
  * see docfiles for :buffers to understand output format
  */
 export function parseLsResponse(response: string): BufferEntry[] {

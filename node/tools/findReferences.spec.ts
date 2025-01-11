@@ -3,10 +3,10 @@ import { describe, it, expect } from "vitest";
 import { withDriver } from "../test/preamble";
 import { pollUntil } from "../utils/async.ts";
 
-describe("bun/tools/findReferences.spec.ts", () => {
+describe("node/tools/findReferences.spec.ts", () => {
   it("findReferences end-to-end", async () => {
     await withDriver(async (driver) => {
-      await driver.editFile("bun/test/fixtures/test.ts");
+      await driver.editFile("node/test/fixtures/test.ts");
       await driver.showSidebar();
 
       await driver.inputMagentaText(`Try finding references for a symbol`);
@@ -23,7 +23,7 @@ describe("bun/tools/findReferences.spec.ts", () => {
               id: toolRequestId,
               name: "find_references",
               input: {
-                filePath: "bun/test/fixtures/test.ts",
+                filePath: "node/test/fixtures/test.ts",
                 symbol: "val.a.b.c",
               },
             },
@@ -60,7 +60,7 @@ describe("bun/tools/findReferences.spec.ts", () => {
         id: toolRequestId,
         result: {
           status: "ok",
-          value: `bun/test/fixtures/test.ts:4:6\nbun/test/fixtures/test.ts:12:6\nbun/test/fixtures/test.ts:17:20\n`,
+          value: `node/test/fixtures/test.ts:4:6\nnode/test/fixtures/test.ts:12:6\nnode/test/fixtures/test.ts:17:20\n`,
         },
       });
     });

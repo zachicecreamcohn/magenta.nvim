@@ -2,7 +2,7 @@ import { attach, type LogLevel } from "nvim-node";
 import { Magenta } from "./magenta.ts";
 import { notifyErr } from "./nvim/nvim.ts";
 
-// These values are set by neovim when starting the bun process
+// These values are set by neovim when starting the node process
 const ENV = {
   NVIM: process.env["NVIM"],
   LOG_LEVEL: process.env["LOG_LEVEL"] as LogLevel | undefined,

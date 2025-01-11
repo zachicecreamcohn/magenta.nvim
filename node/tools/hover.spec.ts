@@ -3,10 +3,10 @@ import { describe, it, expect } from "vitest";
 import { withDriver } from "../test/preamble";
 import { pollUntil } from "../utils/async.ts";
 
-describe("bun/tools/hover.spec.ts", () => {
+describe("node/tools/hover.spec.ts", () => {
   it("hover end-to-end", async () => {
     await withDriver(async (driver) => {
-      await driver.editFile("bun/test/fixtures/test.ts");
+      await driver.editFile("node/test/fixtures/test.ts");
       await driver.showSidebar();
 
       await driver.inputMagentaText(`Try hovering a symbol`);
@@ -24,7 +24,7 @@ describe("bun/tools/hover.spec.ts", () => {
               id: toolRequestId,
               name: "hover",
               input: {
-                filePath: "bun/test/fixtures/test.ts",
+                filePath: "node/test/fixtures/test.ts",
                 symbol: "val.a.b.c",
               },
             },

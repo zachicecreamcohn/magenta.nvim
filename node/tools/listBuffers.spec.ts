@@ -8,11 +8,11 @@ import { withNvimClient } from "../test/preamble.ts";
 import { withDriver } from "../test/preamble";
 import { pollUntil } from "../utils/async.ts";
 
-describe("bun/tools/listBuffers.spec.ts", () => {
+describe("node/tools/listBuffers.spec.ts", () => {
   it("listBuffers end-to-end", async () => {
     await withDriver(async (driver) => {
-      await driver.editFile("bun/test/fixtures/poem.txt");
-      await driver.editFile("bun/test/fixtures/poem2.txt");
+      await driver.editFile("node/test/fixtures/poem.txt");
+      await driver.editFile("node/test/fixtures/poem2.txt");
       await driver.showSidebar();
 
       await driver.assertWindowCount(3);
@@ -61,7 +61,7 @@ describe("bun/tools/listBuffers.spec.ts", () => {
         type: "tool_result",
         result: {
           status: "ok",
-          value: `bun/test/fixtures/poem.txt\nactive bun/test/fixtures/poem2.txt`,
+          value: `node/test/fixtures/poem.txt\nactive node/test/fixtures/poem2.txt`,
         },
       });
     });
