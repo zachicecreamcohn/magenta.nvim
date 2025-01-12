@@ -35,7 +35,7 @@ describe("tea/chat.spec.ts", () => {
       expect(
         await buffer.getLines({ start: 0, end: -1 }),
         "initial render of chat works",
-      ).toEqual(["Stopped (end_turn)"] as Line[]);
+      ).toEqual(["Stopped (end_turn) [input: 0, output: 0]"] as Line[]);
 
       app.dispatch({
         type: "add-message",
@@ -74,7 +74,7 @@ describe("tea/chat.spec.ts", () => {
         "Sure, let me use the list_buffers tool.",
         "⚙️ Grabbing buffers...",
         "",
-        "Stopped (end_turn)",
+        "Stopped (end_turn) [input: 0, output: 0]",
       ] as Line[]);
 
       expect(
@@ -111,7 +111,7 @@ describe("tea/chat.spec.ts", () => {
         "Sure, let me use the list_buffers tool.",
         "✅ Finished getting buffers.",
         "",
-        "Stopped (end_turn)",
+        "Stopped (end_turn) [input: 0, output: 0]",
       ] as Line[]);
     });
   });
@@ -144,7 +144,7 @@ describe("tea/chat.spec.ts", () => {
       expect(
         await buffer.getLines({ start: 0, end: -1 }),
         "initial render of chat works",
-      ).toEqual(["Stopped (end_turn)"] as Line[]);
+      ).toEqual(["Stopped (end_turn) [input: 0, output: 0]"] as Line[]);
 
       app.dispatch({
         type: "add-message",
@@ -169,7 +169,7 @@ describe("tea/chat.spec.ts", () => {
         "# assistant:",
         "Sure, let me use the list_buffers tool.",
         "",
-        "Stopped (end_turn)",
+        "Stopped (end_turn) [input: 0, output: 0]",
       ] as Line[]);
 
       // expect(
@@ -184,7 +184,7 @@ describe("tea/chat.spec.ts", () => {
       expect(
         await buffer.getLines({ start: 0, end: -1 }),
         "finished render is as expected",
-      ).toEqual(["Stopped (end_turn)"] as Line[]);
+      ).toEqual(["Stopped (end_turn) [input: 0, output: 0]"] as Line[]);
 
       // expect(
       //   await extractMountTree(mountedApp.getMountedNode()),

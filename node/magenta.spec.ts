@@ -22,10 +22,12 @@ hello
 # assistant:
 sup?
 
-Stopped (end_turn)`);
+Stopped (end_turn) [input: 0, output: 0]`);
 
       await driver.clear();
-      await driver.assertDisplayBufferContent(`Stopped (end_turn)`);
+      await driver.assertDisplayBufferContent(
+        `Stopped (end_turn) [input: 0, output: 0]`,
+      );
       await driver.inputMagentaText(`hello again`);
       await driver.send();
       await driver.mockAnthropic.respond({
@@ -41,7 +43,7 @@ hello again
 # assistant:
 huh?
 
-Stopped (end_turn)`);
+Stopped (end_turn) [input: 0, output: 0]`);
     });
   });
 

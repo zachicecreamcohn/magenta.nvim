@@ -20,6 +20,7 @@ import {
   type ProviderMessageContent,
   type ProviderName,
   type StopReason,
+  type Usage,
 } from "../providers/provider.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { DEFAULT_OPTIONS, type MagentaOptions } from "../options.ts";
@@ -34,6 +35,7 @@ export type ConversationState =
   | {
       state: "stopped";
       stopReason: StopReason;
+      usage: Usage;
     };
 
 export type Model = {
@@ -115,7 +117,11 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
       lastUserMessageId: counter.last() as Message.MessageId,
       options: DEFAULT_OPTIONS,
       activeProvider: "anthropic",
-      conversation: { state: "stopped", stopReason: "end_turn" },
+      conversation: {
+        state: "stopped",
+        stopReason: "end_turn",
+        usage: { inputTokens: 0, outputTokens: 0 },
+      },
       messages: [],
       toolManager: toolManagerModel.initModel(),
       contextManager: contextManagerModel.initModel(),
@@ -509,6 +515,7 @@ ${msg.error.stack}`,
           conversation: {
             state: "stopped",
             stopReason: res?.stopReason || "end_turn",
+            usage: res?.usage || { inputTokens: 0, outputTokens: 0 },
           },
         });
       }
@@ -549,7 +556,12 @@ ${msg.error.stack}`,
               ) % MESSAGE_ANIMATION.length
             ]
           }`
-        : d`Stopped (${model.conversation.stopReason || ""})`
+        : d`Stopped (${model.conversation.stopReason}) [input: ${model.conversation.usage.inputTokens.toString()}, output: ${model.conversation.usage.outputTokens.toString()}${
+            model.conversation.usage.cacheHits !== undefined &&
+            model.conversation.usage.cacheMisses !== undefined
+              ? d`, cache hits: ${model.conversation.usage.cacheHits.toString()}, cache misses: ${model.conversation.usage.cacheMisses.toString()}`
+              : ""
+          }]`
     }${
       model.conversation.state == "stopped" &&
       !contextManagerModel.isContextEmpty(model.contextManager)

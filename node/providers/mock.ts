@@ -6,6 +6,7 @@ import {
   type Provider,
   type ProviderMessage,
   type StopReason,
+  type Usage,
 } from "./provider.ts";
 
 type MockRequest = {
@@ -15,6 +16,7 @@ type MockRequest = {
   defer: Defer<{
     toolRequests: Result<ToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;
+    usage: Usage;
   }>;
 };
 
@@ -28,6 +30,10 @@ export class MockProvider implements Provider {
         lastRequest.defer.resolve({
           toolRequests: [],
           stopReason: "end_turn",
+          usage: {
+            inputTokens: 0,
+            outputTokens: 0,
+          },
         });
       }
     }
@@ -40,6 +46,7 @@ export class MockProvider implements Provider {
   ): Promise<{
     toolRequests: Result<ToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;
+    usage: Usage;
   }> {
     const request: MockRequest = {
       messages,
@@ -79,6 +86,10 @@ export class MockProvider implements Provider {
     lastRequest.defer.resolve({
       toolRequests,
       stopReason,
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+      },
     });
   }
 }
