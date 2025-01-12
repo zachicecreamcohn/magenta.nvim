@@ -1,7 +1,12 @@
 import OpenAI from "openai";
 import * as ToolManager from "../tools/toolManager.ts";
 import { extendError, type Result } from "../utils/result.ts";
-import type { StopReason, Provider, ProviderMessage } from "./provider.ts";
+import type {
+  StopReason,
+  Provider,
+  ProviderMessage,
+  Usage,
+} from "./provider.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { ToolName, ToolRequestId } from "../tools/toolManager.ts";
 import type { Nvim } from "nvim-node";
@@ -46,6 +51,7 @@ export class OpenAIProvider implements Provider {
   ): Promise<{
     toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;
+    usage: Usage;
   }> {
     const openaiMessages: OpenAI.ChatCompletionMessageParam[] = [
       {
@@ -148,7 +154,9 @@ export class OpenAIProvider implements Provider {
 
       const toolRequests = [];
       let stopReason: StopReason | undefined;
+      let lastChunk: OpenAI.ChatCompletionChunk | undefined;
       for await (const chunk of stream) {
+        lastChunk = chunk;
         const choice = chunk.choices[0];
         if (choice.delta.content) {
           onText(choice.delta.content);
@@ -229,6 +237,15 @@ export class OpenAIProvider implements Provider {
             return extendError(result, { rawRequest: req });
           }),
         stopReason: stopReason || "end_turn",
+        usage: lastChunk?.usage
+          ? {
+              inputTokens: lastChunk.usage.prompt_tokens,
+              outputTokens: lastChunk.usage.completion_tokens,
+            }
+          : {
+              inputTokens: 0,
+              outputTokens: 0,
+            },
       };
     } finally {
       this.request = undefined;

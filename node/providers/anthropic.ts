@@ -6,6 +6,7 @@ import {
   type StopReason,
   type Provider,
   type ProviderMessage,
+  type Usage,
 } from "./provider.ts";
 import type { ToolRequestId } from "../tools/toolManager.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
@@ -49,6 +50,7 @@ export class AnthropicProvider implements Provider {
   ): Promise<{
     toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;
+    usage: Usage;
   }> {
     const buf: string[] = [];
     let flushInProgress: boolean = false;
@@ -225,9 +227,22 @@ export class AnthropicProvider implements Provider {
           return extendError(result, { rawRequest: req });
         });
 
-      this.nvim.logger?.debug("toolRequests: " + JSON.stringify(toolRequests));
-      this.nvim.logger?.debug("stopReason: " + response.stop_reason);
-      return { toolRequests, stopReason: response.stop_reason || "end_turn" };
+      const usage: Usage = {
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      };
+      if (response.usage.cache_read_input_tokens) {
+        usage.cacheHits = response.usage.cache_read_input_tokens;
+      }
+      if (response.usage.cache_creation_input_tokens) {
+        usage.cacheMisses = response.usage.cache_creation_input_tokens;
+      }
+
+      return {
+        toolRequests,
+        stopReason: response.stop_reason || "end_turn",
+        usage,
+      };
     } finally {
       this.request = undefined;
     }

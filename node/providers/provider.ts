@@ -17,6 +17,13 @@ export type StopReason =
   | "content"
   | "stop_sequence";
 
+export type Usage = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheHits?: number;
+  cacheMisses?: number;
+};
+
 export type ProviderMessage = {
   role: "user" | "assistant";
   content: string | Array<ProviderMessageContent>;
@@ -57,6 +64,7 @@ export interface Provider {
   ): Promise<{
     toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;
+    usage: Usage;
   }>;
 
   abort(): void;
