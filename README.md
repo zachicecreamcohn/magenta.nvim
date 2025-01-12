@@ -7,13 +7,20 @@ magenta.nvim is a plugin for leveraging LLM agents in neovim. Think cursor-compo
 Rather than writing complex code to compress your repo and send it to the LLM (like a repomap, etc...), magenta is built around the idea that the LLM can ask for what it needs to via tools.
 Flagship models will continue to get better at tools use, and as this happens, the gap between tools like magenta and other agentic tools will grow smaller.
 
-# Installation (lazy.nvim)
+# Installation
 
 Make sure you have [node](https://nodejs.org/en/download) installed, at least `v20`:
 
 ```
 node --version
 ```
+
+The plugin will look for configuration for providers in the following env variables:
+
+- anthropic: ANTHROPIC_API_KEY
+- openai: OPENAI_API_KEY, OPENAI_BASE_URL
+
+## Using lazy.nvim
 
 ```lua
 {
@@ -24,10 +31,20 @@ node --version
 },
 ```
 
-The plugin will look for configuration for providers in the following env variables:
+## Using vim-plug
 
-- anthropic: ANTHROPIC_API_KEY
-- openai: OPENAI_API_KEY, OPENAI_BASE_URL
+```lua
+local vim = vim
+local Plug = vim.fn['plug#']
+
+vim.call('plug#begin')
+Plug('dlants/magenta.vim', {
+  ['do'] = 'bun install --frozen-lockfile',
+})
+vim.call('plug#end')
+
+require('magenta').setup()
+```
 
 # Usage
 
@@ -43,7 +60,7 @@ TLDR:
 
 - `<leader>mt` is for `:Magenta toggle`, will toggle the sidebar on and off.
 - `<leader>mp` is for `:Magenta paste-selection`. In visual mode it will take the current selection and paste it into the input buffer.
-- `<leader>mc` is for `:Magenta context-files` with your _current_ file. It will pin the current file to your context.
+- `<leader>mb` is for `:Magenta context-files` with your _current_ file. It will pin the current file to your context.
 - `<leader>mf` is for `:Magenta context-files` it allows you to select files via fzf-lua, and will pin those files to your context. This requires that fzf-lua is installed.
 - `<leader>mc` is for `:Magenta clear`, which will clear the current chat.
 - `<leader>ma` is for `:Magenta abort`, which will abort the current in-flight request.
