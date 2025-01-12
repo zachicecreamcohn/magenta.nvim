@@ -108,20 +108,7 @@ export class AnthropicProvider implements Provider {
     });
 
     const tools: Anthropic.Tool[] = ToolManager.TOOL_SPECS.map(
-      (t, idx): Anthropic.Tool => {
-        if (idx == ToolManager.TOOL_SPECS.length - 1) {
-          /** Assuming that the ordering when the prompt is sent to anthropic will be:
-           * system
-           * tools
-           *
-           * So marking the last tool with cache_control should use the first cache breakpoint to tag the end of this opening section.
-           */
-          return {
-            ...t,
-            input_schema: t.input_schema as Anthropic.Messages.Tool.InputSchema,
-            cache_control: { type: "ephemeral" },
-          };
-        }
+      (t): Anthropic.Tool => {
         return {
           ...t,
           input_schema: t.input_schema as Anthropic.Messages.Tool.InputSchema,
