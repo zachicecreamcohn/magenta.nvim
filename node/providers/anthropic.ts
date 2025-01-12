@@ -13,6 +13,10 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { MessageStream } from "@anthropic-ai/sdk/lib/MessageStream.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
 
+export type MessageParam = Omit<Anthropic.MessageParam, "content"> & {
+  content: Array<Anthropic.Messages.ContentBlockParam>;
+};
+
 export type AnthropicOptions = {
   model: "claude-3-5-sonnet-20241022";
 };
@@ -71,10 +75,15 @@ export class AnthropicProvider implements Provider {
       }
     };
 
-    const anthropicMessages = messages.map((m): Anthropic.MessageParam => {
-      let content: Anthropic.MessageParam["content"];
+    const anthropicMessages = messages.map((m): MessageParam => {
+      let content: Anthropic.Messages.ContentBlockParam[];
       if (typeof m.content == "string") {
-        content = m.content;
+        content = [
+          {
+            type: "text",
+            text: m.content,
+          },
+        ];
       } else {
         content = m.content.map((c): Anthropic.ContentBlockParam => {
           switch (c.type) {
@@ -106,6 +115,8 @@ export class AnthropicProvider implements Provider {
         content,
       };
     });
+
+    placeCacheBreakpoints(anthropicMessages);
 
     const tools: Anthropic.Tool[] = ToolManager.TOOL_SPECS.map(
       (t): Anthropic.Tool => {
@@ -234,4 +245,90 @@ export class AnthropicProvider implements Provider {
       this.request = undefined;
     }
   }
+}
+
+export function placeCacheBreakpoints(messages: MessageParam[]) {
+  // when we scan the messages, keep track of where each part ends.
+  const blocks: { block: Anthropic.Messages.ContentBlockParam; acc: number }[] =
+    [];
+
+  let lengthAcc = 0;
+  for (const message of messages) {
+    for (const block of message.content) {
+      switch (block.type) {
+        case "text":
+          lengthAcc += block.text.length;
+          break;
+        case "image":
+          lengthAcc += block.source.data.length;
+          break;
+        case "tool_use":
+          lengthAcc += JSON.stringify(block.input).length;
+          break;
+        case "tool_result":
+          if (block.content) {
+            if (typeof block.content == "string") {
+              lengthAcc += block.content.length;
+            } else {
+              let blockLength = 0;
+              for (const blockContent of block.content) {
+                switch (blockContent.type) {
+                  case "text":
+                    blockLength += blockContent.text.length;
+                    break;
+                  case "image":
+                    blockLength += blockContent.source.data.length;
+                    break;
+                }
+              }
+
+              lengthAcc += blockLength;
+            }
+          }
+          break;
+        case "document":
+          lengthAcc += block.source.data.length;
+      }
+
+      blocks.push({ block, acc: lengthAcc });
+    }
+  }
+
+  // estimating 4 characters per token.
+  const tokens = Math.floor(lengthAcc / STR_CHARS_PER_TOKEN);
+
+  // Anthropic allows for placing up to 4 cache control markers.
+  // It will not cache anythign less than 1024 tokens for sonnet 3.5
+  // https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
+  // this is pretty rough estimate, due to the conversion between string length and tokens.
+  // however, since we are not accounting for tools or the system prompt, and generally code and technical writing
+  // tend to have a lower coefficient of string length to tokens (about 3.5 average sting length per token), this means
+  // that the first cache control should be past the 1024 mark and should be cached.
+  const powers = highestPowersOfTwo(tokens, 4).filter((n) => n >= 1024);
+  if (powers.length) {
+    for (const power of powers) {
+      const targetLength = power * STR_CHARS_PER_TOKEN; // power is in tokens, but we want string chars instead
+      // find the first block where we are past the target power
+      const blockEntry = blocks.find((b) => b.acc > targetLength);
+      if (blockEntry) {
+        blockEntry.block.cache_control = { type: "ephemeral" };
+      }
+    }
+  }
+}
+
+const STR_CHARS_PER_TOKEN = 4;
+
+export function highestPowersOfTwo(n: number, len: number): number[] {
+  const result: number[] = [];
+  let currentPower = Math.floor(Math.log2(n));
+
+  while (result.length < len && currentPower >= 0) {
+    const value = Math.pow(2, currentPower);
+    if (value <= n) {
+      result.push(value);
+    }
+    currentPower--;
+  }
+  return result;
 }
