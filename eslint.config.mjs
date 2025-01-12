@@ -4,13 +4,13 @@ import tseslint from "typescript-eslint";
 
 /** @type {import('eslint').Linter.Config[]} */
 export default [
-  { ignores: ["**/bun/test/fixtures/**", "**/eslint.config.mjs"] },
+  { ignores: ["**/node/test/fixtures/**", "**/eslint.config.mjs"] },
   { files: ["**/*.{js,mjs,cjs,ts}"] },
   { languageOptions: { globals: globals.browser } },
   pluginJs.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
-    files: ["**/bun/test/fixtures/**"],
+    files: ["**/node/test/fixtures/**"],
     extends: [...tseslint.configs.recommended], // Use non-type-checked config for test fixtures
   },
   {
@@ -37,6 +37,20 @@ export default [
         },
       ],
       "no-void": ["error", { allowAsStatement: true }],
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "describe",
+          property: "only",
+          message:
+            "describe.only is not allowed as it may be committed accidentally",
+        },
+        {
+          object: "it",
+          property: "only",
+          message: "it.only is not allowed as it may be committed accidentally",
+        },
+      ],
     },
   },
 ];

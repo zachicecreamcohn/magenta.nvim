@@ -9,7 +9,11 @@ Flagship models will continue to get better at tools use, and as this happens, t
 
 # Installation
 
-Install [bun](https://bun.sh/)
+Make sure you have [node](https://nodejs.org/en/download) installed, at least `v20`:
+
+```
+node --version
+```
 
 The plugin will look for configuration for providers in the following env variables:
 
@@ -22,10 +26,8 @@ The plugin will look for configuration for providers in the following env variab
 {
     "dlants/magenta.nvim",
     lazy = false, -- you could also bind to <leader>mt
-    build = "bun install --frozen-lockfile",
-    config = function()
-      require('magenta').setup()
-    end
+    build = "npm install --frozen-lockfile",
+    opts = {},
 },
 ```
 
@@ -50,9 +52,9 @@ require('magenta').setup()
 
 Global keymaps are set [here](https://github.com/dlants/magenta.nvim/blob/main/lua/magenta/init.lua#L12).
 
-Input and display buffer keymaps are set [here](https://github.com/dlants/magenta.nvim/blob/main/bun/sidebar.ts#L87).
+Input and display buffer keymaps are set [here](https://github.com/dlants/magenta.nvim/blob/main/node/sidebar.ts#L87).
 
-Commands are all nested under `:Magenta <cmd>`, and can be found [here](https://github.com/dlants/magenta.nvim/blob/main/bun/magenta.ts#L54).
+Commands are all nested under `:Magenta <cmd>`, and can be found [here](https://github.com/dlants/magenta.nvim/blob/main/node/magenta.ts#L54).
 
 TLDR:
 
@@ -71,7 +73,7 @@ The display buffer is not modifiable, however you can interact with some parts o
 
 ## tools available to the LLM
 
-See the most up-to-date list of implemented tools [here](https://github.com/dlants/magenta.nvim/tree/main/bun/tools).
+See the most up-to-date list of implemented tools [here](https://github.com/dlants/magenta.nvim/tree/main/node/tools).
 
 - [x] list a directory (only in cwd, excluding hidden and gitignored files)
 - [x] list current buffers (only buffers in cwd, excluding hidden and gitignored files)
@@ -82,12 +84,11 @@ See the most up-to-date list of implemented tools [here](https://github.com/dlan
 
 # Why it's cool
 
-- It uses [bun](https://bun.sh/) for faster startup, a lower memory footprint, and ease of development with Typescript.
 - It uses the new [rpc-pased remote plugin setup](https://github.com/dlants/magenta.nvim/issues/1). This means more flexible plugin development (can easily use both lua and typescript), and no need for `:UpdateRemotePlugins`! (h/t [wallpants](https://github.com/wallpants/bunvim)).
-- The state of the plugin is managed via an elm-inspired architecture (The Elm Architecture or [TEA](https://github.com/evancz/elm-architecture-tutorial)) [code](https://github.com/dlants/magenta.nvim/blob/main/bun/tea/tea.ts). I think this makes it fairly easy to understand and lays out a clear pattern for extending the feature set, as well as [eases testing](https://github.com/dlants/magenta.nvim/blob/main/bun/chat/chat.spec.ts). It also unlocks some cool future features (like the ability to persist a structured chat state into a file).
-- I spent a considerable amount of time figuring out a full end-to-end testing setup. Combined with typescript's async/await, it makes writing tests fairly easy and readable. The plugin is already fairly well-tested [code](https://github.com/dlants/magenta.nvim/blob/main/bun/magenta.spec.ts#L8).
-- In order to use TEA, I had to build a VDOM-like system for rendering text into a buffer. This makes writing view code declarative. [code](https://github.com/dlants/magenta.nvim/blob/main/bun/tea/view.ts#L141) [example defining a tool view](https://github.com/dlants/magenta.nvim/blob/main/bun/tools/getFile.ts#L139)
-- we can leverage existing sdks to communicate with LLMs, and async/await to manage side-effect chains, which greatly speeds up development. For example, streaming responses was pretty easy to implement, and I think is typically one of the trickier parts of other LLM plugins. [code](https://github.com/dlants/magenta.nvim/blob/main/bun/anthropic.ts#L49)
+- The state of the plugin is managed via an elm-inspired architecture (The Elm Architecture or [TEA](https://github.com/evancz/elm-architecture-tutorial)) [code](https://github.com/dlants/magenta.nvim/blob/main/node/tea/tea.ts). I think this makes it fairly easy to understand and lays out a clear pattern for extending the feature set, as well as [eases testing](https://github.com/dlants/magenta.nvim/blob/main/node/chat/chat.spec.ts). It also unlocks some cool future features (like the ability to persist a structured chat state into a file).
+- I spent a considerable amount of time figuring out a full end-to-end testing setup. Combined with typescript's async/await, it makes writing tests fairly easy and readable. The plugin is already fairly well-tested [code](https://github.com/dlants/magenta.nvim/blob/main/node/magenta.spec.ts#L8).
+- In order to use TEA, I had to build a VDOM-like system for rendering text into a buffer. This makes writing view code declarative. [code](https://github.com/dlants/magenta.nvim/blob/main/node/tea/view.ts#L141) [example defining a tool view](https://github.com/dlants/magenta.nvim/blob/main/node/tools/getFile.ts#L139)
+- we can leverage existing sdks to communicate with LLMs, and async/await to manage side-effect chains, which greatly speeds up development. For example, streaming responses was pretty easy to implement, and I think is typically one of the trickier parts of other LLM plugins. [code](https://github.com/dlants/magenta.nvim/blob/main/node/anthropic.ts#L49)
 
 # How is this different from other coding assistant plugins?
 

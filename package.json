@@ -3,21 +3,28 @@
   "module": "magenta.ts",
   "type": "module",
   "devDependencies": {
-    "@types/bun": "^1.1.14",
-    "typescript": "5.6.3"
+    "@types/node": "^22.10.5",
+    "typescript": "5.6.3",
+    "vitest": "^2.1.8"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.33.1",
-    "bunvim": "^1.1.13",
     "eslint": "^9.17.0",
     "ignore": "^7.0.0",
+    "nvim-node": "0.0.2",
     "openai": "^4.77.0",
+    "tsx": "^4.19.2",
     "typescript-eslint": "^8.19.0"
   },
   "scripts": {
-    "start": "bun run bun/index.ts"
+    "start": "npx tsx node/index.ts"
   },
-  "patchedDependencies": {
-    "bunvim@1.1.13": "patches/bunvim@1.1.13.patch"
-  }
+  "version": "0.0.0",
+  "description": "an AI agent / LLM coding assistant for neovim",
+  "main": "index.ts",
+  "directories": {
+    "doc": "doc"
+  },
+  "author": "",
+  "license": "ISC"
 }
