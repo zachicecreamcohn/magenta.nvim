@@ -20,9 +20,7 @@ node --version
     "dlants/magenta.nvim",
     lazy = false, -- you could also bind to <leader>mt
     build = "npm install --frozen-lockfile",
-    config = function()
-      require('magenta').setup()
-    end
+    opts = {},
 },
 ```
 
