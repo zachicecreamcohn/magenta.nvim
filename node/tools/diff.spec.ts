@@ -32,7 +32,7 @@ describe("node/tools/diff.spec.ts", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains("Insert 2 lines");
+      await driver.assertDisplayBufferContains("Insert [[ +2 ]]");
 
       const reviewPos =
         await driver.assertDisplayBufferContains("review edits");
@@ -428,7 +428,7 @@ Replace text
 \`\`\`
 }
 Error: Unable to find text "bogus line..." in file node/test/fixtures/poem.txt
-Insert 1 lines. Awaiting user review.
+Insert [[ +1 ]] Awaiting user review.
 
 Edits:
   node/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**`);
@@ -437,7 +437,7 @@ Edits:
 # assistant:
 ok, I will try to rewrite the poem in that file
 Replace [[ -1 / +1 ]] in node/test/fixtures/poem.txt ⚠️ Error: "Unable to find text \\"bogus line...\\" in file node/test/fixtures/poem.txt"
-Insert 1 lines. Awaiting user review.
+Insert [[ +1 ]] Awaiting user review.
 
 Edits:
   node/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**`);
