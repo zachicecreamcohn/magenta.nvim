@@ -12,6 +12,7 @@ import type { ToolName, ToolRequestId } from "../tools/toolManager.ts";
 import type { Nvim } from "nvim-node";
 import type { Stream } from "openai/streaming.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
+import tiktoken from "tiktoken";
 
 export type OpenAIOptions = {
   model: "gpt-4o";
@@ -44,15 +45,50 @@ export class OpenAIProvider implements Provider {
     });
   }
 
-  async sendMessage(
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async countTokens(messages: Array<ProviderMessage>): Promise<number> {
+    const enc = tiktoken.encoding_for_model("gpt-4o");
+    let totalTokens = 0;
+
+    // Count system message
+    totalTokens += enc.encode(DEFAULT_SYSTEM_PROMPT).length;
+
+    for (const message of messages) {
+      if (typeof message.content === "string") {
+        totalTokens += enc.encode(message.content).length;
+      } else {
+        for (const content of message.content) {
+          switch (content.type) {
+            case "text":
+              totalTokens += enc.encode(content.text).length;
+              break;
+            case "tool_use":
+              totalTokens += enc.encode(content.request.name).length;
+              totalTokens += enc.encode(
+                JSON.stringify(content.request.input),
+              ).length;
+              break;
+            case "tool_result":
+              totalTokens += enc.encode(
+                content.result.status === "ok"
+                  ? content.result.value
+                  : content.result.error,
+              ).length;
+              break;
+          }
+        }
+      }
+      // Add tokens for message format (role, etc)
+      totalTokens += 3;
+    }
+
+    enc.free();
+    return totalTokens;
+  }
+
+  createStreamParameters(
     messages: Array<ProviderMessage>,
-    onText: (text: string) => void,
-    _onError: (error: Error) => void,
-  ): Promise<{
-    toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
-    stopReason: StopReason;
-    usage: Usage;
-  }> {
+  ): OpenAI.ChatCompletionCreateParamsStreaming {
     const openaiMessages: OpenAI.ChatCompletionMessageParam[] = [
       {
         role: "system",
@@ -131,26 +167,40 @@ export class OpenAIProvider implements Provider {
       }
     }
 
+    return {
+      model: this.options.model,
+      stream: true,
+      messages: openaiMessages,
+      // see https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
+      // this recommends disabling parallel tool calls when strict adherence to schema is needed
+      parallel_tool_calls: false,
+      tools: ToolManager.TOOL_SPECS.map((s): OpenAI.ChatCompletionTool => {
+        return {
+          type: "function",
+          function: {
+            name: s.name,
+            description: s.description,
+            strict: true,
+            parameters: s.input_schema as OpenAI.FunctionParameters,
+          },
+        };
+      }),
+    };
+  }
+
+  async sendMessage(
+    messages: Array<ProviderMessage>,
+    onText: (text: string) => void,
+    _onError: (error: Error) => void,
+  ): Promise<{
+    toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
+    stopReason: StopReason;
+    usage: Usage;
+  }> {
     try {
-      const stream = (this.request = await this.client.chat.completions.create({
-        model: this.options.model,
-        stream: true,
-        messages: openaiMessages,
-        // see https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
-        // this recommends disabling parallel tool calls when strict adherence to schema is needed
-        parallel_tool_calls: false,
-        tools: ToolManager.TOOL_SPECS.map((s): OpenAI.ChatCompletionTool => {
-          return {
-            type: "function",
-            function: {
-              name: s.name,
-              description: s.description,
-              strict: true,
-              parameters: s.input_schema as OpenAI.FunctionParameters,
-            },
-          };
-        }),
-      }));
+      const stream = (this.request = await this.client.chat.completions.create(
+        this.createStreamParameters(messages),
+      ));
 
       const toolRequests = [];
       let stopReason: StopReason | undefined;

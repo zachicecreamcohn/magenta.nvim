@@ -35,7 +35,7 @@ describe("tea/chat.spec.ts", () => {
       expect(
         await buffer.getLines({ start: 0, end: -1 }),
         "initial render of chat works",
-      ).toEqual(["Stopped (end_turn) [input: 0, output: 0]"] as Line[]);
+      ).toEqual(Chat.LOGO.split("\n") as Line[]);
 
       app.dispatch({
         type: "add-message",
@@ -144,7 +144,7 @@ describe("tea/chat.spec.ts", () => {
       expect(
         await buffer.getLines({ start: 0, end: -1 }),
         "initial render of chat works",
-      ).toEqual(["Stopped (end_turn) [input: 0, output: 0]"] as Line[]);
+      ).toEqual(Chat.LOGO.split("\n") as Line[]);
 
       app.dispatch({
         type: "add-message",
@@ -172,10 +172,6 @@ describe("tea/chat.spec.ts", () => {
         "Stopped (end_turn) [input: 0, output: 0]",
       ] as Line[]);
 
-      // expect(
-      //   await extractMountTree(mountedApp.getMountedNode()),
-      // ).toMatchSnapshot();
-
       app.dispatch({
         type: "clear",
       });
@@ -184,11 +180,7 @@ describe("tea/chat.spec.ts", () => {
       expect(
         await buffer.getLines({ start: 0, end: -1 }),
         "finished render is as expected",
-      ).toEqual(["Stopped (end_turn) [input: 0, output: 0]"] as Line[]);
-
-      // expect(
-      //   await extractMountTree(mountedApp.getMountedNode()),
-      // ).toMatchSnapshot();
+      ).toEqual(Chat.LOGO.split("\n") as Line[]);
     });
   });
 });
