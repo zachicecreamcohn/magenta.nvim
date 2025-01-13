@@ -537,33 +537,41 @@ ${msg.error.stack}`,
     model,
     dispatch,
   }) => {
-    return d`${model.messages.map(
-      (m, idx) =>
-        d`${messageModel.view({
-          model: m,
-          toolManager: model.toolManager,
-          dispatch: (msg) => {
-            dispatch({ type: "message-msg", msg, idx });
-          },
-        })}\n`,
-    )}${
-      model.conversation.state == "message-in-flight"
-        ? d`Awaiting response ${
-            MESSAGE_ANIMATION[
-              Math.floor(
-                (new Date().getTime() - model.conversation.sendDate.getTime()) /
-                  333,
-              ) % MESSAGE_ANIMATION.length
-            ]
-          }`
-        : d`Stopped (${model.conversation.stopReason}) [input: ${model.conversation.usage.inputTokens.toString()}, output: ${model.conversation.usage.outputTokens.toString()}${
-            model.conversation.usage.cacheHits !== undefined &&
-            model.conversation.usage.cacheMisses !== undefined
-              ? d`, cache hits: ${model.conversation.usage.cacheHits.toString()}, cache misses: ${model.conversation.usage.cacheMisses.toString()}`
-              : ""
-          }]`
+    return d`${
+      model.messages.length
+        ? model.messages.map(
+            (m, idx) =>
+              d`${messageModel.view({
+                model: m,
+                toolManager: model.toolManager,
+                dispatch: (msg) => {
+                  dispatch({ type: "message-msg", msg, idx });
+                },
+              })}\n`,
+          )
+        : LOGO
+    }${
+      model.messages.length
+        ? model.conversation.state == "message-in-flight"
+          ? d`Awaiting response ${
+              MESSAGE_ANIMATION[
+                Math.floor(
+                  (new Date().getTime() -
+                    model.conversation.sendDate.getTime()) /
+                    333,
+                ) % MESSAGE_ANIMATION.length
+              ]
+            }`
+          : d`Stopped (${model.conversation.stopReason}) [input: ${model.conversation.usage.inputTokens.toString()}, output: ${model.conversation.usage.outputTokens.toString()}${
+              model.conversation.usage.cacheHits !== undefined &&
+              model.conversation.usage.cacheMisses !== undefined
+                ? d`, cache hits: ${model.conversation.usage.cacheHits.toString()}, cache misses: ${model.conversation.usage.cacheMisses.toString()}`
+                : ""
+            }]`
+        : ""
     }${
       model.conversation.state == "stopped" &&
+      model.messages.length &&
       !contextManagerModel.isContextEmpty(model.contextManager)
         ? d`\n${contextManagerModel.view({
             model: model.contextManager,
@@ -641,3 +649,13 @@ ${msg.error.stack}`,
     getMessages,
   };
 }
+
+const LOGO = d`\
+
+   ________
+  ╱        ╲
+ ╱         ╱
+╱         ╱
+╲__╱__╱__╱
+
+`;

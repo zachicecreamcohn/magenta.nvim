@@ -116,7 +116,7 @@ export class AnthropicProvider implements Provider {
       };
     });
 
-    placeCacheBreakpoints(anthropicMessages);
+    const cacheControlItemsPlaced = placeCacheBreakpoints(anthropicMessages);
 
     const tools: Anthropic.Tool[] = ToolManager.TOOL_SPECS.map(
       (t): Anthropic.Tool => {
@@ -133,7 +133,19 @@ export class AnthropicProvider implements Provider {
           messages: anthropicMessages,
           model: this.options.model,
           max_tokens: 4096,
-          system: DEFAULT_SYSTEM_PROMPT,
+          system: [
+            {
+              type: "text",
+              text: DEFAULT_SYSTEM_PROMPT,
+              // the prompt appears in the following order:
+              // tools
+              // system
+              // messages
+              // This ensures the tools + system prompt (which is approx 1400 tokens) is cached.
+              cache_control:
+                cacheControlItemsPlaced < 4 ? { type: "ephemeral" } : null,
+            },
+          ],
           tool_choice: {
             type: "auto",
             disable_parallel_tool_use: false,
@@ -247,7 +259,7 @@ export class AnthropicProvider implements Provider {
   }
 }
 
-export function placeCacheBreakpoints(messages: MessageParam[]) {
+export function placeCacheBreakpoints(messages: MessageParam[]): number {
   // when we scan the messages, keep track of where each part ends.
   const blocks: { block: Anthropic.Messages.ContentBlockParam; acc: number }[] =
     [];
@@ -315,6 +327,8 @@ export function placeCacheBreakpoints(messages: MessageParam[]) {
       }
     }
   }
+
+  return powers.length;
 }
 
 const STR_CHARS_PER_TOKEN = 4;
