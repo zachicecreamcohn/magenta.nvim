@@ -262,10 +262,10 @@ export class AnthropicProvider implements Provider {
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
       };
-      if (response.usage.cache_read_input_tokens) {
+      if (response.usage.cache_read_input_tokens != undefined) {
         usage.cacheHits = response.usage.cache_read_input_tokens;
       }
-      if (response.usage.cache_creation_input_tokens) {
+      if (response.usage.cache_creation_input_tokens != undefined) {
         usage.cacheMisses = response.usage.cache_creation_input_tokens;
       }
 

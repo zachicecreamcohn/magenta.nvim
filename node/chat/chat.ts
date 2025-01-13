@@ -573,9 +573,12 @@ ${msg.error.stack}`,
           }`
         : withBindings(
             d`Stopped (${model.conversation.stopReason}) [input: ${model.conversation.usage.inputTokens.toString()}, output: ${model.conversation.usage.outputTokens.toString()}${
-              model.conversation.usage.cacheHits !== undefined &&
+              model.conversation.usage.cacheHits !== undefined
+                ? d`, cache hits: ${model.conversation.usage.cacheHits.toString()}`
+                : ""
+            }${
               model.conversation.usage.cacheMisses !== undefined
-                ? d`, cache hits: ${model.conversation.usage.cacheHits.toString()}, cache misses: ${model.conversation.usage.cacheMisses.toString()}`
+                ? d`, cache misses: ${model.conversation.usage.cacheMisses.toString()}`
                 : ""
             }]`,
             {
