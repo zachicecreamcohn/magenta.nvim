@@ -39,7 +39,7 @@ local Plug = vim.fn['plug#']
 
 vim.call('plug#begin')
 Plug('dlants/magenta.vim', {
-  ['do'] = 'bun install --frozen-lockfile',
+  ['do'] = 'npm install --frozen-lockfile',
 })
 vim.call('plug#end')
 
