@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { withDriver } from "./test/preamble";
 import { pollUntil } from "./utils/async";
 import type { Position0Indexed } from "./nvim/window";
+import { LOGO } from "./chat/chat";
 
 describe("node/magenta.spec.ts", () => {
   it("clear command should work", async () => {
@@ -25,9 +26,7 @@ sup?
 Stopped (end_turn) [input: 0, output: 0]`);
 
       await driver.clear();
-      await driver.assertDisplayBufferContent(
-        `Stopped (end_turn) [input: 0, output: 0]`,
-      );
+      await driver.assertDisplayBufferContent(LOGO);
       await driver.inputMagentaText(`hello again`);
       await driver.send();
       await driver.mockAnthropic.respond({
