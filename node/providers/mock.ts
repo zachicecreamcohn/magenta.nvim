@@ -39,6 +39,15 @@ export class MockProvider implements Provider {
     }
   }
 
+  createStreamParameters(messages: Array<ProviderMessage>): unknown {
+    return messages;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async countTokens(messages: Array<ProviderMessage>): Promise<number> {
+    return messages.length;
+  }
+
   async sendMessage(
     messages: Array<ProviderMessage>,
     onText: (text: string) => void,

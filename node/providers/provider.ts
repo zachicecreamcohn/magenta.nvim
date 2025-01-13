@@ -57,6 +57,9 @@ export type ProviderMessageContent =
   | ProviderToolResultContent;
 
 export interface Provider {
+  createStreamParameters(messages: Array<ProviderMessage>): unknown;
+  countTokens(messages: Array<ProviderMessage>): Promise<number>;
+
   sendMessage(
     messages: Array<ProviderMessage>,
     onText: (text: string) => void,

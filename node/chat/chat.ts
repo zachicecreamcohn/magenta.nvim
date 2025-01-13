@@ -8,14 +8,14 @@ import {
   type Update,
   wrapThunk,
 } from "../tea/tea.ts";
-import { d, type View } from "../tea/view.ts";
+import { d, withBindings, type View } from "../tea/view.ts";
 import * as ToolManager from "../tools/toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import { Counter } from "../utils/uniqueId.ts";
 import type { Nvim } from "nvim-node";
 import type { Lsp } from "../lsp.ts";
 import {
-  getClient,
+  getClient as getProvider,
   type ProviderMessage,
   type ProviderMessageContent,
   type ProviderName,
@@ -24,6 +24,7 @@ import {
 } from "../providers/provider.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { DEFAULT_OPTIONS, type MagentaOptions } from "../options.ts";
+import { getOption } from "../nvim/nvim.ts";
 
 export type Role = "user" | "assistant";
 
@@ -103,6 +104,9 @@ export type Msg =
   | {
       type: "set-opts";
       options: MagentaOptions;
+    }
+  | {
+      type: "show-message-debug-info";
     };
 
 export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
@@ -421,13 +425,17 @@ ${msg.error.stack}`,
           model,
           // eslint-disable-next-line @typescript-eslint/require-await
           async () => {
-            getClient(nvim, model.activeProvider, model.options).abort();
+            getProvider(nvim, model.activeProvider, model.options).abort();
           },
         ];
       }
 
       case "set-opts": {
         return [{ ...model, options: msg.options }];
+      }
+
+      case "show-message-debug-info": {
+        return [model, () => showDebugInfo(model)];
       }
 
       default:
@@ -490,7 +498,7 @@ ${msg.error.stack}`,
       });
       let res;
       try {
-        res = await getClient(
+        res = await getProvider(
           nvim,
           model.activeProvider,
           model.options,
@@ -562,12 +570,17 @@ ${msg.error.stack}`,
                 ) % MESSAGE_ANIMATION.length
               ]
             }`
-          : d`Stopped (${model.conversation.stopReason}) [input: ${model.conversation.usage.inputTokens.toString()}, output: ${model.conversation.usage.outputTokens.toString()}${
-              model.conversation.usage.cacheHits !== undefined &&
-              model.conversation.usage.cacheMisses !== undefined
-                ? d`, cache hits: ${model.conversation.usage.cacheHits.toString()}, cache misses: ${model.conversation.usage.cacheMisses.toString()}`
-                : ""
-            }]`
+          : withBindings(
+              d`Stopped (${model.conversation.stopReason}) [input: ${model.conversation.usage.inputTokens.toString()}, output: ${model.conversation.usage.outputTokens.toString()}${
+                model.conversation.usage.cacheHits !== undefined &&
+                model.conversation.usage.cacheMisses !== undefined
+                  ? d`, cache hits: ${model.conversation.usage.cacheHits.toString()}, cache misses: ${model.conversation.usage.cacheMisses.toString()}`
+                  : ""
+              }]`,
+              {
+                "<CR>": () => dispatch({ type: "show-message-debug-info" }),
+              },
+            )
         : ""
     }${
       model.conversation.state == "stopped" &&
@@ -640,6 +653,44 @@ ${msg.error.stack}`,
     }
 
     return messages.map((m) => m.message);
+  }
+
+  async function showDebugInfo(model: Model) {
+    const messages = await getMessages(model);
+    const provider = getProvider(nvim, model.activeProvider, model.options);
+    const params = provider.createStreamParameters(messages);
+    const nTokens = await provider.countTokens(messages);
+
+    // Create a floating window
+    const bufnr = await nvim.call("nvim_create_buf", [false, true]);
+    await nvim.call("nvim_buf_set_option", [bufnr, "bufhidden", "wipe"]);
+    const [editorWidth, editorHeight] = (await Promise.all([
+      getOption("columns", nvim),
+      await getOption("lines", nvim),
+    ])) as [number, number];
+    const width = 80;
+    const height = editorHeight - 20;
+    await nvim.call("nvim_open_win", [
+      bufnr,
+      true,
+      {
+        relative: "editor",
+        width,
+        height,
+        col: Math.floor((editorWidth - width) / 2),
+        row: Math.floor((editorHeight - height) / 2),
+        style: "minimal",
+        border: "single",
+      },
+    ]);
+
+    const lines = JSON.stringify(params, null, 2).split("\n");
+    lines.push(`nTokens: ${nTokens}`);
+    await nvim.call("nvim_buf_set_lines", [bufnr, 0, -1, false, lines]);
+
+    // Set buffer options
+    await nvim.call("nvim_buf_set_option", [bufnr, "modifiable", false]);
+    await nvim.call("nvim_buf_set_option", [bufnr, "filetype", "json"]);
   }
 
   return {

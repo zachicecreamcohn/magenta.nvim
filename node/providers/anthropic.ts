@@ -47,34 +47,9 @@ export class AnthropicProvider implements Provider {
     }
   }
 
-  async sendMessage(
-    messages: Array<ProviderMessage>,
-    onText: (text: string) => void,
-    onError: (error: Error) => void,
-  ): Promise<{
-    toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
-    stopReason: StopReason;
-    usage: Usage;
-  }> {
-    const buf: string[] = [];
-    let flushInProgress: boolean = false;
-
-    const flushBuffer = () => {
-      if (buf.length && !flushInProgress) {
-        const text = buf.join("");
-        buf.splice(0);
-
-        flushInProgress = true;
-
-        try {
-          onText(text);
-        } finally {
-          flushInProgress = false;
-          setInterval(flushBuffer, 1);
-        }
-      }
-    };
-
+  createStreamParameters(
+    messages: ProviderMessage[],
+  ): Anthropic.Messages.MessageStreamParams {
     const anthropicMessages = messages.map((m): MessageParam => {
       let content: Anthropic.Messages.ContentBlockParam[];
       if (typeof m.content == "string") {
@@ -127,31 +102,77 @@ export class AnthropicProvider implements Provider {
       },
     );
 
+    return {
+      messages: anthropicMessages,
+      model: this.options.model,
+      max_tokens: 4096,
+      system: [
+        {
+          type: "text",
+          text: DEFAULT_SYSTEM_PROMPT,
+          // the prompt appears in the following order:
+          // tools
+          // system
+          // messages
+          // This ensures the tools + system prompt (which is approx 1400 tokens) is cached.
+          cache_control:
+            cacheControlItemsPlaced < 4 ? { type: "ephemeral" } : null,
+        },
+      ],
+      tool_choice: {
+        type: "auto",
+        disable_parallel_tool_use: false,
+      },
+      tools,
+    };
+  }
+
+  async countTokens(messages: Array<ProviderMessage>): Promise<number> {
+    const params = this.createStreamParameters(messages);
+    const lastMessage = params.messages[params.messages.length - 1];
+    if (!lastMessage || lastMessage.role != "user") {
+      params.messages.push({ role: "user", content: "test" });
+    }
+    const res = await this.client.messages.countTokens({
+      messages: params.messages,
+      model: params.model,
+      system: params.system as Anthropic.TextBlockParam[],
+      tools: params.tools as Anthropic.Tool[],
+    });
+    return res.input_tokens;
+  }
+
+  async sendMessage(
+    messages: Array<ProviderMessage>,
+    onText: (text: string) => void,
+    onError: (error: Error) => void,
+  ): Promise<{
+    toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
+    stopReason: StopReason;
+    usage: Usage;
+  }> {
+    const buf: string[] = [];
+    let flushInProgress: boolean = false;
+
+    const flushBuffer = () => {
+      if (buf.length && !flushInProgress) {
+        const text = buf.join("");
+        buf.splice(0);
+
+        flushInProgress = true;
+
+        try {
+          onText(text);
+        } finally {
+          flushInProgress = false;
+          setInterval(flushBuffer, 1);
+        }
+      }
+    };
+
     try {
       this.request = this.client.messages
-        .stream({
-          messages: anthropicMessages,
-          model: this.options.model,
-          max_tokens: 4096,
-          system: [
-            {
-              type: "text",
-              text: DEFAULT_SYSTEM_PROMPT,
-              // the prompt appears in the following order:
-              // tools
-              // system
-              // messages
-              // This ensures the tools + system prompt (which is approx 1400 tokens) is cached.
-              cache_control:
-                cacheControlItemsPlaced < 4 ? { type: "ephemeral" } : null,
-            },
-          ],
-          tool_choice: {
-            type: "auto",
-            disable_parallel_tool_use: false,
-          },
-          tools,
-        })
+        .stream(this.createStreamParameters(messages))
         .on("text", (text: string) => {
           buf.push(text);
           flushBuffer();
