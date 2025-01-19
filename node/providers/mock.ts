@@ -8,7 +8,7 @@ import {
   type StopReason,
   type Usage,
 } from "./provider.ts";
-import type { InlineEditToolRequest } from "../tools/inlineEdit.ts";
+import type { InlineEditToolRequest } from "../inline-edit/tool.ts";
 
 type MockRequest = {
   messages: Array<ProviderMessage>;

@@ -9,7 +9,7 @@ import {
   type Usage,
 } from "./provider.ts";
 import type { ToolRequestId } from "../tools/toolManager.ts";
-import * as InlineEdit from "../tools/inlineEdit.ts";
+import * as InlineEdit from "../inline-edit/tool.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { MessageStream } from "@anthropic-ai/sdk/lib/MessageStream.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";

@@ -15,7 +15,7 @@ import { Counter } from "../utils/uniqueId.ts";
 import type { Nvim } from "nvim-node";
 import type { Lsp } from "../lsp.ts";
 import {
-  getClient as getProvider,
+  getProvider as getProvider,
   type ProviderMessage,
   type ProviderMessageContent,
   type ProviderName,
@@ -26,8 +26,6 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { DEFAULT_OPTIONS, type MagentaOptions } from "../options.ts";
 import { getOption } from "../nvim/nvim.ts";
 
-import * as InlineEdit from "./inline-edit.ts";
-import { NvimBuffer } from "../nvim/buffer.ts";
 export type Role = "user" | "assistant";
 
 export type ConversationState =
@@ -49,7 +47,6 @@ export type Model = {
   messages: Message.Model[];
   toolManager: ToolManager.Model;
   contextManager: ContextManager.Model;
-  inlineEdit: InlineEdit.Model;
 };
 
 type WrappedMessageMsg = {
@@ -110,16 +107,6 @@ export type Msg =
     }
   | {
       type: "show-message-debug-info";
-    }
-  | {
-      type: "start-inline-edit";
-    }
-  | {
-      type: "submit-inline-edit";
-    }
-  | {
-      type: "inline-edit-msg";
-      msg: InlineEdit.Msg;
     };
 
 export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
@@ -128,7 +115,6 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
   const toolManagerModel = ToolManager.init({ nvim, lsp });
   const contextManagerModel = ContextManager.init({ nvim });
   const messageModel = Message.init({ nvim, lsp });
-  const inlineEditModel = InlineEdit.init({ nvim });
 
   function initModel(): Model {
     return {
@@ -143,7 +129,6 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
       messages: [],
       toolManager: toolManagerModel.initModel(),
       contextManager: contextManagerModel.initModel(),
-      inlineEdit: inlineEditModel.initModel(),
     };
   }
 
@@ -451,111 +436,6 @@ ${msg.error.stack}`,
 
       case "show-message-debug-info": {
         return [model, () => showDebugInfo(model)];
-      }
-
-      case "start-inline-edit": {
-        const [nextInlineEditModel, thunk] = inlineEditModel.update(
-          { type: "start-inline-edit" },
-          model.inlineEdit,
-        );
-        return [
-          {
-            ...model,
-            inlineEdit: nextInlineEditModel,
-          },
-          wrapThunk("inline-edit-msg", thunk),
-        ];
-      }
-
-      case "submit-inline-edit": {
-        const [nextInlineEditModel] = inlineEditModel.update(
-          { type: "submit-inline-edit" },
-          model.inlineEdit,
-        );
-
-        let thunk: Thunk<Msg> | undefined;
-        if (nextInlineEditModel.state == "response-pending") {
-          thunk = async (dispatch) => {
-            const messages = await getMessages(model);
-
-            const inputBuffer = new NvimBuffer(
-              nextInlineEditModel.inputBufnr,
-              nvim,
-            );
-            const inputLines = await inputBuffer.getLines({
-              start: 0,
-              end: -1,
-            });
-            const targetBuffer = new NvimBuffer(
-              nextInlineEditModel.targetBufnr,
-              nvim,
-            );
-            const targetLines = await targetBuffer.getLines({
-              start: 0,
-              end: -1,
-            });
-            const bufferName = await targetBuffer.getName();
-            const ft = (await targetBuffer.getOption("filetype")) as string;
-
-            // TODO: do not include buffer content if it's already in the context manager.
-            // TODO: support selection / position within the buffer for additional context.
-            messages.push({
-              role: "user",
-              content: `\
-I am working in buffer \`${bufferName}\` with the following contents:
-\`\`\`${ft}
-${targetLines.join("\n")}
-\`\`\`
-
-${inputLines.join("\n")}`,
-            });
-
-            messages.push({
-              role: "user",
-              content: inputLines.join("\n"),
-            });
-
-            const provider = getProvider(
-              nvim,
-              model.activeProvider,
-              model.options,
-            );
-            const { inlineEdit, stopReason, usage } =
-              await provider.inlineEdit(messages);
-
-            dispatch({
-              type: "inline-edit-msg",
-              msg: {
-                type: "inline-edit-tool-request",
-                inlineEdit,
-                stopReason,
-                usage,
-              },
-            });
-          };
-        }
-
-        return [
-          {
-            ...model,
-            inlineEdit: nextInlineEditModel,
-          },
-          thunk,
-        ];
-      }
-
-      case "inline-edit-msg": {
-        const [nextInlineEditModel, thunk] = inlineEditModel.update(
-          msg.msg,
-          model.inlineEdit,
-        );
-        return [
-          {
-            ...model,
-            inlineEdit: nextInlineEditModel,
-          },
-          wrapThunk("inline-edit-msg", thunk),
-        ];
       }
 
       default:

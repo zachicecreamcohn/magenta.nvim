@@ -6,7 +6,7 @@ import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { OpenAIProvider } from "./openai.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { MagentaOptions } from "../options.ts";
-import type { InlineEditToolRequest } from "../tools/inlineEdit.ts";
+import type { InlineEditToolRequest } from "../inline-edit/tool.ts";
 
 export const PROVIDER_NAMES = ["anthropic", "openai"] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
@@ -83,7 +83,7 @@ export interface Provider {
 const clients: Partial<{ [providerName in ProviderName]: Provider }> = {};
 
 // lazy load so we have a chance to init context before constructing the class
-export function getClient(
+export function getProvider(
   nvim: Nvim,
   providerName: ProviderName,
   options: MagentaOptions,

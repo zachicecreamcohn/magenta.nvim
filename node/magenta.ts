@@ -5,13 +5,18 @@ import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
 import { pos } from "./tea/view.ts";
 import type { Nvim } from "nvim-node";
 import { Lsp } from "./lsp.ts";
-import { PROVIDER_NAMES, type ProviderName } from "./providers/provider.ts";
+import {
+  getProvider,
+  PROVIDER_NAMES,
+  type ProviderName,
+} from "./providers/provider.ts";
 import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
 import path from "node:path";
-import type { Line } from "./nvim/buffer.ts";
+import type { BufNr, Line } from "./nvim/buffer.ts";
 import { pos1to0, type ByteIdx } from "./nvim/window.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
 import { parseOptions } from "./options.ts";
+import { InlineEditManager } from "./inline-edit/inline-edit-manager.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
@@ -23,6 +28,8 @@ export class Magenta {
   public sidebar: Sidebar;
   public chatApp: TEA.App<Chat.Msg, Chat.Model>;
   public mountedChatApp: TEA.MountedApp | undefined;
+  public chatModel;
+  public inlineEditManager: InlineEditManager;
 
   constructor(
     public nvim: Nvim,
@@ -30,13 +37,15 @@ export class Magenta {
   ) {
     this.sidebar = new Sidebar(this.nvim, "anthropic");
 
-    const chatModel = Chat.init({ nvim, lsp });
+    this.chatModel = Chat.init({ nvim, lsp });
     this.chatApp = TEA.createApp({
       nvim: this.nvim,
-      initialModel: chatModel.initModel(),
-      update: (model, msg) => chatModel.update(model, msg, { nvim }),
-      View: chatModel.view,
+      initialModel: this.chatModel.initModel(),
+      update: (msg, model) => this.chatModel.update(msg, model, { nvim }),
+      View: this.chatModel.view,
     });
+
+    this.inlineEditManager = new InlineEditManager({ nvim });
   }
 
   async setOpts(opts: unknown) {
@@ -188,16 +197,36 @@ ${lines.join("\n")}
       }
 
       case "start-inline-edit": {
-        this.chatApp.dispatch({
-          type: "start-inline-edit",
-        });
+        await this.inlineEditManager.initInlineEdit();
         break;
       }
 
       case "submit-inline-edit": {
-        this.chatApp.dispatch({
-          type: "submit-inline-edit",
-        });
+        if (rest.length != 1 || typeof rest[0] != "string") {
+          this.nvim.logger?.error(
+            `Expected bufnr argument to submit-inline-edit`,
+          );
+          return;
+        }
+
+        const bufnr = Number.parseInt(rest[0]) as BufNr;
+        const chat = this.chatApp.getState();
+        if (chat.status !== "running") {
+          this.nvim.logger?.error(`Chat is not running.`);
+          return;
+        }
+
+        const provider = getProvider(
+          this.nvim,
+          chat.model.activeProvider,
+          chat.model.options,
+        );
+        const messages = await this.chatModel.getMessages(chat.model);
+        await this.inlineEditManager.submitInlineEdit(
+          bufnr,
+          provider,
+          messages,
+        );
         break;
       }
 

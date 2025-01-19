@@ -1,12 +1,12 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type Update } from "../tea/tea.ts";
 import { type Result } from "../utils/result.ts";
-import type { ToolRequestId } from "./toolManager.ts";
+import type { ToolRequestId } from "../tools/toolManager.ts";
 import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import { REVIEW_PROMPT } from "./diff.ts";
+import { REVIEW_PROMPT } from "../tools/diff.ts";
 
 export type InlineEditToolRequest = {
   id: ToolRequestId;
@@ -80,7 +80,7 @@ export function getToolResult(model: Model): ProviderToolResultContent {
 
 export const spec: ProviderToolSpec = {
   name: "inline-edit",
-  description: `Replace text.`,
+  description: `Replace text. You will only get one shot so do the whole edit in a single tool invocation.`,
   input_schema: {
     type: "object",
     properties: {
@@ -92,7 +92,8 @@ If the text appears multiple times, only the first match will be replaced.`,
       },
       replace: {
         type: "string",
-        description: "New content that will replace the existing text.",
+        description:
+          "New content that will replace the existing text. This should be the complete text - do not skip lines or use ellipsis.",
       },
     },
     required: ["find", "replace"],
