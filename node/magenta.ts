@@ -187,6 +187,20 @@ ${lines.join("\n")}
         break;
       }
 
+      case "start-inline-edit": {
+        this.chatApp.dispatch({
+          type: "start-inline-edit",
+        });
+        break;
+      }
+
+      case "submit-inline-edit": {
+        this.chatApp.dispatch({
+          type: "submit-inline-edit",
+        });
+        break;
+      }
+
       default:
         this.nvim.logger?.error(`Unrecognized command ${command}\n`);
         // eslint-disable-next-line @typescript-eslint/no-floating-promises

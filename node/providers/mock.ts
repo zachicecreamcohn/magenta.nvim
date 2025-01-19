@@ -8,6 +8,7 @@ import {
   type StopReason,
   type Usage,
 } from "./provider.ts";
+import type { InlineEditToolRequest } from "../tools/inlineEdit.ts";
 
 type MockRequest = {
   messages: Array<ProviderMessage>;
@@ -20,8 +21,18 @@ type MockRequest = {
   }>;
 };
 
+type MockInlineRequest = {
+  messages: Array<ProviderMessage>;
+  defer: Defer<{
+    inlineEdit: Result<InlineEditToolRequest, { rawRequest: unknown }>;
+    stopReason: StopReason;
+    usage: Usage;
+  }>;
+};
+
 export class MockProvider implements Provider {
   public requests: MockRequest[] = [];
+  public inlineRequests: MockInlineRequest[] = [];
 
   abort() {
     if (this.requests.length) {
@@ -46,6 +57,19 @@ export class MockProvider implements Provider {
   // eslint-disable-next-line @typescript-eslint/require-await
   async countTokens(messages: Array<ProviderMessage>): Promise<number> {
     return messages.length;
+  }
+
+  async inlineEdit(messages: Array<ProviderMessage>): Promise<{
+    inlineEdit: Result<InlineEditToolRequest, { rawRequest: unknown }>;
+    stopReason: StopReason;
+    usage: Usage;
+  }> {
+    const request: MockInlineRequest = {
+      messages,
+      defer: new Defer(),
+    };
+    this.inlineRequests.push(request);
+    return request.defer.promise;
   }
 
   async sendMessage(

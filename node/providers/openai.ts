@@ -13,6 +13,7 @@ import type { Nvim } from "nvim-node";
 import type { Stream } from "openai/streaming.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
 import tiktoken from "tiktoken";
+import type { InlineEditToolRequest } from "../tools/inlineEdit.ts";
 
 export type OpenAIOptions = {
   model: "gpt-4o";
@@ -185,6 +186,23 @@ export class OpenAIProvider implements Provider {
           },
         };
       }),
+    };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async inlineEdit(_messages: Array<ProviderMessage>): Promise<{
+    inlineEdit: Result<InlineEditToolRequest, { rawRequest: unknown }>;
+    stopReason: StopReason;
+    usage: Usage;
+  }> {
+    return {
+      inlineEdit: {
+        status: "error",
+        error: "not implemented",
+        rawRequest: undefined,
+      },
+      stopReason: "end_turn",
+      usage: { inputTokens: 0, outputTokens: 0 },
     };
   }
 

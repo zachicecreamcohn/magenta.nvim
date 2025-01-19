@@ -34,6 +34,12 @@ M.setup = function(opts)
     {silent = true, noremap = true, desc = "Toggle Magenta window"}
   )
   vim.api.nvim_set_keymap(
+    "n",
+    "<leader>mi",
+    ":Magenta start-inline-edit<CR>",
+    {silent = true, noremap = true, desc = "Inline edit"}
+  )
+  vim.api.nvim_set_keymap(
     "v",
     "<leader>mp",
     ":Magenta paste-selection<CR>",

@@ -6,6 +6,7 @@ import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { OpenAIProvider } from "./openai.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { MagentaOptions } from "../options.ts";
+import type { InlineEditToolRequest } from "../tools/inlineEdit.ts";
 
 export const PROVIDER_NAMES = ["anthropic", "openai"] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
@@ -59,6 +60,12 @@ export type ProviderMessageContent =
 export interface Provider {
   createStreamParameters(messages: Array<ProviderMessage>): unknown;
   countTokens(messages: Array<ProviderMessage>): Promise<number>;
+
+  inlineEdit(messages: Array<ProviderMessage>): Promise<{
+    inlineEdit: Result<InlineEditToolRequest, { rawRequest: unknown }>;
+    stopReason: StopReason;
+    usage: Usage;
+  }>;
 
   sendMessage(
     messages: Array<ProviderMessage>,
