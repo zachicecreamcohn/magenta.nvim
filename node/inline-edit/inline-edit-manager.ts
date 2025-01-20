@@ -212,71 +212,141 @@ ${inputLines.join("\n")}`,
       endPos: { row: -1, col: -1 } as Position0Indexed,
     });
 
-    let result;
-    try {
-      result = await provider.inlineEdit(messages);
-    } catch (e) {
+    if (selection) {
+      let result;
+      try {
+        result = await provider.replaceSelection(messages);
+      } catch (e) {
+        app.dispatch({
+          type: "update-model",
+          next: {
+            state: "error",
+            error: e instanceof Error ? e.message : JSON.stringify(e),
+          },
+        });
+        return;
+      }
+
+      const { replaceSelection, stopReason, usage } = result;
       app.dispatch({
         type: "update-model",
         next: {
-          state: "error",
-          error: e instanceof Error ? e.message : JSON.stringify(e),
+          state: "tool-use",
+          edit: replaceSelection,
+          stopReason,
+          usage,
         },
       });
-      return;
-    }
 
-    const { inlineEdit, stopReason, usage } = result;
-    app.dispatch({
-      type: "update-model",
-      next: {
-        state: "tool-use",
-        inlineEdit,
-        stopReason,
-        usage,
-      },
-    });
+      if (replaceSelection.status === "error") {
+        return;
+      }
 
-    if (inlineEdit.status === "error") {
-      return;
-    }
+      const input = replaceSelection.value.input;
 
-    const input = inlineEdit.value.input;
+      const buffer = new NvimBuffer(targetBufnr, this.nvim);
+      const lines = await buffer.getLines({ start: 0, end: -1 });
+      const content = lines.join("\n");
 
-    const buffer = new NvimBuffer(targetBufnr, this.nvim);
-    const lines = await buffer.getLines({ start: 0, end: -1 });
-    const content = lines.join("\n");
+      // NOTE: we have the selection positions, maybe this is a bit brittle?
+      const replaceStart = content.indexOf(selection.text);
+      if (replaceStart === -1) {
+        app.dispatch({
+          type: "update-model",
+          next: {
+            state: "error",
+            error: `\
+Unable to find text in buffer:
+\`\`\`
+${selection.text}
+\`\`\``,
+          },
+        });
+        return;
+      }
+      const replaceEnd = replaceStart + selection.text.length;
 
-    const replaceStart = content.indexOf(input.find);
-    if (replaceStart === -1) {
+      const nextContent =
+        content.slice(0, replaceStart) +
+        "\n>>>>>>> Suggested change\n" +
+        input.replace +
+        "\n=======\n" +
+        selection.text +
+        "\n<<<<<<< Current\n" +
+        content.slice(replaceEnd);
+
+      await buffer.setLines({
+        start: 0,
+        end: -1,
+        lines: nextContent.split("\n") as Line[],
+      });
+    } else {
+      let result;
+      try {
+        result = await provider.inlineEdit(messages);
+      } catch (e) {
+        app.dispatch({
+          type: "update-model",
+          next: {
+            state: "error",
+            error: e instanceof Error ? e.message : JSON.stringify(e),
+          },
+        });
+        return;
+      }
+
+      const { inlineEdit, stopReason, usage } = result;
       app.dispatch({
         type: "update-model",
         next: {
-          state: "error",
-          error: `\
+          state: "tool-use",
+          edit: inlineEdit,
+          stopReason,
+          usage,
+        },
+      });
+
+      if (inlineEdit.status === "error") {
+        return;
+      }
+
+      const input = inlineEdit.value.input;
+
+      const buffer = new NvimBuffer(targetBufnr, this.nvim);
+      const lines = await buffer.getLines({ start: 0, end: -1 });
+      const content = lines.join("\n");
+
+      const replaceStart = content.indexOf(input.find);
+      if (replaceStart === -1) {
+        app.dispatch({
+          type: "update-model",
+          next: {
+            state: "error",
+            error: `\
 Unable to find text in buffer:
 \`\`\`
 ${input.find}
 \`\`\``,
-        },
+          },
+        });
+        return;
+      }
+      const replaceEnd = replaceStart + input.find.length;
+
+      const nextContent =
+        content.slice(0, replaceStart) +
+        "\n>>>>>>> Suggested change\n" +
+        input.replace +
+        "\n=======\n" +
+        input.find +
+        "\n<<<<<<< Current\n" +
+        content.slice(replaceEnd);
+
+      await buffer.setLines({
+        start: 0,
+        end: -1,
+        lines: nextContent.split("\n") as Line[],
       });
-      return;
     }
-    const replaceEnd = replaceStart + input.find.length;
-
-    const nextContent =
-      content.slice(0, replaceStart) +
-      "\n>>>>>>> Suggested change\n" +
-      input.replace +
-      "\n=======\n" +
-      input.find +
-      "\n<<<<<<< Current\n" +
-      content.slice(replaceEnd);
-
-    await buffer.setLines({
-      start: 0,
-      end: -1,
-      lines: nextContent.split("\n") as Line[],
-    });
   }
 }

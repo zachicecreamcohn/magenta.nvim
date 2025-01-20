@@ -127,7 +127,7 @@ Silver shadows dance with ease.
 
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       driver.submitInlineEdit(targetBuffer.id);
-      const request = await driver.mockAnthropic.awaitPendingInlineRequest();
+      const request = await driver.mockAnthropic.awaitPendingReplaceRequest();
       expect(request.messages).toMatchSnapshot();
     });
   });

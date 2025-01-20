@@ -13,7 +13,8 @@ import type { Nvim } from "nvim-node";
 import type { Stream } from "openai/streaming.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
 import tiktoken from "tiktoken";
-import type { InlineEditToolRequest } from "../inline-edit/tool.ts";
+import type { InlineEditToolRequest } from "../inline-edit/inline-edit-tool.ts";
+import type { ReplaceSelectionToolRequest } from "../inline-edit/replace-selection-tool.ts";
 
 export type OpenAIOptions = {
   model: "gpt-4o";
@@ -197,6 +198,26 @@ export class OpenAIProvider implements Provider {
   }> {
     return {
       inlineEdit: {
+        status: "error",
+        error: "not implemented",
+        rawRequest: undefined,
+      },
+      stopReason: "end_turn",
+      usage: { inputTokens: 0, outputTokens: 0 },
+    };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async replaceSelection(_messages: Array<ProviderMessage>): Promise<{
+    replaceSelection: Result<
+      ReplaceSelectionToolRequest,
+      { rawRequest: unknown }
+    >;
+    stopReason: StopReason;
+    usage: Usage;
+  }> {
+    return {
+      replaceSelection: {
         status: "error",
         error: "not implemented",
         rawRequest: undefined,

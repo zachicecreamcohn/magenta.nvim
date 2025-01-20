@@ -1,9 +1,10 @@
 import { assertUnreachable } from "../utils/assertUnreachable";
 import type { Dispatch, Update } from "../tea/tea";
-import type { InlineEditToolRequest } from "./tool";
+import type { InlineEditToolRequest } from "./inline-edit-tool";
 import type { Result } from "../utils/result";
 import type { StopReason, Usage } from "../providers/provider";
 import { d, type View } from "../tea/view";
+import type { ReplaceSelectionToolRequest } from "./replace-selection-tool";
 
 export type Model =
   | {
@@ -18,7 +19,10 @@ export type Model =
     }
   | {
       state: "tool-use";
-      inlineEdit: Result<InlineEditToolRequest, { rawRequest: unknown }>;
+      edit: Result<
+        InlineEditToolRequest | ReplaceSelectionToolRequest,
+        { rawRequest: unknown }
+      >;
       stopReason: StopReason;
       usage: Usage;
     };
@@ -54,13 +58,13 @@ export const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
     case "response-pending":
       return d`Input sent, awaiting response...`; // should never be shown...
     case "tool-use":
-      switch (model.inlineEdit.status) {
+      switch (model.edit.status) {
         case "error":
-          return d`Error: ${model.inlineEdit.error}, rawRequest: ${JSON.stringify(model.inlineEdit.rawRequest, null, 2)}`;
+          return d`Error: ${model.edit.error}, rawRequest: ${JSON.stringify(model.edit.rawRequest, null, 2)}`;
         case "ok":
-          return d`Got tool use: ${JSON.stringify(model.inlineEdit.value, null, 2)}`;
+          return d`Got tool use: ${JSON.stringify(model.edit.value, null, 2)}`;
         default:
-          return assertUnreachable(model.inlineEdit);
+          return assertUnreachable(model.edit);
       }
     default:
       return assertUnreachable(model);

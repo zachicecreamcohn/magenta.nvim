@@ -8,7 +8,8 @@ import {
   type StopReason,
   type Usage,
 } from "./provider.ts";
-import type { InlineEditToolRequest } from "../inline-edit/tool.ts";
+import type { InlineEditToolRequest } from "../inline-edit/inline-edit-tool.ts";
+import type { ReplaceSelectionToolRequest } from "../inline-edit/replace-selection-tool.ts";
 
 type MockRequest = {
   messages: Array<ProviderMessage>;
@@ -30,9 +31,22 @@ type MockInlineRequest = {
   }>;
 };
 
+type MockReplaceRequest = {
+  messages: Array<ProviderMessage>;
+  defer: Defer<{
+    replaceSelection: Result<
+      ReplaceSelectionToolRequest,
+      { rawRequest: unknown }
+    >;
+    stopReason: StopReason;
+    usage: Usage;
+  }>;
+};
+
 export class MockProvider implements Provider {
   public requests: MockRequest[] = [];
   public inlineRequests: MockInlineRequest[] = [];
+  public replaceRequests: MockReplaceRequest[] = [];
 
   abort() {
     if (this.requests.length) {
@@ -72,6 +86,22 @@ export class MockProvider implements Provider {
     return request.defer.promise;
   }
 
+  async replaceSelection(messages: Array<ProviderMessage>): Promise<{
+    replaceSelection: Result<
+      ReplaceSelectionToolRequest,
+      { rawRequest: unknown }
+    >;
+    stopReason: StopReason;
+    usage: Usage;
+  }> {
+    const request: MockReplaceRequest = {
+      messages,
+      defer: new Defer(),
+    };
+    this.replaceRequests.push(request);
+    return request.defer.promise;
+  }
+
   async sendMessage(
     messages: Array<ProviderMessage>,
     onText: (text: string) => void,
@@ -108,6 +138,16 @@ export class MockProvider implements Provider {
         return lastRequest;
       }
       throw new Error(`no pending inline requests`);
+    });
+  }
+
+  async awaitPendingReplaceRequest() {
+    return pollUntil(() => {
+      const lastRequest = this.replaceRequests[this.replaceRequests.length - 1];
+      if (lastRequest && !lastRequest.defer.resolved) {
+        return lastRequest;
+      }
+      throw new Error(`no pending replace requests`);
     });
   }
 
@@ -152,6 +192,33 @@ export class MockProvider implements Provider {
 
     lastRequest.defer.resolve({
       inlineEdit,
+      stopReason,
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+    });
+  }
+
+  async respondReplace({
+    replaceSelection,
+    stopReason,
+  }: {
+    replaceSelection: Result<
+      ReplaceSelectionToolRequest,
+      { rawRequest: unknown }
+    >;
+    stopReason: StopReason;
+  }) {
+    const lastRequest = await pollUntil(() => {
+      if (this.replaceRequests.length) {
+        return this.replaceRequests[this.replaceRequests.length - 1];
+      }
+      throw new Error(`no pending requests`);
+    });
+
+    lastRequest.defer.resolve({
+      replaceSelection,
       stopReason,
       usage: {
         inputTokens: 0,
