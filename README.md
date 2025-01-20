@@ -112,7 +112,7 @@ AFAIK both avante and codecompanion roll their own tool system, so the tools are
 
 I'm not doing any treesitter analysis of symbols, dependencies, or repository summarization / repomap construction. As I mentioned in the intro, I'm opting instead to rely on the agent to explore the repo using the tools available to it. Right now that's occasionally worse than the repomap approach, but I think with time it will matter less and less.
 
-Another thing that's probably glaringly missing is model selection and customization of keymappings, etc... I'll probably do some of this soon.
+Another thing that's probably glaringly missing is model selection and customization of keymappings, etc... I'll probably do some of this eventually, but if you use a different picker / completion plugin, or you would like to make something configurable that is not currently, I would welcome contributions.
 
 # Contributions
 
