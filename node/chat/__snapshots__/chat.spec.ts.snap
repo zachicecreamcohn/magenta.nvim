@@ -437,9 +437,9 @@ exports[`tea/chat.spec.ts > chat render and a few updates 1`] = `
               "type": "string",
             },
             {
-              "content": ") [input: ",
+              "content": ")",
               "endPos": {
-                "col": 27,
+                "col": 18,
                 "row": 7,
               },
               "startPos": {
@@ -448,81 +448,9 @@ exports[`tea/chat.spec.ts > chat render and a few updates 1`] = `
               },
               "type": "string",
             },
-            {
-              "content": "0",
-              "endPos": {
-                "col": 28,
-                "row": 7,
-              },
-              "startPos": {
-                "col": 27,
-                "row": 7,
-              },
-              "type": "string",
-            },
-            {
-              "content": ", output: ",
-              "endPos": {
-                "col": 38,
-                "row": 7,
-              },
-              "startPos": {
-                "col": 28,
-                "row": 7,
-              },
-              "type": "string",
-            },
-            {
-              "content": "0",
-              "endPos": {
-                "col": 39,
-                "row": 7,
-              },
-              "startPos": {
-                "col": 38,
-                "row": 7,
-              },
-              "type": "string",
-            },
-            {
-              "content": "",
-              "endPos": {
-                "col": 39,
-                "row": 7,
-              },
-              "startPos": {
-                "col": 39,
-                "row": 7,
-              },
-              "type": "string",
-            },
-            {
-              "content": "",
-              "endPos": {
-                "col": 39,
-                "row": 7,
-              },
-              "startPos": {
-                "col": 39,
-                "row": 7,
-              },
-              "type": "string",
-            },
-            {
-              "content": "]",
-              "endPos": {
-                "col": 40,
-                "row": 7,
-              },
-              "startPos": {
-                "col": 39,
-                "row": 7,
-              },
-              "type": "string",
-            },
           ],
           "endPos": {
-            "col": 40,
+            "col": 18,
             "row": 7,
           },
           "startPos": {
@@ -534,18 +462,18 @@ exports[`tea/chat.spec.ts > chat render and a few updates 1`] = `
         {
           "content": "",
           "endPos": {
-            "col": 40,
+            "col": 18,
             "row": 7,
           },
           "startPos": {
-            "col": 40,
+            "col": 18,
             "row": 7,
           },
           "type": "string",
         },
       ],
       "endPos": {
-        "col": 40,
+        "col": 18,
         "row": 7,
       },
       "startPos": {
@@ -556,7 +484,7 @@ exports[`tea/chat.spec.ts > chat render and a few updates 1`] = `
     },
   ],
   "endPos": {
-    "col": 40,
+    "col": 18,
     "row": 7,
   },
   "startPos": {

@@ -10,6 +10,7 @@ import { BINDING_KEYS, type BindingKey, getBindings } from "./bindings.ts";
 import { getCurrentWindow, notifyErr } from "../nvim/nvim.ts";
 import type { Row0Indexed } from "../nvim/window.ts";
 import type { Nvim } from "nvim-node";
+import { Defer } from "../utils/async.ts";
 
 export type Dispatch<Msg> = (msg: Msg) => void;
 
@@ -79,6 +80,7 @@ export function createApp<Model, Msg>({
     | MountedView<{ currentState: AppState<Model>; dispatch: Dispatch<Msg> }>
     | undefined;
 
+  let renderDefer: Defer<void> | undefined;
   let renderPromise: Promise<void> | undefined;
   let reRender = false;
 
@@ -127,6 +129,10 @@ export function createApp<Model, Msg>({
     if (renderPromise) {
       reRender = true;
     } else {
+      if (!renderDefer) {
+        renderDefer = new Defer();
+      }
+
       if (root) {
         renderPromise = root
           .render({ currentState, dispatch })
@@ -134,7 +140,10 @@ export function createApp<Model, Msg>({
             nvim.logger?.error(err as Error);
             // eslint-disable-next-line @typescript-eslint/no-floating-promises
             notifyErr(nvim, err);
-            throw err;
+            if (renderDefer) {
+              renderDefer.reject(err as Error);
+              renderDefer = undefined;
+            }
           })
           .finally(() => {
             renderPromise = undefined;
@@ -142,6 +151,11 @@ export function createApp<Model, Msg>({
               reRender = false;
               nvim.logger?.debug(`followup render triggered`);
               render();
+            } else {
+              if (renderDefer) {
+                renderDefer.resolve();
+                renderDefer = undefined;
+              }
             }
           });
       }
@@ -198,8 +212,8 @@ export function createApp<Model, Msg>({
         },
 
         async waitForRender() {
-          if (renderPromise) {
-            await renderPromise;
+          if (renderDefer) {
+            await renderDefer.promise;
           }
         },
 

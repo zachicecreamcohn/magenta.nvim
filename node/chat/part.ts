@@ -7,6 +7,8 @@ import type { Nvim } from "nvim-node";
 import type {
   ProviderMessageContent,
   ProviderToolResultContent,
+  StopReason,
+  Usage,
 } from "../providers/provider.ts";
 
 export type Model =
@@ -22,6 +24,11 @@ export type Model =
       type: "malformed-tool-request";
       error: string;
       rawRequest: unknown;
+    }
+  | {
+      type: "stop-msg";
+      stopReason: StopReason;
+      usage: Usage;
     };
 
 export type Msg = {
@@ -69,6 +76,19 @@ ${JSON.stringify(model.rawRequest, null, 2) || "undefined"}`;
           }),
         );
       }
+
+      case "stop-msg": {
+        return d`Stopped (${model.stopReason}) [input: ${model.usage.inputTokens.toString()}, output: ${model.usage.outputTokens.toString()}${
+          model.usage.cacheHits !== undefined
+            ? d`, cache hits: ${model.usage.cacheHits.toString()}`
+            : ""
+        }${
+          model.usage.cacheMisses !== undefined
+            ? d`, cache misses: ${model.usage.cacheMisses.toString()}`
+            : ""
+        }]`;
+      }
+
       default:
         assertUnreachable(model);
     }
@@ -78,7 +98,7 @@ ${JSON.stringify(model.rawRequest, null, 2) || "undefined"}`;
     part: Model,
     toolManager: ToolManager.Model,
   ): {
-    content: ProviderMessageContent;
+    content?: ProviderMessageContent;
     result?: ProviderToolResultContent;
   } {
     switch (part.type) {
@@ -103,6 +123,10 @@ ${JSON.stringify(model.rawRequest, null, 2) || "undefined"}`;
             text: `Malformed tool request: ${part.error}`,
           },
         };
+      }
+
+      case "stop-msg": {
+        return {};
       }
 
       default:

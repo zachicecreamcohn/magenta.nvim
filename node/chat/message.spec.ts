@@ -46,8 +46,9 @@ describe("node/chat/message.spec.ts", () => {
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-Replace [[ -2 / +1 ]] in node/test/fixtures/poem.txt Awaiting user review.
-Replace [[ -2 / +1 ]] in node/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -2 / +1 ]] in \`node/test/fixtures/poem.txt\` Awaiting user review.
+Replace [[ -2 / +1 ]] in \`node/test/fixtures/poem.txt\` Awaiting user review.
+Stopped (end_turn) [input: 0, output: 0]
 
 Edits:
   node/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**
@@ -59,7 +60,7 @@ Edits:
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-Replace [[ -2 / +1 ]] in node/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -2 / +1 ]] in \`node/test/fixtures/poem.txt\` Awaiting user review.
 id: id1
 replace: {
     filePath: node/test/fixtures/poem.txt
@@ -77,7 +78,8 @@ Result:
 \`\`\`
 ${REVIEW_PROMPT}
 \`\`\`
-Replace [[ -2 / +1 ]] in node/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -2 / +1 ]] in \`node/test/fixtures/poem.txt\` Awaiting user review.
+Stopped (end_turn) [input: 0, output: 0]
 
 Edits:
   node/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**`);
@@ -87,8 +89,9 @@ Edits:
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-Replace [[ -2 / +1 ]] in node/test/fixtures/poem.txt Awaiting user review.
-Replace [[ -2 / +1 ]] in node/test/fixtures/poem.txt Awaiting user review.
+Replace [[ -2 / +1 ]] in \`node/test/fixtures/poem.txt\` Awaiting user review.
+Replace [[ -2 / +1 ]] in \`node/test/fixtures/poem.txt\` Awaiting user review.
+Stopped (end_turn) [input: 0, output: 0]
 
 Edits:
   node/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**

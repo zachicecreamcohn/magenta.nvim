@@ -73,7 +73,7 @@ export function view({
 }): VDOMNode {
   return d`Replace [[ -${countLines(model.request.input.find).toString()} / +${countLines(
     model.request.input.replace,
-  ).toString()} ]] in ${model.request.input.filePath} ${toolStatusView({ model, dispatch })}`;
+  ).toString()} ]] in \`${model.request.input.filePath}\` ${toolStatusView({ model, dispatch })}`;
 }
 
 function countLines(str: string) {

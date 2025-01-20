@@ -177,7 +177,17 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
 
       case "conversation-state": {
         model.conversation = msg.conversation;
-        return [model];
+        if (msg.conversation.state == "stopped") {
+          const lastMessage = model.messages[model.messages.length - 1];
+          if (lastMessage?.role === "assistant") {
+            lastMessage.parts.push({
+              type: "stop-msg",
+              stopReason: msg.conversation.stopReason,
+              usage: msg.conversation.usage,
+            });
+          }
+        }
+        return [model, maybeAutorespond(model)];
       }
 
       case "send-message": {
@@ -335,10 +345,7 @@ ${msg.error.stack}`,
           model.messages[model.messages.length - 1] = nextMessage;
           return [
             model,
-            parallelThunks(
-              wrapMessageThunk(model.messages.length - 1, messageThunk),
-              maybeAutorespond(model),
-            ),
+            wrapMessageThunk(model.messages.length - 1, messageThunk),
           ];
         } else {
           const [nextToolManager, toolManagerThunk] = toolManagerModel.update(
@@ -362,7 +369,6 @@ ${msg.error.stack}`,
             parallelThunks<Msg>(
               wrapMessageThunk(model.messages.length - 1, messageThunk),
               wrapThunk("tool-manager-msg", toolManagerThunk),
-              maybeAutorespond(model),
             ),
           ];
         }
@@ -461,13 +467,7 @@ ${msg.error.stack}`,
       }
     }
 
-    for (const filePath in lastMessage.edits) {
-      for (const requestId of lastMessage.edits[filePath].requestIds) {
-        if (isBlocking(requestId)) {
-          return;
-        }
-      }
-    }
+    // all edits will also appear in the parts, so we don't need to check those twice.
 
     return sendMessage(model);
   }
@@ -504,6 +504,15 @@ ${msg.error.stack}`,
             });
           },
         );
+
+        if (res.toolRequests?.length) {
+          for (const request of res.toolRequests) {
+            dispatch({
+              type: "init-tool-use",
+              request,
+            });
+          }
+        }
       } finally {
         dispatch({
           type: "conversation-state",
@@ -513,15 +522,6 @@ ${msg.error.stack}`,
             usage: res?.usage || { inputTokens: 0, outputTokens: 0 },
           },
         });
-      }
-
-      if (res.toolRequests?.length) {
-        for (const request of res.toolRequests) {
-          dispatch({
-            type: "init-tool-use",
-            request,
-          });
-        }
       }
     };
   }
@@ -558,20 +558,9 @@ ${msg.error.stack}`,
               ) % MESSAGE_ANIMATION.length
             ]
           }`
-        : withBindings(
-            d`Stopped (${model.conversation.stopReason}) [input: ${model.conversation.usage.inputTokens.toString()}, output: ${model.conversation.usage.outputTokens.toString()}${
-              model.conversation.usage.cacheHits !== undefined
-                ? d`, cache hits: ${model.conversation.usage.cacheHits.toString()}`
-                : ""
-            }${
-              model.conversation.usage.cacheMisses !== undefined
-                ? d`, cache misses: ${model.conversation.usage.cacheMisses.toString()}`
-                : ""
-            }]`,
-            {
-              "<CR>": () => dispatch({ type: "show-message-debug-info" }),
-            },
-          )
+        : withBindings(d`Stopped (${model.conversation.stopReason})`, {
+            "<CR>": () => dispatch({ type: "show-message-debug-info" }),
+          })
     }${
       model.conversation.state == "stopped" &&
       !contextManagerModel.isContextEmpty(model.contextManager)
@@ -589,11 +578,13 @@ ${msg.error.stack}`,
       const toolResponseContent: ProviderMessageContent[] = [];
 
       for (const part of msg.parts) {
-        const { content: param, result } = partModel.toMessageParam(
+        const { content, result } = partModel.toMessageParam(
           part,
           model.toolManager,
         );
-        messageContent.push(param);
+        if (content) {
+          messageContent.push(content);
+        }
         if (result) {
           toolResponseContent.push(result);
         }

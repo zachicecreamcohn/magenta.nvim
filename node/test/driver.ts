@@ -190,16 +190,24 @@ export class NvimDriver {
   }
 
   async assertDisplayBufferContent(text: string): Promise<void> {
-    return pollUntil(async () => {
+    try {
+      return await pollUntil(async () => {
+        const displayBuffer = this.getDisplayBuffer();
+        const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+        const content = lines.join("\n");
+        if (content != text) {
+          throw new Error(
+            `display buffer content does not match text:\n"${text}"\ndisplayBuffer content:\n${content}`,
+          );
+        }
+      });
+    } catch (e) {
       const displayBuffer = this.getDisplayBuffer();
       const lines = await displayBuffer.getLines({ start: 0, end: -1 });
       const content = lines.join("\n");
-      if (content != text) {
-        throw new Error(
-          `display buffer content does not match text:\n"${text}"\ndisplayBuffer content:\n${content}`,
-        );
-      }
-    });
+      expect(content).toEqual(text);
+      throw e;
+    }
   }
 
   async triggerDisplayBufferKey(pos: Position0Indexed, key: BindingKey) {

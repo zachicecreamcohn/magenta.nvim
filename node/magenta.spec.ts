@@ -22,8 +22,9 @@ hello
 
 # assistant:
 sup?
+Stopped (end_turn) [input: 0, output: 0]
 
-Stopped (end_turn) [input: 0, output: 0]`);
+Stopped (end_turn)`);
 
       await driver.clear();
       await driver.assertDisplayBufferContent(LOGO);
@@ -41,8 +42,9 @@ hello again
 
 # assistant:
 huh?
+Stopped (end_turn) [input: 0, output: 0]
 
-Stopped (end_turn) [input: 0, output: 0]`);
+Stopped (end_turn)`);
     });
   });
 

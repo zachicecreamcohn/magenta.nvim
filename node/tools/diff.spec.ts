@@ -414,7 +414,7 @@ Paints its colors in the light.`,
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-Replace [[ -1 / +1 ]] in node/test/fixtures/poem.txt ⚠️ Error: "Unable to find text \\"bogus line...\\" in file node/test/fixtures/poem.txt"
+Replace [[ -1 / +1 ]] in \`node/test/fixtures/poem.txt\` ⚠️ Error: "Unable to find text \\"bogus line...\\" in file \`node/test/fixtures/poem.txt\`"
 id: id1
 replace: {
     filePath: node/test/fixtures/poem.txt
@@ -427,8 +427,9 @@ bogus line...
 Replace text
 \`\`\`
 }
-Error: Unable to find text "bogus line..." in file node/test/fixtures/poem.txt
-Insert [[ +1 ]] Awaiting user review.
+Error: Unable to find text "bogus line..." in file \`node/test/fixtures/poem.txt\`
+Insert [[ +1 ]] in \`node/test/fixtures/poem.txt\` Awaiting user review.
+Stopped (end_turn) [input: 0, output: 0]
 
 Edits:
   node/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**`);
@@ -436,8 +437,9 @@ Edits:
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-Replace [[ -1 / +1 ]] in node/test/fixtures/poem.txt ⚠️ Error: "Unable to find text \\"bogus line...\\" in file node/test/fixtures/poem.txt"
-Insert [[ +1 ]] Awaiting user review.
+Replace [[ -1 / +1 ]] in \`node/test/fixtures/poem.txt\` ⚠️ Error: "Unable to find text \\"bogus line...\\" in file \`node/test/fixtures/poem.txt\`"
+Insert [[ +1 ]] in \`node/test/fixtures/poem.txt\` Awaiting user review.
+Stopped (end_turn) [input: 0, output: 0]
 
 Edits:
   node/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**`);

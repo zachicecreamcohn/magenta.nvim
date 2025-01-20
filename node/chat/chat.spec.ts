@@ -74,7 +74,7 @@ describe("tea/chat.spec.ts", () => {
         "Sure, let me use the list_buffers tool.",
         "⚙️ Grabbing buffers...",
         "",
-        "Stopped (end_turn) [input: 0, output: 0]",
+        "Stopped (end_turn)",
       ] as Line[]);
 
       expect(
@@ -111,7 +111,7 @@ describe("tea/chat.spec.ts", () => {
         "Sure, let me use the list_buffers tool.",
         "✅ Finished getting buffers.",
         "",
-        "Stopped (end_turn) [input: 0, output: 0]",
+        "Stopped (end_turn)",
       ] as Line[]);
     });
   });
@@ -169,7 +169,7 @@ describe("tea/chat.spec.ts", () => {
         "# assistant:",
         "Sure, let me use the list_buffers tool.",
         "",
-        "Stopped (end_turn) [input: 0, output: 0]",
+        "Stopped (end_turn)",
       ] as Line[]);
 
       app.dispatch({

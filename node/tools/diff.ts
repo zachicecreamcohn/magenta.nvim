@@ -95,7 +95,7 @@ export async function displayDiffs({
             type: "diff-error",
             filePath,
             requestId: edit.id,
-            message: `Unable to find text "${edit.input.find}" in file ${filePath}`,
+            message: `Unable to find text "${edit.input.find}" in file \`${filePath}\``,
           });
           continue;
         }

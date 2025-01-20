@@ -73,7 +73,7 @@ export function view({
 }): VDOMNode {
   return d`Insert [[ +${(
     (model.request.input.content.match(/\n/g) || []).length + 1
-  ).toString()} ]] ${toolStatusView({ model, dispatch })}`;
+  ).toString()} ]] in \`${model.request.input.filePath}\` ${toolStatusView({ model, dispatch })}`;
 }
 
 function toolStatusView({
