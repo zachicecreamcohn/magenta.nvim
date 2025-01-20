@@ -252,39 +252,17 @@ ${inputLines.join("\n")}`,
       const input = replaceSelection.value.input;
 
       const buffer = new NvimBuffer(targetBufnr, this.nvim);
-      const lines = await buffer.getLines({ start: 0, end: -1 });
-      const content = lines.join("\n");
-
-      // NOTE: we have the selection positions, maybe this is a bit brittle?
-      const replaceStart = content.indexOf(selection.text);
-      if (replaceStart === -1) {
-        app.dispatch({
-          type: "update-model",
-          next: {
-            state: "error",
-            error: `\
-Unable to find text in buffer:
-\`\`\`
-${selection.text}
-\`\`\``,
-          },
-        });
-        return;
-      }
-      const replaceEnd = replaceStart + selection.text.length;
 
       const nextContent =
-        content.slice(0, replaceStart) +
         "\n>>>>>>> Suggested change\n" +
         input.replace +
         "\n=======\n" +
         selection.text +
-        "\n<<<<<<< Current\n" +
-        content.slice(replaceEnd);
+        "\n<<<<<<< Current\n";
 
-      await buffer.setLines({
-        start: 0,
-        end: -1,
+      await buffer.setText({
+        startPos: pos1to0(selection.startPos),
+        endPos: pos1to0(selection.endPos),
         lines: nextContent.split("\n") as Line[],
       });
     } else {
