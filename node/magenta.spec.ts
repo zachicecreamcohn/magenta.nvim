@@ -108,7 +108,7 @@ Awaiting response ⠁`);
       await driver.editFile("node/test/fixtures/poem.txt");
       await driver.selectRange(
         { row: 0, col: 5 } as Position0Indexed,
-        { row: 2, col: 10 } as Position0Indexed,
+        { row: 2, col: 11 } as Position0Indexed,
       );
 
       await driver.pasteSelection();
