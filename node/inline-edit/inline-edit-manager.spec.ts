@@ -132,6 +132,133 @@ Silver shadows dance with ease.
     });
   });
 
+  it("inline edit end of line selected", async () => {
+    await withDriver(async (driver) => {
+      await driver.editFile("node/test/fixtures/poem.txt");
+      const targetBuffer = await getCurrentBuffer(driver.nvim);
+
+      // Select a range of text
+      await driver.selectRange(
+        { row: 1, col: 0 } as Position0Indexed,
+        { row: 2, col: 34 } as Position0Indexed,
+      );
+
+      await driver.startInlineEditWithSelection();
+      await driver.assertWindowCount(2);
+
+      const inputBuffer = await getCurrentBuffer(driver.nvim);
+      await inputBuffer.setLines({
+        start: 0,
+        end: -1,
+        lines: ["Please change 'Silver' to 'Golden'"] as Line[],
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      driver.submitInlineEdit(targetBuffer.id);
+      const request = await driver.mockAnthropic.awaitPendingReplaceRequest();
+      expect(request.messages).toMatchSnapshot();
+      await driver.mockAnthropic.respondReplace({
+        stopReason: "end_turn",
+        replaceSelection: {
+          status: "ok",
+          value: {
+            id: "id" as ToolRequestId,
+            name: "replace-selection",
+            input: {
+              replace:
+                "Golden shadows dance with ease.\nStars above like diamonds bright,",
+            },
+          },
+        },
+      });
+
+      await driver.assertBufferContains(
+        inputBuffer,
+        `\
+Got tool use: `,
+      );
+
+      await driver.assertBufferContains(
+        targetBuffer,
+        `\
+Moonlight whispers through the trees,
+
+>>>>>>> Suggested change
+Golden shadows dance with ease.
+Stars above like diamonds bright,
+=======
+Silver shadows dance with ease.
+Stars above like diamonds bright,
+<<<<<<< Current
+
+Paint their stories in the night.`,
+      );
+    });
+  });
+
+  it("inline edit mid-line selected", async () => {
+    await withDriver(async (driver) => {
+      await driver.editFile("node/test/fixtures/poem.txt");
+      const targetBuffer = await getCurrentBuffer(driver.nvim);
+
+      // Select a range of text
+      await driver.selectRange(
+        { row: 1, col: 7 } as Position0Indexed,
+        { row: 2, col: 5 } as Position0Indexed,
+      );
+
+      await driver.startInlineEditWithSelection();
+      await driver.assertWindowCount(2);
+
+      const inputBuffer = await getCurrentBuffer(driver.nvim);
+      await inputBuffer.setLines({
+        start: 0,
+        end: -1,
+        lines: ["Please change 'shadows' to 'ghosts'"] as Line[],
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      driver.submitInlineEdit(targetBuffer.id);
+      const request = await driver.mockAnthropic.awaitPendingReplaceRequest();
+      expect(request.messages).toMatchSnapshot();
+      await driver.mockAnthropic.respondReplace({
+        stopReason: "end_turn",
+        replaceSelection: {
+          status: "ok",
+          value: {
+            id: "id" as ToolRequestId,
+            name: "replace-selection",
+            input: {
+              replace: "ghosts dance with ease.\nStars",
+            },
+          },
+        },
+      });
+
+      await driver.assertBufferContains(
+        inputBuffer,
+        `\
+Got tool use: `,
+      );
+
+      await driver.assertBufferContains(
+        targetBuffer,
+        `\
+Moonlight whispers through the trees,
+Silver${" "}
+>>>>>>> Suggested change
+ghosts dance with ease.
+Stars
+=======
+shadows dance with ease.
+Stars
+<<<<<<< Current
+ above like diamonds bright,
+Paint their stories in the night.`,
+      );
+    });
+  });
+
   it("abort command should work", async () => {
     await withDriver(async (driver) => {
       await driver.editFile("node/test/fixtures/poem.txt");

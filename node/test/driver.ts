@@ -164,22 +164,29 @@ export class NvimDriver {
     text: string,
     start: number = 0,
   ): Promise<Position0Indexed> {
-    return pollUntil(async () => {
+    try {
+      return await pollUntil(async () => {
+        const lines = await buffer.getLines({ start: 0, end: -1 });
+        const content = lines.slice(start).join("\n");
+        const index = Buffer.from(content).indexOf(text) as ByteIdx;
+        if (index == -1) {
+          throw new Error(
+            `Unable to find text:\n"${text}"\nafter line ${start} in inputBuffer.\ninputBuffer content:\n${content}`,
+          );
+        }
+
+        return calculatePosition(
+          { row: start, col: 0 } as Position0Indexed,
+          Buffer.from(content),
+          index,
+        );
+      });
+    } catch (e) {
       const lines = await buffer.getLines({ start: 0, end: -1 });
       const content = lines.slice(start).join("\n");
-      const index = Buffer.from(content).indexOf(text) as ByteIdx;
-      if (index == -1) {
-        throw new Error(
-          `Unable to find text:\n"${text}"\nafter line ${start} in inputBuffer.\ninputBuffer content:\n${content}`,
-        );
-      }
-
-      return calculatePosition(
-        { row: start, col: 0 } as Position0Indexed,
-        Buffer.from(content),
-        index,
-      );
-    });
+      expect(content).toContain(text);
+      throw e;
+    }
   }
 
   async assertDisplayBufferContent(text: string): Promise<void> {

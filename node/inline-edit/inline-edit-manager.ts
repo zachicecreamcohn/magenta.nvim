@@ -2,10 +2,11 @@ import type { Nvim } from "nvim-node";
 import { NvimBuffer, type BufNr, type Line } from "../nvim/buffer";
 import {
   NvimWindow,
-  pos1to0,
+  pos1col1to0,
   type ByteIdx,
   type Position0Indexed,
   type Position1Indexed,
+  type Position1IndexedCol1Indexed,
   type WindowId,
 } from "../nvim/window";
 import { getCurrentWindow, getcwd } from "../nvim/nvim";
@@ -25,8 +26,8 @@ export type InlineEditState = {
   cursor: Position1Indexed;
   selection?:
     | {
-        startPos: Position1Indexed;
-        endPos: Position1Indexed;
+        startPos: Position1IndexedCol1Indexed;
+        endPos: Position1IndexedCol1Indexed;
         text: string;
       }
     | undefined;
@@ -63,8 +64,8 @@ export class InlineEditManager {
   }
 
   async initInlineEdit(selection?: {
-    startPos: Position1Indexed;
-    endPos: Position1Indexed;
+    startPos: Position1IndexedCol1Indexed;
+    endPos: Position1IndexedCol1Indexed;
   }) {
     const targetWindow = await getCurrentWindow(this.nvim);
     const isMagentaWindow = await targetWindow.getVar("magenta");
@@ -118,11 +119,8 @@ export class InlineEditManager {
         ...selection,
         text: (
           await targetBuffer.getText({
-            startPos: pos1to0({
-              row: selection.startPos.row,
-              col: Math.max(0, selection.startPos.col - 1) as ByteIdx,
-            }),
-            endPos: pos1to0(selection.endPos),
+            startPos: pos1col1to0(selection.startPos),
+            endPos: pos1col1to0(selection.endPos),
           })
         ).join("\n"),
       };
@@ -251,7 +249,7 @@ ${inputLines.join("\n")}`,
 
       const input = replaceSelection.value.input;
 
-      const buffer = new NvimBuffer(targetBufnr, this.nvim);
+      const targetBuffer = new NvimBuffer(targetBufnr, this.nvim);
 
       const nextContent =
         "\n>>>>>>> Suggested change\n" +
@@ -259,10 +257,25 @@ ${inputLines.join("\n")}`,
         "\n=======\n" +
         selection.text +
         "\n<<<<<<< Current\n";
+      const lines = await targetBuffer.getLines({ start: 0, end: -1 });
 
-      await buffer.setText({
-        startPos: pos1to0(selection.startPos),
-        endPos: pos1to0(selection.endPos),
+      // in visual mode, you can select past the end of the line, so we need to clamp the columns
+      function clamp(pos: Position0Indexed): Position0Indexed {
+        const line = lines[pos.row];
+        if (line == undefined) {
+          throw new Error(`Tried to clamp a non-existant line ${pos.row}`);
+        }
+
+        const buf = Buffer.from(line, "utf8");
+        return {
+          row: pos.row,
+          col: Math.min(pos.col, buf.length) as ByteIdx,
+        };
+      }
+
+      await targetBuffer.setText({
+        startPos: clamp(pos1col1to0(selection.startPos)),
+        endPos: clamp(pos1col1to0(selection.endPos)),
         lines: nextContent.split("\n") as Line[],
       });
     } else {

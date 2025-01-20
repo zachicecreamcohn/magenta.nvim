@@ -13,7 +13,7 @@ import {
 import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
 import path from "node:path";
 import type { BufNr, Line } from "./nvim/buffer.ts";
-import { pos1to0, type ByteIdx } from "./nvim/window.ts";
+import { pos1col1to0 } from "./nvim/window.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
 import { parseOptions } from "./options.ts";
 import { InlineEditManager } from "./inline-edit/inline-edit-manager.ts";
@@ -175,11 +175,8 @@ export class Magenta {
         ]);
 
         const lines = await currentBuffer.getText({
-          startPos: pos1to0({
-            row: startPos.row,
-            col: Math.max(0, startPos.col - 1) as ByteIdx,
-          }),
-          endPos: pos1to0(endPos),
+          startPos: pos1col1to0(startPos),
+          endPos: pos1col1to0(endPos),
         });
 
         const relFileName = path.relative(cwd, await currentBuffer.getName());

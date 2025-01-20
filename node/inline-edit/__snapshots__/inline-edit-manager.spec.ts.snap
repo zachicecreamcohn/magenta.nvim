@@ -1,5 +1,51 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`node/inline-edit/inline-edit-manager.spec.ts > inline edit end of line selected 1`] = `
+[
+  {
+    "content": "I am working in file \`node/test/fixtures/poem.txt\` with the following contents:
+\`\`\`txt
+Moonlight whispers through the trees,
+Silver shadows dance with ease.
+Stars above like diamonds bright,
+Paint their stories in the night.
+\`\`\`
+
+I have the following text selected on line 1:
+\`\`\`
+Silver shadows dance with ease.
+Stars above like diamonds bright,
+\`\`\`
+
+Please change 'Silver' to 'Golden'",
+    "role": "user",
+  },
+]
+`;
+
+exports[`node/inline-edit/inline-edit-manager.spec.ts > inline edit mid-line selected 1`] = `
+[
+  {
+    "content": "I am working in file \`node/test/fixtures/poem.txt\` with the following contents:
+\`\`\`txt
+Moonlight whispers through the trees,
+Silver shadows dance with ease.
+Stars above like diamonds bright,
+Paint their stories in the night.
+\`\`\`
+
+I have the following text selected on line 1:
+\`\`\`
+shadows dance with ease.
+Stars
+\`\`\`
+
+Please change 'shadows' to 'ghosts'",
+    "role": "user",
+  },
+]
+`;
+
 exports[`node/inline-edit/inline-edit-manager.spec.ts > performs inline edit on file 1`] = `
 [
   {
