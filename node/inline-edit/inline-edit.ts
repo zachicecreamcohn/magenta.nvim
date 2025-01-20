@@ -61,8 +61,36 @@ export const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
       switch (model.edit.status) {
         case "error":
           return d`Error: ${model.edit.error}, rawRequest: ${JSON.stringify(model.edit.rawRequest, null, 2) || "undefined"}`;
-        case "ok":
-          return d`Got tool use: ${JSON.stringify(model.edit.value, null, 2)}`;
+        case "ok": {
+          let requestStr;
+          switch (model.edit.value.name) {
+            case "inline-edit":
+              requestStr = `\
+inline-edit.
+find:
+\`\`\`
+${model.edit.value.input.find}
+\`\`\`
+
+replace:
+\`\`\`
+${model.edit.value.input.replace}
+\`\`\``;
+              break;
+            case "replace-selection":
+              requestStr = `\
+replace-selection.
+replace:
+\`\`\`
+${model.edit.value.input.replace}
+\`\`\``;
+              break;
+            default:
+              assertUnreachable(model.edit.value);
+          }
+
+          return d`Got tool use: ${requestStr}`;
+        }
         default:
           return assertUnreachable(model.edit);
       }
