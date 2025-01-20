@@ -1,6 +1,10 @@
 import type { Nvim } from "nvim-node";
 import { NvimBuffer, type BufNr } from "./buffer.ts";
-import { NvimWindow, type Position1Indexed, type WindowId } from "./window.ts";
+import {
+  NvimWindow,
+  type Position1IndexedCol1Indexed,
+  type WindowId,
+} from "./window.ts";
 
 export function getOption(option: string, nvim: Nvim) {
   return nvim.call("nvim_get_option", [option]);
@@ -48,7 +52,7 @@ export async function mode(nvim: Nvim) {
 export async function getpos(
   nvim: Nvim,
   str: string,
-): Promise<Position1Indexed> {
+): Promise<Position1IndexedCol1Indexed> {
   const res = await nvim.call("nvim_exec2", [
     `echo getpos("${str}")`,
     { output: true },
@@ -67,7 +71,7 @@ export async function getpos(
   return {
     row,
     col,
-  } as Position1Indexed;
+  } as Position1IndexedCol1Indexed;
 }
 
 export function diffthis(nvim: Nvim) {

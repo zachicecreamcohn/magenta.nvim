@@ -4,6 +4,7 @@ import { NvimBuffer, type BufNr } from "./buffer.ts";
 export type Row0Indexed = number & { __row0Indexed: true };
 export type Row1Indexed = number & { __row1Indexed: true };
 export type ByteIdx = number & { __byteIdx: true };
+export type ByteIdx1Indexed = number & { __byteIdx1Indexed: true };
 
 /** A coordinate in a js string, which are utf-16 encoded by default. This is the coordinate that lsp clients typically expect.
  */
@@ -17,6 +18,11 @@ export type PositionString = {
 export type Position1Indexed = {
   row: Row1Indexed;
   col: ByteIdx;
+};
+
+export type Position1IndexedCol1Indexed = {
+  row: Row1Indexed;
+  col: ByteIdx1Indexed;
 };
 
 export type Position0Indexed = {
@@ -35,6 +41,15 @@ export function pos1to0(pos: Position1Indexed): Position0Indexed {
   return {
     row: pos.row - 1,
     col: pos.col,
+  } as Position0Indexed;
+}
+
+export function pos1col1to0(
+  pos: Position1IndexedCol1Indexed,
+): Position0Indexed {
+  return {
+    row: pos.row - 1,
+    col: Math.max(0, pos.col - 1),
   } as Position0Indexed;
 }
 

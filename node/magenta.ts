@@ -5,13 +5,18 @@ import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
 import { pos } from "./tea/view.ts";
 import type { Nvim } from "nvim-node";
 import { Lsp } from "./lsp.ts";
-import { PROVIDER_NAMES, type ProviderName } from "./providers/provider.ts";
+import {
+  getProvider,
+  PROVIDER_NAMES,
+  type ProviderName,
+} from "./providers/provider.ts";
 import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
 import path from "node:path";
-import type { Line } from "./nvim/buffer.ts";
-import { pos1to0, type ByteIdx } from "./nvim/window.ts";
+import type { BufNr, Line } from "./nvim/buffer.ts";
+import { pos1col1to0 } from "./nvim/window.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
 import { parseOptions } from "./options.ts";
+import { InlineEditManager } from "./inline-edit/inline-edit-manager.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
@@ -23,6 +28,8 @@ export class Magenta {
   public sidebar: Sidebar;
   public chatApp: TEA.App<Chat.Msg, Chat.Model>;
   public mountedChatApp: TEA.MountedApp | undefined;
+  public chatModel;
+  public inlineEditManager: InlineEditManager;
 
   constructor(
     public nvim: Nvim,
@@ -30,13 +37,15 @@ export class Magenta {
   ) {
     this.sidebar = new Sidebar(this.nvim, "anthropic");
 
-    const chatModel = Chat.init({ nvim, lsp });
+    this.chatModel = Chat.init({ nvim, lsp });
     this.chatApp = TEA.createApp({
       nvim: this.nvim,
-      initialModel: chatModel.initModel(),
-      update: (model, msg) => chatModel.update(model, msg, { nvim }),
-      View: chatModel.view,
+      initialModel: this.chatModel.initModel(),
+      update: (msg, model) => this.chatModel.update(msg, model, { nvim }),
+      View: this.chatModel.view,
     });
+
+    this.inlineEditManager = new InlineEditManager({ nvim });
   }
 
   async setOpts(opts: unknown) {
@@ -139,9 +148,23 @@ export class Magenta {
         this.chatApp.dispatch({ type: "clear" });
         break;
 
-      case "abort":
-        this.chatApp.dispatch({ type: "abort" });
+      case "abort": {
+        const chat = this.chatApp.getState();
+        if (chat.status !== "running") {
+          this.nvim.logger?.error(`Chat is not running.`);
+          return;
+        }
+
+        const provider = getProvider(
+          this.nvim,
+          chat.model.activeProvider,
+          chat.model.options,
+        );
+
+        provider.abort();
+
         break;
+      }
 
       case "paste-selection": {
         const [startPos, endPos, cwd, currentBuffer] = await Promise.all([
@@ -152,11 +175,8 @@ export class Magenta {
         ]);
 
         const lines = await currentBuffer.getText({
-          startPos: pos1to0({
-            row: startPos.row,
-            col: Math.max(0, startPos.col - 1) as ByteIdx,
-          }),
-          endPos: pos1to0(endPos),
+          startPos: pos1col1to0(startPos),
+          endPos: pos1col1to0(endPos),
         });
 
         const relFileName = path.relative(cwd, await currentBuffer.getName());
@@ -187,6 +207,51 @@ ${lines.join("\n")}
         break;
       }
 
+      case "start-inline-edit-selection": {
+        const [startPos, endPos] = await Promise.all([
+          getpos(this.nvim, "'<"),
+          getpos(this.nvim, "'>"),
+        ]);
+
+        await this.inlineEditManager.initInlineEdit({ startPos, endPos });
+        break;
+      }
+
+      case "start-inline-edit": {
+        await this.inlineEditManager.initInlineEdit();
+        break;
+      }
+
+      case "submit-inline-edit": {
+        if (rest.length != 1 || typeof rest[0] != "string") {
+          this.nvim.logger?.error(
+            `Expected bufnr argument to submit-inline-edit`,
+          );
+          return;
+        }
+
+        const bufnr = Number.parseInt(rest[0]) as BufNr;
+        const chat = this.chatApp.getState();
+        if (chat.status !== "running") {
+          this.nvim.logger?.error(`Chat is not running.`);
+          return;
+        }
+
+        const provider = getProvider(
+          this.nvim,
+          chat.model.activeProvider,
+          chat.model.options,
+        );
+
+        const messages = await this.chatModel.getMessages(chat.model);
+        await this.inlineEditManager.submitInlineEdit(
+          bufnr,
+          provider,
+          messages,
+        );
+        break;
+      }
+
       default:
         this.nvim.logger?.error(`Unrecognized command ${command}\n`);
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
@@ -208,7 +273,10 @@ ${lines.join("\n")}
   }
 
   async onWinClosed() {
-    await this.sidebar.onWinClosed();
+    await Promise.all([
+      this.sidebar.onWinClosed(),
+      this.inlineEditManager.onWinClosed(),
+    ]);
   }
 
   destroy() {
@@ -216,6 +284,7 @@ ${lines.join("\n")}
       this.mountedChatApp.unmount();
       this.mountedChatApp = undefined;
     }
+    this.inlineEditManager.destroy();
   }
 
   static async start(nvim: Nvim) {

@@ -51,6 +51,7 @@ export type App<Msg, Model> = {
   mount(mount: MountPoint): Promise<MountedApp>;
   dispatch: Dispatch<Msg>;
   getState(): AppState<Model>;
+  destroy(): void;
 };
 
 export function createApp<Model, Msg>({
@@ -83,7 +84,7 @@ export function createApp<Model, Msg>({
 
   const dispatch = (msg: Msg) => {
     nvim.logger?.debug(`dispatch msg: ${JSON.stringify(msg)}`);
-    if (currentState.status == "error") {
+    if (currentState.status != "running") {
       return;
     }
 
@@ -232,6 +233,16 @@ export function createApp<Model, Msg>({
     dispatch,
     getState() {
       return currentState;
+    },
+    destroy() {
+      if (root) {
+        root.unmount();
+        root = undefined;
+      }
+      currentState = {
+        status: "error",
+        error: "destroyed",
+      };
     },
   };
 }

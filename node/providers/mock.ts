@@ -8,6 +8,8 @@ import {
   type StopReason,
   type Usage,
 } from "./provider.ts";
+import type { InlineEditToolRequest } from "../inline-edit/inline-edit-tool.ts";
+import type { ReplaceSelectionToolRequest } from "../inline-edit/replace-selection-tool.ts";
 
 type MockRequest = {
   messages: Array<ProviderMessage>;
@@ -20,8 +22,31 @@ type MockRequest = {
   }>;
 };
 
+type MockInlineRequest = {
+  messages: Array<ProviderMessage>;
+  defer: Defer<{
+    inlineEdit: Result<InlineEditToolRequest, { rawRequest: unknown }>;
+    stopReason: StopReason;
+    usage: Usage;
+  }>;
+};
+
+type MockReplaceRequest = {
+  messages: Array<ProviderMessage>;
+  defer: Defer<{
+    replaceSelection: Result<
+      ReplaceSelectionToolRequest,
+      { rawRequest: unknown }
+    >;
+    stopReason: StopReason;
+    usage: Usage;
+  }>;
+};
+
 export class MockProvider implements Provider {
   public requests: MockRequest[] = [];
+  public inlineRequests: MockInlineRequest[] = [];
+  public replaceRequests: MockReplaceRequest[] = [];
 
   abort() {
     if (this.requests.length) {
@@ -29,6 +54,42 @@ export class MockProvider implements Provider {
       if (!lastRequest.defer.resolved) {
         lastRequest.defer.resolve({
           toolRequests: [],
+          stopReason: "end_turn",
+          usage: {
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        });
+      }
+    }
+
+    if (this.inlineRequests.length) {
+      const lastRequest = this.inlineRequests[this.inlineRequests.length - 1];
+      if (!lastRequest.defer.resolved) {
+        lastRequest.defer.resolve({
+          inlineEdit: {
+            status: "error",
+            error: "aborted",
+            rawRequest: undefined,
+          },
+          stopReason: "end_turn",
+          usage: {
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        });
+      }
+    }
+
+    if (this.replaceRequests.length) {
+      const lastRequest = this.replaceRequests[this.replaceRequests.length - 1];
+      if (!lastRequest.defer.resolved) {
+        lastRequest.defer.resolve({
+          replaceSelection: {
+            status: "error",
+            error: "aborted",
+            rawRequest: undefined,
+          },
           stopReason: "end_turn",
           usage: {
             inputTokens: 0,
@@ -46,6 +107,35 @@ export class MockProvider implements Provider {
   // eslint-disable-next-line @typescript-eslint/require-await
   async countTokens(messages: Array<ProviderMessage>): Promise<number> {
     return messages.length;
+  }
+
+  async inlineEdit(messages: Array<ProviderMessage>): Promise<{
+    inlineEdit: Result<InlineEditToolRequest, { rawRequest: unknown }>;
+    stopReason: StopReason;
+    usage: Usage;
+  }> {
+    const request: MockInlineRequest = {
+      messages,
+      defer: new Defer(),
+    };
+    this.inlineRequests.push(request);
+    return request.defer.promise;
+  }
+
+  async replaceSelection(messages: Array<ProviderMessage>): Promise<{
+    replaceSelection: Result<
+      ReplaceSelectionToolRequest,
+      { rawRequest: unknown }
+    >;
+    stopReason: StopReason;
+    usage: Usage;
+  }> {
+    const request: MockReplaceRequest = {
+      messages,
+      defer: new Defer(),
+    };
+    this.replaceRequests.push(request);
+    return request.defer.promise;
   }
 
   async sendMessage(
@@ -77,6 +167,26 @@ export class MockProvider implements Provider {
     });
   }
 
+  async awaitPendingInlineRequest() {
+    return pollUntil(() => {
+      const lastRequest = this.inlineRequests[this.inlineRequests.length - 1];
+      if (lastRequest && !lastRequest.defer.resolved) {
+        return lastRequest;
+      }
+      throw new Error(`no pending inline requests`);
+    });
+  }
+
+  async awaitPendingReplaceRequest() {
+    return pollUntil(() => {
+      const lastRequest = this.replaceRequests[this.replaceRequests.length - 1];
+      if (lastRequest && !lastRequest.defer.resolved) {
+        return lastRequest;
+      }
+      throw new Error(`no pending replace requests`);
+    });
+  }
+
   async respond({
     text,
     toolRequests,
@@ -94,6 +204,57 @@ export class MockProvider implements Provider {
 
     lastRequest.defer.resolve({
       toolRequests,
+      stopReason,
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+    });
+  }
+
+  async respondInline({
+    inlineEdit,
+    stopReason,
+  }: {
+    inlineEdit: Result<InlineEditToolRequest, { rawRequest: unknown }>;
+    stopReason: StopReason;
+  }) {
+    const lastRequest = await pollUntil(() => {
+      if (this.inlineRequests.length) {
+        return this.inlineRequests[this.inlineRequests.length - 1];
+      }
+      throw new Error(`no pending requests`);
+    });
+
+    lastRequest.defer.resolve({
+      inlineEdit,
+      stopReason,
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+    });
+  }
+
+  async respondReplace({
+    replaceSelection,
+    stopReason,
+  }: {
+    replaceSelection: Result<
+      ReplaceSelectionToolRequest,
+      { rawRequest: unknown }
+    >;
+    stopReason: StopReason;
+  }) {
+    const lastRequest = await pollUntil(() => {
+      if (this.replaceRequests.length) {
+        return this.replaceRequests[this.replaceRequests.length - 1];
+      }
+      throw new Error(`no pending requests`);
+    });
+
+    lastRequest.defer.resolve({
+      replaceSelection,
       stopReason,
       usage: {
         inputTokens: 0,

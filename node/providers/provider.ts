@@ -6,6 +6,8 @@ import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { OpenAIProvider } from "./openai.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { MagentaOptions } from "../options.ts";
+import type { InlineEditToolRequest } from "../inline-edit/inline-edit-tool.ts";
+import type { ReplaceSelectionToolRequest } from "../inline-edit/replace-selection-tool.ts";
 
 export const PROVIDER_NAMES = ["anthropic", "openai"] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
@@ -60,6 +62,21 @@ export interface Provider {
   createStreamParameters(messages: Array<ProviderMessage>): unknown;
   countTokens(messages: Array<ProviderMessage>): Promise<number>;
 
+  inlineEdit(messages: Array<ProviderMessage>): Promise<{
+    inlineEdit: Result<InlineEditToolRequest, { rawRequest: unknown }>;
+    stopReason: StopReason;
+    usage: Usage;
+  }>;
+
+  replaceSelection(messages: Array<ProviderMessage>): Promise<{
+    replaceSelection: Result<
+      ReplaceSelectionToolRequest,
+      { rawRequest: unknown }
+    >;
+    stopReason: StopReason;
+    usage: Usage;
+  }>;
+
   sendMessage(
     messages: Array<ProviderMessage>,
     onText: (text: string) => void,
@@ -76,7 +93,7 @@ export interface Provider {
 const clients: Partial<{ [providerName in ProviderName]: Provider }> = {};
 
 // lazy load so we have a chance to init context before constructing the class
-export function getClient(
+export function getProvider(
   nvim: Nvim,
   providerName: ProviderName,
   options: MagentaOptions,

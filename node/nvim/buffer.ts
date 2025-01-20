@@ -77,6 +77,25 @@ export class NvimBuffer {
     return lines as Line[];
   }
 
+  setText({
+    startPos,
+    endPos,
+    lines,
+  }: {
+    startPos: Position0Indexed;
+    endPos: Position0Indexed;
+    lines: Line[];
+  }): Promise<void> {
+    return this.nvim.call("nvim_buf_set_text", [
+      this.id,
+      startPos.row,
+      startPos.col,
+      endPos.row,
+      endPos.col,
+      lines,
+    ]);
+  }
+
   setMark({ mark, pos }: { mark: string; pos: Position1Indexed }) {
     return this.nvim.call("nvim_buf_set_mark", [
       this.id,

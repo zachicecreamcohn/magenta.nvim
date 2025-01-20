@@ -37,7 +37,7 @@ export async function replaceBetweenPositions({
     context.nvim.logger?.error(err.message);
     throw e;
   }
-  await buffer.setOption("modifiable", true);
+  await buffer.setOption("modifiable", false);
 }
 
 export function calculatePosition(

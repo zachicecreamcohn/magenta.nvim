@@ -1,11 +1,21 @@
 # magenta.nvim
 
+```
+   ________
+  ╱        ╲
+ ╱         ╱
+╱         ╱
+╲__╱__╱__╱
+Magenta is for agents.
+```
+
 [![video demo of the plugin](https://img.youtube.com/vi/i4YYvZwCMxM/0.jpg)](https://www.youtube.com/watch?v=i4YYvZwCMxM)
 
-magenta.nvim is a plugin for leveraging LLM agents in neovim. Think cursor-compose, cody or windsurf.
+`magenta.nvim` is a plugin for leveraging LLM agents in neovim. It provides a chat window where you can talk to your AI coding assistant, as well as tools to populate context and perform inline edits. In functionality, it's similar to cursor-compose, cody or windsurf.
 
-Rather than writing complex code to compress your repo and send it to the LLM (like a repomap, etc...), magenta is built around the idea that the LLM can ask for what it needs to via tools.
-Flagship models will continue to get better at tools use, and as this happens, the gap between tools like magenta and other agentic tools will grow smaller.
+Rather than writing complex code to compress your repo and send it to the LLM (like a repomap in aider, etc...), magenta is built around the idea that the AI agent can choose which context to gather via tools.
+
+Flagship models will continue to get better at tools use, and as this happens, the gap between tools like magenta and other editors that try to be clever about context management will grow smaller.
 
 # Installation
 
@@ -65,11 +75,25 @@ TLDR:
 - `<leader>mc` is for `:Magenta clear`, which will clear the current chat.
 - `<leader>ma` is for `:Magenta abort`, which will abort the current in-flight request.
 
+### Inline edit
+
+- `<leader>mi` is for `:Magenta start-inline-edit`, or `start-inline-edit-selection` in visual mode. This will bring up a new split where you can write a prompt to edit the current buffer. Magenta will force a find-and-replace tool use for normal mode, or force a replace tool use for the selection in visual mode.
+
+Inline edit uses your chat history so far, so a great workflow is to build up context in the chat panel, and then use it to perform inline edits in a buffer.
+
+### display buffer
+
 The display buffer is not modifiable, however you can interact with some parts of the display buffer by pressing `<CR>`. For example, you can expand the tool request and responses to see their details, and you can trigger a diff to appear on file edits.
 
 - hit enter on a [review] message to pull up the diff to try and edit init
 - hit enter on a tool to see the details of the request & result. Enter again on any part of the expanded view to collapse it.
 - hit enter on a piece of context to remove it
+
+### providers
+
+The command `:Magenta provider <provider>` will set the current provider. Currently supported values are `openai` (defaults to ChatGPT 4o) and `anthropic` (defaults to Claude Sonnet 3.5). You can also provide configuration to setup that will choose the default provider and model. [code](https://github.com/dlants/magenta.nvim/blob/main/lua/magenta/init.lua#L5)
+
+Any provider that has a node sdk and supports tool use should be easy to add. Contributions are welcome.
 
 ## tools available to the LLM
 
@@ -79,6 +103,7 @@ See the most up-to-date list of implemented tools [here](https://github.com/dlan
 - [x] list current buffers (only buffers in cwd, excluding hidden and gitignored files)
 - [x] get the contents of a file (requires user approval if not in cwd or hidden/gitignored)
 - [x] get lsp diagnostics
+- [x] get lsp references for a symbol in a buffer
 - [x] get lsp "hover" info for a symbol in a buffer
 - [x] insert or replace in a file (the user can then review the changes via neovim's [diff mode](https://neovim.io/doc/user/diff.html))
 
@@ -89,6 +114,8 @@ See the most up-to-date list of implemented tools [here](https://github.com/dlan
 - I spent a considerable amount of time figuring out a full end-to-end testing setup. Combined with typescript's async/await, it makes writing tests fairly easy and readable. The plugin is already fairly well-tested [code](https://github.com/dlants/magenta.nvim/blob/main/node/magenta.spec.ts#L8).
 - In order to use TEA, I had to build a VDOM-like system for rendering text into a buffer. This makes writing view code declarative. [code](https://github.com/dlants/magenta.nvim/blob/main/node/tea/view.ts#L141) [example defining a tool view](https://github.com/dlants/magenta.nvim/blob/main/node/tools/getFile.ts#L139)
 - we can leverage existing sdks to communicate with LLMs, and async/await to manage side-effect chains, which greatly speeds up development. For example, streaming responses was pretty easy to implement, and I think is typically one of the trickier parts of other LLM plugins. [code](https://github.com/dlants/magenta.nvim/blob/main/node/anthropic.ts#L49)
+- smart prompt caching. Pinned files only move up in the message history when they change, which means the plugin is more likely to be able to use caching. I also implemented anthropic's prompt caching [pr](https://github.com/dlants/magenta.nvim/pull/30) using an cache breakpoints.
+- I made an effort to expose the raw tool use requests and responses, as well as the stop reasons and usage info from interactions with each model. This should make debugging your workflows a lot more straightforward.
 
 # How is this different from other coding assistant plugins?
 
@@ -106,11 +133,9 @@ I think it's fairly similar. However, magenta.nvim is written in typescript and 
 
 AFAIK both avante and codecompanion roll their own tool system, so the tools are defined in-prompt, and they do the parsing of the tool use themselves. I'm instead using the providers tool capabilities, like the one in [anthropic](https://docs.anthropic.com/en/docs/build-with-claude/tool-use). In practice I think this makes the tool use a lot more robust.
 
-One feature that I don't have yet is "inline mode", but it's definitely on my roadmap and shouldn't be hard to add. [#16](https://github.com/dlants/magenta.nvim/issues/16).
-
 I'm not doing any treesitter analysis of symbols, dependencies, or repository summarization / repomap construction. As I mentioned in the intro, I'm opting instead to rely on the agent to explore the repo using the tools available to it. Right now that's occasionally worse than the repomap approach, but I think with time it will matter less and less.
 
-Another thing that's probably glaringly missing is model selection and customization of keymappings, etc... I'll probably do some of this soon.
+Another thing that's probably glaringly missing is model selection and customization of keymappings, etc... I'll probably do some of this eventually, but if you use a different picker / completion plugin, or you would like to make something configurable that is not currently, I would welcome contributions.
 
 # Contributions
 

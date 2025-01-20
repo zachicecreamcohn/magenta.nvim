@@ -9,6 +9,8 @@ import {
   type Usage,
 } from "./provider.ts";
 import type { ToolRequestId } from "../tools/toolManager.ts";
+import * as InlineEdit from "../inline-edit/inline-edit-tool.ts";
+import * as ReplaceSelection from "../inline-edit/replace-selection-tool.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { MessageStream } from "@anthropic-ai/sdk/lib/MessageStream.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
@@ -140,6 +142,268 @@ export class AnthropicProvider implements Provider {
       tools: params.tools as Anthropic.Tool[],
     });
     return res.input_tokens;
+  }
+
+  async inlineEdit(messages: Array<ProviderMessage>): Promise<{
+    inlineEdit: Result<
+      InlineEdit.InlineEditToolRequest,
+      { rawRequest: unknown }
+    >;
+    stopReason: StopReason;
+    usage: Usage;
+  }> {
+    try {
+      const params = this.createStreamParameters(messages);
+      this.request = this.client.messages.stream({
+        ...params,
+        tools: [
+          {
+            ...InlineEdit.spec,
+            input_schema: InlineEdit.spec
+              .input_schema as Anthropic.Messages.Tool.InputSchema,
+          },
+        ],
+        tool_choice: {
+          type: "tool",
+          name: InlineEdit.spec.name,
+          disable_parallel_tool_use: true,
+        },
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const response: Anthropic.Message = await this.request.finalMessage();
+
+      if (response.stop_reason === "max_tokens") {
+        throw new Error("Response exceeded max_tokens limit");
+      }
+
+      if (response.content.length != 1) {
+        throw new Error(
+          `Expected a single response but got ${response.content.length}`,
+        );
+      }
+
+      const contentBlock = response.content[0];
+
+      const inlineEdit: Result<
+        InlineEdit.InlineEditToolRequest,
+        { rawRequest: unknown }
+      > = extendError(
+        ((): Result<InlineEdit.InlineEditToolRequest> => {
+          if (contentBlock.type != "tool_use") {
+            throw new Error(
+              `Expected a tool_use response but got ${response.type}`,
+            );
+          }
+
+          if (typeof contentBlock != "object" || contentBlock == null) {
+            return { status: "error", error: "received a non-object" };
+          }
+
+          const name = (
+            contentBlock as unknown as { [key: string]: unknown } | undefined
+          )?.["name"];
+
+          if (name != "inline-edit") {
+            return {
+              status: "error",
+              error: "expected contentBlock.name to be 'inline-edit'",
+            };
+          }
+
+          const req2 = contentBlock as unknown as { [key: string]: unknown };
+
+          if (req2.type != "tool_use") {
+            return {
+              status: "error",
+              error: "expected contentBlock.type to be tool_use",
+            };
+          }
+
+          if (typeof req2.id != "string") {
+            return {
+              status: "error",
+              error: "expected contentBlock.id to be a string",
+            };
+          }
+
+          if (typeof req2.input != "object" || req2.input == null) {
+            return {
+              status: "error",
+              error: "expected contentBlock.input to be an object",
+            };
+          }
+
+          const input = InlineEdit.validateInput(
+            req2.input as { [key: string]: unknown },
+          );
+
+          if (input.status == "ok") {
+            return {
+              status: "ok",
+              value: {
+                name: "inline-edit",
+                id: req2.id as unknown as ToolRequestId,
+                input: input.value,
+              },
+            };
+          } else {
+            return input;
+          }
+        })(),
+        { rawRequest: contentBlock },
+      );
+
+      const usage: Usage = {
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      };
+      if (response.usage.cache_read_input_tokens != undefined) {
+        usage.cacheHits = response.usage.cache_read_input_tokens;
+      }
+      if (response.usage.cache_creation_input_tokens != undefined) {
+        usage.cacheMisses = response.usage.cache_creation_input_tokens;
+      }
+
+      return {
+        inlineEdit,
+        stopReason: response.stop_reason || "end_turn",
+        usage,
+      };
+    } finally {
+      this.request = undefined;
+    }
+  }
+
+  async replaceSelection(messages: Array<ProviderMessage>): Promise<{
+    replaceSelection: Result<
+      ReplaceSelection.ReplaceSelectionToolRequest,
+      { rawRequest: unknown }
+    >;
+    stopReason: StopReason;
+    usage: Usage;
+  }> {
+    try {
+      const params = this.createStreamParameters(messages);
+      this.request = this.client.messages.stream({
+        ...params,
+        tools: [
+          {
+            ...ReplaceSelection.spec,
+            input_schema: ReplaceSelection.spec
+              .input_schema as Anthropic.Messages.Tool.InputSchema,
+          },
+        ],
+        tool_choice: {
+          type: "tool",
+          name: ReplaceSelection.spec.name,
+          disable_parallel_tool_use: true,
+        },
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const response: Anthropic.Message = await this.request.finalMessage();
+
+      if (response.stop_reason === "max_tokens") {
+        throw new Error("Response exceeded max_tokens limit");
+      }
+
+      if (response.content.length != 1) {
+        throw new Error(
+          `Expected a single response but got ${response.content.length}`,
+        );
+      }
+
+      const contentBlock = response.content[0];
+
+      const replaceSelection: Result<
+        ReplaceSelection.ReplaceSelectionToolRequest,
+        { rawRequest: unknown }
+      > = extendError(
+        ((): Result<ReplaceSelection.ReplaceSelectionToolRequest> => {
+          if (contentBlock.type != "tool_use") {
+            throw new Error(
+              `Expected a tool_use response but got ${response.type}`,
+            );
+          }
+
+          if (typeof contentBlock != "object" || contentBlock == null) {
+            return { status: "error", error: "received a non-object" };
+          }
+
+          const name = (
+            contentBlock as unknown as { [key: string]: unknown } | undefined
+          )?.["name"];
+
+          if (name != ReplaceSelection.spec.name) {
+            return {
+              status: "error",
+              error: `expected contentBlock.name to be ${ReplaceSelection.spec.name}`,
+            };
+          }
+
+          const req2 = contentBlock as unknown as { [key: string]: unknown };
+
+          if (req2.type != "tool_use") {
+            return {
+              status: "error",
+              error: "expected contentBlock.type to be tool_use",
+            };
+          }
+
+          if (typeof req2.id != "string") {
+            return {
+              status: "error",
+              error: "expected contentBlock.id to be a string",
+            };
+          }
+
+          if (typeof req2.input != "object" || req2.input == null) {
+            return {
+              status: "error",
+              error: "expected contentBlock.input to be an object",
+            };
+          }
+
+          const input = ReplaceSelection.validateInput(
+            req2.input as { [key: string]: unknown },
+          );
+
+          if (input.status == "ok") {
+            return {
+              status: "ok",
+              value: {
+                name: "replace-selection",
+                id: req2.id as unknown as ToolRequestId,
+                input: input.value,
+              },
+            };
+          } else {
+            return input;
+          }
+        })(),
+        { rawRequest: contentBlock },
+      );
+
+      const usage: Usage = {
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      };
+      if (response.usage.cache_read_input_tokens != undefined) {
+        usage.cacheHits = response.usage.cache_read_input_tokens;
+      }
+      if (response.usage.cache_creation_input_tokens != undefined) {
+        usage.cacheMisses = response.usage.cache_creation_input_tokens;
+      }
+
+      return {
+        replaceSelection,
+        stopReason: response.stop_reason || "end_turn",
+        usage,
+      };
+    } finally {
+      this.request = undefined;
+    }
   }
 
   async sendMessage(
