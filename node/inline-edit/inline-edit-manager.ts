@@ -22,6 +22,7 @@ export type InlineEditState = {
   targetBufnr: BufNr;
   inputWindowId: WindowId;
   inputBufnr: BufNr;
+  cursor: Position1Indexed;
   selection?:
     | {
         startPos: Position1Indexed;
@@ -72,6 +73,8 @@ export class InlineEditManager {
     if (this.inlineEdits[targetBufnr]) {
       return;
     }
+    const targetBuffer = new NvimBuffer(targetBufnr, this.nvim);
+    const cursor = await targetWindow.getCursor();
 
     const inputBuffer = await NvimBuffer.create(false, true, this.nvim);
     await inputBuffer.setOption("bufhidden", "wipe");
@@ -104,7 +107,6 @@ export class InlineEditManager {
 
     let selectionWithText: InlineEditState["selection"];
     if (selection) {
-      const targetBuffer = new NvimBuffer(targetBufnr, this.nvim);
       selectionWithText = {
         ...selection,
         text: (
@@ -124,6 +126,7 @@ export class InlineEditManager {
       targetBufnr,
       inputWindowId: inlineInputWindowId,
       inputBufnr: inputBuffer.id,
+      cursor,
       selection: selectionWithText,
       app: TEA.createApp<InlineEdit.Model, InlineEdit.Msg>({
         nvim: this.nvim,
@@ -145,7 +148,8 @@ export class InlineEditManager {
       return;
     }
 
-    const { inputBufnr, selection, app } = this.inlineEdits[targetBufnr];
+    const { inputBufnr, selection, cursor, app } =
+      this.inlineEdits[targetBufnr];
 
     app.dispatch({
       type: "update-model",
@@ -193,6 +197,8 @@ I am working in file \`${path.relative(cwd, bufferName)}\` with the following co
 \`\`\`${getMarkdownExt(bufferName)}
 ${targetLines.join("\n")}
 \`\`\`
+
+My cursor is on line ${cursor.row - 1}: ${targetLines[cursor.row - 1]}
 
 ${inputLines.join("\n")}`,
       });
