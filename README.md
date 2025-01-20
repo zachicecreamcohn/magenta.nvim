@@ -1,11 +1,21 @@
 # magenta.nvim
 
+```
+   ________
+  ╱        ╲
+ ╱         ╱
+╱         ╱
+╲__╱__╱__╱
+Magenta is for agents.
+```
+
 [![video demo of the plugin](https://img.youtube.com/vi/i4YYvZwCMxM/0.jpg)](https://www.youtube.com/watch?v=i4YYvZwCMxM)
 
-magenta.nvim is a plugin for leveraging LLM agents in neovim. Think cursor-compose, cody or windsurf.
+`magenta.nvim` is a plugin for leveraging LLM agents in neovim. It provides a chat window where you can talk to your AI coding assistant, as well as tools to populate context and perform inline edits. In functionality, it's similar to cursor-compose, cody or windsurf.
 
-Rather than writing complex code to compress your repo and send it to the LLM (like a repomap, etc...), magenta is built around the idea that the LLM can ask for what it needs to via tools.
-Flagship models will continue to get better at tools use, and as this happens, the gap between tools like magenta and other agentic tools will grow smaller.
+Rather than writing complex code to compress your repo and send it to the LLM (like a repomap in aider, etc...), magenta is built around the idea that the AI agent can choose which context to gather via tools.
+
+Flagship models will continue to get better at tools use, and as this happens, the gap between tools like magenta and other editors that try to be clever about context management will grow smaller.
 
 # Installation
 
@@ -69,11 +79,21 @@ TLDR:
 
 - `<leader>mi` is for `:Magenta start-inline-edit`, or `start-inline-edit-selection` in visual mode. This will bring up a new split where you can write a prompt to edit the current buffer. Magenta will force a find-and-replace tool use for normal mode, or force a replace tool use for the selection in visual mode.
 
+Inline edit uses your chat history so far, so a great workflow is to build up context in the chat panel, and then use it to perform inline edits in a buffer.
+
+### display buffer
+
 The display buffer is not modifiable, however you can interact with some parts of the display buffer by pressing `<CR>`. For example, you can expand the tool request and responses to see their details, and you can trigger a diff to appear on file edits.
 
 - hit enter on a [review] message to pull up the diff to try and edit init
 - hit enter on a tool to see the details of the request & result. Enter again on any part of the expanded view to collapse it.
 - hit enter on a piece of context to remove it
+
+### providers
+
+The command `:Magenta provider <provider>` will set the current provider. Currently supported values are `openai` (defaults to ChatGPT 4o) and `anthropic` (defaults to Claude Sonnet 3.5). You can also provide configuration to setup that will choose the default provider and model. [code](https://github.com/dlants/magenta.nvim/blob/main/lua/magenta/init.lua#L5)
+
+Any provider that has a node sdk and supports tool use should be easy to add. Contributions are welcome.
 
 ## tools available to the LLM
 
@@ -83,6 +103,7 @@ See the most up-to-date list of implemented tools [here](https://github.com/dlan
 - [x] list current buffers (only buffers in cwd, excluding hidden and gitignored files)
 - [x] get the contents of a file (requires user approval if not in cwd or hidden/gitignored)
 - [x] get lsp diagnostics
+- [x] get lsp references for a symbol in a buffer
 - [x] get lsp "hover" info for a symbol in a buffer
 - [x] insert or replace in a file (the user can then review the changes via neovim's [diff mode](https://neovim.io/doc/user/diff.html))
 
