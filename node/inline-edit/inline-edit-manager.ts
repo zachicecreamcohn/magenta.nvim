@@ -2,7 +2,10 @@ import type { Nvim } from "nvim-node";
 import { NvimBuffer, type BufNr, type Line } from "../nvim/buffer";
 import {
   NvimWindow,
+  pos1to0,
+  type ByteIdx,
   type Position0Indexed,
+  type Position1Indexed,
   type WindowId,
 } from "../nvim/window";
 import { getCurrentWindow, getcwd } from "../nvim/nvim";
@@ -14,16 +17,25 @@ import { getMarkdownExt } from "../utils/markdown";
 
 export type InlineEditId = number & { __inlineEdit: true };
 
+export type InlineEditState = {
+  targetWindowId: WindowId;
+  targetBufnr: BufNr;
+  inputWindowId: WindowId;
+  inputBufnr: BufNr;
+  selection?:
+    | {
+        startPos: Position1Indexed;
+        endPos: Position1Indexed;
+        text: string;
+      }
+    | undefined;
+  app: TEA.App<InlineEdit.Msg, InlineEdit.Model>;
+};
+
 export class InlineEditManager {
   private nvim: Nvim;
   private inlineEdits: {
-    [bufnr: BufNr]: {
-      targetWindowId: WindowId;
-      targetBufnr: BufNr;
-      inputWindowId: WindowId;
-      inputBufnr: BufNr;
-      app: TEA.App<InlineEdit.Msg, InlineEdit.Model>;
-    };
+    [bufnr: BufNr]: InlineEditState;
   } = {};
 
   constructor({ nvim }: { nvim: Nvim }) {
@@ -42,7 +54,10 @@ export class InlineEditManager {
     );
   }
 
-  async initInlineEdit() {
+  async initInlineEdit(selection?: {
+    startPos: Position1Indexed;
+    endPos: Position1Indexed;
+  }) {
     const targetWindow = await getCurrentWindow(this.nvim);
     const isMagentaWindow = await targetWindow.getVar("magenta");
 
@@ -87,11 +102,29 @@ export class InlineEditManager {
       opts: { silent: true, noremap: true },
     });
 
+    let selectionWithText: InlineEditState["selection"];
+    if (selection) {
+      const targetBuffer = new NvimBuffer(targetBufnr, this.nvim);
+      selectionWithText = {
+        ...selection,
+        text: (
+          await targetBuffer.getText({
+            startPos: pos1to0({
+              row: selection.startPos.row,
+              col: Math.max(0, selection.startPos.col - 1) as ByteIdx,
+            }),
+            endPos: pos1to0(selection.endPos),
+          })
+        ).join("\n"),
+      };
+    }
+
     this.inlineEdits[targetBufnr] = {
       targetWindowId: targetWindow.id,
       targetBufnr,
       inputWindowId: inlineInputWindowId,
       inputBufnr: inputBuffer.id,
+      selection: selectionWithText,
       app: TEA.createApp<InlineEdit.Model, InlineEdit.Msg>({
         nvim: this.nvim,
         initialModel: InlineEdit.initModel(),
@@ -112,7 +145,7 @@ export class InlineEditManager {
       return;
     }
 
-    const { inputBufnr, app } = this.inlineEdits[targetBufnr];
+    const { inputBufnr, selection, app } = this.inlineEdits[targetBufnr];
 
     app.dispatch({
       type: "update-model",
@@ -135,17 +168,35 @@ export class InlineEditManager {
     const cwd = await getcwd(this.nvim);
 
     // TODO: do not include buffer content if it's already in the context manager.
-    // TODO: support selection / position within the buffer for additional context.
-    messages.push({
-      role: "user",
-      content: `\
+
+    if (selection) {
+      messages.push({
+        role: "user",
+        content: `\
+I am working in file \`${path.relative(cwd, bufferName)}\` with the following contents:
+\`\`\`${getMarkdownExt(bufferName)}
+${targetLines.join("\n")}
+\`\`\`
+
+I have the following text selected on line ${selection.startPos.row - 1}:
+\`\`\`
+${selection.text}
+\`\`\`
+
+${inputLines.join("\n")}`,
+      });
+    } else {
+      messages.push({
+        role: "user",
+        content: `\
 I am working in file \`${path.relative(cwd, bufferName)}\` with the following contents:
 \`\`\`${getMarkdownExt(bufferName)}
 ${targetLines.join("\n")}
 \`\`\`
 
 ${inputLines.join("\n")}`,
-    });
+      });
+    }
 
     await inputBuffer.setOption("modifiable", false);
     await app.mount({

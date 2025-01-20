@@ -61,6 +61,13 @@ export class NvimDriver {
     return this.magenta.command(`start-inline-edit ${currentBuffer.id}`);
   }
 
+  async startInlineEditWithSelection() {
+    const currentBuffer = await getCurrentBuffer(this.nvim);
+    return this.magenta.command(
+      `start-inline-edit-selection ${currentBuffer.id}`,
+    );
+  }
+
   async submitInlineEdit(bufnr: BufNr) {
     return this.magenta.command(`submit-inline-edit ${bufnr}`);
   }

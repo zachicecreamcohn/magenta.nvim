@@ -196,6 +196,16 @@ ${lines.join("\n")}
         break;
       }
 
+      case "start-inline-edit-selection": {
+        const [startPos, endPos] = await Promise.all([
+          getpos(this.nvim, "'<"),
+          getpos(this.nvim, "'>"),
+        ]);
+
+        await this.inlineEditManager.initInlineEdit({ startPos, endPos });
+        break;
+      }
+
       case "start-inline-edit": {
         await this.inlineEditManager.initInlineEdit();
         break;
