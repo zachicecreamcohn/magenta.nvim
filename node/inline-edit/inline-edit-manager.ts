@@ -56,11 +56,12 @@ export class InlineEditManager {
       return;
     }
 
-    const scratchBuffer = await NvimBuffer.create(false, true, this.nvim);
-    await scratchBuffer.setOption("bufhidden", "wipe");
+    const inputBuffer = await NvimBuffer.create(false, true, this.nvim);
+    await inputBuffer.setOption("bufhidden", "wipe");
+    await inputBuffer.setOption("filetype", "markdown");
 
     const inlineInputWindowId = (await this.nvim.call("nvim_open_win", [
-      scratchBuffer.id,
+      inputBuffer.id,
       true, // enter the input window
       {
         win: targetWindow.id, // split inside current window
@@ -70,8 +71,14 @@ export class InlineEditManager {
       },
     ])) as WindowId;
 
+    const inlineInputWindow = new NvimWindow(inlineInputWindowId, this.nvim);
+    await inlineInputWindow.setOption("winbar", "Magenta Inline Prompt");
+
+    // Enter insert mode
+    await this.nvim.call("nvim_exec2", ["startinsert", {}]);
+
     // Set up <CR> mapping in normal mode
-    await scratchBuffer.setKeymap({
+    await inputBuffer.setKeymap({
       mode: "n",
       lhs: "<CR>",
       rhs: `:Magenta submit-inline-edit ${targetBufnr}<CR>`,
@@ -82,7 +89,7 @@ export class InlineEditManager {
       targetWindowId: targetWindow.id,
       targetBufnr,
       inputWindowId: inlineInputWindowId,
-      inputBufnr: scratchBuffer.id,
+      inputBufnr: inputBuffer.id,
       app: TEA.createApp<InlineEdit.Model, InlineEdit.Msg>({
         nvim: this.nvim,
         initialModel: InlineEdit.initModel(),
