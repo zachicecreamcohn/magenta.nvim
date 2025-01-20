@@ -53,7 +53,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
 
       case "malformed-tool-request":
         return d`Malformed tool request: ${model.error}
-${JSON.stringify(model.rawRequest, null, 2)}`;
+${JSON.stringify(model.rawRequest, null, 2) || "undefined"}`;
 
       case "tool-request": {
         const toolModel = toolManager.toolWrappers[model.requestId];

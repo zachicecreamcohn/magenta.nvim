@@ -62,6 +62,42 @@ export class MockProvider implements Provider {
         });
       }
     }
+
+    if (this.inlineRequests.length) {
+      const lastRequest = this.inlineRequests[this.inlineRequests.length - 1];
+      if (!lastRequest.defer.resolved) {
+        lastRequest.defer.resolve({
+          inlineEdit: {
+            status: "error",
+            error: "aborted",
+            rawRequest: undefined,
+          },
+          stopReason: "end_turn",
+          usage: {
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        });
+      }
+    }
+
+    if (this.replaceRequests.length) {
+      const lastRequest = this.replaceRequests[this.replaceRequests.length - 1];
+      if (!lastRequest.defer.resolved) {
+        lastRequest.defer.resolve({
+          replaceSelection: {
+            status: "error",
+            error: "aborted",
+            rawRequest: undefined,
+          },
+          stopReason: "end_turn",
+          usage: {
+            inputTokens: 0,
+            outputTokens: 0,
+          },
+        });
+      }
+    }
   }
 
   createStreamParameters(messages: Array<ProviderMessage>): unknown {

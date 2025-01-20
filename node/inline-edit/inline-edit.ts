@@ -60,7 +60,7 @@ export const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
     case "tool-use":
       switch (model.edit.status) {
         case "error":
-          return d`Error: ${model.edit.error}, rawRequest: ${JSON.stringify(model.edit.rawRequest, null, 2)}`;
+          return d`Error: ${model.edit.error}, rawRequest: ${JSON.stringify(model.edit.rawRequest, null, 2) || "undefined"}`;
         case "ok":
           return d`Got tool use: ${JSON.stringify(model.edit.value, null, 2)}`;
         default:

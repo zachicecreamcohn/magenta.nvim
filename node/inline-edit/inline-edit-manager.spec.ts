@@ -131,4 +131,35 @@ Silver shadows dance with ease.
       expect(request.messages).toMatchSnapshot();
     });
   });
+
+  it("abort command should work", async () => {
+    await withDriver(async (driver) => {
+      await driver.editFile("node/test/fixtures/poem.txt");
+      const targetBuffer = await getCurrentBuffer(driver.nvim);
+
+      // Select a range of text
+      await driver.selectRange(
+        { row: 1, col: 0 } as Position0Indexed,
+        { row: 1, col: 32 } as Position0Indexed,
+      );
+
+      await driver.startInlineEditWithSelection();
+      await driver.assertWindowCount(2);
+
+      const inputBuffer = await getCurrentBuffer(driver.nvim);
+      await inputBuffer.setLines({
+        start: 0,
+        end: -1,
+        lines: ["Please change 'Silver' to 'Golden'"] as Line[],
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      driver.submitInlineEdit(targetBuffer.id);
+      const request = await driver.mockAnthropic.awaitPendingReplaceRequest();
+      expect(request.defer.resolved).toBe(false);
+
+      await driver.abort();
+      expect(request.defer.resolved).toBe(true);
+    });
+  });
 });

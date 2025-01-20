@@ -148,9 +148,23 @@ export class Magenta {
         this.chatApp.dispatch({ type: "clear" });
         break;
 
-      case "abort":
-        this.chatApp.dispatch({ type: "abort" });
+      case "abort": {
+        const chat = this.chatApp.getState();
+        if (chat.status !== "running") {
+          this.nvim.logger?.error(`Chat is not running.`);
+          return;
+        }
+
+        const provider = getProvider(
+          this.nvim,
+          chat.model.activeProvider,
+          chat.model.options,
+        );
+
+        provider.abort();
+
         break;
+      }
 
       case "paste-selection": {
         const [startPos, endPos, cwd, currentBuffer] = await Promise.all([
@@ -231,6 +245,7 @@ ${lines.join("\n")}
           chat.model.activeProvider,
           chat.model.options,
         );
+
         const messages = await this.chatModel.getMessages(chat.model);
         await this.inlineEditManager.submitInlineEdit(
           bufnr,
@@ -272,6 +287,7 @@ ${lines.join("\n")}
       this.mountedChatApp.unmount();
       this.mountedChatApp = undefined;
     }
+    this.inlineEditManager.destroy();
   }
 
   static async start(nvim: Nvim) {

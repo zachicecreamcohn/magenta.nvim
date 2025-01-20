@@ -55,6 +55,13 @@ export class InlineEditManager {
     );
   }
 
+  destroy() {
+    Object.entries(this.inlineEdits).map(([bufnr, edit]) => {
+      delete this.inlineEdits[bufnr as unknown as BufNr];
+      edit.app.destroy();
+    });
+  }
+
   async initInlineEdit(selection?: {
     startPos: Position1Indexed;
     endPos: Position1Indexed;
@@ -349,4 +356,6 @@ ${input.find}
       });
     }
   }
+
+  abort() {}
 }

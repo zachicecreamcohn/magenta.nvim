@@ -95,9 +95,6 @@ export type Msg =
       type: "clear";
     }
   | {
-      type: "abort";
-    }
-  | {
       type: "tool-manager-msg";
       msg: ToolManager.Msg;
     }
@@ -418,16 +415,6 @@ ${msg.error.stack}`,
 
       case "clear": {
         return [initModel()];
-      }
-
-      case "abort": {
-        return [
-          model,
-          // eslint-disable-next-line @typescript-eslint/require-await
-          async () => {
-            getProvider(nvim, model.activeProvider, model.options).abort();
-          },
-        ];
       }
 
       case "set-opts": {
