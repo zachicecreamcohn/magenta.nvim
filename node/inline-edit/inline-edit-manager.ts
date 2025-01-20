@@ -145,6 +145,7 @@ export class InlineEditManager {
       ${inputLines.join("\n")}`,
     });
 
+    await inputBuffer.setOption("modifiable", false);
     await app.mount({
       nvim: this.nvim,
       buffer: inputBuffer,

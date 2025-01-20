@@ -101,6 +101,16 @@ export class MockProvider implements Provider {
     });
   }
 
+  async awaitPendingInlineRequest() {
+    return pollUntil(() => {
+      const lastRequest = this.inlineRequests[this.inlineRequests.length - 1];
+      if (lastRequest && !lastRequest.defer.resolved) {
+        return lastRequest;
+      }
+      throw new Error(`no pending inline requests`);
+    });
+  }
+
   async respond({
     text,
     toolRequests,
@@ -118,6 +128,30 @@ export class MockProvider implements Provider {
 
     lastRequest.defer.resolve({
       toolRequests,
+      stopReason,
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+    });
+  }
+
+  async respondInline({
+    inlineEdit,
+    stopReason,
+  }: {
+    inlineEdit: Result<InlineEditToolRequest, { rawRequest: unknown }>;
+    stopReason: StopReason;
+  }) {
+    const lastRequest = await pollUntil(() => {
+      if (this.inlineRequests.length) {
+        return this.inlineRequests[this.inlineRequests.length - 1];
+      }
+      throw new Error(`no pending requests`);
+    });
+
+    lastRequest.defer.resolve({
+      inlineEdit,
       stopReason,
       usage: {
         inputTokens: 0,

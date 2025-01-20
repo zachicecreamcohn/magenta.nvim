@@ -1,6 +1,6 @@
 import { type Nvim } from "nvim-node";
 import type { Magenta } from "../magenta";
-import type { Line } from "../nvim/buffer";
+import type { BufNr, Line, NvimBuffer } from "../nvim/buffer";
 import type { MockProvider } from "../providers/mock";
 import {
   NvimWindow,
@@ -11,7 +11,11 @@ import {
 import { pollUntil } from "../utils/async";
 import { calculatePosition } from "../tea/util";
 import type { BindingKey } from "../tea/bindings";
-import { getAllWindows, getCurrentWindow } from "../nvim/nvim";
+import {
+  getAllWindows,
+  getCurrentBuffer,
+  getCurrentWindow,
+} from "../nvim/nvim";
 import { expect } from "vitest";
 
 export class NvimDriver {
@@ -50,6 +54,15 @@ export class NvimDriver {
 
   abort() {
     return this.magenta.command("abort");
+  }
+
+  async startInlineEdit() {
+    const currentBuffer = await getCurrentBuffer(this.nvim);
+    return this.magenta.command(`start-inline-edit ${currentBuffer.id}`);
+  }
+
+  async submitInlineEdit(bufnr: BufNr) {
+    return this.magenta.command(`submit-inline-edit ${bufnr}`);
   }
 
   pasteSelection() {
@@ -123,6 +136,29 @@ export class NvimDriver {
     return pollUntil(async () => {
       const inputBuffer = this.getInputBuffer();
       const lines = await inputBuffer.getLines({ start: 0, end: -1 });
+      const content = lines.slice(start).join("\n");
+      const index = Buffer.from(content).indexOf(text) as ByteIdx;
+      if (index == -1) {
+        throw new Error(
+          `Unable to find text:\n"${text}"\nafter line ${start} in inputBuffer.\ninputBuffer content:\n${content}`,
+        );
+      }
+
+      return calculatePosition(
+        { row: start, col: 0 } as Position0Indexed,
+        Buffer.from(content),
+        index,
+      );
+    });
+  }
+
+  async assertBufferContains(
+    buffer: NvimBuffer,
+    text: string,
+    start: number = 0,
+  ): Promise<Position0Indexed> {
+    return pollUntil(async () => {
+      const lines = await buffer.getLines({ start: 0, end: -1 });
       const content = lines.slice(start).join("\n");
       const index = Buffer.from(content).indexOf(text) as ByteIdx;
       if (index == -1) {
