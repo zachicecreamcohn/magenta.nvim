@@ -1,6 +1,10 @@
 import type { Nvim } from "nvim-node";
 import { NvimBuffer, type BufNr, type Line } from "../nvim/buffer";
-import type { Position0Indexed, WindowId } from "../nvim/window";
+import {
+  NvimWindow,
+  type Position0Indexed,
+  type WindowId,
+} from "../nvim/window";
 import { getCurrentWindow } from "../nvim/nvim";
 import * as TEA from "../tea/tea";
 import * as InlineEdit from "./inline-edit";
@@ -22,6 +26,18 @@ export class InlineEditManager {
 
   constructor({ nvim }: { nvim: Nvim }) {
     this.nvim = nvim;
+  }
+
+  onWinClosed() {
+    return Promise.all(
+      Object.entries(this.inlineEdits).map(async ([bufnr, edit]) => {
+        const window = new NvimWindow(edit.inputWindowId, this.nvim);
+        if (!(await window.valid())) {
+          delete this.inlineEdits[bufnr as unknown as BufNr];
+          edit.app.destroy();
+        }
+      }),
+    );
   }
 
   async initInlineEdit() {
@@ -175,10 +191,11 @@ export class InlineEditManager {
         type: "update-model",
         next: {
           state: "error",
-          error: `Unable to find text in buffer:
-          \`\`\`
-        ${input.find}
-        \`\`\``,
+          error: `\
+Unable to find text in buffer:
+\`\`\`
+${input.find}
+\`\`\``,
         },
       });
       return;

@@ -251,7 +251,10 @@ ${lines.join("\n")}
   }
 
   async onWinClosed() {
-    await this.sidebar.onWinClosed();
+    await Promise.all([
+      this.sidebar.onWinClosed(),
+      this.inlineEditManager.onWinClosed(),
+    ]);
   }
 
   destroy() {
