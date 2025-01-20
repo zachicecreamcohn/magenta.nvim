@@ -40,7 +40,7 @@ M.setup = function(opts)
     {silent = true, noremap = true, desc = "Inline edit"}
   )
   vim.api.nvim_set_keymap(
-    "b",
+    "v",
     "<leader>mi",
     ":Magenta start-inline-edit-selection<CR>",
     {silent = true, noremap = true, desc = "Inline edit selection"}

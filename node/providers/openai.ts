@@ -13,8 +13,8 @@ import type { Nvim } from "nvim-node";
 import type { Stream } from "openai/streaming.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
 import tiktoken from "tiktoken";
-import type { InlineEditToolRequest } from "../inline-edit/inline-edit-tool.ts";
-import type { ReplaceSelectionToolRequest } from "../inline-edit/replace-selection-tool.ts";
+import * as InlineEdit from "../inline-edit/inline-edit-tool.ts";
+import * as ReplaceSelection from "../inline-edit/replace-selection-tool.ts";
 
 export type OpenAIOptions = {
   model: "gpt-4o";
@@ -190,41 +190,292 @@ export class OpenAIProvider implements Provider {
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
-  async inlineEdit(_messages: Array<ProviderMessage>): Promise<{
-    inlineEdit: Result<InlineEditToolRequest, { rawRequest: unknown }>;
-    stopReason: StopReason;
-    usage: Usage;
-  }> {
-    return {
-      inlineEdit: {
-        status: "error",
-        error: "not implemented",
-        rawRequest: undefined,
-      },
-      stopReason: "end_turn",
-      usage: { inputTokens: 0, outputTokens: 0 },
-    };
-  }
-
-  // eslint-disable-next-line @typescript-eslint/require-await
-  async replaceSelection(_messages: Array<ProviderMessage>): Promise<{
-    replaceSelection: Result<
-      ReplaceSelectionToolRequest,
+  async inlineEdit(messages: Array<ProviderMessage>): Promise<{
+    inlineEdit: Result<
+      InlineEdit.InlineEditToolRequest,
       { rawRequest: unknown }
     >;
     stopReason: StopReason;
     usage: Usage;
   }> {
-    return {
-      replaceSelection: {
-        status: "error",
-        error: "not implemented",
-        rawRequest: undefined,
-      },
-      stopReason: "end_turn",
-      usage: { inputTokens: 0, outputTokens: 0 },
-    };
+    try {
+      const params = this.createStreamParameters(messages);
+      const stream = (this.request = await this.client.chat.completions.create({
+        ...params,
+        tool_choice: {
+          type: "function",
+          function: {
+            name: InlineEdit.spec.name,
+          },
+        },
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: InlineEdit.spec.name,
+              description: InlineEdit.spec.description,
+              strict: true,
+              parameters: InlineEdit.spec
+                .input_schema as OpenAI.FunctionParameters,
+            },
+          },
+        ],
+      }));
+
+      let lastChunk: OpenAI.ChatCompletionChunk | undefined;
+      let stopReason: StopReason | undefined;
+      const aggregatedToolCall: {
+        id?: string;
+        function?: { name?: string; arguments?: string };
+      } = {};
+
+      for await (const chunk of stream) {
+        lastChunk = chunk;
+        const choice = chunk.choices[0];
+        if (choice.delta.tool_calls?.[0]) {
+          const toolCall = choice.delta.tool_calls[0];
+          if (toolCall.id) aggregatedToolCall.id = toolCall.id;
+          if (toolCall.function) {
+            if (!aggregatedToolCall.function) aggregatedToolCall.function = {};
+            if (toolCall.function.name)
+              aggregatedToolCall.function.name = toolCall.function.name;
+            if (toolCall.function.arguments)
+              aggregatedToolCall.function.arguments =
+                (aggregatedToolCall.function.arguments || "") +
+                toolCall.function.arguments;
+          }
+        }
+
+        if (choice.finish_reason) {
+          switch (choice.finish_reason) {
+            case "function_call":
+            case "tool_calls":
+              stopReason = "tool_use";
+              break;
+            case "length":
+              stopReason = "max_tokens";
+              break;
+            case "stop":
+              stopReason = "end_turn";
+              break;
+            case "content_filter":
+              stopReason = "content";
+              break;
+            default:
+              assertUnreachable(choice.finish_reason);
+          }
+        }
+      }
+
+      if (!aggregatedToolCall.function || !lastChunk) {
+        throw new Error("No tool call received in response");
+      }
+
+      const inlineEdit = extendError(
+        ((): Result<InlineEdit.InlineEditToolRequest> => {
+          if (!aggregatedToolCall || typeof aggregatedToolCall !== "object") {
+            return { status: "error", error: "received a non-object" };
+          }
+
+          if (aggregatedToolCall.function?.name !== InlineEdit.spec.name) {
+            return {
+              status: "error",
+              error: "expected function name to be 'inline-edit'",
+            };
+          }
+
+          if (typeof aggregatedToolCall.id !== "string") {
+            return {
+              status: "error",
+              error: "expected tool_call_id to be a string",
+            };
+          }
+
+          const input = InlineEdit.validateInput(
+            JSON.parse(aggregatedToolCall.function?.arguments || "{}") as {
+              [key: string]: unknown;
+            },
+          );
+
+          if (input.status === "ok") {
+            return {
+              status: "ok",
+              value: {
+                name: "inline-edit",
+                id: aggregatedToolCall.id as unknown as ToolRequestId,
+                input: input.value,
+              },
+            };
+          } else {
+            return input;
+          }
+        })(),
+        { rawRequest: aggregatedToolCall },
+      );
+
+      const usage: Usage = lastChunk.usage
+        ? {
+            inputTokens: lastChunk.usage.prompt_tokens,
+            outputTokens: lastChunk.usage.completion_tokens,
+          }
+        : {
+            inputTokens: 0,
+            outputTokens: 0,
+          };
+
+      return {
+        inlineEdit,
+        stopReason: stopReason || "end_turn",
+        usage,
+      };
+    } finally {
+      this.request = undefined;
+    }
+  }
+
+  async replaceSelection(messages: Array<ProviderMessage>): Promise<{
+    replaceSelection: Result<
+      ReplaceSelection.ReplaceSelectionToolRequest,
+      { rawRequest: unknown }
+    >;
+    stopReason: StopReason;
+    usage: Usage;
+  }> {
+    try {
+      const params = this.createStreamParameters(messages);
+      const stream = (this.request = await this.client.chat.completions.create({
+        ...params,
+        tool_choice: {
+          type: "function",
+          function: {
+            name: ReplaceSelection.spec.name,
+          },
+        },
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: ReplaceSelection.spec.name,
+              description: ReplaceSelection.spec.description,
+              strict: true,
+              parameters: ReplaceSelection.spec
+                .input_schema as OpenAI.FunctionParameters,
+            },
+          },
+        ],
+      }));
+
+      let lastChunk: OpenAI.ChatCompletionChunk | undefined;
+      let stopReason: StopReason | undefined;
+      const aggregatedToolCall: {
+        id?: string;
+        function?: { name?: string; arguments?: string };
+      } = {};
+
+      for await (const chunk of stream) {
+        lastChunk = chunk;
+        const choice = chunk.choices[0];
+        if (choice.delta.tool_calls?.[0]) {
+          const toolCall = choice.delta.tool_calls[0];
+          if (toolCall.id) aggregatedToolCall.id = toolCall.id;
+          if (toolCall.function) {
+            if (!aggregatedToolCall.function) aggregatedToolCall.function = {};
+            if (toolCall.function.name)
+              aggregatedToolCall.function.name = toolCall.function.name;
+            if (toolCall.function.arguments)
+              aggregatedToolCall.function.arguments =
+                (aggregatedToolCall.function.arguments || "") +
+                toolCall.function.arguments;
+          }
+        }
+
+        if (choice.finish_reason) {
+          switch (choice.finish_reason) {
+            case "function_call":
+            case "tool_calls":
+              stopReason = "tool_use";
+              break;
+            case "length":
+              stopReason = "max_tokens";
+              break;
+            case "stop":
+              stopReason = "end_turn";
+              break;
+            case "content_filter":
+              stopReason = "content";
+              break;
+            default:
+              assertUnreachable(choice.finish_reason);
+          }
+        }
+      }
+
+      if (!aggregatedToolCall.function || !lastChunk) {
+        throw new Error("No tool call received in response");
+      }
+
+      const replaceSelection = extendError(
+        ((): Result<ReplaceSelection.ReplaceSelectionToolRequest> => {
+          if (!aggregatedToolCall || typeof aggregatedToolCall !== "object") {
+            return { status: "error", error: "received a non-object" };
+          }
+
+          if (
+            aggregatedToolCall.function?.name !== ReplaceSelection.spec.name
+          ) {
+            return {
+              status: "error",
+              error: `expected function name to be '${ReplaceSelection.spec.name}'`,
+            };
+          }
+
+          if (typeof aggregatedToolCall.id !== "string") {
+            return {
+              status: "error",
+              error: "expected tool_call_id to be a string",
+            };
+          }
+
+          const input = ReplaceSelection.validateInput(
+            JSON.parse(aggregatedToolCall.function?.arguments || "{}") as {
+              [key: string]: unknown;
+            },
+          );
+
+          if (input.status === "ok") {
+            return {
+              status: "ok",
+              value: {
+                name: "replace-selection",
+                id: aggregatedToolCall.id as unknown as ToolRequestId,
+                input: input.value,
+              },
+            };
+          } else {
+            return input;
+          }
+        })(),
+        { rawRequest: aggregatedToolCall },
+      );
+
+      const usage: Usage = lastChunk.usage
+        ? {
+            inputTokens: lastChunk.usage.prompt_tokens,
+            outputTokens: lastChunk.usage.completion_tokens,
+          }
+        : {
+            inputTokens: 0,
+            outputTokens: 0,
+          };
+
+      return {
+        replaceSelection,
+        stopReason: stopReason || "end_turn",
+        usage,
+      };
+    } finally {
+      this.request = undefined;
+    }
   }
 
   async sendMessage(
