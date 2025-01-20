@@ -65,6 +65,10 @@ TLDR:
 - `<leader>mc` is for `:Magenta clear`, which will clear the current chat.
 - `<leader>ma` is for `:Magenta abort`, which will abort the current in-flight request.
 
+### Inline edit
+
+- `<leader>mi` is for `:Magenta start-inline-edit`, or `start-inline-edit-selection` in visual mode. This will bring up a new split where you can write a prompt to edit the current buffer. Magenta will force a find-and-replace tool use for normal mode, or force a replace tool use for the selection in visual mode.
+
 The display buffer is not modifiable, however you can interact with some parts of the display buffer by pressing `<CR>`. For example, you can expand the tool request and responses to see their details, and you can trigger a diff to appear on file edits.
 
 - hit enter on a [review] message to pull up the diff to try and edit init
@@ -105,8 +109,6 @@ I think it's fairly similar. However, magenta.nvim is written in typescript and 
 ## compared to both:
 
 AFAIK both avante and codecompanion roll their own tool system, so the tools are defined in-prompt, and they do the parsing of the tool use themselves. I'm instead using the providers tool capabilities, like the one in [anthropic](https://docs.anthropic.com/en/docs/build-with-claude/tool-use). In practice I think this makes the tool use a lot more robust.
-
-One feature that I don't have yet is "inline mode", but it's definitely on my roadmap and shouldn't be hard to add. [#16](https://github.com/dlants/magenta.nvim/issues/16).
 
 I'm not doing any treesitter analysis of symbols, dependencies, or repository summarization / repomap construction. As I mentioned in the intro, I'm opting instead to rely on the agent to explore the repo using the tools available to it. Right now that's occasionally worse than the repomap approach, but I think with time it will matter less and less.
 
