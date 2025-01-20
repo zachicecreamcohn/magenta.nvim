@@ -5,10 +5,12 @@ import {
   type Position0Indexed,
   type WindowId,
 } from "../nvim/window";
-import { getCurrentWindow } from "../nvim/nvim";
+import { getCurrentWindow, getcwd } from "../nvim/nvim";
 import * as TEA from "../tea/tea";
 import * as InlineEdit from "./inline-edit";
 import type { Provider, ProviderMessage } from "../providers/provider";
+import path from "node:path";
+import { getMarkdownExt } from "../utils/markdown";
 
 export type InlineEditId = number & { __inlineEdit: true };
 
@@ -130,19 +132,19 @@ export class InlineEditManager {
       end: -1,
     });
     const bufferName = await targetBuffer.getName();
-    const ft = (await targetBuffer.getOption("filetype")) as string;
+    const cwd = await getcwd(this.nvim);
 
     // TODO: do not include buffer content if it's already in the context manager.
     // TODO: support selection / position within the buffer for additional context.
     messages.push({
       role: "user",
       content: `\
-        I am working in buffer \`${bufferName}\` with the following contents:
-        \`\`\`${ft}
-      ${targetLines.join("\n")}
-      \`\`\`
+I am working in file \`${path.relative(cwd, bufferName)}\` with the following contents:
+\`\`\`${getMarkdownExt(bufferName)}
+${targetLines.join("\n")}
+\`\`\`
 
-      ${inputLines.join("\n")}`,
+${inputLines.join("\n")}`,
     });
 
     await inputBuffer.setOption("modifiable", false);
@@ -151,11 +153,6 @@ export class InlineEditManager {
       buffer: inputBuffer,
       startPos: { row: 0, col: 0 } as Position0Indexed,
       endPos: { row: -1, col: -1 } as Position0Indexed,
-    });
-
-    messages.push({
-      role: "user",
-      content: inputLines.join("\n"),
     });
 
     let result;

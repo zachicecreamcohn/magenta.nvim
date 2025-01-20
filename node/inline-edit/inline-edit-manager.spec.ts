@@ -29,7 +29,8 @@ describe("node/inline-edit/inline-edit-manager.spec.ts", () => {
       });
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       driver.submitInlineEdit(targetBuffer.id);
-      await driver.mockAnthropic.awaitPendingInlineRequest();
+      const request = await driver.mockAnthropic.awaitPendingInlineRequest();
+      expect(request.messages).toMatchSnapshot();
 
       const modifiable = await inputBuffer.getOption("modifiable");
       expect(modifiable).toBe(false);
