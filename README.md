@@ -8,8 +8,22 @@
 ╲__╱__╱__╱
 Magenta is for agents.
 ```
+Jan 2025 update
+[![video of Jan 2025 update](https://img.youtube.com/vi/BPnUO_ghMJQ/0.jpg)](https://www.youtube.com/watch?v=BPnUO_ghMJQ)
 
+- inline mode
+- context management
+- prompt caching
+- port to node
+
+
+Plugin overview (Dec 2024)
 [![video demo of the plugin](https://img.youtube.com/vi/i4YYvZwCMxM/0.jpg)](https://www.youtube.com/watch?v=i4YYvZwCMxM)
+
+- chat window
+- tools
+- context pinning
+- architecture overview
 
 `magenta.nvim` is a plugin for leveraging LLM agents in neovim. It provides a chat window where you can talk to your AI coding assistant, as well as tools to populate context and perform inline edits. In functionality, it's similar to cursor-compose, cody or windsurf.
 
