@@ -8,7 +8,9 @@
 ╲__╱__╱__╱
 Magenta is for agents.
 ```
+
 Jan 2025 update
+
 [![video of Jan 2025 update](https://img.youtube.com/vi/BPnUO_ghMJQ/0.jpg)](https://www.youtube.com/watch?v=BPnUO_ghMJQ)
 
 - inline mode
@@ -18,6 +20,7 @@ Jan 2025 update
 
 
 Plugin overview (Dec 2024)
+
 [![video demo of the plugin](https://img.youtube.com/vi/i4YYvZwCMxM/0.jpg)](https://www.youtube.com/watch?v=i4YYvZwCMxM)
 
 - chat window
