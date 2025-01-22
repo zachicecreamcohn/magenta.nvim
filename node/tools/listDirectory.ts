@@ -84,10 +84,12 @@ async function listDirectoryBFS(
 
       if (!seen.has(fullPath)) {
         seen.add(fullPath);
-        results.push(relativePath);
 
         if (entry.isDirectory()) {
+          results.push(relativePath + "/");
           queue.push(fullPath);
+        } else {
+          results.push(relativePath);
         }
       }
     }

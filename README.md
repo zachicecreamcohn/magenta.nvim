@@ -18,7 +18,6 @@ Jan 2025 update
 - prompt caching
 - port to node
 
-
 Plugin overview (Dec 2024)
 
 [![video demo of the plugin](https://img.youtube.com/vi/i4YYvZwCMxM/0.jpg)](https://www.youtube.com/watch?v=i4YYvZwCMxM)
