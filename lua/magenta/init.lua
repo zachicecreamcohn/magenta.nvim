@@ -97,6 +97,43 @@ M.setup = function(opts)
       end
     }
   )
+
+  vim.api.nvim_set_keymap(
+    "n",
+    "<leader>mp",
+    "",
+    {
+      noremap = true,
+      silent = true,
+      desc = "Select provider and model",
+      callback = function()
+        local success, fzf = pcall(require, "fzf-lua")
+        if not success then
+          Utils.log_job("error", "fzf-lua is not installed")
+        end
+
+        local items = {
+            'openai gpt-4o',
+            'openai o1',
+            'openai o1-mini',
+            'anthropic claude-3-5-sonnet-latest'
+        }
+
+        fzf.fzf_exec(items, {
+            prompt = 'Select Model > ',
+            actions = {
+                ['default'] = function(selected)
+                    -- selected[1] contains the selected line
+                    -- Your code here to handle the selection
+                    -- For example:
+                    vim.cmd("Magenta provider " .. selected[1] )
+                end
+            }
+        })
+      end
+    }
+  )
+
 end
 
 M.testSetup = function()

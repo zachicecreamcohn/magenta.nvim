@@ -81,13 +81,18 @@ Awaiting response ⠁`);
           throw new Error(`Expected state to be running`);
         }
 
-        expect(state.model.activeProvider).toBe("anthropic");
+        expect(state.model.providerSetting).toEqual({
+          provider: "anthropic",
+          model: "claude-3-5-sonnet-latest",
+        });
       }
       await driver.showSidebar();
       const displayState = driver.getVisibleState();
       {
         const winbar = await displayState.inputWindow.getOption("winbar");
-        expect(winbar).toBe(`Magenta Input (anthropic)`);
+        expect(winbar).toBe(
+          `Magenta Input (anthropic claude-3-5-sonnet-latest)`,
+        );
       }
       await driver.nvim.call("nvim_command", ["Magenta provider openai"]);
       {
@@ -96,11 +101,27 @@ Awaiting response ⠁`);
           throw new Error(`Expected state to be running`);
         }
 
-        expect(state.model.activeProvider).toBe("openai");
-      }
-      {
+        expect(state.model.providerSetting).toEqual({
+          provider: "openai",
+          model: "gpt-4o",
+        });
         const winbar = await displayState.inputWindow.getOption("winbar");
-        expect(winbar).toBe(`Magenta Input (openai)`);
+        expect(winbar).toBe(`Magenta Input (openai gpt-4o)`);
+      }
+
+      await driver.nvim.call("nvim_command", ["Magenta provider openai o1"]);
+      {
+        const state = driver.magenta.chatApp.getState();
+        if (state.status != "running") {
+          throw new Error(`Expected state to be running`);
+        }
+
+        expect(state.model.providerSetting).toEqual({
+          provider: "openai",
+          model: "o1",
+        });
+        const winbar = await displayState.inputWindow.getOption("winbar");
+        expect(winbar).toBe(`Magenta Input (openai o1)`);
       }
     });
   });

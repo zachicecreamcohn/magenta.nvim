@@ -100,6 +100,8 @@ export class MockProvider implements Provider {
     }
   }
 
+  setModel(_model: string): void {}
+
   createStreamParameters(messages: Array<ProviderMessage>): unknown {
     return messages;
   }

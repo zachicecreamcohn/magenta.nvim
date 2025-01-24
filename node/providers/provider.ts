@@ -5,12 +5,14 @@ import type { Nvim } from "nvim-node";
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { OpenAIProvider } from "./openai.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { MagentaOptions } from "../options.ts";
 import type { InlineEditToolRequest } from "../inline-edit/inline-edit-tool.ts";
 import type { ReplaceSelectionToolRequest } from "../inline-edit/replace-selection-tool.ts";
 
 export const PROVIDER_NAMES = ["anthropic", "openai"] as const;
-export type ProviderName = (typeof PROVIDER_NAMES)[number];
+export type ProviderSetting =
+  | { provider: "anthropic"; model: string }
+  | { provider: "openai"; model: string };
+export type ProviderName = ProviderSetting["provider"];
 
 export type StopReason =
   | "end_turn"
@@ -59,6 +61,7 @@ export type ProviderMessageContent =
   | ProviderToolResultContent;
 
 export interface Provider {
+  setModel(model: string): void;
   createStreamParameters(messages: Array<ProviderMessage>): unknown;
   countTokens(messages: Array<ProviderMessage>): Promise<number>;
 
@@ -95,23 +98,25 @@ const clients: Partial<{ [providerName in ProviderName]: Provider }> = {};
 // lazy load so we have a chance to init context before constructing the class
 export function getProvider(
   nvim: Nvim,
-  providerName: ProviderName,
-  options: MagentaOptions,
+  providerSetting: ProviderSetting,
 ): Provider {
-  if (!clients[providerName]) {
-    switch (providerName) {
+  if (!clients[providerSetting.provider]) {
+    switch (providerSetting.provider) {
       case "anthropic":
-        clients[providerName] = new AnthropicProvider(nvim, options.anthropic);
+        clients[providerSetting.provider] = new AnthropicProvider(nvim);
         break;
       case "openai":
-        clients[providerName] = new OpenAIProvider(nvim, options.openai);
+        clients[providerSetting.provider] = new OpenAIProvider(nvim);
         break;
       default:
-        assertUnreachable(providerName);
+        assertUnreachable(providerSetting);
     }
   }
 
-  return clients[providerName];
+  const provider = clients[providerSetting.provider]!;
+  provider.setModel(providerSetting.model);
+
+  return provider;
 }
 
 export function setClient(providerName: ProviderName, c: Provider | undefined) {

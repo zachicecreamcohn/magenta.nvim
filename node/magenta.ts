@@ -9,13 +9,18 @@ import {
   getProvider,
   PROVIDER_NAMES,
   type ProviderName,
+  type ProviderSetting,
 } from "./providers/provider.ts";
 import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
 import path from "node:path";
 import type { BufNr, Line } from "./nvim/buffer.ts";
 import { pos1col1to0 } from "./nvim/window.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
-import { parseOptions } from "./options.ts";
+import {
+  DEFAULT_OPTIONS,
+  parseOptions,
+  type MagentaOptions,
+} from "./options.ts";
 import { InlineEditManager } from "./inline-edit/inline-edit-manager.ts";
 
 // these constants should match lua/magenta/init.lua
@@ -30,12 +35,22 @@ export class Magenta {
   public mountedChatApp: TEA.MountedApp | undefined;
   public chatModel;
   public inlineEditManager: InlineEditManager;
+  public providerSetting: ProviderSetting;
+  public options: MagentaOptions;
 
   constructor(
     public nvim: Nvim,
     public lsp: Lsp,
   ) {
-    this.sidebar = new Sidebar(this.nvim, "anthropic");
+    this.options = DEFAULT_OPTIONS;
+    this.providerSetting = {
+      provider: this.options.provider,
+      model: this.options[this.options.provider].model,
+    };
+    this.sidebar = new Sidebar(this.nvim, {
+      provider: "anthropic",
+      model: "claude-3-5-sonnet-latest",
+    });
 
     this.chatModel = Chat.init({ nvim, lsp });
     this.chatApp = TEA.createApp({
@@ -48,28 +63,22 @@ export class Magenta {
     this.inlineEditManager = new InlineEditManager({ nvim });
   }
 
-  async setOpts(opts: unknown) {
-    const options = parseOptions(opts);
-    this.chatApp.dispatch({
-      type: "set-opts",
-      options,
-    });
-
-    await this.command(`provider ${options["provider"]}`);
-  }
-
   async command(input: string): Promise<void> {
     const [command, ...rest] = input.trim().split(/\s+/);
     this.nvim.logger?.debug(`Received command ${command}`);
     switch (command) {
       case "provider": {
-        const provider = rest[0];
+        const [provider, model] = rest;
+        this.providerSetting = {
+          provider: provider as ProviderName,
+          model: model || this.options[provider as ProviderName].model,
+        };
         if (PROVIDER_NAMES.indexOf(provider as ProviderName) !== -1) {
           this.chatApp.dispatch({
             type: "choose-provider",
-            provider: provider as ProviderName,
+            provider: this.providerSetting,
           });
-          await this.sidebar.updateProvider(provider as ProviderName);
+          await this.sidebar.updateProvider(this.providerSetting);
         } else {
           this.nvim.logger?.error(`Provider ${provider} is not supported.`);
           // eslint-disable-next-line @typescript-eslint/no-floating-promises
@@ -155,12 +164,7 @@ export class Magenta {
           return;
         }
 
-        const provider = getProvider(
-          this.nvim,
-          chat.model.activeProvider,
-          chat.model.options,
-        );
-
+        const provider = getProvider(this.nvim, this.providerSetting);
         provider.abort();
 
         break;
@@ -237,11 +241,7 @@ ${lines.join("\n")}
           return;
         }
 
-        const provider = getProvider(
-          this.nvim,
-          chat.model.activeProvider,
-          chat.model.options,
-        );
+        const provider = getProvider(this.nvim, this.providerSetting);
 
         const messages = await this.chatModel.getMessages(chat.model);
         await this.inlineEditManager.submitInlineEdit(
@@ -332,7 +332,11 @@ ${lines.join("\n")}
       `return require('magenta').bridge(${nvim.channelId})`,
       [],
     ]);
-    await magenta.setOpts(opts);
+    magenta.options = parseOptions(opts);
+    const provider = magenta.options["provider"];
+    await magenta.command(
+      `provider ${provider} ${magenta.options[provider].model}`,
+    );
     nvim.logger?.info(`Magenta initialized. ${JSON.stringify(opts)}`);
     return magenta;
   }

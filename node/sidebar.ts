@@ -6,7 +6,7 @@ import {
   NvimWindow,
   type WindowId,
 } from "./nvim/window.ts";
-import type { ProviderName } from "./providers/provider.ts";
+import type { ProviderSetting } from "./providers/provider.ts";
 export const WIDTH = 80;
 
 /** This will mostly manage the window toggle
@@ -28,7 +28,7 @@ export class Sidebar {
 
   constructor(
     private nvim: Nvim,
-    private provider: ProviderName,
+    private provider: ProviderSetting,
   ) {
     this.state = { state: "hidden" };
   }
@@ -149,7 +149,10 @@ export class Sidebar {
     await displayWindow.setOption("winbar", "Magenta Chat");
     // set var so we can avoid closing this window when displaying a diff
     await displayWindow.setVar("magenta", true);
-    await inputWindow.setOption("winbar", `Magenta Input (${this.provider})`);
+    await inputWindow.setOption(
+      "winbar",
+      `Magenta Input (${this.provider.provider} ${this.provider.model})`,
+    );
     // set var so we can avoid closing this window when displaying a diff
     await inputWindow.setVar("magenta", true);
 
@@ -165,12 +168,12 @@ export class Sidebar {
     return { displayBuffer, inputBuffer };
   }
 
-  async updateProvider(provider: ProviderName) {
+  async updateProvider(provider: ProviderSetting) {
     this.provider = provider;
     if (this.state.state == "visible") {
       await this.state.inputWindow.setOption(
         "winbar",
-        `Magenta Input (${provider})`,
+        `Magenta Input (${provider.provider} ${provider.model})`,
       );
     }
   }

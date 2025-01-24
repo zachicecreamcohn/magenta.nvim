@@ -23,6 +23,7 @@ export type OpenAIOptions = {
 export class OpenAIProvider implements Provider {
   private client: OpenAI;
   private request: Stream<unknown> | undefined;
+  private model: string;
 
   abort() {
     if (this.request) {
@@ -31,10 +32,7 @@ export class OpenAIProvider implements Provider {
     }
   }
 
-  constructor(
-    private nvim: Nvim,
-    private options: OpenAIOptions,
-  ) {
+  constructor(private nvim: Nvim) {
     const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
@@ -45,6 +43,12 @@ export class OpenAIProvider implements Provider {
       apiKey,
       baseURL: process.env.OPENAI_BASE_URL,
     });
+
+    this.model = "gpt-4o";
+  }
+
+  setModel(model: string): void {
+    this.model = model;
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
@@ -170,7 +174,7 @@ export class OpenAIProvider implements Provider {
     }
 
     return {
-      model: this.options.model,
+      model: this.model,
       stream: true,
       messages: openaiMessages,
       // see https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs

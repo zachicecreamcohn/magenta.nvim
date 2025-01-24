@@ -19,19 +19,14 @@ export type MessageParam = Omit<Anthropic.MessageParam, "content"> & {
   content: Array<Anthropic.Messages.ContentBlockParam>;
 };
 
-export type AnthropicOptions = {
-  model: "claude-3-5-sonnet-20241022";
-};
-
 export class AnthropicProvider implements Provider {
   private client: Anthropic;
   private request: MessageStream | undefined;
+  private model: string;
 
-  constructor(
-    private nvim: Nvim,
-    private options: AnthropicOptions,
-  ) {
+  constructor(private nvim: Nvim) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
+    this.model = "claude-3-5-sonnet-latest";
 
     if (!apiKey) {
       throw new Error("Anthropic API key not found in config or environment");
@@ -40,6 +35,10 @@ export class AnthropicProvider implements Provider {
     this.client = new Anthropic({
       apiKey,
     });
+  }
+
+  setModel(model: string): void {
+    this.model = model;
   }
 
   abort() {
@@ -106,7 +105,7 @@ export class AnthropicProvider implements Provider {
 
     return {
       messages: anthropicMessages,
-      model: this.options.model,
+      model: this.model,
       max_tokens: 4096,
       system: [
         {
@@ -153,9 +152,8 @@ export class AnthropicProvider implements Provider {
     usage: Usage;
   }> {
     try {
-      const params = this.createStreamParameters(messages);
       this.request = this.client.messages.stream({
-        ...params,
+        ...this.createStreamParameters(messages),
         tools: [
           {
             ...InlineEdit.spec,
@@ -284,9 +282,8 @@ export class AnthropicProvider implements Provider {
     usage: Usage;
   }> {
     try {
-      const params = this.createStreamParameters(messages);
       this.request = this.client.messages.stream({
-        ...params,
+        ...this.createStreamParameters(messages),
         tools: [
           {
             ...ReplaceSelection.spec,

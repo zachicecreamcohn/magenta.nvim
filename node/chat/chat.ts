@@ -18,12 +18,11 @@ import {
   getProvider as getProvider,
   type ProviderMessage,
   type ProviderMessageContent,
-  type ProviderName,
+  type ProviderSetting,
   type StopReason,
   type Usage,
 } from "../providers/provider.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { DEFAULT_OPTIONS, type MagentaOptions } from "../options.ts";
 import { getOption } from "../nvim/nvim.ts";
 
 export type Role = "user" | "assistant";
@@ -41,8 +40,7 @@ export type ConversationState =
 
 export type Model = {
   lastUserMessageId: Message.MessageId;
-  activeProvider: ProviderName;
-  options: MagentaOptions;
+  providerSetting: ProviderSetting;
   conversation: ConversationState;
   messages: Message.Model[];
   toolManager: ToolManager.Model;
@@ -57,7 +55,7 @@ type WrappedMessageMsg = {
 
 export type Msg =
   | WrappedMessageMsg
-  | { type: "choose-provider"; provider: ProviderName }
+  | { type: "choose-provider"; provider: ProviderSetting }
   | {
       type: "context-manager-msg";
       msg: ContextManager.Msg;
@@ -99,10 +97,6 @@ export type Msg =
       msg: ToolManager.Msg;
     }
   | {
-      type: "set-opts";
-      options: MagentaOptions;
-    }
-  | {
       type: "show-message-debug-info";
     };
 
@@ -116,8 +110,10 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
   function initModel(): Model {
     return {
       lastUserMessageId: counter.last() as Message.MessageId,
-      options: DEFAULT_OPTIONS,
-      activeProvider: "anthropic",
+      providerSetting: {
+        provider: "anthropic",
+        model: "claude-3-5-sonnet-latest",
+      },
       conversation: {
         state: "stopped",
         stopReason: "end_turn",
@@ -145,7 +141,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
   const update: Update<Msg, Model, { nvim: Nvim }> = (msg, model, context) => {
     switch (msg.type) {
       case "choose-provider":
-        return [{ ...model, activeProvider: msg.provider }];
+        return [{ ...model, providerSetting: msg.provider }];
       case "add-message": {
         let message: Message.Model = {
           id: counter.get() as Message.MessageId,
@@ -423,10 +419,6 @@ ${msg.error.stack}`,
         return [initModel()];
       }
 
-      case "set-opts": {
-        return [{ ...model, options: msg.options }];
-      }
-
       case "show-message-debug-info": {
         return [model, () => showDebugInfo(model)];
       }
@@ -485,11 +477,7 @@ ${msg.error.stack}`,
       });
       let res;
       try {
-        res = await getProvider(
-          nvim,
-          model.activeProvider,
-          model.options,
-        ).sendMessage(
+        res = await getProvider(nvim, model.providerSetting).sendMessage(
           messages,
           (text) => {
             dispatch({
@@ -637,7 +625,7 @@ ${msg.error.stack}`,
 
   async function showDebugInfo(model: Model) {
     const messages = await getMessages(model);
-    const provider = getProvider(nvim, model.activeProvider, model.options);
+    const provider = getProvider(nvim, model.providerSetting);
     const params = provider.createStreamParameters(messages);
     const nTokens = await provider.countTokens(messages);
 

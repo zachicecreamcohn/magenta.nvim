@@ -1,17 +1,15 @@
-import type { AnthropicOptions } from "./providers/anthropic";
-import type { OpenAIOptions } from "./providers/openai";
 import { PROVIDER_NAMES, type ProviderName } from "./providers/provider";
 
 export type MagentaOptions = {
   provider: ProviderName;
-  openai: OpenAIOptions;
-  anthropic: AnthropicOptions;
+  openai: { model: string };
+  anthropic: { model: string };
 };
 
 export const DEFAULT_OPTIONS: MagentaOptions = {
   provider: "anthropic",
   anthropic: {
-    model: "claude-3-5-sonnet-20241022",
+    model: "claude-3-5-sonnet-latest",
   },
   openai: {
     model: "gpt-4o",
@@ -35,8 +33,7 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
         [key: string]: unknown;
       };
       if (typeof anthropicOptions["model"] == "string") {
-        options.anthropic.model =
-          anthropicOptions.model as AnthropicOptions["model"];
+        options.anthropic.model = anthropicOptions.model;
       }
     }
 
@@ -45,7 +42,7 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
         [key: string]: unknown;
       };
       if (typeof openaiOptions["model"] == "string") {
-        options.openai.model = openaiOptions.model as OpenAIOptions["model"];
+        options.openai.model = openaiOptions.model;
       }
     }
   }
