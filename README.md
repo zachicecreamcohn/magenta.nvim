@@ -87,7 +87,7 @@ TLDR:
 - `<leader>mt` is for `:Magenta toggle`, will toggle the sidebar on and off.
 - `<leader>mp` is for `:Magenta paste-selection`. In visual mode it will take the current selection and paste it into the input buffer.
 - `<leader>mb` is for `:Magenta context-files` with your _current_ file. It will pin the current file to your context.
-- `<leader>mf` is for `:Magenta context-files` it allows you to select files via fzf-lua, and will pin those files to your context. This requires that fzf-lua is installed.
+- `<leader>mf` is for `:Magenta context-files` it allows you to select files via fzf-lua or telescope, and will pin those files to your context. This requires that fzf-lua or telescope are installed.
 - `<leader>mc` is for `:Magenta clear`, which will clear the current chat.
 - `<leader>ma` is for `:Magenta abort`, which will abort the current in-flight request.
 

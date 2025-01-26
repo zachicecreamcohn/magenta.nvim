@@ -13,6 +13,17 @@ M.defaults = {
 
 M.setup = function(opts)
   M.options = vim.tbl_deep_extend("force", M.defaults, opts or {})
+  if (M.options.picker == nil) then
+    local success, _ = pcall(require, "fzf-lua")
+    if success then
+      M.options.picker = "fzf-lua"
+    else
+      success, _ = pcall(require, "telescope")
+      if success then
+        M.options.picker = "telescope"
+      end
+    end
+  end
 
   M.start(true)
   vim.api.nvim_set_keymap(
@@ -75,25 +86,13 @@ M.setup = function(opts)
       silent = true,
       desc = "Select files to add to Magenta context",
       callback = function()
-        local success, fzf = pcall(require, "fzf-lua")
-        if not success then
-          Utils.log_job("error", "fzf-lua is not installed")
+        if M.options.picker == "fzf-lua" then
+          Utils.fzf_files()
+        elseif M.options.picker == "telescope" then
+          Utils.telescope_files()
+        else
+          vim.notify("Neither fzf-lua nor telescope are installed!", vim.log.levels.ERROR)
         end
-
-        fzf.files(
-          {
-            raw = true, -- return just the raw path strings
-            actions = {
-              ["default"] = function(selected)
-                local escaped_files = {}
-                for _, entry in ipairs(selected) do
-                  table.insert(escaped_files, vim.fn.shellescape(fzf.path.entry_to_file(entry).path))
-                end
-                vim.cmd("Magenta context-files " .. table.concat(escaped_files, " "))
-              end
-            }
-          }
-        )
       end
     }
   )
@@ -107,29 +106,17 @@ M.setup = function(opts)
       silent = true,
       desc = "Select provider and model",
       callback = function()
-        local success, fzf = pcall(require, "fzf-lua")
-        if not success then
-          Utils.log_job("error", "fzf-lua is not installed")
-        end
-
         local items = {
             'openai gpt-4o',
             'openai o1',
             'openai o1-mini',
             'anthropic claude-3-5-sonnet-latest'
         }
-
-        fzf.fzf_exec(items, {
-            prompt = 'Select Model > ',
-            actions = {
-                ['default'] = function(selected)
-                    -- selected[1] contains the selected line
-                    -- Your code here to handle the selection
-                    -- For example:
-                    vim.cmd("Magenta provider " .. selected[1] )
-                end
-            }
-        })
+        vim.ui.select(items, { prompt = "Select Model", }, function (choice)
+          if choice ~= nil then
+            vim.cmd("Magenta provider " .. choice )
+          end
+        end)
       end
     }
   )
