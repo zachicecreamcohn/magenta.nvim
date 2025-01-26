@@ -7,11 +7,13 @@ import { OpenAIProvider } from "./openai.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { InlineEditToolRequest } from "../inline-edit/inline-edit-tool.ts";
 import type { ReplaceSelectionToolRequest } from "../inline-edit/replace-selection-tool.ts";
+import { BedrockProvider } from "./bedrock.ts";
 
-export const PROVIDER_NAMES = ["anthropic", "openai"] as const;
+export const PROVIDER_NAMES = ["anthropic", "openai", "bedrock"] as const;
 export type ProviderSetting =
   | { provider: "anthropic"; model: string }
-  | { provider: "openai"; model: string };
+  | { provider: "openai"; model: string }
+  | { provider: "bedrock"; model: string; promptCaching: boolean };
 export type ProviderName = ProviderSetting["provider"];
 
 export type StopReason =
@@ -107,6 +109,12 @@ export function getProvider(
         break;
       case "openai":
         clients[providerSetting.provider] = new OpenAIProvider(nvim);
+        break;
+      case "bedrock":
+        clients[providerSetting.provider] = new BedrockProvider(
+          nvim,
+          providerSetting.promptCaching,
+        );
         break;
       default:
         assertUnreachable(providerSetting);

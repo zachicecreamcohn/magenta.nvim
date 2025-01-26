@@ -19,16 +19,35 @@ export type MessageParam = Omit<Anthropic.MessageParam, "content"> & {
   content: Array<Anthropic.Messages.ContentBlockParam>;
 };
 
-export class AnthropicProvider implements Provider {
-  private client: Anthropic;
-  private request: MessageStream | undefined;
-  private model: string;
+// Bedrock does not support the disable_parallel_tool_use flag
+// Force accept undefined as the value to be able to unset it when using it
+type MessageStreamParams = Omit<
+  Anthropic.Messages.MessageStreamParams,
+  "tool_choice"
+> & {
+  tool_choice: Omit<
+    Anthropic.Messages.ToolChoice,
+    "disable_parallel_tool_use"
+  > & {
+    disable_parallel_tool_use: boolean | undefined;
+  };
+};
 
-  constructor(private nvim: Nvim) {
+export class AnthropicProvider implements Provider {
+  protected client: Anthropic;
+  protected request: MessageStream | undefined;
+  protected model: string;
+
+  constructor(
+    protected nvim: Nvim,
+    private promptCaching = true,
+    private disableParallelToolUseFlag = true,
+    apiKeyRequired = true,
+  ) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     this.model = "claude-3-5-sonnet-latest";
 
-    if (!apiKey) {
+    if (apiKeyRequired && !apiKey) {
       throw new Error("Anthropic API key not found in config or environment");
     }
 
@@ -48,9 +67,7 @@ export class AnthropicProvider implements Provider {
     }
   }
 
-  createStreamParameters(
-    messages: ProviderMessage[],
-  ): Anthropic.Messages.MessageStreamParams {
+  createStreamParameters(messages: ProviderMessage[]): MessageStreamParams {
     const anthropicMessages = messages.map((m): MessageParam => {
       let content: Anthropic.Messages.ContentBlockParam[];
       if (typeof m.content == "string") {
@@ -92,7 +109,10 @@ export class AnthropicProvider implements Provider {
       };
     });
 
-    const cacheControlItemsPlaced = placeCacheBreakpoints(anthropicMessages);
+    let cacheControlItemsPlaced = 0;
+    if (this.promptCaching) {
+      cacheControlItemsPlaced = placeCacheBreakpoints(anthropicMessages);
+    }
 
     const tools: Anthropic.Tool[] = ToolManager.TOOL_SPECS.map(
       (t): Anthropic.Tool => {
@@ -108,6 +128,7 @@ export class AnthropicProvider implements Provider {
       model: this.model,
       max_tokens: 4096,
       system: [
+        // @ts-expect-error setting cache_control to undefined
         {
           type: "text",
           text: DEFAULT_SYSTEM_PROMPT,
@@ -116,13 +137,16 @@ export class AnthropicProvider implements Provider {
           // system
           // messages
           // This ensures the tools + system prompt (which is approx 1400 tokens) is cached.
-          cache_control:
-            cacheControlItemsPlaced < 4 ? { type: "ephemeral" } : null,
+          cache_control: this.promptCaching
+            ? cacheControlItemsPlaced < 4
+              ? { type: "ephemeral" }
+              : null
+            : undefined,
         },
       ],
       tool_choice: {
         type: "auto",
-        disable_parallel_tool_use: false,
+        disable_parallel_tool_use: this.disableParallelToolUseFlag || undefined,
       },
       tools,
     };
@@ -164,9 +188,10 @@ export class AnthropicProvider implements Provider {
         tool_choice: {
           type: "tool",
           name: InlineEdit.spec.name,
-          disable_parallel_tool_use: true,
+          disable_parallel_tool_use:
+            this.disableParallelToolUseFlag || undefined,
         },
-      });
+      } as Anthropic.Messages.MessageStreamParams);
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const response: Anthropic.Message = await this.request.finalMessage();
@@ -294,9 +319,10 @@ export class AnthropicProvider implements Provider {
         tool_choice: {
           type: "tool",
           name: ReplaceSelection.spec.name,
-          disable_parallel_tool_use: true,
+          disable_parallel_tool_use:
+            this.disableParallelToolUseFlag || undefined,
         },
-      });
+      } as Anthropic.Messages.MessageStreamParams);
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const response: Anthropic.Message = await this.request.finalMessage();
@@ -433,7 +459,11 @@ export class AnthropicProvider implements Provider {
 
     try {
       this.request = this.client.messages
-        .stream(this.createStreamParameters(messages))
+        .stream(
+          this.createStreamParameters(
+            messages,
+          ) as Anthropic.Messages.MessageStreamParams,
+        )
         .on("text", (text: string) => {
           buf.push(text);
           flushBuffer();
@@ -581,7 +611,9 @@ export function placeCacheBreakpoints(messages: MessageParam[]): number {
           }
           break;
         case "document":
-          lengthAcc += block.source.data.length;
+          if ("data" in block.source) {
+            lengthAcc += block.source.data.length;
+          }
       }
 
       blocks.push({ block, acc: lengthAcc });
