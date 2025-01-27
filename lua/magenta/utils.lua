@@ -38,7 +38,7 @@ M.log_job = function(log_level, is_stderr)
 end
 
 M.fzf_files = function()
-  local fzf = require("fzf")
+  local fzf = require("fzf-lua")
   fzf.files(
     {
       raw = true, -- return just the raw path strings
