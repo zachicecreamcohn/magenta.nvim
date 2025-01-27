@@ -98,7 +98,6 @@ end
 M.set_sidebar_buffer_keymaps = function(bufnr)
   for mode, values in pairs(Options.options.sidebar_keymaps) do
     for key, action in pairs(values) do
-      print("setting keymap", mode, key, action)
       vim.keymap.set(
         mode_to_keymap[mode],
         key,
