@@ -7,7 +7,7 @@ import {
   type Provider,
   type ProviderMessage,
   type Usage,
-} from "./provider.ts";
+} from "./provider-types.ts";
 import type { ToolRequestId } from "../tools/toolManager.ts";
 import * as InlineEdit from "../inline-edit/inline-edit-tool.ts";
 import * as ReplaceSelection from "../inline-edit/replace-selection-tool.ts";

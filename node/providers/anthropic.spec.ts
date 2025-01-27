@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-import {} from "./bedrock.ts";
 import { placeCacheBreakpoints } from "./anthropic.ts";
 import type { MessageParam } from "./anthropic.ts";
 

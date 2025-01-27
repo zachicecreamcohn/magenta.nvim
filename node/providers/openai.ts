@@ -6,7 +6,7 @@ import type {
   Provider,
   ProviderMessage,
   Usage,
-} from "./provider.ts";
+} from "./provider-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { ToolName, ToolRequestId } from "../tools/toolManager.ts";
 import type { Nvim } from "nvim-node";
