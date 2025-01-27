@@ -72,24 +72,127 @@ vim.call('plug#end')
 require('magenta').setup()
 ```
 
+# Config
+
+<details>
+<summary>Default options</summary>
+
+```lua
+require('magenta').setup({
+  provider = "anthropic",
+  openai = {
+    model = "gpt-4o"
+  },
+  anthropic = {
+    model = "claude-3-5-sonnet-20241022"
+  },
+  bedrock = {
+    model = "anthropic.claude-3-5-sonnet-20241022-v2:0",
+    promptCaching = false
+  },
+  -- can be changed to "telescope"
+  picker = "fzf-lua",
+  -- enable default keymaps shown below
+  default_keymaps = true,
+  -- keymaps for the sidebar input buffer
+  sidebar_keymaps = {
+    normal = {
+      ["<CR>"] = ":Magenta send<CR>",
+    }
+  },
+  -- keymaps for the inline edit input buffer
+  -- if keymap is set to function, it accpets a target_bufnr param
+  inline_keymaps =  {
+    normal = {
+      ["<CR>"] = function(target_bufnr)
+        vim.cmd("Magenta submit-inline-edit " .. target_bufnr)
+      end,
+    },
+  }
+})
+```
+
+</details>
+
+If `default_keymaps` is set to true, the plugin will configure the following global keymaps:
+
+<details>
+<summary>Default keymaps</summary>
+
+```lua
+local Actions = require("magenta.actions")
+
+vim.keymap.set(
+  "n",
+  "<leader>mc",
+  ":Magenta clear<CR>",
+  {silent = true, noremap = true, desc = "Clear Magenta state"}
+)
+
+vim.keymap.set(
+  "n",
+  "<leader>ma",
+  ":Magenta abort<CR>",
+  {silent = true, noremap = true, desc = "Abort current Magenta operation"}
+)
+
+vim.keymap.set(
+  "n",
+  "<leader>mt",
+  ":Magenta toggle<CR>",
+  {silent = true, noremap = true, desc = "Toggle Magenta window"}
+)
+
+vim.keymap.set(
+  "n",
+  "<leader>mi",
+  ":Magenta start-inline-edit<CR>",
+  {silent = true, noremap = true, desc = "Inline edit"}
+)
+
+vim.keymap.set(
+  "v",
+  "<leader>mi",
+  ":Magenta start-inline-edit-selection<CR>",
+  {silent = true, noremap = true, desc = "Inline edit selection"}
+)
+
+vim.keymap.set(
+  "v",
+  "<leader>mp",
+  ":Magenta paste-selection<CR>",
+  {silent = true, noremap = true, desc = "Send selection to Magenta"}
+)
+
+vim.keymap.set(
+  "n",
+  "<leader>mb", -- like "magenta buffer"?
+  Actions.add_buffer_to_context,
+  { noremap = true, silent = true, desc = "Add current buffer to Magenta context" }
+)
+
+vim.keymap.set(
+  "n",
+  "<leader>mf",
+  Actions.pick_context_files,
+  { noremap = true, silent = true, desc = "Select files to add to Magenta context" }
+)
+
+vim.keymap.set(
+  "n",
+  "<leader>mp",
+  Actions.pick_provider,
+  { noremap = true, silent = true, desc = "Select provider and model" }
+)
+```
+
+</details>
+
 # Usage
 
-## keymaps
+### Chat
 
-Global keymaps are set [here](https://github.com/dlants/magenta.nvim/blob/main/lua/magenta/init.lua#L12).
-
-Input and display buffer keymaps are set [here](https://github.com/dlants/magenta.nvim/blob/main/node/sidebar.ts#L87).
-
-Commands are all nested under `:Magenta <cmd>`, and can be found [here](https://github.com/dlants/magenta.nvim/blob/main/node/magenta.ts#L54).
-
-TLDR:
-
-- `<leader>mt` is for `:Magenta toggle`, will toggle the sidebar on and off.
-- `<leader>mp` is for `:Magenta paste-selection`. In visual mode it will take the current selection and paste it into the input buffer.
-- `<leader>mb` is for `:Magenta context-files` with your _current_ file. It will pin the current file to your context.
-- `<leader>mf` is for `:Magenta context-files` it allows you to select files via fzf-lua or telescope, and will pin those files to your context. This requires that fzf-lua or telescope are installed.
-- `<leader>mc` is for `:Magenta clear`, which will clear the current chat.
-- `<leader>ma` is for `:Magenta abort`, which will abort the current in-flight request.
+- `<leader>mt` is for `:Magenta toggle`. This will open a sidebar where you can chat with the model. You can add files to the context with `Magenta context-files` (`<leader>mf`), or paste your current visual selection with `Magenta paste-selection` (`<leader>mp`)
 
 ### Inline edit
 
