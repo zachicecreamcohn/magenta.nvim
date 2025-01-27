@@ -5,6 +5,7 @@ export type MagentaOptions = {
   openai: { model: string };
   anthropic: { model: string };
   bedrock: { model: string; promptCaching: boolean };
+  sidebarPosition: "left" | "right";
 };
 
 export const DEFAULT_OPTIONS: MagentaOptions = {
@@ -19,6 +20,7 @@ export const DEFAULT_OPTIONS: MagentaOptions = {
     model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
     promptCaching: false,
   },
+  sidebarPosition: "left",
 };
 
 export function parseOptions(inputOptions: unknown): MagentaOptions {
@@ -26,6 +28,10 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
 
   if (typeof inputOptions == "object" && inputOptions != null) {
     const inputOptionsObj = inputOptions as { [key: string]: unknown };
+    const sidebarPosition = inputOptionsObj["sidebar_position"];
+    if (sidebarPosition === "right" || sidebarPosition === "left") {
+      options.sidebarPosition = sidebarPosition;
+    }
     if (
       typeof inputOptionsObj["provider"] == "string" &&
       PROVIDER_NAMES.indexOf(inputOptionsObj["provider"] as ProviderName) != -1
@@ -58,8 +64,8 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
       if (typeof bedrockOptions["model"] == "string") {
         options.bedrock.model = bedrockOptions.model;
       }
-      if (typeof bedrockOptions["promptCaching"] == "boolean") {
-        options.bedrock.promptCaching = bedrockOptions.promptCaching;
+      if (typeof bedrockOptions["prompt_caching"] == "boolean") {
+        options.bedrock.promptCaching = bedrockOptions.prompt_caching;
       }
     }
   }
