@@ -6,7 +6,7 @@ local defaults = {
     model = "gpt-4o"
   },
   anthropic = {
-    model = "claude-3-5-sonnet-20241022"
+    model = "claude-3-5-sonnet-latest"
   },
   bedrock = {
     model = "anthropic.claude-3-5-sonnet-20241022-v2:0",
