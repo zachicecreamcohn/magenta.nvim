@@ -88,8 +88,10 @@ require('magenta').setup({
   },
   bedrock = {
     model = "anthropic.claude-3-5-sonnet-20241022-v2:0",
-    promptCaching = false
+    prompt_caching = false
   },
+  -- open chat sidebar on left or right side
+  sidebar_position = "left",
   -- can be changed to "telescope"
   picker = "fzf-lua",
   -- enable default keymaps shown below

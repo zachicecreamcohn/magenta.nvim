@@ -10,9 +10,10 @@ local defaults = {
   },
   bedrock = {
     model = "anthropic.claude-3-5-sonnet-20241022-v2:0",
-    promptCaching = false
+    prompt_caching = false
   },
   picker = "fzf-lua",
+  sidebar_position = "right",
   default_keymaps = true,
   sidebar_keymaps = {
     normal = {

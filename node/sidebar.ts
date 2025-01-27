@@ -48,18 +48,20 @@ export class Sidebar {
 
   /** returns buffers when they are visible
    */
-  async toggle(): Promise<
+  async toggle(
+    sidebarPosition: "left" | "right",
+  ): Promise<
     { displayBuffer: NvimBuffer; inputBuffer: NvimBuffer } | undefined
   > {
     if (this.state.state == "hidden") {
-      return await this.show();
+      return await this.show(sidebarPosition);
     } else {
       await this.hide();
       return undefined;
     }
   }
 
-  private async show(): Promise<{
+  private async show(sidebarPosition: "left" | "right"): Promise<{
     displayBuffer: NvimBuffer;
     inputBuffer: NvimBuffer;
   }> {
@@ -88,7 +90,7 @@ export class Sidebar {
       false,
       {
         win: -1, // global split
-        split: "left",
+        split: sidebarPosition,
         width: WIDTH,
         height: displayHeight,
         style: "minimal",
