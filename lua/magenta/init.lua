@@ -8,6 +8,10 @@ M.defaults = {
   },
   anthropic = {
     model = "claude-3-5-sonnet-20241022"
+  },
+  bedrock = {
+    model = "anthropic.claude-3-5-sonnet-20241022-v2:0",
+    promptCaching = false
   }
 }
 

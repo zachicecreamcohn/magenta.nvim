@@ -4,6 +4,7 @@ export type MagentaOptions = {
   provider: ProviderName;
   openai: { model: string };
   anthropic: { model: string };
+  bedrock: { model: string; promptCaching: boolean };
 };
 
 export const DEFAULT_OPTIONS: MagentaOptions = {
@@ -13,6 +14,10 @@ export const DEFAULT_OPTIONS: MagentaOptions = {
   },
   openai: {
     model: "gpt-4o",
+  },
+  bedrock: {
+    model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+    promptCaching: false,
   },
 };
 
@@ -43,6 +48,18 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
       };
       if (typeof openaiOptions["model"] == "string") {
         options.openai.model = openaiOptions.model;
+      }
+    }
+
+    if (typeof inputOptionsObj["bedrock"] == "object") {
+      const bedrockOptions = inputOptionsObj["bedrock"] as {
+        [key: string]: unknown;
+      };
+      if (typeof bedrockOptions["model"] == "string") {
+        options.bedrock.model = bedrockOptions.model;
+      }
+      if (typeof bedrockOptions["promptCaching"] == "boolean") {
+        options.bedrock.promptCaching = bedrockOptions.promptCaching;
       }
     }
   }

@@ -43,10 +43,18 @@ export class Magenta {
     public lsp: Lsp,
   ) {
     this.options = DEFAULT_OPTIONS;
-    this.providerSetting = {
-      provider: this.options.provider,
-      model: this.options[this.options.provider].model,
-    };
+    if (this.options.provider === "bedrock") {
+      this.providerSetting = {
+        provider: "bedrock",
+        model: this.options.bedrock.model,
+        promptCaching: this.options.bedrock.promptCaching,
+      };
+    } else {
+      this.providerSetting = {
+        provider: this.options.provider,
+        model: this.options[this.options.provider].model,
+      };
+    }
     this.sidebar = new Sidebar(this.nvim, {
       provider: "anthropic",
       model: "claude-3-5-sonnet-latest",
@@ -68,12 +76,21 @@ export class Magenta {
     this.nvim.logger?.debug(`Received command ${command}`);
     switch (command) {
       case "provider": {
-        const [provider, model] = rest;
-        this.providerSetting = {
-          provider: provider as ProviderName,
-          model: model || this.options[provider as ProviderName].model,
-        };
-        if (PROVIDER_NAMES.indexOf(provider as ProviderName) !== -1) {
+        const [providerName, model] = rest;
+        const provider = providerName as ProviderName;
+        if (provider === "bedrock") {
+          this.providerSetting = {
+            provider,
+            model: model || this.options[provider].model,
+            promptCaching: this.options[provider].promptCaching,
+          };
+        } else {
+          this.providerSetting = {
+            provider,
+            model: model || this.options[provider].model,
+          };
+        }
+        if (PROVIDER_NAMES.indexOf(provider) !== -1) {
           this.chatApp.dispatch({
             type: "choose-provider",
             provider: this.providerSetting,
