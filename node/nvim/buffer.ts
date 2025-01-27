@@ -106,26 +106,17 @@ export class NvimBuffer {
     ]);
   }
 
-  setKeymap({
-    mode,
-    lhs,
-    rhs,
-    opts,
-  }: {
-    mode: Mode;
-    lhs: string;
-    rhs: string;
-    opts: {
-      silent?: boolean;
-      noremap?: boolean;
-    };
-  }) {
-    return this.nvim.call("nvim_buf_set_keymap", [
-      this.id,
-      mode,
-      lhs,
-      rhs,
-      opts,
+  setSiderbarKeymaps() {
+    return this.nvim.call("nvim_exec_lua", [
+      `require("magenta.keymaps").set_sidebar_buffer_keymaps(${this.id})`,
+      [],
+    ]);
+  }
+
+  setInlineKeymaps(targetBufnr: BufNr) {
+    return this.nvim.call("nvim_exec_lua", [
+      `require("magenta.keymaps").set_inline_buffer_keymaps(${this.id}, ${targetBufnr})`,
+      [],
     ]);
   }
 

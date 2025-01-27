@@ -106,12 +106,7 @@ export class InlineEditManager {
     await this.nvim.call("nvim_exec2", ["startinsert", {}]);
 
     // Set up <CR> mapping in normal mode
-    await inputBuffer.setKeymap({
-      mode: "n",
-      lhs: "<CR>",
-      rhs: `:Magenta submit-inline-edit ${targetBufnr}<CR>`,
-      opts: { silent: true, noremap: true },
-    });
+    await inputBuffer.setInlineKeymaps(targetBufnr);
 
     let selectionWithText: InlineEditState["selection"];
     if (selection) {

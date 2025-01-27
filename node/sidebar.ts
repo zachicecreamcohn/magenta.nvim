@@ -105,12 +105,7 @@ export class Sidebar {
       await inputBuffer.setOption("buftype", "nofile");
       await inputBuffer.setOption("swapfile", false);
       await inputBuffer.setOption("filetype", "markdown");
-      await inputBuffer.setKeymap({
-        mode: "n",
-        lhs: "<CR>",
-        rhs: ":Magenta send<CR>",
-        opts: { silent: true, noremap: true },
-      });
+      await inputBuffer.setSiderbarKeymaps();
     }
 
     const inputWindowId = (await this.nvim.call("nvim_open_win", [

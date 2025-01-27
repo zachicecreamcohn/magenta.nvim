@@ -1,130 +1,12 @@
 local Utils = require("magenta.utils")
+local Options = require("magenta.options")
+local Actions = require("magenta.actions")
 local M = {}
 
-M.defaults = {
-  provider = "anthropic",
-  openai = {
-    model = "gpt-4o"
-  },
-  anthropic = {
-    model = "claude-3-5-sonnet-20241022"
-  },
-  bedrock = {
-    model = "anthropic.claude-3-5-sonnet-20241022-v2:0",
-    promptCaching = false
-  }
-}
-
 M.setup = function(opts)
-  M.options = vim.tbl_deep_extend("force", M.defaults, opts or {})
-  if (M.options.picker == nil) then
-    local success, _ = pcall(require, "fzf-lua")
-    if success then
-      M.options.picker = "fzf-lua"
-    else
-      success, _ = pcall(require, "telescope")
-      if success then
-        M.options.picker = "telescope"
-      end
-    end
-  end
-
+  Options.set_options(opts)
   M.start(true)
-  vim.api.nvim_set_keymap(
-    "n",
-    "<leader>mc",
-    ":Magenta clear<CR>",
-    {silent = true, noremap = true, desc = "Clear Magenta state"}
-  )
-  vim.api.nvim_set_keymap(
-    "n",
-    "<leader>ma",
-    ":Magenta abort<CR>",
-    {silent = true, noremap = true, desc = "Abort current Magenta operation"}
-  )
-  vim.api.nvim_set_keymap(
-    "n",
-    "<leader>mt",
-    ":Magenta toggle<CR>",
-    {silent = true, noremap = true, desc = "Toggle Magenta window"}
-  )
-  vim.api.nvim_set_keymap(
-    "n",
-    "<leader>mi",
-    ":Magenta start-inline-edit<CR>",
-    {silent = true, noremap = true, desc = "Inline edit"}
-  )
-  vim.api.nvim_set_keymap(
-    "v",
-    "<leader>mi",
-    ":Magenta start-inline-edit-selection<CR>",
-    {silent = true, noremap = true, desc = "Inline edit selection"}
-  )
-  vim.api.nvim_set_keymap(
-    "v",
-    "<leader>mp",
-    ":Magenta paste-selection<CR>",
-    {silent = true, noremap = true, desc = "Send selection to Magenta"}
-  )
-  vim.api.nvim_set_keymap(
-    "n",
-    "<leader>mb", -- like "magenta buffer"?
-    "",
-    {
-      noremap = true,
-      silent = true,
-      desc = "Add current buffer to Magenta context",
-      callback = function()
-        local current_file = vim.fn.expand("%:p")
-        vim.cmd("Magenta context-files " .. vim.fn.shellescape(current_file))
-      end
-    }
-  )
-
-  vim.api.nvim_set_keymap(
-    "n",
-    "<leader>mf",
-    "",
-    {
-      noremap = true,
-      silent = true,
-      desc = "Select files to add to Magenta context",
-      callback = function()
-        if M.options.picker == "fzf-lua" then
-          Utils.fzf_files()
-        elseif M.options.picker == "telescope" then
-          Utils.telescope_files()
-        else
-          vim.notify("Neither fzf-lua nor telescope are installed!", vim.log.levels.ERROR)
-        end
-      end
-    }
-  )
-
-  vim.api.nvim_set_keymap(
-    "n",
-    "<leader>mp",
-    "",
-    {
-      noremap = true,
-      silent = true,
-      desc = "Select provider and model",
-      callback = function()
-        local items = {
-            'openai gpt-4o',
-            'openai o1',
-            'openai o1-mini',
-            'anthropic claude-3-5-sonnet-latest'
-        }
-        vim.ui.select(items, { prompt = "Select Model", }, function (choice)
-          if choice ~= nil then
-            vim.cmd("Magenta provider " .. choice )
-          end
-        end)
-      end
-    }
-  )
-
+  require("magenta.keymaps").default_keymaps()
 end
 
 M.testSetup = function()
@@ -207,7 +89,13 @@ M.bridge = function(channelId)
     vim.rpcnotify(channelId, "magentaLspResponse", {requestId, response})
   end
 
-  return M.options
+  local opts = Options.options
+  return {
+    provider = opts.provider,
+    anthropic = opts.anthropic,
+    openai = opts.openai,
+    bedrock = opts.bedrock
+  }
 end
 
 M.wait_for_lsp_attach = function(bufnr, capability, timeout_ms)
