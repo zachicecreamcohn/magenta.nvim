@@ -190,6 +190,28 @@ vim.keymap.set(
 
 </details>
 
+<details>
+<summary>Set up fzf-lua as your selector</summary>
+
+In order to use fzf-lua as your selector for certain commands, like `<leader>mp` for `:Magenta provider`, you should
+set it as the default selector for neovim, by running `register_ui_select` at some point during initialization.
+
+```lua
+  {
+    "ibhagwan/fzf-lua",
+    lazy = false,
+    config = function()
+      require("fzf-lua").setup({
+       -- ...
+      })
+      require("fzf-lua").register_ui_select()
+    end,
+  -- ...
+    }
+```
+
+</details>
+
 # Usage
 
 ### Chat
