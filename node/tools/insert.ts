@@ -115,8 +115,11 @@ export const spec: ProviderToolSpec = {
       },
       insertAfter: {
         type: "string",
-        description:
-          "String after which to insert the content. This text will not be changed. This should be the literal text of the file - regular expressions are not allowed. Provide just enough text to uniquely identify a location in the file. Provide the empty string to insert at the beginning of the file.",
+        description: `\
+String after which to insert the content.
+To ensure precise location matching, provide 2-3 lines of context from the target file, including the exact indentation.
+This text will not be changed. Regular expressions are not allowed.
+Provide the empty string to insert at the beginning of the file.`,
       },
       content: {
         type: "string",
