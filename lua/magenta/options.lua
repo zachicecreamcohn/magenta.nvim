@@ -13,7 +13,7 @@ local defaults = {
     prompt_caching = false
   },
   picker = "fzf-lua",
-  sidebar_position = "right",
+  sidebar_position = "left",
   default_keymaps = true,
   sidebar_keymaps = {
     normal = {

@@ -1,6 +1,6 @@
 local Utils = require("magenta.utils")
 local Options = require("magenta.options")
-local Actions = require("magenta.actions")
+require("magenta.actions")
 local M = {}
 
 M.setup = function(opts)
