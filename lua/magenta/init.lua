@@ -29,12 +29,12 @@ M.start = function(silent)
 
   local env = {
     IS_DEV = false,
-    LOG_LEVEL = "debug"
+    LOG_LEVEL = "info"
   }
 
   local job_id =
     vim.fn.jobstart(
-    "npm run start",
+    "npm run start -s",
     {
       cwd = plugin_root,
       stdin = "null",
