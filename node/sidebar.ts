@@ -93,7 +93,6 @@ export class Sidebar {
         split: sidebarPosition,
         width: WIDTH,
         height: displayHeight,
-        style: "minimal",
       },
     ])) as WindowId;
     const displayWindow = new NvimWindow(displayWindowId, this.nvim);
@@ -118,7 +117,6 @@ export class Sidebar {
         split: "below",
         width: WIDTH,
         height: inputHeight,
-        style: "minimal",
       },
     ])) as WindowId;
 
@@ -134,8 +132,6 @@ export class Sidebar {
     const winOptions = {
       wrap: true,
       linebreak: true,
-      number: false,
-      relativenumber: false,
       cursorline: true,
     };
 

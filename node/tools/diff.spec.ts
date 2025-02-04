@@ -7,6 +7,12 @@ import type { Line } from "../nvim/buffer";
 describe("node/tools/diff.spec.ts", () => {
   it("insert into new file", async () => {
     await withDriver(async (driver) => {
+      await driver.nvim.call("nvim_set_option_value", [
+        "relativenumber",
+        true,
+        {},
+      ]);
+
       await driver.showSidebar();
       await driver.inputMagentaText(
         `Write me a short poem in the file poem.txt`,
@@ -47,6 +53,7 @@ describe("node/tools/diff.spec.ts", () => {
       });
 
       expect(await poemWin.getOption("diff")).toBe(true);
+      expect(await poemWin.getOption("relativenumber")).toBe(true);
 
       const poemText = (
         await (await poemWin.buffer()).getLines({ start: 0, end: -1 })
@@ -118,6 +125,11 @@ describe("node/tools/diff.spec.ts", () => {
 
   it("replace in existing file", async () => {
     await withDriver(async (driver) => {
+      await driver.nvim.call("nvim_set_option_value", [
+        "relativenumber",
+        true,
+        {},
+      ]);
       await driver.showSidebar();
       await driver.inputMagentaText(
         `Update the poem in the file node/test/fixtures/poem.txt`,
@@ -164,6 +176,7 @@ Paints its colors in the light.`,
       });
 
       expect(await poemWin.getOption("diff")).toBe(true);
+      expect(await poemWin.getOption("relativenumber")).toBe(true);
 
       const poemText = (
         await (await poemWin.buffer()).getLines({ start: 0, end: -1 })

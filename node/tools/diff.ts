@@ -61,7 +61,6 @@ export async function displayDiffs({
       win: -1, // global split
       split: "right",
       width: WIDTH,
-      style: "minimal",
     },
   ])) as WindowId;
 
@@ -130,7 +129,6 @@ export async function displayDiffs({
       win: fileWindowId, // global split
       split: "left",
       width: WIDTH,
-      style: "minimal",
     },
   ]);
 
