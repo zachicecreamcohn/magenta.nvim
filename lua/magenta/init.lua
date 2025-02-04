@@ -51,6 +51,20 @@ M.start = function(silent)
   end
 end
 
+local normal_commands = {
+  "abort",
+  "clear",
+  "context-files",
+  "provider",
+  "start-inline-edit",
+  "toggle",
+}
+
+local visual_commands = {
+  "start-inline-edit-selection",
+  "paste-selection",
+}
+
 M.bridge = function(channelId)
   vim.api.nvim_create_user_command(
     "Magenta",
@@ -60,7 +74,18 @@ M.bridge = function(channelId)
     {
       nargs = "+",
       range = true,
-      desc = "Execute Magenta command"
+      desc = "Execute Magenta command",
+      complete = function(ArgLead, CmdLine)
+        local commands = CmdLine:match("^'<,'>") and visual_commands or normal_commands
+
+        if ArgLead == '' then
+          return commands
+        end
+        -- Filter based on ArgLead
+        return vim.tbl_filter(function(cmd)
+          return cmd:find('^' .. ArgLead)
+        end, commands)
+      end
     }
   )
 
