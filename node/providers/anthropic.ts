@@ -624,13 +624,13 @@ export function placeCacheBreakpoints(messages: MessageParam[]): number {
   const tokens = Math.floor(lengthAcc / STR_CHARS_PER_TOKEN);
 
   // Anthropic allows for placing up to 4 cache control markers.
-  // It will not cache anythign less than 1024 tokens for sonnet 3.5
+  // It will not cache anything less than 1024 tokens for sonnet 3.5
   // https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
   // this is pretty rough estimate, due to the conversion between string length and tokens.
   // however, since we are not accounting for tools or the system prompt, and generally code and technical writing
   // tend to have a lower coefficient of string length to tokens (about 3.5 average sting length per token), this means
   // that the first cache control should be past the 1024 mark and should be cached.
-  const powers = highestPowersOfTwo(tokens, 4).filter((n) => n >= 1024);
+  const powers = highestPowersOfTwo(tokens, 3).filter((n) => n >= 1024);
   if (powers.length) {
     for (const power of powers) {
       const targetLength = power * STR_CHARS_PER_TOKEN; // power is in tokens, but we want string chars instead
