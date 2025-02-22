@@ -81,7 +81,11 @@ export class AnthropicProvider implements Provider {
         content = m.content.map((c): Anthropic.ContentBlockParam => {
           switch (c.type) {
             case "text":
-              return c;
+              // important to create a new object here so when we attach ephemeral
+              // cache_control markers we won't mutate the content.
+              return {
+                ...c,
+              };
             case "tool_use":
               return {
                 id: c.request.id,
@@ -630,15 +634,13 @@ export function placeCacheBreakpoints(messages: MessageParam[]): number {
   // however, since we are not accounting for tools or the system prompt, and generally code and technical writing
   // tend to have a lower coefficient of string length to tokens (about 3.5 average sting length per token), this means
   // that the first cache control should be past the 1024 mark and should be cached.
-  const powers = highestPowersOfTwo(tokens, 3).filter((n) => n >= 1024);
-  if (powers.length) {
-    for (const power of powers) {
-      const targetLength = power * STR_CHARS_PER_TOKEN; // power is in tokens, but we want string chars instead
-      // find the first block where we are past the target power
-      const blockEntry = blocks.find((b) => b.acc > targetLength);
-      if (blockEntry) {
-        blockEntry.block.cache_control = { type: "ephemeral" };
-      }
+  const powers = highestPowersOfTwo(tokens, 4).filter((n) => n >= 1024);
+  for (const power of powers) {
+    const targetLength = power * STR_CHARS_PER_TOKEN; // power is in tokens, but we want string chars instead
+    // find the first block where we are past the target power
+    const blockEntry = blocks.find((b) => b.acc > targetLength);
+    if (blockEntry) {
+      blockEntry.block.cache_control = { type: "ephemeral" };
     }
   }
 
