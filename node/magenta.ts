@@ -57,7 +57,7 @@ export class Magenta {
     }
     this.sidebar = new Sidebar(this.nvim, {
       provider: "anthropic",
-      model: "claude-3-5-sonnet-latest",
+      model: "claude-3-7-sonnet-latest",
     });
 
     this.chatModel = Chat.init({ nvim, lsp });

@@ -60,10 +60,11 @@ end
 
 M.pick_provider = function()
   local items = {
+    'anthropic claude-3-7-sonnet-latest',
+    'anthropic claude-3-5-sonnet-latest',
     'openai gpt-4o',
     'openai o1',
-    'openai o1-mini',
-    'anthropic claude-3-5-sonnet-latest'
+    'openai o1-mini'
   }
   vim.ui.select(items, { prompt = "Select Model", }, function (choice)
     if choice ~= nil then

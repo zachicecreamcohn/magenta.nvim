@@ -112,7 +112,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
       lastUserMessageId: counter.last() as Message.MessageId,
       providerSetting: {
         provider: "anthropic",
-        model: "claude-3-5-sonnet-latest",
+        model: "claude-3-7-sonnet-latest",
       },
       conversation: {
         state: "stopped",

@@ -83,7 +83,7 @@ Awaiting response ⠁`);
 
         expect(state.model.providerSetting).toEqual({
           provider: "anthropic",
-          model: "claude-3-5-sonnet-latest",
+          model: "claude-3-7-sonnet-latest",
         });
       }
       await driver.showSidebar();
@@ -91,7 +91,7 @@ Awaiting response ⠁`);
       {
         const winbar = await displayState.inputWindow.getOption("winbar");
         expect(winbar).toBe(
-          `Magenta Input (anthropic claude-3-5-sonnet-latest)`,
+          `Magenta Input (anthropic claude-3-7-sonnet-latest)`,
         );
       }
       await driver.nvim.call("nvim_command", ["Magenta provider openai"]);

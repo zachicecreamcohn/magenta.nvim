@@ -11,13 +11,13 @@ export type MagentaOptions = {
 export const DEFAULT_OPTIONS: MagentaOptions = {
   provider: "anthropic",
   anthropic: {
-    model: "claude-3-5-sonnet-latest",
+    model: "claude-3-7-sonnet-latest",
   },
   openai: {
     model: "gpt-4o",
   },
   bedrock: {
-    model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+    model: "anthropic.claude-3-7-sonnet-20241022-v2:0",
     promptCaching: false,
   },
   sidebarPosition: "left",

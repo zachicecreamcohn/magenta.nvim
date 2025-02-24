@@ -84,7 +84,7 @@ require('magenta').setup({
     model = "gpt-4o"
   },
   anthropic = {
-    model = "claude-3-5-sonnet-latest"
+    model = "claude-3-7-sonnet-latest"
   },
   bedrock = {
     model = "anthropic.claude-3-5-sonnet-20241022-v2:0",

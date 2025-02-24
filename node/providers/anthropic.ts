@@ -45,7 +45,7 @@ export class AnthropicProvider implements Provider {
     apiKeyRequired = true,
   ) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    this.model = "claude-3-5-sonnet-latest";
+    this.model = "claude-3-7-sonnet-latest";
 
     if (apiKeyRequired && !apiKey) {
       throw new Error("Anthropic API key not found in config or environment");
@@ -127,12 +127,12 @@ export class AnthropicProvider implements Provider {
       },
     );
 
+    this.nvim.logger?.error(`anthropic model: ${this.model}`);
     return {
       messages: anthropicMessages,
       model: this.model,
       max_tokens: 4096,
       system: [
-        // @ts-expect-error setting cache_control to undefined
         {
           type: "text",
           text: DEFAULT_SYSTEM_PROMPT,
@@ -145,7 +145,7 @@ export class AnthropicProvider implements Provider {
             ? cacheControlItemsPlaced < 4
               ? { type: "ephemeral" }
               : null
-            : undefined,
+            : null,
         },
       ],
       tool_choice: {
@@ -639,7 +639,11 @@ export function placeCacheBreakpoints(messages: MessageParam[]): number {
     const targetLength = power * STR_CHARS_PER_TOKEN; // power is in tokens, but we want string chars instead
     // find the first block where we are past the target power
     const blockEntry = blocks.find((b) => b.acc > targetLength);
-    if (blockEntry) {
+    if (
+      blockEntry &&
+      blockEntry.block.type !== "thinking" &&
+      blockEntry.block.type !== "redacted_thinking"
+    ) {
       blockEntry.block.cache_control = { type: "ephemeral" };
     }
   }
