@@ -5,6 +5,9 @@ import { createApp } from "../tea/tea.ts";
 import { describe, expect, it } from "vitest";
 import { pos } from "../tea/view.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
+import type { MessageId } from "./message.ts";
+import * as ListDirectory from "../tools/listDirectory.ts";
+import * as ListBuffers from "../tools/listBuffers.ts";
 
 describe("tea/chat.spec.ts", () => {
   it("chat render and a few updates", async () => {
@@ -181,6 +184,175 @@ describe("tea/chat.spec.ts", () => {
         await buffer.getLines({ start: 0, end: -1 }),
         "finished render is as expected",
       ).toEqual(Chat.LOGO.split("\n") as Line[]);
+    });
+  });
+
+  it("getMessages correctly interleaves tool requests and responses", async () => {
+    await withNvimClient(async (nvim) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
+      const chatModel = Chat.init({ nvim, lsp: undefined as any });
+      const model = chatModel.initModel();
+
+      model.messages.push({
+        id: 1 as MessageId,
+        role: "user",
+        parts: [{ type: "text", text: "Can you help me with my code?" }],
+        edits: {},
+      });
+
+      const TOOL1_ID = "tool-1" as ToolRequestId;
+      const TOOL2_ID = "tool-2" as ToolRequestId;
+
+      model.messages.push({
+        id: 2 as MessageId,
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "I'll help you. Let me check your files first.",
+          },
+          {
+            type: "tool-request",
+            requestId: TOOL1_ID,
+          },
+          { type: "text", text: "Now let me check your buffers too." },
+          {
+            type: "tool-request",
+            requestId: TOOL2_ID,
+          },
+          { type: "text", text: "Based on these results, I can help you." },
+        ],
+        edits: {},
+      });
+
+      {
+        const toolModel = ListDirectory.initModel(
+          {
+            id: TOOL1_ID,
+            name: "list_directory",
+            input: {},
+          },
+          { nvim },
+        )[0];
+        toolModel.state = {
+          state: "done",
+          result: {
+            type: "tool_result",
+            id: TOOL1_ID,
+            result: {
+              status: "ok",
+              value: "list_directory result",
+            },
+          },
+        };
+
+        model.toolManager.toolWrappers[TOOL1_ID] = {
+          model: toolModel,
+          showRequest: true,
+          showResult: true,
+        };
+      }
+
+      {
+        const toolModel = ListBuffers.initModel(
+          {
+            id: TOOL2_ID,
+            name: "list_buffers",
+            input: {},
+          },
+          { nvim },
+        )[0];
+
+        toolModel.state = {
+          state: "done",
+          result: {
+            type: "tool_result",
+            id: TOOL2_ID,
+            result: {
+              status: "ok",
+              value: "list_buffers result",
+            },
+          },
+        };
+
+        model.toolManager.toolWrappers[TOOL2_ID] = {
+          model: toolModel,
+          showRequest: true,
+          showResult: true,
+        };
+      }
+
+      const messages = await chatModel.getMessages(model);
+
+      expect(messages).toEqual([
+        {
+          role: "user",
+          content: [{ type: "text", text: "Can you help me with my code?" }],
+        },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "text",
+              text: "I'll help you. Let me check your files first.",
+            },
+            {
+              type: "tool_use",
+              request: {
+                id: "tool-1",
+                input: {},
+                name: "list_directory",
+              },
+            },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              id: "tool-1",
+              result: {
+                status: "ok",
+                value: "list_directory result",
+              },
+            },
+          ],
+        },
+        {
+          role: "assistant",
+          content: [
+            { type: "text", text: "Now let me check your buffers too." },
+            {
+              type: "tool_use",
+              request: {
+                id: "tool-2",
+                input: {},
+                name: "list_buffers",
+              },
+            },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              id: "tool-2",
+              result: {
+                status: "ok",
+                value: "list_buffers result",
+              },
+            },
+          ],
+        },
+        {
+          role: "assistant",
+          content: [
+            { type: "text", text: "Based on these results, I can help you." },
+          ],
+        },
+      ]);
     });
   });
 });
