@@ -562,33 +562,39 @@ ${msg.error.stack}`,
 
   async function getMessages(model: Model): Promise<ProviderMessage[]> {
     const messages = model.messages.flatMap((msg) => {
-      const messageContent: ProviderMessageContent[] = [];
-      const toolResponseContent: ProviderMessageContent[] = [];
+      let messageContent: ProviderMessageContent[] = [];
+      const out: ProviderMessage[] = [];
 
       for (const part of msg.parts) {
         const { content, result } = partModel.toMessageParam(
           part,
           model.toolManager,
         );
+
         if (content) {
           messageContent.push(content);
         }
+
         if (result) {
-          toolResponseContent.push(result);
+          if (messageContent.length) {
+            out.push({
+              role: msg.role,
+              content: messageContent,
+            });
+            messageContent = [];
+          }
+
+          out.push({
+            role: "user",
+            content: [result],
+          });
         }
       }
 
-      const out: ProviderMessage[] = [
-        {
+      if (messageContent.length) {
+        out.push({
           role: msg.role,
           content: messageContent,
-        },
-      ];
-
-      if (toolResponseContent.length) {
-        out.push({
-          role: "user",
-          content: toolResponseContent,
         });
       }
 
