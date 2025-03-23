@@ -41,8 +41,8 @@ M.default_keymaps = function()
 
   vim.keymap.set(
     "v",
-    "{leader}mp",
-    ":Magenta paste-selection{CR}",
+    "<leader>mp",
+    ":Magenta paste-selection<CR>",
     {silent = true, noremap = true, desc = "Send selection to Magenta"}
   )
 
