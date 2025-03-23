@@ -133,6 +133,7 @@ export class Sidebar {
       wrap: true,
       linebreak: true,
       cursorline: true,
+      winfixwidth: true,
     };
 
     for (const [key, value] of Object.entries(winOptions)) {
@@ -148,6 +149,7 @@ export class Sidebar {
     );
     // set var so we can avoid closing this window when displaying a diff
     await inputWindow.setVar("magenta", true);
+    await inputWindow.setOption("winfixheight", true);
 
     this.nvim.logger?.debug(`sidebar.create setting state`);
     this.state = {
