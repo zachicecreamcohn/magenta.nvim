@@ -59,13 +59,7 @@ M.pick_context_files = function()
 end
 
 M.pick_provider = function()
-  local items = {
-    'anthropic claude-3-7-sonnet-latest',
-    'anthropic claude-3-5-sonnet-latest',
-    'openai gpt-4o',
-    'openai o1',
-    'openai o1-mini'
-  }
+  local items = Options.get_model_strings()
   vim.ui.select(items, { prompt = "Select Model", }, function (choice)
     if choice ~= nil then
       vim.cmd("Magenta provider " .. choice )
