@@ -76,13 +76,31 @@ export class Magenta {
     this.nvim.logger?.debug(`Received command ${command}`);
     switch (command) {
       case "provider": {
-        const [providerName, model] = rest;
+        const [providerName, model, ...optionalArgs] = rest;
         const provider = providerName as ProviderName;
+
+        let omitParallelToolCalls = this.options.openai.omitParallelToolCalls;
+        for (const arg of optionalArgs) {
+          const match = arg.match(/^omitParallelToolCalls=(true|false)$/i);
+          if (match) {
+            omitParallelToolCalls = match[1].toLowerCase() === "true";
+          }
+        }
+
         if (provider === "bedrock") {
           this.providerSetting = {
             provider,
             model: model || this.options[provider].model,
             promptCaching: this.options[provider].promptCaching,
+          };
+        } else if (provider === "openai") {
+          this.providerSetting = {
+            provider,
+            model: model || this.options[provider].model,
+            omitParallelToolCalls:
+              omitParallelToolCalls !== undefined
+                ? omitParallelToolCalls
+                : false,
           };
         } else {
           this.providerSetting = {
@@ -90,6 +108,7 @@ export class Magenta {
             model: model || this.options[provider].model,
           };
         }
+
         if (PROVIDER_NAMES.indexOf(provider) !== -1) {
           this.chatApp.dispatch({
             type: "choose-provider",

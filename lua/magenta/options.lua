@@ -30,8 +30,8 @@ local defaults = {
   models = {
     openai = {
       { model = "gpt-4o" },
-      { model = "o1" },
-      { model = "o1-mini" },
+      { model = "o1", omitParallelToolCalls = true },
+      { model = "o1-mini"}
     },
 	anthropic = {
 	  { model = "claude-3-7-sonnet-latest" },
@@ -66,7 +66,17 @@ M.get_model_strings = function()
 	for provider, entries in pairs(models) do
 		for _, entry in ipairs(entries) do
 			if entry.model then
-				table.insert(result, provider .. " " .. entry.model)
+				local command_string = provider .. " " .. entry.model
+				if provider == "openai" and entry.omitParallelToolCalls ~= nil then
+					command_string = command_string
+						.. " omitParallelToolCalls="
+						.. (entry.omitParallelToolCalls and "true" or "false")
+				end
+				local display_string = provider .. " " .. entry.model
+				table.insert(result, {
+					display = display_string,
+					command = command_string
+				})
 			end
 		end
 	end

@@ -60,9 +60,15 @@ end
 
 M.pick_provider = function()
   local items = Options.get_model_strings()
-  vim.ui.select(items, { prompt = "Select Model", }, function (choice)
+  local display_items = {}
+  local command_map = {}
+  for _, item in ipairs(items) do
+    table.insert(display_items, item.display)
+    command_map[item.display] = item.command
+  end
+  vim.ui.select(display_items, { prompt = "Select Model", }, function (choice)
     if choice ~= nil then
-      vim.cmd("Magenta provider " .. choice )
+      vim.cmd("Magenta provider " .. command_map[choice])
     end
   end)
 end
