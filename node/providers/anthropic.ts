@@ -458,6 +458,7 @@ export class AnthropicProvider implements Provider {
       }
     };
 
+    let requestActive = true;
     try {
       this.request = this.client.messages
         .stream(
@@ -466,10 +467,16 @@ export class AnthropicProvider implements Provider {
           ) as Anthropic.Messages.MessageStreamParams,
         )
         .on("text", (text: string) => {
+          if (!requestActive) {
+            return;
+          }
           buf.push(text);
           flushBuffer();
         })
         .on("inputJson", (_delta, snapshot) => {
+          if (!requestActive) {
+            return;
+          }
           this.nvim.logger?.debug(
             `anthropic stream inputJson: ${JSON.stringify(snapshot)}`,
           );
@@ -559,12 +566,20 @@ export class AnthropicProvider implements Provider {
         usage.cacheMisses = response.usage.cache_creation_input_tokens;
       }
 
+      if (!requestActive) {
+        throw new Error(`request no longer active`);
+      }
+
       return {
         toolRequests,
         stopReason: response.stop_reason || "end_turn",
         usage,
       };
     } finally {
+      requestActive = false;
+      if (this.request) {
+        this.request.abort();
+      }
       this.request = undefined;
     }
   }

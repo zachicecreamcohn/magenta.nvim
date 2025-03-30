@@ -364,7 +364,8 @@ describe("tea/chat.spec.ts", () => {
     await withDriver(async (driver) => {
       await driver.showSidebar();
 
-      await driver.inputMagentaText("Generate some text for me");
+      const userPrompt = "Generate some text for me";
+      await driver.inputMagentaText(userPrompt);
       await driver.send();
 
       const pendingRequest = await driver.mockAnthropic.awaitPendingRequest();
@@ -383,11 +384,8 @@ describe("tea/chat.spec.ts", () => {
         "Error Connection error during response",
       );
 
-      const displayText = await driver.getDisplayBufferText();
-      expect(displayText).toContain("# user:");
-      expect(displayText).toContain("Generate some text for me");
-
-      expect(displayText).toContain("Error Connection error");
+      // Check that the input buffer is pre-populated with the last user message
+      await driver.assertInputBufferContains(userPrompt);
     });
   });
 });
