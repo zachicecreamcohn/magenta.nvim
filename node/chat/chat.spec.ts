@@ -1,4 +1,8 @@
-import { extractMountTree, withNvimClient } from "../test/preamble.ts";
+import {
+  extractMountTree,
+  withNvimClient,
+  withDriver,
+} from "../test/preamble.ts";
 import * as Chat from "./chat.ts";
 import { type ToolRequestId } from "../tools/toolManager.ts";
 import { createApp } from "../tea/tea.ts";
@@ -353,6 +357,37 @@ describe("tea/chat.spec.ts", () => {
           ],
         },
       ]);
+    });
+  });
+
+  it("handles errors during streaming response", async () => {
+    await withDriver(async (driver) => {
+      await driver.showSidebar();
+
+      await driver.inputMagentaText("Generate some text for me");
+      await driver.send();
+
+      const pendingRequest = await driver.mockAnthropic.awaitPendingRequest();
+
+      pendingRequest.onText("I'm generating text for you...");
+
+      await driver.assertDisplayBufferContains(
+        "I'm generating text for you...",
+      );
+
+      pendingRequest.defer.reject(
+        new Error("Connection error during response"),
+      );
+
+      await driver.assertDisplayBufferContains(
+        "Error Connection error during response",
+      );
+
+      const displayText = await driver.getDisplayBufferText();
+      expect(displayText).toContain("# user:");
+      expect(displayText).toContain("Generate some text for me");
+
+      expect(displayText).toContain("Error Connection error");
     });
   });
 });

@@ -80,7 +80,6 @@ export interface Provider {
   sendMessage(
     messages: Array<ProviderMessage>,
     onText: (text: string) => void,
-    onError: (error: Error) => void,
   ): Promise<{
     toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;

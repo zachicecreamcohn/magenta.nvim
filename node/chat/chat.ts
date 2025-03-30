@@ -36,6 +36,10 @@ export type ConversationState =
       state: "stopped";
       stopReason: StopReason;
       usage: Usage;
+    }
+  | {
+      state: "error";
+      error: Error;
     };
 
 export type Model = {
@@ -73,10 +77,6 @@ export type Msg =
   | {
       type: "stream-response";
       text: string;
-    }
-  | {
-      type: "stream-error";
-      error: Error;
     }
   | {
       type: "init-tool-use";
@@ -183,6 +183,15 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
             });
           }
         }
+
+        if (msg.conversation.state == "error") {
+          const lastMessage = model.messages[model.messages.length - 1];
+          if (lastMessage?.role == "assistant") {
+            // get rid of the latest assistant message so we can re-submit.
+            model.messages.pop();
+          }
+        }
+
         return [model, maybeAutorespond(model)];
       }
 
@@ -278,34 +287,6 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
 
         const [nextMessage, messageThunk] = messageModel.update(
           { type: "append-text", text: msg.text },
-          model.messages[model.messages.length - 1],
-          model.toolManager,
-        );
-        model.messages[model.messages.length - 1] = nextMessage;
-
-        return [
-          model,
-          wrapMessageThunk(model.messages.length - 1, messageThunk),
-        ];
-      }
-
-      case "stream-error": {
-        const lastMessage = model.messages[model.messages.length - 1];
-        if (lastMessage?.role !== "assistant") {
-          model.messages.push({
-            id: counter.get() as Message.MessageId,
-            role: "assistant",
-            parts: [],
-            edits: {},
-          });
-        }
-
-        const [nextMessage, messageThunk] = messageModel.update(
-          {
-            type: "append-text",
-            text: `Stream Error: ${msg.error.message}
-${msg.error.stack}`,
-          },
           model.messages[model.messages.length - 1],
           model.toolManager,
         );
@@ -485,12 +466,6 @@ ${msg.error.stack}`,
               text,
             });
           },
-          (error) => {
-            dispatch({
-              type: "stream-error",
-              error,
-            });
-          },
         );
 
         if (res.toolRequests?.length) {
@@ -501,13 +476,20 @@ ${msg.error.stack}`,
             });
           }
         }
-      } finally {
         dispatch({
           type: "conversation-state",
           conversation: {
             state: "stopped",
             stopReason: res?.stopReason || "end_turn",
             usage: res?.usage || { inputTokens: 0, outputTokens: 0 },
+          },
+        });
+      } catch (error) {
+        dispatch({
+          type: "conversation-state",
+          conversation: {
+            state: "error",
+            error: error as Error,
           },
         });
       }
@@ -546,11 +528,13 @@ ${msg.error.stack}`,
               ) % MESSAGE_ANIMATION.length
             ]
           }`
-        : withBindings(d`Stopped (${model.conversation.stopReason})`, {
-            "<CR>": () => dispatch({ type: "show-message-debug-info" }),
-          })
+        : model.conversation.state == "stopped"
+          ? withBindings(d`Stopped (${model.conversation.stopReason})`, {
+              "<CR>": () => dispatch({ type: "show-message-debug-info" }),
+            })
+          : d`Error ${model.conversation.error.message}${model.conversation.error.stack ? "\n" + model.conversation.error.stack : ""}`
     }${
-      model.conversation.state == "stopped" &&
+      model.conversation.state != "message-in-flight" &&
       !contextManagerModel.isContextEmpty(model.contextManager)
         ? d`\n${contextManagerModel.view({
             model: model.contextManager,

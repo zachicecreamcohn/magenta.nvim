@@ -197,7 +197,6 @@ export class AnthropicProvider implements Provider {
         },
       } as Anthropic.Messages.MessageStreamParams);
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const response: Anthropic.Message = await this.request.finalMessage();
 
       if (response.stop_reason === "max_tokens") {
@@ -328,7 +327,6 @@ export class AnthropicProvider implements Provider {
         },
       } as Anthropic.Messages.MessageStreamParams);
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const response: Anthropic.Message = await this.request.finalMessage();
 
       if (response.stop_reason === "max_tokens") {
@@ -436,7 +434,6 @@ export class AnthropicProvider implements Provider {
   async sendMessage(
     messages: Array<ProviderMessage>,
     onText: (text: string) => void,
-    onError: (error: Error) => void,
   ): Promise<{
     toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;
@@ -472,18 +469,16 @@ export class AnthropicProvider implements Provider {
           buf.push(text);
           flushBuffer();
         })
-        .on("error", onError)
         .on("inputJson", (_delta, snapshot) => {
           this.nvim.logger?.debug(
             `anthropic stream inputJson: ${JSON.stringify(snapshot)}`,
           );
         });
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const response: Anthropic.Message = await this.request.finalMessage();
 
       if (response.stop_reason === "max_tokens") {
-        onError(new Error("Response exceeded max_tokens limit"));
+        throw new Error("Response exceeded max_tokens limit");
       }
 
       const toolRequests: Result<
