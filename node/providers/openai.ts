@@ -500,7 +500,6 @@ export class OpenAIProvider implements Provider {
   async sendMessage(
     messages: Array<ProviderMessage>,
     onText: (text: string) => void,
-    _onError: (error: Error) => void,
   ): Promise<{
     toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;

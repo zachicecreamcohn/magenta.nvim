@@ -36,6 +36,11 @@ export type ConversationState =
       state: "stopped";
       stopReason: StopReason;
       usage: Usage;
+    }
+  | {
+      state: "error";
+      error: Error;
+      lastAssistantMessage?: Message.Model;
     };
 
 export type Model = {
@@ -75,10 +80,6 @@ export type Msg =
       text: string;
     }
   | {
-      type: "stream-error";
-      error: Error;
-    }
-  | {
       type: "init-tool-use";
       request: Result<ToolManager.ToolRequest, { rawRequest: unknown }>;
     }
@@ -98,6 +99,10 @@ export type Msg =
     }
   | {
       type: "show-message-debug-info";
+    }
+  | {
+      type: "sidebar-setup-resubmit";
+      lastUserMessage: string;
     };
 
 export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
@@ -173,18 +178,66 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
 
       case "conversation-state": {
         model.conversation = msg.conversation;
-        if (msg.conversation.state == "stopped") {
-          const lastMessage = model.messages[model.messages.length - 1];
-          if (lastMessage?.role === "assistant") {
-            lastMessage.parts.push({
-              type: "stop-msg",
-              stopReason: msg.conversation.stopReason,
-              usage: msg.conversation.usage,
-            });
+
+        switch (msg.conversation.state) {
+          case "stopped": {
+            const lastMessage = model.messages[model.messages.length - 1];
+            if (lastMessage?.role === "assistant") {
+              lastMessage.parts.push({
+                type: "stop-msg",
+                stopReason: msg.conversation.stopReason,
+                usage: msg.conversation.usage,
+              });
+            }
+            return [model, maybeAutorespond(model)];
           }
+
+          case "error": {
+            const lastAssistantMessage =
+              model.messages[model.messages.length - 1];
+            if (lastAssistantMessage?.role == "assistant") {
+              model.messages.pop();
+
+              // save the last message so we can show a nicer error message.
+              (
+                model.conversation as Extract<
+                  ConversationState,
+                  { state: "error" }
+                >
+              ).lastAssistantMessage = lastAssistantMessage;
+            }
+
+            const lastUserMessage = model.messages[model.messages.length - 1];
+            if (lastUserMessage?.role == "user") {
+              model.messages.pop();
+              const sidebarResubmitSetupThunk: Thunk<Msg> = (dispatch) =>
+                new Promise((resolve) => {
+                  dispatch({
+                    type: "sidebar-setup-resubmit",
+                    lastUserMessage: lastUserMessage.parts
+                      .map((p) => (p.type == "text" ? p.text : ""))
+                      .join(""),
+                  });
+                  resolve();
+                });
+
+              return [model, sidebarResubmitSetupThunk];
+            }
+            return [model];
+          }
+
+          case "message-in-flight":
+            return [model];
+
+          default:
+            return assertUnreachable(msg.conversation);
         }
-        return [model, maybeAutorespond(model)];
       }
+
+      case "sidebar-setup-resubmit":
+        // this action is really just there so the parent (magenta app) can observe it and manipulate the sidebar
+        // accordingly
+        return [model];
 
       case "send-message": {
         const lastMessage = model.messages[model.messages.length - 1];
@@ -278,34 +331,6 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
 
         const [nextMessage, messageThunk] = messageModel.update(
           { type: "append-text", text: msg.text },
-          model.messages[model.messages.length - 1],
-          model.toolManager,
-        );
-        model.messages[model.messages.length - 1] = nextMessage;
-
-        return [
-          model,
-          wrapMessageThunk(model.messages.length - 1, messageThunk),
-        ];
-      }
-
-      case "stream-error": {
-        const lastMessage = model.messages[model.messages.length - 1];
-        if (lastMessage?.role !== "assistant") {
-          model.messages.push({
-            id: counter.get() as Message.MessageId,
-            role: "assistant",
-            parts: [],
-            edits: {},
-          });
-        }
-
-        const [nextMessage, messageThunk] = messageModel.update(
-          {
-            type: "append-text",
-            text: `Stream Error: ${msg.error.message}
-${msg.error.stack}`,
-          },
           model.messages[model.messages.length - 1],
           model.toolManager,
         );
@@ -485,12 +510,6 @@ ${msg.error.stack}`,
               text,
             });
           },
-          (error) => {
-            dispatch({
-              type: "stream-error",
-              error,
-            });
-          },
         );
 
         if (res.toolRequests?.length) {
@@ -501,13 +520,20 @@ ${msg.error.stack}`,
             });
           }
         }
-      } finally {
         dispatch({
           type: "conversation-state",
           conversation: {
             state: "stopped",
             stopReason: res?.stopReason || "end_turn",
             usage: res?.usage || { inputTokens: 0, outputTokens: 0 },
+          },
+        });
+      } catch (error) {
+        dispatch({
+          type: "conversation-state",
+          conversation: {
+            state: "error",
+            error: error as Error,
           },
         });
       }
@@ -522,7 +548,8 @@ ${msg.error.stack}`,
   }) => {
     if (
       model.messages.length == 0 &&
-      Object.keys(model.contextManager.files).length == 0
+      Object.keys(model.contextManager.files).length == 0 &&
+      model.conversation.state == "stopped"
     ) {
       return d`${LOGO}`;
     }
@@ -546,11 +573,22 @@ ${msg.error.stack}`,
               ) % MESSAGE_ANIMATION.length
             ]
           }`
-        : withBindings(d`Stopped (${model.conversation.stopReason})`, {
-            "<CR>": () => dispatch({ type: "show-message-debug-info" }),
-          })
+        : model.conversation.state == "stopped"
+          ? withBindings(d`Stopped (${model.conversation.stopReason})`, {
+              "<CR>": () => dispatch({ type: "show-message-debug-info" }),
+            })
+          : d`Error ${model.conversation.error.message}${model.conversation.error.stack ? "\n" + model.conversation.error.stack : ""}${
+              model.conversation.lastAssistantMessage
+                ? "\n\nLast assistant message:\n" +
+                  JSON.stringify(
+                    model.conversation.lastAssistantMessage,
+                    null,
+                    2,
+                  )
+                : ""
+            }`
     }${
-      model.conversation.state == "stopped" &&
+      model.conversation.state != "message-in-flight" &&
       !contextManagerModel.isContextEmpty(model.contextManager)
         ? d`\n${contextManagerModel.view({
             model: model.contextManager,

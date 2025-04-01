@@ -64,7 +64,29 @@ export class Magenta {
     this.chatApp = TEA.createApp({
       nvim: this.nvim,
       initialModel: this.chatModel.initModel(),
-      update: (msg, model) => this.chatModel.update(msg, model, { nvim }),
+      update: (msg, model) => {
+        if (msg.type == "sidebar-setup-resubmit") {
+          if (
+            this.sidebar &&
+            this.sidebar.state &&
+            this.sidebar.state.inputBuffer
+          ) {
+            this.sidebar.state.inputBuffer
+              .setLines({
+                start: 0,
+                end: -1,
+                lines: msg.lastUserMessage.split("\n") as Line[],
+              })
+              .catch((error) => {
+                this.nvim.logger?.error(
+                  `Error updating sidebar input: ${error}`,
+                );
+              });
+          }
+        }
+
+        return this.chatModel.update(msg, model, { nvim });
+      },
       View: this.chatModel.view,
     });
 

@@ -197,7 +197,6 @@ export class AnthropicProvider implements Provider {
         },
       } as Anthropic.Messages.MessageStreamParams);
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const response: Anthropic.Message = await this.request.finalMessage();
 
       if (response.stop_reason === "max_tokens") {
@@ -328,7 +327,6 @@ export class AnthropicProvider implements Provider {
         },
       } as Anthropic.Messages.MessageStreamParams);
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const response: Anthropic.Message = await this.request.finalMessage();
 
       if (response.stop_reason === "max_tokens") {
@@ -436,7 +434,6 @@ export class AnthropicProvider implements Provider {
   async sendMessage(
     messages: Array<ProviderMessage>,
     onText: (text: string) => void,
-    onError: (error: Error) => void,
   ): Promise<{
     toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;
@@ -461,6 +458,7 @@ export class AnthropicProvider implements Provider {
       }
     };
 
+    let requestActive = true;
     try {
       this.request = this.client.messages
         .stream(
@@ -469,21 +467,25 @@ export class AnthropicProvider implements Provider {
           ) as Anthropic.Messages.MessageStreamParams,
         )
         .on("text", (text: string) => {
+          if (!requestActive) {
+            return;
+          }
           buf.push(text);
           flushBuffer();
         })
-        .on("error", onError)
         .on("inputJson", (_delta, snapshot) => {
+          if (!requestActive) {
+            return;
+          }
           this.nvim.logger?.debug(
             `anthropic stream inputJson: ${JSON.stringify(snapshot)}`,
           );
         });
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const response: Anthropic.Message = await this.request.finalMessage();
 
       if (response.stop_reason === "max_tokens") {
-        onError(new Error("Response exceeded max_tokens limit"));
+        throw new Error("Response exceeded max_tokens limit");
       }
 
       const toolRequests: Result<
@@ -564,12 +566,20 @@ export class AnthropicProvider implements Provider {
         usage.cacheMisses = response.usage.cache_creation_input_tokens;
       }
 
+      if (!requestActive) {
+        throw new Error(`request no longer active`);
+      }
+
       return {
         toolRequests,
         stopReason: response.stop_reason || "end_turn",
         usage,
       };
     } finally {
+      requestActive = false;
+      if (this.request) {
+        this.request.abort();
+      }
       this.request = undefined;
     }
   }
