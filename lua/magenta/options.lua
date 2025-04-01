@@ -68,9 +68,9 @@ M.get_model_strings = function()
 			if entry.model then
 				local command_string = provider .. " " .. entry.model
 				if provider == "openai" and entry.omitParallelToolCalls ~= nil then
-					command_string = command_string
-						.. " omitParallelToolCalls="
-						.. (entry.omitParallelToolCalls and "true" or "false")
+					if entry.omitParallelToolCalls then
+						command_string = command_string .. " omitParallelToolCalls"
+					end
 				end
 				local display_string = provider .. " " .. entry.model
 				table.insert(result, {

@@ -79,11 +79,10 @@ export class Magenta {
         const [providerName, model, ...optionalArgs] = rest;
         const provider = providerName as ProviderName;
 
-        let omitParallelToolCalls = this.options.openai.omitParallelToolCalls;
+        let omitParallelToolCalls = false;
         for (const arg of optionalArgs) {
-          const match = arg.match(/^omitParallelToolCalls=(true|false)$/i);
-          if (match) {
-            omitParallelToolCalls = match[1].toLowerCase() === "true";
+          if (arg === "omitParallelToolCalls") {
+            omitParallelToolCalls = true;
           }
         }
 
