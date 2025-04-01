@@ -80,6 +80,7 @@ M.get_model_strings = function()
 			end
 		end
 	end
+	table.sort(result, function(a, b) return a.display < b.display end)
 	return result
 end
 
