@@ -89,7 +89,7 @@ M.bridge = function(channelId)
           end
 
           if parts[2] == "provider" and parts[3] == "openai" and #parts > 3 then
-            local provider_options = {"omitParallelToolCalls"}
+            local provider_options = {"omit_parallel_tool_calls"}
             if ArgLead == '' then
               return provider_options
             end

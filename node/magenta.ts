@@ -79,10 +79,10 @@ export class Magenta {
         const [providerName, model, ...optionalArgs] = rest;
         const provider = providerName as ProviderName;
 
-        let omitParallelToolCalls = false;
+        let omit_parallel_tool_calls = false;
         for (const arg of optionalArgs) {
-          if (arg === "omitParallelToolCalls") {
-            omitParallelToolCalls = true;
+          if (arg === "omit_parallel_tool_calls") {
+            omit_parallel_tool_calls = true;
           }
         }
 
@@ -97,8 +97,8 @@ export class Magenta {
             provider,
             model: model || this.options[provider].model,
             omitParallelToolCalls:
-              omitParallelToolCalls !== undefined
-                ? omitParallelToolCalls
+              omit_parallel_tool_calls !== undefined
+                ? omit_parallel_tool_calls
                 : false,
           };
         } else {

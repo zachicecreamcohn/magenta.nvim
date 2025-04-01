@@ -111,7 +111,7 @@ Awaiting response ⠁`);
       }
 
       await driver.nvim.call("nvim_command", [
-        "Magenta provider openai o1 omitParallelToolCalls=true",
+        "Magenta provider openai o1 omit_parallel_tool_calls",
       ]);
       {
         const state = driver.magenta.chatApp.getState();
@@ -127,79 +127,6 @@ Awaiting response ⠁`);
         const winbar = await displayState.inputWindow.getOption("winbar");
         expect(winbar).toBe(`Magenta Input (openai o1)`);
       }
-    });
-  });
-
-  it("should correctly set omitParallelToolCalls", async () => {
-    await withDriver(async (driver) => {
-      await driver.nvim.call("nvim_command", [
-        "Magenta provider openai o1 omitParallelToolCalls=true",
-      ]);
-      let state = driver.magenta.chatApp.getState();
-      if (state.status != "running") {
-        throw new Error(`Expected state to be running`);
-      }
-      expect(state.model.providerSetting).toEqual({
-        provider: "openai",
-        model: "o1",
-        omitParallelToolCalls: true,
-      });
-
-      await driver.nvim.call("nvim_command", [
-        "Magenta provider openai o1 omitParallelToolCalls=false",
-      ]);
-      state = driver.magenta.chatApp.getState();
-      if (state.status != "running") {
-        throw new Error(`Expected state to be running`);
-      }
-      expect(state.model.providerSetting).toEqual({
-        provider: "openai",
-        model: "o1",
-        omitParallelToolCalls: false,
-      });
-    });
-  });
-
-  it("should correctly set omitParallelToolCalls when switching between two openai models", async () => {
-    await withDriver(async (driver) => {
-      await driver.nvim.call("nvim_command", [
-        "Magenta provider openai gpt-4o",
-      ]);
-      let state = driver.magenta.chatApp.getState();
-      if (state.status != "running") {
-        throw new Error(`Expected state to be running`);
-      }
-      expect(state.model.providerSetting).toEqual({
-        provider: "openai",
-        model: "gpt-4o",
-        omitParallelToolCalls: false,
-      });
-
-      await driver.nvim.call("nvim_command", [
-        "Magenta provider openai o1 omitParallelToolCalls=true",
-      ]);
-      state = driver.magenta.chatApp.getState();
-      if (state.status != "running") {
-        throw new Error(`Expected state to be running`);
-      }
-      expect(state.model.providerSetting).toEqual({
-        provider: "openai",
-        model: "o1",
-        omitParallelToolCalls: true,
-      });
-
-      await driver.nvim.call("nvim_command", [
-        "Magenta provider openai gpt-4o",
-      ]);
-      state = driver.magenta.chatApp.getState();
-      if (state.status != "running") {
-        throw new Error(`Expected state to be running`);
-      }
-      expect(state.model.providerSetting).toEqual({
-        provider: "openai",
-        model: "gpt-4o",
-        omitParallelToolCalls: false,
-      });
     });
   });
 

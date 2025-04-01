@@ -81,7 +81,7 @@ describe("openai.ts", () => {
       });
 
       await driver.nvim.call("nvim_command", [
-        "Magenta provider openai o1 omitParallelToolCalls=true",
+        "Magenta provider openai o1 omit_parallel_tool_calls",
       ]);
       state = driver.magenta.chatApp.getState();
       if (state.status != "running") {

@@ -30,7 +30,7 @@ local defaults = {
   models = {
     openai = {
       { model = "gpt-4o" },
-      { model = "o1", omitParallelToolCalls = true },
+      { model = "o1", omit_parallel_tool_calls = true },
     },
 	anthropic = {
 	  { model = "claude-3-7-sonnet-latest" },
@@ -66,9 +66,9 @@ M.get_model_strings = function()
 		for _, entry in ipairs(entries) do
 			if entry.model then
 				local command_string = provider .. " " .. entry.model
-				if provider == "openai" and entry.omitParallelToolCalls ~= nil then
-					if entry.omitParallelToolCalls then
-						command_string = command_string .. " omitParallelToolCalls"
+				if provider == "openai" and entry.omit_parallel_tool_calls ~= nil then
+					if entry.omit_parallel_tool_calls then
+						command_string = command_string .. " omit_parallel_tool_calls"
 					end
 				end
 				local display_string = provider .. " " .. entry.model

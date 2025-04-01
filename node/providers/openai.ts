@@ -18,7 +18,6 @@ import * as ReplaceSelection from "../inline-edit/replace-selection-tool.ts";
 
 export type OpenAIOptions = {
   model: string;
-  /* If true, provider passes `parallel_tool_calls: false` */
   omitParallelToolCalls?: boolean;
 };
 
@@ -203,7 +202,7 @@ export class OpenAIProvider implements Provider {
 
     // see https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
     // this recommends disabling parallel tool calls when strict adherence to schema is needed
-    // However, some models (like o1), error out when `parallel_tool_calls` is passed.
+    // However, some models (like o1) error out when `parallel_tool_calls` is passed.
     if (!this.omitParallelToolCalls) {
       params.parallel_tool_calls = false;
     }
