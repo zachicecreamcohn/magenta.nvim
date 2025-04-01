@@ -31,7 +31,6 @@ local defaults = {
     openai = {
       { model = "gpt-4o" },
       { model = "o1", omitParallelToolCalls = true },
-      { model = "o1-mini"}
     },
 	anthropic = {
 	  { model = "claude-3-7-sonnet-latest" },
