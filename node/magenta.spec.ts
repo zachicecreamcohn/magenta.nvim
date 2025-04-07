@@ -81,7 +81,7 @@ Awaiting response ⠁`);
           throw new Error(`Expected state to be running`);
         }
 
-        expect(state.model.providerSetting).toEqual({
+        expect(state.model.profile).toEqual({
           provider: "anthropic",
           model: "claude-3-7-sonnet-latest",
         });
@@ -101,7 +101,7 @@ Awaiting response ⠁`);
           throw new Error(`Expected state to be running`);
         }
 
-        expect(state.model.providerSetting).toEqual({
+        expect(state.model.profile).toEqual({
           provider: "openai",
           model: "gpt-4o",
         });
@@ -116,7 +116,7 @@ Awaiting response ⠁`);
           throw new Error(`Expected state to be running`);
         }
 
-        expect(state.model.providerSetting).toEqual({
+        expect(state.model.profile).toEqual({
           provider: "openai",
           model: "o1",
         });

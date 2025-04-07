@@ -32,16 +32,23 @@ export class OpenAIProvider implements Provider {
     }
   }
 
-  constructor(private nvim: Nvim) {
-    const apiKey = process.env.OPENAI_API_KEY;
+  constructor(
+    private nvim: Nvim,
+    options?: {
+      baseUrl?: string | undefined;
+      apiKeyEnvVar?: string | undefined;
+    },
+  ) {
+    const apiKeyEnvVar = options?.apiKeyEnvVar || "OPENAI_API_KEY";
+    const apiKey = process.env[apiKeyEnvVar];
 
     if (!apiKey) {
-      throw new Error("OPENAI_API_KEY key not found in environment");
+      throw new Error(`${apiKeyEnvVar} not found in environment`);
     }
 
     this.client = new OpenAI({
       apiKey,
-      baseURL: process.env.OPENAI_BASE_URL,
+      baseURL: options?.baseUrl || process.env.OPENAI_BASE_URL,
     });
 
     this.model = "gpt-4o";
