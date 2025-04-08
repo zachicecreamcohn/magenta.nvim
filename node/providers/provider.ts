@@ -13,32 +13,35 @@ const clients: Partial<{ [providerName in ProviderName]: Provider }> = {};
 // lazy load so we have a chance to init context before constructing the class
 export function getProvider(nvim: Nvim, profile: Profile): Provider {
   // Create a client key based on provider name and custom settings
-  const clientKey = `${profile.name}` as ProviderName;
+  const providerName = profile.provider;
 
-  if (!clients[clientKey]) {
+  if (!clients[providerName]) {
     switch (profile.provider) {
       case "anthropic":
-        clients[clientKey] = new AnthropicProvider(nvim, {
+        clients[providerName] = new AnthropicProvider(nvim, {
           baseUrl: profile.baseUrl,
           apiKeyEnvVar: profile.apiKeyEnvVar,
           promptCaching: true,
         });
         break;
       case "openai":
-        clients[clientKey] = new OpenAIProvider(nvim, {
+        clients[providerName] = new OpenAIProvider(nvim, {
           baseUrl: profile.baseUrl,
           apiKeyEnvVar: profile.apiKeyEnvVar,
         });
         break;
       case "bedrock":
-        clients[clientKey] = new BedrockProvider(nvim, !!profile.promptCaching);
+        clients[providerName] = new BedrockProvider(
+          nvim,
+          !!profile.promptCaching,
+        );
         break;
       default:
         assertUnreachable(profile.provider);
     }
   }
 
-  const provider = clients[clientKey];
+  const provider = clients[providerName];
   provider.setModel(profile.model);
 
   return provider;
