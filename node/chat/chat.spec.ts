@@ -20,7 +20,11 @@ describe("tea/chat.spec.ts", () => {
       await buffer.setOption("modifiable", false);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
       const chatModel = Chat.init({ nvim, lsp: undefined as any });
-      const model = chatModel.initModel();
+      const model = chatModel.initModel({
+        name: "claude-3-7",
+        provider: "anthropic",
+        model: "claude-3-7-latest",
+      });
 
       const app = createApp({
         nvim,
@@ -129,7 +133,11 @@ describe("tea/chat.spec.ts", () => {
       await buffer.setOption("modifiable", false);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
       const chatModel = Chat.init({ nvim, lsp: undefined as any });
-      const model = chatModel.initModel();
+      const model = chatModel.initModel({
+        name: "claude-3-7",
+        provider: "anthropic",
+        model: "claude-3-7-latest",
+      });
 
       const app = createApp({
         nvim,
@@ -181,6 +189,11 @@ describe("tea/chat.spec.ts", () => {
 
       app.dispatch({
         type: "clear",
+        profile: {
+          name: "claude-3-7",
+          provider: "anthropic",
+          model: "claude-3-7-latest",
+        },
       });
       await mountedApp.waitForRender();
 
@@ -195,7 +208,11 @@ describe("tea/chat.spec.ts", () => {
     await withNvimClient(async (nvim) => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
       const chatModel = Chat.init({ nvim, lsp: undefined as any });
-      const model = chatModel.initModel();
+      const model = chatModel.initModel({
+        name: "claude-3-7",
+        provider: "anthropic",
+        model: "claude-3-7-latest",
+      });
 
       model.messages.push({
         id: 1 as MessageId,

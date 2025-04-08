@@ -40,21 +40,32 @@ export class AnthropicProvider implements Provider {
 
   constructor(
     protected nvim: Nvim,
-    private promptCaching = true,
-    private disableParallelToolUseFlag = true,
-    apiKeyRequired = true,
+    options?: {
+      baseUrl?: string | undefined;
+      apiKeyEnvVar?: string | undefined;
+      awsAPIKey?: boolean | undefined;
+      promptCaching?: boolean | undefined;
+      disableParallelToolUseFlag?: boolean;
+    },
   ) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKeyEnvVar = options?.apiKeyEnvVar || "ANTHROPIC_API_KEY";
+    const apiKey = process.env[apiKeyEnvVar];
     this.model = "claude-3-7-sonnet-latest";
 
-    if (apiKeyRequired && !apiKey) {
-      throw new Error("Anthropic API key not found in config or environment");
+    if (!options?.awsAPIKey && !apiKey) {
+      throw new Error(
+        `Anthropic API key ${apiKeyEnvVar} not found in environment`,
+      );
     }
 
     this.client = new Anthropic({
       apiKey,
+      baseURL: options?.baseUrl,
     });
   }
+
+  private promptCaching = true;
+  private disableParallelToolUseFlag = true;
 
   setModel(model: string): void {
     this.model = model;

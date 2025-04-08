@@ -63,8 +63,8 @@ M.default_keymaps = function()
   vim.keymap.set(
     "n",
     "<leader>mp",
-    Actions.pick_provider,
-    {silent = true, noremap = true, desc = "Select provider and model"}
+    Actions.pick_profile,
+    {silent = true, noremap = true, desc = "Select profile"}
   )
 end
 

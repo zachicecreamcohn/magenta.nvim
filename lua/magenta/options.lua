@@ -1,16 +1,19 @@
 local M = {}
 
 local defaults = {
-  provider = "anthropic",
-  openai = {
-    model = "gpt-4o"
-  },
-  anthropic = {
-    model = "claude-3-7-sonnet-latest"
-  },
-  bedrock = {
-    model = "anthropic.claude-3-5-sonnet-20241022-v2:0",
-    prompt_caching = false
+  profiles = {
+    {
+      name = "claude-3-7",
+      provider = "anthropic",
+      model = "claude-3-7-sonnet-latest",
+      api_key_env_var = "ANTHROPIC_API_KEY"
+    },
+    {
+      name = "gpt-4o",
+      provider = "openai",
+      model = "gpt-4o",
+      api_key_env_var = "OPENAI_API_KEY"
+    }
   },
   picker = "fzf-lua",
   sidebar_position = "left",

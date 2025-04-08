@@ -18,12 +18,12 @@ import {
   getProvider as getProvider,
   type ProviderMessage,
   type ProviderMessageContent,
-  type ProviderSetting,
   type StopReason,
   type Usage,
 } from "../providers/provider.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { getOption } from "../nvim/nvim.ts";
+import { type Profile } from "../options.ts";
 
 export type Role = "user" | "assistant";
 
@@ -45,7 +45,7 @@ export type ConversationState =
 
 export type Model = {
   lastUserMessageId: Message.MessageId;
-  providerSetting: ProviderSetting;
+  profile: Profile;
   conversation: ConversationState;
   messages: Message.Model[];
   toolManager: ToolManager.Model;
@@ -60,7 +60,7 @@ type WrappedMessageMsg = {
 
 export type Msg =
   | WrappedMessageMsg
-  | { type: "choose-provider"; provider: ProviderSetting }
+  | { type: "update-profile"; profile: Profile }
   | {
       type: "context-manager-msg";
       msg: ContextManager.Msg;
@@ -92,6 +92,7 @@ export type Msg =
     }
   | {
       type: "clear";
+      profile: Profile;
     }
   | {
       type: "tool-manager-msg";
@@ -112,13 +113,10 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
   const contextManagerModel = ContextManager.init({ nvim });
   const messageModel = Message.init({ nvim, lsp });
 
-  function initModel(): Model {
+  function initModel(profile: Profile): Model {
     return {
       lastUserMessageId: counter.last() as Message.MessageId,
-      providerSetting: {
-        provider: "anthropic",
-        model: "claude-3-7-sonnet-latest",
-      },
+      profile,
       conversation: {
         state: "stopped",
         stopReason: "end_turn",
@@ -145,8 +143,8 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
 
   const update: Update<Msg, Model, { nvim: Nvim }> = (msg, model, context) => {
     switch (msg.type) {
-      case "choose-provider":
-        return [{ ...model, providerSetting: msg.provider }];
+      case "update-profile":
+        return [{ ...model, profile: msg.profile }];
       case "add-message": {
         let message: Message.Model = {
           id: counter.get() as Message.MessageId,
@@ -441,7 +439,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
       }
 
       case "clear": {
-        return [initModel()];
+        return [initModel(msg.profile)];
       }
 
       case "show-message-debug-info": {
@@ -502,7 +500,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
       });
       let res;
       try {
-        res = await getProvider(nvim, model.providerSetting).sendMessage(
+        res = await getProvider(nvim, model.profile).sendMessage(
           messages,
           (text) => {
             dispatch({
@@ -669,7 +667,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
 
   async function showDebugInfo(model: Model) {
     const messages = await getMessages(model);
-    const provider = getProvider(nvim, model.providerSetting);
+    const provider = getProvider(nvim, model.profile);
     const params = provider.createStreamParameters(messages);
     const nTokens = await provider.countTokens(messages);
 

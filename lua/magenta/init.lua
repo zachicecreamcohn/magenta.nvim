@@ -55,7 +55,7 @@ local normal_commands = {
   "abort",
   "clear",
   "context-files",
-  "provider",
+  "profile",
   "start-inline-edit",
   "toggle",
 }
@@ -116,10 +116,8 @@ M.bridge = function(channelId)
 
   local opts = Options.options
   return {
-    provider = opts.provider,
-    anthropic = opts.anthropic,
-    openai = opts.openai,
-    bedrock = opts.bedrock,
+    profiles = opts.profiles,
+    active_profile = opts.profiles[0],
     sidebar_position = opts.sidebar_position
   }
 end

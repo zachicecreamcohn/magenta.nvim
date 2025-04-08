@@ -5,22 +5,13 @@ import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
 import { pos } from "./tea/view.ts";
 import type { Nvim } from "nvim-node";
 import { Lsp } from "./lsp.ts";
-import {
-  getProvider,
-  PROVIDER_NAMES,
-  type ProviderName,
-  type ProviderSetting,
-} from "./providers/provider.ts";
+import { getProvider } from "./providers/provider.ts";
 import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
 import path from "node:path";
 import type { BufNr, Line } from "./nvim/buffer.ts";
 import { pos1col1to0 } from "./nvim/window.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
-import {
-  DEFAULT_OPTIONS,
-  parseOptions,
-  type MagentaOptions,
-} from "./options.ts";
+import { parseOptions, type MagentaOptions } from "./options.ts";
 import { InlineEditManager } from "./inline-edit/inline-edit-manager.ts";
 
 // these constants should match lua/magenta/init.lua
@@ -35,35 +26,18 @@ export class Magenta {
   public mountedChatApp: TEA.MountedApp | undefined;
   public chatModel;
   public inlineEditManager: InlineEditManager;
-  public providerSetting: ProviderSetting;
-  public options: MagentaOptions;
 
   constructor(
     public nvim: Nvim,
     public lsp: Lsp,
+    public options: MagentaOptions,
   ) {
-    this.options = DEFAULT_OPTIONS;
-    if (this.options.provider === "bedrock") {
-      this.providerSetting = {
-        provider: "bedrock",
-        model: this.options.bedrock.model,
-        promptCaching: this.options.bedrock.promptCaching,
-      };
-    } else {
-      this.providerSetting = {
-        provider: this.options.provider,
-        model: this.options[this.options.provider].model,
-      };
-    }
-    this.sidebar = new Sidebar(this.nvim, {
-      provider: "anthropic",
-      model: "claude-3-7-sonnet-latest",
-    });
+    this.sidebar = new Sidebar(this.nvim, this.getActiveProfile());
 
     this.chatModel = Chat.init({ nvim, lsp });
     this.chatApp = TEA.createApp({
       nvim: this.nvim,
-      initialModel: this.chatModel.initModel(),
+      initialModel: this.chatModel.initModel(this.getActiveProfile()),
       update: (msg, model) => {
         if (msg.type == "sidebar-setup-resubmit") {
           if (
@@ -93,35 +67,38 @@ export class Magenta {
     this.inlineEditManager = new InlineEditManager({ nvim });
   }
 
+  getActiveProfile() {
+    const profile = this.options.profiles.find(
+      (p) => p.name == this.options.activeProfile,
+    );
+    if (!profile) {
+      throw new Error(`Profile ${this.options.activeProfile} not found.`);
+    }
+    return profile;
+  }
+
   async command(input: string): Promise<void> {
     const [command, ...rest] = input.trim().split(/\s+/);
     this.nvim.logger?.debug(`Received command ${command}`);
     switch (command) {
-      case "provider": {
-        const [providerName, model] = rest;
-        const provider = providerName as ProviderName;
-        if (provider === "bedrock") {
-          this.providerSetting = {
-            provider,
-            model: model || this.options[provider].model,
-            promptCaching: this.options[provider].promptCaching,
-          };
-        } else {
-          this.providerSetting = {
-            provider,
-            model: model || this.options[provider].model,
-          };
-        }
-        if (PROVIDER_NAMES.indexOf(provider) !== -1) {
+      case "profile": {
+        const profileName = rest.join(" ");
+        const profile = this.options.profiles.find(
+          (p) => p.name === profileName,
+        );
+
+        if (profile) {
+          this.options.activeProfile = profile.name;
+
           this.chatApp.dispatch({
-            type: "choose-provider",
-            provider: this.providerSetting,
+            type: "update-profile",
+            profile: this.getActiveProfile(),
           });
-          await this.sidebar.updateProvider(this.providerSetting);
+          await this.sidebar.updateProfile(this.getActiveProfile());
         } else {
-          this.nvim.logger?.error(`Provider ${provider} is not supported.`);
+          this.nvim.logger?.error(`Profile "${profileName}" not found.`);
           // eslint-disable-next-line @typescript-eslint/no-floating-promises
-          notifyErr(this.nvim, `Provider ${provider} is not supported.`);
+          notifyErr(this.nvim, `Profile "${profileName}" not found.`);
         }
         break;
       }
@@ -193,7 +170,10 @@ export class Magenta {
       }
 
       case "clear":
-        this.chatApp.dispatch({ type: "clear" });
+        this.chatApp.dispatch({
+          type: "clear",
+          profile: this.getActiveProfile(),
+        });
         break;
 
       case "abort": {
@@ -203,7 +183,7 @@ export class Magenta {
           return;
         }
 
-        const provider = getProvider(this.nvim, this.providerSetting);
+        const provider = getProvider(this.nvim, this.getActiveProfile());
         provider.abort();
 
         break;
@@ -280,7 +260,7 @@ ${lines.join("\n")}
           return;
         }
 
-        const provider = getProvider(this.nvim, this.providerSetting);
+        const provider = getProvider(this.nvim, this.getActiveProfile());
 
         const messages = await this.chatModel.getMessages(chat.model);
         await this.inlineEditManager.submitInlineEdit(
@@ -328,7 +308,6 @@ ${lines.join("\n")}
 
   static async start(nvim: Nvim) {
     const lsp = new Lsp(nvim);
-    const magenta = new Magenta(nvim, lsp);
     nvim.onNotification(MAGENTA_COMMAND, async (args: unknown[]) => {
       try {
         await magenta.command(args[0] as string);
@@ -371,11 +350,8 @@ ${lines.join("\n")}
       `return require('magenta').bridge(${nvim.channelId})`,
       [],
     ]);
-    magenta.options = parseOptions(opts);
-    const provider = magenta.options["provider"];
-    await magenta.command(
-      `provider ${provider} ${magenta.options[provider].model}`,
-    );
+
+    const magenta = new Magenta(nvim, lsp, parseOptions(opts));
     nvim.logger?.info(`Magenta initialized. ${JSON.stringify(opts)}`);
     return magenta;
   }

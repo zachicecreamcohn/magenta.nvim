@@ -5,11 +5,15 @@ import * as ToolManager from "../tools/toolManager.ts";
 import type { Result } from "../utils/result";
 
 export const PROVIDER_NAMES = ["anthropic", "openai", "bedrock"] as const;
-export type ProviderSetting =
-  | { provider: "anthropic"; model: string }
-  | { provider: "openai"; model: string }
-  | { provider: "bedrock"; model: string; promptCaching: boolean };
-export type ProviderName = ProviderSetting["provider"];
+export type ProviderName = (typeof PROVIDER_NAMES)[number];
+
+export type ProviderSetting = {
+  provider: ProviderName;
+  model: string;
+  baseUrl?: string;
+  apiKeyEnvVar?: string;
+  promptCaching?: boolean;
+};
 
 export type StopReason =
   | "end_turn"

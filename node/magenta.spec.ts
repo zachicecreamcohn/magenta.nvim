@@ -73,7 +73,7 @@ Awaiting response ⠁`);
     });
   });
 
-  it("can set provider", async () => {
+  it("can switch profiles", async () => {
     await withDriver(async (driver) => {
       {
         const state = driver.magenta.chatApp.getState();
@@ -81,47 +81,34 @@ Awaiting response ⠁`);
           throw new Error(`Expected state to be running`);
         }
 
-        expect(state.model.providerSetting).toEqual({
+        expect(state.model.profile).toEqual({
+          name: "claude-3-7",
           provider: "anthropic",
           model: "claude-3-7-sonnet-latest",
+          apiKeyEnvVar: "ANTHROPIC_API_KEY",
         });
       }
       await driver.showSidebar();
       const displayState = driver.getVisibleState();
       {
         const winbar = await displayState.inputWindow.getOption("winbar");
-        expect(winbar).toBe(
-          `Magenta Input (anthropic claude-3-7-sonnet-latest)`,
-        );
+        expect(winbar).toBe(`Magenta Input (claude-3-7)`);
       }
-      await driver.nvim.call("nvim_command", ["Magenta provider openai"]);
+      await driver.nvim.call("nvim_command", ["Magenta profile gpt-4o"]);
       {
         const state = driver.magenta.chatApp.getState();
         if (state.status != "running") {
           throw new Error(`Expected state to be running`);
         }
 
-        expect(state.model.providerSetting).toEqual({
+        expect(state.model.profile).toEqual({
+          name: "gpt-4o",
           provider: "openai",
           model: "gpt-4o",
+          apiKeyEnvVar: "OPENAI_API_KEY",
         });
         const winbar = await displayState.inputWindow.getOption("winbar");
-        expect(winbar).toBe(`Magenta Input (openai gpt-4o)`);
-      }
-
-      await driver.nvim.call("nvim_command", ["Magenta provider openai o1"]);
-      {
-        const state = driver.magenta.chatApp.getState();
-        if (state.status != "running") {
-          throw new Error(`Expected state to be running`);
-        }
-
-        expect(state.model.providerSetting).toEqual({
-          provider: "openai",
-          model: "o1",
-        });
-        const winbar = await displayState.inputWindow.getOption("winbar");
-        expect(winbar).toBe(`Magenta Input (openai o1)`);
+        expect(winbar).toBe(`Magenta Input (gpt-4o)`);
       }
     });
   });
