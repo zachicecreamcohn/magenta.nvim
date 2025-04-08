@@ -41,10 +41,13 @@ Make sure you have [node](https://nodejs.org/en/download) installed, at least `v
 node --version
 ```
 
-The plugin will look for configuration for providers in the following env variables:
+The plugin uses profiles to configure provider access. Each profile specifies:
 
-- anthropic: ANTHROPIC_API_KEY
-- openai: OPENAI_API_KEY, OPENAI_BASE_URL
+- name: identifier for the profile
+- provider: "anthropic", "openai", "bedrock".
+- model: the specific model to use.
+- api_key_env_var: environment variable containing the API key
+- base_url: (optional) custom API endpoint
 
 ## Using lazy.nvim
 
@@ -79,16 +82,19 @@ require('magenta').setup()
 
 ```lua
 require('magenta').setup({
-  provider = "anthropic",
-  openai = {
-    model = "gpt-4o"
-  },
-  anthropic = {
-    model = "claude-3-7-sonnet-latest"
-  },
-  bedrock = {
-    model = "anthropic.claude-3-5-sonnet-20241022-v2:0",
-    prompt_caching = false
+  profiles = {
+    {
+      name = "claude-3-7",
+      provider = "anthropic",
+      model = "claude-3-7-sonnet-latest",
+      api_key_env_var = "ANTHROPIC_API_KEY"
+    },
+    {
+      name = "gpt-4o",
+      provider = "openai",
+      model = "gpt-4o",
+      api_key_env_var = "OPENAI_API_KEY"
+    }
   },
   -- open chat sidebar on left or right side
   sidebar_position = "left",
@@ -103,7 +109,7 @@ require('magenta').setup({
     }
   },
   -- keymaps for the inline edit input buffer
-  -- if keymap is set to function, it accpets a target_bufnr param
+  -- if keymap is set to function, it accepts a target_bufnr param
   inline_keymaps =  {
     normal = {
       ["<CR>"] = function(target_bufnr)
@@ -232,11 +238,37 @@ The display buffer is not modifiable, however you can interact with some parts o
 - hit enter on a tool to see the details of the request & result. Enter again on any part of the expanded view to collapse it.
 - hit enter on a piece of context to remove it
 
-### providers
+### profiles
 
-The command `:Magenta provider <provider>` will set the current provider. Currently supported values are `openai` (defaults to ChatGPT 4o) and `anthropic` (defaults to Claude Sonnet 3.5). You can also provide configuration to setup that will choose the default provider and model. [code](https://github.com/dlants/magenta.nvim/blob/main/lua/magenta/init.lua#L5)
+The first profile in your `profiles` list is used as the default when the plugin starts. You can switch between profiles using `:Magenta pick-provider` (bound to `<leader>mp` by default).
 
-Any provider that has a node sdk and supports tool use should be easy to add. Contributions are welcome.
+For example, you can set up multiple profiles for different providers or API endpoints:
+
+```lua
+profiles = {
+  {
+    name = "claude-3-7",
+    provider = "anthropic",
+    model = "claude-3-7-sonnet-latest",
+    api_key_env_var = "ANTHROPIC_API_KEY"
+  },
+  {
+    name = "custom",
+    provider = "anthropic",
+    model = "claude-3-7-sonnet-latest",
+    api_key_env_var = "CUSTOM_API_KEY_ENV_VAR",
+    base_url = "custom anthropic endpoint"
+  }
+}
+```
+
+Currently supported providers are `openai`, `anthropic`, and `bedrock`. The `model` parameter must be compatible with the SDK used for each provider:
+
+- For `anthropic`: [Anthropic Node SDK](https://github.com/anthropics/anthropic-sdk-typescript) - supports models like `claude-3-7-sonnet-latest`, `claude-3-5-sonnet-20240620`
+- For `openai`: [OpenAI Node SDK](https://github.com/openai/openai-node) - supports models like `gpt-4o`, `o1`
+- For `bedrock`: [AWS SDK for Bedrock Runtime](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-bedrock-runtime/) - supports models like `anthropic.claude-3-5-sonnet-20241022-v2:0`
+
+Any provider that has a node SDK and supports tool use should be easy to add. Contributions are welcome.
 
 ## tools available to the LLM
 
