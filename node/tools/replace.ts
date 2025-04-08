@@ -107,7 +107,8 @@ export function getToolResult(model: Model): ProviderToolResultContent {
 
 export const spec: ProviderToolSpec = {
   name: "replace",
-  description: `Replace the given text in a file. \
+  description: `This is a tool for replacing text in a file.
+
 Break up replace opertations into multiple, smaller tool invocations to avoid repeating large sections of the existing code.`,
   input_schema: {
     type: "object",
@@ -119,12 +120,18 @@ Break up replace opertations into multiple, smaller tool invocations to avoid re
       find: {
         type: "string",
         description: `The text to replace.
-This should be the exact and complete text to replace, including indentation. Regular expressions are not supported.
-If the text appears multiple times, only the first match will be replaced.`,
+
+\`find\` MUST uniquely identify the text you want to replace. Provide sufficient context lines above and below the edit to ensure that only one location in the file matches this text.
+
+This should be the complete text to replace, exactly as it appears in the file, including indentation. Regular expressions are not supported.
+
+If the text appears multiple times, only the first match will be replaced. If you would like to replace multiple instances of the same text, use multiple tool calls to change each instance.`,
       },
       replace: {
         type: "string",
-        description: "New content that will replace the existing text.",
+        description: `The \`replace\` parameter will replace the \`find\` text.
+
+This MUST be the complete and exact replacement text. It should repeat the context lines that should not change, including indentation.`,
       },
     },
     required: ["filePath", "find", "replace"],
