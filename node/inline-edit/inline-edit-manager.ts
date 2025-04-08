@@ -245,13 +245,6 @@ ${inputLines.join("\n")}`,
       const input = replaceSelection.value.input;
 
       const targetBuffer = new NvimBuffer(targetBufnr, this.nvim);
-
-      const nextContent =
-        "\n>>>>>>> Suggested change\n" +
-        input.replace +
-        "\n=======\n" +
-        selection.text +
-        "\n<<<<<<< Current\n";
       const lines = await targetBuffer.getLines({ start: 0, end: -1 });
 
       // in visual mode, you can select past the end of the line, so we need to clamp the columns
@@ -271,7 +264,7 @@ ${inputLines.join("\n")}`,
       await targetBuffer.setText({
         startPos: clamp(pos1col1to0(selection.startPos)),
         endPos: clamp(pos1col1to0(selection.endPos)),
-        lines: nextContent.split("\n") as Line[],
+        lines: input.replace.split("\n") as Line[],
       });
     } else {
       let result;
@@ -326,19 +319,37 @@ ${input.find}
       }
       const replaceEnd = replaceStart + input.find.length;
 
-      const nextContent =
-        content.slice(0, replaceStart) +
-        "\n>>>>>>> Suggested change\n" +
-        input.replace +
-        "\n=======\n" +
-        input.find +
-        "\n<<<<<<< Current\n" +
-        content.slice(replaceEnd);
+      // Calculate the row and column for start and end positions
+      let startRow = 0;
+      let startCol = 0;
+      let endRow = 0;
+      let endCol = 0;
+      let currentPos = 0;
 
-      await buffer.setLines({
-        start: 0,
-        end: -1,
-        lines: nextContent.split("\n") as Line[],
+      for (let i = 0; i < lines.length; i++) {
+        const lineLength = lines[i].length + 1; // +1 for newline
+
+        if (
+          currentPos <= replaceStart &&
+          replaceStart < currentPos + lineLength
+        ) {
+          startRow = i;
+          startCol = (replaceStart - currentPos) as ByteIdx;
+        }
+
+        if (currentPos <= replaceEnd && replaceEnd <= currentPos + lineLength) {
+          endRow = i;
+          endCol = (replaceEnd - currentPos) as ByteIdx;
+          break;
+        }
+
+        currentPos += lineLength;
+      }
+
+      await buffer.setText({
+        startPos: { row: startRow, col: startCol } as Position0Indexed,
+        endPos: { row: endRow, col: endCol } as Position0Indexed,
+        lines: input.replace.split("\n") as Line[],
       });
     }
   }

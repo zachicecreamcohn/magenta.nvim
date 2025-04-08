@@ -63,11 +63,7 @@ Got tool use: `,
       await driver.assertBufferContains(
         targetBuffer,
         `\
->>>>>>> Suggested change
-Golden shadows dance with ease.
-=======
-Silver shadows dance with ease.
-<<<<<<< Current`,
+Golden shadows dance with ease.`,
       );
     });
   });
@@ -182,15 +178,8 @@ Got tool use: `,
         targetBuffer,
         `\
 Moonlight whispers through the trees,
-
->>>>>>> Suggested change
 Golden shadows dance with ease.
 Stars above like diamonds bright,
-=======
-Silver shadows dance with ease.
-Stars above like diamonds bright,
-<<<<<<< Current
-
 Paint their stories in the night.`,
       );
     });
@@ -245,15 +234,8 @@ Got tool use: `,
         targetBuffer,
         `\
 Moonlight whispers through the trees,
-Silver${" "}
->>>>>>> Suggested change
-ghosts dance with ease.
-Stars
-=======
-shadows dance with ease.
-Stars
-<<<<<<< Current
- above like diamonds bright,
+Silver ghosts dance with ease.
+Stars above like diamonds bright,
 Paint their stories in the night.`,
       );
     });
