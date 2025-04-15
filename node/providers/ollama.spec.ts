@@ -19,6 +19,7 @@ vi.mock("ollama", () => ({
 }));
 
 import ollama from "ollama";
+import type OpenAI from "openai";
 
 global.fetch = vi.fn() as unknown as typeof fetch;
 
@@ -262,5 +263,78 @@ describe("OllamaProvider", () => {
       expect(accessPrivate(provider).ready).toBe(false);
       expect(accessPrivate(provider).error).toBeTruthy();
     });
+  });
+});
+
+describe("OllamaProvider.sendMessage", () => {
+  const mockLogger: Partial<Logger> = {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+    log: vi.fn(),
+  };
+
+  const mockNvim: Partial<Nvim> = {
+    logger: mockLogger as Logger,
+    call: vi.fn(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  const accessPrivate = (provider: OllamaProvider) => {
+    return provider as unknown as {
+      ready: boolean;
+      error: Error | null;
+    };
+  };
+
+  it("counts input and output tokens correctly", async () => {
+    vi.mock("tiktoken", () => ({
+      default: {
+        get_encoding: () => ({
+          encode: () => new Array<number>(5).fill(0),
+          free: vi.fn(),
+        }),
+      },
+    }));
+
+    const provider = new OllamaProvider(mockNvim as Nvim);
+
+    accessPrivate(provider).ready = true;
+
+    (provider as unknown as { client: OpenAI }).client = {
+      chat: {
+        completions: {
+          create: vi.fn().mockResolvedValue({
+            [Symbol.asyncIterator]: function* () {
+              yield {
+                choices: [
+                  {
+                    delta: { content: "Test response" },
+                    finish_reason: "stop",
+                  },
+                ],
+              };
+            },
+            controller: { abort: vi.fn() },
+          }),
+        } as unknown as OpenAI["chat"]["completions"],
+      },
+    } as OpenAI;
+
+    const result = await provider.sendMessage(
+      [{ role: "user", content: "Test" }],
+      () => {},
+    );
+
+    expect(result.usage.inputTokens).toBe(5);
+    expect(result.usage.outputTokens).toBe(5);
   });
 });

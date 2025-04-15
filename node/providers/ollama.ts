@@ -8,6 +8,7 @@ import * as ToolManager from "../tools/toolManager.ts";
 import * as InlineEdit from "../inline-edit/inline-edit-tool.ts";
 import * as ReplaceSelection from "../inline-edit/replace-selection-tool.ts";
 import type { Result } from "../utils/result.ts";
+import tiktoken from "tiktoken";
 
 export type OllamaOptions = {
   model: "llama3.1:latest";
@@ -155,7 +156,26 @@ export class OllamaProvider extends OpenAIProvider {
         usage: errorResponse.usage,
       };
     }
-    return super.sendMessage(messages, onText);
+
+    let fullOutputText = "";
+    const onTextWrapper = (text: string) => {
+      fullOutputText += text;
+      onText(text);
+    };
+
+    const result = await super.sendMessage(messages, onTextWrapper);
+
+    const enc = tiktoken.get_encoding("cl100k_base");
+    const inputTokens = enc.encode(JSON.stringify(messages)).length;
+    const outputTokens = enc.encode(fullOutputText).length;
+    enc.free();
+
+    result.usage = {
+      inputTokens,
+      outputTokens,
+    };
+
+    return result;
   }
 
   async inlineEdit(messages: Array<ProviderMessage>): Promise<{
