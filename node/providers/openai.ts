@@ -99,12 +99,22 @@ export class OpenAIProvider implements Provider {
     return totalTokens;
   }
 
+  private getSystemRoleName(model: string): "system" | "user" {
+    const modelsWithoutSystemRoleSupport = ["o1-mini", "o1-preview"];
+
+    if (modelsWithoutSystemRoleSupport.includes(model)) {
+      return "user";
+    }
+
+    return "system";
+  }
+
   createStreamParameters(
     messages: Array<ProviderMessage>,
   ): OpenAI.ChatCompletionCreateParamsStreaming {
     const openaiMessages: OpenAI.ChatCompletionMessageParam[] = [
       {
-        role: "system",
+        role: this.getSystemRoleName(this.model),
         content: DEFAULT_SYSTEM_PROMPT,
       },
     ];
