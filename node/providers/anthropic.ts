@@ -67,8 +67,8 @@ export class AnthropicProvider implements Provider {
   private promptCaching = true;
   private disableParallelToolUseFlag = true;
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async setModel(model: string): Promise<void> {
-    await Promise.resolve(); // required so OllamaProvider can await model/ollama verification
     this.model = model;
   }
 

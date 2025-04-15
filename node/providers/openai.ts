@@ -54,8 +54,8 @@ export class OpenAIProvider implements Provider {
     this.model = "gpt-4o";
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async setModel(model: string): Promise<void> {
-    await Promise.resolve(); // required so OllamaProvider can await model/ollama verification
     this.model = model;
   }
 
