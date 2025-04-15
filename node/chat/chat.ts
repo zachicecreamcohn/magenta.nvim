@@ -500,15 +500,13 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
       });
       let res;
       try {
-        res = await getProvider(nvim, model.profile).sendMessage(
-          messages,
-          (text) => {
-            dispatch({
-              type: "stream-response",
-              text,
-            });
-          },
-        );
+        const provider = await getProvider(nvim, model.profile);
+        res = await provider.sendMessage(messages, (text) => {
+          dispatch({
+            type: "stream-response",
+            text,
+          });
+        });
 
         if (res.toolRequests?.length) {
           for (const request of res.toolRequests) {
@@ -667,7 +665,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
 
   async function showDebugInfo(model: Model) {
     const messages = await getMessages(model);
-    const provider = getProvider(nvim, model.profile);
+    const provider = await getProvider(nvim, model.profile);
     const params = provider.createStreamParameters(messages);
     const nTokens = await provider.countTokens(messages);
 

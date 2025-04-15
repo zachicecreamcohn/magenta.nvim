@@ -99,7 +99,7 @@ export class MockProvider implements Provider {
     }
   }
 
-  setModel(_model: string): void {}
+  async setModel(_model: string): Promise<void> {}
 
   createStreamParameters(messages: Array<ProviderMessage>): unknown {
     return messages;

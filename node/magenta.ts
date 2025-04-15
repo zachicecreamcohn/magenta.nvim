@@ -183,7 +183,7 @@ export class Magenta {
           return;
         }
 
-        const provider = getProvider(this.nvim, this.getActiveProfile());
+        const provider = await getProvider(this.nvim, this.getActiveProfile());
         provider.abort();
 
         break;
@@ -260,7 +260,7 @@ ${lines.join("\n")}
           return;
         }
 
-        const provider = getProvider(this.nvim, this.getActiveProfile());
+        const provider = await getProvider(this.nvim, this.getActiveProfile());
 
         const messages = await this.chatModel.getMessages(chat.model);
         await this.inlineEditManager.submitInlineEdit(

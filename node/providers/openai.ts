@@ -21,9 +21,9 @@ export type OpenAIOptions = {
 };
 
 export class OpenAIProvider implements Provider {
-  private client: OpenAI;
+  protected client: OpenAI;
   private request: Stream<unknown> | undefined;
-  private model: string;
+  protected model: string;
 
   abort() {
     if (this.request) {
@@ -33,7 +33,7 @@ export class OpenAIProvider implements Provider {
   }
 
   constructor(
-    private nvim: Nvim,
+    protected nvim: Nvim,
     options?: {
       baseUrl?: string | undefined;
       apiKeyEnvVar?: string | undefined;
@@ -54,7 +54,8 @@ export class OpenAIProvider implements Provider {
     this.model = "gpt-4o";
   }
 
-  setModel(model: string): void {
+  async setModel(model: string): Promise<void> {
+    await Promise.resolve(); // required so OllamaProvider can await model/ollama verification
     this.model = model;
   }
 

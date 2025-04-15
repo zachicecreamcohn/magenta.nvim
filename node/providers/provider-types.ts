@@ -4,7 +4,12 @@ import type { ReplaceSelectionToolRequest } from "../inline-edit/replace-selecti
 import * as ToolManager from "../tools/toolManager.ts";
 import type { Result } from "../utils/result";
 
-export const PROVIDER_NAMES = ["anthropic", "openai", "bedrock"] as const;
+export const PROVIDER_NAMES = [
+  "anthropic",
+  "openai",
+  "ollama",
+  "bedrock",
+] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
 
 export type ProviderSetting = {
@@ -62,7 +67,7 @@ export type ProviderMessageContent =
   | ProviderToolResultContent;
 
 export interface Provider {
-  setModel(model: string): void;
+  setModel(model: string): Promise<void>;
   createStreamParameters(messages: Array<ProviderMessage>): unknown;
   countTokens(messages: Array<ProviderMessage>): Promise<number>;
 

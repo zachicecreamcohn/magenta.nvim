@@ -67,7 +67,8 @@ export class AnthropicProvider implements Provider {
   private promptCaching = true;
   private disableParallelToolUseFlag = true;
 
-  setModel(model: string): void {
+  async setModel(model: string): Promise<void> {
+    await Promise.resolve(); // required so OllamaProvider can await model/ollama verification
     this.model = model;
   }
 

@@ -5,13 +5,17 @@ import { BedrockProvider } from "./bedrock.ts";
 import { OpenAIProvider } from "./openai.ts";
 import type { Provider, ProviderName } from "./provider-types.ts";
 import { type Profile } from "../options.ts";
+import { OllamaProvider } from "./ollama.ts";
 
 export * from "./provider-types.ts";
 
 const clients: Partial<{ [providerName in ProviderName]: Provider }> = {};
 
 // lazy load so we have a chance to init context before constructing the class
-export function getProvider(nvim: Nvim, profile: Profile): Provider {
+export async function getProvider(
+  nvim: Nvim,
+  profile: Profile,
+): Promise<Provider> {
   // Create a client key based on provider name and custom settings
   const providerName = profile.provider;
 
@@ -30,6 +34,11 @@ export function getProvider(nvim: Nvim, profile: Profile): Provider {
           apiKeyEnvVar: profile.apiKeyEnvVar,
         });
         break;
+      case "ollama":
+        clients[providerName] = new OllamaProvider(nvim, {
+          baseUrl: profile.baseUrl,
+        });
+        break;
       case "bedrock":
         clients[providerName] = new BedrockProvider(
           nvim,
@@ -42,7 +51,7 @@ export function getProvider(nvim: Nvim, profile: Profile): Provider {
   }
 
   const provider = clients[providerName];
-  provider.setModel(profile.model);
+  await provider.setModel(profile.model);
 
   return provider;
 }
