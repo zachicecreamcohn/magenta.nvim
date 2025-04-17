@@ -8,7 +8,7 @@ import type {
   Usage,
 } from "./provider-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { ToolName, ToolRequestId } from "../tools/toolManager.ts";
+import type { ToolRequestId } from "../tools/toolManager.ts";
 import type { Nvim } from "nvim-node";
 import type { Stream } from "openai/streaming.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
@@ -99,22 +99,12 @@ export class OpenAIProvider implements Provider {
     return totalTokens;
   }
 
-  private getSystemRoleName(model: string): "system" | "user" {
-    const modelsWithoutSystemRoleSupport = ["o1-mini", "o1-preview"];
-
-    if (modelsWithoutSystemRoleSupport.includes(model)) {
-      return "user";
-    }
-
-    return "system";
-  }
-
   createStreamParameters(
     messages: Array<ProviderMessage>,
   ): OpenAI.ChatCompletionCreateParamsStreaming {
     const openaiMessages: OpenAI.ChatCompletionMessageParam[] = [
       {
-        role: this.getSystemRoleName(this.model),
+        role: "system",
         content: DEFAULT_SYSTEM_PROMPT,
       },
     ];
@@ -189,14 +179,10 @@ export class OpenAIProvider implements Provider {
         }
       }
     }
-
-    return {
+    const params: OpenAI.ChatCompletionCreateParamsStreaming = {
       model: this.model,
       stream: true,
       messages: openaiMessages,
-      // see https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
-      // this recommends disabling parallel tool calls when strict adherence to schema is needed
-      parallel_tool_calls: false,
       tools: ToolManager.TOOL_SPECS.map((s): OpenAI.ChatCompletionTool => {
         return {
           type: "function",
@@ -209,6 +195,18 @@ export class OpenAIProvider implements Provider {
         };
       }),
     };
+
+    // see https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
+    // this recommends disabling parallel tool calls when strict adherence to schema is needed
+    // some models don't support this parameter, even when it is false.
+    const modelsWithoutParallelToolCallSupport = ["o1", "o3-mini", "o4-mini"];
+    //
+    if (!modelsWithoutParallelToolCallSupport.includes(this.model)) {
+      params.parallel_tool_calls = false;
+    }
+
+    params.tool_choice = "auto";
+    return params;
   }
 
   async inlineEdit(messages: Array<ProviderMessage>): Promise<{
@@ -500,7 +498,7 @@ export class OpenAIProvider implements Provider {
   }
 
   async sendMessage(
-    messages: Array<ProviderMessage>,
+    messages: ProviderMessage[],
     onText: (text: string) => void,
   ): Promise<{
     toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
@@ -508,105 +506,116 @@ export class OpenAIProvider implements Provider {
     usage: Usage;
   }> {
     try {
-      const stream = (this.request = await this.client.chat.completions.create(
-        this.createStreamParameters(messages),
-      ));
+      const params = this.createStreamParameters(
+        messages,
+      ) as OpenAI.ChatCompletionCreateParamsStreaming & {
+        tool_choice?: "auto" | "none" | "required";
+        parallel_tool_calls?: boolean;
+      };
 
-      const toolRequests = [];
-      let stopReason: StopReason | undefined;
-      let lastChunk: OpenAI.ChatCompletionChunk | undefined;
+      const unsupported = ["o1", "o3-mini", "o4-mini"];
+      if (!unsupported.includes(this.model)) {
+        params.parallel_tool_calls = false;
+      }
+
+      params.tool_choice = "auto";
+
+      const stream = (this.request = await this.client.chat.completions.create({
+        ...params,
+        stream: true,
+      }));
+
+      const agg: { id?: string; name?: string; args?: string } = {};
+      let stopReason: StopReason = "end_turn";
+      let usage: Usage = { inputTokens: 0, outputTokens: 0 };
+
       for await (const chunk of stream) {
-        lastChunk = chunk;
-        const choice = chunk.choices[0];
-        if (choice.delta.content) {
-          onText(choice.delta.content);
+        const delta = chunk.choices[0].delta;
+        if (delta.content) onText(delta.content);
+
+        const tc = delta.tool_calls?.[0];
+        if (tc) {
+          if (tc.id) agg.id = tc.id;
+          if (tc.function?.name) agg.name = tc.function.name;
+          if (tc.function?.arguments)
+            agg.args = (agg.args || "") + tc.function.arguments;
         }
 
-        if (choice.delta.tool_calls) {
-          toolRequests.push(...choice.delta.tool_calls);
+        const fr = chunk.choices[0].finish_reason;
+        if (fr) {
+          stopReason = (
+            {
+              function_call: "tool_use",
+              tool_calls: "tool_use",
+              length: "max_tokens",
+              stop: "end_turn",
+              content_filter: "content",
+            } as Record<string, StopReason>
+          )[fr];
         }
 
-        if (choice.finish_reason) {
-          switch (choice.finish_reason) {
-            case "function_call":
-            case "tool_calls":
-              stopReason = "tool_use";
-              break;
-            case "length":
-              stopReason = "max_tokens";
-              break;
-            case "stop":
-              stopReason = "end_turn";
-              break;
-            case "content_filter":
-              stopReason = "content";
-              break;
-            default:
-              assertUnreachable(choice.finish_reason);
-          }
+        if (chunk.usage) {
+          usage = {
+            inputTokens: chunk.usage.prompt_tokens,
+            outputTokens: chunk.usage.completion_tokens,
+          };
         }
       }
 
-      return {
-        toolRequests: toolRequests
-          .filter((req) => req.id)
-          .map((req) => {
-            const result = ((): Result<ToolManager.ToolRequest> => {
-              this.nvim.logger?.debug(
-                `openai function call: ${JSON.stringify(req)}`,
-              );
+      if (!agg.id || !agg.name || agg.args == null) {
+        return { toolRequests: [], stopReason, usage };
+      }
 
-              if (typeof req.id != "string") {
-                return {
-                  status: "error",
-                  error: "expected req.id to be a string",
-                };
-              }
-
-              const name = req.function?.name;
-              if (typeof name != "string") {
-                return {
-                  status: "error",
-                  error: "expected req.function.name to be a string",
-                };
-              }
-
-              const input = ToolManager.validateToolInput(
-                name,
-                (req.function?.arguments
-                  ? JSON.parse(req.function.arguments)
-                  : {}) as {
-                  [key: string]: unknown;
-                },
-              );
-
-              if (input.status == "ok") {
-                return {
-                  status: "ok",
-                  value: {
-                    name: name as ToolName,
-                    id: req.id as unknown as ToolRequestId,
-                    input: input.value,
-                  },
-                };
-              } else {
-                return input;
-              }
-            })();
-
-            return extendError(result, { rawRequest: req });
-          }),
-        stopReason: stopReason || "end_turn",
-        usage: lastChunk?.usage
-          ? {
-              inputTokens: lastChunk.usage.prompt_tokens,
-              outputTokens: lastChunk.usage.completion_tokens,
-            }
-          : {
-              inputTokens: 0,
-              outputTokens: 0,
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(agg.args);
+      } catch (e) {
+        return {
+          toolRequests: [
+            {
+              status: "error",
+              error: `Invalid JSON from tool call: ${(e as Error).message}`,
+              rawRequest: agg,
             },
-      };
+          ],
+          stopReason,
+          usage,
+        };
+      }
+
+      const inputObj =
+        typeof parsed === "object" && parsed !== null
+          ? (parsed as Record<string, unknown>)
+          : {};
+      const validated = ToolManager.validateToolInput(agg.name, inputObj);
+
+      const toolRequests: Result<
+        ToolManager.ToolRequest,
+        { rawRequest: unknown }
+      >[] = [];
+      if (validated.status === "ok") {
+        toolRequests.push(
+          extendError(
+            {
+              status: "ok",
+              value: {
+                name: agg.name as ToolManager.ToolRequest["name"],
+                id: agg.id as ToolManager.ToolRequestId,
+                input: validated.value,
+              },
+            },
+            { rawRequest: agg },
+          ),
+        );
+      } else {
+        toolRequests.push({
+          status: "error",
+          error: validated.error,
+          rawRequest: agg,
+        });
+      }
+
+      return { toolRequests, stopReason, usage };
     } finally {
       this.request = undefined;
     }
