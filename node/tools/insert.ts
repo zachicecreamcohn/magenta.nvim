@@ -110,20 +110,22 @@ export const spec: ProviderToolSpec = {
     properties: {
       filePath: {
         type: "string",
-        description:
-          "Path to the file to modify. The file will be created if it does not exist yet.",
+        description: `Path to the file to modify. The file will be created if it does not exist yet.`,
       },
       insertAfter: {
         type: "string",
-        description: `\
-String after which to insert the content.
-To ensure precise location matching, provide 2-3 lines of context from the target file, including the exact indentation.
-This text will not be changed. Regular expressions are not allowed.
-Provide the empty string to insert at the beginning of the file.`,
+        description: `String after which to insert the content.
+
+The \`insertAfter\` string MUST uniquely identify a single location in the file. Provide at least 2-3 lines of context from the target file to ensure that the insert only matches ONE location. This should exactly match the file content, including the exact indentation. Regular expressions are not supported.
+
+The insertAfter text will not be changed.
+
+Set insertAfter to the empty string to insert at the beginning of the file.`,
       },
       content: {
         type: "string",
-        description: "Content to insert",
+        description:
+          "Content to insert immediately after the `insertAfter` text. Make sure you match the indentation of the file.",
       },
     },
     required: ["filePath", "insertAfter", "content"],

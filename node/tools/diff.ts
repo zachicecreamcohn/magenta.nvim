@@ -75,9 +75,23 @@ export async function displayDiffs({
   for (const edit of edits) {
     switch (edit.name) {
       case "insert": {
-        const insertLocation =
-          content.indexOf(edit.input.insertAfter) +
-          edit.input.insertAfter.length;
+        if (edit.input.insertAfter === "") {
+          content = edit.input.content + content;
+          break;
+        }
+
+        const insertIndex = content.indexOf(edit.input.insertAfter);
+        if (insertIndex === -1) {
+          dispatch({
+            type: "diff-error",
+            filePath,
+            requestId: edit.id,
+            message: `Unable to find insert location "${edit.input.insertAfter}" in file \`${filePath}\``,
+          });
+          continue;
+        }
+
+        const insertLocation = insertIndex + edit.input.insertAfter.length;
         content =
           content.slice(0, insertLocation) +
           edit.input.content +
