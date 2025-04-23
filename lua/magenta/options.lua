@@ -36,14 +36,13 @@ M.options = defaults
 
 M.set_options = function(opts)
   M.options = vim.tbl_deep_extend("force", defaults, opts or {})
-  if (opts.picker == nil) then
-    local success, _ = pcall(require, "fzf-lua")
-    if success then
-      M.options.picker = "fzf-lua"
-    else
-      success, _ = pcall(require, "telescope")
+  if opts.picker == nil then
+    local pickers = { "fzf-lua", "telescope", "snacks" }
+    for _, picker in ipairs(pickers) do
+      local success, _ = pcall(require, picker)
       if success then
-        M.options.picker = "telescope"
+        M.options.picker = picker
+        break
       end
     end
   end

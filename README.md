@@ -98,7 +98,7 @@ require('magenta').setup({
   },
   -- open chat sidebar on left or right side
   sidebar_position = "left",
-  -- can be changed to "telescope"
+  -- can be changed to "telescope" or "snacks"
   picker = "fzf-lua",
   -- enable default keymaps shown below
   default_keymaps = true,
