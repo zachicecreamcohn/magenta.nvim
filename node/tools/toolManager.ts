@@ -6,6 +6,7 @@ import * as ListDirectory from "./listDirectory.ts";
 import * as Hover from "./hover.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as Diagnostics from "./diagnostics.ts";
+import * as BashCommand from "./bashCommand.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type Result } from "../utils/result.ts";
 import { d, withBindings } from "../tea/view.ts";
@@ -39,6 +40,9 @@ type ToolMap = {
   diagnostics: {
     input: Diagnostics.Input;
   };
+  bash_command: {
+    input: BashCommand.Input;
+  };
 };
 
 export type ToolName = keyof ToolMap;
@@ -57,7 +61,8 @@ export type ToolModel =
   | ListDirectory.Model
   | Hover.Model
   | FindReferences.Model
-  | Diagnostics.Model;
+  | Diagnostics.Model
+  | BashCommand.Model;
 
 export type ToolRequestId = string & { __toolRequestId: true };
 
@@ -70,6 +75,7 @@ export const TOOL_SPECS = [
   Hover.spec,
   FindReferences.spec,
   Diagnostics.spec,
+  BashCommand.spec,
 ];
 
 export type ToolModelWrapper = {
@@ -130,6 +136,10 @@ export type Msg =
         | {
             type: "diagnostics";
             msg: Diagnostics.Msg;
+          }
+        | {
+            type: "bash_command";
+            msg: BashCommand.Msg;
           };
     };
 
@@ -154,6 +164,8 @@ export function validateToolInput(
       return FindReferences.validateInput(args);
     case "diagnostics":
       return Diagnostics.validateInput();
+    case "bash_command":
+      return BashCommand.validateInput(args);
     default:
       return {
         status: "error",
@@ -181,6 +193,8 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
         return FindReferences.getToolResult(model);
       case "diagnostics":
         return Diagnostics.getToolResult(model);
+      case "bash_command":
+        return BashCommand.getToolResult(model);
       default:
         return assertUnreachable(model);
     }
@@ -204,21 +218,20 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
         return FindReferences.displayInput(model.request.input);
       case "diagnostics":
         return Diagnostics.displayInput();
+      case "bash_command":
+        return BashCommand.displayInput(model.request.input);
       default:
         return assertUnreachable(model);
     }
   }
 
   function displayResult(model: ToolModel) {
-    if (model.state.state == "done") {
+    if (model.state.state === "done") {
       const result = model.state.result;
-      if (result.result.status == "error") {
+      if (result.result.status === "error") {
         return `\nError: ${result.result.error}`;
       } else {
-        return `\nResult:
-\`\`\`
-${result.result.value}
-\`\`\``;
+        return `\nResult:\n\`\`\`\n${result.result.value}\n\`\`\``;
       }
     } else {
       return "";
@@ -301,6 +314,17 @@ ${result.result.value}
       case "diagnostics":
         return Diagnostics.view({
           model,
+        });
+
+      case "bash_command":
+        return BashCommand.view({
+          model,
+          dispatch: (msg) =>
+            dispatch({
+              type: "tool-msg",
+              id: model.request.id,
+              msg: { type: "bash_command", msg },
+            }),
         });
 
       default:
@@ -518,6 +542,34 @@ ${result.result.value}
             ];
           }
 
+          case "bash_command": {
+            const [terminalModel, thunk] = BashCommand.initModel(
+              request as ToolRequest<"bash_command">,
+              {
+                nvim,
+              },
+            );
+            model.toolWrappers[request.id] = {
+              model: terminalModel,
+              showRequest: false,
+              showResult: false,
+            };
+            return [
+              model,
+              (dispatch) =>
+                thunk((msg) =>
+                  dispatch({
+                    type: "tool-msg",
+                    id: request.id,
+                    msg: {
+                      type: "bash_command",
+                      msg,
+                    },
+                  }),
+                ),
+            ];
+          }
+
           default:
             return assertUnreachable(request.name);
         }
@@ -723,6 +775,31 @@ ${result.result.value}
                         id: msg.id,
                         msg: {
                           type: "diagnostics",
+                          msg: innerMsg,
+                        },
+                      }),
+                    )
+                : undefined,
+            ];
+          }
+
+          case "bash_command": {
+            const [nextToolModel, thunk] = BashCommand.update(
+              msg.msg.msg,
+              toolWrapper.model as BashCommand.Model,
+            );
+            toolWrapper.model = nextToolModel;
+
+            return [
+              model,
+              thunk
+                ? (dispatch) =>
+                    thunk((innerMsg) =>
+                      dispatch({
+                        type: "tool-msg",
+                        id: msg.id,
+                        msg: {
+                          type: "bash_command",
                           msg: innerMsg,
                         },
                       }),
