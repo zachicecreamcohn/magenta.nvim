@@ -72,11 +72,8 @@ describe("node/tools/bashCommand.spec.ts", () => {
         ],
       });
 
-      // Wait for the user approval prompt
       await driver.assertDisplayBufferContains("May I run this command?");
-
-      // Find approval text position and trigger key on OK button
-      const pos = await driver.assertDisplayBufferContains("[ OK ]");
+      const pos = await driver.assertDisplayBufferContains("[ YES ]");
       await driver.triggerDisplayBufferKey(pos, "<CR>");
 
       await driver.assertDisplayBufferContains("Exit code: 127");
@@ -120,10 +117,8 @@ describe("node/tools/bashCommand.spec.ts", () => {
       // Verify approval UI is fully displayed
       await driver.assertDisplayBufferContains('true && echo "hello, world"');
       await driver.assertDisplayBufferContains("[ NO ]");
-      await driver.assertDisplayBufferContains("[ OK ]");
 
-      // Find approval text position and trigger key on OK button
-      const pos = await driver.assertDisplayBufferContains("[ OK ]");
+      const pos = await driver.assertDisplayBufferContains("[ YES ]");
       await driver.triggerDisplayBufferKey(pos, "<CR>");
 
       // Wait for command execution and verify output
@@ -205,14 +200,10 @@ describe("node/tools/bashCommand.spec.ts", () => {
         ],
       });
 
-      // Wait for the user approval prompt
       await driver.assertDisplayBufferContains("May I run this command?");
-
-      // Approve the command
-      const approvePos = await driver.assertDisplayBufferContains("[ OK ]");
+      const approvePos = await driver.assertDisplayBufferContains("[ YES ]");
       await driver.triggerDisplayBufferKey(approvePos, "<CR>");
 
-      // Verify that the command is running
       await driver.assertDisplayBufferContains("Running command");
       const pos =
         await driver.assertDisplayBufferContains("```\nsleep 30\n```");
@@ -231,6 +222,73 @@ describe("node/tools/bashCommand.spec.ts", () => {
     });
   });
 
+  it("allows subsequent runs of a command after selecting ALWAYS", async () => {
+    await withDriver(async (driver) => {
+      await driver.showSidebar();
+
+      // First run of the command requiring approval
+      await driver.inputMagentaText(`Run this command: "true && echo 'tada'`);
+      await driver.send();
+
+      await driver.mockAnthropic.awaitPendingRequest();
+      const toolRequestId1 = "test-remembered-command-1" as ToolRequestId;
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "I'll run that command for you.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: toolRequestId1,
+              name: "bash_command",
+              input: {
+                command: `true && echo 'tada'`,
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains("May I run this command?");
+
+      const alwaysPos = await driver.assertDisplayBufferContains("[ ALWAYS ]");
+      await driver.triggerDisplayBufferKey(alwaysPos, "<CR>");
+
+      await driver.assertDisplayBufferContains("Exit code:");
+
+      await driver.inputMagentaText(
+        `Run the same command again: "true && echo 'tada'`,
+      );
+      await driver.send();
+
+      await driver.mockAnthropic.awaitPendingRequest();
+      const toolRequestId2 = "test-remembered-command-2" as ToolRequestId;
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "Running that command again.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: toolRequestId2,
+              name: "bash_command",
+              input: {
+                command: `true && echo 'tada'`,
+              },
+            },
+          },
+        ],
+      });
+
+      // Instead, we should see the command executed immediately
+      await driver.assertDisplayBufferContains("Command:");
+      await driver.assertDisplayBufferContains("```\ntrue && echo 'tada'\n```");
+      await driver.assertDisplayBufferContains("Exit code:");
+    });
+  });
+
   describe("isCommandAllowed with regex patterns", () => {
     it("should allow simple commands with prefix patterns", () => {
       const allowlist: CommandAllowlist = ["^ls", "^echo"];
@@ -238,6 +296,28 @@ describe("node/tools/bashCommand.spec.ts", () => {
       expect(isCommandAllowed("ls -la", allowlist)).toBe(true);
       expect(isCommandAllowed('echo "Hello World"', allowlist)).toBe(true);
       expect(isCommandAllowed("wget example.com", allowlist)).toBe(false);
+    });
+    it("should allow commands from rememberedCommands set regardless of allowlist", () => {
+      const allowlist: CommandAllowlist = ["^echo"];
+      const rememberedCommands = new Set<string>(["git status", "ls -la"]);
+
+      // Should allow remembered commands even if not in allowlist
+      expect(
+        isCommandAllowed("git status", allowlist, rememberedCommands),
+      ).toBe(true);
+      expect(isCommandAllowed("ls -la", allowlist, rememberedCommands)).toBe(
+        true,
+      );
+
+      // Should not allow commands neither in allowlist nor remembered
+      expect(
+        isCommandAllowed("wget example.com", allowlist, rememberedCommands),
+      ).toBe(false);
+
+      // Should still allow commands in allowlist
+      expect(
+        isCommandAllowed('echo "Hello World"', allowlist, rememberedCommands),
+      ).toBe(true);
     });
 
     it("should allow commands with specific arguments using regex alternation", () => {

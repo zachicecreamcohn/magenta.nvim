@@ -89,6 +89,7 @@ export type Model = {
   toolWrappers: {
     [id: ToolRequestId]: ToolModelWrapper;
   };
+  rememberedCommands: Set<string>;
 };
 
 export type Msg =
@@ -344,6 +345,7 @@ export function init({
   function initModel(): Model {
     return {
       toolWrappers: {},
+      rememberedCommands: new Set(),
     };
   }
 
@@ -561,6 +563,7 @@ export function init({
               {
                 nvim,
                 options,
+                rememberedCommands: model.rememberedCommands,
               },
             );
             model.toolWrappers[request.id] = {
@@ -803,6 +806,14 @@ export function init({
               toolWrapper.model as BashCommand.Model,
             );
             toolWrapper.model = nextToolModel;
+
+            if (
+              msg.msg.msg.type == "user-approval" &&
+              msg.msg.msg.approved &&
+              msg.msg.msg.remember
+            ) {
+              model.rememberedCommands.add(nextToolModel.request.input.command);
+            }
 
             return [
               model,

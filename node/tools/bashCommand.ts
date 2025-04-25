@@ -67,7 +67,7 @@ export type Msg =
   | { type: "exit"; code: number | null }
   | { type: "error"; error: string }
   | { type: "request-user-approval" }
-  | { type: "user-approval"; approved: boolean }
+  | { type: "user-approval"; approved: boolean; remember?: boolean }
   | { type: "terminate" };
 
 export function validateInput(args: { [key: string]: unknown }): Result<Input> {
@@ -176,7 +176,12 @@ function executeCommandThunk(model: Model): Thunk<Msg> {
 export function isCommandAllowed(
   command: string,
   allowlist: CommandAllowlist,
+  rememberedCommands?: Set<string>,
 ): boolean {
+  if (rememberedCommands && rememberedCommands.has(command)) {
+    return true;
+  }
+
   if (!command || !allowlist || !Array.isArray(allowlist)) {
     return false;
   }
@@ -206,7 +211,11 @@ export function isCommandAllowed(
 
 export function initModel(
   request: ToolRequest<"bash_command">,
-  context: { nvim: Nvim; options: MagentaOptions },
+  context: {
+    nvim: Nvim;
+    options: MagentaOptions;
+    rememberedCommands: Set<string>;
+  },
 ): [Model, Thunk<Msg>] {
   const model: Model = {
     type: "bash_command",
@@ -218,7 +227,11 @@ export function initModel(
 
   const commandAllowlist = context.options.commandAllowlist;
 
-  const isAllowed = isCommandAllowed(request.input.command, commandAllowlist);
+  const isAllowed = isCommandAllowed(
+    request.input.command,
+    commandAllowlist,
+    context.rememberedCommands,
+  );
 
   // If command is allowed, skip approval and execute immediately
   if (isAllowed) {
@@ -435,8 +448,11 @@ export function view({
     return d`⏳ May I run this command? \`${model.request.input.command}\`
 ${withBindings(d`**[ NO ]**`, {
   "<CR>": () => dispatch({ type: "user-approval", approved: false }),
-})} ${withBindings(d`**[ OK ]**`, {
+})} ${withBindings(d`**[ YES ]**`, {
       "<CR>": () => dispatch({ type: "user-approval", approved: true }),
+    })} ${withBindings(d`**[ ALWAYS ]**`, {
+      "<CR>": () =>
+        dispatch({ type: "user-approval", approved: true, remember: true }),
     })}`;
   }
 
