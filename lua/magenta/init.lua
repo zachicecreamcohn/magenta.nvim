@@ -118,6 +118,7 @@ M.bridge = function(channelId)
   return {
     profiles = opts.profiles,
     active_profile = opts.profiles[0],
+    command_allowlist = opts.command_allowlist,
     sidebar_position = opts.sidebar_position
   }
 end

@@ -6,6 +6,7 @@ import * as ListDirectory from "./listDirectory.ts";
 import * as Hover from "./hover.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as Diagnostics from "./diagnostics.ts";
+import * as BashCommand from "./bashCommand.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type Result } from "../utils/result.ts";
 import { d, withBindings } from "../tea/view.ts";
@@ -13,6 +14,7 @@ import { type Dispatch, type Update } from "../tea/tea.ts";
 import type { Nvim } from "nvim-node";
 import type { Lsp } from "../lsp.ts";
 import type { ProviderToolResultContent } from "../providers/provider.ts";
+import type { MagentaOptions } from "../options.ts";
 
 type ToolMap = {
   get_file: {
@@ -39,6 +41,9 @@ type ToolMap = {
   diagnostics: {
     input: Diagnostics.Input;
   };
+  bash_command: {
+    input: BashCommand.Input;
+  };
 };
 
 export type ToolName = keyof ToolMap;
@@ -57,7 +62,8 @@ export type ToolModel =
   | ListDirectory.Model
   | Hover.Model
   | FindReferences.Model
-  | Diagnostics.Model;
+  | Diagnostics.Model
+  | BashCommand.Model;
 
 export type ToolRequestId = string & { __toolRequestId: true };
 
@@ -70,6 +76,7 @@ export const TOOL_SPECS = [
   Hover.spec,
   FindReferences.spec,
   Diagnostics.spec,
+  BashCommand.spec,
 ];
 
 export type ToolModelWrapper = {
@@ -82,6 +89,7 @@ export type Model = {
   toolWrappers: {
     [id: ToolRequestId]: ToolModelWrapper;
   };
+  rememberedCommands: Set<string>;
 };
 
 export type Msg =
@@ -130,6 +138,10 @@ export type Msg =
         | {
             type: "diagnostics";
             msg: Diagnostics.Msg;
+          }
+        | {
+            type: "bash_command";
+            msg: BashCommand.Msg;
           };
     };
 
@@ -154,6 +166,8 @@ export function validateToolInput(
       return FindReferences.validateInput(args);
     case "diagnostics":
       return Diagnostics.validateInput();
+    case "bash_command":
+      return BashCommand.validateInput(args);
     default:
       return {
         status: "error",
@@ -162,7 +176,15 @@ export function validateToolInput(
   }
 }
 
-export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
+export function init({
+  nvim,
+  lsp,
+  options,
+}: {
+  nvim: Nvim;
+  lsp: Lsp;
+  options: MagentaOptions;
+}) {
   function getToolResult(model: ToolModel): ProviderToolResultContent {
     switch (model.type) {
       case "get_file":
@@ -181,6 +203,8 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
         return FindReferences.getToolResult(model);
       case "diagnostics":
         return Diagnostics.getToolResult(model);
+      case "bash_command":
+        return BashCommand.getToolResult(model);
       default:
         return assertUnreachable(model);
     }
@@ -204,21 +228,20 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
         return FindReferences.displayInput(model.request.input);
       case "diagnostics":
         return Diagnostics.displayInput();
+      case "bash_command":
+        return BashCommand.displayInput(model.request.input);
       default:
         return assertUnreachable(model);
     }
   }
 
   function displayResult(model: ToolModel) {
-    if (model.state.state == "done") {
+    if (model.state.state === "done") {
       const result = model.state.result;
-      if (result.result.status == "error") {
+      if (result.result.status === "error") {
         return `\nError: ${result.result.error}`;
       } else {
-        return `\nResult:
-\`\`\`
-${result.result.value}
-\`\`\``;
+        return `\nResult:\n\`\`\`\n${result.result.value}\n\`\`\``;
       }
     } else {
       return "";
@@ -303,6 +326,17 @@ ${result.result.value}
           model,
         });
 
+      case "bash_command":
+        return BashCommand.view({
+          model,
+          dispatch: (msg) =>
+            dispatch({
+              type: "tool-msg",
+              id: model.request.id,
+              msg: { type: "bash_command", msg },
+            }),
+        });
+
       default:
         assertUnreachable(model);
     }
@@ -311,10 +345,15 @@ ${result.result.value}
   function initModel(): Model {
     return {
       toolWrappers: {},
+      rememberedCommands: new Set(),
     };
   }
 
-  const update: Update<Msg, Model, { nvim: Nvim }> = (msg, model, context) => {
+  const update: Update<Msg, Model, { nvim: Nvim; options: MagentaOptions }> = (
+    msg,
+    model,
+    context,
+  ) => {
     switch (msg.type) {
       case "toggle-display": {
         const toolWrapper = model.toolWrappers[msg.id];
@@ -511,6 +550,36 @@ ${result.result.value}
                     id: request.id,
                     msg: {
                       type: "diagnostics",
+                      msg,
+                    },
+                  }),
+                ),
+            ];
+          }
+
+          case "bash_command": {
+            const [terminalModel, thunk] = BashCommand.initModel(
+              request as ToolRequest<"bash_command">,
+              {
+                nvim,
+                options,
+                rememberedCommands: model.rememberedCommands,
+              },
+            );
+            model.toolWrappers[request.id] = {
+              model: terminalModel,
+              showRequest: false,
+              showResult: false,
+            };
+            return [
+              model,
+              (dispatch) =>
+                thunk((msg) =>
+                  dispatch({
+                    type: "tool-msg",
+                    id: request.id,
+                    msg: {
+                      type: "bash_command",
                       msg,
                     },
                   }),
@@ -723,6 +792,39 @@ ${result.result.value}
                         id: msg.id,
                         msg: {
                           type: "diagnostics",
+                          msg: innerMsg,
+                        },
+                      }),
+                    )
+                : undefined,
+            ];
+          }
+
+          case "bash_command": {
+            const [nextToolModel, thunk] = BashCommand.update(
+              msg.msg.msg,
+              toolWrapper.model as BashCommand.Model,
+            );
+            toolWrapper.model = nextToolModel;
+
+            if (
+              msg.msg.msg.type == "user-approval" &&
+              msg.msg.msg.approved &&
+              msg.msg.msg.remember
+            ) {
+              model.rememberedCommands.add(nextToolModel.request.input.command);
+            }
+
+            return [
+              model,
+              thunk
+                ? (dispatch) =>
+                    thunk((innerMsg) =>
+                      dispatch({
+                        type: "tool-msg",
+                        id: msg.id,
+                        msg: {
+                          type: "bash_command",
                           msg: innerMsg,
                         },
                       }),

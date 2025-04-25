@@ -34,7 +34,7 @@ export class Magenta {
   ) {
     this.sidebar = new Sidebar(this.nvim, this.getActiveProfile());
 
-    this.chatModel = Chat.init({ nvim, lsp });
+    this.chatModel = Chat.init({ nvim, lsp, options });
     this.chatApp = TEA.createApp({
       nvim: this.nvim,
       initialModel: this.chatModel.initModel(this.getActiveProfile()),
@@ -59,7 +59,7 @@ export class Magenta {
           }
         }
 
-        return this.chatModel.update(msg, model, { nvim });
+        return this.chatModel.update(msg, model, { nvim, options });
       },
       View: this.chatModel.view,
     });
@@ -351,8 +351,9 @@ ${lines.join("\n")}
       [],
     ]);
 
-    const magenta = new Magenta(nvim, lsp, parseOptions(opts));
-    nvim.logger?.info(`Magenta initialized. ${JSON.stringify(opts)}`);
+    const parsedOptions = parseOptions(opts);
+    const magenta = new Magenta(nvim, lsp, parsedOptions);
+    nvim.logger?.info(`Magenta initialized. ${JSON.stringify(parsedOptions)}`);
     return magenta;
   }
 }

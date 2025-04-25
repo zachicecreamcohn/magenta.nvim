@@ -8,6 +8,7 @@ import { pollUntil } from "../utils/async.ts";
 import { Magenta } from "../magenta.ts";
 import { withMockClient } from "../providers/mock.ts";
 import { NvimDriver } from "./driver.ts";
+import { type MagentaOptions } from "../options.ts";
 
 const SOCK = `/tmp/magenta-test.sock`;
 export async function withNvimProcess(fn: (sock: string) => Promise<void>) {
@@ -120,7 +121,12 @@ export async function withNvimClient(fn: (nvim: Nvim) => Promise<void>) {
   });
 }
 
-export async function withDriver(fn: (driver: NvimDriver) => Promise<void>) {
+export type TestOptions = Partial<MagentaOptions>;
+
+export async function withDriver(
+  fn: (driver: NvimDriver) => Promise<void>,
+  testOptions?: TestOptions,
+) {
   return await withNvimProcess(async (sock) => {
     const nvim = await attach({
       socket: sock,
@@ -130,6 +136,11 @@ export async function withDriver(fn: (driver: NvimDriver) => Promise<void>) {
 
     await withMockClient(async (mockAnthropic) => {
       const magenta = await Magenta.start(nvim);
+      magenta.options = {
+        ...magenta.options,
+        ...testOptions,
+      };
+
       await nvim.call("nvim_exec_lua", [
         `\
 -- Set up message interception

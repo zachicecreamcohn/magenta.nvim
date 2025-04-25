@@ -9,13 +9,19 @@ export type Profile = {
   promptCaching?: boolean; // Primarily used by Bedrock provider
 };
 
+export type CommandAllowlist = string[];
+
 export type MagentaOptions = {
   profiles: Profile[];
   activeProfile: string;
   sidebarPosition: "left" | "right";
+  commandAllowlist: CommandAllowlist;
 };
 
-type DefaultOptions = Omit<MagentaOptions, "profiles" | "activeProfile">;
+type DefaultOptions = Omit<
+  MagentaOptions,
+  "profiles" | "activeProfile" | "commandAllowlist"
+>;
 
 export const DEFAULT_OPTIONS: DefaultOptions = {
   sidebarPosition: "left",
@@ -25,6 +31,7 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
   const options = JSON.parse(JSON.stringify(DEFAULT_OPTIONS)) as DefaultOptions;
 
   let profiles: MagentaOptions["profiles"] = [];
+  let commandAllowlist: MagentaOptions["commandAllowlist"] = [];
 
   if (typeof inputOptions == "object" && inputOptions != null) {
     const inputOptionsObj = inputOptions as { [key: string]: unknown };
@@ -33,6 +40,12 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
     const sidebarPosition = inputOptionsObj["sidebar_position"];
     if (sidebarPosition === "right" || sidebarPosition === "left") {
       options.sidebarPosition = sidebarPosition;
+    }
+
+    if (Array.isArray(inputOptionsObj["command_allowlist"])) {
+      commandAllowlist = inputOptionsObj["command_allowlist"].filter(
+        (pattern) => typeof pattern === "string",
+      );
     }
 
     if (Array.isArray(inputOptionsObj["profiles"])) {
@@ -106,5 +119,6 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
     ...options,
     profiles,
     activeProfile: profiles[0].name,
+    commandAllowlist,
   };
 }
