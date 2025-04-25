@@ -23,7 +23,7 @@ import {
 } from "../providers/provider.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { getOption } from "../nvim/nvim.ts";
-import { type Profile } from "../options.ts";
+import { type MagentaOptions, type Profile } from "../options.ts";
 
 export type Role = "user" | "assistant";
 
@@ -106,12 +106,20 @@ export type Msg =
       lastUserMessage: string;
     };
 
-export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
+export function init({
+  nvim,
+  lsp,
+  options,
+}: {
+  nvim: Nvim;
+  lsp: Lsp;
+  options: MagentaOptions;
+}) {
   const counter = new Counter();
-  const partModel = Part.init({ nvim, lsp });
-  const toolManagerModel = ToolManager.init({ nvim, lsp });
+  const partModel = Part.init({ nvim, lsp, options });
+  const toolManagerModel = ToolManager.init({ nvim, lsp, options });
   const contextManagerModel = ContextManager.init({ nvim });
-  const messageModel = Message.init({ nvim, lsp });
+  const messageModel = Message.init({ nvim, lsp, options });
 
   function initModel(profile: Profile): Model {
     return {
@@ -141,7 +149,11 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
       );
   }
 
-  const update: Update<Msg, Model, { nvim: Nvim }> = (msg, model, context) => {
+  const update: Update<Msg, Model, { nvim: Nvim; options: MagentaOptions }> = (
+    msg,
+    model,
+    context,
+  ) => {
     switch (msg.type) {
       case "update-profile":
         return [{ ...model, profile: msg.profile }];

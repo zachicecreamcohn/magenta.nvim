@@ -10,6 +10,7 @@ import type {
   StopReason,
   Usage,
 } from "../providers/provider.ts";
+import type { MagentaOptions } from "../options.ts";
 
 export type Model =
   | {
@@ -36,8 +37,16 @@ export type Msg = {
   msg: ToolManager.Msg;
 };
 
-export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
-  const toolManagerModel = ToolManager.init({ nvim, lsp });
+export function init({
+  nvim,
+  lsp,
+  options,
+}: {
+  nvim: Nvim;
+  lsp: Lsp;
+  options: MagentaOptions;
+}) {
+  const toolManagerModel = ToolManager.init({ nvim, lsp, options });
 
   const update: Update<Msg, Model> = (msg, model) => {
     switch (msg.type) {

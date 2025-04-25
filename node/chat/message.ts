@@ -7,6 +7,7 @@ import { d, type View, withBindings } from "../tea/view.ts";
 import { displayDiffs } from "../tools/diff.ts";
 import type { Lsp } from "../lsp.ts";
 import type { Nvim } from "nvim-node";
+import type { MagentaOptions } from "../options.ts";
 
 export type MessageId = number & { __messageId: true };
 export type Model = {
@@ -62,8 +63,16 @@ export type Msg =
       filePath: string;
     };
 
-export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
-  const partModel = Part.init({ nvim, lsp });
+export function init({
+  nvim,
+  lsp,
+  options,
+}: {
+  nvim: Nvim;
+  lsp: Lsp;
+  options: MagentaOptions;
+}) {
+  const partModel = Part.init({ nvim, lsp, options });
 
   const update = (
     msg: Msg,

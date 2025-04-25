@@ -14,6 +14,7 @@ import { type Dispatch, type Update } from "../tea/tea.ts";
 import type { Nvim } from "nvim-node";
 import type { Lsp } from "../lsp.ts";
 import type { ProviderToolResultContent } from "../providers/provider.ts";
+import type { MagentaOptions } from "../options.ts";
 
 type ToolMap = {
   get_file: {
@@ -174,7 +175,15 @@ export function validateToolInput(
   }
 }
 
-export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
+export function init({
+  nvim,
+  lsp,
+  options,
+}: {
+  nvim: Nvim;
+  lsp: Lsp;
+  options: MagentaOptions;
+}) {
   function getToolResult(model: ToolModel): ProviderToolResultContent {
     switch (model.type) {
       case "get_file":
@@ -338,7 +347,11 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
     };
   }
 
-  const update: Update<Msg, Model, { nvim: Nvim }> = (msg, model, context) => {
+  const update: Update<Msg, Model, { nvim: Nvim; options: MagentaOptions }> = (
+    msg,
+    model,
+    context,
+  ) => {
     switch (msg.type) {
       case "toggle-display": {
         const toolWrapper = model.toolWrappers[msg.id];
@@ -547,6 +560,7 @@ export function init({ nvim, lsp }: { nvim: Nvim; lsp: Lsp }) {
               request as ToolRequest<"bash_command">,
               {
                 nvim,
+                options,
               },
             );
             model.toolWrappers[request.id] = {

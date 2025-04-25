@@ -29,6 +29,15 @@ local defaults = {
         vim.cmd("Magenta submit-inline-edit " .. target_bufnr)
       end,
     },
+  },
+  command_allowlist = {
+    "^ls( [^;&|()<>]*)?$",
+    "^pwd$",
+    "^echo( [^;&|()<>]*)?$",
+    "^git (status|log|diff|show|add|commit|push|reset|restore|branch|checkout|switch|fetch|pull|merge|rebase|tag|stash)( [^;&|()<>]*)?$",
+    "^ls [^;&()<>]* | grep [^;&|()<>]*$",
+    "^echo [^;&|()<>]* > [a-zA-Z0-9_\\-.]+$",
+    "^grep( -[A-Za-z]*)? [^;&|()<>]*$"
   }
 }
 

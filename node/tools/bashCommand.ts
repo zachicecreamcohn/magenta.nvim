@@ -6,6 +6,7 @@ import type { Thunk, Dispatch } from "../tea/tea.ts";
 import type { Nvim } from "nvim-node";
 import { spawn } from "child_process";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import type { CommandAllowlist, MagentaOptions } from "../options.ts";
 
 export const spec = {
   name: "bash_command",
@@ -90,7 +91,7 @@ export function displayInput(input: Input): string {
 function executeCommandThunk(model: Model): Thunk<Msg> {
   return (dispatch) => {
     return new Promise<void>((resolve) => {
-      const timeout = 60000; // 1 minute timeout
+      const timeout = 300000; // 5 minute timeout
       const { command } = model.request.input;
 
       let timeoutId: NodeJS.Timeout | null = null;
@@ -108,7 +109,6 @@ function executeCommandThunk(model: Model): Thunk<Msg> {
           });
         }, timeout);
 
-        // Run the command using Node's spawn
         childProcess = spawn("bash", ["-c", command], {
           stdio: "pipe",
         });
@@ -134,14 +134,12 @@ function executeCommandThunk(model: Model): Thunk<Msg> {
           }
         });
 
-        // Wait for the process to complete or timeout
         childProcess.on("close", (code: number | null) => {
           if (timeoutId) clearTimeout(timeoutId);
           dispatch({ type: "exit", code });
           resolve();
         });
       } catch (error) {
-        // Handle errors including timeouts and execution errors
         if (timeoutId) clearTimeout(timeoutId);
         const errorMessage =
           error instanceof Error ? error.message : String(error);
@@ -168,9 +166,40 @@ function executeCommandThunk(model: Model): Thunk<Msg> {
   };
 }
 
+export function isCommandAllowed(
+  command: string,
+  allowlist: CommandAllowlist,
+): boolean {
+  if (!command || !allowlist || !Array.isArray(allowlist)) {
+    return false;
+  }
+
+  // Clean the command string to avoid any tricks
+  const cleanCommand = command.trim();
+  if (!cleanCommand) {
+    return false;
+  }
+
+  // Check each regex pattern until we find a match
+  for (const pattern of allowlist) {
+    try {
+      const regex = new RegExp(pattern);
+      if (regex.test(cleanCommand)) {
+        return true;
+      }
+    } catch (error) {
+      // Skip invalid regex patterns
+      console.error(`Invalid regex pattern: ${pattern}`, error);
+      continue;
+    }
+  }
+
+  return false;
+}
+
 export function initModel(
   request: ToolRequest<"bash_command">,
-  _context: { nvim: Nvim },
+  context: { nvim: Nvim; options: MagentaOptions },
 ): [Model, Thunk<Msg>] {
   const model: Model = {
     type: "bash_command",
@@ -180,6 +209,26 @@ export function initModel(
     },
   };
 
+  const commandAllowlist = context.options.commandAllowlist;
+
+  const isAllowed = isCommandAllowed(request.input.command, commandAllowlist);
+
+  // If command is allowed, skip approval and execute immediately
+  if (isAllowed) {
+    const approvedModel: Model = {
+      ...model,
+      state: {
+        state: "processing",
+        stdout: [],
+        stderr: [],
+        startTime: Date.now(),
+        approved: true,
+      },
+    };
+    return [approvedModel, executeCommandThunk(approvedModel)];
+  }
+
+  // Otherwise, request user approval as before
   const thunk: Thunk<Msg> = (dispatch) => {
     dispatch({ type: "request-user-approval" });
     return Promise.resolve();
@@ -293,12 +342,9 @@ export function update(
         return [model, undefined];
       }
 
-      // Keep only the last 1000 lines for the final stdout and stderr
-      const stdout = model.state.stdout.slice(-1000).join("\n");
-      const stderr = model.state.stderr.slice(-1000).join("\n");
+      const stdout = model.state.stdout.slice(-5000).join("\n");
+      const stderr = model.state.stderr.slice(-5000).join("\n");
 
-      // Non-zero exit code indicates failure
-      const isSuccess = msg.code === 0;
       const stderrSection = stderr.trim()
         ? `\nstderr:\n\`\`\`\n${stderr}\n\`\`\``
         : "";
@@ -310,15 +356,10 @@ export function update(
             result: {
               type: "tool_result",
               id: model.request.id,
-              result: isSuccess
-                ? {
-                    status: "ok",
-                    value: `Exit code: ${msg.code === null ? "null" : String(msg.code)}\nstdout:\n\`\`\`\n${stdout}\n\`\`\`${stderrSection}`,
-                  }
-                : {
-                    status: "error",
-                    error: `Command failed with exit code: ${msg.code === null ? "null" : String(msg.code)}\nstdout:\n\`\`\`\n${stdout}\n\`\`\`${stderrSection}`,
-                  },
+              result: {
+                status: "ok",
+                value: `Exit code: ${msg.code === null ? "null" : String(msg.code)}\nstdout:\n\`\`\`\n${stdout}\n\`\`\`${stderrSection}`,
+              },
             },
           },
         },
@@ -370,7 +411,7 @@ ${withBindings(d`**[ NO ]**`, {
     const stderrSection = state.stderr.length
       ? `\nstderr:\n\`\`\`\n${state.stderr.join("\n")}\n\`\`\``
       : "";
-    return d`Running command (timeout: 60s, running: ${String(runningTime)}s)
+    return d`Running command (timeout: 300s, running: ${String(runningTime)}s)
 \`\`\`
 ${model.request.input.command}
 \`\`\`
