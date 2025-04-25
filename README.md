@@ -286,6 +286,7 @@ When a bash command is running, you can press the `t` key in the display buffer 
 
 See the most up-to-date list of implemented tools [here](https://github.com/dlants/magenta.nvim/tree/main/node/tools).
 
+- [x] run bash command
 - [x] list a directory (only in cwd, excluding hidden and gitignored files)
 - [x] list current buffers (only buffers in cwd, excluding hidden and gitignored files)
 - [x] get the contents of a file (requires user approval if not in cwd or hidden/gitignored)
