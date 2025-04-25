@@ -41,6 +41,7 @@ type State =
       stderr: string[];
       startTime: number;
       approved: boolean;
+      childProcess: ReturnType<typeof spawn> | null;
     }
   | {
       state: "pending-user-action";
@@ -66,7 +67,8 @@ export type Msg =
   | { type: "exit"; code: number | null }
   | { type: "error"; error: string }
   | { type: "request-user-approval" }
-  | { type: "user-approval"; approved: boolean };
+  | { type: "user-approval"; approved: boolean }
+  | { type: "terminate" };
 
 export function validateInput(args: { [key: string]: unknown }): Result<Input> {
   if (typeof args.command !== "string") {
@@ -112,6 +114,11 @@ function executeCommandThunk(model: Model): Thunk<Msg> {
         childProcess = spawn("bash", ["-c", command], {
           stdio: "pipe",
         });
+
+        // Store the child process in the model state
+        if (model.state.state === "processing") {
+          model.state.childProcess = childProcess;
+        }
 
         // Set up stdout and stderr handlers
         childProcess.stdout?.on("data", (data: Buffer) => {
@@ -223,6 +230,7 @@ export function initModel(
         stderr: [],
         startTime: Date.now(),
         approved: true,
+        childProcess: null,
       },
     };
     return [approvedModel, executeCommandThunk(approvedModel)];
@@ -267,6 +275,7 @@ export function update(
             stderr: [],
             startTime: Date.now(),
             approved: true,
+            childProcess: null,
           },
         };
         return [nextModel, executeCommandThunk(nextModel)];
@@ -380,6 +389,31 @@ export function update(
       ];
     }
 
+    case "terminate": {
+      if (model.state.state !== "processing") {
+        return [model, undefined];
+      }
+
+      if (model.state.childProcess) {
+        model.state.childProcess.kill("SIGTERM");
+
+        return [
+          {
+            ...model,
+            state: {
+              ...model.state,
+              stderr: [
+                ...model.state.stderr,
+                "Process terminated by user with SIGTERM",
+              ],
+            },
+          },
+          undefined,
+        ];
+      }
+      return [model, undefined];
+    }
+
     default:
       assertUnreachable(msg);
   }
@@ -411,7 +445,8 @@ ${withBindings(d`**[ NO ]**`, {
     const stderrSection = state.stderr.length
       ? `\nstderr:\n\`\`\`\n${state.stderr.join("\n")}\n\`\`\``
       : "";
-    return d`Running command (timeout: 300s, running: ${String(runningTime)}s)
+
+    const content = d`Running command (timeout: 300s, running: ${String(runningTime)}s)
 \`\`\`
 ${model.request.input.command}
 \`\`\`
@@ -420,6 +455,14 @@ stdout:
 \`\`\`
 ${state.stdout.join("\n")}
 \`\`\`${stderrSection}`;
+
+    if (!dispatch) {
+      return content;
+    }
+
+    return withBindings(content, {
+      t: () => dispatch({ type: "terminate" }),
+    });
   }
 
   if (state.state === "done") {

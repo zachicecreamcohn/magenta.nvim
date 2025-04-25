@@ -242,14 +242,6 @@ The display buffer is not modifiable, however you can interact with some parts o
 
 The first profile in your `profiles` list is used as the default when the plugin starts. You can switch between profiles using `:Magenta pick-provider` (bound to `<leader>mp` by default).
 
-### command allowlist
-
-Magenta includes a security feature for the bash_command tool that requires user approval before running shell commands. To improve the workflow, you can configure a list of regex patterns that define which commands are pre-approved to run without confirmation.
-
-The `command_allowlist` option takes an array of regex patterns. When the LLM tries to execute a shell command, it's checked against these patterns. If any pattern matches, the command runs without approval. Otherwise, you'll be prompted to allow or deny it.
-
-Regex patterns should be carefully designed to avoid security risks. You can find the default allowlist patterns in [lua/magenta/options.lua](lua/magenta/options.lua).
-
 For example, you can set up multiple profiles for different providers or API endpoints:
 
 ```lua
@@ -277,6 +269,18 @@ Currently supported providers are `openai`, `anthropic`, and `bedrock`. The `mod
 - For `bedrock`: [AWS SDK for Bedrock Runtime](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-bedrock-runtime/) - supports models like `anthropic.claude-3-5-sonnet-20241022-v2:0`
 
 Any provider that has a node SDK and supports tool use should be easy to add. Contributions are welcome.
+
+### command allowlist
+
+Magenta includes a security feature for the bash_command tool that requires user approval before running shell commands. To improve the workflow, you can configure a list of regex patterns that define which commands are pre-approved to run without confirmation.
+
+The `command_allowlist` option takes an array of regex patterns. When the LLM tries to execute a shell command, it's checked against these patterns. If any pattern matches, the command runs without approval. Otherwise, you'll be prompted to allow or deny it.
+
+Regex patterns should be carefully designed to avoid security risks. You can find the default allowlist patterns in [lua/magenta/options.lua](lua/magenta/options.lua).
+
+#### terminating running commands
+
+When a bash command is running, you can press the `t` key in the display buffer while your cursor is over the executing command to terminate it immediately. This is useful for long-running commands or commands that have entered an undesired state. When terminated, the command will display a message indicating it was terminated by user with SIGTERM.
 
 ## tools available to the LLM
 

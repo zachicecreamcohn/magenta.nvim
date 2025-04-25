@@ -178,6 +178,59 @@ describe("node/tools/bashCommand.spec.ts", () => {
     });
   });
 
+  it("terminates a long-running command with 't' key", async () => {
+    await withDriver(async (driver) => {
+      await driver.showSidebar();
+      // Use a command that will run until terminated
+      await driver.inputMagentaText(`Run this command: sleep 30`);
+      await driver.send();
+
+      await driver.mockAnthropic.awaitPendingRequest();
+      const toolRequestId = "test-terminate-command" as ToolRequestId;
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "I'll run that command for you.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: toolRequestId,
+              name: "bash_command",
+              input: {
+                command: "sleep 30",
+              },
+            },
+          },
+        ],
+      });
+
+      // Wait for the user approval prompt
+      await driver.assertDisplayBufferContains("May I run this command?");
+
+      // Approve the command
+      const approvePos = await driver.assertDisplayBufferContains("[ OK ]");
+      await driver.triggerDisplayBufferKey(approvePos, "<CR>");
+
+      // Verify that the command is running
+      await driver.assertDisplayBufferContains("Running command");
+      const pos =
+        await driver.assertDisplayBufferContains("```\nsleep 30\n```");
+
+      // Press 't' to terminate the command
+      await driver.triggerDisplayBufferKey(pos, "t");
+
+      // Verify that the command was terminated
+      await driver.assertDisplayBufferContains(
+        "Process terminated by user with SIGTERM",
+      );
+
+      // Ensure the command prompt is updated to show completion
+      await driver.assertDisplayBufferContains("Command:");
+      await driver.assertDisplayBufferContains("```\nsleep 30\n```");
+    });
+  });
+
   describe("isCommandAllowed with regex patterns", () => {
     it("should allow simple commands with prefix patterns", () => {
       const allowlist: CommandAllowlist = ["^ls", "^echo"];
