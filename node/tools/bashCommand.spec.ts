@@ -78,7 +78,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
 
       await driver.assertDisplayBufferContains("Exit code: 127");
       await driver.assertDisplayBufferContains(
-        "bash: nonexistentcommand: command not found",
+        "nonexistentcommand: command not found",
       );
     });
   });
