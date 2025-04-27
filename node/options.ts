@@ -16,34 +16,29 @@ export type MagentaOptions = {
   activeProfile: string;
   sidebarPosition: "left" | "right";
   commandAllowlist: CommandAllowlist;
-};
-
-type DefaultOptions = Omit<
-  MagentaOptions,
-  "profiles" | "activeProfile" | "commandAllowlist"
->;
-
-export const DEFAULT_OPTIONS: DefaultOptions = {
-  sidebarPosition: "left",
+  autoContext: string[];
 };
 
 export function parseOptions(inputOptions: unknown): MagentaOptions {
-  const options = JSON.parse(JSON.stringify(DEFAULT_OPTIONS)) as DefaultOptions;
-
-  let profiles: MagentaOptions["profiles"] = [];
-  let commandAllowlist: MagentaOptions["commandAllowlist"] = [];
+  const options: MagentaOptions = {
+    profiles: [],
+    activeProfile: "",
+    sidebarPosition: "left",
+    commandAllowlist: [],
+    autoContext: [],
+  };
 
   if (typeof inputOptions == "object" && inputOptions != null) {
     const inputOptionsObj = inputOptions as { [key: string]: unknown };
 
     // Parse sidebar position
-    const sidebarPosition = inputOptionsObj["sidebar_position"];
+    const sidebarPosition = inputOptionsObj["sidebarPosition"];
     if (sidebarPosition === "right" || sidebarPosition === "left") {
       options.sidebarPosition = sidebarPosition;
     }
 
-    if (Array.isArray(inputOptionsObj["command_allowlist"])) {
-      commandAllowlist = inputOptionsObj["command_allowlist"].filter(
+    if (Array.isArray(inputOptionsObj["commandAllowlist"])) {
+      options.commandAllowlist = inputOptionsObj["commandAllowlist"].filter(
         (pattern) => typeof pattern === "string",
       );
     }
@@ -51,7 +46,7 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
     if (Array.isArray(inputOptionsObj["profiles"])) {
       const optionProfiles = inputOptionsObj["profiles"] as unknown[];
 
-      profiles = optionProfiles
+      options.profiles = optionProfiles
         .map((profile): Profile | undefined => {
           if (typeof profile !== "object" || profile === null) return undefined;
           const p = profile as { [key: string]: unknown };
@@ -85,9 +80,9 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
             }
           }
 
-          if ("api_key_env_var" in p) {
-            if (typeof p["api_key_env_var"] === "string") {
-              out.apiKeyEnvVar = p["api_key_env_var"];
+          if ("apiKeyEnvVar" in p) {
+            if (typeof p["apiKeyEnvVar"] === "string") {
+              out.apiKeyEnvVar = p["apiKeyEnvVar"];
             } else {
               throw new Error(
                 `Invalid profile - api_key_env_var must be a string: ${JSON.stringify(p, null, 2)}`,
@@ -95,9 +90,9 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
             }
           }
 
-          if ("prompt_caching" in p) {
-            if (typeof p["prompt_caching"] === "boolean") {
-              out.promptCaching = p["prompt_caching"];
+          if ("promptCaching" in p) {
+            if (typeof p["promptCaching"] === "boolean") {
+              out.promptCaching = p["promptCaching"];
             } else {
               throw new Error(
                 `Invalid profile - prompt_caching must be a boolean: ${JSON.stringify(p, null, 2)}`,
@@ -110,15 +105,17 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
         .filter((p) => p != undefined);
     }
 
-    if (profiles.length == 0) {
+    if (options.profiles.length == 0) {
       throw new Error(`Invalid profiles provided`);
+    }
+    options.activeProfile = options.profiles[0].name;
+
+    if (Array.isArray(inputOptionsObj["autoContext"])) {
+      options.autoContext = inputOptionsObj["autoContext"].filter(
+        (pattern) => typeof pattern === "string",
+      );
     }
   }
 
-  return {
-    ...options,
-    profiles,
-    activeProfile: profiles[0].name,
-    commandAllowlist,
-  };
+  return options;
 }

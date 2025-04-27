@@ -46,8 +46,8 @@ The plugin uses profiles to configure provider access. Each profile specifies:
 - name: identifier for the profile
 - provider: "anthropic", "openai", "bedrock".
 - model: the specific model to use.
-- api_key_env_var: environment variable containing the API key
-- base_url: (optional) custom API endpoint
+- apiKeyEnvVar: environment variable containing the API key
+- baseUrl: (optional) custom API endpoint
 
 ## Using lazy.nvim
 
@@ -87,30 +87,30 @@ require('magenta').setup({
       name = "claude-3-7",
       provider = "anthropic",
       model = "claude-3-7-sonnet-latest",
-      api_key_env_var = "ANTHROPIC_API_KEY"
+      apiKeyEnvVar = "ANTHROPIC_API_KEY"
     },
     {
       name = "gpt-4o",
       provider = "openai",
       model = "gpt-4o",
-      api_key_env_var = "OPENAI_API_KEY"
+      apiKeyEnvVar = "OPENAI_API_KEY"
     }
   },
   -- open chat sidebar on left or right side
-  sidebar_position = "left",
+  sidebarPosition = "left",
   -- can be changed to "telescope" or "snacks"
   picker = "fzf-lua",
   -- enable default keymaps shown below
-  default_keymaps = true,
+  defaultKeymaps = true,
   -- keymaps for the sidebar input buffer
-  sidebar_keymaps = {
+  sidebarKeymaps = {
     normal = {
       ["<CR>"] = ":Magenta send<CR>",
     }
   },
   -- keymaps for the inline edit input buffer
   -- if keymap is set to function, it accepts a target_bufnr param
-  inline_keymaps =  {
+  inlineKeymaps =  {
     normal = {
       ["<CR>"] = function(target_bufnr)
         vim.cmd("Magenta submit-inline-edit " .. target_bufnr)
@@ -250,14 +250,14 @@ profiles = {
     name = "claude-3-7",
     provider = "anthropic",
     model = "claude-3-7-sonnet-latest",
-    api_key_env_var = "ANTHROPIC_API_KEY"
+    apiKeyEnvVar = "ANTHROPIC_API_KEY"
   },
   {
     name = "custom",
     provider = "anthropic",
     model = "claude-3-7-sonnet-latest",
-    api_key_env_var = "CUSTOM_API_KEY_ENV_VAR",
-    base_url = "custom anthropic endpoint"
+    apiKeyEnvVar = "CUSTOM_API_KEY_ENV_VAR",
+    baseUrl = "custom anthropic endpoint"
   }
 }
 ```
@@ -274,7 +274,7 @@ Any provider that has a node SDK and supports tool use should be easy to add. Co
 
 Magenta includes a security feature for the bash_command tool that requires user approval before running shell commands. To improve the workflow, you can configure a list of regex patterns that define which commands are pre-approved to run without confirmation.
 
-The `command_allowlist` option takes an array of regex patterns. When the LLM tries to execute a shell command, it's checked against these patterns. If any pattern matches, the command runs without approval. Otherwise, you'll be prompted to allow or deny it.
+The `commandAllowlist` option takes an array of regex patterns. When the LLM tries to execute a shell command, it's checked against these patterns. If any pattern matches, the command runs without approval. Otherwise, you'll be prompted to allow or deny it.
 
 Regex patterns should be carefully designed to avoid security risks. You can find the default allowlist patterns in [lua/magenta/options.lua](lua/magenta/options.lua).
 

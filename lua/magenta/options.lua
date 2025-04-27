@@ -6,31 +6,41 @@ local defaults = {
       name = "claude-3-7",
       provider = "anthropic",
       model = "claude-3-7-sonnet-latest",
-      api_key_env_var = "ANTHROPIC_API_KEY"
+      apiKeyEnvVar = "ANTHROPIC_API_KEY"
     },
     {
       name = "gpt-4o",
       provider = "openai",
       model = "gpt-4o",
-      api_key_env_var = "OPENAI_API_KEY"
+      apiKeyEnvVar = "OPENAI_API_KEY"
     }
   },
   picker = "fzf-lua",
-  sidebar_position = "left",
-  default_keymaps = true,
-  sidebar_keymaps = {
+  sidebarPosition = "left",
+  defaultKeymaps = true,
+  sidebarKeymaps = {
     normal = {
       ["<CR>"] = ":Magenta send<CR>",
     }
   },
-  inline_keymaps = {
+  inlineKeymaps = {
     normal = {
       ["<CR>"] = function(target_bufnr)
         vim.cmd("Magenta submit-inline-edit " .. target_bufnr)
       end,
     },
   },
-  command_allowlist = {
+  -- note: some OSs are case sensitive, and some are not.
+  -- to make this work cross-platform, we will run all globs
+  -- in case-insensitive mode.
+  -- So you only need to add lowercase versions of each file.
+  -- So for example, you do not need both context.md and CONTEXT.MD
+  autoContext = {
+    "context.md",
+    "claude.md",
+    ".magenta/*.md"
+  },
+  commandAllowlist = {
     "^ls( [^;&|()<>]*)?$",
     "^pwd$",
     "^echo( [^;&|()<>]*)?$",

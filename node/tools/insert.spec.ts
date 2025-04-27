@@ -63,7 +63,7 @@ describe("node/tools/insert.spec.ts", () => {
   });
 
   it("insert into new file", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(`Write a test note in a new file`);
       await driver.send();
@@ -124,7 +124,7 @@ describe("node/tools/insert.spec.ts", () => {
   });
 
   it("insert into existing file", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(`Add content to the poem file`);
       await driver.send();
@@ -180,7 +180,7 @@ describe("node/tools/insert.spec.ts", () => {
   });
 
   it("insert at beginning of file", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(`Add a header to the poem file`);
       await driver.send();
@@ -229,7 +229,7 @@ describe("node/tools/insert.spec.ts", () => {
   });
 
   it("handle invalid insertAfter location", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
         `Add content at a specific spot in the poem file`,

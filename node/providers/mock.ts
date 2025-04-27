@@ -211,6 +211,11 @@ export class MockProvider implements Provider {
     });
   }
 
+  async respondWithError(error: Error) {
+    const lastRequest = await this.awaitPendingRequest();
+    lastRequest.defer.reject(error);
+  }
+
   async respondInline({
     inlineEdit,
     stopReason,

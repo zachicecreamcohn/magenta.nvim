@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { withDriver } from "./test/preamble";
 import { pollUntil } from "./utils/async";
 import type { Position0Indexed } from "./nvim/window";
-import { LOGO } from "./chat/chat";
+import { LOGO } from "./chat/thread";
 
 describe("node/magenta.spec.ts", () => {
   it("clear command should work", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(`hello`);
       await driver.send();
@@ -49,7 +49,7 @@ Stopped (end_turn)`);
   });
 
   it("abort command should work", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(`hello`);
       await driver.send();
@@ -74,14 +74,14 @@ Awaiting response ⠁`);
   });
 
   it("can switch profiles", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       {
         const state = driver.magenta.chatApp.getState();
         if (state.status != "running") {
           throw new Error(`Expected state to be running`);
         }
 
-        expect(state.model.profile).toEqual({
+        expect(state.model.thread.state.profile).toEqual({
           name: "claude-3-7",
           provider: "anthropic",
           model: "claude-3-7-sonnet-latest",
@@ -101,7 +101,7 @@ Awaiting response ⠁`);
           throw new Error(`Expected state to be running`);
         }
 
-        expect(state.model.profile).toEqual({
+        expect(state.model.thread.state.profile).toEqual({
           name: "gpt-4o",
           provider: "openai",
           model: "gpt-4o",
@@ -114,7 +114,7 @@ Awaiting response ⠁`);
   });
 
   it("paste-selection command", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.editFile("node/test/fixtures/poem.txt");
       await driver.selectRange(
         { row: 0, col: 5 } as Position0Indexed,
@@ -134,7 +134,7 @@ Stars above
   });
 
   it("context-files end-to-end", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.showSidebar();
       await driver.nvim.call("nvim_command", [
         "Magenta context-files './node/test/fixtures/poem.txt'",
@@ -180,7 +180,7 @@ Paint their stories in the night.
   });
 
   it("context-files multiple, weird path names", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.showSidebar();
       await driver.nvim.call("nvim_command", [
         "Magenta context-files './node/test/fixtures/poem.txt' './node/test/fixtures/poem 3.txt'",
@@ -236,7 +236,7 @@ Paint their stories in the night.
   });
 
   it("context message insert position", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(`hello`);
       await driver.send();
@@ -295,6 +295,41 @@ Paint their stories in the night.
           role: "user",
         },
       ]);
+    });
+  });
+
+  it("autoContext loads on startup and after clear", async () => {
+    const testOptions = {
+      autoContext: ["node/test/fixtures/test-auto-context.md"],
+    };
+
+    await withDriver({ options: testOptions }, async (driver) => {
+      // Show sidebar and verify autoContext is loaded
+      await driver.showSidebar();
+      await driver.assertDisplayBufferContains(
+        `# context:\nfile: \`node/test/fixtures/test-auto-context.md\``,
+      );
+
+      // Clear thread and verify autoContext is reloaded
+      await driver.clear();
+      await driver.assertDisplayBufferContains(
+        `# context:\nfile: \`node/test/fixtures/test-auto-context.md\``,
+      );
+
+      // Check that the content is included in messages when sending
+      await driver.inputMagentaText("hello");
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      expect(request.messages).toContainEqual({
+        content: `Here are the contents of file \`node/test/fixtures/test-auto-context.md\`:
+\`\`\`
+This is test auto-context content
+Multiple lines
+for testing
+\`\`\``,
+        role: "user",
+      });
     });
   });
 });

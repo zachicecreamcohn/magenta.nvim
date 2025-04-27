@@ -131,7 +131,7 @@ export class NvimDriver {
       const displayBuffer = this.getDisplayBuffer();
       const lines = await displayBuffer.getLines({ start: 0, end: -1 });
       const content = lines.slice(start).join("\n");
-      expect(content, (e as Error).message).toEqual(text);
+      expect(content, (e as Error).message).toContain(text);
       throw e;
     }
   }

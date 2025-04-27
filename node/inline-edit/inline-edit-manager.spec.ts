@@ -7,7 +7,7 @@ import type { Position0Indexed } from "../nvim/window";
 
 describe("node/inline-edit/inline-edit-manager.spec.ts", () => {
   it("performs inline edit on file", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.editFile("node/test/fixtures/poem.txt");
       const targetBuffer = await getCurrentBuffer(driver.nvim);
       await driver.startInlineEdit();
@@ -69,7 +69,7 @@ Golden shadows dance with ease.`,
   });
 
   it("can do multiple inline edits on same file", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.editFile("node/test/fixtures/poem.txt");
       const targetBuffer = await getCurrentBuffer(driver.nvim);
       await driver.startInlineEdit();
@@ -101,7 +101,7 @@ Golden shadows dance with ease.`,
   });
 
   it("performs inline edit with selection", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.editFile("node/test/fixtures/poem.txt");
       const targetBuffer = await getCurrentBuffer(driver.nvim);
 
@@ -129,7 +129,7 @@ Golden shadows dance with ease.`,
   });
 
   it("inline edit end of line selected", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.editFile("node/test/fixtures/poem.txt");
       const targetBuffer = await getCurrentBuffer(driver.nvim);
 
@@ -186,7 +186,7 @@ Paint their stories in the night.`,
   });
 
   it("inline edit mid-line selected", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.editFile("node/test/fixtures/poem.txt");
       const targetBuffer = await getCurrentBuffer(driver.nvim);
 
@@ -242,7 +242,7 @@ Paint their stories in the night.`,
   });
 
   it("abort command should work", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.editFile("node/test/fixtures/poem.txt");
       const targetBuffer = await getCurrentBuffer(driver.nvim);
 

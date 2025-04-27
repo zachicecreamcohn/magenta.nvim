@@ -1,19 +1,15 @@
 import { d, withBindings, type View } from "../tea/view";
-import type { Dispatch, Update } from "../tea/tea";
+import type { Dispatch } from "../tea/tea";
 import { assertUnreachable } from "../utils/assertUnreachable";
 import type { ProviderMessage } from "../providers/provider";
 import type { Nvim } from "nvim-node";
 import type { MessageId } from "../chat/message";
 import { BufferAndFileManager } from "./file-and-buffer-manager";
-
-export type Model = {
-  files: {
-    [absFilePath: string]: {
-      relFilePath: string;
-      initialMessageId: MessageId;
-    };
-  };
-};
+import { glob } from "glob";
+import path from "node:path";
+import fs from "node:fs";
+import type { MagentaOptions } from "../options";
+import { getcwd } from "../nvim/nvim";
 
 export type Msg =
   | {
@@ -27,82 +23,85 @@ export type Msg =
       absFilePath: string;
     };
 
-export function init({ nvim }: { nvim: Nvim }) {
-  const bufferAndFileManager = new BufferAndFileManager(nvim);
-
-  function initModel(): Model {
-    return {
-      files: {},
+export class ContextManager {
+  public files: {
+    [absFilePath: string]: {
+      relFilePath: string;
+      initialMessageId: MessageId;
     };
+  };
+  private bufferAndFileManager: BufferAndFileManager;
+
+  private constructor({
+    nvim,
+    initialFiles = {},
+  }: {
+    nvim: Nvim;
+    options: MagentaOptions;
+    initialFiles?: {
+      [absFilePath: string]: {
+        relFilePath: string;
+        initialMessageId: MessageId;
+      };
+    };
+  }) {
+    this.bufferAndFileManager = new BufferAndFileManager(nvim);
+    this.files = initialFiles;
   }
-  const update: Update<Msg, Model> = (msg: Msg, model: Model) => {
+
+  static async create({
+    nvim,
+    options,
+  }: {
+    nvim: Nvim;
+    options: MagentaOptions;
+  }): Promise<ContextManager> {
+    const initialFiles = await ContextManager.loadAutoContext(nvim, options);
+    return new ContextManager({ nvim, options, initialFiles });
+  }
+
+  update(msg: Msg): void {
     switch (msg.type) {
       case "add-file-context":
-        return [
-          {
-            ...model,
-            files: {
-              ...model.files,
-              [msg.absFilePath]: {
-                relFilePath: msg.relFilePath,
-                initialMessageId: msg.messageId,
-              },
-            },
-          },
-        ];
+        this.files[msg.absFilePath] = {
+          relFilePath: msg.relFilePath,
+          initialMessageId: msg.messageId,
+        };
+        break;
       case "remove-file-context":
-        delete model.files[msg.absFilePath];
-        return [model];
+        delete this.files[msg.absFilePath];
+        break;
       default:
         assertUnreachable(msg);
     }
-  };
-
-  const view: View<{ model: Model; dispatch: Dispatch<Msg> }> = ({
-    model,
-    dispatch,
-  }) => {
-    const fileContext = [];
-    for (const absFilePath in model.files) {
-      fileContext.push(
-        withBindings(d`file: \`${model.files[absFilePath].relFilePath}\`\n`, {
-          "<CR>": () => dispatch({ type: "remove-file-context", absFilePath }),
-        }),
-      );
-    }
-
-    return d`\
-# context:
-${fileContext}`;
-  };
-
-  function isContextEmpty(model: Model) {
-    return Object.keys(model.files).length == 0;
   }
 
-  async function getContextMessages(
+  isContextEmpty(): boolean {
+    return Object.keys(this.files).length == 0;
+  }
+
+  async getContextMessages(
     currentMessageId: MessageId,
-    model: Model,
   ): Promise<{ messageId: MessageId; message: ProviderMessage }[] | undefined> {
-    if (isContextEmpty(model)) {
+    if (this.isContextEmpty()) {
       return undefined;
     }
 
     return await Promise.all(
-      Object.keys(model.files).map((absFilePath) =>
-        getFileMessage({ absFilePath, currentMessageId }),
+      Object.keys(this.files).map((absFilePath) =>
+        this.getFileMessage({ absFilePath, currentMessageId }),
       ),
     );
   }
 
-  async function getFileMessage({
+  private async getFileMessage({
     absFilePath,
     currentMessageId,
   }: {
     absFilePath: string;
     currentMessageId: MessageId;
   }): Promise<{ messageId: MessageId; message: ProviderMessage }> {
-    const res = await bufferAndFileManager.getFileContents(
+    const res = await this.bufferAndFileManager.getFileContents(
       absFilePath,
       currentMessageId,
     );
@@ -113,7 +112,7 @@ ${fileContext}`;
           messageId: res.value.messageId,
           message: {
             role: "user",
-            content: renderFile({
+            content: this.renderFile({
               relFilePath: res.value.relFilePath,
               content: res.value.content,
             }),
@@ -133,7 +132,116 @@ ${fileContext}`;
     }
   }
 
-  function renderFile({
+  private static async loadAutoContext(
+    nvim: Nvim,
+    options: MagentaOptions,
+  ): Promise<{
+    [absFilePath: string]: {
+      relFilePath: string;
+      initialMessageId: MessageId;
+    };
+  }> {
+    const files: {
+      [absFilePath: string]: {
+        relFilePath: string;
+        initialMessageId: MessageId;
+      };
+    } = {};
+
+    if (!options.autoContext || options.autoContext.length === 0) {
+      return files;
+    }
+
+    try {
+      const cwd = await getcwd(nvim);
+      // Use a placeholder message ID since we don't have a current message during initialization
+      const initialMessageId = 0 as MessageId;
+
+      // Find all files matching the glob patterns
+      const matchedFiles = await this.findFilesCrossPlatform(
+        options.autoContext,
+        cwd,
+        nvim,
+      );
+
+      // Convert to the expected format
+      for (const matchInfo of matchedFiles) {
+        files[matchInfo.absFilePath] = {
+          relFilePath: matchInfo.relFilePath,
+          initialMessageId,
+        };
+      }
+    } catch (err) {
+      nvim.logger?.error(
+        `Error loading auto context: ${(err as Error).message}`,
+      );
+    }
+
+    return files;
+  }
+
+  private static async findFilesCrossPlatform(
+    globPatterns: string[],
+    cwd: string,
+    nvim: Nvim,
+  ): Promise<Array<{ absFilePath: string; relFilePath: string }>> {
+    const allMatchedPaths: Array<{ absFilePath: string; relFilePath: string }> =
+      [];
+
+    await Promise.all(
+      globPatterns.map(async (pattern) => {
+        try {
+          // Use nocase: true for cross-platform case-insensitivity
+          const matches = await glob(pattern, {
+            cwd,
+            nocase: true,
+            nodir: true,
+          });
+
+          for (const match of matches) {
+            if (fs.existsSync(path.resolve(cwd, match))) {
+              allMatchedPaths.push({
+                absFilePath: path.resolve(cwd, match),
+                relFilePath: match,
+              });
+            }
+          }
+        } catch (err) {
+          nvim.logger?.error(
+            `Error processing glob pattern "${pattern}": ${(err as Error).message}`,
+          );
+        }
+      }),
+    );
+
+    const uniqueFiles = new Map<
+      string,
+      { absFilePath: string; relFilePath: string }
+    >();
+
+    for (const fileInfo of allMatchedPaths) {
+      try {
+        // Get canonical path to handle symlinks and case differences
+        const canonicalPath = fs.realpathSync(fileInfo.absFilePath);
+        // Use normalized path as the deduplication key
+        const normalizedPath = path.normalize(canonicalPath);
+
+        if (!uniqueFiles.has(normalizedPath)) {
+          uniqueFiles.set(normalizedPath, fileInfo);
+        }
+      } catch {
+        // Fallback if realpathSync fails
+        const normalizedPath = path.normalize(fileInfo.absFilePath);
+        if (!uniqueFiles.has(normalizedPath)) {
+          uniqueFiles.set(normalizedPath, fileInfo);
+        }
+      }
+    }
+
+    return Array.from(uniqueFiles.values());
+  }
+
+  private renderFile({
     relFilePath,
     content,
   }: {
@@ -146,12 +254,25 @@ Here are the contents of file \`${relFilePath}\`:
 ${content}
 \`\`\``;
   }
-
-  return {
-    isContextEmpty,
-    initModel,
-    update,
-    view,
-    getContextMessages,
-  };
 }
+
+export const view: View<{
+  contextManager: ContextManager;
+  dispatch: Dispatch<Msg>;
+}> = ({ contextManager, dispatch }) => {
+  const fileContext = [];
+  for (const absFilePath in contextManager["files"]) {
+    fileContext.push(
+      withBindings(
+        d`file: \`${contextManager["files"][absFilePath].relFilePath}\`\n`,
+        {
+          "<CR>": () => dispatch({ type: "remove-file-context", absFilePath }),
+        },
+      ),
+    );
+  }
+
+  return d`\
+# context:
+${fileContext}`;
+};
