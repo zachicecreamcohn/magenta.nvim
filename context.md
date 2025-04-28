@@ -7,8 +7,8 @@ options are configured in `lua/magenta/options.lua`
 
 # Testing
 
-to run the full test suite, use `npx tsx vitest run`
-to run a specific test file, use `npx tsx vitest run <file>`
+to run the full test suite, use `npx vitest run`
+to run a specific test file, use `npx vitest run <file>`
 tests should make use of the `node/test/preamble.ts` helpers.
 when doing integration-level testing, like user flows, use the `withDriver` helper and the interactions in `node/test/driver.ts`. When performing generic user actions that may be reusable between tests, put them into the NvimDriver class as helpers.
 

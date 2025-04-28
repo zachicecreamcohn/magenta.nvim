@@ -25,6 +25,14 @@ export class NvimDriver {
     public mockAnthropic: MockProvider,
   ) {}
 
+  async wait(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async triggerMagentaCommand(command: string) {
+    return this.nvim.call("nvim_command", [command]);
+  }
+
   async showSidebar() {
     if (this.magenta.sidebar.state.state == "hidden") {
       await this.magenta.command("toggle");

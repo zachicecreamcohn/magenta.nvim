@@ -466,18 +466,18 @@ export class Thread {
       }
 
       case "context-manager-msg": {
-        this.contextManager.update(msg.msg);
-        return undefined;
+        const contextManagerThunk = this.contextManager.update(msg.msg);
+        return wrapThunk("context-manager-msg", contextManagerThunk);
       }
 
       case "add-file-context": {
-        this.contextManager.update({
+        const contextManagerThunk = this.contextManager.update({
           type: "add-file-context",
           absFilePath: msg.absFilePath,
           relFilePath: msg.relFilePath,
           messageId: this.state.lastUserMessageId,
         });
-        return undefined;
+        return wrapThunk("context-manager-msg", contextManagerThunk);
       }
 
       case "clear": {

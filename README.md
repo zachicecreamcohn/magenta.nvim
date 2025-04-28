@@ -234,9 +234,10 @@ Inline edit uses your chat history so far, so a great workflow is to build up co
 
 The display buffer is not modifiable, however you can interact with some parts of the display buffer by pressing `<CR>`. For example, you can expand the tool request and responses to see their details, and you can trigger a diff to appear on file edits.
 
-- hit enter on a [review] message to pull up the diff to try and edit init
-- hit enter on a tool to see the details of the request & result. Enter again on any part of the expanded view to collapse it.
-- hit enter on a piece of context to remove it
+- hit `enter` on a [review] message to pull up the diff to try and edit init
+- hit `enter` on a tool to see the details of the request & result. Enter again on any part of the expanded view to collapse it.
+- hit `enter` on a context file to open it
+- hit `d` on a context file to remove it
 
 ### profiles
 
