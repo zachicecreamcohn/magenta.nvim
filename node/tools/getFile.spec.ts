@@ -60,7 +60,7 @@ describe("tea/getFile.spec.ts", () => {
   });
 
   it("getFile rejection", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
         `Try reading the file node/test/fixtures/.secret`,
@@ -95,7 +95,7 @@ Error reading file \`node/test/fixtures/.secret\`: The user did not allow the re
   });
 
   it("getFile approval", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
         `Try reading the file node/test/fixtures/.secret`,
@@ -130,7 +130,7 @@ Finished reading file \`node/test/fixtures/.secret\``);
   });
 
   it("getFile requests approval for gitignored file", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(`Try reading the file node_modules/test`);
       await driver.send();
@@ -158,7 +158,7 @@ May I read file \`node_modules/test\`? **[ NO ]** **[ OK ]**`);
   });
 
   it("getFile requests approval for file outside cwd", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(`Try reading the file /tmp/file`);
       await driver.send();

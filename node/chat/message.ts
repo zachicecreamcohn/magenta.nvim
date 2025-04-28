@@ -1,6 +1,6 @@
 import * as Part from "./part.ts";
 import * as ToolManager from "../tools/toolManager.ts";
-import { type Role } from "./chat.ts";
+import { type Role } from "./thread.ts";
 import { type Dispatch, type Thunk } from "../tea/tea.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, type View, withBindings } from "../tea/view.ts";

@@ -5,7 +5,7 @@ import { pollUntil } from "../utils/async.ts";
 
 describe("node/tools/findReferences.spec.ts", () => {
   it("findReferences end-to-end", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.editFile("node/test/fixtures/test.ts");
       await driver.showSidebar();
 
@@ -39,7 +39,7 @@ describe("node/tools/findReferences.spec.ts", () => {
           }
 
           const toolWrapper =
-            state.model.toolManager.toolWrappers[toolRequestId];
+            state.model.thread.state.toolManager.toolWrappers[toolRequestId];
           if (!toolWrapper) {
             throw new Error(
               `could not find toolWrapper with id ${toolRequestId}`,

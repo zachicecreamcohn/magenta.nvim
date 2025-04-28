@@ -1,5 +1,5 @@
 import { Sidebar } from "./sidebar.ts";
-import * as Chat from "./chat/chat.ts";
+import * as Thread from "./chat/thread.ts";
 import * as TEA from "./tea/tea.ts";
 import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
 import { pos } from "./tea/view.ts";
@@ -11,7 +11,7 @@ import path from "node:path";
 import type { BufNr, Line } from "./nvim/buffer.ts";
 import { pos1col1to0 } from "./nvim/window.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
-import { parseOptions, type MagentaOptions } from "./options.ts";
+import { parseOptions, type MagentaOptions, type Profile } from "./options.ts";
 import { InlineEditManager } from "./inline-edit/inline-edit-manager.ts";
 
 // these constants should match lua/magenta/init.lua
@@ -22,23 +22,22 @@ const MAGENTA_LSP_RESPONSE = "magentaLspResponse";
 
 export class Magenta {
   public sidebar: Sidebar;
-  public chatApp: TEA.App<Chat.Msg, Chat.Model>;
+  public chatApp: TEA.App<Thread.Msg, { thread: Thread.Thread }>;
   public mountedChatApp: TEA.MountedApp | undefined;
-  public chatModel;
   public inlineEditManager: InlineEditManager;
 
   constructor(
     public nvim: Nvim,
     public lsp: Lsp,
     public options: MagentaOptions,
+    public thread: Thread.Thread,
   ) {
     this.sidebar = new Sidebar(this.nvim, this.getActiveProfile());
 
-    this.chatModel = Chat.init({ nvim, lsp, options });
     this.chatApp = TEA.createApp({
       nvim: this.nvim,
-      initialModel: this.chatModel.initModel(this.getActiveProfile()),
-      update: (msg, model) => {
+      initialModel: { thread },
+      update: (msg) => {
         if (msg.type == "sidebar-setup-resubmit") {
           if (
             this.sidebar &&
@@ -59,22 +58,17 @@ export class Magenta {
           }
         }
 
-        return this.chatModel.update(msg, model, { nvim, options });
+        return [{ thread: this.thread }, this.thread.update(msg)];
       },
-      View: this.chatModel.view,
+
+      View: Thread.view,
     });
 
     this.inlineEditManager = new InlineEditManager({ nvim });
   }
 
   getActiveProfile() {
-    const profile = this.options.profiles.find(
-      (p) => p.name == this.options.activeProfile,
-    );
-    if (!profile) {
-      throw new Error(`Profile ${this.options.activeProfile} not found.`);
-    }
-    return profile;
+    return getActiveProfile(this.options.profiles, this.options.activeProfile);
   }
 
   async command(input: string): Promise<void> {
@@ -262,7 +256,7 @@ ${lines.join("\n")}
 
         const provider = getProvider(this.nvim, this.getActiveProfile());
 
-        const messages = await this.chatModel.getMessages(chat.model);
+        const messages = await this.thread.getMessages();
         await this.inlineEditManager.submitInlineEdit(
           bufnr,
           provider,
@@ -352,8 +346,25 @@ ${lines.join("\n")}
     ]);
 
     const parsedOptions = parseOptions(opts);
-    const magenta = new Magenta(nvim, lsp, parsedOptions);
+    const thread = await Thread.Thread.create({
+      profile: getActiveProfile(
+        parsedOptions.profiles,
+        parsedOptions.activeProfile,
+      ),
+      nvim,
+      lsp,
+      options: parsedOptions,
+    });
+    const magenta = new Magenta(nvim, lsp, parsedOptions, thread);
     nvim.logger?.info(`Magenta initialized. ${JSON.stringify(parsedOptions)}`);
     return magenta;
   }
+}
+
+function getActiveProfile(profiles: Profile[], activeProfile: string) {
+  const profile = profiles.find((p) => p.name == activeProfile);
+  if (!profile) {
+    throw new Error(`Profile ${activeProfile} not found.`);
+  }
+  return profile;
 }

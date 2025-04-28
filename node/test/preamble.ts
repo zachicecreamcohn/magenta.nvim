@@ -124,8 +124,10 @@ export async function withNvimClient(fn: (nvim: Nvim) => Promise<void>) {
 export type TestOptions = Partial<MagentaOptions>;
 
 export async function withDriver(
+  driverOptions: {
+    options?: TestOptions;
+  },
   fn: (driver: NvimDriver) => Promise<void>,
-  testOptions?: TestOptions,
 ) {
   return await withNvimProcess(async (sock) => {
     const nvim = await attach({
@@ -134,13 +136,19 @@ export async function withDriver(
       logging: { level: "debug" },
     });
 
+    // Set test options before Magenta starts
+    if (driverOptions.options) {
+      // Send JSON string to Lua and let it parse the string into a table
+      // Make sure we use the long string syntax [=[ ]=] to avoid escaping issues
+      const testOptionsJson = JSON.stringify(driverOptions.options);
+      await nvim.call("nvim_exec_lua", [
+        `setup_test_options([=[${testOptionsJson}]=])`,
+        [],
+      ]);
+    }
+
     await withMockClient(async (mockAnthropic) => {
       const magenta = await Magenta.start(nvim);
-      magenta.options = {
-        ...magenta.options,
-        ...testOptions,
-      };
-
       await nvim.call("nvim_exec_lua", [
         `\
 -- Set up message interception

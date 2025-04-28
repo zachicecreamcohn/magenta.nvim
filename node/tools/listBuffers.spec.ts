@@ -10,7 +10,7 @@ import { pollUntil } from "../utils/async.ts";
 
 describe("node/tools/listBuffers.spec.ts", () => {
   it("listBuffers end-to-end", async () => {
-    await withDriver(async (driver) => {
+    await withDriver({}, async (driver) => {
       await driver.editFile("node/test/fixtures/poem.txt");
       await driver.editFile("node/test/fixtures/poem2.txt");
       await driver.showSidebar();
@@ -42,7 +42,8 @@ describe("node/tools/listBuffers.spec.ts", () => {
           throw new Error(`app crashed`);
         }
 
-        const toolWrapper = state.model.toolManager.toolWrappers[toolRequestId];
+        const toolWrapper =
+          state.model.thread.state.toolManager.toolWrappers[toolRequestId];
         if (!toolWrapper) {
           throw new Error(
             `could not find toolWrapper with id ${toolRequestId}`,
