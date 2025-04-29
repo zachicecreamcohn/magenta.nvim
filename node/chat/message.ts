@@ -1,4 +1,4 @@
-import * as Part from "./part.ts";
+import { Part, type Msg as PartMsg, view as partView } from "./part.ts";
 import * as ToolManager from "../tools/toolManager.ts";
 import { type Role } from "./thread.ts";
 import { type Dispatch, type Thunk } from "../tea/tea.ts";
@@ -13,7 +13,7 @@ export type MessageId = number & { __messageId: true };
 type State = {
   id: MessageId;
   role: Role;
-  parts: Part.Model[];
+  parts: Part[];
   edits: {
     [filePath: string]: {
       requestIds: ToolManager.ToolRequestId[];
@@ -56,7 +56,7 @@ export type Msg =
   | {
       type: "part-msg";
       partIdx: number;
-      msg: Part.Msg;
+      msg: PartMsg;
     }
   | {
       type: "init-edit";
@@ -65,7 +65,6 @@ export type Msg =
 
 export class Message {
   public state: State;
-  public partModel: ReturnType<typeof Part.init>;
   public toolManager: ToolManager.Model;
   private nvim: Nvim;
   private lsp: Lsp;
@@ -89,30 +88,45 @@ export class Message {
     this.lsp = lsp;
     this.toolManager = toolManager;
     this.options = options;
-    this.partModel = Part.init({ nvim, lsp, options });
   }
 
   update(msg: Msg): Thunk<Msg> | undefined {
     switch (msg.type) {
       case "append-text": {
         const lastPart = this.state.parts[this.state.parts.length - 1];
-        if (lastPart && lastPart.type == "text") {
-          lastPart.text += msg.text;
+        if (lastPart && lastPart.state.type == "text") {
+          lastPart.state.text += msg.text;
         } else {
-          this.state.parts.push({
-            type: "text",
-            text: msg.text,
-          });
+          this.state.parts.push(
+            new Part({
+              state: {
+                type: "text",
+                text: msg.text,
+              },
+              nvim: this.nvim,
+              lsp: this.lsp,
+              options: this.options,
+              toolManager: this.toolManager,
+            }),
+          );
         }
         break;
       }
 
       case "add-malformed-tool-reqeust":
-        this.state.parts.push({
-          type: "malformed-tool-request",
-          error: msg.error,
-          rawRequest: msg.rawRequest,
-        });
+        this.state.parts.push(
+          new Part({
+            state: {
+              type: "malformed-tool-request",
+              error: msg.error,
+              rawRequest: msg.rawRequest,
+            },
+            nvim: this.nvim,
+            lsp: this.lsp,
+            options: this.options,
+            toolManager: this.toolManager,
+          }),
+        );
         break;
 
       case "add-tool-request": {
@@ -134,10 +148,18 @@ export class Message {
 
             this.state.edits[filePath].requestIds.push(msg.requestId);
 
-            this.state.parts.push({
-              type: "tool-request",
-              requestId: msg.requestId,
-            });
+            this.state.parts.push(
+              new Part({
+                state: {
+                  type: "tool-request",
+                  requestId: msg.requestId,
+                },
+                nvim: this.nvim,
+                lsp: this.lsp,
+                options: this.options,
+                toolManager: this.toolManager,
+              }),
+            );
 
             return;
           }
@@ -149,10 +171,18 @@ export class Message {
           case "list_directory":
           case "diagnostics":
           case "bash_command":
-            this.state.parts.push({
-              type: "tool-request",
-              requestId: msg.requestId,
-            });
+            this.state.parts.push(
+              new Part({
+                state: {
+                  type: "tool-request",
+                  requestId: msg.requestId,
+                },
+                nvim: this.nvim,
+                lsp: this.lsp,
+                options: this.options,
+                toolManager: this.toolManager,
+              }),
+            );
             return;
           default:
             return assertUnreachable(toolWrapper.model);
@@ -160,11 +190,11 @@ export class Message {
       }
 
       case "part-msg": {
-        const [nextPart] = this.partModel.update(
-          msg.msg,
-          this.state.parts[msg.partIdx],
-        );
-        this.state.parts[msg.partIdx] = nextPart;
+        const part = this.state.parts[msg.partIdx];
+        const result = part.update(msg.msg);
+        if (result) {
+          return result;
+        }
         return;
       }
 
@@ -273,9 +303,8 @@ export const view: View<{
 # ${message.state.role}:
 ${message.state.parts.map(
   (part, partIdx) =>
-    d`${message.partModel.view({
-      model: part,
-      toolManager: message.toolManager,
+    d`${partView({
+      part,
       dispatch: (msg) => dispatch({ type: "part-msg", partIdx, msg }),
     })}\n`,
 )}${

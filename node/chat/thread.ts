@@ -1,4 +1,4 @@
-import * as Part from "./part.ts";
+import { Part } from "./part.ts";
 import {
   Message,
   view as messageView,
@@ -112,7 +112,6 @@ export class Thread {
   };
   public contextManager: ContextManager.ContextManager;
   private counter: Counter;
-  private partModel: ReturnType<typeof Part.init>;
   private toolManagerModel: ReturnType<typeof ToolManager.init>;
   private nvim: Nvim;
   private lsp: Lsp;
@@ -158,7 +157,6 @@ export class Thread {
     this.nvim = nvim;
     this.lsp = lsp;
     this.counter = new Counter();
-    this.partModel = Part.init({ nvim, lsp, options });
     this.toolManagerModel = ToolManager.init({ nvim, lsp, options });
     this.contextManager = contextManager;
     this.options = options;
@@ -236,11 +234,19 @@ export class Thread {
             const lastMessage =
               this.state.messages[this.state.messages.length - 1];
             if (lastMessage?.state.role === "assistant") {
-              lastMessage.state.parts.push({
-                type: "stop-msg",
-                stopReason: msg.conversation.stopReason,
-                usage: msg.conversation.usage,
-              });
+              lastMessage.state.parts.push(
+                new Part({
+                  state: {
+                    type: "stop-msg",
+                    stopReason: msg.conversation.stopReason,
+                    usage: msg.conversation.usage,
+                  },
+                  nvim: this.nvim,
+                  lsp: this.lsp,
+                  options: this.options,
+                  toolManager: this.state.toolManager,
+                }),
+              );
             }
             return this.maybeAutorespond();
           }
@@ -269,7 +275,7 @@ export class Thread {
                   dispatch({
                     type: "sidebar-setup-resubmit",
                     lastUserMessage: lastUserMessage.state.parts
-                      .map((p) => (p.type == "text" ? p.text : ""))
+                      .map((p) => (p.state.type == "text" ? p.state.text : ""))
                       .join(""),
                   });
                   resolve();
@@ -582,8 +588,8 @@ export class Thread {
     };
 
     for (const part of lastMessage.state.parts) {
-      if (part.type == "tool-request") {
-        if (isBlocking(part.requestId)) {
+      if (part.state.type == "tool-request") {
+        if (isBlocking(part.state.requestId)) {
           return;
         }
       }
@@ -689,10 +695,7 @@ export class Thread {
       const out: ProviderMessage[] = [];
 
       for (const part of msg.state.parts) {
-        const { content, result } = this.partModel.toMessageParam(
-          part,
-          this.state.toolManager,
-        );
+        const { content, result } = part.toMessageContent();
 
         if (content) {
           messageContent.push(content);
