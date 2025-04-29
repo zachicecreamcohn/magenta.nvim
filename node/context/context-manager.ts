@@ -84,7 +84,6 @@ export class ContextManager {
         delete this.files[msg.absFilePath];
         return undefined;
       case "open-file":
-        console.log(`open-file dispatch`);
         return () => {
           return this.openFileInWindow(msg.absFilePath);
         };
@@ -273,7 +272,6 @@ ${content}
   }
 
   async openFileInWindow(absFilePath: string): Promise<void> {
-    console.log(`openFileInWindow ${absFilePath}`);
     try {
       const windows = await getAllWindows(this.nvim);
       const nonMagentaWindows = [];

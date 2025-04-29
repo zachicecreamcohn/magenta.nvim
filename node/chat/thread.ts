@@ -1,5 +1,11 @@
 import * as Part from "./part.ts";
-import * as Message from "./message.ts";
+import {
+  Message,
+  view as messageView,
+  update as messageUpdate,
+  type MessageId,
+  type Msg as MessageMsg,
+} from "./message.ts";
 import * as ContextManager from "../context/context-manager.ts";
 import {
   type Dispatch,
@@ -39,12 +45,12 @@ export type ConversationState =
   | {
       state: "error";
       error: Error;
-      lastAssistantMessage?: Message.Model;
+      lastAssistantMessage?: Message;
     };
 
 type WrappedMessageMsg = {
   type: "message-msg";
-  msg: Message.Msg;
+  msg: MessageMsg;
   idx: number;
 };
 
@@ -98,18 +104,18 @@ export type Msg =
 
 export class Thread {
   public state: {
-    lastUserMessageId: Message.MessageId;
+    lastUserMessageId: MessageId;
     profile: Profile;
     conversation: ConversationState;
-    messages: Message.Model[];
+    messages: Message[];
     toolManager: ToolManager.Model;
   };
   public contextManager: ContextManager.ContextManager;
   private counter: Counter;
   private partModel: ReturnType<typeof Part.init>;
   private toolManagerModel: ReturnType<typeof ToolManager.init>;
-  public messageModel: ReturnType<typeof Message.init>;
   private nvim: Nvim;
+  private lsp: Lsp;
   private options: MagentaOptions;
 
   public static async create({
@@ -150,15 +156,15 @@ export class Thread {
     options: MagentaOptions;
   }) {
     this.nvim = nvim;
+    this.lsp = lsp;
     this.counter = new Counter();
     this.partModel = Part.init({ nvim, lsp, options });
     this.toolManagerModel = ToolManager.init({ nvim, lsp, options });
-    this.messageModel = Message.init({ nvim, lsp, options });
     this.contextManager = contextManager;
     this.options = options;
 
     this.state = {
-      lastUserMessageId: this.counter.last() as Message.MessageId,
+      lastUserMessageId: this.counter.last() as MessageId,
       profile,
       conversation: {
         state: "stopped",
@@ -172,13 +178,13 @@ export class Thread {
 
   wrapMessageThunk(
     messageIdx: number,
-    thunk: Thunk<Message.Msg> | undefined,
+    thunk: Thunk<MessageMsg> | undefined,
   ): Thunk<WrappedMessageMsg> | undefined {
     if (!thunk) {
       return undefined;
     }
     return (dispatch: Dispatch<WrappedMessageMsg>) =>
-      thunk((msg: Message.Msg) =>
+      thunk((msg: MessageMsg) =>
         dispatch({ type: "message-msg", idx: messageIdx, msg }),
       );
   }
@@ -189,25 +195,29 @@ export class Thread {
         this.state.profile = msg.profile;
         break;
       case "add-message": {
-        let message: Message.Model = {
-          id: this.counter.get() as Message.MessageId,
-          role: msg.role,
-          parts: [],
-          edits: {},
-        };
+        const message = new Message({
+          state: {
+            id: this.counter.get() as MessageId,
+            role: msg.role,
+            parts: [],
+            edits: {},
+          },
+          nvim: this.nvim,
+          lsp: this.lsp,
+          toolManager: this.state.toolManager,
+          options: this.options,
+        });
 
-        if (message.role == "user") {
-          this.state.lastUserMessageId = message.id;
+        if (message.state.role == "user") {
+          this.state.lastUserMessageId = message.state.id;
         }
 
         let messageThunk;
         if (msg.content) {
-          const [next, thunk] = this.messageModel.update(
-            { type: "append-text", text: msg.content },
-            message,
-            this.state.toolManager,
-          );
-          message = next;
+          const thunk = message.update({
+            type: "append-text",
+            text: msg.content,
+          });
           messageThunk = thunk;
         }
         this.state.messages.push(message);
@@ -225,8 +235,8 @@ export class Thread {
           case "stopped": {
             const lastMessage =
               this.state.messages[this.state.messages.length - 1];
-            if (lastMessage?.role === "assistant") {
-              lastMessage.parts.push({
+            if (lastMessage?.state.role === "assistant") {
+              lastMessage.state.parts.push({
                 type: "stop-msg",
                 stopReason: msg.conversation.stopReason,
                 usage: msg.conversation.usage,
@@ -238,7 +248,7 @@ export class Thread {
           case "error": {
             const lastAssistantMessage =
               this.state.messages[this.state.messages.length - 1];
-            if (lastAssistantMessage?.role == "assistant") {
+            if (lastAssistantMessage?.state.role == "assistant") {
               this.state.messages.pop();
 
               // save the last message so we can show a nicer error message.
@@ -252,13 +262,13 @@ export class Thread {
 
             const lastUserMessage =
               this.state.messages[this.state.messages.length - 1];
-            if (lastUserMessage?.role == "user") {
+            if (lastUserMessage?.state.role == "user") {
               this.state.messages.pop();
               const sidebarResubmitSetupThunk: Thunk<Msg> = (dispatch) =>
                 new Promise((resolve) => {
                   dispatch({
                     type: "sidebar-setup-resubmit",
-                    lastUserMessage: lastUserMessage.parts
+                    lastUserMessage: lastUserMessage.state.parts
                       .map((p) => (p.type == "text" ? p.text : ""))
                       .join(""),
                   });
@@ -286,23 +296,30 @@ export class Thread {
 
       case "send-message": {
         const lastMessage = this.state.messages[this.state.messages.length - 1];
-        if (lastMessage && lastMessage.role == "user") {
+        if (lastMessage && lastMessage.state.role == "user") {
           return this.sendMessage();
         } else {
           this.nvim.logger?.error(
-            `Cannot send when the last message has role ${lastMessage && lastMessage.role}`,
+            `Cannot send when the last message has role ${lastMessage && lastMessage.state.role}`,
           );
         }
         break;
       }
 
       case "message-msg": {
-        const [nextMessage, messageThunk] = this.messageModel.update(
+        const [nextMessage, messageThunk] = messageUpdate(
           msg.msg,
-          this.state.messages[msg.idx],
+          this.state.messages[msg.idx].state,
           this.state.toolManager,
+          { nvim: this.nvim, lsp: this.lsp, options: this.options },
         );
-        this.state.messages[msg.idx] = nextMessage;
+        this.state.messages[msg.idx] = new Message({
+          state: nextMessage,
+          nvim: this.nvim,
+          lsp: this.lsp,
+          toolManager: this.state.toolManager,
+          options: this.options,
+        });
 
         let toolManagerMsg;
         if (msg.msg.type == "tool-manager-msg") {
@@ -355,7 +372,7 @@ export class Thread {
             }
           } else {
             const message = this.state.messages[msg.idx];
-            const edit = message.edits[msg.msg.filePath];
+            const edit = message.state.edits[msg.msg.filePath];
             edit.status = {
               status: "error",
               message: msg.msg.message,
@@ -369,21 +386,36 @@ export class Thread {
 
       case "stream-response": {
         const lastMessage = this.state.messages[this.state.messages.length - 1];
-        if (lastMessage?.role !== "assistant") {
-          this.state.messages.push({
-            id: this.counter.get() as Message.MessageId,
-            role: "assistant",
-            parts: [],
-            edits: {},
-          });
+        if (lastMessage?.state.role !== "assistant") {
+          this.state.messages.push(
+            new Message({
+              state: {
+                id: this.counter.get() as MessageId,
+                role: "assistant",
+                parts: [],
+                edits: {},
+              },
+              nvim: this.nvim,
+              lsp: this.lsp,
+              toolManager: this.state.toolManager,
+              options: this.options,
+            }),
+          );
         }
 
-        const [nextMessage, messageThunk] = this.messageModel.update(
+        const [nextMessage, messageThunk] = messageUpdate(
           { type: "append-text", text: msg.text },
-          this.state.messages[this.state.messages.length - 1],
+          this.state.messages[this.state.messages.length - 1].state,
           this.state.toolManager,
+          { nvim: this.nvim, lsp: this.lsp, options: this.options },
         );
-        this.state.messages[this.state.messages.length - 1] = nextMessage;
+        this.state.messages[this.state.messages.length - 1] = new Message({
+          state: nextMessage,
+          nvim: this.nvim,
+          lsp: this.lsp,
+          toolManager: this.state.toolManager,
+          options: this.options,
+        });
 
         return this.wrapMessageThunk(
           this.state.messages.length - 1,
@@ -393,26 +425,41 @@ export class Thread {
 
       case "init-tool-use": {
         const lastMessage = this.state.messages[this.state.messages.length - 1];
-        if (lastMessage?.role !== "assistant") {
-          this.state.messages.push({
-            id: this.counter.get() as Message.MessageId,
-            role: "assistant",
-            parts: [],
-            edits: {},
-          });
+        if (lastMessage?.state.role !== "assistant") {
+          this.state.messages.push(
+            new Message({
+              state: {
+                id: this.counter.get() as MessageId,
+                role: "assistant",
+                parts: [],
+                edits: {},
+              },
+              nvim: this.nvim,
+              lsp: this.lsp,
+              toolManager: this.state.toolManager,
+              options: this.options,
+            }),
+          );
         }
 
         if (msg.request.status == "error") {
-          const [nextMessage, messageThunk] = this.messageModel.update(
+          const [nextMessage, messageThunk] = messageUpdate(
             {
               type: "add-malformed-tool-reqeust",
               error: msg.request.error,
               rawRequest: msg.request.rawRequest,
             },
-            this.state.messages[this.state.messages.length - 1],
+            this.state.messages[this.state.messages.length - 1].state,
             this.state.toolManager,
+            { nvim: this.nvim, lsp: this.lsp, options: this.options },
           );
-          this.state.messages[this.state.messages.length - 1] = nextMessage;
+          this.state.messages[this.state.messages.length - 1] = new Message({
+            state: nextMessage,
+            nvim: this.nvim,
+            lsp: this.lsp,
+            toolManager: this.state.toolManager,
+            options: this.options,
+          });
 
           return this.wrapMessageThunk(
             this.state.messages.length - 1,
@@ -427,15 +474,22 @@ export class Thread {
             );
           this.state.toolManager = nextToolManager;
 
-          const [nextMessage, messageThunk] = this.messageModel.update(
+          const [nextMessage, messageThunk] = messageUpdate(
             {
               type: "add-tool-request",
               requestId: msg.request.value.id,
             },
-            this.state.messages[this.state.messages.length - 1],
+            this.state.messages[this.state.messages.length - 1].state,
             this.state.toolManager,
+            { nvim: this.nvim, lsp: this.lsp, options: this.options },
           );
-          this.state.messages[this.state.messages.length - 1] = nextMessage;
+          this.state.messages[this.state.messages.length - 1] = new Message({
+            state: nextMessage,
+            nvim: this.nvim,
+            lsp: this.lsp,
+            toolManager: this.state.toolManager,
+            options: this.options,
+          });
 
           const wrappedMessageThunk: Thunk<Msg> | undefined =
             this.wrapMessageThunk(this.state.messages.length - 1, messageThunk);
@@ -482,7 +536,7 @@ export class Thread {
 
       case "clear": {
         this.state = {
-          lastUserMessageId: this.counter.last() as Message.MessageId,
+          lastUserMessageId: this.counter.last() as MessageId,
           profile: msg.profile,
           conversation: {
             state: "stopped",
@@ -518,7 +572,7 @@ export class Thread {
     }
 
     const lastMessage = this.state.messages[this.state.messages.length - 1];
-    if (!(lastMessage && lastMessage.role == "assistant")) {
+    if (!(lastMessage && lastMessage.state.role == "assistant")) {
       return;
     }
 
@@ -527,7 +581,7 @@ export class Thread {
       return toolWrapper.model.state.state != "done";
     };
 
-    for (const part of lastMessage.parts) {
+    for (const part of lastMessage.state.parts) {
       if (part.type == "tool-request") {
         if (isBlocking(part.requestId)) {
           return;
@@ -634,7 +688,7 @@ export class Thread {
       let messageContent: ProviderMessageContent[] = [];
       const out: ProviderMessage[] = [];
 
-      for (const part of msg.parts) {
+      for (const part of msg.state.parts) {
         const { content, result } = this.partModel.toMessageParam(
           part,
           this.state.toolManager,
@@ -647,7 +701,7 @@ export class Thread {
         if (result) {
           if (messageContent.length) {
             out.push({
-              role: msg.role,
+              role: msg.state.role,
               content: messageContent,
             });
             messageContent = [];
@@ -662,19 +716,19 @@ export class Thread {
 
       if (messageContent.length) {
         out.push({
-          role: msg.role,
+          role: msg.state.role,
           content: messageContent,
         });
       }
 
       return out.map((m) => ({
         message: m,
-        messageId: msg.id,
+        messageId: msg.state.id,
       }));
     });
 
     const contextMessages = await this.contextManager.getContextMessages(
-      this.counter.last() as Message.MessageId,
+      this.counter.last() as MessageId,
     );
 
     if (contextMessages) {
@@ -713,9 +767,8 @@ export const view: View<{
 
   return d`${thread.state.messages.map(
     (m, idx) =>
-      d`${thread.messageModel.view({
-        model: m,
-        toolManager: thread.state.toolManager,
+      d`${messageView({
+        message: m,
         dispatch: (msg) => {
           dispatch({ type: "message-msg", msg, idx });
         },
