@@ -1,16 +1,17 @@
-import * as ToolManager from "../tools/toolManager.ts";
+import {
+  ToolManager,
+  type Msg as ToolManagerMsg,
+  type ToolRequestId,
+} from "../tools/toolManager.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, type View } from "../tea/view.ts";
-import { type Dispatch } from "../tea/tea.ts";
-import type { Lsp } from "../lsp.ts";
-import type { Nvim } from "nvim-node";
 import type {
   ProviderMessageContent,
   ProviderToolResultContent,
   StopReason,
   Usage,
 } from "../providers/provider.ts";
-import type { MagentaOptions } from "../options.ts";
+import { wrapThunk, type Dispatch, type Thunk } from "../tea/tea.ts";
 
 type State =
   | {
@@ -19,7 +20,7 @@ type State =
     }
   | {
       type: "tool-request";
-      requestId: ToolManager.ToolRequestId;
+      requestId: ToolRequestId;
     }
   | {
       type: "malformed-tool-request";
@@ -34,39 +35,32 @@ type State =
 
 export type Msg = {
   type: "tool-manager-msg";
-  msg: ToolManager.Msg;
+  msg: ToolManagerMsg;
 };
 
 export class Part {
-  toolManagerModel: ReturnType<typeof ToolManager.init>;
-  toolManager: ToolManager.Model;
+  toolManager: ToolManager;
   state: State;
 
   constructor({
-    nvim,
-    lsp,
-    options,
     state,
     toolManager,
   }: {
-    nvim: Nvim;
-    lsp: Lsp;
-    options: MagentaOptions;
     state: State;
-    toolManager: ToolManager.Model;
+    toolManager: ToolManager;
   }) {
     this.state = state;
     this.toolManager = toolManager;
-    this.toolManagerModel = ToolManager.init({ nvim, lsp, options });
   }
 
-  update(msg: Msg) {
+  update(msg: Msg): Thunk<Msg> | undefined {
     switch (msg.type) {
-      case "tool-manager-msg":
-        // do nothing - this will be handled higher up the chain
-        return undefined;
+      case "tool-manager-msg": {
+        const thunk = this.toolManager.update(msg.msg);
+        return wrapThunk("tool-manager-msg", thunk);
+      }
       default:
-        assertUnreachable(msg.type);
+        return assertUnreachable(msg.type);
     }
   }
 
@@ -79,13 +73,14 @@ export class Part {
         return { content: this.state };
 
       case "tool-request": {
-        const toolWrapper = this.toolManager.toolWrappers[this.state.requestId];
+        const toolWrapper =
+          this.toolManager.state.toolWrappers[this.state.requestId];
         return {
           content: {
             type: "tool_use",
-            request: toolWrapper.model.request,
+            request: toolWrapper.tool.request,
           },
-          result: this.toolManagerModel.getToolResult(toolWrapper.model),
+          result: toolWrapper.tool.getToolResult(),
         };
       }
 
@@ -121,13 +116,14 @@ export const view: View<{
 ${JSON.stringify(part.state.rawRequest, null, 2) || "undefined"}`;
 
     case "tool-request": {
-      const toolModel = part.toolManager.toolWrappers[part.state.requestId];
-      if (!toolModel) {
+      const toolWrapper =
+        part.toolManager.state.toolWrappers[part.state.requestId];
+      if (!toolWrapper) {
         throw new Error(
           `Unable to find model with requestId ${part.state.requestId}`,
         );
       }
-      return part.toolManagerModel.renderTool(toolModel, (msg) =>
+      return part.toolManager.renderTool(toolWrapper, (msg) =>
         dispatch({
           type: "tool-manager-msg",
           msg,

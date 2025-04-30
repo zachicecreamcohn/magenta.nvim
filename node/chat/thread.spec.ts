@@ -22,7 +22,7 @@ describe("node/chat/thread.spec.ts", () => {
             status: "ok",
             value: {
               id: toolRequestId,
-              name: "list_buffers",
+              toolName: "list_buffers",
               input: {},
             },
           },
@@ -89,7 +89,7 @@ describe("node/chat/thread.spec.ts", () => {
             status: "ok",
             value: {
               id: toolRequestId1,
-              name: "list_directory",
+              toolName: "list_directory",
               input: { dirPath: "." },
             },
           },
@@ -107,7 +107,7 @@ describe("node/chat/thread.spec.ts", () => {
             status: "ok",
             value: {
               id: toolRequestId2,
-              name: "list_buffers",
+              toolName: "list_buffers",
               input: {},
             },
           },
@@ -167,7 +167,7 @@ describe("node/chat/thread.spec.ts", () => {
         );
 
         if (toolUseContent && toolUseContent.request) {
-          expect(toolUseContent.request.name).toBe("list_directory");
+          expect(toolUseContent.request.toolName).toBe("list_directory");
         }
       }
 

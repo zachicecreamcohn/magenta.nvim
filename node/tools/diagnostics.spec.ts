@@ -40,7 +40,7 @@ describe("node/tools/diagnostics.spec.ts", () => {
             status: "ok",
             value: {
               id: toolRequestId,
-              name: "diagnostics",
+              toolName: "diagnostics",
               input: {},
             },
           },
@@ -53,20 +53,21 @@ describe("node/tools/diagnostics.spec.ts", () => {
           if (state.status != "running") {
             throw new Error(`app crashed`);
           }
+          const thread = state.model.thread;
 
           const toolWrapper =
-            state.model.thread.state.toolManager.toolWrappers[toolRequestId];
+            thread.toolManager.state.toolWrappers[toolRequestId];
           if (!toolWrapper) {
             throw new Error(
               `could not find toolWrapper with id ${toolRequestId}`,
             );
           }
 
-          if (toolWrapper.model.state.state != "done") {
+          if (toolWrapper.tool.state.state != "done") {
             throw new Error(`Request not done`);
           }
 
-          return toolWrapper.model.state.result;
+          return toolWrapper.tool.state.result;
         },
         { timeout: 5000 },
       );

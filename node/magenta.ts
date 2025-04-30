@@ -1,5 +1,9 @@
 import { Sidebar } from "./sidebar.ts";
-import * as Thread from "./chat/thread.ts";
+import {
+  Thread,
+  view as threadView,
+  type Msg as ThreadMsg,
+} from "./chat/thread.ts";
 import * as TEA from "./tea/tea.ts";
 import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
 import { pos } from "./tea/view.ts";
@@ -22,7 +26,7 @@ const MAGENTA_LSP_RESPONSE = "magentaLspResponse";
 
 export class Magenta {
   public sidebar: Sidebar;
-  public chatApp: TEA.App<Thread.Msg, { thread: Thread.Thread }>;
+  public chatApp: TEA.App<ThreadMsg, { thread: Thread }>;
   public mountedChatApp: TEA.MountedApp | undefined;
   public inlineEditManager: InlineEditManager;
 
@@ -30,7 +34,7 @@ export class Magenta {
     public nvim: Nvim,
     public lsp: Lsp,
     public options: MagentaOptions,
-    public thread: Thread.Thread,
+    public thread: Thread,
   ) {
     this.sidebar = new Sidebar(this.nvim, this.getActiveProfile());
 
@@ -38,6 +42,7 @@ export class Magenta {
       nvim: this.nvim,
       initialModel: { thread },
       update: (msg) => {
+        const thunk = this.thread.update(msg);
         if (msg.type == "sidebar-setup-resubmit") {
           if (
             this.sidebar &&
@@ -58,10 +63,9 @@ export class Magenta {
           }
         }
 
-        return [{ thread: this.thread }, this.thread.update(msg)];
+        return [{ thread: this.thread }, thunk];
       },
-
-      View: Thread.view,
+      View: threadView,
     });
 
     this.inlineEditManager = new InlineEditManager({ nvim });
@@ -346,7 +350,7 @@ ${lines.join("\n")}
     ]);
 
     const parsedOptions = parseOptions(opts);
-    const thread = await Thread.Thread.create({
+    const thread = await Thread.create({
       profile: getActiveProfile(
         parsedOptions.profiles,
         parsedOptions.activeProfile,

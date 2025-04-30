@@ -1,4 +1,4 @@
-import * as GetFile from "./getFile.ts";
+import { GetFileTool, type Msg as GetFileMsg } from "./getFile.ts";
 import * as assert from "assert";
 import type { ToolRequestId } from "./toolManager.ts";
 import { createApp } from "../tea/tea.ts";
@@ -12,10 +12,10 @@ describe("tea/getFile.spec.ts", () => {
     await withNvimClient(async (nvim) => {
       const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
-      const [model, _thunk] = GetFile.initModel(
+      const [tool, _thunk] = GetFileTool.create(
         {
           id: "request_id" as ToolRequestId,
-          name: "get_file",
+          toolName: "get_file",
           input: {
             filePath: "./file.txt",
           },
@@ -23,11 +23,14 @@ describe("tea/getFile.spec.ts", () => {
         { nvim },
       );
 
-      const app = createApp<GetFile.Model, GetFile.Msg>({
+      const app = createApp<{ tool: GetFileTool }, GetFileMsg>({
         nvim,
-        initialModel: model,
-        update: (model, msg) => GetFile.update(model, msg, { nvim }),
-        View: GetFile.view,
+        initialModel: { tool },
+        update: (msg, model) => {
+          model.tool.update(msg);
+          return [model];
+        },
+        View: ({ model, dispatch }) => model.tool.view(dispatch),
       });
 
       const mountedApp = await app.mount({
@@ -75,7 +78,7 @@ describe("tea/getFile.spec.ts", () => {
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "get_file",
+              toolName: "get_file",
               input: {
                 filePath: "node/test/fixtures/.secret",
               },
@@ -110,7 +113,7 @@ Error reading file \`node/test/fixtures/.secret\`: The user did not allow the re
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "get_file",
+              toolName: "get_file",
               input: {
                 filePath: "node/test/fixtures/.secret",
               },
@@ -143,7 +146,7 @@ Finished reading file \`node/test/fixtures/.secret\``);
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "get_file",
+              toolName: "get_file",
               input: {
                 filePath: "node_modules/test",
               },
@@ -171,7 +174,7 @@ May I read file \`node_modules/test\`? **[ NO ]** **[ OK ]**`);
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "get_file",
+              toolName: "get_file",
               input: {
                 filePath: "/tmp/file",
               },

@@ -1,5 +1,4 @@
-import { d, withBindings, type View } from "../tea/view";
-import type { Dispatch } from "../tea/tea";
+import { d, withBindings } from "../tea/view";
 import { assertUnreachable } from "../utils/assertUnreachable";
 import type { ProviderMessage } from "../providers/provider";
 import type { Nvim } from "nvim-node";
@@ -13,6 +12,7 @@ import { getcwd, getAllWindows } from "../nvim/nvim";
 import { NvimBuffer } from "../nvim/buffer";
 import type { WindowId } from "../nvim/window";
 import { WIDTH } from "../sidebar";
+import type { Dispatch, Thunk } from "../tea/tea";
 
 export type Msg =
   | {
@@ -72,7 +72,7 @@ export class ContextManager {
     return new ContextManager({ nvim, options, initialFiles });
   }
 
-  update(msg: Msg): ((dispatch: Dispatch<Msg>) => Promise<void>) | undefined {
+  update(msg: Msg): Thunk<Msg> | undefined {
     switch (msg.type) {
       case "add-file-context":
         this.files[msg.absFilePath] = {
@@ -84,9 +84,7 @@ export class ContextManager {
         delete this.files[msg.absFilePath];
         return undefined;
       case "open-file":
-        return () => {
-          return this.openFileInWindow(msg.absFilePath);
-        };
+        return () => this.openFileInWindow(msg.absFilePath);
       default:
         assertUnreachable(msg);
     }
@@ -350,26 +348,24 @@ ${content}
       );
     }
   }
-}
 
-export const view: View<{
-  contextManager: ContextManager;
-  dispatch: Dispatch<Msg>;
-}> = ({ contextManager, dispatch }) => {
-  const fileContext = [];
-  for (const absFilePath in contextManager["files"]) {
-    fileContext.push(
-      withBindings(
-        d`file: \`${contextManager["files"][absFilePath].relFilePath}\`\n`,
-        {
-          d: () => dispatch({ type: "remove-file-context", absFilePath }),
+  view(dispatch: Dispatch<Msg>) {
+    const fileContext = [];
+    for (const absFilePath in this.files) {
+      fileContext.push(
+        withBindings(d`file: \`${this.files[absFilePath].relFilePath}\`\n`, {
+          d: () =>
+            dispatch({
+              type: "remove-file-context",
+              absFilePath,
+            }),
           "<CR>": () => dispatch({ type: "open-file", absFilePath }),
-        },
-      ),
-    );
-  }
+        }),
+      );
+    }
 
-  return d`\
+    return d`\
 # context:
 ${fileContext}`;
-};
+  }
+}

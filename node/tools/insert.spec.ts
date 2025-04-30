@@ -13,9 +13,9 @@ describe("node/tools/insert.spec.ts", () => {
     await withNvimClient(async (nvim) => {
       const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
-      const [model] = Insert.initModel({
+      const tool = new Insert.InsertTool({
         id: "request_id" as ToolRequestId,
-        name: "insert",
+        toolName: "insert",
         input: {
           filePath: "./test.txt",
           insertAfter: "existing line",
@@ -23,11 +23,14 @@ describe("node/tools/insert.spec.ts", () => {
         },
       });
 
-      const app = createApp<Insert.Model, Insert.Msg>({
+      const app = createApp<{ tool: Insert.InsertTool }, Insert.Msg>({
         nvim,
-        initialModel: model,
-        update: Insert.update,
-        View: Insert.view,
+        initialModel: { tool },
+        update: (msg, model) => {
+          model.tool.update(msg);
+          return [model];
+        },
+        View: ({ model }) => model.tool.view(),
       });
 
       const mountedApp = await app.mount({
@@ -76,7 +79,7 @@ describe("node/tools/insert.spec.ts", () => {
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "insert",
+              toolName: "insert",
               input: {
                 filePath: "test_note.txt",
                 insertAfter: "",
@@ -137,7 +140,7 @@ describe("node/tools/insert.spec.ts", () => {
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "insert",
+              toolName: "insert",
               input: {
                 filePath: "node/test/fixtures/poem.txt",
                 insertAfter: "Paint their stories in the night.",
@@ -193,7 +196,7 @@ describe("node/tools/insert.spec.ts", () => {
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "insert",
+              toolName: "insert",
               input: {
                 filePath: "node/test/fixtures/poem.txt",
                 insertAfter: "",
@@ -244,7 +247,7 @@ describe("node/tools/insert.spec.ts", () => {
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "insert",
+              toolName: "insert",
               input: {
                 filePath: "node/test/fixtures/poem.txt",
                 insertAfter: "Text that doesn't exist in the file",

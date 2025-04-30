@@ -1,13 +1,15 @@
 import { Part, type Msg as PartMsg, view as partView } from "./part.ts";
-import * as ToolManager from "../tools/toolManager.ts";
+import {
+  ToolManager,
+  type ToolRequestId,
+  type Msg as ToolManagerMsg,
+} from "../tools/toolManager.ts";
 import { type Role } from "./thread.ts";
-import { type Dispatch, type Thunk } from "../tea/tea.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, type View, withBindings } from "../tea/view.ts";
 import { displayDiffs } from "../tools/diff.ts";
-import type { Lsp } from "../lsp.ts";
 import type { Nvim } from "nvim-node";
-import type { MagentaOptions } from "../options.ts";
+import { wrapThunk, type Dispatch, type Thunk } from "../tea/tea.ts";
 
 export type MessageId = number & { __messageId: true };
 type State = {
@@ -16,7 +18,7 @@ type State = {
   parts: Part[];
   edits: {
     [filePath: string]: {
-      requestIds: ToolManager.ToolRequestId[];
+      requestIds: ToolRequestId[];
       status:
         | {
             status: "pending";
@@ -36,7 +38,7 @@ export type Msg =
     }
   | {
       type: "add-tool-request";
-      requestId: ToolManager.ToolRequestId;
+      requestId: ToolRequestId;
     }
   | {
       type: "add-malformed-tool-reqeust";
@@ -44,50 +46,36 @@ export type Msg =
       rawRequest: unknown;
     }
   | {
-      type: "tool-manager-msg";
-      msg: ToolManager.Msg;
+      type: "init-edit";
+      filePath: string;
     }
   | {
-      type: "diff-error";
-      filePath: string;
-      requestId?: ToolManager.ToolRequestId;
-      message: string;
+      type: "tool-manager-msg";
+      msg: ToolManagerMsg;
     }
   | {
       type: "part-msg";
       partIdx: number;
       msg: PartMsg;
-    }
-  | {
-      type: "init-edit";
-      filePath: string;
     };
 
 export class Message {
   public state: State;
-  public toolManager: ToolManager.Model;
+  public toolManager: ToolManager;
   private nvim: Nvim;
-  private lsp: Lsp;
-  private options: MagentaOptions;
 
   constructor({
     state,
     nvim,
-    lsp,
     toolManager,
-    options,
   }: {
     state: State;
     nvim: Nvim;
-    lsp: Lsp;
-    toolManager: ToolManager.Model;
-    options: MagentaOptions;
+    toolManager: ToolManager;
   }) {
     this.state = state;
     this.nvim = nvim;
-    this.lsp = lsp;
     this.toolManager = toolManager;
-    this.options = options;
   }
 
   update(msg: Msg): Thunk<Msg> | undefined {
@@ -103,9 +91,6 @@ export class Message {
                 type: "text",
                 text: msg.text,
               },
-              nvim: this.nvim,
-              lsp: this.lsp,
-              options: this.options,
               toolManager: this.toolManager,
             }),
           );
@@ -121,24 +106,21 @@ export class Message {
               error: msg.error,
               rawRequest: msg.rawRequest,
             },
-            nvim: this.nvim,
-            lsp: this.lsp,
-            options: this.options,
             toolManager: this.toolManager,
           }),
         );
         break;
 
       case "add-tool-request": {
-        const toolWrapper = this.toolManager.toolWrappers[msg.requestId];
+        const toolWrapper = this.toolManager.state.toolWrappers[msg.requestId];
         if (!toolWrapper) {
           throw new Error(`Tool request not found: ${msg.requestId}`);
         }
 
-        switch (toolWrapper.model.type) {
+        switch (toolWrapper.tool.toolName) {
           case "insert":
           case "replace": {
-            const filePath = toolWrapper.model.request.input.filePath;
+            const filePath = toolWrapper.tool.request.input.filePath;
             if (!this.state.edits[filePath]) {
               this.state.edits[filePath] = {
                 status: { status: "pending" },
@@ -154,9 +136,6 @@ export class Message {
                   type: "tool-request",
                   requestId: msg.requestId,
                 },
-                nvim: this.nvim,
-                lsp: this.lsp,
-                options: this.options,
                 toolManager: this.toolManager,
               }),
             );
@@ -177,103 +156,79 @@ export class Message {
                   type: "tool-request",
                   requestId: msg.requestId,
                 },
-                nvim: this.nvim,
-                lsp: this.lsp,
-                options: this.options,
                 toolManager: this.toolManager,
               }),
             );
             return;
           default:
-            return assertUnreachable(toolWrapper.model);
+            return assertUnreachable(toolWrapper.tool);
         }
+      }
+
+      case "init-edit": {
+        return this.displayDiffs(msg.filePath);
+      }
+
+      case "tool-manager-msg": {
+        const thunk = this.toolManager.update(msg.msg);
+        return wrapThunk("tool-manager-msg", thunk);
       }
 
       case "part-msg": {
+        const partIdx = msg.partIdx;
         const part = this.state.parts[msg.partIdx];
-        const result = part.update(msg.msg);
-        if (result) {
-          return result;
-        }
-        return;
+        const thunk = part.update(msg.msg);
+        return (
+          thunk &&
+          ((dispatch: Dispatch<Msg>) =>
+            thunk((msg) => dispatch({ type: "part-msg", partIdx, msg })))
+        );
       }
 
-      case "diff-error":
-      case "tool-manager-msg":
-        // NOTE: nothing to do, should be handled by parent (chat)
-        return;
-
-      case "init-edit": {
-        const edits = this.state.edits[msg.filePath];
-        if (!edits) {
-          throw new Error(
-            `Received msg edit request for file ${msg.filePath} but it is not in map of edits.`,
-          );
-        }
-
-        return async (dispatch: Dispatch<Msg>) => {
-          try {
-            await displayDiffs({
-              context: { nvim: this.nvim },
-              filePath: msg.filePath,
-              diffId: `message_${this.state.id}`,
-              edits: edits.requestIds.map((requestId) => {
-                const toolWrapper = this.toolManager.toolWrappers[requestId];
-                if (!toolWrapper) {
-                  throw new Error(
-                    `Expected a toolWrapper with id ${requestId} but found none.`,
-                  );
-                }
-                if (
-                  !(
-                    toolWrapper.model.type == "insert" ||
-                    toolWrapper.model.type == "replace"
-                  )
-                ) {
-                  throw new Error(
-                    `Expected only file edit tools in edits map, but found request ${requestId} of type ${toolWrapper.model.type}`,
-                  );
-                }
-
-                return toolWrapper.model.request;
-              }),
-              dispatch: (msg) => dispatch(msg),
-            });
-          } catch (error) {
-            this.nvim.logger?.error(
-              new Error(`diff-error: ${JSON.stringify(error)}`),
-            );
-
-            dispatch({
-              type: "diff-error",
-              filePath: msg.filePath,
-              message: JSON.stringify(error),
-            });
-          }
-        };
-      }
       default:
         assertUnreachable(msg);
     }
   }
-}
 
-export const update = (
-  msg: Msg,
-  model: State,
-  toolManager: ToolManager.Model,
-  { nvim, lsp, options }: { nvim: Nvim; lsp: Lsp; options: MagentaOptions },
-): [State, Thunk<Msg> | undefined] | [State] => {
-  const message = new Message({
-    state: model,
-    nvim,
-    lsp,
-    toolManager,
-    options,
-  });
-  const thunk = message.update(msg);
-  return thunk ? [message.state, thunk] : [message.state];
-};
+  displayDiffs(filePath: string): Thunk<Msg> {
+    return async (dispatch: Dispatch<Msg>) => {
+      const edits = this.state.edits[filePath];
+      if (!edits) {
+        throw new Error(
+          `Received msg edit request for file ${filePath} but it is not in map of edits.`,
+        );
+      }
+
+      await displayDiffs({
+        context: { nvim: this.nvim },
+        filePath,
+        toolManager: this.toolManager,
+        diffId: `message_${this.state.id}`,
+        edits: edits.requestIds.map((requestId) => {
+          const toolWrapper = this.toolManager.state.toolWrappers[requestId];
+          if (!toolWrapper) {
+            throw new Error(
+              `Expected a toolWrapper with id ${requestId} but found none.`,
+            );
+          }
+          if (
+            !(
+              toolWrapper.tool.toolName == "insert" ||
+              toolWrapper.tool.toolName == "replace"
+            )
+          ) {
+            throw new Error(
+              `Expected only file edit tools in edits map, but found request ${requestId} of type ${toolWrapper.tool.toolName}`,
+            );
+          }
+
+          return toolWrapper.tool.request;
+        }),
+        dispatch: (msg) => dispatch({ type: "tool-manager-msg", msg }),
+      });
+    };
+  }
+}
 
 export const view: View<{
   message: Message;

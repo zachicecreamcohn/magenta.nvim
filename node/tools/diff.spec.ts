@@ -27,7 +27,7 @@ describe("node/tools/diff.spec.ts", () => {
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "insert",
+              toolName: "insert",
               input: {
                 filePath: "poem.txt",
                 insertAfter: "",
@@ -91,7 +91,7 @@ describe("node/tools/diff.spec.ts", () => {
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "insert",
+              toolName: "insert",
               input: {
                 filePath: "node/test/fixtures/toolManager.ts",
                 insertAfter: "",
@@ -144,7 +144,7 @@ describe("node/tools/diff.spec.ts", () => {
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "replace",
+              toolName: "replace",
               input: {
                 filePath: "node/test/fixtures/poem.txt",
                 find: `\
@@ -218,7 +218,7 @@ Paints its colors in the light.`,
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "insert",
+              toolName: "insert",
               input: {
                 filePath: "poem.txt",
                 insertAfter: "",
@@ -255,7 +255,7 @@ Paints its colors in the light.`,
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "insert",
+              toolName: "insert",
               input: {
                 filePath: "poem.txt",
                 insertAfter: "",
@@ -305,7 +305,7 @@ Paints its colors in the light.`,
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "replace",
+              toolName: "replace",
               input: {
                 filePath: "node/test/fixtures/poem.txt",
                 find: "Silver shadows dance with ease.",
@@ -362,7 +362,7 @@ Paints its colors in the light.`,
             status: "ok",
             value: {
               id: "id1" as ToolRequestId,
-              name: "replace",
+              toolName: "replace",
               input: {
                 filePath: "node/test/fixtures/poem.txt",
                 find: `bogus line...`,
@@ -374,7 +374,7 @@ Paints its colors in the light.`,
             status: "ok",
             value: {
               id: "id2" as ToolRequestId,
-              name: "insert",
+              toolName: "insert",
               input: {
                 filePath: "node/test/fixtures/poem.txt",
                 insertAfter: `Paint their stories in the night.`,

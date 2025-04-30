@@ -1,7 +1,7 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { type Dispatch, type Update } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
+import type { Thunk } from "../tea/tea.ts";
 import type { ToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResultContent,
@@ -9,13 +9,9 @@ import type {
 } from "../providers/provider.ts";
 import { REVIEW_PROMPT } from "./diff.ts";
 
-export type Model = {
-  type: "insert";
-  request: ToolRequest<"insert">;
-  state: {
-    state: "done";
-    result: ProviderToolResultContent;
-  };
+export type State = {
+  state: "done";
+  result: ProviderToolResultContent;
 };
 
 export type Msg = {
@@ -23,32 +19,12 @@ export type Msg = {
   result: Result<string>;
 };
 
-export const update: Update<Msg, Model> = (msg, model) => {
-  switch (msg.type) {
-    case "finish":
-      return [
-        {
-          ...model,
-          state: {
-            state: "done",
-            result: {
-              type: "tool_result",
-              id: model.request.id,
-              result: msg.result,
-            },
-          },
-        },
-      ];
-    default:
-      assertUnreachable(msg.type);
-  }
-};
+export class InsertTool {
+  state: State;
+  toolName = "insert" as const;
 
-export function initModel(request: ToolRequest<"insert">): [Model] {
-  const model: Model = {
-    type: "insert",
-    request,
-    state: {
+  constructor(public request: Extract<ToolRequest, { toolName: "insert" }>) {
+    this.state = {
       state: "done",
       result: {
         type: "tool_result",
@@ -58,46 +34,61 @@ export function initModel(request: ToolRequest<"insert">): [Model] {
           value: REVIEW_PROMPT,
         },
       },
-    },
-  };
-
-  return [model];
-}
-
-export function view({
-  model,
-  dispatch,
-}: {
-  model: Model;
-  dispatch: Dispatch<Msg>;
-}): VDOMNode {
-  return d`Insert [[ +${(
-    (model.request.input.content.match(/\n/g) || []).length + 1
-  ).toString()} ]] in \`${model.request.input.filePath}\` ${toolStatusView({ model, dispatch })}`;
-}
-
-function toolStatusView({
-  model,
-}: {
-  model: Model;
-  dispatch: Dispatch<Msg>;
-}): VDOMNode {
-  switch (model.state.state) {
-    case "done":
-      if (model.state.result.result.status == "error") {
-        return d`⚠️ Error: ${JSON.stringify(model.state.result.result.error, null, 2)}`;
-      } else {
-        return d`Awaiting user review.`;
-      }
+    };
   }
-}
 
-export function getToolResult(model: Model): ProviderToolResultContent {
-  switch (model.state.state) {
-    case "done":
-      return model.state.result;
-    default:
-      assertUnreachable(model.state.state);
+  update(msg: Msg): Thunk<Msg> | undefined {
+    switch (msg.type) {
+      case "finish":
+        this.state = {
+          state: "done",
+          result: {
+            type: "tool_result",
+            id: this.request.id,
+            result: msg.result,
+          },
+        };
+        return;
+      default:
+        assertUnreachable(msg.type);
+    }
+  }
+
+  view(): VDOMNode {
+    return d`Insert [[ +${(
+      (this.request.input.content.match(/\n/g) || []).length + 1
+    ).toString()} ]] in \`${this.request.input.filePath}\` ${this.toolStatusView()}`;
+  }
+
+  toolStatusView(): VDOMNode {
+    switch (this.state.state) {
+      case "done":
+        if (this.state.result.result.status == "error") {
+          return d`⚠️ Error: ${JSON.stringify(this.state.result.result.error, null, 2)}`;
+        } else {
+          return d`Awaiting user review.`;
+        }
+    }
+  }
+
+  getToolResult(): ProviderToolResultContent {
+    switch (this.state.state) {
+      case "done":
+        return this.state.result;
+      default:
+        assertUnreachable(this.state.state);
+    }
+  }
+
+  displayInput() {
+    return `insert: {
+    filePath: ${this.request.input.filePath}
+    insertAfter: "${this.request.input.insertAfter}"
+    content:
+\`\`\`
+${this.request.input.content}
+\`\`\`
+}`;
   }
 }
 
@@ -138,17 +129,6 @@ export type Input = {
   insertAfter: string;
   content: string;
 };
-
-export function displayInput(input: Input) {
-  return `insert: {
-    filePath: ${input.filePath}
-    insertAfter: "${input.insertAfter}"
-    content:
-\`\`\`
-${input.content}
-\`\`\`
-}`;
-}
 
 export function validateInput(input: {
   [key: string]: unknown;

@@ -29,7 +29,7 @@ describe("node/tools/listBuffers.spec.ts", () => {
             status: "ok",
             value: {
               id: toolRequestId,
-              name: "list_buffers",
+              toolName: "list_buffers",
               input: {},
             },
           },
@@ -42,19 +42,28 @@ describe("node/tools/listBuffers.spec.ts", () => {
           throw new Error(`app crashed`);
         }
 
+        const thread = state.model.thread;
+        if (!thread || !thread.state || typeof thread.state !== "object") {
+          throw new Error("Thread state is not valid");
+        }
+
+        if (!thread.toolManager) {
+          throw new Error("Thread state does not have toolManager");
+        }
+
         const toolWrapper =
-          state.model.thread.state.toolManager.toolWrappers[toolRequestId];
+          thread.toolManager.state.toolWrappers[toolRequestId];
         if (!toolWrapper) {
           throw new Error(
             `could not find toolWrapper with id ${toolRequestId}`,
           );
         }
 
-        if (toolWrapper.model.state.state != "done") {
+        if (toolWrapper.tool.state.state != "done") {
           throw new Error(`Request not done`);
         }
 
-        return toolWrapper.model.state.result;
+        return toolWrapper.tool.state.result;
       });
 
       expect(result).toEqual({
@@ -73,20 +82,23 @@ describe("node/tools/listBuffers.spec.ts", () => {
       const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setOption("modifiable", false);
 
-      const [model, _thunk] = ListBuffers.initModel(
+      const [model, _thunk] = ListBuffers.ListBuffersTool.create(
         {
           id: "request_id" as ToolRequestId,
-          name: "list_buffers",
+          toolName: "list_buffers",
           input: {},
         },
         { nvim },
       );
 
-      const app = createApp({
+      const app = createApp<ListBuffers.ListBuffersTool, ListBuffers.Msg>({
         nvim,
         initialModel: model,
-        update: ListBuffers.update,
-        View: ListBuffers.view,
+        update: (msg, model) => {
+          model.update(msg);
+          return [model];
+        },
+        View: ({ model }) => model.view(),
       });
 
       const mountedApp = await app.mount({
