@@ -12,7 +12,13 @@ import { getcwd, getAllWindows } from "../nvim/nvim";
 import { NvimBuffer } from "../nvim/buffer";
 import type { WindowId } from "../nvim/window";
 import { WIDTH } from "../sidebar";
-import type { Dispatch, Thunk } from "../tea/tea";
+import type { Dispatch } from "../tea/tea";
+import type { RootMsg } from "../root-msg";
+
+export type ContextManagerMsg = {
+  type: "context-manager-msg";
+  msg: Msg;
+};
 
 export type Msg =
   | {
@@ -31,6 +37,8 @@ export type Msg =
     };
 
 export class ContextManager {
+  public dispatch: Dispatch<RootMsg>;
+  public myDispatch: Dispatch<Msg>;
   public files: {
     [absFilePath: string]: {
       relFilePath: string;
@@ -42,10 +50,12 @@ export class ContextManager {
   private options: MagentaOptions;
 
   private constructor({
+    dispatch,
     nvim,
     options,
     initialFiles = {},
   }: {
+    dispatch: Dispatch<RootMsg>;
     nvim: Nvim;
     options: MagentaOptions;
     initialFiles?: {
@@ -55,6 +65,9 @@ export class ContextManager {
       };
     };
   }) {
+    this.dispatch = dispatch;
+    this.myDispatch = (msg) =>
+      this.dispatch({ type: "context-manager-msg", msg });
     this.nvim = nvim;
     this.options = options;
     this.bufferAndFileManager = new BufferAndFileManager(nvim);
@@ -62,17 +75,19 @@ export class ContextManager {
   }
 
   static async create({
+    dispatch,
     nvim,
     options,
   }: {
+    dispatch: Dispatch<RootMsg>;
     nvim: Nvim;
     options: MagentaOptions;
   }): Promise<ContextManager> {
     const initialFiles = await ContextManager.loadAutoContext(nvim, options);
-    return new ContextManager({ nvim, options, initialFiles });
+    return new ContextManager({ dispatch, nvim, options, initialFiles });
   }
 
-  update(msg: Msg): Thunk<Msg> | undefined {
+  update(msg: Msg): void {
     switch (msg.type) {
       case "add-file-context":
         this.files[msg.absFilePath] = {
@@ -84,7 +99,11 @@ export class ContextManager {
         delete this.files[msg.absFilePath];
         return undefined;
       case "open-file":
-        return () => this.openFileInWindow(msg.absFilePath);
+        this.openFileInWindow(msg.absFilePath).catch((e: Error) =>
+          this.nvim.logger?.error(e.message),
+        );
+
+        return;
       default:
         assertUnreachable(msg);
     }
@@ -349,17 +368,17 @@ ${content}
     }
   }
 
-  view(dispatch: Dispatch<Msg>) {
+  view() {
     const fileContext = [];
     for (const absFilePath in this.files) {
       fileContext.push(
         withBindings(d`file: \`${this.files[absFilePath].relFilePath}\`\n`, {
           d: () =>
-            dispatch({
+            this.myDispatch({
               type: "remove-file-context",
               absFilePath,
             }),
-          "<CR>": () => dispatch({ type: "open-file", absFilePath }),
+          "<CR>": () => this.myDispatch({ type: "open-file", absFilePath }),
         }),
       );
     }

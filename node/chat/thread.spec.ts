@@ -137,7 +137,11 @@ describe("node/chat/thread.spec.ts", () => {
       );
 
       // Verify the thread's internal message structure is correct
-      const messages = await driver.magenta.thread.getMessages();
+      const state = driver.magenta.chat.state;
+      if (state.state != "initialized") {
+        throw new Error(`expected thread to be initialized`);
+      }
+      const messages = await state.thread.getMessages();
 
       // Check that there are 6 messages (user, assistant, user with tool result,
       // assistant, user with tool result, assistant)

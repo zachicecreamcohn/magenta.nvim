@@ -33,12 +33,12 @@ describe("node/tools/findReferences.spec.ts", () => {
 
       const result = await pollUntil(
         () => {
-          const state = driver.magenta.chatApp.getState();
-          if (state.status != "running") {
-            throw new Error(`app crashed`);
+          const state = driver.magenta.chat.state;
+          if (state.state != "initialized") {
+            throw new Error(`thread not initialized`);
           }
 
-          const thread = state.model.thread;
+          const thread = state.thread;
           if (!thread || !thread.state || typeof thread.state !== "object") {
             throw new Error("Thread state is not valid");
           }

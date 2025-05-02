@@ -1,15 +1,12 @@
-import { Part, type Msg as PartMsg, view as partView } from "./part.ts";
-import {
-  ToolManager,
-  type ToolRequestId,
-  type Msg as ToolManagerMsg,
-} from "../tools/toolManager.ts";
+import { Part, view as partView } from "./part.ts";
+import { ToolManager, type ToolRequestId } from "../tools/toolManager.ts";
 import { type Role } from "./thread.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, type View, withBindings } from "../tea/view.ts";
 import { displayDiffs } from "../tools/diff.ts";
 import type { Nvim } from "nvim-node";
-import { wrapThunk, type Dispatch, type Thunk } from "../tea/tea.ts";
+import { type Dispatch, type Thunk } from "../tea/tea.ts";
+import type { RootMsg } from "../root-msg.ts";
 
 export type MessageId = number & { __messageId: true };
 type State = {
@@ -48,32 +45,27 @@ export type Msg =
   | {
       type: "init-edit";
       filePath: string;
-    }
-  | {
-      type: "tool-manager-msg";
-      msg: ToolManagerMsg;
-    }
-  | {
-      type: "part-msg";
-      partIdx: number;
-      msg: PartMsg;
     };
 
 export class Message {
   public state: State;
   public toolManager: ToolManager;
   private nvim: Nvim;
+  private dispatch;
 
   constructor({
+    dispatch,
     state,
     nvim,
     toolManager,
   }: {
+    dispatch: Dispatch<RootMsg>;
     state: State;
     nvim: Nvim;
     toolManager: ToolManager;
   }) {
     this.state = state;
+    this.dispatch = dispatch;
     this.nvim = nvim;
     this.toolManager = toolManager;
   }
@@ -166,23 +158,10 @@ export class Message {
       }
 
       case "init-edit": {
-        return this.displayDiffs(msg.filePath);
-      }
-
-      case "tool-manager-msg": {
-        const thunk = this.toolManager.update(msg.msg);
-        return wrapThunk("tool-manager-msg", thunk);
-      }
-
-      case "part-msg": {
-        const partIdx = msg.partIdx;
-        const part = this.state.parts[msg.partIdx];
-        const thunk = part.update(msg.msg);
-        return (
-          thunk &&
-          ((dispatch: Dispatch<Msg>) =>
-            thunk((msg) => dispatch({ type: "part-msg", partIdx, msg })))
+        this.displayDiffs(msg.filePath).catch((e: Error) =>
+          this.nvim.logger?.error(e.message),
         );
+        return;
       }
 
       default:
@@ -190,43 +169,41 @@ export class Message {
     }
   }
 
-  displayDiffs(filePath: string): Thunk<Msg> {
-    return async (dispatch: Dispatch<Msg>) => {
-      const edits = this.state.edits[filePath];
-      if (!edits) {
-        throw new Error(
-          `Received msg edit request for file ${filePath} but it is not in map of edits.`,
-        );
-      }
+  async displayDiffs(filePath: string): Promise<void> {
+    const edits = this.state.edits[filePath];
+    if (!edits) {
+      throw new Error(
+        `Received msg edit request for file ${filePath} but it is not in map of edits.`,
+      );
+    }
 
-      await displayDiffs({
-        context: { nvim: this.nvim },
-        filePath,
-        toolManager: this.toolManager,
-        diffId: `message_${this.state.id}`,
-        edits: edits.requestIds.map((requestId) => {
-          const toolWrapper = this.toolManager.state.toolWrappers[requestId];
-          if (!toolWrapper) {
-            throw new Error(
-              `Expected a toolWrapper with id ${requestId} but found none.`,
-            );
-          }
-          if (
-            !(
-              toolWrapper.tool.toolName == "insert" ||
-              toolWrapper.tool.toolName == "replace"
-            )
-          ) {
-            throw new Error(
-              `Expected only file edit tools in edits map, but found request ${requestId} of type ${toolWrapper.tool.toolName}`,
-            );
-          }
+    return displayDiffs({
+      context: { nvim: this.nvim },
+      filePath,
+      toolManager: this.toolManager,
+      diffId: `message_${this.state.id}`,
+      edits: edits.requestIds.map((requestId) => {
+        const toolWrapper = this.toolManager.state.toolWrappers[requestId];
+        if (!toolWrapper) {
+          throw new Error(
+            `Expected a toolWrapper with id ${requestId} but found none.`,
+          );
+        }
+        if (
+          !(
+            toolWrapper.tool.toolName == "insert" ||
+            toolWrapper.tool.toolName == "replace"
+          )
+        ) {
+          throw new Error(
+            `Expected only file edit tools in edits map, but found request ${requestId} of type ${toolWrapper.tool.toolName}`,
+          );
+        }
 
-          return toolWrapper.tool.request;
-        }),
-        dispatch: (msg) => dispatch({ type: "tool-manager-msg", msg }),
-      });
-    };
+        return toolWrapper.tool.request;
+      }),
+      dispatch: (msg) => this.dispatch({ type: "tool-manager-msg", msg }),
+    });
   }
 }
 
@@ -257,10 +234,9 @@ export const view: View<{
   return d`\
 # ${message.state.role}:
 ${message.state.parts.map(
-  (part, partIdx) =>
+  (part) =>
     d`${partView({
       part,
-      dispatch: (msg) => dispatch({ type: "part-msg", partIdx, msg }),
     })}\n`,
 )}${
     fileEdits.length

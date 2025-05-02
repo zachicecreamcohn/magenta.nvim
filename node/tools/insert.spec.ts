@@ -1,70 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { withDriver, withNvimClient } from "../test/preamble";
+import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "./toolManager";
 import * as path from "path";
 import * as Insert from "./insert";
-import * as assert from "assert";
-import { createApp } from "../tea/tea";
-import { pos } from "../tea/view";
-import { NvimBuffer } from "../nvim/buffer";
 
 describe("node/tools/insert.spec.ts", () => {
-  it("render the insert tool", async () => {
-    await withNvimClient(async (nvim) => {
-      const buffer = await NvimBuffer.create(false, true, nvim);
-      await buffer.setOption("modifiable", false);
-      const tool = new Insert.InsertTool({
-        id: "request_id" as ToolRequestId,
-        toolName: "insert",
-        input: {
-          filePath: "./test.txt",
-          insertAfter: "existing line",
-          content: "new content",
-        },
-      });
-
-      const app = createApp<{ tool: Insert.InsertTool }, Insert.Msg>({
-        nvim,
-        initialModel: { tool },
-        update: (msg, model) => {
-          model.tool.update(msg);
-          return [model];
-        },
-        View: ({ model }) => model.tool.view(),
-      });
-
-      const mountedApp = await app.mount({
-        nvim,
-        buffer,
-        startPos: pos(0, 0),
-        endPos: pos(-1, -1),
-      });
-
-      await mountedApp.waitForRender();
-
-      const lines = await buffer.getLines({ start: 0, end: -1 });
-      assert.equal(
-        lines.join("\n"),
-        `Insert [[ +1 ]] in \`./test.txt\` Awaiting user review.`,
-      );
-
-      app.dispatch({
-        type: "finish",
-        result: {
-          status: "error",
-          error: "Test error message",
-        },
-      });
-
-      await mountedApp.waitForRender();
-      const errorLines = await buffer.getLines({ start: 0, end: -1 });
-      assert.equal(
-        errorLines.join("\n"),
-        `Insert [[ +1 ]] in \`./test.txt\` ⚠️ Error: "Test error message"`,
-      );
-    });
-  });
-
   it("insert into new file", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();

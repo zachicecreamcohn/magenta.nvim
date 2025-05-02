@@ -1,10 +1,5 @@
-import * as ListBuffers from "./listBuffers.ts";
 import { type ToolRequestId } from "./toolManager.ts";
-import { createApp } from "../tea/tea.ts";
 import { describe, it, expect } from "vitest";
-import { pos } from "../tea/view.ts";
-import { NvimBuffer } from "../nvim/buffer.ts";
-import { withNvimClient } from "../test/preamble.ts";
 import { withDriver } from "../test/preamble";
 import { pollUntil } from "../utils/async.ts";
 
@@ -37,12 +32,12 @@ describe("node/tools/listBuffers.spec.ts", () => {
       });
 
       const result = await pollUntil(() => {
-        const state = driver.magenta.chatApp.getState();
-        if (state.status != "running") {
-          throw new Error(`app crashed`);
+        const state = driver.magenta.chat.state;
+        if (state.state != "initialized") {
+          throw new Error(`app not initialized`);
         }
 
-        const thread = state.model.thread;
+        const thread = state.thread;
         if (!thread || !thread.state || typeof thread.state !== "object") {
           throw new Error("Thread state is not valid");
         }
@@ -74,58 +69,6 @@ describe("node/tools/listBuffers.spec.ts", () => {
           value: `node/test/fixtures/poem.txt\nactive node/test/fixtures/poem2.txt`,
         },
       });
-    });
-  });
-
-  it("render the listBuffers tool.", async () => {
-    await withNvimClient(async (nvim) => {
-      const buffer = await NvimBuffer.create(false, true, nvim);
-      await buffer.setOption("modifiable", false);
-
-      const [model, _thunk] = ListBuffers.ListBuffersTool.create(
-        {
-          id: "request_id" as ToolRequestId,
-          toolName: "list_buffers",
-          input: {},
-        },
-        { nvim },
-      );
-
-      const app = createApp<ListBuffers.ListBuffersTool, ListBuffers.Msg>({
-        nvim,
-        initialModel: model,
-        update: (msg, model) => {
-          model.update(msg);
-          return [model];
-        },
-        View: ({ model }) => model.view(),
-      });
-
-      const mountedApp = await app.mount({
-        nvim,
-        buffer,
-        startPos: pos(0, 0),
-        endPos: pos(-1, -1),
-      });
-
-      await mountedApp.waitForRender();
-
-      const content = (await buffer.getLines({ start: 0, end: -1 })).join("\n");
-
-      expect(content).toBe(`⚙️ Grabbing buffers...`);
-
-      app.dispatch({
-        type: "finish",
-        result: {
-          status: "ok",
-          value: "buffer list",
-        },
-      });
-
-      await mountedApp.waitForRender();
-      expect((await buffer.getLines({ start: 0, end: -1 })).join("\n")).toBe(
-        `✅ Finished getting buffers.`,
-      );
     });
   });
 });

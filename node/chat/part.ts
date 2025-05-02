@@ -1,8 +1,4 @@
-import {
-  ToolManager,
-  type Msg as ToolManagerMsg,
-  type ToolRequestId,
-} from "../tools/toolManager.ts";
+import { ToolManager, type ToolRequestId } from "../tools/toolManager.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, type View } from "../tea/view.ts";
 import type {
@@ -11,7 +7,6 @@ import type {
   StopReason,
   Usage,
 } from "../providers/provider.ts";
-import { wrapThunk, type Dispatch, type Thunk } from "../tea/tea.ts";
 
 type State =
   | {
@@ -33,11 +28,6 @@ type State =
       usage: Usage;
     };
 
-export type Msg = {
-  type: "tool-manager-msg";
-  msg: ToolManagerMsg;
-};
-
 export class Part {
   toolManager: ToolManager;
   state: State;
@@ -51,17 +41,6 @@ export class Part {
   }) {
     this.state = state;
     this.toolManager = toolManager;
-  }
-
-  update(msg: Msg): Thunk<Msg> | undefined {
-    switch (msg.type) {
-      case "tool-manager-msg": {
-        const thunk = this.toolManager.update(msg.msg);
-        return wrapThunk("tool-manager-msg", thunk);
-      }
-      default:
-        return assertUnreachable(msg.type);
-    }
   }
 
   toMessageContent(): {
@@ -105,8 +84,7 @@ export class Part {
 
 export const view: View<{
   part: Part;
-  dispatch: Dispatch<Msg>;
-}> = ({ part, dispatch }) => {
+}> = ({ part }) => {
   switch (part.state.type) {
     case "text":
       return d`${part.state.text}`;
@@ -123,12 +101,7 @@ ${JSON.stringify(part.state.rawRequest, null, 2) || "undefined"}`;
           `Unable to find model with requestId ${part.state.requestId}`,
         );
       }
-      return part.toolManager.renderTool(toolWrapper, (msg) =>
-        dispatch({
-          type: "tool-manager-msg",
-          msg,
-        }),
-      );
+      return part.toolManager.renderTool(toolWrapper);
     }
 
     case "stop-msg": {

@@ -1,63 +1,35 @@
-import { GetFileTool, type Msg as GetFileMsg } from "./getFile.ts";
-import * as assert from "assert";
 import type { ToolRequestId } from "./toolManager.ts";
-import { createApp } from "../tea/tea.ts";
 import { describe, it } from "vitest";
-import { pos } from "../tea/view.ts";
-import { NvimBuffer } from "../nvim/buffer.ts";
-import { withDriver, withNvimClient } from "../test/preamble.ts";
+import { withDriver } from "../test/preamble.ts";
 
 describe("tea/getFile.spec.ts", () => {
   it("render the getFile tool.", async () => {
-    await withNvimClient(async (nvim) => {
-      const buffer = await NvimBuffer.create(false, true, nvim);
-      await buffer.setOption("modifiable", false);
-      const [tool, _thunk] = GetFileTool.create(
-        {
-          id: "request_id" as ToolRequestId,
-          toolName: "get_file",
-          input: {
-            filePath: "./file.txt",
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(
+        `Try reading the file ./node/test/fixtures/poem.txt/`,
+      );
+      await driver.send();
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "ok, here goes",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "request_id" as ToolRequestId,
+              toolName: "get_file",
+              input: {
+                filePath: "./node/test/fixtures/poem.txt",
+              },
+            },
           },
-        },
-        { nvim },
-      );
-
-      const app = createApp<{ tool: GetFileTool }, GetFileMsg>({
-        nvim,
-        initialModel: { tool },
-        update: (msg, model) => {
-          model.tool.update(msg);
-          return [model];
-        },
-        View: ({ model, dispatch }) => model.tool.view(dispatch),
+        ],
       });
 
-      const mountedApp = await app.mount({
-        nvim,
-        buffer,
-        startPos: pos(0, 0),
-        endPos: pos(-1, -1),
-      });
-
-      await mountedApp.waitForRender();
-
-      assert.equal(
-        (await buffer.getLines({ start: 0, end: -1 })).join("\n"),
-        `⚙️ Reading file ./file.txt`,
-      );
-      app.dispatch({
-        type: "finish",
-        result: {
-          status: "ok",
-          value: "file content",
-        },
-      });
-
-      await mountedApp.waitForRender();
-      assert.equal(
-        (await buffer.getLines({ start: 0, end: -1 })).join("\n"),
-        `✅ Finished reading file \`./file.txt\``,
+      await driver.assertDisplayBufferContains(
+        `✅ Finished reading file \`./node/test/fixtures/poem.txt\``,
       );
     });
   });

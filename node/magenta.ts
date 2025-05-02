@@ -1,9 +1,4 @@
 import { Sidebar } from "./sidebar.ts";
-import {
-  Thread,
-  view as threadView,
-  type Msg as ThreadMsg,
-} from "./chat/thread.ts";
 import * as TEA from "./tea/tea.ts";
 import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
 import { pos } from "./tea/view.ts";
@@ -17,6 +12,10 @@ import { pos1col1to0 } from "./nvim/window.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
 import { parseOptions, type MagentaOptions, type Profile } from "./options.ts";
 import { InlineEditManager } from "./inline-edit/inline-edit-manager.ts";
+import type { RootMsg } from "./root-msg.ts";
+import { Chat } from "./chat/chat.ts";
+import type { Dispatch } from "./tea/tea.ts";
+import type { MessageId } from "./chat/message.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
@@ -26,23 +25,21 @@ const MAGENTA_LSP_RESPONSE = "magentaLspResponse";
 
 export class Magenta {
   public sidebar: Sidebar;
-  public chatApp: TEA.App<ThreadMsg, { thread: Thread }>;
+  public chatApp: TEA.App<Chat>;
   public mountedChatApp: TEA.MountedApp | undefined;
   public inlineEditManager: InlineEditManager;
+  public chat: Chat;
+  public dispatch: Dispatch<RootMsg>;
 
   constructor(
     public nvim: Nvim,
     public lsp: Lsp,
     public options: MagentaOptions,
-    public thread: Thread,
   ) {
-    this.sidebar = new Sidebar(this.nvim, this.getActiveProfile());
+    this.dispatch = (msg: RootMsg) => {
+      try {
+        this.chat.update(msg);
 
-    this.chatApp = TEA.createApp({
-      nvim: this.nvim,
-      initialModel: { thread },
-      update: (msg) => {
-        const thunk = this.thread.update(msg);
         if (msg.type == "sidebar-setup-resubmit") {
           if (
             this.sidebar &&
@@ -62,10 +59,27 @@ export class Magenta {
               });
           }
         }
+        if (this.mountedChatApp) {
+          this.mountedChatApp.render();
+        }
+      } catch (e) {
+        nvim.logger?.error(e as Error);
+      }
+    };
 
-        return [{ thread: this.thread }, thunk];
-      },
-      View: threadView,
+    this.chat = new Chat({
+      dispatch: this.dispatch,
+      nvim: this.nvim,
+      options: this.options,
+      lsp: this.lsp,
+    });
+
+    this.sidebar = new Sidebar(this.nvim, this.getActiveProfile());
+
+    this.chatApp = TEA.createApp<Chat>({
+      nvim: this.nvim,
+      initialModel: this.chat,
+      View: () => this.chat.view(),
     });
 
     this.inlineEditManager = new InlineEditManager({ nvim });
@@ -88,9 +102,12 @@ export class Magenta {
         if (profile) {
           this.options.activeProfile = profile.name;
 
-          this.chatApp.dispatch({
-            type: "update-profile",
-            profile: this.getActiveProfile(),
+          this.dispatch({
+            type: "thread-msg",
+            msg: {
+              type: "update-profile",
+              profile: this.getActiveProfile(),
+            },
           });
           await this.sidebar.updateProfile(this.getActiveProfile());
         } else {
@@ -102,6 +119,13 @@ export class Magenta {
       }
 
       case "context-files": {
+        if (this.chat.state.state !== "initialized") {
+          return;
+        }
+        const messages = this.chat.state.thread.state.messages;
+        const message = messages[messages.length - 1];
+        const messageId = message?.state.id || (0 as MessageId);
+
         const parts = input.trim().match(/[^\s']+|'([^']*)'|\S+/g) || [];
         const paths = parts
           .slice(1)
@@ -120,10 +144,14 @@ export class Magenta {
             relFilePath = filePath;
           }
 
-          this.chatApp.dispatch({
-            type: "add-file-context",
-            absFilePath,
-            relFilePath,
+          this.dispatch({
+            type: "context-manager-msg",
+            msg: {
+              type: "add-file-context",
+              absFilePath,
+              relFilePath,
+              messageId,
+            },
           });
         }
 
@@ -149,14 +177,20 @@ export class Magenta {
         this.nvim.logger?.debug(`current message: ${message}`);
         if (!message) return;
 
-        this.chatApp.dispatch({
-          type: "add-message",
-          role: "user",
-          content: message,
+        this.dispatch({
+          type: "thread-msg",
+          msg: {
+            type: "add-message",
+            role: "user",
+            content: message,
+          },
         });
 
-        this.chatApp.dispatch({
-          type: "send-message",
+        this.dispatch({
+          type: "thread-msg",
+          msg: {
+            type: "send-message",
+          },
         });
 
         if (this.mountedChatApp) {
@@ -168,9 +202,12 @@ export class Magenta {
       }
 
       case "clear":
-        this.chatApp.dispatch({
-          type: "clear",
-          profile: this.getActiveProfile(),
+        this.dispatch({
+          type: "thread-msg",
+          msg: {
+            type: "clear",
+            profile: this.getActiveProfile(),
+          },
         });
         break;
 
@@ -260,7 +297,7 @@ ${lines.join("\n")}
 
         const provider = getProvider(this.nvim, this.getActiveProfile());
 
-        const messages = await this.thread.getMessages();
+        const messages = await this.chat.getMessages();
         await this.inlineEditManager.submitInlineEdit(
           bufnr,
           provider,
@@ -350,16 +387,7 @@ ${lines.join("\n")}
     ]);
 
     const parsedOptions = parseOptions(opts);
-    const thread = await Thread.create({
-      profile: getActiveProfile(
-        parsedOptions.profiles,
-        parsedOptions.activeProfile,
-      ),
-      nvim,
-      lsp,
-      options: parsedOptions,
-    });
-    const magenta = new Magenta(nvim, lsp, parsedOptions, thread);
+    const magenta = new Magenta(nvim, lsp, parsedOptions);
     nvim.logger?.info(`Magenta initialized. ${JSON.stringify(parsedOptions)}`);
     return magenta;
   }

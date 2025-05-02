@@ -14,6 +14,7 @@ import { type Dispatch, type Thunk } from "../tea/tea.ts";
 import type { Nvim } from "nvim-node";
 import type { Lsp } from "../lsp.ts";
 import type { MagentaOptions } from "../options.ts";
+import type { RootMsg } from "../root-msg.ts";
 
 export const TOOL_SPECS = [
   GetFile.spec,
@@ -121,6 +122,11 @@ export type Msg =
       msg: ToolMsg;
     };
 
+export type ToolManagerMsg = {
+  type: "tool-manager-msg";
+  msg: Msg;
+};
+
 export function validateToolInput(
   type: unknown,
   args: { [key: string]: unknown },
@@ -161,9 +167,11 @@ type State = {
 
 export class ToolManager {
   state: State;
+  myDispatch: Dispatch<Msg>;
 
   constructor(
     private context: {
+      dispatch: Dispatch<RootMsg>;
       nvim: Nvim;
       lsp: Lsp;
       options: MagentaOptions;
@@ -173,6 +181,11 @@ export class ToolManager {
       toolWrappers: {},
       rememberedCommands: new Set(),
     };
+    this.myDispatch = (msg) =>
+      this.context.dispatch({
+        type: "tool-manager-msg",
+        msg,
+      });
   }
 
   displayResult(model: Tool) {
@@ -188,13 +201,10 @@ export class ToolManager {
     }
   }
 
-  renderTool(
-    toolWrapper: State["toolWrappers"][ToolRequestId],
-    dispatch: Dispatch<Msg>,
-  ) {
+  renderTool(toolWrapper: State["toolWrappers"][ToolRequestId]) {
     return withBindings(
       d`${toolWrapper.tool.view((msg) =>
-        dispatch({
+        this.myDispatch({
           type: "tool-msg",
           msg: {
             id: toolWrapper.tool.request.id,
@@ -209,7 +219,7 @@ export class ToolManager {
       }${toolWrapper.showResult ? this.displayResult(toolWrapper.tool) : ""}`,
       {
         "<CR>": () =>
-          dispatch({
+          this.myDispatch({
             type: "toggle-display",
             id: toolWrapper.tool.request.id,
             showRequest: !toolWrapper.showRequest,
@@ -219,7 +229,7 @@ export class ToolManager {
     );
   }
 
-  update(msg: Msg): Thunk<Msg> | undefined {
+  update(msg: Msg): void {
     switch (msg.type) {
       case "toggle-display": {
         const toolWrapper = this.state.toolWrappers[msg.id];
@@ -248,7 +258,7 @@ export class ToolManager {
               showResult: false,
             };
 
-            return wrapThunk(getFileTool, thunk);
+            return this.acceptThunk(getFileTool, thunk);
           }
 
           case "list_buffers": {
@@ -263,7 +273,7 @@ export class ToolManager {
               showResult: false,
             };
 
-            return wrapThunk(listBuffersTool, thunk);
+            return this.acceptThunk(listBuffersTool, thunk);
           }
 
           case "insert": {
@@ -302,7 +312,7 @@ export class ToolManager {
               showResult: false,
             };
 
-            return wrapThunk(listDirTool, thunk);
+            return this.acceptThunk(listDirTool, thunk);
           }
 
           case "hover": {
@@ -317,7 +327,7 @@ export class ToolManager {
               showResult: false,
             };
 
-            return wrapThunk(hoverTool, thunk);
+            return this.acceptThunk(hoverTool, thunk);
           }
 
           case "find_references": {
@@ -333,7 +343,7 @@ export class ToolManager {
               showResult: false,
             };
 
-            return wrapThunk(findReferencesTool, thunk);
+            return this.acceptThunk(findReferencesTool, thunk);
           }
 
           case "diagnostics": {
@@ -348,7 +358,7 @@ export class ToolManager {
               showResult: false,
             };
 
-            return wrapThunk(diagnosticsTool, thunk);
+            return this.acceptThunk(diagnosticsTool, thunk);
           }
 
           case "bash_command": {
@@ -367,7 +377,7 @@ export class ToolManager {
               showResult: false,
             };
 
-            return wrapThunk(bashCommandTool, thunk);
+            return this.acceptThunk(bashCommandTool, thunk);
           }
 
           default:
@@ -380,19 +390,20 @@ export class ToolManager {
         // any is safe here since we have correspondence between tool & msg type
         // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
         const thunk = toolWrapper.tool.update(msg.msg.msg as any);
-        return thunk ? wrapThunk(toolWrapper.tool, thunk) : undefined;
+        return thunk ? this.acceptThunk(toolWrapper.tool, thunk) : undefined;
       }
 
       default:
         return assertUnreachable(msg);
     }
   }
-}
 
-function wrapThunk(tool: Tool, thunk: Thunk<ToolMsg["msg"]>): Thunk<Msg> {
-  return (dispatch: Dispatch<Msg>) =>
+  /** Placeholder while I refactor the architecture. I'd like to stop passing thunks around, as I think it will make
+   * things simpler to understand.
+   */
+  acceptThunk(tool: Tool, thunk: Thunk<ToolMsg["msg"]>): void {
     thunk((msg) =>
-      dispatch({
+      this.myDispatch({
         type: "tool-msg",
         msg: {
           id: tool.request.id,
@@ -400,5 +411,21 @@ function wrapThunk(tool: Tool, thunk: Thunk<ToolMsg["msg"]>): Thunk<Msg> {
           msg,
         } as ToolMsg,
       }),
+    ).catch((e: Error) =>
+      this.myDispatch({
+        type: "tool-msg",
+        msg: {
+          id: tool.request.id,
+          toolName: tool.toolName,
+          msg: {
+            type: "finish",
+            result: {
+              status: "error",
+              error: e.message,
+            },
+          },
+        } as ToolMsg,
+      }),
     );
+  }
 }

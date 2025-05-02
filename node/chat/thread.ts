@@ -6,22 +6,13 @@ import {
   type Msg as MessageMsg,
 } from "./message.ts";
 
-import {
-  ContextManager,
-  type Msg as ContextManagerMsg,
-} from "../context/context-manager.ts";
-import {
-  parallelThunks,
-  wrapThunk,
-  type Dispatch,
-  type Thunk,
-} from "../tea/tea.ts";
+import { ContextManager } from "../context/context-manager.ts";
+import { type Dispatch } from "../tea/tea.ts";
 import { d, withBindings, type View } from "../tea/view.ts";
 import {
   ToolManager,
   type ToolRequest,
   type ToolRequestId,
-  type Msg as ToolManagerMsg,
 } from "../tools/toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import { Counter } from "../utils/uniqueId.ts";
@@ -37,6 +28,7 @@ import {
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { getOption } from "../nvim/nvim.ts";
 import { type MagentaOptions, type Profile } from "../options.ts";
+import type { RootMsg } from "../root-msg.ts";
 
 export type Role = "user" | "assistant";
 
@@ -58,11 +50,6 @@ export type ConversationState =
 
 export type Msg =
   | { type: "update-profile"; profile: Profile }
-  | {
-      type: "add-file-context";
-      absFilePath: string;
-      relFilePath: string;
-    }
   | {
       type: "add-message";
       role: Role;
@@ -91,22 +78,15 @@ export type Msg =
       type: "show-message-debug-info";
     }
   | {
-      type: "sidebar-setup-resubmit";
-      lastUserMessage: string;
-    }
-  | {
       type: "message-msg";
       msg: MessageMsg;
       id: MessageId;
-    }
-  | {
-      type: "tool-manager-msg";
-      msg: ToolManagerMsg;
-    }
-  | {
-      type: "context-manager-notification";
-      msg: ContextManagerMsg;
     };
+
+export type ThreadMsg = {
+  type: "thread-msg";
+  msg: Msg;
+};
 
 export class Thread {
   public state: {
@@ -116,6 +96,8 @@ export class Thread {
     messages: Message[];
   };
 
+  private dispatch: Dispatch<RootMsg>;
+  private myDispatch: Dispatch<Msg>;
   public toolManager: ToolManager;
   public contextManager: ContextManager;
   private counter: Counter;
@@ -123,49 +105,35 @@ export class Thread {
   private lsp: Lsp;
   private options: MagentaOptions;
 
-  public static async create({
-    profile,
-    nvim,
-    lsp,
-    options,
-  }: {
-    profile: Profile;
-    nvim: Nvim;
-    lsp: Lsp;
-    options: MagentaOptions;
-  }): Promise<Thread> {
-    const contextManager = await ContextManager.create({
-      nvim,
-      options,
-    });
-    return new Thread({
-      profile,
-      nvim,
-      contextManager,
-      lsp,
-      options,
-    });
-  }
-
-  private constructor({
+  constructor({
+    dispatch,
     profile,
     nvim,
     contextManager,
     lsp,
     options,
   }: {
+    dispatch: Dispatch<RootMsg>;
     profile: Profile;
     nvim: Nvim;
     lsp: Lsp;
     contextManager: ContextManager;
     options: MagentaOptions;
   }) {
+    this.dispatch = dispatch;
+    this.myDispatch = (msg) =>
+      this.dispatch({
+        type: "thread-msg",
+        msg,
+      });
+
     this.nvim = nvim;
     this.lsp = lsp;
     this.counter = new Counter();
     this.contextManager = contextManager;
     this.options = options;
     this.toolManager = new ToolManager({
+      dispatch: this.dispatch,
       nvim: this.nvim,
       lsp: this.lsp,
       options: this.options,
@@ -183,13 +151,25 @@ export class Thread {
     };
   }
 
-  update(msg: Msg): Thunk<Msg> | undefined {
+  update(msg: RootMsg): void {
+    if (msg.type == "thread-msg") {
+      this.myUpdate(msg.msg);
+    } else if (msg.type == "tool-manager-msg") {
+      this.toolManager.update(msg.msg);
+      this.maybeAutorespond();
+    } else if (msg.type == "context-manager-msg") {
+      this.contextManager.update(msg.msg);
+    }
+  }
+
+  private myUpdate(msg: Msg): void {
     switch (msg.type) {
       case "update-profile":
         this.state.profile = msg.profile;
         break;
       case "add-message": {
         const message = new Message({
+          dispatch: this.dispatch,
           state: {
             id: this.counter.get() as MessageId,
             role: msg.role,
@@ -206,11 +186,11 @@ export class Thread {
         }
 
         if (msg.content) {
-          const thunk = message.update({
+          message.update({
             type: "append-text",
             text: msg.content,
           });
-          return wrapMessageThunk(message, thunk);
+          return;
         }
         return;
       }
@@ -258,17 +238,17 @@ export class Thread {
             if (lastUserMessage?.state.role == "user") {
               this.state.messages.pop();
 
-              // return a thunk that dispatches a followup action
-              return (dispatch: Dispatch<Msg>) =>
-                new Promise((resolve) => {
-                  dispatch({
+              // dispatch a followup action next tick
+              setTimeout(
+                () =>
+                  this.dispatch({
                     type: "sidebar-setup-resubmit",
                     lastUserMessage: lastUserMessage.state.parts
                       .map((p) => (p.state.type == "text" ? p.state.text : ""))
                       .join(""),
-                  });
-                  resolve();
-                });
+                  }),
+                1,
+              );
             }
             break;
           }
@@ -285,7 +265,15 @@ export class Thread {
       case "send-message": {
         const lastMessage = this.state.messages[this.state.messages.length - 1];
         if (lastMessage && lastMessage.state.role == "user") {
-          return this.sendMessage();
+          this.sendMessage().catch((error: Error) =>
+            this.myDispatch({
+              type: "conversation-state",
+              conversation: {
+                state: "error",
+                error,
+              },
+            }),
+          );
         } else {
           this.nvim.logger?.error(
             `Cannot send when the last message has role ${lastMessage && lastMessage.state.role}`,
@@ -299,6 +287,7 @@ export class Thread {
         if (lastMessage?.state.role !== "assistant") {
           this.state.messages.push(
             new Message({
+              dispatch: this.dispatch,
               state: {
                 id: this.counter.get() as MessageId,
                 role: "assistant",
@@ -312,11 +301,11 @@ export class Thread {
         }
 
         const message = this.state.messages[this.state.messages.length - 1];
-        const thunk = message.update({
+        message.update({
           type: "append-text",
           text: msg.text,
         });
-        return wrapMessageThunk(message, thunk);
+        return;
       }
 
       case "init-tool-use": {
@@ -324,6 +313,7 @@ export class Thread {
         if (lastMessage?.state.role !== "assistant") {
           this.state.messages.push(
             new Message({
+              dispatch: this.dispatch,
               state: {
                 id: this.counter.get() as MessageId,
                 role: "assistant",
@@ -338,39 +328,26 @@ export class Thread {
 
         if (msg.request.status == "error") {
           const message = this.state.messages[this.state.messages.length - 1];
-          const thunk = message.update({
+          message.update({
             type: "add-malformed-tool-reqeust",
             error: msg.request.error,
             rawRequest: msg.request.rawRequest,
           });
 
-          return wrapMessageThunk(message, thunk);
+          return;
         } else {
-          const toolManagerThunk = this.toolManager.update({
+          this.toolManager.update({
             type: "init-tool-use",
             request: msg.request.value,
           });
 
           const message = this.state.messages[this.state.messages.length - 1];
-          const messageThunk = message.update({
+          message.update({
             type: "add-tool-request",
             requestId: msg.request.value.id,
           });
-          return parallelThunks(
-            wrapThunk("tool-manager-msg", toolManagerThunk),
-            wrapMessageThunk(message, messageThunk),
-          );
+          return;
         }
-      }
-
-      case "add-file-context": {
-        const thunk = this.contextManager.update({
-          type: "add-file-context",
-          absFilePath: msg.absFilePath,
-          relFilePath: msg.relFilePath,
-          messageId: this.state.lastUserMessageId,
-        });
-        return wrapThunk("context-manager-notification", thunk);
       }
 
       case "clear": {
@@ -392,32 +369,15 @@ export class Thread {
         this.showDebugInfo();
         return;
       }
-      case "tool-manager-msg": {
-        const toolManagerThunk = this.toolManager.update(msg.msg);
-        const autoRespondThunk = this.maybeAutorespond();
-        return parallelThunks(
-          wrapThunk("tool-manager-msg", toolManagerThunk),
-          autoRespondThunk,
-        );
-      }
 
       case "message-msg": {
         const message = this.state.messages.find((m) => m.state.id == msg.id);
         if (!message) {
           throw new Error(`Unable to find message with id ${msg.id}`);
         }
-        const messageThunk = message.update(msg.msg);
-        return wrapMessageThunk(message, messageThunk);
-      }
-
-      case "context-manager-notification": {
-        const thunk = this.contextManager.update(msg.msg);
-        return wrapThunk("context-manager-notification", thunk);
-      }
-
-      case "sidebar-setup-resubmit":
-        // do nothing. This will be handled by the parent controller
+        message.update(msg.msg);
         return;
+      }
 
       default:
         assertUnreachable(msg);
@@ -427,7 +387,7 @@ export class Thread {
   /** If the agent is waiting on tool use, check the last message to see if all tools have been resolved. If so,
    * automatically respond.
    */
-  maybeAutorespond(): Thunk<Msg> | undefined {
+  maybeAutorespond(): void {
     if (
       !(
         this.state.conversation.state == "stopped" &&
@@ -455,57 +415,53 @@ export class Thread {
       }
     }
 
-    return this.sendMessage();
+    this.sendMessage().catch((error: Error) =>
+      this.myDispatch({
+        type: "conversation-state",
+        conversation: {
+          state: "error",
+          error,
+        },
+      }),
+    );
   }
 
-  sendMessage(): Thunk<Msg> {
-    return async (dispatch: Dispatch<Msg>) => {
-      const messages = await this.getMessages();
+  async sendMessage(): Promise<void> {
+    const messages = await this.getMessages();
 
-      try {
-        dispatch({
-          type: "conversation-state",
-          conversation: {
-            state: "message-in-flight",
-            sendDate: new Date(),
-          },
+    this.myDispatch({
+      type: "conversation-state",
+      conversation: {
+        state: "message-in-flight",
+        sendDate: new Date(),
+      },
+    });
+    const res = await getProvider(this.nvim, this.state.profile).sendMessage(
+      messages,
+      (text) => {
+        this.myDispatch({
+          type: "stream-response",
+          text,
         });
-        const res = await getProvider(
-          this.nvim,
-          this.state.profile,
-        ).sendMessage(messages, (text) => {
-          dispatch({
-            type: "stream-response",
-            text,
-          });
-        });
+      },
+    );
 
-        if (res.toolRequests?.length) {
-          for (const request of res.toolRequests) {
-            dispatch({
-              type: "init-tool-use",
-              request,
-            });
-          }
-        }
-        dispatch({
-          type: "conversation-state",
-          conversation: {
-            state: "stopped",
-            stopReason: res?.stopReason || "end_turn",
-            usage: res?.usage || { inputTokens: 0, outputTokens: 0 },
-          },
-        });
-      } catch (error) {
-        dispatch({
-          type: "conversation-state",
-          conversation: {
-            state: "error",
-            error: error as Error,
-          },
+    if (res.toolRequests?.length) {
+      for (const request of res.toolRequests) {
+        this.myDispatch({
+          type: "init-tool-use",
+          request,
         });
       }
-    };
+    }
+    this.myDispatch({
+      type: "conversation-state",
+      conversation: {
+        state: "stopped",
+        stopReason: res?.stopReason || "end_turn",
+        usage: res?.usage || { inputTokens: 0, outputTokens: 0 },
+      },
+    });
   }
 
   async showDebugInfo() {
@@ -613,10 +569,9 @@ export class Thread {
 }
 
 export const view: View<{
-  model: { thread: Thread };
+  thread: Thread;
   dispatch: Dispatch<Msg>;
-}> = ({ model, dispatch }) => {
-  const thread = model.thread;
+}> = ({ thread, dispatch }) => {
   if (
     thread.state.messages.length == 0 &&
     Object.keys(thread.contextManager.files).length == 0 &&
@@ -664,23 +619,10 @@ export const view: View<{
   }${
     thread.state.conversation.state != "message-in-flight" &&
     !thread.contextManager.isContextEmpty()
-      ? d`\n${thread.contextManager.view((msg) => dispatch({ type: "context-manager-notification", msg }))}`
+      ? d`\n${thread.contextManager.view()}`
       : ""
   }`;
 };
-
-function wrapMessageThunk(
-  message: Message,
-  thunk: Thunk<MessageMsg> | undefined,
-): Thunk<Msg> | undefined {
-  return (
-    thunk &&
-    ((dispatch: Dispatch<Msg>) =>
-      thunk((msg) =>
-        dispatch({ type: "message-msg", id: message.state.id, msg }),
-      ))
-  );
-}
 
 export const LOGO = `\
 
