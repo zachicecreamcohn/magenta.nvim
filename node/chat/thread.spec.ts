@@ -22,7 +22,7 @@ describe("node/chat/thread.spec.ts", () => {
             status: "ok",
             value: {
               id: toolRequestId,
-              name: "list_buffers",
+              toolName: "list_buffers",
               input: {},
             },
           },
@@ -89,7 +89,7 @@ describe("node/chat/thread.spec.ts", () => {
             status: "ok",
             value: {
               id: toolRequestId1,
-              name: "list_directory",
+              toolName: "list_directory",
               input: { dirPath: "." },
             },
           },
@@ -107,7 +107,7 @@ describe("node/chat/thread.spec.ts", () => {
             status: "ok",
             value: {
               id: toolRequestId2,
-              name: "list_buffers",
+              toolName: "list_buffers",
               input: {},
             },
           },
@@ -137,7 +137,11 @@ describe("node/chat/thread.spec.ts", () => {
       );
 
       // Verify the thread's internal message structure is correct
-      const messages = await driver.magenta.thread.getMessages();
+      const state = driver.magenta.chat.state;
+      if (state.state != "initialized") {
+        throw new Error(`expected thread to be initialized`);
+      }
+      const messages = await state.thread.getMessages();
 
       // Check that there are 6 messages (user, assistant, user with tool result,
       // assistant, user with tool result, assistant)
@@ -167,7 +171,7 @@ describe("node/chat/thread.spec.ts", () => {
         );
 
         if (toolUseContent && toolUseContent.request) {
-          expect(toolUseContent.request.name).toBe("list_directory");
+          expect(toolUseContent.request.toolName).toBe("list_directory");
         }
       }
 

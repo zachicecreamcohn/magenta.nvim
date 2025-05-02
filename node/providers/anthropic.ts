@@ -101,7 +101,7 @@ export class AnthropicProvider implements Provider {
               return {
                 id: c.request.id,
                 input: c.request.input,
-                name: c.request.name,
+                name: c.request.toolName,
                 type: "tool_use",
               };
             case "tool_result":
@@ -553,10 +553,10 @@ export class AnthropicProvider implements Provider {
               return {
                 status: "ok",
                 value: {
-                  name: name as ToolManager.ToolRequest["name"],
-                  id: req2.id as unknown as ToolRequestId,
+                  toolName: name,
+                  id: req2.id,
                   input: input.value,
-                },
+                } as ToolManager.ToolRequest,
               };
             } else {
               return input;

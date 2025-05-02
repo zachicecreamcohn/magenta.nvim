@@ -16,6 +16,7 @@ describe("context-manager.spec.ts", () => {
         await driver.showSidebar();
 
         // Add file to context using the context-files command
+        console.log(`context-files command`);
         await driver.nvim.call("nvim_command", [
           `Magenta context-files '${testFilePath}'`,
         ]);

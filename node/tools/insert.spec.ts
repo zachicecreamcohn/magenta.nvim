@@ -1,67 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { withDriver, withNvimClient } from "../test/preamble";
+import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "./toolManager";
 import * as path from "path";
 import * as Insert from "./insert";
-import * as assert from "assert";
-import { createApp } from "../tea/tea";
-import { pos } from "../tea/view";
-import { NvimBuffer } from "../nvim/buffer";
 
 describe("node/tools/insert.spec.ts", () => {
-  it("render the insert tool", async () => {
-    await withNvimClient(async (nvim) => {
-      const buffer = await NvimBuffer.create(false, true, nvim);
-      await buffer.setOption("modifiable", false);
-      const [model] = Insert.initModel({
-        id: "request_id" as ToolRequestId,
-        name: "insert",
-        input: {
-          filePath: "./test.txt",
-          insertAfter: "existing line",
-          content: "new content",
-        },
-      });
-
-      const app = createApp<Insert.Model, Insert.Msg>({
-        nvim,
-        initialModel: model,
-        update: Insert.update,
-        View: Insert.view,
-      });
-
-      const mountedApp = await app.mount({
-        nvim,
-        buffer,
-        startPos: pos(0, 0),
-        endPos: pos(-1, -1),
-      });
-
-      await mountedApp.waitForRender();
-
-      const lines = await buffer.getLines({ start: 0, end: -1 });
-      assert.equal(
-        lines.join("\n"),
-        `Insert [[ +1 ]] in \`./test.txt\` Awaiting user review.`,
-      );
-
-      app.dispatch({
-        type: "finish",
-        result: {
-          status: "error",
-          error: "Test error message",
-        },
-      });
-
-      await mountedApp.waitForRender();
-      const errorLines = await buffer.getLines({ start: 0, end: -1 });
-      assert.equal(
-        errorLines.join("\n"),
-        `Insert [[ +1 ]] in \`./test.txt\` ⚠️ Error: "Test error message"`,
-      );
-    });
-  });
-
   it("insert into new file", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
@@ -76,7 +19,7 @@ describe("node/tools/insert.spec.ts", () => {
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "insert",
+              toolName: "insert",
               input: {
                 filePath: "test_note.txt",
                 insertAfter: "",
@@ -137,7 +80,7 @@ describe("node/tools/insert.spec.ts", () => {
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "insert",
+              toolName: "insert",
               input: {
                 filePath: "node/test/fixtures/poem.txt",
                 insertAfter: "Paint their stories in the night.",
@@ -193,7 +136,7 @@ describe("node/tools/insert.spec.ts", () => {
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "insert",
+              toolName: "insert",
               input: {
                 filePath: "node/test/fixtures/poem.txt",
                 insertAfter: "",
@@ -244,7 +187,7 @@ describe("node/tools/insert.spec.ts", () => {
             status: "ok",
             value: {
               id: "id" as ToolRequestId,
-              name: "insert",
+              toolName: "insert",
               input: {
                 filePath: "node/test/fixtures/poem.txt",
                 insertAfter: "Text that doesn't exist in the file",

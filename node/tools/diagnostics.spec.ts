@@ -40,7 +40,7 @@ describe("node/tools/diagnostics.spec.ts", () => {
             status: "ok",
             value: {
               id: toolRequestId,
-              name: "diagnostics",
+              toolName: "diagnostics",
               input: {},
             },
           },
@@ -49,24 +49,25 @@ describe("node/tools/diagnostics.spec.ts", () => {
 
       const result = await pollUntil(
         () => {
-          const state = driver.magenta.chatApp.getState();
-          if (state.status != "running") {
-            throw new Error(`app crashed`);
+          const state = driver.magenta.chat.state;
+          if (state.state != "initialized") {
+            throw new Error(`thread not initialized`);
           }
+          const thread = state.thread;
 
           const toolWrapper =
-            state.model.thread.state.toolManager.toolWrappers[toolRequestId];
+            thread.toolManager.state.toolWrappers[toolRequestId];
           if (!toolWrapper) {
             throw new Error(
               `could not find toolWrapper with id ${toolRequestId}`,
             );
           }
 
-          if (toolWrapper.model.state.state != "done") {
+          if (toolWrapper.tool.state.state != "done") {
             throw new Error(`Request not done`);
           }
 
-          return toolWrapper.model.state.result;
+          return toolWrapper.tool.state.result;
         },
         { timeout: 5000 },
       );

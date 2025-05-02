@@ -24,7 +24,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
             status: "ok",
             value: {
               id: toolRequestId,
-              name: "bash_command",
+              toolName: "bash_command",
               input: {
                 command: "echo 'Hello from Magenta!'",
               },
@@ -63,7 +63,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
             status: "ok",
             value: {
               id: toolRequestId,
-              name: "bash_command",
+              toolName: "bash_command",
               input: {
                 command: "nonexistentcommand",
               },
@@ -102,7 +102,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
             status: "ok",
             value: {
               id: toolRequestId,
-              name: "bash_command",
+              toolName: "bash_command",
               input: {
                 command: 'true && echo "hello, world"',
               },
@@ -150,7 +150,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
             status: "ok",
             value: {
               id: toolRequestId,
-              name: "bash_command",
+              toolName: "bash_command",
               input: {
                 command: "true && ls -la",
               },
@@ -191,7 +191,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
             status: "ok",
             value: {
               id: toolRequestId,
-              name: "bash_command",
+              toolName: "bash_command",
               input: {
                 command: "sleep 30",
               },
@@ -241,7 +241,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
             status: "ok",
             value: {
               id: toolRequestId1,
-              name: "bash_command",
+              toolName: "bash_command",
               input: {
                 command: `true && echo 'tada'`,
               },
@@ -273,7 +273,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
             status: "ok",
             value: {
               id: toolRequestId2,
-              name: "bash_command",
+              toolName: "bash_command",
               input: {
                 command: `true && echo 'tada'`,
               },

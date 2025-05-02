@@ -24,6 +24,7 @@ export type InlineEditState = {
   inputWindowId: WindowId;
   inputBufnr: BufNr;
   cursor: Position1Indexed;
+  inlineEdit: InlineEdit.InlineEdit;
   selection?:
     | {
         startPos: Position1IndexedCol1Indexed;
@@ -31,7 +32,8 @@ export type InlineEditState = {
         text: string;
       }
     | undefined;
-  app: TEA.App<InlineEdit.Msg, InlineEdit.Model>;
+  app: TEA.App<InlineEdit.InlineEdit>;
+  mountedApp?: TEA.MountedApp;
 };
 
 export class InlineEditManager {
@@ -121,6 +123,16 @@ export class InlineEditManager {
       };
     }
 
+    const dispatch = (msg: InlineEdit.Msg) => {
+      inlineEdit.update(msg);
+      const mountedApp = this.inlineEdits[targetBufnr].mountedApp;
+      if (mountedApp) {
+        mountedApp.render();
+      }
+    };
+
+    const inlineEdit = new InlineEdit.InlineEdit(dispatch);
+
     this.inlineEdits[targetBufnr] = {
       targetWindowId: targetWindow.id,
       targetBufnr,
@@ -128,13 +140,11 @@ export class InlineEditManager {
       inputBufnr: inputBuffer.id,
       cursor,
       selection: selectionWithText,
-      app: TEA.createApp<InlineEdit.Model, InlineEdit.Msg>({
+      inlineEdit,
+      app: TEA.createApp<InlineEdit.InlineEdit>({
         nvim: this.nvim,
-        initialModel: InlineEdit.initModel(),
-        update: (msg, model) => {
-          return InlineEdit.update(msg, model);
-        },
-        View: InlineEdit.view,
+        initialModel: inlineEdit,
+        View: () => inlineEdit.view(),
       }),
     };
   }
@@ -148,10 +158,15 @@ export class InlineEditManager {
       return;
     }
 
-    const { inputBufnr, selection, cursor, app } =
-      this.inlineEdits[targetBufnr];
+    const {
+      inputBufnr,
+      selection,
+      cursor,
+      app,
+      inlineEdit: inlineEditController,
+    } = this.inlineEdits[targetBufnr];
 
-    app.dispatch({
+    inlineEditController.dispatch({
       type: "update-model",
       next: {
         state: "response-pending",
@@ -205,19 +220,20 @@ ${inputLines.join("\n")}`,
     }
 
     await inputBuffer.setOption("modifiable", false);
-    await app.mount({
+    const mountedApp = await app.mount({
       nvim: this.nvim,
       buffer: inputBuffer,
       startPos: { row: 0, col: 0 } as Position0Indexed,
       endPos: { row: -1, col: -1 } as Position0Indexed,
     });
+    this.inlineEdits[targetBufnr].mountedApp = mountedApp;
 
     if (selection) {
       let result;
       try {
         result = await provider.replaceSelection(messages);
       } catch (e) {
-        app.dispatch({
+        inlineEditController.dispatch({
           type: "update-model",
           next: {
             state: "error",
@@ -228,7 +244,7 @@ ${inputLines.join("\n")}`,
       }
 
       const { replaceSelection, stopReason, usage } = result;
-      app.dispatch({
+      inlineEditController.dispatch({
         type: "update-model",
         next: {
           state: "tool-use",
@@ -271,7 +287,7 @@ ${inputLines.join("\n")}`,
       try {
         result = await provider.inlineEdit(messages);
       } catch (e) {
-        app.dispatch({
+        inlineEditController.dispatch({
           type: "update-model",
           next: {
             state: "error",
@@ -282,7 +298,7 @@ ${inputLines.join("\n")}`,
       }
 
       const { inlineEdit, stopReason, usage } = result;
-      app.dispatch({
+      inlineEditController.dispatch({
         type: "update-model",
         next: {
           state: "tool-use",
@@ -304,7 +320,7 @@ ${inputLines.join("\n")}`,
 
       const replaceStart = content.indexOf(input.find);
       if (replaceStart === -1) {
-        app.dispatch({
+        inlineEditController.dispatch({
           type: "update-model",
           next: {
             state: "error",
