@@ -65,20 +65,33 @@ export class InsertTool {
   }
 
   view(): VDOMNode {
-    return d`Insert [[ +${(
+    return d`${this.toolStatusIcon()} Insert [[ +${(
       (this.request.input.content.match(/\n/g) || []).length + 1
     ).toString()} ]] in \`${this.request.input.filePath}\` ${this.toolStatusView()}`;
+  }
+
+  toolStatusIcon(): string {
+    switch (this.state.state) {
+      case "processing":
+        return "⏳";
+      case "done":
+        if (this.state.result.result.status == "error") {
+          return "⚠️";
+        } else {
+          return "✏️";
+        }
+    }
   }
 
   toolStatusView(): VDOMNode {
     switch (this.state.state) {
       case "processing":
-        return d`⏳ Processing insert into file \`${this.request.input.filePath}\`.`;
+        return d`Processing insert into file \`${this.request.input.filePath}\`.`;
       case "done":
         if (this.state.result.result.status == "error") {
-          return d`⚠️ Error: ${JSON.stringify(this.state.result.result.error, null, 2)}`;
+          return d`Error: ${JSON.stringify(this.state.result.result.error, null, 2)}`;
         } else {
-          return d`✏️ Success: ${this.state.result.result.value}`;
+          return d`Success: ${this.state.result.result.value}`;
         }
     }
   }

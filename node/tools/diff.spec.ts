@@ -40,7 +40,7 @@ describe("node/tools/diff.spec.ts", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains("Insert [[ +2 ]]");
+      await driver.assertDisplayBufferContains("✏️ Insert [[ +2 ]]");
 
       const poemPath = path.join(
         await getcwd(driver.nvim),
@@ -79,7 +79,7 @@ describe("node/tools/diff.spec.ts", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains("Insert [[ +1 ]]");
+      await driver.assertDisplayBufferContains("✏️ Insert [[ +1 ]]");
 
       const filePath = path.join(
         await getcwd(driver.nvim),
@@ -128,7 +128,7 @@ Paints its colors `,
         ],
       });
 
-      await driver.assertDisplayBufferContains("Replace [[ -3 / +3 ]]");
+      await driver.assertDisplayBufferContains("✏️ Replace [[ -3 / +3 ]]");
 
       // Verify file was updated
       const filePath = path.join(
@@ -238,7 +238,7 @@ Paints its colors stories in the night.
         ],
       });
 
-      await driver.assertDisplayBufferContains("Replace [[ -1 / +1 ]]");
+      await driver.assertDisplayBufferContains("✏️ Replace [[ -1 / +1 ]]");
 
       // Verify the line was replaced
       const filePath = path.join(
@@ -296,7 +296,7 @@ Paint their stories in the night.
       });
 
       await driver.assertDisplayBufferContains("Replace [[ -1 / +1 ]]");
-      await driver.assertDisplayBufferContains("⚠️ Error");
+      await driver.assertDisplayBufferContains("Error");
       await driver.assertDisplayBufferContains("Insert [[ +1 ]]");
 
       // Verify that the first edit failed but the second succeeded
@@ -315,7 +315,7 @@ Paint their stories in the night.
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-Replace [[ -1 / +1 ]] in \`${TMP_DIR}/poem.txt\` ⚠️ Error: "Unable to find text \\"bogus line...\\" in file \`${TMP_DIR}/poem.txt\`."
+⚠️ Replace [[ -1 / +1 ]] in \`${TMP_DIR}/poem.txt\` Error: "Unable to find text \\"bogus line...\\" in file \`${TMP_DIR}/poem.txt\`."
 id: id1
 replace: {
     filePath: ${TMP_DIR}/poem.txt
@@ -329,7 +329,7 @@ Replace text
 \`\`\`
 }
 Error: Unable to find text "bogus line..." in file \`${TMP_DIR}/poem.txt\`.
-Insert [[ +1 ]] in \`node/test/tmp/poem.txt\` ✏️ Success: Successfully inserted content into node/test/tmp/poem.txt
+✏️ Insert [[ +1 ]] in \`node/test/tmp/poem.txt\` Success: Successfully inserted content into node/test/tmp/poem.txt
 Stopped (end_turn) [input: 0, output: 0]
 
 Edits:
@@ -338,8 +338,8 @@ Edits:
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-Replace [[ -1 / +1 ]] in \`${TMP_DIR}/poem.txt\` ⚠️ Error: "Unable to find text \\"bogus line...\\" in file \`${TMP_DIR}/poem.txt\`."
-Insert [[ +1 ]] in \`node/test/tmp/poem.txt\` ✏️ Success: Successfully inserted content into node/test/tmp/poem.txt
+⚠️ Replace [[ -1 / +1 ]] in \`${TMP_DIR}/poem.txt\` Error: "Unable to find text \\"bogus line...\\" in file \`${TMP_DIR}/poem.txt\`."
+✏️ Insert [[ +1 ]] in \`node/test/tmp/poem.txt\` Success: Successfully inserted content into node/test/tmp/poem.txt
 Stopped (end_turn) [input: 0, output: 0]
 
 Edits:
@@ -386,7 +386,7 @@ Edits:
         ],
       });
 
-      await driver.assertDisplayBufferContains("⚠️ Error");
+      await driver.assertDisplayBufferContains("Error");
       await driver.assertDisplayBufferContains(
         "has unsaved changes that could not be written",
       );
@@ -427,7 +427,7 @@ Edits:
 
       // Check for error message - it appears in a different format
       await driver.assertDisplayBufferContains(
-        '⚠️ Error: "Unable to find insert location',
+        'Error: "Unable to find insert location',
       );
     });
   });
@@ -478,7 +478,7 @@ Edits:
         ],
       });
 
-      await driver.assertDisplayBufferContains("Insert [[ +2 ]]");
+      await driver.assertDisplayBufferContains("✏️ Insert [[ +2 ]]");
       await driver.assertDisplayBufferContains("Success");
 
       const bufferLines = await buffer.getLines({

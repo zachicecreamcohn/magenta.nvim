@@ -65,7 +65,7 @@ export class ReplaceTool {
   }
 
   view(): VDOMNode {
-    return d`Replace [[ -${this.countLines(this.request.input.find).toString()} / +${this.countLines(
+    return d`${this.toolStatusIcon()} Replace [[ -${this.countLines(this.request.input.find).toString()} / +${this.countLines(
       this.request.input.replace,
     ).toString()} ]] in \`${this.request.input.filePath}\` ${this.toolStatusView()}`;
   }
@@ -73,16 +73,28 @@ export class ReplaceTool {
   countLines(str: string) {
     return (str.match(/\n/g) || []).length + 1;
   }
+  toolStatusIcon(): string {
+    switch (this.state.state) {
+      case "processing":
+        return "⏳";
+      case "done":
+        if (this.state.result.result.status == "error") {
+          return "⚠️";
+        } else {
+          return "✏️";
+        }
+    }
+  }
 
   toolStatusView(): VDOMNode {
     switch (this.state.state) {
       case "processing":
-        return d`⏳ Processing replace in file \`${this.request.input.filePath}\`.`;
+        return d`Processing replace in file \`${this.request.input.filePath}\`.`;
       case "done":
         if (this.state.result.result.status == "error") {
-          return d`⚠️ Error: ${JSON.stringify(this.state.result.result.error, null, 2)}`;
+          return d`Error: ${JSON.stringify(this.state.result.result.error, null, 2)}`;
         } else {
-          return d`✏️ Success: ${this.state.result.result.value}`;
+          return d`Success: ${this.state.result.result.value}`;
         }
     }
   }
