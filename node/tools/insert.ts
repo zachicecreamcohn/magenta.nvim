@@ -86,10 +86,10 @@ export class InsertTool {
   toolStatusView(): VDOMNode {
     switch (this.state.state) {
       case "processing":
-        return d`Processing insert into file \`${this.request.input.filePath}\`.`;
+        return d`Processing insert...`;
       case "done":
         if (this.state.result.result.status == "error") {
-          return d`Error: ${JSON.stringify(this.state.result.result.error, null, 2)}`;
+          return d`Error: ${this.state.result.result.error}`;
         } else {
           return d`Success: ${this.state.result.result.value}`;
         }

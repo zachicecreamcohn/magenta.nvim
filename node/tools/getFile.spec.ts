@@ -64,8 +64,9 @@ May I read file \`node/test/fixtures/.secret\`? **[ NO ]** **[ OK ]**`);
       const noPos = await driver.assertDisplayBufferContains("**[ NO ]**");
 
       await driver.triggerDisplayBufferKey(noPos, "<CR>");
-      await driver.assertDisplayBufferContains(`\
-Error reading file \`node/test/fixtures/.secret\`: The user did not allow the reading of this file.`);
+      await driver.assertDisplayBufferContains(
+        "❌ Error reading file `node/test/fixtures/.secret`: The user did not allow the reading of this file.",
+      );
     });
   });
 

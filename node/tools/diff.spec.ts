@@ -315,7 +315,7 @@ Paint their stories in the night.
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-⚠️ Replace [[ -1 / +1 ]] in \`${TMP_DIR}/poem.txt\` Error: "Unable to find text \\"bogus line...\\" in file \`${TMP_DIR}/poem.txt\`."
+⚠️ Replace [[ -1 / +1 ]] in \`${TMP_DIR}/poem.txt\` Error: Unable to find text "bogus line..." in file \`${TMP_DIR}/poem.txt\`.
 id: id1
 replace: {
     filePath: ${TMP_DIR}/poem.txt
@@ -338,7 +338,7 @@ Edits:
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-⚠️ Replace [[ -1 / +1 ]] in \`${TMP_DIR}/poem.txt\` Error: "Unable to find text \\"bogus line...\\" in file \`${TMP_DIR}/poem.txt\`."
+⚠️ Replace [[ -1 / +1 ]] in \`${TMP_DIR}/poem.txt\` Error: Unable to find text "bogus line..." in file \`${TMP_DIR}/poem.txt\`.
 ✏️ Insert [[ +1 ]] in \`node/test/tmp/poem.txt\` Success: Successfully inserted content into node/test/tmp/poem.txt
 Stopped (end_turn) [input: 0, output: 0]
 
@@ -427,7 +427,7 @@ Edits:
 
       // Check for error message - it appears in a different format
       await driver.assertDisplayBufferContains(
-        'Error: "Unable to find insert location',
+        "Error: Unable to find insert location",
       );
     });
   });
