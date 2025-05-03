@@ -277,7 +277,18 @@ export class ToolManager {
           }
 
           case "insert": {
-            const insertTool = new Insert.InsertTool(request);
+            const insertTool = new Insert.InsertTool(request, {
+              ...this.context,
+              dispatch: (msg) =>
+                this.myDispatch({
+                  type: "tool-msg",
+                  msg: {
+                    id: request.id,
+                    toolName: request.toolName,
+                    msg,
+                  },
+                }),
+            });
 
             this.state.toolWrappers[request.id] = {
               tool: insertTool,
@@ -289,7 +300,18 @@ export class ToolManager {
           }
 
           case "replace": {
-            const replaceTool = new Replace.ReplaceTool(request);
+            const replaceTool = new Replace.ReplaceTool(request, {
+              ...this.context,
+              dispatch: (msg) =>
+                this.myDispatch({
+                  type: "tool-msg",
+                  msg: {
+                    id: request.id,
+                    toolName: request.toolName,
+                    msg,
+                  },
+                }),
+            });
 
             this.state.toolWrappers[request.id] = {
               tool: replaceTool,

@@ -1,7 +1,6 @@
 import { describe, it } from "vitest";
 import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "../tools/toolManager";
-import { REVIEW_PROMPT } from "../tools/diff";
 
 describe("node/chat/message.spec.ts", () => {
   it("display multiple edits to the same file, and edit details", async () => {
@@ -76,7 +75,6 @@ Replace 1
 }
 Result:
 \`\`\`
-${REVIEW_PROMPT}
 \`\`\`
 Replace [[ -2 / +1 ]] in \`node/test/fixtures/poem.txt\` Awaiting user review.
 Stopped (end_turn) [input: 0, output: 0]

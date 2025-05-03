@@ -168,17 +168,20 @@ export class Thread {
         this.state.profile = msg.profile;
         break;
       case "add-message": {
-        const message = new Message({
-          dispatch: this.dispatch,
-          state: {
+        const message = new Message(
+          {
             id: this.counter.get() as MessageId,
             role: msg.role,
             parts: [],
             edits: {},
           },
-          nvim: this.nvim,
-          toolManager: this.toolManager,
-        });
+          {
+            dispatch: this.dispatch,
+            nvim: this.nvim,
+            toolManager: this.toolManager,
+            options: this.options,
+          },
+        );
         this.state.messages.push(message);
 
         if (message.state.role == "user") {
@@ -286,17 +289,20 @@ export class Thread {
         const lastMessage = this.state.messages[this.state.messages.length - 1];
         if (lastMessage?.state.role !== "assistant") {
           this.state.messages.push(
-            new Message({
-              dispatch: this.dispatch,
-              state: {
+            new Message(
+              {
                 id: this.counter.get() as MessageId,
                 role: "assistant",
                 parts: [],
                 edits: {},
               },
-              nvim: this.nvim,
-              toolManager: this.toolManager,
-            }),
+              {
+                dispatch: this.dispatch,
+                nvim: this.nvim,
+                toolManager: this.toolManager,
+                options: this.options,
+              },
+            ),
           );
         }
 
@@ -312,17 +318,20 @@ export class Thread {
         const lastMessage = this.state.messages[this.state.messages.length - 1];
         if (lastMessage?.state.role !== "assistant") {
           this.state.messages.push(
-            new Message({
-              dispatch: this.dispatch,
-              state: {
+            new Message(
+              {
                 id: this.counter.get() as MessageId,
                 role: "assistant",
                 parts: [],
                 edits: {},
               },
-              nvim: this.nvim,
-              toolManager: this.toolManager,
-            }),
+              {
+                dispatch: this.dispatch,
+                nvim: this.nvim,
+                toolManager: this.toolManager,
+                options: this.options,
+              },
+            ),
           );
         }
 

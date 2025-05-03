@@ -1,18 +1,23 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
-import type { Thunk } from "../tea/tea.ts";
+import type { Dispatch } from "../tea/tea.ts";
 import type { ToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import { REVIEW_PROMPT } from "./diff.ts";
+import type { Nvim } from "nvim-node";
+import { applyEdit } from "./diff.ts";
 
-export type State = {
-  state: "done";
-  result: ProviderToolResultContent;
-};
+export type State =
+  | {
+      state: "processing";
+    }
+  | {
+      state: "done";
+      result: ProviderToolResultContent;
+    };
 
 export type Msg = {
   type: "finish";
@@ -23,21 +28,26 @@ export class InsertTool {
   state: State;
   toolName = "insert" as const;
 
-  constructor(public request: Extract<ToolRequest, { toolName: "insert" }>) {
-    this.state = {
-      state: "done",
-      result: {
-        type: "tool_result",
-        id: request.id,
+  constructor(
+    public request: Extract<ToolRequest, { toolName: "insert" }>,
+    private context: {
+      dispatch: Dispatch<Msg>;
+      nvim: Nvim;
+    },
+  ) {
+    this.state = { state: "processing" };
+    applyEdit(this.request, this.context).catch((err: Error) =>
+      this.context.dispatch({
+        type: "finish",
         result: {
-          status: "ok",
-          value: REVIEW_PROMPT,
+          status: "error",
+          error: err.message,
         },
-      },
-    };
+      }),
+    );
   }
 
-  update(msg: Msg): Thunk<Msg> | undefined {
+  update(msg: Msg): void {
     switch (msg.type) {
       case "finish":
         this.state = {
@@ -62,21 +72,31 @@ export class InsertTool {
 
   toolStatusView(): VDOMNode {
     switch (this.state.state) {
+      case "processing":
+        return d`⏳ Processing insert into file \`${this.request.input.filePath}\`.`;
       case "done":
         if (this.state.result.result.status == "error") {
           return d`⚠️ Error: ${JSON.stringify(this.state.result.result.error, null, 2)}`;
         } else {
-          return d`Awaiting user review.`;
+          return d`✏️ Success: ${this.state.result.result.value}`;
         }
     }
   }
-
   getToolResult(): ProviderToolResultContent {
     switch (this.state.state) {
       case "done":
         return this.state.result;
+      case "processing":
+        return {
+          type: "tool_result",
+          id: this.request.id,
+          result: {
+            status: "ok",
+            value: `This tool use is being processed.`,
+          },
+        };
       default:
-        assertUnreachable(this.state.state);
+        assertUnreachable(this.state);
     }
   }
 
@@ -111,7 +131,7 @@ The \`insertAfter\` string MUST uniquely identify a single location in the file.
 
 The insertAfter text will not be changed.
 
-Set insertAfter to the empty string to insert at the beginning of the file.`,
+Set insertAfter to the empty string to append to the end of the file.`,
       },
       content: {
         type: "string",

@@ -67,3 +67,28 @@ export async function pollUntil<T>(
     await delay(100);
   }
 }
+
+/**
+ * Wrap a promise with a timeout. If the promise resolves/rejects before the timeout,
+ * return its result. Otherwise, reject with a timeout error.
+ */
+export function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message?: string,
+): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              message ? message : `Promise timed out after ${timeoutMs}ms`,
+            ),
+          ),
+        timeoutMs,
+      );
+    }),
+  ]);
+}

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { withDriver } from "../test/preamble";
+import { TMP_DIR, withDriver } from "../test/preamble";
 import type { ToolRequestId } from "./toolManager";
 import * as path from "path";
-import type { Line } from "../nvim/buffer";
+import { getCurrentBuffer, getcwd } from "../nvim/nvim";
+import * as fs from "node:fs";
+import { type Line } from "../nvim/buffer";
 
 describe("node/tools/diff.spec.ts", () => {
   it("insert into new file", async () => {
@@ -15,13 +17,13 @@ describe("node/tools/diff.spec.ts", () => {
 
       await driver.showSidebar();
       await driver.inputMagentaText(
-        `Write me a short poem in the file poem.txt`,
+        `Write me a short poem in the file new.txt`,
       );
       await driver.send();
 
       await driver.mockAnthropic.respond({
         stopReason: "end_turn",
-        text: "ok, here is a poem",
+        text: "ok, here is a new poem",
         toolRequests: [
           {
             status: "ok",
@@ -29,7 +31,7 @@ describe("node/tools/diff.spec.ts", () => {
               id: "id" as ToolRequestId,
               toolName: "insert",
               input: {
-                filePath: "poem.txt",
+                filePath: `${TMP_DIR}/new.txt`,
                 insertAfter: "",
                 content: "a poem\nwith some lines",
               },
@@ -40,38 +42,13 @@ describe("node/tools/diff.spec.ts", () => {
 
       await driver.assertDisplayBufferContains("Insert [[ +2 ]]");
 
-      const reviewPos =
-        await driver.assertDisplayBufferContains("review edits");
-
-      await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
-      await driver.assertWindowCount(4);
-
-      const poemWin = await driver.findWindow(async (w) => {
-        const buf = await w.buffer();
-        const name = await buf.getName();
-        return path.basename(name) == "poem.txt";
-      });
-
-      expect(await poemWin.getOption("diff")).toBe(true);
-      expect(await poemWin.getOption("relativenumber")).toBe(true);
-
-      const poemText = (
-        await (await poemWin.buffer()).getLines({ start: 0, end: -1 })
-      ).join("\n");
-      expect(poemText).toEqual("");
-
-      const diffWin = await driver.findWindow(async (w) => {
-        const buf = await w.buffer();
-        const name = await buf.getName();
-        return /poem.txt_message_2_diff$/.test(name);
-      });
-
-      expect(await diffWin.getOption("diff")).toBe(true);
-
-      const diffText = (
-        await (await diffWin.buffer()).getLines({ start: 0, end: -1 })
-      ).join("\n");
-      expect(diffText).toEqual("a poem\nwith some lines");
+      const poemPath = path.join(
+        await getcwd(driver.nvim),
+        `${TMP_DIR}/new.txt`,
+      );
+      expect(fs.existsSync(poemPath)).toBe(true);
+      const poemContent = fs.readFileSync(poemPath, "utf-8");
+      expect(poemContent).toEqual("a poem\nwith some lines");
     });
   });
 
@@ -93,33 +70,23 @@ describe("node/tools/diff.spec.ts", () => {
               id: "id" as ToolRequestId,
               toolName: "insert",
               input: {
-                filePath: "node/test/fixtures/toolManager.ts",
+                filePath: `${TMP_DIR}/toolManager.ts`,
                 insertAfter: "",
-                content: "a poem\n",
+                content: "a poem",
               },
             },
           },
         ],
       });
 
-      const reviewPos =
-        await driver.assertDisplayBufferContains("review edits");
+      await driver.assertDisplayBufferContains("Insert [[ +1 ]]");
 
-      await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
-      await driver.assertWindowCount(4);
-
-      const diffWin = await driver.findWindow(async (w) => {
-        const buf = await w.buffer();
-        const name = await buf.getName();
-        return /toolManager.ts_message_2_diff$/.test(name);
-      });
-
-      expect(await diffWin.getOption("diff")).toBe(true);
-
-      const diffText = await (
-        await diffWin.buffer()
-      ).getLines({ start: 0, end: -1 });
-      expect(diffText[0]).toEqual("a poem" as Line);
+      const filePath = path.join(
+        await getcwd(driver.nvim),
+        `${TMP_DIR}/toolManager.ts`,
+      );
+      const fileContent = fs.readFileSync(filePath, "utf-8");
+      expect(fileContent.endsWith("a poem")).toBe(true);
     });
   });
 
@@ -132,7 +99,7 @@ describe("node/tools/diff.spec.ts", () => {
       ]);
       await driver.showSidebar();
       await driver.inputMagentaText(
-        `Update the poem in the file node/test/fixtures/poem.txt`,
+        `Update the poem in the file ${TMP_DIR}/poem.txt`,
       );
       await driver.send();
 
@@ -146,58 +113,36 @@ describe("node/tools/diff.spec.ts", () => {
               id: "id" as ToolRequestId,
               toolName: "replace",
               input: {
-                filePath: "node/test/fixtures/poem.txt",
+                filePath: `${TMP_DIR}/poem.txt`,
                 find: `\
-Moonlight whispers through the trees,
-Silver shadows dance with ease.
+shadows dance with ease.
 Stars above like diamonds bright,
-Paint their stories in the night.`,
+Paint their `,
                 replace: `\
-In gardens wild and flowing free,
-Magenta blooms for all to see.
+blooms for all to see.
 Nature's canvas, bold and bright,
-Paints its colors in the light.`,
+Paints its colors `,
               },
             },
           },
         ],
       });
 
-      const reviewPos =
-        await driver.assertDisplayBufferContains("review edits");
+      await driver.assertDisplayBufferContains("Replace [[ -3 / +3 ]]");
 
-      await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
-      await driver.assertWindowCount(4);
-
-      const poemWin = await driver.findWindow(async (w) => {
-        const buf = await w.buffer();
-        const name = await buf.getName();
-        return /node\/test\/fixtures\/poem.txt$/.test(name);
-      });
-
-      expect(await poemWin.getOption("diff")).toBe(true);
-      expect(await poemWin.getOption("relativenumber")).toBe(true);
-
-      const poemText = (
-        await (await poemWin.buffer()).getLines({ start: 0, end: -1 })
-      ).join("\n");
-      expect(poemText).toEqual(
-        "Moonlight whispers through the trees,\nSilver shadows dance with ease.\nStars above like diamonds bright,\nPaint their stories in the night.",
+      // Verify file was updated
+      const filePath = path.join(
+        await getcwd(driver.nvim),
+        `${TMP_DIR}/poem.txt`,
       );
-
-      const diffWin = await driver.findWindow(async (w) => {
-        const buf = await w.buffer();
-        const name = await buf.getName();
-        return /node\/test\/fixtures\/poem.txt_message_2_diff$/.test(name);
-      });
-
-      expect(await diffWin.getOption("diff")).toBe(true);
-
-      const diffText = (
-        await (await diffWin.buffer()).getLines({ start: 0, end: -1 })
-      ).join("\n");
-      expect(diffText).toEqual(
-        "In gardens wild and flowing free,\nMagenta blooms for all to see.\nNature's canvas, bold and bright,\nPaints its colors in the light.",
+      const fileContent = fs.readFileSync(filePath, "utf-8");
+      expect(fileContent).toEqual(
+        `\
+Moonlight whispers through the trees,
+Silver blooms for all to see.
+Nature's canvas, bold and bright,
+Paints its colors stories in the night.
+`,
       );
     });
   });
@@ -220,7 +165,7 @@ Paints its colors in the light.`,
               id: "id" as ToolRequestId,
               toolName: "insert",
               input: {
-                filePath: "poem.txt",
+                filePath: `${TMP_DIR}/multiple.txt`,
                 insertAfter: "",
                 content: "a poem",
               },
@@ -229,20 +174,16 @@ Paints its colors in the light.`,
         ],
       });
 
-      let reviewPos;
-      {
-        reviewPos = await driver.assertDisplayBufferContains("review edits");
+      await driver.assertDisplayBufferContains("Insert [[ +1 ]]");
 
-        await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
-        await driver.assertWindowCount(4);
-
-        const diffWin = await driver.findWindow(async (w) => {
-          const buf = await w.buffer();
-          const name = await buf.getName();
-          return /poem.txt_message_2_diff$/.test(name);
-        });
-        await diffWin.close();
-      }
+      // Verify first edit was applied
+      const poemPath = path.join(
+        await getcwd(driver.nvim),
+        `${TMP_DIR}/multiple.txt`,
+      );
+      expect(fs.existsSync(poemPath)).toBe(true);
+      let fileContent = fs.readFileSync(poemPath, "utf-8");
+      expect(fileContent).toEqual("a poem");
 
       await driver.inputMagentaText(`Another one!`);
       await driver.send();
@@ -257,44 +198,25 @@ Paints its colors in the light.`,
               id: "id" as ToolRequestId,
               toolName: "insert",
               input: {
-                filePath: "poem.txt",
+                filePath: `${TMP_DIR}/multiple.txt`,
                 insertAfter: "",
-                content: "another poem",
+                content: "\nanother poem",
               },
             },
           },
         ],
       });
 
-      {
-        const nextReviewPos = await driver.assertDisplayBufferContains(
-          "review edits",
-          reviewPos.row + 1,
-        );
-
-        await driver.triggerDisplayBufferKey(nextReviewPos, "<CR>");
-        await driver.assertWindowCount(4);
-
-        const diffWin = await driver.findWindow(async (w) => {
-          const buf = await w.buffer();
-          const name = await buf.getName();
-          return /poem.txt_message_4_diff$/.test(name);
-        });
-
-        const diffText = (
-          await (await diffWin.buffer()).getLines({ start: 0, end: -1 })
-        ).join("\n");
-        expect(diffText).toEqual("another poem");
-      }
+      await driver.assertDisplayBufferContains("Insert [[ +2 ]]");
+      fileContent = fs.readFileSync(poemPath, "utf-8");
+      expect(fileContent).toEqual("a poem\nanother poem");
     });
   });
 
   it("replace a single line", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
-      await driver.inputMagentaText(
-        `Update line 2 in node/test/fixtures/poem.txt`,
-      );
+      await driver.inputMagentaText(`Update line 2 in ${TMP_DIR}/poem.txt`);
       await driver.send();
 
       await driver.mockAnthropic.respond({
@@ -307,7 +229,7 @@ Paints its colors in the light.`,
               id: "id" as ToolRequestId,
               toolName: "replace",
               input: {
-                filePath: "node/test/fixtures/poem.txt",
+                filePath: `${TMP_DIR}/poem.txt`,
                 find: "Silver shadows dance with ease.",
                 replace: "Golden moonbeams dance with ease.",
               },
@@ -316,32 +238,20 @@ Paints its colors in the light.`,
         ],
       });
 
-      const reviewPos =
-        await driver.assertDisplayBufferContains("review edits");
-      await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
-      await driver.assertWindowCount(4);
+      await driver.assertDisplayBufferContains("Replace [[ -1 / +1 ]]");
 
-      const poemWin = await driver.findWindow(async (w) => {
-        const buf = await w.buffer();
-        const name = await buf.getName();
-        return /node\/test\/fixtures\/poem.txt$/.test(name);
-      });
-
-      expect(await poemWin.getOption("diff")).toBe(true);
-
-      const diffWin = await driver.findWindow(async (w) => {
-        const buf = await w.buffer();
-        const name = await buf.getName();
-        return /poem.txt_message_2_diff$/.test(name);
-      });
-
-      expect(await diffWin.getOption("diff")).toBe(true);
-
-      const diffText = (
-        await (await diffWin.buffer()).getLines({ start: 0, end: -1 })
-      ).join("\n");
-      expect(diffText).toEqual(
-        "Moonlight whispers through the trees,\nGolden moonbeams dance with ease.\nStars above like diamonds bright,\nPaint their stories in the night.",
+      // Verify the line was replaced
+      const filePath = path.join(
+        await getcwd(driver.nvim),
+        `${TMP_DIR}/poem.txt`,
+      );
+      const fileContent = fs.readFileSync(filePath, "utf-8");
+      expect(fileContent).toEqual(
+        `Moonlight whispers through the trees,
+Golden moonbeams dance with ease.
+Stars above like diamonds bright,
+Paint their stories in the night.
+`,
       );
     });
   });
@@ -350,7 +260,7 @@ Paints its colors in the light.`,
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
-        `Update the poem in the file node/test/fixtures/poem.txt`,
+        `Update the poem in the file ${TMP_DIR}/poem.txt`,
       );
       await driver.send();
 
@@ -364,7 +274,7 @@ Paints its colors in the light.`,
               id: "id1" as ToolRequestId,
               toolName: "replace",
               input: {
-                filePath: "node/test/fixtures/poem.txt",
+                filePath: `${TMP_DIR}/poem.txt`,
                 find: `bogus line...`,
                 replace: `Replace text`,
               },
@@ -376,9 +286,134 @@ Paints its colors in the light.`,
               id: "id2" as ToolRequestId,
               toolName: "insert",
               input: {
-                filePath: "node/test/fixtures/poem.txt",
+                filePath: `${TMP_DIR}/poem.txt`,
                 insertAfter: `Paint their stories in the night.`,
                 content: `Added text`,
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains("Replace [[ -1 / +1 ]]");
+      await driver.assertDisplayBufferContains("⚠️ Error");
+      await driver.assertDisplayBufferContains("Insert [[ +1 ]]");
+
+      // Verify that the first edit failed but the second succeeded
+      const filePath = path.join(
+        await getcwd(driver.nvim),
+        `${TMP_DIR}/poem.txt`,
+      );
+      const fileContent = fs.readFileSync(filePath, "utf-8");
+      expect(fileContent).toEqual(
+        "Moonlight whispers through the trees,\nSilver shadows dance with ease.\nStars above like diamonds bright,\nPaint their stories in the night.Added text\n",
+      );
+
+      const detailsPos = await driver.assertDisplayBufferContains("Replace");
+      await driver.triggerDisplayBufferKey(detailsPos, "<CR>");
+
+      await driver.assertDisplayBufferContains(`\
+# assistant:
+ok, I will try to rewrite the poem in that file
+Replace [[ -1 / +1 ]] in \`${TMP_DIR}/poem.txt\` ⚠️ Error: "Unable to find text \\"bogus line...\\" in file \`${TMP_DIR}/poem.txt\`."
+id: id1
+replace: {
+    filePath: ${TMP_DIR}/poem.txt
+    match:
+\`\`\`
+bogus line...
+\`\`\`
+    replace:
+\`\`\`
+Replace text
+\`\`\`
+}
+Error: Unable to find text "bogus line..." in file \`${TMP_DIR}/poem.txt\`.
+Insert [[ +1 ]] in \`node/test/tmp/poem.txt\` ✏️ Success: Successfully inserted content into node/test/tmp/poem.txt
+Stopped (end_turn) [input: 0, output: 0]
+
+Edits:
+  ${TMP_DIR}/poem.txt (2 edits). **[👀 review edits ]**`);
+      await driver.triggerDisplayBufferKey(detailsPos, "<CR>");
+      await driver.assertDisplayBufferContains(`\
+# assistant:
+ok, I will try to rewrite the poem in that file
+Replace [[ -1 / +1 ]] in \`${TMP_DIR}/poem.txt\` ⚠️ Error: "Unable to find text \\"bogus line...\\" in file \`${TMP_DIR}/poem.txt\`."
+Insert [[ +1 ]] in \`node/test/tmp/poem.txt\` ✏️ Success: Successfully inserted content into node/test/tmp/poem.txt
+Stopped (end_turn) [input: 0, output: 0]
+
+Edits:
+  ${TMP_DIR}/poem.txt (2 edits). **[👀 review edits ]**`);
+    });
+  });
+
+  it("file changing under buffer is handled", async () => {
+    await withDriver({}, async (driver) => {
+      // Create a file and open it in a buffer
+      const poemFile = path.join(
+        await getcwd(driver.nvim),
+        `${TMP_DIR}/poem_to_change.txt`,
+      );
+      fs.writeFileSync(poemFile, "Original content here", "utf-8");
+
+      // Open the file in a buffer
+      await driver.command(`edit ${poemFile}`);
+      fs.writeFileSync(poemFile, "changed content", "utf-8");
+
+      // Make the buffer "modified" but don't save
+      await driver.command("normal! iSome unsaved changes");
+
+      await driver.showSidebar();
+      await driver.inputMagentaText(`Add to the end of poem_to_change.txt`);
+      await driver.send();
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "I'll append to that file",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "id" as ToolRequestId,
+              toolName: "insert",
+              input: {
+                filePath: poemFile,
+                insertAfter: "Original content here",
+                content: "\nAppended content",
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains("⚠️ Error");
+      await driver.assertDisplayBufferContains(
+        "has unsaved changes that could not be written",
+      );
+    });
+  });
+
+  it("handle invalid insertAfter location", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(
+        `Add content at a specific spot in the poem file`,
+      );
+      await driver.send();
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "I'll try to add content",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "id" as ToolRequestId,
+              toolName: "insert",
+              input: {
+                filePath: `${TMP_DIR}/poem.txt`,
+                insertAfter: "Text that doesn't exist in the file",
+                content: "\nNew content to add",
               },
             },
           },
@@ -389,73 +424,83 @@ Paints its colors in the light.`,
         await driver.assertDisplayBufferContains("review edits");
 
       await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
-      await driver.assertWindowCount(4);
 
-      const poemWin = await driver.findWindow(async (w) => {
-        const buf = await w.buffer();
-        const name = await buf.getName();
-        return /node\/test\/fixtures\/poem.txt$/.test(name);
+      // Check for error message - it appears in a different format
+      await driver.assertDisplayBufferContains(
+        '⚠️ Error: "Unable to find insert location',
+      );
+    });
+  });
+
+  it("edit a file with open buffer containing pending changes", async () => {
+    await withDriver({}, async (driver) => {
+      // Create a file and open it in a buffer
+      const poemFile = path.join(
+        await getcwd(driver.nvim),
+        `${TMP_DIR}/buffer_with_changes.txt`,
+      );
+      fs.writeFileSync(poemFile, "Original content\nSecond line", "utf-8");
+
+      await driver.command(`edit ${poemFile}`);
+
+      const buffer = await getCurrentBuffer(driver.nvim);
+      expect(await buffer.getName()).toContain("buffer_with_changes.txt");
+      await buffer.setLines({
+        start: -1,
+        end: -1,
+        lines: ["Unsaved buffer changes"] as Line[],
+      });
+      const isModified = await buffer.getOption("modified");
+      expect(isModified).toBe(true);
+
+      await driver.showSidebar();
+      await driver.inputMagentaText(
+        `Add text after "Second line" in buffer_with_changes.txt`,
+      );
+      await driver.send();
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "I'll add text to that file",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "id" as ToolRequestId,
+              toolName: "insert",
+              input: {
+                filePath: poemFile,
+                insertAfter: "Second line",
+                content: "\nAdded by Magenta",
+              },
+            },
+          },
+        ],
       });
 
-      expect(await poemWin.getOption("diff")).toBe(true);
+      await driver.assertDisplayBufferContains("Insert [[ +2 ]]");
+      await driver.assertDisplayBufferContains("Success");
 
-      const poemText = (
-        await (await poemWin.buffer()).getLines({ start: 0, end: -1 })
-      ).join("\n");
-      expect(poemText).toEqual(
-        "Moonlight whispers through the trees,\nSilver shadows dance with ease.\nStars above like diamonds bright,\nPaint their stories in the night.",
-      );
-
-      const diffWin = await driver.findWindow(async (w) => {
-        const buf = await w.buffer();
-        const name = await buf.getName();
-        return /node\/test\/fixtures\/poem.txt_message_2_diff$/.test(name);
+      const bufferLines = await buffer.getLines({
+        start: 0,
+        end: -1,
       });
+      expect(bufferLines).toEqual([
+        "Original content",
+        "Second line",
+        "Added by Magenta",
+        "Unsaved buffer changes",
+      ]);
 
-      expect(await diffWin.getOption("diff")).toBe(true);
-
-      const diffText = (
-        await (await diffWin.buffer()).getLines({ start: 0, end: -1 })
-      ).join("\n");
-      expect(diffText).toEqual(
-        "Moonlight whispers through the trees,\nSilver shadows dance with ease.\nStars above like diamonds bright,\nPaint their stories in the night.Added text",
+      // Verify file was updated on disk
+      const fileContent = fs.readFileSync(poemFile, "utf-8");
+      expect(fileContent).toEqual(
+        "Original content\nSecond line\nAdded by Magenta\nUnsaved buffer changes\n",
       );
 
-      const detailsPos = await driver.assertDisplayBufferContains("Replace");
-      await driver.triggerDisplayBufferKey(detailsPos, "<CR>");
-
-      await driver.assertDisplayBufferContains(`\
-# assistant:
-ok, I will try to rewrite the poem in that file
-Replace [[ -1 / +1 ]] in \`node/test/fixtures/poem.txt\` ⚠️ Error: "Unable to find text \\"bogus line...\\" in file \`node/test/fixtures/poem.txt\`"
-id: id1
-replace: {
-    filePath: node/test/fixtures/poem.txt
-    match:
-\`\`\`
-bogus line...
-\`\`\`
-    replace:
-\`\`\`
-Replace text
-\`\`\`
-}
-Error: Unable to find text "bogus line..." in file \`node/test/fixtures/poem.txt\`
-Insert [[ +1 ]] in \`node/test/fixtures/poem.txt\` Awaiting user review.
-Stopped (end_turn) [input: 0, output: 0]
-
-Edits:
-  node/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**`);
-      await driver.triggerDisplayBufferKey(detailsPos, "<CR>");
-      await driver.assertDisplayBufferContains(`\
-# assistant:
-ok, I will try to rewrite the poem in that file
-Replace [[ -1 / +1 ]] in \`node/test/fixtures/poem.txt\` ⚠️ Error: "Unable to find text \\"bogus line...\\" in file \`node/test/fixtures/poem.txt\`"
-Insert [[ +1 ]] in \`node/test/fixtures/poem.txt\` Awaiting user review.
-Stopped (end_turn) [input: 0, output: 0]
-
-Edits:
-  node/test/fixtures/poem.txt (2 edits). **[👀 review edits ]**`);
+      // Buffer should no longer be modified after successful save
+      const isStillModified = await buffer.getOption("modified");
+      expect(isStillModified).toBe(false);
     });
   });
 });

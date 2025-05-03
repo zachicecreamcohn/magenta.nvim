@@ -37,4 +37,12 @@ M.log_job = function(log_level, is_stderr)
   end
 end
 
+M.write_buffer = function(bufnr)
+  vim.api.nvim_buf_call(bufnr, function()
+    vim.print("before cmd")
+    vim.cmd("silent! write")
+    vim.print("after cmd")
+  end)
+end
+
 return M

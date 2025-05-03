@@ -1,177 +1,323 @@
-import { WIDTH } from "../sidebar.ts";
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { diffthis, getAllWindows } from "../nvim/nvim.ts";
+import { getcwd } from "../nvim/nvim.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
-import { type WindowId } from "../nvim/window.ts";
 import type { Nvim } from "nvim-node";
-import type {
-  ToolRequest,
-  ToolRequestId,
-  Msg as ToolManagerMsg,
-  ToolManager,
-  ToolMsg,
-} from "./toolManager.ts";
+import type { ToolRequest } from "./toolManager.ts";
+import type { Dispatch } from "../tea/tea.ts";
+import path from "node:path";
+import fs from "node:fs";
+import { getBufferIfOpen } from "../utils/buffers.ts";
+import type { Result } from "../utils/result.ts";
 
-/** Helper to bring up an editing interface for the given file path.
+type InsertRequest = Extract<ToolRequest, { toolName: "insert" }>;
+type ReplaceRequest = Extract<ToolRequest, { toolName: "replace" }>;
+type EditRequest = InsertRequest | ReplaceRequest;
+type Msg = {
+  type: "finish";
+  result: Result<string>;
+};
+
+type EditContext = { nvim: Nvim; dispatch: Dispatch<Msg> };
+
+/**
+ * Helper function to save buffer changes and check if it's still modified
+ * @returns true if successfully saved, false if still modified
  */
-export async function displayDiffs({
-  filePath,
-  diffId,
-  edits,
-  dispatch,
-  toolManager,
-  context,
-}: {
-  filePath: string;
-  /** used to uniquely identify the scratch buffer. This is useful to figure out which
-   * buffers are still open for editing. Also helpful if you simultaneously open two diffs of the same
-   * file.
-   */
-  diffId: string;
-  edits: (
-    | Extract<ToolRequest, { toolName: "replace" }>
-    | Extract<ToolRequest, { toolName: "insert" }>
-  )[];
-  dispatch: (msg: ToolManagerMsg) => void;
-  toolManager: ToolManager;
-  context: { nvim: Nvim };
-}) {
-  const { nvim } = context;
-  nvim.logger?.debug(
-    `Attempting to displayDiff for edits ${JSON.stringify(edits, null, 2)}`,
-  );
+async function saveBufferChanges(buffer: NvimBuffer): Promise<boolean> {
+  const isModified = await buffer.getOption("modified");
+  if (isModified) {
+    try {
+      await buffer.attemptWrite();
+    } catch {
+      // ok if this fails
+    }
+    const stillModified = await buffer.getOption("modified");
+    return !stillModified;
+  }
+  return true;
+}
 
-  function dispatchError(requestId: ToolRequestId, error: string) {
-    const toolWrapper = toolManager.state.toolWrappers[requestId];
+async function handleBufferEdit(
+  request: EditRequest,
+  buffer: NvimBuffer,
+  context: EditContext,
+): Promise<void> {
+  const { dispatch } = context;
+  const { filePath } = request.input;
+
+  // First, try and persist any current buffer changes we have to disk, to make sure that the file hasn't changed
+  // out from under us.
+  if (!(await saveBufferChanges(buffer))) {
     dispatch({
-      type: "tool-msg",
-      msg: {
-        id: requestId,
-        toolName: toolWrapper.tool.toolName,
-        msg: {
-          type: "finish",
-          result: {
-            status: "error",
-            error,
-          },
-        },
-      } as ToolMsg,
+      type: "finish",
+      result: {
+        status: "error",
+        error: `Buffer for ${filePath} has unsaved changes that could not be written to disk.`,
+      },
+    });
+    return;
+  }
+
+  // small performance optimization - don't need to load all the content if we're just appending
+  if (request.toolName === "insert" && request.input.insertAfter === "") {
+    const { content } = request.input;
+
+    const contentLines = content.split("\n") as Line[];
+    await buffer.setLines({
+      start: -1,
+      end: -1,
+      lines: contentLines,
     });
   }
 
-  // first, check to see if any windows *other than* the magenta plugin windows are open, and close them.
-  const windows = await getAllWindows(context.nvim);
-  const magentaWindows = [];
-  for (const window of windows) {
-    if (await window.getVar("magenta")) {
-      // save these so we can reset their width later
-      magentaWindows.push(window);
-      continue;
-    }
-
-    // Close other windows
-    await window.close();
-  }
-
-  // next, bring up the target buffer and the new content in a side-by-side diff
-  const fileBuffer = await NvimBuffer.bufadd(filePath, context.nvim);
-  const fileWindowId = (await nvim.call("nvim_open_win", [
-    fileBuffer.id,
-    true,
-    {
-      win: -1, // global split
-      split: "right",
-      width: WIDTH,
-    },
-  ])) as WindowId;
-
-  await diffthis(context.nvim);
-
-  const lines = await fileBuffer.getLines({
+  const lines = await buffer.getLines({
     start: 0,
     end: -1,
   });
-  let content: string = lines.join("\n");
+  let bufferContent = lines.join("\n");
 
-  for (const edit of edits) {
-    switch (edit.toolName) {
-      case "insert": {
-        if (edit.input.insertAfter === "") {
-          content = edit.input.content + content;
-          break;
-        }
+  if (request.toolName === "insert") {
+    const { insertAfter, content } = request.input;
 
-        const insertIndex = content.indexOf(edit.input.insertAfter);
-        if (insertIndex === -1) {
-          dispatchError(
-            edit.id,
-            `Unable to find insert location "${edit.input.insertAfter}" in file \`${filePath}\``,
-          );
-          continue;
-        }
+    // TODO: maybe use searchpos for more efficient lookup that doesn't require loading all the lines into node
+    const insertIndex = bufferContent.indexOf(insertAfter);
 
-        const insertLocation = insertIndex + edit.input.insertAfter.length;
-        content =
-          content.slice(0, insertLocation) +
-          edit.input.content +
-          content.slice(insertLocation);
-        break;
+    if (insertIndex === -1) {
+      dispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: `Unable to find insert location "${insertAfter}" in file \`${filePath}\``,
+        },
+      });
+      return;
+    }
+
+    const insertLocation = insertIndex + insertAfter.length;
+    bufferContent =
+      bufferContent.slice(0, insertLocation) +
+      content +
+      bufferContent.slice(insertLocation);
+
+    await buffer.setLines({
+      start: 0,
+      end: -1,
+      lines: bufferContent.split("\n") as Line[],
+    });
+  } else if (request.toolName === "replace") {
+    const { find, replace } = request.input;
+
+    const replaceStart = bufferContent.indexOf(find);
+
+    if (replaceStart === -1) {
+      dispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: `Unable to find text "${find}" in file \`${filePath}\``,
+        },
+      });
+      return;
+    }
+
+    const replaceEnd = replaceStart + find.length;
+    bufferContent =
+      bufferContent.slice(0, replaceStart) +
+      replace +
+      bufferContent.slice(replaceEnd);
+
+    await buffer.setLines({
+      start: 0,
+      end: -1,
+      lines: bufferContent.split("\n") as Line[],
+    });
+  }
+
+  if (!(await saveBufferChanges(buffer))) {
+    dispatch({
+      type: "finish",
+      result: {
+        status: "error",
+        error: `Failed to modify buffer: Buffer ${filePath} has unsaved changes that could not be written to disk.`,
+      },
+    });
+    return;
+  }
+
+  dispatch({
+    type: "finish",
+    result: {
+      status: "ok",
+      value: `Successfully modified ${filePath}`,
+    },
+  });
+}
+
+async function handleFileEdit(
+  request: EditRequest,
+  context: EditContext,
+): Promise<void> {
+  const { dispatch } = context;
+  const { filePath } = request.input;
+
+  if (request.toolName === "insert" && request.input.insertAfter === "") {
+    try {
+      let fileExists = true;
+      try {
+        await fs.promises.access(filePath);
+      } catch {
+        fileExists = false;
       }
 
-      case "replace": {
-        const replaceStart = content.indexOf(edit.input.find);
-        const replaceEnd = replaceStart + edit.input.find.length;
-
-        if (replaceStart == -1) {
-          dispatchError(
-            edit.id,
-            `Unable to find text "${edit.input.find}" in file \`${filePath}\``,
-          );
-          continue;
-        }
-
-        content =
-          content.slice(0, replaceStart) +
-          edit.input.replace +
-          content.slice(replaceEnd);
-
-        break;
+      if (fileExists) {
+        const fileHandle = await fs.promises.open(filePath, "a");
+        await fileHandle.write(request.input.content);
+        await fileHandle.close();
+      } else {
+        const dirPath = path.dirname(filePath);
+        await fs.promises.mkdir(dirPath, { recursive: true });
+        await fs.promises.writeFile(filePath, request.input.content, "utf-8");
       }
 
-      default:
-        assertUnreachable(edit);
+      dispatch({
+        type: "finish",
+        result: {
+          status: "ok",
+          value: `Successfully appended content to ${filePath}`,
+        },
+      });
+      return;
+    } catch (error) {
+      dispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: `Error accessing file ${filePath}: ${(error as Error).message}`,
+        },
+      });
+      return;
     }
   }
 
-  const scratchBuffer = await NvimBuffer.create(false, true, context.nvim);
+  let fileContent;
+  try {
+    fileContent = await fs.promises.readFile(filePath, "utf-8");
+  } catch {
+    dispatch({
+      type: "finish",
+      result: {
+        status: "error",
+        error: `File \`${filePath}\` does not exist.`,
+      },
+    });
+    return;
+  }
 
-  await scratchBuffer.setOption("bufhidden", "wipe");
-  await scratchBuffer.setLines({
-    start: 0,
-    end: -1,
-    lines: content.split("\n") as Line[],
-  });
+  let successMessage = "";
+  let newContent = fileContent;
 
-  await scratchBuffer.setName(`${filePath}_${diffId}_diff`);
-  await nvim.call("nvim_open_win", [
-    scratchBuffer.id,
-    true,
-    {
-      win: fileWindowId, // global split
-      split: "left",
-      width: WIDTH,
-    },
-  ]);
+  if (request.toolName == "insert") {
+    const insertIndex = fileContent.indexOf(request.input.insertAfter);
+    if (insertIndex === -1) {
+      dispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: `Unable to find insert location "${request.input.insertAfter}" in file \`${filePath}\`.
+          Read the contents of the file and make sure your insertAfter parameter matches the content of the file exactly.`,
+        },
+      });
+      return;
+    }
 
-  await diffthis(context.nvim);
+    const insertLocation = insertIndex + request.input.insertAfter.length;
+    newContent =
+      fileContent.slice(0, insertLocation) +
+      request.input.content +
+      fileContent.slice(insertLocation);
 
-  // now that both diff buffers are open, adjust the magenta window width again
-  for (const window of magentaWindows) {
-    await window.setWidth(WIDTH);
+    successMessage = `Successfully inserted content into ${filePath}`;
+  } else if (request.toolName === "replace") {
+    const { find, replace } = request.input;
+    let fileContent;
+    try {
+      fileContent = await fs.promises.readFile(filePath, "utf-8");
+    } catch {
+      // File doesn't exist yet, start with empty content
+      fileContent = "";
+    }
+
+    const replaceStart = fileContent.indexOf(find);
+    if (replaceStart === -1) {
+      dispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: `Unable to find text "${find}" in file \`${filePath}\`.`,
+        },
+      });
+      return;
+    }
+
+    const replaceEnd = replaceStart + find.length;
+    newContent =
+      fileContent.slice(0, replaceStart) +
+      replace +
+      fileContent.slice(replaceEnd);
+
+    successMessage = `Successfully replaced content in ${filePath}`;
+  }
+
+  try {
+    await fs.promises.writeFile(filePath, newContent, "utf-8");
+    dispatch({
+      type: "finish",
+      result: {
+        status: "ok",
+        value: successMessage,
+      },
+    });
+  } catch (error) {
+    dispatch({
+      type: "finish",
+      result: {
+        status: "error",
+        error: `Error writing to file ${filePath}: ${(error as Error).message}`,
+      },
+    });
   }
 }
 
-export const REVIEW_PROMPT = `\
-The user will review your proposed change.
-Assume that your change will be accepted and address other parts of the question, if any exist.
-Do not take more attempts at the same edit unless the user requests it.`;
+/**
+ * Main function to apply edits to a file or buffer
+ */
+export async function applyEdit(
+  request: EditRequest,
+  context: EditContext,
+): Promise<void> {
+  const { filePath } = request.input;
+  const { nvim, dispatch } = context;
+
+  const cwd = await getcwd(nvim);
+  const relFilePath = path.relative(cwd, filePath);
+  const bufferOpenResult = await getBufferIfOpen({
+    relativePath: relFilePath,
+    context: { nvim },
+  });
+
+  if (bufferOpenResult.status === "error") {
+    dispatch({
+      type: "finish",
+      result: {
+        status: "error",
+        error: bufferOpenResult.error,
+      },
+    });
+    return;
+  }
+
+  if (bufferOpenResult.status === "ok") {
+    await handleBufferEdit(request, bufferOpenResult.buffer, context);
+  } else if (bufferOpenResult.status === "not-found") {
+    await handleFileEdit(request, context);
+  }
+}
