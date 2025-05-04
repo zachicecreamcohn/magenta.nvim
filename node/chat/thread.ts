@@ -16,6 +16,7 @@ import {
 } from "../tools/toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import { Counter } from "../utils/uniqueId.ts";
+import { FileSnapshots, type FilePath } from "../tools/file-snapshots.ts";
 import type { Nvim } from "nvim-node";
 import type { Lsp } from "../lsp.ts";
 import {
@@ -81,6 +82,11 @@ export type Msg =
       type: "message-msg";
       msg: MessageMsg;
       id: MessageId;
+    }
+  | {
+      type: "take-file-snapshot";
+      filePath: FilePath;
+      messageId: MessageId;
     };
 
 export type ThreadMsg = {
@@ -104,6 +110,7 @@ export class Thread {
   private nvim: Nvim;
   private lsp: Lsp;
   private options: MagentaOptions;
+  public fileSnapshots: FileSnapshots;
 
   constructor({
     dispatch,
@@ -138,6 +145,8 @@ export class Thread {
       lsp: this.lsp,
       options: this.options,
     });
+
+    this.fileSnapshots = new FileSnapshots(this.nvim);
 
     this.state = {
       lastUserMessageId: this.counter.last() as MessageId,
@@ -179,6 +188,7 @@ export class Thread {
             dispatch: this.dispatch,
             nvim: this.nvim,
             toolManager: this.toolManager,
+            fileSnapshots: this.fileSnapshots,
             options: this.options,
           },
         );
@@ -300,6 +310,7 @@ export class Thread {
                 dispatch: this.dispatch,
                 nvim: this.nvim,
                 toolManager: this.toolManager,
+                fileSnapshots: this.fileSnapshots,
                 options: this.options,
               },
             ),
@@ -329,6 +340,7 @@ export class Thread {
                 dispatch: this.dispatch,
                 nvim: this.nvim,
                 toolManager: this.toolManager,
+                fileSnapshots: this.fileSnapshots,
                 options: this.options,
               },
             ),
@@ -345,12 +357,13 @@ export class Thread {
 
           return;
         } else {
+          const message = this.state.messages[this.state.messages.length - 1];
           this.toolManager.update({
             type: "init-tool-use",
             request: msg.request.value,
+            messageId: message.state.id,
           });
 
-          const message = this.state.messages[this.state.messages.length - 1];
           message.update({
             type: "add-tool-request",
             requestId: msg.request.value.id,
@@ -385,6 +398,17 @@ export class Thread {
           throw new Error(`Unable to find message with id ${msg.id}`);
         }
         message.update(msg.msg);
+        return;
+      }
+
+      case "take-file-snapshot": {
+        this.fileSnapshots
+          .willEditFile(msg.filePath, msg.messageId)
+          .catch((e: Error) => {
+            this.nvim.logger?.error(
+              `Failed to take file snapshot: ${e.message}`,
+            );
+          });
         return;
       }
 

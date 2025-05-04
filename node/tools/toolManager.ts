@@ -15,6 +15,7 @@ import type { Nvim } from "nvim-node";
 import type { Lsp } from "../lsp.ts";
 import type { MagentaOptions } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
+import type { MessageId } from "../chat/message.ts";
 
 export const TOOL_SPECS = [
   GetFile.spec,
@@ -109,6 +110,7 @@ export type ToolModelWrapper = {
 export type Msg =
   | {
       type: "init-tool-use";
+      messageId: MessageId;
       request: ToolRequest;
     }
   | {
@@ -277,9 +279,9 @@ export class ToolManager {
           }
 
           case "insert": {
-            const insertTool = new Insert.InsertTool(request, {
+            const insertTool = new Insert.InsertTool(request, msg.messageId, {
               ...this.context,
-              dispatch: (msg) =>
+              myDispatch: (msg) =>
                 this.myDispatch({
                   type: "tool-msg",
                   msg: {
@@ -300,18 +302,22 @@ export class ToolManager {
           }
 
           case "replace": {
-            const replaceTool = new Replace.ReplaceTool(request, {
-              ...this.context,
-              dispatch: (msg) =>
-                this.myDispatch({
-                  type: "tool-msg",
-                  msg: {
-                    id: request.id,
-                    toolName: request.toolName,
-                    msg,
-                  },
-                }),
-            });
+            const replaceTool = new Replace.ReplaceTool(
+              request,
+              msg.messageId,
+              {
+                ...this.context,
+                myDispatch: (msg) =>
+                  this.myDispatch({
+                    type: "tool-msg",
+                    msg: {
+                      id: request.id,
+                      toolName: request.toolName,
+                      msg,
+                    },
+                  }),
+              },
+            );
 
             this.state.toolWrappers[request.id] = {
               tool: replaceTool,

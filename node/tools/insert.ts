@@ -9,6 +9,8 @@ import type {
 } from "../providers/provider.ts";
 import type { Nvim } from "nvim-node";
 import { applyEdit } from "./diff.ts";
+import type { RootMsg } from "../root-msg.ts";
+import type { MessageId } from "../chat/message.ts";
 
 export type State =
   | {
@@ -30,14 +32,16 @@ export class InsertTool {
 
   constructor(
     public request: Extract<ToolRequest, { toolName: "insert" }>,
+    public messageId: MessageId,
     private context: {
-      dispatch: Dispatch<Msg>;
+      myDispatch: Dispatch<Msg>;
       nvim: Nvim;
+      dispatch: Dispatch<RootMsg>;
     },
   ) {
     this.state = { state: "processing" };
-    applyEdit(this.request, this.context).catch((err: Error) =>
-      this.context.dispatch({
+    applyEdit(this.request, this.messageId, this.context).catch((err: Error) =>
+      this.context.myDispatch({
         type: "finish",
         result: {
           status: "error",

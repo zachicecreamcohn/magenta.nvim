@@ -7,6 +7,9 @@ import path from "node:path";
 import fs from "node:fs";
 import { getBufferIfOpen } from "../utils/buffers.ts";
 import type { Result } from "../utils/result.ts";
+import type { FilePath } from "./file-snapshots.ts";
+import type { RootMsg } from "../root-msg.ts";
+import type { MessageId } from "../chat/message.ts";
 
 type InsertRequest = Extract<ToolRequest, { toolName: "insert" }>;
 type ReplaceRequest = Extract<ToolRequest, { toolName: "replace" }>;
@@ -16,7 +19,11 @@ type Msg = {
   result: Result<string>;
 };
 
-type EditContext = { nvim: Nvim; dispatch: Dispatch<Msg> };
+type EditContext = {
+  nvim: Nvim;
+  myDispatch: Dispatch<Msg>;
+  dispatch: Dispatch<RootMsg>;
+};
 
 /**
  * Helper function to save buffer changes and check if it's still modified
@@ -41,7 +48,7 @@ async function handleBufferEdit(
   buffer: NvimBuffer,
   context: EditContext,
 ): Promise<void> {
-  const { dispatch } = context;
+  const { myDispatch: dispatch } = context;
   const { filePath } = request.input;
 
   // First, try and persist any current buffer changes we have to disk, to make sure that the file hasn't changed
@@ -156,7 +163,7 @@ async function handleFileEdit(
   request: EditRequest,
   context: EditContext,
 ): Promise<void> {
-  const { dispatch } = context;
+  const { myDispatch: dispatch } = context;
   const { filePath } = request.input;
 
   if (request.toolName === "insert" && request.input.insertAfter === "") {
@@ -292,10 +299,20 @@ async function handleFileEdit(
  */
 export async function applyEdit(
   request: EditRequest,
+  messageId: MessageId,
   context: EditContext,
 ): Promise<void> {
   const { filePath } = request.input;
-  const { nvim, dispatch } = context;
+  const { nvim, myDispatch, dispatch } = context;
+
+  dispatch({
+    type: "thread-msg",
+    msg: {
+      type: "take-file-snapshot",
+      filePath: filePath as FilePath,
+      messageId,
+    },
+  });
 
   const cwd = await getcwd(nvim);
   const relFilePath = path.relative(cwd, filePath);
@@ -305,7 +322,7 @@ export async function applyEdit(
   });
 
   if (bufferOpenResult.status === "error") {
-    dispatch({
+    myDispatch({
       type: "finish",
       result: {
         status: "error",

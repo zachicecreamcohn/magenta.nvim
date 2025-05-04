@@ -8,7 +8,8 @@ import { type Dispatch, type Thunk } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
 import type { MagentaOptions } from "../options.ts";
-
+import type { FilePath, FileSnapshots } from "../tools/file-snapshots.ts";
+import { displaySnapshotDiff } from "../tools/display-snapshot-diff.ts";
 export type MessageId = number & { __messageId: true };
 type State = {
   id: MessageId;
@@ -46,6 +47,10 @@ export type Msg =
   | {
       type: "open-edit-file";
       filePath: string;
+    }
+  | {
+      type: "diff-snapshot";
+      filePath: string;
     };
 
 export class Message {
@@ -55,6 +60,7 @@ export class Message {
       dispatch: Dispatch<RootMsg>;
       nvim: Nvim;
       toolManager: ToolManager;
+      fileSnapshots: FileSnapshots;
       options: MagentaOptions;
     },
   ) {}
@@ -154,6 +160,16 @@ export class Message {
         return;
       }
 
+      case "diff-snapshot": {
+        displaySnapshotDiff({
+          filePath: msg.filePath as FilePath,
+          messageId: this.state.id,
+          nvim: this.context.nvim,
+          fileSnapshots: this.context.fileSnapshots,
+        }).catch((e: Error) => this.context.nvim.logger?.error(e.message));
+        return;
+      }
+
       default:
         assertUnreachable(msg);
     }
@@ -167,7 +183,8 @@ export const view: View<{
   const fileEdits = [];
   for (const filePath in message.state.edits) {
     const edit = message.state.edits[filePath];
-    const reviewEdit = withBindings(d`**[👀 review edits ]**`, {
+
+    const filePathLink = withBindings(d`\`${filePath}\``, {
       "<CR>": () =>
         dispatch({
           type: "open-edit-file",
@@ -175,8 +192,16 @@ export const view: View<{
         }),
     });
 
+    const diffSnapshot = withBindings(d`**[± diff snapshot]**`, {
+      "<CR>": () =>
+        dispatch({
+          type: "diff-snapshot",
+          filePath,
+        }),
+    });
+
     fileEdits.push(
-      d`  ${filePath} (${edit.requestIds.length.toString()} edits). ${reviewEdit}${
+      d`  ${filePathLink} (${edit.requestIds.length.toString()} edits). ${diffSnapshot}${
         edit.status.status == "error"
           ? d`\nError applying edit: ${edit.status.message}`
           : ""
