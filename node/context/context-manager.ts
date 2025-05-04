@@ -92,10 +92,11 @@ export class ContextManager {
           relFilePath: msg.relFilePath,
           initialMessageId: msg.messageId,
         };
-        return undefined;
+        return;
       case "remove-file-context":
+        console.log(`remove-file-context ${msg.absFilePath}`);
         delete this.files[msg.absFilePath];
-        return undefined;
+        return;
       case "open-file":
         openFileInNonMagentaWindow(msg.absFilePath, {
           nvim: this.nvim,
@@ -291,8 +292,8 @@ ${content}
     const fileContext = [];
     for (const absFilePath in this.files) {
       fileContext.push(
-        withBindings(d`file: \`${this.files[absFilePath].relFilePath}\`\n`, {
-          d: () =>
+        withBindings(d`- \`${this.files[absFilePath].relFilePath}\`\n`, {
+          dd: () =>
             this.myDispatch({
               type: "remove-file-context",
               absFilePath,

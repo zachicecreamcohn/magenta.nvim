@@ -2,7 +2,7 @@ import { type MountedVDOM } from "./view.ts";
 import { type Position0Indexed } from "../nvim/window.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 
-export const BINDING_KEYS = ["<CR>", "t", "d"] as const;
+export const BINDING_KEYS = ["<CR>", "t", "dd"] as const;
 
 export type BindingKey = (typeof BINDING_KEYS)[number];
 export type Bindings = Partial<{
@@ -14,8 +14,8 @@ export function getBindings(
   cursor: Position0Indexed,
 ): Bindings | undefined {
   if (
-    compare(cursor, mountedNode.startPos) > 0 ||
-    compare(cursor, mountedNode.endPos) < 0
+    comparePos(cursor, mountedNode.startPos) === "lt" ||
+    ["gt", "eq"].includes(comparePos(cursor, mountedNode.endPos))
   ) {
     return undefined;
   }
@@ -39,13 +39,25 @@ export function getBindings(
   }
 }
 
-/** returns a positive number if pos2 is greater than pos1, 0 if equal, -1 if pos2 is less than pos1
+/**
+ * Compares two positions and returns "lt" if pos1 < pos2, "eq" if pos1 === pos2, "gt" if pos1 > pos2
  */
-function compare(pos1: Position0Indexed, pos2: Position0Indexed): number {
-  const rowDiff = pos2.row - pos1.row;
-  if (rowDiff != 0) {
-    return rowDiff;
+function comparePos(
+  pos1: Position0Indexed,
+  pos2: Position0Indexed,
+): "lt" | "eq" | "gt" {
+  if (pos1.row < pos2.row) {
+    return "lt";
+  } else if (pos1.row > pos2.row) {
+    return "gt";
   }
 
-  return pos2.col - pos1.col;
+  // Rows are equal, check columns
+  if (pos1.col < pos2.col) {
+    return "lt";
+  } else if (pos1.col > pos2.col) {
+    return "gt";
+  }
+
+  return "eq";
 }
