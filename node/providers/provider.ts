@@ -8,40 +8,42 @@ import { type Profile } from "../options.ts";
 
 export * from "./provider-types.ts";
 
-const clients: Partial<{ [providerName in ProviderName]: Provider }> = {};
+const clients: { [key: string]: Provider } = {};
 
 // lazy load so we have a chance to init context before constructing the class
 export function getProvider(nvim: Nvim, profile: Profile): Provider {
-  // Create a client key based on provider name and custom settings
   const providerName = profile.provider;
 
-  if (!clients[providerName]) {
+  // use a composite key for the client to allow the openai provider to be used for openai and ollama
+  let clientKey: string = providerName;
+  if (providerName === "openai" && profile.baseUrl) {
+    clientKey = `${providerName}-${profile.baseUrl}`;
+  }
+
+  if (!clients[clientKey]) {
     switch (profile.provider) {
       case "anthropic":
-        clients[providerName] = new AnthropicProvider(nvim, {
+        clients[clientKey] = new AnthropicProvider(nvim, {
           baseUrl: profile.baseUrl,
           apiKeyEnvVar: profile.apiKeyEnvVar,
           promptCaching: true,
         });
         break;
       case "openai":
-        clients[providerName] = new OpenAIProvider(nvim, {
+        clients[clientKey] = new OpenAIProvider(nvim, {
           baseUrl: profile.baseUrl,
           apiKeyEnvVar: profile.apiKeyEnvVar,
         });
         break;
       case "bedrock":
-        clients[providerName] = new BedrockProvider(
-          nvim,
-          !!profile.promptCaching,
-        );
+        clients[clientKey] = new BedrockProvider(nvim, !!profile.promptCaching);
         break;
       default:
         assertUnreachable(profile.provider);
     }
   }
 
-  const provider = clients[providerName];
+  const provider = clients[clientKey];
   provider.setModel(profile.model);
 
   return provider;
