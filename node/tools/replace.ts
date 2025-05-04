@@ -11,7 +11,7 @@ import type { Nvim } from "nvim-node";
 import { applyEdit } from "./diff.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
-
+import * as diff from "diff";
 export type State =
   | {
       state: "processing";
@@ -98,9 +98,50 @@ export class ReplaceTool {
         if (this.state.result.result.status == "error") {
           return d`Error: ${this.state.result.result.error}`;
         } else {
-          return d`Success: ${this.state.result.result.value}`;
+          return d`Success!
+\`\`\`diff
+${this.getReplacePreview()}
+\`\`\``;
         }
     }
+  }
+
+  getReplacePreview(): string {
+    const find = this.request.input.find;
+    const replace = this.request.input.replace;
+
+    const diffResult = diff.createPatch(
+      this.request.input.filePath,
+      find,
+      replace,
+      "before",
+      "after",
+    );
+
+    const diffLines = diffResult.split("\n").slice(5);
+
+    const maxLines = 5;
+    const maxLength = 80;
+
+    let previewLines =
+      diffLines.length > maxLines ? diffLines.slice(0, maxLines) : diffLines;
+
+    previewLines = previewLines.map((line) => {
+      if (line.length > maxLength) {
+        return line.substring(0, maxLength) + "...";
+      }
+      return line;
+    });
+
+    // Add prefix indicators
+    let result = previewLines.join("\n");
+
+    // Add ellipsis if we truncated
+    if (diffLines.length > maxLines) {
+      result += "\n...";
+    }
+
+    return result;
   }
 
   getToolResult(): ProviderToolResultContent {

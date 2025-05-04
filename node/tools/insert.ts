@@ -95,9 +95,31 @@ export class InsertTool {
         if (this.state.result.result.status == "error") {
           return d`Error: ${this.state.result.result.error}`;
         } else {
-          return d`Success: ${this.state.result.result.value}`;
+          return d`Success!
+\`\`\`diff
+${this.getInsertPreview()}
+\`\`\``;
         }
     }
+  }
+
+  getInsertPreview(): string {
+    const content = this.request.input.content;
+    const lines = content.split("\n");
+    const maxLines = 5;
+    const maxLength = 80;
+
+    let previewLines = lines.length > maxLines ? lines.slice(-maxLines) : lines;
+    previewLines = previewLines.map((line) =>
+      line.length > maxLength ? line.substring(0, maxLength) + "..." : line,
+    );
+
+    let result = previewLines.map((line) => "+ " + line).join("\n");
+    if (lines.length > maxLines) {
+      result = "...\n" + result;
+    }
+
+    return result;
   }
   getToolResult(): ProviderToolResultContent {
     switch (this.state.state) {

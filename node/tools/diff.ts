@@ -242,7 +242,7 @@ async function handleFileEdit(
       request.input.content +
       fileContent.slice(insertLocation);
 
-    successMessage = `Successfully inserted content into ${filePath}`;
+    successMessage = `Successfully applied tool.`;
   } else if (request.toolName === "replace") {
     const { find, replace } = request.input;
     let fileContent;
@@ -271,7 +271,7 @@ async function handleFileEdit(
       replace +
       fileContent.slice(replaceEnd);
 
-    successMessage = `Successfully replaced content in ${filePath}`;
+    successMessage = `Successfully applied tool.`;
   }
 
   try {

@@ -34,7 +34,10 @@ export class FileSnapshots {
    * @param messageId The ID of the message that is editing the file
    * @returns Promise<boolean> True if a new snapshot was taken, false if one already existed
    */
-  public async willEditFile(filePath: FilePath, messageId: MessageId): Promise<boolean> {
+  public async willEditFile(
+    filePath: FilePath,
+    messageId: MessageId,
+  ): Promise<boolean> {
     const key = this.createKey(messageId, filePath);
 
     // If we already have a snapshot for this file and message, don't take another one
@@ -99,7 +102,10 @@ export class FileSnapshots {
    * @param messageId The ID of the message
    * @returns The file snapshot or undefined if none exists
    */
-  public getSnapshot(filePath: FilePath, messageId: MessageId): FileSnapshot | undefined {
+  public getSnapshot(
+    filePath: FilePath,
+    messageId: MessageId,
+  ): FileSnapshot | undefined {
     const key = this.createKey(messageId, filePath);
     return this.snapshots.get(key);
   }
