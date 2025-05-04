@@ -9,6 +9,10 @@
 Magenta is for agents.
 ```
 
+May 2025 update
+
+I made a significant architectural shift in how magenta.nvim handles edits. Instead of merely proposing changes that require user confirmation, the agent can now directly apply edits to files with automatic snapshots for safety. Combined with the recent PR that implemented robust bash command execution, this creates a powerful iteration loop capability: agents can now modify files, run tests through bash, analyze results, and make further changes - all without user intervention.
+
 Jan 2025 update
 
 [![video of Jan 2025 update](https://img.youtube.com/vi/BPnUO_ghMJQ/0.jpg)](https://www.youtube.com/watch?v=BPnUO_ghMJQ)
@@ -238,6 +242,8 @@ The display buffer is not modifiable, however you can interact with some parts o
 - hit `enter` on a tool to see the details of the request & result. Enter again on any part of the expanded view to collapse it.
 - hit `enter` on a context file to open it
 - hit `d` on a context file to remove it
+- hit `enter` on a diff to see a detailed side-by-side comparison between the original file snapshot and proposed changes
+- hit `t` on a running bash command to terminate it (SIGTERM)
 
 ### profiles
 
@@ -294,7 +300,7 @@ See the most up-to-date list of implemented tools [here](https://github.com/dlan
 - [x] get lsp diagnostics
 - [x] get lsp references for a symbol in a buffer
 - [x] get lsp "hover" info for a symbol in a buffer
-- [x] insert or replace in a file (the user can then review the changes via neovim's [diff mode](https://neovim.io/doc/user/diff.html))
+- [x] insert or replace in a file with automatic file snapshots for comparison
 
 # Why it's cool
 
@@ -302,9 +308,10 @@ See the most up-to-date list of implemented tools [here](https://github.com/dlan
 - The state of the plugin is managed via an elm-inspired architecture (The Elm Architecture or [TEA](https://github.com/evancz/elm-architecture-tutorial)) [code](https://github.com/dlants/magenta.nvim/blob/main/node/tea/tea.ts). I think this makes it fairly easy to understand and lays out a clear pattern for extending the feature set, as well as [eases testing](https://github.com/dlants/magenta.nvim/blob/main/node/chat/chat.spec.ts). It also unlocks some cool future features (like the ability to persist a structured chat state into a file).
 - I spent a considerable amount of time figuring out a full end-to-end testing setup. Combined with typescript's async/await, it makes writing tests fairly easy and readable. The plugin is already fairly well-tested [code](https://github.com/dlants/magenta.nvim/blob/main/node/magenta.spec.ts#L8).
 - In order to use TEA, I had to build a VDOM-like system for rendering text into a buffer. This makes writing view code declarative. [code](https://github.com/dlants/magenta.nvim/blob/main/node/tea/view.ts#L141) [example defining a tool view](https://github.com/dlants/magenta.nvim/blob/main/node/tools/getFile.ts#L139)
-- we can leverage existing sdks to communicate with LLMs, and async/await to manage side-effect chains, which greatly speeds up development. For example, streaming responses was pretty easy to implement, and I think is typically one of the trickier parts of other LLM plugins. [code](https://github.com/dlants/magenta.nvim/blob/main/node/anthropic.ts#L49)
-- smart prompt caching. Pinned files only move up in the message history when they change, which means the plugin is more likely to be able to use caching. I also implemented anthropic's prompt caching [pr](https://github.com/dlants/magenta.nvim/pull/30) using an cache breakpoints.
+- We can leverage existing sdks to communicate with LLMs, and async/await to manage side-effect chains, which greatly speeds up development. For example, streaming responses was pretty easy to implement, and I think is typically one of the trickier parts of other LLM plugins. [code](https://github.com/dlants/magenta.nvim/blob/main/node/anthropic.ts#L49)
+- Smart prompt caching. Pinned files only move up in the message history when they change, which means the plugin is more likely to be able to use caching. I also implemented anthropic's prompt caching [pr](https://github.com/dlants/magenta.nvim/pull/30) using an cache breakpoints.
 - I made an effort to expose the raw tool use requests and responses, as well as the stop reasons and usage info from interactions with each model. This should make debugging your workflows a lot more straightforward.
+- Robust file snapshots system automatically captures file state before edits, allowing for accurate before/after comparison and better review experiences.
 
 # How is this different from other coding assistant plugins?
 

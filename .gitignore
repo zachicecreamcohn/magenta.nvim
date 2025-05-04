@@ -189,3 +189,5 @@ dist
 # Finder (MacOS) folder config
 .DS_Store
 .sourcegraph
+
+node/test/tmp

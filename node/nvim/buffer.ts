@@ -1,5 +1,6 @@
 import type { Nvim } from "nvim-node";
 import type { Position0Indexed, Position1Indexed } from "./window";
+import { withTimeout } from "../utils/async";
 
 export type Line = string & { __line: true };
 export type BufNr = number & { __bufnr: true };
@@ -126,6 +127,28 @@ export class NvimBuffer {
 
   setName(name: string) {
     return this.nvim.call("nvim_buf_set_name", [this.id, name]);
+  }
+
+  async attemptWrite() {
+    // TODO: this is really gross. Unfortunately when write fails in this context, for
+    // some reason we never hear back from this promise.
+    // This is brittle, since if the file takes longer than the timeout to write, we may
+    // incorrectly assume that it failed to write. However, this should be rare. The extra
+    // 1s delay is also not ideal, but we should be doing this rarely - only when responding
+    // to a tool call. As such it should be ok for now, and I really just want to move on from
+    // this issue.
+    // See https://github.com/neovim/neovim/discussions/33804 for further discussion
+    return withTimeout(
+      this.nvim.call("nvim_exec_lua", [
+        `\
+vim.api.nvim_buf_call(${this.id}, function()
+  -- silent to avoid blocking on unable to write (which would typically alert the user)
+  vim.cmd("silent! write")
+end)`,
+        [],
+      ]),
+      1000,
+    );
   }
 
   static async create(listed: boolean, scratch: boolean, nvim: Nvim) {

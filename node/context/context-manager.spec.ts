@@ -1,38 +1,51 @@
 import { describe, expect, it } from "vitest";
-import { withDriver } from "../test/preamble";
+import { TMP_DIR, withDriver } from "../test/preamble";
 import { pollUntil } from "../utils/async";
 import { type Position0Indexed } from "../nvim/window";
 
 describe("context-manager.spec.ts", () => {
-  const testFilePath = "node/test/fixtures/poem.txt";
+  const testFilePath = "${TMP_DIR}/poem.txt";
 
-  // Key binding tests
   describe("key bindings", () => {
-    // We're testing that 'd' key works by showing a file is in context.
-    // Note: Full remove functionality tests would require further improvements and is handled as a separate task.
-    it("'d' key shows file in context", async () => {
+    it("'dd' key correctly removes the middle file when three files are in context", async () => {
       await withDriver({}, async (driver) => {
         // Open context sidebar
         await driver.showSidebar();
 
-        // Add file to context using the context-files command
-        console.log(`context-files command`);
+        const poemFile = `${TMP_DIR}/poem.txt`;
+        const poem3file = `${TMP_DIR}/poem 3.txt`;
+        const contextFile = "context.md";
+
         await driver.nvim.call("nvim_command", [
-          `Magenta context-files '${testFilePath}'`,
+          `Magenta context-files '${poem3file}' '${contextFile}' '${poemFile}'`,
         ]);
 
-        // Verify context is displayed in the buffer
+        // Wait for sidebar to update
         await driver.wait(250);
-        await driver.assertDisplayBufferContains("# context:");
-        await driver.assertDisplayBufferContains(`file: \`${testFilePath}\``);
 
-        // Verify file is in the buffer
-        const displayBuffer = driver.getDisplayBuffer();
-        const lines = await displayBuffer.getLines({ start: 0, end: -1 });
-        const fileLineIndex = lines.findIndex((line) =>
-          line.includes(testFilePath),
+        await driver.assertDisplayBufferContains(
+          `\
+# context:
+- \`${poem3file}\`
+- \`${contextFile}\`
+- \`${poemFile}\``,
         );
-        expect(fileLineIndex).toBeGreaterThan(-1);
+
+        const middleFilePos = await driver.assertDisplayBufferContains(
+          `- \`${contextFile}\``,
+        );
+
+        // Press dd on the middle file to remove it
+        await driver.triggerDisplayBufferKey(middleFilePos, "dd");
+
+        // Wait for update
+        await driver.wait(250);
+        await driver.assertDisplayBufferContains(
+          `\
+# context:
+- \`${poem3file}\`
+- \`${poemFile}\``,
+        );
       });
     });
 
@@ -57,7 +70,7 @@ describe("context-manager.spec.ts", () => {
         // Verify context is displayed in the buffer
         await driver.assertDisplayBufferContains(`\
 # context:
-file: \`${testFilePath}\``);
+- \`${testFilePath}\``);
 
         // We need to use the file line position (row 2), not the header
         const filePos = { row: 2, col: 0 } as Position0Indexed;
@@ -107,7 +120,7 @@ file: \`${testFilePath}\``);
         // Verify context is displayed in the buffer
         await driver.assertDisplayBufferContains(`\
 # context:
-file: \`${testFilePath}\``);
+- \`${testFilePath}\``);
 
         // We need to use the file line position (row 2), not the header
         const filePos = { row: 2, col: 0 } as Position0Indexed;
@@ -141,7 +154,7 @@ file: \`${testFilePath}\``);
 
           await driver.assertDisplayBufferContains(`\
 # context:
-file: \`node/test/fixtures/poem.txt\``);
+- \`${testFilePath}\``);
 
           const displayWindow = driver.getVisibleState().displayWindow;
 
@@ -182,7 +195,7 @@ file: \`node/test/fixtures/poem.txt\``);
 
           await driver.assertDisplayBufferContains(`\
 # context:
-file: \`${testFilePath}\``);
+- \`${testFilePath}\``);
 
           const displayWindow = driver.getVisibleState().displayWindow;
 
@@ -212,34 +225,30 @@ file: \`${testFilePath}\``);
     });
   });
 
-  // Tests migrated from magenta.spec.ts
-  describe("context-files command", () => {
-    it("context-files end-to-end", async () => {
-      await withDriver({}, async (driver) => {
-        await driver.showSidebar();
-        await driver.nvim.call("nvim_command", [
-          "Magenta context-files './node/test/fixtures/poem.txt'",
-        ]);
+  it("context-files end-to-end", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      await driver.nvim.call("nvim_command", [
+        `Magenta context-files './${TMP_DIR}/poem.txt'`,
+      ]);
 
-        await driver.assertDisplayBufferContains(`\
+      await driver.assertDisplayBufferContains(`\
 # context:
-file: \`./node/test/fixtures/poem.txt\``);
+- \`./${TMP_DIR}/poem.txt\``);
 
-        await driver.inputMagentaText("check out this file");
-        await driver.send();
-        await pollUntil(() => {
-          if (driver.mockAnthropic.requests.length != 1) {
-            throw new Error(`Expected a message to be pending.`);
-          }
-        });
-        const request =
-          driver.mockAnthropic.requests[
-            driver.mockAnthropic.requests.length - 1
-          ];
-        expect(request.messages).toEqual([
-          {
-            content: `\
-Here are the contents of file \`node/test/fixtures/poem.txt\`:
+      await driver.inputMagentaText("check out this file");
+      await driver.send();
+      await pollUntil(() => {
+        if (driver.mockAnthropic.requests.length != 1) {
+          throw new Error(`Expected a message to be pending.`);
+        }
+      });
+      const request =
+        driver.mockAnthropic.requests[driver.mockAnthropic.requests.length - 1];
+      expect(request.messages).toEqual([
+        {
+          content: `\
+Here are the contents of file \`${TMP_DIR}/poem.txt\`:
 \`\`\`
 Moonlight whispers through the trees,
 Silver shadows dance with ease.
@@ -247,57 +256,55 @@ Stars above like diamonds bright,
 Paint their stories in the night.
 
 \`\`\``,
-            role: "user",
-          },
-          {
-            content: [
-              {
-                text: "check out this file",
-                type: "text",
-              },
-            ],
-            role: "user",
-          },
-        ]);
-      });
+          role: "user",
+        },
+        {
+          content: [
+            {
+              text: "check out this file",
+              type: "text",
+            },
+          ],
+          role: "user",
+        },
+      ]);
     });
+  });
 
-    it("context-files multiple, weird path names", async () => {
-      await withDriver({}, async (driver) => {
-        await driver.showSidebar();
-        await driver.nvim.call("nvim_command", [
-          "Magenta context-files './node/test/fixtures/poem.txt' './node/test/fixtures/poem 3.txt'",
-        ]);
+  it("context-files multiple, weird path names", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      await driver.nvim.call("nvim_command", [
+        `Magenta context-files './${TMP_DIR}/poem.txt' './${TMP_DIR}/poem 3.txt'`,
+      ]);
 
-        await driver.assertDisplayBufferContains(`\
+      await driver.assertDisplayBufferContains(`\
 # context:
-file: \`./node/test/fixtures/poem.txt\`
-file: \`./node/test/fixtures/poem 3.txt\``);
+- \`./${TMP_DIR}/poem.txt\`
+- \`./${TMP_DIR}/poem 3.txt\``);
 
-        await driver.inputMagentaText("check out this file");
-        await driver.send();
-        await pollUntil(() => {
-          if (driver.mockAnthropic.requests.length != 1) {
-            throw new Error(`Expected a message to be pending.`);
-          }
-        });
-        const request =
-          driver.mockAnthropic.requests[
-            driver.mockAnthropic.requests.length - 1
-          ];
-        expect(request.messages).toEqual([
-          {
-            content: `\
-Here are the contents of file \`node/test/fixtures/poem 3.txt\`:
+      await driver.inputMagentaText("check out this file");
+      await driver.send();
+      await pollUntil(() => {
+        if (driver.mockAnthropic.requests.length != 1) {
+          throw new Error(`Expected a message to be pending.`);
+        }
+      });
+      const request =
+        driver.mockAnthropic.requests[driver.mockAnthropic.requests.length - 1];
+      expect(request.messages).toEqual([
+        {
+          content: `\
+Here are the contents of file \`${TMP_DIR}/poem 3.txt\`:
 \`\`\`
 poem3
 
 \`\`\``,
-            role: "user",
-          },
-          {
-            content: `\
-Here are the contents of file \`node/test/fixtures/poem.txt\`:
+          role: "user",
+        },
+        {
+          content: `\
+Here are the contents of file \`${TMP_DIR}/poem.txt\`:
 \`\`\`
 Moonlight whispers through the trees,
 Silver shadows dance with ease.
@@ -305,62 +312,62 @@ Stars above like diamonds bright,
 Paint their stories in the night.
 
 \`\`\``,
-            role: "user",
-          },
-          {
-            content: [
-              {
-                text: "check out this file",
-                type: "text",
-              },
-            ],
-            role: "user",
-          },
-        ]);
-      });
+          role: "user",
+        },
+        {
+          content: [
+            {
+              text: "check out this file",
+              type: "text",
+            },
+          ],
+          role: "user",
+        },
+      ]);
     });
+  });
 
-    it("context message insert position", async () => {
-      await withDriver({}, async (driver) => {
-        await driver.showSidebar();
-        await driver.inputMagentaText(`hello`);
-        await driver.send();
-        await driver.mockAnthropic.respond({
-          stopReason: "end_turn",
-          text: "sup?",
-          toolRequests: [],
-        });
+  it("context message insert position", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(`hello`);
+      await driver.send();
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "sup?",
+        toolRequests: [],
+      });
 
-        await driver.nvim.call("nvim_command", [
-          "Magenta context-files './node/test/fixtures/poem.txt'",
-        ]);
+      await driver.nvim.call("nvim_command", [
+        `Magenta context-files './${TMP_DIR}/poem.txt'`,
+      ]);
 
-        await driver.inputMagentaText("check out this file");
-        await driver.send();
+      await driver.inputMagentaText("check out this file");
+      await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingRequest();
-        expect(request.messages).toEqual([
-          {
-            content: [
-              {
-                text: "hello",
-                type: "text",
-              },
-            ],
-            role: "user",
-          },
-          {
-            content: [
-              {
-                text: "sup?",
-                type: "text",
-              },
-            ],
-            role: "assistant",
-          },
-          {
-            content: `\
-Here are the contents of file \`node/test/fixtures/poem.txt\`:
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      expect(request.messages).toEqual([
+        {
+          content: [
+            {
+              text: "hello",
+              type: "text",
+            },
+          ],
+          role: "user",
+        },
+        {
+          content: [
+            {
+              text: "sup?",
+              type: "text",
+            },
+          ],
+          role: "assistant",
+        },
+        {
+          content: `\
+Here are the contents of file \`${TMP_DIR}/poem.txt\`:
 \`\`\`
 Moonlight whispers through the trees,
 Silver shadows dance with ease.
@@ -368,58 +375,57 @@ Stars above like diamonds bright,
 Paint their stories in the night.
 
 \`\`\``,
-            role: "user",
-          },
-          {
-            content: [
-              {
-                text: "check out this file",
-                type: "text",
-              },
-            ],
-            role: "user",
-          },
-        ]);
-      });
+          role: "user",
+        },
+        {
+          content: [
+            {
+              text: "check out this file",
+              type: "text",
+            },
+          ],
+          role: "user",
+        },
+      ]);
     });
+  });
 
-    it("autoContext loads on startup and after clear", async () => {
-      const testOptions = {
-        autoContext: ["node/test/fixtures/test-auto-context.md"],
-      };
+  it("autoContext loads on startup and after clear", async () => {
+    const testOptions = {
+      autoContext: [`${TMP_DIR}/test-auto-context.md`],
+    };
 
-      await withDriver({ options: testOptions }, async (driver) => {
-        // Show sidebar and verify autoContext is loaded
-        await driver.showSidebar();
-        await driver.assertDisplayBufferContains(
-          `# context:\nfile: \`node/test/fixtures/test-auto-context.md\``,
-        );
+    await withDriver({ options: testOptions }, async (driver) => {
+      // Show sidebar and verify autoContext is loaded
+      await driver.showSidebar();
+      await driver.assertDisplayBufferContains(
+        `# context:\n- \`${TMP_DIR}/test-auto-context.md\``,
+      );
 
-        // Clear thread and verify autoContext is reloaded
-        await driver.clear();
-        await driver.assertDisplayBufferContains(
-          `# context:\nfile: \`node/test/fixtures/test-auto-context.md\``,
-        );
+      // Clear thread and verify autoContext is reloaded
+      await driver.clear();
+      await driver.assertDisplayBufferContains(
+        `# context:\n- \`${TMP_DIR}/test-auto-context.md\``,
+      );
 
-        // Check that the content is included in messages when sending
-        await driver.inputMagentaText("hello");
-        await driver.send();
+      // Check that the content is included in messages when sending
+      await driver.inputMagentaText("hello");
+      await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingRequest();
-        // Check that file content is included in the request
-        const fileContent = request.messages.find(
-          (msg) =>
-            msg.role === "user" &&
-            typeof msg.content === "string" &&
-            msg.content.includes("test-auto-context.md"),
-        );
-        expect(fileContent).toBeTruthy();
-        expect(fileContent?.content).toContain(
-          "This is test auto-context content",
-        );
-        expect(fileContent?.content).toContain("Multiple lines");
-        expect(fileContent?.content).toContain("for testing");
-      });
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      // Check that file content is included in the request
+      const fileContent = request.messages.find(
+        (msg) =>
+          msg.role === "user" &&
+          typeof msg.content === "string" &&
+          msg.content.includes("test-auto-context.md"),
+      );
+      expect(fileContent).toBeTruthy();
+      expect(fileContent?.content).toContain(
+        "This is test auto-context content",
+      );
+      expect(fileContent?.content).toContain("Multiple lines");
+      expect(fileContent?.content).toContain("for testing");
     });
   });
 });

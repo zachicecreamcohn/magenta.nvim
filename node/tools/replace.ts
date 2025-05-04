@@ -1,18 +1,25 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
-import type { Thunk } from "../tea/tea.ts";
+import type { Dispatch } from "../tea/tea.ts";
 import type { ToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import { REVIEW_PROMPT } from "./diff.ts";
-
-export type State = {
-  state: "done";
-  result: ProviderToolResultContent;
-};
+import type { Nvim } from "nvim-node";
+import { applyEdit } from "./diff.ts";
+import type { RootMsg } from "../root-msg.ts";
+import type { MessageId } from "../chat/message.ts";
+import * as diff from "diff";
+export type State =
+  | {
+      state: "processing";
+    }
+  | {
+      state: "done";
+      result: ProviderToolResultContent;
+    };
 
 export type Msg = {
   type: "finish";
@@ -23,21 +30,28 @@ export class ReplaceTool {
   state: State;
   toolName = "replace" as const;
 
-  constructor(public request: Extract<ToolRequest, { toolName: "replace" }>) {
-    this.state = {
-      state: "done",
-      result: {
-        type: "tool_result",
-        id: request.id,
+  constructor(
+    public request: Extract<ToolRequest, { toolName: "replace" }>,
+    public messageId: MessageId,
+    private context: {
+      myDispatch: Dispatch<Msg>;
+      dispatch: Dispatch<RootMsg>;
+      nvim: Nvim;
+    },
+  ) {
+    this.state = { state: "processing" };
+    applyEdit(this.request, this.messageId, this.context).catch((err: Error) =>
+      this.context.myDispatch({
+        type: "finish",
         result: {
-          status: "ok",
-          value: REVIEW_PROMPT,
+          status: "error",
+          error: err.message,
         },
-      },
-    };
+      }),
+    );
   }
 
-  update(msg: Msg): Thunk<Msg> | undefined {
+  update(msg: Msg): void {
     switch (msg.type) {
       case "finish":
         this.state = {
@@ -55,7 +69,7 @@ export class ReplaceTool {
   }
 
   view(): VDOMNode {
-    return d`Replace [[ -${this.countLines(this.request.input.find).toString()} / +${this.countLines(
+    return d`${this.toolStatusIcon()} Replace [[ -${this.countLines(this.request.input.find).toString()} / +${this.countLines(
       this.request.input.replace,
     ).toString()} ]] in \`${this.request.input.filePath}\` ${this.toolStatusView()}`;
   }
@@ -63,24 +77,88 @@ export class ReplaceTool {
   countLines(str: string) {
     return (str.match(/\n/g) || []).length + 1;
   }
+  toolStatusIcon(): string {
+    switch (this.state.state) {
+      case "processing":
+        return "⏳";
+      case "done":
+        if (this.state.result.result.status == "error") {
+          return "⚠️";
+        } else {
+          return "✏️";
+        }
+    }
+  }
 
   toolStatusView(): VDOMNode {
     switch (this.state.state) {
+      case "processing":
+        return d`Processing replace...`;
       case "done":
         if (this.state.result.result.status == "error") {
-          return d`⚠️ Error: ${JSON.stringify(this.state.result.result.error, null, 2)}`;
+          return d`Error: ${this.state.result.result.error}`;
         } else {
-          return d`Awaiting user review.`;
+          return d`Success!
+\`\`\`diff
+${this.getReplacePreview()}
+\`\`\``;
         }
     }
+  }
+
+  getReplacePreview(): string {
+    const find = this.request.input.find;
+    const replace = this.request.input.replace;
+
+    const diffResult = diff.createPatch(
+      this.request.input.filePath,
+      find,
+      replace,
+      "before",
+      "after",
+    );
+
+    const diffLines = diffResult.split("\n").slice(5);
+
+    const maxLines = 5;
+    const maxLength = 80;
+
+    let previewLines =
+      diffLines.length > maxLines ? diffLines.slice(0, maxLines) : diffLines;
+
+    previewLines = previewLines.map((line) => {
+      if (line.length > maxLength) {
+        return line.substring(0, maxLength) + "...";
+      }
+      return line;
+    });
+
+    // Add prefix indicators
+    let result = previewLines.join("\n");
+
+    // Add ellipsis if we truncated
+    if (diffLines.length > maxLines) {
+      result += "\n...";
+    }
+
+    return result;
   }
 
   getToolResult(): ProviderToolResultContent {
     switch (this.state.state) {
       case "done":
         return this.state.result;
+      case "processing":
+        return {
+          type: "tool_result",
+          id: this.request.id,
+          result: {
+            status: "ok",
+            value: `This tool use is being processed.`,
+          },
+        };
       default:
-        assertUnreachable(this.state.state);
+        assertUnreachable(this.state);
     }
   }
 
