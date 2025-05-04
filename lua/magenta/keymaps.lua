@@ -94,7 +94,6 @@ M.set_inline_buffer_keymaps = function(bufnr, target_bufnr)
   end
 end
 
-
 M.set_sidebar_buffer_keymaps = function(bufnr)
   for mode, values in pairs(Options.options.sidebarKeymaps) do
     for key, action in pairs(values) do
@@ -107,6 +106,5 @@ M.set_sidebar_buffer_keymaps = function(bufnr)
     end
   end
 end
-
 
 return M

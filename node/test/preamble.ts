@@ -1,5 +1,5 @@
 import { attach, type Nvim } from "nvim-node";
-import { unlink, access } from "node:fs/promises";
+import { unlink, access, rm, cp, mkdir } from "node:fs/promises";
 import { spawn } from "child_process";
 import { type MountedVDOM } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
@@ -11,6 +11,7 @@ import { NvimDriver } from "./driver.ts";
 import { type MagentaOptions } from "../options.ts";
 
 const SOCK = `/tmp/magenta-test.sock`;
+export const TMP_DIR = "node/test/tmp";
 export async function withNvimProcess(fn: (sock: string) => Promise<void>) {
   try {
     await unlink(SOCK);
@@ -20,12 +21,35 @@ export async function withNvimProcess(fn: (sock: string) => Promise<void>) {
     }
   }
 
+  // Set up test directory paths
+  const testDir = path.dirname(__filename);
+  const rootDir = path.resolve(testDir, "../../");
+  const tmpDir = path.join(rootDir, TMP_DIR);
+  const fixturesDir = path.join(rootDir, "node/test/fixtures");
+
+  // Clean up and recreate tmp directory
+  try {
+    await rm(tmpDir, { recursive: true, force: true });
+  } catch (e) {
+    if ((e as { code: string }).code !== "ENOENT") {
+      console.error(e);
+    }
+  }
+
+  // Create tmp directory and copy fixtures
+  try {
+    await mkdir(tmpDir, { recursive: true });
+    await cp(fixturesDir, tmpDir, { recursive: true });
+  } catch (e) {
+    console.error("Failed to set up test directory:", e);
+    throw e;
+  }
+
   const nvimProcess = spawn(
     "nvim",
     ["--headless", "-n", "--clean", "--listen", SOCK, "-u", "minimal-init.lua"],
     {
-      // root dir relative to this file
-      cwd: path.resolve(path.dirname(__filename), "../../"),
+      cwd: rootDir,
     },
   );
 

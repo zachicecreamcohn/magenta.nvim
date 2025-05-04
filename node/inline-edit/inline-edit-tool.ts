@@ -6,7 +6,6 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import { REVIEW_PROMPT } from "../tools/diff.ts";
 
 export type InlineEditToolRequest = {
   id: ToolRequestId;
@@ -60,7 +59,7 @@ export function initModel(request: InlineEditToolRequest): [Model] {
         id: request.id,
         result: {
           status: "ok",
-          value: REVIEW_PROMPT,
+          value: `Successfully applied edit.`,
         },
       },
     },

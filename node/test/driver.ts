@@ -117,29 +117,30 @@ export class NvimDriver {
     text: string,
     start: number = 0,
   ): Promise<Position0Indexed> {
+    let latestContent;
     try {
-      return await pollUntil(async () => {
-        const displayBuffer = this.getDisplayBuffer();
-        const lines = await displayBuffer.getLines({ start: 0, end: -1 });
-        const content = lines.slice(start).join("\n");
-        const index = Buffer.from(content).indexOf(text) as ByteIdx;
-        if (index == -1) {
-          throw new Error(
-            `! Unable to find text after line ${start} in displayBuffer`,
-          );
-        }
+      return await pollUntil(
+        async () => {
+          const displayBuffer = this.getDisplayBuffer();
+          const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+          latestContent = lines.slice(start).join("\n");
+          const index = Buffer.from(latestContent).indexOf(text) as ByteIdx;
+          if (index == -1) {
+            throw new Error(
+              `! Unable to find text ${text} after line ${start} in displayBuffer`,
+            );
+          }
 
-        return calculatePosition(
-          { row: start, col: 0 } as Position0Indexed,
-          Buffer.from(content),
-          index,
-        );
-      });
+          return calculatePosition(
+            { row: start, col: 0 } as Position0Indexed,
+            Buffer.from(latestContent),
+            index,
+          );
+        },
+        { timeout: 2000 },
+      );
     } catch (e) {
-      const displayBuffer = this.getDisplayBuffer();
-      const lines = await displayBuffer.getLines({ start: 0, end: -1 });
-      const content = lines.slice(start).join("\n");
-      expect(content, (e as Error).message).toContain(text);
+      expect(latestContent, (e as Error).message).toContain(text);
       throw e;
     }
   }
@@ -286,6 +287,11 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
 
   async editFile(filePath: string): Promise<void> {
     await this.nvim.call("nvim_exec2", [`edit ${filePath}`, {}]);
+  }
+
+  // For compatibility with tests using nvim.command
+  async command(cmd: string): Promise<void> {
+    await this.nvim.call("nvim_command", [cmd]);
   }
 
   async selectRange(startPos: Position0Indexed, endPos: Position0Indexed) {
