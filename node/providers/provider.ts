@@ -14,7 +14,7 @@ const clients: { [key: string]: Provider } = {};
 export function getProvider(nvim: Nvim, profile: Profile): Provider {
   const providerName = profile.provider;
 
-  // recreate the client for openai to handle switching between different base URLs (e.g., openai vs ollama)
+  // use a composite key for the client to allow the openai provider to be used for openai and ollama
   let clientKey: string = providerName;
   if (providerName === "openai" && profile.baseUrl) {
     clientKey = `${providerName}-${profile.baseUrl}`;
