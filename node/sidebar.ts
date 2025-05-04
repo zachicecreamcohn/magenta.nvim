@@ -141,8 +141,9 @@ export class Sidebar {
       await inputWindow.setOption(key, value);
     }
     await displayWindow.setOption("winbar", "Magenta Chat");
-    // set var so we can avoid closing this window when displaying a diff
+    // set vars so we can identify this as the magenta display window
     await displayWindow.setVar("magenta", true);
+    await displayWindow.setVar("magenta_display_window", true);
     await inputWindow.setOption(
       "winbar",
       `Magenta Input (${this.profile.name})`,

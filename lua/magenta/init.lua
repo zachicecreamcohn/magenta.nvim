@@ -115,10 +115,19 @@ M.bridge = function(channelId)
   end
 
   local opts = Options.options
+
+  if _G.magenta_test_options then
+    for k, v in pairs(_G.magenta_test_options) do
+      opts[k] = v
+    end
+  end
+
+  -- Return options using camelCase keys to match TypeScript MagentaOptions
   return {
     profiles = opts.profiles,
-    active_profile = opts.profiles[0],
-    sidebar_position = opts.sidebar_position
+    commandAllowlist = opts.commandAllowlist,
+    sidebarPosition = opts.sidebarPosition,
+    autoContext = opts.autoContext,
   }
 end
 

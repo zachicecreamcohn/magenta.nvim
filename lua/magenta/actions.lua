@@ -47,14 +47,45 @@ local telescope_files = function()
   })
 end
 
+local snacks_files = function()
+  local snacks = require("snacks")
+
+  local completed = false
+  snacks.picker.pick({
+    source = "files",
+    title = "Select context files for Magenta",
+    confirm = function(picker)
+      if completed then return end
+      completed = true
+      local items = picker:selected({ fallback = true })
+
+      if #items > 0 then
+        local escaped_files = {}
+        for _, item in ipairs(items) do
+          table.insert(escaped_files, vim.fn.shellescape(item.file))
+        end
+        vim.cmd("Magenta context-files " .. table.concat(escaped_files, " "))
+      end
+
+      picker:close()
+    end,
+    on_close = function()
+      if completed then return end
+      completed = true
+    end,
+  })
+end
+
 
 M.pick_context_files = function()
   if Options.options.picker == "fzf-lua" then
     fzf_files()
   elseif Options.options.picker == "telescope" then
     telescope_files()
+  elseif Options.options.picker == "snacks" then
+    snacks_files()
   else
-    vim.notify("Neither fzf-lua nor telescope are installed!", vim.log.levels.ERROR)
+    vim.notify("No supported picker (fzf-lua, telescope, or snacks) installed!", vim.log.levels.ERROR)
   end
 end
 
