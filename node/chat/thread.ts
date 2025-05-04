@@ -642,11 +642,7 @@ export const view: View<{
         : d`Error ${thread.state.conversation.error.message}${thread.state.conversation.error.stack ? "\n" + thread.state.conversation.error.stack : ""}${
             thread.state.conversation.lastAssistantMessage
               ? "\n\nLast assistant message:\n" +
-                JSON.stringify(
-                  thread.state.conversation.lastAssistantMessage,
-                  null,
-                  2,
-                )
+                thread.state.conversation.lastAssistantMessage.toString()
               : ""
           }`
   }${

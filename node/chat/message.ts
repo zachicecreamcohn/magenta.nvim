@@ -174,6 +174,49 @@ export class Message {
         assertUnreachable(msg);
     }
   }
+
+  toString() {
+    // Basic message info
+    let result = `Message(id=${this.state.id}, role=${this.state.role}):\n`;
+
+    // Parts info
+    result += `  Parts: ${this.state.parts.length}\n`;
+
+    // Count each type of part
+    const partCounts = this.state.parts.reduce(
+      (counts, part) => {
+        const type = part.state.type;
+        counts[type] = (counts[type] || 0) + 1;
+        return counts;
+      },
+      {} as Record<string, number>,
+    );
+
+    result += `  Part types: ${Object.entries(partCounts)
+      .map(([type, count]) => `${type}=${count}`)
+      .join(", ")}\n`;
+
+    // List all parts with their toString representation
+    if (this.state.parts.length > 0) {
+      result += "  Part details:\n";
+      this.state.parts.forEach((part, index) => {
+        result += `    ${index}: ${part.toString()}\n`;
+      });
+    }
+
+    // File edits info
+    const editCount = Object.keys(this.state.edits).length;
+    if (editCount > 0) {
+      result += `  Edits: ${editCount} files\n`;
+      for (const [filePath, edit] of Object.entries(this.state.edits)) {
+        result += `    - ${filePath}: ${edit.requestIds.length} edits (${edit.status.status})\n`;
+      }
+    } else {
+      result += "  Edits: none\n";
+    }
+
+    return result;
+  }
 }
 
 export const view: View<{

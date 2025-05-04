@@ -113,7 +113,11 @@ export class Magenta {
         } else {
           this.nvim.logger?.error(`Profile "${profileName}" not found.`);
           // eslint-disable-next-line @typescript-eslint/no-floating-promises
-          notifyErr(this.nvim, `Profile "${profileName}" not found.`);
+          notifyErr(
+            this.nvim,
+            "profile command",
+            new Error(`Profile "${profileName}" not found.`),
+          );
         }
         break;
       }
@@ -309,7 +313,11 @@ ${lines.join("\n")}
       default:
         this.nvim.logger?.error(`Unrecognized command ${command}\n`);
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        notifyErr(this.nvim, `Unrecognized command ${command}\n`);
+        notifyErr(
+          this.nvim,
+          "unrecognized command",
+          new Error(`Unrecognized command ${command}\n`),
+        );
     }
   }
 
@@ -321,7 +329,11 @@ ${lines.join("\n")}
       } else {
         this.nvim.logger?.error(`Unexpected MagentaKey ${JSON.stringify(key)}`);
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        notifyErr(this.nvim, `Unexpected MagentaKey ${JSON.stringify(key)}`);
+        notifyErr(
+          this.nvim,
+          "unexpected key",
+          new Error(`Unexpected MagentaKey ${JSON.stringify(key)}`),
+        );
       }
     }
   }
@@ -353,7 +365,7 @@ ${lines.join("\n")}
             : JSON.stringify(err),
         );
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        notifyErr(nvim, err);
+        notifyErr(nvim, `error processing command ${args[0] as string}`, err);
       }
     });
 

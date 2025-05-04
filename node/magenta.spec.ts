@@ -48,7 +48,7 @@ Stopped (end_turn)`);
     });
   });
 
-  it("abort command should work", async () => {
+  it("abort command should work when waiting for response", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(`hello`);
@@ -70,6 +70,44 @@ Awaiting response ⠁`);
 
       await driver.abort();
       expect(request.defer.resolved).toBe(true);
+    });
+  });
+
+  it("abort command should work when response is in progress", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(`hello`);
+      await driver.send();
+
+      // Wait for the pending request to be registered
+      await pollUntil(() => {
+        if (driver.mockAnthropic.requests.length != 1) {
+          throw new Error(`Expected a message to be pending.`);
+        }
+      });
+
+      // Get the latest request
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+
+      // Start streaming a response but don't complete it
+      request.onText("I'm starting to respond");
+
+      // Verify that response has started appearing
+      await driver.assertDisplayBufferContains(`\
+# user:
+hello
+
+# assistant:
+I'm starting to respond`);
+
+      expect(request.defer.resolved).toBe(false);
+
+      await driver.abort();
+      expect(request.defer.resolved).toBe(true);
+
+      // Verify the final state shows the aborted message
+      await driver.assertDisplayBufferContains(`Error request aborted`);
+      await driver.assertDisplayBufferContains(`Last assistant message:`);
     });
   });
 
