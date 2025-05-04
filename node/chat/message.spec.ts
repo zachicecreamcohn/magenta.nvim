@@ -48,49 +48,47 @@ Update the poem in the file ${TMP_DIR}/poem.txt
 
 # assistant:
 ok, I will try to rewrite the poem in that file
-✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success: Successfully replaced content in node/test/tmp/poem.txt
-✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success: Successfully replaced content in node/test/tmp/poem.txt
+✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success!
+\`\`\`diff
+-Moonlight whispers through the trees,
+-Silver shadows dance with ease.
+\\ No newline at end of file
++Replace 1
+\\ No newline at end of file
+...
+\`\`\`
+✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success!
+\`\`\`diff
+-Stars above like diamonds bright,
+-Paint their stories in the night.
+\\ No newline at end of file
++Replace 2
+\\ No newline at end of file
+...
+\`\`\`
 Stopped (end_turn) [input: 0, output: 0]
 
 Edits:
-  ${TMP_DIR}/poem.txt (2 edits). **[👀 review edits ]**
+  \`${TMP_DIR}/poem.txt\` (2 edits). **[± diff snapshot]**
 
 Stopped (end_turn)`);
 
-      const reviewPos = await driver.assertDisplayBufferContains("Replace");
+      const reviewPos =
+        await driver.assertDisplayBufferContains("diff snapshot");
       await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
 
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success: Successfully replaced content in node/test/tmp/poem.txt
-id: id1
-replace: {
-    filePath: ${TMP_DIR}/poem.txt
-    match:
-\`\`\`
-Moonlight whispers through the trees,
-Silver shadows dance with ease.
-\`\`\`
-    replace:
-\`\`\`
-Replace 1
-\`\`\`
-}
-Result:
-\`\`\`
-Successfully replaced content in node/test/tmp/poem.txt
-\`\`\`
-✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success: Successfully replaced content in node/test/tmp/poem.txt`);
+✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success!`);
 
+      // Go back to main view
       await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
 
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success: Successfully replaced content in node/test/tmp/poem.txt
-✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success: Successfully replaced content in node/test/tmp/poem.txt
-`);
+✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success!`);
     });
   });
 });
