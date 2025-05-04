@@ -78,9 +78,11 @@ export function diffthis(nvim: Nvim) {
   return nvim.call("nvim_command", ["diffthis"]);
 }
 
-export function notifyErr(nvim: Nvim, err: unknown) {
+export function notifyErr(nvim: Nvim, msg: string, err: unknown) {
   return nvim.call("nvim_notify", [
-    `Thunk execution error: ${err instanceof Error ? err.message : JSON.stringify(err)}`,
+    `Unexpected error: ${msg}
+${err instanceof Error ? err.message : JSON.stringify(err)}
+${err instanceof Error ? err.stack : ""}`,
     3,
     {},
   ]);

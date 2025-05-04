@@ -51,14 +51,7 @@ export class MockProvider implements Provider {
     if (this.requests.length) {
       const lastRequest = this.requests[this.requests.length - 1];
       if (!lastRequest.defer.resolved) {
-        lastRequest.defer.resolve({
-          toolRequests: [],
-          stopReason: "end_turn",
-          usage: {
-            inputTokens: 0,
-            outputTokens: 0,
-          },
-        });
+        lastRequest.defer.reject(new Error("request aborted"));
       }
     }
 

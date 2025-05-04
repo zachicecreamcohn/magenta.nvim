@@ -80,6 +80,43 @@ export class Part {
         return assertUnreachable(this.state);
     }
   }
+
+  toString(): string {
+    switch (this.state.type) {
+      case "text": {
+        // For text, show the first 30 chars (or fewer if shorter)
+        const truncatedText =
+          this.state.text.length > 30
+            ? this.state.text.substring(0, 27) + "..."
+            : this.state.text;
+        return `Part(text: "${truncatedText.replace(/\n/g, "\\n")}")`;
+      }
+
+      case "tool-request": {
+        const toolWrapper =
+          this.toolManager.state.toolWrappers[this.state.requestId];
+        if (!toolWrapper) {
+          return `Part(tool-request: ID ${this.state.requestId} - NOT FOUND)`;
+        }
+        const toolName = toolWrapper.tool.toolName;
+        const status = toolWrapper.tool.getToolResult()
+          ? "completed"
+          : "pending";
+        return `Part(tool-request: ${toolName}, ID: ${this.state.requestId}, status: ${status})`;
+      }
+
+      case "malformed-tool-request": {
+        return `Part(malformed-tool-request: "${this.state.error}")`;
+      }
+
+      case "stop-msg": {
+        return `Part(stop-msg: reason=${this.state.stopReason}, tokens=${this.state.usage.inputTokens}/${this.state.usage.outputTokens})`;
+      }
+
+      default:
+        return assertUnreachable(this.state);
+    }
+  }
 }
 
 export const view: View<{

@@ -18,7 +18,7 @@ const nvim = await attach({
 
 process.on("uncaughtException", (error) => {
   // eslint-disable-next-line @typescript-eslint/no-floating-promises
-  notifyErr(nvim, error);
+  notifyErr(nvim, "uncaughtException", error);
   nvim.logger?.error(error);
   process.exit(1);
 });

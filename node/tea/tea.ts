@@ -81,7 +81,7 @@ export function createApp<Model>({
           .catch((err) => {
             nvim.logger?.error(err as Error);
             // eslint-disable-next-line @typescript-eslint/no-floating-promises
-            notifyErr(nvim, err);
+            notifyErr(nvim, "render", err);
             if (renderDefer) {
               renderDefer.reject(err as Error);
               renderDefer = undefined;
