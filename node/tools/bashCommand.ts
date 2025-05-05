@@ -7,6 +7,8 @@ import type { Nvim } from "nvim-node";
 import { spawn } from "child_process";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { CommandAllowlist, MagentaOptions } from "../options.ts";
+import { getcwd } from "../nvim/nvim.ts";
+import { withTimeout } from "../utils/async.ts";
 
 export const spec = {
   name: "bash_command",
@@ -314,82 +316,72 @@ export class BashCommandTool {
   }
 
   executeCommand(): Thunk<Msg> {
-    return async (dispatch: Dispatch<Msg>) =>
-      new Promise((resolve) => {
-        const timeout = 300000; // 5 minute timeout
-        const { command } = this.request.input;
+    return async (dispatch: Dispatch<Msg>) => {
+      const { command } = this.request.input;
 
-        let timeoutId: NodeJS.Timeout | null = null;
-        let childProcess: ReturnType<typeof spawn> | null = null;
+      let childProcess: ReturnType<typeof spawn> | null = null;
 
-        try {
-          timeoutId = setTimeout(() => {
-            if (childProcess) {
-              childProcess.kill();
-            }
-            dispatch({
-              type: "error",
-              error: `Command timed out after ${timeout / 1000} seconds`,
+      // Get Neovim's current working directory
+      const cwd = await getcwd(this.context.nvim);
+
+      try {
+        await withTimeout(
+          new Promise<void>((resolve, reject) => {
+            childProcess = spawn("bash", ["-c", command], {
+              stdio: "pipe",
+              cwd,
             });
-            resolve();
-          }, timeout);
 
-          childProcess = spawn("bash", ["-c", command], {
-            stdio: "pipe",
-          });
-
-          if (this.state.state === "processing") {
-            this.state.childProcess = childProcess;
-          }
-
-          childProcess.stdout?.on("data", (data: Buffer) => {
-            const text = data.toString();
-            const lines = text.split("\n");
-            for (const line of lines) {
-              if (line.trim()) {
-                dispatch({ type: "stdout", text: line });
-              }
+            if (this.state.state === "processing") {
+              this.state.childProcess = childProcess;
             }
-          });
 
-          childProcess.stderr?.on("data", (data: Buffer) => {
-            const text = data.toString();
-            const lines = text.split("\n");
-            for (const line of lines) {
-              if (line.trim()) {
-                dispatch({ type: "stderr", text: line });
+            childProcess.stdout?.on("data", (data: Buffer) => {
+              const text = data.toString();
+              const lines = text.split("\n");
+              for (const line of lines) {
+                if (line.trim()) {
+                  dispatch({ type: "stdout", text: line });
+                }
               }
-            }
-          });
+            });
 
-          childProcess.on("close", (code: number | null) => {
-            if (timeoutId) clearTimeout(timeoutId);
-            dispatch({ type: "exit", code });
-            resolve();
-          });
-        } catch (error) {
-          if (timeoutId) clearTimeout(timeoutId);
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
+            childProcess.stderr?.on("data", (data: Buffer) => {
+              const text = data.toString();
+              const lines = text.split("\n");
+              for (const line of lines) {
+                if (line.trim()) {
+                  dispatch({ type: "stderr", text: line });
+                }
+              }
+            });
 
-          dispatch({
-            type: "stderr",
-            text: errorMessage,
-          });
-          dispatch({ type: "exit", code: 1 });
-          resolve();
+            childProcess.on("close", (code: number | null) => {
+              dispatch({ type: "exit", code });
+              resolve();
+            });
+
+            childProcess.on("error", (error: Error) => {
+              reject(error);
+            });
+          }),
+          300000,
+        );
+      } catch (error) {
+        if (this.state.state == "processing" && this.state.childProcess) {
+          this.state.childProcess.kill();
         }
 
-        // Handle errors that might occur during process execution
-        childProcess?.on("error", (error: Error) => {
-          if (timeoutId) clearTimeout(timeoutId);
-          dispatch({
-            type: "stderr",
-            text: error.message,
-          });
-          dispatch({ type: "exit", code: 1 });
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+
+        dispatch({
+          type: "stderr",
+          text: errorMessage,
         });
-      });
+        dispatch({ type: "exit", code: 1 });
+      }
+    };
   }
 
   formatOutputPreview(output: OutputLine[]): string {
