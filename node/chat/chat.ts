@@ -35,7 +35,6 @@ type ChatState =
 export type Msg =
   | {
       type: "thread-initialized";
-      id: ThreadId;
       thread: Thread;
     }
   | {
@@ -102,17 +101,15 @@ export class Chat {
   private myUpdate(msg: Msg) {
     switch (msg.type) {
       case "thread-initialized": {
-        this.threadWrappers.set(msg.id, {
+        this.threadWrappers.set(msg.thread.id, {
           state: "initialized",
           thread: msg.thread,
         });
 
-        if (this.state.state === "thread-overview") {
-          this.state = {
-            state: "thread-selected",
-            activeThreadId: msg.id,
-          };
-        }
+        this.state = {
+          state: "thread-selected",
+          activeThreadId: msg.thread.id,
+        };
         return;
       }
 
@@ -121,12 +118,19 @@ export class Chat {
           state: "error",
           error: msg.error,
         });
+
+        if (this.state.state === "thread-selected") {
+          this.state = {
+            state: "thread-overview",
+            activeThreadId: msg.id,
+          };
+        }
         return;
       }
 
       case "new-thread":
         this.createNewThread().catch((e: Error) => {
-          console.error("Failed to create new thread:", e);
+          this.context.nvim.logger?.error("Failed to create new thread:", e);
         });
         return;
 
@@ -204,7 +208,6 @@ export class Chat {
         type: "chat-msg",
         msg: {
           type: "thread-initialized",
-          id,
           thread,
         },
       });
