@@ -58,6 +58,8 @@ local normal_commands = {
   "profile",
   "start-inline-edit",
   "toggle",
+  "new-thread",
+  "threads-overview",
 }
 
 local visual_commands = {

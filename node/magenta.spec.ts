@@ -114,12 +114,8 @@ I'm starting to respond`);
   it("can switch profiles", async () => {
     await withDriver({}, async (driver) => {
       {
-        const state = driver.magenta.chat.state;
-        if (state.state != "initialized") {
-          throw new Error(`Expected thread to be initialized`);
-        }
-
-        expect(state.thread.state.profile).toEqual({
+        const thread = driver.magenta.chat.getActiveThread();
+        expect(thread.state.profile).toEqual({
           name: "claude-3-7",
           provider: "anthropic",
           model: "claude-3-7-sonnet-latest",
@@ -134,12 +130,8 @@ I'm starting to respond`);
       }
       await driver.nvim.call("nvim_command", ["Magenta profile gpt-4o"]);
       {
-        const state = driver.magenta.chat.state;
-        if (state.state != "initialized") {
-          throw new Error(`Expected state to be running`);
-        }
-
-        expect(state.thread.state.profile).toEqual({
+        const thread = driver.magenta.chat.getActiveThread();
+        expect(thread.state.profile).toEqual({
           name: "gpt-4o",
           provider: "openai",
           model: "gpt-4o",

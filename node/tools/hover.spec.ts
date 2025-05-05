@@ -35,12 +35,7 @@ describe("node/tools/hover.spec.ts", () => {
 
       const result = await pollUntil(
         () => {
-          const state = driver.magenta.chat.state;
-          if (state.state != "initialized") {
-            throw new Error(`thread not ready`);
-          }
-
-          const thread = state.thread;
+          const thread = driver.magenta.chat.getActiveThread();
           if (!thread || !thread.state || typeof thread.state !== "object") {
             throw new Error("Thread state is not valid");
           }

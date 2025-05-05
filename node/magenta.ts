@@ -95,14 +95,6 @@ export class Magenta {
     return getActiveProfile(this.options.profiles, this.options.activeProfile);
   }
 
-  private getActiveThread(): Thread {
-    if (this.chat.state.state == "initialized") {
-      return this.chat.state.thread;
-    } else {
-      throw new Error(`Chat is not initialized yet... no active thread`);
-    }
-  }
-
   async command(input: string): Promise<void> {
     const [command, ...rest] = input.trim().split(/\s+/);
     this.nvim.logger?.debug(`Received command ${command}`);
@@ -118,7 +110,7 @@ export class Magenta {
 
           this.dispatch({
             type: "thread-msg",
-            id: this.getActiveThread().id,
+            id: this.chat.getActiveThread().id,
             msg: {
               type: "update-profile",
               profile: this.getActiveProfile(),
@@ -138,10 +130,8 @@ export class Magenta {
       }
 
       case "context-files": {
-        if (this.chat.state.state !== "initialized") {
-          return;
-        }
-        const messages = this.chat.state.thread.state.messages;
+        const thread = this.chat.getActiveThread();
+        const messages = thread.state.messages;
         const message = messages[messages.length - 1];
         const messageId = message?.state.id || (0 as MessageId);
 
@@ -160,7 +150,7 @@ export class Magenta {
           const relFilePath = relativePath(cwd, absFilePath);
           this.dispatch({
             type: "thread-msg",
-            id: this.getActiveThread().id,
+            id: thread.id,
             msg: {
               type: "context-manager-msg",
               msg: {
@@ -197,7 +187,7 @@ export class Magenta {
 
         this.dispatch({
           type: "thread-msg",
-          id: this.getActiveThread().id,
+          id: this.chat.getActiveThread().id,
           msg: {
             type: "add-message",
             role: "user",
@@ -207,7 +197,7 @@ export class Magenta {
 
         this.dispatch({
           type: "thread-msg",
-          id: this.getActiveThread().id,
+          id: this.chat.getActiveThread().id,
           msg: {
             type: "send-message",
           },
@@ -224,7 +214,7 @@ export class Magenta {
       case "clear":
         this.dispatch({
           type: "thread-msg",
-          id: this.getActiveThread().id,
+          id: this.chat.getActiveThread().id,
           msg: {
             type: "clear",
             profile: this.getActiveProfile(),
@@ -241,6 +231,32 @@ export class Magenta {
 
         const provider = getProvider(this.nvim, this.getActiveProfile());
         provider.abort();
+
+        break;
+      }
+
+      case "new-thread": {
+        if (!this.sidebar.state.displayBuffer) {
+          await this.command("toggle");
+        }
+
+        this.dispatch({
+          type: "chat-msg",
+          msg: {
+            type: "new-thread",
+          },
+        });
+
+        break;
+      }
+
+      case "threads-overview": {
+        this.dispatch({
+          type: "chat-msg",
+          msg: {
+            type: "threads-overview",
+          },
+        });
 
         break;
       }

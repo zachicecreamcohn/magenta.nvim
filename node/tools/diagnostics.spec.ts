@@ -49,11 +49,7 @@ describe("node/tools/diagnostics.spec.ts", () => {
 
       const result = await pollUntil(
         () => {
-          const state = driver.magenta.chat.state;
-          if (state.state != "initialized") {
-            throw new Error(`thread not initialized`);
-          }
-          const thread = state.thread;
+          const thread = driver.magenta.chat.getActiveThread();
 
           const toolWrapper =
             thread.toolManager.state.toolWrappers[toolRequestId];

@@ -115,6 +115,13 @@ export class NvimBuffer {
     ]);
   }
 
+  setDisplayKeymaps() {
+    return this.nvim.call("nvim_exec_lua", [
+      `require("magenta.keymaps").set_display_buffer_keymaps(${this.id})`,
+      [],
+    ]);
+  }
+
   setInlineKeymaps(targetBufnr: BufNr) {
     return this.nvim.call("nvim_exec_lua", [
       `require("magenta.keymaps").set_inline_buffer_keymaps(${this.id}, ${targetBufnr})`,
