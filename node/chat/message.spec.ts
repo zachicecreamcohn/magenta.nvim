@@ -55,7 +55,7 @@ ok, I will try to rewrite the poem in that file
 \\ No newline at end of file
 +Replace 1
 \\ No newline at end of file
-...
+
 \`\`\`
 ✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success!
 \`\`\`diff
@@ -64,7 +64,7 @@ ok, I will try to rewrite the poem in that file
 \\ No newline at end of file
 +Replace 2
 \\ No newline at end of file
-...
+
 \`\`\`
 Stopped (end_turn) [input: 0, output: 0]
 

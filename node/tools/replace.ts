@@ -116,15 +116,22 @@ ${this.getReplacePreview()}
       replace,
       "before",
       "after",
+      {
+        context: 2,
+        ignoreNewlineAtEof: true,
+      },
     );
 
+    // slice off the diff header
     const diffLines = diffResult.split("\n").slice(5);
 
-    const maxLines = 5;
+    const maxLines = 10;
     const maxLength = 80;
 
     let previewLines =
-      diffLines.length > maxLines ? diffLines.slice(0, maxLines) : diffLines;
+      diffLines.length > maxLines
+        ? diffLines.slice(diffLines.length - maxLines)
+        : diffLines;
 
     previewLines = previewLines.map((line) => {
       if (line.length > maxLength) {
@@ -138,7 +145,7 @@ ${this.getReplacePreview()}
 
     // Add ellipsis if we truncated
     if (diffLines.length > maxLines) {
-      result += "\n...";
+      result = "...\n" + result;
     }
 
     return result;
