@@ -21,6 +21,7 @@ import type { Nvim } from "nvim-node";
 import type { Lsp } from "../lsp.ts";
 import {
   getProvider as getProvider,
+  processLlmOutput,
   type ProviderMessage,
   type ProviderMessageContent,
   type StopReason,
@@ -318,9 +319,10 @@ export class Thread {
         }
 
         const message = this.state.messages[this.state.messages.length - 1];
+        const processedText = processLlmOutput(msg.text, this.options);
         message.update({
           type: "append-text",
-          text: msg.text,
+          text: processedText,
         });
         return;
       }

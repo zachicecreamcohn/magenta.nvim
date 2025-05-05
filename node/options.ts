@@ -17,6 +17,7 @@ export type MagentaOptions = {
   sidebarPosition: "left" | "right";
   commandAllowlist: CommandAllowlist;
   autoContext: string[];
+  hide_thinking: boolean;
 };
 
 export function parseOptions(inputOptions: unknown): MagentaOptions {
@@ -26,6 +27,7 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
     sidebarPosition: "left",
     commandAllowlist: [],
     autoContext: [],
+    hide_thinking: false,
   };
 
   if (typeof inputOptions == "object" && inputOptions != null) {
@@ -114,6 +116,10 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
       options.autoContext = inputOptionsObj["autoContext"].filter(
         (pattern) => typeof pattern === "string",
       );
+    }
+
+    if (typeof inputOptionsObj["hide_thinking"] === "boolean") {
+      options.hide_thinking = inputOptionsObj["hide_thinking"];
     }
   }
 

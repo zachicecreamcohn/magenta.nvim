@@ -17,6 +17,7 @@ local defaults = {
   },
   picker = "fzf-lua",
   sidebarPosition = "left",
+  hide_thinking = false,
   defaultKeymaps = true,
   sidebarKeymaps = {
     normal = {

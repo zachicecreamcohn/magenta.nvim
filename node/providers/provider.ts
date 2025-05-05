@@ -1,5 +1,7 @@
 import type { Nvim } from "nvim-node";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { stripThinking } from "../utils/strip-thinking.ts";
+import type { MagentaOptions } from "../options.ts";
 import { AnthropicProvider } from "./anthropic.ts";
 import { BedrockProvider } from "./bedrock.ts";
 import { OpenAIProvider } from "./openai.ts";
@@ -7,8 +9,23 @@ import type { Provider, ProviderName } from "./provider-types.ts";
 import { type Profile } from "../options.ts";
 
 export * from "./provider-types.ts";
+export { stripThinking };
 
 const clients: { [key: string]: Provider } = {};
+/**
+ * Process LLM output text according to configured options
+ * Currently supports:
+ * - hide_thinking: removes <think>...</think> sections from the text
+ */
+export function processLlmOutput(
+  text: string,
+  options: MagentaOptions,
+): string {
+  if (options.hide_thinking) {
+    return stripThinking(text);
+  }
+  return text;
+}
 
 // lazy load so we have a chance to init context before constructing the class
 export function getProvider(nvim: Nvim, profile: Profile): Provider {

@@ -128,6 +128,7 @@ M.bridge = function(channelId)
     commandAllowlist = opts.commandAllowlist,
     sidebarPosition = opts.sidebarPosition,
     autoContext = opts.autoContext,
+    hide_thinking = opts.hide_thinking,
   }
 end
 
