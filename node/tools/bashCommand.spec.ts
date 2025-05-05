@@ -256,9 +256,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
 
       await driver.assertDisplayBufferContains("Exit code:");
 
-      await driver.inputMagentaText(
-        `Run the same command again: "true && echo 'tada'`,
-      );
+      await driver.inputMagentaText(`Ok, run it again`);
       await driver.send();
 
       await driver.mockAnthropic.awaitPendingRequest();
@@ -281,12 +279,20 @@ describe("node/tools/bashCommand.spec.ts", () => {
         ],
       });
 
-      // Instead, we should see the command executed immediately
-      await driver.assertDisplayBufferContains("⚡ `true && echo 'tada'`");
-      await driver.assertDisplayBufferContains("```");
-      await driver.assertDisplayBufferContains("stdout:");
-      await driver.assertDisplayBufferContains("tada");
-      await driver.assertDisplayBufferContains("Exit code:");
+      await driver.assertDisplayBufferContains(`\
+# user:
+Ok, run it again
+
+# assistant:
+Running that command again.
+⚡ \`true && echo 'tada'\`
+\`\`\`
+stdout:
+tada
+
+\`\`\`
+
+Exit code: 0`);
     });
   });
 

@@ -254,12 +254,12 @@ export class BashCommandTool {
         }
 
         // Process the output array to format with stream markers
-        const lastTenLines = this.state.output.slice(-10);
+        // trim to last 1000 lines to avoid over-filling the context
+        const outputTail = this.state.output.slice(-1000);
         let formattedOutput = "";
         let currentStream: "stdout" | "stderr" | null = null;
 
-        for (const line of lastTenLines) {
-          // Add stream marker only when switching or at the beginning
+        for (const line of outputTail) {
           if (currentStream !== line.stream) {
             formattedOutput +=
               line.stream === "stdout" ? "stdout:\n" : "stderr:\n";
@@ -267,10 +267,11 @@ export class BashCommandTool {
           }
           formattedOutput += line.text + "\n";
         }
+        formattedOutput += "exit code " + msg.code + "\n";
 
         this.state = {
           state: "done",
-          exitCode: msg.code ? msg.code : -1,
+          exitCode: msg.code != undefined ? msg.code : -1,
           output: this.state.output,
           result: {
             type: "tool_result",
@@ -391,8 +392,7 @@ export class BashCommandTool {
       });
   }
 
-  // Helper function to format output with stream markers
-  formatOutput(output: OutputLine[]): string {
+  formatOutputPreview(output: OutputLine[]): string {
     let formattedOutput = "";
     let currentStream: "stdout" | "stderr" | null = null;
     const lastTenLines = output.slice(-10);
@@ -469,7 +469,7 @@ ${withBindings(d`**[ NO ]**`, {
 
     if (state.state === "processing") {
       const runningTime = Math.floor((Date.now() - state.startTime) / 1000);
-      const formattedOutput = this.formatOutput(state.output);
+      const formattedOutput = this.formatOutputPreview(state.output);
 
       const content = d`⚡ (${String(runningTime)}s / 300s) \`${this.request.input.command}\`
 \`\`\`
@@ -483,14 +483,14 @@ ${formattedOutput}
 
     if (state.state === "done") {
       // Use the same formatting as in getToolResult
-      const formattedOutput = this.formatOutput(state.output);
+      const formattedOutput = this.formatOutputPreview(state.output);
 
       return d`⚡ \`${this.request.input.command}\`
 \`\`\`
 ${formattedOutput}
 \`\`\`
 
-Exit code: ${state.exitCode === null ? "null" : String(state.exitCode)}`;
+Exit code: ${state.exitCode !== undefined ? state.exitCode.toString() : "undefined"}`;
     }
 
     if (state.state === "error") {

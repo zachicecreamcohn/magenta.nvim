@@ -418,6 +418,20 @@ export class ToolManager {
         // any is safe here since we have correspondence between tool & msg type
         // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
         const thunk = toolWrapper.tool.update(msg.msg.msg as any);
+
+        if (msg.msg.toolName == "bash_command") {
+          const toolMsg = msg.msg.msg;
+          if (
+            toolMsg.type == "user-approval" &&
+            toolMsg.approved &&
+            toolMsg.remember
+          ) {
+            this.state.rememberedCommands.add(
+              (toolWrapper.tool as BashCommand.BashCommandTool).request.input
+                .command,
+            );
+          }
+        }
         return thunk ? this.acceptThunk(toolWrapper.tool, thunk) : undefined;
       }
 
