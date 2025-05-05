@@ -4,7 +4,7 @@ import type { MagentaOptions } from "../options";
 
 describe("provider utilities", () => {
   describe("processLlmOutput", () => {
-    it("should strip thinking sections when hide_thinking is true", () => {
+    it("should strip thinking sections when hideThinking is true", () => {
       const testText =
         "Hello! <think>This is a thinking section that should be hidden</think> Here is the rest of my response.";
       const options: MagentaOptions = {
@@ -19,7 +19,7 @@ describe("provider utilities", () => {
         sidebarPosition: "left",
         commandAllowlist: [],
         autoContext: [],
-        hide_thinking: true,
+        hideThinking: true,
       };
 
       const result = processLlmOutput(testText, options);
@@ -32,7 +32,7 @@ describe("provider utilities", () => {
       expect(result).toBe("Hello!  Here is the rest of my response.");
     });
 
-    it("should keep thinking sections when hide_thinking is false", () => {
+    it("should keep thinking sections when hideThinking is false", () => {
       const testText =
         "Hello! <think>This is a thinking section that should be visible</think> Here is the rest of my response.";
       const options: MagentaOptions = {
@@ -47,7 +47,7 @@ describe("provider utilities", () => {
         sidebarPosition: "left",
         commandAllowlist: [],
         autoContext: [],
-        hide_thinking: false,
+        hideThinking: false,
       };
 
       const result = processLlmOutput(testText, options);
@@ -75,7 +75,7 @@ describe("provider utilities", () => {
         sidebarPosition: "left",
         commandAllowlist: [],
         autoContext: [],
-        hide_thinking: true,
+        hideThinking: true,
       };
 
       const result = processLlmOutput(testText, options);
@@ -103,7 +103,7 @@ describe("provider utilities", () => {
         sidebarPosition: "left",
         commandAllowlist: [],
         autoContext: [],
-        hide_thinking: true,
+        hideThinking: true,
       };
 
       const result = processLlmOutput(testText, options);

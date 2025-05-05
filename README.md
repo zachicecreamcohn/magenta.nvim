@@ -102,6 +102,8 @@ require('magenta').setup({
   },
   -- open chat sidebar on left or right side
   sidebarPosition = "left",
+  -- choose to hide chain of thought (`<think>....</think>`) in LLM output
+  hideThinking = false,
   -- can be changed to "telescope" or "snacks"
   picker = "fzf-lua",
   -- enable default keymaps shown below

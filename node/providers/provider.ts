@@ -12,16 +12,12 @@ export * from "./provider-types.ts";
 export { stripThinking };
 
 const clients: { [key: string]: Provider } = {};
-/**
- * Process LLM output text according to configured options
- * Currently supports:
- * - hide_thinking: removes <think>...</think> sections from the text
- */
+
 export function processLlmOutput(
   text: string,
   options: MagentaOptions,
 ): string {
-  if (options.hide_thinking) {
+  if (options.hideThinking) {
     return stripThinking(text);
   }
   return text;
