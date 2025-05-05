@@ -35,11 +35,15 @@ export type Input = {
   command: string;
 };
 
+type OutputLine = {
+  stream: "stdout" | "stderr";
+  text: string;
+};
+
 type State =
   | {
       state: "processing";
-      stdout: string[];
-      stderr: string[];
+      output: OutputLine[];
       startTime: number;
       approved: boolean;
       childProcess: ReturnType<typeof spawn> | null;
@@ -49,6 +53,8 @@ type State =
     }
   | {
       state: "done";
+      output: OutputLine[];
+      exitCode: number | undefined;
       result: ProviderToolResultContent;
     }
   | {
@@ -139,8 +145,7 @@ export class BashCommandTool {
     if (isAllowed) {
       this.state = {
         state: "processing",
-        stdout: [],
-        stderr: [],
+        output: [],
         startTime: Date.now(),
         approved: true,
         childProcess: null,
@@ -185,8 +190,7 @@ export class BashCommandTool {
         if (msg.approved) {
           this.state = {
             state: "processing",
-            stdout: [],
-            stderr: [],
+            output: [],
             startTime: Date.now(),
             approved: true,
             childProcess: null,
@@ -195,6 +199,8 @@ export class BashCommandTool {
         } else {
           this.state = {
             state: "done",
+            exitCode: 1,
+            output: [],
             result: {
               type: "tool_result",
               id: this.request.id,
@@ -213,11 +219,15 @@ export class BashCommandTool {
           return;
         }
 
-        const lines = msg.text.split("\n");
-        this.state.stdout = [
-          ...this.state.stdout,
-          ...lines.filter((line) => line.trim() !== ""),
-        ];
+        // Trim line to 80 characters
+        const trimmedText =
+          msg.text.length > 80 ? msg.text.substring(0, 80) : msg.text;
+        if (trimmedText.trim() !== "") {
+          this.state.output.push({
+            stream: "stdout",
+            text: trimmedText,
+          });
+        }
         return;
       }
 
@@ -226,11 +236,15 @@ export class BashCommandTool {
           return;
         }
 
-        const lines = msg.text.split("\n");
-        this.state.stderr = [
-          ...this.state.stderr,
-          ...lines.filter((line) => line.trim() !== ""),
-        ];
+        // Trim line to 80 characters
+        const trimmedText =
+          msg.text.length > 80 ? msg.text.substring(0, 80) : msg.text;
+        if (trimmedText.trim() !== "") {
+          this.state.output.push({
+            stream: "stderr",
+            text: trimmedText,
+          });
+        }
         return;
       }
 
@@ -239,21 +253,31 @@ export class BashCommandTool {
           return;
         }
 
-        const stdout = this.state.stdout.slice(-5000).join("\n");
-        const stderr = this.state.stderr.slice(-5000).join("\n");
+        // Process the output array to format with stream markers
+        const lastTenLines = this.state.output.slice(-10);
+        let formattedOutput = "";
+        let currentStream: "stdout" | "stderr" | null = null;
 
-        const stderrSection = stderr.trim()
-          ? `\nstderr:\n\`\`\`\n${stderr}\n\`\`\``
-          : "";
+        for (const line of lastTenLines) {
+          // Add stream marker only when switching or at the beginning
+          if (currentStream !== line.stream) {
+            formattedOutput +=
+              line.stream === "stdout" ? "stdout:\n" : "stderr:\n";
+            currentStream = line.stream;
+          }
+          formattedOutput += line.text + "\n";
+        }
 
         this.state = {
           state: "done",
+          exitCode: msg.code ? msg.code : -1,
+          output: this.state.output,
           result: {
             type: "tool_result",
             id: this.request.id,
             result: {
               status: "ok",
-              value: `Exit code: ${msg.code === null ? "null" : String(msg.code)}\nstdout:\n\`\`\`\n${stdout}\n\`\`\`${stderrSection}`,
+              value: formattedOutput,
             },
           },
         };
@@ -275,10 +299,10 @@ export class BashCommandTool {
 
         if (this.state.childProcess) {
           this.state.childProcess.kill("SIGTERM");
-          this.state.stderr = [
-            ...this.state.stderr,
-            "Process terminated by user with SIGTERM",
-          ];
+          this.state.output.push({
+            stream: "stderr",
+            text: "Process terminated by user with SIGTERM",
+          });
         }
         return;
       }
@@ -367,13 +391,31 @@ export class BashCommandTool {
       });
   }
 
+  // Helper function to format output with stream markers
+  formatOutput(output: OutputLine[]): string {
+    let formattedOutput = "";
+    let currentStream: "stdout" | "stderr" | null = null;
+    const lastTenLines = output.slice(-10);
+
+    for (const line of lastTenLines) {
+      // Add stream marker only when switching or at the beginning
+      if (currentStream !== line.stream) {
+        formattedOutput += line.stream === "stdout" ? "stdout:\n" : "stderr:\n";
+        currentStream = line.stream;
+      }
+      formattedOutput += line.text + "\n";
+    }
+
+    return formattedOutput;
+  }
+
   getToolResult(): ProviderToolResultContent {
     const { state } = this;
 
     switch (state.state) {
-      case "done":
-        // Return the stored result
+      case "done": {
         return state.result;
+      }
 
       case "error":
         return {
@@ -427,19 +469,12 @@ ${withBindings(d`**[ NO ]**`, {
 
     if (state.state === "processing") {
       const runningTime = Math.floor((Date.now() - state.startTime) / 1000);
-      const stderrSection = state.stderr.length
-        ? `\nstderr:\n\`\`\`\n${state.stderr.join("\n")}\n\`\`\``
-        : "";
+      const formattedOutput = this.formatOutput(state.output);
 
-      const content = d`Running command (timeout: 300s, running: ${String(runningTime)}s)
+      const content = d`⚡ (${String(runningTime)}s / 300s) \`${this.request.input.command}\`
 \`\`\`
-${this.request.input.command}
-\`\`\`
-
-stdout:
-\`\`\`
-${state.stdout.join("\n")}
-\`\`\`${stderrSection}`;
+${formattedOutput}
+\`\`\``;
 
       return withBindings(content, {
         t: () => dispatch({ type: "terminate" }),
@@ -447,13 +482,15 @@ ${state.stdout.join("\n")}
     }
 
     if (state.state === "done") {
-      // Display the result content
-      return d`Command:
+      // Use the same formatting as in getToolResult
+      const formattedOutput = this.formatOutput(state.output);
+
+      return d`⚡ \`${this.request.input.command}\`
 \`\`\`
-${this.request.input.command}
+${formattedOutput}
 \`\`\`
 
-${state.result.result.status === "ok" ? state.result.result.value : state.result.result.error}`;
+Exit code: ${state.exitCode === null ? "null" : String(state.exitCode)}`;
     }
 
     if (state.state === "error") {
@@ -462,6 +499,7 @@ ${state.result.result.status === "ok" ? state.result.result.value : state.result
 
     return d``;
   }
+
   displayInput(): string {
     return `bash_command: {
     command: ${this.request.input.command}

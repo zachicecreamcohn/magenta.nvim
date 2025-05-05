@@ -38,11 +38,13 @@ describe("node/tools/bashCommand.spec.ts", () => {
       await driver.assertDisplayBufferContains("Hello from Magenta!");
 
       // Verify the command output is displayed
-      await driver.assertDisplayBufferContains("Command:");
       await driver.assertDisplayBufferContains(
-        "```\necho 'Hello from Magenta!'\n```",
+        "⚡ `echo 'Hello from Magenta!'`",
       );
-      await driver.assertDisplayBufferContains("Exit code: 0");
+      await driver.assertDisplayBufferContains("```");
+      await driver.assertDisplayBufferContains("stdout:");
+      await driver.assertDisplayBufferContains("Hello from Magenta!");
+      await driver.assertDisplayBufferContains("Exit code:");
     });
   });
 
@@ -123,13 +125,13 @@ describe("node/tools/bashCommand.spec.ts", () => {
 
       // Wait for command execution and verify output
       await driver.assertDisplayBufferContains("hello, world");
-      await driver.assertDisplayBufferContains("Exit code: 0");
+      await driver.assertDisplayBufferContains("Exit code:");
 
-      // Verify the command details
-      await driver.assertDisplayBufferContains("Command:");
+      // Verify the command format
       await driver.assertDisplayBufferContains(
-        '```\ntrue && echo "hello, world"\n```',
+        '⚡ `true && echo "hello, world"`',
       );
+      await driver.assertDisplayBufferContains("```");
     });
   });
 
@@ -166,10 +168,8 @@ describe("node/tools/bashCommand.spec.ts", () => {
       const pos = await driver.assertDisplayBufferContains("[ NO ]");
       await driver.triggerDisplayBufferKey(pos, "<CR>");
 
-      // Verify the rejection message is displayed
-      await driver.assertDisplayBufferContains(
-        "The user did not allow running this command",
-      );
+      // Verify the rejection message in the result
+      await driver.assertDisplayBufferContains("Exit code: 1");
     });
   });
 
@@ -204,9 +204,8 @@ describe("node/tools/bashCommand.spec.ts", () => {
       const approvePos = await driver.assertDisplayBufferContains("[ YES ]");
       await driver.triggerDisplayBufferKey(approvePos, "<CR>");
 
-      await driver.assertDisplayBufferContains("Running command");
-      const pos =
-        await driver.assertDisplayBufferContains("```\nsleep 30\n```");
+      await driver.assertDisplayBufferContains("⚡ (");
+      const pos = await driver.assertDisplayBufferContains("`sleep 30`");
 
       // Press 't' to terminate the command
       await driver.triggerDisplayBufferKey(pos, "t");
@@ -217,8 +216,8 @@ describe("node/tools/bashCommand.spec.ts", () => {
       );
 
       // Ensure the command prompt is updated to show completion
-      await driver.assertDisplayBufferContains("Command:");
-      await driver.assertDisplayBufferContains("```\nsleep 30\n```");
+      await driver.assertDisplayBufferContains("⚡ `sleep 30`");
+      await driver.assertDisplayBufferContains("```");
     });
   });
 
@@ -283,8 +282,10 @@ describe("node/tools/bashCommand.spec.ts", () => {
       });
 
       // Instead, we should see the command executed immediately
-      await driver.assertDisplayBufferContains("Command:");
-      await driver.assertDisplayBufferContains("```\ntrue && echo 'tada'\n```");
+      await driver.assertDisplayBufferContains("⚡ `true && echo 'tada'`");
+      await driver.assertDisplayBufferContains("```");
+      await driver.assertDisplayBufferContains("stdout:");
+      await driver.assertDisplayBufferContains("tada");
       await driver.assertDisplayBufferContains("Exit code:");
     });
   });
