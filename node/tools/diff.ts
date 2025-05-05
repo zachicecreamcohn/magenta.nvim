@@ -9,6 +9,7 @@ import type { Result } from "../utils/result.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { ThreadId } from "../chat/thread.ts";
 
 type InsertRequest = Extract<ToolRequest, { toolName: "insert" }>;
 type ReplaceRequest = Extract<ToolRequest, { toolName: "replace" }>;
@@ -298,6 +299,7 @@ async function handleFileEdit(
  */
 export async function applyEdit(
   request: EditRequest,
+  threadId: ThreadId,
   messageId: MessageId,
   context: EditContext,
 ): Promise<void> {
@@ -306,6 +308,7 @@ export async function applyEdit(
 
   dispatch({
     type: "thread-msg",
+    id: threadId,
     msg: {
       type: "take-file-snapshot",
       unresolvedFilePath: filePath as UnresolvedFilePath,

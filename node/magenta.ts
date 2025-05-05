@@ -21,6 +21,7 @@ import {
   resolveFilePath,
   type UnresolvedFilePath,
 } from "./utils/files.ts";
+import type { Thread } from "./chat/thread.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
@@ -94,6 +95,14 @@ export class Magenta {
     return getActiveProfile(this.options.profiles, this.options.activeProfile);
   }
 
+  private getActiveThread(): Thread {
+    if (this.chat.state.state == "initialized") {
+      return this.chat.state.thread;
+    } else {
+      throw new Error(`Chat is not initialized yet... no active thread`);
+    }
+  }
+
   async command(input: string): Promise<void> {
     const [command, ...rest] = input.trim().split(/\s+/);
     this.nvim.logger?.debug(`Received command ${command}`);
@@ -109,6 +118,7 @@ export class Magenta {
 
           this.dispatch({
             type: "thread-msg",
+            id: this.getActiveThread().id,
             msg: {
               type: "update-profile",
               profile: this.getActiveProfile(),
@@ -149,12 +159,16 @@ export class Magenta {
           );
           const relFilePath = relativePath(cwd, absFilePath);
           this.dispatch({
-            type: "context-manager-msg",
+            type: "thread-msg",
+            id: this.getActiveThread().id,
             msg: {
-              type: "add-file-context",
-              absFilePath,
-              relFilePath,
-              messageId,
+              type: "context-manager-msg",
+              msg: {
+                type: "add-file-context",
+                absFilePath,
+                relFilePath,
+                messageId,
+              },
             },
           });
         }
@@ -183,6 +197,7 @@ export class Magenta {
 
         this.dispatch({
           type: "thread-msg",
+          id: this.getActiveThread().id,
           msg: {
             type: "add-message",
             role: "user",
@@ -192,6 +207,7 @@ export class Magenta {
 
         this.dispatch({
           type: "thread-msg",
+          id: this.getActiveThread().id,
           msg: {
             type: "send-message",
           },
@@ -208,6 +224,7 @@ export class Magenta {
       case "clear":
         this.dispatch({
           type: "thread-msg",
+          id: this.getActiveThread().id,
           msg: {
             type: "clear",
             profile: this.getActiveProfile(),

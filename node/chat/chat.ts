@@ -2,11 +2,12 @@ import type { Nvim } from "nvim-node";
 import type { MagentaOptions, Profile } from "../options";
 import type { RootMsg } from "../root-msg";
 import type { Dispatch } from "../tea/tea";
-import { Thread, view as threadView } from "./thread";
+import { Thread, view as threadView, type ThreadId } from "./thread";
 import type { Lsp } from "../lsp";
 import { assertUnreachable } from "../utils/assertUnreachable";
 import { d } from "../tea/view";
 import { ContextManager } from "../context/context-manager";
+import { Counter } from "../utils/uniqueId.ts";
 
 type State =
   | {
@@ -37,6 +38,7 @@ export type ChatMsg = {
 };
 
 export class Chat {
+  private threadCounter = new Counter();
   state: State;
 
   constructor(
@@ -96,13 +98,25 @@ export class Chat {
   }
 
   async initThread() {
-    const contextManager = await ContextManager.create({
-      dispatch: this.context.dispatch,
-      nvim: this.context.nvim,
-      options: this.context.options,
-    });
+    const id = this.threadCounter.get() as ThreadId;
+    const contextManager = await ContextManager.create(
+      (msg) =>
+        this.context.dispatch({
+          type: "thread-msg",
+          id,
+          msg: {
+            type: "context-manager-msg",
+            msg,
+          },
+        }),
+      {
+        dispatch: this.context.dispatch,
+        nvim: this.context.nvim,
+        options: this.context.options,
+      },
+    );
 
-    const thread = new Thread({
+    const thread = new Thread(id, {
       dispatch: this.context.dispatch,
       contextManager,
       profile: getActiveProfile(
@@ -127,11 +141,18 @@ export class Chat {
     switch (this.state.state) {
       case "pending":
         return d`Initializing...`;
-      case "initialized":
+      case "initialized": {
+        const thread = this.state.thread;
         return threadView({
-          thread: this.state.thread,
-          dispatch: (msg) => this.context.dispatch({ type: "thread-msg", msg }),
+          thread,
+          dispatch: (msg) =>
+            this.context.dispatch({
+              type: "thread-msg",
+              id: thread.id,
+              msg,
+            }),
         });
+      }
       case "error":
         return d`Error: ${this.state.error.message}`;
       default:

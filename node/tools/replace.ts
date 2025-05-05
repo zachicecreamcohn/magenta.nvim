@@ -12,6 +12,7 @@ import { applyEdit } from "./diff.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
 import * as diff from "diff";
+import type { ThreadId } from "../chat/thread.ts";
 export type State =
   | {
       state: "processing";
@@ -32,6 +33,7 @@ export class ReplaceTool {
 
   constructor(
     public request: Extract<ToolRequest, { toolName: "replace" }>,
+    public threadId: ThreadId,
     public messageId: MessageId,
     private context: {
       myDispatch: Dispatch<Msg>;
@@ -40,14 +42,15 @@ export class ReplaceTool {
     },
   ) {
     this.state = { state: "processing" };
-    applyEdit(this.request, this.messageId, this.context).catch((err: Error) =>
-      this.context.myDispatch({
-        type: "finish",
-        result: {
-          status: "error",
-          error: err.message,
-        },
-      }),
+    applyEdit(this.request, this.threadId, this.messageId, this.context).catch(
+      (err: Error) =>
+        this.context.myDispatch({
+          type: "finish",
+          result: {
+            status: "error",
+            error: err.message,
+          },
+        }),
     );
   }
 
