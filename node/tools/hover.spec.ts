@@ -2,6 +2,7 @@ import { type ToolRequestId } from "./toolManager.ts";
 import { describe, it, expect } from "vitest";
 import { withDriver } from "../test/preamble";
 import { pollUntil } from "../utils/async.ts";
+import type { UnresolvedFilePath } from "../utils/files.ts";
 
 describe("node/tools/hover.spec.ts", () => {
   it("hover end-to-end", async () => {
@@ -24,7 +25,7 @@ describe("node/tools/hover.spec.ts", () => {
               id: toolRequestId,
               toolName: "hover",
               input: {
-                filePath: "node/test/fixtures/test.ts",
+                filePath: "node/test/fixtures/test.ts" as UnresolvedFilePath,
                 symbol: "val.a.b.c",
               },
             },

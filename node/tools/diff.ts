@@ -1,4 +1,3 @@
-import { getcwd } from "../nvim/nvim.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 import type { Nvim } from "nvim-node";
 import type { ToolRequest } from "./toolManager.ts";
@@ -7,9 +6,9 @@ import path from "node:path";
 import fs from "node:fs";
 import { getBufferIfOpen } from "../utils/buffers.ts";
 import type { Result } from "../utils/result.ts";
-import type { FilePath } from "./file-snapshots.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
+import type { UnresolvedFilePath } from "../utils/files.ts";
 
 type InsertRequest = Extract<ToolRequest, { toolName: "insert" }>;
 type ReplaceRequest = Extract<ToolRequest, { toolName: "replace" }>;
@@ -309,15 +308,13 @@ export async function applyEdit(
     type: "thread-msg",
     msg: {
       type: "take-file-snapshot",
-      filePath: filePath as FilePath,
+      unresolvedFilePath: filePath as UnresolvedFilePath,
       messageId,
     },
   });
 
-  const cwd = await getcwd(nvim);
-  const relFilePath = path.relative(cwd, filePath);
   const bufferOpenResult = await getBufferIfOpen({
-    relativePath: relFilePath,
+    unresolvedPath: filePath as UnresolvedFilePath,
     context: { nvim },
   });
 

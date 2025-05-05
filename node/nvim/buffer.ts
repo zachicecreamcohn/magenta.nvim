@@ -1,6 +1,7 @@
 import type { Nvim } from "nvim-node";
 import type { Position0Indexed, Position1Indexed } from "./window";
 import { withTimeout } from "../utils/async";
+import type { AbsFilePath } from "../utils/files";
 
 export type Line = string & { __line: true };
 export type BufNr = number & { __bufnr: true };
@@ -159,7 +160,7 @@ end)`,
     return new NvimBuffer(bufNr, nvim);
   }
 
-  static async bufadd(absolutePath: string, nvim: Nvim) {
+  static async bufadd(absolutePath: AbsFilePath, nvim: Nvim) {
     const bufNr = (await nvim.call("nvim_eval", [
       `bufadd("${absolutePath}")`,
     ])) as BufNr;

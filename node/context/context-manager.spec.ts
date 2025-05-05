@@ -234,7 +234,7 @@ describe("context-manager.spec.ts", () => {
 
       await driver.assertDisplayBufferContains(`\
 # context:
-- \`./${TMP_DIR}/poem.txt\``);
+- \`${TMP_DIR}/poem.txt\``);
 
       await driver.inputMagentaText("check out this file");
       await driver.send();
@@ -280,8 +280,8 @@ Paint their stories in the night.
 
       await driver.assertDisplayBufferContains(`\
 # context:
-- \`./${TMP_DIR}/poem.txt\`
-- \`./${TMP_DIR}/poem 3.txt\``);
+- \`${TMP_DIR}/poem.txt\`
+- \`${TMP_DIR}/poem 3.txt\``);
 
       await driver.inputMagentaText("check out this file");
       await driver.send();

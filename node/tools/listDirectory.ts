@@ -123,7 +123,7 @@ export class ListDirectoryTool {
             type: "finish",
             result: {
               status: "error",
-              error: "The path must be inside of neovim cwd",
+              error: `The path \`${absolutePath}\` must be inside of neovim cwd \`${cwd}\``,
             },
           });
           return;

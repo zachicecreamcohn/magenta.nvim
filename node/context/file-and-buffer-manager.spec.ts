@@ -1,11 +1,11 @@
 import { withNvimClient } from "../test/preamble.ts";
 import { describe, expect, it } from "vitest";
 import { BufferAndFileManager } from "./file-and-buffer-manager.ts";
-import path from "path";
 import fs from "fs";
 import { getCurrentBuffer, getcwd } from "../nvim/nvim.ts";
 import type { MessageId } from "../chat/message.ts";
 import type { Line } from "../nvim/buffer.ts";
+import { resolveFilePath, type UnresolvedFilePath } from "../utils/files.ts";
 
 describe("Neovim Plugin Tests", () => {
   it("basic rendering & update", async () => {
@@ -13,7 +13,10 @@ describe("Neovim Plugin Tests", () => {
       const bufferAndFileManager = new BufferAndFileManager(nvim);
       const cwd = await getcwd(nvim);
 
-      const absFilePath = path.resolve(cwd, "node/test/fixtures/poem.txt");
+      const absFilePath = resolveFilePath(
+        cwd,
+        "node/test/fixtures/poem.txt" as UnresolvedFilePath,
+      );
       {
         const res = await bufferAndFileManager.getFileContents(
           absFilePath,

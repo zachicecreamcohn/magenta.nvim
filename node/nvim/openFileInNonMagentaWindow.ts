@@ -1,12 +1,17 @@
 import type { Nvim } from "nvim-node";
-import { getAllWindows } from "../nvim/nvim";
+import { getAllWindows, getcwd } from "../nvim/nvim";
 import { NvimBuffer } from "../nvim/buffer";
 import type { WindowId } from "../nvim/window";
 import { WIDTH } from "../sidebar";
 import type { MagentaOptions } from "../options";
+import {
+  resolveFilePath,
+  type AbsFilePath,
+  type UnresolvedFilePath,
+} from "../utils/files";
 
 export async function openFileInNonMagentaWindow(
-  absFilePath: string,
+  filePath: UnresolvedFilePath | AbsFilePath,
   context: { nvim: Nvim; options: MagentaOptions },
 ): Promise<void> {
   try {
@@ -35,6 +40,7 @@ export async function openFileInNonMagentaWindow(
       targetWindowId = nonMagentaWindows[0].id;
     }
 
+    const absFilePath = resolveFilePath(await getcwd(context.nvim), filePath);
     // Open the buffer in the target window or create a new window if needed
     const fileBuffer = await NvimBuffer.bufadd(absFilePath, context.nvim);
 
@@ -83,7 +89,7 @@ export async function openFileInNonMagentaWindow(
     }
   } catch (error) {
     context.nvim.logger?.error(
-      `Error opening file ${absFilePath}: ${(error as Error).message}`,
+      `Error opening file ${filePath}: ${(error as Error).message}`,
     );
   }
 }

@@ -8,15 +8,16 @@ import { type Dispatch, type Thunk } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
 import type { MagentaOptions } from "../options.ts";
-import type { FilePath, FileSnapshots } from "../tools/file-snapshots.ts";
+import type { FileSnapshots } from "../tools/file-snapshots.ts";
 import { displaySnapshotDiff } from "../tools/display-snapshot-diff.ts";
+import type { UnresolvedFilePath } from "../utils/files.ts";
 export type MessageId = number & { __messageId: true };
 type State = {
   id: MessageId;
   role: Role;
   parts: Part[];
   edits: {
-    [filePath: string]: {
+    [filePath: UnresolvedFilePath]: {
       requestIds: ToolRequestId[];
       status:
         | {
@@ -46,7 +47,7 @@ export type Msg =
     }
   | {
       type: "open-edit-file";
-      filePath: string;
+      filePath: UnresolvedFilePath;
     }
   | {
       type: "diff-snapshot";
@@ -108,7 +109,9 @@ export class Message {
         switch (toolWrapper.tool.toolName) {
           case "insert":
           case "replace": {
-            const filePath = toolWrapper.tool.request.input.filePath;
+            const filePath = toolWrapper.tool.request.input
+              .filePath as UnresolvedFilePath;
+
             if (!this.state.edits[filePath]) {
               this.state.edits[filePath] = {
                 status: { status: "pending" },
@@ -162,7 +165,7 @@ export class Message {
 
       case "diff-snapshot": {
         displaySnapshotDiff({
-          filePath: msg.filePath as FilePath,
+          unresolvedFilePath: msg.filePath as UnresolvedFilePath,
           messageId: this.state.id,
           nvim: this.context.nvim,
           fileSnapshots: this.context.fileSnapshots,
@@ -225,13 +228,13 @@ export const view: View<{
 }> = ({ message, dispatch }) => {
   const fileEdits = [];
   for (const filePath in message.state.edits) {
-    const edit = message.state.edits[filePath];
+    const edit = message.state.edits[filePath as UnresolvedFilePath];
 
     const filePathLink = withBindings(d`\`${filePath}\``, {
       "<CR>": () =>
         dispatch({
           type: "open-edit-file",
-          filePath,
+          filePath: filePath as UnresolvedFilePath,
         }),
     });
 

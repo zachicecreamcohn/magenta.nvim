@@ -7,24 +7,25 @@ import type { Nvim } from "nvim-node";
 import type { Result } from "../utils/result";
 import { getcwd } from "../nvim/nvim";
 import { NvimBuffer, type BufNr } from "../nvim/buffer";
+import type { AbsFilePath, RelFilePath } from "../utils/files";
 
 type FileMeta = {
   type: "file";
-  absFilePath: string;
-  relFilePath: string;
+  absFilePath: AbsFilePath;
+  relFilePath: RelFilePath;
   mtime: Date;
 };
 
 type BufferMeta = {
   type: "buffer";
   bufnr: BufNr;
-  relFilePath: string;
+  relFilePath: RelFilePath;
   changeTick: number;
 };
 
 export class BufferAndFileManager {
   private filesAndBuffers: {
-    [absFilePath: string]: {
+    [absFilePath: AbsFilePath]: {
       meta: FileMeta | BufferMeta;
       messageId: MessageId;
       content: string;
@@ -36,7 +37,7 @@ export class BufferAndFileManager {
   /** Return the file along with the message that precedes the last time this file was changed.
    */
   async getFileContents(
-    absFilePath: string,
+    absFilePath: AbsFilePath,
     messageId: MessageId,
   ): Promise<
     Result<{
@@ -163,12 +164,12 @@ export class BufferAndFileManager {
   }
 
   private async getFileCacheInfo(
-    absFilePath: string,
+    absFilePath: AbsFilePath,
   ): Promise<Result<FileMeta | BufferMeta>> {
     const cwd = await getcwd(this.nvim);
-    const relFilePath = path.relative(cwd, absFilePath);
+    const relFilePath = path.relative(cwd, absFilePath) as RelFilePath;
     const bufferOpenResult = await getBufferIfOpen({
-      relativePath: relFilePath,
+      unresolvedPath: relFilePath,
       context: { nvim: this.nvim },
     });
 

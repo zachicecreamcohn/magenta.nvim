@@ -1,13 +1,18 @@
 import { NvimBuffer } from "../nvim/buffer.ts";
-import * as path from "path";
 import { getAllBuffers, getcwd } from "../nvim/nvim.ts";
 import type { Nvim } from "nvim-node";
+import {
+  resolveFilePath,
+  type AbsFilePath,
+  type RelFilePath,
+  type UnresolvedFilePath,
+} from "./files.ts";
 
 export async function getBufferIfOpen({
-  relativePath,
+  unresolvedPath,
   context,
 }: {
-  relativePath: string;
+  unresolvedPath: UnresolvedFilePath | AbsFilePath | RelFilePath;
   context: { nvim: Nvim };
 }): Promise<
   | { status: "ok"; buffer: NvimBuffer }
@@ -20,14 +25,15 @@ export async function getBufferIfOpen({
     getcwd(context.nvim),
   ]);
 
-  // Convert relative path to absolute
-  context.nvim.logger?.debug(`getcwd: ${cwd}`);
-  context.nvim.logger?.debug(`relativePath: ${relativePath}`);
-  const absolutePath = path.resolve(cwd, relativePath);
+  context.nvim.logger?.debug(`unresolvedPath: ${unresolvedPath}`);
+  const absolutePath = resolveFilePath(cwd, unresolvedPath);
 
   // Security check: ensure the resolved path is within cwd
   if (!absolutePath.startsWith(cwd)) {
-    return { status: "error", error: "The path must be inside of neovim cwd" };
+    return {
+      status: "error",
+      error: `The path ${absolutePath} must be inside of neovim cwd ${cwd}`,
+    };
   }
 
   // Find buffer with matching path
@@ -43,16 +49,19 @@ export async function getBufferIfOpen({
 }
 
 export async function getOrOpenBuffer({
-  relativePath,
+  unresolvedPath,
   context,
 }: {
-  relativePath: string;
+  unresolvedPath: UnresolvedFilePath;
   context: { nvim: Nvim };
 }): Promise<
   { status: "ok"; buffer: NvimBuffer } | { status: "error"; error: string }
 > {
   // First try to get the buffer if it's already open
-  const existingBuffer = await getBufferIfOpen({ relativePath, context });
+  const existingBuffer = await getBufferIfOpen({
+    unresolvedPath,
+    context,
+  });
 
   if (existingBuffer.status === "error") {
     return existingBuffer;
@@ -63,16 +72,22 @@ export async function getOrOpenBuffer({
   }
 
   const cwd = await getcwd(context.nvim);
-  const absolutePath = path.resolve(cwd, relativePath);
+  const absolutePath = resolveFilePath(cwd, unresolvedPath);
 
   if (!absolutePath.startsWith(cwd)) {
-    return { status: "error", error: "The path must be inside of neovim cwd" };
+    return {
+      status: "error",
+      error: `The path ${absolutePath} must be inside of neovim cwd ${cwd}`,
+    };
   }
 
   try {
     await NvimBuffer.bufadd(absolutePath, context.nvim);
 
-    const existingBuffer = await getBufferIfOpen({ relativePath, context });
+    const existingBuffer = await getBufferIfOpen({
+      unresolvedPath,
+      context,
+    });
     if (existingBuffer.status == "error" || existingBuffer.status == "ok") {
       return existingBuffer;
     } else {

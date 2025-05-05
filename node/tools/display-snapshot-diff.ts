@@ -1,32 +1,33 @@
 import { WIDTH } from "../sidebar.ts";
-import { diffthis, getAllWindows } from "../nvim/nvim.ts";
+import { diffthis, getAllWindows, getcwd } from "../nvim/nvim.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 import { type WindowId } from "../nvim/window.ts";
 import type { Nvim } from "nvim-node";
 import type { MessageId } from "../chat/message.ts";
-import type { FilePath, FileSnapshots } from "./file-snapshots.ts";
+import type { FileSnapshots } from "./file-snapshots.ts";
+import { resolveFilePath, type UnresolvedFilePath } from "../utils/files.ts";
 
 export async function displaySnapshotDiff({
-  filePath,
+  unresolvedFilePath,
   messageId,
   nvim,
   fileSnapshots,
 }: {
-  filePath: FilePath;
+  unresolvedFilePath: UnresolvedFilePath;
   messageId: MessageId;
   nvim: Nvim;
   fileSnapshots: FileSnapshots;
 }) {
   nvim.logger?.debug(
-    `Attempting to displayDiff for file ${filePath} with messageId ${messageId}`,
+    `Attempting to displayDiff for file ${unresolvedFilePath} with messageId ${messageId}`,
   );
+  const absFilePath = resolveFilePath(await getcwd(nvim), unresolvedFilePath);
 
-  // Get the snapshot for this file and message
-  const snapshot = fileSnapshots.getSnapshot(filePath, messageId);
+  const snapshot = fileSnapshots.getSnapshot(absFilePath, messageId);
   if (!snapshot) {
     // No need to call dispatchError as this may be used in contexts outside of a tool request
     nvim.logger?.error(
-      `No snapshot found for file ${filePath} with messageId ${messageId}`,
+      `No snapshot found for file ${unresolvedFilePath} with messageId ${messageId}`,
     );
     return;
   }
@@ -46,7 +47,7 @@ export async function displaySnapshotDiff({
   }
 
   // next, bring up the target buffer and the new content in a side-by-side diff
-  const fileBuffer = await NvimBuffer.bufadd(filePath, nvim);
+  const fileBuffer = await NvimBuffer.bufadd(absFilePath, nvim);
   const fileWindowId = (await nvim.call("nvim_open_win", [
     fileBuffer.id,
     true,
@@ -69,7 +70,7 @@ export async function displaySnapshotDiff({
     lines: snapshot.content.split("\n") as Line[],
   });
 
-  await scratchBuffer.setName(`${filePath}_${messageId}_snapshot`);
+  await scratchBuffer.setName(`${unresolvedFilePath}_${messageId}_snapshot`);
   await nvim.call("nvim_open_win", [
     scratchBuffer.id,
     true,

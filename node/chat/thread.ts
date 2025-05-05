@@ -16,7 +16,7 @@ import {
 } from "../tools/toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import { Counter } from "../utils/uniqueId.ts";
-import { FileSnapshots, type FilePath } from "../tools/file-snapshots.ts";
+import { FileSnapshots } from "../tools/file-snapshots.ts";
 import type { Nvim } from "nvim-node";
 import type { Lsp } from "../lsp.ts";
 import {
@@ -30,6 +30,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { getOption } from "../nvim/nvim.ts";
 import { type MagentaOptions, type Profile } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
+import type { UnresolvedFilePath } from "../utils/files.ts";
 
 export type Role = "user" | "assistant";
 
@@ -85,7 +86,7 @@ export type Msg =
     }
   | {
       type: "take-file-snapshot";
-      filePath: FilePath;
+      unresolvedFilePath: UnresolvedFilePath;
       messageId: MessageId;
     };
 
@@ -403,7 +404,7 @@ export class Thread {
 
       case "take-file-snapshot": {
         this.fileSnapshots
-          .willEditFile(msg.filePath, msg.messageId)
+          .willEditFile(msg.unresolvedFilePath, msg.messageId)
           .catch((e: Error) => {
             this.nvim.logger?.error(
               `Failed to take file snapshot: ${e.message}`,

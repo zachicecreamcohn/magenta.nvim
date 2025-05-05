@@ -13,6 +13,7 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Dispatch, Thunk } from "../tea/tea.ts";
+import type { UnresolvedFilePath } from "../utils/files.ts";
 
 export type State =
   | {
@@ -139,7 +140,7 @@ export class GetFileTool {
       }
 
       const bufferContents = await getBufferIfOpen({
-        relativePath: filePath,
+        unresolvedPath: filePath,
         context: this.context,
       });
 
@@ -265,7 +266,7 @@ export const spec: ProviderToolSpec = {
 };
 
 export type Input = {
-  filePath: string;
+  filePath: UnresolvedFilePath;
 };
 
 export function validateInput(input: {

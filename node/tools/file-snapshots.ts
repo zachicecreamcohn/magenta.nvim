@@ -1,12 +1,13 @@
 import fs from "node:fs";
-import path from "node:path";
 import type { Nvim } from "nvim-node";
-import { getcwd } from "../nvim/nvim.ts";
 import { getBufferIfOpen } from "../utils/buffers.ts";
 import type { MessageId } from "../chat/message.ts";
-
-// Nominal type for FilePath
-export type FilePath = string & { __filePath: true };
+import {
+  resolveFilePath,
+  type AbsFilePath,
+  type UnresolvedFilePath,
+} from "../utils/files.ts";
+import { getcwd } from "../nvim/nvim.ts";
 
 export interface FileSnapshot {
   content: string;
@@ -24,22 +25,23 @@ export class FileSnapshots {
   /**
    * Creates a key for the snapshots map from a messageId and filePath
    */
-  private createKey(messageId: MessageId, filePath: FilePath): string {
-    return `${messageId}:${filePath}`;
+  private createKey(messageId: MessageId, absFilePath: AbsFilePath): string {
+    return `${messageId}:${absFilePath}`;
   }
 
   /**
    * Take a snapshot of a file before it's edited by the assistant
-   * @param filePath The path to the file that will be edited
+   * @param absFilePath The path to the file that will be edited
    * @param messageId The ID of the message that is editing the file
    * @returns Promise<boolean> True if a new snapshot was taken, false if one already existed
    */
   public async willEditFile(
-    filePath: FilePath,
+    unresolvedPath: UnresolvedFilePath,
     messageId: MessageId,
   ): Promise<boolean> {
-    const key = this.createKey(messageId, filePath);
-
+    const cwd = await getcwd(this.nvim);
+    const absFilePath = resolveFilePath(cwd, unresolvedPath);
+    const key = this.createKey(messageId, absFilePath);
     // If we already have a snapshot for this file and message, don't take another one
     if (this.snapshots.has(key)) {
       return false;
@@ -47,7 +49,7 @@ export class FileSnapshots {
 
     try {
       // Get the content of the file, either from an open buffer or from disk
-      const content = await this.getFileContent(filePath);
+      const content = await this.getFileContent(absFilePath);
 
       // Store the snapshot
       this.snapshots.set(key, {
@@ -73,13 +75,9 @@ export class FileSnapshots {
    * @param filePath The path to the file
    * @returns Promise<string> The content of the file
    */
-  private async getFileContent(filePath: FilePath): Promise<string> {
-    const cwd = await getcwd(this.nvim);
-    const relFilePath = path.relative(cwd, filePath as string);
-
-    // First check if the file is open in a buffer
+  private async getFileContent(absFilePath: AbsFilePath): Promise<string> {
     const bufferResult = await getBufferIfOpen({
-      relativePath: relFilePath,
+      unresolvedPath: absFilePath,
       context: { nvim: this.nvim },
     });
 
@@ -92,21 +90,21 @@ export class FileSnapshots {
       return lines.join("\n");
     } else {
       // Get content from disk
-      return fs.promises.readFile(filePath as string, "utf-8");
+      return fs.promises.readFile(absFilePath, "utf-8");
     }
   }
 
   /**
    * Get a snapshot for a specific file and message
-   * @param filePath The path to the file
+   * @param absFilePath The path to the file
    * @param messageId The ID of the message
    * @returns The file snapshot or undefined if none exists
    */
   public getSnapshot(
-    filePath: FilePath,
+    absFilePath: AbsFilePath,
     messageId: MessageId,
   ): FileSnapshot | undefined {
-    const key = this.createKey(messageId, filePath);
+    const key = this.createKey(messageId, absFilePath);
     return this.snapshots.get(key);
   }
 

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { TMP_DIR, withDriver } from "../test/preamble";
-import { FileSnapshots, type FilePath } from "./file-snapshots";
+import { FileSnapshots } from "./file-snapshots";
 import * as path from "path";
 import * as fs from "node:fs";
 import { getcwd } from "../nvim/nvim";
 import type { MessageId } from "../chat/message.ts";
+import type { AbsFilePath, UnresolvedFilePath } from "../utils/files.ts";
 
 describe("FileSnapshots", () => {
   it("should create a snapshot for a file that exists", async () => {
@@ -18,14 +19,14 @@ describe("FileSnapshots", () => {
       const messageId = 1 as MessageId;
 
       const result = await fileSnapshots.willEditFile(
-        filePath as FilePath,
+        filePath as UnresolvedFilePath,
         messageId,
       );
 
       expect(result).toBe(true);
 
       const snapshot = fileSnapshots.getSnapshot(
-        filePath as FilePath,
+        filePath as AbsFilePath,
         messageId,
       );
       expect(snapshot).toBeDefined();
@@ -42,14 +43,14 @@ describe("FileSnapshots", () => {
       const messageId = 2 as MessageId;
 
       const result = await fileSnapshots.willEditFile(
-        nonExistentPath as FilePath,
+        nonExistentPath as UnresolvedFilePath,
         messageId,
       );
 
       expect(result).toBe(true);
 
       const snapshot = fileSnapshots.getSnapshot(
-        nonExistentPath as FilePath,
+        nonExistentPath as AbsFilePath,
         messageId,
       );
       expect(snapshot).toBeDefined();
@@ -69,7 +70,7 @@ describe("FileSnapshots", () => {
 
       // First snapshot
       const firstResult = await fileSnapshots.willEditFile(
-        filePath as FilePath,
+        filePath as UnresolvedFilePath,
         messageId,
       );
       expect(firstResult).toBe(true);
@@ -79,14 +80,14 @@ describe("FileSnapshots", () => {
 
       // Try to create another snapshot
       const secondResult = await fileSnapshots.willEditFile(
-        filePath as FilePath,
+        filePath as UnresolvedFilePath,
         messageId,
       );
       expect(secondResult).toBe(false);
 
       // Verify it's still the original snapshot
       const snapshot = fileSnapshots.getSnapshot(
-        filePath as FilePath,
+        filePath as AbsFilePath,
         messageId,
       );
       expect(snapshot?.content).toEqual(fileContent);
@@ -102,21 +103,27 @@ describe("FileSnapshots", () => {
 
       const fileSnapshots = new FileSnapshots(driver.nvim);
       const messageId1 = 4 as MessageId;
-      await fileSnapshots.willEditFile(filePath as FilePath, messageId1);
+      await fileSnapshots.willEditFile(
+        filePath as UnresolvedFilePath,
+        messageId1,
+      );
 
       // Change file
       const updatedContent = "Updated content";
       fs.writeFileSync(filePath, updatedContent);
 
       const messageId2 = 5 as MessageId;
-      await fileSnapshots.willEditFile(filePath as FilePath, messageId2);
+      await fileSnapshots.willEditFile(
+        filePath as UnresolvedFilePath,
+        messageId2,
+      );
 
       const snapshot1 = fileSnapshots.getSnapshot(
-        filePath as FilePath,
+        filePath as AbsFilePath,
         messageId1,
       );
       const snapshot2 = fileSnapshots.getSnapshot(
-        filePath as FilePath,
+        filePath as AbsFilePath,
         messageId2,
       );
 
@@ -138,21 +145,21 @@ describe("FileSnapshots", () => {
       const messageId1 = 6 as MessageId;
       const messageId2 = 7 as MessageId;
 
-      await fileSnapshots.willEditFile(file1 as FilePath, messageId1);
-      await fileSnapshots.willEditFile(file2 as FilePath, messageId1);
-      await fileSnapshots.willEditFile(file1 as FilePath, messageId2);
+      await fileSnapshots.willEditFile(file1 as UnresolvedFilePath, messageId1);
+      await fileSnapshots.willEditFile(file2 as UnresolvedFilePath, messageId1);
+      await fileSnapshots.willEditFile(file1 as UnresolvedFilePath, messageId2);
 
       // Clear all snapshots
       fileSnapshots.clearSnapshots();
 
       expect(
-        fileSnapshots.getSnapshot(file1 as FilePath, messageId1),
+        fileSnapshots.getSnapshot(file1 as AbsFilePath, messageId1),
       ).toBeUndefined();
       expect(
-        fileSnapshots.getSnapshot(file2 as FilePath, messageId1),
+        fileSnapshots.getSnapshot(file2 as AbsFilePath, messageId1),
       ).toBeUndefined();
       expect(
-        fileSnapshots.getSnapshot(file1 as FilePath, messageId2),
+        fileSnapshots.getSnapshot(file1 as AbsFilePath, messageId2),
       ).toBeUndefined();
     });
   });
@@ -170,21 +177,21 @@ describe("FileSnapshots", () => {
       const messageId1 = 8 as MessageId;
       const messageId2 = 9 as MessageId;
 
-      await fileSnapshots.willEditFile(file1 as FilePath, messageId1);
-      await fileSnapshots.willEditFile(file2 as FilePath, messageId1);
-      await fileSnapshots.willEditFile(file1 as FilePath, messageId2);
+      await fileSnapshots.willEditFile(file1 as UnresolvedFilePath, messageId1);
+      await fileSnapshots.willEditFile(file2 as UnresolvedFilePath, messageId1);
+      await fileSnapshots.willEditFile(file1 as UnresolvedFilePath, messageId2);
 
       // Clear only messageId1 snapshots
       fileSnapshots.clearSnapshots(messageId1);
 
       expect(
-        fileSnapshots.getSnapshot(file1 as FilePath, messageId1),
+        fileSnapshots.getSnapshot(file1 as AbsFilePath, messageId1),
       ).toBeUndefined();
       expect(
-        fileSnapshots.getSnapshot(file2 as FilePath, messageId1),
+        fileSnapshots.getSnapshot(file2 as AbsFilePath, messageId1),
       ).toBeUndefined();
       expect(
-        fileSnapshots.getSnapshot(file1 as FilePath, messageId2),
+        fileSnapshots.getSnapshot(file1 as AbsFilePath, messageId2),
       ).toBeDefined();
     });
   });
@@ -205,10 +212,13 @@ describe("FileSnapshots", () => {
       const messageId = 10 as MessageId;
 
       // Create snapshot - should use buffer content, not file content
-      await fileSnapshots.willEditFile(filePath as FilePath, messageId);
+      await fileSnapshots.willEditFile(
+        filePath as UnresolvedFilePath,
+        messageId,
+      );
 
       const snapshot = fileSnapshots.getSnapshot(
-        filePath as FilePath,
+        filePath as AbsFilePath,
         messageId,
       );
       expect(snapshot).toBeDefined();

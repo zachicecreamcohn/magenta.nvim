@@ -12,6 +12,7 @@ import { getcwd } from "../nvim/nvim";
 import type { Dispatch } from "../tea/tea";
 import type { RootMsg } from "../root-msg";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow";
+import type { AbsFilePath, RelFilePath } from "../utils/files";
 
 export type ContextManagerMsg = {
   type: "context-manager-msg";
@@ -21,25 +22,25 @@ export type ContextManagerMsg = {
 export type Msg =
   | {
       type: "add-file-context";
-      relFilePath: string;
-      absFilePath: string;
+      relFilePath: RelFilePath;
+      absFilePath: AbsFilePath;
       messageId: MessageId;
     }
   | {
       type: "remove-file-context";
-      absFilePath: string;
+      absFilePath: AbsFilePath;
     }
   | {
       type: "open-file";
-      absFilePath: string;
+      absFilePath: AbsFilePath;
     };
 
 export class ContextManager {
   public dispatch: Dispatch<RootMsg>;
   public myDispatch: Dispatch<Msg>;
   public files: {
-    [absFilePath: string]: {
-      relFilePath: string;
+    [absFilePath: AbsFilePath]: {
+      relFilePath: RelFilePath;
       initialMessageId: MessageId;
     };
   };
@@ -57,8 +58,8 @@ export class ContextManager {
     nvim: Nvim;
     options: MagentaOptions;
     initialFiles?: {
-      [absFilePath: string]: {
-        relFilePath: string;
+      [absFilePath: AbsFilePath]: {
+        relFilePath: RelFilePath;
         initialMessageId: MessageId;
       };
     };
@@ -122,7 +123,10 @@ export class ContextManager {
 
     return await Promise.all(
       Object.keys(this.files).map((absFilePath) =>
-        this.getFileMessage({ absFilePath, currentMessageId }),
+        this.getFileMessage({
+          absFilePath: absFilePath as AbsFilePath,
+          currentMessageId,
+        }),
       ),
     );
   }
@@ -131,7 +135,7 @@ export class ContextManager {
     absFilePath,
     currentMessageId,
   }: {
-    absFilePath: string;
+    absFilePath: AbsFilePath;
     currentMessageId: MessageId;
   }): Promise<{ messageId: MessageId; message: ProviderMessage }> {
     const res = await this.bufferAndFileManager.getFileContents(
@@ -169,14 +173,14 @@ export class ContextManager {
     nvim: Nvim,
     options: MagentaOptions,
   ): Promise<{
-    [absFilePath: string]: {
-      relFilePath: string;
+    [absFilePath: AbsFilePath]: {
+      relFilePath: RelFilePath;
       initialMessageId: MessageId;
     };
   }> {
     const files: {
-      [absFilePath: string]: {
-        relFilePath: string;
+      [absFilePath: AbsFilePath]: {
+        relFilePath: RelFilePath;
         initialMessageId: MessageId;
       };
     } = {};
@@ -199,8 +203,8 @@ export class ContextManager {
 
       // Convert to the expected format
       for (const matchInfo of matchedFiles) {
-        files[matchInfo.absFilePath] = {
-          relFilePath: matchInfo.relFilePath,
+        files[matchInfo.absFilePath as AbsFilePath] = {
+          relFilePath: matchInfo.relFilePath as RelFilePath,
           initialMessageId,
         };
       }
@@ -292,14 +296,21 @@ ${content}
     const fileContext = [];
     for (const absFilePath in this.files) {
       fileContext.push(
-        withBindings(d`- \`${this.files[absFilePath].relFilePath}\`\n`, {
-          dd: () =>
-            this.myDispatch({
-              type: "remove-file-context",
-              absFilePath,
-            }),
-          "<CR>": () => this.myDispatch({ type: "open-file", absFilePath }),
-        }),
+        withBindings(
+          d`- \`${this.files[absFilePath as AbsFilePath].relFilePath}\`\n`,
+          {
+            dd: () =>
+              this.myDispatch({
+                type: "remove-file-context",
+                absFilePath: absFilePath as AbsFilePath,
+              }),
+            "<CR>": () =>
+              this.myDispatch({
+                type: "open-file",
+                absFilePath: absFilePath as AbsFilePath,
+              }),
+          },
+        ),
       );
     }
 

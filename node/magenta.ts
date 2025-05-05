@@ -16,6 +16,11 @@ import type { RootMsg } from "./root-msg.ts";
 import { Chat } from "./chat/chat.ts";
 import type { Dispatch } from "./tea/tea.ts";
 import type { MessageId } from "./chat/message.ts";
+import {
+  relativePath,
+  resolveFilePath,
+  type UnresolvedFilePath,
+} from "./utils/files.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
@@ -137,17 +142,12 @@ export class Magenta {
           .map((str) => str.trim());
 
         for (const filePath of paths) {
-          let absFilePath;
-          let relFilePath;
           const cwd = await getcwd(this.nvim);
-          if (path.isAbsolute(filePath)) {
-            absFilePath = filePath;
-            relFilePath = path.relative(cwd, filePath);
-          } else {
-            absFilePath = path.resolve(cwd, filePath);
-            relFilePath = filePath;
-          }
-
+          const absFilePath = resolveFilePath(
+            cwd,
+            filePath as UnresolvedFilePath,
+          );
+          const relFilePath = relativePath(cwd, absFilePath);
           this.dispatch({
             type: "context-manager-msg",
             msg: {

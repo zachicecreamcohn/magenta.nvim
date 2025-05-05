@@ -13,6 +13,7 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
+import type { UnresolvedFilePath } from "../utils/files.ts";
 
 export type State =
   | {
@@ -71,7 +72,7 @@ export class HoverTool {
       const { lsp } = this.context;
       const filePath = this.request.input.filePath;
       const bufferResult = await getOrOpenBuffer({
-        relativePath: filePath,
+        unresolvedPath: filePath,
         context: this.context,
       });
 
@@ -205,7 +206,7 @@ We will use the right-most character of this string, so if the string is "a.b.c"
 };
 
 export type Input = {
-  filePath: string;
+  filePath: UnresolvedFilePath;
   symbol: string;
 };
 

@@ -1,6 +1,7 @@
 import type { ToolRequestId } from "./toolManager.ts";
 import { describe, it } from "vitest";
 import { withDriver } from "../test/preamble.ts";
+import type { UnresolvedFilePath } from "../utils/files.ts";
 
 describe("tea/getFile.spec.ts", () => {
   it("render the getFile tool.", async () => {
@@ -21,7 +22,7 @@ describe("tea/getFile.spec.ts", () => {
               id: "request_id" as ToolRequestId,
               toolName: "get_file",
               input: {
-                filePath: "./node/test/fixtures/poem.txt",
+                filePath: "./node/test/fixtures/poem.txt" as UnresolvedFilePath,
               },
             },
           },
@@ -52,7 +53,7 @@ describe("tea/getFile.spec.ts", () => {
               id: "id" as ToolRequestId,
               toolName: "get_file",
               input: {
-                filePath: "node/test/fixtures/.secret",
+                filePath: "node/test/fixtures/.secret" as UnresolvedFilePath,
               },
             },
           },
@@ -88,7 +89,7 @@ May I read file \`node/test/fixtures/.secret\`? **[ NO ]** **[ OK ]**`);
               id: "id" as ToolRequestId,
               toolName: "get_file",
               input: {
-                filePath: "node/test/fixtures/.secret",
+                filePath: "node/test/fixtures/.secret" as UnresolvedFilePath,
               },
             },
           },
@@ -121,7 +122,7 @@ Finished reading file \`node/test/fixtures/.secret\``);
               id: "id" as ToolRequestId,
               toolName: "get_file",
               input: {
-                filePath: "node_modules/test",
+                filePath: "node_modules/test" as UnresolvedFilePath,
               },
             },
           },
@@ -149,7 +150,7 @@ May I read file \`node_modules/test\`? **[ NO ]** **[ OK ]**`);
               id: "id" as ToolRequestId,
               toolName: "get_file",
               input: {
-                filePath: "/tmp/file",
+                filePath: "/tmp/file" as UnresolvedFilePath,
               },
             },
           },
