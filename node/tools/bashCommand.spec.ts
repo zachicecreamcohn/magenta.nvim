@@ -1,8 +1,9 @@
-import { withDriver } from "../test/preamble";
+import { withDriver, TMP_DIR } from "../test/preamble";
 import type { ToolRequestId } from "./toolManager";
 import { describe, it, expect } from "vitest";
 import type { CommandAllowlist } from "../options";
 import { isCommandAllowed } from "./bashCommand";
+import fs from "node:fs";
 
 describe("node/tools/bashCommand.spec.ts", () => {
   it("executes a simple echo command without requiring approval (allowlisted)", async () => {
@@ -293,6 +294,68 @@ tada
 \`\`\`
 
 Exit code: 0`);
+    });
+  });
+
+  it("ensures a command is executed only once", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+
+      // Create a unique filename for this test
+      const uniqueFile = `${TMP_DIR}/command-execution-count-${Date.now()}.txt`;
+      const appendCmd = `echo "executed" >> ${uniqueFile}`;
+
+      // First, make sure the file doesn't exist
+      if (fs.existsSync(uniqueFile)) {
+        fs.unlinkSync(uniqueFile);
+      }
+
+      // Run the command through magenta
+      await driver.inputMagentaText(`Run this command: ${appendCmd}`);
+      await driver.send();
+
+      await driver.mockAnthropic.awaitPendingRequest();
+      const toolRequestId = "test-single-execution" as ToolRequestId;
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "I'll run the append command for you.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: toolRequestId,
+              toolName: "bash_command",
+              input: {
+                command: appendCmd,
+              },
+            },
+          },
+        ],
+      });
+
+      // Wait for the approval prompt
+      await driver.assertDisplayBufferContains("May I run this command?");
+
+      // Click the YES button to approve the command
+      const yesPos = await driver.assertDisplayBufferContains("[ YES ]");
+      await driver.triggerDisplayBufferKey(yesPos, "<CR>");
+
+      // Wait for command to complete
+      await driver.assertDisplayBufferContains("Exit code: 0");
+
+      // Directly check the file content using fs module
+      expect(fs.existsSync(uniqueFile)).toBe(true);
+
+      // Read file contents
+      const fileContents = fs.readFileSync(uniqueFile, "utf8");
+
+      // Split by newlines and count
+      const lines = fileContents
+        .split("\n")
+        .filter((line) => line.trim() !== "");
+      expect(lines.length).toBe(1);
+      expect(lines[0].trim()).toBe("executed");
     });
   });
 

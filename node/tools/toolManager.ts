@@ -390,22 +390,27 @@ export class ToolManager {
           }
 
           case "bash_command": {
-            const [bashCommandTool, thunk] = BashCommand.BashCommandTool.create(
-              request,
-              {
-                nvim: this.context.nvim,
-                options: this.context.options,
-                rememberedCommands: this.state.rememberedCommands,
-              },
-            );
+            const bashCommandTool = new BashCommand.BashCommandTool(request, {
+              nvim: this.context.nvim,
+              myDispatch: (msg) =>
+                this.myDispatch({
+                  type: "tool-msg",
+                  msg: {
+                    id: request.id,
+                    toolName: "bash_command",
+                    msg,
+                  },
+                }),
+              options: this.context.options,
+              rememberedCommands: this.state.rememberedCommands,
+            });
 
             this.state.toolWrappers[request.id] = {
               tool: bashCommandTool,
               showRequest: false,
               showResult: false,
             };
-
-            return this.acceptThunk(bashCommandTool, thunk);
+            return;
           }
 
           default:
