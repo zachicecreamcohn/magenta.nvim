@@ -1,6 +1,7 @@
 import { describe, it } from "vitest";
 import { TMP_DIR, withDriver } from "../test/preamble";
 import type { ToolRequestId } from "../tools/toolManager";
+import type { UnresolvedFilePath } from "../utils/files";
 
 describe("node/chat/message.spec.ts", () => {
   it("display multiple edits to the same file, and edit details", async () => {
@@ -21,7 +22,7 @@ describe("node/chat/message.spec.ts", () => {
               id: "id1" as ToolRequestId,
               toolName: "replace",
               input: {
-                filePath: `${TMP_DIR}/poem.txt`,
+                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
                 find: `Moonlight whispers through the trees,\nSilver shadows dance with ease.`,
                 replace: `Replace 1`,
               },
@@ -33,7 +34,7 @@ describe("node/chat/message.spec.ts", () => {
               id: "id2" as ToolRequestId,
               toolName: "replace",
               input: {
-                filePath: `${TMP_DIR}/poem.txt`,
+                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
                 find: `Stars above like diamonds bright,\nPaint their stories in the night.`,
                 replace: `Replace 2`,
               },

@@ -5,6 +5,7 @@ import * as path from "path";
 import { getCurrentBuffer, getcwd } from "../nvim/nvim";
 import * as fs from "node:fs";
 import { type Line } from "../nvim/buffer";
+import type { UnresolvedFilePath } from "../utils/files";
 
 describe("node/tools/diff.spec.ts", () => {
   it("insert into new file", async () => {
@@ -31,7 +32,7 @@ describe("node/tools/diff.spec.ts", () => {
               id: "id" as ToolRequestId,
               toolName: "insert",
               input: {
-                filePath: `${TMP_DIR}/new.txt`,
+                filePath: `${TMP_DIR}/new.txt` as UnresolvedFilePath,
                 insertAfter: "",
                 content: "a poem\nwith some lines",
               },
@@ -70,7 +71,7 @@ describe("node/tools/diff.spec.ts", () => {
               id: "id" as ToolRequestId,
               toolName: "insert",
               input: {
-                filePath: `${TMP_DIR}/toolManager.ts`,
+                filePath: `${TMP_DIR}/toolManager.ts` as UnresolvedFilePath,
                 insertAfter: "",
                 content: "a poem",
               },
@@ -115,7 +116,7 @@ describe("node/tools/diff.spec.ts", () => {
               id: "id" as ToolRequestId,
               toolName: "replace",
               input: {
-                filePath: `${TMP_DIR}/poem.txt`,
+                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
                 find: `\
 shadows dance with ease.
 Stars above like diamonds bright,
@@ -167,7 +168,7 @@ Paints its colors stories in the night.
               id: "id" as ToolRequestId,
               toolName: "insert",
               input: {
-                filePath: `${TMP_DIR}/multiple.txt`,
+                filePath: `${TMP_DIR}/multiple.txt` as UnresolvedFilePath,
                 insertAfter: "",
                 content: "a poem",
               },
@@ -200,7 +201,7 @@ Paints its colors stories in the night.
               id: "id" as ToolRequestId,
               toolName: "insert",
               input: {
-                filePath: `${TMP_DIR}/multiple.txt`,
+                filePath: `${TMP_DIR}/multiple.txt` as UnresolvedFilePath,
                 insertAfter: "a poem",
                 content: "\nanother poem",
               },
@@ -231,7 +232,7 @@ Paints its colors stories in the night.
               id: "id" as ToolRequestId,
               toolName: "replace",
               input: {
-                filePath: `${TMP_DIR}/poem.txt`,
+                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
                 find: "Silver shadows dance with ease.",
                 replace: "Golden moonbeams dance with ease.",
               },
@@ -276,7 +277,7 @@ Paint their stories in the night.
               id: "id1" as ToolRequestId,
               toolName: "replace",
               input: {
-                filePath: `${TMP_DIR}/poem.txt`,
+                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
                 find: `bogus line...`,
                 replace: `Replace text`,
               },
@@ -288,7 +289,7 @@ Paint their stories in the night.
               id: "id2" as ToolRequestId,
               toolName: "insert",
               input: {
-                filePath: `${TMP_DIR}/poem.txt`,
+                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
                 insertAfter: `Paint their stories in the night.`,
                 content: `Added text`,
               },
@@ -355,7 +356,7 @@ Paint their stories in the night.
               id: "id" as ToolRequestId,
               toolName: "insert",
               input: {
-                filePath: poemFile,
+                filePath: poemFile as UnresolvedFilePath,
                 insertAfter: "Original content here",
                 content: "\nAppended content",
               },
@@ -389,7 +390,7 @@ Paint their stories in the night.
               id: "id" as ToolRequestId,
               toolName: "insert",
               input: {
-                filePath: `${TMP_DIR}/poem.txt`,
+                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
                 insertAfter: "Text that doesn't exist in the file",
                 content: "\nNew content to add",
               },
@@ -422,7 +423,8 @@ Paint their stories in the night.
       const poemFile = path.join(
         await getcwd(driver.nvim),
         `${TMP_DIR}/buffer_with_changes.txt`,
-      );
+      ) as UnresolvedFilePath;
+
       fs.writeFileSync(poemFile, "Original content\nSecond line", "utf-8");
 
       await driver.command(`edit ${poemFile}`);

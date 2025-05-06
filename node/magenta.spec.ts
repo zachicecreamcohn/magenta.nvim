@@ -3,6 +3,8 @@ import { withDriver } from "./test/preamble";
 import { pollUntil } from "./utils/async";
 import type { Position0Indexed } from "./nvim/window";
 import { LOGO } from "./chat/thread";
+import type { ToolRequestId } from "./tools/toolManager";
+import type { UnresolvedFilePath } from "./utils/files";
 
 describe("node/magenta.spec.ts", () => {
   it("clear command should work", async () => {
@@ -106,8 +108,55 @@ I'm starting to respond`);
       expect(request.defer.resolved).toBe(true);
 
       // Verify the final state shows the aborted message
-      await driver.assertDisplayBufferContains(`Error request aborted`);
-      await driver.assertDisplayBufferContains(`Last assistant message:`);
+      await driver.assertDisplayBufferContains(`Stopped (aborted)`);
+    });
+  });
+
+  it("abort command should stop pending tool use", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(`hello`);
+      await driver.send();
+
+      // Wait for the pending request to be registered
+      await pollUntil(() => {
+        if (driver.mockAnthropic.requests.length != 1) {
+          throw new Error(`Expected a message to be pending.`);
+        }
+      });
+
+      await driver.mockAnthropic.respond({
+        stopReason: "tool_use",
+        text: "ok, here goes",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "request_id" as ToolRequestId,
+              toolName: "get_file",
+              input: {
+                // secret file should trigger user permission check
+                filePath: ".secret" as UnresolvedFilePath,
+              },
+            },
+          },
+        ],
+      });
+
+      // Verify that response has started appearing
+      await driver.assertDisplayBufferContains(`\
+# user:
+hello
+
+# assistant:
+ok, here goes
+⏳ May I read file \`.secret\`? **[ NO ]** **[ OK ]**
+Stopped (tool_use) [input: 0, output: 0]
+`);
+
+      await driver.abort();
+
+      await driver.assertDisplayBufferContains(`The user aborted this request`);
     });
   });
 

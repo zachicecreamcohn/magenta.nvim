@@ -216,14 +216,12 @@ export class Magenta {
         break;
 
       case "abort": {
-        const chat = this.chatApp.getState();
-        if (chat.status !== "running") {
-          this.nvim.logger?.error(`Chat is not running.`);
-          return;
-        }
-
-        const provider = getProvider(this.nvim, this.getActiveProfile());
-        provider.abort();
+        this.dispatch({
+          type: "thread-msg",
+          msg: {
+            type: "abort",
+          },
+        });
 
         break;
       }

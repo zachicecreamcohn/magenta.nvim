@@ -12,6 +12,8 @@ import { applyEdit } from "./diff.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
 import * as diff from "diff";
+import type { ToolInterface } from "./types.ts";
+import type { UnresolvedFilePath } from "../utils/files.ts";
 export type State =
   | {
       state: "processing";
@@ -26,7 +28,7 @@ export type Msg = {
   result: Result<string>;
 };
 
-export class ReplaceTool {
+export class ReplaceTool implements ToolInterface {
   state: State;
   toolName = "replace" as const;
 
@@ -51,17 +53,33 @@ export class ReplaceTool {
     );
   }
 
+  abort(): void {
+    this.state = {
+      state: "done",
+      result: {
+        type: "tool_result",
+        id: this.request.id,
+        result: {
+          status: "error",
+          error: "The user aborted this tool request.",
+        },
+      },
+    };
+  }
+
   update(msg: Msg): void {
     switch (msg.type) {
       case "finish":
-        this.state = {
-          state: "done",
-          result: {
-            type: "tool_result",
-            id: this.request.id,
-            result: msg.result,
-          },
-        };
+        if (this.state.state == "processing") {
+          this.state = {
+            state: "done",
+            result: {
+              type: "tool_result",
+              id: this.request.id,
+              result: msg.result,
+            },
+          };
+        }
         return;
       default:
         assertUnreachable(msg.type);
@@ -219,7 +237,7 @@ This MUST be the complete and exact replacement text. It should repeat the conte
 };
 
 export type Input = {
-  filePath: string;
+  filePath: UnresolvedFilePath;
   find: string;
   replace: string;
 };

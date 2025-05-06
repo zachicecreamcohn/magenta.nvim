@@ -8,7 +8,8 @@ import { getBufferIfOpen } from "../utils/buffers.ts";
 import type { Result } from "../utils/result.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
-import type { UnresolvedFilePath } from "../utils/files.ts";
+import { resolveFilePath } from "../utils/files.ts";
+import { getcwd } from "../nvim/nvim.ts";
 
 type InsertRequest = Extract<ToolRequest, { toolName: "insert" }>;
 type ReplaceRequest = Extract<ToolRequest, { toolName: "replace" }>;
@@ -164,24 +165,30 @@ async function handleFileEdit(
 ): Promise<void> {
   const { myDispatch: dispatch } = context;
   const { filePath } = request.input;
+  const cwd = await getcwd(context.nvim);
+  const absFilePath = resolveFilePath(cwd, filePath);
 
   if (request.toolName === "insert" && request.input.insertAfter === "") {
     try {
       let fileExists = true;
       try {
-        await fs.promises.access(filePath);
+        await fs.promises.access(absFilePath);
       } catch {
         fileExists = false;
       }
 
       if (fileExists) {
-        const fileHandle = await fs.promises.open(filePath, "a");
+        const fileHandle = await fs.promises.open(absFilePath, "a");
         await fileHandle.write(request.input.content);
         await fileHandle.close();
       } else {
-        const dirPath = path.dirname(filePath);
+        const dirPath = path.dirname(absFilePath);
         await fs.promises.mkdir(dirPath, { recursive: true });
-        await fs.promises.writeFile(filePath, request.input.content, "utf-8");
+        await fs.promises.writeFile(
+          absFilePath,
+          request.input.content,
+          "utf-8",
+        );
       }
 
       dispatch({
@@ -308,13 +315,13 @@ export async function applyEdit(
     type: "thread-msg",
     msg: {
       type: "take-file-snapshot",
-      unresolvedFilePath: filePath as UnresolvedFilePath,
+      unresolvedFilePath: filePath,
       messageId,
     },
   });
 
   const bufferOpenResult = await getBufferIfOpen({
-    unresolvedPath: filePath as UnresolvedFilePath,
+    unresolvedPath: filePath,
     context: { nvim },
   });
 

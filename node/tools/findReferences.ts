@@ -16,6 +16,7 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { ToolInterface } from "./types.ts";
 
 export type State =
   | {
@@ -31,7 +32,7 @@ export type Msg = {
   result: Result<string>;
 };
 
-export class FindReferencesTool {
+export class FindReferencesTool implements ToolInterface {
   state: State;
   toolName = "find_references" as const;
 
@@ -52,17 +53,35 @@ export class FindReferencesTool {
     return [tool, tool.findReferences()];
   }
 
+  /** This is expected to be invoked as part of a dispatch so we don't need to dispatch new actions to update the view.
+   */
+  abort() {
+    this.state = {
+      state: "done",
+      result: {
+        type: "tool_result",
+        id: this.request.id,
+        result: {
+          status: "error",
+          error: `The user aborted this request.`,
+        },
+      },
+    };
+  }
+
   update(msg: Msg): Thunk<Msg> | undefined {
     switch (msg.type) {
       case "finish":
-        this.state = {
-          state: "done",
-          result: {
-            type: "tool_result",
-            id: this.request.id,
-            result: msg.result,
-          },
-        };
+        if (this.state.state == "processing") {
+          this.state = {
+            state: "done",
+            result: {
+              type: "tool_result",
+              id: this.request.id,
+              result: msg.result,
+            },
+          };
+        }
         return;
       default:
         assertUnreachable(msg.type);

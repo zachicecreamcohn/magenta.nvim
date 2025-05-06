@@ -9,6 +9,7 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
+import type { ToolInterface } from "./types.ts";
 
 export type State =
   | {
@@ -56,7 +57,7 @@ type DiagnosticsRes = {
   severity: number;
 };
 
-export class DiagnosticsTool {
+export class DiagnosticsTool implements ToolInterface {
   state: State;
   toolName = "diagnostics" as const;
 
@@ -80,18 +81,36 @@ export class DiagnosticsTool {
   update(msg: Msg): Thunk<Msg> | undefined {
     switch (msg.type) {
       case "finish":
-        this.state = {
-          state: "done",
-          result: {
-            type: "tool_result",
-            id: this.request.id,
-            result: msg.result,
-          },
-        };
+        if (this.state.state == "processing") {
+          this.state = {
+            state: "done",
+            result: {
+              type: "tool_result",
+              id: this.request.id,
+              result: msg.result,
+            },
+          };
+        }
         return;
       default:
         assertUnreachable(msg.type);
     }
+  }
+
+  /** this is expected to execute as part of a dispatch, so we don't need to dispatch anything to update the view
+   */
+  abort() {
+    this.state = {
+      state: "done",
+      result: {
+        type: "tool_result",
+        id: this.request.id,
+        result: {
+          status: "error",
+          error: `The user aborted this request.`,
+        },
+      },
+    };
   }
 
   getDiagnostics(): Thunk<Msg> {

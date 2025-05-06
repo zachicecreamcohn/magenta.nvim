@@ -9,6 +9,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { CommandAllowlist, MagentaOptions } from "../options.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import { withTimeout } from "../utils/async.ts";
+import type { ToolInterface } from "./types.ts";
 
 export const spec = {
   name: "bash_command",
@@ -125,7 +126,7 @@ export function isCommandAllowed(
   return false;
 }
 
-export class BashCommandTool {
+export class BashCommandTool implements ToolInterface {
   state: State;
   toolName = "bash_command" as const;
 
@@ -297,22 +298,22 @@ export class BashCommandTool {
       }
 
       case "terminate": {
-        if (this.state.state !== "processing") {
-          return;
-        }
-
-        if (this.state.childProcess) {
-          this.state.childProcess.kill("SIGTERM");
-          this.state.output.push({
-            stream: "stderr",
-            text: "Process terminated by user with SIGTERM",
-          });
-        }
+        this.terminate();
         return;
       }
 
       default:
         assertUnreachable(msg);
+    }
+  }
+
+  private terminate() {
+    if (this.state.state === "processing" && this.state.childProcess) {
+      this.state.childProcess.kill("SIGTERM");
+      this.state.output.push({
+        stream: "stderr",
+        text: "Process terminated by user with SIGTERM",
+      });
     }
   }
 
@@ -373,13 +374,38 @@ export class BashCommandTool {
       }
 
       const errorMessage =
-        error instanceof Error ? error.message : String(error);
+        error instanceof Error
+          ? error.message + "\n" + error.stack
+          : String(error);
 
       this.context.myDispatch({
         type: "stderr",
         text: errorMessage,
       });
       this.context.myDispatch({ type: "exit", code: 1 });
+    }
+  }
+
+  /** It is the expectation that this is happening as part of a dispatch, so it should not trigger
+   * new dispatches...
+   */
+  abort(): void {
+    this.terminate();
+
+    if (this.state.state == "pending-user-action") {
+      this.state = {
+        state: "done",
+        exitCode: -1,
+        output: [],
+        result: {
+          type: "tool_result",
+          id: this.request.id,
+          result: {
+            status: "error",
+            error: `The user aborted this command.`,
+          },
+        },
+      };
     }
   }
 

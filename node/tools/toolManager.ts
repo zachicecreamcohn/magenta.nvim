@@ -122,6 +122,10 @@ export type Msg =
   | {
       type: "tool-msg";
       msg: ToolMsg;
+    }
+  | {
+      type: "abort-tool-use";
+      requestId: ToolRequestId;
     };
 
 export type ToolManagerMsg = {
@@ -250,8 +254,17 @@ export class ToolManager {
 
         switch (request.toolName) {
           case "get_file": {
-            const [getFileTool, thunk] = GetFile.GetFileTool.create(request, {
+            const getFileTool = new GetFile.GetFileTool(request, {
               nvim: this.context.nvim,
+              myDispatch: (msg) =>
+                this.myDispatch({
+                  type: "tool-msg",
+                  msg: {
+                    id: request.id,
+                    toolName: request.toolName,
+                    msg,
+                  },
+                }),
             });
 
             this.state.toolWrappers[request.id] = {
@@ -260,7 +273,7 @@ export class ToolManager {
               showResult: false,
             };
 
-            return this.acceptThunk(getFileTool, thunk);
+            return;
           }
 
           case "list_buffers": {
@@ -438,6 +451,12 @@ export class ToolManager {
           }
         }
         return thunk ? this.acceptThunk(toolWrapper.tool, thunk) : undefined;
+      }
+
+      case "abort-tool-use": {
+        const tool = this.state.toolWrappers[msg.requestId].tool;
+        tool.abort();
+        return;
       }
 
       default:

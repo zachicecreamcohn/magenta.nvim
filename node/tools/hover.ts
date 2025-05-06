@@ -14,6 +14,7 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { ToolInterface } from "./types.ts";
 
 export type State =
   | {
@@ -29,7 +30,7 @@ export type Msg = {
   result: Result<string>;
 };
 
-export class HoverTool {
+export class HoverTool implements ToolInterface {
   state: State;
   toolName = "hover" as const;
 
@@ -53,18 +54,34 @@ export class HoverTool {
   update(msg: Msg): Thunk<Msg> | undefined {
     switch (msg.type) {
       case "finish":
-        this.state = {
-          state: "done",
-          result: {
-            type: "tool_result",
-            id: this.request.id,
-            result: msg.result,
-          },
-        };
+        if (this.state.state == "processing") {
+          this.state = {
+            state: "done",
+            result: {
+              type: "tool_result",
+              id: this.request.id,
+              result: msg.result,
+            },
+          };
+        }
         return;
       default:
         assertUnreachable(msg.type);
     }
+  }
+
+  abort() {
+    this.state = {
+      state: "done",
+      result: {
+        type: "tool_result",
+        id: this.request.id,
+        result: {
+          status: "error",
+          error: `The user aborted this request.`,
+        },
+      },
+    };
   }
 
   requestHover(): Thunk<Msg> {
