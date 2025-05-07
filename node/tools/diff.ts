@@ -114,24 +114,29 @@ async function handleBufferEdit(
   } else if (request.toolName === "replace") {
     const { find, replace } = request.input;
 
-    const replaceStart = bufferContent.indexOf(find);
+    // Special case: if find is empty, replace the entire file
+    if (find === "") {
+      bufferContent = replace;
+    } else {
+      const replaceStart = bufferContent.indexOf(find);
 
-    if (replaceStart === -1) {
-      dispatch({
-        type: "finish",
-        result: {
-          status: "error",
-          error: `Unable to find text "${find}" in file \`${filePath}\``,
-        },
-      });
-      return;
+      if (replaceStart === -1) {
+        dispatch({
+          type: "finish",
+          result: {
+            status: "error",
+            error: `Unable to find text "${find}" in file \`${filePath}\``,
+          },
+        });
+        return;
+      }
+
+      const replaceEnd = replaceStart + find.length;
+      bufferContent =
+        bufferContent.slice(0, replaceStart) +
+        replace +
+        bufferContent.slice(replaceEnd);
     }
-
-    const replaceEnd = replaceStart + find.length;
-    bufferContent =
-      bufferContent.slice(0, replaceStart) +
-      replace +
-      bufferContent.slice(replaceEnd);
 
     await buffer.setLines({
       start: 0,
@@ -155,7 +160,7 @@ async function handleBufferEdit(
     type: "finish",
     result: {
       status: "ok",
-      value: `Successfully modified ${filePath}`,
+      value: `Successfully applied edits.`,
     },
   });
 }
@@ -196,7 +201,7 @@ async function handleFileEdit(
         type: "finish",
         result: {
           status: "ok",
-          value: `Successfully appended content to ${filePath}`,
+          value: `Successfully applied edits.`,
         },
       });
       return;
@@ -226,7 +231,6 @@ async function handleFileEdit(
     return;
   }
 
-  let successMessage = "";
   let newContent = fileContent;
 
   if (request.toolName == "insert") {
@@ -248,8 +252,6 @@ async function handleFileEdit(
       fileContent.slice(0, insertLocation) +
       request.input.content +
       fileContent.slice(insertLocation);
-
-    successMessage = `Successfully applied tool.`;
   } else if (request.toolName === "replace") {
     const { find, replace } = request.input;
     let fileContent;
@@ -260,25 +262,28 @@ async function handleFileEdit(
       fileContent = "";
     }
 
-    const replaceStart = fileContent.indexOf(find);
-    if (replaceStart === -1) {
-      dispatch({
-        type: "finish",
-        result: {
-          status: "error",
-          error: `Unable to find text "${find}" in file \`${filePath}\`.`,
-        },
-      });
-      return;
+    // Special case: if find parameter is empty, replace the entire file
+    if (find === "") {
+      newContent = replace;
+    } else {
+      const replaceStart = fileContent.indexOf(find);
+      if (replaceStart === -1) {
+        dispatch({
+          type: "finish",
+          result: {
+            status: "error",
+            error: `Unable to find text "${find}" in file \`${filePath}\`.`,
+          },
+        });
+        return;
+      }
+
+      const replaceEnd = replaceStart + find.length;
+      newContent =
+        fileContent.slice(0, replaceStart) +
+        replace +
+        fileContent.slice(replaceEnd);
     }
-
-    const replaceEnd = replaceStart + find.length;
-    newContent =
-      fileContent.slice(0, replaceStart) +
-      replace +
-      fileContent.slice(replaceEnd);
-
-    successMessage = `Successfully applied tool.`;
   }
 
   try {
@@ -287,7 +292,7 @@ async function handleFileEdit(
       type: "finish",
       result: {
         status: "ok",
-        value: successMessage,
+        value: `Successfully applied edits.`,
       },
     });
   } catch (error) {

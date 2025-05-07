@@ -259,6 +259,49 @@ Paint their stories in the night.
     });
   });
 
+  it("replace entire file with empty find parameter", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(
+        `Replace the entire contents of ${TMP_DIR}/poem.txt with a new poem`,
+      );
+      await driver.send();
+
+      await driver.mockAnthropic.respond({
+        stopReason: "end_turn",
+        text: "I'll replace the entire file content",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "id" as ToolRequestId,
+              toolName: "replace",
+              input: {
+                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
+                find: "",
+                replace:
+                  "A brand new poem\nWritten from scratch\nReplacing all that came before",
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains("✏️ Replace [[ -1 / +3 ]]");
+      await driver.assertDisplayBufferContains("Success");
+
+      // Verify the entire file was replaced
+      const filePath = path.join(
+        await getcwd(driver.nvim),
+        `${TMP_DIR}/poem.txt`,
+      );
+      const fileContent = fs.readFileSync(filePath, "utf-8");
+      expect(fileContent).toEqual(
+        "A brand new poem\nWritten from scratch\nReplacing all that came before",
+      );
+    });
+  });
+
   it("failed edit is not fatal", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();

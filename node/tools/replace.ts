@@ -209,7 +209,7 @@ export const spec: ProviderToolSpec = {
   name: "replace",
   description: `This is a tool for replacing text in a file.
 
-Break up replace opertations into multiple, smaller tool invocations to avoid repeating large sections of the existing code.`,
+Break up replace opertations into multiple, smaller replace calls. Try to make each replace call meaningful and atomic.`,
   input_schema: {
     type: "object",
     properties: {
@@ -225,13 +225,15 @@ Break up replace opertations into multiple, smaller tool invocations to avoid re
 
 This should be the complete text to replace, exactly as it appears in the file, including indentation. Regular expressions are not supported.
 
-If the text appears multiple times, only the first match will be replaced. If you would like to replace multiple instances of the same text, use multiple tool calls to change each instance.`,
+If the text appears multiple times, only the first match will be replaced. If you would like to replace multiple instances of the same text, use multiple tool calls.
+
+Special case: If \`find\` is an empty string (""), the entire file content will be replaced with the \`replace\` text.`,
       },
       replace: {
         type: "string",
         description: `The \`replace\` parameter will replace the \`find\` text.
 
-This MUST be the complete and exact replacement text. It should repeat the context lines that should not change, including indentation.`,
+This MUST be the complete and exact replacement text. Make sure to keep track of braces and indentation.`,
       },
     },
     required: ["filePath", "find", "replace"],
