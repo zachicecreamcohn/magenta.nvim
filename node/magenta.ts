@@ -109,6 +109,7 @@ export class Magenta {
 
           this.dispatch({
             type: "thread-msg",
+            id: this.chat.getActiveThread().id,
             msg: {
               type: "update-profile",
               profile: this.getActiveProfile(),
@@ -128,10 +129,8 @@ export class Magenta {
       }
 
       case "context-files": {
-        if (this.chat.state.state !== "initialized") {
-          return;
-        }
-        const messages = this.chat.state.thread.state.messages;
+        const thread = this.chat.getActiveThread();
+        const messages = thread.state.messages;
         const message = messages[messages.length - 1];
         const messageId = message?.state.id || (0 as MessageId);
 
@@ -149,12 +148,16 @@ export class Magenta {
           );
           const relFilePath = relativePath(cwd, absFilePath);
           this.dispatch({
-            type: "context-manager-msg",
+            type: "thread-msg",
+            id: thread.id,
             msg: {
-              type: "add-file-context",
-              absFilePath,
-              relFilePath,
-              messageId,
+              type: "context-manager-msg",
+              msg: {
+                type: "add-file-context",
+                absFilePath,
+                relFilePath,
+                messageId,
+              },
             },
           });
         }
@@ -183,6 +186,7 @@ export class Magenta {
 
         this.dispatch({
           type: "thread-msg",
+          id: this.chat.getActiveThread().id,
           msg: {
             type: "add-message",
             role: "user",
@@ -192,6 +196,7 @@ export class Magenta {
 
         this.dispatch({
           type: "thread-msg",
+          id: this.chat.getActiveThread().id,
           msg: {
             type: "send-message",
           },
@@ -208,6 +213,7 @@ export class Magenta {
       case "clear":
         this.dispatch({
           type: "thread-msg",
+          id: this.chat.getActiveThread().id,
           msg: {
             type: "clear",
             profile: this.getActiveProfile(),
@@ -218,8 +224,35 @@ export class Magenta {
       case "abort": {
         this.dispatch({
           type: "thread-msg",
+          id: this.chat.getActiveThread().id,
           msg: {
             type: "abort",
+          },
+        });
+
+        break;
+      }
+
+      case "new-thread": {
+        if (!this.sidebar.state.displayBuffer) {
+          await this.command("toggle");
+        }
+
+        this.dispatch({
+          type: "chat-msg",
+          msg: {
+            type: "new-thread",
+          },
+        });
+
+        break;
+      }
+
+      case "threads-overview": {
+        this.dispatch({
+          type: "chat-msg",
+          msg: {
+            type: "threads-overview",
           },
         });
 

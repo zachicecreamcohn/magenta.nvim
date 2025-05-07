@@ -6,11 +6,15 @@ import {
   type Msg as MessageMsg,
 } from "./message.ts";
 
-import { ContextManager } from "../context/context-manager.ts";
+import {
+  ContextManager,
+  type Msg as ContextManagerMsg,
+} from "../context/context-manager.ts";
 import { type Dispatch } from "../tea/tea.ts";
 import { d, withBindings, type View } from "../tea/view.ts";
 import {
   ToolManager,
+  type Msg as ToolManagerMsg,
   type ToolRequest,
   type ToolRequestId,
 } from "../tools/toolManager.ts";
@@ -91,12 +95,23 @@ export type Msg =
       type: "take-file-snapshot";
       unresolvedFilePath: UnresolvedFilePath;
       messageId: MessageId;
+    }
+  | {
+      type: "tool-manager-msg";
+      msg: ToolManagerMsg;
+    }
+  | {
+      type: "context-manager-msg";
+      msg: ContextManagerMsg;
     };
 
 export type ThreadMsg = {
   type: "thread-msg";
+  id: ThreadId;
   msg: Msg;
 };
+
+export type ThreadId = number & { __threadId: true };
 
 export class Thread {
   public state: {
@@ -116,25 +131,29 @@ export class Thread {
   private options: MagentaOptions;
   public fileSnapshots: FileSnapshots;
 
-  constructor({
-    dispatch,
-    profile,
-    nvim,
-    contextManager,
-    lsp,
-    options,
-  }: {
-    dispatch: Dispatch<RootMsg>;
-    profile: Profile;
-    nvim: Nvim;
-    lsp: Lsp;
-    contextManager: ContextManager;
-    options: MagentaOptions;
-  }) {
+  constructor(
+    public id: ThreadId,
+    {
+      dispatch,
+      profile,
+      nvim,
+      contextManager,
+      lsp,
+      options,
+    }: {
+      dispatch: Dispatch<RootMsg>;
+      profile: Profile;
+      nvim: Nvim;
+      lsp: Lsp;
+      contextManager: ContextManager;
+      options: MagentaOptions;
+    },
+  ) {
     this.dispatch = dispatch;
     this.myDispatch = (msg) =>
       this.dispatch({
         type: "thread-msg",
+        id: this.id,
         msg,
       });
 
@@ -143,12 +162,19 @@ export class Thread {
     this.counter = new Counter();
     this.contextManager = contextManager;
     this.options = options;
-    this.toolManager = new ToolManager({
-      dispatch: this.dispatch,
-      nvim: this.nvim,
-      lsp: this.lsp,
-      options: this.options,
-    });
+    this.toolManager = new ToolManager(
+      (msg) =>
+        this.myDispatch({
+          type: "tool-manager-msg",
+          msg,
+        }),
+      {
+        dispatch: this.dispatch,
+        nvim: this.nvim,
+        lsp: this.lsp,
+        options: this.options,
+      },
+    );
 
     this.fileSnapshots = new FileSnapshots(this.nvim);
 
@@ -165,13 +191,8 @@ export class Thread {
   }
 
   update(msg: RootMsg): void {
-    if (msg.type == "thread-msg") {
+    if (msg.type == "thread-msg" && msg.id == this.id) {
       this.myUpdate(msg.msg);
-    } else if (msg.type == "tool-manager-msg") {
-      this.toolManager.update(msg.msg);
-      this.maybeAutorespond();
-    } else if (msg.type == "context-manager-msg") {
-      this.contextManager.update(msg.msg);
     }
   }
 
@@ -358,6 +379,7 @@ export class Thread {
             type: "init-tool-use",
             request: msg.request.value,
             messageId: message.state.id,
+            threadId: this.id,
           });
 
           message.update({
@@ -408,6 +430,16 @@ export class Thread {
         return;
       }
 
+      case "tool-manager-msg": {
+        this.toolManager.update(msg.msg);
+        this.maybeAutorespond();
+        return;
+      }
+
+      case "context-manager-msg": {
+        this.contextManager.update(msg.msg);
+        return;
+      }
       case "abort": {
         const provider = getProvider(this.nvim, this.state.profile);
         provider.abort();
@@ -416,7 +448,7 @@ export class Thread {
         const lastMessage = this.state.messages[this.state.messages.length - 1];
         for (const part of lastMessage.state.parts) {
           if (part.state.type == "tool-request") {
-            this.dispatch({
+            this.myDispatch({
               type: "tool-manager-msg",
               msg: {
                 type: "abort-tool-use",

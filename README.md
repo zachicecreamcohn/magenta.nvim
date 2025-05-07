@@ -13,6 +13,8 @@ May 2025 update
 
 I made a significant architectural shift in how magenta.nvim handles edits. Instead of merely proposing changes that require user confirmation, the agent can now directly apply edits to files with automatic snapshots for safety. Combined with the recent PR that implemented robust bash command execution, this creates a powerful iteration loop capability: agents can now modify files, run tests through bash, analyze results, and make further changes - all without user intervention.
 
+I also started implementing multi-thread support, a basic version of which is now available.
+
 Jan 2025 update
 
 [![video of Jan 2025 update](https://img.youtube.com/vi/BPnUO_ghMJQ/0.jpg)](https://www.youtube.com/watch?v=BPnUO_ghMJQ)
@@ -136,6 +138,13 @@ local Actions = require("magenta.actions")
 
 vim.keymap.set(
   "n",
+  "<leader>mn",
+  ":Magenta new-thread<CR>",
+  {silent = true, noremap = true, desc = "Create new Magenta thread"}
+)
+
+vim.keymap.set(
+  "n",
   "<leader>mc",
   ":Magenta clear<CR>",
   {silent = true, noremap = true, desc = "Clear Magenta state"}
@@ -227,6 +236,15 @@ set it as the default selector for neovim, by running `register_ui_select` at so
 ### Chat
 
 - `<leader>mt` is for `:Magenta toggle`. This will open a sidebar where you can chat with the model. You can add files to the context with `Magenta context-files` (`<leader>mf`), or paste your current visual selection with `Magenta paste-selection` (`<leader>mp`)
+
+### Multi-threading
+
+Magenta now supports multiple concurrent chat threads:
+
+- `<leader>mn` is for `:Magenta new-thread`. This creates a new independent chat thread.
+- When in the display buffer, press `-` to view the thread overview screen.
+- Current active thread is highlighted with `*` in the thread list.
+- Press `Enter` on any thread in the overview to make it active.
 
 ### Inline edit
 

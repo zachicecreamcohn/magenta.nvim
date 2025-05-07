@@ -23,6 +23,11 @@ local defaults = {
       ["<CR>"] = ":Magenta send<CR>",
     }
   },
+  displayKeymaps = {
+    normal = {
+      ["-"] = ":Magenta threads-overview<CR>",
+    }
+  },
   inlineKeymaps = {
     normal = {
       ["<CR>"] = function(target_bufnr)

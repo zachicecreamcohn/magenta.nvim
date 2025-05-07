@@ -14,11 +14,6 @@ import type { RootMsg } from "../root-msg";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow";
 import type { AbsFilePath, RelFilePath } from "../utils/files";
 
-export type ContextManagerMsg = {
-  type: "context-manager-msg";
-  msg: Msg;
-};
-
 export type Msg =
   | {
       type: "add-file-context";
@@ -37,7 +32,6 @@ export type Msg =
 
 export class ContextManager {
   public dispatch: Dispatch<RootMsg>;
-  public myDispatch: Dispatch<Msg>;
   public files: {
     [absFilePath: AbsFilePath]: {
       relFilePath: RelFilePath;
@@ -48,42 +42,51 @@ export class ContextManager {
   private nvim: Nvim;
   private options: MagentaOptions;
 
-  private constructor({
-    dispatch,
-    nvim,
-    options,
-    initialFiles = {},
-  }: {
-    dispatch: Dispatch<RootMsg>;
-    nvim: Nvim;
-    options: MagentaOptions;
-    initialFiles?: {
-      [absFilePath: AbsFilePath]: {
-        relFilePath: RelFilePath;
-        initialMessageId: MessageId;
+  private constructor(
+    public myDispatch: Dispatch<Msg>,
+    {
+      dispatch,
+      nvim,
+      options,
+      initialFiles = {},
+    }: {
+      dispatch: Dispatch<RootMsg>;
+      nvim: Nvim;
+      options: MagentaOptions;
+      initialFiles?: {
+        [absFilePath: AbsFilePath]: {
+          relFilePath: RelFilePath;
+          initialMessageId: MessageId;
+        };
       };
-    };
-  }) {
+    },
+  ) {
     this.dispatch = dispatch;
-    this.myDispatch = (msg) =>
-      this.dispatch({ type: "context-manager-msg", msg });
     this.nvim = nvim;
     this.options = options;
     this.bufferAndFileManager = new BufferAndFileManager(nvim);
     this.files = initialFiles;
   }
 
-  static async create({
-    dispatch,
-    nvim,
-    options,
-  }: {
-    dispatch: Dispatch<RootMsg>;
-    nvim: Nvim;
-    options: MagentaOptions;
-  }): Promise<ContextManager> {
+  static async create(
+    myDispatch: Dispatch<Msg>,
+    {
+      dispatch,
+      nvim,
+      options,
+    }: {
+      dispatch: Dispatch<RootMsg>;
+      nvim: Nvim;
+      options: MagentaOptions;
+    },
+  ): Promise<ContextManager> {
     const initialFiles = await ContextManager.loadAutoContext(nvim, options);
-    return new ContextManager({ dispatch, nvim, options, initialFiles });
+    return new ContextManager(myDispatch, {
+      dispatch,
+      nvim,
+      options,
+      initialFiles,
+    });
   }
 
   update(msg: Msg): void {

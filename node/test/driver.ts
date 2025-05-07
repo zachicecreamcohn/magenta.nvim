@@ -17,6 +17,7 @@ import {
   getCurrentWindow,
 } from "../nvim/nvim";
 import { expect } from "vitest";
+import type { ThreadId } from "../chat/thread";
 
 export class NvimDriver {
   constructor(
@@ -165,6 +166,32 @@ export class NvimDriver {
         Buffer.from(content),
         index,
       );
+    });
+  }
+
+  awaitChatState(
+    desiredState:
+      | { state: "thread-overview" }
+      | { state: "thread-selected"; id: ThreadId },
+  ) {
+    return pollUntil(() => {
+      const state = this.magenta.chat.state;
+      if (state.state !== desiredState.state) {
+        throw new Error(
+          `Unexpected chat state. Desired: ${JSON.stringify(desiredState)} actual:${state.state}`,
+        );
+      }
+
+      if (
+        desiredState.state == "thread-selected" &&
+        desiredState.id != state.activeThreadId
+      ) {
+        throw new Error(
+          `Unexpected chat state. Desired: ${JSON.stringify(desiredState)} actual: ${state.activeThreadId}`,
+        );
+      }
+
+      return;
     });
   }
 

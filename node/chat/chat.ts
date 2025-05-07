@@ -2,13 +2,14 @@ import type { Nvim } from "nvim-node";
 import type { MagentaOptions, Profile } from "../options";
 import type { RootMsg } from "../root-msg";
 import type { Dispatch } from "../tea/tea";
-import { Thread, view as threadView } from "./thread";
+import { Thread, view as threadView, type ThreadId } from "./thread";
 import type { Lsp } from "../lsp";
 import { assertUnreachable } from "../utils/assertUnreachable";
-import { d } from "../tea/view";
+import { d, withBindings } from "../tea/view";
 import { ContextManager } from "../context/context-manager";
+import { Counter } from "../utils/uniqueId.ts";
 
-type State =
+type ThreadWrapper =
   | {
       state: "pending";
     }
@@ -21,14 +22,35 @@ type State =
       error: Error;
     };
 
-type Msg =
+type ChatState =
+  | {
+      state: "thread-overview";
+      activeThreadId: ThreadId | undefined;
+    }
+  | {
+      state: "thread-selected";
+      activeThreadId: ThreadId;
+    };
+
+export type Msg =
   | {
       type: "thread-initialized";
       thread: Thread;
     }
   | {
       type: "thread-error";
+      id: ThreadId;
       error: Error;
+    }
+  | {
+      type: "new-thread";
+    }
+  | {
+      type: "select-thread";
+      id: ThreadId;
+    }
+  | {
+      type: "threads-overview";
     };
 
 export type ChatMsg = {
@@ -37,7 +59,9 @@ export type ChatMsg = {
 };
 
 export class Chat {
-  state: State;
+  private threadCounter = new Counter();
+  state: ChatState;
+  private threadWrappers: Map<ThreadId, ThreadWrapper>;
 
   constructor(
     private context: {
@@ -47,95 +71,240 @@ export class Chat {
       lsp: Lsp;
     },
   ) {
+    this.threadWrappers = new Map();
     this.state = {
-      state: "pending",
+      state: "thread-overview",
+      activeThreadId: undefined,
     };
 
-    this.initThread().catch((e: Error) => {
-      this.context.dispatch({
-        type: "chat-msg",
-        msg: {
-          type: "thread-error",
-          error: e,
-        },
-      });
+    this.createNewThread().catch((e: Error) => {
+      this.context.nvim.logger?.error(
+        "Failed to create initial thread: " + e.message + "\n" + e.stack,
+      );
     });
   }
 
   update(msg: RootMsg) {
     if (msg.type == "chat-msg") {
-      switch (msg.msg.type) {
-        case "thread-initialized":
-          this.state = {
-            state: "initialized",
-            thread: msg.msg.thread,
-          };
-          return;
-
-        case "thread-error":
-          this.state = {
-            state: "error",
-            error: msg.msg.error,
-          };
-          return;
-        default:
-          assertUnreachable(msg.msg);
-      }
+      this.myUpdate(msg.msg);
+      return;
     }
 
-    if (this.state.state == "initialized") {
-      this.state.thread.update(msg);
+    if (msg.type == "thread-msg" && this.threadWrappers.has(msg.id)) {
+      const threadState = this.threadWrappers.get(msg.id)!;
+      if (threadState.state === "initialized") {
+        threadState.thread.update(msg);
+      }
+    }
+  }
+
+  private myUpdate(msg: Msg) {
+    switch (msg.type) {
+      case "thread-initialized": {
+        this.threadWrappers.set(msg.thread.id, {
+          state: "initialized",
+          thread: msg.thread,
+        });
+
+        this.state = {
+          state: "thread-selected",
+          activeThreadId: msg.thread.id,
+        };
+        return;
+      }
+
+      case "thread-error": {
+        this.threadWrappers.set(msg.id, {
+          state: "error",
+          error: msg.error,
+        });
+
+        if (this.state.state === "thread-selected") {
+          this.state = {
+            state: "thread-overview",
+            activeThreadId: msg.id,
+          };
+        }
+        return;
+      }
+
+      case "new-thread":
+        this.createNewThread().catch((e: Error) => {
+          this.context.nvim.logger?.error("Failed to create new thread:", e);
+        });
+        return;
+
+      case "select-thread":
+        if (this.threadWrappers.has(msg.id)) {
+          this.state = {
+            state: "thread-selected",
+            activeThreadId: msg.id,
+          };
+        }
+        return;
+
+      case "threads-overview":
+        this.state = {
+          state: "thread-overview",
+          activeThreadId: this.state.activeThreadId,
+        };
+        return;
+
+      default:
+        assertUnreachable(msg);
     }
   }
 
   async getMessages() {
-    if (this.state.state == "initialized") {
-      return await this.state.thread.getMessages();
+    if (
+      this.state.state === "thread-selected" &&
+      this.threadWrappers.has(this.state.activeThreadId)
+    ) {
+      const threadState = this.threadWrappers.get(this.state.activeThreadId)!;
+      if (threadState.state === "initialized") {
+        return await threadState.thread.getMessages();
+      }
     }
     return [];
   }
 
-  async initThread() {
-    const contextManager = await ContextManager.create({
-      dispatch: this.context.dispatch,
-      nvim: this.context.nvim,
-      options: this.context.options,
-    });
+  async createNewThread() {
+    const id = this.threadCounter.get() as ThreadId;
 
-    const thread = new Thread({
-      dispatch: this.context.dispatch,
-      contextManager,
-      profile: getActiveProfile(
-        this.context.options.profiles,
-        this.context.options.activeProfile,
-      ),
-      nvim: this.context.nvim,
-      lsp: this.context.lsp,
-      options: this.context.options,
-    });
+    const threads = new Map(this.threadWrappers);
+    threads.set(id, { state: "pending" });
 
-    this.context.dispatch({
-      type: "chat-msg",
-      msg: {
-        type: "thread-initialized",
-        thread,
+    try {
+      const contextManager = await ContextManager.create(
+        (msg) =>
+          this.context.dispatch({
+            type: "thread-msg",
+            id,
+            msg: {
+              type: "context-manager-msg",
+              msg,
+            },
+          }),
+        {
+          dispatch: this.context.dispatch,
+          nvim: this.context.nvim,
+          options: this.context.options,
+        },
+      );
+
+      const thread = new Thread(id, {
+        dispatch: this.context.dispatch,
+        contextManager,
+        profile: getActiveProfile(
+          this.context.options.profiles,
+          this.context.options.activeProfile,
+        ),
+        nvim: this.context.nvim,
+        lsp: this.context.lsp,
+        options: this.context.options,
+      });
+
+      this.context.dispatch({
+        type: "chat-msg",
+        msg: {
+          type: "thread-initialized",
+          thread,
+        },
+      });
+    } catch (e) {
+      this.context.dispatch({
+        type: "chat-msg",
+        msg: {
+          type: "thread-error",
+          id,
+          error: e as Error,
+        },
+      });
+    }
+  }
+
+  renderThreadOverview() {
+    const threadViews = Array.from(this.threadWrappers.entries()).map(
+      ([id, threadState]) => {
+        let status = "";
+        const marker = id == this.state.activeThreadId ? "*" : "-";
+        switch (threadState.state) {
+          case "pending":
+            status = `${marker} ${id} - loading...\n`;
+            break;
+          case "initialized":
+            status = `${marker} ${id}\n`;
+            break;
+          case "error":
+            status = `${marker} ${id} - error: ${threadState.error.message}\n`;
+            break;
+        }
+
+        return withBindings(d`${status}`, {
+          "<CR>": () =>
+            this.context.dispatch({
+              type: "chat-msg",
+              msg: { type: "select-thread", id },
+            }),
+        });
       },
-    });
+    );
+
+    return d`\
+# Threads
+
+${threadViews.length ? threadViews : "No threads yet"}`;
+  }
+
+  getActiveThread(): Thread {
+    if (!this.state.activeThreadId) {
+      throw new Error(`Chat is not initialized yet... no active thread`);
+    }
+    const threadWrapper = this.threadWrappers.get(this.state.activeThreadId);
+    if (!(threadWrapper && threadWrapper.state == "initialized")) {
+      throw new Error(
+        `Thread ${this.state.activeThreadId} not initialized yet...`,
+      );
+    }
+    return threadWrapper.thread;
+  }
+
+  renderActiveThread() {
+    const threadWrapper =
+      this.state.activeThreadId &&
+      this.threadWrappers.get(this.state.activeThreadId);
+
+    if (!threadWrapper) {
+      throw new Error(`no active thread`);
+    }
+
+    switch (threadWrapper.state) {
+      case "pending":
+        return d`Initializing thread...`;
+      case "initialized": {
+        const thread = threadWrapper.thread;
+        return threadView({
+          thread,
+          dispatch: (msg) =>
+            this.context.dispatch({
+              type: "thread-msg",
+              id: thread.id,
+              msg,
+            }),
+        });
+      }
+      case "error":
+        return d`Error: ${threadWrapper.error.message}`;
+      default:
+        assertUnreachable(threadWrapper);
+    }
   }
 
   view() {
-    switch (this.state.state) {
-      case "pending":
-        return d`Initializing...`;
-      case "initialized":
-        return threadView({
-          thread: this.state.thread,
-          dispatch: (msg) => this.context.dispatch({ type: "thread-msg", msg }),
-        });
-      case "error":
-        return d`Error: ${this.state.error.message}`;
-      default:
-        assertUnreachable(this.state);
+    if (this.state.state === "thread-overview") {
+      return this.renderThreadOverview();
+    } else {
+      return this.renderActiveThread();
     }
   }
 }

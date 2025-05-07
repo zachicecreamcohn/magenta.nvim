@@ -8,6 +8,7 @@ import { getBufferIfOpen } from "../utils/buffers.ts";
 import type { Result } from "../utils/result.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
+import type { ThreadId } from "../chat/thread.ts";
 import { resolveFilePath } from "../utils/files.ts";
 import { getcwd } from "../nvim/nvim.ts";
 
@@ -305,6 +306,7 @@ async function handleFileEdit(
  */
 export async function applyEdit(
   request: EditRequest,
+  threadId: ThreadId,
   messageId: MessageId,
   context: EditContext,
 ): Promise<void> {
@@ -313,6 +315,7 @@ export async function applyEdit(
 
   dispatch({
     type: "thread-msg",
+    id: threadId,
     msg: {
       type: "take-file-snapshot",
       unresolvedFilePath: filePath,
