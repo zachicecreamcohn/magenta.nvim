@@ -9,6 +9,7 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
+import type { ToolInterface } from "./types.ts";
 
 export type State =
   | {
@@ -24,7 +25,7 @@ export type Msg = {
   result: Result<string>;
 };
 
-export class ListBuffersTool {
+export class ListBuffersTool implements ToolInterface {
   state: State;
   toolName = "list_buffers" as const;
 
@@ -44,17 +45,33 @@ export class ListBuffersTool {
     return [tool, tool.fetchBuffers()];
   }
 
+  abort() {
+    this.state = {
+      state: "done",
+      result: {
+        type: "tool_result",
+        id: this.request.id,
+        result: {
+          status: "error",
+          error: "The user aborted this tool request.",
+        },
+      },
+    };
+  }
+
   update(msg: Msg): Thunk<Msg> | undefined {
     switch (msg.type) {
       case "finish":
-        this.state = {
-          state: "done",
-          result: {
-            type: "tool_result",
-            id: this.request.id,
-            result: msg.result,
-          },
-        };
+        if (this.state.state == "processing") {
+          this.state = {
+            state: "done",
+            result: {
+              type: "tool_result",
+              id: this.request.id,
+              result: msg.result,
+            },
+          };
+        }
         return;
       default:
         assertUnreachable(msg.type);

@@ -14,8 +14,12 @@ import type {
 } from "../providers/provider.ts";
 import type { Dispatch, Thunk } from "../tea/tea.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { ToolInterface } from "./types.ts";
 
 export type State =
+  | {
+      state: "pending";
+    }
   | {
       state: "processing";
       approved: boolean;
@@ -34,6 +38,9 @@ export type Msg =
       result: Result<string>;
     }
   | {
+      type: "automatic-approval";
+    }
+  | {
       type: "request-user-approval";
     }
   | {
@@ -41,44 +48,62 @@ export type Msg =
       approved: boolean;
     };
 
-export class GetFileTool {
+export class GetFileTool implements ToolInterface {
   state: State;
   toolName = "get_file" as const;
 
-  private constructor(
+  constructor(
     public request: Extract<ToolRequest, { toolName: "get_file" }>,
-    public context: { nvim: Nvim },
+    public context: { nvim: Nvim; myDispatch: Dispatch<Msg> },
   ) {
     this.state = {
-      state: "processing",
-      approved: false,
+      state: "pending",
     };
+
+    this.initReadFile().catch((error: Error) =>
+      this.context.myDispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: error.message + "\n" + error.stack,
+        },
+      }),
+    );
   }
 
-  static create(
-    request: Extract<ToolRequest, { toolName: "get_file" }>,
-    context: { nvim: Nvim },
-  ): [GetFileTool, Thunk<Msg>] {
-    const tool = new GetFileTool(request, context);
-    return [tool, tool.readFileThunk()];
+  /** this is expected to be invoked as part of a dispatch, so we don't need to dispatch here to update the view
+   */
+  abort() {
+    this.state = {
+      state: "done",
+      result: {
+        type: "tool_result",
+        id: this.request.id,
+        result: { status: "error", error: `The user aborted this request.` },
+      },
+    };
   }
 
   update(msg: Msg): Thunk<Msg> | undefined {
     switch (msg.type) {
       case "finish":
-        this.state = {
-          state: "done",
-          result: {
-            type: "tool_result",
-            id: this.request.id,
-            result: msg.result,
-          },
-        };
+        if (this.state.state == "processing") {
+          this.state = {
+            state: "done",
+            result: {
+              type: "tool_result",
+              id: this.request.id,
+              result: msg.result,
+            },
+          };
+        }
         return;
       case "request-user-approval":
-        this.state = {
-          state: "pending-user-action",
-        };
+        if (this.state.state == "pending") {
+          this.state = {
+            state: "pending-user-action",
+          };
+        }
         return;
       case "user-approval": {
         if (this.state.state === "pending-user-action") {
@@ -88,7 +113,16 @@ export class GetFileTool {
               approved: true,
             };
 
-            return this.readFileThunk();
+            this.readFile().catch((error: Error) =>
+              this.context.myDispatch({
+                type: "finish",
+                result: {
+                  status: "error",
+                  error: error.message + "\n" + error.stack,
+                },
+              }),
+            );
+            return;
           } else {
             this.state = {
               state: "done",
@@ -103,95 +137,110 @@ export class GetFileTool {
             };
             return;
           }
-        } else {
-          throw new Error(
-            `Unexpected message ${msg.type} when model state is ${this.state.state}`,
+        }
+        return;
+      }
+
+      case "automatic-approval": {
+        if (this.state.state == "pending") {
+          this.state = {
+            state: "processing",
+            approved: true,
+          };
+
+          this.readFile().catch((error: Error) =>
+            this.context.myDispatch({
+              type: "finish",
+              result: {
+                status: "error",
+                error: error.message + "\n" + error.stack,
+              },
+            }),
           );
         }
+        return;
       }
       default:
         assertUnreachable(msg);
     }
   }
 
-  readFileThunk(): Thunk<Msg> {
-    return async (dispatch: Dispatch<Msg>) => {
-      const filePath = this.request.input.filePath;
-      const cwd = await getcwd(this.context.nvim);
-      const absolutePath = path.resolve(cwd, filePath);
-      const relativePath = path.relative(cwd, absolutePath);
+  async initReadFile(): Promise<void> {
+    const filePath = this.request.input.filePath;
+    const cwd = await getcwd(this.context.nvim);
+    const absolutePath = path.resolve(cwd, filePath);
+    const relativePath = path.relative(cwd, absolutePath);
 
-      if (!(this.state.state === "processing" && this.state.approved)) {
-        if (!absolutePath.startsWith(cwd)) {
-          dispatch({ type: "request-user-approval" });
-          return;
-        }
-
-        if (relativePath.split(path.sep).some((part) => part.startsWith("."))) {
-          dispatch({ type: "request-user-approval" });
-          return;
-        }
-
-        const ig = await readGitignore(cwd);
-        if (ig.ignores(relativePath)) {
-          dispatch({ type: "request-user-approval" });
-          return;
-        }
+    if (this.state.state === "pending") {
+      if (!absolutePath.startsWith(cwd)) {
+        this.context.myDispatch({ type: "request-user-approval" });
+        return;
       }
 
-      const bufferContents = await getBufferIfOpen({
-        unresolvedPath: filePath,
-        context: this.context,
+      if (relativePath.split(path.sep).some((part) => part.startsWith("."))) {
+        this.context.myDispatch({ type: "request-user-approval" });
+        return;
+      }
+
+      const ig = await readGitignore(cwd);
+      if (ig.ignores(relativePath)) {
+        this.context.myDispatch({ type: "request-user-approval" });
+        return;
+      }
+    }
+
+    this.context.myDispatch({
+      type: "automatic-approval",
+    });
+  }
+
+  async readFile() {
+    const filePath = this.request.input.filePath;
+    const bufferContents = await getBufferIfOpen({
+      unresolvedPath: filePath,
+      context: this.context,
+    });
+
+    if (bufferContents.status === "ok") {
+      this.context.myDispatch({
+        type: "finish",
+        result: {
+          status: "ok",
+          value: (
+            await bufferContents.buffer.getLines({ start: 0, end: -1 })
+          ).join("\n"),
+        },
       });
+      return;
+    }
 
-      if (bufferContents.status === "ok") {
-        dispatch({
-          type: "finish",
-          result: {
-            status: "ok",
-            value: (
-              await bufferContents.buffer.getLines({ start: 0, end: -1 })
-            ).join("\n"),
-          },
-        });
-        return;
-      }
+    if (bufferContents.status === "error") {
+      this.context.myDispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: bufferContents.error,
+        },
+      });
+      return;
+    }
 
-      if (bufferContents.status === "error") {
-        dispatch({
-          type: "finish",
-          result: {
-            status: "error",
-            error: bufferContents.error,
-          },
-        });
-        return;
-      }
-
-      try {
-        const fileContent = await fs.promises.readFile(absolutePath, "utf-8");
-        dispatch({
-          type: "finish",
-          result: {
-            status: "ok",
-            value: fileContent,
-          },
-        });
-        return;
-      } catch (error) {
-        dispatch({
-          type: "finish",
-          result: {
-            status: "error",
-            error: `Failed to read file: ${(error as Error).message}`,
-          },
-        });
-      }
-    };
+    const cwd = await getcwd(this.context.nvim);
+    const absolutePath = path.resolve(cwd, filePath);
+    const fileContent = await fs.promises.readFile(absolutePath, "utf-8");
+    this.context.myDispatch({
+      type: "finish",
+      result: {
+        status: "ok",
+        value: fileContent,
+      },
+    });
+    return;
   }
 
   getToolResult(): ProviderToolResultContent {
     switch (this.state.state) {
+      case "pending":
       case "processing":
         return {
           type: "tool_result",
@@ -219,6 +268,7 @@ export class GetFileTool {
 
   view(dispatch: Dispatch<Msg>) {
     switch (this.state.state) {
+      case "pending":
       case "processing":
         return d`⚙️ Reading file ${this.request.input.filePath}`;
       case "pending-user-action":

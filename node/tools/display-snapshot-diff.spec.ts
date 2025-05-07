@@ -4,6 +4,7 @@ import type { ToolRequestId } from "./toolManager";
 import * as fs from "node:fs";
 import * as path from "path";
 import { getcwd } from "../nvim/nvim";
+import type { UnresolvedFilePath } from "../utils/files";
 
 describe("node/tools/display-snapshot-diff.spec.ts", () => {
   it("compare current file with snapshot", async () => {
@@ -29,7 +30,7 @@ describe("node/tools/display-snapshot-diff.spec.ts", () => {
               id: "id" as ToolRequestId,
               toolName: "replace",
               input: {
-                filePath: `${TMP_DIR}/poem.txt`,
+                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
                 find: `\
 Moonlight whispers through the trees,
 Silver shadows dance with ease.

@@ -3,7 +3,7 @@ import { describe, it } from "vitest";
 import { withDriver } from "../test/preamble.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 
-describe("tea/getFile.spec.ts", () => {
+describe("node/tools/getFile.spec.ts", () => {
   it("render the getFile tool.", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();

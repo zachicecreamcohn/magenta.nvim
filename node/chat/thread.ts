@@ -81,6 +81,9 @@ export type Msg =
       profile: Profile;
     }
   | {
+      type: "abort";
+    }
+  | {
       type: "show-message-debug-info";
     }
   | {
@@ -300,15 +303,7 @@ export class Thread {
       case "send-message": {
         const lastMessage = this.state.messages[this.state.messages.length - 1];
         if (lastMessage && lastMessage.state.role == "user") {
-          this.sendMessage().catch((error: Error) =>
-            this.myDispatch({
-              type: "conversation-state",
-              conversation: {
-                state: "error",
-                error,
-              },
-            }),
-          );
+          this.sendMessage().catch(this.handleSendMessageError.bind(this));
         } else {
           this.nvim.logger?.error(
             `Cannot send when the last message has role ${lastMessage && lastMessage.state.role}`,
@@ -445,6 +440,34 @@ export class Thread {
         this.contextManager.update(msg.msg);
         return;
       }
+      case "abort": {
+        const provider = getProvider(this.nvim, this.state.profile);
+        provider.abort();
+
+        // find any requests that are pending or processing and stop them.
+        const lastMessage = this.state.messages[this.state.messages.length - 1];
+        for (const part of lastMessage.state.parts) {
+          if (part.state.type == "tool-request") {
+            this.myDispatch({
+              type: "tool-manager-msg",
+              msg: {
+                type: "abort-tool-use",
+                requestId: part.state.requestId,
+              },
+            });
+          }
+        }
+
+        this.state.conversation = {
+          state: "stopped",
+          stopReason: "aborted",
+          usage: {
+            inputTokens: -1,
+            outputTokens: -1,
+          },
+        };
+        return;
+      }
 
       default:
         assertUnreachable(msg);
@@ -482,16 +505,20 @@ export class Thread {
       }
     }
 
-    this.sendMessage().catch((error: Error) =>
+    this.sendMessage().catch(this.handleSendMessageError.bind(this));
+  }
+
+  private handleSendMessageError = (error: Error): void => {
+    if (this.state.conversation.state == "message-in-flight") {
       this.myDispatch({
         type: "conversation-state",
         conversation: {
           state: "error",
           error,
         },
-      }),
-    );
-  }
+      });
+    }
+  };
 
   async sendMessage(): Promise<void> {
     const messages = await this.getMessages();

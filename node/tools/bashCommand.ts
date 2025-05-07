@@ -9,6 +9,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { CommandAllowlist, MagentaOptions } from "../options.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import { withTimeout } from "../utils/async.ts";
+import type { ToolInterface } from "./types.ts";
 
 export const spec = {
   name: "bash_command",
@@ -125,15 +126,16 @@ export function isCommandAllowed(
   return false;
 }
 
-export class BashCommandTool {
+export class BashCommandTool implements ToolInterface {
   state: State;
   toolName = "bash_command" as const;
 
-  private constructor(
+  constructor(
     public request: Extract<ToolRequest, { toolName: "bash_command" }>,
     public context: {
       nvim: Nvim;
       options: MagentaOptions;
+      myDispatch: Dispatch<Msg>;
       rememberedCommands: Set<string>;
     },
   ) {
@@ -152,23 +154,17 @@ export class BashCommandTool {
         approved: true,
         childProcess: null,
       };
+      this.executeCommand().catch((err: Error) =>
+        this.context.myDispatch({
+          type: "error",
+          error: err.message + "\n" + err.stack,
+        }),
+      );
     } else {
       this.state = {
         state: "pending-user-action",
       };
     }
-  }
-
-  static create(
-    request: Extract<ToolRequest, { toolName: "bash_command" }>,
-    context: {
-      nvim: Nvim;
-      options: MagentaOptions;
-      rememberedCommands: Set<string>;
-    },
-  ): [BashCommandTool, Thunk<Msg>] {
-    const tool = new BashCommandTool(request, context);
-    return [tool, tool.executeCommand()];
   }
 
   update(msg: Msg): Thunk<Msg> | undefined {
@@ -197,7 +193,13 @@ export class BashCommandTool {
             approved: true,
             childProcess: null,
           };
-          return this.executeCommand();
+          this.executeCommand().catch((err: Error) =>
+            this.context.myDispatch({
+              type: "error",
+              error: err.message + "\n" + err.stack,
+            }),
+          );
+          return;
         } else {
           this.state = {
             state: "done",
@@ -296,17 +298,7 @@ export class BashCommandTool {
       }
 
       case "terminate": {
-        if (this.state.state !== "processing") {
-          return;
-        }
-
-        if (this.state.childProcess) {
-          this.state.childProcess.kill("SIGTERM");
-          this.state.output.push({
-            stream: "stderr",
-            text: "Process terminated by user with SIGTERM",
-          });
-        }
+        this.terminate();
         return;
       }
 
@@ -315,73 +307,106 @@ export class BashCommandTool {
     }
   }
 
-  executeCommand(): Thunk<Msg> {
-    return async (dispatch: Dispatch<Msg>) => {
-      const { command } = this.request.input;
+  private terminate() {
+    if (this.state.state === "processing" && this.state.childProcess) {
+      this.state.childProcess.kill("SIGTERM");
+      this.state.output.push({
+        stream: "stderr",
+        text: "Process terminated by user with SIGTERM",
+      });
+    }
+  }
 
-      let childProcess: ReturnType<typeof spawn> | null = null;
+  async executeCommand(): Promise<void> {
+    const { command } = this.request.input;
 
-      // Get Neovim's current working directory
-      const cwd = await getcwd(this.context.nvim);
+    let childProcess: ReturnType<typeof spawn> | null = null;
 
-      try {
-        await withTimeout(
-          new Promise<void>((resolve, reject) => {
-            childProcess = spawn("bash", ["-c", command], {
-              stdio: "pipe",
-              cwd,
-            });
+    // Get Neovim's current working directory
+    const cwd = await getcwd(this.context.nvim);
 
-            if (this.state.state === "processing") {
-              this.state.childProcess = childProcess;
+    try {
+      await withTimeout(
+        new Promise<void>((resolve, reject) => {
+          childProcess = spawn("bash", ["-c", command], {
+            stdio: "pipe",
+            cwd,
+          });
+
+          if (this.state.state === "processing") {
+            this.state.childProcess = childProcess;
+          }
+
+          childProcess.stdout?.on("data", (data: Buffer) => {
+            const text = data.toString();
+            const lines = text.split("\n");
+            for (const line of lines) {
+              if (line.trim()) {
+                this.context.myDispatch({ type: "stdout", text: line });
+              }
             }
+          });
 
-            childProcess.stdout?.on("data", (data: Buffer) => {
-              const text = data.toString();
-              const lines = text.split("\n");
-              for (const line of lines) {
-                if (line.trim()) {
-                  dispatch({ type: "stdout", text: line });
-                }
+          childProcess.stderr?.on("data", (data: Buffer) => {
+            const text = data.toString();
+            const lines = text.split("\n");
+            for (const line of lines) {
+              if (line.trim()) {
+                this.context.myDispatch({ type: "stderr", text: line });
               }
-            });
+            }
+          });
 
-            childProcess.stderr?.on("data", (data: Buffer) => {
-              const text = data.toString();
-              const lines = text.split("\n");
-              for (const line of lines) {
-                if (line.trim()) {
-                  dispatch({ type: "stderr", text: line });
-                }
-              }
-            });
+          childProcess.on("close", (code: number | null) => {
+            this.context.myDispatch({ type: "exit", code });
+            resolve();
+          });
 
-            childProcess.on("close", (code: number | null) => {
-              dispatch({ type: "exit", code });
-              resolve();
-            });
-
-            childProcess.on("error", (error: Error) => {
-              reject(error);
-            });
-          }),
-          300000,
-        );
-      } catch (error) {
-        if (this.state.state == "processing" && this.state.childProcess) {
-          this.state.childProcess.kill();
-        }
-
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-
-        dispatch({
-          type: "stderr",
-          text: errorMessage,
-        });
-        dispatch({ type: "exit", code: 1 });
+          childProcess.on("error", (error: Error) => {
+            reject(error);
+          });
+        }),
+        300000,
+      );
+    } catch (error) {
+      if (this.state.state == "processing" && this.state.childProcess) {
+        this.state.childProcess.kill();
       }
-    };
+
+      const errorMessage =
+        error instanceof Error
+          ? error.message + "\n" + error.stack
+          : String(error);
+
+      this.context.myDispatch({
+        type: "stderr",
+        text: errorMessage,
+      });
+      this.context.myDispatch({ type: "exit", code: 1 });
+    }
+  }
+
+  /** It is the expectation that this is happening as part of a dispatch, so it should not trigger
+   * new dispatches...
+   */
+  abort(): void {
+    this.terminate();
+
+    if (this.state.state == "pending-user-action") {
+      this.state = {
+        state: "done",
+        exitCode: -1,
+        output: [],
+        result: {
+          type: "tool_result",
+          id: this.request.id,
+          result: {
+            status: "error",
+            error: `The user aborted this command.`,
+          },
+        },
+      };
+    }
   }
 
   formatOutputPreview(output: OutputLine[]): string {

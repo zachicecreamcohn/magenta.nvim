@@ -12,6 +12,8 @@ import { applyEdit } from "./diff.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
 import type { ThreadId } from "../chat/thread.ts";
+import type { ToolInterface } from "./types.ts";
+import type { UnresolvedFilePath } from "../utils/files.ts";
 
 export type State =
   | {
@@ -27,7 +29,7 @@ export type Msg = {
   result: Result<string>;
 };
 
-export class InsertTool {
+export class InsertTool implements ToolInterface {
   state: State;
   toolName = "insert" as const;
 
@@ -54,17 +56,33 @@ export class InsertTool {
     );
   }
 
+  abort() {
+    this.state = {
+      state: "done",
+      result: {
+        type: "tool_result",
+        id: this.request.id,
+        result: {
+          status: "error",
+          error: "The user aborted this tool request.",
+        },
+      },
+    };
+  }
+
   update(msg: Msg): void {
     switch (msg.type) {
       case "finish":
-        this.state = {
-          state: "done",
-          result: {
-            type: "tool_result",
-            id: this.request.id,
-            result: msg.result,
-          },
-        };
+        if (this.state.state == "processing") {
+          this.state = {
+            state: "done",
+            result: {
+              type: "tool_result",
+              id: this.request.id,
+              result: msg.result,
+            },
+          };
+        }
         return;
       default:
         assertUnreachable(msg.type);
@@ -187,7 +205,7 @@ Set insertAfter to the empty string to append to the end of the file.`,
 };
 
 export type Input = {
-  filePath: string;
+  filePath: UnresolvedFilePath;
   insertAfter: string;
   content: string;
 };

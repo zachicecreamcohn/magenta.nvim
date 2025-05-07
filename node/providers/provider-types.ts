@@ -20,6 +20,7 @@ export type StopReason =
   | "tool_use"
   | "max_tokens"
   | "content"
+  | "aborted"
   | "stop_sequence";
 
 export type Usage = {

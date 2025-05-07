@@ -109,8 +109,7 @@ export class Message {
         switch (toolWrapper.tool.toolName) {
           case "insert":
           case "replace": {
-            const filePath = toolWrapper.tool.request.input
-              .filePath as UnresolvedFilePath;
+            const filePath = toolWrapper.tool.request.input.filePath;
 
             if (!this.state.edits[filePath]) {
               this.state.edits[filePath] = {

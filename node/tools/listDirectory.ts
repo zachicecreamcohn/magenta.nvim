@@ -12,6 +12,7 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
+import type { ToolInterface } from "./types.ts";
 
 export type State =
   | {
@@ -72,7 +73,7 @@ async function listDirectoryBFS(
   return results;
 }
 
-export class ListDirectoryTool {
+export class ListDirectoryTool implements ToolInterface {
   state: State;
   toolName = "list_directory" as const;
   autoRespond = true;
@@ -94,17 +95,33 @@ export class ListDirectoryTool {
     return [tool, tool.listDirectory()];
   }
 
+  abort() {
+    this.state = {
+      state: "done",
+      result: {
+        type: "tool_result",
+        id: this.request.id,
+        result: {
+          status: "error",
+          error: "The user aborted this tool request.",
+        },
+      },
+    };
+  }
+
   update(msg: Msg): Thunk<Msg> | undefined {
     switch (msg.type) {
       case "finish":
-        this.state = {
-          state: "done",
-          result: {
-            type: "tool_result",
-            id: this.request.id,
-            result: msg.result,
-          },
-        };
+        if (this.state.state == "processing") {
+          this.state = {
+            state: "done",
+            result: {
+              type: "tool_result",
+              id: this.request.id,
+              result: msg.result,
+            },
+          };
+        }
         return;
       default:
         assertUnreachable(msg.type);

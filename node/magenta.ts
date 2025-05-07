@@ -21,7 +21,6 @@ import {
   resolveFilePath,
   type UnresolvedFilePath,
 } from "./utils/files.ts";
-import type { Thread } from "./chat/thread.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
@@ -223,14 +222,13 @@ export class Magenta {
         break;
 
       case "abort": {
-        const chat = this.chatApp.getState();
-        if (chat.status !== "running") {
-          this.nvim.logger?.error(`Chat is not running.`);
-          return;
-        }
-
-        const provider = getProvider(this.nvim, this.getActiveProfile());
-        provider.abort();
+        this.dispatch({
+          type: "thread-msg",
+          id: this.chat.getActiveThread().id,
+          msg: {
+            type: "abort",
+          },
+        });
 
         break;
       }
