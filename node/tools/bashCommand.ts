@@ -1,6 +1,9 @@
 import type { Result } from "../utils/result.ts";
 import type { Dispatch, Thunk } from "../tea/tea.ts";
-import type { ProviderToolResultContent } from "../providers/provider.ts";
+import type {
+  ProviderToolResultContent,
+  ProviderToolSpec,
+} from "../providers/provider.ts";
 import { d, withBindings } from "../tea/view.ts";
 import type { ToolRequest } from "./toolManager.ts";
 import type { Nvim } from "nvim-node";
@@ -11,7 +14,7 @@ import { getcwd } from "../nvim/nvim.ts";
 import { withTimeout } from "../utils/async.ts";
 import type { ToolInterface } from "./types.ts";
 
-export const spec = {
+export const spec: ProviderToolSpec = {
   name: "bash_command",
   description: `Run a command in a bash shell.
 You will get the stdout and stderr of the command, as well as the exit code.

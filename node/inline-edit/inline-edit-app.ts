@@ -1,9 +1,8 @@
 import type { Nvim } from "nvim-node";
-import { NvimBuffer, type BufNr, type Line } from "../nvim/buffer";
+import { NvimBuffer, type BufNr } from "../nvim/buffer";
 import {
   NvimWindow,
   pos1col1to0,
-  type ByteIdx,
   type Position0Indexed,
   type Position1Indexed,
   type Position1IndexedCol1Indexed,
@@ -11,10 +10,16 @@ import {
 } from "../nvim/window";
 import { getCurrentWindow, getcwd } from "../nvim/nvim";
 import * as TEA from "../tea/tea";
-import * as InlineEdit from "./inline-edit";
+import * as InlineEdit from "./inline-edit-controller";
 import type { Provider, ProviderMessage } from "../providers/provider";
 import path from "node:path";
 import { getMarkdownExt } from "../utils/markdown";
+import {
+  spec as replaceSelectionSpec,
+  type NvimSelection,
+} from "../tools/replace-selection-tool";
+import { spec as inlineEditSpec } from "../tools/inline-edit-tool";
+import type { Dispatch } from "../tea/tea";
 
 export type InlineEditId = number & { __inlineEdit: true };
 
@@ -24,15 +29,10 @@ export type InlineEditState = {
   inputWindowId: WindowId;
   inputBufnr: BufNr;
   cursor: Position1Indexed;
-  inlineEdit: InlineEdit.InlineEdit;
-  selection?:
-    | {
-        startPos: Position1IndexedCol1Indexed;
-        endPos: Position1IndexedCol1Indexed;
-        text: string;
-      }
-    | undefined;
-  app: TEA.App<InlineEdit.InlineEdit>;
+  dispatch: Dispatch<InlineEdit.Msg>;
+  controller: InlineEdit.InlineEditController;
+  selection?: NvimSelection | undefined;
+  app: TEA.App<InlineEdit.InlineEditController>;
   mountedApp?: TEA.MountedApp;
 };
 
@@ -124,14 +124,19 @@ export class InlineEditManager {
     }
 
     const dispatch = (msg: InlineEdit.Msg) => {
-      inlineEdit.update(msg);
+      controller.update(msg);
       const mountedApp = this.inlineEdits[targetBufnr].mountedApp;
       if (mountedApp) {
         mountedApp.render();
       }
     };
 
-    const inlineEdit = new InlineEdit.InlineEdit(dispatch);
+    const controller = new InlineEdit.InlineEditController({
+      nvim: this.nvim,
+      bufnr: targetBufnr,
+      selection: selectionWithText,
+      dispatch,
+    });
 
     this.inlineEdits[targetBufnr] = {
       targetWindowId: targetWindow.id,
@@ -139,12 +144,13 @@ export class InlineEditManager {
       inputWindowId: inlineInputWindowId,
       inputBufnr: inputBuffer.id,
       cursor,
+      dispatch,
       selection: selectionWithText,
-      inlineEdit,
-      app: TEA.createApp<InlineEdit.InlineEdit>({
+      controller: controller,
+      app: TEA.createApp<InlineEdit.InlineEditController>({
         nvim: this.nvim,
-        initialModel: inlineEdit,
-        View: () => inlineEdit.view(),
+        initialModel: controller,
+        View: () => controller.view(),
       }),
     };
   }
@@ -158,20 +164,8 @@ export class InlineEditManager {
       return;
     }
 
-    const {
-      inputBufnr,
-      selection,
-      cursor,
-      app,
-      inlineEdit: inlineEditController,
-    } = this.inlineEdits[targetBufnr];
-
-    inlineEditController.dispatch({
-      type: "update-model",
-      next: {
-        state: "response-pending",
-      },
-    });
+    const { inputBufnr, selection, cursor, app, dispatch } =
+      this.inlineEdits[targetBufnr];
 
     const inputBuffer = new NvimBuffer(inputBufnr, this.nvim);
     const inputLines = await inputBuffer.getLines({
@@ -228,147 +222,22 @@ ${inputLines.join("\n")}`,
     });
     this.inlineEdits[targetBufnr].mountedApp = mountedApp;
 
-    if (selection) {
-      let result;
-      try {
-        result = await provider.replaceSelection(messages);
-      } catch (e) {
-        inlineEditController.dispatch({
-          type: "update-model",
-          next: {
-            state: "error",
-            error: e instanceof Error ? e.message : JSON.stringify(e),
-          },
-        });
-        return;
-      }
-
-      const { replaceSelection, stopReason, usage } = result;
-      inlineEditController.dispatch({
-        type: "update-model",
-        next: {
-          state: "tool-use",
-          edit: replaceSelection,
-          stopReason,
-          usage,
-        },
-      });
-
-      if (replaceSelection.status === "error") {
-        return;
-      }
-
-      const input = replaceSelection.value.input;
-
-      const targetBuffer = new NvimBuffer(targetBufnr, this.nvim);
-      const lines = await targetBuffer.getLines({ start: 0, end: -1 });
-
-      // in visual mode, you can select past the end of the line, so we need to clamp the columns
-      function clamp(pos: Position0Indexed): Position0Indexed {
-        const line = lines[pos.row];
-        if (line == undefined) {
-          throw new Error(`Tried to clamp a non-existant line ${pos.row}`);
-        }
-
-        const buf = Buffer.from(line, "utf8");
-        return {
-          row: pos.row,
-          col: Math.min(pos.col, buf.length) as ByteIdx,
-        };
-      }
-
-      await targetBuffer.setText({
-        startPos: clamp(pos1col1to0(selection.startPos)),
-        endPos: clamp(pos1col1to0(selection.endPos)),
-        lines: input.replace.split("\n") as Line[],
-      });
-    } else {
-      let result;
-      try {
-        result = await provider.inlineEdit(messages);
-      } catch (e) {
-        inlineEditController.dispatch({
-          type: "update-model",
-          next: {
-            state: "error",
-            error: e instanceof Error ? e.message : JSON.stringify(e),
-          },
-        });
-        return;
-      }
-
-      const { inlineEdit, stopReason, usage } = result;
-      inlineEditController.dispatch({
-        type: "update-model",
-        next: {
-          state: "tool-use",
-          edit: inlineEdit,
-          stopReason,
-          usage,
-        },
-      });
-
-      if (inlineEdit.status === "error") {
-        return;
-      }
-
-      const input = inlineEdit.value.input;
-
-      const buffer = new NvimBuffer(targetBufnr, this.nvim);
-      const lines = await buffer.getLines({ start: 0, end: -1 });
-      const content = lines.join("\n");
-
-      const replaceStart = content.indexOf(input.find);
-      if (replaceStart === -1) {
-        inlineEditController.dispatch({
-          type: "update-model",
-          next: {
-            state: "error",
-            error: `\
-Unable to find text in buffer:
-\`\`\`
-${input.find}
-\`\`\``,
-          },
-        });
-        return;
-      }
-      const replaceEnd = replaceStart + input.find.length;
-
-      // Calculate the row and column for start and end positions
-      let startRow = 0;
-      let startCol = 0;
-      let endRow = 0;
-      let endCol = 0;
-      let currentPos = 0;
-
-      for (let i = 0; i < lines.length; i++) {
-        const lineLength = lines[i].length + 1; // +1 for newline
-
-        if (
-          currentPos <= replaceStart &&
-          replaceStart < currentPos + lineLength
-        ) {
-          startRow = i;
-          startCol = (replaceStart - currentPos) as ByteIdx;
-        }
-
-        if (currentPos <= replaceEnd && replaceEnd <= currentPos + lineLength) {
-          endRow = i;
-          endCol = (replaceEnd - currentPos) as ByteIdx;
-          break;
-        }
-
-        currentPos += lineLength;
-      }
-
-      await buffer.setText({
-        startPos: { row: startRow, col: startCol } as Position0Indexed,
-        endPos: { row: endRow, col: endCol } as Position0Indexed,
-        lines: input.replace.split("\n") as Line[],
-      });
-    }
+    const request = provider.forceToolUse(
+      messages,
+      selection ? replaceSelectionSpec : inlineEditSpec,
+    );
+    dispatch({
+      type: "request-sent",
+      request,
+    });
   }
 
-  abort() {}
+  abort() {
+    for (const inlineEdit of Object.values(this.inlineEdits)) {
+      const state = inlineEdit.controller.state;
+      if (state.state == "response-pending") {
+        state.request.abort();
+      }
+    }
+  }
 }

@@ -150,6 +150,9 @@ export class Message {
               }),
             );
             return;
+          case "inline_edit":
+          case "replace_selection":
+            throw new Error("Not supported.");
           default:
             return assertUnreachable(toolWrapper.tool);
         }

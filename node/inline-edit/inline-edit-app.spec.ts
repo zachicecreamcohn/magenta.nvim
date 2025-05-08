@@ -5,7 +5,7 @@ import { getCurrentBuffer, getCurrentWindow } from "../nvim/nvim";
 import type { Line } from "../nvim/buffer";
 import type { Position0Indexed } from "../nvim/window";
 
-describe("node/inline-edit/inline-edit-manager.spec.ts", () => {
+describe("node/inline-edit/inline-edit-app.spec.ts", () => {
   it("performs inline edit on file", async () => {
     await withDriver({}, async (driver) => {
       await driver.editFile("node/test/fixtures/poem.txt");
@@ -30,7 +30,8 @@ describe("node/inline-edit/inline-edit-manager.spec.ts", () => {
       });
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       driver.submitInlineEdit(targetBuffer.id);
-      const request = await driver.mockAnthropic.awaitPendingInlineRequest();
+      const request =
+        await driver.mockAnthropic.awaitPendingForceToolUseRequest();
       expect(request.messages).toMatchSnapshot();
 
       const modifiable = await inputBuffer.getOption("modifiable");
@@ -39,13 +40,13 @@ describe("node/inline-edit/inline-edit-manager.spec.ts", () => {
       const inputLines = await inputBuffer.getLines({ start: 0, end: -1 });
       expect(inputLines.join("\n")).toEqual("Input sent, awaiting response...");
 
-      await driver.mockAnthropic.respondInline({
+      await driver.mockAnthropic.respondToForceToolUse({
         stopReason: "end_turn",
-        inlineEdit: {
+        toolRequest: {
           status: "ok",
           value: {
             id: "id" as ToolRequestId,
-            name: "inline-edit",
+            toolName: "inline_edit",
             input: {
               find: "Silver shadows dance with ease.",
               replace: "Golden shadows dance with ease.",
@@ -56,8 +57,7 @@ describe("node/inline-edit/inline-edit-manager.spec.ts", () => {
 
       await driver.assertBufferContains(
         inputBuffer,
-        `\
-Got tool use: `,
+        `✅ Successfully applied edit`,
       );
 
       await driver.assertBufferContains(
@@ -93,7 +93,7 @@ Golden shadows dance with ease.`,
       });
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       driver.submitInlineEdit(targetBuffer.id);
-      await driver.mockAnthropic.awaitPendingInlineRequest();
+      await driver.mockAnthropic.awaitPendingForceToolUseRequest();
 
       const inputLines = await inputBuffer.getLines({ start: 0, end: -1 });
       expect(inputLines.join("\n")).toEqual("Input sent, awaiting response...");
@@ -123,7 +123,8 @@ Golden shadows dance with ease.`,
 
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       driver.submitInlineEdit(targetBuffer.id);
-      const request = await driver.mockAnthropic.awaitPendingReplaceRequest();
+      const request =
+        await driver.mockAnthropic.awaitPendingForceToolUseRequest();
       expect(request.messages).toMatchSnapshot();
     });
   });
@@ -151,15 +152,16 @@ Golden shadows dance with ease.`,
 
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       driver.submitInlineEdit(targetBuffer.id);
-      const request = await driver.mockAnthropic.awaitPendingReplaceRequest();
+      const request =
+        await driver.mockAnthropic.awaitPendingForceToolUseRequest();
       expect(request.messages).toMatchSnapshot();
-      await driver.mockAnthropic.respondReplace({
+      await driver.mockAnthropic.respondToForceToolUse({
         stopReason: "end_turn",
-        replaceSelection: {
+        toolRequest: {
           status: "ok",
           value: {
             id: "id" as ToolRequestId,
-            name: "replace-selection",
+            toolName: "replace_selection",
             input: {
               replace:
                 "Golden shadows dance with ease.\nStars above like diamonds bright,",
@@ -170,8 +172,7 @@ Golden shadows dance with ease.`,
 
       await driver.assertBufferContains(
         inputBuffer,
-        `\
-Got tool use: `,
+        `✅ Successfully replaced selection`,
       );
 
       await driver.assertBufferContains(
@@ -208,15 +209,16 @@ Paint their stories in the night.`,
 
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       driver.submitInlineEdit(targetBuffer.id);
-      const request = await driver.mockAnthropic.awaitPendingReplaceRequest();
+      const request =
+        await driver.mockAnthropic.awaitPendingForceToolUseRequest();
       expect(request.messages).toMatchSnapshot();
-      await driver.mockAnthropic.respondReplace({
+      await driver.mockAnthropic.respondToForceToolUse({
         stopReason: "end_turn",
-        replaceSelection: {
+        toolRequest: {
           status: "ok",
           value: {
             id: "id" as ToolRequestId,
-            name: "replace-selection",
+            toolName: "replace_selection",
             input: {
               replace: "ghosts dance with ease.\nStars",
             },
@@ -226,8 +228,7 @@ Paint their stories in the night.`,
 
       await driver.assertBufferContains(
         inputBuffer,
-        `\
-Got tool use: `,
+        `✅ Successfully replaced selection`,
       );
 
       await driver.assertBufferContains(
@@ -264,7 +265,8 @@ Paint their stories in the night.`,
 
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       driver.submitInlineEdit(targetBuffer.id);
-      const request = await driver.mockAnthropic.awaitPendingReplaceRequest();
+      const request =
+        await driver.mockAnthropic.awaitPendingForceToolUseRequest();
       expect(request.defer.resolved).toBe(false);
 
       await driver.abort();

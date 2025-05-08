@@ -27,6 +27,7 @@ import {
   getProvider as getProvider,
   type ProviderMessage,
   type ProviderMessageContent,
+  type ProviderRequest,
   type StopReason,
   type Usage,
 } from "../providers/provider.ts";
@@ -42,6 +43,7 @@ export type ConversationState =
   | {
       state: "message-in-flight";
       sendDate: Date;
+      request: ProviderRequest;
     }
   | {
       state: "stopped";
@@ -441,8 +443,9 @@ export class Thread {
         return;
       }
       case "abort": {
-        const provider = getProvider(this.nvim, this.state.profile);
-        provider.abort();
+        if (this.state.conversation.state == "message-in-flight") {
+          this.state.conversation.request.abort();
+        }
 
         // find any requests that are pending or processing and stop them.
         const lastMessage = this.state.messages[this.state.messages.length - 1];
@@ -522,15 +525,7 @@ export class Thread {
 
   async sendMessage(): Promise<void> {
     const messages = await this.getMessages();
-
-    this.myDispatch({
-      type: "conversation-state",
-      conversation: {
-        state: "message-in-flight",
-        sendDate: new Date(),
-      },
-    });
-    const res = await getProvider(this.nvim, this.state.profile).sendMessage(
+    const request = getProvider(this.nvim, this.state.profile).sendMessage(
       messages,
       (text) => {
         this.myDispatch({
@@ -540,6 +535,17 @@ export class Thread {
       },
     );
 
+    this.myDispatch({
+      type: "conversation-state",
+      conversation: {
+        state: "message-in-flight",
+        sendDate: new Date(),
+        request,
+      },
+    });
+
+    const res = await request.promise;
+
     if (res.toolRequests?.length) {
       for (const request of res.toolRequests) {
         this.myDispatch({
@@ -548,6 +554,7 @@ export class Thread {
         });
       }
     }
+
     this.myDispatch({
       type: "conversation-state",
       conversation: {

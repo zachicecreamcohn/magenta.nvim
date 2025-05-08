@@ -11,7 +11,7 @@ import type { BufNr, Line } from "./nvim/buffer.ts";
 import { pos1col1to0 } from "./nvim/window.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
 import { parseOptions, type MagentaOptions, type Profile } from "./options.ts";
-import { InlineEditManager } from "./inline-edit/inline-edit-manager.ts";
+import { InlineEditManager } from "./inline-edit/inline-edit-app.ts";
 import type { RootMsg } from "./root-msg.ts";
 import { Chat } from "./chat/chat.ts";
 import type { Dispatch } from "./tea/tea.ts";
@@ -229,6 +229,8 @@ export class Magenta {
             type: "abort",
           },
         });
+
+        this.inlineEditManager.abort();
 
         break;
       }
