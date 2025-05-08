@@ -539,7 +539,21 @@ export class OpenAIProvider implements Provider {
 
       return {
         toolRequests: toolRequests
-          .filter((req) => req.id)
+          .reduce((acc, req) => {
+            if (req.id && "function" in req) {
+              acc.push({
+                index: acc.length,
+                id: req.id,
+                type: "function",
+                function: req.function,
+              });
+            } else {
+              const current = acc[acc.length - 1];
+              current.function.arguments += req.function?.arguments ?? "";
+            }
+
+            return acc;
+          }, [] as Required<OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta.ToolCall>[])
           .map((req) => {
             const result = ((): Result<ToolManager.ToolRequest> => {
               this.nvim.logger?.debug(
