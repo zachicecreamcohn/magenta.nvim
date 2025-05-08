@@ -6,6 +6,8 @@ import type {
   Provider,
   ProviderMessage,
   Usage,
+  ProviderRequest,
+  ProviderToolSpec,
 } from "./provider-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { ToolRequestId } from "../tools/toolManager.ts";
@@ -13,8 +15,8 @@ import type { Nvim } from "nvim-node";
 import type { Stream } from "openai/streaming.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
 import tiktoken from "tiktoken";
-import * as InlineEdit from "../inline-edit/inline-edit-tool.ts";
-import * as ReplaceSelection from "../inline-edit/replace-selection-tool.ts";
+import type { ChatCompletionChunk } from "openai/resources/index.mjs";
+import { validateInput } from "../tools/helpers.ts";
 
 export type OpenAIOptions = {
   model: "gpt-4o";
@@ -22,15 +24,7 @@ export type OpenAIOptions = {
 
 export class OpenAIProvider implements Provider {
   private client: OpenAI;
-  private request: Stream<unknown> | undefined;
   private model: string;
-
-  abort() {
-    if (this.request) {
-      this.request.controller.abort();
-      this.request = undefined;
-    }
-  }
 
   constructor(
     private nvim: Nvim,
@@ -187,7 +181,7 @@ export class OpenAIProvider implements Provider {
       // see https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
       // this recommends disabling parallel tool calls when strict adherence to schema is needed
       parallel_tool_calls: false,
-      tools: ToolManager.TOOL_SPECS.map((s): OpenAI.ChatCompletionTool => {
+      tools: ToolManager.CHAT_TOOL_SPECS.map((s): OpenAI.ChatCompletionTool => {
         return {
           type: "function",
           function: {
@@ -201,37 +195,33 @@ export class OpenAIProvider implements Provider {
     };
   }
 
-  async inlineEdit(messages: Array<ProviderMessage>): Promise<{
-    inlineEdit: Result<
-      InlineEdit.InlineEditToolRequest,
-      { rawRequest: unknown }
-    >;
-    stopReason: StopReason;
-    usage: Usage;
-  }> {
-    try {
+  forceToolUse(
+    messages: Array<ProviderMessage>,
+    spec: ProviderToolSpec,
+  ): ProviderRequest {
+    let request: Stream<ChatCompletionChunk>;
+    const promise = (async () => {
       const params = this.createStreamParameters(messages);
-      const stream = (this.request = await this.client.chat.completions.create({
+      request = await this.client.chat.completions.create({
         ...params,
         tool_choice: {
           type: "function",
           function: {
-            name: InlineEdit.spec.name,
+            name: spec.name,
           },
         },
         tools: [
           {
             type: "function",
             function: {
-              name: InlineEdit.spec.name,
-              description: InlineEdit.spec.description,
+              name: spec.name,
+              description: spec.description,
               strict: true,
-              parameters: InlineEdit.spec
-                .input_schema as OpenAI.FunctionParameters,
+              parameters: spec.input_schema as OpenAI.FunctionParameters,
             },
           },
         ],
-      }));
+      });
 
       let lastChunk: OpenAI.ChatCompletionChunk | undefined;
       let stopReason: StopReason | undefined;
@@ -240,7 +230,7 @@ export class OpenAIProvider implements Provider {
         function?: { name?: string; arguments?: string };
       } = {};
 
-      for await (const chunk of stream) {
+      for await (const chunk of request) {
         lastChunk = chunk;
         const choice = chunk.choices[0];
         if (choice.delta.tool_calls?.[0]) {
@@ -282,16 +272,16 @@ export class OpenAIProvider implements Provider {
         throw new Error("No tool call received in response");
       }
 
-      const inlineEdit = extendError(
-        ((): Result<InlineEdit.InlineEditToolRequest> => {
+      const toolRequest = extendError(
+        ((): Result<ToolManager.ToolRequest> => {
           if (!aggregatedToolCall || typeof aggregatedToolCall !== "object") {
             return { status: "error", error: "received a non-object" };
           }
 
-          if (aggregatedToolCall.function?.name !== InlineEdit.spec.name) {
+          if (aggregatedToolCall.function?.name !== spec.name) {
             return {
               status: "error",
-              error: "expected function name to be 'inline-edit'",
+              error: `expected function name to be '${spec.name}'`,
             };
           }
 
@@ -302,7 +292,8 @@ export class OpenAIProvider implements Provider {
             };
           }
 
-          const input = InlineEdit.validateInput(
+          const input = validateInput(
+            spec.name,
             JSON.parse(aggregatedToolCall.function?.arguments || "{}") as {
               [key: string]: unknown;
             },
@@ -312,10 +303,10 @@ export class OpenAIProvider implements Provider {
             return {
               status: "ok",
               value: {
-                name: "inline-edit",
+                toolName: spec.name,
                 id: aggregatedToolCall.id as unknown as ToolRequestId,
                 input: input.value,
-              },
+              } as ToolManager.ToolRequest,
             };
           } else {
             return input;
@@ -335,177 +326,34 @@ export class OpenAIProvider implements Provider {
           };
 
       return {
-        inlineEdit,
+        toolRequests: [toolRequest],
         stopReason: stopReason || "end_turn",
         usage,
       };
-    } finally {
-      this.request = undefined;
-    }
+    })();
+
+    return {
+      abort: () => {
+        request.controller.abort();
+      },
+      promise,
+    };
   }
 
-  async replaceSelection(messages: Array<ProviderMessage>): Promise<{
-    replaceSelection: Result<
-      ReplaceSelection.ReplaceSelectionToolRequest,
-      { rawRequest: unknown }
-    >;
-    stopReason: StopReason;
-    usage: Usage;
-  }> {
-    try {
-      const params = this.createStreamParameters(messages);
-      const stream = (this.request = await this.client.chat.completions.create({
-        ...params,
-        tool_choice: {
-          type: "function",
-          function: {
-            name: ReplaceSelection.spec.name,
-          },
-        },
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: ReplaceSelection.spec.name,
-              description: ReplaceSelection.spec.description,
-              strict: true,
-              parameters: ReplaceSelection.spec
-                .input_schema as OpenAI.FunctionParameters,
-            },
-          },
-        ],
-      }));
-
-      let lastChunk: OpenAI.ChatCompletionChunk | undefined;
-      let stopReason: StopReason | undefined;
-      const aggregatedToolCall: {
-        id?: string;
-        function?: { name?: string; arguments?: string };
-      } = {};
-
-      for await (const chunk of stream) {
-        lastChunk = chunk;
-        const choice = chunk.choices[0];
-        if (choice.delta.tool_calls?.[0]) {
-          const toolCall = choice.delta.tool_calls[0];
-          if (toolCall.id) aggregatedToolCall.id = toolCall.id;
-          if (toolCall.function) {
-            if (!aggregatedToolCall.function) aggregatedToolCall.function = {};
-            if (toolCall.function.name)
-              aggregatedToolCall.function.name = toolCall.function.name;
-            if (toolCall.function.arguments)
-              aggregatedToolCall.function.arguments =
-                (aggregatedToolCall.function.arguments || "") +
-                toolCall.function.arguments;
-          }
-        }
-
-        if (choice.finish_reason) {
-          switch (choice.finish_reason) {
-            case "function_call":
-            case "tool_calls":
-              stopReason = "tool_use";
-              break;
-            case "length":
-              stopReason = "max_tokens";
-              break;
-            case "stop":
-              stopReason = "end_turn";
-              break;
-            case "content_filter":
-              stopReason = "content";
-              break;
-            default:
-              assertUnreachable(choice.finish_reason);
-          }
-        }
-      }
-
-      if (!aggregatedToolCall.function || !lastChunk) {
-        throw new Error("No tool call received in response");
-      }
-
-      const replaceSelection = extendError(
-        ((): Result<ReplaceSelection.ReplaceSelectionToolRequest> => {
-          if (!aggregatedToolCall || typeof aggregatedToolCall !== "object") {
-            return { status: "error", error: "received a non-object" };
-          }
-
-          if (
-            aggregatedToolCall.function?.name !== ReplaceSelection.spec.name
-          ) {
-            return {
-              status: "error",
-              error: `expected function name to be '${ReplaceSelection.spec.name}'`,
-            };
-          }
-
-          if (typeof aggregatedToolCall.id !== "string") {
-            return {
-              status: "error",
-              error: "expected tool_call_id to be a string",
-            };
-          }
-
-          const input = ReplaceSelection.validateInput(
-            JSON.parse(aggregatedToolCall.function?.arguments || "{}") as {
-              [key: string]: unknown;
-            },
-          );
-
-          if (input.status === "ok") {
-            return {
-              status: "ok",
-              value: {
-                name: "replace-selection",
-                id: aggregatedToolCall.id as unknown as ToolRequestId,
-                input: input.value,
-              },
-            };
-          } else {
-            return input;
-          }
-        })(),
-        { rawRequest: aggregatedToolCall },
-      );
-
-      const usage: Usage = lastChunk.usage
-        ? {
-            inputTokens: lastChunk.usage.prompt_tokens,
-            outputTokens: lastChunk.usage.completion_tokens,
-          }
-        : {
-            inputTokens: 0,
-            outputTokens: 0,
-          };
-
-      return {
-        replaceSelection,
-        stopReason: stopReason || "end_turn",
-        usage,
-      };
-    } finally {
-      this.request = undefined;
-    }
-  }
-
-  async sendMessage(
+  sendMessage(
     messages: Array<ProviderMessage>,
     onText: (text: string) => void,
-  ): Promise<{
-    toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
-    stopReason: StopReason;
-    usage: Usage;
-  }> {
-    try {
-      const stream = (this.request = await this.client.chat.completions.create(
+  ): ProviderRequest {
+    let request: Stream<ChatCompletionChunk>;
+    const promise = (async () => {
+      request = await this.client.chat.completions.create(
         this.createStreamParameters(messages),
-      ));
+      );
 
       const toolRequests = [];
       let stopReason: StopReason | undefined;
       let lastChunk: OpenAI.ChatCompletionChunk | undefined;
-      for await (const chunk of stream) {
+      for await (const chunk of request) {
         lastChunk = chunk;
         const choice = chunk.choices[0];
         if (choice.delta.content) {
@@ -575,7 +423,7 @@ export class OpenAIProvider implements Provider {
                 };
               }
 
-              const input = ToolManager.validateToolInput(
+              const input = validateInput(
                 name,
                 (req.function?.arguments
                   ? JSON.parse(req.function.arguments)
@@ -611,8 +459,13 @@ export class OpenAIProvider implements Provider {
               outputTokens: 0,
             },
       };
-    } finally {
-      this.request = undefined;
-    }
+    })();
+
+    return {
+      abort: () => {
+        request.controller.abort();
+      },
+      promise,
+    };
   }
 }
