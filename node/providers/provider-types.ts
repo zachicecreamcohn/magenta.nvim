@@ -1,6 +1,4 @@
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
-import type { InlineEditToolRequest } from "../inline-edit/inline-edit-tool.ts";
-import type { ReplaceSelectionToolRequest } from "../inline-edit/replace-selection-tool.ts";
 import * as ToolManager from "../tools/toolManager.ts";
 import type { Result } from "../utils/result";
 
@@ -52,7 +50,7 @@ export type ProviderToolResultContent = {
 };
 
 export type ProviderToolSpec = {
-  name: string;
+  name: ToolManager.ToolName;
   description: string;
   input_schema: JSONSchemaType;
 };
@@ -66,30 +64,22 @@ export interface Provider {
   setModel(model: string): void;
   createStreamParameters(messages: Array<ProviderMessage>): unknown;
   countTokens(messages: Array<ProviderMessage>): Promise<number>;
-
-  inlineEdit(messages: Array<ProviderMessage>): Promise<{
-    inlineEdit: Result<InlineEditToolRequest, { rawRequest: unknown }>;
-    stopReason: StopReason;
-    usage: Usage;
-  }>;
-
-  replaceSelection(messages: Array<ProviderMessage>): Promise<{
-    replaceSelection: Result<
-      ReplaceSelectionToolRequest,
-      { rawRequest: unknown }
-    >;
-    stopReason: StopReason;
-    usage: Usage;
-  }>;
+  forceToolUse(
+    messages: Array<ProviderMessage>,
+    spec: ProviderToolSpec,
+  ): ProviderRequest;
 
   sendMessage(
     messages: Array<ProviderMessage>,
     onText: (text: string) => void,
-  ): Promise<{
+  ): ProviderRequest;
+}
+
+export interface ProviderRequest {
+  abort(): void;
+  promise: Promise<{
     toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;
     usage: Usage;
   }>;
-
-  abort(): void;
 }

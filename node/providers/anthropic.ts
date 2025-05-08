@@ -3,17 +3,16 @@ import * as ToolManager from "../tools/toolManager.ts";
 import { extendError, type Result } from "../utils/result.ts";
 import type { Nvim } from "nvim-node";
 import {
-  type StopReason,
   type Provider,
   type ProviderMessage,
   type Usage,
+  type ProviderRequest,
+  type ProviderToolSpec,
 } from "./provider-types.ts";
-import type { ToolRequestId } from "../tools/toolManager.ts";
-import * as InlineEdit from "../inline-edit/inline-edit-tool.ts";
-import * as ReplaceSelection from "../inline-edit/replace-selection-tool.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { MessageStream } from "@anthropic-ai/sdk/lib/MessageStream.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
+import type { ToolRequest, ToolRequestId } from "../tools/toolManager.ts";
+import { validateInput } from "../tools/helpers.ts";
 
 export type MessageParam = Omit<Anthropic.MessageParam, "content"> & {
   content: Array<Anthropic.Messages.ContentBlockParam>;
@@ -35,7 +34,6 @@ type MessageStreamParams = Omit<
 
 export class AnthropicProvider implements Provider {
   protected client: Anthropic;
-  protected request: MessageStream | undefined;
   protected model: string;
 
   constructor(
@@ -69,13 +67,6 @@ export class AnthropicProvider implements Provider {
 
   setModel(model: string): void {
     this.model = model;
-  }
-
-  abort() {
-    if (this.request) {
-      this.request.abort();
-      this.request = undefined;
-    }
   }
 
   createStreamParameters(messages: ProviderMessage[]): MessageStreamParams {
@@ -129,7 +120,7 @@ export class AnthropicProvider implements Provider {
       cacheControlItemsPlaced = placeCacheBreakpoints(anthropicMessages);
     }
 
-    const tools: Anthropic.Tool[] = ToolManager.TOOL_SPECS.map(
+    const tools: Anthropic.Tool[] = ToolManager.CHAT_TOOL_SPECS.map(
       (t): Anthropic.Tool => {
         return {
           ...t,
@@ -182,33 +173,28 @@ export class AnthropicProvider implements Provider {
     return res.input_tokens;
   }
 
-  async inlineEdit(messages: Array<ProviderMessage>): Promise<{
-    inlineEdit: Result<
-      InlineEdit.InlineEditToolRequest,
-      { rawRequest: unknown }
-    >;
-    stopReason: StopReason;
-    usage: Usage;
-  }> {
-    try {
-      this.request = this.client.messages.stream({
-        ...this.createStreamParameters(messages),
-        tools: [
-          {
-            ...InlineEdit.spec,
-            input_schema: InlineEdit.spec
-              .input_schema as Anthropic.Messages.Tool.InputSchema,
-          },
-        ],
-        tool_choice: {
-          type: "tool",
-          name: InlineEdit.spec.name,
-          disable_parallel_tool_use:
-            this.disableParallelToolUseFlag || undefined,
+  forceToolUse(
+    messages: Array<ProviderMessage>,
+    spec: ProviderToolSpec,
+  ): ProviderRequest {
+    const request = this.client.messages.stream({
+      ...this.createStreamParameters(messages),
+      tools: [
+        {
+          ...spec,
+          input_schema:
+            spec.input_schema as Anthropic.Messages.Tool.InputSchema,
         },
-      } as Anthropic.Messages.MessageStreamParams);
+      ],
+      tool_choice: {
+        type: "tool",
+        name: spec.name,
+        disable_parallel_tool_use: this.disableParallelToolUseFlag || undefined,
+      },
+    } as Anthropic.Messages.MessageStreamParams);
 
-      const response: Anthropic.Message = await this.request.finalMessage();
+    const promise = (async () => {
+      const response: Anthropic.Message = await request.finalMessage();
 
       if (response.stop_reason === "max_tokens") {
         throw new Error("Response exceeded max_tokens limit");
@@ -222,11 +208,8 @@ export class AnthropicProvider implements Provider {
 
       const contentBlock = response.content[0];
 
-      const inlineEdit: Result<
-        InlineEdit.InlineEditToolRequest,
-        { rawRequest: unknown }
-      > = extendError(
-        ((): Result<InlineEdit.InlineEditToolRequest> => {
+      const toolRequest = extendError(
+        ((): Result<ToolRequest> => {
           if (contentBlock.type != "tool_use") {
             throw new Error(
               `Expected a tool_use response but got ${response.type}`,
@@ -241,10 +224,10 @@ export class AnthropicProvider implements Provider {
             contentBlock as unknown as { [key: string]: unknown } | undefined
           )?.["name"];
 
-          if (name != "inline-edit") {
+          if (name != spec.name) {
             return {
               status: "error",
-              error: "expected contentBlock.name to be 'inline-edit'",
+              error: `expected contentBlock.name to be '${spec.name}'`,
             };
           }
 
@@ -271,7 +254,8 @@ export class AnthropicProvider implements Provider {
             };
           }
 
-          const input = InlineEdit.validateInput(
+          const input = validateInput(
+            spec,
             req2.input as { [key: string]: unknown },
           );
 
@@ -279,10 +263,10 @@ export class AnthropicProvider implements Provider {
             return {
               status: "ok",
               value: {
-                name: "inline-edit",
+                toolName: spec.name,
                 id: req2.id as unknown as ToolRequestId,
                 input: input.value,
-              },
+              } as ToolRequest,
             };
           } else {
             return input;
@@ -303,157 +287,33 @@ export class AnthropicProvider implements Provider {
       }
 
       return {
-        inlineEdit,
+        toolRequests: [toolRequest],
         stopReason: response.stop_reason || "end_turn",
         usage,
       };
-    } finally {
-      this.request = undefined;
-    }
+    })();
+
+    return {
+      promise,
+      abort: () => {
+        request.abort();
+      },
+    };
   }
 
-  async replaceSelection(messages: Array<ProviderMessage>): Promise<{
-    replaceSelection: Result<
-      ReplaceSelection.ReplaceSelectionToolRequest,
-      { rawRequest: unknown }
-    >;
-    stopReason: StopReason;
-    usage: Usage;
-  }> {
-    try {
-      this.request = this.client.messages.stream({
-        ...this.createStreamParameters(messages),
-        tools: [
-          {
-            ...ReplaceSelection.spec,
-            input_schema: ReplaceSelection.spec
-              .input_schema as Anthropic.Messages.Tool.InputSchema,
-          },
-        ],
-        tool_choice: {
-          type: "tool",
-          name: ReplaceSelection.spec.name,
-          disable_parallel_tool_use:
-            this.disableParallelToolUseFlag || undefined,
-        },
-      } as Anthropic.Messages.MessageStreamParams);
-
-      const response: Anthropic.Message = await this.request.finalMessage();
-
-      if (response.stop_reason === "max_tokens") {
-        throw new Error("Response exceeded max_tokens limit");
-      }
-
-      if (response.content.length != 1) {
-        throw new Error(
-          `Expected a single response but got ${response.content.length}`,
-        );
-      }
-
-      const contentBlock = response.content[0];
-
-      const replaceSelection: Result<
-        ReplaceSelection.ReplaceSelectionToolRequest,
-        { rawRequest: unknown }
-      > = extendError(
-        ((): Result<ReplaceSelection.ReplaceSelectionToolRequest> => {
-          if (contentBlock.type != "tool_use") {
-            throw new Error(
-              `Expected a tool_use response but got ${response.type}`,
-            );
-          }
-
-          if (typeof contentBlock != "object" || contentBlock == null) {
-            return { status: "error", error: "received a non-object" };
-          }
-
-          const name = (
-            contentBlock as unknown as { [key: string]: unknown } | undefined
-          )?.["name"];
-
-          if (name != ReplaceSelection.spec.name) {
-            return {
-              status: "error",
-              error: `expected contentBlock.name to be ${ReplaceSelection.spec.name}`,
-            };
-          }
-
-          const req2 = contentBlock as unknown as { [key: string]: unknown };
-
-          if (req2.type != "tool_use") {
-            return {
-              status: "error",
-              error: "expected contentBlock.type to be tool_use",
-            };
-          }
-
-          if (typeof req2.id != "string") {
-            return {
-              status: "error",
-              error: "expected contentBlock.id to be a string",
-            };
-          }
-
-          if (typeof req2.input != "object" || req2.input == null) {
-            return {
-              status: "error",
-              error: "expected contentBlock.input to be an object",
-            };
-          }
-
-          const input = ReplaceSelection.validateInput(
-            req2.input as { [key: string]: unknown },
-          );
-
-          if (input.status == "ok") {
-            return {
-              status: "ok",
-              value: {
-                name: "replace-selection",
-                id: req2.id as unknown as ToolRequestId,
-                input: input.value,
-              },
-            };
-          } else {
-            return input;
-          }
-        })(),
-        { rawRequest: contentBlock },
-      );
-
-      const usage: Usage = {
-        inputTokens: response.usage.input_tokens,
-        outputTokens: response.usage.output_tokens,
-      };
-      if (response.usage.cache_read_input_tokens != undefined) {
-        usage.cacheHits = response.usage.cache_read_input_tokens;
-      }
-      if (response.usage.cache_creation_input_tokens != undefined) {
-        usage.cacheMisses = response.usage.cache_creation_input_tokens;
-      }
-
-      return {
-        replaceSelection,
-        stopReason: response.stop_reason || "end_turn",
-        usage,
-      };
-    } finally {
-      this.request = undefined;
-    }
-  }
-
-  async sendMessage(
+  sendMessage(
     messages: Array<ProviderMessage>,
     onText: (text: string) => void,
-  ): Promise<{
-    toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
-    stopReason: StopReason;
-    usage: Usage;
-  }> {
+  ): ProviderRequest {
     const buf: string[] = [];
     let flushInProgress: boolean = false;
+    let requestActive = true;
 
     const flushBuffer = () => {
+      if (!requestActive) {
+        return;
+      }
+
       if (buf.length && !flushInProgress) {
         const text = buf.join("");
         buf.splice(0);
@@ -469,31 +329,24 @@ export class AnthropicProvider implements Provider {
       }
     };
 
-    let requestActive = true;
-    try {
-      this.request = this.client.messages
-        .stream(
-          this.createStreamParameters(
-            messages,
-          ) as Anthropic.Messages.MessageStreamParams,
-        )
-        .on("text", (text: string) => {
-          if (!requestActive) {
-            return;
-          }
-          buf.push(text);
-          flushBuffer();
-        })
-        .on("inputJson", (_delta, snapshot) => {
-          if (!requestActive) {
-            return;
-          }
-          this.nvim.logger?.debug(
-            `anthropic stream inputJson: ${JSON.stringify(snapshot)}`,
-          );
-        });
+    const request = this.client.messages
+      .stream(
+        this.createStreamParameters(
+          messages,
+        ) as Anthropic.Messages.MessageStreamParams,
+      )
+      .on("text", (text: string) => {
+        buf.push(text);
+        flushBuffer();
+      })
+      .on("inputJson", (_delta, snapshot) => {
+        this.nvim.logger?.debug(
+          `anthropic stream inputJson: ${JSON.stringify(snapshot)}`,
+        );
+      });
 
-      const response: Anthropic.Message = await this.request.finalMessage();
+    const promise = (async () => {
+      const response: Anthropic.Message = await request.finalMessage();
 
       if (response.stop_reason === "max_tokens") {
         throw new Error("Response exceeded max_tokens limit");
@@ -544,7 +397,7 @@ export class AnthropicProvider implements Provider {
               };
             }
 
-            const input = ToolManager.validateToolInput(
+            const input = validateInput(
               name,
               req2.input as { [key: string]: unknown },
             );
@@ -577,22 +430,20 @@ export class AnthropicProvider implements Provider {
         usage.cacheMisses = response.usage.cache_creation_input_tokens;
       }
 
-      if (!requestActive) {
-        throw new Error(`request no longer active`);
-      }
-
       return {
         toolRequests,
         stopReason: response.stop_reason || "end_turn",
         usage,
       };
-    } finally {
-      requestActive = false;
-      if (this.request) {
-        this.request.abort();
-      }
-      this.request = undefined;
-    }
+    })();
+
+    return {
+      abort: () => {
+        request.abort();
+        requestActive = false;
+      },
+      promise,
+    };
   }
 }
 

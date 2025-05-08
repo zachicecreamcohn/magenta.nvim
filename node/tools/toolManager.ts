@@ -7,8 +7,10 @@ import * as Hover from "./hover.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as Diagnostics from "./diagnostics.ts";
 import * as BashCommand from "./bashCommand.ts";
+import * as InlineEdit from "./inline-edit-tool.ts";
+import * as ReplaceSelection from "./replace-selection-tool.ts";
+
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { type Result } from "../utils/result.ts";
 import { d, withBindings } from "../tea/view.ts";
 import { type Dispatch, type Thunk } from "../tea/tea.ts";
 import type { Nvim } from "nvim-node";
@@ -18,7 +20,7 @@ import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
 import type { ThreadId } from "../chat/thread.ts";
 
-export const TOOL_SPECS = [
+export const CHAT_TOOL_SPECS = [
   GetFile.spec,
   Insert.spec,
   Replace.spec,
@@ -78,6 +80,16 @@ export type ToolMap = {
     input: BashCommand.Input;
     msg: BashCommand.Msg;
   };
+  inline_edit: {
+    controller: InlineEdit.InlineEditTool;
+    input: InlineEdit.Input;
+    msg: InlineEdit.Msg;
+  };
+  replace_selection: {
+    controller: ReplaceSelection.ReplaceSelectionTool;
+    input: ReplaceSelection.Input;
+    msg: ReplaceSelection.Msg;
+  };
 };
 
 export type ToolRequest = {
@@ -129,37 +141,6 @@ export type Msg =
       type: "abort-tool-use";
       requestId: ToolRequestId;
     };
-
-export function validateToolInput(
-  type: unknown,
-  args: { [key: string]: unknown },
-): Result<ToolMap[ToolName]["input"]> {
-  switch (type) {
-    case "get_file":
-      return GetFile.validateInput(args);
-    case "insert":
-      return Insert.validateInput(args);
-    case "replace":
-      return Replace.validateInput(args);
-    case "list_buffers":
-      return ListBuffers.validateInput();
-    case "list_directory":
-      return ListDirectory.validateInput(args);
-    case "hover":
-      return Hover.validateInput(args);
-    case "find_references":
-      return FindReferences.validateInput(args);
-    case "diagnostics":
-      return Diagnostics.validateInput();
-    case "bash_command":
-      return BashCommand.validateInput(args);
-    default:
-      return {
-        status: "error",
-        error: `Unexpected request type ${type as string}`,
-      };
-  }
-}
 
 type State = {
   toolWrappers: {
@@ -422,6 +403,13 @@ export class ToolManager {
               showResult: false,
             };
             return;
+          }
+
+          case "inline_edit": {
+            throw new Error(`Not supported.`);
+          }
+          case "replace_selection": {
+            throw new Error(`Not supported.`);
           }
 
           default:
