@@ -69,6 +69,11 @@ export type Msg =
   | {
       type: "diff-snapshot";
       filePath: string;
+    }
+  | {
+      type: "stop";
+      stopReason: StopReason;
+      usage: Usage;
     };
 
 export class Message {
@@ -175,6 +180,14 @@ export class Message {
           nvim: this.context.nvim,
           fileSnapshots: this.context.fileSnapshots,
         }).catch((e: Error) => this.context.nvim.logger?.error(e.message));
+        return;
+      }
+
+      case "stop": {
+        this.state.stopped = {
+          stopReason: msg.stopReason,
+          usage: msg.usage,
+        };
         return;
       }
 

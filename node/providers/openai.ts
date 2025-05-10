@@ -57,7 +57,6 @@ export class OpenAIProvider implements Provider {
     this.model = model;
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
   // async countTokens(messages: Array<ProviderMessage>): Promise<number> {
   //   const enc = tiktoken.encoding_for_model("gpt-4o");
   //   let totalTokens = 0;

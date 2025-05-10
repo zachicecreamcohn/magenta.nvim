@@ -49,7 +49,7 @@ describe("context-manager.spec.ts", () => {
       });
     });
 
-    it.only("'Enter' key opens file in existing non-magenta window", async () => {
+    it("'Enter' key opens file in existing non-magenta window", async () => {
       await withDriver({}, async (driver) => {
         // Create a non-magenta window
         await driver.nvim.call("nvim_command", ["new"]);

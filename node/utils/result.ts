@@ -11,7 +11,7 @@ export type ResultError<E> = {
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type Result<T, E = {}> = Success<T> | ResultError<E>;
 
-export type ExtractSuccess<R extends Result<any, any>> = Extract<
+export type ExtractSuccess<R extends Result<unknown, unknown>> = Extract<
   R,
   { status: "ok" }
 >;

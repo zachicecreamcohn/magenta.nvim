@@ -14,7 +14,6 @@ import type { MessageId } from "../chat/message.ts";
 import type { ThreadId } from "../chat/thread.ts";
 import type { ToolInterface } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
-import { count } from "console";
 
 export type State =
   | {

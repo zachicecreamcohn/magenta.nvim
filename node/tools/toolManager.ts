@@ -431,7 +431,9 @@ export class ToolManager {
 
       case "abort-tool-use": {
         const tool = this.state.toolWrappers[msg.requestId].tool;
-        tool.abort();
+        if (tool.state.state != "done") {
+          tool.abort();
+        }
         return;
       }
 

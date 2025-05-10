@@ -235,10 +235,11 @@ export class Thread {
           case "stopped": {
             const lastMessage =
               this.state.messages[this.state.messages.length - 1];
-            lastMessage.state.stopped = {
+            lastMessage.update({
+              type: "stop",
               stopReason: msg.conversation.stopReason,
               usage: msg.conversation.usage,
-            };
+            });
             this.maybeAutorespond();
             return;
           }
@@ -405,7 +406,6 @@ export class Thread {
           this.state.conversation.request.abort();
         }
 
-        // find any requests that are pending or processing and stop them.
         const lastMessage = this.state.messages[this.state.messages.length - 1];
         for (const content of lastMessage.state.content) {
           if (content.type == "tool_use") {
@@ -419,6 +419,15 @@ export class Thread {
           }
         }
 
+        lastMessage.update({
+          type: "stop",
+          stopReason: "aborted",
+          usage: {
+            inputTokens: -1,
+            outputTokens: -1,
+          },
+        });
+
         this.state.conversation = {
           state: "stopped",
           stopReason: "aborted",
@@ -427,6 +436,7 @@ export class Thread {
             outputTokens: -1,
           },
         };
+
         return;
       }
 
