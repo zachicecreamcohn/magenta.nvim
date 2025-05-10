@@ -98,7 +98,6 @@ export class ContextManager {
         };
         return;
       case "remove-file-context":
-        console.log(`remove-file-context ${msg.absFilePath}`);
         delete this.files[msg.absFilePath];
         return;
       case "open-file":
@@ -152,10 +151,15 @@ export class ContextManager {
           messageId: res.value.messageId,
           message: {
             role: "user",
-            content: this.renderFile({
-              relFilePath: res.value.relFilePath,
-              content: res.value.content,
-            }),
+            content: [
+              {
+                type: "text",
+                text: this.renderFile({
+                  relFilePath: res.value.relFilePath,
+                  content: res.value.content,
+                }),
+              },
+            ],
           },
         };
 
@@ -164,7 +168,12 @@ export class ContextManager {
           messageId: currentMessageId,
           message: {
             role: "user",
-            content: `Error reading file \`${absFilePath}\`: ${res.error}`,
+            content: [
+              {
+                type: "text",
+                text: `Error reading file \`${absFilePath}\`: ${res.error}`,
+              },
+            ],
           },
         };
       default:
@@ -297,6 +306,10 @@ ${content}
 
   view() {
     const fileContext = [];
+    if (Object.keys(this.files).length == 0) {
+      return "";
+    }
+
     for (const absFilePath in this.files) {
       fileContext.push(
         withBindings(

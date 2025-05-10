@@ -7,6 +7,8 @@ import * as Hover from "./hover";
 import * as FindReferences from "./findReferences";
 import * as Diagnostics from "./diagnostics";
 import * as BashCommand from "./bashCommand";
+import type { StreamingBlock } from "../providers/helpers";
+import { d, type VDOMNode } from "../tea/view";
 
 export function validateInput(
   toolName: unknown,
@@ -38,4 +40,35 @@ export function validateInput(
     default:
       throw new Error(`Unexpected toolName: ${toolName as string}`);
   }
+}
+
+export function renderStreamdedTool(
+  streamingBlock: Extract<StreamingBlock, { type: "tool_use" }>,
+): string | VDOMNode {
+  switch (streamingBlock.name) {
+    case "get_file":
+      break;
+    case "insert":
+      return Insert.renderStreamedBlock(streamingBlock.streamed);
+    case "replace":
+      return Replace.renderStreamedBlock(streamingBlock.streamed);
+    case "list_buffers":
+      break;
+    case "list_directory":
+      break;
+    case "hover":
+      break;
+    case "find_references":
+      break;
+    case "diagnostics":
+      break;
+    case "bash_command":
+      break;
+    case "inline_edit":
+      break;
+    case "replace_selection":
+      break;
+  }
+
+  return d`Invoking tool ${streamingBlock.name}`;
 }

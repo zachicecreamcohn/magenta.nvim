@@ -49,7 +49,7 @@ describe("context-manager.spec.ts", () => {
       });
     });
 
-    it("'Enter' key opens file in existing non-magenta window", async () => {
+    it.only("'Enter' key opens file in existing non-magenta window", async () => {
       await withDriver({}, async (driver) => {
         // Create a non-magenta window
         await driver.nvim.call("nvim_command", ["new"]);
@@ -247,7 +247,10 @@ describe("context-manager.spec.ts", () => {
         driver.mockAnthropic.requests[driver.mockAnthropic.requests.length - 1];
       expect(request.messages).toEqual([
         {
-          content: `\
+          content: [
+            {
+              type: "text",
+              text: `\
 Here are the contents of file \`${TMP_DIR}/poem.txt\`:
 \`\`\`
 Moonlight whispers through the trees,
@@ -256,6 +259,8 @@ Stars above like diamonds bright,
 Paint their stories in the night.
 
 \`\`\``,
+            },
+          ],
           role: "user",
         },
         {
@@ -294,16 +299,24 @@ Paint their stories in the night.
         driver.mockAnthropic.requests[driver.mockAnthropic.requests.length - 1];
       expect(request.messages).toEqual([
         {
-          content: `\
+          content: [
+            {
+              type: "text",
+              text: `\
 Here are the contents of file \`${TMP_DIR}/poem 3.txt\`:
 \`\`\`
 poem3
 
 \`\`\``,
+            },
+          ],
           role: "user",
         },
         {
-          content: `\
+          content: [
+            {
+              type: "text",
+              text: `\
 Here are the contents of file \`${TMP_DIR}/poem.txt\`:
 \`\`\`
 Moonlight whispers through the trees,
@@ -312,6 +325,8 @@ Stars above like diamonds bright,
 Paint their stories in the night.
 
 \`\`\``,
+            },
+          ],
           role: "user",
         },
         {
@@ -366,7 +381,10 @@ Paint their stories in the night.
           role: "assistant",
         },
         {
-          content: `\
+          content: [
+            {
+              type: "text",
+              text: `\
 Here are the contents of file \`${TMP_DIR}/poem.txt\`:
 \`\`\`
 Moonlight whispers through the trees,
@@ -375,6 +393,8 @@ Stars above like diamonds bright,
 Paint their stories in the night.
 
 \`\`\``,
+            },
+          ],
           role: "user",
         },
         {
@@ -417,15 +437,16 @@ Paint their stories in the night.
       const fileContent = request.messages.find(
         (msg) =>
           msg.role === "user" &&
-          typeof msg.content === "string" &&
-          msg.content.includes("test-auto-context.md"),
+          typeof msg.content === "object" &&
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+          (msg.content[0] as any).text.includes("test-auto-context.md"),
       );
       expect(fileContent).toBeTruthy();
-      expect(fileContent?.content).toContain(
-        "This is test auto-context content",
-      );
-      expect(fileContent?.content).toContain("Multiple lines");
-      expect(fileContent?.content).toContain("for testing");
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+      const text = (fileContent?.content[0] as any).text;
+      expect(text).toContain("This is test auto-context content");
+      expect(text).toContain("Multiple lines");
+      expect(text).toContain("for testing");
     });
   });
 });

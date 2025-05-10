@@ -1,5 +1,9 @@
 import { assertUnreachable } from "../utils/assertUnreachable";
-import type { ProviderRequest, StopReason, Usage } from "../providers/provider";
+import type {
+  ProviderToolUseRequest,
+  StopReason,
+  Usage,
+} from "../providers/provider";
 import { d } from "../tea/view";
 import type { Dispatch } from "../tea/tea";
 import type { ToolRequest } from "../tools/toolManager";
@@ -31,7 +35,7 @@ export type State =
     }
   | {
       state: "response-pending";
-      request: ProviderRequest;
+      request: ProviderToolUseRequest;
     }
   | {
       state: "tool-use";
@@ -47,7 +51,7 @@ export type Msg =
     }
   | {
       type: "request-sent";
-      request: ProviderRequest;
+      request: ProviderToolUseRequest;
     }
   | {
       type: "init-request";
@@ -98,7 +102,7 @@ export class InlineEditController {
 
         msg.request.promise.then(
           (response) => {
-            const toolRequestResult = response.toolRequests[0];
+            const toolRequestResult = response.toolRequest;
             if (toolRequestResult.status == "error") {
               this.context.dispatch({
                 type: "update-model",

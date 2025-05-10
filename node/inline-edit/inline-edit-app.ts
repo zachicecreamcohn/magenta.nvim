@@ -185,7 +185,10 @@ export class InlineEditManager {
     if (selection) {
       messages.push({
         role: "user",
-        content: `\
+        content: [
+          {
+            type: "text",
+            text: `\
 I am working in file \`${path.relative(cwd, bufferName)}\` with the following contents:
 \`\`\`${getMarkdownExt(bufferName)}
 ${targetLines.join("\n")}
@@ -197,11 +200,16 @@ ${selection.text}
 \`\`\`
 
 ${inputLines.join("\n")}`,
+          },
+        ],
       });
     } else {
       messages.push({
         role: "user",
-        content: `\
+        content: [
+          {
+            type: "text",
+            text: `\
 I am working in file \`${path.relative(cwd, bufferName)}\` with the following contents:
 \`\`\`${getMarkdownExt(bufferName)}
 ${targetLines.join("\n")}
@@ -210,6 +218,8 @@ ${targetLines.join("\n")}
 My cursor is on line ${cursor.row - 1}: ${targetLines[cursor.row - 1]}
 
 ${inputLines.join("\n")}`,
+          },
+        ],
       });
     }
 

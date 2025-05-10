@@ -188,8 +188,7 @@ export class Magenta {
           type: "thread-msg",
           id: this.chat.getActiveThread().id,
           msg: {
-            type: "add-message",
-            role: "user",
+            type: "user-message",
             content: message,
           },
         });

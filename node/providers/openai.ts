@@ -6,17 +6,22 @@ import type {
   Provider,
   ProviderMessage,
   Usage,
-  ProviderRequest,
+  ProviderStreamRequest,
   ProviderToolSpec,
+  ProviderStreamEvent,
+  ProviderToolUseRequest,
 } from "./provider-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { ToolRequestId } from "../tools/toolManager.ts";
 import type { Nvim } from "nvim-node";
 import type { Stream } from "openai/streaming.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
-import tiktoken from "tiktoken";
 import type { ChatCompletionChunk } from "openai/resources/index.mjs";
 import { validateInput } from "../tools/helpers.ts";
+import type {
+  WebSearchResultBlock,
+  WebSearchToolResultError,
+} from "@anthropic-ai/sdk/resources.mjs";
 
 export type OpenAIOptions = {
   model: "gpt-4o";
@@ -53,45 +58,45 @@ export class OpenAIProvider implements Provider {
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
-  async countTokens(messages: Array<ProviderMessage>): Promise<number> {
-    const enc = tiktoken.encoding_for_model("gpt-4o");
-    let totalTokens = 0;
-
-    // Count system message
-    totalTokens += enc.encode(DEFAULT_SYSTEM_PROMPT).length;
-
-    for (const message of messages) {
-      if (typeof message.content === "string") {
-        totalTokens += enc.encode(message.content).length;
-      } else {
-        for (const content of message.content) {
-          switch (content.type) {
-            case "text":
-              totalTokens += enc.encode(content.text).length;
-              break;
-            case "tool_use":
-              totalTokens += enc.encode(content.request.toolName).length;
-              totalTokens += enc.encode(
-                JSON.stringify(content.request.input),
-              ).length;
-              break;
-            case "tool_result":
-              totalTokens += enc.encode(
-                content.result.status === "ok"
-                  ? content.result.value
-                  : content.result.error,
-              ).length;
-              break;
-          }
-        }
-      }
-      // Add tokens for message format (role, etc)
-      totalTokens += 3;
-    }
-
-    enc.free();
-    return totalTokens;
-  }
+  // async countTokens(messages: Array<ProviderMessage>): Promise<number> {
+  //   const enc = tiktoken.encoding_for_model("gpt-4o");
+  //   let totalTokens = 0;
+  //
+  //   // Count system message
+  //   totalTokens += enc.encode(DEFAULT_SYSTEM_PROMPT).length;
+  //
+  //   for (const message of messages) {
+  //     if (typeof message.content === "string") {
+  //       totalTokens += enc.encode(message.content).length;
+  //     } else {
+  //       for (const content of message.content) {
+  //         switch (content.type) {
+  //           case "text":
+  //             totalTokens += enc.encode(content.text).length;
+  //             break;
+  //           case "tool_use":
+  //             totalTokens += enc.encode(content.request.toolName).length;
+  //             totalTokens += enc.encode(
+  //               JSON.stringify(content.request.input),
+  //             ).length;
+  //             break;
+  //           case "tool_result":
+  //             totalTokens += enc.encode(
+  //               content.result.status === "ok"
+  //                 ? content.result.value
+  //                 : content.result.error,
+  //             ).length;
+  //             break;
+  //         }
+  //       }
+  //     }
+  //     // Add tokens for message format (role, etc)
+  //     totalTokens += 3;
+  //   }
+  //
+  //   enc.free();
+  //   return totalTokens;
+  // }
 
   createStreamParameters(
     messages: Array<ProviderMessage>,
@@ -124,14 +129,25 @@ export class OpenAIProvider implements Provider {
               });
               break;
             case "tool_use":
-              toolCalls.push({
-                type: "function",
-                id: content.request.id,
-                function: {
-                  name: content.request.toolName,
-                  arguments: JSON.stringify(content.request.input),
-                },
-              });
+              toolCalls.push(
+                content.request.status == "ok"
+                  ? {
+                      type: "function",
+                      id: content.id,
+                      function: {
+                        name: content.name,
+                        arguments: JSON.stringify(content.request.value.input),
+                      },
+                    }
+                  : {
+                      type: "function",
+                      id: content.id,
+                      function: {
+                        name: content.name,
+                        arguments: JSON.stringify(content.request.rawRequest),
+                      },
+                    },
+              );
               break;
             case "tool_result":
               toolResponses.push({
@@ -143,6 +159,33 @@ export class OpenAIProvider implements Provider {
                     : content.result.error,
               });
               break;
+            case "server_tool_use":
+              messageContent.push({
+                type: "text",
+                text: `searched for ${content.input.query}`,
+              });
+              break;
+
+            case "web_search_tool_result":
+              if (
+                (content.content as WebSearchToolResultError).type ==
+                "web_search_tool_result_error"
+              ) {
+                const error = content.content as WebSearchToolResultError;
+                messageContent.push({
+                  type: "text",
+                  text: `search error: \n${error.error_code}\n`,
+                });
+              } else {
+                const webSearchResults =
+                  content.content as Array<WebSearchResultBlock>;
+                messageContent.push({
+                  type: "text",
+                  text: `search results: \n${webSearchResults.map((result) => `[${result.title}](${result.url})`).join("\n")}\n`,
+                });
+              }
+              break;
+
             default:
               assertUnreachable(content);
           }
@@ -198,7 +241,7 @@ export class OpenAIProvider implements Provider {
   forceToolUse(
     messages: Array<ProviderMessage>,
     spec: ProviderToolSpec,
-  ): ProviderRequest {
+  ): ProviderToolUseRequest {
     let request: Stream<ChatCompletionChunk>;
     const promise = (async () => {
       const params = this.createStreamParameters(messages);
@@ -326,7 +369,7 @@ export class OpenAIProvider implements Provider {
           };
 
       return {
-        toolRequests: [toolRequest],
+        toolRequest,
         stopReason: stopReason || "end_turn",
         usage,
       };
@@ -342,8 +385,8 @@ export class OpenAIProvider implements Provider {
 
   sendMessage(
     messages: Array<ProviderMessage>,
-    onText: (text: string) => void,
-  ): ProviderRequest {
+    onStreamEvent: (event: ProviderStreamEvent) => void,
+  ): ProviderStreamRequest {
     let request: Stream<ChatCompletionChunk>;
     const promise = (async () => {
       request = await this.client.chat.completions.create(
@@ -353,11 +396,36 @@ export class OpenAIProvider implements Provider {
       const toolRequests = [];
       let stopReason: StopReason | undefined;
       let lastChunk: OpenAI.ChatCompletionChunk | undefined;
+
+      let blockStartSent = false;
+      function sendBlockStartOnce() {
+        if (!blockStartSent) {
+          onStreamEvent({
+            type: "content_block_start",
+            index: 1,
+            content_block: {
+              type: "text",
+              text: "",
+              citations: null,
+            },
+          });
+          blockStartSent = true;
+        }
+      }
+
       for await (const chunk of request) {
         lastChunk = chunk;
         const choice = chunk.choices[0];
         if (choice.delta.content) {
-          onText(choice.delta.content);
+          sendBlockStartOnce();
+          onStreamEvent({
+            type: "content_block_delta",
+            index: 1,
+            delta: {
+              type: "text_delta",
+              text: choice.delta.content,
+            },
+          });
         }
 
         if (choice.delta.tool_calls) {
@@ -385,7 +453,15 @@ export class OpenAIProvider implements Provider {
         }
       }
 
+      if (blockStartSent) {
+        onStreamEvent({
+          type: "content_block_stop",
+          index: 1,
+        });
+      }
+
       return {
+        /** TODO: finish converting this to use the onStreamEvent interface
         toolRequests: toolRequests
           .reduce((acc, req) => {
             if (req.id && "function" in req) {
@@ -448,6 +524,7 @@ export class OpenAIProvider implements Provider {
 
             return extendError(result, { rawRequest: req });
           }),
+          */
         stopReason: stopReason || "end_turn",
         usage: lastChunk?.usage
           ? {

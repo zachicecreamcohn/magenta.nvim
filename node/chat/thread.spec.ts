@@ -2,7 +2,6 @@ import { withDriver } from "../test/preamble.ts";
 import { LOGO } from "./thread.ts";
 import { type ToolRequestId } from "../tools/toolManager.ts";
 import { describe, expect, it } from "vitest";
-import { type ProviderToolUseContent } from "../providers/provider-types.ts";
 
 describe("node/chat/thread.spec.ts", () => {
   it("chat render and a few updates", async () => {
@@ -136,43 +135,23 @@ describe("node/chat/thread.spec.ts", () => {
         "Based on these results, I can help you.",
       );
 
-      // Verify the thread's internal message structure is correct
+      // Verify the thread's internal message structure is correct with a snapshot
       const thread = driver.magenta.chat.getActiveThread();
       const messages = await thread.getMessages();
 
-      // Check that there are 6 messages (user, assistant, user with tool result,
-      // assistant, user with tool result, assistant)
       expect(messages.length).toBe(6);
-
-      // Check the first user message
-      expect(messages[0].role).toBe("user");
-
-      // Verify message content with safe type checking
-      if (Array.isArray(messages[0].content)) {
-        const userContent = messages[0].content[0];
-        if (typeof userContent !== "string" && userContent.type === "text") {
-          expect(userContent.text).toBe("Can you help me with my code?");
-        }
-      } else if (typeof messages[0].content === "string") {
-        expect(messages[0].content).toBe("Can you help me with my code?");
-      }
-
-      // Check the first assistant message with tool use
-      expect(messages[1].role).toBe("assistant");
-
-      // Find the tool use content if it exists
-      if (Array.isArray(messages[1].content)) {
-        const toolUseContent = messages[1].content.find(
-          (item): item is ProviderToolUseContent =>
-            typeof item !== "string" && item.type === "tool_use",
-        );
-
-        if (toolUseContent && toolUseContent.request) {
-          expect(toolUseContent.request.toolName).toBe("list_directory");
-        }
-      }
-
-      // Content validation complete
+      expect(
+        messages.flatMap((m) => m.content.map((b) => m.role + ":" + b.type)),
+      ).toEqual([
+        "user:text",
+        "assistant:text",
+        "assistant:tool_use",
+        "user:tool_result",
+        "assistant:text",
+        "assistant:tool_use",
+        "user:tool_result",
+        "assistant:text",
+      ]);
     });
   });
 

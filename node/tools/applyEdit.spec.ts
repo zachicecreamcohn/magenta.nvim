@@ -7,7 +7,7 @@ import * as fs from "node:fs";
 import { type Line } from "../nvim/buffer";
 import type { UnresolvedFilePath } from "../utils/files";
 
-describe("node/tools/diff.spec.ts", () => {
+describe("node/tools/applyEdit.spec.ts", () => {
   it("insert into new file", async () => {
     await withDriver({}, async (driver) => {
       await driver.nvim.call("nvim_set_option_value", [

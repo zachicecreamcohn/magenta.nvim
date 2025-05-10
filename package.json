@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.12.4",
-    "@anthropic-ai/sdk": "^0.37.0",
+    "@anthropic-ai/sdk": "^0.41.0",
     "@types/diff": "^7.0.2",
     "diff": "^7.0.0",
     "eslint": "^9.17.0",

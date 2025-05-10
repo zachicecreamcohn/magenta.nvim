@@ -67,12 +67,11 @@ ok, I will try to rewrite the poem in that file
 \\ No newline at end of file
 
 \`\`\`
-Stopped (end_turn) [input: 0, output: 0]
 
 Edits:
   \`${TMP_DIR}/poem.txt\` (2 edits). **[± diff snapshot]**
 
-Stopped (end_turn)`);
+Stopped (end_turn) [input: 0, output: 0]`);
 
       const reviewPos =
         await driver.assertDisplayBufferContains("diff snapshot");

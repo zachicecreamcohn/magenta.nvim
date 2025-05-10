@@ -19,10 +19,9 @@ describe("node/chat/chat.spec.ts", () => {
         "Hello, this is a test message in thread 1",
       );
 
-      {
-        const request = await driver.mockAnthropic.awaitPendingRequest();
-        request.onText("I'm the assistant's response to the first thread");
-      }
+      await driver.mockAnthropic.streamText(
+        "I'm the assistant's response to the first thread",
+      );
 
       await driver.assertDisplayBufferContains(
         "I'm the assistant's response to the first thread",

@@ -24,7 +24,6 @@ hello
 
 # assistant:
 sup?
-Stopped (end_turn) [input: 0, output: 0]
 
 Stopped (end_turn)`);
 
@@ -44,7 +43,6 @@ hello again
 
 # assistant:
 huh?
-Stopped (end_turn) [input: 0, output: 0]
 
 Stopped (end_turn)`);
     });
@@ -88,11 +86,11 @@ Awaiting response ⠁`);
         }
       });
 
+      // Start streaming a response but don't complete it
+      await driver.mockAnthropic.streamText("I'm starting to respond");
+
       // Get the latest request
       const request = await driver.mockAnthropic.awaitPendingRequest();
-
-      // Start streaming a response but don't complete it
-      request.onText("I'm starting to respond");
 
       // Verify that response has started appearing
       await driver.assertDisplayBufferContains(`\

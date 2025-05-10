@@ -1,104 +1,111 @@
 import { describe, expect, it } from "vitest";
-import * as Insert from "./insert";
+import * as Replace from "./replace";
 import { type VDOMNode } from "../tea/view";
-import { stream } from "glob";
 
-describe("node/tools/insert.spec.ts", () => {
+describe("node/tools/replace.spec.ts", () => {
   it("validate input", () => {
     const validInput = {
       filePath: "test.txt",
-      insertAfter: "existing text",
-      content: "new content",
+      find: "existing text",
+      replace: "new text",
     };
 
-    const result = Insert.validateInput(validInput);
+    const result = Replace.validateInput(validInput);
     expect(result.status).toEqual("ok");
     if (result.status === "ok") {
       expect(result.value.filePath).toEqual("test.txt");
-      expect(result.value.insertAfter).toEqual("existing text");
-      expect(result.value.content).toEqual("new content");
+      expect(result.value.find).toEqual("existing text");
+      expect(result.value.replace).toEqual("new text");
     }
 
     // Test with missing filePath
     const invalidInput1 = {
-      insertAfter: "existing text",
-      content: "new content",
+      find: "existing text",
+      replace: "new text",
     };
-    const result1 = Insert.validateInput(invalidInput1);
+    const result1 = Replace.validateInput(invalidInput1);
     expect(result1.status).toEqual("error");
 
     // Test with wrong type
     const invalidInput2 = {
       filePath: 123,
-      insertAfter: "existing text",
-      content: "new content",
+      find: "existing text",
+      replace: "new text",
     };
-    const result2 = Insert.validateInput(invalidInput2);
+    const result2 = Replace.validateInput(invalidInput2);
     expect(result2.status).toEqual("error");
   });
 
   it("renderStreamedBlock - with filePath", () => {
-    // Define the content as a normal multiline string
-    const code = `\
-const newCode = true;
-function test() {
+    // Define the content to find and replace
+    const findText = `\
+function oldFunction() {
+  return false;
+}`;
+
+    const replaceText = `\
+function newFunction() {
   return true;
 }`;
 
     // Create the request object
     const request = {
       filePath: "example.js",
-      insertAfter: "// comment",
-      content: code,
+      find: findText,
+      replace: replaceText,
     };
 
     // Convert to JSON and simulate a partial stream
     const streamed = JSON.stringify(request);
 
-    const result = Insert.renderStreamedBlock(
-      streamed.slice(0, stream.length - 4),
-    );
+    const result = Replace.renderStreamedBlock(streamed);
     const resultStr = vdomToString(result);
-    expect(resultStr).toContain("Insert [[ +4 ]]"); // 4 lines in the content
+    expect(resultStr).toContain("Replace [[ -3 / +3 ]]"); // 3 lines in both find and replace
     expect(resultStr).toContain("example.js");
-    expect(resultStr).toContain("streaming...");
+    expect(resultStr).toContain("streaming");
   });
 
   it("renderStreamedBlock - without filePath", () => {
     // Create a request without filePath
     const request = {
-      insertAfter: "// comment",
-      content: "const newCode = true;",
+      find: "old text",
+      replace: "new text",
     };
 
     // Convert to JSON
     const streamed = JSON.stringify(request);
 
-    const result = Insert.renderStreamedBlock(streamed);
+    const result = Replace.renderStreamedBlock(streamed);
     const resultStr = vdomToString(result);
-    expect(resultStr).toContain("Preparing insert operation");
+    expect(resultStr).toContain("Preparing replace operation");
   });
 
-  it("renderStreamedBlock - with escaped content", () => {
-    const code = `\
+  it("renderStreamedBlock - with multiline escaped content", () => {
+    const findText = `\
 const json = { "key": "value" };
-const newLine = "first line"";
-let secondLine;`;
+const oldCode = "first line";
+let thirdLine;`;
+
+    const replaceText = `\
+const json = { "key": "updated" };
+const newCode = "first line";
+let thirdLine;
+let fourthLine;`;
 
     // Create the request object
     const request = {
       filePath: "test.js",
-      insertAfter: "// comment",
-      content: code,
+      find: findText,
+      replace: replaceText,
     };
 
     // Convert to JSON
     const streamed = JSON.stringify(request);
 
-    const result = Insert.renderStreamedBlock(streamed);
+    const result = Replace.renderStreamedBlock(streamed);
     const resultStr = vdomToString(result);
-    // Should correctly count the 2 actual newlines, not the escaped \n in the string
-    expect(resultStr).toContain("Insert [[ +3 ]]");
+    // Should correctly count the newlines
+    expect(resultStr).toContain("Replace [[ -3 / +4 ]]");
     expect(resultStr).toContain("test.js");
   });
 });
