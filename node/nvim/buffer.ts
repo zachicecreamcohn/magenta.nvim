@@ -1,4 +1,4 @@
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "./nvim-node";
 import type { Position0Indexed, Position1Indexed } from "./window";
 import { withTimeout } from "../utils/async";
 import type { AbsFilePath } from "../utils/files";

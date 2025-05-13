@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "../nvim/nvim-node";
 import { getBufferIfOpen } from "../utils/buffers.ts";
 import type { MessageId } from "../chat/message.ts";
 import {

@@ -12,7 +12,7 @@ import {
   type NvimSelection,
   type Msg as ReplaceSelectionMsg,
 } from "../tools/replace-selection-tool";
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "../nvim/nvim-node";
 import type { BufNr } from "../nvim/buffer";
 
 type InlineEditToolRequest = Extract<ToolRequest, { toolName: "inline_edit" }>;

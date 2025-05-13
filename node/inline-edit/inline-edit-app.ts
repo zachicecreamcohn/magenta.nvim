@@ -1,4 +1,4 @@
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "../nvim/nvim-node";
 import { NvimBuffer, type BufNr } from "../nvim/buffer";
 import {
   NvimWindow,
