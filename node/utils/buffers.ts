@@ -1,6 +1,6 @@
 import { NvimBuffer } from "../nvim/buffer.ts";
 import { getAllBuffers, getcwd } from "../nvim/nvim.ts";
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "../nvim/nvim-node";
 import {
   resolveFilePath,
   type AbsFilePath,

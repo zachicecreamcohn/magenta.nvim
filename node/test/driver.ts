@@ -1,4 +1,4 @@
-import { type Nvim } from "nvim-node";
+import { type Nvim } from "../nvim/nvim-node";
 import type { Magenta } from "../magenta";
 import type { BufNr, Line, NvimBuffer } from "../nvim/buffer";
 import type { MockProvider } from "../providers/mock";

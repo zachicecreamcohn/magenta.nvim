@@ -3,7 +3,7 @@ import { assertUnreachable } from "../utils/assertUnreachable";
 import { getBufferIfOpen } from "../utils/buffers";
 import path from "node:path";
 import fs from "node:fs";
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "../nvim/nvim-node";
 import type { Result } from "../utils/result";
 import { getcwd } from "../nvim/nvim";
 import { NvimBuffer, type BufNr } from "../nvim/buffer";

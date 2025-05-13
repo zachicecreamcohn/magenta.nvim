@@ -2,7 +2,7 @@ import { ToolManager, type ToolRequestId } from "../tools/toolManager.ts";
 import { type Role, type ThreadId } from "./thread.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, withBindings } from "../tea/view.ts";
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "../nvim/nvim-node";
 import { type Dispatch, type Thunk } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
@@ -21,8 +21,8 @@ import {
   finalizeStreamingBLock as finalizeStreamingBlock,
   type StreamingBlock,
 } from "../providers/helpers.ts";
-import type { WebSearchResultBlock } from "@anthropic-ai/sdk/resources.mjs";
 import { renderStreamdedTool } from "../tools/helpers.ts";
+import type { WebSearchResultBlock } from "@anthropic-ai/sdk/resources.mjs";
 export type MessageId = number & { __messageId: true };
 
 type State = {

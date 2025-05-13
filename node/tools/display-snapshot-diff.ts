@@ -2,7 +2,7 @@ import { WIDTH } from "../sidebar.ts";
 import { diffthis, getAllWindows, getcwd } from "../nvim/nvim.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 import { type WindowId } from "../nvim/window.ts";
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "../nvim/nvim-node";
 import type { MessageId } from "../chat/message.ts";
 import type { FileSnapshots } from "./file-snapshots.ts";
 import { resolveFilePath, type UnresolvedFilePath } from "../utils/files.ts";

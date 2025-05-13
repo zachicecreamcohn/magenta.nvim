@@ -6,7 +6,7 @@ import type {
 } from "../providers/provider.ts";
 import { d, withBindings } from "../tea/view.ts";
 import type { ToolRequest } from "./toolManager.ts";
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "../nvim/nvim-node";
 import { spawn } from "child_process";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { CommandAllowlist, MagentaOptions } from "../options.ts";

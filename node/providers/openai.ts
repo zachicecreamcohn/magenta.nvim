@@ -13,7 +13,7 @@ import type {
 } from "./provider-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { ToolRequestId } from "../tools/toolManager.ts";
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "../nvim/nvim-node";
 import type { Stream } from "openai/streaming.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
 import type { ChatCompletionChunk } from "openai/resources/index.mjs";

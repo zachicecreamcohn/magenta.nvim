@@ -4,7 +4,7 @@ import { type Bindings } from "./bindings.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { NvimBuffer } from "../nvim/buffer.ts";
 import { type Position0Indexed } from "../nvim/window.ts";
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "../nvim/nvim-node";
 
 export function pos(row: number, col: number) {
   return { row, col } as Position0Indexed;
