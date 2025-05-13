@@ -82,7 +82,7 @@ export function createApp<Model>({
             nvim.logger?.error(
               err instanceof Error
                 ? `${err.message}\n${err.stack}`
-                : "render error",
+                : JSON.stringify(err),
             );
             if (renderDefer) {
               renderDefer.reject(err as Error);

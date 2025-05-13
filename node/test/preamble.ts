@@ -148,9 +148,6 @@ export async function withNvimClient(
         nvim.logger?.error(err as Error);
       }
     });
-    await nvim.call("nvim_exec_lua", [`vim.notify('test notify')`, []]);
-
-    nvim.logger!.info("Nvim started");
 
     try {
       await fn(nvim);

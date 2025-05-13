@@ -30,30 +30,30 @@ describe("src/logger.test.ts", () => {
         // Split lines and check each log entry individually
         const logLines = logContent.trim().split("\n");
 
-        expect(logLines.length).toBe(4);
+        expect(logLines.length).toBe(3);
 
         // Parse and verify each line
         // eslint-disable-next-line @typescript-eslint/no-unsafe-return
         const logs = logLines.map((line) => JSON.parse(line));
 
         // Check error message
-        expect(logs[1].level).toBe("error");
-        expect(logs[1].message).toBe("Error level message");
-        expect(logs[1].timestamp).toMatch(
+        expect(logs[0].level).toBe("error");
+        expect(logs[0].message).toBe("Error level message");
+        expect(logs[0].timestamp).toMatch(
           /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
         );
 
         // Check warn message
-        expect(logs[2].level).toBe("warn");
-        expect(logs[2].message).toBe("Warning level message");
-        expect(logs[2].timestamp).toMatch(
+        expect(logs[1].level).toBe("warn");
+        expect(logs[1].message).toBe("Warning level message");
+        expect(logs[1].timestamp).toMatch(
           /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
         );
 
         // Check info message
-        expect(logs[3].level).toBe("info");
-        expect(logs[3].message).toBe("Info level message");
-        expect(logs[3].timestamp).toMatch(
+        expect(logs[2].level).toBe("info");
+        expect(logs[2].message).toBe("Info level message");
+        expect(logs[2].timestamp).toMatch(
           /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
         );
 
