@@ -3,7 +3,7 @@ import { d } from "../tea/view.ts";
 import { type ToolRequest } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import type { Dispatch, Thunk } from "../tea/tea.ts";
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "../nvim/nvim-node";
 import { parseLsResponse } from "../utils/lsBuffers.ts";
 import type {
   ProviderToolResultContent,

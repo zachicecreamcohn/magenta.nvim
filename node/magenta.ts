@@ -2,7 +2,7 @@ import { Sidebar } from "./sidebar.ts";
 import * as TEA from "./tea/tea.ts";
 import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
 import { pos } from "./tea/view.ts";
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "./nvim/nvim-node";
 import { Lsp } from "./lsp.ts";
 import { getProvider } from "./providers/provider.ts";
 import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";

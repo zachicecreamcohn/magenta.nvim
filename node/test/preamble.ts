@@ -1,4 +1,4 @@
-import { attach, type Nvim } from "nvim-node";
+import { attach, type LogLevel, type Nvim } from "../nvim/nvim-node";
 import { unlink, access, rm, cp, mkdir } from "node:fs/promises";
 import { spawn } from "child_process";
 import { type MountedVDOM } from "../tea/view.ts";
@@ -88,12 +88,18 @@ export async function withNvimProcess(fn: (sock: string) => Promise<void>) {
   }
 }
 
-export async function withNvimClient(fn: (nvim: Nvim) => Promise<void>) {
+export async function withNvimClient(
+  fn: (nvim: Nvim) => Promise<void>,
+  options: {
+    logFile?: string;
+    logLevel?: LogLevel;
+  } = {},
+) {
   return await withNvimProcess(async (sock) => {
     const nvim = await attach({
       socket: sock,
       client: { name: "test" },
-      logging: { level: "debug" },
+      logging: { level: options.logLevel ?? "debug", file: options.logFile },
     });
 
     await nvim.call("nvim_exec_lua", [

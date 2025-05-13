@@ -1,5 +1,5 @@
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "../nvim/nvim-node";
 import type { ToolRequest } from "./toolManager.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import path from "node:path";

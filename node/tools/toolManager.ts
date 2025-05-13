@@ -13,7 +13,7 @@ import * as ReplaceSelection from "./replace-selection-tool.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, withBindings } from "../tea/view.ts";
 import { type Dispatch, type Thunk } from "../tea/tea.ts";
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp } from "../lsp.ts";
 import type { MagentaOptions } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";

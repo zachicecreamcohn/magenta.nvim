@@ -9,7 +9,7 @@ import {
 import { BINDING_KEYS, type BindingKey, getBindings } from "./bindings.ts";
 import { getCurrentWindow, notifyErr } from "../nvim/nvim.ts";
 import type { Row0Indexed } from "../nvim/window.ts";
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "../nvim/nvim-node";
 import { Defer } from "../utils/async.ts";
 
 export type Dispatch<Msg> = (msg: Msg) => void;

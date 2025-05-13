@@ -1,5 +1,5 @@
 import { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "../nvim/nvim-node";
 import { AnthropicProvider } from "./anthropic.ts";
 import type Anthropic from "@anthropic-ai/sdk";
 

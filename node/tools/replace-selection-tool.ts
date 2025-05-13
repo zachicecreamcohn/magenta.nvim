@@ -7,7 +7,7 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Dispatch } from "../tea/tea.ts";
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "../nvim/nvim-node";
 import type { ToolInterface } from "./types.ts";
 import { NvimBuffer, type BufNr, type Line } from "../nvim/buffer.ts";
 import type {

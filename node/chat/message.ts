@@ -3,7 +3,7 @@ import { ToolManager, type ToolRequestId } from "../tools/toolManager.ts";
 import { type Role } from "./thread.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, type View, withBindings } from "../tea/view.ts";
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "../nvim/nvim-node";
 import { type Dispatch, type Thunk } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";

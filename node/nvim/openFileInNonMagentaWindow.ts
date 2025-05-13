@@ -1,4 +1,4 @@
-import type { Nvim } from "nvim-node";
+import type { Nvim } from "./nvim-node";
 import { getAllWindows, getcwd } from "../nvim/nvim";
 import { NvimBuffer } from "../nvim/buffer";
 import type { WindowId } from "../nvim/window";
