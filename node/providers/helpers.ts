@@ -51,7 +51,7 @@ export function applyDelta(
   }
 }
 
-export function finalizeStreamingBLock(
+export function finalizeStreamingBlock(
   block: StreamingBlock,
 ): ProviderMessageContent {
   switch (block.type) {

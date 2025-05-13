@@ -77,10 +77,13 @@ export class Chat {
       activeThreadId: undefined,
     };
 
-    this.createNewThread().catch((e: Error) => {
-      this.context.nvim.logger?.error(
-        "Failed to create initial thread: " + e.message + "\n" + e.stack,
-      );
+    // wrap in setTimeout to force new eventloop frame, to avoid dispatch-in-dispatch
+    setTimeout(() => {
+      this.createNewThread().catch((e: Error) => {
+        this.context.nvim.logger?.error(
+          "Failed to create initial thread: " + e.message + "\n" + e.stack,
+        );
+      });
     });
   }
 
@@ -129,8 +132,11 @@ export class Chat {
       }
 
       case "new-thread":
-        this.createNewThread().catch((e: Error) => {
-          this.context.nvim.logger?.error("Failed to create new thread:", e);
+        // wrap in setTimeout to force new eventloop frame, to avoid dispatch-in-dispatch
+        setTimeout(() => {
+          this.createNewThread().catch((e: Error) => {
+            this.context.nvim.logger?.error("Failed to create new thread:", e);
+          });
         });
         return;
 

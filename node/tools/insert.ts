@@ -44,8 +44,15 @@ export class InsertTool implements ToolInterface {
     },
   ) {
     this.state = { state: "processing" };
-    applyEdit(this.request, this.threadId, this.messageId, this.context).catch(
-      (err: Error) =>
+
+    // wrap in setTimeout to force a new eventloop frame, so we don't dispatch-in-dispatch
+    setTimeout(() => {
+      applyEdit(
+        this.request,
+        this.threadId,
+        this.messageId,
+        this.context,
+      ).catch((err: Error) =>
         this.context.myDispatch({
           type: "finish",
           result: {
@@ -53,7 +60,8 @@ export class InsertTool implements ToolInterface {
             error: err.message,
           },
         }),
-    );
+      );
+    });
   }
 
   abort() {
@@ -250,10 +258,6 @@ export function renderStreamedBlock(streamed: string): VDOMNode {
   let lineCount = 1; // Start with 1 for the first line
   const contentKeyIndex = streamed.indexOf(CONTENT_START_STR);
   if (contentKeyIndex !== -1) {
-    console.log(
-      "streamed:",
-      streamed.slice(contentKeyIndex + CONTENT_START_STR.length),
-    );
     // Start after the opening quote
     for (
       let i = contentKeyIndex + CONTENT_START_STR.length;

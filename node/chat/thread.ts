@@ -291,7 +291,10 @@ export class Thread {
       case "send-message": {
         const lastMessage = this.state.messages[this.state.messages.length - 1];
         if (lastMessage && lastMessage.state.role == "user") {
-          this.sendMessage().catch(this.handleSendMessageError.bind(this));
+          // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
+          setTimeout(() => {
+            this.sendMessage().catch(this.handleSendMessageError.bind(this));
+          });
         } else {
           this.nvim.logger?.error(
             `Cannot send when the last message has role ${lastMessage && lastMessage.state.role}`,
@@ -330,25 +333,12 @@ export class Thread {
           this.state.messages.push(message);
         }
 
-        switch (msg.event.type) {
-          case "message_start":
-          case "message_delta":
-            return;
-          case "message_stop":
-            return;
-          case "content_block_start":
-          case "content_block_delta":
-          case "content_block_stop": {
-            const message = this.state.messages[this.state.messages.length - 1];
-            message.update({
-              type: "stream-event",
-              event: msg.event,
-            });
-            return;
-          }
-          default:
-            return assertUnreachable(msg.event);
-        }
+        const message = this.state.messages[this.state.messages.length - 1];
+        message.update({
+          type: "stream-event",
+          event: msg.event,
+        });
+        return;
       }
 
       case "clear": {
@@ -476,7 +466,10 @@ export class Thread {
       }
     }
 
-    this.sendMessage().catch(this.handleSendMessageError.bind(this));
+    // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
+    setTimeout(() => {
+      this.sendMessage().catch(this.handleSendMessageError.bind(this));
+    });
   }
 
   private handleSendMessageError = (error: Error): void => {

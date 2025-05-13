@@ -8,7 +8,6 @@ import {
 } from "./types.ts";
 
 export function createLogger(client: Client, level: LogLevel, file?: string) {
-  // Create a simple and standard winston logger
   const filename = file ? resolve(file) : `/tmp/${client.name}.log`;
   const logger = winston.createLogger({
     level,

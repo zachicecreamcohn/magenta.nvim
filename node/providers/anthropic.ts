@@ -9,6 +9,7 @@ import {
   type ProviderStreamRequest,
   type ProviderToolSpec,
   type ProviderToolUseRequest,
+  type ProviderStreamEvent,
 } from "./provider-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
@@ -147,7 +148,6 @@ export class AnthropicProvider implements Provider {
       },
     );
 
-    this.nvim.logger?.error(`anthropic model: ${this.model}`);
     return {
       messages: anthropicMessages,
       model: this.model,
@@ -331,7 +331,7 @@ export class AnthropicProvider implements Provider {
    */
   sendMessage(
     messages: Array<ProviderMessage>,
-    onStreamEvent: (event: Anthropic.RawMessageStreamEvent) => void,
+    onStreamEvent: (event: ProviderStreamEvent) => void,
   ): ProviderStreamRequest {
     let requestActive = true;
     const request = this.client.messages
@@ -341,7 +341,12 @@ export class AnthropicProvider implements Provider {
         ) as Anthropic.Messages.MessageStreamParams,
       )
       .on("streamEvent", (e) => {
-        if (requestActive) {
+        if (
+          requestActive &&
+          (e.type == "content_block_start" ||
+            e.type == "content_block_delta" ||
+            e.type == "content_block_stop")
+        ) {
           onStreamEvent(e);
         }
       });

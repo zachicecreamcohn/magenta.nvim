@@ -97,6 +97,7 @@ export function isCommandAllowed(
   command: string,
   allowlist: CommandAllowlist,
   rememberedCommands?: Set<string>,
+  logger?: Nvim["logger"],
 ): boolean {
   if (rememberedCommands && rememberedCommands.has(command)) {
     return true;
@@ -112,7 +113,6 @@ export function isCommandAllowed(
     return false;
   }
 
-  // Check each regex pattern until we find a match
   for (const pattern of allowlist) {
     try {
       const regex = new RegExp(pattern);
@@ -120,8 +120,7 @@ export function isCommandAllowed(
         return true;
       }
     } catch (error) {
-      // Skip invalid regex patterns
-      console.error(`Invalid regex pattern: ${pattern}`, error);
+      logger?.error(`Invalid regex pattern: ${pattern}`, error);
       continue;
     }
   }
@@ -147,6 +146,7 @@ export class BashCommandTool implements ToolInterface {
       request.input.command,
       commandAllowlist,
       this.context.rememberedCommands,
+      context.nvim.logger,
     );
 
     if (isAllowed) {
@@ -157,12 +157,15 @@ export class BashCommandTool implements ToolInterface {
         approved: true,
         childProcess: null,
       };
-      this.executeCommand().catch((err: Error) =>
-        this.context.myDispatch({
-          type: "error",
-          error: err.message + "\n" + err.stack,
-        }),
-      );
+      // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
+      setTimeout(() => {
+        this.executeCommand().catch((err: Error) =>
+          this.context.myDispatch({
+            type: "error",
+            error: err.message + "\n" + err.stack,
+          }),
+        );
+      });
     } else {
       this.state = {
         state: "pending-user-action",
@@ -196,12 +199,16 @@ export class BashCommandTool implements ToolInterface {
             approved: true,
             childProcess: null,
           };
-          this.executeCommand().catch((err: Error) =>
-            this.context.myDispatch({
-              type: "error",
-              error: err.message + "\n" + err.stack,
-            }),
-          );
+
+          // wrap in setTimeout to force a new eventloop frame to avoid dispatch-in-dispatch
+          setTimeout(() => {
+            this.executeCommand().catch((err: Error) =>
+              this.context.myDispatch({
+                type: "error",
+                error: err.message + "\n" + err.stack,
+              }),
+            );
+          });
           return;
         } else {
           this.state = {

@@ -442,7 +442,7 @@ Paint their stories in the night.
           (msg.content[0] as any).text.includes("test-auto-context.md"),
       );
       expect(fileContent).toBeTruthy();
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       const text = (fileContent?.content[0] as any).text;
       expect(text).toContain("This is test auto-context content");
       expect(text).toContain("Multiple lines");

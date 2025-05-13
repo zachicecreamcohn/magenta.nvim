@@ -284,7 +284,6 @@ export class ToolManager {
               tool: insertTool,
               showDetails: false,
             };
-
             return;
           }
 
@@ -446,30 +445,33 @@ export class ToolManager {
    * things simpler to understand.
    */
   acceptThunk(tool: Tool, thunk: Thunk<ToolMsg["msg"]>): void {
-    thunk((msg) =>
-      this.myDispatch({
-        type: "tool-msg",
-        msg: {
-          id: tool.request.id,
-          toolName: tool.toolName,
-          msg,
-        } as ToolMsg,
-      }),
-    ).catch((e: Error) =>
-      this.myDispatch({
-        type: "tool-msg",
-        msg: {
-          id: tool.request.id,
-          toolName: tool.toolName,
+    // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
+    setTimeout(() => {
+      thunk((msg) =>
+        this.myDispatch({
+          type: "tool-msg",
           msg: {
-            type: "finish",
-            result: {
-              status: "error",
-              error: e.message,
+            id: tool.request.id,
+            toolName: tool.toolName,
+            msg,
+          } as ToolMsg,
+        }),
+      ).catch((e: Error) =>
+        this.myDispatch({
+          type: "tool-msg",
+          msg: {
+            id: tool.request.id,
+            toolName: tool.toolName,
+            msg: {
+              type: "finish",
+              result: {
+                status: "error",
+                error: e.message,
+              },
             },
-          },
-        } as ToolMsg,
-      }),
-    );
+          } as ToolMsg,
+        }),
+      );
+    });
   }
 }

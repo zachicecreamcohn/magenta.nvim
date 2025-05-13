@@ -99,7 +99,10 @@ export interface Provider {
 
 /** Using Anthropic types for now since they're the most mature / well documented
  */
-export type ProviderStreamEvent = Anthropic.RawMessageStreamEvent;
+export type ProviderStreamEvent = Extract<
+  Anthropic.RawMessageStreamEvent,
+  { type: "content_block_start" | "content_block_delta" | "content_block_stop" }
+>;
 
 export type ProviderBlockStartEvent = Extract<
   ProviderStreamEvent,
@@ -114,11 +117,13 @@ export interface ProviderStreamRequest {
   }>;
 }
 
+export type ProviderToolUseResponse = {
+  toolRequest: Result<ToolManager.ToolRequest, { rawRequest: unknown }>;
+  stopReason: StopReason;
+  usage: Usage;
+};
+
 export interface ProviderToolUseRequest {
   abort(): void;
-  promise: Promise<{
-    toolRequest: Result<ToolManager.ToolRequest, { rawRequest: unknown }>;
-    stopReason: StopReason;
-    usage: Usage;
-  }>;
+  promise: Promise<ProviderToolUseResponse>;
 }

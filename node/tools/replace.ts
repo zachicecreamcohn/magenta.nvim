@@ -44,8 +44,15 @@ export class ReplaceTool implements ToolInterface {
     },
   ) {
     this.state = { state: "processing" };
-    applyEdit(this.request, this.threadId, this.messageId, this.context).catch(
-      (err: Error) =>
+
+    // wrap in setTimeout to force a new eventloop frame, so we don't dispatch-in-dispatch
+    setTimeout(() => {
+      applyEdit(
+        this.request,
+        this.threadId,
+        this.messageId,
+        this.context,
+      ).catch((err: Error) =>
         this.context.myDispatch({
           type: "finish",
           result: {
@@ -53,7 +60,8 @@ export class ReplaceTool implements ToolInterface {
             error: err.message,
           },
         }),
-    );
+      );
+    });
   }
 
   abort(): void {

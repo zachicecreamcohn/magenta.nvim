@@ -18,7 +18,7 @@ import type {
 } from "../providers/provider.ts";
 import {
   applyDelta,
-  finalizeStreamingBLock as finalizeStreamingBlock,
+  finalizeStreamingBlock,
   type StreamingBlock,
 } from "../providers/helpers.ts";
 import { renderStreamdedTool } from "../tools/helpers.ts";
@@ -343,8 +343,11 @@ ${fileEdits}`
               content.request.value.id
             ];
           if (!toolWrapper) {
+            this.context.nvim.logger?.error(
+              `Unable to find toolWrapper with requestId ${content.request.value.id}`,
+            );
             throw new Error(
-              `Unable to find model with requestId ${content.request.value.id}`,
+              `Unable to find toolWrapper with requestId ${content.request.value.id}`,
             );
           }
           return this.context.toolManager.renderTool(toolWrapper);
