@@ -1,4 +1,4 @@
-import type { ByteIdx, Row0Indexed } from "../nvim/window.ts";
+import type { ByteIdx, Position0Indexed, Row0Indexed } from "../nvim/window.ts";
 import { render } from "./render.ts";
 import { replaceBetweenPositions } from "./util.ts";
 import {
@@ -15,13 +15,13 @@ type CurrentByteIdx = ByteIdx & { __current: true };
 type CurrentRow = Row0Indexed & { __current: true };
 
 type NextByteIdx = ByteIdx & { __next: true };
-type NextRow = Row0Indexed & { __next: true };
-type CurrentPosition = {
+export type NextRow = Row0Indexed & { __next: true };
+export type CurrentPosition = {
   row: CurrentRow;
   col: CurrentByteIdx;
 };
 
-type NextPosition = {
+export type NextPosition = {
   row: NextRow;
   col: NextByteIdx;
 };
@@ -35,6 +35,94 @@ type NextMountedVDOM = Omit<MountedVDOM, "startPos" | "endPos"> & {
   startPos: NextPosition;
   endPos: NextPosition;
 };
+
+export type AccumulatedEdit = {
+  deltaRow: number;
+  deltaCol: number;
+  /** In the new file, as we're editing, keep track of the last edit row that the edit has happened on, and how
+   * the columns in that row have shifted.
+   */
+  lastEditRow: NextRow;
+};
+
+/** We are traversing the DOM in-order.
+ * This function tracks how positions shift as we make edits to the document.
+ */
+export function updateAccumulatedEdit(
+  accumulatedEdit: AccumulatedEdit,
+  oldPos: {
+    startPos: CurrentPosition;
+    endPos: CurrentPosition;
+  },
+  remappedOldPos: {
+    startPos: NextPosition;
+    endPos: NextPosition;
+  },
+  newPos: {
+    startPos: NextPosition;
+    endPos: NextPosition;
+  },
+) {
+  if (newPos.endPos.row == accumulatedEdit.lastEditRow) {
+    // this view post-render is all on the final line, so we just need to adjust the col delta by the view
+    // before replacing the node:
+    //
+    // render so far <old view old view old view> ... <next view>
+    //
+    // after replacing the node:
+    //
+    // render so far <updated view> ... <next view>
+    // next view's pos used to be at oldPos.endPos + delta, and now it's at newPos.endpos + delta, so we need to adjust it by
+    // newPos.endpos - oldPos.endpos, in addition to whatever delta we have for the last line so far
+    accumulatedEdit.deltaCol += newPos.endPos.col - remappedOldPos.endPos.col;
+  } else {
+    // previously rendered state:
+    //  <previous node> <current node> ... <next node>
+    //
+    // before rendering current node
+    // <re-rendered previous node> <current node> ... <next node>
+    //
+    // after re-rendering current node
+    // <re-rendered previous node> <re-rendered
+    //  current node> ... <next node>
+    //
+    //  nextNode's remappedStartCol = nextNode.startCol - oldPos.endCol + newPos.endCol
+    accumulatedEdit.deltaCol = newPos.endPos.col - oldPos.endPos.col;
+  }
+
+  accumulatedEdit.lastEditRow = newPos.endPos.row;
+  accumulatedEdit.deltaRow += newPos.endPos.row - remappedOldPos.endPos.row;
+}
+
+/** We've partially re-rendered the DOM up to this node, so this node probably shifted
+ * around, and we need to figure out where its new position is.
+ */
+export function remapCurrentToNextPos(
+  pos: {
+    startPos: CurrentPosition;
+    endPos: CurrentPosition;
+  },
+  accumulatedEdit: AccumulatedEdit,
+) {
+  const startPos = { ...pos.startPos } as unknown as NextPosition;
+  const endPos = { ...pos.endPos } as unknown as NextPosition;
+
+  startPos.row = (startPos.row + accumulatedEdit.deltaRow) as NextRow;
+  endPos.row = (endPos.row + accumulatedEdit.deltaRow) as NextRow;
+
+  if (startPos.row == accumulatedEdit.lastEditRow) {
+    startPos.col = (startPos.col + accumulatedEdit.deltaCol) as NextByteIdx;
+  }
+
+  if (endPos.row == accumulatedEdit.lastEditRow) {
+    endPos.col = (endPos.col + accumulatedEdit.deltaCol) as NextByteIdx;
+  }
+
+  return {
+    startPos,
+    endPos,
+  };
+}
 
 export async function update({
   currentRoot,
@@ -59,20 +147,12 @@ export async function update({
     lastEditRow: 0 as NextRow,
   };
 
-  function updatePos(curPos: CurrentPosition) {
-    const pos = { ...curPos } as unknown as NextPosition;
-    pos.row = (pos.row + accumulatedEdit.deltaRow) as NextRow;
-    if (pos.row == accumulatedEdit.lastEditRow) {
-      pos.col = (pos.col + accumulatedEdit.deltaCol) as NextByteIdx;
-    }
-    return pos;
-  }
-
   function updateNodePos(node: CurrentMountedVDOM): NextMountedVDOM {
+    const nextPos = remapCurrentToNextPos(node, accumulatedEdit);
     return {
       ...node,
-      startPos: updatePos(node.startPos),
-      endPos: updatePos(node.endPos),
+      startPos: nextPos.startPos,
+      endPos: nextPos.endPos,
     };
   }
 
@@ -93,25 +173,13 @@ export async function update({
       },
     })) as unknown as NextMountedVDOM;
 
-    const oldEndPos = nextPos.endPos;
-    const newEndPos = rendered.endPos;
-
-    accumulatedEdit.deltaRow += newEndPos.row - oldEndPos.row;
-    if (rendered.endPos.row == accumulatedEdit.lastEditRow) {
-      // this view is all in a single line, so we just need to update the column
-      accumulatedEdit.deltaCol += newEndPos.col - oldEndPos.col;
-    } else {
-      // things on the last line will shift based on the previous and new ending column of this view
-      accumulatedEdit.deltaCol = newEndPos.col - oldEndPos.col;
-    }
-
-    accumulatedEdit.lastEditRow = newEndPos.row;
-
+    updateAccumulatedEdit(accumulatedEdit, current, nextPos, rendered);
     return rendered;
   }
 
-  async function insertNode(
+  async function renderNode(
     node: VDOMNode,
+    currentPos: CurrentPosition,
     pos: NextPosition,
   ): Promise<NextMountedVDOM> {
     const rendered = (await render({
@@ -123,43 +191,41 @@ export async function update({
       },
     })) as unknown as NextMountedVDOM;
 
-    const oldEndPos = pos;
-    const newEndPos = rendered.endPos;
-
-    accumulatedEdit.deltaRow += newEndPos.row - oldEndPos.row;
-    if (accumulatedEdit.lastEditRow == newEndPos.row) {
-      // this is a single-line edit. We just need to adjust the column
-      accumulatedEdit.deltaCol += newEndPos.col - oldEndPos.col;
-    } else {
-      // things on the last row will shift based on the previous and new end columns
-      accumulatedEdit.deltaCol = newEndPos.col - oldEndPos.col;
-    }
-
-    accumulatedEdit.lastEditRow = newEndPos.row;
+    updateAccumulatedEdit(
+      accumulatedEdit,
+      { startPos: currentPos, endPos: currentPos },
+      { startPos: pos, endPos: pos },
+      rendered,
+    );
     return rendered;
   }
 
-  async function deleteNodes({
-    startPos,
-    endPos,
-  }: {
-    startPos: NextPosition;
-    endPos: NextPosition;
-  }) {
-    // remove all the nodes between the end of the last child and where the remaining children would go.
+  async function deleteTextBetweenPositions(
+    currentPos: {
+      startPos: CurrentPosition;
+      endPos: CurrentPosition;
+    },
+    nextPos: {
+      startPos: NextPosition;
+      endPos: NextPosition;
+    },
+  ) {
+    const compareResult = comparePositions(nextPos.startPos, nextPos.endPos);
+    if (compareResult == "gt" || compareResult == "eq") {
+      return;
+    }
+
     await replaceBetweenPositions({
       ...mount,
-      startPos,
-      endPos,
+      startPos: nextPos.startPos,
+      endPos: nextPos.endPos,
       lines: [],
       context: { nvim: mount.nvim },
     });
-    accumulatedEdit.deltaRow += startPos.row - endPos.row;
-    if (accumulatedEdit.lastEditRow == endPos.row) {
-      accumulatedEdit.deltaCol += startPos.col - endPos.col;
-    } else {
-      accumulatedEdit.deltaCol = startPos.col - endPos.col;
-    }
+    updateAccumulatedEdit(accumulatedEdit, currentPos, nextPos, {
+      startPos: nextPos.startPos,
+      endPos: nextPos.startPos,
+    });
   }
 
   async function visitNode(
@@ -189,7 +255,13 @@ export async function update({
         const nextNode = next as ComponentVDOMNode;
         // have to update startPos before processing the children since we assume that positions are always processed
         // in document order!
-        const startPos = updatePos(current.startPos as CurrentPosition);
+        const preChildrenPos = remapCurrentToNextPos(
+          {
+            startPos: current.startPos as CurrentPosition,
+            endPos: current.endPos as CurrentPosition,
+          },
+          accumulatedEdit,
+        );
         const nextChildren = [];
         if (current.template == nextNode.template) {
           if (current.children.length != nextNode.children.length) {
@@ -207,10 +279,11 @@ export async function update({
           const nextMountedNode = {
             ...current,
             children: nextChildren,
-            startPos,
+            startPos: preChildrenPos.startPos,
             endPos: nextChildren.length
               ? nextChildren[nextChildren.length - 1].endPos
-              : updatePos(current.endPos as CurrentPosition),
+              : // if there were no children, then the preChildrenPos is fine
+                preChildrenPos.endPos,
             bindings: next.bindings,
           };
           return nextMountedNode;
@@ -226,36 +299,65 @@ export async function update({
         const nextNode = next as ArrayVDOMNode;
         // have to update startPos before processing the children since we assume that positions are always processed
         // in document order!
-        const startPos = updatePos(current.startPos as CurrentPosition);
+        const updatedParentPos = remapCurrentToNextPos(
+          {
+            startPos: current.startPos as CurrentPosition,
+            endPos: current.endPos as CurrentPosition,
+          },
+          accumulatedEdit,
+        );
         const nextChildren = [];
-        for (
-          let i = 0;
-          i < Math.min(current.children.length, nextNode.children.length);
-          i += 1
-        ) {
+        const numChildrenRetained = Math.min(
+          current.children.length,
+          nextNode.children.length,
+        );
+        for (let i = 0; i < numChildrenRetained; i += 1) {
           const currentChild = current.children[i];
           const nextChild = nextNode.children[i];
           nextChildren.push(await visitNode(currentChild, nextChild));
         }
 
+        const lastCurrentChild = current.children[current.children.length - 1];
         let nextChildrenEndPos = nextChildren.length
           ? nextChildren[nextChildren.length - 1].endPos
-          : startPos;
+          : updatedParentPos.startPos;
 
-        if (current.children.length > nextNode.children.length) {
-          const oldChildrenEndPos = updatePos(
-            current.children[current.children.length - 1]
-              .endPos as CurrentPosition,
+        if (nextNode.children.length < current.children.length) {
+          // remove all the text between the end of the last re-rendered child and where the remaining children shifted during
+          // re-rendering
+          // before: <child 1> <child 2> <child 3>
+          // now: <re-rendered child 1> <re-rendered child 2> <child 3>
+          // so we want to delete from the end of re-rendered child 2, to the end of child 3
+          const firstUnretainedChild = current.children[numChildrenRetained];
+          const remappedFirstUnretainedChildPos = remapCurrentToNextPos(
+            {
+              startPos: firstUnretainedChild.startPos as CurrentPosition,
+              endPos: firstUnretainedChild.endPos as CurrentPosition,
+            },
+            accumulatedEdit,
           );
-          // remove all the nodes between the end of the last child and where the remaining children would go.
-          await deleteNodes({
-            startPos: nextChildrenEndPos,
-            endPos: oldChildrenEndPos,
-          });
+          const remappedLastChildPos = remapCurrentToNextPos(
+            {
+              startPos: lastCurrentChild.startPos as CurrentPosition,
+              endPos: lastCurrentChild.endPos as CurrentPosition,
+            },
+            accumulatedEdit,
+          );
+
+          await deleteTextBetweenPositions(
+            {
+              startPos: firstUnretainedChild.startPos as CurrentPosition,
+              endPos: lastCurrentChild.endPos as CurrentPosition,
+            },
+            {
+              startPos: remappedFirstUnretainedChildPos.startPos,
+              endPos: remappedLastChildPos.endPos,
+            },
+          );
         }
 
         if (nextNode.children.length > current.children.length) {
-          // append new array nodes
+          // we have more children than we used to, so we need to render them.
           for (
             let childIdx = current.children.length;
             childIdx < nextNode.children.length;
@@ -265,7 +367,13 @@ export async function update({
               ? nextChildren[nextChildren.length - 1].endPos
               : nextChildrenEndPos;
             nextChildren.push(
-              await insertNode(nextNode.children[childIdx], insertPos),
+              await renderNode(
+                nextNode.children[childIdx],
+                lastCurrentChild
+                  ? (lastCurrentChild.endPos as CurrentPosition)
+                  : (current.endPos as CurrentPosition),
+                insertPos,
+              ),
             );
           }
           nextChildrenEndPos = nextChildren[nextChildren.length - 1].endPos;
@@ -274,7 +382,7 @@ export async function update({
         const nextMountedNode = {
           ...current,
           children: nextChildren,
-          startPos,
+          startPos: updatedParentPos.startPos,
           endPos: nextChildrenEndPos,
           bindings: next.bindings,
         };
@@ -284,4 +392,24 @@ export async function update({
   }
 
   return (await visitNode(currentRoot, nextRoot)) as unknown as MountedVDOM;
+}
+
+function comparePositions(pos1: Position0Indexed, pos2: Position0Indexed) {
+  if (pos1.row > pos2.row) {
+    return "gt";
+  }
+
+  if (pos1.row < pos2.row) {
+    return "lt";
+  }
+
+  if (pos1.col > pos2.col) {
+    return "gt";
+  }
+
+  if (pos1.col < pos2.col) {
+    return "lt";
+  }
+
+  return "eq";
 }

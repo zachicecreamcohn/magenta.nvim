@@ -4,6 +4,7 @@ import {
   type MountedView,
   type MountPoint,
   mountView,
+  prettyPrintMountedNode,
   type VDOMNode,
 } from "./view.ts";
 import { BINDING_KEYS, type BindingKey, getBindings } from "./bindings.ts";
@@ -81,8 +82,12 @@ export function createApp<Model>({
           .catch((err) => {
             nvim.logger?.error(
               err instanceof Error
-                ? `${err.message}\n${err.stack}`
-                : JSON.stringify(err),
+                ? `render failed: ${err.message}\n${err.stack}`
+                : `render failed: ${JSON.stringify(err)}`,
+            );
+            nvim.logger?.error(
+              "render error: " +
+                prettyPrintMountedNode(root!._getMountedNode()),
             );
             if (renderDefer) {
               renderDefer.reject(err as Error);
@@ -90,6 +95,9 @@ export function createApp<Model>({
             }
           })
           .finally(() => {
+            nvim.logger?.info(
+              "rendered: " + prettyPrintMountedNode(root!._getMountedNode()),
+            );
             renderPromise = undefined;
             if (reRender) {
               reRender = false;
