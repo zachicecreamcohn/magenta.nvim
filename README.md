@@ -11,6 +11,8 @@ Magenta is for agents.
 
 May 2025 update
 
+I updated the architecture around streaming, so we now process partial tool calls, which means we can preview Insert and Replace commands gradually as they stream in. This makes the tool feel a lot more responsive. I also added support for anthropic web search and citations!
+
 I made a significant architectural shift in how magenta.nvim handles edits. Instead of merely proposing changes that require user confirmation, the agent can now directly apply edits to files with automatic snapshots for safety. Combined with the recent PR that implemented robust bash command execution, this creates a powerful iteration loop capability: agents can now modify files, run tests through bash, analyze results, and make further changes - all without user intervention.
 
 I also started implementing multi-thread support, a basic version of which is now available.
