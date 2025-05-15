@@ -2,16 +2,16 @@
 import fs from "node:fs/promises";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { withNvimClient } from "../../test/preamble";
+import { TMP_DIR, withNvimClient } from "../../test/preamble";
 
 describe("src/logger.test.ts", () => {
-  const logFilePath = resolve("/tmp/test-logging.log");
+  const logFilePath = resolve(`${TMP_DIR}/test-logging.log`);
 
   beforeEach(async () => {
     try {
       await fs.unlink(logFilePath);
-    } catch (e) {
-      console.error(e);
+    } catch {
+      // ok if file doesn't exist
     }
   });
 

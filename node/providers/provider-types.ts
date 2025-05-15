@@ -47,7 +47,7 @@ export type ProviderWebSearchCitation = {
 export type ProviderTextContent = {
   type: "text";
   text: string;
-  citations?: ProviderWebSearchCitation[];
+  citations?: ProviderWebSearchCitation[] | undefined;
 };
 
 export type ProviderToolUseContent = {

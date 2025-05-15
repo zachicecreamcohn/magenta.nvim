@@ -59,15 +59,17 @@ export function finalizeStreamingBlock(
       return {
         type: "text",
         text: block.streamed,
-        citations: (block.citations ?? [])
-          .filter((c) => c.type == "web_search_result_location")
-          .map((c) => ({
-            type: "web_search_citation",
-            cited_text: c.cited_text,
-            encrypted_index: c.encrypted_index,
-            title: c.title || "[No Title]",
-            url: c.url,
-          })),
+        citations: block.citations
+          ? block.citations
+              .filter((c) => c.type == "web_search_result_location")
+              .map((c) => ({
+                type: "web_search_citation",
+                cited_text: c.cited_text,
+                encrypted_index: c.encrypted_index,
+                title: c.title || "[No Title]",
+                url: c.url,
+              }))
+          : undefined,
       };
     }
     case "tool_use": {
