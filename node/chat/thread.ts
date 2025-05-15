@@ -191,9 +191,10 @@ export class Thread {
         this.state.profile = msg.profile;
         break;
       case "user-message": {
+        const messageId = this.counter.get() as MessageId;
         const message = new Message(
           {
-            id: this.counter.get() as MessageId,
+            id: messageId,
             streamingBlock: undefined,
             role: "user",
             content: [
@@ -210,7 +211,7 @@ export class Thread {
             myDispatch: (msg) =>
               this.myDispatch({
                 type: "message-msg",
-                id: message.state.id,
+                id: messageId,
                 msg,
               }),
             nvim: this.nvim,
@@ -306,9 +307,10 @@ export class Thread {
       case "stream-event": {
         const lastMessage = this.state.messages[this.state.messages.length - 1];
         if (lastMessage?.state.role !== "assistant") {
+          const messageId = this.counter.get() as MessageId;
           const message = new Message(
             {
-              id: this.counter.get() as MessageId,
+              id: messageId,
               role: "assistant",
               streamingBlock: undefined,
               content: [],
@@ -320,7 +322,7 @@ export class Thread {
               myDispatch: (msg) =>
                 this.myDispatch({
                   type: "message-msg",
-                  id: lastMessage.state.id,
+                  id: messageId,
                   msg,
                 }),
               nvim: this.nvim,

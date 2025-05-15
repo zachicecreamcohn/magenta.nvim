@@ -25,7 +25,6 @@ export async function getBufferIfOpen({
     getcwd(context.nvim),
   ]);
 
-  context.nvim.logger?.debug(`unresolvedPath: ${unresolvedPath}`);
   const absolutePath = resolveFilePath(cwd, unresolvedPath);
 
   // Security check: ensure the resolved path is within cwd

@@ -30,7 +30,7 @@ describe("src/logger.test.ts", () => {
         // Split lines and check each log entry individually
         const logLines = logContent.trim().split("\n");
 
-        expect(logLines.length).toBe(3);
+        expect(logLines.length, `logContent: ${logContent}`).toBe(3);
 
         // Parse and verify each line
         // eslint-disable-next-line @typescript-eslint/no-unsafe-return
@@ -61,7 +61,7 @@ describe("src/logger.test.ts", () => {
         const debugEntries = logs.filter((log) => log.level === "debug");
         expect(debugEntries.length).toBe(0);
       },
-      { logFile: logFilePath, logLevel: "info" },
+      { logFile: logFilePath, logLevel: "info", overrideLogger: false },
     );
   });
 });

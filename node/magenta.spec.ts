@@ -25,10 +25,11 @@ hello
 # assistant:
 sup?
 
-Stopped (end_turn)`);
+Stopped (end_turn) [input: 0, output: 0]
+`);
 
       await driver.clear();
-      await driver.assertDisplayBufferContent(LOGO);
+      await driver.assertDisplayBufferContent(LOGO + "\n");
       await driver.inputMagentaText(`hello again`);
       await driver.send();
       await driver.mockAnthropic.respond({
@@ -44,7 +45,8 @@ hello again
 # assistant:
 huh?
 
-Stopped (end_turn)`);
+Stopped (end_turn) [input: 0, output: 0]
+`);
     });
   });
 
@@ -149,6 +151,7 @@ hello
 # assistant:
 ok, here goes
 ⏳ May I read file \`.secret\`? **[ NO ]** **[ OK ]**
+
 Stopped (tool_use) [input: 0, output: 0]
 `);
 
@@ -160,6 +163,7 @@ Stopped (tool_use) [input: 0, output: 0]
 
   it("can switch profiles", async () => {
     await withDriver({}, async (driver) => {
+      await driver.showSidebar();
       {
         const thread = driver.magenta.chat.getActiveThread();
         expect(thread.state.profile).toEqual({
@@ -169,7 +173,6 @@ Stopped (tool_use) [input: 0, output: 0]
           apiKeyEnvVar: "ANTHROPIC_API_KEY",
         });
       }
-      await driver.showSidebar();
       const displayState = driver.getVisibleState();
       {
         const winbar = await displayState.inputWindow.getOption("winbar");
