@@ -195,6 +195,13 @@ export class MockProvider implements Provider {
     });
   }
 
+  async streamEvents(events: ProviderStreamEvent[]) {
+    const lastRequest = await this.awaitPendingRequest();
+    for (const event of events) {
+      lastRequest.onStreamEvent(event);
+    }
+  }
+
   /**
    * Legacy method for backwards compatibility
    * @deprecated Use streamText() + finishResponse() instead

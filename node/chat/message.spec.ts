@@ -2,6 +2,7 @@ import { describe, it } from "vitest";
 import { TMP_DIR, withDriver } from "../test/preamble";
 import type { ToolRequestId } from "../tools/toolManager";
 import type { UnresolvedFilePath } from "../utils/files";
+import type { WebSearchResultBlock } from "@anthropic-ai/sdk/resources.mjs";
 
 describe("node/chat/message.spec.ts", () => {
   it("display multiple edits to the same file, and edit details", async () => {
@@ -42,7 +43,6 @@ describe("node/chat/message.spec.ts", () => {
           },
         ],
       });
-
       await driver.assertDisplayBufferContains(`\
 # user:
 Update the poem in the file ${TMP_DIR}/poem.txt
@@ -89,6 +89,128 @@ ok, I will try to rewrite the poem in that file
 # assistant:
 ok, I will try to rewrite the poem in that file
 ✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success!`);
+    });
+  });
+
+  it("handles web search results and citations together", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(
+        `Compare TypeScript and JavaScript for large projects`,
+      );
+      await driver.send();
+
+      // Create server tool use event (web search)
+      const serverToolUseIndex = 0;
+      await driver.mockAnthropic.streamEvents([
+        {
+          type: "content_block_start",
+          index: serverToolUseIndex,
+          content_block: {
+            type: "server_tool_use",
+            id: "search_1",
+            name: "web_search",
+            input: {},
+          },
+        },
+        {
+          type: "content_block_delta",
+          index: serverToolUseIndex,
+          delta: {
+            type: "input_json_delta",
+            partial_json: JSON.stringify({
+              query: "TypeScript vs JavaScript large projects",
+            }),
+          },
+        },
+        {
+          type: "content_block_stop",
+          index: serverToolUseIndex,
+        },
+      ]);
+
+      // Create web search result event
+      const searchResultIndex = 1;
+      await driver.mockAnthropic.streamEvents([
+        {
+          type: "content_block_start",
+          index: searchResultIndex,
+          content_block: {
+            type: "web_search_tool_result",
+            tool_use_id: "search_1",
+            content: [
+              {
+                type: "web_search_result",
+                title:
+                  "TypeScript vs JavaScript: Which Is Better for Your Project?",
+                url: "https://example.com/typescript-vs-javascript",
+                encrypted_content: "",
+                page_age: "3 months ago",
+              },
+            ] as WebSearchResultBlock[],
+          },
+        },
+        {
+          type: "content_block_stop",
+          index: searchResultIndex,
+        },
+      ]);
+
+      // Create text content with citations
+      const textIndex = 2;
+      await driver.mockAnthropic.streamEvents([
+        {
+          type: "content_block_start",
+          index: textIndex,
+          content_block: {
+            type: "text",
+            text: "",
+            citations: null,
+          },
+        },
+        {
+          type: "content_block_delta",
+          index: textIndex,
+          delta: {
+            type: "text_delta",
+            text: "TypeScript offers significant advantages for large projects compared to JavaScript.",
+          },
+        },
+        {
+          type: "content_block_delta",
+          index: textIndex,
+          delta: {
+            type: "citations_delta",
+            citation: {
+              type: "web_search_result_location",
+              cited_text: "TypeScript offers significant advantages",
+              encrypted_index: "1",
+              title: "Microsoft Dev Blog",
+              url: "https://devblogs.microsoft.com/typescript/benefits-large-projects",
+            },
+          },
+        },
+        {
+          type: "content_block_stop",
+          index: textIndex,
+        },
+      ]);
+
+      // Finish the response
+      await driver.mockAnthropic.finishResponse("end_turn");
+
+      await driver.assertDisplayBufferContains(`\
+# user:
+Compare TypeScript and JavaScript for large projects
+
+# assistant:
+🔍 Searching TypeScript vs JavaScript large projects...
+🌐 Search results:
+- [TypeScript vs JavaScript: Which Is Better for Your Project?](https://example.com/typescript-vs-javascript) (3 months ago)
+
+TypeScript offers significant advantages for large projects compared to JavaScript.[Microsoft Dev Blog](https://devblogs.microsoft.com/typescript/benefits-large-projects)
+
+Stopped (end_turn) [input: 0, output: 0]`);
     });
   });
 });

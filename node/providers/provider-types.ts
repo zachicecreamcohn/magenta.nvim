@@ -36,9 +36,18 @@ export type ProviderMessage = {
   content: Array<ProviderMessageContent>;
 };
 
+export type ProviderWebSearchCitation = {
+  cited_text: string;
+  encrypted_index: string;
+  title: string;
+  type: "web_search_citation";
+  url: string;
+};
+
 export type ProviderTextContent = {
   type: "text";
   text: string;
+  citations?: ProviderWebSearchCitation[];
 };
 
 export type ProviderToolUseContent = {

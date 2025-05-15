@@ -309,8 +309,9 @@ ${fileEdits}`
 
   renderContent(content: ProviderMessageContent) {
     switch (content.type) {
-      case "text":
-        return d`${content.text}`;
+      case "text": {
+        return d`${content.text}${content.citations ? content.citations.map((c) => d`[${c.title}](${c.url})`) : ""}`;
+      }
 
       case "server_tool_use":
         return d`🔍 Searching ${content.input.query}...`;
@@ -324,7 +325,7 @@ ${fileEdits}`
         } else {
           const results = content.content as Array<WebSearchResultBlock>;
           return d`\
-🌐 Search results: ${results.map(
+🌐 Search results:\n${results.map(
             (result) => d`\
 - [${result.title}](${result.url})${result.page_age ? ` (${result.page_age})` : ""}\n`,
           )}`;

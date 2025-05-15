@@ -84,13 +84,23 @@ export class AnthropicProvider implements Provider {
       } else {
         content = m.content.map((c): Anthropic.ContentBlockParam => {
           switch (c.type) {
-            case "web_search_tool_result":
             case "text":
               // important to create a new object here so when we attach ephemeral
               // cache_control markers we won't mutate the content.
               return {
                 ...c,
+                citations: c.citations
+                  ? c.citations.map((providerCitation) => ({
+                      ...providerCitation,
+                      type: "web_search_result_location",
+                    }))
+                  : null,
               };
+            case "web_search_tool_result":
+              return {
+                ...c,
+              };
+
             case "tool_use":
               return c.request.status == "ok"
                 ? {
@@ -396,6 +406,21 @@ export function placeCacheBreakpoints(messages: MessageParam[]): number {
       switch (block.type) {
         case "text":
           lengthAcc += block.text.length;
+          for (const citation of block.citations || []) {
+            lengthAcc += citation.cited_text.length;
+            switch (citation.type) {
+              case "char_location":
+              case "page_location":
+              case "content_block_location":
+                continue;
+              case "web_search_result_location": {
+                lengthAcc +=
+                  citation.url.length +
+                  (citation.title ? citation.title.length : 0) +
+                  citation.encrypted_index.length;
+              }
+            }
+          }
           break;
         case "image": {
           const source = block.source;
@@ -432,10 +457,43 @@ export function placeCacheBreakpoints(messages: MessageParam[]): number {
             }
           }
           break;
-        case "document":
+
+        case "document": {
           if ("data" in block.source) {
             lengthAcc += block.source.data.length;
           }
+          break;
+        }
+
+        case "server_tool_use":
+          {
+            lengthAcc += JSON.stringify(
+              block.input as { [key: string]: string },
+            ).length;
+          }
+          break;
+        case "web_search_tool_result":
+          {
+            if (Array.isArray(block.content)) {
+              lengthAcc += block.content.reduce((acc, el) => {
+                return (
+                  acc +
+                  el.url.length +
+                  el.title.length +
+                  el.encrypted_content.length
+                );
+              }, 0);
+            }
+          }
+          break;
+
+        case "thinking":
+        case "redacted_thinking":
+          // not supported yet
+          break;
+
+        default:
+          assertUnreachable(block);
       }
 
       blocks.push({ block, acc: lengthAcc });
