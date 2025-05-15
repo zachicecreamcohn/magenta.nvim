@@ -2,7 +2,6 @@ import type { Nvim } from "./nvim-node";
 import { getAllWindows, getcwd } from "../nvim/nvim";
 import { NvimBuffer } from "../nvim/buffer";
 import type { WindowId } from "../nvim/window";
-import { WIDTH } from "../sidebar";
 import type { MagentaOptions } from "../options";
 import {
   resolveFilePath,
@@ -31,12 +30,8 @@ export async function openFileInNonMagentaWindow(
 
     let targetWindowId: WindowId | null = null;
 
-    // Determine which window to use
-    if (nonMagentaWindows.length === 1) {
-      // If there's only one non-magenta window, use it
-      targetWindowId = nonMagentaWindows[0].id;
-    } else if (nonMagentaWindows.length > 1) {
-      // If there are multiple non-magenta windows, use the first one
+    // if there are non-magenta windows, use one of those
+    if (nonMagentaWindows.length > 0) {
       targetWindowId = nonMagentaWindows[0].id;
     }
 
@@ -51,38 +46,20 @@ export async function openFileInNonMagentaWindow(
         fileBuffer.id,
       ]);
     } else if (nonMagentaWindows.length === 0 && magentaWindows.length > 0) {
-      // Find the magenta display window by checking for magenta_display_window variable
-      let magentaDisplayWindow = null;
-      for (const window of magentaWindows) {
-        const isDisplayWindow = await window.getVar("magenta_display_window");
-        if (isDisplayWindow) {
-          magentaDisplayWindow = window;
-          break;
-        }
-      }
+      // Use the configured sidebarPosition from options
+      const sidebarPosition = context.options.sidebarPosition;
+      // Open on the opposite side
+      const newWindowSide = sidebarPosition === "left" ? "right" : "left";
 
-      // If found, open on the opposite side from where the sidebar is configured
-      if (magentaDisplayWindow) {
-        // Use the configured sidebarPosition from options
-        const sidebarPosition = context.options.sidebarPosition;
-        // Open on the opposite side
-        const newWindowSide = sidebarPosition === "left" ? "right" : "left";
-
-        // Open a new window on the appropriate side
-        await context.nvim.call("nvim_open_win", [
-          fileBuffer.id,
-          true, // Enter the window
-          {
-            win: -1, // Global split
-            split: newWindowSide,
-            width: WIDTH,
-            height: 0, // Uses default height
-          },
-        ]);
-      } else {
-        // No magenta display window found, fall back to default split
-        await context.nvim.call("nvim_command", [`split ${absFilePath}`]);
-      }
+      // Open a new window on the appropriate side
+      await context.nvim.call("nvim_open_win", [
+        fileBuffer.id,
+        true, // Enter the window
+        {
+          win: -1, // Global split
+          split: newWindowSide,
+        },
+      ]);
     } else {
       // No suitable window found, create a new one
       await context.nvim.call("nvim_command", [`split ${absFilePath}`]);
