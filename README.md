@@ -9,7 +9,13 @@
 Magenta is for agents.
 ```
 
-May 2025 update
+# Roadmap
+
+- I think the way that file updates are sent to the agent when a file is added to the context needs some reworking. Rather than sending full snapshots, and moving them up in the message history (which the agent seems to get confused about and causes cache invalidation), I will probably track changes to the files via the snapshotting feature, and then append diffs to every user message when files have updated.
+- I think soon I'm going to work on thread forking and compaction. So you can type in a message, and use a different keybind (like cmd-enter) to submit it as a fork or as a compaction request. When submitting as a compaction request, magenta will first force a tool use that will get the agent to summarize the thread so far. It will then replace the thread with the compacted thread, and proceed from there.
+- After that, I'd like to explore sub-tasks. So a new tool where it can delegate tasks to sub-agents with a limited toolset. Similar to how claude code works.
+
+# May 2025 update
 
 I updated the architecture around streaming, so we now process partial tool calls, which means we can preview Insert and Replace commands gradually as they stream in. This makes the tool feel a lot more responsive. I also added support for anthropic web search and citations!
 
@@ -17,7 +23,7 @@ I made a significant architectural shift in how magenta.nvim handles edits. Inst
 
 I also started implementing multi-thread support, a basic version of which is now available.
 
-Jan 2025 update
+# Jan 2025 update
 
 [![video of Jan 2025 update](https://img.youtube.com/vi/BPnUO_ghMJQ/0.jpg)](https://www.youtube.com/watch?v=BPnUO_ghMJQ)
 
@@ -26,7 +32,7 @@ Jan 2025 update
 - prompt caching
 - port to node
 
-Plugin overview (Dec 2024)
+# Plugin overview (Dec 2024)
 
 [![video demo of the plugin](https://img.youtube.com/vi/i4YYvZwCMxM/0.jpg)](https://www.youtube.com/watch?v=i4YYvZwCMxM)
 
