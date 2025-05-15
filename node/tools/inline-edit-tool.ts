@@ -38,15 +38,18 @@ export class InlineEditTool implements ToolInterface {
       state: "processing",
     };
 
-    this.apply().catch((err: Error) =>
-      this.context.myDispatch({
-        type: "finish",
-        result: {
-          status: "error",
-          error: err.message + "\n" + err.stack,
-        },
-      }),
-    );
+    // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
+    setTimeout(() => {
+      this.apply().catch((err: Error) =>
+        this.context.myDispatch({
+          type: "finish",
+          result: {
+            status: "error",
+            error: err.message + "\n" + err.stack,
+          },
+        }),
+      );
+    });
   }
 
   /** this is expected to be invoked as part of a dispatch, so we don't need to dispatch here to update the view

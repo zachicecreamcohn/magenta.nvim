@@ -93,7 +93,10 @@ export async function withNvimClient(
   options: {
     logFile?: string;
     logLevel?: LogLevel;
-  } = {},
+    overrideLogger?: boolean;
+  } = {
+    overrideLogger: true,
+  },
 ) {
   return await withNvimProcess(async (sock) => {
     const nvim = await attach({
@@ -119,6 +122,17 @@ export async function withNvimClient(
       [],
     ]);
 
+    if (options.overrideLogger) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      nvim.logger = {
+        error: (msg: string) => console.error(msg),
+        warn: (msg: string) => console.warn(msg),
+        info: (msg: string) => console.info(msg),
+        debug: (msg: string) => console.debug(msg),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any;
+    }
+
     nvim.onNotification("testMessage", (args) => {
       try {
         const { msg, level } = args[0] as { msg: string; level: number };
@@ -139,9 +153,6 @@ export async function withNvimClient(
         nvim.logger?.error(err as Error);
       }
     });
-    await nvim.call("nvim_exec_lua", [`vim.notify('test notify')`, []]);
-
-    nvim.logger!.info("Nvim started");
 
     try {
       await fn(nvim);

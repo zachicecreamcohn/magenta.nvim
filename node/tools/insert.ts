@@ -7,8 +7,8 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
+import { applyEdit } from "./applyEdit.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import { applyEdit } from "./diff.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
 import type { ThreadId } from "../chat/thread.ts";
@@ -44,8 +44,15 @@ export class InsertTool implements ToolInterface {
     },
   ) {
     this.state = { state: "processing" };
-    applyEdit(this.request, this.threadId, this.messageId, this.context).catch(
-      (err: Error) =>
+
+    // wrap in setTimeout to force a new eventloop frame, so we don't dispatch-in-dispatch
+    setTimeout(() => {
+      applyEdit(
+        this.request,
+        this.threadId,
+        this.messageId,
+        this.context,
+      ).catch((err: Error) =>
         this.context.myDispatch({
           type: "finish",
           result: {
@@ -53,7 +60,8 @@ export class InsertTool implements ToolInterface {
             error: err.message,
           },
         }),
-    );
+      );
+    });
   }
 
   abort() {
@@ -238,4 +246,41 @@ export function validateInput(input: {
     status: "ok",
     value: input as Input,
   };
+}
+
+const CONTENT_START_STR = '"content":"';
+export function renderStreamedBlock(streamed: string): VDOMNode {
+  // Look for file path pattern
+  const filePathMatch = streamed.match(/"filePath"\s*:\s*"([^"]+)"/);
+  const filePath = filePathMatch ? filePathMatch[1] : null;
+
+  // Check for content and count lines
+  let lineCount = 1; // Start with 1 for the first line
+  const contentKeyIndex = streamed.indexOf(CONTENT_START_STR);
+  if (contentKeyIndex !== -1) {
+    // Start after the opening quote
+    for (
+      let i = contentKeyIndex + CONTENT_START_STR.length;
+      i < streamed.length;
+      i++
+    ) {
+      const char = streamed[i];
+      const prevChar = i > 0 ? streamed[i - 1] : "";
+
+      if (char === '"' && prevChar !== "\\") {
+        // Unescaped quote marks the end of content
+        break;
+      } else if (char === "n" && prevChar === "\\") {
+        // Found a newline sequence
+        lineCount++;
+      }
+    }
+  }
+
+  // Format the message in the same style as the view method
+  if (filePath) {
+    return d`⏳ Insert [[ +${lineCount.toString()} ]] in \`${filePath}\` streaming...`;
+  } else {
+    return d`⏳ Preparing insert operation...`;
+  }
 }

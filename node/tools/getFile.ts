@@ -60,15 +60,18 @@ export class GetFileTool implements ToolInterface {
       state: "pending",
     };
 
-    this.initReadFile().catch((error: Error) =>
-      this.context.myDispatch({
-        type: "finish",
-        result: {
-          status: "error",
-          error: error.message + "\n" + error.stack,
-        },
-      }),
-    );
+    // wrap in setTimeout to force new eventloop frame, to avoid dispatch-in-dispatch
+    setTimeout(() => {
+      this.initReadFile().catch((error: Error) =>
+        this.context.myDispatch({
+          type: "finish",
+          result: {
+            status: "error",
+            error: error.message + "\n" + error.stack,
+          },
+        }),
+      );
+    });
   }
 
   /** this is expected to be invoked as part of a dispatch, so we don't need to dispatch here to update the view
@@ -113,15 +116,18 @@ export class GetFileTool implements ToolInterface {
               approved: true,
             };
 
-            this.readFile().catch((error: Error) =>
-              this.context.myDispatch({
-                type: "finish",
-                result: {
-                  status: "error",
-                  error: error.message + "\n" + error.stack,
-                },
-              }),
-            );
+            // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
+            setTimeout(() => {
+              this.readFile().catch((error: Error) =>
+                this.context.myDispatch({
+                  type: "finish",
+                  result: {
+                    status: "error",
+                    error: error.message + "\n" + error.stack,
+                  },
+                }),
+              );
+            });
             return;
           } else {
             this.state = {
@@ -148,15 +154,18 @@ export class GetFileTool implements ToolInterface {
             approved: true,
           };
 
-          this.readFile().catch((error: Error) =>
-            this.context.myDispatch({
-              type: "finish",
-              result: {
-                status: "error",
-                error: error.message + "\n" + error.stack,
-              },
-            }),
-          );
+          // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
+          setTimeout(() => {
+            this.readFile().catch((error: Error) =>
+              this.context.myDispatch({
+                type: "finish",
+                result: {
+                  status: "error",
+                  error: error.message + "\n" + error.stack,
+                },
+              }),
+            );
+          });
         }
         return;
       }

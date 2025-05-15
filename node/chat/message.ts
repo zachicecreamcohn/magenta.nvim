@@ -1,8 +1,7 @@
-import { Part, view as partView } from "./part.ts";
 import { ToolManager, type ToolRequestId } from "../tools/toolManager.ts";
-import { type Role } from "./thread.ts";
+import { type Role, type ThreadId } from "./thread.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { d, type View, withBindings } from "../tea/view.ts";
+import { d, withBindings } from "../tea/view.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { type Dispatch, type Thunk } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
@@ -11,11 +10,30 @@ import type { MagentaOptions } from "../options.ts";
 import type { FileSnapshots } from "../tools/file-snapshots.ts";
 import { displaySnapshotDiff } from "../tools/display-snapshot-diff.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
+import type {
+  ProviderMessageContent,
+  ProviderStreamEvent,
+  StopReason,
+  Usage,
+} from "../providers/provider.ts";
+import {
+  applyDelta,
+  finalizeStreamingBlock,
+  type StreamingBlock,
+} from "../providers/helpers.ts";
+import { renderStreamdedTool } from "../tools/helpers.ts";
+import type { WebSearchResultBlock } from "@anthropic-ai/sdk/resources.mjs";
 export type MessageId = number & { __messageId: true };
+
 type State = {
   id: MessageId;
   role: Role;
-  parts: Part[];
+  streamingBlock: StreamingBlock | undefined;
+  content: ProviderMessageContent[];
+  stopped?: {
+    stopReason: StopReason;
+    usage: Usage;
+  };
   edits: {
     [filePath: UnresolvedFilePath]: {
       requestIds: ToolRequestId[];
@@ -33,17 +51,16 @@ type State = {
 
 export type Msg =
   | {
-      type: "append-text";
-      text: string;
-    }
-  | {
-      type: "add-tool-request";
-      requestId: ToolRequestId;
-    }
-  | {
-      type: "add-malformed-tool-reqeust";
-      error: string;
-      rawRequest: unknown;
+      type: "stream-event";
+      event: Extract<
+        ProviderStreamEvent,
+        {
+          type:
+            | "content_block_start"
+            | "content_block_delta"
+            | "content_block_stop";
+        }
+      >;
     }
   | {
       type: "open-edit-file";
@@ -52,6 +69,11 @@ export type Msg =
   | {
       type: "diff-snapshot";
       filePath: string;
+    }
+  | {
+      type: "stop";
+      stopReason: StopReason;
+      usage: Usage;
     };
 
 export class Message {
@@ -59,6 +81,8 @@ export class Message {
     public state: State,
     private context: {
       dispatch: Dispatch<RootMsg>;
+      myDispatch: Dispatch<Msg>;
+      threadId: ThreadId;
       nvim: Nvim;
       toolManager: ToolManager;
       fileSnapshots: FileSnapshots;
@@ -68,93 +92,77 @@ export class Message {
 
   update(msg: Msg): Thunk<Msg> | undefined {
     switch (msg.type) {
-      case "append-text": {
-        const lastPart = this.state.parts[this.state.parts.length - 1];
-        if (lastPart && lastPart.state.type == "text") {
-          lastPart.state.text += msg.text;
-        } else {
-          this.state.parts.push(
-            new Part({
-              state: {
-                type: "text",
-                text: msg.text,
-              },
-              toolManager: this.context.toolManager,
-            }),
-          );
-        }
-        break;
-      }
-
-      case "add-malformed-tool-reqeust":
-        this.state.parts.push(
-          new Part({
-            state: {
-              type: "malformed-tool-request",
-              error: msg.error,
-              rawRequest: msg.rawRequest,
-            },
-            toolManager: this.context.toolManager,
-          }),
-        );
-        break;
-
-      case "add-tool-request": {
-        const toolWrapper =
-          this.context.toolManager.state.toolWrappers[msg.requestId];
-        if (!toolWrapper) {
-          throw new Error(`Tool request not found: ${msg.requestId}`);
-        }
-
-        switch (toolWrapper.tool.toolName) {
-          case "insert":
-          case "replace": {
-            const filePath = toolWrapper.tool.request.input.filePath;
-
-            if (!this.state.edits[filePath]) {
-              this.state.edits[filePath] = {
-                status: { status: "pending" },
-                requestIds: [],
-              };
+      case "stream-event": {
+        switch (msg.event.type) {
+          case "content_block_start": {
+            if (this.state.streamingBlock) {
+              throw new Error(
+                `Unexpected block start while previous streaming block not closed.`,
+              );
             }
 
-            this.state.edits[filePath].requestIds.push(msg.requestId);
-
-            this.state.parts.push(
-              new Part({
-                state: {
-                  type: "tool-request",
-                  requestId: msg.requestId,
-                },
-                toolManager: this.context.toolManager,
-              }),
-            );
-
+            this.state.streamingBlock = {
+              ...msg.event.content_block,
+              streamed: "",
+            };
             return;
           }
-
-          case "get_file":
-          case "list_buffers":
-          case "hover":
-          case "find_references":
-          case "list_directory":
-          case "diagnostics":
-          case "bash_command":
-            this.state.parts.push(
-              new Part({
-                state: {
-                  type: "tool-request",
-                  requestId: msg.requestId,
-                },
-                toolManager: this.context.toolManager,
-              }),
-            );
+          case "content_block_delta":
+            if (!this.state.streamingBlock) {
+              throw new Error(
+                `Received delta when streaming block not initialized.`,
+              );
+            }
+            applyDelta(this.state.streamingBlock, msg.event);
             return;
-          case "inline_edit":
-          case "replace_selection":
-            throw new Error("Not supported.");
+          case "content_block_stop": {
+            if (!this.state.streamingBlock) {
+              throw new Error(
+                `Received block stop when streaming block not initialized.`,
+              );
+            }
+            const block = finalizeStreamingBlock(this.state.streamingBlock);
+            this.state.content.push(block);
+            this.state.streamingBlock = undefined;
+
+            if (block.type == "tool_use" && block.request.status == "ok") {
+              const request = block.request.value;
+
+              this.context.toolManager.update({
+                type: "init-tool-use",
+                request,
+                messageId: this.state.id,
+                threadId: this.context.threadId,
+              });
+
+              const toolWrapper =
+                this.context.toolManager.state.toolWrappers[request.id];
+              if (!toolWrapper) {
+                throw new Error(
+                  `Tool request did not initialize successfully: ${request.id}`,
+                );
+              }
+
+              if (
+                toolWrapper.tool.toolName == "insert" ||
+                toolWrapper.tool.toolName == "replace"
+              ) {
+                const filePath = toolWrapper.tool.request.input.filePath;
+
+                if (!this.state.edits[filePath]) {
+                  this.state.edits[filePath] = {
+                    status: { status: "pending" },
+                    requestIds: [],
+                  };
+                }
+
+                this.state.edits[filePath].requestIds.push(request.id);
+              }
+            }
+            return;
+          }
           default:
-            return assertUnreachable(toolWrapper.tool);
+            return assertUnreachable(msg.event);
         }
       }
 
@@ -175,6 +183,14 @@ export class Message {
         return;
       }
 
+      case "stop": {
+        this.state.stopped = {
+          stopReason: msg.stopReason,
+          usage: msg.usage,
+        };
+        return;
+      }
+
       default:
         assertUnreachable(msg);
     }
@@ -185,27 +201,13 @@ export class Message {
     let result = `Message(id=${this.state.id}, role=${this.state.role}):\n`;
 
     // Parts info
-    result += `  Parts: ${this.state.parts.length}\n`;
-
-    // Count each type of part
-    const partCounts = this.state.parts.reduce(
-      (counts, part) => {
-        const type = part.state.type;
-        counts[type] = (counts[type] || 0) + 1;
-        return counts;
-      },
-      {} as Record<string, number>,
-    );
-
-    result += `  Part types: ${Object.entries(partCounts)
-      .map(([type, count]) => `${type}=${count}`)
-      .join(", ")}\n`;
+    result += `  Content: ${this.state.content.length}\n`;
 
     // List all parts with their toString representation
-    if (this.state.parts.length > 0) {
-      result += "  Part details:\n";
-      this.state.parts.forEach((part, index) => {
-        result += `    ${index}: ${part.toString()}\n`;
+    if (this.state.content.length > 0) {
+      result += "  Content details:\n";
+      this.state.content.forEach((content, index) => {
+        result += `    ${index}: ${JSON.stringify(content)}\n`;
       });
     }
 
@@ -222,53 +224,139 @@ export class Message {
 
     return result;
   }
-}
 
-export const view: View<{
-  message: Message;
-  dispatch: Dispatch<Msg>;
-}> = ({ message, dispatch }) => {
-  const fileEdits = [];
-  for (const filePath in message.state.edits) {
-    const edit = message.state.edits[filePath as UnresolvedFilePath];
+  view() {
+    const fileEdits = [];
+    for (const filePath in this.state.edits) {
+      const edit = this.state.edits[filePath as UnresolvedFilePath];
 
-    const filePathLink = withBindings(d`\`${filePath}\``, {
-      "<CR>": () =>
-        dispatch({
-          type: "open-edit-file",
-          filePath: filePath as UnresolvedFilePath,
-        }),
-    });
+      const filePathLink = withBindings(d`\`${filePath}\``, {
+        "<CR>": () =>
+          this.context.myDispatch({
+            type: "open-edit-file",
+            filePath: filePath as UnresolvedFilePath,
+          }),
+      });
 
-    const diffSnapshot = withBindings(d`**[± diff snapshot]**`, {
-      "<CR>": () =>
-        dispatch({
-          type: "diff-snapshot",
-          filePath,
-        }),
-    });
+      const diffSnapshot = withBindings(d`**[± diff snapshot]**`, {
+        "<CR>": () =>
+          this.context.myDispatch({
+            type: "diff-snapshot",
+            filePath,
+          }),
+      });
 
-    fileEdits.push(
-      d`  ${filePathLink} (${edit.requestIds.length.toString()} edits). ${diffSnapshot}${
-        edit.status.status == "error"
-          ? d`\nError applying edit: ${edit.status.message}`
-          : ""
-      }\n`,
-    );
-  }
+      fileEdits.push(
+        d`  ${filePathLink} (${edit.requestIds.length.toString()} edits). ${diffSnapshot}${
+          edit.status.status == "error"
+            ? d`\nError applying edit: ${edit.status.message}`
+            : ""
+        }\n`,
+      );
+    }
 
-  return d`\
-# ${message.state.role}:
-${message.state.parts.map(
-  (part) =>
-    d`${partView({
-      part,
-    })}\n`,
-)}${
-    fileEdits.length
-      ? d`
+    return d`\
+# ${this.state.role}:
+${this.state.content.map((content) => d`${this.renderContent(content)}\n`)}${this.renderStreamingBlock()}${
+      fileEdits.length
+        ? d`
 Edits:
 ${fileEdits}`
-      : ""
-  }`;
-};
+        : ""
+    }${this.renderStopped()}`;
+  }
+
+  renderStopped() {
+    if (!this.state.stopped) {
+      return "";
+    }
+    const { stopReason, usage } = this.state.stopped;
+
+    return d`\nStopped (${stopReason}) [input: ${usage.inputTokens.toString()}, output: ${usage.outputTokens.toString()}${
+      usage.cacheHits !== undefined
+        ? d`, cache hits: ${usage.cacheHits.toString()}`
+        : ""
+    }${
+      usage.cacheMisses !== undefined
+        ? d`, cache misses: ${usage.cacheMisses.toString()}`
+        : ""
+    }]`;
+  }
+
+  renderStreamingBlock() {
+    if (!this.state.streamingBlock) {
+      return "";
+    }
+
+    const block = this.state.streamingBlock;
+    switch (block.type) {
+      case "text":
+        return block.streamed;
+      case "server_tool_use":
+        return block.streamed;
+      case "web_search_tool_result":
+        return block.streamed;
+      case "tool_use": {
+        return renderStreamdedTool(block);
+      }
+      case "thinking":
+      case "redacted_thinking":
+        throw new Error(`NOT IMPLEMENTED`);
+      default:
+        return assertUnreachable(block);
+    }
+  }
+
+  renderContent(content: ProviderMessageContent) {
+    switch (content.type) {
+      case "text": {
+        return d`${content.text}${content.citations ? content.citations.map((c) => d`[${c.title}](${c.url})`) : ""}`;
+      }
+
+      case "server_tool_use":
+        return d`🔍 Searching ${content.input.query}...`;
+
+      case "web_search_tool_result": {
+        if (
+          "type" in content.content &&
+          content.content.type === "web_search_tool_result_error"
+        ) {
+          return d`🌐 Search error: ${content.content.error_code}`;
+        } else {
+          const results = content.content as Array<WebSearchResultBlock>;
+          return d`\
+🌐 Search results:\n${results.map(
+            (result) => d`\
+- [${result.title}](${result.url})${result.page_age ? ` (${result.page_age})` : ""}\n`,
+          )}`;
+        }
+      }
+
+      case "tool_result":
+        return "";
+
+      case "tool_use": {
+        if (content.request.status == "error") {
+          return d`Malformed request: ${content.request.error}`;
+        } else {
+          const toolWrapper =
+            this.context.toolManager.state.toolWrappers[
+              content.request.value.id
+            ];
+          if (!toolWrapper) {
+            this.context.nvim.logger?.error(
+              `Unable to find toolWrapper with requestId ${content.request.value.id}`,
+            );
+            throw new Error(
+              `Unable to find toolWrapper with requestId ${content.request.value.id}`,
+            );
+          }
+          return this.context.toolManager.renderTool(toolWrapper);
+        }
+      }
+
+      default:
+        assertUnreachable(content);
+    }
+  }
+}

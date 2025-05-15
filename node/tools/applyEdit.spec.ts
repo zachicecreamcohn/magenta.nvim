@@ -7,7 +7,7 @@ import * as fs from "node:fs";
 import { type Line } from "../nvim/buffer";
 import type { UnresolvedFilePath } from "../utils/files";
 
-describe("node/tools/diff.spec.ts", () => {
+describe("node/tools/applyEdit.spec.ts", () => {
   it("insert into new file", async () => {
     await withDriver({}, async (driver) => {
       await driver.nvim.call("nvim_set_option_value", [
@@ -304,6 +304,17 @@ Paint their stories in the night.
 
   it("failed edit is not fatal", async () => {
     await withDriver({}, async (driver) => {
+      // First open the poem file in a buffer
+      const poemFile = path.join(
+        await getcwd(driver.nvim),
+        `${TMP_DIR}/poem.txt`,
+      );
+      await driver.command(`edit ${poemFile}`);
+
+      // Verify the buffer is open
+      const buffer = await getCurrentBuffer(driver.nvim);
+      expect(await buffer.getName()).toContain("poem.txt");
+
       await driver.showSidebar();
       await driver.inputMagentaText(
         `Update the poem in the file ${TMP_DIR}/poem.txt`,
@@ -321,7 +332,7 @@ Paint their stories in the night.
               toolName: "replace",
               input: {
                 filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
-                find: `bogus line...`,
+                find: `bogus 1 / bogus 2...`,
                 replace: `Replace text`,
               },
             },
@@ -333,38 +344,62 @@ Paint their stories in the night.
               toolName: "insert",
               input: {
                 filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
-                insertAfter: `Paint their stories in the night.`,
-                content: `Added text`,
+                insertAfter: `Paint their stories in the night.\n`, // note newline at the end of file does not match
+                content: `\nGentle breezes softly sway,\nIn the quiet, dreams convey.\nMoonlit paths of silver glow,\nLead to places hearts may go.\n`,
+              },
+            },
+          },
+          {
+            status: "ok",
+            value: {
+              id: "id3" as ToolRequestId,
+              toolName: "replace",
+              input: {
+                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
+                find: `Moonlight whispers through the trees,`,
+                replace: `Starlight whispers through the trees,`,
               },
             },
           },
         ],
       });
 
-      await driver.assertDisplayBufferContains("Replace [[ -1 / +1 ]]");
-      await driver.assertDisplayBufferContains("Error");
-      await driver.assertDisplayBufferContains("Insert [[ +1 ]]");
+      await driver.assertDisplayBufferContains(
+        'Replace [[ -1 / +1 ]] in `node/test/tmp/poem.txt` Error: Unable to find text "bogus 1 / bogus 2..." in file `node/test/tmp/poem.txt`',
+      );
+      await driver.assertDisplayBufferContains(
+        'Insert [[ +6 ]] in `node/test/tmp/poem.txt` Error: Unable to find insert location "Paint their stories in the night.\n" in file `node/test/tmp/poem.txt`',
+      );
+      await driver.assertDisplayBufferContains(
+        "Replace [[ -1 / +1 ]] in `node/test/tmp/poem.txt` Success",
+      );
 
-      // Verify that the first edit failed but the second succeeded
-      const filePath = path.join(
-        await getcwd(driver.nvim),
-        `${TMP_DIR}/poem.txt`,
-      );
-      const fileContent = fs.readFileSync(filePath, "utf-8");
+      // Verify that the first edit failed but the third succeeded
+      const bufferLines = await buffer.getLines({
+        start: 0,
+        end: -1,
+      });
+      expect(bufferLines).toEqual([
+        "Starlight whispers through the trees,",
+        "Silver shadows dance with ease.",
+        "Stars above like diamonds bright,",
+        "Paint their stories in the night.",
+      ]);
+
+      // Also verify the file was updated on disk
+      const fileContent = fs.readFileSync(poemFile, "utf-8");
       expect(fileContent).toEqual(
-        "Moonlight whispers through the trees,\nSilver shadows dance with ease.\nStars above like diamonds bright,\nPaint their stories in the night.Added text\n",
+        "Starlight whispers through the trees,\nSilver shadows dance with ease.\nStars above like diamonds bright,\nPaint their stories in the night.\n",
       );
+
+      // Check buffer modified state - should not be modified as changes were saved
+      const isModified = await buffer.getOption("modified");
+      expect(isModified).toBe(false);
 
       const detailsPos = await driver.assertDisplayBufferContains("Replace");
       await driver.triggerDisplayBufferKey(detailsPos, "<CR>");
 
-      await driver.assertDisplayBufferContains(
-        "I will try to rewrite the poem",
-      );
       await driver.assertDisplayBufferContains("Replace [[ -1 / +1 ]]");
-      await driver.assertDisplayBufferContains(
-        'Unable to find text "bogus line..."',
-      );
       await driver.assertDisplayBufferContains("diff snapshot");
     });
   });

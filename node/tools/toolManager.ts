@@ -116,8 +116,7 @@ type Tool = {
 
 export type ToolModelWrapper = {
   tool: Tool;
-  showRequest: boolean;
-  showResult: boolean;
+  showDetails: boolean;
 };
 
 export type Msg =
@@ -130,8 +129,7 @@ export type Msg =
   | {
       type: "toggle-display";
       id: ToolRequestId;
-      showRequest: boolean;
-      showResult: boolean;
+      showDetails: boolean;
     }
   | {
       type: "tool-msg";
@@ -167,19 +165,6 @@ export class ToolManager {
     };
   }
 
-  displayResult(model: Tool) {
-    if (model.state.state === "done") {
-      const result = model.state.result;
-      if (result.result.status === "error") {
-        return `\nError: ${result.result.error}`;
-      } else {
-        return `\nResult:\n\`\`\`\n${result.result.value}\n\`\`\``;
-      }
-    } else {
-      return "";
-    }
-  }
-
   renderTool(toolWrapper: State["toolWrappers"][ToolRequestId]) {
     return withBindings(
       d`${toolWrapper.tool.view((msg) =>
@@ -192,20 +177,35 @@ export class ToolManager {
           } as ToolMsg,
         }),
       )}${
-        toolWrapper.showRequest
-          ? d`\nid: ${toolWrapper.tool.request.id}\n${toolWrapper.tool.displayInput()}`
+        toolWrapper.showDetails
+          ? d`\nid: ${toolWrapper.tool.request.id}\n${toolWrapper.tool.displayInput()}\n${this.reunderToolResult(toolWrapper.tool.request.id)}`
           : ""
-      }${toolWrapper.showResult ? this.displayResult(toolWrapper.tool) : ""}`,
+      }`,
       {
         "<CR>": () =>
           this.myDispatch({
             type: "toggle-display",
             id: toolWrapper.tool.request.id,
-            showRequest: !toolWrapper.showRequest,
-            showResult: !toolWrapper.showResult,
+            showDetails: !toolWrapper.showDetails,
           }),
       },
     );
+  }
+
+  reunderToolResult(id: ToolRequestId) {
+    const toolWrapper = this.state.toolWrappers[id];
+    const tool = toolWrapper.tool;
+
+    if (tool.state.state === "done") {
+      const result = tool.state.result;
+      if (result.result.status === "error") {
+        return `\nError: ${result.result.error}`;
+      } else {
+        return `\nResult:\n${result.result.value}\n`;
+      }
+    } else {
+      return "";
+    }
   }
 
   update(msg: Msg): void {
@@ -216,8 +216,7 @@ export class ToolManager {
           throw new Error(`Could not find tool use with request id ${msg.id}`);
         }
 
-        toolWrapper.showRequest = msg.showRequest;
-        toolWrapper.showResult = msg.showResult;
+        toolWrapper.showDetails = msg.showDetails;
 
         return undefined;
       }
@@ -242,8 +241,7 @@ export class ToolManager {
 
             this.state.toolWrappers[request.id] = {
               tool: getFileTool,
-              showRequest: false,
-              showResult: false,
+              showDetails: false,
             };
 
             return;
@@ -257,8 +255,7 @@ export class ToolManager {
 
             this.state.toolWrappers[request.id] = {
               tool: listBuffersTool,
-              showRequest: false,
-              showResult: false,
+              showDetails: false,
             };
 
             return this.acceptThunk(listBuffersTool, thunk);
@@ -285,10 +282,8 @@ export class ToolManager {
 
             this.state.toolWrappers[request.id] = {
               tool: insertTool,
-              showRequest: false,
-              showResult: false,
+              showDetails: false,
             };
-
             return;
           }
 
@@ -313,8 +308,7 @@ export class ToolManager {
 
             this.state.toolWrappers[request.id] = {
               tool: replaceTool,
-              showRequest: false,
-              showResult: false,
+              showDetails: false,
             };
 
             return;
@@ -328,8 +322,7 @@ export class ToolManager {
 
             this.state.toolWrappers[request.id] = {
               tool: listDirTool,
-              showRequest: false,
-              showResult: false,
+              showDetails: false,
             };
 
             return this.acceptThunk(listDirTool, thunk);
@@ -343,8 +336,7 @@ export class ToolManager {
 
             this.state.toolWrappers[request.id] = {
               tool: hoverTool,
-              showRequest: false,
-              showResult: false,
+              showDetails: false,
             };
 
             return this.acceptThunk(hoverTool, thunk);
@@ -359,8 +351,7 @@ export class ToolManager {
 
             this.state.toolWrappers[request.id] = {
               tool: findReferencesTool,
-              showRequest: false,
-              showResult: false,
+              showDetails: false,
             };
 
             return this.acceptThunk(findReferencesTool, thunk);
@@ -374,8 +365,7 @@ export class ToolManager {
 
             this.state.toolWrappers[request.id] = {
               tool: diagnosticsTool,
-              showRequest: false,
-              showResult: false,
+              showDetails: false,
             };
 
             return this.acceptThunk(diagnosticsTool, thunk);
@@ -399,8 +389,7 @@ export class ToolManager {
 
             this.state.toolWrappers[request.id] = {
               tool: bashCommandTool,
-              showRequest: false,
-              showResult: false,
+              showDetails: false,
             };
             return;
           }
@@ -441,7 +430,9 @@ export class ToolManager {
 
       case "abort-tool-use": {
         const tool = this.state.toolWrappers[msg.requestId].tool;
-        tool.abort();
+        if (tool.state.state != "done") {
+          tool.abort();
+        }
         return;
       }
 
@@ -454,30 +445,33 @@ export class ToolManager {
    * things simpler to understand.
    */
   acceptThunk(tool: Tool, thunk: Thunk<ToolMsg["msg"]>): void {
-    thunk((msg) =>
-      this.myDispatch({
-        type: "tool-msg",
-        msg: {
-          id: tool.request.id,
-          toolName: tool.toolName,
-          msg,
-        } as ToolMsg,
-      }),
-    ).catch((e: Error) =>
-      this.myDispatch({
-        type: "tool-msg",
-        msg: {
-          id: tool.request.id,
-          toolName: tool.toolName,
+    // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
+    setTimeout(() => {
+      thunk((msg) =>
+        this.myDispatch({
+          type: "tool-msg",
           msg: {
-            type: "finish",
-            result: {
-              status: "error",
-              error: e.message,
+            id: tool.request.id,
+            toolName: tool.toolName,
+            msg,
+          } as ToolMsg,
+        }),
+      ).catch((e: Error) =>
+        this.myDispatch({
+          type: "tool-msg",
+          msg: {
+            id: tool.request.id,
+            toolName: tool.toolName,
+            msg: {
+              type: "finish",
+              result: {
+                status: "error",
+                error: e.message,
+              },
             },
-          },
-        } as ToolMsg,
-      }),
-    );
+          } as ToolMsg,
+        }),
+      );
+    });
   }
 }

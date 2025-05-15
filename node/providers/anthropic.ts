@@ -6,8 +6,10 @@ import {
   type Provider,
   type ProviderMessage,
   type Usage,
-  type ProviderRequest,
+  type ProviderStreamRequest,
   type ProviderToolSpec,
+  type ProviderToolUseRequest,
+  type ProviderStreamEvent,
 } from "./provider-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
@@ -87,14 +89,41 @@ export class AnthropicProvider implements Provider {
               // cache_control markers we won't mutate the content.
               return {
                 ...c,
+                citations: c.citations
+                  ? c.citations.map((providerCitation) => ({
+                      ...providerCitation,
+                      type: "web_search_result_location",
+                    }))
+                  : null,
               };
-            case "tool_use":
+            case "web_search_tool_result":
               return {
-                id: c.request.id,
-                input: c.request.input,
-                name: c.request.toolName,
-                type: "tool_use",
+                ...c,
               };
+
+            case "tool_use":
+              return c.request.status == "ok"
+                ? {
+                    id: c.id,
+                    input: c.request.value.input,
+                    name: c.request.value.toolName,
+                    type: "tool_use",
+                  }
+                : {
+                    id: c.id,
+                    input: c.request.rawRequest,
+                    name: c.name,
+                    type: "tool_use",
+                  };
+
+            case "server_tool_use":
+              return {
+                type: "server_tool_use",
+                id: c.id,
+                name: c.name,
+                input: c.input,
+              };
+
             case "tool_result":
               return {
                 tool_use_id: c.id,
@@ -129,7 +158,6 @@ export class AnthropicProvider implements Provider {
       },
     );
 
-    this.nvim.logger?.error(`anthropic model: ${this.model}`);
     return {
       messages: anthropicMessages,
       model: this.model,
@@ -154,7 +182,14 @@ export class AnthropicProvider implements Provider {
         type: "auto",
         disable_parallel_tool_use: this.disableParallelToolUseFlag || undefined,
       },
-      tools,
+      tools: [
+        ...tools,
+        {
+          type: "web_search_20250305",
+          name: "web_search",
+          max_uses: 5,
+        } as unknown as Anthropic.Messages.Tool,
+      ],
     };
   }
 
@@ -176,7 +211,7 @@ export class AnthropicProvider implements Provider {
   forceToolUse(
     messages: Array<ProviderMessage>,
     spec: ProviderToolSpec,
-  ): ProviderRequest {
+  ): ProviderToolUseRequest {
     const request = this.client.messages.stream({
       ...this.createStreamParameters(messages),
       tools: [
@@ -255,7 +290,7 @@ export class AnthropicProvider implements Provider {
           }
 
           const input = validateInput(
-            spec,
+            spec.name,
             req2.input as { [key: string]: unknown },
           );
 
@@ -287,7 +322,7 @@ export class AnthropicProvider implements Provider {
       }
 
       return {
-        toolRequests: [toolRequest],
+        toolRequest,
         stopReason: response.stop_reason || "end_turn",
         usage,
       };
@@ -301,48 +336,29 @@ export class AnthropicProvider implements Provider {
     };
   }
 
+  /**
+   * Example of stream events from anthropic https://docs.anthropic.com/en/api/messages-streaming
+   */
   sendMessage(
     messages: Array<ProviderMessage>,
-    onText: (text: string) => void,
-  ): ProviderRequest {
-    const buf: string[] = [];
-    let flushInProgress: boolean = false;
+    onStreamEvent: (event: ProviderStreamEvent) => void,
+  ): ProviderStreamRequest {
     let requestActive = true;
-
-    const flushBuffer = () => {
-      if (!requestActive) {
-        return;
-      }
-
-      if (buf.length && !flushInProgress) {
-        const text = buf.join("");
-        buf.splice(0);
-
-        flushInProgress = true;
-
-        try {
-          onText(text);
-        } finally {
-          flushInProgress = false;
-          setInterval(flushBuffer, 1);
-        }
-      }
-    };
-
     const request = this.client.messages
       .stream(
         this.createStreamParameters(
           messages,
         ) as Anthropic.Messages.MessageStreamParams,
       )
-      .on("text", (text: string) => {
-        buf.push(text);
-        flushBuffer();
-      })
-      .on("inputJson", (_delta, snapshot) => {
-        this.nvim.logger?.debug(
-          `anthropic stream inputJson: ${JSON.stringify(snapshot)}`,
-        );
+      .on("streamEvent", (e) => {
+        if (
+          requestActive &&
+          (e.type == "content_block_start" ||
+            e.type == "content_block_delta" ||
+            e.type == "content_block_stop")
+        ) {
+          onStreamEvent(e);
+        }
       });
 
     const promise = (async () => {
@@ -351,73 +367,6 @@ export class AnthropicProvider implements Provider {
       if (response.stop_reason === "max_tokens") {
         throw new Error("Response exceeded max_tokens limit");
       }
-
-      const toolRequests: Result<
-        ToolManager.ToolRequest,
-        { rawRequest: unknown }
-      >[] = response.content
-        .filter((req) => req.type == "tool_use")
-        .map((req) => {
-          const result = ((): Result<ToolManager.ToolRequest> => {
-            if (typeof req != "object" || req == null) {
-              return { status: "error", error: "received a non-object" };
-            }
-
-            const name = (
-              req as unknown as { [key: string]: unknown } | undefined
-            )?.["name"];
-
-            if (typeof req.name != "string") {
-              return {
-                status: "error",
-                error: "expected req.name to be string",
-              };
-            }
-
-            const req2 = req as unknown as { [key: string]: unknown };
-
-            if (req2.type != "tool_use") {
-              return {
-                status: "error",
-                error: "expected req.type to be tool_use",
-              };
-            }
-
-            if (typeof req2.id != "string") {
-              return {
-                status: "error",
-                error: "expected req.id to be a string",
-              };
-            }
-
-            if (typeof req2.input != "object" || req2.input == null) {
-              return {
-                status: "error",
-                error: "expected req.input to be an object",
-              };
-            }
-
-            const input = validateInput(
-              name,
-              req2.input as { [key: string]: unknown },
-            );
-
-            if (input.status == "ok") {
-              return {
-                status: "ok",
-                value: {
-                  toolName: name,
-                  id: req2.id,
-                  input: input.value,
-                } as ToolManager.ToolRequest,
-              };
-            } else {
-              return input;
-            }
-          })();
-
-          return extendError(result, { rawRequest: req });
-        });
 
       const usage: Usage = {
         inputTokens: response.usage.input_tokens,
@@ -431,7 +380,6 @@ export class AnthropicProvider implements Provider {
       }
 
       return {
-        toolRequests,
         stopReason: response.stop_reason || "end_turn",
         usage,
       };
@@ -458,10 +406,28 @@ export function placeCacheBreakpoints(messages: MessageParam[]): number {
       switch (block.type) {
         case "text":
           lengthAcc += block.text.length;
+          for (const citation of block.citations || []) {
+            lengthAcc += citation.cited_text.length;
+            switch (citation.type) {
+              case "char_location":
+              case "page_location":
+              case "content_block_location":
+                continue;
+              case "web_search_result_location": {
+                lengthAcc +=
+                  citation.url.length +
+                  (citation.title ? citation.title.length : 0) +
+                  citation.encrypted_index.length;
+              }
+            }
+          }
           break;
-        case "image":
-          lengthAcc += block.source.data.length;
+        case "image": {
+          const source = block.source;
+          lengthAcc +=
+            source.type == "base64" ? source.data.length : source.url.length;
           break;
+        }
         case "tool_use":
           lengthAcc += JSON.stringify(block.input).length;
           break;
@@ -476,9 +442,14 @@ export function placeCacheBreakpoints(messages: MessageParam[]): number {
                   case "text":
                     blockLength += blockContent.text.length;
                     break;
-                  case "image":
-                    blockLength += blockContent.source.data.length;
+                  case "image": {
+                    const source = blockContent.source;
+                    blockLength +=
+                      source.type == "base64"
+                        ? source.data.length
+                        : source.url.length;
                     break;
+                  }
                 }
               }
 
@@ -486,10 +457,43 @@ export function placeCacheBreakpoints(messages: MessageParam[]): number {
             }
           }
           break;
-        case "document":
+
+        case "document": {
           if ("data" in block.source) {
             lengthAcc += block.source.data.length;
           }
+          break;
+        }
+
+        case "server_tool_use":
+          {
+            lengthAcc += JSON.stringify(
+              block.input as { [key: string]: string },
+            ).length;
+          }
+          break;
+        case "web_search_tool_result":
+          {
+            if (Array.isArray(block.content)) {
+              lengthAcc += block.content.reduce((acc, el) => {
+                return (
+                  acc +
+                  el.url.length +
+                  el.title.length +
+                  el.encrypted_content.length
+                );
+              }, 0);
+            }
+          }
+          break;
+
+        case "thinking":
+        case "redacted_thinking":
+          // not supported yet
+          break;
+
+        default:
+          assertUnreachable(block);
       }
 
       blocks.push({ block, acc: lengthAcc });

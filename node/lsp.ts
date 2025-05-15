@@ -35,7 +35,7 @@ export class Lsp {
           [],
         ])
         .catch((...args: string[][]) => {
-          console.log(`lsp request error: ${JSON.stringify(args)}`);
+          this.nvim.logger?.error(`lsp request error: ${JSON.stringify(args)}`);
           this.rejectRequest(
             requestId,
             new Error(args[0][1] as unknown as string),

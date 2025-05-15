@@ -7,8 +7,8 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
+import { applyEdit } from "./applyEdit.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import { applyEdit } from "./diff.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
 import * as diff from "diff";
@@ -44,8 +44,15 @@ export class ReplaceTool implements ToolInterface {
     },
   ) {
     this.state = { state: "processing" };
-    applyEdit(this.request, this.threadId, this.messageId, this.context).catch(
-      (err: Error) =>
+
+    // wrap in setTimeout to force a new eventloop frame, so we don't dispatch-in-dispatch
+    setTimeout(() => {
+      applyEdit(
+        this.request,
+        this.threadId,
+        this.messageId,
+        this.context,
+      ).catch((err: Error) =>
         this.context.myDispatch({
           type: "finish",
           result: {
@@ -53,7 +60,8 @@ export class ReplaceTool implements ToolInterface {
             error: err.message,
           },
         }),
-    );
+      );
+    });
   }
 
   abort(): void {
@@ -253,7 +261,7 @@ export function validateInput(input: {
   if (typeof input.filePath != "string") {
     return {
       status: "error",
-      error: "expected req.input.filePath to be a string",
+      error: `expected req.input.filePath to be a string, but input was ${JSON.stringify(input)}`,
     };
   }
 
@@ -275,4 +283,61 @@ export function validateInput(input: {
     status: "ok",
     value: input as Input,
   };
+}
+const FIND_KEY_STR = '"find":"';
+const REPLACE_KEY_STR = '"replace":"';
+
+export function renderStreamedBlock(streamed: string): VDOMNode {
+  // Look for file path pattern
+  const filePathMatch = streamed.match(/"filePath"\s*:\s*"([^"]+)"/);
+  const filePath = filePathMatch ? filePathMatch[1] : null;
+
+  // Count negative lines (find)
+  let findLineCount = 1; // Start with 1 for the first line
+  const findKeyIndex = streamed.indexOf(FIND_KEY_STR);
+  if (findKeyIndex !== -1) {
+    // Start after the opening quote
+    for (let i = findKeyIndex + FIND_KEY_STR.length; i < streamed.length; i++) {
+      const char = streamed[i];
+      const prevChar = i > 0 ? streamed[i - 1] : "";
+
+      if (char === '"' && prevChar !== "\\") {
+        // Unescaped quote marks the end of content
+        break;
+      } else if (char === "n" && prevChar === "\\") {
+        // Found a newline sequence
+        findLineCount++;
+      }
+    }
+  }
+
+  // Count positive lines (replace)
+  let replaceLineCount = 1; // Start with 1 for the first line
+  const replaceKeyIndex = streamed.indexOf(REPLACE_KEY_STR);
+  if (replaceKeyIndex !== -1) {
+    // Start after the opening quote
+    for (
+      let i = replaceKeyIndex + REPLACE_KEY_STR.length;
+      i < streamed.length;
+      i++
+    ) {
+      const char = streamed[i];
+      const prevChar = i > 0 ? streamed[i - 1] : "";
+
+      if (char === '"' && prevChar !== "\\") {
+        // Unescaped quote marks the end of content
+        break;
+      } else if (char === "n" && prevChar === "\\") {
+        // Found a newline sequence
+        replaceLineCount++;
+      }
+    }
+  }
+
+  // Format the message in the same style as the view method
+  if (filePath) {
+    return d`⏳ Replace [[ -${findLineCount.toString()} / +${replaceLineCount.toString()} ]] in \`${filePath}\` streaming...`;
+  } else {
+    return d`⏳ Preparing replace operation...`;
+  }
 }

@@ -34,8 +34,8 @@ export async function replaceBetweenPositions({
     const err = new Error(
       `Unable to replaceBetweenPositions ${JSON.stringify({ startPos, endPos })}: ${e as string}`,
     );
-    context.nvim.logger?.error(err.message);
-    throw e;
+    context.nvim.logger?.error(err);
+    throw err;
   }
   await buffer.setOption("modifiable", false);
 }

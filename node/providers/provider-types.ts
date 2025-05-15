@@ -1,6 +1,7 @@
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import * as ToolManager from "../tools/toolManager.ts";
 import type { Result } from "../utils/result";
+import Anthropic from "@anthropic-ai/sdk";
 
 export const PROVIDER_NAMES = ["anthropic", "openai", "bedrock"] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
@@ -17,7 +18,9 @@ export type StopReason =
   | "end_turn"
   | "tool_use"
   | "max_tokens"
+  | "pause_turn"
   | "content"
+  | "refusal"
   | "aborted"
   | "stop_sequence";
 
@@ -30,17 +33,43 @@ export type Usage = {
 
 export type ProviderMessage = {
   role: "user" | "assistant";
-  content: string | Array<ProviderMessageContent>;
+  content: Array<ProviderMessageContent>;
+};
+
+export type ProviderWebSearchCitation = {
+  cited_text: string;
+  encrypted_index: string;
+  title: string;
+  type: "web_search_citation";
+  url: string;
 };
 
 export type ProviderTextContent = {
   type: "text";
   text: string;
+  citations?: ProviderWebSearchCitation[] | undefined;
 };
 
 export type ProviderToolUseContent = {
   type: "tool_use";
-  request: ToolManager.ToolRequest;
+  id: ToolManager.ToolRequestId;
+  name: string;
+  request: Result<ToolManager.ToolRequest, { rawRequest: unknown }>;
+};
+
+export type ProviderServerToolUseContent = {
+  type: "server_tool_use";
+  id: string;
+  name: "web_search";
+  input: {
+    query: string;
+  };
+};
+
+export type ProviderWebSearchToolResult = {
+  type: "web_search_tool_result";
+  tool_use_id: string;
+  content: Anthropic.WebSearchToolResultBlockContent;
 };
 
 export type ProviderToolResultContent = {
@@ -58,28 +87,52 @@ export type ProviderToolSpec = {
 export type ProviderMessageContent =
   | ProviderTextContent
   | ProviderToolUseContent
+  | ProviderServerToolUseContent
+  | ProviderWebSearchToolResult
   | ProviderToolResultContent;
 
 export interface Provider {
   setModel(model: string): void;
   createStreamParameters(messages: Array<ProviderMessage>): unknown;
-  countTokens(messages: Array<ProviderMessage>): Promise<number>;
+  // countTokens(messages: Array<ProviderMessage>): Promise<number>;
   forceToolUse(
     messages: Array<ProviderMessage>,
     spec: ProviderToolSpec,
-  ): ProviderRequest;
+  ): ProviderToolUseRequest;
 
   sendMessage(
     messages: Array<ProviderMessage>,
-    onText: (text: string) => void,
-  ): ProviderRequest;
+    onStreamEvent: (event: ProviderStreamEvent) => void,
+  ): ProviderStreamRequest;
 }
 
-export interface ProviderRequest {
+/** Using Anthropic types for now since they're the most mature / well documented
+ */
+export type ProviderStreamEvent = Extract<
+  Anthropic.RawMessageStreamEvent,
+  { type: "content_block_start" | "content_block_delta" | "content_block_stop" }
+>;
+
+export type ProviderBlockStartEvent = Extract<
+  ProviderStreamEvent,
+  { type: "content_block_start" }
+>;
+
+export interface ProviderStreamRequest {
   abort(): void;
   promise: Promise<{
-    toolRequests: Result<ToolManager.ToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;
     usage: Usage;
   }>;
+}
+
+export type ProviderToolUseResponse = {
+  toolRequest: Result<ToolManager.ToolRequest, { rawRequest: unknown }>;
+  stopReason: StopReason;
+  usage: Usage;
+};
+
+export interface ProviderToolUseRequest {
+  abort(): void;
+  promise: Promise<ProviderToolUseResponse>;
 }

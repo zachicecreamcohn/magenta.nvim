@@ -16,11 +16,31 @@ const nvim = await attach({
   logging: { level: ENV.LOG_LEVEL },
 });
 
+if (nvim.logger?.error) {
+  const original = nvim.logger.error.bind(nvim.logger);
+  nvim.logger.error = ((error: Error | string, ...rest: unknown[]) => {
+    original(
+      error instanceof Error
+        ? `Error: ${error.message}\n${error.stack}`
+        : error,
+      ...rest,
+    );
+    notifyErr(nvim, error, ...rest).catch((err) =>
+      original(
+        err instanceof Error
+          ? `notifyErr failed: ${err.message}\n${err.stack}`
+          : err,
+      ),
+    );
+  }) as typeof original;
+}
+
 process.on("uncaughtException", (error) => {
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises
-  notifyErr(nvim, "uncaughtException", error);
   nvim.logger?.error(error);
-  process.exit(1);
+  setTimeout(() => {
+    // wait for logger to finish writing
+    process.exit(1);
+  }, 100);
 });
 
 await Magenta.start(nvim);

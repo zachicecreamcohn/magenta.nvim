@@ -4,10 +4,11 @@ import {
   type MountedView,
   type MountPoint,
   mountView,
+  prettyPrintMountedNode,
   type VDOMNode,
 } from "./view.ts";
 import { BINDING_KEYS, type BindingKey, getBindings } from "./bindings.ts";
-import { getCurrentWindow, notifyErr } from "../nvim/nvim.ts";
+import { getCurrentWindow } from "../nvim/nvim.ts";
 import type { Row0Indexed } from "../nvim/window.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { Defer } from "../utils/async.ts";
@@ -79,15 +80,24 @@ export function createApp<Model>({
         renderPromise = root
           .render({ currentState })
           .catch((err) => {
-            nvim.logger?.error(err as Error);
-            // eslint-disable-next-line @typescript-eslint/no-floating-promises
-            notifyErr(nvim, "render", err);
+            nvim.logger?.error(
+              err instanceof Error
+                ? `render failed: ${err.message}\n${err.stack}`
+                : `render failed: ${JSON.stringify(err)}`,
+            );
+            nvim.logger?.error(
+              "render error: " +
+                prettyPrintMountedNode(root!._getMountedNode()),
+            );
             if (renderDefer) {
               renderDefer.reject(err as Error);
               renderDefer = undefined;
             }
           })
           .finally(() => {
+            nvim.logger?.info(
+              "rendered: " + prettyPrintMountedNode(root!._getMountedNode()),
+            );
             renderPromise = undefined;
             if (reRender) {
               reRender = false;
