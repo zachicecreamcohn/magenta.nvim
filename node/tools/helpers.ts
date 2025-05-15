@@ -7,6 +7,8 @@ import * as Hover from "./hover";
 import * as FindReferences from "./findReferences";
 import * as Diagnostics from "./diagnostics";
 import * as BashCommand from "./bashCommand";
+import * as ReplaceSelection from "./replace-selection-tool";
+import * as InlineEdit from "./inline-edit-tool";
 import type { StreamingBlock } from "../providers/helpers";
 import { d, type VDOMNode } from "../tea/view";
 
@@ -34,9 +36,9 @@ export function validateInput(
     case "bash_command":
       return BashCommand.validateInput(input);
     case "inline_edit":
-      return Replace.validateInput(input);
+      return InlineEdit.validateInput(input);
     case "replace_selection":
-      return Replace.validateInput(input);
+      return ReplaceSelection.validateInput(input);
     default:
       throw new Error(`Unexpected toolName: ${toolName as string}`);
   }

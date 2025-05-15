@@ -261,7 +261,7 @@ export function validateInput(input: {
   if (typeof input.filePath != "string") {
     return {
       status: "error",
-      error: "expected req.input.filePath to be a string",
+      error: `expected req.input.filePath to be a string, but input was ${JSON.stringify(input)}`,
     };
   }
 

@@ -280,7 +280,7 @@ export class AnthropicProvider implements Provider {
           }
 
           const input = validateInput(
-            spec,
+            spec.name,
             req2.input as { [key: string]: unknown },
           );
 
