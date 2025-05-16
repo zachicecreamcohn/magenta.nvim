@@ -3,30 +3,30 @@
   "module": "magenta.ts",
   "type": "module",
   "devDependencies": {
-    "@types/node": "^22.10.5",
-    "typescript": "5.6.3",
-    "vitest": "^2.1.8",
     "@commitlint/config-conventional": "^19.5.0",
     "@commitlint/cz-commitlint": "^19.5.0",
     "@swc-node/register": "^1.10.9",
-    "typescript-eslint": "^8.19.0",
+    "@types/node": "^22.10.5",
     "eslint": "^9.17.0",
-    "prettier": "^3.3.3"
+    "prettier": "^3.3.3",
+    "typescript": "5.6.3",
+    "typescript-eslint": "^8.19.0",
+    "vitest": "^2.1.8"
   },
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.12.4",
     "@anthropic-ai/sdk": "^0.41.0",
     "@types/diff": "^7.0.2",
+    "commander": "^12.1.0",
     "diff": "^7.0.0",
     "glob": "^10.3.10",
     "ignore": "^7.0.0",
-    "openai": "^4.98.0",
+    "msgpackr": "^1.11.2",
+    "openai": "^4.100.0",
     "tiktoken": "^1.0.18",
     "tsx": "^4.19.2",
-    "zx": "^7.2.3",
-    "commander": "^12.1.0",
-    "msgpackr": "^1.11.2",
-    "winston": "^3.16.0"
+    "winston": "^3.16.0",
+    "zx": "^7.2.3"
   },
   "overrides": {
     "@anthropic-ai/bedrock-sdk": {
