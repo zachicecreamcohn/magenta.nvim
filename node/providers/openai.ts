@@ -234,29 +234,37 @@ export class OpenAIProvider implements Provider {
       );
 
       for await (const event of request) {
+        this.nvim.logger?.info(`event.type: ${event.type}`);
         switch (event.type) {
           case "response.output_item.added":
-            if (event.item.type === "message") {
-              onStreamEvent({
-                type: "content_block_start",
-                index: event.output_index,
-                content_block: {
-                  type: "text",
-                  text: "",
-                  citations: null,
-                },
-              });
-            } else if (event.item.type === "function_call") {
-              onStreamEvent({
-                type: "content_block_start",
-                index: event.output_index,
-                content_block: {
-                  type: "tool_use",
-                  id: event.item.call_id,
-                  name: event.item.name,
-                  input: {},
-                },
-              });
+            switch (event.item.type) {
+              case "message":
+                onStreamEvent({
+                  type: "content_block_start",
+                  index: event.output_index,
+                  content_block: {
+                    type: "text",
+                    text: "",
+                    citations: null,
+                  },
+                });
+                break;
+              case "function_call":
+                onStreamEvent({
+                  type: "content_block_start",
+                  index: event.output_index,
+                  content_block: {
+                    type: "tool_use",
+                    id: event.item.call_id,
+                    name: event.item.name,
+                    input: {},
+                  },
+                });
+                break;
+              default:
+                throw new Error(
+                  `output_item.added ${event.item.type} not implemented`,
+                );
             }
             break;
 

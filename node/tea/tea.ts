@@ -95,9 +95,6 @@ export function createApp<Model>({
             }
           })
           .finally(() => {
-            nvim.logger?.info(
-              "rendered: " + prettyPrintMountedNode(root!._getMountedNode()),
-            );
             renderPromise = undefined;
             if (reRender) {
               reRender = false;
