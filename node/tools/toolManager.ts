@@ -154,6 +154,7 @@ export class ToolManager {
     public myDispatch: (msg: Msg) => void,
     private context: {
       dispatch: Dispatch<RootMsg>;
+      threadId: ThreadId;
       nvim: Nvim;
       lsp: Lsp;
       options: MagentaOptions;
@@ -228,6 +229,12 @@ export class ToolManager {
           case "get_file": {
             const getFileTool = new GetFile.GetFileTool(request, {
               nvim: this.context.nvim,
+              threadDispatch: (msg) =>
+                this.context.dispatch({
+                  type: "thread-msg",
+                  id: this.context.threadId,
+                  msg,
+                }),
               myDispatch: (msg) =>
                 this.myDispatch({
                   type: "tool-msg",

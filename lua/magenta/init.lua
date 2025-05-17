@@ -68,6 +68,9 @@ local visual_commands = {
 }
 
 M.bridge = function(channelId)
+  -- Store the channel ID for later use by other functions
+  M.channel_id = channelId
+
   vim.api.nvim_create_user_command(
     "Magenta",
     function(opts)
@@ -97,6 +100,49 @@ M.bridge = function(channelId)
       pattern = "*",
       callback = function()
         vim.rpcnotify(channelId, "magentaWindowClosed", {})
+      end
+    }
+  )
+
+  -- Setup buffer event tracking
+  vim.api.nvim_create_autocmd(
+    "BufWritePost",
+    {
+      pattern = "*",
+      callback = function()
+        local file_path = vim.fn.expand("<afile>:p")
+        local bufnr = vim.fn.expand("<abuf>")
+        if file_path and file_path ~= "" then
+          vim.rpcnotify(channelId, "magentaBufferTracker", "write", file_path, bufnr)
+        end
+      end
+    }
+  )
+
+  vim.api.nvim_create_autocmd(
+    "BufReadPost",
+    {
+      pattern = "*",
+      callback = function()
+        local file_path = vim.fn.expand("<afile>:p")
+        local bufnr = vim.fn.expand("<abuf>")
+        if file_path and file_path ~= "" then
+          vim.rpcnotify(channelId, "magentaBufferTracker", "read", file_path, bufnr)
+        end
+      end
+    }
+  )
+
+  vim.api.nvim_create_autocmd(
+    "BufDelete",
+    {
+      pattern = "*",
+      callback = function()
+        local file_path = vim.fn.expand("<afile>:p")
+        local bufnr = vim.fn.expand("<abuf>")
+        if file_path and file_path ~= "" then
+          vim.rpcnotify(channelId, "magentaBufferTracker", "close", file_path, bufnr)
+        end
       end
     }
   )
