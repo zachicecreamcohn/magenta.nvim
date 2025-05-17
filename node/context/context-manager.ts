@@ -1,9 +1,6 @@
-import { d, withBindings } from "../tea/view";
 import { assertUnreachable } from "../utils/assertUnreachable";
-import type { ProviderMessage } from "../providers/provider";
 import type { Nvim } from "../nvim/nvim-node";
 import type { MessageId } from "../chat/message";
-import { BufferAndFileManager } from "./file-and-buffer-manager";
 import { glob } from "glob";
 import path from "node:path";
 import fs from "node:fs";
@@ -12,7 +9,30 @@ import { getcwd } from "../nvim/nvim";
 import type { Dispatch } from "../tea/tea";
 import type { RootMsg } from "../root-msg";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow";
-import type { AbsFilePath, RelFilePath } from "../utils/files";
+import { type AbsFilePath, type RelFilePath } from "../utils/files";
+import type { Result } from "../utils/result";
+import * as diff from "diff";
+import type { BufferTracker } from "../buffer-tracker";
+import { NvimBuffer } from "../nvim/buffer";
+import { d, withBindings } from "../tea/view";
+import type { ProviderMessageContent } from "../providers/provider-types";
+import { applyInsert, applyReplace } from "../utils/contentEdits";
+
+export type ToolApplication =
+  | {
+      type: "get-file";
+      content: string;
+    }
+  | {
+      type: "insert";
+      insertAfter: string;
+      content: string;
+    }
+  | {
+      type: "replace";
+      find: string;
+      replace: string;
+    };
 
 export type Msg =
   | {
@@ -28,65 +48,77 @@ export type Msg =
   | {
       type: "open-file";
       absFilePath: AbsFilePath;
+    }
+  | {
+      type: "tool-applied";
+      absFilePath: AbsFilePath;
+      tool: ToolApplication;
     };
 
-export class ContextManager {
-  public dispatch: Dispatch<RootMsg>;
-  public files: {
-    [absFilePath: AbsFilePath]: {
-      relFilePath: RelFilePath;
-      initialMessageId: MessageId;
-    };
+type Files = {
+  [absFilePath: AbsFilePath]: {
+    relFilePath: RelFilePath;
+    initialMessageId: MessageId;
   };
-  private bufferAndFileManager: BufferAndFileManager;
-  private nvim: Nvim;
-  private options: MagentaOptions;
+};
+
+export type Patch = string & { __patch: true };
+
+export type FileUpdate =
+  | {
+      type: "whole-file";
+      absFilePath: AbsFilePath;
+      content: string;
+    }
+  | {
+      type: "diff";
+      absFilePath: AbsFilePath;
+      patch: Patch;
+    };
+
+export type FileUpdates = {
+  [absFilePath: AbsFilePath]: Result<FileUpdate>;
+};
+
+export class ContextManager {
+  public files: Files;
+
+  /** Tracks what the agent thinks the files in the context look like.
+   */
+  private agentsViewOfFiles: {
+    [absFilePath: AbsFilePath]: string;
+  } = {};
 
   private constructor(
     public myDispatch: Dispatch<Msg>,
-    {
-      dispatch,
-      nvim,
-      options,
-      initialFiles = {},
-    }: {
+    private context: {
       dispatch: Dispatch<RootMsg>;
+      bufferTracker: BufferTracker;
       nvim: Nvim;
       options: MagentaOptions;
-      initialFiles?: {
-        [absFilePath: AbsFilePath]: {
-          relFilePath: RelFilePath;
-          initialMessageId: MessageId;
-        };
-      };
     },
+    initialFiles: Files = {},
   ) {
-    this.dispatch = dispatch;
-    this.nvim = nvim;
-    this.options = options;
-    this.bufferAndFileManager = new BufferAndFileManager(nvim);
     this.files = initialFiles;
+
+    // until we send the agent updates about the files, it doesn't know anything about them.
+    this.agentsViewOfFiles = {};
   }
 
   static async create(
     myDispatch: Dispatch<Msg>,
-    {
-      dispatch,
-      nvim,
-      options,
-    }: {
+    context: {
       dispatch: Dispatch<RootMsg>;
       nvim: Nvim;
       options: MagentaOptions;
+      bufferTracker: BufferTracker;
     },
   ): Promise<ContextManager> {
-    const initialFiles = await ContextManager.loadAutoContext(nvim, options);
-    return new ContextManager(myDispatch, {
-      dispatch,
-      nvim,
-      options,
-      initialFiles,
-    });
+    const initialFiles = await ContextManager.loadAutoContext(
+      context.nvim,
+      context.options,
+    );
+    return new ContextManager(myDispatch, context, initialFiles);
   }
 
   update(msg: Msg): void {
@@ -97,15 +129,20 @@ export class ContextManager {
           initialMessageId: msg.messageId,
         };
         return;
+
       case "remove-file-context":
         delete this.files[msg.absFilePath];
         return;
+
       case "open-file":
         openFileInNonMagentaWindow(msg.absFilePath, {
-          nvim: this.nvim,
-          options: this.options,
-        }).catch((e: Error) => this.nvim.logger?.error(e.message));
+          nvim: this.context.nvim,
+          options: this.context.options,
+        }).catch((e: Error) => this.context.nvim.logger?.error(e.message));
 
+        return;
+      case "tool-applied":
+        this.toolApplied(msg.absFilePath, msg.tool);
         return;
       default:
         assertUnreachable(msg);
@@ -116,80 +153,150 @@ export class ContextManager {
     return Object.keys(this.files).length == 0;
   }
 
-  async getContextMessages(
-    currentMessageId: MessageId,
-  ): Promise<{ messageId: MessageId; message: ProviderMessage }[] | undefined> {
-    if (this.isContextEmpty()) {
-      return undefined;
-    }
+  /**
+   * Called when the agent invokes a tool that causes it to receive an update about the file content.
+   * After the tool is applied, the agent's view of the file should match the current buffer state of the file.
+   */
+  toolApplied(absFilePath: AbsFilePath, tool: ToolApplication) {
+    switch (tool.type) {
+      case "get-file":
+        this.agentsViewOfFiles[absFilePath] = tool.content;
+        return;
+      case "insert": {
+        // We need to update the agent's view of the file to match what the file would be after the edit
+        const currentContent = this.agentsViewOfFiles[absFilePath] || "";
+        const { insertAfter, content } = tool;
 
-    return await Promise.all(
-      Object.keys(this.files).map((absFilePath) =>
-        this.getFileMessage({
-          absFilePath: absFilePath as AbsFilePath,
-          currentMessageId,
-        }),
-      ),
-    );
+        const result = applyInsert(currentContent, insertAfter, content);
+        if (result.status === "ok") {
+          this.agentsViewOfFiles[absFilePath] = result.content;
+        } else {
+          throw new Error(
+            `Failed to update agent's view of ${absFilePath}: ${result.error}`,
+          );
+        }
+        return;
+      }
+      case "replace": {
+        const currentContent = this.agentsViewOfFiles[absFilePath] || "";
+        const { find, replace } = tool;
+
+        const result = applyReplace(currentContent, find, replace);
+        if (result.status === "ok") {
+          this.agentsViewOfFiles[absFilePath] = result.content;
+        } else {
+          throw new Error(
+            `Failed to update agent's view of ${absFilePath}: ${result.error}`,
+          );
+        }
+        return;
+      }
+      default:
+        assertUnreachable(tool);
+    }
   }
 
-  private async getFileMessage({
-    absFilePath,
-    currentMessageId,
-  }: {
-    absFilePath: AbsFilePath;
-    currentMessageId: MessageId;
-  }): Promise<{ messageId: MessageId; message: ProviderMessage }> {
-    const res = await this.bufferAndFileManager.getFileContents(
-      absFilePath,
-      currentMessageId,
+  /** we're about to send a user message to the agent. Find any changes that have happened to the files in context
+   * that the agent doesn't know about yet, and update them.
+   */
+  async getContextUpdate(): Promise<{
+    [absFilePath: AbsFilePath]: Result<FileUpdate>;
+  }> {
+    if (this.isContextEmpty()) {
+      return {};
+    }
+
+    const results: { [absFilePath: AbsFilePath]: Result<FileUpdate> } = {};
+    await Promise.all(
+      Object.keys(this.files).map(async (absFilePath) => {
+        const result = await this.getFileMessageAndUpdateAgentViewOfFile({
+          absFilePath: absFilePath as AbsFilePath,
+        });
+        results[absFilePath as AbsFilePath] = result;
+      }),
     );
 
-    switch (res.status) {
-      case "ok":
-        return {
-          messageId: res.value.messageId,
-          message: {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: this.renderFile({
-                  relFilePath: res.value.relFilePath,
-                  content: res.value.content,
-                }),
-              },
-            ],
-          },
-        };
+    return results;
+  }
 
-      case "error":
+  private async getFileMessageAndUpdateAgentViewOfFile({
+    absFilePath,
+  }: {
+    absFilePath: AbsFilePath;
+  }): Promise<Result<FileUpdate>> {
+    const bufSyncInfo = this.context.bufferTracker.getSyncInfo(absFilePath);
+    let currentFileContent: string;
+
+    if (bufSyncInfo) {
+      // This file is open in a buffer
+      try {
+        const fileStats = fs.statSync(absFilePath);
+        const diskMtime = fileStats.mtime.getTime();
+
+        const buffer = new NvimBuffer(bufSyncInfo.bufnr, this.context.nvim);
+        const currentChangeTick = await buffer.getChangeTick();
+
+        const bufferChanged = bufSyncInfo.changeTick !== currentChangeTick;
+        const fileChanged = bufSyncInfo.mtime < diskMtime;
+
+        if (bufferChanged && fileChanged) {
+          // Both buffer and file on disk have changed - conflict situation
+          return {
+            status: "error",
+            error: `Both the buffer ${bufSyncInfo.bufnr} and the file on disk for ${absFilePath} have changed. Cannot determine which version to use.`,
+          };
+        }
+
+        if (fileChanged && !bufferChanged) {
+          await buffer.attemptEdit();
+        }
+
+        // now the buffer should have the latest version of the file
+        const lines = await buffer.getLines({ start: 0, end: -1 });
+        currentFileContent = lines.join("\n");
+      } catch (err) {
         return {
-          messageId: currentMessageId,
-          message: {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `Error reading file \`${absFilePath}\`: ${res.error}`,
-              },
-            ],
-          },
+          status: "error",
+          error: `Error when trying to grab the context of the file ${absFilePath}: ${(err as Error).message}\n${(err as Error).stack}`,
         };
-      default:
-        assertUnreachable(res);
+      }
+    } else {
+      // This file is only on disk. We need to read the latest version of it and send the diff along to the agent
+      currentFileContent = fs.readFileSync(absFilePath).toString();
     }
+
+    const prev = this.agentsViewOfFiles[absFilePath];
+    this.agentsViewOfFiles[absFilePath] = currentFileContent;
+
+    if (!prev) {
+      return {
+        status: "ok",
+        value: { type: "whole-file", absFilePath, content: currentFileContent },
+      };
+    }
+
+    const patch = diff.createPatch(
+      absFilePath,
+      prev,
+      currentFileContent,
+      "before",
+      "after",
+      {
+        context: 2,
+        ignoreNewlineAtEof: true,
+      },
+    ) as Patch;
+
+    return {
+      status: "ok",
+      value: { type: "diff", absFilePath, patch },
+    };
   }
 
   private static async loadAutoContext(
     nvim: Nvim,
     options: MagentaOptions,
-  ): Promise<{
-    [absFilePath: AbsFilePath]: {
-      relFilePath: RelFilePath;
-      initialMessageId: MessageId;
-    };
-  }> {
+  ): Promise<Files> {
     const files: {
       [absFilePath: AbsFilePath]: {
         relFilePath: RelFilePath;
@@ -290,20 +397,8 @@ export class ContextManager {
     return Array.from(uniqueFiles.values());
   }
 
-  private renderFile({
-    relFilePath,
-    content,
-  }: {
-    relFilePath: string;
-    content: string;
-  }) {
-    return `\
-Here are the contents of file \`${relFilePath}\`:
-\`\`\`
-${content}
-\`\`\``;
-  }
-
+  /** renders a summary of all the files we're tracking, with the ability to delete or navigate to each file.
+   */
   view() {
     const fileContext = [];
     if (Object.keys(this.files).length == 0) {
@@ -334,4 +429,52 @@ ${content}
 # context:
 ${fileContext}`;
   }
+}
+
+export function contextUpdatesToContent(contextUpdates: {
+  [absFilePath: AbsFilePath]: Result<FileUpdate>;
+}): ProviderMessageContent {
+  const fileUpdates: string[] = [];
+
+  for (const path in contextUpdates) {
+    const absFilePath = path as AbsFilePath;
+
+    const update = contextUpdates[absFilePath];
+    if (update.status === "ok") {
+      switch (update.value.type) {
+        case "whole-file": {
+          fileUpdates.push(`\
+- \`${absFilePath}\`
+\`\`\`
+${update.value.content}
+\`\`\``);
+          break;
+        }
+        case "diff": {
+          fileUpdates.push(
+            `\
+- \`${absFilePath}\`
+\`\`\`diff
+${update.value.patch}
+\`\`\``,
+          );
+          break;
+        }
+        default:
+          assertUnreachable(update.value);
+      }
+    } else {
+      fileUpdates.push(`\
+- \`${absFilePath}\`
+Error fetching update: ${update.error}`);
+    }
+  }
+
+  return {
+    type: "text",
+    text: `\
+The following files have been updated. This is the latest information about the content of each file. Previous messages about file content should now be considered stale.
+You should **NOT** try to read the contents of these files again unless an insert or replace fails, since this is the most up to date information.
+${fileUpdates.join("\n")}`,
+  };
 }

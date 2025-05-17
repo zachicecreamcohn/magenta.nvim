@@ -6,8 +6,9 @@ import { Thread, view as threadView, type ThreadId } from "./thread";
 import type { Lsp } from "../lsp";
 import { assertUnreachable } from "../utils/assertUnreachable";
 import { d, withBindings } from "../tea/view";
-import { ContextManager } from "../context/context-manager";
 import { Counter } from "../utils/uniqueId.ts";
+import { ContextManager } from "../context/context-manager.ts";
+import type { BufferTracker } from "../buffer-tracker.ts";
 
 type ThreadWrapper =
   | {
@@ -66,6 +67,7 @@ export class Chat {
   constructor(
     private context: {
       dispatch: Dispatch<RootMsg>;
+      bufferTracker: BufferTracker;
       options: MagentaOptions;
       nvim: Nvim;
       lsp: Lsp;
@@ -161,14 +163,14 @@ export class Chat {
     }
   }
 
-  async getMessages() {
+  getMessages() {
     if (
       this.state.state === "thread-selected" &&
       this.threadWrappers.has(this.state.activeThreadId)
     ) {
       const threadState = this.threadWrappers.get(this.state.activeThreadId)!;
       if (threadState.state === "initialized") {
-        return await threadState.thread.getMessages();
+        return threadState.thread.getMessages();
       }
     }
     return [];
@@ -193,6 +195,7 @@ export class Chat {
           }),
         {
           dispatch: this.context.dispatch,
+          bufferTracker: this.context.bufferTracker,
           nvim: this.context.nvim,
           options: this.context.options,
         },

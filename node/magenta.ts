@@ -16,17 +16,21 @@ import type { RootMsg } from "./root-msg.ts";
 import { Chat } from "./chat/chat.ts";
 import type { Dispatch } from "./tea/tea.ts";
 import type { MessageId } from "./chat/message.ts";
+import { BufferTracker } from "./buffer-tracker.ts";
 import {
   relativePath,
   resolveFilePath,
   type UnresolvedFilePath,
+  type AbsFilePath,
 } from "./utils/files.ts";
+import { assertUnreachable } from "./utils/assertUnreachable.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
 const MAGENTA_ON_WINDOW_CLOSED = "magentaWindowClosed";
 const MAGENTA_KEY = "magentaKey";
 const MAGENTA_LSP_RESPONSE = "magentaLspResponse";
+const MAGENTA_BUFFER_TRACKER = "magentaBufferTracker";
 
 export class Magenta {
   public sidebar: Sidebar;
@@ -35,12 +39,15 @@ export class Magenta {
   public inlineEditManager: InlineEditManager;
   public chat: Chat;
   public dispatch: Dispatch<RootMsg>;
+  public bufferTracker: BufferTracker;
 
   constructor(
     public nvim: Nvim,
     public lsp: Lsp,
     public options: MagentaOptions,
   ) {
+    this.bufferTracker = new BufferTracker(this.nvim);
+
     this.dispatch = (msg: RootMsg) => {
       try {
         this.chat.update(msg);
@@ -74,6 +81,7 @@ export class Magenta {
 
     this.chat = new Chat({
       dispatch: this.dispatch,
+      bufferTracker: this.bufferTracker,
       nvim: this.nvim,
       options: this.options,
       lsp: this.lsp,
@@ -188,16 +196,8 @@ export class Magenta {
           type: "thread-msg",
           id: this.chat.getActiveThread().id,
           msg: {
-            type: "user-message",
-            content: message,
-          },
-        });
-
-        this.dispatch({
-          type: "thread-msg",
-          id: this.chat.getActiveThread().id,
-          msg: {
             type: "send-message",
+            content: message,
           },
         });
 
@@ -333,7 +333,7 @@ ${lines.join("\n")}
 
         const provider = getProvider(this.nvim, this.getActiveProfile());
 
-        const messages = await this.chat.getMessages();
+        const messages = this.chat.getMessages();
         await this.inlineEditManager.submitInlineEdit(
           bufnr,
           provider,
@@ -375,6 +375,28 @@ ${lines.join("\n")}
       this.sidebar.onWinClosed(),
       this.inlineEditManager.onWinClosed(),
     ]);
+  }
+  onBufferTrackerEvent(
+    eventType: "read" | "write" | "close",
+    absFilePath: AbsFilePath,
+    bufnr: BufNr,
+  ) {
+    // Handle buffer events in our tracker
+    switch (eventType) {
+      case "read":
+      case "write":
+        this.bufferTracker.trackBufferSync(absFilePath, bufnr).catch((err) => {
+          this.nvim.logger?.error(
+            `Error tracking buffer sync for ${absFilePath}: ${err}`,
+          );
+        });
+        break;
+      case "close":
+        this.bufferTracker.clearFileTracking(absFilePath);
+        break;
+      default:
+        assertUnreachable(eventType);
+    }
   }
 
   destroy() {
@@ -425,6 +447,42 @@ ${lines.join("\n")}
       }
     });
 
+    nvim.onNotification(MAGENTA_BUFFER_TRACKER, (args) => {
+      try {
+        if (
+          args.length < 3 ||
+          typeof args[0] !== "string" ||
+          typeof args[1] !== "string" ||
+          typeof args[2] !== "string"
+        ) {
+          throw new Error(
+            `Expected buffer tracker args to be [eventType, filePath, bufnr]`,
+          );
+        }
+
+        const eventType = args[0];
+        // Validate that eventType is one of the expected values
+        if (
+          eventType !== "read" &&
+          eventType !== "write" &&
+          eventType !== "close"
+        ) {
+          throw new Error(
+            `Invalid eventType: ${eventType}. Expected 'read', 'write', or 'close'`,
+          );
+        }
+
+        const absFilePath = args[1] as AbsFilePath;
+        const bufnr = parseInt(args[2]) as BufNr;
+
+        magenta.onBufferTrackerEvent(eventType, absFilePath, bufnr);
+      } catch (err) {
+        nvim.logger?.error(
+          `Error handling buffer tracker event for ${JSON.stringify(args)}:`,
+          err,
+        );
+      }
+    });
     const opts = await nvim.call("nvim_exec_lua", [
       `return require('magenta').bridge(${nvim.channelId})`,
       [],

@@ -11,6 +11,7 @@ import type { MessageId } from "../chat/message.ts";
 import type { ThreadId } from "../chat/thread.ts";
 import { resolveFilePath } from "../utils/files.ts";
 import { getcwd } from "../nvim/nvim.ts";
+import { applyInsert, applyReplace } from "../utils/contentEdits.ts";
 
 type InsertRequest = Extract<ToolRequest, { toolName: "insert" }>;
 type ReplaceRequest = Extract<ToolRequest, { toolName: "replace" }>;
@@ -75,75 +76,65 @@ async function handleBufferEdit(
       end: -1,
       lines: contentLines,
     });
+    return;
   }
 
   const lines = await buffer.getLines({
     start: 0,
     end: -1,
   });
-  let bufferContent = lines.join("\n");
+  const bufferContent = lines.join("\n");
+  let newContent: string;
 
   if (request.toolName === "insert") {
     const { insertAfter, content } = request.input;
+    const result = applyInsert(bufferContent, insertAfter, content);
 
-    // TODO: maybe use searchpos for more efficient lookup that doesn't require loading all the lines into node
-    const insertIndex = bufferContent.indexOf(insertAfter);
-
-    if (insertIndex === -1) {
+    if (result.status === "error") {
       dispatch({
         type: "finish",
         result: {
           status: "error",
-          error: `Unable to find insert location "${insertAfter}" in file \`${filePath}\``,
+          error: `${result.error} in file \`${filePath}\``,
         },
       });
       return;
     }
 
-    const insertLocation = insertIndex + insertAfter.length;
-    bufferContent =
-      bufferContent.slice(0, insertLocation) +
-      content +
-      bufferContent.slice(insertLocation);
-
-    await buffer.setLines({
-      start: 0,
-      end: -1,
-      lines: bufferContent.split("\n") as Line[],
-    });
+    newContent = result.content;
   } else if (request.toolName === "replace") {
     const { find, replace } = request.input;
+    const result = applyReplace(bufferContent, find, replace);
 
-    // Special case: if find is empty, replace the entire file
-    if (find === "") {
-      bufferContent = replace;
-    } else {
-      const replaceStart = bufferContent.indexOf(find);
-
-      if (replaceStart === -1) {
-        dispatch({
-          type: "finish",
-          result: {
-            status: "error",
-            error: `Unable to find text "${find}" in file \`${filePath}\``,
-          },
-        });
-        return;
-      }
-
-      const replaceEnd = replaceStart + find.length;
-      bufferContent =
-        bufferContent.slice(0, replaceStart) +
-        replace +
-        bufferContent.slice(replaceEnd);
+    if (result.status === "error") {
+      dispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: `${result.error} in file \`${filePath}\``,
+        },
+      });
+      return;
     }
 
-    await buffer.setLines({
-      start: 0,
-      end: -1,
-      lines: bufferContent.split("\n") as Line[],
+    newContent = result.content;
+  } else {
+    // This should never happen due to TypeScript, but adding as a safeguard
+    dispatch({
+      type: "finish",
+      result: {
+        status: "error",
+        error: `Unknown edit operation for file \`${filePath}\``,
+      },
     });
+    return;
   }
+
+  await buffer.setLines({
+    start: 0,
+    end: -1,
+    lines: newContent.split("\n") as Line[],
+  });
 
   if (!(await saveBufferChanges(buffer))) {
     dispatch({
@@ -221,69 +212,65 @@ async function handleFileEdit(
   try {
     fileContent = await fs.promises.readFile(filePath, "utf-8");
   } catch {
-    dispatch({
-      type: "finish",
-      result: {
-        status: "error",
-        error: `File \`${filePath}\` does not exist.`,
-      },
-    });
-    return;
-  }
-
-  let newContent = fileContent;
-
-  if (request.toolName == "insert") {
-    const insertIndex = fileContent.indexOf(request.input.insertAfter);
-    if (insertIndex === -1) {
+    if (request.toolName === "replace" && request.input.find === "") {
+      // Special case: empty find parameter with replace on non-existent file
+      fileContent = "";
+    } else {
       dispatch({
         type: "finish",
         result: {
           status: "error",
-          error: `Unable to find insert location "${request.input.insertAfter}" in file \`${filePath}\`.
+          error: `File \`${filePath}\` does not exist.`,
+        },
+      });
+      return;
+    }
+  }
+
+  let newContent: string;
+
+  if (request.toolName === "insert") {
+    const { insertAfter, content } = request.input;
+    const result = applyInsert(fileContent, insertAfter, content);
+
+    if (result.status === "error") {
+      dispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: `${result.error} in file \`${filePath}\`.
           Read the contents of the file and make sure your insertAfter parameter matches the content of the file exactly.`,
         },
       });
       return;
     }
 
-    const insertLocation = insertIndex + request.input.insertAfter.length;
-    newContent =
-      fileContent.slice(0, insertLocation) +
-      request.input.content +
-      fileContent.slice(insertLocation);
+    newContent = result.content;
   } else if (request.toolName === "replace") {
     const { find, replace } = request.input;
-    let fileContent;
-    try {
-      fileContent = await fs.promises.readFile(filePath, "utf-8");
-    } catch {
-      // File doesn't exist yet, start with empty content
-      fileContent = "";
+    const result = applyReplace(fileContent, find, replace);
+
+    if (result.status === "error") {
+      dispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: `${result.error} in file \`${filePath}\`.`,
+        },
+      });
+      return;
     }
 
-    // Special case: if find parameter is empty, replace the entire file
-    if (find === "") {
-      newContent = replace;
-    } else {
-      const replaceStart = fileContent.indexOf(find);
-      if (replaceStart === -1) {
-        dispatch({
-          type: "finish",
-          result: {
-            status: "error",
-            error: `Unable to find text "${find}" in file \`${filePath}\`.`,
-          },
-        });
-        return;
-      }
-
-      const replaceEnd = replaceStart + find.length;
-      newContent =
-        fileContent.slice(0, replaceStart) +
-        replace +
-        fileContent.slice(replaceEnd);
-    }
+    newContent = result.content;
+  } else {
+    dispatch({
+      type: "finish",
+      result: {
+        status: "error",
+        error: `Unknown edit operation for file \`${filePath}\``,
+      },
+    });
+    return;
   }
 
   try {
@@ -349,4 +336,30 @@ export async function applyEdit(
   } else if (bufferOpenResult.status === "not-found") {
     await handleFileEdit(request, context);
   }
+
+  const cwd = await getcwd(context.nvim);
+  const absFilePath = resolveFilePath(cwd, filePath);
+  dispatch({
+    type: "thread-msg",
+    id: threadId,
+    msg: {
+      type: "context-manager-msg",
+      msg: {
+        type: "tool-applied",
+        absFilePath,
+        tool:
+          request.toolName == "insert"
+            ? {
+                type: "insert",
+                insertAfter: request.input.insertAfter,
+                content: request.input.content,
+              }
+            : {
+                type: "replace",
+                find: request.input.find,
+                replace: request.input.replace,
+              },
+      },
+    },
+  });
 }
