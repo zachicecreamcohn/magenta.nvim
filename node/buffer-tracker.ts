@@ -35,10 +35,6 @@ export class BufferTracker {
         changeTick,
         bufnr,
       };
-
-      this.nvim.logger?.debug(
-        `Buffer synced: ${absFilePath} (changeTick: ${changeTick})`,
-      );
     } catch (error) {
       this.nvim.logger?.error(
         `Error tracking buffer sync for ${absFilePath}:`,

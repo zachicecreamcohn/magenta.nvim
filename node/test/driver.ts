@@ -8,7 +8,7 @@ import {
   type ByteIdx,
   type Position0Indexed,
 } from "../nvim/window";
-import { pollUntil } from "../utils/async";
+import { Defer, pollUntil } from "../utils/async";
 import { calculatePosition } from "../tea/util";
 import type { BindingKey } from "../tea/bindings";
 import {
@@ -16,7 +16,7 @@ import {
   getCurrentBuffer,
   getCurrentWindow,
 } from "../nvim/nvim";
-import { expect } from "vitest";
+import { expect, vi } from "vitest";
 import type { ThreadId } from "../chat/thread";
 
 export class NvimDriver {
@@ -51,6 +51,33 @@ export class NvimDriver {
       end: -1,
       lines: text.split("\n") as Line[],
     });
+  }
+
+  interceptSendMessage() {
+    const thread = this.magenta.chat.getActiveThread();
+    const callDefer = new Defer<Parameters<typeof thread.sendMessage>>();
+    const executeDefer = new Defer<void>();
+
+    const spy = vi
+      .spyOn(thread, "sendMessage")
+      .mockImplementation(
+        async (...args: Parameters<typeof thread.sendMessage>) => {
+          callDefer.resolve(args);
+          return executeDefer.promise;
+        },
+      );
+
+    return {
+      promise: callDefer.promise,
+      spy,
+      execute: (...args: Parameters<typeof thread.sendMessage>) => {
+        spy.mockRestore();
+        return thread.sendMessage(...args).then(
+          () => executeDefer.resolve(),
+          (err: Error) => executeDefer.reject(err),
+        );
+      },
+    };
   }
 
   send() {

@@ -35,7 +35,7 @@ type State = {
     stopReason: StopReason;
     usage: Usage;
   };
-  contextUpdates?: FileUpdates;
+  contextUpdates?: FileUpdates | undefined;
   expandedUpdates?: {
     [absFilePath: string]: boolean;
   };
@@ -269,7 +269,12 @@ ${this.renderContextUpdate()}${this.state.content.map((content) => d`${this.rend
   }
 
   renderContextUpdate() {
-    if (!this.state.contextUpdates) {
+    if (
+      !(
+        this.state.contextUpdates &&
+        Object.keys(this.state.contextUpdates).length
+      )
+    ) {
       return "";
     }
 
@@ -278,18 +283,18 @@ ${this.renderContextUpdate()}${this.state.content.map((content) => d`${this.rend
       const absFilePath = path as AbsFilePath;
       const update = this.state.contextUpdates[absFilePath];
 
-      if (update.status === "ok") {
+      if (update.update.status === "ok") {
         let changeIndicator = "";
-        if (update.value.type === "diff") {
+        if (update.update.value.type === "diff") {
           // Count additions and deletions in the patch
-          const patch = update.value.patch;
+          const patch = update.update.value.patch;
           const additions = (patch.match(/^\+[^+]/gm) || []).length;
           const deletions = (patch.match(/^-[^-]/gm) || []).length;
           changeIndicator = `[ +${additions} / -${deletions} ]`;
         } else {
           // Count lines in the whole file content
           const lineCount =
-            (update.value.content.match(/\n/g) || []).length + 1;
+            (update.update.value.content.match(/\n/g) || []).length + 1;
           changeIndicator = `[ +${lineCount} ]`;
         }
 
@@ -316,14 +321,20 @@ ${this.renderContextUpdate()}${this.state.content.map((content) => d`${this.rend
           this.state.expandedUpdates &&
           this.state.expandedUpdates[absFilePath]
         ) {
-          if (update.value.type === "whole-file") {
-            fileUpdates.push(d`\`\`\`\n${update.value.content}\n\`\`\`\n`);
-          } else if (update.value.type === "diff") {
-            fileUpdates.push(d`\`\`\`diff\n${update.value.patch}\n\`\`\`\n`);
+          if (update.update.value.type === "whole-file") {
+            fileUpdates.push(
+              d`\`\`\`\n${update.update.value.content}\n\`\`\`\n`,
+            );
+          } else if (update.update.value.type === "diff") {
+            fileUpdates.push(
+              d`\`\`\`diff\n${update.update.value.patch}\n\`\`\`\n`,
+            );
           }
         }
       } else {
-        fileUpdates.push(d`- \`${absFilePath}\` [Error: ${update.error}]\n`);
+        fileUpdates.push(
+          d`- \`${absFilePath}\` [Error: ${update.update.error}]\n`,
+        );
       }
     }
 

@@ -9,7 +9,11 @@ import { getcwd } from "../nvim/nvim";
 import type { Dispatch } from "../tea/tea";
 import type { RootMsg } from "../root-msg";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow";
-import { type AbsFilePath, type RelFilePath } from "../utils/files";
+import {
+  relativePath,
+  type AbsFilePath,
+  type RelFilePath,
+} from "../utils/files";
 import type { Result } from "../utils/result";
 import * as diff from "diff";
 import type { BufferTracker } from "../buffer-tracker";
@@ -64,20 +68,24 @@ type Files = {
 
 export type Patch = string & { __patch: true };
 
-export type FileUpdate =
-  | {
-      type: "whole-file";
-      absFilePath: AbsFilePath;
-      content: string;
-    }
-  | {
-      type: "diff";
-      absFilePath: AbsFilePath;
-      patch: Patch;
-    };
+export type WholeFileUpdate = {
+  type: "whole-file";
+  content: string;
+};
+
+export type DiffUpdate = {
+  type: "diff";
+  patch: Patch;
+};
+
+export type FileUpdate = WholeFileUpdate | DiffUpdate;
 
 export type FileUpdates = {
-  [absFilePath: AbsFilePath]: Result<FileUpdate>;
+  [absFilePath: AbsFilePath]: {
+    absFilePath: AbsFilePath;
+    relFilePath: RelFilePath;
+    update: Result<FileUpdate>;
+  };
 };
 
 export class ContextManager {
@@ -199,20 +207,20 @@ export class ContextManager {
   /** we're about to send a user message to the agent. Find any changes that have happened to the files in context
    * that the agent doesn't know about yet, and update them.
    */
-  async getContextUpdate(): Promise<{
-    [absFilePath: AbsFilePath]: Result<FileUpdate>;
-  }> {
+  async getContextUpdate(): Promise<FileUpdates> {
     if (this.isContextEmpty()) {
       return {};
     }
 
-    const results: { [absFilePath: AbsFilePath]: Result<FileUpdate> } = {};
+    const results: FileUpdates = {};
     await Promise.all(
       Object.keys(this.files).map(async (absFilePath) => {
         const result = await this.getFileMessageAndUpdateAgentViewOfFile({
           absFilePath: absFilePath as AbsFilePath,
         });
-        results[absFilePath as AbsFilePath] = result;
+        if (result?.update) {
+          results[absFilePath as AbsFilePath] = result;
+        }
       }),
     );
 
@@ -223,9 +231,11 @@ export class ContextManager {
     absFilePath,
   }: {
     absFilePath: AbsFilePath;
-  }): Promise<Result<FileUpdate>> {
+  }): Promise<FileUpdates[keyof FileUpdates] | undefined> {
     const bufSyncInfo = this.context.bufferTracker.getSyncInfo(absFilePath);
     let currentFileContent: string;
+    const cwd = await getcwd(this.context.nvim);
+    const relFilePath = relativePath(cwd, absFilePath);
 
     if (bufSyncInfo) {
       // This file is open in a buffer
@@ -242,8 +252,12 @@ export class ContextManager {
         if (bufferChanged && fileChanged) {
           // Both buffer and file on disk have changed - conflict situation
           return {
-            status: "error",
-            error: `Both the buffer ${bufSyncInfo.bufnr} and the file on disk for ${absFilePath} have changed. Cannot determine which version to use.`,
+            absFilePath,
+            relFilePath,
+            update: {
+              status: "error",
+              error: `Both the buffer ${bufSyncInfo.bufnr} and the file on disk for ${absFilePath} have changed. Cannot determine which version to use.`,
+            },
           };
         }
 
@@ -256,8 +270,12 @@ export class ContextManager {
         currentFileContent = lines.join("\n");
       } catch (err) {
         return {
-          status: "error",
-          error: `Error when trying to grab the context of the file ${absFilePath}: ${(err as Error).message}\n${(err as Error).stack}`,
+          absFilePath,
+          relFilePath,
+          update: {
+            status: "error",
+            error: `Error when trying to grab the context of the file ${absFilePath}: ${(err as Error).message}\n${(err as Error).stack}`,
+          },
         };
       }
     } else {
@@ -270,17 +288,28 @@ export class ContextManager {
 
     if (!prev) {
       return {
-        status: "ok",
-        value: { type: "whole-file", absFilePath, content: currentFileContent },
+        absFilePath,
+        relFilePath,
+        update: {
+          status: "ok",
+          value: {
+            type: "whole-file",
+            content: currentFileContent,
+          },
+        },
       };
     }
 
+    if (prev == currentFileContent) {
+      return undefined;
+    }
+
     const patch = diff.createPatch(
-      absFilePath,
+      relFilePath,
       prev,
       currentFileContent,
-      "before",
-      "after",
+      "previous",
+      "current",
       {
         context: 2,
         ignoreNewlineAtEof: true,
@@ -288,8 +317,12 @@ export class ContextManager {
     ) as Patch;
 
     return {
-      status: "ok",
-      value: { type: "diff", absFilePath, patch },
+      absFilePath,
+      relFilePath,
+      update: {
+        status: "ok",
+        value: { type: "diff", patch },
+      },
     };
   }
 
@@ -431,42 +464,42 @@ ${fileContext}`;
   }
 }
 
-export function contextUpdatesToContent(contextUpdates: {
-  [absFilePath: AbsFilePath]: Result<FileUpdate>;
-}): ProviderMessageContent {
+export function contextUpdatesToContent(
+  contextUpdates: FileUpdates,
+): ProviderMessageContent {
   const fileUpdates: string[] = [];
-
   for (const path in contextUpdates) {
     const absFilePath = path as AbsFilePath;
 
     const update = contextUpdates[absFilePath];
-    if (update.status === "ok") {
-      switch (update.value.type) {
+
+    if (update.update.status === "ok") {
+      switch (update.update.value.type) {
         case "whole-file": {
           fileUpdates.push(`\
-- \`${absFilePath}\`
+- \`${update.relFilePath}\`
 \`\`\`
-${update.value.content}
+${update.update.value.content}
 \`\`\``);
           break;
         }
         case "diff": {
           fileUpdates.push(
             `\
-- \`${absFilePath}\`
+- \`${update.relFilePath}\`
 \`\`\`diff
-${update.value.patch}
+${update.update.value.patch}
 \`\`\``,
           );
           break;
         }
         default:
-          assertUnreachable(update.value);
+          assertUnreachable(update.update.value);
       }
     } else {
       fileUpdates.push(`\
-- \`${absFilePath}\`
-Error fetching update: ${update.error}`);
+- \`${update.relFilePath}\`
+Error fetching update: ${update.update.error}`);
     }
   }
 

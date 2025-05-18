@@ -100,6 +100,30 @@ export class MockProvider implements Provider {
     });
   }
 
+  async awaitPendingUserRequest() {
+    return pollUntil(() => {
+      const lastRequest = this.requests[this.requests.length - 1];
+      if (
+        lastRequest &&
+        !lastRequest.defer.resolved &&
+        lastRequest.messages[lastRequest.messages.length - 1].role == "user"
+      ) {
+        return lastRequest;
+      }
+      throw new Error(`no pending requests`);
+    });
+  }
+
+  async awaitStopped() {
+    return pollUntil(() => {
+      const lastRequest = this.requests[this.requests.length - 1];
+      if (lastRequest && lastRequest.defer.resolved) {
+        return lastRequest;
+      }
+      throw new Error(`has pending requests`);
+    });
+  }
+
   async awaitPendingForceToolUseRequest() {
     return pollUntil(() => {
       const lastRequest =

@@ -253,7 +253,9 @@ export class Thread {
       case "send-message": {
         // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
         setTimeout(() => {
-          this.sendMessage().catch(this.handleSendMessageError.bind(this));
+          this.sendMessage(msg.content).catch(
+            this.handleSendMessageError.bind(this),
+          );
         });
         break;
       }
@@ -461,6 +463,9 @@ export class Thread {
           streamingBlock: undefined,
           role: "user",
           content: messageContent,
+          contextUpdates: Object.keys(contextUpdates).length
+            ? contextUpdates
+            : undefined,
           edits: {},
         },
         {

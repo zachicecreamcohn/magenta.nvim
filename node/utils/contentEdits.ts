@@ -26,7 +26,7 @@ export function applyInsert(
   if (insertIndex === -1) {
     return {
       status: "error",
-      error: `Unable to find insert location "${insertAfter}" in content`,
+      error: `Unable to find insert location "${insertAfter}"`,
     };
   }
 
@@ -64,7 +64,7 @@ export function applyReplace(
   if (replaceStart === -1) {
     return {
       status: "error",
-      error: `Unable to find text "${find}" in content`,
+      error: `Unable to find text "${find}"`,
     };
   }
 
