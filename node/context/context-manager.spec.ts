@@ -178,8 +178,6 @@ Paint their stories in the night.
         `Magenta context-files '${testFilePath}'`,
       ]);
 
-      // Wait for sidebar to update and confirm the file is in context
-      await driver.wait(250);
       await driver.assertDisplayBufferContains(`- \`${testFilePath}\``);
 
       // Start a conversation and send a message requesting a modification
@@ -234,7 +232,6 @@ Paint their stories in the night.
           text: "I did it!",
         });
 
-        await driver.wait(250);
         const request = await driver.mockAnthropic.awaitStopped();
         expect(
           request.messages[request.messages.length - 1],
@@ -283,12 +280,10 @@ Paint their stories in the night.
         `Magenta context-files '${testFilePath}'`,
       ]);
 
-      await driver.wait(250);
       const pos = await driver.assertDisplayBufferContains(
         `- \`${testFilePath}\``,
       );
       await driver.triggerDisplayBufferKey(pos, "<CR>");
-      await driver.wait(250);
 
       const poemWindow = await driver.findWindow(async (w) => {
         const winBuffer = await w.buffer();
@@ -357,29 +352,7 @@ Paint their stories in the night.
         expect(
           request.messages[request.messages.length - 1],
           "auto-respond request goes out",
-        ).toEqual({
-          content: [
-            {
-              text: `The following files have been updated. This is the latest information about the content of each file. Previous messages about file content should now be considered stale.
-You should **NOT** try to read the contents of these files again unless an insert or replace fails, since this is the most up to date information.
-- \`node/test/tmp/poem.txt\`
-\`\`\`diff
-Index: node/test/tmp/poem.txt
-===================================================================
---- node/test/tmp/poem.txt\tprevious
-+++ node/test/tmp/poem.txt\tcurrent
-@@ -1,3 +1,3 @@
--Moonlight whispers through the trees,
-+changed first line
- Silver shadows dance with ease.
- Stars above like diamonds bright,
-
-\`\`\``,
-              type: "text",
-            },
-          ],
-          role: "user",
-        });
+        ).toMatchSnapshot();
       }
     });
   });
@@ -399,9 +372,6 @@ describe("key bindings", () => {
         `Magenta context-files '${poem3file}' '${contextFile}' '${poemFile}'`,
       ]);
 
-      // Wait for sidebar to update
-      await driver.wait(250);
-
       await driver.assertDisplayBufferContains(
         `\
 # context:
@@ -417,8 +387,6 @@ describe("key bindings", () => {
       // Press dd on the middle file to remove it
       await driver.triggerDisplayBufferKey(middleFilePos, "dd");
 
-      // Wait for update
-      await driver.wait(250);
       await driver.assertDisplayBufferContains(
         `\
 # context:
@@ -450,16 +418,10 @@ describe("key bindings", () => {
 
       await driver.triggerDisplayBufferKey(pos, "<CR>");
 
-      // Wait for update
-      await driver.wait(250);
-
-      {
-        const windows = await getAllWindows(driver.nvim);
-        expect(
-          windows.length,
-          "3 windows - display, input and non-magenta window with the buffer open",
-        ).toBe(3);
-      }
+      await driver.assertWindowCount(
+        3,
+        "3 windows - display, input and non-magenta window with the buffer open",
+      );
 
       // Verify file is opened in the non-magenta window
       await pollUntil(async () => {
@@ -477,7 +439,6 @@ describe("key bindings", () => {
   it("'Enter' key opens file with multiple non-magenta windows", async () => {
     await withDriver({}, async (driver) => {
       await driver.nvim.call("nvim_command", ["new second_window"]);
-      const firstWindow = (await getAllWindows(driver.nvim))[0];
 
       await driver.showSidebar();
 
@@ -491,20 +452,16 @@ describe("key bindings", () => {
       );
 
       await driver.triggerDisplayBufferKey(pos, "<CR>");
+      await driver.assertWindowCount(4);
 
-      await driver.wait(250);
+      const poemWindow = await driver.findWindow(async (w) => {
+        const buffer = await w.buffer();
+        const name = await buffer.getName();
+        return name.indexOf("poem.txt") > -1;
+      });
 
-      {
-        const windows = await getAllWindows(driver.nvim);
-        expect(windows.length, "There are 4 windows total").toBe(4);
-      }
-
-      const firstWindowBuffer = await firstWindow.buffer();
-      const firstWindowBufferName = await firstWindowBuffer.getName();
-      expect(
-        firstWindowBufferName,
-        "the file is opened in the first window",
-      ).toContain("poem.txt");
+      const isMagenta = await poemWindow.getVar("magenta");
+      expect(isMagenta, "we opened in a non-magenta window").toBeFalsy();
     });
   });
 
@@ -532,12 +489,8 @@ describe("key bindings", () => {
         );
 
         await driver.triggerDisplayBufferKey(pos, "<CR>");
-        await driver.wait(250);
 
-        const windowsAfter = await getAllWindows(driver.nvim);
-        expect(windowsAfter.length, "Enter should open a new window").toEqual(
-          3,
-        );
+        await driver.assertWindowCount(3, "Enter should open a new window");
 
         const fileWindow = await driver.findWindow(async (w) => {
           const buf = await w.buffer();
@@ -578,12 +531,8 @@ describe("key bindings", () => {
         );
 
         await driver.triggerDisplayBufferKey(pos, "<CR>");
-        await driver.wait(250);
 
-        const windowsAfter = await getAllWindows(driver.nvim);
-        expect(windowsAfter.length, "Enter should open a new window").toEqual(
-          3,
-        );
+        await driver.assertWindowCount(3, "Enter should open a new window");
 
         const fileWindow = await driver.findWindow(async (w) => {
           const buf = await w.buffer();
@@ -615,31 +564,7 @@ it("context-files end-to-end", async () => {
     await driver.inputMagentaText("check out this file");
     await driver.send();
     const request = await driver.mockAnthropic.awaitPendingUserRequest();
-    expect(request.messages).toEqual([
-      {
-        content: [
-          {
-            type: "text",
-            text: `\
-The following files have been updated. This is the latest information about the content of each file. Previous messages about file content should now be considered stale.
-You should **NOT** try to read the contents of these files again unless an insert or replace fails, since this is the most up to date information.
-- \`node/test/tmp/poem.txt\`
-\`\`\`
-Moonlight whispers through the trees,
-Silver shadows dance with ease.
-Stars above like diamonds bright,
-Paint their stories in the night.
-
-\`\`\``,
-          },
-          {
-            text: "check out this file",
-            type: "text",
-          },
-        ],
-        role: "user",
-      },
-    ]);
+    expect(request.messages).toMatchSnapshot();
   });
 });
 
@@ -664,36 +589,7 @@ it("context-files multiple, weird path names", async () => {
     });
     const request =
       driver.mockAnthropic.requests[driver.mockAnthropic.requests.length - 1];
-    expect(request.messages).toEqual([
-      {
-        content: [
-          {
-            type: "text",
-            text: `\
-The following files have been updated. This is the latest information about the content of each file. Previous messages about file content should now be considered stale.
-You should **NOT** try to read the contents of these files again unless an insert or replace fails, since this is the most up to date information.
-- \`node/test/tmp/poem.txt\`
-\`\`\`
-Moonlight whispers through the trees,
-Silver shadows dance with ease.
-Stars above like diamonds bright,
-Paint their stories in the night.
-
-\`\`\`
-- \`${TMP_DIR}/poem 3.txt\`
-\`\`\`
-poem3
-
-\`\`\``,
-          },
-          {
-            text: "check out this file",
-            type: "text",
-          },
-        ],
-        role: "user",
-      },
-    ]);
+    expect(request.messages).toMatchSnapshot();
   });
 });
 

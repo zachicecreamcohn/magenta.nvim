@@ -288,7 +288,7 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
     ]);
   }
 
-  async assertWindowCount(n: number) {
+  async assertWindowCount(n: number, message?: string) {
     return await pollUntil(
       async () => {
         const windows = await getAllWindows(this.nvim);
@@ -301,7 +301,7 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
             }),
           );
           throw new Error(
-            `Expected ${n} windows to appear, but saw ${windows.length}: [${windowDetails.join(", ")}]`,
+            `${message ?? `Expected ${n} windows to appear`}. Saw ${windows.length} windows: [${windowDetails.join(", ")}]`,
           );
         }
 

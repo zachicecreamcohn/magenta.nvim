@@ -66,7 +66,6 @@ Paints its colors in the light.`,
 
       // Trigger the diff snapshot view
       await driver.triggerDisplayBufferKey(diffSnapshotPos, "<CR>");
-      await driver.wait(250);
       // Should be 4 windows:
       // 1. Magenta display buffer
       // 2. Magenta input buffer
