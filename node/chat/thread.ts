@@ -310,6 +310,7 @@ export class Thread {
           },
           messages: [],
         };
+        this.contextManager.reset();
         return undefined;
       }
 
