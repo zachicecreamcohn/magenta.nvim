@@ -199,14 +199,20 @@ The insertAfter string MUST uniquely identify a single location in the file. Pro
 
 If insertAfter only contains punctuation (new lines, braces), expand it to 5 or more lines until you get some identifiers.
 
+Break up large inserts into smaller chunks (20-30 lines). This way, you are more likely to detect errors early and won't waste as much time generating an insert command that will fail.
+
 This should exactly match the file content, including indentation. Regular expressions are not supported.
+
+Content will be inserted on the same line, immediately after insertAfter. If you want to insert on a new line,
+make sure to include the last newline character in insertAfter or start content with a new line.
 
 Set insertAfter to the empty string to append to the end of the file.`,
       },
       content: {
         type: "string",
-        description:
-          "Content to insert immediately after the `insertAfter` text. Make sure you match braces and indentation.",
+        description: `Content to insert immediately after the insertAfter text.
+Make sure you match braces and indentation.
+`,
       },
     },
     required: ["filePath", "insertAfter", "content"],
