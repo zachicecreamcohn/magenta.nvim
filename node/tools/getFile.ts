@@ -13,7 +13,11 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Dispatch, Thunk } from "../tea/tea.ts";
-import { resolveFilePath, type UnresolvedFilePath } from "../utils/files.ts";
+import {
+  relativePath,
+  resolveFilePath,
+  type UnresolvedFilePath,
+} from "../utils/files.ts";
 import type { ToolInterface } from "./types.ts";
 import type { Msg as ThreadMsg } from "../chat/thread.ts";
 
@@ -182,22 +186,22 @@ export class GetFileTool implements ToolInterface {
   async initReadFile(): Promise<void> {
     const filePath = this.request.input.filePath;
     const cwd = await getcwd(this.context.nvim);
-    const absolutePath = path.resolve(cwd, filePath);
-    const relativePath = path.relative(cwd, absolutePath);
+    const absFilePath = resolveFilePath(cwd, filePath);
+    const relFilePath = relativePath(cwd, absFilePath);
 
     if (this.state.state === "pending") {
-      if (!absolutePath.startsWith(cwd)) {
+      if (!absFilePath.startsWith(cwd)) {
         this.context.myDispatch({ type: "request-user-approval" });
         return;
       }
 
-      if (relativePath.split(path.sep).some((part) => part.startsWith("."))) {
+      if (relFilePath.split(path.sep).some((part) => part.startsWith("."))) {
         this.context.myDispatch({ type: "request-user-approval" });
         return;
       }
 
       const ig = await readGitignore(cwd);
-      if (ig.ignores(relativePath)) {
+      if (ig.ignores(relFilePath)) {
         this.context.myDispatch({ type: "request-user-approval" });
         return;
       }
