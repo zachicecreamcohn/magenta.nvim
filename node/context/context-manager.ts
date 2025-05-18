@@ -11,8 +11,10 @@ import type { RootMsg } from "../root-msg";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow";
 import {
   relativePath,
+  resolveFilePath,
   type AbsFilePath,
   type RelFilePath,
+  type UnresolvedFilePath,
 } from "../utils/files";
 import type { Result } from "../utils/result";
 import * as diff from "diff";
@@ -359,8 +361,8 @@ export class ContextManager {
 
       // Convert to the expected format
       for (const matchInfo of matchedFiles) {
-        files[matchInfo.absFilePath as AbsFilePath] = {
-          relFilePath: matchInfo.relFilePath as RelFilePath,
+        files[matchInfo.absFilePath] = {
+          relFilePath: matchInfo.relFilePath,
           initialMessageId,
         };
       }
@@ -377,9 +379,11 @@ export class ContextManager {
     globPatterns: string[],
     cwd: string,
     nvim: Nvim,
-  ): Promise<Array<{ absFilePath: string; relFilePath: string }>> {
-    const allMatchedPaths: Array<{ absFilePath: string; relFilePath: string }> =
-      [];
+  ): Promise<Array<{ absFilePath: AbsFilePath; relFilePath: RelFilePath }>> {
+    const allMatchedPaths: Array<{
+      absFilePath: AbsFilePath;
+      relFilePath: RelFilePath;
+    }> = [];
 
     await Promise.all(
       globPatterns.map(async (pattern) => {
@@ -392,10 +396,14 @@ export class ContextManager {
           });
 
           for (const match of matches) {
-            if (fs.existsSync(path.resolve(cwd, match))) {
+            const absFilePath = resolveFilePath(
+              cwd,
+              match as UnresolvedFilePath,
+            );
+            if (fs.existsSync(absFilePath)) {
               allMatchedPaths.push({
-                absFilePath: path.resolve(cwd, match),
-                relFilePath: match,
+                absFilePath,
+                relFilePath: relativePath(cwd, absFilePath),
               });
             }
           }
@@ -409,7 +417,7 @@ export class ContextManager {
 
     const uniqueFiles = new Map<
       string,
-      { absFilePath: string; relFilePath: string }
+      { absFilePath: AbsFilePath; relFilePath: RelFilePath }
     >();
 
     for (const fileInfo of allMatchedPaths) {
