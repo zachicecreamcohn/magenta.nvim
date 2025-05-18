@@ -321,7 +321,9 @@ export class GetFileTool implements ToolInterface {
 
 export const spec: ProviderToolSpec = {
   name: "get_file",
-  description: `Get the full contents of a file in the project directory.`,
+  description: `Get the full contents of a given file.
+Do **NOT** use this function if the file is part of your context.
+When the file is part of your context, avoid using getFile on it. Instead, assume you will get notified about any changes about the file.`,
   input_schema: {
     type: "object",
     properties: {

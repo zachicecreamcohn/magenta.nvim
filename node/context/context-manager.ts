@@ -129,6 +129,10 @@ export class ContextManager {
     return new ContextManager(myDispatch, context, initialFiles);
   }
 
+  reset() {
+    this.agentsViewOfFiles = {};
+  }
+
   update(msg: Msg): void {
     switch (msg.type) {
       case "add-file-context":
@@ -506,8 +510,7 @@ Error fetching update: ${update.update.error}`);
   return {
     type: "text",
     text: `\
-The following files have been updated. This is the latest information about the content of each file. Previous messages about file content should now be considered stale.
-You should **NOT** try to read the contents of these files again unless an insert or replace fails, since this is the most up to date information.
+These files are part of your context and have been updated. This is the latest information about the content of each file.
 ${fileUpdates.join("\n")}`,
   };
 }
