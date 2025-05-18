@@ -195,16 +195,18 @@ export const spec: ProviderToolSpec = {
         type: "string",
         description: `String after which to insert the content.
 
-The \`insertAfter\` string MUST uniquely identify a single location in the file. Provide at least 2-3 lines of context from the target file to ensure that the insert only matches ONE location. This should exactly match the file content, including the exact indentation. Regular expressions are not supported.
+The insertAfter string MUST uniquely identify a single location in the file. Provide at least 3 lines of context from the target file to ensure that the insert only matches ONE location.
 
-The insertAfter text will not be changed.
+If insertAfter only contains punctuation (new lines, braces), expand it to 5 or more lines until you get some identifiers.
+
+This should exactly match the file content, including indentation. Regular expressions are not supported.
 
 Set insertAfter to the empty string to append to the end of the file.`,
       },
       content: {
         type: "string",
         description:
-          "Content to insert immediately after the `insertAfter` text. Make sure you match the indentation of the file.",
+          "Content to insert immediately after the `insertAfter` text. Make sure you match braces and indentation.",
       },
     },
     required: ["filePath", "insertAfter", "content"],
