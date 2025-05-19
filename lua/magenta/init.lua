@@ -104,6 +104,44 @@ M.bridge = function(channelId)
     }
   )
 
+  -- Helper function to check if a buffer is a real file
+  local function is_real_file(file_path, bufnr, strict_mode)
+    -- Basic path check
+    if not file_path or file_path == "" then
+      return false
+    end
+
+    -- Buffer validity check
+    if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+      return false
+    end
+
+    -- Check buffer type (must be empty for real files)
+    if vim.bo[bufnr].buftype ~= "" then
+      return false
+    end
+
+    -- For strict mode, perform additional checks
+    if strict_mode then
+      -- Check if buffer is listed
+      if not vim.bo[bufnr].buflisted then
+        return false
+      end
+
+      -- Check if file exists or has a filetype
+      if vim.fn.filereadable(file_path) ~= 1 and vim.fn.getftype(file_path) == "" then
+        return false
+      end
+    else
+      -- For non-strict mode, just verify the path format
+      if not (file_path:match("^%a:[\\/]") or file_path:match("^/")) then
+        return false
+      end
+    end
+
+    return true
+  end
+
   -- Setup buffer event tracking
   vim.api.nvim_create_autocmd(
     "BufWritePost",
@@ -111,8 +149,11 @@ M.bridge = function(channelId)
       pattern = "*",
       callback = function()
         local file_path = vim.fn.expand("<afile>:p")
-        local bufnr = vim.fn.expand("<abuf>")
-        if file_path and file_path ~= "" then
+        local bufnrString = vim.fn.expand("<abuf>")
+        local bufnr = tonumber(bufnrString)
+
+        -- For write events, we need to verify readability
+        if is_real_file(file_path, bufnr, true) and vim.fn.filereadable(file_path) == 1 then
           vim.rpcnotify(channelId, "magentaBufferTracker", "write", file_path, bufnr)
         end
       end
@@ -125,8 +166,10 @@ M.bridge = function(channelId)
       pattern = "*",
       callback = function()
         local file_path = vim.fn.expand("<afile>:p")
-        local bufnr = vim.fn.expand("<abuf>")
-        if file_path and file_path ~= "" then
+        local bufnrString = vim.fn.expand("<abuf>")
+        local bufnr = tonumber(bufnrString)
+
+        if is_real_file(file_path, bufnr, true) then
           vim.rpcnotify(channelId, "magentaBufferTracker", "read", file_path, bufnr)
         end
       end
@@ -139,8 +182,11 @@ M.bridge = function(channelId)
       pattern = "*",
       callback = function()
         local file_path = vim.fn.expand("<afile>:p")
-        local bufnr = vim.fn.expand("<abuf>")
-        if file_path and file_path ~= "" then
+        local bufnrString = vim.fn.expand("<abuf>")
+        local bufnr = tonumber(bufnrString)
+
+        -- For delete events, we use less strict checks
+        if is_real_file(file_path, bufnr, false) then
           vim.rpcnotify(channelId, "magentaBufferTracker", "close", file_path, bufnr)
         end
       end
