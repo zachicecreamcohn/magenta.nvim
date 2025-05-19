@@ -13,8 +13,13 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Dispatch, Thunk } from "../tea/tea.ts";
-import type { UnresolvedFilePath } from "../utils/files.ts";
+import {
+  relativePath,
+  resolveFilePath,
+  type UnresolvedFilePath,
+} from "../utils/files.ts";
 import type { ToolInterface } from "./types.ts";
+import type { Msg as ThreadMsg } from "../chat/thread.ts";
 
 export type State =
   | {
@@ -54,7 +59,11 @@ export class GetFileTool implements ToolInterface {
 
   constructor(
     public request: Extract<ToolRequest, { toolName: "get_file" }>,
-    public context: { nvim: Nvim; myDispatch: Dispatch<Msg> },
+    public context: {
+      nvim: Nvim;
+      threadDispatch: Dispatch<ThreadMsg>;
+      myDispatch: Dispatch<Msg>;
+    },
   ) {
     this.state = {
       state: "pending",
@@ -177,22 +186,22 @@ export class GetFileTool implements ToolInterface {
   async initReadFile(): Promise<void> {
     const filePath = this.request.input.filePath;
     const cwd = await getcwd(this.context.nvim);
-    const absolutePath = path.resolve(cwd, filePath);
-    const relativePath = path.relative(cwd, absolutePath);
+    const absFilePath = resolveFilePath(cwd, filePath);
+    const relFilePath = relativePath(cwd, absFilePath);
 
     if (this.state.state === "pending") {
-      if (!absolutePath.startsWith(cwd)) {
+      if (!absFilePath.startsWith(cwd)) {
         this.context.myDispatch({ type: "request-user-approval" });
         return;
       }
 
-      if (relativePath.split(path.sep).some((part) => part.startsWith("."))) {
+      if (relFilePath.split(path.sep).some((part) => part.startsWith("."))) {
         this.context.myDispatch({ type: "request-user-approval" });
         return;
       }
 
       const ig = await readGitignore(cwd);
-      if (ig.ignores(relativePath)) {
+      if (ig.ignores(relFilePath)) {
         this.context.myDispatch({ type: "request-user-approval" });
         return;
       }
@@ -210,20 +219,17 @@ export class GetFileTool implements ToolInterface {
       context: this.context,
     });
 
-    if (bufferContents.status === "ok") {
-      this.context.myDispatch({
-        type: "finish",
-        result: {
-          status: "ok",
-          value: (
-            await bufferContents.buffer.getLines({ start: 0, end: -1 })
-          ).join("\n"),
-        },
-      });
-      return;
-    }
+    let content: string;
+    const cwd = await getcwd(this.context.nvim);
+    const absFilePath = resolveFilePath(cwd, filePath);
 
-    if (bufferContents.status === "error") {
+    if (bufferContents.status === "ok") {
+      content = (
+        await bufferContents.buffer.getLines({ start: 0, end: -1 })
+      ).join("\n");
+    } else if (bufferContents.status == "not-found") {
+      content = await fs.promises.readFile(absFilePath, "utf-8");
+    } else {
       this.context.myDispatch({
         type: "finish",
         result: {
@@ -234,16 +240,26 @@ export class GetFileTool implements ToolInterface {
       return;
     }
 
-    const cwd = await getcwd(this.context.nvim);
-    const absolutePath = path.resolve(cwd, filePath);
-    const fileContent = await fs.promises.readFile(absolutePath, "utf-8");
+    this.context.threadDispatch({
+      type: "context-manager-msg",
+      msg: {
+        type: "tool-applied",
+        absFilePath,
+        tool: {
+          type: "get-file",
+          content,
+        },
+      },
+    });
+
     this.context.myDispatch({
       type: "finish",
       result: {
         status: "ok",
-        value: fileContent,
+        value: content,
       },
     });
+
     return;
   }
 
@@ -309,7 +325,9 @@ export class GetFileTool implements ToolInterface {
 
 export const spec: ProviderToolSpec = {
   name: "get_file",
-  description: `Get the full contents of a file in the project directory.`,
+  description: `Get the full contents of a given file.
+Do **NOT** use this function if the file is part of your context.
+When the file is part of your context, avoid using getFile on it. Instead, assume you will get notified about any changes about the file.`,
   input_schema: {
     type: "object",
     properties: {

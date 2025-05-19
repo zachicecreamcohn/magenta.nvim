@@ -14,6 +14,7 @@ import type { MessageId } from "../chat/message.ts";
 import type { ThreadId } from "../chat/thread.ts";
 import type { ToolInterface } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { BufferTracker } from "../buffer-tracker.ts";
 
 export type State =
   | {
@@ -39,6 +40,7 @@ export class InsertTool implements ToolInterface {
     public messageId: MessageId,
     private context: {
       myDispatch: Dispatch<Msg>;
+      bufferTracker: BufferTracker;
       nvim: Nvim;
       dispatch: Dispatch<RootMsg>;
     },
@@ -195,16 +197,24 @@ export const spec: ProviderToolSpec = {
         type: "string",
         description: `String after which to insert the content.
 
-The \`insertAfter\` string MUST uniquely identify a single location in the file. Provide at least 2-3 lines of context from the target file to ensure that the insert only matches ONE location. This should exactly match the file content, including the exact indentation. Regular expressions are not supported.
+The insertAfter string MUST uniquely identify a single location in the file. Provide at least 3 lines of context from the target file to ensure that the insert only matches ONE location.
 
-The insertAfter text will not be changed.
+If insertAfter only contains punctuation (new lines, braces), expand it to 5 or more lines until you get some identifiers.
+
+Break up large inserts into smaller chunks (20-30 lines). This way, you are more likely to detect errors early and won't waste as much time generating an insert command that will fail.
+
+This should exactly match the file content, including indentation. Regular expressions are not supported.
+
+Content will be inserted on the same line, immediately after insertAfter. If you want to insert on a new line,
+make sure to include the last newline character in insertAfter or start content with a new line.
 
 Set insertAfter to the empty string to append to the end of the file.`,
       },
       content: {
         type: "string",
-        description:
-          "Content to insert immediately after the `insertAfter` text. Make sure you match the indentation of the file.",
+        description: `Content to insert immediately after the insertAfter text.
+Make sure you match braces and indentation.
+`,
       },
     },
     required: ["filePath", "insertAfter", "content"],

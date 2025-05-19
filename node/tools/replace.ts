@@ -15,6 +15,7 @@ import * as diff from "diff";
 import type { ThreadId } from "../chat/thread.ts";
 import type { ToolInterface } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { BufferTracker } from "../buffer-tracker.ts";
 export type State =
   | {
       state: "processing";
@@ -40,6 +41,7 @@ export class ReplaceTool implements ToolInterface {
     private context: {
       myDispatch: Dispatch<Msg>;
       dispatch: Dispatch<RootMsg>;
+      bufferTracker: BufferTracker;
       nvim: Nvim;
     },
   ) {
@@ -217,7 +219,11 @@ export const spec: ProviderToolSpec = {
   name: "replace",
   description: `This is a tool for replacing text in a file.
 
-Break up replace opertations into multiple, smaller replace calls. Try to make each replace call meaningful and atomic.`,
+Break up large replace calls into multiple, small replace calls. Ideally each replace is less than 20 lines of code.
+A large replace increases the probability of making a mistake in the find parameter.
+You will detect errors faster, and waste less time if you approach this through a series of smaller edits.
+
+Try to make each replace call meaningful and atomic. This makes it easier for the human to review and understand your changes.`,
   input_schema: {
     type: "object",
     properties: {
@@ -229,7 +235,7 @@ Break up replace opertations into multiple, smaller replace calls. Try to make e
         type: "string",
         description: `The text to replace.
 
-\`find\` MUST uniquely identify the text you want to replace. Provide sufficient context lines above and below the edit to ensure that only one location in the file matches this text.
+\`find\` MUST uniquely identify the text you want to replace. You MUST provide at least 5 lines of context to ensure that only one location in the file matches this text.
 
 This should be the complete text to replace, exactly as it appears in the file, including indentation. Regular expressions are not supported.
 
@@ -239,9 +245,9 @@ Special case: If \`find\` is an empty string (""), the entire file content will 
       },
       replace: {
         type: "string",
-        description: `The \`replace\` parameter will replace the \`find\` text.
+        description: `This will replace all of the find text. If you provided extra lines for context, repeat the context lines exactly as they appear to preserve them.
 
-This MUST be the complete and exact replacement text. Make sure to keep track of braces and indentation.`,
+This MUST be the complete and exact replacement text. Make sure to match braces and indentation.`,
       },
     },
     required: ["filePath", "find", "replace"],

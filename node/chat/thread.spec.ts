@@ -137,7 +137,7 @@ describe("node/chat/thread.spec.ts", () => {
 
       // Verify the thread's internal message structure is correct with a snapshot
       const thread = driver.magenta.chat.getActiveThread();
-      const messages = await thread.getMessages();
+      const messages = thread.getMessages();
 
       expect(messages.length).toBe(6);
       expect(

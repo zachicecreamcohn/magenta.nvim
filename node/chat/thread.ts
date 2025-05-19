@@ -2,6 +2,7 @@ import { Message, type MessageId, type Msg as MessageMsg } from "./message.ts";
 
 import {
   ContextManager,
+  contextUpdatesToContent,
   type Msg as ContextManagerMsg,
 } from "../context/context-manager.ts";
 import { type Dispatch } from "../tea/tea.ts";
@@ -28,6 +29,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type MagentaOptions, type Profile } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { BufferTracker } from "../buffer-tracker.ts";
 
 export type Role = "user" | "assistant";
 
@@ -51,15 +53,12 @@ export type ConversationState =
 export type Msg =
   | { type: "update-profile"; profile: Profile }
   | {
-      type: "user-message";
-      content: string;
-    }
-  | {
       type: "stream-event";
       event: ProviderStreamEvent;
     }
   | {
       type: "send-message";
+      content: string;
     }
   | {
       type: "conversation-state";
@@ -110,27 +109,17 @@ export class Thread {
     messages: Message[];
   };
 
-  private dispatch: Dispatch<RootMsg>;
   private myDispatch: Dispatch<Msg>;
   public toolManager: ToolManager;
-  public contextManager: ContextManager;
   private counter: Counter;
-  private nvim: Nvim;
-  private lsp: Lsp;
-  private options: MagentaOptions;
   public fileSnapshots: FileSnapshots;
+  private contextManager: ContextManager;
 
   constructor(
     public id: ThreadId,
-    {
-      dispatch,
-      profile,
-      nvim,
-      contextManager,
-      lsp,
-      options,
-    }: {
+    public context: {
       dispatch: Dispatch<RootMsg>;
+      bufferTracker: BufferTracker;
       profile: Profile;
       nvim: Nvim;
       lsp: Lsp;
@@ -138,19 +127,14 @@ export class Thread {
       options: MagentaOptions;
     },
   ) {
-    this.dispatch = dispatch;
     this.myDispatch = (msg) =>
-      this.dispatch({
+      this.context.dispatch({
         type: "thread-msg",
         id: this.id,
         msg,
       });
 
-    this.nvim = nvim;
-    this.lsp = lsp;
     this.counter = new Counter();
-    this.contextManager = contextManager;
-    this.options = options;
     this.toolManager = new ToolManager(
       (msg) =>
         this.myDispatch({
@@ -158,18 +142,21 @@ export class Thread {
           msg,
         }),
       {
-        dispatch: this.dispatch,
-        nvim: this.nvim,
-        lsp: this.lsp,
-        options: this.options,
+        dispatch: this.context.dispatch,
+        threadId: this.id,
+        bufferTracker: this.context.bufferTracker,
+        nvim: this.context.nvim,
+        lsp: this.context.lsp,
+        options: this.context.options,
       },
     );
 
-    this.fileSnapshots = new FileSnapshots(this.nvim);
+    this.fileSnapshots = new FileSnapshots(this.context.nvim);
+    this.contextManager = this.context.contextManager;
 
     this.state = {
       lastUserMessageId: this.counter.last() as MessageId,
-      profile,
+      profile: this.context.profile,
       conversation: {
         state: "stopped",
         stopReason: "end_turn",
@@ -190,44 +177,6 @@ export class Thread {
       case "update-profile":
         this.state.profile = msg.profile;
         break;
-      case "user-message": {
-        const messageId = this.counter.get() as MessageId;
-        const message = new Message(
-          {
-            id: messageId,
-            streamingBlock: undefined,
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: msg.content,
-              },
-            ],
-            edits: {},
-          },
-          {
-            dispatch: this.dispatch,
-            threadId: this.id,
-            myDispatch: (msg) =>
-              this.myDispatch({
-                type: "message-msg",
-                id: messageId,
-                msg,
-              }),
-            nvim: this.nvim,
-            toolManager: this.toolManager,
-            fileSnapshots: this.fileSnapshots,
-            options: this.options,
-          },
-        );
-        this.state.messages.push(message);
-
-        if (message.state.role == "user") {
-          this.state.lastUserMessageId = message.state.id;
-        }
-
-        return;
-      }
 
       case "conversation-state": {
         this.state.conversation = msg.conversation;
@@ -268,7 +217,7 @@ export class Thread {
               // dispatch a followup action next tick
               setTimeout(
                 () =>
-                  this.dispatch({
+                  this.context.dispatch({
                     type: "sidebar-setup-resubmit",
                     lastUserMessage: lastUserMessage.state.content
                       .map((p) => (p.type == "text" ? p.text : ""))
@@ -290,17 +239,12 @@ export class Thread {
       }
 
       case "send-message": {
-        const lastMessage = this.state.messages[this.state.messages.length - 1];
-        if (lastMessage && lastMessage.state.role == "user") {
-          // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
-          setTimeout(() => {
-            this.sendMessage().catch(this.handleSendMessageError.bind(this));
-          });
-        } else {
-          this.nvim.logger?.error(
-            `Cannot send when the last message has role ${lastMessage && lastMessage.state.role}`,
+        // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
+        setTimeout(() => {
+          this.sendMessage(msg.content).catch(
+            this.handleSendMessageError.bind(this),
           );
-        }
+        });
         break;
       }
 
@@ -317,18 +261,16 @@ export class Thread {
               edits: {},
             },
             {
+              ...this.context,
               threadId: this.id,
-              dispatch: this.dispatch,
               myDispatch: (msg) =>
                 this.myDispatch({
                   type: "message-msg",
                   id: messageId,
                   msg,
                 }),
-              nvim: this.nvim,
               toolManager: this.toolManager,
               fileSnapshots: this.fileSnapshots,
-              options: this.options,
             },
           );
 
@@ -354,6 +296,7 @@ export class Thread {
           },
           messages: [],
         };
+        this.contextManager.reset();
         return undefined;
       }
 
@@ -376,7 +319,7 @@ export class Thread {
         this.fileSnapshots
           .willEditFile(msg.unresolvedFilePath, msg.messageId)
           .catch((e: Error) => {
-            this.nvim.logger?.error(
+            this.context.nvim.logger?.error(
               `Failed to take file snapshot: ${e.message}`,
             );
           });
@@ -486,17 +429,62 @@ export class Thread {
     }
   };
 
-  async sendMessage(): Promise<void> {
-    const messages = await this.getMessages();
-    const request = getProvider(this.nvim, this.state.profile).sendMessage(
-      messages,
-      (event) => {
-        this.myDispatch({
-          type: "stream-event",
-          event,
-        });
-      },
-    );
+  async sendMessage(content?: string): Promise<void> {
+    const messageId = this.counter.get() as MessageId;
+    const contextUpdates = await this.contextManager.getContextUpdate();
+
+    if ((content && content.length) || Object.keys(contextUpdates).length) {
+      const messageContent: ProviderMessageContent[] =
+        content && content.length
+          ? [
+              {
+                type: "text",
+                text: content,
+              },
+            ]
+          : [];
+
+      const message = new Message(
+        {
+          id: messageId,
+          streamingBlock: undefined,
+          role: "user",
+          content: messageContent,
+          contextUpdates: Object.keys(contextUpdates).length
+            ? contextUpdates
+            : undefined,
+          edits: {},
+        },
+        {
+          dispatch: this.context.dispatch,
+          threadId: this.id,
+          myDispatch: (msg) =>
+            this.myDispatch({
+              type: "message-msg",
+              id: messageId,
+              msg,
+            }),
+          nvim: this.context.nvim,
+          toolManager: this.toolManager,
+          fileSnapshots: this.fileSnapshots,
+          options: this.context.options,
+        },
+      );
+
+      this.state.messages.push(message);
+      this.state.lastUserMessageId = message.state.id;
+    }
+
+    const messages = this.getMessages();
+    const request = getProvider(
+      this.context.nvim,
+      this.state.profile,
+    ).sendMessage(messages, (event) => {
+      this.myDispatch({
+        type: "stream-event",
+        event,
+      });
+    });
 
     this.myDispatch({
       type: "conversation-state",
@@ -518,53 +506,15 @@ export class Thread {
     });
   }
 
-  // async showDebugInfo() {
-  //   const messages = await this.getMessages();
-  //   const provider = getProvider(this.nvim, this.state.profile);
-  //   const params = provider.createStreamParameters(messages);
-  //   // const nTokens = await provider.countTokens(messages);
-  //
-  //   // Create a floating window
-  //   const bufnr = await this.nvim.call("nvim_create_buf", [false, true]);
-  //   await this.nvim.call("nvim_buf_set_option", [bufnr, "bufhidden", "wipe"]);
-  //   const [editorWidth, editorHeight] = (await Promise.all([
-  //     getOption("columns", this.nvim),
-  //     getOption("lines", this.nvim),
-  //   ])) as [number, number];
-  //   const width = 80;
-  //   const height = editorHeight - 20;
-  //   await this.nvim.call("nvim_open_win", [
-  //     bufnr,
-  //     true,
-  //     {
-  //       relative: "editor",
-  //       width,
-  //       height,
-  //       col: Math.floor((editorWidth - width) / 2),
-  //       row: Math.floor((editorHeight - height) / 2),
-  //       style: "minimal",
-  //       border: "single",
-  //     },
-  //   ]);
-  //
-  //   const lines = JSON.stringify(params, null, 2).split("\n");
-  //   // lines.push(`nTokens: ${nTokens}`);
-  //   await this.nvim.call("nvim_buf_set_lines", [bufnr, 0, -1, false, lines]);
-  //
-  //   // Set buffer options
-  //   await this.nvim.call("nvim_buf_set_option", [bufnr, "modifiable", false]);
-  //   await this.nvim.call("nvim_buf_set_option", [bufnr, "filetype", "json"]);
-  // }
-
-  async getMessages(): Promise<ProviderMessage[]> {
-    const messages = this.state.messages.flatMap((msg) => {
+  getMessages(): ProviderMessage[] {
+    const messages = this.state.messages.flatMap((message) => {
       let messageContent: ProviderMessageContent[] = [];
       const out: ProviderMessage[] = [];
 
       function commitMessages() {
         if (messageContent.length) {
           out.push({
-            role: msg.state.role,
+            role: message.state.role,
             content: messageContent,
           });
           messageContent = [];
@@ -581,7 +531,13 @@ export class Thread {
         });
       }
 
-      for (const contentBlock of msg.state.content) {
+      if (message.state.contextUpdates) {
+        messageContent.push(
+          contextUpdatesToContent(message.state.contextUpdates),
+        );
+      }
+
+      for (const contentBlock of message.state.content) {
         messageContent.push(contentBlock);
 
         if (contentBlock.type == "tool_use") {
@@ -603,30 +559,9 @@ export class Thread {
 
       return out.map((m) => ({
         message: m,
-        messageId: msg.state.id,
+        messageId: message.state.id,
       }));
     });
-
-    const contextMessages = await this.contextManager.getContextMessages(
-      this.counter.last() as MessageId,
-    );
-
-    if (contextMessages) {
-      this.nvim.logger?.debug(
-        `Got context messages: ${JSON.stringify(contextMessages)}`,
-      );
-
-      for (const contextMessage of contextMessages) {
-        // we want to insert the contextMessage before the corresponding user message
-        let idx = messages.findIndex(
-          (m) => m.messageId >= contextMessage.messageId,
-        );
-        if (idx == -1) {
-          idx = messages.length;
-        }
-        messages.splice(idx, 0, contextMessage);
-      }
-    }
 
     return messages.map((m) => m.message);
   }
@@ -640,7 +575,7 @@ export const view: View<{
     thread.state.messages.length == 0 &&
     thread.state.conversation.state == "stopped"
   ) {
-    return d`${LOGO}\n${thread.contextManager.view()}`;
+    return d`${LOGO}\n${thread.context.contextManager.view()}`;
   }
 
   return d`${thread.state.messages.map((m) => d`${m.view()}\n`)}${
@@ -664,8 +599,8 @@ export const view: View<{
           }`
   }${
     thread.state.conversation.state != "message-in-flight" &&
-    !thread.contextManager.isContextEmpty()
-      ? d`\n${thread.contextManager.view()}`
+    !thread.context.contextManager.isContextEmpty()
+      ? d`\n${thread.context.contextManager.view()}`
       : ""
   }`;
 };

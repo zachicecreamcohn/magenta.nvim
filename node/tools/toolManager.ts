@@ -19,6 +19,7 @@ import type { MagentaOptions } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
 import type { ThreadId } from "../chat/thread.ts";
+import type { BufferTracker } from "../buffer-tracker.ts";
 
 export const CHAT_TOOL_SPECS = [
   GetFile.spec,
@@ -154,6 +155,8 @@ export class ToolManager {
     public myDispatch: (msg: Msg) => void,
     private context: {
       dispatch: Dispatch<RootMsg>;
+      bufferTracker: BufferTracker;
+      threadId: ThreadId;
       nvim: Nvim;
       lsp: Lsp;
       options: MagentaOptions;
@@ -228,6 +231,12 @@ export class ToolManager {
           case "get_file": {
             const getFileTool = new GetFile.GetFileTool(request, {
               nvim: this.context.nvim,
+              threadDispatch: (msg) =>
+                this.context.dispatch({
+                  type: "thread-msg",
+                  id: this.context.threadId,
+                  msg,
+                }),
               myDispatch: (msg) =>
                 this.myDispatch({
                   type: "tool-msg",

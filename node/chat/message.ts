@@ -9,7 +9,7 @@ import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.t
 import type { MagentaOptions } from "../options.ts";
 import type { FileSnapshots } from "../tools/file-snapshots.ts";
 import { displaySnapshotDiff } from "../tools/display-snapshot-diff.ts";
-import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { AbsFilePath, UnresolvedFilePath } from "../utils/files.ts";
 import type {
   ProviderMessageContent,
   ProviderStreamEvent,
@@ -23,6 +23,7 @@ import {
 } from "../providers/helpers.ts";
 import { renderStreamdedTool } from "../tools/helpers.ts";
 import type { WebSearchResultBlock } from "@anthropic-ai/sdk/resources.mjs";
+import type { FileUpdates } from "../context/context-manager.ts";
 export type MessageId = number & { __messageId: true };
 
 type State = {
@@ -33,6 +34,10 @@ type State = {
   stopped?: {
     stopReason: StopReason;
     usage: Usage;
+  };
+  contextUpdates?: FileUpdates | undefined;
+  expandedUpdates?: {
+    [absFilePath: string]: boolean;
   };
   edits: {
     [filePath: UnresolvedFilePath]: {
@@ -64,11 +69,15 @@ export type Msg =
     }
   | {
       type: "open-edit-file";
-      filePath: UnresolvedFilePath;
+      filePath: UnresolvedFilePath | AbsFilePath;
     }
   | {
       type: "diff-snapshot";
       filePath: string;
+    }
+  | {
+      type: "toggle-expand-update";
+      filePath: AbsFilePath;
     }
   | {
       type: "stop";
@@ -183,6 +192,13 @@ export class Message {
         return;
       }
 
+      case "toggle-expand-update": {
+        this.state.expandedUpdates = this.state.expandedUpdates || {};
+        this.state.expandedUpdates[msg.filePath] =
+          !this.state.expandedUpdates[msg.filePath];
+        return;
+      }
+
       case "stop": {
         this.state.stopped = {
           stopReason: msg.stopReason,
@@ -194,6 +210,10 @@ export class Message {
       default:
         assertUnreachable(msg);
     }
+  }
+
+  setContext(updates: FileUpdates) {
+    this.state.contextUpdates = updates;
   }
 
   toString() {
@@ -226,44 +246,9 @@ export class Message {
   }
 
   view() {
-    const fileEdits = [];
-    for (const filePath in this.state.edits) {
-      const edit = this.state.edits[filePath as UnresolvedFilePath];
-
-      const filePathLink = withBindings(d`\`${filePath}\``, {
-        "<CR>": () =>
-          this.context.myDispatch({
-            type: "open-edit-file",
-            filePath: filePath as UnresolvedFilePath,
-          }),
-      });
-
-      const diffSnapshot = withBindings(d`**[± diff snapshot]**`, {
-        "<CR>": () =>
-          this.context.myDispatch({
-            type: "diff-snapshot",
-            filePath,
-          }),
-      });
-
-      fileEdits.push(
-        d`  ${filePathLink} (${edit.requestIds.length.toString()} edits). ${diffSnapshot}${
-          edit.status.status == "error"
-            ? d`\nError applying edit: ${edit.status.message}`
-            : ""
-        }\n`,
-      );
-    }
-
     return d`\
 # ${this.state.role}:
-${this.state.content.map((content) => d`${this.renderContent(content)}\n`)}${this.renderStreamingBlock()}${
-      fileEdits.length
-        ? d`
-Edits:
-${fileEdits}`
-        : ""
-    }${this.renderStopped()}`;
+${this.renderContextUpdate()}${this.state.content.map((content) => d`${this.renderContent(content)}\n`)}${this.renderStreamingBlock()}${this.renderEdits()}${this.renderStopped()}`;
   }
 
   renderStopped() {
@@ -283,28 +268,77 @@ ${fileEdits}`
     }]`;
   }
 
-  renderStreamingBlock() {
-    if (!this.state.streamingBlock) {
+  renderContextUpdate() {
+    if (
+      !(
+        this.state.contextUpdates &&
+        Object.keys(this.state.contextUpdates).length
+      )
+    ) {
       return "";
     }
 
-    const block = this.state.streamingBlock;
-    switch (block.type) {
-      case "text":
-        return block.streamed;
-      case "server_tool_use":
-        return block.streamed;
-      case "web_search_tool_result":
-        return block.streamed;
-      case "tool_use": {
-        return renderStreamdedTool(block);
+    const fileUpdates = [];
+    for (const path in this.state.contextUpdates) {
+      const absFilePath = path as AbsFilePath;
+      const update = this.state.contextUpdates[absFilePath];
+
+      if (update.update.status === "ok") {
+        let changeIndicator = "";
+        if (update.update.value.type === "diff") {
+          // Count additions and deletions in the patch
+          const patch = update.update.value.patch;
+          const additions = (patch.match(/^\+[^+]/gm) || []).length;
+          const deletions = (patch.match(/^-[^-]/gm) || []).length;
+          changeIndicator = `[ +${additions} / -${deletions} ]`;
+        } else {
+          // Count lines in the whole file content
+          const lineCount =
+            (update.update.value.content.match(/\n/g) || []).length + 1;
+          changeIndicator = `[ +${lineCount} ]`;
+        }
+
+        const filePathLink = withBindings(d`- \`${absFilePath}\``, {
+          "<CR>": () =>
+            this.context.myDispatch({
+              type: "open-edit-file",
+              filePath: absFilePath,
+            }),
+        });
+
+        const updateLink = withBindings(d`${changeIndicator}`, {
+          "<CR>": () =>
+            this.context.myDispatch({
+              type: "toggle-expand-update",
+              filePath: absFilePath,
+            }),
+        });
+
+        fileUpdates.push(d`${filePathLink} ${updateLink}\n`);
+
+        // Show expanded content if this update is expanded
+        if (
+          this.state.expandedUpdates &&
+          this.state.expandedUpdates[absFilePath]
+        ) {
+          if (update.update.value.type === "whole-file") {
+            fileUpdates.push(
+              d`\`\`\`\n${update.update.value.content}\n\`\`\`\n`,
+            );
+          } else if (update.update.value.type === "diff") {
+            fileUpdates.push(
+              d`\`\`\`diff\n${update.update.value.patch}\n\`\`\`\n`,
+            );
+          }
+        }
+      } else {
+        fileUpdates.push(
+          d`- \`${absFilePath}\` [Error: ${update.update.error}]\n`,
+        );
       }
-      case "thinking":
-      case "redacted_thinking":
-        throw new Error(`NOT IMPLEMENTED`);
-      default:
-        return assertUnreachable(block);
     }
+
+    return fileUpdates.length > 0 ? d`Context Updates:\n${fileUpdates}\n` : "";
   }
 
   renderContent(content: ProviderMessageContent) {
@@ -358,5 +392,66 @@ ${fileEdits}`
       default:
         assertUnreachable(content);
     }
+  }
+
+  renderStreamingBlock() {
+    if (!this.state.streamingBlock) {
+      return "";
+    }
+
+    const block = this.state.streamingBlock;
+    switch (block.type) {
+      case "text":
+        return block.streamed;
+      case "server_tool_use":
+        return block.streamed;
+      case "web_search_tool_result":
+        return block.streamed;
+      case "tool_use": {
+        return renderStreamdedTool(block);
+      }
+      case "thinking":
+      case "redacted_thinking":
+        throw new Error(`NOT IMPLEMENTED`);
+      default:
+        return assertUnreachable(block);
+    }
+  }
+
+  renderEdits() {
+    const fileEdits = [];
+    for (const filePath in this.state.edits) {
+      const edit = this.state.edits[filePath as UnresolvedFilePath];
+
+      const filePathLink = withBindings(d`\`${filePath}\``, {
+        "<CR>": () =>
+          this.context.myDispatch({
+            type: "open-edit-file",
+            filePath: filePath as UnresolvedFilePath,
+          }),
+      });
+
+      const diffSnapshot = withBindings(d`**[± diff snapshot]**`, {
+        "<CR>": () =>
+          this.context.myDispatch({
+            type: "diff-snapshot",
+            filePath,
+          }),
+      });
+
+      fileEdits.push(
+        d`  ${filePathLink} (${edit.requestIds.length.toString()} edits). ${diffSnapshot}${
+          edit.status.status == "error"
+            ? d`\nError applying edit: ${edit.status.message}`
+            : ""
+        }\n`,
+      );
+    }
+
+    return fileEdits.length
+      ? d`
+Edits:
+${fileEdits}`
+      : "";
   }
 }
