@@ -453,7 +453,7 @@ ${lines.join("\n")}
           args.length < 3 ||
           typeof args[0] !== "string" ||
           typeof args[1] !== "string" ||
-          typeof args[2] !== "string"
+          typeof args[2] !== "number"
         ) {
           throw new Error(
             `Expected buffer tracker args to be [eventType, filePath, bufnr]`,
@@ -473,13 +473,12 @@ ${lines.join("\n")}
         }
 
         const absFilePath = args[1] as AbsFilePath;
-        const bufnr = parseInt(args[2]) as BufNr;
+        const bufnr = args[2] as BufNr;
 
         magenta.onBufferTrackerEvent(eventType, absFilePath, bufnr);
       } catch (err) {
         nvim.logger?.error(
-          `Error handling buffer tracker event for ${JSON.stringify(args)}:`,
-          err,
+          `Error handling buffer tracker event for ${JSON.stringify(args)}: ${err instanceof Error ? err.message + "\n" + err.stack : JSON.stringify(err)}`,
         );
       }
     });
