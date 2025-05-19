@@ -9,7 +9,11 @@ import type { Result } from "../utils/result.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
 import type { ThreadId } from "../chat/thread.ts";
-import { resolveFilePath, type AbsFilePath } from "../utils/files.ts";
+import {
+  relativePath,
+  resolveFilePath,
+  type AbsFilePath,
+} from "../utils/files.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import { applyInsert, applyReplace } from "../utils/contentEdits.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
@@ -170,6 +174,7 @@ async function handleFileEdit(
   const { filePath } = request.input;
   const cwd = await getcwd(context.nvim);
   const absFilePath = resolveFilePath(cwd, filePath);
+  const relFilePath = relativePath(cwd, absFilePath);
 
   if (request.toolName === "insert" && request.input.insertAfter === "") {
     try {
@@ -208,7 +213,7 @@ async function handleFileEdit(
         type: "finish",
         result: {
           status: "error",
-          error: `Error accessing file ${filePath}: ${(error as Error).message}`,
+          error: `Error accessing file ${absFilePath}: ${(error as Error).message}`,
         },
       });
       return;
@@ -217,7 +222,7 @@ async function handleFileEdit(
 
   let fileContent;
   try {
-    fileContent = await fs.promises.readFile(filePath, "utf-8");
+    fileContent = await fs.promises.readFile(absFilePath, "utf-8");
   } catch {
     if (request.toolName === "replace" && request.input.find === "") {
       // Special case: empty find parameter with replace on non-existent file
@@ -227,7 +232,7 @@ async function handleFileEdit(
         type: "finish",
         result: {
           status: "error",
-          error: `File \`${filePath}\` does not exist.`,
+          error: `File \`${absFilePath}\` does not exist.`,
         },
       });
       return;
@@ -245,7 +250,7 @@ async function handleFileEdit(
         type: "finish",
         result: {
           status: "error",
-          error: `${result.error} in file \`${filePath}\`.
+          error: `${result.error} in file \`${relFilePath}\`.
           Read the contents of the file and make sure your insertAfter parameter matches the content of the file exactly.`,
         },
       });
@@ -262,7 +267,7 @@ async function handleFileEdit(
         type: "finish",
         result: {
           status: "error",
-          error: `${result.error} in file \`${filePath}\`.`,
+          error: `${result.error} in file \`${relFilePath}\`.`,
         },
       });
       return;
@@ -274,14 +279,14 @@ async function handleFileEdit(
       type: "finish",
       result: {
         status: "error",
-        error: `Unknown edit operation for file \`${filePath}\``,
+        error: `Unknown edit operation for file \`${relFilePath}\``,
       },
     });
     return;
   }
 
   try {
-    await fs.promises.writeFile(filePath, newContent, "utf-8");
+    await fs.promises.writeFile(absFilePath, newContent, "utf-8");
     notifyApplied();
     myDispatch({
       type: "finish",
@@ -295,7 +300,7 @@ async function handleFileEdit(
       type: "finish",
       result: {
         status: "error",
-        error: `Error writing to file ${filePath}: ${(error as Error).message}`,
+        error: `Error writing to file ${absFilePath}: ${(error as Error).message}`,
       },
     });
   }
