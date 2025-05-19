@@ -30,6 +30,10 @@ import { type MagentaOptions, type Profile } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
+import {
+  type Input as ThreadTitleInput,
+  spec as threadTitleToolSpec,
+} from "../tools/thread-title.ts";
 
 export type Role = "user" | "assistant";
 
@@ -51,6 +55,7 @@ export type ConversationState =
     };
 
 export type Msg =
+  | { type: "set-title"; title: string }
   | { type: "update-profile"; profile: Profile }
   | {
       type: "stream-event";
@@ -103,6 +108,7 @@ export type ThreadId = number & { __threadId: true };
 
 export class Thread {
   public state: {
+    title?: string | undefined;
     lastUserMessageId: MessageId;
     profile: Profile;
     conversation: ConversationState;
@@ -244,6 +250,13 @@ export class Thread {
           this.sendMessage(msg.content).catch(
             this.handleSendMessageError.bind(this),
           );
+          if (!this.state.title) {
+            this.setThreadTitle(msg.content).catch((err: Error) =>
+              this.context.nvim.logger?.error(
+                "Error getting thread title: " + err.message + "\n" + err.stack,
+              ),
+            );
+          }
         });
         break;
       }
@@ -372,6 +385,11 @@ export class Thread {
           },
         };
 
+        return;
+      }
+
+      case "set-title": {
+        this.state.title = msg.title;
         return;
       }
 
@@ -565,20 +583,56 @@ export class Thread {
 
     return messages.map((m) => m.message);
   }
+
+  async setThreadTitle(userMessage: string) {
+    const request = getProvider(
+      this.context.nvim,
+      this.context.profile,
+    ).forceToolUse(
+      [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `\
+The user has provided the following prompt:
+${userMessage}
+
+Come up with a succinct thread title for this prompt. It should be less than 80 characters long.
+`,
+            },
+          ],
+        },
+      ],
+      threadTitleToolSpec,
+    );
+    const result = await request.promise;
+    if (result.toolRequest.status == "ok") {
+      this.myDispatch({
+        type: "set-title",
+        title: (result.toolRequest.value.input as ThreadTitleInput).title,
+      });
+    }
+  }
 }
 
 export const view: View<{
   thread: Thread;
   dispatch: Dispatch<Msg>;
 }> = ({ thread }) => {
+  const titleView = thread.state.title
+    ? d`# ${thread.state.title}`
+    : d`# [ Untitled ]`;
+
   if (
     thread.state.messages.length == 0 &&
     thread.state.conversation.state == "stopped"
   ) {
-    return d`${LOGO}\n${thread.context.contextManager.view()}`;
+    return d`${titleView}\n${LOGO}\n${thread.context.contextManager.view()}`;
   }
 
-  return d`${thread.state.messages.map((m) => d`${m.view()}\n`)}${
+  return d`${titleView}\n${thread.state.messages.map((m) => d`${m.view()}\n`)}${
     thread.state.conversation.state == "message-in-flight"
       ? d`Awaiting response ${
           MESSAGE_ANIMATION[
