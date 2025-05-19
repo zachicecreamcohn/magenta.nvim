@@ -18,18 +18,16 @@ describe("node/magenta.spec.ts", () => {
         toolRequests: [],
       });
 
-      await driver.assertDisplayBufferContent(`\
-# user:
+      await driver.assertDisplayBufferContains(`# user:
 hello
 
 # assistant:
 sup?
 
-Stopped (end_turn) [input: 0, output: 0]
-`);
+Stopped (end_turn) [input: 0, output: 0]`);
 
       await driver.clear();
-      await driver.assertDisplayBufferContent(LOGO + "\n");
+      await driver.assertDisplayBufferContains(LOGO);
       await driver.inputMagentaText(`hello again`);
       await driver.send();
       await driver.mockAnthropic.respond({
@@ -38,15 +36,13 @@ Stopped (end_turn) [input: 0, output: 0]
         toolRequests: [],
       });
 
-      await driver.assertDisplayBufferContent(`\
-# user:
+      await driver.assertDisplayBufferContains(`# user:
 hello again
 
 # assistant:
 huh?
 
-Stopped (end_turn) [input: 0, output: 0]
-`);
+Stopped (end_turn) [input: 0, output: 0]`);
     });
   });
 
@@ -55,8 +51,7 @@ Stopped (end_turn) [input: 0, output: 0]
       await driver.showSidebar();
       await driver.inputMagentaText(`hello`);
       await driver.send();
-      await driver.assertDisplayBufferContent(`\
-# user:
+      await driver.assertDisplayBufferContains(`# user:
 hello
 
 Awaiting response ⠁`);

@@ -28,7 +28,7 @@ describe("node/chat/chat.spec.ts", () => {
       );
 
       await driver.magenta.command("new-thread");
-      await driver.assertDisplayBufferContent(LOGO + "\n");
+      await driver.assertDisplayBufferContent("# [ Untitled ]\n" + LOGO + "\n");
     });
   });
 
@@ -47,10 +47,10 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.assertDisplayBufferContains(`\
 # Threads
 
-- 1
-* 2`);
+- 1 [Untitled]
+* 2 [Untitled]`);
 
-      const threadPos = await driver.assertDisplayBufferContains("1");
+      const threadPos = await driver.assertDisplayBufferContains("1 [Untitled]");
       await driver.triggerDisplayBufferKey(threadPos, "<CR>");
       await driver.awaitChatState({
         state: "thread-selected",
