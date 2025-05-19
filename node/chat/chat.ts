@@ -238,9 +238,10 @@ export class Chat {
           case "pending":
             status = `${marker} ${id} - loading...\n`;
             break;
-          case "initialized":
-            status = `${marker} ${id}\n`;
+          case "initialized": {
+            status = `${marker} ${id} ${threadState.thread.state.title ?? "[Untitled]"}\n`;
             break;
+          }
           case "error":
             status = `${marker} ${id} - error: ${threadState.error.message}\n`;
             break;

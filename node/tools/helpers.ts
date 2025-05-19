@@ -9,6 +9,7 @@ import * as Diagnostics from "./diagnostics";
 import * as BashCommand from "./bashCommand";
 import * as ReplaceSelection from "./replace-selection-tool";
 import * as InlineEdit from "./inline-edit-tool";
+import * as ThreadTitle from "./thread-title";
 import type { StreamingBlock } from "../providers/helpers";
 import { d, type VDOMNode } from "../tea/view";
 
@@ -39,6 +40,8 @@ export function validateInput(
       return InlineEdit.validateInput(input);
     case "replace_selection":
       return ReplaceSelection.validateInput(input);
+    case "thread_title":
+      return ThreadTitle.validateInput(input);
     default:
       throw new Error(`Unexpected toolName: ${toolName as string}`);
   }

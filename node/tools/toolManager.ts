@@ -9,6 +9,7 @@ import * as Diagnostics from "./diagnostics.ts";
 import * as BashCommand from "./bashCommand.ts";
 import * as InlineEdit from "./inline-edit-tool.ts";
 import * as ReplaceSelection from "./replace-selection-tool.ts";
+import * as ThreadTitle from "./thread-title.ts";
 
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, withBindings } from "../tea/view.ts";
@@ -31,6 +32,7 @@ export const CHAT_TOOL_SPECS = [
   FindReferences.spec,
   Diagnostics.spec,
   BashCommand.spec,
+  ThreadTitle.spec,
 ];
 
 export type ToolRequestId = string & { __toolRequestId: true };
@@ -90,6 +92,11 @@ export type ToolMap = {
     controller: ReplaceSelection.ReplaceSelectionTool;
     input: ReplaceSelection.Input;
     msg: ReplaceSelection.Msg;
+  };
+  thread_title: {
+    controller: ThreadTitle.ThreadTitleTool;
+    input: ThreadTitle.Input;
+    msg: ThreadTitle.Msg;
   };
 };
 
@@ -408,6 +415,27 @@ export class ToolManager {
           }
           case "replace_selection": {
             throw new Error(`Not supported.`);
+          }
+
+          case "thread_title": {
+            const threadTitleTool = new ThreadTitle.ThreadTitleTool(request, {
+              nvim: this.context.nvim,
+              myDispatch: (msg) =>
+                this.myDispatch({
+                  type: "tool-msg",
+                  msg: {
+                    id: request.id,
+                    toolName: "thread_title",
+                    msg,
+                  },
+                }),
+            });
+
+            this.state.toolWrappers[request.id] = {
+              tool: threadTitleTool,
+              showDetails: false,
+            };
+            return;
           }
 
           default:
