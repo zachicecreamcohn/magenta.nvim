@@ -112,7 +112,8 @@ M.bridge = function(channelId)
       callback = function()
         local file_path = vim.fn.expand("<afile>:p")
         local bufnr = vim.fn.expand("<abuf>")
-        if file_path and file_path ~= "" then
+        -- Check if this is a real file buffer
+        if file_path and file_path ~= "" and vim.fn.filereadable(file_path) == 1 then
           vim.rpcnotify(channelId, "magentaBufferTracker", "write", file_path, bufnr)
         end
       end
@@ -126,7 +127,8 @@ M.bridge = function(channelId)
       callback = function()
         local file_path = vim.fn.expand("<afile>:p")
         local bufnr = vim.fn.expand("<abuf>")
-        if file_path and file_path ~= "" then
+        -- Check if this is a real file buffer (has a valid path and buffer type is not special)
+        if file_path and file_path ~= "" and vim.bo[tonumber(bufnr)].buftype == "" then
           vim.rpcnotify(channelId, "magentaBufferTracker", "read", file_path, bufnr)
         end
       end
@@ -140,7 +142,8 @@ M.bridge = function(channelId)
       callback = function()
         local file_path = vim.fn.expand("<afile>:p")
         local bufnr = vim.fn.expand("<abuf>")
-        if file_path and file_path ~= "" then
+        -- For delete events, we still want to track file buffers by path
+        if file_path and file_path ~= "" and file_path:match("^%a:[\\/]") or file_path:match("^/") then
           vim.rpcnotify(channelId, "magentaBufferTracker", "close", file_path, bufnr)
         end
       end
