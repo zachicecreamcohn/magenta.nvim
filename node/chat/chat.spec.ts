@@ -50,7 +50,8 @@ describe("node/chat/chat.spec.ts", () => {
 - 1 [Untitled]
 * 2 [Untitled]`);
 
-      const threadPos = await driver.assertDisplayBufferContains("1 [Untitled]");
+      const threadPos =
+        await driver.assertDisplayBufferContains("1 [Untitled]");
       await driver.triggerDisplayBufferKey(threadPos, "<CR>");
       await driver.awaitChatState({
         state: "thread-selected",
