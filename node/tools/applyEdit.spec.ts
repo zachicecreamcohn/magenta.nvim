@@ -1,11 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { TMP_DIR, withDriver } from "../test/preamble";
 import type { ToolRequestId } from "./toolManager";
 import * as path from "path";
 import { getCurrentBuffer, getcwd } from "../nvim/nvim";
 import * as fs from "node:fs";
 import { type Line } from "../nvim/buffer";
-import type { UnresolvedFilePath } from "../utils/files";
+import type { AbsFilePath, UnresolvedFilePath } from "../utils/files";
+import { applyEdit } from "./applyEdit";
+import type { MessageId } from "../chat/message";
 
 describe("node/tools/applyEdit.spec.ts", () => {
   it("insert into new file", async () => {
@@ -447,6 +449,141 @@ Paint their stories in the night.
       await driver.assertDisplayBufferContains(
         "has unsaved changes that could not be written",
       );
+    });
+  });
+
+  it("applyEdit immediately updates buffer tracker on insert", async () => {
+    await withDriver({}, async (driver) => {
+      // Create a file and open it in a buffer
+      const poemFile = path.join(
+        await getcwd(driver.nvim),
+        `${TMP_DIR}/poem.txt`,
+      );
+
+      await driver.command(`edit ${poemFile}`);
+      await driver.showSidebar();
+
+      const prevSyncInfo = driver.magenta.bufferTracker.getSyncInfo(
+        poemFile as AbsFilePath,
+      );
+      expect(prevSyncInfo?.mtime).toBeDefined();
+
+      const myDispatch = vi.fn();
+      const dispatch = vi.fn();
+      await driver.wait(100);
+      await applyEdit(
+        {
+          id: "id" as ToolRequestId,
+          toolName: "insert",
+          input: {
+            filePath: poemFile as UnresolvedFilePath,
+            insertAfter: "",
+            content: "\nAppended content",
+          },
+        },
+        driver.magenta.chat.getActiveThread().id,
+        0 as MessageId,
+        {
+          nvim: driver.nvim,
+          bufferTracker: driver.magenta.bufferTracker,
+          myDispatch,
+          dispatch,
+        },
+      );
+
+      expect(dispatch, "dispatch").toBeCalledTimes(2);
+      expect(dispatch).toHaveBeenLastCalledWith({
+        id: 1,
+        msg: {
+          msg: {
+            absFilePath: poemFile,
+            tool: {
+              content: "\nAppended content",
+              insertAfter: "",
+              type: "insert",
+            },
+            type: "tool-applied",
+          },
+          type: "context-manager-msg",
+        },
+        type: "thread-msg",
+      });
+      expect(myDispatch, "myDispatch").toBeCalledTimes(1);
+      expect(myDispatch).toHaveBeenLastCalledWith({
+        result: {
+          status: "ok",
+          value: "Successfully applied edits.",
+        },
+        type: "finish",
+      });
+
+      const currSyncInfo = driver.magenta.bufferTracker.getSyncInfo(
+        poemFile as AbsFilePath,
+      );
+
+      expect(
+        currSyncInfo?.mtime,
+        "bufferTracker updated before applyEdit halts",
+      ).toBeGreaterThan(prevSyncInfo!.mtime);
+    });
+  });
+
+  it("applyEdit immediately updates buffer tracker on replace", async () => {
+    await withDriver({}, async (driver) => {
+      // Create a file and open it in a buffer
+      const poemFile = path.join(
+        await getcwd(driver.nvim),
+        `${TMP_DIR}/poem.txt`,
+      );
+
+      await driver.command(`edit ${poemFile}`);
+      await driver.showSidebar();
+
+      const prevSyncInfo = driver.magenta.bufferTracker.getSyncInfo(
+        poemFile as AbsFilePath,
+      );
+      expect(prevSyncInfo?.mtime).toBeDefined();
+
+      const myDispatch = vi.fn();
+      const dispatch = vi.fn();
+      await driver.wait(100);
+      await applyEdit(
+        {
+          id: "id" as ToolRequestId,
+          toolName: "replace",
+          input: {
+            filePath: poemFile as UnresolvedFilePath,
+            find: "",
+            replace: "Replace content",
+          },
+        },
+        driver.magenta.chat.getActiveThread().id,
+        0 as MessageId,
+        {
+          nvim: driver.nvim,
+          bufferTracker: driver.magenta.bufferTracker,
+          myDispatch,
+          dispatch,
+        },
+      );
+
+      expect(myDispatch, "myDispatch").toBeCalledTimes(1);
+      expect(myDispatch).toHaveBeenLastCalledWith({
+        result: {
+          status: "ok",
+          value: "Successfully applied edits.",
+        },
+        type: "finish",
+      });
+
+      const currSyncInfo = driver.magenta.bufferTracker.getSyncInfo(
+        poemFile as AbsFilePath,
+      );
+
+      expect(
+        currSyncInfo?.mtime,
+        "bufferTracker updated before applyEdit halts",
+      ).toBeGreaterThan(prevSyncInfo!.mtime);
     });
   });
 

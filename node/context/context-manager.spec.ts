@@ -25,7 +25,7 @@ describe("unit tests", () => {
 
       // Get the context manager from the driver
       const contextManager =
-        driver.magenta.chat.getActiveThread().contextManager;
+        driver.magenta.chat.getActiveThread().context.contextManager;
 
       // Add a file to context
       contextManager.myDispatch({
@@ -67,7 +67,7 @@ describe("unit tests", () => {
 
       // Get the context manager from the driver
       const contextManager =
-        driver.magenta.chat.getActiveThread().contextManager;
+        driver.magenta.chat.getActiveThread().context.contextManager;
 
       const cwd = await getcwd(driver.nvim);
       const absFilePath = resolveFilePath(
@@ -126,7 +126,7 @@ describe("unit tests", () => {
 
       // Get the context manager from the driver
       const contextManager =
-        driver.magenta.chat.getActiveThread().contextManager;
+        driver.magenta.chat.getActiveThread().context.contextManager;
 
       // Add a file to context
       contextManager.myDispatch({

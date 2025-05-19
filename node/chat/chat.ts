@@ -202,15 +202,12 @@ export class Chat {
       );
 
       const thread = new Thread(id, {
-        dispatch: this.context.dispatch,
+        ...this.context,
         contextManager,
         profile: getActiveProfile(
           this.context.options.profiles,
           this.context.options.activeProfile,
         ),
-        nvim: this.context.nvim,
-        lsp: this.context.lsp,
-        options: this.context.options,
       });
 
       this.context.dispatch({

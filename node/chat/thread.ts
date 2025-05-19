@@ -29,6 +29,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type MagentaOptions, type Profile } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { BufferTracker } from "../buffer-tracker.ts";
 
 export type Role = "user" | "assistant";
 
@@ -108,27 +109,17 @@ export class Thread {
     messages: Message[];
   };
 
-  private dispatch: Dispatch<RootMsg>;
   private myDispatch: Dispatch<Msg>;
   public toolManager: ToolManager;
-  public contextManager: ContextManager;
   private counter: Counter;
-  private nvim: Nvim;
-  private lsp: Lsp;
-  private options: MagentaOptions;
   public fileSnapshots: FileSnapshots;
+  private contextManager: ContextManager;
 
   constructor(
     public id: ThreadId,
-    {
-      dispatch,
-      profile,
-      nvim,
-      contextManager,
-      lsp,
-      options,
-    }: {
+    public context: {
       dispatch: Dispatch<RootMsg>;
+      bufferTracker: BufferTracker;
       profile: Profile;
       nvim: Nvim;
       lsp: Lsp;
@@ -136,19 +127,14 @@ export class Thread {
       options: MagentaOptions;
     },
   ) {
-    this.dispatch = dispatch;
     this.myDispatch = (msg) =>
-      this.dispatch({
+      this.context.dispatch({
         type: "thread-msg",
         id: this.id,
         msg,
       });
 
-    this.nvim = nvim;
-    this.lsp = lsp;
     this.counter = new Counter();
-    this.contextManager = contextManager;
-    this.options = options;
     this.toolManager = new ToolManager(
       (msg) =>
         this.myDispatch({
@@ -156,19 +142,21 @@ export class Thread {
           msg,
         }),
       {
-        dispatch: this.dispatch,
+        dispatch: this.context.dispatch,
         threadId: this.id,
-        nvim: this.nvim,
-        lsp: this.lsp,
-        options: this.options,
+        bufferTracker: this.context.bufferTracker,
+        nvim: this.context.nvim,
+        lsp: this.context.lsp,
+        options: this.context.options,
       },
     );
 
-    this.fileSnapshots = new FileSnapshots(this.nvim);
+    this.fileSnapshots = new FileSnapshots(this.context.nvim);
+    this.contextManager = this.context.contextManager;
 
     this.state = {
       lastUserMessageId: this.counter.last() as MessageId,
-      profile,
+      profile: this.context.profile,
       conversation: {
         state: "stopped",
         stopReason: "end_turn",
@@ -229,7 +217,7 @@ export class Thread {
               // dispatch a followup action next tick
               setTimeout(
                 () =>
-                  this.dispatch({
+                  this.context.dispatch({
                     type: "sidebar-setup-resubmit",
                     lastUserMessage: lastUserMessage.state.content
                       .map((p) => (p.type == "text" ? p.text : ""))
@@ -273,18 +261,16 @@ export class Thread {
               edits: {},
             },
             {
+              ...this.context,
               threadId: this.id,
-              dispatch: this.dispatch,
               myDispatch: (msg) =>
                 this.myDispatch({
                   type: "message-msg",
                   id: messageId,
                   msg,
                 }),
-              nvim: this.nvim,
               toolManager: this.toolManager,
               fileSnapshots: this.fileSnapshots,
-              options: this.options,
             },
           );
 
@@ -333,7 +319,7 @@ export class Thread {
         this.fileSnapshots
           .willEditFile(msg.unresolvedFilePath, msg.messageId)
           .catch((e: Error) => {
-            this.nvim.logger?.error(
+            this.context.nvim.logger?.error(
               `Failed to take file snapshot: ${e.message}`,
             );
           });
@@ -470,7 +456,7 @@ export class Thread {
           edits: {},
         },
         {
-          dispatch: this.dispatch,
+          dispatch: this.context.dispatch,
           threadId: this.id,
           myDispatch: (msg) =>
             this.myDispatch({
@@ -478,10 +464,10 @@ export class Thread {
               id: messageId,
               msg,
             }),
-          nvim: this.nvim,
+          nvim: this.context.nvim,
           toolManager: this.toolManager,
           fileSnapshots: this.fileSnapshots,
-          options: this.options,
+          options: this.context.options,
         },
       );
 
@@ -490,15 +476,15 @@ export class Thread {
     }
 
     const messages = this.getMessages();
-    const request = getProvider(this.nvim, this.state.profile).sendMessage(
-      messages,
-      (event) => {
-        this.myDispatch({
-          type: "stream-event",
-          event,
-        });
-      },
-    );
+    const request = getProvider(
+      this.context.nvim,
+      this.state.profile,
+    ).sendMessage(messages, (event) => {
+      this.myDispatch({
+        type: "stream-event",
+        event,
+      });
+    });
 
     this.myDispatch({
       type: "conversation-state",
@@ -589,7 +575,7 @@ export const view: View<{
     thread.state.messages.length == 0 &&
     thread.state.conversation.state == "stopped"
   ) {
-    return d`${LOGO}\n${thread.contextManager.view()}`;
+    return d`${LOGO}\n${thread.context.contextManager.view()}`;
   }
 
   return d`${thread.state.messages.map((m) => d`${m.view()}\n`)}${
@@ -613,8 +599,8 @@ export const view: View<{
           }`
   }${
     thread.state.conversation.state != "message-in-flight" &&
-    !thread.contextManager.isContextEmpty()
-      ? d`\n${thread.contextManager.view()}`
+    !thread.context.contextManager.isContextEmpty()
+      ? d`\n${thread.context.contextManager.view()}`
       : ""
   }`;
 };
