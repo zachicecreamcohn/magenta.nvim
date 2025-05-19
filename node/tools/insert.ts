@@ -14,6 +14,7 @@ import type { MessageId } from "../chat/message.ts";
 import type { ThreadId } from "../chat/thread.ts";
 import type { ToolInterface } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { BufferTracker } from "../buffer-tracker.ts";
 
 export type State =
   | {
@@ -39,6 +40,7 @@ export class InsertTool implements ToolInterface {
     public messageId: MessageId,
     private context: {
       myDispatch: Dispatch<Msg>;
+      bufferTracker: BufferTracker;
       nvim: Nvim;
       dispatch: Dispatch<RootMsg>;
     },

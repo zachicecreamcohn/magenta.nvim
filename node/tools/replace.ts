@@ -15,6 +15,7 @@ import * as diff from "diff";
 import type { ThreadId } from "../chat/thread.ts";
 import type { ToolInterface } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { BufferTracker } from "../buffer-tracker.ts";
 export type State =
   | {
       state: "processing";
@@ -40,6 +41,7 @@ export class ReplaceTool implements ToolInterface {
     private context: {
       myDispatch: Dispatch<Msg>;
       dispatch: Dispatch<RootMsg>;
+      bufferTracker: BufferTracker;
       nvim: Nvim;
     },
   ) {

@@ -9,9 +9,10 @@ import type { Result } from "../utils/result.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
 import type { ThreadId } from "../chat/thread.ts";
-import { resolveFilePath } from "../utils/files.ts";
+import { resolveFilePath, type AbsFilePath } from "../utils/files.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import { applyInsert, applyReplace } from "../utils/contentEdits.ts";
+import type { BufferTracker } from "../buffer-tracker.ts";
 
 type InsertRequest = Extract<ToolRequest, { toolName: "insert" }>;
 type ReplaceRequest = Extract<ToolRequest, { toolName: "replace" }>;
@@ -23,6 +24,7 @@ type Msg = {
 
 type EditContext = {
   nvim: Nvim;
+  bufferTracker: BufferTracker;
   myDispatch: Dispatch<Msg>;
   dispatch: Dispatch<RootMsg>;
 };
@@ -47,7 +49,9 @@ async function saveBufferChanges(buffer: NvimBuffer): Promise<boolean> {
 
 async function handleBufferEdit(
   request: EditRequest,
+  absFilePath: AbsFilePath,
   buffer: NvimBuffer,
+  notifyApplied: () => void,
   context: EditContext,
 ): Promise<void> {
   const { myDispatch: dispatch } = context;
@@ -66,8 +70,8 @@ async function handleBufferEdit(
     return;
   }
 
-  // small performance optimization - don't need to load all the content if we're just appending
   if (request.toolName === "insert" && request.input.insertAfter === "") {
+    // small performance optimization - don't need to load all the content if we're just appending
     const { content } = request.input;
 
     const contentLines = content.split("\n") as Line[];
@@ -76,65 +80,64 @@ async function handleBufferEdit(
       end: -1,
       lines: contentLines,
     });
-    return;
-  }
-
-  const lines = await buffer.getLines({
-    start: 0,
-    end: -1,
-  });
-  const bufferContent = lines.join("\n");
-  let newContent: string;
-
-  if (request.toolName === "insert") {
-    const { insertAfter, content } = request.input;
-    const result = applyInsert(bufferContent, insertAfter, content);
-
-    if (result.status === "error") {
-      dispatch({
-        type: "finish",
-        result: {
-          status: "error",
-          error: `${result.error} in file \`${filePath}\``,
-        },
-      });
-      return;
-    }
-
-    newContent = result.content;
-  } else if (request.toolName === "replace") {
-    const { find, replace } = request.input;
-    const result = applyReplace(bufferContent, find, replace);
-
-    if (result.status === "error") {
-      dispatch({
-        type: "finish",
-        result: {
-          status: "error",
-          error: `${result.error} in file \`${filePath}\``,
-        },
-      });
-      return;
-    }
-
-    newContent = result.content;
   } else {
-    // This should never happen due to TypeScript, but adding as a safeguard
-    dispatch({
-      type: "finish",
-      result: {
-        status: "error",
-        error: `Unknown edit operation for file \`${filePath}\``,
-      },
+    const lines = await buffer.getLines({
+      start: 0,
+      end: -1,
     });
-    return;
-  }
+    const bufferContent = lines.join("\n");
+    let newContent: string;
 
-  await buffer.setLines({
-    start: 0,
-    end: -1,
-    lines: newContent.split("\n") as Line[],
-  });
+    if (request.toolName === "insert") {
+      const { insertAfter, content } = request.input;
+      const result = applyInsert(bufferContent, insertAfter, content);
+
+      if (result.status === "error") {
+        dispatch({
+          type: "finish",
+          result: {
+            status: "error",
+            error: `${result.error} in file \`${filePath}\``,
+          },
+        });
+        return;
+      }
+
+      newContent = result.content;
+    } else if (request.toolName === "replace") {
+      const { find, replace } = request.input;
+      const result = applyReplace(bufferContent, find, replace);
+
+      if (result.status === "error") {
+        dispatch({
+          type: "finish",
+          result: {
+            status: "error",
+            error: `${result.error} in file \`${filePath}\``,
+          },
+        });
+        return;
+      }
+
+      newContent = result.content;
+    } else {
+      // This should never happen due to TypeScript, but adding as a safeguard
+      dispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: `Unknown edit operation for file \`${filePath}\``,
+        },
+      });
+      return;
+    }
+
+    await buffer.setLines({
+      start: 0,
+      end: -1,
+      lines: newContent.split("\n") as Line[],
+    });
+  }
 
   if (!(await saveBufferChanges(buffer))) {
     dispatch({
@@ -147,6 +150,8 @@ async function handleBufferEdit(
     return;
   }
 
+  await context.bufferTracker.trackBufferSync(absFilePath, buffer.id);
+  notifyApplied();
   dispatch({
     type: "finish",
     result: {
@@ -158,9 +163,10 @@ async function handleBufferEdit(
 
 async function handleFileEdit(
   request: EditRequest,
+  notifyApplied: () => void,
   context: EditContext,
 ): Promise<void> {
-  const { myDispatch: dispatch } = context;
+  const { myDispatch } = context;
   const { filePath } = request.input;
   const cwd = await getcwd(context.nvim);
   const absFilePath = resolveFilePath(cwd, filePath);
@@ -187,8 +193,9 @@ async function handleFileEdit(
           "utf-8",
         );
       }
+      notifyApplied();
 
-      dispatch({
+      myDispatch({
         type: "finish",
         result: {
           status: "ok",
@@ -197,7 +204,7 @@ async function handleFileEdit(
       });
       return;
     } catch (error) {
-      dispatch({
+      myDispatch({
         type: "finish",
         result: {
           status: "error",
@@ -216,7 +223,7 @@ async function handleFileEdit(
       // Special case: empty find parameter with replace on non-existent file
       fileContent = "";
     } else {
-      dispatch({
+      myDispatch({
         type: "finish",
         result: {
           status: "error",
@@ -234,7 +241,7 @@ async function handleFileEdit(
     const result = applyInsert(fileContent, insertAfter, content);
 
     if (result.status === "error") {
-      dispatch({
+      myDispatch({
         type: "finish",
         result: {
           status: "error",
@@ -251,7 +258,7 @@ async function handleFileEdit(
     const result = applyReplace(fileContent, find, replace);
 
     if (result.status === "error") {
-      dispatch({
+      myDispatch({
         type: "finish",
         result: {
           status: "error",
@@ -263,7 +270,7 @@ async function handleFileEdit(
 
     newContent = result.content;
   } else {
-    dispatch({
+    myDispatch({
       type: "finish",
       result: {
         status: "error",
@@ -275,7 +282,8 @@ async function handleFileEdit(
 
   try {
     await fs.promises.writeFile(filePath, newContent, "utf-8");
-    dispatch({
+    notifyApplied();
+    myDispatch({
       type: "finish",
       result: {
         status: "ok",
@@ -283,7 +291,7 @@ async function handleFileEdit(
       },
     });
   } catch (error) {
-    dispatch({
+    myDispatch({
       type: "finish",
       result: {
         status: "error",
@@ -331,35 +339,43 @@ export async function applyEdit(
     return;
   }
 
-  if (bufferOpenResult.status === "ok") {
-    await handleBufferEdit(request, bufferOpenResult.buffer, context);
-  } else if (bufferOpenResult.status === "not-found") {
-    await handleFileEdit(request, context);
-  }
-
   const cwd = await getcwd(context.nvim);
   const absFilePath = resolveFilePath(cwd, filePath);
-  dispatch({
-    type: "thread-msg",
-    id: threadId,
-    msg: {
-      type: "context-manager-msg",
+
+  const notifyApplied = () =>
+    dispatch({
+      type: "thread-msg",
+      id: threadId,
       msg: {
-        type: "tool-applied",
-        absFilePath,
-        tool:
-          request.toolName == "insert"
-            ? {
-                type: "insert",
-                insertAfter: request.input.insertAfter,
-                content: request.input.content,
-              }
-            : {
-                type: "replace",
-                find: request.input.find,
-                replace: request.input.replace,
-              },
+        type: "context-manager-msg",
+        msg: {
+          type: "tool-applied",
+          absFilePath,
+          tool:
+            request.toolName == "insert"
+              ? {
+                  type: "insert",
+                  insertAfter: request.input.insertAfter,
+                  content: request.input.content,
+                }
+              : {
+                  type: "replace",
+                  find: request.input.find,
+                  replace: request.input.replace,
+                },
+        },
       },
-    },
-  });
+    });
+
+  if (bufferOpenResult.status === "ok") {
+    await handleBufferEdit(
+      request,
+      absFilePath,
+      bufferOpenResult.buffer,
+      notifyApplied,
+      context,
+    );
+  } else if (bufferOpenResult.status === "not-found") {
+    await handleFileEdit(request, notifyApplied, context);
+  }
 }

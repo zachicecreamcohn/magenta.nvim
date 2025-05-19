@@ -240,14 +240,6 @@ export class GetFileTool implements ToolInterface {
       return;
     }
 
-    this.context.myDispatch({
-      type: "finish",
-      result: {
-        status: "ok",
-        value: content,
-      },
-    });
-
     this.context.threadDispatch({
       type: "context-manager-msg",
       msg: {
@@ -257,6 +249,14 @@ export class GetFileTool implements ToolInterface {
           type: "get-file",
           content,
         },
+      },
+    });
+
+    this.context.myDispatch({
+      type: "finish",
+      result: {
+        status: "ok",
+        value: content,
       },
     });
 
