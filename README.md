@@ -8,6 +8,7 @@
 ╲__╱__╱__╱
 Magenta is for agents.
 ```
+(developed by [dlants.me](https://dlants.me))
 
 # Roadmap
 
