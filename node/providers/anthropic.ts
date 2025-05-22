@@ -161,7 +161,7 @@ export class AnthropicProvider implements Provider {
     return {
       messages: anthropicMessages,
       model: this.model,
-      max_tokens: 64000,
+      max_tokens: 32000,
       system: [
         {
           type: "text",
