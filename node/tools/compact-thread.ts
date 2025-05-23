@@ -50,44 +50,47 @@ export class CompactThreadTool implements ToolInterface {
   displayInput() {
     return `compact_thread: {
     summary: "${this.request.input.summary}",
-    contextFiles: [${this.request.input.contextFiles.map((file) => `"${file}"`).join(", ")}],
-    blockIndexes: [${this.request.input.blockIndexes.join(", ")}]
+    contextFiles: [${this.request.input.contextFiles.map((file) => `"${file}"`).join(", ")}]
 }`;
   }
 }
 
 export const spec: ProviderToolSpec = {
   name: "compact_thread",
-  description: `⚠️ IMPORTANT: The next thread will automatically include the user's most recent prompt, so DO NOT include the last user message in your summary.
+  description: `\
+This tool extracts ONLY the specific portions of the conversation history that are directly relevant to the user's NEXT PROMPT.
 
-Create a concise thread summary that preserves only the essential context needed for future work. The summary should be no longer than necessary to maintain critical information.
+ANALYZE THE USER'S NEXT PROMPT FIRST:
+- Carefully examine what the user is asking for in their next prompt
+- Identify key technical concepts, files, functions, or problems they're focusing on
+- Extract ONLY the information from the thread that directly relates to these specific elements
 
-PRIORITIZE:
-1. Key decisions and architectural choices made during the conversation
-2. Technical requirements and constraints that affect implementation
-3. Relevant file paths, function names, and API interfaces discussed
-4. Specific problems or edge cases identified that remain relevant
-5. Current progress state and next steps in the development task
+PRIORITIZE WITH LASER FOCUS:
+- Code discussions, architectural decisions, and technical details DIRECTLY relevant to the next prompt
+- File paths and function signatures that will be needed to address the next prompt
+- Previous solutions or approaches that directly inform the upcoming work
+- Technical constraints or requirements that specifically impact the task in the next prompt
 
-OMIT:
-- Introductory exchanges, pleasantries, and tangential discussions
-- Explanations of concepts that were only relevant to earlier questions
-- Detailed troubleshooting steps that led to a solution (just keep the solution)
-- Any information that could be quickly rediscovered from the codebase
+RUTHLESSLY EXCLUDE:
+- ANY content from the thread not directly related to the specific focus of the next prompt
+- General architectural discussions not specifically relevant to the next task
+- Code explanations for components not involved in the next prompt
+- Previous problems that have been fully resolved and don't impact the next task
 
-FILE AND BLOCK SELECTION:
-- In 'contextFiles': Only include files that are ACTIVELY being worked on or immediately relevant
-- In 'blockIndexes': Only preserve blocks containing hard-to-recreate insights or critical decisions
+CONTEXT FILES:
+- Include ONLY files that are DIRECTLY relevant to the next prompt in contextFiles
+- Prefer adding files to contextFiles rather than including code snippets in the summary
 
-CODE HANDLING:
-- When a file or block contains mostly irrelevant code, extract only the essential functions or patterns into the summary
-- Prefer code snippets of interfaces or types to full implementations, where the details of the implementation are not relevant
+SUMMARY:
+- Structure the summary to directly address what the user needs for their next prompt
+- Begin with the most critical information needed for the next task
+- Use precise technical language focused on the specific task at hand
+- Keep code snippets minimal - only include what's absolutely necessary for the next prompt
+- Reference file paths and function names rather than including implementations
+- NEVER include full file contents
+- ⚠️ IMPORTANT: Do NOT include the user's next prompt in the summary - it will be automatically included
 
-FORMAT YOUR SUMMARY:
-- Keep explanations brief and technical, optimized for an engineer continuing work
-- DO NOT restate information contained in retained files and blocks
-
-Remember: The most effective summary preserves maximum context in minimum space.`,
+Remember: The goal is NOT to summarize the thread, but to extract ONLY the specific pieces that directly support addressing the user's next prompt.`,
   input_schema: {
     type: "object",
     properties: {
@@ -97,30 +100,24 @@ Remember: The most effective summary preserves maximum context in minimum space.
           type: "string",
         },
         description:
-          "List of file names to include in the context of the next thread.",
-      },
-      blockIndexes: {
-        type: "array",
-        items: {
-          type: "number",
-        },
-        description: `The thread has annotated blocks with "## block N" headers. Use the blockIndexes argument to retain the entire content of the block.`,
+          "List of ONLY the specific file names directly relevant to addressing the user's next prompt.",
       },
       summary: {
         type: "string",
         description: `\
-Text summarizing just the relevant pieces of the thread to the user's latest query.
-This should not restate anything relating to contextFiles or blockIndexes, since those will be retained in full.`,
+Extract ONLY the specific parts of the thread that are directly relevant to the user's next prompt.
+Focus on technical details, code patterns, and decisions that specifically help with the next task.
+Do not include anything that isn't directly applicable to the next prompt's focus.
+This should not restate anything relating to contextFiles, since those will be retained in full.`,
       },
     },
-    required: ["contextFiles", "blockIndexes", "summary"],
+    required: ["contextFiles", "summary"],
     additionalProperties: false,
   },
 };
 
 export type Input = {
   contextFiles: UnresolvedFilePath[];
-  blockIndexes: number[];
   summary: string;
 };
 
@@ -130,35 +127,21 @@ export function validateInput(input: {
   if (typeof input.summary != "string") {
     return {
       status: "error",
-      error: "expected req.input.summary to be a string",
+      error: `expected req.input.summary to be a string but it was ${JSON.stringify(input.summary)}`,
     };
   }
 
   if (!Array.isArray(input.contextFiles)) {
     return {
       status: "error",
-      error: "expected req.input.contextFiles to be an array",
+      error: `expected req.input.contextFiles to be an array but it was ${JSON.stringify(input.contextFiles)}`,
     };
   }
 
   if (!input.contextFiles.every((item) => typeof item === "string")) {
     return {
       status: "error",
-      error: "expected all items in req.input.contextFiles to be strings",
-    };
-  }
-
-  if (!Array.isArray(input.blockIndexes)) {
-    return {
-      status: "error",
-      error: "expected req.input.blockIndexes to be an array",
-    };
-  }
-
-  if (!input.blockIndexes.every((item) => typeof item === "number")) {
-    return {
-      status: "error",
-      error: "expected all items in req.input.blockIndexes to be numbers",
+      error: `expected all items in req.input.contextFiles to be strings but they were ${JSON.stringify(input.contextFiles)}`,
     };
   }
 

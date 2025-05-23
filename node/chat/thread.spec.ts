@@ -284,7 +284,6 @@ describe("node/chat/thread.spec.ts", () => {
 
       const compactInput: CompactThreadInput = {
         contextFiles,
-        blockIndexes: [0, 1, 8],
         summary:
           "We discussed European capitals (France: Paris, Germany: Berlin) and examined your project structure, which contains TypeScript files.",
       };

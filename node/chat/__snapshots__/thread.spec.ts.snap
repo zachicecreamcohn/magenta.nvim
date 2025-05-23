@@ -25,19 +25,7 @@ Paint their stories in the night.
         "type": "text",
       },
       {
-        "text": "# Previous thread retained messages:
-# user
-What is the capital of France?
-# assistant
-The capital of France is Paris.
-# user
-Tool result for tool bash_command:
-stdout:
-European countries information
-exit code 0
-
-
-# Previous thread summary:
+        "text": "# Previous thread summary:
 We discussed European capitals (France: Paris, Germany: Berlin) and examined your project structure, which contains TypeScript files.
 
 # The user would like you to address this prompt next:
@@ -65,9 +53,7 @@ exports[`node/chat/thread.spec.ts > compacts a thread with multiple messages int
   {
     "content": [
       {
-        "text": "## block 0:
-What is the capital of France?
-",
+        "text": "What is the capital of France?",
         "type": "text",
       },
     ],
@@ -76,9 +62,8 @@ What is the capital of France?
   {
     "content": [
       {
-        "text": "## block 1:
-The capital of France is Paris.
-",
+        "citations": undefined,
+        "text": "The capital of France is Paris.",
         "type": "text",
       },
     ],
@@ -87,9 +72,7 @@ The capital of France is Paris.
   {
     "content": [
       {
-        "text": "## block 2:
-What about Germany?
-",
+        "text": "What about Germany?",
         "type": "text",
       },
     ],
@@ -98,18 +81,24 @@ What about Germany?
   {
     "content": [
       {
-        "text": "## block 3:
-Let me check if I can find some information about Germany in your system.
-",
+        "citations": undefined,
+        "text": "Let me check if I can find some information about Germany in your system.",
         "type": "text",
       },
       {
-        "text": "## block 4:
-Tool use for tool bash_command: {
-  "command": "echo 'Information about Germany'"
-}
-",
-        "type": "text",
+        "id": "first-bash-tool",
+        "name": "bash_command",
+        "request": {
+          "status": "ok",
+          "value": {
+            "id": "first-bash-tool",
+            "input": {
+              "command": "echo 'Information about Germany'",
+            },
+            "toolName": "bash_command",
+          },
+        },
+        "type": "tool_use",
       },
     ],
     "role": "assistant",
@@ -117,14 +106,15 @@ Tool use for tool bash_command: {
   {
     "content": [
       {
-        "text": "## block 5:
-Tool result for tool bash_command:
-stdout:
+        "id": "first-bash-tool",
+        "result": {
+          "status": "ok",
+          "value": "stdout:
 Information about Germany
 exit code 0
-
 ",
-        "type": "text",
+        },
+        "type": "tool_result",
       },
     ],
     "role": "user",
@@ -132,18 +122,24 @@ exit code 0
   {
     "content": [
       {
-        "text": "## block 6:
-Let me check for more details about European countries.
-",
+        "citations": undefined,
+        "text": "Let me check for more details about European countries.",
         "type": "text",
       },
       {
-        "text": "## block 7:
-Tool use for tool bash_command: {
-  "command": "echo 'European countries information'"
-}
-",
-        "type": "text",
+        "id": "second-bash-tool",
+        "name": "bash_command",
+        "request": {
+          "status": "ok",
+          "value": {
+            "id": "second-bash-tool",
+            "input": {
+              "command": "echo 'European countries information'",
+            },
+            "toolName": "bash_command",
+          },
+        },
+        "type": "tool_use",
       },
     ],
     "role": "assistant",
@@ -151,14 +147,15 @@ Tool use for tool bash_command: {
   {
     "content": [
       {
-        "text": "## block 8:
-Tool result for tool bash_command:
-stdout:
+        "id": "second-bash-tool",
+        "result": {
+          "status": "ok",
+          "value": "stdout:
 European countries information
 exit code 0
-
 ",
-        "type": "text",
+        },
+        "type": "tool_result",
       },
     ],
     "role": "user",
@@ -166,18 +163,24 @@ exit code 0
   {
     "content": [
       {
-        "text": "## block 9:
-test bash tool
-",
+        "citations": undefined,
+        "text": "test bash tool",
         "type": "text",
       },
       {
-        "text": "## block 10:
-Tool use for tool bash_command: {
-  "command": "echo test"
-}
-",
-        "type": "text",
+        "id": "bash-tool",
+        "name": "bash_command",
+        "request": {
+          "status": "ok",
+          "value": {
+            "id": "bash-tool",
+            "input": {
+              "command": "echo test",
+            },
+            "toolName": "bash_command",
+          },
+        },
+        "type": "tool_use",
       },
     ],
     "role": "assistant",
@@ -185,14 +188,15 @@ Tool use for tool bash_command: {
   {
     "content": [
       {
-        "text": "## block 11:
-Tool result for tool bash_command:
-stdout:
+        "id": "bash-tool",
+        "result": {
+          "status": "ok",
+          "value": "stdout:
 test
 exit code 0
-
 ",
-        "type": "text",
+        },
+        "type": "tool_result",
       },
     ],
     "role": "user",
@@ -200,9 +204,8 @@ exit code 0
   {
     "content": [
       {
-        "text": "## block 12:
-The capital of Germany is Berlin.
-",
+        "citations": undefined,
+        "text": "The capital of Germany is Berlin.",
         "type": "text",
       },
     ],
@@ -211,9 +214,10 @@ The capital of Germany is Berlin.
   {
     "content": [
       {
-        "text": "Use the compact tool to summarize this thread so far, to capture the relevant information in order to address the next message.
+        "text": "Use the compact_thread tool to analyze my next prompt and extract only the relevant parts of our conversation history.
 
-The user's next message will be:Tell me about Italy
+My next prompt will be:
+Tell me about Italy
 ",
         "type": "text",
       },

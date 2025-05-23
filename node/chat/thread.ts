@@ -37,7 +37,6 @@ import {
   type Input as ThreadTitleInput,
   spec as threadTitleToolSpec,
 } from "../tools/thread-title.ts";
-import { stringifyContent } from "../providers/helpers.ts";
 
 export type Role = "user" | "assistant";
 
@@ -563,49 +562,21 @@ export class Thread {
   }
 
   async compactThread(content: string): Promise<void> {
-    // Get the messages for context
-    const messages = this.getMessages();
-    let blockIdx = 0;
-    const annotatedMessages = messages.map((original) => {
-      const stringifiedContent: { blockIdx: number; content: string }[] = [];
-      for (const c of original.content) {
-        stringifiedContent.push({
-          blockIdx: blockIdx++,
-          content: stringifyContent(c, this.toolManager),
-        });
-      }
-
-      return {
-        original,
-        blocks: stringifiedContent,
-      };
-    });
-
     const request = getProvider(
       this.context.nvim,
       this.state.profile,
     ).forceToolUse(
       [
-        ...annotatedMessages.map(
-          ({ original, blocks: stringifiedContent }): ProviderMessage => {
-            return {
-              role: original.role,
-              content: stringifiedContent.map(({ blockIdx, content }) => ({
-                type: "text",
-                text: `## block ${blockIdx}:\n${content}\n`,
-              })),
-            };
-          },
-        ),
+        ...this.getMessages(),
         {
           role: "user",
           content: [
             {
               type: "text",
               text: `\
-Use the compact tool to summarize this thread so far, to capture the relevant information in order to address the next message.
+Use the compact_thread tool to analyze my next prompt and extract only the relevant parts of our conversation history.
 
-The user's next message will be:\
+My next prompt will be:
 ${content}\n`,
             },
           ],
@@ -630,24 +601,6 @@ ${content}\n`,
         ToolRequest,
         { toolName: "compact_thread" }
       >;
-      const blockIndexSet = new Set<number>(compactRequest.input.blockIndexes);
-
-      const keptMessages: string[] = [];
-
-      for (const annotatedMessage of annotatedMessages) {
-        const keptBlocks = [];
-        for (const block of annotatedMessage.blocks) {
-          if (blockIndexSet.has(block.blockIdx)) {
-            keptBlocks.push(block.content);
-          }
-        }
-
-        if (keptBlocks.length) {
-          keptMessages.push(
-            `# ${annotatedMessage.original.role}\n${keptBlocks.join("\n")}`,
-          );
-        }
-      }
 
       this.context.dispatch({
         type: "chat-msg",
@@ -656,9 +609,6 @@ ${content}\n`,
           threadId: this.id,
           contextFilePaths: compactRequest.input.contextFiles,
           initialMessage: `\
-# Previous thread retained messages:
-${keptMessages.join("\n")}
-
 # Previous thread summary:
 ${compactRequest.input.summary}
 
