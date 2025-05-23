@@ -1,496 +1,224 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`tea/chat.spec.ts > chat render and a few updates 1`] = `
-{
-  "children": [
-    {
-      "children": [
-        {
-          "children": [
-            {
-              "children": [
-                {
-                  "children": [
-                    {
-                      "content": "# ",
-                      "endPos": {
-                        "col": 2,
-                        "row": 0,
-                      },
-                      "startPos": {
-                        "col": 0,
-                        "row": 0,
-                      },
-                      "type": "string",
-                    },
-                    {
-                      "content": "user",
-                      "endPos": {
-                        "col": 6,
-                        "row": 0,
-                      },
-                      "startPos": {
-                        "col": 2,
-                        "row": 0,
-                      },
-                      "type": "string",
-                    },
-                    {
-                      "content": ":
-",
-                      "endPos": {
-                        "col": 0,
-                        "row": 1,
-                      },
-                      "startPos": {
-                        "col": 6,
-                        "row": 0,
-                      },
-                      "type": "string",
-                    },
-                    {
-                      "children": [
-                        {
-                          "children": [
-                            {
-                              "children": [
-                                {
-                                  "content": "Can you look at my list of buffers?",
-                                  "endPos": {
-                                    "col": 35,
-                                    "row": 1,
-                                  },
-                                  "startPos": {
-                                    "col": 0,
-                                    "row": 1,
-                                  },
-                                  "type": "string",
-                                },
-                              ],
-                              "endPos": {
-                                "col": 35,
-                                "row": 1,
-                              },
-                              "startPos": {
-                                "col": 0,
-                                "row": 1,
-                              },
-                              "type": "node",
-                            },
-                            {
-                              "content": "
-",
-                              "endPos": {
-                                "col": 0,
-                                "row": 2,
-                              },
-                              "startPos": {
-                                "col": 35,
-                                "row": 1,
-                              },
-                              "type": "string",
-                            },
-                          ],
-                          "endPos": {
-                            "col": 0,
-                            "row": 2,
-                          },
-                          "startPos": {
-                            "col": 0,
-                            "row": 1,
-                          },
-                          "type": "node",
-                        },
-                      ],
-                      "endPos": {
-                        "col": 0,
-                        "row": 2,
-                      },
-                      "startPos": {
-                        "col": 0,
-                        "row": 1,
-                      },
-                      "type": "array",
-                    },
-                    {
-                      "content": "",
-                      "endPos": {
-                        "col": 0,
-                        "row": 2,
-                      },
-                      "startPos": {
-                        "col": 0,
-                        "row": 2,
-                      },
-                      "type": "string",
-                    },
-                  ],
-                  "endPos": {
-                    "col": 0,
-                    "row": 2,
-                  },
-                  "startPos": {
-                    "col": 0,
-                    "row": 0,
-                  },
-                  "type": "node",
-                },
-                {
-                  "content": "
-",
-                  "endPos": {
-                    "col": 0,
-                    "row": 3,
-                  },
-                  "startPos": {
-                    "col": 0,
-                    "row": 2,
-                  },
-                  "type": "string",
-                },
-              ],
-              "endPos": {
-                "col": 0,
-                "row": 3,
-              },
-              "startPos": {
-                "col": 0,
-                "row": 0,
-              },
-              "type": "node",
-            },
-            {
-              "children": [
-                {
-                  "children": [
-                    {
-                      "content": "# ",
-                      "endPos": {
-                        "col": 2,
-                        "row": 3,
-                      },
-                      "startPos": {
-                        "col": 0,
-                        "row": 3,
-                      },
-                      "type": "string",
-                    },
-                    {
-                      "content": "assistant",
-                      "endPos": {
-                        "col": 11,
-                        "row": 3,
-                      },
-                      "startPos": {
-                        "col": 2,
-                        "row": 3,
-                      },
-                      "type": "string",
-                    },
-                    {
-                      "content": ":
-",
-                      "endPos": {
-                        "col": 0,
-                        "row": 4,
-                      },
-                      "startPos": {
-                        "col": 11,
-                        "row": 3,
-                      },
-                      "type": "string",
-                    },
-                    {
-                      "children": [
-                        {
-                          "children": [
-                            {
-                              "children": [
-                                {
-                                  "content": "Sure, let me use the list_buffers tool.",
-                                  "endPos": {
-                                    "col": 39,
-                                    "row": 4,
-                                  },
-                                  "startPos": {
-                                    "col": 0,
-                                    "row": 4,
-                                  },
-                                  "type": "string",
-                                },
-                              ],
-                              "endPos": {
-                                "col": 39,
-                                "row": 4,
-                              },
-                              "startPos": {
-                                "col": 0,
-                                "row": 4,
-                              },
-                              "type": "node",
-                            },
-                            {
-                              "content": "
-",
-                              "endPos": {
-                                "col": 0,
-                                "row": 5,
-                              },
-                              "startPos": {
-                                "col": 39,
-                                "row": 4,
-                              },
-                              "type": "string",
-                            },
-                          ],
-                          "endPos": {
-                            "col": 0,
-                            "row": 5,
-                          },
-                          "startPos": {
-                            "col": 0,
-                            "row": 4,
-                          },
-                          "type": "node",
-                        },
-                        {
-                          "children": [
-                            {
-                              "children": [
-                                {
-                                  "children": [
-                                    {
-                                      "content": "⚙️ Grabbing buffers...",
-                                      "endPos": {
-                                        "col": 26,
-                                        "row": 5,
-                                      },
-                                      "startPos": {
-                                        "col": 0,
-                                        "row": 5,
-                                      },
-                                      "type": "string",
-                                    },
-                                  ],
-                                  "endPos": {
-                                    "col": 26,
-                                    "row": 5,
-                                  },
-                                  "startPos": {
-                                    "col": 0,
-                                    "row": 5,
-                                  },
-                                  "type": "node",
-                                },
-                                {
-                                  "content": "",
-                                  "endPos": {
-                                    "col": 26,
-                                    "row": 5,
-                                  },
-                                  "startPos": {
-                                    "col": 26,
-                                    "row": 5,
-                                  },
-                                  "type": "string",
-                                },
-                                {
-                                  "content": "",
-                                  "endPos": {
-                                    "col": 26,
-                                    "row": 5,
-                                  },
-                                  "startPos": {
-                                    "col": 26,
-                                    "row": 5,
-                                  },
-                                  "type": "string",
-                                },
-                              ],
-                              "endPos": {
-                                "col": 26,
-                                "row": 5,
-                              },
-                              "startPos": {
-                                "col": 0,
-                                "row": 5,
-                              },
-                              "type": "node",
-                            },
-                            {
-                              "content": "
-",
-                              "endPos": {
-                                "col": 0,
-                                "row": 6,
-                              },
-                              "startPos": {
-                                "col": 26,
-                                "row": 5,
-                              },
-                              "type": "string",
-                            },
-                          ],
-                          "endPos": {
-                            "col": 0,
-                            "row": 6,
-                          },
-                          "startPos": {
-                            "col": 0,
-                            "row": 5,
-                          },
-                          "type": "node",
-                        },
-                      ],
-                      "endPos": {
-                        "col": 0,
-                        "row": 6,
-                      },
-                      "startPos": {
-                        "col": 0,
-                        "row": 4,
-                      },
-                      "type": "array",
-                    },
-                    {
-                      "content": "",
-                      "endPos": {
-                        "col": 0,
-                        "row": 6,
-                      },
-                      "startPos": {
-                        "col": 0,
-                        "row": 6,
-                      },
-                      "type": "string",
-                    },
-                  ],
-                  "endPos": {
-                    "col": 0,
-                    "row": 6,
-                  },
-                  "startPos": {
-                    "col": 0,
-                    "row": 3,
-                  },
-                  "type": "node",
-                },
-                {
-                  "content": "
-",
-                  "endPos": {
-                    "col": 0,
-                    "row": 7,
-                  },
-                  "startPos": {
-                    "col": 0,
-                    "row": 6,
-                  },
-                  "type": "string",
-                },
-              ],
-              "endPos": {
-                "col": 0,
-                "row": 7,
-              },
-              "startPos": {
-                "col": 0,
-                "row": 3,
-              },
-              "type": "node",
-            },
-          ],
-          "endPos": {
-            "col": 0,
-            "row": 7,
-          },
-          "startPos": {
-            "col": 0,
-            "row": 0,
-          },
-          "type": "array",
-        },
-        {
-          "children": [
-            {
-              "content": "Stopped (",
-              "endPos": {
-                "col": 9,
-                "row": 7,
-              },
-              "startPos": {
-                "col": 0,
-                "row": 7,
-              },
-              "type": "string",
-            },
-            {
-              "content": "end_turn",
-              "endPos": {
-                "col": 17,
-                "row": 7,
-              },
-              "startPos": {
-                "col": 9,
-                "row": 7,
-              },
-              "type": "string",
-            },
-            {
-              "content": ")",
-              "endPos": {
-                "col": 18,
-                "row": 7,
-              },
-              "startPos": {
-                "col": 17,
-                "row": 7,
-              },
-              "type": "string",
-            },
-          ],
-          "endPos": {
-            "col": 18,
-            "row": 7,
-          },
-          "startPos": {
-            "col": 0,
-            "row": 7,
-          },
-          "type": "node",
-        },
-        {
-          "content": "",
-          "endPos": {
-            "col": 18,
-            "row": 7,
-          },
-          "startPos": {
-            "col": 18,
-            "row": 7,
-          },
-          "type": "string",
-        },
-      ],
-      "endPos": {
-        "col": 18,
-        "row": 7,
+exports[`node/chat/thread.spec.ts > compacts a thread with multiple messages into a new thread > compacted-thread-messages 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "These files are part of your context and have been updated. This is the latest information about the content of each file.
+- \`node/test/tmp/poem.txt\`
+\`\`\`
+Moonlight whispers through the trees,
+Silver shadows dance with ease.
+Stars above like diamonds bright,
+Paint their stories in the night.
+
+\`\`\`
+- \`node/test/tmp/poem2.txt\`
+\`\`\`
+Moonlight whispers through the trees,
+Silver shadows dance with ease.
+Stars above like diamonds bright,
+Paint their stories in the night.
+
+\`\`\`",
+        "type": "text",
       },
-      "startPos": {
-        "col": 0,
-        "row": 0,
+      {
+        "text": "# Previous thread retained messages:
+# user
+What is the capital of France?
+# assistant
+The capital of France is Paris.
+# user
+Tool result for tool bash_command:
+stdout:
+European countries information
+exit code 0
+
+
+# Previous thread summary:
+We discussed European capitals (France: Paris, Germany: Berlin) and examined your project structure, which contains TypeScript files.
+
+# The user would like you to address this prompt next:
+Tell me about Italy",
+        "type": "text",
       },
-      "type": "node",
-    },
-  ],
-  "endPos": {
-    "col": 18,
-    "row": 7,
+    ],
+    "role": "user",
   },
-  "startPos": {
-    "col": 0,
-    "row": 0,
+  {
+    "content": [
+      {
+        "citations": undefined,
+        "text": "Italy's capital is Rome. It's known for its rich history, art, and cuisine.",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
   },
-  "type": "node",
+]
+`;
+
+exports[`node/chat/thread.spec.ts > compacts a thread with multiple messages into a new thread > forced-tool-request-messages 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "## block 0:
+What is the capital of France?
+",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "text": "## block 1:
+The capital of France is Paris.
+",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "text": "## block 2:
+What about Germany?
+",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "text": "## block 3:
+Let me check if I can find some information about Germany in your system.
+",
+        "type": "text",
+      },
+      {
+        "text": "## block 4:
+Tool use for tool bash_command: {
+  "command": "echo 'Information about Germany'"
 }
+",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "text": "## block 5:
+Tool result for tool bash_command:
+stdout:
+Information about Germany
+exit code 0
+
+",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "text": "## block 6:
+Let me check for more details about European countries.
+",
+        "type": "text",
+      },
+      {
+        "text": "## block 7:
+Tool use for tool bash_command: {
+  "command": "echo 'European countries information'"
+}
+",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "text": "## block 8:
+Tool result for tool bash_command:
+stdout:
+European countries information
+exit code 0
+
+",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "text": "## block 9:
+test bash tool
+",
+        "type": "text",
+      },
+      {
+        "text": "## block 10:
+Tool use for tool bash_command: {
+  "command": "echo test"
+}
+",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "text": "## block 11:
+Tool result for tool bash_command:
+stdout:
+test
+exit code 0
+
+",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "text": "## block 12:
+The capital of Germany is Berlin.
+",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "text": "Use the compact tool to summarize this thread so far, to capture the relevant information in order to address the next message.
+
+The user's next message will be:Tell me about Italy
+",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+]
 `;

@@ -7,6 +7,7 @@ import type {
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { ToolInterface } from "./types.ts";
+import type { UnresolvedFilePath } from "../utils/files.ts";
 
 export type State = {
   state: "done";
@@ -50,18 +51,43 @@ export class CompactThreadTool implements ToolInterface {
     return `compact_thread: {
     summary: "${this.request.input.summary}",
     contextFiles: [${this.request.input.contextFiles.map((file) => `"${file}"`).join(", ")}],
-    messageIndexes: [${this.request.input.messageIndexes.join(", ")}]
+    blockIndexes: [${this.request.input.blockIndexes.join(", ")}]
 }`;
   }
 }
 
 export const spec: ProviderToolSpec = {
   name: "compact_thread",
-  description: `Replace the current thread with a summary that's relevant for the remainder of the conversation.
-Be strategic about space, and only keep the information that is necessary for getting started on the next user request.
-When files or messages are really long, try to avoid including them in full. Instead, pick out just the relevant parts
-in the summary.
-The next thread will start with the user's prompt in full, exactly as it appears in the last message of the current thread, so you do not have to include anything about the last user prompt in this tool request.`,
+  description: `⚠️ IMPORTANT: The next thread will automatically include the user's most recent prompt, so DO NOT include the last user message in your summary.
+
+Create a concise thread summary that preserves only the essential context needed for future work. The summary should be no longer than necessary to maintain critical information.
+
+PRIORITIZE:
+1. Key decisions and architectural choices made during the conversation
+2. Technical requirements and constraints that affect implementation
+3. Relevant file paths, function names, and API interfaces discussed
+4. Specific problems or edge cases identified that remain relevant
+5. Current progress state and next steps in the development task
+
+OMIT:
+- Introductory exchanges, pleasantries, and tangential discussions
+- Explanations of concepts that were only relevant to earlier questions
+- Detailed troubleshooting steps that led to a solution (just keep the solution)
+- Any information that could be quickly rediscovered from the codebase
+
+FILE AND BLOCK SELECTION:
+- In 'contextFiles': Only include files that are ACTIVELY being worked on or immediately relevant
+- In 'blockIndexes': Only preserve blocks containing hard-to-recreate insights or critical decisions
+
+CODE HANDLING:
+- When a file or block contains mostly irrelevant code, extract only the essential functions or patterns into the summary
+- Prefer code snippets of interfaces or types to full implementations, where the details of the implementation are not relevant
+
+FORMAT YOUR SUMMARY:
+- Keep explanations brief and technical, optimized for an engineer continuing work
+- DO NOT restate information contained in retained files and blocks
+
+Remember: The most effective summary preserves maximum context in minimum space.`,
   input_schema: {
     type: "object",
     properties: {
@@ -73,29 +99,28 @@ The next thread will start with the user's prompt in full, exactly as it appears
         description:
           "List of file names to include in the context of the next thread.",
       },
-      messageIndexes: {
+      blockIndexes: {
         type: "array",
         items: {
           type: "number",
         },
-        description:
-          "List of message indexes to include in the context of the next thread. These messages will be copied in full.",
+        description: `The thread has annotated blocks with "## block N" headers. Use the blockIndexes argument to retain the entire content of the block.`,
       },
       summary: {
         type: "string",
         description: `\
 Text summarizing just the relevant pieces of the thread to the user's latest query.
-This should not restate anything relating to the contextFiles or messageIndexes, since those will be included in the next thread in full.`,
+This should not restate anything relating to contextFiles or blockIndexes, since those will be retained in full.`,
       },
     },
-    required: ["context", "summary"],
+    required: ["contextFiles", "blockIndexes", "summary"],
     additionalProperties: false,
   },
 };
 
 export type Input = {
-  contextFiles: string[];
-  messageIndexes: number[];
+  contextFiles: UnresolvedFilePath[];
+  blockIndexes: number[];
   summary: string;
 };
 
@@ -123,17 +148,17 @@ export function validateInput(input: {
     };
   }
 
-  if (!Array.isArray(input.messageIndexes)) {
+  if (!Array.isArray(input.blockIndexes)) {
     return {
       status: "error",
-      error: "expected req.input.messageIndexes to be an array",
+      error: "expected req.input.blockIndexes to be an array",
     };
   }
 
-  if (!input.messageIndexes.every((item) => typeof item === "number")) {
+  if (!input.blockIndexes.every((item) => typeof item === "number")) {
     return {
       status: "error",
-      error: "expected all items in req.input.messageIndexes to be numbers",
+      error: "expected all items in req.input.blockIndexes to be numbers",
     };
   }
 
