@@ -51,10 +51,11 @@ Stopped (end_turn) [input: 0, output: 0]`);
       await driver.showSidebar();
       await driver.inputMagentaText(`hello`);
       await driver.send();
-      await driver.assertDisplayBufferContains(`# user:
+      await driver.assertDisplayBufferContains(`\
+# user:
 hello
 
-Awaiting response ⠁`);
+Streaming response ⠁`);
 
       await pollUntil(() => {
         if (driver.mockAnthropic.requests.length != 1) {

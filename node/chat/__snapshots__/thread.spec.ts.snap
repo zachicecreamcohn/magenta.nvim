@@ -217,8 +217,7 @@ exit code 0
         "text": "Use the compact_thread tool to analyze my next prompt and extract only the relevant parts of our conversation history.
 
 My next prompt will be:
-Tell me about Italy
-",
+Tell me about Italy",
         "type": "text",
       },
     ],

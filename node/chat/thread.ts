@@ -6,7 +6,7 @@ import {
   type Msg as ContextManagerMsg,
 } from "../context/context-manager.ts";
 import { type Dispatch } from "../tea/tea.ts";
-import { d, type View } from "../tea/view.ts";
+import { d, type View, type VDOMNode } from "../tea/view.ts";
 import {
   ToolManager,
   type Msg as ToolManagerMsg,
@@ -50,14 +50,7 @@ export type ConversationState =
       state: "compacting";
       sendDate: Date;
       request: ProviderToolUseRequest;
-    }
-  | {
-      state: "compacted";
-      usage: Usage;
-    }
-  | {
-      state: "compaction-complete";
-      usage: Usage;
+      userMsgContent: string;
     }
   | {
       state: "stopped";
@@ -253,8 +246,6 @@ export class Thread {
 
           case "message-in-flight":
           case "compacting":
-          case "compacted":
-          case "compaction-complete":
             break;
 
           default:
@@ -562,6 +553,12 @@ export class Thread {
   }
 
   async compactThread(content: string): Promise<void> {
+    const userMsgContent = `\
+Use the compact_thread tool to analyze my next prompt and extract only the relevant parts of our conversation history.
+
+My next prompt will be:
+${content}`;
+
     const request = getProvider(
       this.context.nvim,
       this.state.profile,
@@ -573,11 +570,7 @@ export class Thread {
           content: [
             {
               type: "text",
-              text: `\
-Use the compact_thread tool to analyze my next prompt and extract only the relevant parts of our conversation history.
-
-My next prompt will be:
-${content}\n`,
+              text: userMsgContent,
             },
           ],
         },
@@ -591,6 +584,7 @@ ${content}\n`,
         state: "compacting",
         sendDate: new Date(),
         request,
+        userMsgContent,
       },
     });
 
@@ -621,21 +615,11 @@ ${content}`,
       this.myDispatch({
         type: "conversation-state",
         conversation: {
-          state: "compacted",
+          state: "stopped",
+          stopReason: "end_turn",
           usage: result.usage || { inputTokens: 0, outputTokens: 0 },
         },
       });
-
-      // Set the final state to compaction-complete after the compaction is done
-      setTimeout(() => {
-        this.myDispatch({
-          type: "conversation-state",
-          conversation: {
-            state: "compaction-complete",
-            usage: result.usage || { inputTokens: 0, outputTokens: 0 },
-          },
-        });
-      }, 2000); // Show the "compacted" state for 2 seconds before transitioning
     } else {
       this.myDispatch({
         type: "conversation-state",
@@ -753,6 +737,45 @@ const getAnimationFrame = (sendDate: Date): string => {
   return MESSAGE_ANIMATION[frameIndex];
 };
 
+/**
+ * Helper function to render the conversation state message
+ */
+const renderConversationState = (conversation: ConversationState): VDOMNode => {
+  switch (conversation.state) {
+    case "message-in-flight":
+      return d`Streaming response ${getAnimationFrame(conversation.sendDate)}`;
+    case "compacting":
+      return d`Compacting thread ${getAnimationFrame(conversation.sendDate)}`;
+    case "stopped":
+      return d``;
+    case "error":
+      return d`Error ${conversation.error.message}${
+        conversation.error.stack ? "\n" + conversation.error.stack : ""
+      }${
+        conversation.lastAssistantMessage
+          ? "\n\nLast assistant message:\n" +
+            conversation.lastAssistantMessage.toString()
+          : ""
+      }`;
+    default:
+      assertUnreachable(conversation);
+  }
+};
+
+/**
+ * Helper function to determine if context manager view should be shown
+ */
+const shouldShowContextManager = (
+  conversation: ConversationState,
+  contextManager: ContextManager,
+): boolean => {
+  return (
+    conversation.state !== "message-in-flight" &&
+    conversation.state !== "compacting" &&
+    !contextManager.isContextEmpty()
+  );
+};
+
 export const view: View<{
   thread: Thread;
   dispatch: Dispatch<Msg>;
@@ -768,30 +791,30 @@ export const view: View<{
     return d`${titleView}\n${LOGO}\n${thread.context.contextManager.view()}`;
   }
 
-  return d`${titleView}\n${thread.state.messages.map((m) => d`${m.view()}\n`)}${
-    thread.state.conversation.state == "message-in-flight"
-      ? d`Awaiting response ${getAnimationFrame(thread.state.conversation.sendDate)}`
-      : thread.state.conversation.state == "compacting"
-        ? d`Compacting thread ${getAnimationFrame(thread.state.conversation.sendDate)}`
-        : thread.state.conversation.state == "compacted"
-          ? d`Thread successfully compacted`
-          : thread.state.conversation.state == "compaction-complete"
-            ? d`Thread compaction complete. The thread has been successfully compacted.`
-            : thread.state.conversation.state == "stopped"
-              ? ""
-              : d`Error ${thread.state.conversation.error.message}${thread.state.conversation.error.stack ? "\n" + thread.state.conversation.error.stack : ""}${
-                  thread.state.conversation.lastAssistantMessage
-                    ? "\n\nLast assistant message:\n" +
-                      thread.state.conversation.lastAssistantMessage.toString()
-                    : ""
-                }`
-  }${
-    thread.state.conversation.state != "message-in-flight" &&
-    thread.state.conversation.state != "compacting" &&
-    !thread.context.contextManager.isContextEmpty()
-      ? d`\n${thread.context.contextManager.view()}`
-      : ""
-  }`;
+  const conversationStateView = renderConversationState(
+    thread.state.conversation,
+  );
+  const contextManagerView = shouldShowContextManager(
+    thread.state.conversation,
+    thread.context.contextManager,
+  )
+    ? d`\n${thread.context.contextManager.view()}`
+    : d``;
+
+  let compactingUserMsg = d``;
+  if (thread.state.conversation.state == "compacting") {
+    const userMsgContent = thread.state.conversation.userMsgContent;
+    compactingUserMsg = d`\
+# user
+${userMsgContent}`;
+  }
+
+  return d`\
+${titleView}
+${thread.state.messages.map((m) => d`${m.view()}\n`)}\
+${compactingUserMsg}\
+${conversationStateView}\
+${contextManagerView}`;
 };
 
 export const LOGO = `\

@@ -297,6 +297,7 @@ Thread compaction allows you to retain relevant pieces of context as you shift f
 This smart compaction ensures that only information specifically relevant to your next task is carried forward, while irrelevant parts of the conversation are summarized or removed.
 
 Example usage:
+
 ```
 @compact Now let's implement unit tests for the new feature we just discussed
 ```
