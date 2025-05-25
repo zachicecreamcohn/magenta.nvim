@@ -838,7 +838,7 @@ export const view: View<{
   if (thread.state.conversation.state == "compacting") {
     const userMsgContent = thread.state.conversation.userMsgContent;
     compactingUserMsg = d`\
-# user
+# user:
 ${userMsgContent}\n`;
   }
 
