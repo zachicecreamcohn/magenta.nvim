@@ -9,16 +9,17 @@
 Magenta is for agents.
 ```
 
-(developed by [dlants.me](https://dlants.me))
+`magenta.nvim` is a plugin for leveraging LLM agents in neovim. It provides a chat window where you can talk to your AI coding assistant, as well as tools to populate context and perform inline edits. It's similar to copilot agent, claude code, cursor compose, ampcode or windsurf.
 
-(Note - I mostly develop using the Anthropic provider, so claude sonnet 3.7 or 4 are recommended. The OpenAI provider is supported, but it's somewhat limited. Contributions are welcome! See for example https://github.com/dlants/magenta.nvim/issues/82 and https://github.com/dlants/magenta.nvim/issues/84 )
+(Developed by [dlants.me](https://dlants.me). I was tempted by other editors due to lack of high-quality agentic coding support in neovim. I missed neovim a lot, though, so I decided to go back and implement my own. I now happily code in neovim using magenta, and find that it's just as good!)
+
+(Note - I mostly develop using the Anthropic provider, so claude sonnet 3.7 or 4 are recommended. The OpenAI provider is supported, but with limitations. Contributions are welcome! See for example https://github.com/dlants/magenta.nvim/issues/82 and https://github.com/dlants/magenta.nvim/issues/84 )
 
 # Roadmap
 
-- Sub-agents. A new tool where the agent can delegate tasks to sub-agents with a specified toolset. Similar to how claude code works.
+- Sub-agents. A new tool where the agent can delegate tasks to sub-agents with a specified toolset. Similar to claude code
 - MCP support
-- local code indexing via chroma db, and semantic code search tool
-- edit prediction (though if there's a good different plugin for this I'd really love to know about it).
+- local code embedding & indexing via chroma db, to support a semantic code search tool
 
 # Updates
 
@@ -55,12 +56,6 @@ I also started implementing multi-thread support, a basic version of which is no
 - context pinning
 - architecture overview
 </details>
-
-`magenta.nvim` is a plugin for leveraging LLM agents in neovim. It provides a chat window where you can talk to your AI coding assistant, as well as tools to populate context and perform inline edits. In functionality, it's similar to cursor-compose, cody or windsurf.
-
-Rather than writing complex code to compress your repo and send it to the LLM (like a repomap in aider, etc...), magenta is built around the idea that the AI agent can choose which context to gather via tools.
-
-Flagship models will continue to get better at tools use, and as this happens, the gap between tools like magenta and other editors that try to be clever about context management will grow smaller.
 
 # Installation
 
