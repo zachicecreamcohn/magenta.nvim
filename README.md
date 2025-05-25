@@ -11,16 +11,20 @@ Magenta is for agents.
 
 (developed by [dlants.me](https://dlants.me))
 
+(Note - I mostly develop using the Anthropic provider, so claude sonnet 3.7 or 4 are recommended. The OpenAI provider is supported, but it's somewhat limited. Contributions are welcome! See for example https://github.com/dlants/magenta.nvim/issues/82 and https://github.com/dlants/magenta.nvim/issues/84 )
+
 # Roadmap
 
-- Thread forking. So you can type in a message, and use a different keybind (like cmd-enter) to submit it as a fork.
-- Sub-tasks. A new tool where the agent can delegate tasks to sub-agents with a limited toolset. Similar to how claude code works.
+- Sub-agents. A new tool where the agent can delegate tasks to sub-agents with a specified toolset. Similar to how claude code works.
+- MCP support
+- local code indexing via chroma db, and semantic code search tool
+- edit prediction (though if there's a good different plugin for this I'd really love to know about it).
 
 # Updates
 
 ## May 2025
 
-I implemented thread compaction that intelligently analyzes your next prompt and extracts only the relevant parts of the conversation history. This makes it easier to continue long conversations without hitting context limits while ensuring all important information is preserved.
+I implemented thread compaction that intelligently analyzes your next prompt and extracts only the relevant parts of the conversation history. This makes it easier to continue long conversations without hitting context limits while ensuring all important information is preserved. I also updated the magenta header to give you an estimate of the token count for your current conversation.
 
 I updated the architecture around context following. We now track the state of the file on disk, and the buffer, as well as the current view that the agent has of the file. When these diverge, we send just the diff of the changes to the agent. This allows for better use of the cache, and more efficient communication since we do not have to re-send the full file contents when a small thing changes.
 
