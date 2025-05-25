@@ -330,6 +330,10 @@ export class Thread {
       }
 
       case "clear": {
+        // Abort any in-progress operations
+        this.abortInProgressOperations();
+
+        // Now reset the thread state
         this.state = {
           lastUserMessageId: this.counter.last() as MessageId,
           profile: msg.profile,
@@ -375,34 +379,21 @@ export class Thread {
         return;
       }
       case "abort": {
-        if (
-          this.state.conversation.state == "message-in-flight" ||
-          this.state.conversation.state == "compacting"
-        ) {
-          this.state.conversation.request.abort();
-        }
+        // Abort any in-progress operations
+        this.abortInProgressOperations();
 
+        // Update the last message and conversation state to indicate it was aborted
         const lastMessage = this.state.messages[this.state.messages.length - 1];
-        for (const content of lastMessage.state.content) {
-          if (content.type == "tool_use") {
-            this.myDispatch({
-              type: "tool-manager-msg",
-              msg: {
-                type: "abort-tool-use",
-                requestId: content.id,
-              },
-            });
-          }
+        if (lastMessage) {
+          lastMessage.update({
+            type: "stop",
+            stopReason: "aborted",
+            usage: {
+              inputTokens: -1,
+              outputTokens: -1,
+            },
+          });
         }
-
-        lastMessage.update({
-          type: "stop",
-          stopReason: "aborted",
-          usage: {
-            inputTokens: -1,
-            outputTokens: -1,
-          },
-        });
 
         this.state.conversation = {
           state: "stopped",
@@ -423,6 +414,34 @@ export class Thread {
 
       default:
         assertUnreachable(msg);
+    }
+  }
+
+  private abortInProgressOperations(): void {
+    if (
+      this.state.conversation.state === "message-in-flight" ||
+      this.state.conversation.state === "compacting"
+    ) {
+      this.state.conversation.request.abort();
+    }
+
+    // Also abort any in-progress tool uses in the last message
+    const lastMessage = this.state.messages[this.state.messages.length - 1];
+    if (lastMessage) {
+      for (const content of lastMessage.state.content) {
+        if (content.type === "tool_use") {
+          const toolWrapper = this.toolManager.state.toolWrappers[content.id];
+          if (toolWrapper && toolWrapper.tool.state.state !== "done") {
+            this.myDispatch({
+              type: "tool-manager-msg",
+              msg: {
+                type: "abort-tool-use",
+                requestId: content.id,
+              },
+            });
+          }
+        }
+      }
     }
   }
 
@@ -820,7 +839,7 @@ export const view: View<{
     const userMsgContent = thread.state.conversation.userMsgContent;
     compactingUserMsg = d`\
 # user
-${userMsgContent}`;
+${userMsgContent}\n`;
   }
 
   return d`\
