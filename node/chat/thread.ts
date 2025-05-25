@@ -246,6 +246,13 @@ export class Thread {
 
           case "message-in-flight":
           case "compacting":
+            // trigger scroll to the last user message after the next render. We know the user message should now be
+            // visible
+            setTimeout(() => {
+              this.context.dispatch({
+                type: "sidebar-scroll-to-last-user-message",
+              });
+            }, 1);
             break;
 
           default:

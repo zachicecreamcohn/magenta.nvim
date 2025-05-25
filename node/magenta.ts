@@ -70,6 +70,17 @@ export class Magenta {
                 );
               });
           }
+        } else if (msg.type == "sidebar-scroll-to-last-user-message") {
+          if (this.mountedChatApp) {
+            (async () => {
+              await this.mountedChatApp?.waitForRender();
+              await this.sidebar.scrollToLastUserMessage();
+            })().catch((error: Error) =>
+              this.nvim.logger?.error(
+                `Error scrolling to last user message: ${error.message + "\n" + error.stack}`,
+              ),
+            );
+          }
         }
         if (this.mountedChatApp) {
           this.mountedChatApp.render();
@@ -200,11 +211,6 @@ export class Magenta {
             content: message,
           },
         });
-
-        if (this.mountedChatApp) {
-          await this.mountedChatApp.waitForRender();
-        }
-        await this.sidebar.scrollToLastUserMessage();
 
         break;
       }

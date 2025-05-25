@@ -13,4 +13,7 @@ export type RootMsg =
       type: "compact-thread";
       threadId: ThreadId;
       compactRequest: CompactThreadInput;
+    }
+  | {
+      type: "sidebar-scroll-to-last-user-message";
     };
