@@ -16,4 +16,8 @@ export type RootMsg =
     }
   | {
       type: "sidebar-scroll-to-last-user-message";
+    }
+  | {
+      type: "sidebar-update-token-count";
+      tokenCount: number;
     };

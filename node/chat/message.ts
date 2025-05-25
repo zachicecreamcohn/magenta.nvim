@@ -54,6 +54,7 @@ type State = {
           };
     };
   };
+  estimatedTokenCount: number;
 };
 
 export type Msg =
@@ -111,8 +112,17 @@ export class Message {
       content: [],
       stops: {},
       edits: {},
+      estimatedTokenCount: 0,
       ...initialState,
     };
+
+    if (initialState.content && initialState.content.length > 0) {
+      for (const block of initialState.content) {
+        this.state.estimatedTokenCount += Math.ceil(
+          JSON.stringify(block).length / 4,
+        );
+      }
+    }
   }
 
   update(msg: Msg): Thunk<Msg> | undefined {
@@ -184,6 +194,9 @@ export class Message {
                 this.state.edits[filePath].requestIds.push(request.id);
               }
             }
+
+            const contentStr = JSON.stringify(block);
+            this.state.estimatedTokenCount += Math.ceil(contentStr.length / 4);
             return;
           }
           default:

@@ -81,6 +81,14 @@ export class Magenta {
               ),
             );
           }
+        } else if (msg.type == "sidebar-update-token-count") {
+          this.sidebar
+            .updateTokenCount(msg.tokenCount)
+            .catch((error: Error) =>
+              this.nvim.logger?.error(
+                `Error updating token count: ${error.message + "\n" + error.stack}`,
+              ),
+            );
         }
         if (this.mountedChatApp) {
           this.mountedChatApp.render();

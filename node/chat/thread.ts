@@ -246,13 +246,6 @@ export class Thread {
 
           case "message-in-flight":
           case "compacting":
-            // trigger scroll to the last user message after the next render. We know the user message should now be
-            // visible
-            setTimeout(() => {
-              this.context.dispatch({
-                type: "sidebar-scroll-to-last-user-message",
-              });
-            }, 1);
             break;
 
           default:
@@ -281,6 +274,16 @@ export class Thread {
             );
           }
         });
+
+        if (msg.content) {
+          // NOTE: this is a bit hacky. We want to scroll after the user message has been populated in the display
+          // buffer. the 100ms timeout is not the most precise way to do that, but it works for now
+          setTimeout(() => {
+            this.context.dispatch({
+              type: "sidebar-scroll-to-last-user-message",
+            });
+          }, 100);
+        }
         break;
       }
 
@@ -315,6 +318,14 @@ export class Thread {
           type: "stream-event",
           event: msg.event,
         });
+
+        // setTimeout to avoid dispatch-in-dispatch
+        setTimeout(() =>
+          this.context.dispatch({
+            type: "sidebar-update-token-count",
+            tokenCount: this.getEstimatedTokenCount(),
+          }),
+        );
         return;
       }
 
@@ -333,12 +344,6 @@ export class Thread {
         return undefined;
       }
 
-      // case "show-message-debug-info": {
-      //   // eslint-disable-next-line @typescript-eslint/no-floating-promises
-      //   this.showDebugInfo();
-      //   return;
-      // }
-      //
       case "message-msg": {
         const message = this.state.messages.find((m) => m.state.id == msg.id);
         if (!message) {
@@ -725,6 +730,13 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
         title: (result.toolRequest.value.input as ThreadTitleInput).title,
       });
     }
+  }
+
+  getEstimatedTokenCount(): number {
+    return this.state.messages.reduce(
+      (sum, message) => sum + message.state.estimatedTokenCount,
+      0,
+    );
   }
 }
 
