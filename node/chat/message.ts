@@ -31,9 +31,11 @@ type State = {
   role: Role;
   streamingBlock: StreamingBlock | undefined;
   content: ProviderMessageContent[];
-  stopped?: {
-    stopReason: StopReason;
-    usage: Usage;
+  stops: {
+    [contentIdx: number]: {
+      stopReason: StopReason;
+      usage: Usage;
+    };
   };
   contextUpdates?: FileUpdates | undefined;
   expandedUpdates?: {
@@ -86,8 +88,14 @@ export type Msg =
     };
 
 export class Message {
+  public state: State;
   constructor(
-    public state: State,
+    initialState: {
+      id: State["id"];
+      role: State["role"];
+      content?: State["content"];
+      contextUpdates?: State["contextUpdates"];
+    },
     private context: {
       dispatch: Dispatch<RootMsg>;
       myDispatch: Dispatch<Msg>;
@@ -97,7 +105,15 @@ export class Message {
       fileSnapshots: FileSnapshots;
       options: MagentaOptions;
     },
-  ) {}
+  ) {
+    this.state = {
+      streamingBlock: undefined,
+      content: [],
+      stops: {},
+      edits: {},
+      ...initialState,
+    };
+  }
 
   update(msg: Msg): Thunk<Msg> | undefined {
     switch (msg.type) {
@@ -200,7 +216,7 @@ export class Message {
       }
 
       case "stop": {
-        this.state.stopped = {
+        this.state.stops[this.state.content.length - 1] = {
           stopReason: msg.stopReason,
           usage: msg.usage,
         };
@@ -246,16 +262,30 @@ export class Message {
   }
 
   view() {
+    const renderContentWithStop = (
+      content: ProviderMessageContent,
+      contentIdx: number,
+    ) => {
+      let stopView;
+      if (this.state.stops[contentIdx]) {
+        stopView = this.renderStop(contentIdx);
+      }
+
+      return d`${this.renderContent(content)}\n${stopView ?? ""}`;
+    };
+
     return d`\
 # ${this.state.role}:
-${this.renderContextUpdate()}${this.state.content.map((content) => d`${this.renderContent(content)}\n`)}${this.renderStreamingBlock()}${this.renderEdits()}${this.renderStopped()}`;
+${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${this.renderStreamingBlock()}${this.renderEdits()}`;
   }
 
-  renderStopped() {
-    if (!this.state.stopped) {
+  renderStop(contentIdx: number) {
+    const stop = this.state.stops[contentIdx];
+    if (!stop) {
       return "";
     }
-    const { stopReason, usage } = this.state.stopped;
+
+    const { stopReason, usage } = stop;
 
     return d`\nStopped (${stopReason}) [input: ${usage.inputTokens.toString()}, output: ${usage.outputTokens.toString()}${
       usage.cacheHits !== undefined
@@ -265,7 +295,7 @@ ${this.renderContextUpdate()}${this.state.content.map((content) => d`${this.rend
       usage.cacheMisses !== undefined
         ? d`, cache misses: ${usage.cacheMisses.toString()}`
         : ""
-    }]`;
+    }]\n`;
   }
 
   renderContextUpdate() {

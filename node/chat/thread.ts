@@ -292,9 +292,6 @@ export class Thread {
             {
               id: messageId,
               role: "assistant",
-              streamingBlock: undefined,
-              content: [],
-              edits: {},
             },
             {
               ...this.context,
@@ -494,13 +491,11 @@ export class Thread {
       const message = new Message(
         {
           id: messageId,
-          streamingBlock: undefined,
           role: "user",
           content: messageContent,
           contextUpdates: Object.keys(contextUpdates).length
             ? contextUpdates
             : undefined,
-          edits: {},
         },
         {
           dispatch: this.context.dispatch,
