@@ -17,6 +17,7 @@ export class Sidebar {
         state: "hidden";
         displayBuffer?: NvimBuffer;
         inputBuffer?: NvimBuffer;
+        estimatedTokenCount?: number;
       }
     | {
         state: "visible";
@@ -24,13 +25,35 @@ export class Sidebar {
         inputBuffer: NvimBuffer;
         displayWindow: NvimWindow;
         inputWindow: NvimWindow;
+        estimatedTokenCount?: number;
       };
 
   constructor(
     private nvim: Nvim,
     private profile: Profile,
   ) {
-    this.state = { state: "hidden" };
+    this.state = {
+      state: "hidden",
+      estimatedTokenCount: 0,
+    };
+  }
+
+  private getDisplayWindowTitle(): string {
+    return "Magenta Chat";
+  }
+
+  private getInputWindowTitle(): string {
+    const baseTitle = `Magenta Input (${this.profile.name})`;
+    if (!this.state.estimatedTokenCount) {
+      return baseTitle;
+    }
+
+    const tokenDisplay =
+      this.state.estimatedTokenCount >= 1000
+        ? `~${Math.round(this.state.estimatedTokenCount / 1000)}K`
+        : `~${this.state.estimatedTokenCount}`;
+
+    return `${baseTitle} [${tokenDisplay} tokens]`;
   }
 
   async onWinClosed() {
@@ -141,14 +164,11 @@ export class Sidebar {
       await displayWindow.setOption(key, value);
       await inputWindow.setOption(key, value);
     }
-    await displayWindow.setOption("winbar", "Magenta Chat");
+    await displayWindow.setOption("winbar", this.getDisplayWindowTitle());
     // set vars so we can identify this as the magenta display window
     await displayWindow.setVar("magenta", true);
     await displayWindow.setVar("magenta_display_window", true);
-    await inputWindow.setOption(
-      "winbar",
-      `Magenta Input (${this.profile.name})`,
-    );
+    await inputWindow.setOption("winbar", this.getInputWindowTitle());
     // set var so we can avoid closing this window when displaying a diff
     await inputWindow.setVar("magenta", true);
     await inputWindow.setOption("winfixheight", true);
@@ -170,7 +190,18 @@ export class Sidebar {
     if (this.state.state == "visible") {
       await this.state.inputWindow.setOption(
         "winbar",
-        `Magenta Input (${profile.name})`,
+        this.getInputWindowTitle(),
+      );
+    }
+  }
+
+  async updateTokenCount(tokenCount: number) {
+    this.state.estimatedTokenCount = tokenCount;
+
+    if (this.state.state == "visible") {
+      await this.state.inputWindow.setOption(
+        "winbar",
+        this.getInputWindowTitle(),
       );
     }
   }
@@ -205,6 +236,12 @@ export class Sidebar {
         } as Position1Indexed);
         await displayWindow.zt();
       }
+
+      const lastLineIdx = lines.length - 1;
+      await displayWindow.setCursor({
+        row: lastLineIdx + 1,
+        col: lines[lastLineIdx].length,
+      } as Position1Indexed);
     }
   }
 

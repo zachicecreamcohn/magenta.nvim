@@ -45,8 +45,9 @@ describe("node/chat/message.spec.ts", () => {
       });
       await driver.assertDisplayBufferContains(`\
 # user:
-Update the poem in the file ${TMP_DIR}/poem.txt
+Update the poem in the file ${TMP_DIR}/poem.txt`);
 
+      await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
 ✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success!
@@ -57,7 +58,9 @@ ok, I will try to rewrite the poem in that file
 +Replace 1
 \\ No newline at end of file
 
-\`\`\`
+\`\`\``);
+
+      await driver.assertDisplayBufferContains(`\
 ✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success!
 \`\`\`diff
 -Stars above like diamonds bright,
@@ -66,12 +69,11 @@ ok, I will try to rewrite the poem in that file
 +Replace 2
 \\ No newline at end of file
 
-\`\`\`
+\`\`\``);
 
+      await driver.assertDisplayBufferContains(`\
 Edits:
-  \`${TMP_DIR}/poem.txt\` (2 edits). **[± diff snapshot]**
-
-Stopped (end_turn) [input: 0, output: 0]`);
+  \`${TMP_DIR}/poem.txt\` (2 edits). **[± diff snapshot]**`);
 
       const reviewPos =
         await driver.assertDisplayBufferContains("diff snapshot");

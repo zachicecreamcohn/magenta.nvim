@@ -13,12 +13,14 @@ Magenta is for agents.
 
 # Roadmap
 
-- Thread forking and compaction. So you can type in a message, and use a different keybind (like cmd-enter) to submit it as a fork or as a compaction request. When submitting as a compaction request, magenta will first force a tool use that will get the agent to summarize the thread so far. It will then replace the thread with the compacted thread, and proceed from there.
-- After that, I'd like to explore sub-tasks. So a new tool where it can delegate tasks to sub-agents with a limited toolset. Similar to how claude code works.
+- Thread forking. So you can type in a message, and use a different keybind (like cmd-enter) to submit it as a fork.
+- Sub-tasks. A new tool where the agent can delegate tasks to sub-agents with a limited toolset. Similar to how claude code works.
 
 # Updates
 
 ## May 2025
+
+I implemented thread compaction that intelligently analyzes your next prompt and extracts only the relevant parts of the conversation history. This makes it easier to continue long conversations without hitting context limits while ensuring all important information is preserved.
 
 I updated the architecture around context following. We now track the state of the file on disk, and the buffer, as well as the current view that the agent has of the file. When these diverge, we send just the diff of the changes to the agent. This allows for better use of the cache, and more efficient communication since we do not have to re-send the full file contents when a small thing changes.
 
@@ -279,6 +281,26 @@ The display buffer is not modifiable, however you can interact with some parts o
 - hit `d` on a context file to remove it
 - hit `enter` on a diff to see a detailed side-by-side comparison between the original file snapshot and proposed changes
 - hit `t` on a running bash command to terminate it (SIGTERM)
+
+### Thread compaction
+
+Thread compaction allows you to retain relevant pieces of context as you shift focus to new tasks.
+
+1. Type `@compact` followed by your next prompt in the input buffer
+2. Press Enter to send the compaction request
+3. Magenta will:
+   - Analyze your next prompt to understand what you're trying to achieve
+   - Extract only the parts of the current thread directly relevant to your prompt
+   - Identify which context files are still needed
+   - Create a new thread with this focused context and your prompt
+
+This smart compaction ensures that only information specifically relevant to your next task is carried forward, while irrelevant parts of the conversation are summarized or removed.
+
+Example usage:
+
+```
+@compact Now let's implement unit tests for the new feature we just discussed
+```
 
 ### profiles
 

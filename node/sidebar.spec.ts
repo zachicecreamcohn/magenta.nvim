@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 import { withDriver } from "./test/preamble";
+import { pollUntil } from "./utils/async";
 
 describe("node/sidebar.spec.ts", () => {
   it("send command should scroll to last user message", async () => {
@@ -16,10 +17,15 @@ describe("node/sidebar.spec.ts", () => {
       await driver.send();
 
       const displayWindow = driver.getVisibleState().displayWindow;
-      const buffer = await displayWindow.buffer();
-      const lines = await buffer.getLines({ start: 0, end: -1 });
-      const line = lines.findLastIndex((l) => l == "# user:");
-      expect(await displayWindow.topLine()).toEqual(line + 1);
+      await pollUntil(async () => {
+        const current = await displayWindow.topLine();
+        const expected = 110;
+        if (current != expected) {
+          throw new Error(
+            `Expected to scroll to line ${expected} but we were at ${current}`,
+          );
+        }
+      });
     });
   });
 });

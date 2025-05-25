@@ -51,10 +51,11 @@ Stopped (end_turn) [input: 0, output: 0]`);
       await driver.showSidebar();
       await driver.inputMagentaText(`hello`);
       await driver.send();
-      await driver.assertDisplayBufferContains(`# user:
+      await driver.assertDisplayBufferContains(`\
+# user:
 hello
 
-Awaiting response ⠁`);
+Streaming response ⠁`);
 
       await pollUntil(() => {
         if (driver.mockAnthropic.requests.length != 1) {
@@ -162,7 +163,7 @@ Stopped (tool_use) [input: 0, output: 0]
       {
         const thread = driver.magenta.chat.getActiveThread();
         expect(thread.state.profile).toEqual({
-          name: "claude-3-7",
+          name: "claude-sonnet-3.7",
           provider: "anthropic",
           model: "claude-3-7-sonnet-latest",
           apiKeyEnvVar: "ANTHROPIC_API_KEY",
@@ -171,7 +172,7 @@ Stopped (tool_use) [input: 0, output: 0]
       const displayState = driver.getVisibleState();
       {
         const winbar = await displayState.inputWindow.getOption("winbar");
-        expect(winbar).toBe(`Magenta Input (claude-3-7)`);
+        expect(winbar).toBe(`Magenta Input (claude-sonnet-3.7)`);
       }
       await driver.nvim.call("nvim_command", ["Magenta profile gpt-4o"]);
       {
