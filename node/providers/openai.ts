@@ -52,6 +52,17 @@ export class OpenAIProvider implements Provider {
     this.model = model;
   }
 
+  countTokens(
+    messages: Array<ProviderMessage>,
+    tools: Array<ProviderToolSpec>,
+  ): number {
+    const CHARS_PER_TOKEN = 4;
+    let charCount = DEFAULT_SYSTEM_PROMPT.length;
+    charCount += JSON.stringify(tools).length;
+    charCount += JSON.stringify(messages).length;
+    return Math.ceil(charCount / CHARS_PER_TOKEN);
+  }
+
   createStreamParameters(
     messages: Array<ProviderMessage>,
     tools: Array<ProviderToolSpec>,

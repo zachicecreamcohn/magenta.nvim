@@ -172,7 +172,7 @@ Stopped (tool_use) [input: 0, output: 0]
       const displayState = driver.getVisibleState();
       {
         const winbar = await displayState.inputWindow.getOption("winbar");
-        expect(winbar).toBe(`Magenta Input (claude-sonnet-3.7)`);
+        expect(winbar).toContain(`Magenta Input (claude-sonnet-3.7)`);
       }
       await driver.nvim.call("nvim_command", ["Magenta profile gpt-4o"]);
       {
@@ -184,7 +184,7 @@ Stopped (tool_use) [input: 0, output: 0]
           apiKeyEnvVar: "OPENAI_API_KEY",
         });
         const winbar = await displayState.inputWindow.getOption("winbar");
-        expect(winbar).toBe(`Magenta Input (gpt-4o)`);
+        expect(winbar).toContain(`Magenta Input (gpt-4o)`);
       }
     });
   });

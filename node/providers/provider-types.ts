@@ -98,7 +98,10 @@ export interface Provider {
     tools: Array<ProviderToolSpec>,
     options?: { disableCaching?: boolean },
   ): unknown;
-  // countTokens(messages: Array<ProviderMessage>): Promise<number>;
+  countTokens(
+    messages: Array<ProviderMessage>,
+    tools: Array<ProviderToolSpec>,
+  ): number;
   forceToolUse(
     messages: Array<ProviderMessage>,
     spec: ProviderToolSpec,

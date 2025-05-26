@@ -197,19 +197,17 @@ export class AnthropicProvider implements Provider {
     };
   }
 
-  async countTokens(messages: Array<ProviderMessage>): Promise<number> {
-    const params = this.createStreamParameters(messages, []);
-    const lastMessage = params.messages[params.messages.length - 1];
-    if (!lastMessage || lastMessage.role != "user") {
-      params.messages.push({ role: "user", content: "test" });
-    }
-    const res = await this.client.messages.countTokens({
-      messages: params.messages,
-      model: params.model,
-      system: params.system as Anthropic.TextBlockParam[],
-      tools: params.tools as Anthropic.Tool[],
-    });
-    return res.input_tokens;
+  countTokens(
+    messages: Array<ProviderMessage>,
+    tools: Array<ProviderToolSpec>,
+  ): number {
+    const CHARS_PER_TOKEN = 4;
+
+    let charCount = DEFAULT_SYSTEM_PROMPT.length;
+    charCount += JSON.stringify(tools).length;
+    charCount += JSON.stringify(messages).length;
+
+    return Math.ceil(charCount / CHARS_PER_TOKEN);
   }
 
   forceToolUse(
