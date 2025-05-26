@@ -1,6 +1,6 @@
 import OpenAI from "openai";
-import * as ToolManager from "../tools/toolManager.ts";
 import { type Result } from "../utils/result.ts";
+import type { ToolRequest, ToolRequestId } from "../tools/toolManager.ts";
 import type {
   StopReason,
   Provider,
@@ -13,7 +13,6 @@ import type {
   ProviderToolUseResponse,
 } from "./provider-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { ToolRequestId } from "../tools/toolManager.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { Stream } from "openai/streaming.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
@@ -55,6 +54,8 @@ export class OpenAIProvider implements Provider {
 
   createStreamParameters(
     messages: Array<ProviderMessage>,
+    tools: Array<ProviderToolSpec>,
+    _options?: { disableCaching?: boolean },
   ): OpenAI.Responses.ResponseCreateParamsStreaming {
     const openaiMessages: OpenAI.Responses.ResponseInputItem[] = [
       {
@@ -118,7 +119,7 @@ export class OpenAIProvider implements Provider {
       // see https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
       // this recommends disabling parallel tool calls when strict adherence to schema is needed
       parallel_tool_calls: false,
-      tools: ToolManager.CHAT_TOOL_SPECS.map((s): OpenAI.Responses.Tool => {
+      tools: tools.map((s): OpenAI.Responses.Tool => {
         return {
           type: "function",
           name: s.name,
@@ -136,7 +137,7 @@ export class OpenAIProvider implements Provider {
   ): ProviderToolUseRequest {
     let aborted = false;
     const promise = (async (): Promise<ProviderToolUseResponse> => {
-      const params = this.createStreamParameters(messages);
+      const params = this.createStreamParameters(messages, [spec]);
       const response = await this.client.responses.create({
         ...params,
         tool_choice: "required",
@@ -153,7 +154,7 @@ export class OpenAIProvider implements Provider {
       });
 
       const tool = response.output[0];
-      let toolRequest: Result<ToolManager.ToolRequest, { rawRequest: unknown }>;
+      let toolRequest: Result<ToolRequest, { rawRequest: unknown }>;
       try {
         if (!(tool && tool.type == "function_call")) {
           throw new Error(
@@ -177,7 +178,7 @@ export class OpenAIProvider implements Provider {
                   toolName: tool.name,
                   id: tool.call_id as unknown as ToolRequestId,
                   input: input.value,
-                } as ToolManager.ToolRequest,
+                } as ToolRequest,
               }
             : { ...input, rawRequest: tool.arguments };
       } catch (error) {
@@ -220,6 +221,7 @@ export class OpenAIProvider implements Provider {
   sendMessage(
     messages: Array<ProviderMessage>,
     onStreamEvent: (event: ProviderStreamEvent) => void,
+    tools: Array<ProviderToolSpec>,
   ): ProviderStreamRequest {
     let request: Stream<OpenAI.Responses.ResponseStreamEvent>;
     let stopReason: StopReason | undefined;
@@ -230,7 +232,7 @@ export class OpenAIProvider implements Provider {
       stopReason: StopReason;
     }> => {
       request = await this.client.responses.create(
-        this.createStreamParameters(messages),
+        this.createStreamParameters(messages, tools),
       );
 
       for await (const event of request) {

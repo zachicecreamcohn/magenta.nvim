@@ -93,7 +93,11 @@ export type ProviderMessageContent =
 
 export interface Provider {
   setModel(model: string): void;
-  createStreamParameters(messages: Array<ProviderMessage>): unknown;
+  createStreamParameters(
+    messages: Array<ProviderMessage>,
+    tools: Array<ProviderToolSpec>,
+    options?: { disableCaching?: boolean },
+  ): unknown;
   // countTokens(messages: Array<ProviderMessage>): Promise<number>;
   forceToolUse(
     messages: Array<ProviderMessage>,
@@ -103,6 +107,7 @@ export interface Provider {
   sendMessage(
     messages: Array<ProviderMessage>,
     onStreamEvent: (event: ProviderStreamEvent) => void,
+    tools: Array<ProviderToolSpec>,
   ): ProviderStreamRequest;
 }
 

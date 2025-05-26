@@ -39,8 +39,12 @@ export class MockProvider implements Provider {
 
   setModel(_model: string): void {}
 
-  createStreamParameters(messages: Array<ProviderMessage>): unknown {
-    return messages;
+  createStreamParameters(
+    messages: Array<ProviderMessage>,
+    tools: Array<ProviderToolSpec>,
+    _options?: { disableCaching?: boolean },
+  ): unknown {
+    return { messages, tools };
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
@@ -72,6 +76,7 @@ export class MockProvider implements Provider {
   sendMessage(
     messages: Array<ProviderMessage>,
     onStreamEvent: (event: ProviderStreamEvent) => void,
+    _tools: Array<ProviderToolSpec>,
   ): ProviderStreamRequest {
     const request: MockRequest = {
       messages,

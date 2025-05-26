@@ -12,6 +12,7 @@ import {
   type Msg as ToolManagerMsg,
   type ToolRequest,
   type ToolRequestId,
+  CHAT_TOOL_SPECS,
 } from "../tools/toolManager.ts";
 import { Counter } from "../utils/uniqueId.ts";
 import { FileSnapshots } from "../tools/file-snapshots.ts";
@@ -551,12 +552,16 @@ export class Thread {
     const request = getProvider(
       this.context.nvim,
       this.state.profile,
-    ).sendMessage(messages, (event) => {
-      this.myDispatch({
-        type: "stream-event",
-        event,
-      });
-    });
+    ).sendMessage(
+      messages,
+      (event) => {
+        this.myDispatch({
+          type: "stream-event",
+          event,
+        });
+      },
+      CHAT_TOOL_SPECS,
+    );
 
     this.myDispatch({
       type: "conversation-state",
