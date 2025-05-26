@@ -12,6 +12,7 @@ import {
   type ProviderStreamEvent,
 } from "./provider-types.ts";
 import { setClient } from "./provider.ts";
+import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
 
 type MockRequest = {
   messages: Array<ProviderMessage>;
@@ -39,13 +40,25 @@ export class MockProvider implements Provider {
 
   setModel(_model: string): void {}
 
-  createStreamParameters(messages: Array<ProviderMessage>): unknown {
-    return messages;
+  createStreamParameters(
+    messages: Array<ProviderMessage>,
+    tools: Array<ProviderToolSpec>,
+    _options?: { disableCaching?: boolean },
+  ): unknown {
+    return { messages, tools };
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
-  async countTokens(messages: Array<ProviderMessage>): Promise<number> {
-    return messages.length;
+  countTokens(
+    messages: Array<ProviderMessage>,
+    tools: Array<ProviderToolSpec>,
+  ): number {
+    const CHARS_PER_TOKEN = 4;
+
+    let charCount = DEFAULT_SYSTEM_PROMPT.length;
+    charCount += JSON.stringify(tools).length;
+    charCount += JSON.stringify(messages).length;
+
+    return Math.ceil(charCount / CHARS_PER_TOKEN);
   }
 
   forceToolUse(
@@ -72,6 +85,7 @@ export class MockProvider implements Provider {
   sendMessage(
     messages: Array<ProviderMessage>,
     onStreamEvent: (event: ProviderStreamEvent) => void,
+    _tools: Array<ProviderToolSpec>,
   ): ProviderStreamRequest {
     const request: MockRequest = {
       messages,

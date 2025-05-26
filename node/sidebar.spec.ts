@@ -1,4 +1,4 @@
-import { describe, it } from "vitest";
+import { describe, it, expect } from "vitest";
 import { withDriver } from "./test/preamble";
 import { pollUntil } from "./utils/async";
 
@@ -28,4 +28,44 @@ describe("node/sidebar.spec.ts", () => {
       });
     });
   });
+
+  it("should display and update token count in input window title", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+
+      const { inputWindow } = driver.getVisibleState();
+      const initialWinbar = await inputWindow.getOption("winbar");
+      expect(initialWinbar).toContain(
+        "Magenta Input (claude-sonnet-3.7) [~2K tokens]",
+      );
+
+      // Generate a large message that will definitely increase the token count
+      const largeMessage = "Hello, this is a test message. ".repeat(500);
+      await driver.inputMagentaText(largeMessage);
+      await driver.send();
+
+      // Wait for token count to update after the large message
+      await pollUntil(async () => {
+        const updatedWinbar = await inputWindow.getOption("winbar");
+        const updatedCount = extractTokenCount(updatedWinbar as string);
+        // Token count should be noticeably higher
+        if (updatedCount <= 2000) {
+          throw new Error(
+            `Token count did not increase: 2K -> ${updatedCount}`,
+          );
+        }
+      });
+    });
+  });
 });
+
+// Helper function to extract token count from winbar title
+function extractTokenCount(winbar: string): number {
+  const match = winbar.match(/\[~?(\d+)K?\s+tokens\]/);
+  if (!match) return 0;
+
+  if (match[1] && match[0].includes("K")) {
+    return parseInt(match[1]) * 1000;
+  }
+  return parseInt(match[1]);
+}

@@ -12,6 +12,7 @@ import {
   type Msg as ToolManagerMsg,
   type ToolRequest,
   type ToolRequestId,
+  CHAT_TOOL_SPECS,
 } from "../tools/toolManager.ts";
 import { Counter } from "../utils/uniqueId.ts";
 import { FileSnapshots } from "../tools/file-snapshots.ts";
@@ -179,6 +180,8 @@ export class Thread {
       },
       messages: [],
     };
+
+    this.updateTokenCount();
   }
 
   update(msg: RootMsg): void {
@@ -319,13 +322,10 @@ export class Thread {
           event: msg.event,
         });
 
-        // setTimeout to avoid dispatch-in-dispatch
-        setTimeout(() =>
-          this.context.dispatch({
-            type: "sidebar-update-token-count",
-            tokenCount: this.getEstimatedTokenCount(),
-          }),
-        );
+        // If this is a content_block_stop event, update the token count
+        if (msg.event.type === "content_block_stop") {
+          this.updateTokenCount();
+        }
         return;
       }
 
@@ -345,6 +345,9 @@ export class Thread {
           messages: [],
         };
         this.contextManager.reset();
+
+        this.updateTokenCount();
+
         return undefined;
       }
 
@@ -547,16 +550,22 @@ export class Thread {
 
   async sendMessage(content?: string): Promise<void> {
     await this.prepareUserMessage(content);
+    this.updateTokenCount();
     const messages = this.getMessages();
+
     const request = getProvider(
       this.context.nvim,
       this.state.profile,
-    ).sendMessage(messages, (event) => {
-      this.myDispatch({
-        type: "stream-event",
-        event,
-      });
-    });
+    ).sendMessage(
+      messages,
+      (event) => {
+        this.myDispatch({
+          type: "stream-event",
+          event,
+        });
+      },
+      CHAT_TOOL_SPECS,
+    );
 
     this.myDispatch({
       type: "conversation-state",
@@ -584,6 +593,8 @@ Use the compact_thread tool to analyze my next prompt and extract only the relev
 
 My next prompt will be:
 ${content}`;
+
+    this.updateTokenCount();
 
     const request = getProvider(
       this.context.nvim,
@@ -755,6 +766,22 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
     return this.state.messages.reduce(
       (sum, message) => sum + message.state.estimatedTokenCount,
       0,
+    );
+  }
+
+  updateTokenCount() {
+    const messages = this.getMessages();
+    const tokenCount = getProvider(
+      this.context.nvim,
+      this.state.profile,
+    ).countTokens(messages, CHAT_TOOL_SPECS);
+
+    // setTimeout to avoid dispatch-in-dispatch
+    setTimeout(() =>
+      this.context.dispatch({
+        type: "sidebar-update-token-count",
+        tokenCount,
+      }),
     );
   }
 }
