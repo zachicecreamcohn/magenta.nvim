@@ -5,6 +5,7 @@ import { BedrockProvider } from "./bedrock.ts";
 import { OpenAIProvider } from "./openai.ts";
 import type { Provider, ProviderName } from "./provider-types.ts";
 import { type Profile } from "../options.ts";
+import { OllamaProvider } from "./ollama.ts";
 
 export * from "./provider-types.ts";
 
@@ -37,6 +38,9 @@ export function getProvider(nvim: Nvim, profile: Profile): Provider {
         break;
       case "bedrock":
         clients[clientKey] = new BedrockProvider(nvim, !!profile.promptCaching);
+        break;
+      case "ollama":
+        clients[clientKey] = new OllamaProvider(nvim);
         break;
       default:
         assertUnreachable(profile.provider);
