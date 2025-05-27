@@ -9,16 +9,23 @@
 Magenta is for agents.
 ```
 
-(developed by [dlants.me](https://dlants.me))
+`magenta.nvim` is a plugin for leveraging LLM agents in neovim. It provides a chat window where you can talk to your AI coding assistant, as well as tools to populate context and perform inline edits. It's similar to copilot agent, claude code, cursor compose, ampcode or windsurf.
+
+(Developed by [dlants.me](https://dlants.me). I was tempted by other editors due to lack of high-quality agentic coding support in neovim. I missed neovim a lot, though, so I decided to go back and implement my own. I now happily code in neovim using magenta, and find that it's just as good!)
+
+(Note - I mostly develop using the Anthropic provider, so claude sonnet 3.7 or 4 are recommended. The OpenAI provider is supported, but with limitations. Contributions are welcome! See for example https://github.com/dlants/magenta.nvim/issues/82 and https://github.com/dlants/magenta.nvim/issues/84 )
 
 # Roadmap
 
-- Thread forking and compaction. So you can type in a message, and use a different keybind (like cmd-enter) to submit it as a fork or as a compaction request. When submitting as a compaction request, magenta will first force a tool use that will get the agent to summarize the thread so far. It will then replace the thread with the compacted thread, and proceed from there.
-- After that, I'd like to explore sub-tasks. So a new tool where it can delegate tasks to sub-agents with a limited toolset. Similar to how claude code works.
+- Sub-agents. A new tool where the agent can delegate tasks to sub-agents with a specified toolset. Similar to claude code
+- MCP support
+- local code embedding & indexing via chroma db, to support a semantic code search tool
 
 # Updates
 
 ## May 2025
+
+I implemented thread compaction that intelligently analyzes your next prompt and extracts only the relevant parts of the conversation history. This makes it easier to continue long conversations without hitting context limits while ensuring all important information is preserved. I also updated the magenta header to give you an estimate of the token count for your current conversation.
 
 I updated the architecture around context following. We now track the state of the file on disk, and the buffer, as well as the current view that the agent has of the file. When these diverge, we send just the diff of the changes to the agent. This allows for better use of the cache, and more efficient communication since we do not have to re-send the full file contents when a small thing changes.
 
@@ -49,12 +56,6 @@ I also started implementing multi-thread support, a basic version of which is no
 - context pinning
 - architecture overview
 </details>
-
-`magenta.nvim` is a plugin for leveraging LLM agents in neovim. It provides a chat window where you can talk to your AI coding assistant, as well as tools to populate context and perform inline edits. In functionality, it's similar to cursor-compose, cody or windsurf.
-
-Rather than writing complex code to compress your repo and send it to the LLM (like a repomap in aider, etc...), magenta is built around the idea that the AI agent can choose which context to gather via tools.
-
-Flagship models will continue to get better at tools use, and as this happens, the gap between tools like magenta and other editors that try to be clever about context management will grow smaller.
 
 # Installation
 
@@ -279,6 +280,26 @@ The display buffer is not modifiable, however you can interact with some parts o
 - hit `d` on a context file to remove it
 - hit `enter` on a diff to see a detailed side-by-side comparison between the original file snapshot and proposed changes
 - hit `t` on a running bash command to terminate it (SIGTERM)
+
+### Thread compaction
+
+Thread compaction allows you to retain relevant pieces of context as you shift focus to new tasks.
+
+1. Type `@compact` followed by your next prompt in the input buffer
+2. Press Enter to send the compaction request
+3. Magenta will:
+   - Analyze your next prompt to understand what you're trying to achieve
+   - Extract only the parts of the current thread directly relevant to your prompt
+   - Identify which context files are still needed
+   - Create a new thread with this focused context and your prompt
+
+This smart compaction ensures that only information specifically relevant to your next task is carried forward, while irrelevant parts of the conversation are summarized or removed.
+
+Example usage:
+
+```
+@compact Now let's implement unit tests for the new feature we just discussed
+```
 
 ### profiles
 

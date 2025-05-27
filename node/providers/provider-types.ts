@@ -53,7 +53,7 @@ export type ProviderTextContent = {
 export type ProviderToolUseContent = {
   type: "tool_use";
   id: ToolManager.ToolRequestId;
-  name: string;
+  name: ToolManager.ToolName;
   request: Result<ToolManager.ToolRequest, { rawRequest: unknown }>;
 };
 
@@ -93,8 +93,15 @@ export type ProviderMessageContent =
 
 export interface Provider {
   setModel(model: string): void;
-  createStreamParameters(messages: Array<ProviderMessage>): unknown;
-  // countTokens(messages: Array<ProviderMessage>): Promise<number>;
+  createStreamParameters(
+    messages: Array<ProviderMessage>,
+    tools: Array<ProviderToolSpec>,
+    options?: { disableCaching?: boolean },
+  ): unknown;
+  countTokens(
+    messages: Array<ProviderMessage>,
+    tools: Array<ProviderToolSpec>,
+  ): number;
   forceToolUse(
     messages: Array<ProviderMessage>,
     spec: ProviderToolSpec,
@@ -103,6 +110,7 @@ export interface Provider {
   sendMessage(
     messages: Array<ProviderMessage>,
     onStreamEvent: (event: ProviderStreamEvent) => void,
+    tools: Array<ProviderToolSpec>,
   ): ProviderStreamRequest;
 }
 

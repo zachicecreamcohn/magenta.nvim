@@ -6,11 +6,13 @@ import {
   type Msg as ContextManagerMsg,
 } from "../context/context-manager.ts";
 import { type Dispatch } from "../tea/tea.ts";
-import { d, type View } from "../tea/view.ts";
+import { d, type View, type VDOMNode } from "../tea/view.ts";
 import {
   ToolManager,
   type Msg as ToolManagerMsg,
+  type ToolRequest,
   type ToolRequestId,
+  CHAT_TOOL_SPECS,
 } from "../tools/toolManager.ts";
 import { Counter } from "../utils/uniqueId.ts";
 import { FileSnapshots } from "../tools/file-snapshots.ts";
@@ -22,9 +24,11 @@ import {
   type ProviderMessageContent,
   type ProviderStreamEvent,
   type ProviderStreamRequest,
+  type ProviderToolUseRequest,
   type StopReason,
   type Usage,
 } from "../providers/provider.ts";
+import { spec as compactThreadSpec } from "../tools/compact-thread.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type MagentaOptions, type Profile } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
@@ -42,6 +46,12 @@ export type ConversationState =
       state: "message-in-flight";
       sendDate: Date;
       request: ProviderStreamRequest;
+    }
+  | {
+      state: "compacting";
+      sendDate: Date;
+      request: ProviderToolUseRequest;
+      userMsgContent: string;
     }
   | {
       state: "stopped";
@@ -119,7 +129,7 @@ export class Thread {
   public toolManager: ToolManager;
   private counter: Counter;
   public fileSnapshots: FileSnapshots;
-  private contextManager: ContextManager;
+  public contextManager: ContextManager;
 
   constructor(
     public id: ThreadId,
@@ -170,6 +180,8 @@ export class Thread {
       },
       messages: [],
     };
+
+    this.updateTokenCount();
   }
 
   update(msg: RootMsg): void {
@@ -236,6 +248,7 @@ export class Thread {
           }
 
           case "message-in-flight":
+          case "compacting":
             break;
 
           default:
@@ -245,7 +258,13 @@ export class Thread {
       }
 
       case "send-message": {
-        // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
+        if (msg.content?.startsWith("@compact")) {
+          this.compactThread(msg.content.slice("@compact".length + 1)).catch(
+            this.handleSendMessageError.bind(this),
+          );
+          return;
+        }
+
         setTimeout(() => {
           this.sendMessage(msg.content).catch(
             this.handleSendMessageError.bind(this),
@@ -258,6 +277,16 @@ export class Thread {
             );
           }
         });
+
+        if (msg.content) {
+          // NOTE: this is a bit hacky. We want to scroll after the user message has been populated in the display
+          // buffer. the 100ms timeout is not the most precise way to do that, but it works for now
+          setTimeout(() => {
+            this.context.dispatch({
+              type: "sidebar-scroll-to-last-user-message",
+            });
+          }, 100);
+        }
         break;
       }
 
@@ -269,9 +298,6 @@ export class Thread {
             {
               id: messageId,
               role: "assistant",
-              streamingBlock: undefined,
-              content: [],
-              edits: {},
             },
             {
               ...this.context,
@@ -295,10 +321,19 @@ export class Thread {
           type: "stream-event",
           event: msg.event,
         });
+
+        // If this is a content_block_stop event, update the token count
+        if (msg.event.type === "content_block_stop") {
+          this.updateTokenCount();
+        }
         return;
       }
 
       case "clear": {
+        // Abort any in-progress operations
+        this.abortInProgressOperations();
+
+        // Now reset the thread state
         this.state = {
           lastUserMessageId: this.counter.last() as MessageId,
           profile: msg.profile,
@@ -310,15 +345,12 @@ export class Thread {
           messages: [],
         };
         this.contextManager.reset();
+
+        this.updateTokenCount();
+
         return undefined;
       }
 
-      // case "show-message-debug-info": {
-      //   // eslint-disable-next-line @typescript-eslint/no-floating-promises
-      //   this.showDebugInfo();
-      //   return;
-      // }
-      //
       case "message-msg": {
         const message = this.state.messages.find((m) => m.state.id == msg.id);
         if (!message) {
@@ -350,31 +382,21 @@ export class Thread {
         return;
       }
       case "abort": {
-        if (this.state.conversation.state == "message-in-flight") {
-          this.state.conversation.request.abort();
-        }
+        // Abort any in-progress operations
+        this.abortInProgressOperations();
 
+        // Update the last message and conversation state to indicate it was aborted
         const lastMessage = this.state.messages[this.state.messages.length - 1];
-        for (const content of lastMessage.state.content) {
-          if (content.type == "tool_use") {
-            this.myDispatch({
-              type: "tool-manager-msg",
-              msg: {
-                type: "abort-tool-use",
-                requestId: content.id,
-              },
-            });
-          }
+        if (lastMessage) {
+          lastMessage.update({
+            type: "stop",
+            stopReason: "aborted",
+            usage: {
+              inputTokens: -1,
+              outputTokens: -1,
+            },
+          });
         }
-
-        lastMessage.update({
-          type: "stop",
-          stopReason: "aborted",
-          usage: {
-            inputTokens: -1,
-            outputTokens: -1,
-          },
-        });
 
         this.state.conversation = {
           state: "stopped",
@@ -395,6 +417,34 @@ export class Thread {
 
       default:
         assertUnreachable(msg);
+    }
+  }
+
+  private abortInProgressOperations(): void {
+    if (
+      this.state.conversation.state === "message-in-flight" ||
+      this.state.conversation.state === "compacting"
+    ) {
+      this.state.conversation.request.abort();
+    }
+
+    // Also abort any in-progress tool uses in the last message
+    const lastMessage = this.state.messages[this.state.messages.length - 1];
+    if (lastMessage) {
+      for (const content of lastMessage.state.content) {
+        if (content.type === "tool_use") {
+          const toolWrapper = this.toolManager.state.toolWrappers[content.id];
+          if (toolWrapper && toolWrapper.tool.state.state !== "done") {
+            this.myDispatch({
+              type: "tool-manager-msg",
+              msg: {
+                type: "abort-tool-use",
+                requestId: content.id,
+              },
+            });
+          }
+        }
+      }
     }
   }
 
@@ -436,6 +486,7 @@ export class Thread {
   }
 
   private handleSendMessageError = (error: Error): void => {
+    this.context.nvim.logger?.error(error);
     if (this.state.conversation.state == "message-in-flight") {
       this.myDispatch({
         type: "conversation-state",
@@ -447,7 +498,9 @@ export class Thread {
     }
   };
 
-  async sendMessage(content?: string): Promise<void> {
+  private async prepareUserMessage(
+    content?: string,
+  ): Promise<{ messageId: MessageId; addedMessage: boolean }> {
     const messageId = this.counter.get() as MessageId;
     const contextUpdates = await this.contextManager.getContextUpdate();
 
@@ -465,13 +518,11 @@ export class Thread {
       const message = new Message(
         {
           id: messageId,
-          streamingBlock: undefined,
           role: "user",
           content: messageContent,
           contextUpdates: Object.keys(contextUpdates).length
             ? contextUpdates
             : undefined,
-          edits: {},
         },
         {
           dispatch: this.context.dispatch,
@@ -491,18 +542,30 @@ export class Thread {
 
       this.state.messages.push(message);
       this.state.lastUserMessageId = message.state.id;
+      return { messageId, addedMessage: true };
     }
 
+    return { messageId, addedMessage: false };
+  }
+
+  async sendMessage(content?: string): Promise<void> {
+    await this.prepareUserMessage(content);
+    this.updateTokenCount();
     const messages = this.getMessages();
+
     const request = getProvider(
       this.context.nvim,
       this.state.profile,
-    ).sendMessage(messages, (event) => {
-      this.myDispatch({
-        type: "stream-event",
-        event,
-      });
-    });
+    ).sendMessage(
+      messages,
+      (event) => {
+        this.myDispatch({
+          type: "stream-event",
+          event,
+        });
+      },
+      CHAT_TOOL_SPECS,
+    );
 
     this.myDispatch({
       type: "conversation-state",
@@ -522,6 +585,89 @@ export class Thread {
         usage: res?.usage || { inputTokens: 0, outputTokens: 0 },
       },
     });
+  }
+
+  async compactThread(content: string): Promise<void> {
+    const userMsgContent = `\
+Use the compact_thread tool to analyze my next prompt and extract only the relevant parts of our conversation history.
+
+My next prompt will be:
+${content}`;
+
+    this.updateTokenCount();
+
+    const request = getProvider(
+      this.context.nvim,
+      this.state.profile,
+    ).forceToolUse(
+      [
+        ...this.getMessages(),
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: userMsgContent,
+            },
+          ],
+        },
+      ],
+      compactThreadSpec,
+    );
+
+    this.myDispatch({
+      type: "conversation-state",
+      conversation: {
+        state: "compacting",
+        sendDate: new Date(),
+        request,
+        userMsgContent,
+      },
+    });
+
+    const result = await request.promise;
+
+    if (result.toolRequest.status === "ok") {
+      const compactRequest = result.toolRequest.value as Extract<
+        ToolRequest,
+        { toolName: "compact_thread" }
+      >;
+
+      this.context.dispatch({
+        type: "chat-msg",
+        msg: {
+          type: "compact-thread",
+          threadId: this.id,
+          contextFilePaths: compactRequest.input.contextFiles,
+          initialMessage: `\
+# Previous thread summary:
+${compactRequest.input.summary}
+
+# The user would like you to address this prompt next:
+${content}`,
+        },
+      });
+
+      // Update the conversation state to show successful compaction
+      this.myDispatch({
+        type: "conversation-state",
+        conversation: {
+          state: "stopped",
+          stopReason: "end_turn",
+          usage: result.usage || { inputTokens: 0, outputTokens: 0 },
+        },
+      });
+    } else {
+      this.myDispatch({
+        type: "conversation-state",
+        conversation: {
+          state: "error",
+          error: new Error(
+            `Failed to compact thread: ${JSON.stringify(result.toolRequest.error)}`,
+          ),
+        },
+      });
+    }
   }
 
   getMessages(): ProviderMessage[] {
@@ -615,7 +761,80 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
       });
     }
   }
+
+  getEstimatedTokenCount(): number {
+    return this.state.messages.reduce(
+      (sum, message) => sum + message.state.estimatedTokenCount,
+      0,
+    );
+  }
+
+  updateTokenCount() {
+    const messages = this.getMessages();
+    const tokenCount = getProvider(
+      this.context.nvim,
+      this.state.profile,
+    ).countTokens(messages, CHAT_TOOL_SPECS);
+
+    // setTimeout to avoid dispatch-in-dispatch
+    setTimeout(() =>
+      this.context.dispatch({
+        type: "sidebar-update-token-count",
+        tokenCount,
+      }),
+    );
+  }
 }
+
+/**
+ * Helper function to render the animation frame for in-progress operations
+ */
+const getAnimationFrame = (sendDate: Date): string => {
+  const frameIndex =
+    Math.floor((new Date().getTime() - sendDate.getTime()) / 333) %
+    MESSAGE_ANIMATION.length;
+
+  return MESSAGE_ANIMATION[frameIndex];
+};
+
+/**
+ * Helper function to render the conversation state message
+ */
+const renderConversationState = (conversation: ConversationState): VDOMNode => {
+  switch (conversation.state) {
+    case "message-in-flight":
+      return d`Streaming response ${getAnimationFrame(conversation.sendDate)}`;
+    case "compacting":
+      return d`Compacting thread ${getAnimationFrame(conversation.sendDate)}`;
+    case "stopped":
+      return d``;
+    case "error":
+      return d`Error ${conversation.error.message}${
+        conversation.error.stack ? "\n" + conversation.error.stack : ""
+      }${
+        conversation.lastAssistantMessage
+          ? "\n\nLast assistant message:\n" +
+            conversation.lastAssistantMessage.toString()
+          : ""
+      }`;
+    default:
+      assertUnreachable(conversation);
+  }
+};
+
+/**
+ * Helper function to determine if context manager view should be shown
+ */
+const shouldShowContextManager = (
+  conversation: ConversationState,
+  contextManager: ContextManager,
+): boolean => {
+  return (
+    conversation.state !== "message-in-flight" &&
+    conversation.state !== "compacting" &&
+    !contextManager.isContextEmpty()
+  );
+};
 
 export const view: View<{
   thread: Thread;
@@ -632,31 +851,30 @@ export const view: View<{
     return d`${titleView}\n${LOGO}\n${thread.context.contextManager.view()}`;
   }
 
-  return d`${titleView}\n${thread.state.messages.map((m) => d`${m.view()}\n`)}${
-    thread.state.conversation.state == "message-in-flight"
-      ? d`Awaiting response ${
-          MESSAGE_ANIMATION[
-            Math.floor(
-              (new Date().getTime() -
-                thread.state.conversation.sendDate.getTime()) /
-                333,
-            ) % MESSAGE_ANIMATION.length
-          ]
-        }`
-      : thread.state.conversation.state == "stopped"
-        ? ""
-        : d`Error ${thread.state.conversation.error.message}${thread.state.conversation.error.stack ? "\n" + thread.state.conversation.error.stack : ""}${
-            thread.state.conversation.lastAssistantMessage
-              ? "\n\nLast assistant message:\n" +
-                thread.state.conversation.lastAssistantMessage.toString()
-              : ""
-          }`
-  }${
-    thread.state.conversation.state != "message-in-flight" &&
-    !thread.context.contextManager.isContextEmpty()
-      ? d`\n${thread.context.contextManager.view()}`
-      : ""
-  }`;
+  const conversationStateView = renderConversationState(
+    thread.state.conversation,
+  );
+  const contextManagerView = shouldShowContextManager(
+    thread.state.conversation,
+    thread.context.contextManager,
+  )
+    ? d`\n${thread.context.contextManager.view()}`
+    : d``;
+
+  let compactingUserMsg = d``;
+  if (thread.state.conversation.state == "compacting") {
+    const userMsgContent = thread.state.conversation.userMsgContent;
+    compactingUserMsg = d`\
+# user:
+${userMsgContent}\n`;
+  }
+
+  return d`\
+${titleView}
+${thread.state.messages.map((m) => d`${m.view()}\n`)}\
+${compactingUserMsg}\
+${conversationStateView}\
+${contextManagerView}`;
 };
 
 export const LOGO = `\
