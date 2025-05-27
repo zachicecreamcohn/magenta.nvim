@@ -3,7 +3,8 @@ import type { MagentaOptions, Profile } from "../options";
 import type { RootMsg } from "../root-msg";
 import type { Dispatch } from "../tea/tea";
 import { Thread, view as threadView, type ThreadId } from "./thread";
-import { CHAT_TOOL_NAMES } from "../tools/tool-registry.ts";
+import { CHAT_TOOL_NAMES, type ToolName } from "../tools/tool-registry.ts";
+import type { ToolRequestId } from "../tools/toolManager.ts";
 import type { Lsp } from "../lsp";
 import { assertUnreachable } from "../utils/assertUnreachable";
 import { d, withBindings } from "../tea/view";
@@ -59,6 +60,21 @@ export type Msg =
       threadId: ThreadId;
       contextFilePaths: UnresolvedFilePath[];
       initialMessage: string;
+    }
+  | {
+      type: "spawn-subagent-thread";
+      parentThreadId: ThreadId;
+      parentToolRequestId: ToolRequestId;
+      allowedTools: ToolName[];
+      initialPrompt: string;
+      contextFiles?: UnresolvedFilePath[];
+    }
+  | {
+      type: "yield-to-parent";
+      childThreadId: ThreadId;
+      parentThreadId: ThreadId;
+      parentToolRequestId: ToolRequestId;
+      result: string;
     }
   | {
       type: "select-thread";
@@ -182,6 +198,20 @@ export class Chat {
         return;
       }
 
+      case "spawn-subagent-thread": {
+        this.handleSpawnSubagentThread(msg).catch((e: Error) => {
+          this.context.nvim.logger?.error(
+            `Failed to spawn sub-agent thread: ${e.message} ${e.stack}`,
+          );
+        });
+        return;
+      }
+
+      case "yield-to-parent": {
+        this.handleYieldToParent(msg);
+        return;
+      }
+
       default:
         assertUnreachable(msg);
     }
@@ -200,18 +230,37 @@ export class Chat {
     return [];
   }
 
-  async createNewThread() {
-    const id = this.threadCounter.get() as ThreadId;
-
-    const threads = new Map(this.threadWrappers);
-    threads.set(id, { state: "pending" });
+  /**
+   * Creates a context manager and thread with the given configuration
+   */
+  private async createThreadWithContext({
+    threadId,
+    profile,
+    allowedTools,
+    contextFiles = [],
+    parent,
+    switchToThread = true,
+    initialMessage,
+  }: {
+    threadId: ThreadId;
+    profile: Profile;
+    allowedTools: ToolName[];
+    contextFiles?: UnresolvedFilePath[];
+    parent?: {
+      threadId: ThreadId;
+      toolRequestId: ToolRequestId;
+    };
+    switchToThread?: boolean;
+    initialMessage?: string;
+  }) {
+    this.threadWrappers.set(threadId, { state: "pending" });
 
     try {
       const contextManager = await ContextManager.create(
         (msg) =>
           this.context.dispatch({
             type: "thread-msg",
-            id,
+            id: threadId,
             msg: {
               type: "context-manager-msg",
               msg,
@@ -225,17 +274,30 @@ export class Chat {
         },
       );
 
+      // Add context files if provided
+      if (contextFiles.length > 0) {
+        for (const filePath of contextFiles) {
+          const cwd = await getcwd(this.context.nvim);
+          const absFilePath = resolveFilePath(cwd, filePath);
+          const relFilePath = relativePath(cwd, absFilePath);
+          contextManager.update({
+            type: "add-file-context",
+            absFilePath,
+            relFilePath,
+            messageId: 0 as MessageId,
+          });
+        }
+      }
+
       const thread = new Thread(
-        id,
+        threadId,
         {
           ...this.context,
           contextManager,
-          profile: getActiveProfile(
-            this.context.options.profiles,
-            this.context.options.activeProfile,
-          ),
+          profile,
         },
-        CHAT_TOOL_NAMES,
+        allowedTools,
+        parent,
       );
 
       this.context.dispatch({
@@ -245,16 +307,52 @@ export class Chat {
           thread,
         },
       });
+
+      // Switch to the new thread if requested
+      if (switchToThread) {
+        this.context.dispatch({
+          type: "chat-msg",
+          msg: {
+            type: "select-thread",
+            id: threadId,
+          },
+        });
+      }
+
+      // Send initial message if provided
+      if (initialMessage) {
+        this.context.dispatch({
+          type: "thread-msg",
+          id: threadId,
+          msg: {
+            type: "send-message",
+            content: initialMessage,
+          },
+        });
+      }
     } catch (e) {
       this.context.dispatch({
         type: "chat-msg",
         msg: {
           type: "thread-error",
-          id,
+          id: threadId,
           error: e as Error,
         },
       });
     }
+  }
+
+  async createNewThread() {
+    const id = this.threadCounter.get() as ThreadId;
+
+    await this.createThreadWithContext({
+      threadId: id,
+      profile: getActiveProfile(
+        this.context.options.profiles,
+        this.context.options.activeProfile,
+      ),
+      allowedTools: CHAT_TOOL_NAMES,
+    });
   }
 
   renderThreadOverview() {
@@ -319,79 +417,70 @@ ${threadViews.length ? threadViews : "No threads yet"}`;
     }
 
     const sourceThread = sourceThreadWrapper.thread;
-
     const newThreadId = this.threadCounter.get() as ThreadId;
-    this.threadWrappers.set(newThreadId, { state: "pending" });
 
-    try {
-      // Create a new context manager for the compacted thread
-      const contextManager = await ContextManager.create(
-        (msg) =>
-          this.context.dispatch({
-            type: "thread-msg",
-            id: newThreadId,
-            msg: {
-              type: "context-manager-msg",
-              msg,
-            },
-          }),
-        {
-          dispatch: this.context.dispatch,
-          bufferTracker: this.context.bufferTracker,
-          nvim: this.context.nvim,
-          options: this.context.options,
-        },
-      );
+    await this.createThreadWithContext({
+      threadId: newThreadId,
+      profile: sourceThread.state.profile,
+      allowedTools: CHAT_TOOL_NAMES,
+      contextFiles: contextFilePaths,
+      initialMessage: initialMessage,
+    });
+  }
 
-      for (const filePath of contextFilePaths) {
-        const cwd = await getcwd(this.context.nvim);
-        const absFilePath = resolveFilePath(cwd, filePath);
-        const relFilePath = relativePath(cwd, absFilePath);
-        contextManager.update({
-          type: "add-file-context",
-          absFilePath,
-          relFilePath,
-          messageId: 0 as MessageId,
-        });
-      }
-
-      const newThread = new Thread(
-        newThreadId,
-        {
-          ...this.context,
-          contextManager,
-          profile: sourceThread.state.profile, // Use the same profile as the source thread
-        },
-        CHAT_TOOL_NAMES,
-      );
-
-      // Switch to the new thread
-      this.context.dispatch({
-        type: "chat-msg",
-        msg: {
-          type: "thread-initialized",
-          thread: newThread,
-        },
-      });
-
-      this.context.dispatch({
-        type: "thread-msg",
-        id: newThreadId,
-        msg: {
-          type: "send-message",
-          content: initialMessage,
-        },
-      });
-    } catch (e) {
-      this.context.dispatch({
-        type: "chat-msg",
-        msg: {
-          type: "thread-error",
-          id: newThreadId,
-          error: e as Error,
-        },
-      });
+  async handleSpawnSubagentThread({
+    parentThreadId,
+    parentToolRequestId,
+    allowedTools,
+    initialPrompt,
+    contextFiles,
+  }: {
+    parentThreadId: ThreadId;
+    parentToolRequestId: ToolRequestId;
+    allowedTools: ToolName[];
+    initialPrompt: string;
+    contextFiles?: UnresolvedFilePath[];
+  }) {
+    const parentThreadWrapper = this.threadWrappers.get(parentThreadId);
+    if (!parentThreadWrapper || parentThreadWrapper.state !== "initialized") {
+      throw new Error(`Parent thread ${parentThreadId} not available`);
     }
+
+    const parentThread = parentThreadWrapper.thread;
+    const subagentThreadId = this.threadCounter.get() as ThreadId;
+
+    await this.createThreadWithContext({
+      threadId: subagentThreadId,
+      profile: parentThread.state.profile,
+      allowedTools,
+      contextFiles: contextFiles || [],
+      parent: {
+        threadId: parentThreadId,
+        toolRequestId: parentToolRequestId,
+      },
+      switchToThread: true,
+      initialMessage: initialPrompt,
+    });
+  }
+
+  handleYieldToParent({
+    childThreadId,
+    parentThreadId,
+    result,
+  }: {
+    childThreadId: ThreadId;
+    parentThreadId: ThreadId;
+    parentToolRequestId: ToolRequestId;
+    result: string;
+  }) {
+    // TODO: Need to implement this properly
+    // For now, just log and remove the child thread
+    this.context.nvim.logger?.info(
+      `Sub-agent ${childThreadId} yielding result to parent ${parentThreadId}: ${result}`,
+    );
+
+    // Remove the child thread
+    this.threadWrappers.delete(childThreadId);
   }
 
   renderActiveThread() {
