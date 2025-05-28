@@ -27,9 +27,6 @@ import type { Nvim } from "../nvim/nvim-node";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
 import { validateInput } from "../tools/helpers.ts";
 
-// Import any Ollama-specific types if needed
-// Note: You might need to install an Ollama client package or create your own client
-
 export type OllamaOptions = {
   model: string;
 };
@@ -127,10 +124,6 @@ export class OllamaProvider implements Provider {
     };
   }
 
-  /**
-   * Force a tool use request
-   * This method will force the model to use a specific tool
-   */
   forceToolUse(
     messages: Array<ProviderMessage>,
     spec: ProviderToolSpec,
@@ -158,9 +151,6 @@ export class OllamaProvider implements Provider {
     };
   }
 
-  /**
-   * Send a message to the Ollama model and stream the response
-   */
   sendMessage(
     messages: Array<ProviderMessage>,
     onStreamEvent: (event: ProviderStreamEvent) => void,
@@ -174,13 +164,14 @@ export class OllamaProvider implements Provider {
     const streamParams = this.createStreamParameters(messages);
     let streamingResponse: AbortableAsyncIterator<ChatResponse>;
 
-    // Wrap the promise creation to handle early errors
     const promise = (async (): Promise<{
       usage: Usage;
       stopReason: StopReason;
     }> => {
       try {
         streamingResponse = await this.client.chat(streamParams);
+
+        let blockStarted = false;
 
         onStreamEvent({
           type: "content_block_start",
@@ -191,14 +182,13 @@ export class OllamaProvider implements Provider {
             citations: null,
           },
         });
+        blockStarted = true;
 
-        // Process the streaming response
         for await (const chunk of streamingResponse) {
           if (aborted) {
             break;
           }
 
-          // Handle regular text streaming
           if (chunk.message?.content) {
             onStreamEvent({
               type: "content_block_delta",
@@ -214,10 +204,12 @@ export class OllamaProvider implements Provider {
             chunk.message?.tool_calls &&
             chunk.message.tool_calls.length > 0
           ) {
-            onStreamEvent({
-              type: "content_block_stop",
-              index: currentContentBlockIndex,
-            });
+            if (blockStarted) {
+              onStreamEvent({
+                type: "content_block_stop",
+                index: currentContentBlockIndex,
+              });
+            }
 
             currentContentBlockIndex++;
 
@@ -237,7 +229,6 @@ export class OllamaProvider implements Provider {
               },
             });
 
-            // Stream the tool arguments as JSON
             onStreamEvent({
               type: "content_block_delta",
               index: currentContentBlockIndex,
@@ -251,6 +242,7 @@ export class OllamaProvider implements Provider {
               type: "content_block_stop",
               index: currentContentBlockIndex,
             });
+            blockStarted = false;
           }
 
           if (chunk.eval_count) {
@@ -263,10 +255,12 @@ export class OllamaProvider implements Provider {
           stopReason = "end_turn";
         }
 
-        onStreamEvent({
-          type: "content_block_stop",
-          index: currentContentBlockIndex,
-        });
+        if (blockStarted) {
+          onStreamEvent({
+            type: "content_block_stop",
+            index: currentContentBlockIndex,
+          });
+        }
 
         return {
           stopReason: stopReason,
@@ -277,7 +271,6 @@ export class OllamaProvider implements Provider {
         };
       } catch (error) {
         this.nvim.logger?.error(`Ollama streaming error: ${error}`);
-        // Return a default result instead of throwing
         return {
           stopReason: "error" as StopReason,
           usage: {
@@ -287,7 +280,6 @@ export class OllamaProvider implements Provider {
         };
       }
     })().catch((error) => {
-      // Extra safety: catch any errors that escape the try-catch
       this.nvim.logger?.error(`Ollama promise error: ${error}`);
       return {
         stopReason: "error" as StopReason,
