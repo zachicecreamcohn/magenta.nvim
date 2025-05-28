@@ -128,10 +128,8 @@ export class OllamaProvider implements Provider {
     messages: Array<ProviderMessage>,
     spec: ProviderToolSpec,
   ): ProviderToolUseRequest {
-    // TODO: implement
-    // Implement logic to force Ollama to use a specific tool
-    // Note: This may need to be adapted for Ollama's tool calling capabilities
-
+    // NOTE: tool choice is not currently supported by ollama, but is listed under "Future Improvements".
+    // On some models, this isn't an issue and the correct tool will be called anyway
     return {
       abort: () => {
         this.client.abort();
