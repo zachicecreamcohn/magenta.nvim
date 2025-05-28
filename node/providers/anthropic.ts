@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
-import * as ToolManager from "../tools/toolManager.ts";
 import { extendError, type Result } from "../utils/result.ts";
+import type { ToolRequest, ToolRequestId } from "../tools/toolManager.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import {
   type Provider,
@@ -13,7 +13,6 @@ import {
 } from "./provider-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
-import type { ToolRequest, ToolRequestId } from "../tools/toolManager.ts";
 import { validateInput } from "../tools/helpers.ts";
 
 export type MessageParam = Omit<Anthropic.MessageParam, "content"> & {
@@ -71,7 +70,11 @@ export class AnthropicProvider implements Provider {
     this.model = model;
   }
 
-  createStreamParameters(messages: ProviderMessage[]): MessageStreamParams {
+  createStreamParameters(
+    messages: ProviderMessage[],
+    tools: Array<ProviderToolSpec>,
+    options?: { disableCaching?: boolean },
+  ): MessageStreamParams {
     const anthropicMessages = messages.map((m): MessageParam => {
       let content: Anthropic.Messages.ContentBlockParam[];
       if (typeof m.content == "string") {
@@ -144,19 +147,20 @@ export class AnthropicProvider implements Provider {
       };
     });
 
+    // Use the promptCaching class property but allow it to be overridden by options parameter
+    const useCaching = options?.disableCaching !== true && this.promptCaching;
+
     let cacheControlItemsPlaced = 0;
-    if (this.promptCaching) {
+    if (useCaching) {
       cacheControlItemsPlaced = placeCacheBreakpoints(anthropicMessages);
     }
 
-    const tools: Anthropic.Tool[] = ToolManager.CHAT_TOOL_SPECS.map(
-      (t): Anthropic.Tool => {
-        return {
-          ...t,
-          input_schema: t.input_schema as Anthropic.Messages.Tool.InputSchema,
-        };
-      },
-    );
+    const anthropicTools: Anthropic.Tool[] = tools.map((t): Anthropic.Tool => {
+      return {
+        ...t,
+        input_schema: t.input_schema as Anthropic.Messages.Tool.InputSchema,
+      };
+    });
 
     return {
       messages: anthropicMessages,
@@ -171,7 +175,7 @@ export class AnthropicProvider implements Provider {
           // system
           // messages
           // This ensures the tools + system prompt (which is approx 1400 tokens) is cached.
-          cache_control: this.promptCaching
+          cache_control: useCaching
             ? cacheControlItemsPlaced < 4
               ? { type: "ephemeral" }
               : null
@@ -183,7 +187,7 @@ export class AnthropicProvider implements Provider {
         disable_parallel_tool_use: this.disableParallelToolUseFlag || undefined,
       },
       tools: [
-        ...tools,
+        ...anthropicTools,
         {
           type: "web_search_20250305",
           name: "web_search",
@@ -193,19 +197,17 @@ export class AnthropicProvider implements Provider {
     };
   }
 
-  async countTokens(messages: Array<ProviderMessage>): Promise<number> {
-    const params = this.createStreamParameters(messages);
-    const lastMessage = params.messages[params.messages.length - 1];
-    if (!lastMessage || lastMessage.role != "user") {
-      params.messages.push({ role: "user", content: "test" });
-    }
-    const res = await this.client.messages.countTokens({
-      messages: params.messages,
-      model: params.model,
-      system: params.system as Anthropic.TextBlockParam[],
-      tools: params.tools as Anthropic.Tool[],
-    });
-    return res.input_tokens;
+  countTokens(
+    messages: Array<ProviderMessage>,
+    tools: Array<ProviderToolSpec>,
+  ): number {
+    const CHARS_PER_TOKEN = 4;
+
+    let charCount = DEFAULT_SYSTEM_PROMPT.length;
+    charCount += JSON.stringify(tools).length;
+    charCount += JSON.stringify(messages).length;
+
+    return Math.ceil(charCount / CHARS_PER_TOKEN);
   }
 
   forceToolUse(
@@ -213,7 +215,7 @@ export class AnthropicProvider implements Provider {
     spec: ProviderToolSpec,
   ): ProviderToolUseRequest {
     const request = this.client.messages.stream({
-      ...this.createStreamParameters(messages),
+      ...this.createStreamParameters(messages, [], { disableCaching: true }),
       tools: [
         {
           ...spec,
@@ -342,12 +344,14 @@ export class AnthropicProvider implements Provider {
   sendMessage(
     messages: Array<ProviderMessage>,
     onStreamEvent: (event: ProviderStreamEvent) => void,
+    tools: Array<ProviderToolSpec>,
   ): ProviderStreamRequest {
     let requestActive = true;
     const request = this.client.messages
       .stream(
         this.createStreamParameters(
           messages,
+          tools,
         ) as Anthropic.Messages.MessageStreamParams,
       )
       .on("streamEvent", (e) => {

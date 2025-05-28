@@ -10,6 +10,7 @@ import * as BashCommand from "./bashCommand.ts";
 import * as InlineEdit from "./inline-edit-tool.ts";
 import * as ReplaceSelection from "./replace-selection-tool.ts";
 import * as ThreadTitle from "./thread-title.ts";
+import * as CompactThread from "./compact-thread.ts";
 
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, withBindings } from "../tea/view.ts";
@@ -32,7 +33,6 @@ export const CHAT_TOOL_SPECS = [
   FindReferences.spec,
   Diagnostics.spec,
   BashCommand.spec,
-  ThreadTitle.spec,
 ];
 
 export type ToolRequestId = string & { __toolRequestId: true };
@@ -97,6 +97,11 @@ export type ToolMap = {
     controller: ThreadTitle.ThreadTitleTool;
     input: ThreadTitle.Input;
     msg: ThreadTitle.Msg;
+  };
+  compact_thread: {
+    controller: CompactThread.CompactThreadTool;
+    input: CompactThread.Input;
+    msg: never;
   };
 };
 
@@ -438,6 +443,21 @@ export class ToolManager {
             return;
           }
 
+          case "compact_thread": {
+            const compactThreadTool = new CompactThread.CompactThreadTool(
+              request,
+              {
+                nvim: this.context.nvim,
+              },
+            );
+
+            this.state.toolWrappers[request.id] = {
+              tool: compactThreadTool,
+              showDetails: false,
+            };
+            return;
+          }
+
           default:
             return assertUnreachable(request);
         }
@@ -466,9 +486,9 @@ export class ToolManager {
       }
 
       case "abort-tool-use": {
-        const tool = this.state.toolWrappers[msg.requestId].tool;
-        if (tool.state.state != "done") {
-          tool.abort();
+        const toolWrapper = this.state.toolWrappers[msg.requestId];
+        if (toolWrapper && toolWrapper.tool.state.state !== "done") {
+          toolWrapper.tool.abort();
         }
         return;
       }
