@@ -9,7 +9,6 @@ import {
 } from "ollama";
 
 import * as ToolManager from "../tools/toolManager.ts";
-import { type Result } from "../utils/result.ts";
 import type {
   StopReason,
   Provider,
@@ -19,13 +18,9 @@ import type {
   ProviderToolSpec,
   ProviderStreamEvent,
   ProviderToolUseRequest,
-  ProviderToolUseResponse,
 } from "./provider-types.ts";
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { ToolRequestId } from "../tools/toolManager.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
-import { validateInput } from "../tools/helpers.ts";
 
 export type OllamaOptions = {
   model: string;
@@ -69,10 +64,11 @@ export class OllamaProvider implements Provider {
             break;
 
           case "tool_use": {
-            const args: { [key: string]: any } =
+            // Extract tool arguments based on request status
+            const args: Record<string, unknown> =
               c.request.status === "ok"
                 ? c.request.value.input
-                : (c.request.rawRequest as { [key: string]: any });
+                : (c.request.rawRequest as Record<string, unknown>);
 
             const toolCall: ToolCall = {
               function: {
@@ -124,16 +120,25 @@ export class OllamaProvider implements Provider {
     };
   }
 
-  forceToolUse(
+  countTokens(
     messages: Array<ProviderMessage>,
-    spec: ProviderToolSpec,
+    tools: Array<ProviderToolSpec>,
+  ): number {
+    const CHARS_PER_TOKEN = 4;
+    let charCount = DEFAULT_SYSTEM_PROMPT.length;
+    charCount += JSON.stringify(tools).length;
+    charCount += JSON.stringify(messages).length;
+    return Math.ceil(charCount / CHARS_PER_TOKEN);
+  }
+
+  forceToolUse(
+    _messages: Array<ProviderMessage>,
+    _spec: ProviderToolSpec,
   ): ProviderToolUseRequest {
     // NOTE: tool choice is not currently supported by ollama, but is listed under "Future Improvements".
     // On some models, this isn't an issue and the correct tool will be called anyway
     return {
-      abort: () => {
-        this.client.abort();
-      },
+      abort: () => {},
       promise: Promise.resolve({
         toolRequest: {
           status: "error" as const,
@@ -166,135 +171,108 @@ export class OllamaProvider implements Provider {
       usage: Usage;
       stopReason: StopReason;
     }> => {
-      try {
-        streamingResponse = await this.client.chat(streamParams);
+      streamingResponse = await this.client.chat(streamParams);
 
-        let blockStarted = false;
+      let blockStarted = false;
 
-        onStreamEvent({
-          type: "content_block_start",
-          index: currentContentBlockIndex,
-          content_block: {
-            type: "text",
-            text: "",
-            citations: null,
-          },
-        });
-        blockStarted = true;
+      onStreamEvent({
+        type: "content_block_start",
+        index: currentContentBlockIndex,
+        content_block: {
+          type: "text",
+          text: "",
+          citations: null,
+        },
+      });
+      blockStarted = true;
 
-        for await (const chunk of streamingResponse) {
-          if (aborted) {
-            break;
-          }
+      for await (const chunk of streamingResponse) {
+        if (aborted) {
+          stopReason = "aborted";
+          break;
+        }
 
-          if (chunk.message?.content) {
-            onStreamEvent({
-              type: "content_block_delta",
-              index: currentContentBlockIndex,
-              delta: {
-                type: "text_delta",
-                text: chunk.message.content,
-              },
-            });
-          }
+        if (chunk.message?.content) {
+          onStreamEvent({
+            type: "content_block_delta",
+            index: currentContentBlockIndex,
+            delta: {
+              type: "text_delta",
+              text: chunk.message.content,
+            },
+          });
+        }
 
-          if (
-            chunk.message?.tool_calls &&
-            chunk.message.tool_calls.length > 0
-          ) {
-            if (blockStarted) {
-              onStreamEvent({
-                type: "content_block_stop",
-                index: currentContentBlockIndex,
-              });
-            }
-
-            currentContentBlockIndex++;
-
-            const toolCall = chunk.message.tool_calls[0];
-            stopReason = "tool_use";
-
-            const toolId = `tool-${Date.now()}`;
-
-            onStreamEvent({
-              type: "content_block_start",
-              index: currentContentBlockIndex,
-              content_block: {
-                type: "tool_use",
-                id: toolId,
-                name: toolCall.function.name,
-                input: {},
-              },
-            });
-
-            onStreamEvent({
-              type: "content_block_delta",
-              index: currentContentBlockIndex,
-              delta: {
-                type: "input_json_delta",
-                partial_json: JSON.stringify(toolCall.function.arguments),
-              },
-            });
-
+        if (chunk.message?.tool_calls && chunk.message.tool_calls.length > 0) {
+          if (blockStarted) {
             onStreamEvent({
               type: "content_block_stop",
               index: currentContentBlockIndex,
             });
-            blockStarted = false;
           }
 
-          if (chunk.eval_count) {
-            inputTokens = chunk.prompt_eval_count || 0;
-            outputTokens = chunk.eval_count;
-          }
-        }
+          currentContentBlockIndex++;
+          // Although we only access the first tool call, this is okay because Ollama sends the tool calls in seperate chunks in the stream
+          // So no need to seperately iterate through tool_calls here
+          const toolCall = chunk.message.tool_calls[0];
+          stopReason = "tool_use";
 
-        if (!stopReason) {
-          stopReason = "end_turn";
-        }
+          const toolId = `tool-${Date.now()}`;
 
-        if (blockStarted) {
+          onStreamEvent({
+            type: "content_block_start",
+            index: currentContentBlockIndex,
+            content_block: {
+              type: "tool_use",
+              id: toolId,
+              name: toolCall.function.name,
+              input: {},
+            },
+          });
+
+          onStreamEvent({
+            type: "content_block_delta",
+            index: currentContentBlockIndex,
+            delta: {
+              type: "input_json_delta",
+              partial_json: JSON.stringify(toolCall.function.arguments),
+            },
+          });
+
           onStreamEvent({
             type: "content_block_stop",
             index: currentContentBlockIndex,
           });
+          blockStarted = false;
         }
 
-        return {
-          stopReason: stopReason,
-          usage: {
-            inputTokens,
-            outputTokens,
-          },
-        };
-      } catch (error) {
-        this.nvim.logger?.error(`Ollama streaming error: ${error}`);
-        return {
-          stopReason: "error" as StopReason,
-          usage: {
-            inputTokens: 0,
-            outputTokens: 0,
-          },
-        };
+        if (chunk.eval_count) {
+          inputTokens = chunk.prompt_eval_count || 0;
+          outputTokens = chunk.eval_count;
+        }
       }
-    })().catch((error) => {
-      this.nvim.logger?.error(`Ollama promise error: ${error}`);
+
+      if (blockStarted) {
+        onStreamEvent({
+          type: "content_block_stop",
+          index: currentContentBlockIndex,
+        });
+      }
+
       return {
-        stopReason: "error" as StopReason,
+        stopReason: stopReason || "end_turn",
         usage: {
-          inputTokens: 0,
-          outputTokens: 0,
+          inputTokens,
+          outputTokens,
         },
       };
-    });
+    })();
 
     return {
       abort: () => {
         aborted = true;
         if (streamingResponse) {
           streamingResponse.abort();
-        } else {
-          this.client.abort();
         }
       },
       promise,
