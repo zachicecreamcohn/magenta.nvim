@@ -325,11 +325,12 @@ profiles = {
 }
 ```
 
-Currently supported providers are `openai`, `anthropic`, and `bedrock`. The `model` parameter must be compatible with the SDK used for each provider:
+Currently supported providers are `openai`, `anthropic`, `bedrock`, and `ollama`. The `model` parameter must be compatible with the SDK used for each provider:
 
 - For `anthropic`: [Anthropic Node SDK](https://github.com/anthropics/anthropic-sdk-typescript) - supports models like `claude-3-7-sonnet-latest`, `claude-3-5-sonnet-20240620`
 - For `openai`: [OpenAI Node SDK](https://github.com/openai/openai-node) - supports models like `gpt-4o`, `o1`
 - For `bedrock`: [AWS SDK for Bedrock Runtime](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-bedrock-runtime/) - supports models like `anthropic.claude-3-5-sonnet-20241022-v2:0`
+- For `ollama`: [Ollama Node SDK](https://github.com/ollama/ollama-js) - supports models like `qwen3:14b` which have been insalled locally. ([Ollama models](https://ollama.com/search))
 
 Any provider that has a node SDK and supports tool use should be easy to add. Contributions are welcome.
 
