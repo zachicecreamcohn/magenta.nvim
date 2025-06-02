@@ -8,7 +8,6 @@ import {
   type ToolCall,
 } from "ollama";
 
-import * as ToolManager from "../tools/toolManager.ts";
 import type {
   StopReason,
   Provider,
@@ -18,9 +17,15 @@ import type {
   ProviderToolSpec,
   ProviderStreamEvent,
   ProviderToolUseRequest,
+  ProviderToolUseResponse,
+  ProviderTextContent,
 } from "./provider-types.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { DEFAULT_SYSTEM_PROMPT } from "./constants.ts";
+import { validateInput } from "../tools/helpers.ts";
+import type { Result } from "../utils/result.ts";
+import type { ToolRequest, ToolRequestId } from "../tools/toolManager.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
 
 export type OllamaOptions = {
   model: string;
@@ -38,8 +43,9 @@ export class OllamaProvider implements Provider {
     },
   ) {
     this.client = new Ollama({
-      host: options?.baseUrl ? options?.baseUrl : "http://127.0.0.1:11434",
+      host: options?.baseUrl || "http://127.0.0.1:11434",
     });
+
     this.model = "llama3";
   }
 
@@ -47,77 +53,6 @@ export class OllamaProvider implements Provider {
     // It is possible to set the model to a model that is not downloaded or does not exist
     // Ollama itself returns an error if it can't find a model, so seperate checking here is not necessary
     this.model = model;
-  }
-
-  createStreamParameters(
-    history: ProviderMessage[],
-  ): ChatRequest & { stream: true } {
-    const messages: Message[] = [
-      { role: "system", content: DEFAULT_SYSTEM_PROMPT },
-    ];
-
-    for (const m of history) {
-      for (const c of m.content) {
-        switch (c.type) {
-          case "text":
-            messages.push({ role: m.role, content: c.text });
-            break;
-
-          case "tool_use": {
-            // Extract tool arguments based on request status
-            const args: Record<string, unknown> =
-              c.request.status === "ok"
-                ? c.request.value.input
-                : (c.request.rawRequest as Record<string, unknown>);
-
-            const toolCall: ToolCall = {
-              function: {
-                name: c.name,
-                arguments: args,
-              },
-            };
-
-            messages.push({
-              role: "assistant",
-              content: "",
-              tool_calls: [toolCall],
-            });
-            break;
-          }
-
-          case "tool_result": {
-            const result =
-              c.result.status === "ok" ? c.result.value : c.result.error;
-
-            messages.push({
-              role: "tool",
-              content:
-                typeof result === "string" ? result : JSON.stringify(result),
-            });
-            break;
-          }
-
-          default:
-            throw new Error(`content type '${c.type}' not supported by Ollama`);
-        }
-      }
-    }
-
-    const tools = ToolManager.CHAT_TOOL_SPECS.map((s) => ({
-      type: "function",
-      function: {
-        name: s.name,
-        description: s.description,
-        parameters: s.input_schema,
-      },
-    })) as Tool[];
-
-    return {
-      model: this.model,
-      stream: true,
-      messages,
-      tools,
-    };
   }
 
   countTokens(
@@ -131,47 +66,188 @@ export class OllamaProvider implements Provider {
     return Math.ceil(charCount / CHARS_PER_TOKEN);
   }
 
-  forceToolUse(
-    _messages: Array<ProviderMessage>,
-    _spec: ProviderToolSpec,
-  ): ProviderToolUseRequest {
-    // NOTE: tool choice is not currently supported by ollama, but is listed under "Future Improvements".
-    // On some models, this isn't an issue and the correct tool will be called anyway
+  createStreamParameters(
+    messages: Array<ProviderMessage>,
+    tools: Array<ProviderToolSpec>,
+    _options?: { disableCaching?: boolean },
+  ): ChatRequest & { stream: true } {
+    const ollamaMessages: Message[] = [
+      { role: "system", content: DEFAULT_SYSTEM_PROMPT },
+    ];
+
+    for (const m of messages) {
+      for (const content of m.content) {
+        switch (content.type) {
+          case "text":
+            ollamaMessages.push({ role: m.role, content: content.text });
+            break;
+
+          case "tool_use": {
+            let args: Record<string, unknown>;
+            if (content.request.status === "ok") {
+              args = content.request.value.input;
+            } else {
+              args = content.request.rawRequest as Record<string, unknown>;
+            }
+
+            const toolCall: ToolCall = {
+              function: {
+                name: content.name,
+                arguments: args,
+              },
+            };
+
+            ollamaMessages.push({
+              role: "assistant",
+              content: "",
+              tool_calls: [toolCall],
+            });
+            break;
+          }
+
+          case "tool_result": {
+            const result =
+              content.result.status === "ok"
+                ? content.result.value
+                : content.result.error;
+
+            ollamaMessages.push({
+              role: "tool",
+              content:
+                typeof result === "string" ? result : JSON.stringify(result),
+            });
+            break;
+          }
+
+          case "server_tool_use":
+            throw new Error("NOT IMPLEMENTED");
+
+          case "web_search_tool_result":
+            throw new Error("NOT IMPLEMENTED");
+
+          default:
+            assertUnreachable(content);
+        }
+      }
+    }
+
+    const ollamaTools = tools.map((s) => ({
+      type: "function",
+      function: {
+        name: s.name,
+        description: s.description,
+        parameters: s.input_schema,
+      },
+    })) as Tool[];
+
     return {
-      abort: () => {},
-      promise: Promise.resolve({
-        toolRequest: {
-          status: "error" as const,
-          error: "Not implemented",
-          rawRequest: {},
-        },
+      model: this.model,
+      stream: true,
+      messages: ollamaMessages,
+      tools: ollamaTools,
+    };
+  }
+
+  forceToolUse(
+    messages: Array<ProviderMessage>,
+    spec: ProviderToolSpec,
+  ): ProviderToolUseRequest {
+    let aborted = false;
+    const promise = (async (): Promise<ProviderToolUseResponse> => {
+      // Ollama doesn't support tool_choice (although it is in the roadmap)
+      // For now, we can use structured outputs to simulate forced tool use
+      const response = await this.client.chat({
+        model: this.model,
+        messages: [
+          {
+            role: "system",
+            content: `${DEFAULT_SYSTEM_PROMPT}\n\nYou must use the ${spec.name} tool. Respond only with the tool arguments.`,
+          },
+          ...messages.flatMap((message) =>
+            message.content
+              .filter(
+                (content): content is ProviderTextContent =>
+                  content.type === "text",
+              )
+              .map((content) => ({
+                role: message.role,
+                content: content.text,
+              })),
+          ),
+        ],
+        format: JSON.stringify(spec.input_schema),
+        stream: false,
+      });
+
+      let toolRequest: Result<ToolRequest, { rawRequest: unknown }>;
+      try {
+        const args = JSON.parse(response.message.content) as Record<
+          string,
+          unknown
+        >;
+
+        const input = validateInput(spec.name, args);
+
+        toolRequest =
+          input.status === "ok"
+            ? {
+                status: "ok" as const,
+                value: {
+                  toolName: spec.name,
+                  id: `tool-${Date.now()}` as ToolRequestId,
+                  input: input.value,
+                } as ToolRequest,
+              }
+            : { ...input, rawRequest: args };
+      } catch (error) {
+        toolRequest = {
+          status: "error",
+          error: (error as Error).message,
+          rawRequest: response.message.content,
+        };
+      }
+
+      const usage: Usage = {
+        inputTokens: response.prompt_eval_count || 0,
+        outputTokens: response.eval_count || 0,
+      };
+
+      if (aborted) {
+        throw new Error("Aborted");
+      }
+
+      return {
+        toolRequest,
         stopReason: "tool_use" as const,
-        usage: {
-          inputTokens: 0,
-          outputTokens: 0,
-        },
-      }),
+        usage,
+      };
+    })();
+
+    return {
+      abort: () => {
+        aborted = true;
+      },
+      promise,
     };
   }
 
   sendMessage(
     messages: Array<ProviderMessage>,
     onStreamEvent: (event: ProviderStreamEvent) => void,
+    tools: Array<ProviderToolSpec>,
   ): ProviderStreamRequest {
+    let request: AbortableAsyncIterator<ChatResponse>;
     let stopReason: StopReason | undefined;
-    let inputTokens = 0;
-    let outputTokens = 0;
+    let usage: Usage | undefined;
     let currentContentBlockIndex = 0;
-    let aborted = false;
-
-    const streamParams = this.createStreamParameters(messages);
-    let streamingResponse: AbortableAsyncIterator<ChatResponse>;
 
     const promise = (async (): Promise<{
       usage: Usage;
       stopReason: StopReason;
     }> => {
-      streamingResponse = await this.client.chat(streamParams);
+      request = await this.client.chat(
+        this.createStreamParameters(messages, tools),
+      );
 
       let blockStarted = false;
 
@@ -186,11 +262,8 @@ export class OllamaProvider implements Provider {
       });
       blockStarted = true;
 
-      for await (const chunk of streamingResponse) {
-        if (aborted) {
-          stopReason = "aborted";
-          break;
-        }
+      for await (const chunk of request) {
+        this.nvim.logger?.info(`ollama chunk: ${JSON.stringify(chunk)}`);
 
         if (chunk.message?.content) {
           onStreamEvent({
@@ -246,9 +319,12 @@ export class OllamaProvider implements Provider {
           blockStarted = false;
         }
 
-        if (chunk.eval_count) {
-          inputTokens = chunk.prompt_eval_count || 0;
-          outputTokens = chunk.eval_count;
+        if (chunk.done) {
+          stopReason = stopReason || "end_turn";
+          usage = {
+            inputTokens: chunk.prompt_eval_count || 0,
+            outputTokens: chunk.eval_count || 0,
+          };
         }
       }
 
@@ -261,19 +337,16 @@ export class OllamaProvider implements Provider {
 
       return {
         stopReason: stopReason || "end_turn",
-        usage: {
-          inputTokens,
-          outputTokens,
+        usage: usage || {
+          inputTokens: 0,
+          outputTokens: 0,
         },
       };
     })();
 
     return {
       abort: () => {
-        aborted = true;
-        if (streamingResponse) {
-          streamingResponse.abort();
-        }
+        request?.abort();
       },
       promise,
     };
