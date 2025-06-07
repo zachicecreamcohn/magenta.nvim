@@ -20,7 +20,8 @@ describe("node/tools/display-snapshot-diff.spec.ts", () => {
       );
       await driver.send();
 
-      await driver.mockAnthropic.respond({
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      request.respond({
         stopReason: "end_turn",
         text: "ok, I will try to rewrite the poem in that file",
         toolRequests: [

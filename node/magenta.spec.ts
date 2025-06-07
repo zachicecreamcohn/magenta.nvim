@@ -12,7 +12,8 @@ describe("node/magenta.spec.ts", () => {
       await driver.showSidebar();
       await driver.inputMagentaText(`hello`);
       await driver.send();
-      await driver.mockAnthropic.respond({
+      const request1 = await driver.mockAnthropic.awaitPendingRequest();
+      request1.respond({
         stopReason: "end_turn",
         text: "sup?",
         toolRequests: [],
@@ -30,7 +31,8 @@ Stopped (end_turn) [input: 0, output: 0]`);
       await driver.assertDisplayBufferContains(LOGO);
       await driver.inputMagentaText(`hello again`);
       await driver.send();
-      await driver.mockAnthropic.respond({
+      const request2 = await driver.mockAnthropic.awaitPendingRequest();
+      request2.respond({
         stopReason: "end_turn",
         text: "huh?",
         toolRequests: [],
@@ -84,11 +86,9 @@ Streaming response ⠁`);
         }
       });
 
-      // Start streaming a response but don't complete it
-      await driver.mockAnthropic.streamText("I'm starting to respond");
-
-      // Get the latest request
+      // Get the latest request and start streaming a response but don't complete it
       const request = await driver.mockAnthropic.awaitPendingRequest();
+      request.streamText("I'm starting to respond");
 
       // Verify that response has started appearing
       await driver.assertDisplayBufferContains(`\
@@ -121,7 +121,8 @@ I'm starting to respond`);
         }
       });
 
-      await driver.mockAnthropic.respond({
+      const request3 = await driver.mockAnthropic.awaitPendingRequest();
+      request3.respond({
         stopReason: "tool_use",
         text: "ok, here goes",
         toolRequests: [

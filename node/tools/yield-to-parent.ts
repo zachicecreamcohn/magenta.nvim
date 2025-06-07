@@ -10,7 +10,6 @@ import type { ToolInterface } from "./types.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/thread.ts";
-import type { ToolRequestId } from "./toolManager.ts";
 
 export type Msg = {
   type: "finish";
@@ -33,10 +32,6 @@ export class YieldToParentTool implements ToolInterface {
       dispatch: Dispatch<RootMsg>;
       threadId: ThreadId;
       myDispatch: Dispatch<Msg>;
-      parent?: {
-        threadId: ThreadId;
-        toolRequestId: ToolRequestId;
-      };
     },
   ) {
     this.state = {

@@ -12,7 +12,8 @@ describe("node/tools/getFile.spec.ts", () => {
       );
       await driver.send();
 
-      await driver.mockAnthropic.respond({
+      const request1 = await driver.mockAnthropic.awaitPendingRequest();
+      request1.respond({
         stopReason: "end_turn",
         text: "ok, here goes",
         toolRequests: [
@@ -43,7 +44,8 @@ describe("node/tools/getFile.spec.ts", () => {
       );
       await driver.send();
 
-      await driver.mockAnthropic.respond({
+      const request2 = await driver.mockAnthropic.awaitPendingRequest();
+      request2.respond({
         stopReason: "end_turn",
         text: "ok, here goes",
         toolRequests: [
@@ -79,7 +81,8 @@ May I read file \`node/test/fixtures/.secret\`? **[ NO ]** **[ OK ]**`);
       );
       await driver.send();
 
-      await driver.mockAnthropic.respond({
+      const request3 = await driver.mockAnthropic.awaitPendingRequest();
+      request3.respond({
         stopReason: "end_turn",
         text: "ok, here goes",
         toolRequests: [
@@ -112,7 +115,8 @@ Finished reading file \`node/test/fixtures/.secret\``);
       await driver.inputMagentaText(`Try reading the file node_modules/test`);
       await driver.send();
 
-      await driver.mockAnthropic.respond({
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      request.respond({
         stopReason: "end_turn",
         text: "ok, here goes",
         toolRequests: [
@@ -140,7 +144,8 @@ May I read file \`node_modules/test\`? **[ NO ]** **[ OK ]**`);
       await driver.inputMagentaText(`Try reading the file /tmp/file`);
       await driver.send();
 
-      await driver.mockAnthropic.respond({
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      request.respond({
         stopReason: "end_turn",
         text: "ok, here goes",
         toolRequests: [

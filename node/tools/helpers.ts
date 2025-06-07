@@ -12,6 +12,7 @@ import * as InlineEdit from "./inline-edit-tool";
 import * as ThreadTitle from "./thread-title";
 import * as CompactThread from "./compact-thread";
 import * as SpawnSubagent from "./spawn-subagent";
+import * as WaitForSubagents from "./wait-for-subagents";
 import * as YieldToParent from "./yield-to-parent";
 import type { StreamingBlock } from "../providers/helpers";
 import { d, type VDOMNode } from "../tea/view";
@@ -51,6 +52,8 @@ export function validateInput(
       return CompactThread.validateInput(input);
     case "spawn_subagent":
       return SpawnSubagent.validateInput(input);
+    case "wait_for_subagents":
+      return WaitForSubagents.validateInput(input);
     case "yield_to_parent":
       return YieldToParent.validateInput(input);
     default:
@@ -80,6 +83,7 @@ export function renderStreamdedTool(
     case "thread_title":
     case "compact_thread":
     case "spawn_subagent":
+    case "wait_for_subagents":
     case "yield_to_parent":
       break;
     default:

@@ -8,7 +8,8 @@ describe("node/sidebar.spec.ts", () => {
       await driver.showSidebar();
       await driver.inputMagentaText(`\n`.repeat(100));
       await driver.send();
-      await driver.mockAnthropic.respond({
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      request.respond({
         stopReason: "end_turn",
         text: "sup?",
         toolRequests: [],

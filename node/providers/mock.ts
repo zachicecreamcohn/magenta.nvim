@@ -10,18 +10,142 @@ import {
   type ProviderToolSpec,
   type ProviderToolUseRequest,
   type ProviderStreamEvent,
+  type ProviderMessageContent,
 } from "./provider-types.ts";
 import { setClient } from "./provider.ts";
 import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
 
-type MockRequest = {
-  messages: Array<ProviderMessage>;
-  onStreamEvent: (event: ProviderStreamEvent) => void;
+class MockRequest {
   defer: Defer<{
     stopReason: StopReason;
     usage: Usage;
   }>;
-};
+
+  constructor(
+    public messages: Array<ProviderMessage>,
+    public onStreamEvent: (event: ProviderStreamEvent) => void,
+    private getNextBlockId: () => string,
+  ) {
+    this.defer = new Defer();
+  }
+
+  streamText(text: string): void {
+    // Send content_block_start event
+    this.onStreamEvent({
+      type: "content_block_start",
+      index: 0,
+      content_block: {
+        type: "text",
+        text: "",
+        citations: null,
+      },
+    });
+
+    // Send text delta
+    this.onStreamEvent({
+      type: "content_block_delta",
+      index: 0,
+      delta: {
+        type: "text_delta",
+        text,
+      },
+    });
+
+    // Send content_block_stop event
+    this.onStreamEvent({
+      type: "content_block_stop",
+      index: 0,
+    });
+  }
+  streamToolUse(
+    toolRequest: Result<ToolRequest, { rawRequest: unknown }>,
+  ): void {
+    const blockId = this.getNextBlockId();
+    const index = 0;
+
+    this.onStreamEvent({
+      type: "content_block_start",
+      index,
+      content_block: {
+        type: "tool_use",
+        id: toolRequest.status === "ok" ? toolRequest.value.id : blockId,
+        name:
+          toolRequest.status === "ok" ? toolRequest.value.toolName : "unknown",
+        input: {},
+      },
+    });
+
+    // Send tool input as JSON delta
+    const inputJson = JSON.stringify(
+      toolRequest.status === "ok"
+        ? toolRequest.value.input
+        : toolRequest.rawRequest,
+    );
+
+    this.onStreamEvent({
+      type: "content_block_delta",
+      index,
+      delta: {
+        type: "input_json_delta",
+        partial_json: inputJson,
+      },
+    });
+
+    this.onStreamEvent({
+      type: "content_block_stop",
+      index,
+    });
+  }
+
+  respond({
+    text,
+    toolRequests,
+    stopReason,
+  }: {
+    text: string;
+    toolRequests: Result<ToolRequest, { rawRequest: unknown }>[];
+    stopReason: StopReason;
+  }): void {
+    if (text) {
+      this.streamText(text);
+    }
+
+    if (toolRequests && toolRequests.length > 0) {
+      for (let i = 0; i < toolRequests.length; i++) {
+        this.streamToolUse(toolRequests[i]);
+      }
+    }
+
+    this.defer.resolve({
+      stopReason,
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+    });
+  }
+
+  respondWithError(error: Error) {
+    this.defer.reject(error);
+  }
+
+  abort() {
+    if (!this.defer.resolved) {
+      this.defer.reject(new Error("request aborted"));
+    }
+  }
+
+  finishResponse(stopReason: StopReason) {
+    this.defer.resolve({
+      stopReason,
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+    });
+  }
+}
 
 type MockForceToolUseRequest = {
   messages: Array<ProviderMessage>;
@@ -87,44 +211,101 @@ export class MockProvider implements Provider {
     onStreamEvent: (event: ProviderStreamEvent) => void,
     _tools: Array<ProviderToolSpec>,
   ): ProviderStreamRequest {
-    const request: MockRequest = {
+    const request = new MockRequest(
       messages,
       onStreamEvent,
-      defer: new Defer(),
-    };
+      this.getNextBlockId.bind(this),
+    );
+
     this.requests.push(request);
     return {
-      abort: () => {
-        if (!request.defer.resolved) {
-          request.defer.reject(new Error("request aborted"));
-        }
-      },
-
       promise: request.defer.promise,
+      abort: request.abort.bind(request),
     };
   }
 
-  async awaitPendingRequest(message?: string) {
+  async awaitPendingRequest(options?: {
+    predicate?: (request: MockRequest) => boolean;
+    message?: string;
+  }) {
     return pollUntil(() => {
-      const lastRequest = this.requests[this.requests.length - 1];
-      if (lastRequest && !lastRequest.defer.resolved) {
-        return lastRequest;
-      }
-      throw new Error(`no pending requests: ${message}`);
+      for (const request of [...this.requests].reverse())
+        if (
+          request &&
+          !request.defer.resolved &&
+          (!options?.predicate || options.predicate(request))
+        ) {
+          return request;
+        }
+      throw new Error(`No pending requests! ${options?.message ?? ""}
+Requests and their last messages:
+${this.requests.map((r) => `${r.defer.resolved ? "resolved" : "pending"} - ${JSON.stringify(r.messages[r.messages.length - 1])}`).join("\n")} `);
     });
   }
 
-  async awaitPendingUserRequest() {
-    return pollUntil(() => {
-      const lastRequest = this.requests[this.requests.length - 1];
-      if (
-        lastRequest &&
-        !lastRequest.defer.resolved &&
-        lastRequest.messages[lastRequest.messages.length - 1].role == "user"
-      ) {
-        return lastRequest;
+  async awaitPendingRequestWithText(text: string, message?: string) {
+    function blockIncludesText(block: ProviderMessageContent) {
+      switch (block.type) {
+        case "text":
+          if (block.text.includes(text)) {
+            return true;
+          } else {
+            return false;
+          }
+        case "tool_use":
+          if (
+            block.request.status == "ok" &&
+            JSON.stringify(block.request.value).includes(text)
+          ) {
+            return true;
+          }
+          return false;
+        case "server_tool_use":
+          return false;
+        case "web_search_tool_result":
+          if (Array.isArray(block.content)) {
+            for (const result of block.content) {
+              if (result.title.includes(text) || result.url.includes(text)) {
+                return true;
+              }
+            }
+          }
+          return false;
+        case "tool_result":
+          if (
+            (block.result.status == "ok" &&
+              block.result.value.includes(text)) ||
+            (block.result.status == "error" &&
+              block.result.error.includes(text))
+          ) {
+            return true;
+          }
+          return false;
+        default:
+          assertUnreachable(block);
       }
-      throw new Error(`no pending requests`);
+    }
+
+    return this.awaitPendingRequest({
+      predicate: (request) => {
+        const lastMessage = request.messages[request.messages.length - 1];
+        for (const block of lastMessage.content) {
+          if (blockIncludesText(block)) {
+            return true;
+          }
+        }
+        return false;
+      },
+      message: message ?? `last message contains "${text}"`,
+    });
+  }
+
+  async awaitPendingUserRequest(message?: string) {
+    return this.awaitPendingRequest({
+      predicate: (request) => {
+        return request.messages[request.messages.length - 1].role === "user";
+      },
+      message: message ?? "there is a pending request with a user message",
     });
   }
 
@@ -151,114 +332,6 @@ export class MockProvider implements Provider {
 
   private getNextBlockId(): string {
     return `block_${this.blockCounter++}`;
-  }
-
-  /**
-   * Helper to stream text content without resolving the request
-   */
-  async streamText(text: string) {
-    const lastRequest = await this.awaitPendingRequest();
-    const index = 0;
-
-    // Send content_block_start event
-    lastRequest.onStreamEvent({
-      type: "content_block_start",
-      index,
-      content_block: {
-        type: "text",
-        text: "",
-        citations: null,
-      },
-    });
-
-    // Send text delta
-    lastRequest.onStreamEvent({
-      type: "content_block_delta",
-      index,
-      delta: {
-        type: "text_delta",
-        text,
-      },
-    });
-
-    // Send content_block_stop event
-    lastRequest.onStreamEvent({
-      type: "content_block_stop",
-      index,
-    });
-  }
-
-  /**
-   * Helper to stream tool use content without resolving the request
-   */
-  async streamToolUse(
-    toolRequest: Result<ToolRequest, { rawRequest: unknown }>,
-  ) {
-    const lastRequest = await this.awaitPendingRequest();
-    const blockId = this.getNextBlockId();
-    const index = 0;
-
-    // Send content_block_start event for tool_use
-    lastRequest.onStreamEvent({
-      type: "content_block_start",
-      index,
-      content_block: {
-        type: "tool_use",
-        id: toolRequest.status === "ok" ? toolRequest.value.id : blockId,
-        name:
-          toolRequest.status === "ok" ? toolRequest.value.toolName : "unknown",
-        input: {},
-      },
-    });
-
-    // Send tool input as JSON delta
-    const inputJson = JSON.stringify(
-      toolRequest.status === "ok"
-        ? toolRequest.value.input
-        : toolRequest.rawRequest,
-    );
-
-    lastRequest.onStreamEvent({
-      type: "content_block_delta",
-      index,
-      delta: {
-        type: "input_json_delta",
-        partial_json: inputJson,
-      },
-    });
-
-    lastRequest.onStreamEvent({
-      type: "content_block_stop",
-      index,
-    });
-  }
-
-  async streamEvents(events: ProviderStreamEvent[]) {
-    const lastRequest = await this.awaitPendingRequest();
-    for (const event of events) {
-      lastRequest.onStreamEvent(event);
-    }
-  }
-
-  /**
-   * Legacy method for backwards compatibility
-   * @deprecated Use streamText() + finishResponse() instead
-   */
-  async respondWithText(text: string, stopReason: StopReason = "end_turn") {
-    await this.streamText(text);
-    await this.finishResponse(stopReason);
-  }
-
-  /**
-   * Legacy method for backwards compatibility
-   * @deprecated Use streamToolUse() + finishResponse() instead
-   */
-  async respondWithToolUse(
-    toolRequest: Result<ToolRequest, { rawRequest: unknown }>,
-    stopReason: StopReason = "tool_use",
-  ) {
-    await this.streamToolUse(toolRequest);
-    await this.finishResponse(stopReason);
   }
 
   /**
@@ -309,47 +382,9 @@ export class MockProvider implements Provider {
   //   });
   // }
 
-  async respond({
-    text,
-    toolRequests,
-    stopReason,
-  }: {
-    text?: string;
-    toolRequests?: Result<ToolRequest, { rawRequest: unknown }>[];
-    stopReason: StopReason;
-  }) {
-    if (text) {
-      await this.streamText(text);
-    }
-
-    if (toolRequests && toolRequests.length > 0) {
-      for (let i = 0; i < toolRequests.length; i++) {
-        await this.streamToolUse(toolRequests[i]);
-      }
-    }
-
-    // Finish the response with the given stop reason
-    await this.finishResponse(stopReason);
-  }
-
-  async respondWithError(error: Error) {
-    const lastRequest = await this.awaitPendingRequest();
-    lastRequest.defer.reject(error);
-  }
   /**
    * Completes a request with the given stop reason and usage statistics
    */
-  async finishResponse(stopReason: StopReason) {
-    const lastRequest = await this.awaitPendingRequest();
-    lastRequest.defer.resolve({
-      stopReason,
-      usage: {
-        inputTokens: 0,
-        outputTokens: 0,
-      },
-    });
-  }
-
   async respondToForceToolUse({
     toolRequest,
     stopReason,

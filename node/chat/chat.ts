@@ -4,7 +4,6 @@ import type { RootMsg } from "../root-msg";
 import type { Dispatch } from "../tea/tea";
 import { Thread, view as threadView, type ThreadId } from "./thread";
 import { CHAT_TOOL_NAMES, type ToolName } from "../tools/tool-registry.ts";
-import type { ToolRequestId } from "../tools/toolManager.ts";
 import type { Lsp } from "../lsp";
 import { assertUnreachable } from "../utils/assertUnreachable";
 import { d, withBindings, type VDOMNode } from "../tea/view";
@@ -19,12 +18,7 @@ import {
 import { getcwd } from "../nvim/nvim.ts";
 import type { MessageId } from "./message.ts";
 import type { Result } from "../utils/result.ts";
-
-type Parent = {
-  threadId: ThreadId;
-  toolRequestId: ToolRequestId;
-  yielded: boolean;
-};
+import type { ToolRequestId } from "../tools/toolManager.ts";
 
 type ThreadWrapper = (
   | {
@@ -39,7 +33,7 @@ type ThreadWrapper = (
       error: Error;
     }
 ) & {
-  parent: Parent | undefined;
+  parentThreadId: ThreadId | undefined;
 };
 
 type ChatState =
@@ -74,17 +68,10 @@ export type Msg =
   | {
       type: "spawn-subagent-thread";
       parentThreadId: ThreadId;
-      parentToolRequestId: ToolRequestId;
+      spawnToolRequestId: ToolRequestId;
       allowedTools: ToolName[];
       initialPrompt: string;
       contextFiles?: UnresolvedFilePath[];
-    }
-  | {
-      type: "yield-to-parent";
-      childThreadId: ThreadId;
-      parentThreadId: ThreadId;
-      parentToolRequestId: ToolRequestId;
-      result: Result<string>;
     }
   | {
       type: "select-thread";
@@ -102,7 +89,7 @@ export type ChatMsg = {
 export class Chat {
   private threadCounter = new Counter();
   state: ChatState;
-  private threadWrappers: { [id: ThreadId]: ThreadWrapper };
+  public threadWrappers: { [id: ThreadId]: ThreadWrapper };
 
   constructor(
     private context: {
@@ -141,27 +128,12 @@ export class Chat {
         thread.update(msg);
 
         if (
-          threadState.parent &&
+          threadState.parentThreadId &&
           (thread.state.conversation.state == "yielded" ||
             thread.state.conversation.state == "error")
         ) {
-          this.handleYieldToParent({
-            childThreadId: thread.id,
-            parentThreadId: threadState.parent.threadId,
-            parentToolRequestId: threadState.parent.toolRequestId,
-            result:
-              thread.state.conversation.state == "yielded"
-                ? {
-                    status: "ok",
-                    value: thread.state.conversation.response,
-                  }
-                : {
-                    status: "error",
-                    error:
-                      thread.state.conversation.error.message +
-                      "\n" +
-                      thread.state.conversation.error.stack,
-                  },
+          this.notifyParent({
+            parentThreadId: threadState.parentThreadId,
           });
         }
       }
@@ -174,13 +146,16 @@ export class Chat {
         this.threadWrappers[msg.thread.id] = {
           state: "initialized",
           thread: msg.thread,
-          parent: this.threadWrappers[msg.thread.id].parent,
+          parentThreadId: this.threadWrappers[msg.thread.id].parentThreadId,
         };
 
-        this.state = {
-          state: "thread-selected",
-          activeThreadId: msg.thread.id,
-        };
+        if (!this.state.activeThreadId) {
+          this.state = {
+            state: "thread-selected",
+            activeThreadId: msg.thread.id,
+          };
+        }
+
         return;
       }
 
@@ -189,7 +164,7 @@ export class Chat {
         this.threadWrappers[msg.id] = {
           state: "error",
           error: msg.error,
-          parent: undefined,
+          parentThreadId: prev.parentThreadId,
         };
 
         if (this.state.state === "thread-selected") {
@@ -200,20 +175,9 @@ export class Chat {
         }
 
         if (prev) {
-          let parent: Parent | undefined;
-          if (prev.state == "pending" || prev.state == "initialized") {
-            parent = prev.parent;
-          }
-
-          if (parent) {
-            this.handleYieldToParent({
-              childThreadId: msg.id,
-              parentThreadId: parent.threadId,
-              parentToolRequestId: parent.toolRequestId,
-              result: {
-                status: "error",
-                error: msg.error.message + "\n" + msg.error.stack,
-              },
+          if (prev.parentThreadId) {
+            this.notifyParent({
+              parentThreadId: prev.parentThreadId,
             });
           }
         }
@@ -266,11 +230,6 @@ export class Chat {
         return;
       }
 
-      case "yield-to-parent": {
-        this.handleYieldToParent(msg);
-        return;
-      }
-
       default:
         assertUnreachable(msg);
     }
@@ -295,23 +254,20 @@ export class Chat {
     allowedTools,
     contextFiles = [],
     parent,
-    switchToThread = true,
+    switchToThread,
     initialMessage,
   }: {
     threadId: ThreadId;
     profile: Profile;
     allowedTools: ToolName[];
     contextFiles?: UnresolvedFilePath[];
-    parent?: {
-      threadId: ThreadId;
-      toolRequestId: ToolRequestId;
-    };
-    switchToThread?: boolean;
+    parent?: ThreadId;
+    switchToThread: boolean;
     initialMessage?: string;
   }) {
     this.threadWrappers[threadId] = {
       state: "pending",
-      parent: parent && { ...parent, yielded: false },
+      parentThreadId: parent,
     };
 
     const contextManager = await ContextManager.create(
@@ -352,9 +308,9 @@ export class Chat {
         ...this.context,
         contextManager,
         profile,
+        chat: this,
       },
       allowedTools,
-      parent,
     );
 
     this.context.dispatch({
@@ -398,6 +354,7 @@ export class Chat {
         this.context.options.profiles,
         this.context.options.activeProfile,
       ),
+      switchToThread: true,
       allowedTools: CHAT_TOOL_NAMES,
     });
   }
@@ -472,19 +429,20 @@ ${threadViews.length ? threadViews : "No threads yet"}`;
       profile: sourceThread.state.profile,
       allowedTools: CHAT_TOOL_NAMES,
       contextFiles: contextFilePaths,
+      switchToThread: true,
       initialMessage: initialMessage,
     });
   }
 
   async handleSpawnSubagentThread({
     parentThreadId,
-    parentToolRequestId,
+    spawnToolRequestId,
     allowedTools,
     initialPrompt,
     contextFiles,
   }: {
     parentThreadId: ThreadId;
-    parentToolRequestId: ToolRequestId;
+    spawnToolRequestId: ToolRequestId;
     allowedTools: ToolName[];
     initialPrompt: string;
     contextFiles?: UnresolvedFilePath[];
@@ -509,14 +467,12 @@ ${threadViews.length ? threadViews : "No threads yet"}`;
         profile: parentThread.state.profile,
         allowedTools: subagentAllowedTools,
         contextFiles: contextFiles || [],
-        parent: {
-          threadId: parentThreadId,
-          toolRequestId: parentToolRequestId,
-        },
-        switchToThread: true,
+        parent: parentThreadId,
+        switchToThread: false,
         initialMessage: initialPrompt,
       });
 
+      // Notify parent spawn call of successful thread spawn
       this.context.dispatch({
         type: "thread-msg",
         id: parentThreadId,
@@ -525,18 +481,21 @@ ${threadViews.length ? threadViews : "No threads yet"}`;
           msg: {
             type: "tool-msg",
             msg: {
-              id: parentToolRequestId,
+              id: spawnToolRequestId,
               toolName: "spawn_subagent",
               msg: {
                 type: "subagent-created",
-                threadId: thread.id,
+                result: {
+                  status: "ok",
+                  value: thread.id,
+                },
               },
             },
           },
         },
       });
     } catch (e) {
-      const error = e as Error;
+      // Notify parent spawn call of failure to spawn
       this.context.dispatch({
         type: "thread-msg",
         id: parentThreadId,
@@ -545,13 +504,14 @@ ${threadViews.length ? threadViews : "No threads yet"}`;
           msg: {
             type: "tool-msg",
             msg: {
-              id: parentToolRequestId,
+              id: spawnToolRequestId,
               toolName: "spawn_subagent",
               msg: {
-                type: "finish",
+                type: "subagent-created",
                 result: {
                   status: "error",
-                  error: error.message + "\n" + error.stack,
+                  error:
+                    e instanceof Error ? e.message + "\n" + e.stack : String(e),
                 },
               },
             },
@@ -561,51 +521,121 @@ ${threadViews.length ? threadViews : "No threads yet"}`;
     }
   }
 
-  handleYieldToParent({
-    childThreadId,
-    parentThreadId,
-    parentToolRequestId,
-    result,
-  }: {
-    childThreadId: ThreadId;
-    parentThreadId: ThreadId;
-    parentToolRequestId: ToolRequestId;
-    result: Result<string>;
-  }) {
+  getThreadResult(
+    threadId: ThreadId,
+  ): { status: "done"; result: Result<string> } | { status: "pending" } {
+    const threadWrapper = this.threadWrappers[threadId];
+    if (!threadWrapper) {
+      return {
+        status: "pending",
+      };
+    }
+
+    switch (threadWrapper.state) {
+      case "pending":
+        return { status: "pending" };
+
+      case "error":
+        return {
+          status: "done",
+          result: {
+            status: "error",
+            error: threadWrapper.error.message,
+          },
+        };
+
+      case "initialized": {
+        const thread = threadWrapper.thread;
+        const conversation = thread.state.conversation;
+
+        switch (conversation.state) {
+          case "yielded":
+            return {
+              status: "done",
+              result: {
+                status: "ok",
+                value: conversation.response,
+              },
+            };
+
+          case "error":
+            return {
+              status: "done",
+              result: {
+                status: "error",
+                error: conversation.error.message,
+              },
+            };
+
+          case "stopped":
+            if (conversation.stopReason === "aborted") {
+              return {
+                status: "done",
+                result: {
+                  status: "error",
+                  error: "Thread was aborted",
+                },
+              };
+            }
+
+            // If stopped normally but not yielded, consider it pending
+            return { status: "pending" };
+
+          case "message-in-flight":
+          case "compacting":
+            return { status: "pending" };
+
+          default:
+            return assertUnreachable(conversation);
+        }
+      }
+
+      default:
+        return assertUnreachable(threadWrapper);
+    }
+  }
+
+  notifyParent({ parentThreadId }: { parentThreadId: ThreadId }) {
     const parentThreadWrapper = this.threadWrappers[parentThreadId];
     if (parentThreadWrapper && parentThreadWrapper.state === "initialized") {
       const parentThread = parentThreadWrapper.thread;
 
-      setTimeout(() =>
-        this.context.dispatch({
-          type: "thread-msg",
-          id: parentThread.id,
-          msg: {
-            type: "tool-manager-msg",
-            msg: {
-              type: "tool-msg",
-              msg: {
-                id: parentToolRequestId,
-                toolName: "spawn_subagent",
-                msg: {
-                  type: "finish",
-                  result,
-                },
-              },
-            },
-          },
-        }),
-      );
-    }
+      const lastMessage =
+        parentThread.state.messages[parentThread.state.messages.length - 1];
+      if (!lastMessage || lastMessage.state.role !== "assistant") {
+        return;
+      }
 
-    if (
-      this.state.state === "thread-selected" &&
-      this.state.activeThreadId === childThreadId
-    ) {
-      this.state = {
-        state: "thread-selected",
-        activeThreadId: parentThreadId,
-      };
+      for (const content of lastMessage.state.content) {
+        if (content.type === "tool_use" && content.request.status === "ok") {
+          const request = content.request.value;
+          if (request.toolName === "wait_for_subagents") {
+            const toolWrapper =
+              parentThread.toolManager.state.toolWrappers[request.id];
+            if (toolWrapper && toolWrapper.tool.state.state === "waiting") {
+              setTimeout(() =>
+                this.context.dispatch({
+                  type: "thread-msg",
+                  id: parentThread.id,
+                  msg: {
+                    type: "tool-manager-msg",
+                    msg: {
+                      type: "tool-msg",
+                      msg: {
+                        id: toolWrapper.tool.request.id,
+                        toolName: "wait_for_subagents",
+                        msg: {
+                          type: "check-threads",
+                        },
+                      },
+                    },
+                  },
+                }),
+              );
+            }
+          }
+        }
+      }
     }
   }
 
@@ -625,21 +655,18 @@ ${threadViews.length ? threadViews : "No threads yet"}`;
         const thread = threadWrapper.thread;
         let parentView: string | VDOMNode;
 
-        if (threadWrapper.parent) {
-          const parent = threadWrapper.parent;
-          parentView = withBindings(
-            d`Parent thread: ${parent.threadId.toString()}\n`,
-            {
-              "<CR>": () =>
-                this.context.dispatch({
-                  type: "chat-msg",
-                  msg: {
-                    type: "select-thread",
-                    id: parent.threadId,
-                  },
-                }),
-            },
-          );
+        if (threadWrapper.parentThreadId) {
+          const parent = threadWrapper.parentThreadId;
+          parentView = withBindings(d`Parent thread: ${parent.toString()}\n`, {
+            "<CR>": () =>
+              this.context.dispatch({
+                type: "chat-msg",
+                msg: {
+                  type: "select-thread",
+                  id: parent,
+                },
+              }),
+          });
         } else {
           parentView = "";
         }

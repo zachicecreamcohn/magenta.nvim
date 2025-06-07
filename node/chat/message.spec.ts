@@ -13,7 +13,8 @@ describe("node/chat/message.spec.ts", () => {
       );
       await driver.send();
 
-      await driver.mockAnthropic.respond({
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      request.respond({
         stopReason: "end_turn",
         text: "ok, I will try to rewrite the poem in that file",
         toolRequests: [
@@ -102,104 +103,100 @@ ok, I will try to rewrite the poem in that file
       );
       await driver.send();
 
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+
       // Create server tool use event (web search)
       const serverToolUseIndex = 0;
-      await driver.mockAnthropic.streamEvents([
-        {
-          type: "content_block_start",
-          index: serverToolUseIndex,
-          content_block: {
-            type: "server_tool_use",
-            id: "search_1",
-            name: "web_search",
-            input: {},
-          },
+      request.onStreamEvent({
+        type: "content_block_start",
+        index: serverToolUseIndex,
+        content_block: {
+          type: "server_tool_use",
+          id: "search_1",
+          name: "web_search",
+          input: {},
         },
-        {
-          type: "content_block_delta",
-          index: serverToolUseIndex,
-          delta: {
-            type: "input_json_delta",
-            partial_json: JSON.stringify({
-              query: "TypeScript vs JavaScript large projects",
-            }),
-          },
+      });
+      request.onStreamEvent({
+        type: "content_block_delta",
+        index: serverToolUseIndex,
+        delta: {
+          type: "input_json_delta",
+          partial_json: JSON.stringify({
+            query: "TypeScript vs JavaScript large projects",
+          }),
         },
-        {
-          type: "content_block_stop",
-          index: serverToolUseIndex,
-        },
-      ]);
+      });
+      request.onStreamEvent({
+        type: "content_block_stop",
+        index: serverToolUseIndex,
+      });
 
       // Create web search result event
       const searchResultIndex = 1;
-      await driver.mockAnthropic.streamEvents([
-        {
-          type: "content_block_start",
-          index: searchResultIndex,
-          content_block: {
-            type: "web_search_tool_result",
-            tool_use_id: "search_1",
-            content: [
-              {
-                type: "web_search_result",
-                title:
-                  "TypeScript vs JavaScript: Which Is Better for Your Project?",
-                url: "https://example.com/typescript-vs-javascript",
-                encrypted_content: "",
-                page_age: "3 months ago",
-              },
-            ] as WebSearchResultBlock[],
-          },
+      request.onStreamEvent({
+        type: "content_block_start",
+        index: searchResultIndex,
+        content_block: {
+          type: "web_search_tool_result",
+          tool_use_id: "search_1",
+          content: [
+            {
+              type: "web_search_result",
+              title:
+                "TypeScript vs JavaScript: Which Is Better for Your Project?",
+              url: "https://example.com/typescript-vs-javascript",
+              encrypted_content: "",
+              page_age: "3 months ago",
+            },
+          ] as WebSearchResultBlock[],
         },
-        {
-          type: "content_block_stop",
-          index: searchResultIndex,
-        },
-      ]);
+      });
+      request.onStreamEvent({
+        type: "content_block_stop",
+        index: searchResultIndex,
+      });
 
       // Create text content with citations
       const textIndex = 2;
-      await driver.mockAnthropic.streamEvents([
-        {
-          type: "content_block_start",
-          index: textIndex,
-          content_block: {
-            type: "text",
-            text: "",
-            citations: null,
+      request.onStreamEvent({
+        type: "content_block_start",
+        index: textIndex,
+        content_block: {
+          type: "text",
+          text: "",
+          citations: null,
+        },
+      });
+      request.onStreamEvent({
+        type: "content_block_delta",
+        index: textIndex,
+        delta: {
+          type: "text_delta",
+          text: "TypeScript offers significant advantages for large projects compared to JavaScript.",
+        },
+      });
+      request.onStreamEvent({
+        type: "content_block_delta",
+        index: textIndex,
+        delta: {
+          type: "citations_delta",
+          citation: {
+            type: "web_search_result_location",
+            cited_text: "TypeScript offers significant advantages",
+            encrypted_index: "1",
+            title: "Microsoft Dev Blog",
+            url: "https://devblogs.microsoft.com/typescript/benefits-large-projects",
           },
         },
-        {
-          type: "content_block_delta",
-          index: textIndex,
-          delta: {
-            type: "text_delta",
-            text: "TypeScript offers significant advantages for large projects compared to JavaScript.",
-          },
-        },
-        {
-          type: "content_block_delta",
-          index: textIndex,
-          delta: {
-            type: "citations_delta",
-            citation: {
-              type: "web_search_result_location",
-              cited_text: "TypeScript offers significant advantages",
-              encrypted_index: "1",
-              title: "Microsoft Dev Blog",
-              url: "https://devblogs.microsoft.com/typescript/benefits-large-projects",
-            },
-          },
-        },
-        {
-          type: "content_block_stop",
-          index: textIndex,
-        },
-      ]);
+      });
+      request.onStreamEvent({
+        type: "content_block_stop",
+        index: textIndex,
+      });
 
       // Finish the response
-      await driver.mockAnthropic.finishResponse("end_turn");
+      request.finishResponse("end_turn");
 
       await driver.assertDisplayBufferContains(`\
 # user:

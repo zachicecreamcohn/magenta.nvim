@@ -9,6 +9,9 @@ import { Magenta } from "../magenta.ts";
 import { withMockClient } from "../providers/mock.ts";
 import { NvimDriver } from "./driver.ts";
 import { type MagentaOptions } from "../options.ts";
+import type { Chat } from "../chat/chat.ts";
+import type { Thread } from "../chat/thread.ts";
+import type { Message } from "../chat/message.ts";
 
 const SOCK = `/tmp/magenta-test.sock`;
 export const TMP_DIR = "node/test/tmp";
@@ -256,6 +259,32 @@ export function extractMountTree(mounted: MountedVDOM): unknown {
     default:
       assertUnreachable(mounted);
   }
+}
+
+export function renderMessage(message: Message) {
+  return `message ${message.state.id}
+
+content:
+${message.state.content.map((c) => JSON.stringify(c)).join("\n")}
+`;
+}
+
+export function renderThread(thread: Thread) {
+  return `Thread ${thread.id}
+
+messages: ${thread.state.messages.map((m) => renderMessage(m)).join("\n")}
+`;
+}
+
+export function renderChat(chat: Chat) {
+  const out = [];
+  for (const [threadId, threadState] of Object.entries(chat.threadWrappers)) {
+    out.push(
+      `${threadId} - ${threadState.state == "initialized" && renderThread(threadState.thread)}`,
+    );
+  }
+
+  return out.join("\n");
 }
 
 process.on("uncaughtException", (err) => {

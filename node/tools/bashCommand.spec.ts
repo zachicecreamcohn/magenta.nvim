@@ -14,10 +14,10 @@ describe("node/tools/bashCommand.spec.ts", () => {
       );
       await driver.send();
 
-      await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingRequest();
       const toolRequestId = "test-echo-command" as ToolRequestId;
 
-      await driver.mockAnthropic.respond({
+      request.respond({
         stopReason: "end_turn",
         text: "I'll run that command for you.",
         toolRequests: [
@@ -55,10 +55,10 @@ describe("node/tools/bashCommand.spec.ts", () => {
       await driver.inputMagentaText(`Run this command: nonexistentcommand`);
       await driver.send();
 
-      await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingRequest();
       const toolRequestId = "test-error-command" as ToolRequestId;
 
-      await driver.mockAnthropic.respond({
+      request.respond({
         stopReason: "end_turn",
         text: "I'll run that command for you.",
         toolRequests: [
@@ -94,10 +94,10 @@ describe("node/tools/bashCommand.spec.ts", () => {
       );
       await driver.send();
 
-      await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingRequest();
       const toolRequestId = "test-curl-command" as ToolRequestId;
 
-      await driver.mockAnthropic.respond({
+      request.respond({
         stopReason: "end_turn",
         text: "I'll run that curl command for you.",
         toolRequests: [
@@ -142,10 +142,10 @@ describe("node/tools/bashCommand.spec.ts", () => {
       await driver.inputMagentaText(`Run this command: true && ls -la`);
       await driver.send();
 
-      await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingRequest();
       const toolRequestId = "test-rejected-command" as ToolRequestId;
 
-      await driver.mockAnthropic.respond({
+      request.respond({
         stopReason: "end_turn",
         text: "I'll run that command for you.",
         toolRequests: [
@@ -181,10 +181,10 @@ describe("node/tools/bashCommand.spec.ts", () => {
       await driver.inputMagentaText(`Run this command: sleep 30`);
       await driver.send();
 
-      await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingRequest();
       const toolRequestId = "test-terminate-command" as ToolRequestId;
 
-      await driver.mockAnthropic.respond({
+      request.respond({
         stopReason: "end_turn",
         text: "I'll run that command for you.",
         toolRequests: [
@@ -230,10 +230,10 @@ describe("node/tools/bashCommand.spec.ts", () => {
       await driver.inputMagentaText(`Run this command: "true && echo 'tada'`);
       await driver.send();
 
-      await driver.mockAnthropic.awaitPendingRequest();
+      const request1 = await driver.mockAnthropic.awaitPendingRequest();
       const toolRequestId1 = "test-remembered-command-1" as ToolRequestId;
 
-      await driver.mockAnthropic.respond({
+      request1.respond({
         stopReason: "end_turn",
         text: "I'll run that command for you.",
         toolRequests: [
@@ -260,10 +260,10 @@ describe("node/tools/bashCommand.spec.ts", () => {
       await driver.inputMagentaText(`Ok, run it again`);
       await driver.send();
 
-      await driver.mockAnthropic.awaitPendingRequest();
+      const request2 = await driver.mockAnthropic.awaitPendingRequest();
       const toolRequestId2 = "test-remembered-command-2" as ToolRequestId;
 
-      await driver.mockAnthropic.respond({
+      request2.respond({
         stopReason: "end_turn",
         text: "Running that command again.",
         toolRequests: [
@@ -314,10 +314,10 @@ Exit code: 0`);
       await driver.inputMagentaText(`Run this command: ${appendCmd}`);
       await driver.send();
 
-      await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingRequest();
       const toolRequestId = "test-single-execution" as ToolRequestId;
 
-      await driver.mockAnthropic.respond({
+      request.respond({
         stopReason: "end_turn",
         text: "I'll run the append command for you.",
         toolRequests: [

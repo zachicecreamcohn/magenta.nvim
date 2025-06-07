@@ -13,6 +13,7 @@ export const ALL_TOOL_NAMES = [
   "thread_title",
   "compact_thread",
   "spawn_subagent",
+  "wait_for_subagents",
   "yield_to_parent",
 ] as const;
 
@@ -29,6 +30,7 @@ export const CHAT_TOOL_NAMES: ToolName[] = [
   "diagnostics",
   "bash_command",
   "spawn_subagent",
+  "wait_for_subagents",
 ];
 
 export const SUBAGENT_TOOL_NAMES: ToolName[] = [

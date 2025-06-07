@@ -14,23 +14,14 @@ import type { ThreadId } from "../chat/thread.ts";
 import { CHAT_TOOL_NAMES, type ToolName } from "./tool-registry.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 
-export type Msg =
-  | {
-      type: "finish";
-      result: Result<string>;
-    }
-  | {
-      type: "subagent-created";
-      threadId: ThreadId;
-    };
+export type Msg = {
+  type: "subagent-created";
+  result: Result<ThreadId>;
+};
 
 export type State =
   | {
       state: "preparing";
-    }
-  | {
-      state: "running";
-      subagentThreadId: ThreadId;
     }
   | {
       state: "done";
@@ -79,7 +70,7 @@ export class SpawnSubagentTool implements ToolInterface {
       msg: {
         type: "spawn-subagent-thread",
         parentThreadId: this.context.threadId,
-        parentToolRequestId: this.request.id,
+        spawnToolRequestId: this.request.id,
         allowedTools,
         initialPrompt: prompt,
         contextFiles,
@@ -103,23 +94,6 @@ export class SpawnSubagentTool implements ToolInterface {
         };
         break;
 
-      case "running": {
-        const subagentThreadId = this.state.subagentThreadId;
-        // setTimeout to avoid dispatch-in-dispatch
-        setTimeout(() => {
-          // the child thread should notify & update this tool when it finishes aborting
-          this.context.dispatch({
-            type: "thread-msg",
-            id: subagentThreadId,
-            msg: {
-              type: "abort",
-            },
-          });
-        });
-
-        break;
-      }
-
       case "done":
         // Already done, nothing to abort
         break;
@@ -131,25 +105,40 @@ export class SpawnSubagentTool implements ToolInterface {
   update(msg: Msg): void {
     switch (msg.type) {
       case "subagent-created":
-        this.state = {
-          state: "running",
-          subagentThreadId: msg.threadId,
-        };
-        return;
+        switch (msg.result.status) {
+          case "ok":
+            this.state = {
+              state: "done",
+              result: {
+                type: "tool_result",
+                id: this.request.id,
+                result: {
+                  status: "ok",
+                  value: `Sub-agent started with threadId: ${msg.result.value}`,
+                },
+              },
+            };
 
-      case "finish":
-        this.state = {
-          state: "done",
-          result: {
-            type: "tool_result",
-            id: this.request.id,
-            result: msg.result,
-          },
-        };
+            break;
+
+          case "error":
+            this.state = {
+              state: "done",
+              result: {
+                type: "tool_result",
+                id: this.request.id,
+                result: {
+                  status: "error",
+                  error: `Failed to create sub-agent thread: ${msg.result.error}`,
+                },
+              },
+            };
+            return;
+        }
         return;
 
       default:
-        assertUnreachable(msg);
+        assertUnreachable(msg.type);
     }
   }
 
@@ -172,14 +161,12 @@ export class SpawnSubagentTool implements ToolInterface {
     switch (this.state.state) {
       case "preparing":
         return d`🤖⚙️ Preparing to spawn sub-agent...`;
-      case "running":
-        return d`🤖⏳ Sub-agent running with thread ID: ${this.state.subagentThreadId.toString()}. Waiting for results...`;
       case "done": {
         const result = this.state.result.result;
         if (result.status === "error") {
           return d`🤖❌ Error spawning sub-agent: ${result.error}`;
         } else {
-          return d`🤖✅ Sub-agent completed with result: ${result.value}`;
+          return d`🤖✅ Sub-agent started: ${result.value}`;
         }
       }
     }

@@ -11,7 +11,6 @@ import {
   ToolManager,
   type Msg as ToolManagerMsg,
   type ToolRequest,
-  type ToolRequestId,
 } from "../tools/toolManager.ts";
 import { type ToolName } from "../tools/tool-registry.ts";
 import { Counter } from "../utils/uniqueId.ts";
@@ -39,6 +38,7 @@ import {
   spec as threadTitleToolSpec,
 } from "../tools/thread-title.ts";
 import { getToolSpecs } from "../tools/tool-specs.ts";
+import type { Chat } from "./chat.ts";
 
 export type Role = "user" | "assistant";
 
@@ -141,6 +141,7 @@ export class Thread {
     public id: ThreadId,
     public context: {
       dispatch: Dispatch<RootMsg>;
+      chat: Chat;
       bufferTracker: BufferTracker;
       profile: Profile;
       nvim: Nvim;
@@ -149,10 +150,6 @@ export class Thread {
       options: MagentaOptions;
     },
     allowedTools: ToolName[],
-    parent?: {
-      threadId: ThreadId;
-      toolRequestId: ToolRequestId;
-    },
   ) {
     this.myDispatch = (msg) =>
       this.context.dispatch({
@@ -172,10 +169,10 @@ export class Thread {
         dispatch: this.context.dispatch,
         threadId: this.id,
         bufferTracker: this.context.bufferTracker,
+        chat: this.context.chat,
         nvim: this.context.nvim,
         lsp: this.context.lsp,
         options: this.context.options,
-        ...(parent && { parent }),
       },
     );
 

@@ -185,7 +185,8 @@ Paint their stories in the night.
       await driver.send();
 
       // Respond with a tool call that will modify the file
-      await driver.mockAnthropic.respond({
+      const request1 = await driver.mockAnthropic.awaitPendingRequest();
+      request1.respond({
         stopReason: "tool_use",
         text: "I'll add a new line to the poem",
         toolRequests: [
@@ -227,9 +228,11 @@ Paint their stories in the night.
         });
       }
       {
-        await driver.mockAnthropic.respond({
+        const request2 = await driver.mockAnthropic.awaitPendingRequest();
+        request2.respond({
           stopReason: "end_turn",
           text: "I did it!",
+          toolRequests: [],
         });
 
         const request = await driver.mockAnthropic.awaitStopped();
@@ -294,7 +297,8 @@ Paint their stories in the night.
       await driver.inputMagentaText(`Add a new line to the poem.txt file`);
       await driver.send();
 
-      await driver.mockAnthropic.respond({
+      const request3 = await driver.mockAnthropic.awaitPendingRequest();
+      request3.respond({
         stopReason: "tool_use",
         text: "I'll add a new line to the poem",
         toolRequests: [

@@ -12,6 +12,7 @@ import * as ReplaceSelection from "./replace-selection-tool.ts";
 import * as ThreadTitle from "./thread-title.ts";
 import * as CompactThread from "./compact-thread.ts";
 import * as SpawnSubagent from "./spawn-subagent.ts";
+import * as WaitForSubagents from "./wait-for-subagents.ts";
 import * as YieldToParent from "./yield-to-parent.ts";
 
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
@@ -24,6 +25,7 @@ import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
 import type { ThreadId } from "../chat/thread.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
+import type { Chat } from "../chat/chat.ts";
 
 export type ToolRequestId = string & { __toolRequestId: true };
 
@@ -98,6 +100,11 @@ export type ToolMap = {
     input: SpawnSubagent.Input;
     msg: SpawnSubagent.Msg;
   };
+  wait_for_subagents: {
+    controller: WaitForSubagents.WaitForSubagentsTool;
+    input: WaitForSubagents.Input;
+    msg: WaitForSubagents.Msg;
+  };
   yield_to_parent: {
     controller: YieldToParent.YieldToParentTool;
     input: YieldToParent.Input;
@@ -166,10 +173,7 @@ export class ToolManager {
       nvim: Nvim;
       lsp: Lsp;
       options: MagentaOptions;
-      parent?: {
-        threadId: ThreadId;
-        toolRequestId: ToolRequestId;
-      };
+      chat: Chat;
     },
   ) {
     this.state = {
@@ -482,6 +486,31 @@ export class ToolManager {
             return;
           }
 
+          case "wait_for_subagents": {
+            const waitForSubagentsTool =
+              new WaitForSubagents.WaitForSubagentsTool(request, {
+                nvim: this.context.nvim,
+                dispatch: this.context.dispatch,
+                threadId: this.context.threadId,
+                chat: this.context.chat,
+                myDispatch: (msg) =>
+                  this.myDispatch({
+                    type: "tool-msg",
+                    msg: {
+                      id: request.id,
+                      toolName: "wait_for_subagents",
+                      msg,
+                    },
+                  }),
+              });
+
+            this.state.toolWrappers[request.id] = {
+              tool: waitForSubagentsTool,
+              showDetails: false,
+            };
+            return;
+          }
+
           case "yield_to_parent": {
             const yieldToParentTool = new YieldToParent.YieldToParentTool(
               request,
@@ -498,7 +527,6 @@ export class ToolManager {
                       msg,
                     },
                   }),
-                ...(this.context.parent && { parent: this.context.parent }),
               },
             );
 

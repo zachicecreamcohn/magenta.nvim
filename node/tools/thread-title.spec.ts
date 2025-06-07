@@ -54,9 +54,11 @@ describe("node/tools/thread-title.spec.ts", () => {
       await driver.assertDisplayBufferContains(`# ${title}`);
 
       // Respond to the original user message
-      await driver.mockAnthropic.streamText(
+      const messageRequest = await driver.mockAnthropic.awaitPendingRequest();
+      messageRequest.streamText(
         "The solar system consists of the Sun and everything that orbits around it.",
       );
+      messageRequest.finishResponse("end_turn");
 
       // Verify both the title and message are displayed
       await driver.assertDisplayBufferContains(`# ${title}`);

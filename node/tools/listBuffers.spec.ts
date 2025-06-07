@@ -16,7 +16,8 @@ describe("node/tools/listBuffers.spec.ts", () => {
       await driver.send();
 
       const toolRequestId = "id" as ToolRequestId;
-      await driver.mockAnthropic.respond({
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      request.respond({
         stopReason: "tool_use",
         text: "ok, here goes",
         toolRequests: [
