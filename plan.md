@@ -84,72 +84,77 @@ Modifications to the Thread class to:
 
 ### Phase 2: Add Thread Spawn Support in Chat
 
-- [ ] Define new chat message type for spawning sub-agent threads
-  - [ ] Add message type to root-msg.ts that contains:
+- [x] Define new chat message type for spawning sub-agent threads
+  - [x] Add message type to root-msg.ts that contains:
     - Parent thread ID
     - Parent tool request ID
     - List of tool names the sub-agent is allowed to use
     - Initial prompt for the sub-agent
     - Optional context files
-- [ ] Implement message handling in Chat.update() function
-  - [ ] Add case for the new spawn thread message type
-  - [ ] Create new Thread instance with parent relationship
-  - [ ] Add new thread to the overall threads list
-- [ ] Run type checking and fix any compilation errors
+- [x] Implement message handling in Chat.update() function
+  - [x] Add case for the new spawn thread message type
+  - [x] Create new Thread instance with parent relationship
+  - [x] Add new thread to the overall threads list
+- [x] Run type checking and fix any compilation errors
+- [x] **BONUS**: De-duplicated thread creation code by creating `createThreadWithContext` helper method
 
 ### Phase 3: Implement SpawnSubagentTool
 
-- [ ] Create `node/tools/spawn-subagent.ts` file
-  - [ ] Define SpawnSubagentToolSpec interface with prompt and contextFiles inputs
-  - [ ] Implement SpawnSubagentTool class following existing tool patterns (use compact_thread as example)
-  - [ ] Add tool state to store threadId of created sub-agent
-- [ ] Add schema definition for spawn_subagent tool
-  - [ ] Define JSON schema for tool inputs (prompt: string, contextFiles?: string[])
-- [ ] Add validation functions to `node/tools/helpers.ts`
-  - [ ] Create validation function for spawn_subagent tool inputs
-- [ ] Implement async tool application function
-  - [ ] Use dispatcher to communicate with chat class to create sub-thread
-  - [ ] Handle thread creation response and store sub-agent threadId
-- [ ] Hook up SpawnSubagentTool to toolManager
-  - [ ] Add tool to the tool registry/manager
-- [ ] Run type checking and fix any compilation errors
+- [x] Create `node/tools/spawn-subagent.ts` file
+  - [x] Define SpawnSubagentToolSpec interface with prompt, contextFiles, and allowedTools inputs
+  - [x] Implement SpawnSubagentTool class following existing tool patterns (use compact_thread as example)
+  - [x] Add tool state to store threadId of created sub-agent and track spawning progress
+- [x] Add schema definition for spawn_subagent tool
+  - [x] Define JSON schema for tool inputs (prompt: string, contextFiles?: string[], allowedTools?: ToolName[])
+- [x] Add validation functions within spawn-subagent.ts
+  - [x] Create validation function for spawn_subagent tool inputs
+- [x] Implement async tool application function
+  - [x] Use dispatcher to communicate with chat class to create sub-thread
+  - [x] Handle thread creation by dispatching spawn-subagent-thread message
+  - [x] Store sub-agent state with proper error handling
+- [x] Hook up SpawnSubagentTool to toolManager
+  - [x] Add tool to the tool registry/manager in tool-registry.ts
+  - [x] Update toolManager.ts to instantiate SpawnSubagentTool with proper context
+- [x] Run type checking and fix any compilation errors
+- [x] **BONUS**: Added handleSubagentResult() method for processing yields from sub-agents
 
-### Phase 4: Add Thread Yield Support in Chat
+### Phase 4: Add Thread Yield Support in Chat ✅
 
-- [ ] Define new chat message type for yielding to parent
-  - [ ] Add message type to root-msg.ts that contains:
+- [x] Define new chat message type for yielding to parent
+  - [x] Add message type to root-msg.ts that contains:
     - Child thread ID
     - Parent thread ID
     - Parent tool request ID
     - Result data to return to parent
-- [ ] Implement yield message handling in Chat.update() function
-  - [ ] Add case for the new yield message type
-  - [ ] Extract result data from yielding thread
-  - [ ] Dispatch tool-done message to spawn tool in parent thread's toolManager
-  - [ ] Remove/terminate the child thread
-- [ ] Run type checking and fix any compilation errors
+- [x] Implement yield message handling in Chat.update() function
+  - [x] Add case for the new yield message type
+  - [x] Extract result data from yielding thread
+  - [x] Call handleSubagentResult() on spawn tool in parent thread's toolManager
+  - [x] Remove/terminate the child thread
+- [x] Run type checking and fix any compilation errors
+- [x] **BONUS**: Added proper TypeScript imports and removed unsafe casting
 
 ### Phase 5: Implement YieldToParentTool
 
-- [ ] Create `node/tools/yield-to-parent.ts` file
-  - [ ] Define YieldToParentToolSpec interface with result input
-  - [ ] Implement YieldToParentTool class following existing tool patterns
-  - [ ] Add tool state to store result data
-- [ ] Add schema definition for yield_to_parent tool
-  - [ ] Define JSON schema for tool inputs (result: string)
-- [ ] Add validation functions to `node/tools/helpers.ts`
-  - [ ] Create validation function for yield_to_parent tool inputs
-- [ ] Implement tool behavior
-  - [ ] Capture result from sub-agent
-  - [ ] Use dispatcher to send yield message to chat
-  - [ ] Ensure tool never auto-responds after yielding
-- [ ] Hook up YieldToParentTool to toolManager
-  - [ ] Add tool to the tool registry/manager
-  - [ ] Ensure tool is only available to sub-agent threads (not parent threads)
-- [ ] Update Thread class to handle yield tool behavior
-  - [ ] Ensure thread stops processing after yield tool is used
-  - [ ] Prevent auto-response when yield tool is called
-- [ ] Run type checking and fix any compilation errors
+- [x] Create `node/tools/yield-to-parent.ts` file
+  - [x] Define YieldToParentToolSpec interface with result input
+  - [x] Implement YieldToParentTool class following existing tool patterns
+  - [x] Add tool state to store result data
+- [x] Add schema definition for yield_to_parent tool
+  - [x] Define JSON schema for tool inputs (result: string)
+- [x] Add validation functions to `node/tools/helpers.ts`
+  - [x] Create validation function for yield_to_parent tool inputs
+- [x] Implement tool behavior
+  - [x] Capture result from sub-agent
+  - [x] Use dispatcher to send yield message to chat
+  - [x] Ensure tool never auto-responds after yielding
+- [x] Hook up YieldToParentTool to toolManager
+  - [x] Add tool to the tool registry/manager
+  - [x] Ensure tool is only available to sub-agent threads (not parent threads)
+- [x] Update Thread class to handle yield tool behavior
+  - [x] Ensure thread stops processing after yield tool is used
+  - [x] Prevent auto-response when yield tool is called
+- [x] Run type checking and fix any compilation errors
 
 ### Phase 6: Final Integration and Testing
 

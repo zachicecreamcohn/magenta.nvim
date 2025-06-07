@@ -12,6 +12,7 @@ import type {
   ProviderServerToolUseContent,
   ProviderStreamEvent,
 } from "./provider";
+import type { ToolName } from "../tools/tool-registry";
 
 export type StreamingBlock = ProviderBlockStartEvent["content_block"] & {
   streamed: string;
@@ -165,7 +166,7 @@ export function finalizeStreamingBlock(
       return {
         type: "tool_use",
         id: block.id as ToolRequestId,
-        name: block.name,
+        name: block.name as ToolName,
         request:
           inputParseResult.status == "ok"
             ? {

@@ -13,7 +13,7 @@ import {
   type ToolRequest,
   type ToolRequestId,
 } from "../tools/toolManager.ts";
-import { getToolSpecs, type ToolName } from "../tools/tool-registry.ts";
+import { type ToolName } from "../tools/tool-registry.ts";
 import { Counter } from "../utils/uniqueId.ts";
 import { FileSnapshots } from "../tools/file-snapshots.ts";
 import type { Nvim } from "../nvim/nvim-node";
@@ -38,6 +38,7 @@ import {
   type Input as ThreadTitleInput,
   spec as threadTitleToolSpec,
 } from "../tools/thread-title.ts";
+import { getToolSpecs } from "../tools/tool-specs.ts";
 
 export type Role = "user" | "assistant";
 
@@ -62,6 +63,10 @@ export type ConversationState =
       state: "error";
       error: Error;
       lastAssistantMessage?: Message;
+    }
+  | {
+      state: "yielded";
+      response: string;
     };
 
 export type Msg =
@@ -124,12 +129,6 @@ export class Thread {
     conversation: ConversationState;
     messages: Message[];
     allowedTools: ToolName[];
-    parent:
-      | {
-          threadId: ThreadId;
-          toolRequestId: ToolRequestId;
-        }
-      | undefined;
   };
 
   private myDispatch: Dispatch<Msg>;
@@ -176,6 +175,7 @@ export class Thread {
         nvim: this.context.nvim,
         lsp: this.context.lsp,
         options: this.context.options,
+        ...(parent && { parent }),
       },
     );
 
@@ -192,7 +192,6 @@ export class Thread {
       },
       messages: [],
       allowedTools,
-      parent: parent,
     };
 
     this.updateTokenCount();
@@ -222,8 +221,30 @@ export class Thread {
               stopReason: msg.conversation.stopReason,
               usage: msg.conversation.usage,
             });
-            this.maybeAutorespond();
-            return;
+
+            if (lastMessage.state.role == "assistant") {
+              const lastContentBlock =
+                lastMessage.state.content[lastMessage.state.content.length - 1];
+              if (
+                lastContentBlock.type == "tool_use" &&
+                lastContentBlock.request.status == "ok"
+              ) {
+                const request = lastContentBlock.request.value;
+                if (request.toolName == "yield_to_parent") {
+                  this.myUpdate({
+                    type: "conversation-state",
+                    conversation: {
+                      state: "yielded",
+                      response: request.input.result,
+                    },
+                  });
+                  return;
+                }
+              }
+            }
+
+            this.maybeAutoRespond();
+            break;
           }
 
           case "error": {
@@ -232,7 +253,6 @@ export class Thread {
             if (lastAssistantMessage?.state.role == "assistant") {
               this.state.messages.pop();
 
-              // save the last message so we can show a nicer error message.
               (
                 this.state.conversation as Extract<
                   ConversationState,
@@ -246,7 +266,6 @@ export class Thread {
             if (lastUserMessage?.state.role == "user") {
               this.state.messages.pop();
 
-              // dispatch a followup action next tick
               setTimeout(
                 () =>
                   this.context.dispatch({
@@ -261,6 +280,7 @@ export class Thread {
             break;
           }
 
+          case "yielded":
           case "message-in-flight":
           case "compacting":
             break;
@@ -268,6 +288,7 @@ export class Thread {
           default:
             assertUnreachable(msg.conversation);
         }
+
         break;
       }
 
@@ -276,10 +297,7 @@ export class Thread {
           this.compactThread(msg.content.slice("@compact".length + 1)).catch(
             this.handleSendMessageError.bind(this),
           );
-          return;
-        }
-
-        setTimeout(() => {
+        } else {
           this.sendMessage(msg.content).catch(
             this.handleSendMessageError.bind(this),
           );
@@ -290,7 +308,7 @@ export class Thread {
               ),
             );
           }
-        });
+        }
 
         if (msg.content) {
           // NOTE: this is a bit hacky. We want to scroll after the user message has been populated in the display
@@ -336,7 +354,6 @@ export class Thread {
           event: msg.event,
         });
 
-        // If this is a content_block_stop event, update the token count
         if (msg.event.type === "content_block_stop") {
           this.updateTokenCount();
         }
@@ -344,10 +361,8 @@ export class Thread {
       }
 
       case "clear": {
-        // Abort any in-progress operations
         this.abortInProgressOperations();
 
-        // Now reset the thread state
         this.state = {
           lastUserMessageId: this.counter.last() as MessageId,
           profile: msg.profile,
@@ -357,8 +372,7 @@ export class Thread {
             usage: { inputTokens: 0, outputTokens: 0 },
           },
           messages: [],
-          allowedTools: this.state.allowedTools, // Preserve allowed tools during clear
-          parent: this.state.parent, // Preserve parent relationship during clear
+          allowedTools: this.state.allowedTools,
         };
         this.contextManager.reset();
 
@@ -389,7 +403,7 @@ export class Thread {
 
       case "tool-manager-msg": {
         this.toolManager.update(msg.msg);
-        this.maybeAutorespond();
+        this.maybeAutoRespond();
         return;
       }
 
@@ -397,11 +411,10 @@ export class Thread {
         this.contextManager.update(msg.msg);
         return;
       }
+
       case "abort": {
-        // Abort any in-progress operations
         this.abortInProgressOperations();
 
-        // Update the last message and conversation state to indicate it was aborted
         const lastMessage = this.state.messages[this.state.messages.length - 1];
         if (lastMessage) {
           lastMessage.update({
@@ -414,14 +427,19 @@ export class Thread {
           });
         }
 
-        this.state.conversation = {
-          state: "stopped",
-          stopReason: "aborted",
-          usage: {
-            inputTokens: -1,
-            outputTokens: -1,
-          },
-        };
+        setTimeout(() =>
+          this.myDispatch({
+            type: "conversation-state",
+            conversation: {
+              state: "stopped",
+              stopReason: "aborted",
+              usage: {
+                inputTokens: -1,
+                outputTokens: -1,
+              },
+            },
+          }),
+        );
 
         return;
       }
@@ -444,61 +462,44 @@ export class Thread {
       this.state.conversation.request.abort();
     }
 
-    // Also abort any in-progress tool uses in the last message
     const lastMessage = this.state.messages[this.state.messages.length - 1];
     if (lastMessage) {
       for (const content of lastMessage.state.content) {
         if (content.type === "tool_use") {
           const toolWrapper = this.toolManager.state.toolWrappers[content.id];
           if (toolWrapper && toolWrapper.tool.state.state !== "done") {
-            this.myDispatch({
-              type: "tool-manager-msg",
-              msg: {
-                type: "abort-tool-use",
-                requestId: content.id,
-              },
-            });
+            toolWrapper.tool.abort();
           }
         }
       }
     }
   }
 
-  /** If the agent is waiting on tool use, check the last message to see if all tools have been resolved. If so,
-   * automatically respond.
-   */
-  maybeAutorespond(): void {
+  maybeAutoRespond(): void {
     if (
-      !(
-        this.state.conversation.state == "stopped" &&
-        this.state.conversation.stopReason == "tool_use"
-      )
+      this.state.conversation.state == "stopped" &&
+      this.state.conversation.stopReason == "tool_use"
     ) {
-      return;
-    }
+      const lastMessage = this.state.messages[this.state.messages.length - 1];
+      if (lastMessage && lastMessage.state.role == "assistant") {
+        for (const content of lastMessage.state.content) {
+          if (content.type == "tool_use" && content.request.status == "ok") {
+            const request = content.request.value;
+            const toolWrapper = this.toolManager.state.toolWrappers[request.id];
 
-    const lastMessage = this.state.messages[this.state.messages.length - 1];
-    if (!(lastMessage && lastMessage.state.role == "assistant")) {
-      return;
-    }
-
-    const isBlocking = (requestId: ToolRequestId) => {
-      const toolWrapper = this.toolManager.state.toolWrappers[requestId];
-      return toolWrapper.tool.state.state != "done";
-    };
-
-    for (const content of lastMessage.state.content) {
-      if (content.type == "tool_use" && content.request.status == "ok") {
-        if (isBlocking(content.request.value.id)) {
-          return;
+            if (
+              toolWrapper.tool.request.toolName == "yield_to_parent" ||
+              toolWrapper.tool.state.state != "done"
+            ) {
+              // terminate early if we have a blocking tool use. This will not send a reply message
+              return;
+            }
+          }
         }
+
+        this.sendMessage().catch(this.handleSendMessageError.bind(this));
       }
     }
-
-    // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
-    setTimeout(() => {
-      this.sendMessage().catch(this.handleSendMessageError.bind(this));
-    });
   }
 
   private handleSendMessageError = (error: Error): void => {
@@ -824,6 +825,8 @@ const renderConversationState = (conversation: ConversationState): VDOMNode => {
       return d`Compacting thread ${getAnimationFrame(conversation.sendDate)}`;
     case "stopped":
       return d``;
+    case "yielded":
+      return d`↗️ yielded to parent: ${conversation.response}`;
     case "error":
       return d`Error ${conversation.error.message}${
         conversation.error.stack ? "\n" + conversation.error.stack : ""
