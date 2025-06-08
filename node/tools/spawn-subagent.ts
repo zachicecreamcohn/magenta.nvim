@@ -187,7 +187,69 @@ export class SpawnSubagentTool implements ToolInterface {
 
 export const spec: ProviderToolSpec = {
   name: "spawn_subagent",
-  description: `Create a sub-agent that can perform a specific task and report back the results.`,
+  description: `Create a sub-agent that can perform a specific task and report back the results.
+
+## When to Use Sub-agents
+
+Use sub-agents for:
+- **Complex multi-step tasks** that benefit from focused attention (e.g., "analyze this codebase and create a refactoring plan")
+- **Learning and discovery** tasks where you need to deeply understand code, APIs, or concepts before proceeding
+- **Planning tasks** that require breaking down complex work into actionable steps
+- **Parallel work** when you need to delegate independent tasks while continuing other work
+- **Specialized contexts** when a task requires different tools or focused expertise
+
+Don't use sub-agents for:
+- Simple, single-step tasks you can complete directly
+- When you already have all the information needed
+- Quick clarifications or basic operations
+
+## Effective Sub-agent Usage
+
+**Write clear, specific prompts:**
+- Be explicit about the task scope and expected deliverables
+- Include relevant context about what you're trying to achieve
+- Specify the format you want results in (e.g., "provide a bullet-point summary", "create a detailed implementation plan")
+
+**Choose appropriate system prompts:**
+- Use 'learn' for discovery, research, and understanding tasks
+- Use 'plan' for strategic planning and breaking down complex work
+- Use default for general-purpose tasks
+
+**Provide relevant context files:**
+- Include files the sub-agent will need to examine or modify
+- Don't over-include - focus on what's directly relevant to the task
+- Remember: sub-agents can use tools to discover additional files if needed
+
+**Parallel Tool Usage:**
+When sub-agents need to examine multiple files or gather information from different sources, they should make concurrent tool calls where possible to work efficiently.
+
+<example>
+user: refactor this interface
+assistant: [spawns learn subagent to learn about the interface]
+assistant: [wiats for learn subagent]
+assistant: [uses find_references tool to find all references of the interface]
+assistant: [uses replace tool to refactor the interface]
+assistant: [spawns one subagent per file to update all references to the interface]
+assistant: [awaits all subagents]
+</example>
+
+<example>
+user: I want to build a new feature that does X
+assistant: [spawn plan subagent to plan the change]
+assistnat: [wait for plan subagent, plan subagent writes to plans/X.md]
+assistant: Please review \`plans/X.md\`
+</example>
+
+<example>
+user: I am thinking about using technolgy X, Y or Z to implement a change.
+assistant: [spawn learn subagent to learn about the task constraints]
+assistant: [wait for learn subagent]
+assistant: [spawns learn subagent to consider the use of X for the task, given the constraints]
+assistant: [spawns learn subagent to consider the use of Y for the task, given the constraints]
+assistant: [spawns learn subagent to consider the use of Z for the task, given the constraints]
+assistant: [wait for learn subagents X, Y and Z]
+assistant: Summarizes the results
+</example>`,
   input_schema: {
     type: "object",
     properties: {
