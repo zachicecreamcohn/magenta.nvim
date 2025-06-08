@@ -105,8 +105,13 @@ export class YieldToParentTool implements ToolInterface {
 
 export const spec: ProviderToolSpec = {
   name: "yield_to_parent",
-  description: `This tool allows a sub-agent to yield results back to its parent agent.
-This tool should only be used when the sub-agent has completed its assigned task and needs to return results.
+  description: `\
+Yield results to the parent agent.
+
+CRITICAL: You MUST use this tool when your task is complete, or the parent agent will never receive your results.
+
+Make sure you address every part of the original prompt you were given.
+The parent agent can only observe your final yield message - none of the rest of the text is visible to the parent.
 After using this tool, the sub-agent thread will be terminated.`,
   input_schema: {
     type: "object",

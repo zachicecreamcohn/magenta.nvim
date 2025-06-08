@@ -192,11 +192,10 @@ export const spec: ProviderToolSpec = {
 ## When to Use Sub-agents
 
 Use sub-agents for:
-- **Complex multi-step tasks** that benefit from focused attention (e.g., "analyze this codebase and create a refactoring plan")
+- **Complex multi-step tasks or specialized contexts** that benefit from focused attention
 - **Learning and discovery** tasks where you need to deeply understand code, APIs, or concepts before proceeding
 - **Planning tasks** that require breaking down complex work into actionable steps
-- **Parallel work** when you need to delegate independent tasks while continuing other work
-- **Specialized contexts** when a task requires different tools or focused expertise
+- **Parallel work** when you need to perform independent tasks
 
 Don't use sub-agents for:
 - Simple, single-step tasks you can complete directly
@@ -205,23 +204,21 @@ Don't use sub-agents for:
 
 ## Effective Sub-agent Usage
 
-**Write clear, specific prompts:**
+The sub agent will run until it finishes the task. You will not be able to communicate with the subagent after spawning it, and it will only respond with a single output message.
+Because of this, it is important that you write **clear, specific prompts**
 - Be explicit about the task scope and expected deliverables
 - Include relevant context about what you're trying to achieve
-- Specify the format you want results in (e.g., "provide a bullet-point summary", "create a detailed implementation plan")
+- Clearly define what specific information the sub-agent should include in its final response
 
 **Choose appropriate system prompts:**
 - Use 'learn' for discovery, research, and understanding tasks
 - Use 'plan' for strategic planning and breaking down complex work
-- Use default for general-purpose tasks
+- Use default for everything else
 
 **Provide relevant context files:**
 - Include files the sub-agent will need to examine or modify
 - Don't over-include - focus on what's directly relevant to the task
 - Remember: sub-agents can use tools to discover additional files if needed
-
-**Parallel Tool Usage:**
-When sub-agents need to examine multiple files or gather information from different sources, they should make concurrent tool calls where possible to work efficiently.
 
 <example>
 user: refactor this interface
