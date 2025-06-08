@@ -13,6 +13,10 @@ import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/thread.ts";
 import { SUBAGENT_TOOL_NAMES, type ToolName } from "./tool-registry.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import {
+  SUBAGENT_SYSTEM_PROMPTS,
+  type SubagentSystemPrompt,
+} from "../providers/system-prompt.ts";
 
 export type Msg = {
   type: "subagent-created";
@@ -56,6 +60,7 @@ export class SpawnSubagentTool implements ToolInterface {
     const input = this.request.input;
     const prompt = input.prompt;
     const contextFiles = input.contextFiles || [];
+    const systemPrompt = input.systemPrompt;
 
     const suppressTools = input.suppressTools || [];
     let allowedTools = SUBAGENT_TOOL_NAMES.filter(
@@ -75,6 +80,7 @@ export class SpawnSubagentTool implements ToolInterface {
         allowedTools,
         initialPrompt: prompt,
         contextFiles,
+        systemPrompt,
       },
     });
   }
@@ -175,18 +181,7 @@ export class SpawnSubagentTool implements ToolInterface {
 
   displayInput(): string {
     const input = this.request.input;
-    const contextFilesStr = input.contextFiles
-      ? input.contextFiles.map((file) => `"${file}"`).join(", ")
-      : "";
-    const suppressToolsStr = input.suppressTools
-      ? input.suppressTools.map((tool) => `"${tool}"`).join(", ")
-      : "";
-
-    return `spawn_subagent: {
-    prompt: "${input.prompt}",
-    contextFiles: [${contextFilesStr}],
-    suppressTools: [${suppressToolsStr}]
-}`;
+    return `spawn_subagent: ${JSON.stringify(input, null, 2)}`;
   }
 }
 
@@ -217,6 +212,12 @@ export const spec: ProviderToolSpec = {
         description:
           "List of tool names that the sub-agent is not allowed to use. If not provided, all standard tools except spawn_subagent will be available. Note: spawn_subagent is never allowed to prevent recursive spawning. yield_to_parent is always available to subagents regardless of this setting.",
       },
+      systemPrompt: {
+        type: "string",
+        enum: SUBAGENT_SYSTEM_PROMPTS as unknown as string[],
+        description:
+          "Optional preset system prompt to use for the sub-agent. 'learn' provides instructions optimized for learning and discovery tasks. 'plan' provides instructions optimized for planning and strategy tasks.",
+      },
     },
     required: ["prompt"],
     additionalProperties: false,
@@ -227,6 +228,7 @@ export type Input = {
   prompt: string;
   contextFiles?: UnresolvedFilePath[];
   suppressTools?: ToolName[];
+  systemPrompt?: SubagentSystemPrompt;
 };
 
 export function validateInput(input: {
@@ -272,6 +274,26 @@ export function validateInput(input: {
 
     // we're not going to check that every tool in suppressTools is a valid tool. If invalid tools are included, we will
     // just ignore them
+  }
+
+  if (input.systemPrompt !== undefined) {
+    if (typeof input.systemPrompt !== "string") {
+      return {
+        status: "error",
+        error: `expected req.input.systemPrompt to be a string but it was ${JSON.stringify(input.systemPrompt)}`,
+      };
+    }
+
+    if (
+      !SUBAGENT_SYSTEM_PROMPTS.includes(
+        input.systemPrompt as SubagentSystemPrompt,
+      )
+    ) {
+      return {
+        status: "error",
+        error: `expected req.input.systemPrompt to be one of ${SUBAGENT_SYSTEM_PROMPTS.join(", ")} but it was ${JSON.stringify(input.systemPrompt)}`,
+      };
+    }
   }
 
   return {

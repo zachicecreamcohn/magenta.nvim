@@ -39,6 +39,7 @@ import {
 } from "../tools/thread-title.ts";
 import { getToolSpecs } from "../tools/tool-specs.ts";
 import type { Chat } from "./chat.ts";
+import type { SubagentSystemPrompt } from "../providers/system-prompt.ts";
 
 export type Role = "user" | "assistant";
 
@@ -129,6 +130,7 @@ export class Thread {
     conversation: ConversationState;
     messages: Message[];
     allowedTools: ToolName[];
+    systemPrompt?: SubagentSystemPrompt | undefined;
   };
 
   private myDispatch: Dispatch<Msg>;
@@ -139,6 +141,10 @@ export class Thread {
 
   constructor(
     public id: ThreadId,
+    options: {
+      systemPrompt?: SubagentSystemPrompt | undefined;
+      allowedTools: ToolName[];
+    },
     public context: {
       dispatch: Dispatch<RootMsg>;
       chat: Chat;
@@ -149,7 +155,6 @@ export class Thread {
       contextManager: ContextManager;
       options: MagentaOptions;
     },
-    allowedTools: ToolName[],
   ) {
     this.myDispatch = (msg) =>
       this.context.dispatch({
@@ -188,7 +193,8 @@ export class Thread {
         usage: { inputTokens: 0, outputTokens: 0 },
       },
       messages: [],
-      allowedTools,
+      allowedTools: options.allowedTools,
+      systemPrompt: options.systemPrompt,
     };
 
     this.updateTokenCount();
@@ -370,6 +376,7 @@ export class Thread {
           },
           messages: [],
           allowedTools: this.state.allowedTools,
+          systemPrompt: this.state.systemPrompt,
         };
         this.contextManager.reset();
 
@@ -579,6 +586,7 @@ export class Thread {
         });
       },
       getToolSpecs(this.state.allowedTools),
+      { systemPrompt: this.state.systemPrompt },
     );
 
     this.myDispatch({
@@ -627,6 +635,7 @@ ${content}`;
         },
       ],
       compactThreadSpec,
+      { systemPrompt: this.state.systemPrompt },
     );
 
     this.myDispatch({
@@ -766,6 +775,7 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
         },
       ],
       threadTitleToolSpec,
+      { systemPrompt: this.state.systemPrompt },
     );
     const result = await request.promise;
     if (result.toolRequest.status == "ok") {
@@ -788,7 +798,9 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
     const tokenCount = getProvider(
       this.context.nvim,
       this.state.profile,
-    ).countTokens(messages, getToolSpecs(this.state.allowedTools));
+    ).countTokens(messages, getToolSpecs(this.state.allowedTools), {
+      systemPrompt: this.state.systemPrompt,
+    });
 
     // setTimeout to avoid dispatch-in-dispatch
     setTimeout(() =>

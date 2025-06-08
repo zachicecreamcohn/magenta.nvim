@@ -12,7 +12,11 @@ import {
   type ProviderStreamEvent,
 } from "./provider-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
+import {
+  DEFAULT_SYSTEM_PROMPT,
+  type SubagentSystemPrompt,
+  getSubagentSystemPrompt,
+} from "./system-prompt.ts";
 import { validateInput } from "../tools/helpers.ts";
 
 export type MessageParam = Omit<Anthropic.MessageParam, "content"> & {
@@ -73,7 +77,10 @@ export class AnthropicProvider implements Provider {
   createStreamParameters(
     messages: ProviderMessage[],
     tools: Array<ProviderToolSpec>,
-    options?: { disableCaching?: boolean },
+    options?: {
+      disableCaching?: boolean;
+      systemPrompt?: SubagentSystemPrompt | undefined;
+    },
   ): MessageStreamParams {
     const anthropicMessages = messages.map((m): MessageParam => {
       let content: Anthropic.Messages.ContentBlockParam[];
@@ -169,7 +176,9 @@ export class AnthropicProvider implements Provider {
       system: [
         {
           type: "text",
-          text: DEFAULT_SYSTEM_PROMPT,
+          text: options?.systemPrompt
+            ? getSubagentSystemPrompt(options.systemPrompt)
+            : DEFAULT_SYSTEM_PROMPT,
           // the prompt appears in the following order:
           // tools
           // system
@@ -200,10 +209,15 @@ export class AnthropicProvider implements Provider {
   countTokens(
     messages: Array<ProviderMessage>,
     tools: Array<ProviderToolSpec>,
+    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
   ): number {
     const CHARS_PER_TOKEN = 4;
 
-    let charCount = DEFAULT_SYSTEM_PROMPT.length;
+    let charCount = (
+      options?.systemPrompt
+        ? getSubagentSystemPrompt(options.systemPrompt)
+        : DEFAULT_SYSTEM_PROMPT
+    ).length;
     charCount += JSON.stringify(tools).length;
     charCount += JSON.stringify(messages).length;
 
@@ -213,9 +227,13 @@ export class AnthropicProvider implements Provider {
   forceToolUse(
     messages: Array<ProviderMessage>,
     spec: ProviderToolSpec,
+    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
   ): ProviderToolUseRequest {
     const request = this.client.messages.stream({
-      ...this.createStreamParameters(messages, [], { disableCaching: true }),
+      ...this.createStreamParameters(messages, [], {
+        disableCaching: true,
+        systemPrompt: options?.systemPrompt,
+      }),
       tools: [
         {
           ...spec,
@@ -345,14 +363,14 @@ export class AnthropicProvider implements Provider {
     messages: Array<ProviderMessage>,
     onStreamEvent: (event: ProviderStreamEvent) => void,
     tools: Array<ProviderToolSpec>,
+    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
   ): ProviderStreamRequest {
     let requestActive = true;
     const request = this.client.messages
       .stream(
-        this.createStreamParameters(
-          messages,
-          tools,
-        ) as Anthropic.Messages.MessageStreamParams,
+        this.createStreamParameters(messages, tools, {
+          systemPrompt: options?.systemPrompt,
+        }) as Anthropic.Messages.MessageStreamParams,
       )
       .on("streamEvent", (e) => {
         if (

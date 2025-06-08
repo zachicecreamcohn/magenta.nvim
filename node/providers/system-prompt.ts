@@ -1,3 +1,6 @@
+export const SUBAGENT_SYSTEM_PROMPTS = ["learn", "plan"] as const;
+export type SubagentSystemPrompt = (typeof SUBAGENT_SYSTEM_PROMPTS)[number];
+
 const ROLE_AND_CONTEXT = `\
 # Role and Context
 
@@ -68,6 +71,29 @@ I see \`file.txt\` is already part of my context. I can proceed editing this fil
 
 <invoke replace tool>`;
 
+const YIELD = `\
+You are a subagent to a parent agent which will delegate a specific task to you.
+When you are finished with the task, it is critical that you use the yield_to_parent tool.`;
+
+const LEARN_SPECIFIC_INSTRUCTIONS = `\
+# Learning and Discovery Focus
+- Your primary goal is to understand and learn about the codebase, APIs, or concepts
+- Use hover, find_references, and get_file tools extensively to explore code
+- Document your findings clearly and systematically
+- When discovering interfaces or functions, provide complete signatures and usage examples
+- Focus on building a comprehensive understanding before making changes
+- Ask clarifying questions if the learning objective is unclear`;
+
+const PLAN_SPECIFIC_INSTRUCTIONS = `\
+# Planning and Strategy Focus
+- Your primary goal is to create detailed, actionable plans
+- Break down complex tasks into concrete, sequential steps
+- Identify dependencies and prerequisites for each step
+- Consider potential risks and alternative approaches
+- Provide specific file names, function names, and implementation details
+- Create plans that others can follow without additional research
+- Validate your plan by checking that all referenced entities exist`;
+
 export const DEFAULT_SYSTEM_PROMPT = [
   ROLE_AND_CONTEXT,
   GENERAL_GUIDELINES,
@@ -77,8 +103,32 @@ export const DEFAULT_SYSTEM_PROMPT = [
   FILE_CONTEXT_MANAGEMENT,
 ].join("\n\n");
 
-export const SUBAGENT_SYSTEM_PROMPT = `\
+export const DEFAULT_SUBAGENT_SYSTEM_PROMPT = `\
 ${DEFAULT_SYSTEM_PROMPT}
 
-You are a subagent to a parent agent which will delegate a specific task to you.
-When you are finished with the task, it is critical that you use the yield_to_parent tool.`;
+${YIELD}`;
+
+export const LEARN_SUBAGENT_SYSTEM_PROMPT = `\
+${DEFAULT_SYSTEM_PROMPT}
+
+${LEARN_SPECIFIC_INSTRUCTIONS}
+
+${YIELD}`;
+
+export const PLAN_SUBAGENT_SYSTEM_PROMPT = `\
+${DEFAULT_SYSTEM_PROMPT}
+
+${PLAN_SPECIFIC_INSTRUCTIONS}
+
+${YIELD}`;
+
+export function getSubagentSystemPrompt(type?: SubagentSystemPrompt): string {
+  switch (type) {
+    case "learn":
+      return LEARN_SUBAGENT_SYSTEM_PROMPT;
+    case "plan":
+      return PLAN_SUBAGENT_SYSTEM_PROMPT;
+    default:
+      return DEFAULT_SUBAGENT_SYSTEM_PROMPT;
+  }
+}

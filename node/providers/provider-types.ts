@@ -3,6 +3,7 @@ import * as ToolManager from "../tools/toolManager.ts";
 import type { ToolName } from "../tools/tool-registry.ts";
 import type { Result } from "../utils/result";
 import Anthropic from "@anthropic-ai/sdk";
+import type { SubagentSystemPrompt } from "./system-prompt.ts";
 
 export const PROVIDER_NAMES = ["anthropic", "openai", "bedrock"] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
@@ -97,21 +98,27 @@ export interface Provider {
   createStreamParameters(
     messages: Array<ProviderMessage>,
     tools: Array<ProviderToolSpec>,
-    options?: { disableCaching?: boolean },
+    options?: {
+      disableCaching?: boolean;
+      systemPrompt?: SubagentSystemPrompt | undefined;
+    },
   ): unknown;
   countTokens(
     messages: Array<ProviderMessage>,
     tools: Array<ProviderToolSpec>,
+    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
   ): number;
   forceToolUse(
     messages: Array<ProviderMessage>,
     spec: ProviderToolSpec,
+    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
   ): ProviderToolUseRequest;
 
   sendMessage(
     messages: Array<ProviderMessage>,
     onStreamEvent: (event: ProviderStreamEvent) => void,
     tools: Array<ProviderToolSpec>,
+    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
   ): ProviderStreamRequest;
 }
 

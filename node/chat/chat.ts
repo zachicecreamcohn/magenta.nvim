@@ -19,6 +19,7 @@ import { getcwd } from "../nvim/nvim.ts";
 import type { MessageId } from "./message.ts";
 import type { Result } from "../utils/result.ts";
 import type { ToolRequestId } from "../tools/toolManager.ts";
+import type { SubagentSystemPrompt } from "../providers/system-prompt.ts";
 
 type ThreadWrapper = (
   | {
@@ -71,6 +72,7 @@ export type Msg =
       spawnToolRequestId: ToolRequestId;
       allowedTools: ToolName[];
       initialPrompt: string;
+      systemPrompt: SubagentSystemPrompt | undefined;
       contextFiles?: UnresolvedFilePath[];
     }
   | {
@@ -256,6 +258,7 @@ export class Chat {
     parent,
     switchToThread,
     initialMessage,
+    systemPrompt,
   }: {
     threadId: ThreadId;
     profile: Profile;
@@ -264,6 +267,7 @@ export class Chat {
     parent?: ThreadId;
     switchToThread: boolean;
     initialMessage?: string;
+    systemPrompt?: SubagentSystemPrompt | undefined;
   }) {
     this.threadWrappers[threadId] = {
       state: "pending",
@@ -305,12 +309,15 @@ export class Chat {
     const thread = new Thread(
       threadId,
       {
+        systemPrompt,
+        allowedTools,
+      },
+      {
         ...this.context,
         contextManager,
         profile,
         chat: this,
       },
-      allowedTools,
     );
 
     this.context.dispatch({
@@ -440,12 +447,14 @@ ${threadViews.length ? threadViews : "No threads yet"}`;
     allowedTools,
     initialPrompt,
     contextFiles,
+    systemPrompt,
   }: {
     parentThreadId: ThreadId;
     spawnToolRequestId: ToolRequestId;
     allowedTools: ToolName[];
     initialPrompt: string;
     contextFiles?: UnresolvedFilePath[];
+    systemPrompt?: SubagentSystemPrompt | undefined;
   }) {
     const parentThreadWrapper = this.threadWrappers[parentThreadId];
     if (!parentThreadWrapper || parentThreadWrapper.state !== "initialized") {
@@ -470,6 +479,7 @@ ${threadViews.length ? threadViews : "No threads yet"}`;
         parent: parentThreadId,
         switchToThread: false,
         initialMessage: initialPrompt,
+        systemPrompt,
       });
 
       // Notify parent spawn call of successful thread spawn
