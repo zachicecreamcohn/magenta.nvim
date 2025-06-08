@@ -1,4 +1,4 @@
-import { d } from "../tea/view.ts";
+import { d, withBindings, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { ToolRequest } from "./toolManager.ts";
 import type {
@@ -143,7 +143,7 @@ ${results
   view() {
     switch (this.state.state) {
       case "waiting":
-        return d`⏸️⏳ Waiting for ${this.request.input.threadIds.length.toString()} subagent(s) to complete: ${this.request.input.threadIds.map((id) => id.toString()).join(", ")}`;
+        return this.renderWaitingView();
       case "done": {
         const result = this.state.result.result;
         if (result.status === "error") {
@@ -153,6 +153,72 @@ ${results
         }
       }
     }
+  }
+
+  private renderWaitingView() {
+    const threadIds = this.request.input.threadIds;
+    const threadStatusLines = threadIds.map((threadId) =>
+      this.renderThreadStatus(threadId),
+    );
+
+    return d`⏸️⏳ Waiting for ${threadIds.length.toString()} subagent(s):
+${threadStatusLines}`;
+  }
+
+  private renderThreadStatus(threadId: ThreadId): VDOMNode {
+    const summary = this.context.chat.getThreadSummary(threadId);
+    const title = summary.title || "[Untitled]";
+
+    let statusText: string;
+    switch (summary.status.type) {
+      case "missing":
+        statusText = `- ${threadId} ${title}: ❓ not found`;
+        break;
+
+      case "pending":
+        statusText = `- ${threadId} ${title}: ⏳ initializing`;
+        break;
+
+      case "running":
+        statusText = `- ${threadId} ${title}: ⏳ ${summary.status.activity}`;
+        break;
+
+      case "stopped":
+        statusText = `- ${threadId} ${title}: ⏹️ stopped (${summary.status.reason})`;
+        break;
+
+      case "yielded": {
+        const truncatedResponse =
+          summary.status.response.length > 50
+            ? summary.status.response.substring(0, 47) + "..."
+            : summary.status.response;
+        statusText = `- ${threadId} ${title}: ✅ yielded: ${truncatedResponse}`;
+        break;
+      }
+
+      case "error": {
+        const truncatedError =
+          summary.status.message.length > 50
+            ? summary.status.message.substring(0, 47) + "..."
+            : summary.status.message;
+        statusText = `- ${threadId} ${title}: ❌ error: ${truncatedError}`;
+        break;
+      }
+
+      default:
+        return assertUnreachable(summary.status);
+    }
+
+    return withBindings(d`${statusText}`, {
+      "<CR>": () =>
+        this.context.dispatch({
+          type: "chat-msg",
+          msg: {
+            type: "select-thread",
+            id: threadId,
+          },
+        }),
+    });
   }
 
   displayInput(): string {
@@ -168,7 +234,7 @@ ${results
 
 export const spec: ProviderToolSpec = {
   name: "wait_for_subagents",
-  description: `Wait for one or more subagents to complete execution. This tool blocks until all specified subagent threads have finished running and returned their results.`,
+  description: `Wait for one or more subagents to complete execution. This tool blocks until all specified subagents have finished running and returned their results.`,
   input_schema: {
     type: "object",
     properties: {

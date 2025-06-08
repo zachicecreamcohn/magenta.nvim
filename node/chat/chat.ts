@@ -366,39 +366,124 @@ export class Chat {
     });
   }
 
-  renderThreadOverview() {
-    const threadViews = Object.entries(this.threadWrappers).map(
-      ([idStr, threadState]) => {
-        const id = Number(idStr) as ThreadId;
-        let status = "";
-        const marker = id == this.state.activeThreadId ? "*" : "-";
-        switch (threadState.state) {
-          case "pending":
-            status = `${marker} ${id} - loading...\n`;
-            break;
-          case "initialized": {
-            status = `${marker} ${id} ${threadState.thread.state.title ?? "[Untitled]"}\n`;
-            break;
-          }
-          case "error":
-            status = `${marker} ${id} - error: ${threadState.error.message}\n`;
-            break;
+  private buildThreadHierarchy(): {
+    rootThreads: ThreadId[];
+    childrenMap: Map<ThreadId, ThreadId[]>;
+  } {
+    const childrenMap = new Map<ThreadId, ThreadId[]>();
+    const rootThreads: ThreadId[] = [];
+
+    // Iterate through all threads to build hierarchy
+    for (const [idStr, threadWrapper] of Object.entries(this.threadWrappers)) {
+      const threadId = Number(idStr) as ThreadId;
+      const parentId = threadWrapper.parentThreadId;
+
+      if (parentId === undefined) {
+        // This is a root thread
+        rootThreads.push(threadId);
+      } else {
+        // This is a child thread, add to parent's children
+        if (!childrenMap.has(parentId)) {
+          childrenMap.set(parentId, []);
         }
+        childrenMap.get(parentId)!.push(threadId);
+      }
+    }
 
-        return withBindings(d`${status}`, {
-          "<CR>": () =>
-            this.context.dispatch({
-              type: "chat-msg",
-              msg: { type: "select-thread", id },
-            }),
-        });
-      },
-    );
+    return { rootThreads, childrenMap };
+  }
 
-    return d`\
-# Threads
+  private formatThreadStatus(threadId: ThreadId): string {
+    const summary = this.getThreadSummary(threadId);
 
-${threadViews.length ? threadViews : "No threads yet"}`;
+    switch (summary.status.type) {
+      case "missing":
+        return "❓ not found";
+
+      case "pending":
+        return "⏳ initializing";
+
+      case "running":
+        return `⏳ ${summary.status.activity}`;
+
+      case "stopped":
+        return `⏹️ stopped (${summary.status.reason})`;
+
+      case "yielded": {
+        const truncatedResponse =
+          summary.status.response.length > 50
+            ? summary.status.response.substring(0, 47) + "..."
+            : summary.status.response;
+        return `✅ yielded: ${truncatedResponse}`;
+      }
+
+      case "error": {
+        const truncatedError =
+          summary.status.message.length > 50
+            ? summary.status.message.substring(0, 47) + "..."
+            : summary.status.message;
+        return `❌ error: ${truncatedError}`;
+      }
+
+      default:
+        return assertUnreachable(summary.status);
+    }
+  }
+
+  private renderThread(
+    threadId: ThreadId,
+    isChild: boolean,
+    activeThreadId: ThreadId | undefined,
+  ): VDOMNode {
+    const summary = this.getThreadSummary(threadId);
+    const title = summary.title || "[Untitled]";
+    const status = this.formatThreadStatus(threadId);
+    const marker = threadId === activeThreadId ? "*" : "-";
+    const indent = isChild ? "  " : "";
+
+    const displayLine = `${indent}${marker} ${threadId} ${title}: ${status}`;
+
+    return withBindings(d`${displayLine}`, {
+      "<CR>": () =>
+        this.context.dispatch({
+          type: "chat-msg",
+          msg: {
+            type: "select-thread",
+            id: threadId,
+          },
+        }),
+    });
+  }
+
+  renderThreadOverview() {
+    if (Object.keys(this.threadWrappers).length === 0) {
+      return d`# Threads
+
+No threads yet`;
+    }
+
+    const { rootThreads, childrenMap } = this.buildThreadHierarchy();
+    const threadViews: VDOMNode[] = [];
+
+    // Render all root threads and their children
+    for (const rootThreadId of rootThreads) {
+      // Render the root thread
+      threadViews.push(
+        this.renderThread(rootThreadId, false, this.state.activeThreadId),
+      );
+
+      // Render children of this root thread
+      const children = childrenMap.get(rootThreadId) || [];
+      for (const childThreadId of children) {
+        threadViews.push(
+          this.renderThread(childThreadId, true, this.state.activeThreadId),
+        );
+      }
+    }
+
+    return d`# Threads
+
+${threadViews.map((view) => d`${view}\n`)}`;
   }
 
   getActiveThread(): Thread {
@@ -598,6 +683,89 @@ ${threadViews.length ? threadViews : "No threads yet"}`;
           default:
             return assertUnreachable(conversation);
         }
+      }
+
+      default:
+        return assertUnreachable(threadWrapper);
+    }
+  }
+
+  getThreadSummary(threadId: ThreadId): {
+    title?: string | undefined;
+    status:
+      | { type: "missing" }
+      | { type: "pending" }
+      | { type: "running"; activity: string }
+      | { type: "stopped"; reason: string }
+      | { type: "yielded"; response: string }
+      | { type: "error"; message: string };
+  } {
+    const threadWrapper = this.threadWrappers[threadId];
+    if (!threadWrapper) {
+      return {
+        status: { type: "missing" },
+      };
+    }
+
+    switch (threadWrapper.state) {
+      case "pending":
+        return {
+          status: { type: "pending" },
+        };
+
+      case "error":
+        return {
+          status: {
+            type: "error",
+            message: threadWrapper.error.message,
+          },
+        };
+
+      case "initialized": {
+        const thread = threadWrapper.thread;
+        const conversation = thread.state.conversation;
+
+        const summary = {
+          title: thread.state.title,
+          status: (() => {
+            switch (conversation.state) {
+              case "yielded":
+                return {
+                  type: "yielded" as const,
+                  response: conversation.response,
+                };
+
+              case "error":
+                return {
+                  type: "error" as const,
+                  message: conversation.error.message,
+                };
+
+              case "stopped":
+                return {
+                  type: "stopped" as const,
+                  reason: conversation.stopReason,
+                };
+
+              case "message-in-flight":
+                return {
+                  type: "running" as const,
+                  activity: "streaming response",
+                };
+
+              case "compacting":
+                return {
+                  type: "running" as const,
+                  activity: "compacting thread",
+                };
+
+              default:
+                return assertUnreachable(conversation);
+            }
+          })(),
+        };
+
+        return summary;
       }
 
       default:
