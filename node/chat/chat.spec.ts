@@ -86,7 +86,6 @@ describe("node/chat/chat.spec.ts", () => {
               input: {
                 prompt:
                   "Echo the text 'Hello from subagent' using the bash_command tool, then yield that result back to the parent using yield_to_parent.",
-                allowedTools: ["bash_command"],
               },
             },
           },

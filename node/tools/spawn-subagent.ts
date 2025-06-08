@@ -11,7 +11,7 @@ import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/thread.ts";
-import { CHAT_TOOL_NAMES, type ToolName } from "./tool-registry.ts";
+import { SUBAGENT_TOOL_NAMES, type ToolName } from "./tool-registry.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 
 export type Msg = {
@@ -57,9 +57,10 @@ export class SpawnSubagentTool implements ToolInterface {
     const prompt = input.prompt;
     const contextFiles = input.contextFiles || [];
 
-    let allowedTools =
-      input.allowedTools ||
-      CHAT_TOOL_NAMES.filter((tool) => tool !== "spawn_subagent");
+    const suppressTools = input.suppressTools || [];
+    let allowedTools = SUBAGENT_TOOL_NAMES.filter(
+      (tool) => !suppressTools.includes(tool),
+    );
 
     if (!allowedTools.includes("yield_to_parent")) {
       allowedTools = [...allowedTools, "yield_to_parent"];
@@ -177,33 +178,27 @@ export class SpawnSubagentTool implements ToolInterface {
     const contextFilesStr = input.contextFiles
       ? input.contextFiles.map((file) => `"${file}"`).join(", ")
       : "";
-    const allowedToolsStr = input.allowedTools
-      ? input.allowedTools.map((tool) => `"${tool}"`).join(", ")
+    const suppressToolsStr = input.suppressTools
+      ? input.suppressTools.map((tool) => `"${tool}"`).join(", ")
       : "";
 
     return `spawn_subagent: {
     prompt: "${input.prompt}",
     contextFiles: [${contextFilesStr}],
-    allowedTools: [${allowedToolsStr}]
+    suppressTools: [${suppressToolsStr}]
 }`;
   }
 }
 
-// Create a list of available tools for subagents, excluding spawn_subagent
-const AVAILABLE_SUBAGENT_TOOLS = CHAT_TOOL_NAMES.filter(
-  (tool) => tool !== "spawn_subagent",
-);
-
 export const spec: ProviderToolSpec = {
   name: "spawn_subagent",
-  description: `This tool allows you to create a sub-agent that can perform a specific task and report back the results.
-The sub-agent runs in a separate thread with its own context and tools.`,
+  description: `Create a sub-agent that can perform a specific task and report back the results.`,
   input_schema: {
     type: "object",
     properties: {
       prompt: {
         type: "string",
-        description: "The sub-agent prompt",
+        description: "The sub-agent prompt.",
       },
       contextFiles: {
         type: "array",
@@ -211,16 +206,16 @@ The sub-agent runs in a separate thread with its own context and tools.`,
           type: "string",
         },
         description:
-          "Optional list of file paths to provide as context to the sub-agent",
+          "Optional list of file paths to provide as context to the sub-agent.",
       },
-      allowedTools: {
+      suppressTools: {
         type: "array",
         items: {
           type: "string",
-          enum: AVAILABLE_SUBAGENT_TOOLS,
+          enum: SUBAGENT_TOOL_NAMES,
         },
         description:
-          "List of tool names that the sub-agent is allowed to use. If not provided, all standard tools except spawn_subagent will be available. Note: spawn_subagent is never allowed to prevent recursive spawning. yield_to_parent is always available to subagents regardless of this setting.",
+          "List of tool names that the sub-agent is not allowed to use. If not provided, all standard tools except spawn_subagent will be available. Note: spawn_subagent is never allowed to prevent recursive spawning. yield_to_parent is always available to subagents regardless of this setting.",
       },
     },
     required: ["prompt"],
@@ -231,7 +226,7 @@ The sub-agent runs in a separate thread with its own context and tools.`,
 export type Input = {
   prompt: string;
   contextFiles?: UnresolvedFilePath[];
-  allowedTools?: ToolName[];
+  suppressTools?: ToolName[];
 };
 
 export function validateInput(input: {
@@ -260,33 +255,23 @@ export function validateInput(input: {
     }
   }
 
-  if (input.allowedTools !== undefined) {
-    if (!Array.isArray(input.allowedTools)) {
+  if (input.suppressTools !== undefined) {
+    if (!Array.isArray(input.suppressTools)) {
       return {
         status: "error",
-        error: `expected req.input.allowedTools to be an array but it was ${JSON.stringify(input.allowedTools)}`,
+        error: `expected req.input.suppressTools to be an array but it was ${JSON.stringify(input.suppressTools)}`,
       };
     }
 
-    if (!input.allowedTools.every((item) => typeof item === "string")) {
+    if (!input.suppressTools.every((item) => typeof item === "string")) {
       return {
         status: "error",
-        error: `expected all items in req.input.allowedTools to be strings but they were ${JSON.stringify(input.allowedTools)}`,
+        error: `expected all items in req.input.suppressTools to be strings but they were ${JSON.stringify(input.suppressTools)}`,
       };
     }
 
-    // Check that each tool name is valid against the available subagent tools
-    const invalidTools = input.allowedTools.filter(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
-      (tool) => !AVAILABLE_SUBAGENT_TOOLS.includes(tool as any),
-    );
-
-    if (invalidTools.length > 0) {
-      return {
-        status: "error",
-        error: `Found invalid tool names: ${invalidTools.join(", ")}. Valid tools are: ${AVAILABLE_SUBAGENT_TOOLS.join(", ")}`,
-      };
-    }
+    // we're not going to check that every tool in suppressTools is a valid tool. If invalid tools are included, we will
+    // just ignore them
   }
 
   return {
