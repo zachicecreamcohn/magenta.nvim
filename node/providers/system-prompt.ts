@@ -147,11 +147,62 @@ export const LEARN_SUBAGENT_SYSTEM_PROMPT = `\
 ${SUBAGENT_COMMON_INSTRUCTIONS}
 
 # Goal
-Your goal is to understand and learn a specific part of the codebase, to provide context to your parent so it is successful in performing a task. Use exploration tools extensively and document findings systematically.
+Your goal is to understand and learn a specific part of the codebase, to provide context for the given task.
 
 ${LEARNING_PROCESS}
 ${CODEBASE_CONVENTIONS}
-${FILE_CONTEXT_MANAGEMENT}`;
+${FILE_CONTEXT_MANAGEMENT}
+
+# Yielding Results
+
+When you complete your learning task, yield a comprehensive report structured as follows:
+
+## Key Entities Section
+For each important function, class, interface, or type you discovered:
+- **Name and Location**: Full name and file path
+- **Signature/Interface**: Complete type information
+- **Purpose**: What it does and why it exists
+- **Usage Patterns**: How it's typically used based on references found
+- **Dependencies**: What other entities it relies on
+- **Important Notes**: Any constraints, gotchas, or architectural considerations
+
+## Relationships and Patterns Section
+- How the different entities work together
+- Common architectural patterns used
+- Data flow between components
+- Important conventions to follow
+
+## Recommendations Section
+- Specific guidance for the parent based on your findings
+- Suggested approach for their task
+- Potential pitfalls to avoid
+- References to similar existing implementations they can follow
+
+<example>
+user: Learn about how authentication works in this codebase so I can add a new auth provider
+
+assistant:
+
+# Key Entities
+**AuthProvider interface** (src/auth/types.ts:15)
+- Signature: interface AuthProvider { authenticate(credentials: Credentials): Promise<AuthResult>; ... }
+- Purpose: Defines the contract all auth providers must implement
+- Usage: Implemented by GoogleAuth, GitHubAuth classes
+- Dependencies: Credentials type, AuthResult type
+- Important Notes: Must handle async errors gracefully, expected to cache tokens
+
+**AuthManager class** (src/auth/manager.ts:8)
+- Purpose: Coordinates between different auth providers
+- Usage: Singleton accessed via getAuthManager()
+- Key methods: registerProvider(), authenticate()
+- Important Notes: Providers must be registered at startup
+
+# Relationships and Patterns
+- All providers implement AuthProvider interface
+- AuthManager maintains a registry of providers by name
+- Authentication flow: Manager -> Provider -> External Service -> Result
+- Error handling follows Result<T> pattern throughout
+</example>`;
 
 export const PLAN_SUBAGENT_SYSTEM_PROMPT = `\
 ${SUBAGENT_COMMON_INSTRUCTIONS}
