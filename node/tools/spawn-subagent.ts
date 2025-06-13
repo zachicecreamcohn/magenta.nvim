@@ -192,15 +192,16 @@ export const spec: ProviderToolSpec = {
 ## When to Use Sub-agents
 
 Use sub-agents for:
-- **Complex multi-step tasks or specialized contexts** that benefit from focused attention
-- **Learning and discovery** tasks where you need to deeply understand code, APIs, or concepts before proceeding
+- **Learning and discovery** tasks where you need to understand code, APIs, or concepts before proceeding
 - **Planning tasks** that require breaking down complex work into actionable steps
-- **Parallel work** when you need to perform independent tasks
+- **Parallel work** when you need to perform multiple independent tasks
 
 Don't use sub-agents for:
 - Simple, single-step tasks you can complete directly
 - When you already have all the information needed
 - Quick clarifications or basic operations
+
+IMPORTANT: if you use the planning tool, you should request user feedback on the plan before proceeding with the implementation.
 
 ## Effective Sub-agent Usage
 
@@ -234,7 +235,7 @@ assistant: [awaits all subagents]
 user: I want to build a new feature that does X
 assistant: [spawn plan subagent to plan the change]
 assistnat: [wait for plan subagent, plan subagent writes to plans/X.md]
-assistant: Please review \`plans/X.md\`
+assistant: Please review \`plans/X.md\` and confirm before I proceed. (end_turn)
 </example>
 
 <example>
