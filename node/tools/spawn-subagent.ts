@@ -278,7 +278,9 @@ assistant: Summarizes the results
           "Optional preset system prompt to use for the sub-agent. 'learn' provides instructions optimized for learning and discovery tasks. 'plan' provides instructions optimized for planning and strategy tasks.",
       },
     },
-    required: ["prompt"],
+    // NOTE: openai requries all properties to be required.
+    // https://community.openai.com/t/api-rejects-valid-json-schema/906163
+    required: ["prompt", "contextFiles", "suppressTools", "systemPrompt"],
     additionalProperties: false,
   },
 };

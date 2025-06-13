@@ -1,4 +1,4 @@
-export const SUBAGENT_SYSTEM_PROMPTS = ["learn", "plan"] as const;
+export const SUBAGENT_SYSTEM_PROMPTS = ["learn", "plan", "default"] as const;
 export type SubagentSystemPrompt = (typeof SUBAGENT_SYSTEM_PROMPTS)[number];
 
 const CODEBASE_CONVENTIONS = `\
@@ -262,6 +262,7 @@ export function getSubagentSystemPrompt(type?: SubagentSystemPrompt): string {
       return LEARN_SUBAGENT_SYSTEM_PROMPT;
     case "plan":
       return PLAN_SUBAGENT_SYSTEM_PROMPT;
+    case "default":
     default:
       return DEFAULT_SUBAGENT_SYSTEM_PROMPT;
   }
