@@ -5,7 +5,12 @@ import type { Result } from "../utils/result";
 import Anthropic from "@anthropic-ai/sdk";
 import type { SubagentSystemPrompt } from "./system-prompt.ts";
 
-export const PROVIDER_NAMES = ["anthropic", "openai", "bedrock"] as const;
+export const PROVIDER_NAMES = [
+  "anthropic",
+  "openai",
+  "bedrock",
+  "ollama",
+] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
 
 export type ProviderSetting = {
