@@ -12,10 +12,10 @@ describe("node/chat/thread.spec.ts", () => {
       await driver.inputMagentaText("Can you run a simple command for me?");
       await driver.send();
 
-      await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingRequest();
       const toolRequestId = "test-bash-command" as ToolRequestId;
 
-      await driver.mockAnthropic.respond({
+      request.respond({
         stopReason: "end_turn",
         text: "Sure, let me run a simple bash command for you.",
         toolRequests: [
@@ -49,9 +49,9 @@ describe("node/chat/thread.spec.ts", () => {
       await driver.inputMagentaText("Can you look at my list of buffers?");
       await driver.send();
 
-      await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingRequest();
 
-      await driver.mockAnthropic.respond({
+      request.respond({
         stopReason: "end_turn",
         text: "Sure, let me use the list_buffers tool.",
         toolRequests: [],
@@ -76,13 +76,13 @@ describe("node/chat/thread.spec.ts", () => {
       await driver.inputMagentaText("Can you help me with my code?");
       await driver.send();
 
-      await driver.mockAnthropic.awaitPendingRequest();
+      const request1 = await driver.mockAnthropic.awaitPendingRequest();
 
       const toolRequestId1 = "tool-1" as ToolRequestId;
       const toolRequestId2 = "tool-2" as ToolRequestId;
 
       // First response with bash_command tool use
-      await driver.mockAnthropic.respond({
+      request1.respond({
         stopReason: "tool_use",
         text: "I'll help you. Let me check your project first.",
         toolRequests: [
@@ -99,8 +99,8 @@ describe("node/chat/thread.spec.ts", () => {
 
       await driver.assertDisplayBufferContains("Project files summary");
 
-      await driver.mockAnthropic.awaitPendingRequest();
-      await driver.mockAnthropic.respond({
+      const request2 = await driver.mockAnthropic.awaitPendingRequest();
+      request2.respond({
         stopReason: "tool_use",
         text: "Now let me check your project structure.",
         toolRequests: [
@@ -118,8 +118,8 @@ describe("node/chat/thread.spec.ts", () => {
       await driver.assertDisplayBufferContains("Project structure summary");
 
       // Final part of the assistant's response
-      await driver.mockAnthropic.awaitPendingRequest();
-      await driver.mockAnthropic.respond({
+      const request3 = await driver.mockAnthropic.awaitPendingRequest();
+      request3.respond({
         stopReason: "end_turn",
         text: "Based on these results, I can help you.",
         toolRequests: [],
@@ -162,11 +162,11 @@ describe("node/chat/thread.spec.ts", () => {
       await driver.inputMagentaText("Test error handling during response");
       await driver.send();
 
-      await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingRequest();
 
       // Simulate an error during streaming
       const errorMessage = "Simulated error during streaming";
-      await driver.mockAnthropic.respondWithError(new Error(errorMessage));
+      request.respondWithError(new Error(errorMessage));
 
       // Verify the error is handled and displayed to the user
       await driver.assertDisplayBufferContains(
@@ -189,8 +189,10 @@ describe("node/chat/thread.spec.ts", () => {
       await driver.send();
 
       // Wait for the request and respond
-      await driver.mockAnthropic.awaitPendingRequest("initial request");
-      await driver.mockAnthropic.respond({
+      const request1 = await driver.mockAnthropic.awaitPendingRequest({
+        message: "initial request",
+      });
+      request1.respond({
         stopReason: "end_turn",
         text: "The capital of France is Paris.",
         toolRequests: [],
@@ -199,11 +201,12 @@ describe("node/chat/thread.spec.ts", () => {
       // Add a second message with a tool use
       await driver.inputMagentaText("What about Germany?");
       await driver.send();
-
       // Wait for the request and respond with a tool use (bash_command)
-      await driver.mockAnthropic.awaitPendingRequest("followup request");
+      const request2 = await driver.mockAnthropic.awaitPendingRequest({
+        message: "followup request",
+      });
       const firstBashToolId = "first-bash-tool" as ToolRequestId;
-      await driver.mockAnthropic.respond({
+      request2.respond({
         stopReason: "tool_use",
         text: "Let me check if I can find some information about Germany in your system.",
         toolRequests: [
@@ -218,11 +221,11 @@ describe("node/chat/thread.spec.ts", () => {
         ],
       });
 
-      await driver.mockAnthropic.awaitPendingRequest(
-        "first-bash auto-response",
-      );
+      const request3 = await driver.mockAnthropic.awaitPendingRequest({
+        message: "first-bash auto-response",
+      });
       const secondBashToolId = "second-bash-tool" as ToolRequestId;
-      await driver.mockAnthropic.respond({
+      request3.respond({
         stopReason: "tool_use",
         text: "Let me check for more details about European countries.",
         toolRequests: [
@@ -237,11 +240,11 @@ describe("node/chat/thread.spec.ts", () => {
         ],
       });
 
-      await driver.mockAnthropic.awaitPendingRequest(
-        "second-bash auto-response",
-      );
+      const request4 = await driver.mockAnthropic.awaitPendingRequest({
+        message: "second-bash auto-response",
+      });
       const bashToolId = "bash-tool" as ToolRequestId;
-      await driver.mockAnthropic.respond({
+      request4.respond({
         stopReason: "tool_use",
         text: "test bash tool",
         toolRequests: [
@@ -258,8 +261,10 @@ describe("node/chat/thread.spec.ts", () => {
         ],
       });
 
-      await driver.mockAnthropic.awaitPendingRequest("bash auto-response");
-      await driver.mockAnthropic.respond({
+      const request5 = await driver.mockAnthropic.awaitPendingRequest({
+        message: "bash auto-response",
+      });
+      request5.respond({
         stopReason: "end_turn",
         text: "The capital of Germany is Berlin.",
         toolRequests: [],
@@ -309,8 +314,8 @@ describe("node/chat/thread.spec.ts", () => {
       await driver.assertDisplayBufferContains("Tell me about Italy");
 
       // 7. Respond to the new thread's initial message
-      await driver.mockAnthropic.awaitPendingRequest();
-      await driver.mockAnthropic.respond({
+      const request6 = await driver.mockAnthropic.awaitPendingRequest();
+      request6.respond({
         stopReason: "end_turn",
         text: "Italy's capital is Rome. It's known for its rich history, art, and cuisine.",
         toolRequests: [],

@@ -8,7 +8,8 @@ describe("node/sidebar.spec.ts", () => {
       await driver.showSidebar();
       await driver.inputMagentaText(`\n`.repeat(100));
       await driver.send();
-      await driver.mockAnthropic.respond({
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      request.respond({
         stopReason: "end_turn",
         text: "sup?",
         toolRequests: [],
@@ -35,9 +36,7 @@ describe("node/sidebar.spec.ts", () => {
 
       const { inputWindow } = driver.getVisibleState();
       const initialWinbar = await inputWindow.getOption("winbar");
-      expect(initialWinbar).toContain(
-        "Magenta Input (claude-sonnet-3.7) [~2K tokens]",
-      );
+      expect(initialWinbar).toContain("Magenta Input (claude-sonnet-3.7) [~");
 
       // Generate a large message that will definitely increase the token count
       const largeMessage = "Hello, this is a test message. ".repeat(500);

@@ -58,39 +58,41 @@ export class CompactThreadTool implements ToolInterface {
 export const spec: ProviderToolSpec = {
   name: "compact_thread",
   description: `\
-This tool extracts ONLY the specific portions of the conversation history that are directly relevant to the user's NEXT PROMPT.
+This tool extracts specific portions of the conversation history that are directly relevant to the user's next prompt.
 
-ANALYZE THE USER'S NEXT PROMPT FIRST:
-- Carefully examine what the user is asking for in their next prompt
-- Identify key technical concepts, files, functions, or problems they're focusing on
-- Extract ONLY the information from the thread that directly relates to these specific elements
+First, provide a section where you analyze the conversation:
 
-PRIORITIZE WITH LASER FOCUS:
-- Code discussions, architectural decisions, and technical details DIRECTLY relevant to the next prompt
-- File paths and function signatures that will be needed to address the next prompt
-- Previous solutions or approaches that directly inform the upcoming work
-- Technical constraints or requirements that specifically impact the task in the next prompt
+1. ANALYZE THE USER'S NEXT PROMPT:
+   - Carefully examine what the user is asking for in their next prompt
+   - Identify key technical concepts, files, functions, or problems they're focusing on
+   - Determine what information from the thread directly relates to these specific elements
 
-RUTHLESSLY EXCLUDE:
-- ANY content from the thread not directly related to the specific focus of the next prompt
-- General architectural discussions not specifically relevant to the next task
-- Code explanations for components not involved in the next prompt
-- Previous problems that have been fully resolved and don't impact the next task
+2. RELEVANCE:
+   - Note technical decisions, code patterns, and architectural choices that impact the next prompt
+   - Track the evolution of solutions and approaches that inform the upcoming work
+   - Extract ONLY information that directly supports addressing the next prompt
+   - Exclude general discussions not specifically relevant to the next task
+   - Focus on actionable technical details needed for the next prompt
 
-CONTEXT FILES:
-- Include ONLY files that are DIRECTLY relevant to the next prompt in contextFiles
-- Prefer adding files to contextFiles rather than including code snippets in the summary
-
-SUMMARY:
-- Structure the summary to directly address what the user needs for their next prompt
+Then, provide the context section:
 - Begin with the most critical information needed for the next task
-- Use precise technical language focused on the specific task at hand
 - Keep code snippets minimal - only include what's absolutely necessary for the next prompt
-- Reference file paths and function names rather than including implementations
-- NEVER include full file contents
-- ⚠️ IMPORTANT: Do NOT include the user's next prompt in the summary - it will be automatically included
+- Reference file paths and function names rather than including implementations. NEVER include full file contents
+- IMPORTANT: Do NOT include the user's next prompt in the summary - it will be automatically included
 
-Remember: The goal is NOT to summarize the thread, but to extract ONLY the specific pieces that directly support addressing the user's next prompt.`,
+Remember: The goal is NOT to summarize the thread, but to extract ONLY the specific pieces that directly support addressing the user's next prompt.
+
+<example>
+user: compact this thread. My next prompt will be: "fix the authentication bug in the login component"
+
+assistant:
+# analysis
+[consider the users next prompt]
+[review the conversation so far, and decide what is the most relevant]
+
+# context
+[detailed description of only the relevant pieces]
+</example>`,
   input_schema: {
     type: "object",
     properties: {

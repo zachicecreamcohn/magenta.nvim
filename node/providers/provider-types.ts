@@ -1,7 +1,9 @@
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import * as ToolManager from "../tools/toolManager.ts";
+import type { ToolName } from "../tools/tool-registry.ts";
 import type { Result } from "../utils/result";
 import Anthropic from "@anthropic-ai/sdk";
+import type { SubagentSystemPrompt } from "./system-prompt.ts";
 
 export const PROVIDER_NAMES = [
   "anthropic",
@@ -58,7 +60,7 @@ export type ProviderTextContent = {
 export type ProviderToolUseContent = {
   type: "tool_use";
   id: ToolManager.ToolRequestId;
-  name: ToolManager.ToolName;
+  name: ToolName;
   request: Result<ToolManager.ToolRequest, { rawRequest: unknown }>;
 };
 
@@ -84,7 +86,7 @@ export type ProviderToolResultContent = {
 };
 
 export type ProviderToolSpec = {
-  name: ToolManager.ToolName;
+  name: ToolName;
   description: string;
   input_schema: JSONSchemaType;
 };
@@ -101,21 +103,27 @@ export interface Provider {
   createStreamParameters(
     messages: Array<ProviderMessage>,
     tools: Array<ProviderToolSpec>,
-    options?: { disableCaching?: boolean },
+    options?: {
+      disableCaching?: boolean;
+      systemPrompt?: SubagentSystemPrompt | undefined;
+    },
   ): unknown;
   countTokens(
     messages: Array<ProviderMessage>,
     tools: Array<ProviderToolSpec>,
+    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
   ): number;
   forceToolUse(
     messages: Array<ProviderMessage>,
     spec: ProviderToolSpec,
+    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
   ): ProviderToolUseRequest;
 
   sendMessage(
     messages: Array<ProviderMessage>,
     onStreamEvent: (event: ProviderStreamEvent) => void,
     tools: Array<ProviderToolSpec>,
+    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
   ): ProviderStreamRequest;
 }
 

@@ -15,7 +15,8 @@ describe("node/tools/hover.spec.ts", () => {
 
       // wait for ts_ls to start/attach
       const toolRequestId = "id" as ToolRequestId;
-      await driver.mockAnthropic.respond({
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      request.respond({
         stopReason: "tool_use",
         text: "ok, here goes",
         toolRequests: [
