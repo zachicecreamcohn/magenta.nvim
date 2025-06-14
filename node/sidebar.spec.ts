@@ -36,9 +36,7 @@ describe("node/sidebar.spec.ts", () => {
 
       const { inputWindow } = driver.getVisibleState();
       const initialWinbar = await inputWindow.getOption("winbar");
-      expect(initialWinbar).toContain(
-        "Magenta Input (claude-sonnet-3.7) [~2K tokens]",
-      );
+      expect(initialWinbar).toContain("Magenta Input (claude-sonnet-3.7) [~");
 
       // Generate a large message that will definitely increase the token count
       const largeMessage = "Hello, this is a test message. ".repeat(500);

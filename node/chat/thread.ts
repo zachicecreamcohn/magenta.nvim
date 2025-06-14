@@ -43,6 +43,12 @@ import type { SubagentSystemPrompt } from "../providers/system-prompt.ts";
 
 export type Role = "user" | "assistant";
 
+export type StoppedConversationState = {
+  state: "stopped";
+  stopReason: StopReason;
+  usage: Usage;
+};
+
 export type ConversationState =
   | {
       state: "message-in-flight";
@@ -55,11 +61,7 @@ export type ConversationState =
       request: ProviderToolUseRequest;
       userMsgContent: string;
     }
-  | {
-      state: "stopped";
-      stopReason: StopReason;
-      usage: Usage;
-    }
+  | StoppedConversationState
   | {
       state: "error";
       error: Error;
@@ -217,40 +219,17 @@ export class Thread {
 
         switch (msg.conversation.state) {
           case "stopped": {
-            const lastMessage =
-              this.state.messages[this.state.messages.length - 1];
-            lastMessage.update({
-              type: "stop",
-              stopReason: msg.conversation.stopReason,
-              usage: msg.conversation.usage,
-            });
-
-            if (lastMessage.state.role == "assistant") {
-              const lastContentBlock =
-                lastMessage.state.content[lastMessage.state.content.length - 1];
-              if (
-                lastContentBlock.type == "tool_use" &&
-                lastContentBlock.request.status == "ok"
-              ) {
-                const request = lastContentBlock.request.value;
-                if (request.toolName == "yield_to_parent") {
-                  this.myUpdate({
-                    type: "conversation-state",
-                    conversation: {
-                      state: "yielded",
-                      response: request.input.result,
-                    },
-                  });
-                  return;
-                }
-              }
-            }
-
-            this.maybeAutoRespond();
+            this.handleConversationStop(msg.conversation);
             break;
           }
 
           case "error": {
+            if (
+              this.state.conversation.state == "stopped" &&
+              this.state.conversation.stopReason == "aborted"
+            ) {
+              break;
+            }
             const lastAssistantMessage =
               this.state.messages[this.state.messages.length - 1];
             if (lastAssistantMessage?.state.role == "assistant") {
@@ -419,31 +398,14 @@ export class Thread {
       case "abort": {
         this.abortInProgressOperations();
 
-        const lastMessage = this.state.messages[this.state.messages.length - 1];
-        if (lastMessage) {
-          lastMessage.update({
-            type: "stop",
-            stopReason: "aborted",
-            usage: {
-              inputTokens: -1,
-              outputTokens: -1,
-            },
-          });
-        }
-
-        setTimeout(() =>
-          this.myDispatch({
-            type: "conversation-state",
-            conversation: {
-              state: "stopped",
-              stopReason: "aborted",
-              usage: {
-                inputTokens: -1,
-                outputTokens: -1,
-              },
-            },
-          }),
-        );
+        this.handleConversationStop({
+          state: "stopped",
+          stopReason: "aborted",
+          usage: {
+            inputTokens: -1,
+            outputTokens: -1,
+          },
+        });
 
         return;
       }
@@ -456,6 +418,40 @@ export class Thread {
       default:
         assertUnreachable(msg);
     }
+  }
+
+  private handleConversationStop(stoppedState: StoppedConversationState) {
+    const lastMessage = this.state.messages[this.state.messages.length - 1];
+    lastMessage.update({
+      type: "stop",
+      stopReason: stoppedState.stopReason,
+      usage: stoppedState.usage,
+    });
+
+    if (lastMessage.state.role == "assistant") {
+      const lastContentBlock =
+        lastMessage.state.content[lastMessage.state.content.length - 1];
+      if (
+        lastContentBlock.type == "tool_use" &&
+        lastContentBlock.request.status == "ok"
+      ) {
+        const request = lastContentBlock.request.value;
+        if (request.toolName == "yield_to_parent") {
+          this.myUpdate({
+            type: "conversation-state",
+            conversation: {
+              state: "yielded",
+              response: request.input.result,
+            },
+          });
+          return;
+        }
+      }
+    }
+
+    this.state.conversation = stoppedState;
+
+    this.maybeAutoRespond();
   }
 
   private abortInProgressOperations(): void {
@@ -874,7 +870,8 @@ export const view: View<{
 
   if (
     thread.state.messages.length == 0 &&
-    thread.state.conversation.state == "stopped"
+    thread.state.conversation.state == "stopped" &&
+    thread.state.conversation.stopReason == "end_turn"
   ) {
     return d`${titleView}\n${LOGO}\n${thread.context.contextManager.view()}`;
   }
