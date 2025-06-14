@@ -17,11 +17,14 @@ Magenta is for agents.
 
 # Roadmap
 
-- Sub-agents. A new tool where the agent can delegate tasks to sub-agents with a specified toolset. Similar to claude code
 - MCP support
 - local code embedding & indexing via chroma db, to support a semantic code search tool
 
 # Updates
+
+## June 2025
+
+I implemented **sub-agents** - a powerful feature that allows the main agent to delegate specific tasks to specialized sub-agents. Sub-agents can work in parallel and have their own specialized system prompts for tasks like learning codebases, planning implementations, or performing focused work. This enables complex workflows where multiple agents collaborate on different aspects of a problem.
 
 ## May 2025
 
@@ -32,8 +35,6 @@ I updated the architecture around context following. We now track the state of t
 I updated the architecture around streaming, so we now process partial tool calls, which means we can preview Insert and Replace commands gradually as they stream in. This makes the tool feel a lot more responsive. I also added support for anthropic web search and citations!
 
 I made a significant architectural shift in how magenta.nvim handles edits. Instead of merely proposing changes that require user confirmation, the agent can now directly apply edits to files with automatic snapshots for safety. Combined with the recent PR that implemented robust bash command execution, this creates a powerful iteration loop capability: agents can now modify files, run tests through bash, analyze results, and make further changes - all without user intervention.
-
-I also started implementing multi-thread support, a basic version of which is now available.
 
 <details>
 <summary>Previous updates</summary>
@@ -264,6 +265,48 @@ Magenta now supports multiple concurrent chat threads:
 - Current active thread is highlighted with `*` in the thread list.
 - Press `Enter` on any thread in the overview to make it active.
 
+### Sub-agents
+
+The LLM agent can now spawn specialized sub-agents to handle independent tasks more effectively. This allows the main agent to:
+
+- **Focus context**: Each sub-agent gets only the files and context relevant to its specific task
+- **Manage complexity**: Break down complex requests into focused, manageable subtasks
+- **Work in parallel**: Multiple sub-agents can run simultaneously on different aspects of a problem
+- **Specialize behavior**: Sub-agents use specialized system prompts optimized for specific types of work
+
+**How it works:**
+The main agent uses `spawn_subagent` and `wait_for_subagents` tools to create and coordinate sub-agents. Each sub-agent operates independently with its own context and toolset, then reports results back to the main agent using `yield_to_parent`.
+
+**Sub-agent system prompts** ([see full prompts](node/providers/system-prompt.ts)):
+
+- `learn`: System prompt focused on code discovery, understanding APIs, and analyzing existing implementations
+- `plan`: System prompt specialized for strategic planning and breaking down complex implementations
+- `default`: General-purpose system prompt with standard coding assistant behavior
+
+**Example workflows:**
+
+_Learning workflow:_
+
+```
+user: I want to refactor this interface
+→ Main agent spawns a 'learn' sub-agent to analyze the interface and its usage
+→ Sub-agent explores the codebase, finds all references, understands patterns
+→ Sub-agent yields findings back to main agent
+→ Main agent uses the focused analysis to safely perform the refactoring
+```
+
+_Planning workflow:_
+
+```
+user: I want to build a new authentication system
+→ Main agent spawns a 'plan' sub-agent to create an implementation strategy
+→ Sub-agent analyzes existing auth patterns, creates detailed plan in plans/auth-system.md
+→ Sub-agent yields plan location back to main agent
+→ Main agent responds: "Please review `plans/auth-system.md` and confirm before I proceed"
+```
+
+This architecture enables more sophisticated problem-solving by allowing the agent to gather focused context and work on multiple independent tasks simultaneously.
+
 ### Inline edit
 
 - `<leader>mi` is for `:Magenta start-inline-edit`, or `start-inline-edit-selection` in visual mode. This will bring up a new split where you can write a prompt to edit the current buffer. Magenta will force a find-and-replace tool use for normal mode, or force a replace tool use for the selection in visual mode.
@@ -358,6 +401,9 @@ See the most up-to-date list of implemented tools [here](https://github.com/dlan
 - [x] get lsp references for a symbol in a buffer
 - [x] get lsp "hover" info for a symbol in a buffer
 - [x] insert or replace in a file with automatic file snapshots for comparison
+- [x] spawn sub-agents with specialized system prompts and toolsets
+- [x] wait for multiple sub-agents to complete (enables parallel workflows)
+- [x] yield results back to parent agent (for sub-agents)
 
 # Why it's cool
 
@@ -380,15 +426,15 @@ Codecompanion has a single buffer, while magenta.nvim has separate input & displ
 
 ## compared to avante:
 
-I think it's fairly similar. However, magenta.nvim is written in typescript and uses the sdks to implement streaming, which I think makes it more stable. I think the main advantage is the architecture is very clean so it should be easy to extend the functionality. Between typescript, sdks and the architecture, I think my velocity is pretty high. I haven't used avante in a while so I'm not sure how close I got feature-wise, but it should be fairly close, and only after a couple of weeks of development time.
+I think it's fairly similar. However, magenta.nvim is written in typescript and uses the sdks to implement streaming, which I think makes it more stable. I think the main advantage is the architecture is very clean so it should be easy to extend the functionality. Between typescript, sdks and the architecture, I think my velocity is pretty high.
 
 ## compared to both:
 
-AFAIK both avante and codecompanion roll their own tool system, so the tools are defined in-prompt, and they do the parsing of the tool use themselves. I'm instead using the providers tool capabilities, like the one in [anthropic](https://docs.anthropic.com/en/docs/build-with-claude/tool-use). In practice I think this makes the tool use a lot more robust.
+magenta.nvim includes capabilities that neither plugin offers:
 
-I'm not doing any treesitter analysis of symbols, dependencies, or repository summarization / repomap construction. As I mentioned in the intro, I'm opting instead to rely on the agent to explore the repo using the tools available to it. Right now that's occasionally worse than the repomap approach, but I think with time it will matter less and less.
-
-Another thing that's probably glaringly missing is model selection and customization of keymappings, etc... I'll probably do some of this eventually, but if you use a different picker / completion plugin, or you would like to make something configurable that is not currently, I would welcome contributions.
+- **Web search tools**: Agents can search the internet for current information, documentation, and solutions, and cite these in their responses
+- **Sub-agents**: Complex tasks can be broken down and delegated to specialized agents that work in parallel with focused context and system prompts
+- **Smart context tracking**: The plugin automatically tracks the state of files on disk, in buffers, and what the agent has seen, sending only diffs when files change. This enables better cache utilization and more efficient communication without re-sending full file contents for small changes.
 
 # Contributions
 
