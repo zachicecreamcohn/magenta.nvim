@@ -1,9 +1,9 @@
-import { attach, type LogLevel, type Nvim } from "../nvim/nvim-node";
+import { attach, type LogLevel, type Nvim } from "../nvim/nvim-node/index.ts";
 import { unlink, access, rm, cp, mkdir } from "node:fs/promises";
 import { spawn } from "child_process";
 import { type MountedVDOM } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import path from "node:path";
+import * as path from "node:path";
 import { pollUntil } from "../utils/async.ts";
 import { Magenta } from "../magenta.ts";
 import { withMockClient } from "../providers/mock.ts";
@@ -15,7 +15,12 @@ import type { Message } from "../chat/message.ts";
 
 const SOCK = `/tmp/magenta-test.sock`;
 export const TMP_DIR = "node/test/tmp";
-export async function withNvimProcess(fn: (sock: string) => Promise<void>) {
+export async function withNvimProcess(
+  fn: (sock: string) => Promise<void>,
+  options: {
+    setupFiles?: ((tmpDir: string) => Promise<void>) | undefined;
+  } = {},
+) {
   try {
     await unlink(SOCK);
   } catch (e) {
@@ -43,6 +48,11 @@ export async function withNvimProcess(fn: (sock: string) => Promise<void>) {
   try {
     await mkdir(tmpDir, { recursive: true });
     await cp(fixturesDir, tmpDir, { recursive: true });
+
+    // Set up additional files if provided
+    if (options.setupFiles) {
+      await options.setupFiles(tmpDir);
+    }
   } catch (e) {
     console.error("Failed to set up test directory:", e);
     throw e;
@@ -97,19 +107,21 @@ export async function withNvimClient(
     logFile?: string;
     logLevel?: LogLevel;
     overrideLogger?: boolean;
+    setupFiles?: (tmpDir: string) => Promise<void>;
   } = {
     overrideLogger: true,
   },
 ) {
-  return await withNvimProcess(async (sock) => {
-    const nvim = await attach({
-      socket: sock,
-      client: { name: "test" },
-      logging: { level: options.logLevel ?? "debug", file: options.logFile },
-    });
+  return await withNvimProcess(
+    async (sock) => {
+      const nvim = await attach({
+        socket: sock,
+        client: { name: "test" },
+        logging: { level: options.logLevel ?? "debug", file: options.logFile },
+      });
 
-    await nvim.call("nvim_exec_lua", [
-      `\
+      await nvim.call("nvim_exec_lua", [
+        `\
         require('magenta').bridge(${nvim.channelId})
 
         -- Set up message interception
@@ -122,47 +134,49 @@ export async function withNvimClient(
           notify(msg, level, opts)
         end
       `,
-      [],
-    ]);
+        [],
+      ]);
 
-    if (options.overrideLogger) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      nvim.logger = {
-        error: (msg: string) => console.error(msg),
-        warn: (msg: string) => console.warn(msg),
-        info: (msg: string) => console.info(msg),
-        debug: (msg: string) => console.debug(msg),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any;
-    }
-
-    nvim.onNotification("testMessage", (args) => {
-      try {
-        const { msg, level } = args[0] as { msg: string; level: number };
-        switch (level) {
-          case 0: // ERROR
-            nvim.logger?.error(msg);
-            break;
-          case 2: // WARN
-            nvim.logger?.warn(msg);
-            break;
-          case 3: // INFO
-            nvim.logger?.info(msg);
-            break;
-          default: // DEBUG and others
-            nvim.logger?.debug(msg);
-        }
-      } catch (err) {
-        nvim.logger?.error(err as Error);
+      if (options.overrideLogger) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        nvim.logger = {
+          error: (msg: string) => console.error(msg),
+          warn: (msg: string) => console.warn(msg),
+          info: (msg: string) => console.info(msg),
+          debug: (msg: string) => console.debug(msg),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any;
       }
-    });
 
-    try {
-      await fn(nvim);
-    } finally {
-      nvim.detach();
-    }
-  });
+      nvim.onNotification("testMessage", (args) => {
+        try {
+          const { msg, level } = args[0] as { msg: string; level: number };
+          switch (level) {
+            case 0: // ERROR
+              nvim.logger?.error(msg);
+              break;
+            case 2: // WARN
+              nvim.logger?.warn(msg);
+              break;
+            case 3: // INFO
+              nvim.logger?.info(msg);
+              break;
+            default: // DEBUG and others
+              nvim.logger?.debug(msg);
+          }
+        } catch (err) {
+          nvim.logger?.error(err as Error);
+        }
+      });
+
+      try {
+        await fn(nvim);
+      } finally {
+        nvim.detach();
+      }
+    },
+    { setupFiles: options.setupFiles },
+  );
 }
 
 export type TestOptions = Partial<MagentaOptions>;
@@ -171,31 +185,33 @@ export async function withDriver(
   driverOptions: {
     options?: TestOptions;
     doNotOverrideLogger?: boolean;
+    setupFiles?: (tmpDir: string) => Promise<void>;
   },
   fn: (driver: NvimDriver) => Promise<void>,
 ) {
-  return await withNvimProcess(async (sock) => {
-    const nvim = await attach({
-      socket: sock,
-      client: { name: "test" },
-      logging: { level: "debug" },
-    });
+  return await withNvimProcess(
+    async (sock) => {
+      const nvim = await attach({
+        socket: sock,
+        client: { name: "test" },
+        logging: { level: "debug" },
+      });
 
-    // Set test options before Magenta starts
-    if (driverOptions.options) {
-      // Send JSON string to Lua and let it parse the string into a table
-      // Make sure we use the long string syntax [=[ ]=] to avoid escaping issues
-      const testOptionsJson = JSON.stringify(driverOptions.options);
-      await nvim.call("nvim_exec_lua", [
-        `setup_test_options([=[${testOptionsJson}]=])`,
-        [],
-      ]);
-    }
+      // Set test options before Magenta starts
+      if (driverOptions.options) {
+        // Send JSON string to Lua and let it parse the string into a table
+        // Make sure we use the long string syntax [=[ ]=] to avoid escaping issues
+        const testOptionsJson = JSON.stringify(driverOptions.options);
+        await nvim.call("nvim_exec_lua", [
+          `setup_test_options([=[${testOptionsJson}]=])`,
+          [],
+        ]);
+      }
 
-    await withMockClient(async (mockAnthropic) => {
-      const magenta = await Magenta.start(nvim);
-      await nvim.call("nvim_exec_lua", [
-        `\
+      await withMockClient(async (mockAnthropic) => {
+        const magenta = await Magenta.start(nvim);
+        await nvim.call("nvim_exec_lua", [
+          `\
 -- Set up message interception
 local notify = vim.notify
 vim.notify = function(msg, level, opts)
@@ -207,28 +223,30 @@ vim.notify = function(msg, level, opts)
 end
 
 `,
-        [],
-      ]);
-      if (!driverOptions.doNotOverrideLogger) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        magenta.nvim.logger = {
-          error: (msg: string) => console.error(msg),
-          warn: (msg: string) => console.warn(msg),
-          info: (msg: string) => console.info(msg),
-          debug: (msg: string) =>
-            process.env.LOG_LEVEL == "debug" && console.debug(msg),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any;
-      }
+          [],
+        ]);
+        if (!driverOptions.doNotOverrideLogger) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          magenta.nvim.logger = {
+            error: (msg: string) => console.error(msg),
+            warn: (msg: string) => console.warn(msg),
+            info: (msg: string) => console.info(msg),
+            debug: (msg: string) =>
+              process.env.LOG_LEVEL == "debug" && console.debug(msg),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any;
+        }
 
-      try {
-        await fn(new NvimDriver(nvim, magenta, mockAnthropic));
-      } finally {
-        magenta.destroy();
-        nvim.detach();
-      }
-    });
-  });
+        try {
+          await fn(new NvimDriver(nvim, magenta, mockAnthropic));
+        } finally {
+          magenta.destroy();
+          nvim.detach();
+        }
+      });
+    },
+    { setupFiles: driverOptions.setupFiles },
+  );
 }
 
 export function extractMountTree(mounted: MountedVDOM): unknown {

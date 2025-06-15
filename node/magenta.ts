@@ -10,7 +10,13 @@ import path from "node:path";
 import type { BufNr, Line } from "./nvim/buffer.ts";
 import { pos1col1to0 } from "./nvim/window.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
-import { parseOptions, type MagentaOptions, type Profile } from "./options.ts";
+import {
+  parseOptions,
+  loadProjectSettings,
+  mergeOptions,
+  type MagentaOptions,
+  type Profile,
+} from "./options.ts";
 import { InlineEditManager } from "./inline-edit/inline-edit-app.ts";
 import type { RootMsg } from "./root-msg.ts";
 import { Chat } from "./chat/chat.ts";
@@ -501,7 +507,19 @@ ${lines.join("\n")}
       [],
     ]);
 
-    const parsedOptions = parseOptions(opts);
+    // Parse base options from Lua
+    const baseOptions = parseOptions(opts);
+
+    // Load and parse project settings
+    const cwd = await getcwd(nvim);
+    const projectSettings = loadProjectSettings(cwd, {
+      warn: (msg) => nvim.logger?.warn(`Project settings: ${msg}`),
+    });
+
+    // Merge project settings with base options
+    const parsedOptions = projectSettings
+      ? mergeOptions(baseOptions, projectSettings)
+      : baseOptions;
     const magenta = new Magenta(nvim, lsp, parsedOptions);
     nvim.logger?.info(`Magenta initialized. ${JSON.stringify(parsedOptions)}`);
     return magenta;

@@ -149,6 +149,95 @@ require('magenta').setup({
 
 </details>
 
+## Profiles
+
+The first profile in your `profiles` list is used as the default when the plugin starts. You can switch between profiles using `:Magenta pick-provider` (bound to `<leader>mp` by default).
+
+For example, you can set up multiple profiles for different providers or API endpoints:
+
+```lua
+profiles = {
+  {
+    name = "claude-3-7",
+    provider = "anthropic",
+    model = "claude-3-7-sonnet-latest",
+    apiKeyEnvVar = "ANTHROPIC_API_KEY"
+  },
+  {
+    name = "custom",
+    provider = "anthropic",
+    model = "claude-3-7-sonnet-latest",
+    apiKeyEnvVar = "CUSTOM_API_KEY_ENV_VAR",
+    baseUrl = "custom anthropic endpoint"
+  }
+}
+```
+
+Currently supported providers are `openai`, `anthropic`, `bedrock`, and `ollama`. The `model` parameter must be compatible with the SDK used for each provider:
+
+- For `anthropic`: [Anthropic Node SDK](https://github.com/anthropics/anthropic-sdk-typescript) - supports models like `claude-3-7-sonnet-latest`, `claude-3-5-sonnet-20240620`
+- For `openai`: [OpenAI Node SDK](https://github.com/openai/openai-node) - supports models like `gpt-4o`, `o1`
+- For `bedrock`: [AWS SDK for Bedrock Runtime](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-bedrock-runtime/) - supports models like `anthropic.claude-3-5-sonnet-20241022-v2:0`
+- For `ollama`: [Ollama Node SDK](https://github.com/ollama/ollama-js) - supports models like `qwen3:14b` which have been insalled locally. ([Ollama models](https://ollama.com/search))
+
+Any provider that has a node SDK and supports tool use should be easy to add. Contributions are welcome.
+
+## Command allowlist
+
+Magenta includes a security feature for the bash_command tool that requires user approval before running shell commands. To improve the workflow, you can configure a list of regex patterns that define which commands are pre-approved to run without confirmation.
+
+The `commandAllowlist` option takes an array of regex patterns. When the LLM tries to execute a shell command, it's checked against these patterns. If any pattern matches, the command runs without approval. Otherwise, you'll be prompted to allow or deny it.
+
+Regex patterns should be carefully designed to avoid security risks. You can find the default allowlist patterns in [lua/magenta/options.lua](lua/magenta/options.lua).
+
+## Project-specific options
+
+You can create project-specific configuration by adding a `.magenta/options.json` file to your project root. This allows you to customize Magenta settings per project while keeping your global configuration unchanged.
+
+The plugin will automatically discover and load project settings by searching for `.magenta/options.json` starting from the current working directory and walking up the directory tree.
+
+Common use cases include:
+
+- Using different AI providers or API keys for work vs personal projects
+- Adding project-specific commands to the allowlist (e.g., `make`, `cargo`, `npm` commands)
+- Automatically including important project files in context (README, docs, config files)
+- Customizing sidebar position or other UI preferences per project
+
+### Configuration precedence
+
+The merging works as follows:
+
+- **Profiles**: Project profiles completely replace global profiles if present
+- **Command allowlist**: Project patterns are added to (not replace) the base allowlist
+- **Auto context**: Project patterns are added to (not replace) the base auto context
+- **Other settings**: Project settings override global settings (like `sidebarPosition`)
+
+### Example project settings
+
+Create `.magenta/options.json` in your project root:
+
+```json
+{
+  "profiles": [
+    {
+      "name": "project-claude",
+      "provider": "anthropic",
+      "model": "claude-3-7-sonnet-latest",
+      "apiKeyEnvVar": "PROJECT_ANTHROPIC_KEY"
+    }
+  ],
+  "commandAllowlist": [
+    "^make( [^;&|()<>]*)?$",
+    "^cargo (build|test|run)( [^;&|()<>]*)?$"
+  ],
+  "autoContext": ["README.md", "docs/*.md"]
+}
+```
+
+The project settings file supports all the same options as the global configuration, just in JSON format instead of Lua.
+
+## Keymaps
+
 If `default_keymaps` is set to true, the plugin will configure the following global keymaps:
 
 <details>
@@ -345,47 +434,6 @@ Example usage:
 ```
 @compact Now let's implement unit tests for the new feature we just discussed
 ```
-
-### profiles
-
-The first profile in your `profiles` list is used as the default when the plugin starts. You can switch between profiles using `:Magenta pick-provider` (bound to `<leader>mp` by default).
-
-For example, you can set up multiple profiles for different providers or API endpoints:
-
-```lua
-profiles = {
-  {
-    name = "claude-3-7",
-    provider = "anthropic",
-    model = "claude-3-7-sonnet-latest",
-    apiKeyEnvVar = "ANTHROPIC_API_KEY"
-  },
-  {
-    name = "custom",
-    provider = "anthropic",
-    model = "claude-3-7-sonnet-latest",
-    apiKeyEnvVar = "CUSTOM_API_KEY_ENV_VAR",
-    baseUrl = "custom anthropic endpoint"
-  }
-}
-```
-
-Currently supported providers are `openai`, `anthropic`, `bedrock`, and `ollama`. The `model` parameter must be compatible with the SDK used for each provider:
-
-- For `anthropic`: [Anthropic Node SDK](https://github.com/anthropics/anthropic-sdk-typescript) - supports models like `claude-3-7-sonnet-latest`, `claude-3-5-sonnet-20240620`
-- For `openai`: [OpenAI Node SDK](https://github.com/openai/openai-node) - supports models like `gpt-4o`, `o1`
-- For `bedrock`: [AWS SDK for Bedrock Runtime](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-bedrock-runtime/) - supports models like `anthropic.claude-3-5-sonnet-20241022-v2:0`
-- For `ollama`: [Ollama Node SDK](https://github.com/ollama/ollama-js) - supports models like `qwen3:14b` which have been insalled locally. ([Ollama models](https://ollama.com/search))
-
-Any provider that has a node SDK and supports tool use should be easy to add. Contributions are welcome.
-
-### command allowlist
-
-Magenta includes a security feature for the bash_command tool that requires user approval before running shell commands. To improve the workflow, you can configure a list of regex patterns that define which commands are pre-approved to run without confirmation.
-
-The `commandAllowlist` option takes an array of regex patterns. When the LLM tries to execute a shell command, it's checked against these patterns. If any pattern matches, the command runs without approval. Otherwise, you'll be prompted to allow or deny it.
-
-Regex patterns should be carefully designed to avoid security risks. You can find the default allowlist patterns in [lua/magenta/options.lua](lua/magenta/options.lua).
 
 #### terminating running commands
 
