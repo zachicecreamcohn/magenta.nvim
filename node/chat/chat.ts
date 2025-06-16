@@ -92,6 +92,7 @@ export class Chat {
   private threadCounter = new Counter();
   state: ChatState;
   public threadWrappers: { [id: ThreadId]: ThreadWrapper };
+  public rememberedCommands: Set<string>;
 
   constructor(
     private context: {
@@ -103,6 +104,7 @@ export class Chat {
     },
   ) {
     this.threadWrappers = {};
+    this.rememberedCommands = new Set();
     this.state = {
       state: "thread-overview",
       activeThreadId: undefined,
@@ -788,9 +790,8 @@ ${threadViews.map((view) => d`${view}\n`)}`;
         if (content.type === "tool_use" && content.request.status === "ok") {
           const request = content.request.value;
           if (request.toolName === "wait_for_subagents") {
-            const toolWrapper =
-              parentThread.toolManager.state.toolWrappers[request.id];
-            if (toolWrapper && toolWrapper.tool.state.state === "waiting") {
+            const tool = parentThread.toolManager.tools[request.id];
+            if (tool && tool.state.state === "waiting") {
               setTimeout(() =>
                 this.context.dispatch({
                   type: "thread-msg",
@@ -800,7 +801,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
                     msg: {
                       type: "tool-msg",
                       msg: {
-                        id: toolWrapper.tool.request.id,
+                        id: tool.request.id,
                         toolName: "wait_for_subagents",
                         msg: {
                           type: "check-threads",

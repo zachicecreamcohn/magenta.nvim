@@ -52,19 +52,16 @@ describe("node/tools/diagnostics.spec.ts", () => {
         () => {
           const thread = driver.magenta.chat.getActiveThread();
 
-          const toolWrapper =
-            thread.toolManager.state.toolWrappers[toolRequestId];
-          if (!toolWrapper) {
-            throw new Error(
-              `could not find toolWrapper with id ${toolRequestId}`,
-            );
+          const tool = thread.toolManager.tools[toolRequestId];
+          if (!tool) {
+            throw new Error(`could not find tool with id ${toolRequestId}`);
           }
 
-          if (toolWrapper.tool.state.state != "done") {
+          if (tool.state.state != "done") {
             throw new Error(`Request not done`);
           }
 
-          return toolWrapper.tool.state.result;
+          return tool.state.result;
         },
         { timeout: 5000 },
       );

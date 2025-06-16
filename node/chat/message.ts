@@ -1,4 +1,8 @@
-import { ToolManager, type ToolRequestId } from "../tools/toolManager.ts";
+import {
+  ToolManager,
+  type ToolRequestId,
+  type ToolMsg,
+} from "../tools/toolManager.ts";
 import { type Role, type ThreadId } from "./thread.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, withBindings } from "../tea/view.ts";
@@ -54,6 +58,9 @@ type State = {
           };
     };
   };
+  toolDetailsExpanded: {
+    [requestId: ToolRequestId]: boolean;
+  };
   estimatedTokenCount: number;
 };
 
@@ -81,6 +88,10 @@ export type Msg =
   | {
       type: "toggle-expand-update";
       filePath: AbsFilePath;
+    }
+  | {
+      type: "toggle-tool-details";
+      requestId: ToolRequestId;
     }
   | {
       type: "stop";
@@ -112,6 +123,7 @@ export class Message {
       content: [],
       stops: {},
       edits: {},
+      toolDetailsExpanded: {},
       estimatedTokenCount: 0,
       ...initialState,
     };
@@ -172,19 +184,15 @@ export class Message {
                 threadId: this.context.threadId,
               });
 
-              const toolWrapper =
-                this.context.toolManager.state.toolWrappers[request.id];
-              if (!toolWrapper) {
+              const tool = this.context.toolManager.getTool(request.id);
+              if (!tool) {
                 throw new Error(
                   `Tool request did not initialize successfully: ${request.id}`,
                 );
               }
 
-              if (
-                toolWrapper.tool.toolName == "insert" ||
-                toolWrapper.tool.toolName == "replace"
-              ) {
-                const filePath = toolWrapper.tool.request.input.filePath;
+              if (tool.toolName == "insert" || tool.toolName == "replace") {
+                const filePath = tool.request.input.filePath;
 
                 if (!this.state.edits[filePath]) {
                   this.state.edits[filePath] = {
@@ -231,6 +239,12 @@ export class Message {
         return;
       }
 
+      case "toggle-tool-details": {
+        this.state.toolDetailsExpanded[msg.requestId] =
+          !this.state.toolDetailsExpanded[msg.requestId];
+        return;
+      }
+
       case "stop": {
         this.state.stops[this.state.content.length - 1] = {
           stopReason: msg.stopReason,
@@ -246,6 +260,39 @@ export class Message {
 
   setContext(updates: FileUpdates) {
     this.state.contextUpdates = updates;
+  }
+
+  renderTool(tool: ReturnType<ToolManager["getTool"]>) {
+    if (!tool) {
+      return "";
+    }
+
+    const showDetails =
+      this.state.toolDetailsExpanded[tool.request.id] || false;
+
+    return withBindings(
+      d`${tool.view((msg) =>
+        this.context.toolManager.myDispatch({
+          type: "tool-msg",
+          msg: {
+            id: tool.request.id,
+            toolName: tool.toolName,
+            msg: msg,
+          } as ToolMsg,
+        }),
+      )}${
+        showDetails
+          ? d`\nid: ${tool.request.id}\n${tool.displayInput()}\n${this.context.toolManager.renderToolResult(tool.request.id)}`
+          : ""
+      }`,
+      {
+        "<CR>": () =>
+          this.context.myDispatch({
+            type: "toggle-tool-details",
+            requestId: tool.request.id,
+          }),
+      },
+    );
   }
 
   toString() {
@@ -419,19 +466,18 @@ ${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${t
         if (content.request.status == "error") {
           return d`Malformed request: ${content.request.error}`;
         } else {
-          const toolWrapper =
-            this.context.toolManager.state.toolWrappers[
-              content.request.value.id
-            ];
-          if (!toolWrapper) {
+          const tool = this.context.toolManager.getTool(
+            content.request.value.id,
+          );
+          if (!tool) {
             this.context.nvim.logger?.error(
-              `Unable to find toolWrapper with requestId ${content.request.value.id}`,
+              `Unable to find tool with requestId ${content.request.value.id}`,
             );
             throw new Error(
-              `Unable to find toolWrapper with requestId ${content.request.value.id}`,
+              `Unable to find tool with requestId ${content.request.value.id}`,
             );
           }
-          return this.context.toolManager.renderTool(toolWrapper);
+          return this.renderTool(tool);
         }
       }
 
