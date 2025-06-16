@@ -790,7 +790,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
         if (content.type === "tool_use" && content.request.status === "ok") {
           const request = content.request.value;
           if (request.toolName === "wait_for_subagents") {
-            const tool = parentThread.toolManager.state.tools[request.id];
+            const tool = parentThread.toolManager.tools[request.id];
             if (tool && tool.state.state === "waiting") {
               setTimeout(() =>
                 this.context.dispatch({

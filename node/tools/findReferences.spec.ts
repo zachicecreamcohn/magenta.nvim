@@ -40,7 +40,7 @@ describe("node/tools/findReferences.spec.ts", () => {
             throw new Error("Thread state is not valid");
           }
 
-          const tool = thread.toolManager.state.tools[toolRequestId];
+          const tool = thread.toolManager.tools[toolRequestId];
           if (!tool) {
             throw new Error(`could not find tool with id ${toolRequestId}`);
           }

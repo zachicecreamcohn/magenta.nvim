@@ -1,10 +1,7 @@
 #!/usr/bin/env node
 
 import { execSync, exec } from "child_process";
-import { promisify } from "util";
 import { exit } from "process";
-
-const execAsync = promisify(exec);
 
 function getFileList(command) {
   try {
@@ -43,22 +40,37 @@ async function main() {
     { name: "prettier", command: "npx prettier --write ." },
   ];
 
-  const results = await Promise.allSettled(
-    checks.map(async (check) => {
-      try {
-        console.log(`Starting ${check.name}...`);
-        const { stdout, stderr } = await execAsync(check.command);
-        console.log(`✓ ${check.name} completed`);
-        if (stderr) {
-          console.warn(`${check.name} stderr:`, stderr);
+  function runCheck(check) {
+    return new Promise((resolve, reject) => {
+      console.log(`Starting ${check.name}...`);
+
+      let stdout = "";
+      let stderr = "";
+
+      exec(check.command, (error, stdoutData, stderrData) => {
+        stdout = stdoutData;
+        stderr = stderrData;
+
+        if (error) {
+          console.error(`✗ ${check.name} failed`);
+          console.error(`Command: ${check.command}`);
+          if (stdout) {
+            console.error(`Output:\n${stdout}`);
+          }
+          if (stderr) {
+            console.error(`Error output:\n${stderr}`);
+          }
+          reject(error);
+        } else {
+          console.log(`✓ ${check.name} completed`);
+          resolve({ stdout, stderr });
         }
-        return stdout;
-      } catch (error) {
-        console.error(`✗ ${check.name} failed`);
-        console.error(error.message);
-        throw error;
-      }
-    }),
+      });
+    });
+  }
+
+  const results = await Promise.allSettled(
+    checks.map((check) => runCheck(check)),
   );
 
   // Check if any checks failed

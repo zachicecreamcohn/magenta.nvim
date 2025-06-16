@@ -101,7 +101,7 @@ export function stringifyContent(
     case "tool_result": {
       if (content.result.status == "ok") {
         const result = content.result.value;
-        const tool = toolManager.state.tools[content.id];
+        const tool = toolManager.tools[content.id];
         if (!tool) {
           return `Tool result:\n${result}`;
         }

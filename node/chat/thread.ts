@@ -466,7 +466,7 @@ export class Thread {
     if (lastMessage) {
       for (const content of lastMessage.state.content) {
         if (content.type === "tool_use") {
-          const tool = this.toolManager.state.tools[content.id];
+          const tool = this.toolManager.tools[content.id];
           if (tool && tool.state.state !== "done") {
             tool.abort();
           }
@@ -485,7 +485,7 @@ export class Thread {
         for (const content of lastMessage.state.content) {
           if (content.type == "tool_use" && content.request.status == "ok") {
             const request = content.request.value;
-            const tool = this.toolManager.state.tools[request.id];
+            const tool = this.toolManager.tools[request.id];
 
             if (
               tool.request.toolName == "yield_to_parent" ||
@@ -726,7 +726,7 @@ ${content}`,
         if (contentBlock.type == "tool_use") {
           if (contentBlock.request.status == "ok") {
             const request = contentBlock.request.value;
-            const tool = this.toolManager.state.tools[request.id];
+            const tool = this.toolManager.tools[request.id];
             pushResponseMessage(tool.getToolResult());
           } else {
             pushResponseMessage({

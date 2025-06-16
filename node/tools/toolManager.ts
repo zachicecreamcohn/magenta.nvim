@@ -143,14 +143,10 @@ export type Msg =
       msg: ToolMsg;
     };
 
-type State = {
+export class ToolManager {
   tools: {
     [id: ToolRequestId]: Tool;
   };
-};
-
-export class ToolManager {
-  state: State;
 
   constructor(
     public myDispatch: (msg: Msg) => void,
@@ -164,17 +160,15 @@ export class ToolManager {
       chat: Chat;
     },
   ) {
-    this.state = {
-      tools: {},
-    };
+    this.tools = {};
   }
 
   getTool(id: ToolRequestId): Tool | undefined {
-    return this.state.tools[id];
+    return this.tools[id];
   }
 
   renderToolResult(id: ToolRequestId) {
-    const tool = this.state.tools[id];
+    const tool = this.tools[id];
     if (!tool) {
       return "";
     }
@@ -217,7 +211,7 @@ export class ToolManager {
                 }),
             });
 
-            this.state.tools[request.id] = getFileTool;
+            this.tools[request.id] = getFileTool;
 
             return;
           }
@@ -228,7 +222,7 @@ export class ToolManager {
               { nvim: this.context.nvim },
             );
 
-            this.state.tools[request.id] = listBuffersTool;
+            this.tools[request.id] = listBuffersTool;
 
             return this.acceptThunk(listBuffersTool, thunk);
           }
@@ -252,7 +246,7 @@ export class ToolManager {
               },
             );
 
-            this.state.tools[request.id] = insertTool;
+            this.tools[request.id] = insertTool;
             return;
           }
 
@@ -275,7 +269,7 @@ export class ToolManager {
               },
             );
 
-            this.state.tools[request.id] = replaceTool;
+            this.tools[request.id] = replaceTool;
 
             return;
           }
@@ -286,7 +280,7 @@ export class ToolManager {
               { nvim: this.context.nvim },
             );
 
-            this.state.tools[request.id] = listDirTool;
+            this.tools[request.id] = listDirTool;
 
             return this.acceptThunk(listDirTool, thunk);
           }
@@ -297,7 +291,7 @@ export class ToolManager {
               lsp: this.context.lsp,
             });
 
-            this.state.tools[request.id] = hoverTool;
+            this.tools[request.id] = hoverTool;
 
             return this.acceptThunk(hoverTool, thunk);
           }
@@ -309,7 +303,7 @@ export class ToolManager {
                 lsp: this.context.lsp,
               });
 
-            this.state.tools[request.id] = findReferencesTool;
+            this.tools[request.id] = findReferencesTool;
 
             return this.acceptThunk(findReferencesTool, thunk);
           }
@@ -320,7 +314,7 @@ export class ToolManager {
               { nvim: this.context.nvim },
             );
 
-            this.state.tools[request.id] = diagnosticsTool;
+            this.tools[request.id] = diagnosticsTool;
 
             return this.acceptThunk(diagnosticsTool, thunk);
           }
@@ -341,7 +335,7 @@ export class ToolManager {
               rememberedCommands: this.context.chat.rememberedCommands,
             });
 
-            this.state.tools[request.id] = bashCommandTool;
+            this.tools[request.id] = bashCommandTool;
             return;
           }
 
@@ -366,7 +360,7 @@ export class ToolManager {
                 }),
             });
 
-            this.state.tools[request.id] = threadTitleTool;
+            this.tools[request.id] = threadTitleTool;
             return;
           }
 
@@ -378,7 +372,7 @@ export class ToolManager {
               },
             );
 
-            this.state.tools[request.id] = compactThreadTool;
+            this.tools[request.id] = compactThreadTool;
             return;
           }
 
@@ -401,7 +395,7 @@ export class ToolManager {
               },
             );
 
-            this.state.tools[request.id] = spawnSubagentTool;
+            this.tools[request.id] = spawnSubagentTool;
             return;
           }
 
@@ -423,7 +417,7 @@ export class ToolManager {
                   }),
               });
 
-            this.state.tools[request.id] = waitForSubagentsTool;
+            this.tools[request.id] = waitForSubagentsTool;
             return;
           }
 
@@ -446,7 +440,7 @@ export class ToolManager {
               },
             );
 
-            this.state.tools[request.id] = yieldToParentTool;
+            this.tools[request.id] = yieldToParentTool;
             return;
           }
 
@@ -456,7 +450,7 @@ export class ToolManager {
       }
 
       case "tool-msg": {
-        const tool = this.state.tools[msg.msg.id];
+        const tool = this.tools[msg.msg.id];
         if (!tool) {
           throw new Error(`Could not find tool with request id ${msg.msg.id}`);
         }

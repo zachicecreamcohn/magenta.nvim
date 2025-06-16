@@ -52,7 +52,7 @@ describe("node/tools/diagnostics.spec.ts", () => {
         () => {
           const thread = driver.magenta.chat.getActiveThread();
 
-          const tool = thread.toolManager.state.tools[toolRequestId];
+          const tool = thread.toolManager.tools[toolRequestId];
           if (!tool) {
             throw new Error(`could not find tool with id ${toolRequestId}`);
           }
