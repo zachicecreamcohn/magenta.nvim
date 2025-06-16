@@ -92,6 +92,7 @@ export class Chat {
   private threadCounter = new Counter();
   state: ChatState;
   public threadWrappers: { [id: ThreadId]: ThreadWrapper };
+  public rememberedCommands: Set<string>;
 
   constructor(
     private context: {
@@ -103,6 +104,7 @@ export class Chat {
     },
   ) {
     this.threadWrappers = {};
+    this.rememberedCommands = new Set();
     this.state = {
       state: "thread-overview",
       activeThreadId: undefined,

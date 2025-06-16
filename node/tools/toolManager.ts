@@ -147,7 +147,6 @@ type State = {
   tools: {
     [id: ToolRequestId]: Tool;
   };
-  rememberedCommands: Set<string>;
 };
 
 export class ToolManager {
@@ -167,7 +166,6 @@ export class ToolManager {
   ) {
     this.state = {
       tools: {},
-      rememberedCommands: new Set(),
     };
   }
 
@@ -340,7 +338,7 @@ export class ToolManager {
                   },
                 }),
               options: this.context.options,
-              rememberedCommands: this.state.rememberedCommands,
+              rememberedCommands: this.context.chat.rememberedCommands,
             });
 
             this.state.tools[request.id] = bashCommandTool;
@@ -474,7 +472,7 @@ export class ToolManager {
             toolMsg.approved &&
             toolMsg.remember
           ) {
-            this.state.rememberedCommands.add(
+            this.context.chat.rememberedCommands.add(
               (tool as BashCommand.BashCommandTool).request.input.command,
             );
           }
