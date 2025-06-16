@@ -5,7 +5,8 @@ exports[`context-files end-to-end 1`] = `
   {
     "content": [
       {
-        "text": "These files are part of your context and have been updated. This is the latest information about the content of each file.
+        "text": "These files are part of your context. This is the latest information about the content of each file.
+From now on, whenever any of these files are updated by the user, you will get a message letting you know.
 - \`node/test/tmp/poem.txt\`
 \`\`\`
 Moonlight whispers through the trees,
@@ -31,7 +32,8 @@ exports[`context-files multiple, weird path names 1`] = `
   {
     "content": [
       {
-        "text": "These files are part of your context and have been updated. This is the latest information about the content of each file.
+        "text": "These files are part of your context. This is the latest information about the content of each file.
+From now on, whenever any of these files are updated by the user, you will get a message letting you know.
 - \`node/test/tmp/poem.txt\`
 \`\`\`
 Moonlight whispers through the trees,
@@ -61,7 +63,8 @@ exports[`unit tests > sends update if the file was edited pre-insert 1`] = `
 {
   "content": [
     {
-      "text": "These files are part of your context and have been updated. This is the latest information about the content of each file.
+      "text": "These files are part of your context. This is the latest information about the content of each file.
+From now on, whenever any of these files are updated by the user, you will get a message letting you know.
 - \`node/test/tmp/poem.txt\`
 \`\`\`diff
 Index: node/test/tmp/poem.txt

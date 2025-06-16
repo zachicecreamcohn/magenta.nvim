@@ -379,7 +379,7 @@ ${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${t
           changeIndicator = `[ +${lineCount} ]`;
         }
 
-        const filePathLink = withBindings(d`- \`${absFilePath}\``, {
+        const filePathLink = withBindings(d`- \`${update.relFilePath}\``, {
           "<CR>": () =>
             this.context.myDispatch({
               type: "open-edit-file",

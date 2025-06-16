@@ -518,7 +518,8 @@ Error fetching update: ${update.update.error}`);
   return {
     type: "text",
     text: `\
-These files are part of your context and have been updated. This is the latest information about the content of each file.
+These files are part of your context. This is the latest information about the content of each file.
+From now on, whenever any of these files are updated by the user, you will get a message letting you know.
 ${fileUpdates.join("\n")}`,
   };
 }
