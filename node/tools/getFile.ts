@@ -20,6 +20,7 @@ import {
 } from "../utils/files.ts";
 import type { ToolInterface } from "./types.ts";
 import type { Msg as ThreadMsg } from "../chat/thread.ts";
+import type { ContextManager } from "../context/context-manager.ts";
 
 export type State =
   | {
@@ -61,6 +62,7 @@ export class GetFileTool implements ToolInterface {
     public request: Extract<ToolRequest, { toolName: "get_file" }>,
     public context: {
       nvim: Nvim;
+      contextManager: ContextManager;
       threadDispatch: Dispatch<ThreadMsg>;
       myDispatch: Dispatch<Msg>;
     },
@@ -99,21 +101,20 @@ export class GetFileTool implements ToolInterface {
   update(msg: Msg): Thunk<Msg> | undefined {
     switch (msg.type) {
       case "finish":
-        if (this.state.state == "processing") {
-          if (msg.result.status == "error") {
-            this.context.nvim.logger?.error(
-              "Error executing get_file tool: " + msg.result.error,
-            );
-          }
-          this.state = {
-            state: "done",
-            result: {
-              type: "tool_result",
-              id: this.request.id,
-              result: msg.result,
-            },
-          };
+        if (msg.result.status == "error") {
+          this.context.nvim.logger?.error(
+            "Error executing get_file tool: " + msg.result.error,
+          );
         }
+        this.state = {
+          state: "done",
+          result: {
+            type: "tool_result",
+            id: this.request.id,
+            result: msg.result,
+          },
+        };
+
         return;
       case "request-user-approval":
         if (this.state.state == "pending") {
@@ -192,6 +193,22 @@ export class GetFileTool implements ToolInterface {
     const filePath = this.request.input.filePath;
     const cwd = await getcwd(this.context.nvim);
     const absFilePath = resolveFilePath(cwd, filePath);
+
+    if (
+      this.context.contextManager.files[absFilePath] &&
+      !this.request.input.force
+    ) {
+      this.context.myDispatch({
+        type: "finish",
+        result: {
+          status: "ok",
+          value: `This file is already part of the thread context. \
+You already have the most up-to-date information about the contents of this file.`,
+        },
+      });
+      return;
+    }
+
     const relFilePath = relativePath(cwd, absFilePath);
 
     if (this.state.state === "pending") {
@@ -330,25 +347,31 @@ export class GetFileTool implements ToolInterface {
 
 export const spec: ProviderToolSpec = {
   name: "get_file",
-  description: `Get the full contents of a given file.
-Do **NOT** use this function if the file is part of your context.
-When the file is part of your context, avoid using getFile on it. Instead, assume you will get notified about any changes about the file.`,
+  description: `Get the full contents of a given file. The file will be added to the thread context.
+If a file is part of your context, avoid using get_file on it again, since you will get notified about any future changes about the file.`,
   input_schema: {
     type: "object",
     properties: {
       filePath: {
         type: "string",
+        description: `The path of the file. e.g. "./src/index.ts". This can be relative to the project root, or an absolute path.`,
+      },
+      force: {
+        type: "boolean",
         description:
-          "the path, relative to the project root, of the file. e.g. ./src/index.ts",
+          "If true, get the full file contents even if the file is already part of the context.",
       },
     },
-    required: ["filePath"],
+    // NOTE: openai requries all properties to be required.
+    // https://community.openai.com/t/api-rejects-valid-json-schema/906163
+    required: ["filePath", "force"],
     additionalProperties: false,
   },
 };
 
 export type Input = {
   filePath: UnresolvedFilePath;
+  force?: boolean;
 };
 
 export function validateInput(input: {
@@ -358,6 +381,13 @@ export function validateInput(input: {
     return {
       status: "error",
       error: "expected req.input.filePath to be a string",
+    };
+  }
+
+  if (input.force !== undefined && typeof input.force !== "boolean") {
+    return {
+      status: "error",
+      error: "expected req.input.force to be a boolean",
     };
   }
 

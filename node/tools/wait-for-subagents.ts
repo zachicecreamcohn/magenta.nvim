@@ -209,7 +209,7 @@ ${threadStatusLines}`;
         return assertUnreachable(summary.status);
     }
 
-    return withBindings(d`${statusText}`, {
+    return withBindings(d`${statusText}\n`, {
       "<CR>": () =>
         this.context.dispatch({
           type: "chat-msg",

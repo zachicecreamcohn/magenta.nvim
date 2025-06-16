@@ -50,6 +50,7 @@ export class Magenta {
   constructor(
     public nvim: Nvim,
     public lsp: Lsp,
+    public cwd: AbsFilePath,
     public options: MagentaOptions,
   ) {
     this.bufferTracker = new BufferTracker(this.nvim);
@@ -78,6 +79,7 @@ export class Magenta {
     this.chat = new Chat({
       dispatch: this.dispatch,
       bufferTracker: this.bufferTracker,
+      cwd: this.cwd,
       nvim: this.nvim,
       options: this.options,
       lsp: this.lsp,
@@ -529,7 +531,7 @@ ${lines.join("\n")}
     const parsedOptions = projectSettings
       ? mergeOptions(baseOptions, projectSettings)
       : baseOptions;
-    const magenta = new Magenta(nvim, lsp, parsedOptions);
+    const magenta = new Magenta(nvim, lsp, cwd, parsedOptions);
     nvim.logger?.info(`Magenta initialized. ${JSON.stringify(parsedOptions)}`);
     return magenta;
   }

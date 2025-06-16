@@ -192,8 +192,17 @@ export class ToolManager {
 
         switch (request.toolName) {
           case "get_file": {
+            const threadWrapper =
+              this.context.chat.threadWrappers[msg.threadId];
+            if (threadWrapper.state != "initialized") {
+              throw new Error(
+                `Expected thread ${msg.threadId} to be initialized for get_file tool.`,
+              );
+            }
+
             const getFileTool = new GetFile.GetFileTool(request, {
               nvim: this.context.nvim,
+              contextManager: threadWrapper.thread.contextManager,
               threadDispatch: (msg) =>
                 this.context.dispatch({
                   type: "thread-msg",

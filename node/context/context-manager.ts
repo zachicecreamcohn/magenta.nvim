@@ -64,7 +64,6 @@ export type Msg =
 type Files = {
   [absFilePath: AbsFilePath]: {
     relFilePath: RelFilePath;
-    initialMessageId: MessageId;
   };
 };
 
@@ -102,6 +101,7 @@ export class ContextManager {
   private constructor(
     public myDispatch: Dispatch<Msg>,
     private context: {
+      cwd: AbsFilePath;
       dispatch: Dispatch<RootMsg>;
       bufferTracker: BufferTracker;
       nvim: Nvim;
@@ -119,6 +119,7 @@ export class ContextManager {
     myDispatch: Dispatch<Msg>,
     context: {
       dispatch: Dispatch<RootMsg>;
+      cwd: AbsFilePath;
       nvim: Nvim;
       options: MagentaOptions;
       bufferTracker: BufferTracker;
@@ -140,7 +141,6 @@ export class ContextManager {
       case "add-file-context":
         this.files[msg.absFilePath] = {
           relFilePath: msg.relFilePath,
-          initialMessageId: msg.messageId,
         };
         return;
 
@@ -172,6 +172,11 @@ export class ContextManager {
    * After the tool is applied, the agent's view of the file should match the current buffer state of the file.
    */
   toolApplied(absFilePath: AbsFilePath, tool: ToolApplication) {
+    const relFilePath = relativePath(this.context.cwd, absFilePath);
+
+    // make sure we add the file to context
+    this.files[absFilePath] = { relFilePath };
+
     switch (tool.type) {
       case "get-file":
         this.agentsViewOfFiles[absFilePath] = tool.content;
@@ -240,8 +245,7 @@ export class ContextManager {
   }): Promise<FileUpdates[keyof FileUpdates] | undefined> {
     const bufSyncInfo = this.context.bufferTracker.getSyncInfo(absFilePath);
     let currentFileContent: string;
-    const cwd = await getcwd(this.context.nvim);
-    const relFilePath = relativePath(cwd, absFilePath);
+    const relFilePath = relativePath(this.context.cwd, absFilePath);
 
     if (bufSyncInfo) {
       // This file is open in a buffer
@@ -339,7 +343,6 @@ export class ContextManager {
     const files: {
       [absFilePath: AbsFilePath]: {
         relFilePath: RelFilePath;
-        initialMessageId: MessageId;
       };
     } = {};
 
@@ -349,8 +352,6 @@ export class ContextManager {
 
     try {
       const cwd = await getcwd(nvim);
-      // Use a placeholder message ID since we don't have a current message during initialization
-      const initialMessageId = 0 as MessageId;
 
       // Find all files matching the glob patterns
       const matchedFiles = await this.findFilesCrossPlatform(
@@ -363,7 +364,6 @@ export class ContextManager {
       for (const matchInfo of matchedFiles) {
         files[matchInfo.absFilePath] = {
           relFilePath: matchInfo.relFilePath,
-          initialMessageId,
         };
       }
     } catch (err) {
@@ -518,7 +518,8 @@ Error fetching update: ${update.update.error}`);
   return {
     type: "text",
     text: `\
-These files are part of your context and have been updated. This is the latest information about the content of each file.
+These files are part of your context. This is the latest information about the content of each file.
+From now on, whenever any of these files are updated by the user, you will get a message letting you know.
 ${fileUpdates.join("\n")}`,
   };
 }

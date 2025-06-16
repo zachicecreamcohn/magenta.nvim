@@ -8,21 +8,6 @@ const CODEBASE_CONVENTIONS = `\
 - Match the existing patterns of the code and do not introduce new libraries or modules without asking
 - Examine nearby files to understand naming conventions, file organization, and architectural patterns`;
 
-const FILE_CONTEXT_MANAGEMENT = `\
-# File Context Management
-When files are provided as part of your context, you **MUST**:
-- Acknowledge that the files you need are already in your context
-- List any files relevant to the task by name
-- Explicitly state: "I can proceed editing these files without using the get_file tool"
-- Only proceed with the task after completing this declaration.
-
-**CRITICAL**: You already know the content of the files in your context. NEVER use get_file for any file that appears in the context, as that will unnecessarily use up time, tokens and cost.
-
-Here's an example:
-I see \`file.txt\` is already part of my context. I can proceed editing this file without using the get_file tool. Let me go ahead and edit this file.
-
-<invoke replace tool>`;
-
 const CODE_CHANGES = `\
 # Code Change Guidelines
 - Prefer small, semantically meaningful steps over trying to complete everything in one go
@@ -134,14 +119,12 @@ assistant: find . -name "*.py"
 </example>
 
 ${CODEBASE_CONVENTIONS}
-${CODE_CHANGES}
-${FILE_CONTEXT_MANAGEMENT}`;
+${CODE_CHANGES}`;
 
 export const DEFAULT_SUBAGENT_SYSTEM_PROMPT = `\
 ${SUBAGENT_COMMON_INSTRUCTIONS}
 ${CODEBASE_CONVENTIONS}
-${CODE_CHANGES}
-${FILE_CONTEXT_MANAGEMENT}`;
+${CODE_CHANGES}`;
 
 export const LEARN_SUBAGENT_SYSTEM_PROMPT = `\
 ${SUBAGENT_COMMON_INSTRUCTIONS}
@@ -151,7 +134,6 @@ Your goal is to understand and learn a specific part of the codebase, to provide
 
 ${LEARNING_PROCESS}
 ${CODEBASE_CONVENTIONS}
-${FILE_CONTEXT_MANAGEMENT}
 
 # Yielding Results
 
@@ -253,8 +235,7 @@ The relevant files and entities are:
 </example>
 
 ${CODEBASE_CONVENTIONS}
-${LEARNING_PROCESS}
-${FILE_CONTEXT_MANAGEMENT}`;
+${LEARNING_PROCESS}`;
 
 export function getSubagentSystemPrompt(type?: SubagentSystemPrompt): string {
   switch (type) {
