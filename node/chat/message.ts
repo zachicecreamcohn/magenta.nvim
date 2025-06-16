@@ -61,7 +61,6 @@ type State = {
   toolDetailsExpanded: {
     [requestId: ToolRequestId]: boolean;
   };
-  estimatedTokenCount: number;
 };
 
 export type Msg =
@@ -124,17 +123,8 @@ export class Message {
       stops: {},
       edits: {},
       toolDetailsExpanded: {},
-      estimatedTokenCount: 0,
       ...initialState,
     };
-
-    if (initialState.content && initialState.content.length > 0) {
-      for (const block of initialState.content) {
-        this.state.estimatedTokenCount += Math.ceil(
-          JSON.stringify(block).length / 4,
-        );
-      }
-    }
   }
 
   update(msg: Msg) {
@@ -205,8 +195,6 @@ export class Message {
               }
             }
 
-            const contentStr = JSON.stringify(block);
-            this.state.estimatedTokenCount += Math.ceil(contentStr.length / 4);
             return;
           }
 

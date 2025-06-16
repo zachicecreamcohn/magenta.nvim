@@ -7,7 +7,7 @@ import {
   type WindowId,
 } from "./nvim/window.ts";
 import type { Profile } from "./options.ts";
-export const WIDTH = 80;
+export const WIDTH = 100;
 
 /** This will mostly manage the window toggle
  */
@@ -17,7 +17,6 @@ export class Sidebar {
         state: "hidden";
         displayBuffer?: NvimBuffer;
         inputBuffer?: NvimBuffer;
-        estimatedTokenCount?: number | undefined;
       }
     | {
         state: "visible";
@@ -25,16 +24,15 @@ export class Sidebar {
         inputBuffer: NvimBuffer;
         displayWindow: NvimWindow;
         inputWindow: NvimWindow;
-        estimatedTokenCount?: number | undefined;
       };
 
   constructor(
     private nvim: Nvim,
-    private profile: Profile,
+    private getProfile: () => Profile,
+    private getTokenCount: () => number | undefined,
   ) {
     this.state = {
       state: "hidden",
-      estimatedTokenCount: 0,
     };
   }
 
@@ -43,15 +41,17 @@ export class Sidebar {
   }
 
   private getInputWindowTitle(): string {
-    const baseTitle = `Magenta Input (${this.profile.name})`;
-    if (!this.state.estimatedTokenCount) {
+    const profile = this.getProfile();
+    const baseTitle = `Magenta Input (${profile.name})`;
+    const tokenCount = this.getTokenCount();
+    if (!tokenCount) {
       return baseTitle;
     }
 
     const tokenDisplay =
-      this.state.estimatedTokenCount >= 1000
-        ? `~${Math.round(this.state.estimatedTokenCount / 1000)}K`
-        : `~${this.state.estimatedTokenCount}`;
+      tokenCount >= 1000
+        ? `~${Math.round(tokenCount / 1000)}K`
+        : `~${tokenCount}`;
 
     return `${baseTitle} [${tokenDisplay} tokens]`;
   }
@@ -180,25 +180,12 @@ export class Sidebar {
       inputBuffer,
       displayWindow,
       inputWindow,
-      estimatedTokenCount: this.state.estimatedTokenCount,
     };
 
     return { displayBuffer, inputBuffer };
   }
 
-  async updateProfile(profile: Profile) {
-    this.profile = profile;
-    if (this.state.state == "visible") {
-      await this.state.inputWindow.setOption(
-        "winbar",
-        this.getInputWindowTitle(),
-      );
-    }
-  }
-
-  async updateTokenCount(tokenCount: number) {
-    this.state.estimatedTokenCount = tokenCount;
-
+  async renderInputHeader() {
     if (this.state.state == "visible") {
       await this.state.inputWindow.setOption(
         "winbar",
@@ -220,7 +207,6 @@ export class Sidebar {
         state: "hidden",
         displayBuffer,
         inputBuffer,
-        estimatedTokenCount: this.state.estimatedTokenCount,
       };
     }
   }

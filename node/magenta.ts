@@ -18,7 +18,7 @@ import {
   type Profile,
 } from "./options.ts";
 import { InlineEditManager } from "./inline-edit/inline-edit-app.ts";
-import type { RootMsg } from "./root-msg.ts";
+import type { RootMsg, SidebarMsg } from "./root-msg.ts";
 import { Chat } from "./chat/chat.ts";
 import type { Dispatch } from "./tea/tea.ts";
 import type { MessageId } from "./chat/message.ts";
@@ -58,47 +58,18 @@ export class Magenta {
       try {
         this.chat.update(msg);
 
-        if (msg.type == "sidebar-setup-resubmit") {
-          if (
-            this.sidebar &&
-            this.sidebar.state &&
-            this.sidebar.state.inputBuffer
-          ) {
-            this.sidebar.state.inputBuffer
-              .setLines({
-                start: 0,
-                end: -1,
-                lines: msg.lastUserMessage.split("\n") as Line[],
-              })
-              .catch((error) => {
-                this.nvim.logger?.error(
-                  `Error updating sidebar input: ${error}`,
-                );
-              });
-          }
-        } else if (msg.type == "sidebar-scroll-to-last-user-message") {
-          if (this.mountedChatApp) {
-            (async () => {
-              await this.mountedChatApp?.waitForRender();
-              await this.sidebar.scrollToLastUserMessage();
-            })().catch((error: Error) =>
-              this.nvim.logger?.error(
-                `Error scrolling to last user message: ${error.message + "\n" + error.stack}`,
-              ),
-            );
-          }
-        } else if (msg.type == "sidebar-update-token-count") {
-          this.sidebar
-            .updateTokenCount(msg.tokenCount)
-            .catch((error: Error) =>
-              this.nvim.logger?.error(
-                `Error updating token count: ${error.message + "\n" + error.stack}`,
-              ),
-            );
+        if (msg.type == "sidebar-msg") {
+          this.handleSidebarMsg(msg.msg);
         }
         if (this.mountedChatApp) {
           this.mountedChatApp.render();
         }
+
+        this.sidebar.renderInputHeader().catch((e) => {
+          this.nvim.logger?.error(
+            `Error rendering sidebar input header: ${e instanceof Error ? e.message + "\n" + e.stack : JSON.stringify(e)}`,
+          );
+        });
       } catch (e) {
         nvim.logger?.error(e as Error);
       }
@@ -112,7 +83,11 @@ export class Magenta {
       lsp: this.lsp,
     });
 
-    this.sidebar = new Sidebar(this.nvim, this.getActiveProfile());
+    this.sidebar = new Sidebar(
+      this.nvim,
+      () => this.getActiveProfile(),
+      () => this.chat.getActiveThread().getEstimatedTokenCount(),
+    );
 
     this.chatApp = TEA.createApp<Chat>({
       nvim: this.nvim,
@@ -125,6 +100,41 @@ export class Magenta {
 
   getActiveProfile() {
     return getActiveProfile(this.options.profiles, this.options.activeProfile);
+  }
+  private handleSidebarMsg(msg: SidebarMsg): void {
+    switch (msg.type) {
+      case "setup-resubmit":
+        if (
+          this.sidebar &&
+          this.sidebar.state &&
+          this.sidebar.state.inputBuffer
+        ) {
+          this.sidebar.state.inputBuffer
+            .setLines({
+              start: 0,
+              end: -1,
+              lines: msg.lastUserMessage.split("\n") as Line[],
+            })
+            .catch((error) => {
+              this.nvim.logger?.error(`Error updating sidebar input: ${error}`);
+            });
+        }
+        break;
+      case "scroll-to-last-user-message":
+        if (this.mountedChatApp) {
+          (async () => {
+            await this.mountedChatApp?.waitForRender();
+            await this.sidebar.scrollToLastUserMessage();
+          })().catch((error: Error) =>
+            this.nvim.logger?.error(
+              `Error scrolling to last user message: ${error.message + "\n" + error.stack}`,
+            ),
+          );
+        }
+        break;
+      default:
+        assertUnreachable(msg);
+    }
   }
 
   async command(input: string): Promise<void> {
@@ -148,7 +158,6 @@ export class Magenta {
               profile: this.getActiveProfile(),
             },
           });
-          await this.sidebar.updateProfile(this.getActiveProfile());
         } else {
           this.nvim.logger?.error(`Profile "${profileName}" not found.`);
           // eslint-disable-next-line @typescript-eslint/no-floating-promises

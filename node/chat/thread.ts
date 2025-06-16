@@ -39,7 +39,10 @@ import {
 } from "../tools/thread-title.ts";
 import { getToolSpecs } from "../tools/tool-specs.ts";
 import type { Chat } from "./chat.ts";
-import type { SubagentSystemPrompt } from "../providers/system-prompt.ts";
+import {
+  DEFAULT_SYSTEM_PROMPT,
+  type SubagentSystemPrompt,
+} from "../providers/system-prompt.ts";
 
 export type Role = "user" | "assistant";
 
@@ -140,6 +143,8 @@ export class Thread {
   private counter: Counter;
   public fileSnapshots: FileSnapshots;
   public contextManager: ContextManager;
+  public estimatedTokenCount: number = 0;
+  private tokenCountUpdatePending: boolean = false;
 
   constructor(
     public id: ThreadId,
@@ -199,7 +204,7 @@ export class Thread {
       systemPrompt: options.systemPrompt,
     };
 
-    this.updateTokenCount();
+    this.scheduleTokenEstimateUpdate();
   }
 
   update(msg: RootMsg): void {
@@ -251,10 +256,13 @@ export class Thread {
               setTimeout(
                 () =>
                   this.context.dispatch({
-                    type: "sidebar-setup-resubmit",
-                    lastUserMessage: lastUserMessage.state.content
-                      .map((p) => (p.type == "text" ? p.text : ""))
-                      .join(""),
+                    type: "sidebar-msg",
+                    msg: {
+                      type: "setup-resubmit",
+                      lastUserMessage: lastUserMessage.state.content
+                        .map((p) => (p.type == "text" ? p.text : ""))
+                        .join(""),
+                    },
                   }),
                 1,
               );
@@ -297,7 +305,10 @@ export class Thread {
           // buffer. the 100ms timeout is not the most precise way to do that, but it works for now
           setTimeout(() => {
             this.context.dispatch({
-              type: "sidebar-scroll-to-last-user-message",
+              type: "sidebar-msg",
+              msg: {
+                type: "scroll-to-last-user-message",
+              },
             });
           }, 100);
         }
@@ -337,7 +348,7 @@ export class Thread {
         });
 
         if (msg.event.type === "content_block_stop") {
-          this.updateTokenCount();
+          this.scheduleTokenEstimateUpdate();
         }
         return;
       }
@@ -359,7 +370,7 @@ export class Thread {
         };
         this.contextManager.reset();
 
-        this.updateTokenCount();
+        this.scheduleTokenEstimateUpdate();
 
         return undefined;
       }
@@ -567,7 +578,7 @@ export class Thread {
 
   async sendMessage(content?: string): Promise<void> {
     await this.prepareUserMessage(content);
-    this.updateTokenCount();
+    this.scheduleTokenEstimateUpdate();
     const messages = this.getMessages();
 
     const request = getProvider(
@@ -612,7 +623,7 @@ Use the compact_thread tool to analyze my next prompt and extract only the relev
 My next prompt will be:
 ${content}`;
 
-    this.updateTokenCount();
+    this.scheduleTokenEstimateUpdate();
 
     const request = getProvider(
       this.context.nvim,
@@ -783,28 +794,38 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
   }
 
   getEstimatedTokenCount(): number {
-    return this.state.messages.reduce(
-      (sum, message) => sum + message.state.estimatedTokenCount,
-      0,
-    );
+    return this.estimatedTokenCount;
   }
 
-  updateTokenCount() {
-    const messages = this.getMessages();
-    const tokenCount = getProvider(
-      this.context.nvim,
-      this.state.profile,
-    ).countTokens(messages, getToolSpecs(this.state.allowedTools), {
-      systemPrompt: this.state.systemPrompt,
-    });
+  scheduleTokenEstimateUpdate() {
+    if (this.tokenCountUpdatePending) {
+      return;
+    }
 
-    // setTimeout to avoid dispatch-in-dispatch
-    setTimeout(() =>
-      this.context.dispatch({
-        type: "sidebar-update-token-count",
-        tokenCount,
-      }),
-    );
+    this.tokenCountUpdatePending = true;
+    // OK to do this async, so it doesn't slow down the rest of the plugin
+    setTimeout(() => {
+      const toolSpecs = getToolSpecs(this.state.allowedTools);
+      const toolSpecLength = toolSpecs.reduce(
+        (sum, spec) => sum + JSON.stringify(spec).length,
+        0,
+      );
+      this.estimatedTokenCount = Math.ceil(
+        (DEFAULT_SYSTEM_PROMPT.length +
+          toolSpecLength +
+          this.state.messages.reduce(
+            (sum, message) =>
+              sum +
+              message.state.content.reduce(
+                (sum, content) => sum + JSON.stringify(content).length,
+                0,
+              ),
+            0,
+          )) /
+          4,
+      );
+      this.tokenCountUpdatePending = false;
+    });
   }
 }
 
