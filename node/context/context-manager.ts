@@ -101,6 +101,7 @@ export class ContextManager {
   private constructor(
     public myDispatch: Dispatch<Msg>,
     private context: {
+      cwd: AbsFilePath;
       dispatch: Dispatch<RootMsg>;
       bufferTracker: BufferTracker;
       nvim: Nvim;
@@ -118,6 +119,7 @@ export class ContextManager {
     myDispatch: Dispatch<Msg>,
     context: {
       dispatch: Dispatch<RootMsg>;
+      cwd: AbsFilePath;
       nvim: Nvim;
       options: MagentaOptions;
       bufferTracker: BufferTracker;
@@ -170,6 +172,11 @@ export class ContextManager {
    * After the tool is applied, the agent's view of the file should match the current buffer state of the file.
    */
   toolApplied(absFilePath: AbsFilePath, tool: ToolApplication) {
+    const relFilePath = relativePath(this.context.cwd, absFilePath);
+
+    // make sure we add the file to context
+    this.files[absFilePath] = { relFilePath };
+
     switch (tool.type) {
       case "get-file":
         this.agentsViewOfFiles[absFilePath] = tool.content;
@@ -238,8 +245,7 @@ export class ContextManager {
   }): Promise<FileUpdates[keyof FileUpdates] | undefined> {
     const bufSyncInfo = this.context.bufferTracker.getSyncInfo(absFilePath);
     let currentFileContent: string;
-    const cwd = await getcwd(this.context.nvim);
-    const relFilePath = relativePath(cwd, absFilePath);
+    const relFilePath = relativePath(this.context.cwd, absFilePath);
 
     if (bufSyncInfo) {
       // This file is open in a buffer

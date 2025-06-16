@@ -13,9 +13,9 @@ import type { BufferTracker } from "../buffer-tracker.ts";
 import {
   relativePath,
   resolveFilePath,
+  type AbsFilePath,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
-import { getcwd } from "../nvim/nvim.ts";
 import type { MessageId } from "./message.ts";
 import type { Result } from "../utils/result.ts";
 import type { ToolRequestId } from "../tools/toolManager.ts";
@@ -99,6 +99,7 @@ export class Chat {
       dispatch: Dispatch<RootMsg>;
       bufferTracker: BufferTracker;
       options: MagentaOptions;
+      cwd: AbsFilePath;
       nvim: Nvim;
       lsp: Lsp;
     },
@@ -289,6 +290,7 @@ export class Chat {
       {
         dispatch: this.context.dispatch,
         bufferTracker: this.context.bufferTracker,
+        cwd: this.context.cwd,
         nvim: this.context.nvim,
         options: this.context.options,
       },
@@ -296,9 +298,8 @@ export class Chat {
 
     if (contextFiles.length > 0) {
       for (const filePath of contextFiles) {
-        const cwd = await getcwd(this.context.nvim);
-        const absFilePath = resolveFilePath(cwd, filePath);
-        const relFilePath = relativePath(cwd, absFilePath);
+        const absFilePath = resolveFilePath(this.context.cwd, filePath);
+        const relFilePath = relativePath(this.context.cwd, absFilePath);
         contextManager.update({
           type: "add-file-context",
           absFilePath,
