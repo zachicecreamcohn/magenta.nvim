@@ -64,7 +64,6 @@ export type Msg =
 type Files = {
   [absFilePath: AbsFilePath]: {
     relFilePath: RelFilePath;
-    initialMessageId: MessageId;
   };
 };
 
@@ -140,7 +139,6 @@ export class ContextManager {
       case "add-file-context":
         this.files[msg.absFilePath] = {
           relFilePath: msg.relFilePath,
-          initialMessageId: msg.messageId,
         };
         return;
 
@@ -339,7 +337,6 @@ export class ContextManager {
     const files: {
       [absFilePath: AbsFilePath]: {
         relFilePath: RelFilePath;
-        initialMessageId: MessageId;
       };
     } = {};
 
@@ -349,8 +346,6 @@ export class ContextManager {
 
     try {
       const cwd = await getcwd(nvim);
-      // Use a placeholder message ID since we don't have a current message during initialization
-      const initialMessageId = 0 as MessageId;
 
       // Find all files matching the glob patterns
       const matchedFiles = await this.findFilesCrossPlatform(
@@ -363,7 +358,6 @@ export class ContextManager {
       for (const matchInfo of matchedFiles) {
         files[matchInfo.absFilePath] = {
           relFilePath: matchInfo.relFilePath,
-          initialMessageId,
         };
       }
     } catch (err) {
