@@ -16,7 +16,6 @@ import * as WaitForSubagents from "./wait-for-subagents.ts";
 import * as YieldToParent from "./yield-to-parent.ts";
 
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { d, withBindings } from "../tea/view.ts";
 import { type Dispatch, type Thunk } from "../tea/tea.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp } from "../lsp.ts";
@@ -132,11 +131,6 @@ type Tool = {
   [K in keyof ToolMap]: ToolMap[K]["controller"];
 }[keyof ToolMap];
 
-export type ToolModelWrapper = {
-  tool: Tool;
-  showDetails: boolean;
-};
-
 export type Msg =
   | {
       type: "init-tool-use";
@@ -145,18 +139,13 @@ export type Msg =
       request: ToolRequest;
     }
   | {
-      type: "toggle-display";
-      id: ToolRequestId;
-      showDetails: boolean;
-    }
-  | {
       type: "tool-msg";
       msg: ToolMsg;
     };
 
 type State = {
-  toolWrappers: {
-    [id: ToolRequestId]: ToolModelWrapper;
+  tools: {
+    [id: ToolRequestId]: Tool;
   };
   rememberedCommands: Set<string>;
 };
@@ -177,41 +166,20 @@ export class ToolManager {
     },
   ) {
     this.state = {
-      toolWrappers: {},
+      tools: {},
       rememberedCommands: new Set(),
     };
   }
 
-  renderTool(toolWrapper: State["toolWrappers"][ToolRequestId]) {
-    return withBindings(
-      d`${toolWrapper.tool.view((msg) =>
-        this.myDispatch({
-          type: "tool-msg",
-          msg: {
-            id: toolWrapper.tool.request.id,
-            toolName: toolWrapper.tool.toolName,
-            msg: msg,
-          } as ToolMsg,
-        }),
-      )}${
-        toolWrapper.showDetails
-          ? d`\nid: ${toolWrapper.tool.request.id}\n${toolWrapper.tool.displayInput()}\n${this.reunderToolResult(toolWrapper.tool.request.id)}`
-          : ""
-      }`,
-      {
-        "<CR>": () =>
-          this.myDispatch({
-            type: "toggle-display",
-            id: toolWrapper.tool.request.id,
-            showDetails: !toolWrapper.showDetails,
-          }),
-      },
-    );
+  getTool(id: ToolRequestId): Tool | undefined {
+    return this.state.tools[id];
   }
 
-  reunderToolResult(id: ToolRequestId) {
-    const toolWrapper = this.state.toolWrappers[id];
-    const tool = toolWrapper.tool;
+  renderToolResult(id: ToolRequestId) {
+    const tool = this.state.tools[id];
+    if (!tool) {
+      return "";
+    }
 
     if (tool.state.state === "done") {
       const result = tool.state.result;
@@ -227,17 +195,6 @@ export class ToolManager {
 
   update(msg: Msg): void {
     switch (msg.type) {
-      case "toggle-display": {
-        const toolWrapper = this.state.toolWrappers[msg.id];
-        if (!toolWrapper) {
-          throw new Error(`Could not find tool use with request id ${msg.id}`);
-        }
-
-        toolWrapper.showDetails = msg.showDetails;
-
-        return undefined;
-      }
-
       case "init-tool-use": {
         const request = msg.request;
 
@@ -262,10 +219,7 @@ export class ToolManager {
                 }),
             });
 
-            this.state.toolWrappers[request.id] = {
-              tool: getFileTool,
-              showDetails: false,
-            };
+            this.state.tools[request.id] = getFileTool;
 
             return;
           }
@@ -276,10 +230,7 @@ export class ToolManager {
               { nvim: this.context.nvim },
             );
 
-            this.state.toolWrappers[request.id] = {
-              tool: listBuffersTool,
-              showDetails: false,
-            };
+            this.state.tools[request.id] = listBuffersTool;
 
             return this.acceptThunk(listBuffersTool, thunk);
           }
@@ -303,10 +254,7 @@ export class ToolManager {
               },
             );
 
-            this.state.toolWrappers[request.id] = {
-              tool: insertTool,
-              showDetails: false,
-            };
+            this.state.tools[request.id] = insertTool;
             return;
           }
 
@@ -329,10 +277,7 @@ export class ToolManager {
               },
             );
 
-            this.state.toolWrappers[request.id] = {
-              tool: replaceTool,
-              showDetails: false,
-            };
+            this.state.tools[request.id] = replaceTool;
 
             return;
           }
@@ -343,10 +288,7 @@ export class ToolManager {
               { nvim: this.context.nvim },
             );
 
-            this.state.toolWrappers[request.id] = {
-              tool: listDirTool,
-              showDetails: false,
-            };
+            this.state.tools[request.id] = listDirTool;
 
             return this.acceptThunk(listDirTool, thunk);
           }
@@ -357,10 +299,7 @@ export class ToolManager {
               lsp: this.context.lsp,
             });
 
-            this.state.toolWrappers[request.id] = {
-              tool: hoverTool,
-              showDetails: false,
-            };
+            this.state.tools[request.id] = hoverTool;
 
             return this.acceptThunk(hoverTool, thunk);
           }
@@ -372,10 +311,7 @@ export class ToolManager {
                 lsp: this.context.lsp,
               });
 
-            this.state.toolWrappers[request.id] = {
-              tool: findReferencesTool,
-              showDetails: false,
-            };
+            this.state.tools[request.id] = findReferencesTool;
 
             return this.acceptThunk(findReferencesTool, thunk);
           }
@@ -386,10 +322,7 @@ export class ToolManager {
               { nvim: this.context.nvim },
             );
 
-            this.state.toolWrappers[request.id] = {
-              tool: diagnosticsTool,
-              showDetails: false,
-            };
+            this.state.tools[request.id] = diagnosticsTool;
 
             return this.acceptThunk(diagnosticsTool, thunk);
           }
@@ -410,10 +343,7 @@ export class ToolManager {
               rememberedCommands: this.state.rememberedCommands,
             });
 
-            this.state.toolWrappers[request.id] = {
-              tool: bashCommandTool,
-              showDetails: false,
-            };
+            this.state.tools[request.id] = bashCommandTool;
             return;
           }
 
@@ -438,10 +368,7 @@ export class ToolManager {
                 }),
             });
 
-            this.state.toolWrappers[request.id] = {
-              tool: threadTitleTool,
-              showDetails: false,
-            };
+            this.state.tools[request.id] = threadTitleTool;
             return;
           }
 
@@ -453,10 +380,7 @@ export class ToolManager {
               },
             );
 
-            this.state.toolWrappers[request.id] = {
-              tool: compactThreadTool,
-              showDetails: false,
-            };
+            this.state.tools[request.id] = compactThreadTool;
             return;
           }
 
@@ -479,10 +403,7 @@ export class ToolManager {
               },
             );
 
-            this.state.toolWrappers[request.id] = {
-              tool: spawnSubagentTool,
-              showDetails: false,
-            };
+            this.state.tools[request.id] = spawnSubagentTool;
             return;
           }
 
@@ -504,10 +425,7 @@ export class ToolManager {
                   }),
               });
 
-            this.state.toolWrappers[request.id] = {
-              tool: waitForSubagentsTool,
-              showDetails: false,
-            };
+            this.state.tools[request.id] = waitForSubagentsTool;
             return;
           }
 
@@ -530,10 +448,7 @@ export class ToolManager {
               },
             );
 
-            this.state.toolWrappers[request.id] = {
-              tool: yieldToParentTool,
-              showDetails: false,
-            };
+            this.state.tools[request.id] = yieldToParentTool;
             return;
           }
 
@@ -543,10 +458,14 @@ export class ToolManager {
       }
 
       case "tool-msg": {
-        const toolWrapper = this.state.toolWrappers[msg.msg.id];
+        const tool = this.state.tools[msg.msg.id];
+        if (!tool) {
+          throw new Error(`Could not find tool with request id ${msg.msg.id}`);
+        }
+
         // any is safe here since we have correspondence between tool & msg type
         // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
-        const thunk = toolWrapper.tool.update(msg.msg.msg as any);
+        const thunk = tool.update(msg.msg.msg as any);
 
         if (msg.msg.toolName == "bash_command") {
           const toolMsg = msg.msg.msg;
@@ -556,12 +475,11 @@ export class ToolManager {
             toolMsg.remember
           ) {
             this.state.rememberedCommands.add(
-              (toolWrapper.tool as BashCommand.BashCommandTool).request.input
-                .command,
+              (tool as BashCommand.BashCommandTool).request.input.command,
             );
           }
         }
-        return thunk ? this.acceptThunk(toolWrapper.tool, thunk) : undefined;
+        return thunk ? this.acceptThunk(tool, thunk) : undefined;
       }
 
       default:

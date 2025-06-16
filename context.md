@@ -161,14 +161,14 @@ ${withBindings(d`[Toggle]`, {
 
 # Testing
 
-to run the full test suite, use `npx vitest run`
+to run the full test suite, use `npx vitest run` from the project root. You do not need to cd into any subdirectory.
 to run a specific test file, use `npx vitest run <file>`
 tests should make use of the `node/test/preamble.ts` helpers.
 when doing integration-level testing, like user flows, use the `withDriver` helper and the interactions in `node/test/driver.ts`. When performing generic user actions that may be reusable between tests, put them into the NvimDriver class as helpers.
 
 # Type checks
 
-use `npx tsc --noEmit` to run type checking, from the project root
+use `npx tsc --noEmit` to run type checking, from the project root. You do not need to cd into any subdirectory.
 
 # Notes
 

@@ -466,9 +466,9 @@ export class Thread {
     if (lastMessage) {
       for (const content of lastMessage.state.content) {
         if (content.type === "tool_use") {
-          const toolWrapper = this.toolManager.state.toolWrappers[content.id];
-          if (toolWrapper && toolWrapper.tool.state.state !== "done") {
-            toolWrapper.tool.abort();
+          const tool = this.toolManager.state.tools[content.id];
+          if (tool && tool.state.state !== "done") {
+            tool.abort();
           }
         }
       }
@@ -485,11 +485,11 @@ export class Thread {
         for (const content of lastMessage.state.content) {
           if (content.type == "tool_use" && content.request.status == "ok") {
             const request = content.request.value;
-            const toolWrapper = this.toolManager.state.toolWrappers[request.id];
+            const tool = this.toolManager.state.tools[request.id];
 
             if (
-              toolWrapper.tool.request.toolName == "yield_to_parent" ||
-              toolWrapper.tool.state.state != "done"
+              tool.request.toolName == "yield_to_parent" ||
+              tool.state.state != "done"
             ) {
               // terminate early if we have a blocking tool use. This will not send a reply message
               return;
@@ -726,7 +726,7 @@ ${content}`,
         if (contentBlock.type == "tool_use") {
           if (contentBlock.request.status == "ok") {
             const request = contentBlock.request.value;
-            const tool = this.toolManager.state.toolWrappers[request.id].tool;
+            const tool = this.toolManager.state.tools[request.id];
             pushResponseMessage(tool.getToolResult());
           } else {
             pushResponseMessage({

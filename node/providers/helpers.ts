@@ -101,12 +101,12 @@ export function stringifyContent(
     case "tool_result": {
       if (content.result.status == "ok") {
         const result = content.result.value;
-        const toolWrapper = toolManager.state.toolWrappers[content.id];
-        if (!toolWrapper) {
+        const tool = toolManager.state.tools[content.id];
+        if (!tool) {
           return `Tool result:\n${result}`;
         }
 
-        return `Tool result for tool ${toolWrapper.tool.toolName}:\n${result}`;
+        return `Tool result for tool ${tool.toolName}:\n${result}`;
       } else {
         return `Tool result error: ${content.result.error}`;
       }
