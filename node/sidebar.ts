@@ -17,7 +17,7 @@ export class Sidebar {
         state: "hidden";
         displayBuffer?: NvimBuffer;
         inputBuffer?: NvimBuffer;
-        estimatedTokenCount?: number;
+        estimatedTokenCount?: number | undefined;
       }
     | {
         state: "visible";
@@ -25,7 +25,7 @@ export class Sidebar {
         inputBuffer: NvimBuffer;
         displayWindow: NvimWindow;
         inputWindow: NvimWindow;
-        estimatedTokenCount?: number;
+        estimatedTokenCount?: number | undefined;
       };
 
   constructor(
@@ -180,6 +180,7 @@ export class Sidebar {
       inputBuffer,
       displayWindow,
       inputWindow,
+      estimatedTokenCount: this.state.estimatedTokenCount,
     };
 
     return { displayBuffer, inputBuffer };
@@ -219,6 +220,7 @@ export class Sidebar {
         state: "hidden",
         displayBuffer,
         inputBuffer,
+        estimatedTokenCount: this.state.estimatedTokenCount,
       };
     }
   }
