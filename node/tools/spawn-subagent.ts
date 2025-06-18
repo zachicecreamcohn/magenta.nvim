@@ -173,7 +173,7 @@ export class SpawnSubagentTool implements ToolInterface {
         if (result.status === "error") {
           return d`🤖❌ Error spawning sub-agent: ${result.error}`;
         } else {
-          return d`🤖✅ Sub-agent started: ${result.value}`;
+          return d`🤖✅ Sub-agent started`;
         }
       }
     }

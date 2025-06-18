@@ -101,7 +101,12 @@ export type ProviderWebSearchToolResult = {
 export type ProviderToolResultContent = {
   type: "tool_result";
   id: ToolManager.ToolRequestId;
-  result: Result<string>;
+  result: Result<
+    | string
+    | ProviderTextContent
+    | ProviderImageContent
+    | ProviderDocumentContent
+  >;
 };
 
 export type ProviderToolSpec = {

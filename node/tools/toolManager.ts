@@ -178,7 +178,7 @@ export class ToolManager {
       if (result.result.status === "error") {
         return `\nError: ${result.result.error}`;
       } else {
-        return `\nResult:\n${result.result.value}\n`;
+        return `\nResult:\n${JSON.stringify(result.result.value, null, 2)}\n`;
       }
     } else {
       return "";

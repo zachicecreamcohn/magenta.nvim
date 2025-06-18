@@ -272,13 +272,21 @@ ${this.requests.map((r) => `${r.defer.resolved ? "resolved" : "pending"} - ${JSO
           }
           return false;
         case "tool_result":
-          if (
-            (block.result.status == "ok" &&
-              block.result.value.includes(text)) ||
-            (block.result.status == "error" &&
-              block.result.error.includes(text))
-          ) {
-            return true;
+          if (block.result.status == "ok") {
+            const value = block.result.value;
+            if (typeof value === "string") {
+              if (value.includes(text)) {
+                return true;
+              }
+            } else if (value.type === "text") {
+              if (value.text.includes(text)) {
+                return true;
+              }
+            }
+          } else if (block.result.status == "error") {
+            if (block.result.error.includes(text)) {
+              return true;
+            }
           }
           return false;
 

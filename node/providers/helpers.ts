@@ -102,11 +102,20 @@ export function stringifyContent(
       if (content.result.status == "ok") {
         const result = content.result.value;
         const tool = toolManager.tools[content.id];
+
+        const formatResult = (r: typeof result): string => {
+          if (typeof r === "string") {
+            return r;
+          }
+          // Handle other content types by recursively calling stringifyContent
+          return stringifyContent(r, toolManager);
+        };
+
         if (!tool) {
-          return `Tool result:\n${result}`;
+          return `Tool result:\n${formatResult(result)}`;
         }
 
-        return `Tool result for tool ${tool.toolName}:\n${result}`;
+        return `Tool result for tool ${tool.toolName}:\n${formatResult(result)}`;
       } else {
         return `Tool result error: ${content.result.error}`;
       }
