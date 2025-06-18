@@ -131,6 +131,16 @@ export class OpenAIProvider implements Provider {
           case "web_search_tool_result":
             throw new Error("NOT IMPLEMENTED");
 
+          case "image":
+            throw new Error(
+              "Image content not yet implemented for OpenAI provider",
+            );
+
+          case "document":
+            throw new Error(
+              "Document content not yet implemented for OpenAI provider",
+            );
+
           default:
             assertUnreachable(content);
         }

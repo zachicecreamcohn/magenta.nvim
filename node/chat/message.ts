@@ -469,6 +469,12 @@ ${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${t
         }
       }
 
+      case "image":
+        return d`📷 [Image: ${content.source.media_type}]`;
+
+      case "document":
+        return d`📄 [Document: ${content.source.media_type}${content.title ? ` - ${content.title}` : ""}]`;
+
       default:
         assertUnreachable(content);
     }

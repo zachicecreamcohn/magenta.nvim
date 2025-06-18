@@ -142,6 +142,16 @@ export class OllamaProvider implements Provider {
           case "web_search_tool_result":
             throw new Error("NOT IMPLEMENTED");
 
+          case "image":
+            throw new Error(
+              "Image content is not supported by Ollama provider",
+            );
+
+          case "document":
+            throw new Error(
+              "Document content is not supported by Ollama provider",
+            );
+
           default:
             assertUnreachable(content);
         }

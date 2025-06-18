@@ -142,6 +142,20 @@ export class AnthropicProvider implements Provider {
                   c.result.status == "ok" ? c.result.value : c.result.error,
                 is_error: c.result.status == "error",
               };
+
+            case "image":
+              return {
+                type: "image",
+                source: c.source,
+              };
+
+            case "document":
+              return {
+                type: "document",
+                source: c.source,
+                title: c.title || null,
+              };
+
             default:
               assertUnreachable(c);
           }

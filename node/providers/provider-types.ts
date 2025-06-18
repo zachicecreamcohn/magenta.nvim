@@ -57,6 +57,25 @@ export type ProviderTextContent = {
   citations?: ProviderWebSearchCitation[] | undefined;
 };
 
+export type ProviderImageContent = {
+  type: "image";
+  source: {
+    type: "base64";
+    media_type: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+    data: string;
+  };
+};
+
+export type ProviderDocumentContent = {
+  type: "document";
+  source: {
+    type: "base64";
+    media_type: "application/pdf";
+    data: string;
+  };
+  title?: string | null;
+};
+
 export type ProviderToolUseContent = {
   type: "tool_use";
   id: ToolManager.ToolRequestId;
@@ -93,6 +112,8 @@ export type ProviderToolSpec = {
 
 export type ProviderMessageContent =
   | ProviderTextContent
+  | ProviderImageContent
+  | ProviderDocumentContent
   | ProviderToolUseContent
   | ProviderServerToolUseContent
   | ProviderWebSearchToolResult

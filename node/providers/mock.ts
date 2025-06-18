@@ -281,6 +281,16 @@ ${this.requests.map((r) => `${r.defer.resolved ? "resolved" : "pending"} - ${JSO
             return true;
           }
           return false;
+
+        case "image":
+          return block.source.media_type.includes(text);
+
+        case "document":
+          return (
+            block.source.media_type.includes(text) ||
+            (block.title && block.title.includes(text))
+          );
+
         default:
           assertUnreachable(block);
       }

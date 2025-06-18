@@ -112,6 +112,12 @@ export function stringifyContent(
       }
     }
 
+    case "image":
+      return `[Image: ${content.source.media_type}]`;
+
+    case "document":
+      return `[Document: ${content.source.media_type}${content.title ? ` - ${content.title}` : ""}]`;
+
     default:
       assertUnreachable(content);
   }
