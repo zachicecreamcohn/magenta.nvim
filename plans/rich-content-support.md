@@ -106,23 +106,33 @@ The current architecture processes files through the `get_file` tool which reads
   - [ ] Add any Bedrock-specific content size limits or format restrictions if needed
   - [ ] Check for type errors and iterate until they pass
 
-#### 3.3: OpenAI Provider Updates
+#### 3.3: OpenAI Provider Updates ✅
 
-- [ ] Update OpenAI provider in `node/providers/openai.ts` to handle rich content
+- [x] Update OpenAI provider in `node/providers/openai.ts` to handle rich content
 
-  - [ ] Extend `createStreamParameters` method to map new content types to OpenAI's message format
-  - [ ] Add image content handling using OpenAI's vision capabilities:
+  - [x] Extend `createStreamParameters` method to map new content types to OpenAI's message format
+  - [x] Add image content handling using OpenAI's vision capabilities:
     - Map `ProviderImageContent` to OpenAI's image content format
     - Use `data:image/{mime_type};base64,{base64_data}` format for base64 images
     - Support JPEG, PNG, GIF, WebP formats as per OpenAI documentation
-  - [ ] Add document content handling using OpenAI's file input capabilities:
+  - [x] Add document content handling using OpenAI's file input capabilities:
     - Map `ProviderDocumentContent` to OpenAI's `input_file` format
     - Use `data:application/pdf;base64,{base64_data}` format for PDF documents
     - Include filename in the `input_file` object (extract from file path or use generic name)
-  - [ ] Update content processing in the `for (const content of m.content)` loop
-  - [ ] Add new case handlers for `image` and `document` content types
-  - [ ] Update message structure to use OpenAI's content array format instead of simple string content
-  - [ ] Check for type errors and iterate until they pass
+  - [x] Update content processing in the `for (const content of m.content)` loop
+  - [x] Add new case handlers for `image` and `document` content types
+  - [x] Update message structure to use OpenAI's content array format instead of simple string content
+  - [x] Check for type errors and iterate until they pass
+
+**Implementation Notes:**
+
+- Added PDF document support using OpenAI's base64 data URI format (`data:application/pdf;base64,{base64_data}`)
+- Uses `input_file` type with `filename` and `file_data` properties
+- Simplified implementation compared to file upload approach
+- All providers now have clear support status:
+  - **Anthropic/Bedrock**: Full native support ✅
+  - **OpenAI**: Full support via base64 data URIs ✅
+  - **Ollama**: Clear "not supported" errors ✅
 
 #### 3.4: Ollama Provider Updates
 
