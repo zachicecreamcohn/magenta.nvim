@@ -21,6 +21,7 @@ import {
   getSubagentSystemPrompt,
 } from "./system-prompt.ts";
 import { validateInput } from "../tools/helpers.ts";
+import type { ResponseInputMessageContentList } from "openai/resources/responses/responses.mjs";
 
 export type OpenAIOptions = {
   model: "gpt-4o";
@@ -90,14 +91,58 @@ export class OpenAIProvider implements Provider {
     ];
 
     for (const m of messages) {
+      // Use content array format for rich content
+      const messageContent: ResponseInputMessageContentList = [];
+
       for (const content of m.content) {
         switch (content.type) {
           case "text":
-            openaiMessages.push({
-              role: m.role,
-              content: content.text,
+            if (content.text.trim()) {
+              messageContent.push({
+                type: "input_text",
+                text: content.text,
+              });
+            }
+            break;
+          case "image":
+            messageContent.push({
+              type: "input_image",
+              image_url: `data:${content.source.media_type};base64,${content.source.data}`,
+              detail: "auto",
             });
             break;
+          case "document":
+            messageContent.push({
+              type: "input_file",
+              filename: content.title || "untitled pdf",
+              file_data: `data:${content.source.media_type};base64,${content.source.data}`,
+            });
+            break;
+          case "tool_use":
+            // Tool use content is handled separately below
+            break;
+          case "tool_result":
+            // Tool result content is handled separately below
+            break;
+          case "server_tool_use":
+            throw new Error("NOT IMPLEMENTED");
+          case "web_search_tool_result":
+            throw new Error("NOT IMPLEMENTED");
+          default:
+            assertUnreachable(content);
+        }
+      }
+
+      if (messageContent.length > 0) {
+        openaiMessages.push({
+          role: m.role,
+          content: messageContent,
+        });
+      }
+
+      // Handle tool use and tool result content separately
+      for (const content of m.content) {
+        switch (content.type) {
           case "tool_use":
             openaiMessages.push(
               content.request.status == "ok"
@@ -127,22 +172,11 @@ export class OpenAIProvider implements Provider {
             break;
           case "server_tool_use":
             throw new Error("NOT IMPLEMENTED");
-
           case "web_search_tool_result":
             throw new Error("NOT IMPLEMENTED");
-
-          case "image":
-            throw new Error(
-              "Image content not yet implemented for OpenAI provider",
-            );
-
-          case "document":
-            throw new Error(
-              "Document content not yet implemented for OpenAI provider",
-            );
-
           default:
-            assertUnreachable(content);
+            // Other content types already handled above
+            break;
         }
       }
     }

@@ -57,45 +57,45 @@ The current architecture processes files through the `get_file` tool which reads
 
 ### Phase 2: File type detection
 
-- [ ] Add required dependencies for file type detection
+- [x] Add required dependencies for file type detection
 
-  - [ ] Add `file-type` package: `npm install file-type@^21.0.0`
-  - [ ] Add `mime-types` package: `npm install mime-types@^2.1.35`
-  - [ ] Add type definitions: `npm install --save-dev @types/mime-types@^2.1.4`
-  - [ ] Check for installation errors and iterate until dependencies are properly installed
+  - [x] Add `file-type` package: `npm install file-type@^21.0.0`
+  - [x] Add `mime-types` package: `npm install mime-types@^2.1.35`
+  - [x] Add type definitions: `npm install --save-dev @types/mime-types@^2.1.4`
+  - [x] Check for installation errors and iterate until dependencies are properly installed
 
-- [ ] Create file type detection utilities in `node/utils/files.ts`
-  - [ ] Add `FileCategory` enum with values: `text`, `image`, `pdf`, `unsupported`
-  - [ ] Add `FileTypeInfo` interface with category, mimeType, extension, and isSupported fields
-  - [ ] Implement hybrid `detectFileType(filePath: string): Promise<FileTypeInfo>` function using magic numbers + extension fallback
-  - [ ] Add `categorizeFileType(mimeType: string): FileCategory` helper function that determines:
+- [x] Create file type detection utilities in `node/utils/files.ts`
+  - [x] Add `FileCategory` enum with values: `text`, `image`, `pdf`, `unsupported`
+  - [x] Add `FileTypeInfo` interface with category, mimeType, extension, and isSupported fields
+  - [x] Implement hybrid `detectFileType(filePath: string): Promise<FileTypeInfo>` function using magic numbers + extension fallback
+  - [x] Add `categorizeFileType(mimeType: string): FileCategory` helper function that determines:
     - `text`: Plain text files, source code, markdown, JSON, XML, CSV, etc. (anything that can be read as UTF-8 and diffed meaningfully)
     - `image`: JPEG, PNG, GIF, WebP formats supported by Anthropic
     - `pdf`: PDF documents supported by Anthropic
     - `unsupported`: Binary files, proprietary formats, or files too large
-  - [ ] Add `isSupportedMimeType(mimeType: string): boolean` validation function
-  - [ ] Add `isLikelyTextFile(filePath: string): Promise<boolean>` fallback detection using:
+  - [x] Add `isSupportedMimeType(mimeType: string): boolean` validation function
+  - [x] Add `isLikelyTextFile(filePath: string): Promise<boolean>` fallback detection using:
     - File extension patterns (js, ts, py, md, txt, json, xml, etc.)
     - Content sampling (read first 1KB and check for binary markers like null bytes)
     - UTF-8 encoding validation
-  - [ ] Add file size validation utilities with configurable limits:
+  - [x] Add file size validation utilities with configurable limits:
     - Text files: 1MB limit (for diff performance)
     - Image files: 10MB limit (Anthropic API constraint)
     - PDF files: 32MB limit (Anthropic API constraint)
-  - [ ] Write comprehensive unit tests for all detection methods
-  - [ ] Iterate until type checks and unit tests pass
+  - [x] Write comprehensive unit tests for all detection methods
+  - [x] Iterate until type checks and unit tests pass
 
 ### Phase 3: Multi-Provider Rich Content Support
 
 #### 3.1: Anthropic Provider Updates
 
-- [ ] Update Anthropic provider in `node/providers/anthropic.ts` to handle rich content
+- [x] Update Anthropic provider in `node/providers/anthropic.ts` to handle rich content
 
-  - [ ] Extend `createStreamParameters` method to map new content types to Anthropic's `ContentBlockParam`
-  - [ ] Add image content handling (base64 encoding for images)
-  - [ ] Add document content handling (base64 encoding for PDFs)
-  - [ ] Update content block creation logic in the `content.map()` section
-  - [ ] Check for type errors and iterate until they pass
+  - [x] Extend `createStreamParameters` method to map new content types to Anthropic's `ContentBlockParam`
+  - [x] Add image content handling (base64 encoding for images)
+  - [x] Add document content handling (base64 encoding for PDFs)
+  - [x] Update content block creation logic in the `content.map()` section
+  - [x] Check for type errors and iterate until they pass
 
 #### 3.2: Bedrock Provider Updates
 
