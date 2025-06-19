@@ -11,12 +11,12 @@ import { Counter } from "../utils/uniqueId.ts";
 import { ContextManager } from "../context/context-manager.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import {
+  detectFileType,
   relativePath,
   resolveFilePath,
   type AbsFilePath,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
-import type { MessageId } from "./message.ts";
 import type { Result } from "../utils/result.ts";
 import type { ToolRequestId } from "../tools/toolManager.ts";
 import type { SubagentSystemPrompt } from "../providers/system-prompt.ts";
@@ -297,16 +297,19 @@ export class Chat {
     );
 
     if (contextFiles.length > 0) {
-      for (const filePath of contextFiles) {
-        const absFilePath = resolveFilePath(this.context.cwd, filePath);
-        const relFilePath = relativePath(this.context.cwd, absFilePath);
-        contextManager.update({
-          type: "add-file-context",
-          absFilePath,
-          relFilePath,
-          messageId: 0 as MessageId,
-        });
-      }
+      await Promise.all(
+        contextFiles.map(async (filePath) => {
+          const absFilePath = resolveFilePath(this.context.cwd, filePath);
+          const relFilePath = relativePath(this.context.cwd, absFilePath);
+          const fileTypeInfo = await detectFileType(absFilePath);
+          contextManager.update({
+            type: "add-file-context",
+            absFilePath,
+            relFilePath,
+            fileTypeInfo,
+          });
+        }),
+      );
     }
 
     const thread = new Thread(

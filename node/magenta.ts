@@ -21,13 +21,13 @@ import { InlineEditManager } from "./inline-edit/inline-edit-app.ts";
 import type { RootMsg, SidebarMsg } from "./root-msg.ts";
 import { Chat } from "./chat/chat.ts";
 import type { Dispatch } from "./tea/tea.ts";
-import type { MessageId } from "./chat/message.ts";
 import { BufferTracker } from "./buffer-tracker.ts";
 import {
   relativePath,
   resolveFilePath,
   type UnresolvedFilePath,
   type AbsFilePath,
+  detectFileType,
 } from "./utils/files.ts";
 import { assertUnreachable } from "./utils/assertUnreachable.ts";
 
@@ -174,9 +174,6 @@ export class Magenta {
 
       case "context-files": {
         const thread = this.chat.getActiveThread();
-        const messages = thread.state.messages;
-        const message = messages[messages.length - 1];
-        const messageId = message?.state.id || (0 as MessageId);
 
         const parts = input.trim().match(/[^\s']+|'([^']*)'|\S+/g) || [];
         const paths = parts
@@ -191,6 +188,8 @@ export class Magenta {
             filePath as UnresolvedFilePath,
           );
           const relFilePath = relativePath(cwd, absFilePath);
+          const fileTypeInfo = await detectFileType(absFilePath);
+
           this.dispatch({
             type: "thread-msg",
             id: thread.id,
@@ -200,7 +199,7 @@ export class Magenta {
                 type: "add-file-context",
                 absFilePath,
                 relFilePath,
-                messageId,
+                fileTypeInfo,
               },
             },
           });

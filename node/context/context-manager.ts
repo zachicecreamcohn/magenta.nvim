@@ -1,6 +1,5 @@
 import { assertUnreachable } from "../utils/assertUnreachable";
 import type { Nvim } from "../nvim/nvim-node";
-import type { MessageId } from "../chat/message";
 import { glob } from "glob";
 import path from "node:path";
 import fs from "node:fs";
@@ -17,6 +16,7 @@ import {
   type UnresolvedFilePath,
   detectFileType,
   FileCategory,
+  type FileTypeInfo,
 } from "../utils/files";
 import type { Result } from "../utils/result";
 import * as diff from "diff";
@@ -47,7 +47,7 @@ export type Msg =
       type: "add-file-context";
       relFilePath: RelFilePath;
       absFilePath: AbsFilePath;
-      messageId: MessageId;
+      fileTypeInfo: FileTypeInfo;
     }
   | {
       type: "remove-file-context";
@@ -144,12 +144,8 @@ export class ContextManager {
         this.addFileContextWithTypeCheck(
           msg.absFilePath,
           msg.relFilePath,
-        ).catch((error) => {
-          // Log error but don't throw - continue processing
-          this.context.nvim.logger?.error(
-            `add-file-context error ${msg.relFilePath}: ${error instanceof Error ? error.message + "\n" + error.stack : JSON.stringify(error)}`,
-          );
-        });
+          msg.fileTypeInfo,
+        );
 
         return;
 
@@ -176,11 +172,11 @@ export class ContextManager {
     return Object.keys(this.files).length == 0;
   }
 
-  private async addFileContextWithTypeCheck(
+  private addFileContextWithTypeCheck(
     absFilePath: AbsFilePath,
     relFilePath: RelFilePath,
-  ): Promise<void> {
-    const fileTypeInfo = await detectFileType(absFilePath);
+    fileTypeInfo: FileTypeInfo,
+  ): void {
     if (fileTypeInfo.category === FileCategory.TEXT) {
       this.files[absFilePath] = {
         relFilePath,
