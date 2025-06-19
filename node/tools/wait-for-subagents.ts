@@ -149,7 +149,7 @@ ${results
         if (result.status === "error") {
           return d`⏸️❌ ${result.error}`;
         } else {
-          return d`⏸️✅ yielded`;
+          return d`⏸️✅ All subagents completed.`;
         }
       }
     }

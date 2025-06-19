@@ -89,7 +89,7 @@ export class YieldToParentTool implements ToolInterface {
         if (result.status === "error") {
           return d`❌ Error yielding to parent: ${result.error}`;
         } else {
-          return d`↗️ Successfully yielded result to parent thread`;
+          return d`↗️ yielded`;
         }
       }
     }

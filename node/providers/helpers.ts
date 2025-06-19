@@ -11,8 +11,34 @@ import type {
   ProviderMessageContent,
   ProviderServerToolUseContent,
   ProviderStreamEvent,
+  ProviderTextContent,
+  ProviderImageContent,
+  ProviderDocumentContent,
 } from "./provider";
 import type { ToolName } from "../tools/tool-registry";
+
+export function renderContentValue(
+  value:
+    | string
+    | ProviderTextContent
+    | ProviderImageContent
+    | ProviderDocumentContent,
+): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  switch (value.type) {
+    case "text":
+      return value.text;
+    case "image":
+      return `📷 [Image: ${value.source.media_type}]`;
+    case "document":
+      return `📄 [Document: ${value.source.media_type}${value.title ? ` - ${value.title}` : ""}]`;
+    default:
+      assertUnreachable(value);
+  }
+}
 
 export type StreamingBlock = ProviderBlockStartEvent["content_block"] & {
   streamed: string;
