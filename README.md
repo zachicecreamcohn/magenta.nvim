@@ -398,6 +398,22 @@ user: I want to build a new authentication system
 
 This architecture enables more sophisticated problem-solving by allowing the agent to gather focused context and work on multiple independent tasks simultaneously.
 
+### Rich Content Support
+
+Magenta now supports analyzing images and PDF documents in addition to text files. The AI assistant can:
+
+- **Analyze screenshots and diagrams**: Upload images (JPEG, PNG, GIF, WebP) for the AI to analyze UI mockups, error screenshots, architecture diagrams, or any visual content
+- **Process PDF documents**: Upload PDF files for document analysis, technical documentation review, or research paper discussion
+- **Mixed conversations**: Combine text, images, and PDFs in the same conversation thread
+
+**Provider support:**
+
+- **Anthropic/Bedrock**: Full native support for images and PDFs ✅
+- **OpenAI**: Full support via base64 encoding ✅
+- **Ollama**: Not supported (returns clear error messages)
+
+**Usage:** Simply use the `get_file` tool on any supported file type. The AI will automatically detect the file format and process it appropriately. Images and PDFs are excluded from context tracking (since they can't be meaningfully diffed) but are fully accessible for analysis.
+
 ### Inline edit
 
 - `<leader>mi` is for `:Magenta start-inline-edit`, or `start-inline-edit-selection` in visual mode. This will bring up a new split where you can write a prompt to edit the current buffer. Magenta will force a find-and-replace tool use for normal mode, or force a replace tool use for the selection in visual mode.
@@ -446,7 +462,12 @@ See the most up-to-date list of implemented tools [here](https://github.com/dlan
 - [x] run bash command
 - [x] list a directory (only in cwd, excluding hidden and gitignored files)
 - [x] list current buffers (only buffers in cwd, excluding hidden and gitignored files)
-- [x] get the contents of a file (requires user approval if not in cwd or hidden/gitignored)
+- [x] get the contents of a file with **rich content support**:
+  - **Text files** (source code, markdown, JSON, XML, etc.) - added to context for change tracking
+  - **Images** (JPEG, PNG, GIF, WebP) - processed and sent as base64 content for visual analysis
+  - **PDF documents** - processed and sent as base64 content for document analysis
+  - File size limits: 1MB for text files, 10MB for images, 32MB for PDFs
+  - Requires user approval if not in cwd or hidden/gitignored
 - [x] get lsp diagnostics
 - [x] get lsp references for a symbol in a buffer
 - [x] get lsp "hover" info for a symbol in a buffer

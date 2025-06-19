@@ -148,42 +148,56 @@ The current architecture processes files through the `get_file` tool which reads
 
 ### Phase 5: Context Manager Updates
 
-- [ ] Update `ContextManager` in `node/context/context-manager.ts` to reject non-text files
+- [x] Update `ContextManager` in `node/context/context-manager.ts` to reject non-text files
 
-  - [ ] Add file type detection to `update()` method for `add-file-context` messages
-  - [ ] When a non-text file is added to context:
+  - [x] Add file type detection to `update()` method for `add-file-context` messages
+  - [x] When a non-text file is added to context:
     - Log an error message indicating the file type is not supported in context
     - Do not add the file to the `files` object
     - Continue processing without throwing an exception
-  - [ ] Keep existing text file handling unchanged (diff-based approach using `agentsViewOfFiles`)
-  - [ ] Check for type errors and iterate until they pass
+  - [x] Keep existing text file handling unchanged (diff-based approach using `agentsViewOfFiles`)
+  - [x] Check for type errors and iterate until they pass
 
-- [ ] Update context loading to filter out non-text files
+- [x] Update context loading to filter out non-text files
 
-  - [ ] Modify `loadAutoContext()` to check file types before adding to context
-  - [ ] Log informational messages about skipped non-text files during auto-context loading
-  - [ ] Ensure auto-context only includes text files
-  - [ ] Check for type errors and iterate until they pass
+  - [x] Modify `loadAutoContext()` to check file types before adding to context
+  - [x] Log informational messages about skipped non-text files during auto-context loading
+  - [x] Ensure auto-context only includes text files
+  - [x] Check for type errors and iterate until they pass
 
-- [ ] Keep `contextUpdatesToContent()` unchanged
-  - [ ] Since only text files will be in context, no changes needed to this function
-  - [ ] Continue returning single `ProviderMessageContent` with text content
+- [x] Keep `contextUpdatesToContent()` unchanged
+  - [x] Since only text files will be in context, no changes needed to this function
+  - [x] Continue returning single `ProviderMessageContent` with text content
 
-### Phase 6: Integration Testing
+### Phase 6: Integration Testing ✅
 
-- [ ] Write comprehensive integration tests
+- [x] Write comprehensive integration tests
 
-  - [ ] Test image file processing end-to-end
-  - [ ] Test PDF document processing end-to-end
-  - [ ] Test adding PDF document to context (should not work)
-  - [ ] Iterate until all integration tests pass
+  - [x] Test image file processing end-to-end
+  - [x] Test PDF document processing end-to-end
+  - [x] Test rejection of unsupported binary files
+  - [x] Test that images/PDFs are not added to context manager
+  - [x] Test that text files continue to work normally in context
+  - [x] Test mixed content types in a single conversation
+  - [x] Test file size limits for large files
+  - [x] All integration tests pass
 
-### Phase 7: Documentation and Refinement
+**Implementation Notes:**
 
-- [ ] Update tool documentation
+- Created comprehensive test suite in `node/tools/getFile-rich-content.spec.ts` with 8 integration tests
+- Tests cover the full end-to-end workflow from tool request to provider message content
+- Validates that rich content (images/PDFs) is correctly processed and returned as structured content
+- Confirms that only text files are added to context, while rich content files are excluded
+- Tests proper error handling for unsupported file types and size limits
+- All tests pass both individually and as part of the integration test suite
 
-  - [ ] Document supported file formats and size limits
-  - [ ] Update README with rich content capabilities
+### Phase 7: Documentation and Refinement ✅
+
+- [x] Update tool documentation
+
+  - [x] Document supported file formats and size limits in tool spec
+  - [x] Update README with rich content capabilities and provider support status
+  - [x] Add dedicated "Rich Content Support" section explaining features and usage
 
 ## Detailed Implementation Specifications
 
