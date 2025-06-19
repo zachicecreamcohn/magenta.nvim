@@ -1,6 +1,5 @@
 import { assertUnreachable } from "../utils/assertUnreachable";
 import type { Nvim } from "../nvim/nvim-node";
-import type { MessageId } from "../chat/message";
 import { glob } from "glob";
 import path from "node:path";
 import fs from "node:fs";
@@ -15,6 +14,9 @@ import {
   type AbsFilePath,
   type RelFilePath,
   type UnresolvedFilePath,
+  detectFileType,
+  FileCategory,
+  type FileTypeInfo,
 } from "../utils/files";
 import type { Result } from "../utils/result";
 import * as diff from "diff";
@@ -45,7 +47,7 @@ export type Msg =
       type: "add-file-context";
       relFilePath: RelFilePath;
       absFilePath: AbsFilePath;
-      messageId: MessageId;
+      fileTypeInfo: FileTypeInfo;
     }
   | {
       type: "remove-file-context";
@@ -139,9 +141,12 @@ export class ContextManager {
   update(msg: Msg): void {
     switch (msg.type) {
       case "add-file-context":
-        this.files[msg.absFilePath] = {
-          relFilePath: msg.relFilePath,
-        };
+        this.addFileContextWithTypeCheck(
+          msg.absFilePath,
+          msg.relFilePath,
+          msg.fileTypeInfo,
+        );
+
         return;
 
       case "remove-file-context":
@@ -165,6 +170,22 @@ export class ContextManager {
 
   isContextEmpty(): boolean {
     return Object.keys(this.files).length == 0;
+  }
+
+  private addFileContextWithTypeCheck(
+    absFilePath: AbsFilePath,
+    relFilePath: RelFilePath,
+    fileTypeInfo: FileTypeInfo,
+  ): void {
+    if (fileTypeInfo.category === FileCategory.TEXT) {
+      this.files[absFilePath] = {
+        relFilePath,
+      };
+    } else {
+      throw new Error(
+        `Cannot add ${relFilePath} to context: ${fileTypeInfo.category} files are not supported in context (detected MIME type: ${fileTypeInfo.mimeType})`,
+      );
+    }
   }
 
   /**
@@ -360,8 +381,10 @@ export class ContextManager {
         nvim,
       );
 
+      const filteredFiles = await this.filterTextFiles(matchedFiles, nvim);
+
       // Convert to the expected format
-      for (const matchInfo of matchedFiles) {
+      for (const matchInfo of filteredFiles) {
         files[matchInfo.absFilePath] = {
           relFilePath: matchInfo.relFilePath,
         };
@@ -440,6 +463,38 @@ export class ContextManager {
     }
 
     return Array.from(uniqueFiles.values());
+  }
+
+  private static async filterTextFiles(
+    matchedFiles: Array<{ absFilePath: AbsFilePath; relFilePath: RelFilePath }>,
+    nvim: Nvim,
+  ): Promise<Array<{ absFilePath: AbsFilePath; relFilePath: RelFilePath }>> {
+    const textFiles: Array<{
+      absFilePath: AbsFilePath;
+      relFilePath: RelFilePath;
+    }> = [];
+
+    await Promise.all(
+      matchedFiles.map(async (fileInfo) => {
+        try {
+          const fileTypeInfo = await detectFileType(fileInfo.absFilePath);
+          if (fileTypeInfo.category === FileCategory.TEXT) {
+            textFiles.push(fileInfo);
+          } else {
+            // Log informational message about skipped non-text files
+            nvim.logger?.warn(
+              `Skipping ${fileInfo.relFilePath} from auto-context: ${fileTypeInfo.category} files are not supported in context (detected MIME type: ${fileTypeInfo.mimeType})`,
+            );
+          }
+        } catch (error) {
+          nvim.logger?.error(
+            `Failed to detect file type for ${fileInfo.relFilePath} during auto-context loading: ${(error as Error).message}`,
+          );
+        }
+      }),
+    );
+
+    return textFiles;
   }
 
   /** renders a summary of all the files we're tracking, with the ability to delete or navigate to each file.

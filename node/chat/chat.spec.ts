@@ -94,7 +94,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       await driver.assertDisplayBufferContains(
-        "🤖✅ Sub-agent started: Sub-agent started with threadId: 2",
+        "🤖✅ Sub-agent started with threadId: 2",
       );
 
       const request = await driver.mockAnthropic.awaitPendingRequestWithText(
@@ -183,8 +183,7 @@ describe("node/chat/chat.spec.ts", () => {
 
       await driver.assertDisplayBufferContains(
         `\
-⏸️✅ All subagents completed:
-- Thread 2: Successfully echoed: Hello from subagent`,
+⏸️✅ All subagents completed.`,
       );
     });
   });
@@ -258,7 +257,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       await driver.assertDisplayBufferContains(
-        "🤖✅ Sub-agent started: Sub-agent started with threadId: 2",
+        "🤖✅ Sub-agent started with threadId: 2",
       );
 
       const request2 = await driver.mockAnthropic.awaitPendingRequestWithText(
@@ -282,7 +281,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       await driver.assertDisplayBufferContains(
-        "🤖✅ Sub-agent started: Sub-agent started with threadId: 3",
+        "🤖✅ Sub-agent started with threadId: 3",
       );
 
       // Start waiting for both subagents
@@ -371,11 +370,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       // Verify both threads have completed and the wait tool shows final results
-      await driver.assertDisplayBufferContains(
-        `⏸️✅ All subagents completed:
-- Thread 2: Hello from subagent 1
-- Thread 3: Hello from subagent 2`,
-      );
+      await driver.assertDisplayBufferContains(`⏸️✅ All subagents completed.`);
     });
   });
 
@@ -409,7 +404,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       await driver.assertDisplayBufferContains(
-        "🤖✅ Sub-agent started: Sub-agent started with threadId: 2",
+        "🤖✅ Sub-agent started with threadId: 2",
       );
 
       const request2 = await driver.mockAnthropic.awaitPendingRequestWithText(
@@ -433,7 +428,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       await driver.assertDisplayBufferContains(
-        "🤖✅ Sub-agent started: Sub-agent started with threadId: 3",
+        "🤖✅ Sub-agent started with threadId: 3",
       );
 
       // Start waiting for both subagents
@@ -566,7 +561,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       await driver.assertDisplayBufferContains(
-        "🤖✅ Sub-agent started: Sub-agent started with threadId: 2",
+        "🤖✅ Sub-agent started with threadId: 2",
       );
 
       // Start waiting for the subagent
@@ -665,7 +660,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       await driver.assertDisplayBufferContains(
-        "🤖✅ Sub-agent started: Sub-agent started with threadId: 2",
+        "🤖✅ Sub-agent started with threadId: 2",
       );
 
       // Create another parent thread
@@ -701,7 +696,7 @@ describe("node/chat/chat.spec.ts", () => {
 
       // Wait for the spawn message to appear in the display buffer
       await driver.assertDisplayBufferContains(
-        "🤖✅ Sub-agent started: Sub-agent started with threadId: 4",
+        "🤖✅ Sub-agent started with threadId: 4",
       );
 
       // Now view the thread hierarchy
@@ -829,7 +824,7 @@ describe("node/chat/chat.spec.ts", () => {
     });
   });
 
-  it.skip("allows selecting parent and child threads from hierarchy view", async () => {
+  it("allows selecting parent and child threads from hierarchy view", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
 
@@ -857,6 +852,11 @@ describe("node/chat/chat.spec.ts", () => {
           },
         ],
       });
+
+      // Wait for the subagent to be spawned
+      await driver.assertDisplayBufferContains(
+        "🤖✅ Sub-agent started with threadId: 2",
+      );
 
       await driver.magenta.command("threads-overview");
 

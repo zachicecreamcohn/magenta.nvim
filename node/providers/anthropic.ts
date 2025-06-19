@@ -10,6 +10,7 @@ import {
   type ProviderToolSpec,
   type ProviderToolUseRequest,
   type ProviderStreamEvent,
+  type ProviderTextContent,
 } from "./provider-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import {
@@ -18,6 +19,20 @@ import {
   getSubagentSystemPrompt,
 } from "./system-prompt.ts";
 import { validateInput } from "../tools/helpers.ts";
+
+function mapProviderTextToAnthropicText(
+  providerText: ProviderTextContent,
+): Anthropic.Messages.TextBlockParam {
+  return {
+    ...providerText,
+    citations: providerText.citations
+      ? providerText.citations.map((providerCitation) => ({
+          ...providerCitation,
+          type: "web_search_result_location",
+        }))
+      : null,
+  };
+}
 
 export type MessageParam = Omit<Anthropic.MessageParam, "content"> & {
   content: Array<Anthropic.Messages.ContentBlockParam>;
@@ -92,60 +107,123 @@ export class AnthropicProvider implements Provider {
           },
         ];
       } else {
-        content = m.content.map((c): Anthropic.ContentBlockParam => {
+        content = [];
+        for (const c of m.content) {
           switch (c.type) {
             case "text":
               // important to create a new object here so when we attach ephemeral
               // cache_control markers we won't mutate the content.
-              return {
-                ...c,
-                citations: c.citations
-                  ? c.citations.map((providerCitation) => ({
-                      ...providerCitation,
-                      type: "web_search_result_location",
-                    }))
-                  : null,
-              };
+              content.push(mapProviderTextToAnthropicText(c));
+              break;
+
             case "web_search_tool_result":
-              return {
+              content.push({
                 ...c,
-              };
+              });
+              break;
 
             case "tool_use":
-              return c.request.status == "ok"
-                ? {
-                    id: c.id,
-                    input: c.request.value.input,
-                    name: c.request.value.toolName,
-                    type: "tool_use",
-                  }
-                : {
-                    id: c.id,
-                    input: c.request.rawRequest,
-                    name: c.name,
-                    type: "tool_use",
-                  };
+              content.push(
+                c.request.status == "ok"
+                  ? {
+                      id: c.id,
+                      input: c.request.value.input,
+                      name: c.request.value.toolName,
+                      type: "tool_use",
+                    }
+                  : {
+                      id: c.id,
+                      input: c.request.rawRequest,
+                      name: c.name,
+                      type: "tool_use",
+                    },
+              );
+              break;
 
             case "server_tool_use":
-              return {
+              content.push({
                 type: "server_tool_use",
                 id: c.id,
                 name: c.name,
                 input: c.input,
-              };
+              });
+              break;
 
             case "tool_result":
-              return {
-                tool_use_id: c.id,
-                type: "tool_result",
-                content:
-                  c.result.status == "ok" ? c.result.value : c.result.error,
-                is_error: c.result.status == "error",
-              };
+              if (c.result.status == "ok") {
+                if (typeof c.result.value === "string") {
+                  content.push({
+                    tool_use_id: c.id,
+                    type: "tool_result",
+                    content: c.result.value,
+                    is_error: false,
+                  });
+                } else {
+                  switch (c.result.value.type) {
+                    case "text":
+                      content.push({
+                        tool_use_id: c.id,
+                        type: "tool_result",
+                        content: [
+                          mapProviderTextToAnthropicText(c.result.value),
+                        ],
+                        is_error: false,
+                      });
+                      break;
+                    case "image":
+                      content.push({
+                        tool_use_id: c.id,
+                        type: "tool_result",
+                        content: [c.result.value],
+                        is_error: false,
+                      });
+                      break;
+                    case "document":
+                      content.push({
+                        tool_use_id: c.id,
+                        type: "tool_result",
+                        content: "Document content follows:",
+                        is_error: false,
+                      });
+                      content.push({
+                        type: "document",
+                        source: c.result.value.source,
+                        title: c.result.value.title || null,
+                      });
+                      break;
+                    default:
+                      assertUnreachable(c.result.value);
+                  }
+                }
+              } else {
+                content.push({
+                  tool_use_id: c.id,
+                  type: "tool_result",
+                  content: c.result.error,
+                  is_error: true,
+                });
+              }
+              break;
+
+            case "image":
+              content.push({
+                type: "image",
+                source: c.source,
+              });
+              break;
+
+            case "document":
+              content.push({
+                type: "document",
+                source: c.source,
+                title: c.title || null,
+              });
+              break;
+
             default:
               assertUnreachable(c);
           }
-        });
+        }
       }
 
       return {

@@ -218,9 +218,14 @@ it("getFile returns early when file is already in context", async () => {
       const toolResult = toolResultMessage.content[0];
       if (toolResult.type === "tool_result") {
         expect(toolResult.result.status).toBe("ok");
-        expect(
-          toolResult.result.status === "ok" && toolResult.result.value,
-        ).toContain("already part of the thread context");
+        if (toolResult.result.status === "ok") {
+          const value = toolResult.result.value;
+          if (typeof value === "string") {
+            expect(value).toContain("already part of the thread context");
+          } else if (value.type === "text") {
+            expect(value.text).toContain("already part of the thread context");
+          }
+        }
       }
     }
   });
@@ -275,12 +280,21 @@ it("getFile reads file when force is true even if already in context", async () 
     ) {
       const toolResult = toolResultMessage.content[0];
       if (toolResult.type === "tool_result") {
-        expect(
-          toolResult.result.status == "ok" && toolResult.result.value,
-        ).toContain("Moonlight whispers through the trees");
-        expect(
-          toolResult.result.status === "ok" && toolResult.result.value,
-        ).not.toContain("already part of the thread context");
+        expect(toolResult.result.status).toBe("ok");
+        if (toolResult.result.status === "ok") {
+          const value = toolResult.result.value;
+          if (typeof value === "string") {
+            expect(value).toContain("Moonlight whispers through the trees");
+            expect(value).not.toContain("already part of the thread context");
+          } else if (value.type === "text") {
+            expect(value.text).toContain(
+              "Moonlight whispers through the trees",
+            );
+            expect(value.text).not.toContain(
+              "already part of the thread context",
+            );
+          }
+        }
       }
     }
   });

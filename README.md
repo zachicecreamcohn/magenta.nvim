@@ -28,6 +28,8 @@ Magenta is for agents.
 
 I implemented **sub-agents** - a powerful feature that allows the main agent to delegate specific tasks to specialized sub-agents. Sub-agents can work in parallel and have their own specialized system prompts for tasks like learning codebases, planning implementations, or performing focused work. This enables complex workflows where multiple agents collaborate on different aspects of a problem.
 
+I added support for images and pdfs. Magenta can now read these using the get_file tool for image-compatible openai and anthropic models.
+
 ## May 2025
 
 I implemented thread compaction that intelligently analyzes your next prompt and extracts only the relevant parts of the conversation history. This makes it easier to continue long conversations without hitting context limits while ensuring all important information is preserved. I also updated the magenta header to give you an estimate of the token count for your current conversation.
@@ -446,7 +448,11 @@ See the most up-to-date list of implemented tools [here](https://github.com/dlan
 - [x] run bash command
 - [x] list a directory (only in cwd, excluding hidden and gitignored files)
 - [x] list current buffers (only buffers in cwd, excluding hidden and gitignored files)
-- [x] get the contents of a file (requires user approval if not in cwd or hidden/gitignored)
+- [x] get the contents of a file with **rich content support**:
+  - **Text files** (source code, markdown, JSON, XML, etc.) - added to context for change tracking
+  - **Images** (JPEG, PNG, GIF, WebP) - processed and sent as base64 content for visual analysis
+  - **PDF documents** - processed and sent as base64 content for document analysis
+  - Requires user approval if not in cwd or hidden/gitignored
 - [x] get lsp diagnostics
 - [x] get lsp references for a symbol in a buffer
 - [x] get lsp "hover" info for a symbol in a buffer

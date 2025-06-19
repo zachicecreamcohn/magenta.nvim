@@ -23,6 +23,7 @@ import type {
 import {
   applyDelta,
   finalizeStreamingBlock,
+  renderContentValue,
   type StreamingBlock,
 } from "../providers/helpers.ts";
 import { renderStreamdedTool } from "../tools/helpers.ts";
@@ -468,6 +469,10 @@ ${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${t
           return this.renderTool(tool);
         }
       }
+
+      case "image":
+      case "document":
+        return renderContentValue(content);
 
       default:
         assertUnreachable(content);

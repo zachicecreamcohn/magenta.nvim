@@ -1,4 +1,4 @@
-import { d } from "../tea/view.ts";
+import { d, withBindings } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { ToolRequest } from "./toolManager.ts";
 import type {
@@ -17,6 +17,7 @@ import {
   SUBAGENT_SYSTEM_PROMPTS,
   type SubagentSystemPrompt,
 } from "../providers/system-prompt.ts";
+import { renderContentValue } from "../providers/helpers.ts";
 
 export type Msg = {
   type: "subagent-created";
@@ -29,6 +30,7 @@ export type State =
     }
   | {
       state: "done";
+      threadId?: ThreadId;
       result: ProviderToolResultContent;
     };
 
@@ -169,11 +171,24 @@ export class SpawnSubagentTool implements ToolInterface {
       case "preparing":
         return d`🤖⚙️ Preparing to spawn sub-agent...`;
       case "done": {
+        const threadId = this.state.threadId;
         const result = this.state.result.result;
         if (result.status === "error") {
           return d`🤖❌ Error spawning sub-agent: ${result.error}`;
         } else {
-          return d`🤖✅ Sub-agent started: ${result.value}`;
+          return withBindings(d`🤖✅ ${renderContentValue(result.value)}`, {
+            "<CR>": () => {
+              if (threadId) {
+                this.context.dispatch({
+                  type: "chat-msg",
+                  msg: {
+                    type: "select-thread",
+                    id: threadId,
+                  },
+                });
+              }
+            },
+          });
         }
       }
     }

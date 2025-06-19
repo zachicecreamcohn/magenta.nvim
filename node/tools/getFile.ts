@@ -17,10 +17,19 @@ import {
   relativePath,
   resolveFilePath,
   type UnresolvedFilePath,
+  detectFileType,
+  validateFileSize,
+  FileCategory,
+  type FileTypeInfo,
 } from "../utils/files.ts";
 import type { ToolInterface } from "./types.ts";
 import type { Msg as ThreadMsg } from "../chat/thread.ts";
 import type { ContextManager } from "../context/context-manager.ts";
+import type {
+  ProviderTextContent,
+  ProviderImageContent,
+  ProviderDocumentContent,
+} from "../providers/provider-types.ts";
 
 export type State =
   | {
@@ -41,7 +50,9 @@ export type State =
 export type Msg =
   | {
       type: "finish";
-      result: Result<string>;
+      result: Result<
+        ProviderTextContent | ProviderImageContent | ProviderDocumentContent
+      >;
     }
   | {
       type: "automatic-approval";
@@ -101,11 +112,6 @@ export class GetFileTool implements ToolInterface {
   update(msg: Msg): Thunk<Msg> | undefined {
     switch (msg.type) {
       case "finish":
-        if (msg.result.status == "error") {
-          this.context.nvim.logger?.error(
-            "Error executing get_file tool: " + msg.result.error,
-          );
-        }
         this.state = {
           state: "done",
           result: {
@@ -202,8 +208,11 @@ export class GetFileTool implements ToolInterface {
         type: "finish",
         result: {
           status: "ok",
-          value: `This file is already part of the thread context. \
+          value: {
+            type: "text",
+            text: `This file is already part of the thread context. \
 You already have the most up-to-date information about the contents of this file.`,
+          },
         },
       });
       return;
@@ -236,49 +245,150 @@ You already have the most up-to-date information about the contents of this file
 
   async readFile() {
     const filePath = this.request.input.filePath;
-    const bufferContents = await getBufferIfOpen({
-      unresolvedPath: filePath,
-      context: this.context,
-    });
-
-    let content: string;
     const cwd = await getcwd(this.context.nvim);
     const absFilePath = resolveFilePath(cwd, filePath);
 
-    if (bufferContents.status === "ok") {
-      content = (
-        await bufferContents.buffer.getLines({ start: 0, end: -1 })
-      ).join("\n");
-    } else if (bufferContents.status == "not-found") {
-      content = await fs.promises.readFile(absFilePath, "utf-8");
-    } else {
+    let fileTypeInfo: FileTypeInfo;
+    try {
+      fileTypeInfo = await detectFileType(absFilePath);
+    } catch (error) {
       this.context.myDispatch({
         type: "finish",
         result: {
           status: "error",
-          error: bufferContents.error,
+          error: `Failed to detect file type: ${error instanceof Error ? error.message : String(error)}`,
         },
       });
       return;
     }
 
-    this.context.threadDispatch({
-      type: "context-manager-msg",
-      msg: {
-        type: "tool-applied",
-        absFilePath,
-        tool: {
-          type: "get-file",
-          content,
+    if (fileTypeInfo.category === FileCategory.UNSUPPORTED) {
+      this.context.myDispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: `Unsupported file type: ${fileTypeInfo.mimeType}. Supported types: text files, images (JPEG, PNG, GIF, WebP), and PDF documents.`,
         },
-      },
-    });
+      });
+      return;
+    }
+
+    const sizeValidation = await validateFileSize(
+      absFilePath,
+      fileTypeInfo.category,
+    );
+    if (!sizeValidation.isValid) {
+      const sizeMB = (sizeValidation.actualSize / (1024 * 1024)).toFixed(2);
+      const maxSizeMB = (sizeValidation.maxSize / (1024 * 1024)).toFixed(2);
+      this.context.myDispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: `File too large: ${sizeMB}MB (max ${maxSizeMB}MB for ${fileTypeInfo.category} files)`,
+        },
+      });
+      return;
+    }
+
+    if (
+      this.state.state === "processing" &&
+      !this.state.approved &&
+      sizeValidation.actualSize > 1024 * 1024
+    ) {
+      this.context.myDispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: "Large file requires user approval",
+        },
+      });
+      return;
+    }
+
+    let result:
+      | ProviderTextContent
+      | ProviderImageContent
+      | ProviderDocumentContent;
+
+    if (fileTypeInfo.category === FileCategory.TEXT) {
+      const bufferContents = await getBufferIfOpen({
+        unresolvedPath: filePath,
+        context: this.context,
+      });
+
+      let textContent: string;
+      if (bufferContents.status === "ok") {
+        textContent = (
+          await bufferContents.buffer.getLines({ start: 0, end: -1 })
+        ).join("\n");
+      } else if (bufferContents.status == "not-found") {
+        textContent = await fs.promises.readFile(absFilePath, "utf-8");
+      } else {
+        this.context.myDispatch({
+          type: "finish",
+          result: {
+            status: "error",
+            error: bufferContents.error,
+          },
+        });
+        return;
+      }
+
+      this.context.threadDispatch({
+        type: "context-manager-msg",
+        msg: {
+          type: "tool-applied",
+          absFilePath,
+          tool: {
+            type: "get-file",
+            content: textContent,
+          },
+        },
+      });
+
+      result = {
+        type: "text",
+        text: textContent,
+      };
+    } else {
+      const buffer = await fs.promises.readFile(absFilePath);
+      const base64Data = buffer.toString("base64");
+
+      switch (fileTypeInfo.category) {
+        case FileCategory.IMAGE:
+          result = {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: fileTypeInfo.mimeType as
+                | "image/jpeg"
+                | "image/png"
+                | "image/gif"
+                | "image/webp",
+              data: base64Data,
+            },
+          };
+          break;
+        case FileCategory.PDF:
+          result = {
+            type: "document",
+            source: {
+              type: "base64",
+              media_type: "application/pdf",
+              data: base64Data,
+            },
+          };
+          break;
+        default:
+          assertUnreachable(fileTypeInfo.category);
+      }
+    }
 
     this.context.myDispatch({
       type: "finish",
       result: {
         status: "ok",
-        value: content,
+        value: result,
       },
     });
 
@@ -348,7 +458,14 @@ You already have the most up-to-date information about the contents of this file
 export const spec: ProviderToolSpec = {
   name: "get_file",
   description: `Get the full contents of a given file. The file will be added to the thread context.
-If a file is part of your context, avoid using get_file on it again, since you will get notified about any future changes about the file.`,
+If a file is part of your context, avoid using get_file on it again, since you will get notified about any future changes about the file.
+
+Supports:
+- Text files (source code, markdown, JSON, XML, etc.) - added to context for tracking changes
+- Images (JPEG, PNG, GIF, WebP) - returned as base64 encoded content
+- PDF documents - returned as base64 encoded content
+
+File size limits: 1MB for text files, 10MB for images, 32MB for PDFs.`,
   input_schema: {
     type: "object",
     properties: {

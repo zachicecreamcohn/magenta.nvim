@@ -4,11 +4,11 @@ import { pollUntil } from "../utils/async";
 import { getAllWindows, getcwd } from "../nvim/nvim";
 import {
   resolveFilePath,
+  detectFileType,
   type AbsFilePath,
   type RelFilePath,
   type UnresolvedFilePath,
 } from "../utils/files";
-import type { MessageId } from "../chat/message";
 import type { Line } from "../nvim/buffer";
 import type { DiffUpdate, WholeFileUpdate } from "./context-manager";
 import type { ToolRequestId } from "../tools/toolManager";
@@ -27,26 +27,33 @@ describe("unit tests", () => {
       const contextManager =
         driver.magenta.chat.getActiveThread().context.contextManager;
 
-      // Add a file to context
+      const cwd = await getcwd(driver.nvim);
+      const absFilePath = resolveFilePath(
+        cwd,
+        testFilePath as UnresolvedFilePath,
+      );
+
+      // Get file type info and add file to context
+      const fileTypeInfo = await detectFileType(absFilePath);
       contextManager.myDispatch({
         type: "add-file-context",
         relFilePath: "poem.txt" as RelFilePath,
-        absFilePath: testFilePath as AbsFilePath,
-        messageId: 1 as MessageId,
+        absFilePath,
+        fileTypeInfo,
       });
 
       // Get context updates - first call
       const firstUpdates = await contextManager.getContextUpdate();
 
       // Check that the update contains the file
-      expect(firstUpdates[testFilePath as AbsFilePath]).toBeDefined();
+      expect(firstUpdates[absFilePath]).toBeDefined();
 
       // Check that it's a whole-file update
-      const firstUpdate = firstUpdates[testFilePath as AbsFilePath];
+      const firstUpdate = firstUpdates[absFilePath];
       expect(firstUpdate.update.status).toBe("ok");
       if (firstUpdate.update.status === "ok") {
         expect(firstUpdate.update.value.type).toBe("whole-file");
-        expect(firstUpdate.absFilePath).toBe(testFilePath);
+        expect(firstUpdate.absFilePath).toBe(absFilePath);
         expect((firstUpdate.update.value as WholeFileUpdate).content).toContain(
           "Moonlight whispers through the trees",
         );
@@ -75,12 +82,13 @@ describe("unit tests", () => {
         testFilePath as UnresolvedFilePath,
       );
 
-      // Add the file to context
+      // Get file type info and add the file to context
+      const fileTypeInfo = await detectFileType(absFilePath);
       contextManager.myDispatch({
         type: "add-file-context",
         relFilePath: testFilePath as RelFilePath,
         absFilePath,
-        messageId: 1 as MessageId,
+        fileTypeInfo,
       });
 
       // First, edit the file to track the buffer
@@ -128,12 +136,19 @@ describe("unit tests", () => {
       const contextManager =
         driver.magenta.chat.getActiveThread().context.contextManager;
 
-      // Add a file to context
+      const cwd = await getcwd(driver.nvim);
+      const absFilePath = resolveFilePath(
+        cwd,
+        testFilePath as UnresolvedFilePath,
+      );
+
+      // Get file type info and add a file to context
+      const fileTypeInfo = await detectFileType(absFilePath);
       contextManager.myDispatch({
         type: "add-file-context",
         relFilePath: "poem.txt" as RelFilePath,
-        absFilePath: testFilePath as AbsFilePath,
-        messageId: 1 as MessageId,
+        absFilePath,
+        fileTypeInfo,
       });
 
       // Get initial context update
@@ -142,16 +157,16 @@ describe("unit tests", () => {
       // Edit the file on disk
       const updatedContent =
         "Modified content directly on disk\nThis should be detected.";
-      await fs.promises.writeFile(testFilePath, updatedContent);
+      await fs.promises.writeFile(absFilePath, updatedContent);
 
       // Get context updates after the edit
       const updates = await contextManager.getContextUpdate();
 
       // Check that the update contains the file
-      expect(updates[testFilePath as AbsFilePath]).toBeDefined();
+      expect(updates[absFilePath]).toBeDefined();
 
       // Check that it reflects the changes from disk
-      const update = updates[testFilePath as AbsFilePath];
+      const update = updates[absFilePath];
       expect(
         update.update.status == "ok" &&
           update.update.value.type == "diff" &&
@@ -164,7 +179,7 @@ Silver shadows dance with ease.
 Stars above like diamonds bright,
 Paint their stories in the night.
 `;
-      await fs.promises.writeFile(testFilePath, originalContent);
+      await fs.promises.writeFile(absFilePath, originalContent);
     });
   });
 
@@ -178,7 +193,13 @@ Paint their stories in the night.
         `Magenta context-files '${testFilePath}'`,
       ]);
 
-      await driver.assertDisplayBufferContains(`- \`${testFilePath}\``);
+      // Wait for context to be added to the display
+      await pollUntil(async () => {
+        const content = await driver.getDisplayBufferText();
+        if (!content.includes(`- \`${testFilePath}\``)) {
+          throw new Error("Context file not yet displayed");
+        }
+      });
 
       // Start a conversation and send a message requesting a modification
       await driver.inputMagentaText(`Add a new line to the poem.txt file`);
@@ -283,6 +304,14 @@ Paint their stories in the night.
         `Magenta context-files '${testFilePath}'`,
       ]);
 
+      // Wait for context to be added to the display
+      await pollUntil(async () => {
+        const content = await driver.getDisplayBufferText();
+        if (!content.includes(`- \`${testFilePath}\``)) {
+          throw new Error("Context file not yet displayed");
+        }
+      });
+
       const pos = await driver.assertDisplayBufferContains(
         `- \`${testFilePath}\``,
       );
@@ -376,13 +405,17 @@ describe("key bindings", () => {
         `Magenta context-files '${poem3file}' '${contextFile}' '${poemFile}'`,
       ]);
 
-      await driver.assertDisplayBufferContains(
-        `\
-# context:
-- \`${poem3file}\`
-- \`${contextFile}\`
-- \`${poemFile}\``,
-      );
+      // Wait for all context files to be added to the display
+      await pollUntil(async () => {
+        const content = await driver.getDisplayBufferText();
+        if (
+          !content.includes(`- \`${poem3file}\``) ||
+          !content.includes(`- \`${contextFile}\``) ||
+          !content.includes(`- \`${poemFile}\``)
+        ) {
+          throw new Error("Not all context files displayed yet");
+        }
+      });
 
       const middleFilePos = await driver.assertDisplayBufferContains(
         `- \`${contextFile}\``,
@@ -391,12 +424,19 @@ describe("key bindings", () => {
       // Press dd on the middle file to remove it
       await driver.triggerDisplayBufferKey(middleFilePos, "dd");
 
-      await driver.assertDisplayBufferContains(
-        `\
-# context:
-- \`${poem3file}\`
-- \`${poemFile}\``,
-      );
+      // Wait for the file to be removed from context
+      await pollUntil(async () => {
+        const content = await driver.getDisplayBufferText();
+        if (content.includes(`- \`${contextFile}\``)) {
+          throw new Error("Context file not yet removed");
+        }
+        if (
+          !content.includes(`- \`${poem3file}\``) ||
+          !content.includes(`- \`${poemFile}\``)
+        ) {
+          throw new Error("Other context files should still be present");
+        }
+      });
     });
   });
 

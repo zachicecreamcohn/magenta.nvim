@@ -191,9 +191,9 @@ export class FindReferencesTool implements ToolInterface {
   view() {
     switch (this.state.state) {
       case "processing":
-        return d`u2699ufe0f Finding references...`;
+        return d`⚙️ Finding references...`;
       case "done":
-        return d`u2705 References request complete.`;
+        return d`✅ References request complete.`;
       default:
         assertUnreachable(this.state);
     }
