@@ -151,21 +151,14 @@ export class AnthropicProvider implements Provider {
 
             case "tool_result":
               if (c.result.status == "ok") {
-                if (typeof c.result.value === "string") {
-                  content.push({
-                    tool_use_id: c.id,
-                    type: "tool_result",
-                    content: c.result.value,
-                    is_error: false,
-                  });
-                } else {
-                  switch (c.result.value.type) {
+                for (const resultContent of c.result.value) {
+                  switch (resultContent.type) {
                     case "text":
                       content.push({
                         tool_use_id: c.id,
                         type: "tool_result",
                         content: [
-                          mapProviderTextToAnthropicText(c.result.value),
+                          mapProviderTextToAnthropicText(resultContent),
                         ],
                         is_error: false,
                       });
@@ -174,7 +167,7 @@ export class AnthropicProvider implements Provider {
                       content.push({
                         tool_use_id: c.id,
                         type: "tool_result",
-                        content: [c.result.value],
+                        content: [resultContent],
                         is_error: false,
                       });
                       break;
@@ -187,12 +180,12 @@ export class AnthropicProvider implements Provider {
                       });
                       content.push({
                         type: "document",
-                        source: c.result.value.source,
-                        title: c.result.value.title || null,
+                        source: resultContent.source,
+                        title: resultContent.title || null,
                       });
                       break;
                     default:
-                      assertUnreachable(c.result.value);
+                      assertUnreachable(resultContent);
                   }
                 }
               } else {

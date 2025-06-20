@@ -4,6 +4,7 @@ import { type Result } from "../utils/result.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { ToolRequest } from "./toolManager.ts";
 import type {
+  ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
@@ -22,12 +23,12 @@ export type State =
     }
   | {
       state: "done";
-      result: ProviderToolResultContent;
+      result: ProviderToolResult;
     };
 
 export type Msg = {
   type: "finish";
-  result: Result<string>;
+  result: Result<ProviderToolResultContent[]>;
 };
 
 export class InsertTool implements ToolInterface {
@@ -152,7 +153,7 @@ ${this.getInsertPreview()}
 
     return result;
   }
-  getToolResult(): ProviderToolResultContent {
+  getToolResult(): ProviderToolResult {
     switch (this.state.state) {
       case "done":
         return this.state.result;
@@ -162,7 +163,9 @@ ${this.getInsertPreview()}
           id: this.request.id,
           result: {
             status: "ok",
-            value: `This tool use is being processed.`,
+            value: [
+              { type: "text", text: `This tool use is being processed.` },
+            ],
           },
         };
       default:

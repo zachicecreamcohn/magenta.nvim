@@ -2,7 +2,7 @@ import { d } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { ToolRequest } from "./toolManager.ts";
 import type {
-  ProviderToolResultContent,
+  ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
@@ -18,7 +18,7 @@ export type Msg = {
 
 export type State = {
   state: "done";
-  result: ProviderToolResultContent;
+  result: ProviderToolResult;
 };
 
 export class YieldToParentTool implements ToolInterface {
@@ -41,7 +41,7 @@ export class YieldToParentTool implements ToolInterface {
         id: this.request.id,
         result: {
           status: "ok",
-          value: request.input.result,
+          value: [{ type: "text", text: request.input.result }],
         },
       },
     };
@@ -75,7 +75,7 @@ export class YieldToParentTool implements ToolInterface {
     }
   }
 
-  getToolResult(): ProviderToolResultContent {
+  getToolResult(): ProviderToolResult {
     if (this.state.state !== "done") {
       throw new Error("Cannot get tool result before tool is done");
     }

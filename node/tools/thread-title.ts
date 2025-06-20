@@ -3,6 +3,7 @@ import { d } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { ToolRequest } from "./toolManager.ts";
 import type {
+  ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
@@ -16,12 +17,12 @@ export type State =
     }
   | {
       state: "done";
-      result: ProviderToolResultContent;
+      result: ProviderToolResult;
     };
 
 export type Msg = {
   type: "finish";
-  result: Result<string>;
+  result: Result<ProviderToolResultContent[]>;
 };
 
 export class ThreadTitleTool implements ToolInterface {
@@ -77,7 +78,7 @@ export class ThreadTitleTool implements ToolInterface {
     }
   }
 
-  getToolResult(): ProviderToolResultContent {
+  getToolResult(): ProviderToolResult {
     if (this.state.state == "done") {
       return this.state.result;
     }
@@ -87,7 +88,7 @@ export class ThreadTitleTool implements ToolInterface {
       id: this.request.id,
       result: {
         status: "ok",
-        value: "Processing thread title...",
+        value: [{ type: "text", text: "Processing thread title..." }],
       },
     };
   }
@@ -115,7 +116,7 @@ export class ThreadTitleTool implements ToolInterface {
       type: "finish",
       result: {
         status: "ok",
-        value: this.request.input.title,
+        value: [{ type: "text", text: this.request.input.title }],
       },
     });
   }

@@ -3,6 +3,7 @@ import { d } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { ToolRequest } from "./toolManager.ts";
 import type {
+  ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
@@ -23,12 +24,12 @@ export type State =
     }
   | {
       state: "done";
-      result: ProviderToolResultContent;
+      result: ProviderToolResult;
     };
 
 export type Msg = {
   type: "finish";
-  result: Result<string>;
+  result: Result<ProviderToolResultContent[]>;
 };
 
 export type NvimSelection = {
@@ -94,7 +95,7 @@ export class ReplaceSelectionTool implements ToolInterface {
     }
   }
 
-  getToolResult(): ProviderToolResultContent {
+  getToolResult(): ProviderToolResult {
     if (this.state.state == "done") {
       return this.state.result;
     }
@@ -104,7 +105,7 @@ export class ReplaceSelectionTool implements ToolInterface {
       id: this.request.id,
       result: {
         status: "ok",
-        value: "Tool is being applied...",
+        value: [{ type: "text", text: "Tool is being applied..." }],
       },
     };
   }
@@ -146,7 +147,7 @@ export class ReplaceSelectionTool implements ToolInterface {
       type: "finish",
       result: {
         status: "ok",
-        value: "Successfully replaced selection",
+        value: [{ type: "text", text: "Successfully replaced selection" }],
       },
     });
   }

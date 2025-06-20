@@ -9,7 +9,7 @@ import { getcwd } from "../nvim/nvim.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { readGitignore } from "./util.ts";
 import type {
-  ProviderToolResultContent,
+  ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Dispatch, Thunk } from "../tea/tea.ts";
@@ -44,14 +44,14 @@ export type State =
     }
   | {
       state: "done";
-      result: ProviderToolResultContent;
+      result: ProviderToolResult;
     };
 
 export type Msg =
   | {
       type: "finish";
       result: Result<
-        ProviderTextContent | ProviderImageContent | ProviderDocumentContent
+        (ProviderTextContent | ProviderImageContent | ProviderDocumentContent)[]
       >;
     }
   | {
@@ -208,11 +208,13 @@ export class GetFileTool implements ToolInterface {
         type: "finish",
         result: {
           status: "ok",
-          value: {
-            type: "text",
-            text: `This file is already part of the thread context. \
+          value: [
+            {
+              type: "text",
+              text: `This file is already part of the thread context. \
 You already have the most up-to-date information about the contents of this file.`,
-          },
+            },
+          ],
         },
       });
       return;
@@ -388,14 +390,14 @@ You already have the most up-to-date information about the contents of this file
       type: "finish",
       result: {
         status: "ok",
-        value: result,
+        value: [result],
       },
     });
 
     return;
   }
 
-  getToolResult(): ProviderToolResultContent {
+  getToolResult(): ProviderToolResult {
     switch (this.state.state) {
       case "pending":
       case "processing":
@@ -404,7 +406,12 @@ You already have the most up-to-date information about the contents of this file
           id: this.request.id,
           result: {
             status: "ok",
-            value: `This tool use is being processed. Please proceed with your answer or address other parts of the question.`,
+            value: [
+              {
+                type: "text",
+                text: `This tool use is being processed. Please proceed with your answer or address other parts of the question.`,
+              },
+            ],
           },
         };
       case "pending-user-action":
@@ -413,7 +420,12 @@ You already have the most up-to-date information about the contents of this file
           id: this.request.id,
           result: {
             status: "ok",
-            value: `Waiting for user approval to finish processing this tool use.`,
+            value: [
+              {
+                type: "text",
+                text: `Waiting for user approval to finish processing this tool use.`,
+              },
+            ],
           },
         };
       case "done":

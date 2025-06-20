@@ -2,7 +2,7 @@ import { d, withBindings, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { ToolRequest } from "./toolManager.ts";
 import type {
-  ProviderToolResultContent,
+  ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
@@ -23,7 +23,7 @@ export type State =
     }
   | {
       state: "done";
-      result: ProviderToolResultContent;
+      result: ProviderToolResult;
     };
 
 export class WaitForSubagentsTool implements ToolInterface {
@@ -79,7 +79,10 @@ export class WaitForSubagentsTool implements ToolInterface {
         id: this.request.id,
         result: {
           status: "ok",
-          value: `\
+          value: [
+            {
+              type: "text",
+              text: `\
 All subagents completed:
 ${results
   .map(({ threadId, result }) => {
@@ -93,6 +96,8 @@ ${results
     }
   })
   .join("\n")}`,
+            },
+          ],
         },
       },
     };
@@ -125,14 +130,19 @@ ${results
     }
   }
 
-  getToolResult(): ProviderToolResultContent {
+  getToolResult(): ProviderToolResult {
     if (this.state.state !== "done") {
       return {
         type: "tool_result",
         id: this.request.id,
         result: {
           status: "ok",
-          value: `Waiting for ${this.request.input.threadIds.length} subagent(s) to complete...`,
+          value: [
+            {
+              type: "text",
+              text: `Waiting for ${this.request.input.threadIds.length} subagent(s) to complete...`,
+            },
+          ],
         },
       };
     }

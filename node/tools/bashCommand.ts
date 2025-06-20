@@ -1,7 +1,7 @@
 import type { Result } from "../utils/result.ts";
 import type { Dispatch, Thunk } from "../tea/tea.ts";
 import type {
-  ProviderToolResultContent,
+  ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import { d, withBindings } from "../tea/view.ts";
@@ -61,7 +61,7 @@ type State =
       state: "done";
       output: OutputLine[];
       exitCode: number | undefined;
-      result: ProviderToolResultContent;
+      result: ProviderToolResult;
     }
   | {
       state: "error";
@@ -292,7 +292,7 @@ export class BashCommandTool implements ToolInterface {
             id: this.request.id,
             result: {
               status: "ok",
-              value: formattedOutput,
+              value: [{ type: "text", text: formattedOutput }],
             },
           },
         };
@@ -436,7 +436,7 @@ export class BashCommandTool implements ToolInterface {
     return formattedOutput;
   }
 
-  getToolResult(): ProviderToolResultContent {
+  getToolResult(): ProviderToolResult {
     const { state } = this;
 
     switch (state.state) {
@@ -460,7 +460,12 @@ export class BashCommandTool implements ToolInterface {
           id: this.request.id,
           result: {
             status: "ok",
-            value: `Waiting for user approval to run this command.`,
+            value: [
+              {
+                type: "text",
+                text: `Waiting for user approval to run this command.`,
+              },
+            ],
           },
         };
 
@@ -470,7 +475,7 @@ export class BashCommandTool implements ToolInterface {
           id: this.request.id,
           result: {
             status: "ok",
-            value: "Command still running",
+            value: [{ type: "text", text: "Command still running" }],
           },
         };
 

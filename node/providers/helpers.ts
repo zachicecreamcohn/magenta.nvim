@@ -129,12 +129,10 @@ export function stringifyContent(
         const result = content.result.value;
         const tool = toolManager.tools[content.id];
 
-        const formatResult = (r: typeof result): string => {
-          if (typeof r === "string") {
-            return r;
-          }
-          // Handle other content types by recursively calling stringifyContent
-          return stringifyContent(r, toolManager);
+        const formatResult = (contents: typeof result): string => {
+          return contents
+            .map((r) => stringifyContent(r, toolManager))
+            .join("\n");
         };
 
         if (!tool) {

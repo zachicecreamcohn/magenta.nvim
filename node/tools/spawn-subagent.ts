@@ -2,7 +2,7 @@ import { d, withBindings } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { ToolRequest } from "./toolManager.ts";
 import type {
-  ProviderToolResultContent,
+  ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
@@ -31,7 +31,7 @@ export type State =
   | {
       state: "done";
       threadId?: ThreadId;
-      result: ProviderToolResultContent;
+      result: ProviderToolResult;
     };
 
 export class SpawnSubagentTool implements ToolInterface {
@@ -123,7 +123,12 @@ export class SpawnSubagentTool implements ToolInterface {
                 id: this.request.id,
                 result: {
                   status: "ok",
-                  value: `Sub-agent started with threadId: ${msg.result.value}`,
+                  value: [
+                    {
+                      type: "text",
+                      text: `Sub-agent started with threadId: ${msg.result.value}`,
+                    },
+                  ],
                 },
               },
             };
@@ -151,14 +156,16 @@ export class SpawnSubagentTool implements ToolInterface {
     }
   }
 
-  getToolResult(): ProviderToolResultContent {
+  getToolResult(): ProviderToolResult {
     if (this.state.state !== "done") {
       return {
         type: "tool_result",
         id: this.request.id,
         result: {
           status: "ok",
-          value: `Waiting for subagent to finish running...`,
+          value: [
+            { type: "text", text: `Waiting for subagent to finish running...` },
+          ],
         },
       };
     }
@@ -176,7 +183,7 @@ export class SpawnSubagentTool implements ToolInterface {
         if (result.status === "error") {
           return d`🤖❌ Error spawning sub-agent: ${result.error}`;
         } else {
-          return withBindings(d`🤖✅ ${renderContentValue(result.value)}`, {
+          return withBindings(d`🤖✅ ${renderContentValue(result.value[0])}`, {
             "<CR>": () => {
               if (threadId) {
                 this.context.dispatch({

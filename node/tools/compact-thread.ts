@@ -2,7 +2,7 @@ import { d } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { ToolRequest } from "./toolManager.ts";
 import type {
-  ProviderToolResultContent,
+  ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
@@ -11,7 +11,7 @@ import type { UnresolvedFilePath } from "../utils/files.ts";
 
 export type State = {
   state: "done";
-  result: ProviderToolResultContent;
+  result: ProviderToolResult;
 };
 
 export class CompactThreadTool implements ToolInterface {
@@ -29,7 +29,7 @@ export class CompactThreadTool implements ToolInterface {
         id: this.request.id,
         result: {
           status: "ok",
-          value: "", // this should never need to be sent to the agent
+          value: [{ type: "text", text: "" }], // this should never need to be sent to the agent
         },
       },
     };
@@ -39,7 +39,7 @@ export class CompactThreadTool implements ToolInterface {
 
   update(): void {}
 
-  getToolResult(): ProviderToolResultContent {
+  getToolResult(): ProviderToolResult {
     return this.state.result;
   }
 

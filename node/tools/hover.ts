@@ -10,6 +10,7 @@ import { calculateStringPosition } from "../tea/util.ts";
 import type { PositionString, StringIdx } from "../nvim/window.ts";
 import type { ToolRequest } from "./toolManager.ts";
 import type {
+  ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
@@ -22,12 +23,12 @@ export type State =
     }
   | {
       state: "done";
-      result: ProviderToolResultContent;
+      result: ProviderToolResult;
     };
 
 export type Msg = {
   type: "finish";
-  result: Result<string>;
+  result: Result<ProviderToolResultContent[]>;
 };
 
 export class HoverTool implements ToolInterface {
@@ -147,7 +148,7 @@ ${lspResult.result.contents.value}
           type: "finish",
           result: {
             status: "ok",
-            value: content,
+            value: [{ type: "text", text: content }],
           },
         });
       } catch (error) {
@@ -162,7 +163,7 @@ ${lspResult.result.contents.value}
     };
   }
 
-  getToolResult(): ProviderToolResultContent {
+  getToolResult(): ProviderToolResult {
     switch (this.state.state) {
       case "processing":
         return {
@@ -170,7 +171,9 @@ ${lspResult.result.contents.value}
           id: this.request.id,
           result: {
             status: "ok",
-            value: `This tool use is being processed.`,
+            value: [
+              { type: "text", text: `This tool use is being processed.` },
+            ],
           },
         };
       case "done":

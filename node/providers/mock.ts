@@ -274,13 +274,16 @@ ${this.requests.map((r) => `${r.defer.resolved ? "resolved" : "pending"} - ${JSO
         case "tool_result":
           if (block.result.status == "ok") {
             const value = block.result.value;
-            if (typeof value === "string") {
-              if (value.includes(text)) {
-                return true;
-              }
-            } else if (value.type === "text") {
-              if (value.text.includes(text)) {
-                return true;
+            if (Array.isArray(value)) {
+              for (const item of value) {
+                if (
+                  item &&
+                  typeof item === "object" &&
+                  item.type === "text" &&
+                  item.text.includes(text)
+                ) {
+                  return true;
+                }
               }
             }
           } else if (block.result.status == "error") {

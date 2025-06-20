@@ -98,15 +98,15 @@ export type ProviderWebSearchToolResult = {
   content: Anthropic.WebSearchToolResultBlockContent;
 };
 
-export type ProviderToolResultContent = {
+export type ProviderToolResultContent =
+  | ProviderTextContent
+  | ProviderImageContent
+  | ProviderDocumentContent;
+
+export type ProviderToolResult = {
   type: "tool_result";
   id: ToolManager.ToolRequestId;
-  result: Result<
-    | string
-    | ProviderTextContent
-    | ProviderImageContent
-    | ProviderDocumentContent
-  >;
+  result: Result<ProviderToolResultContent[]>;
 };
 
 export type ProviderToolSpec = {
@@ -122,7 +122,7 @@ export type ProviderMessageContent =
   | ProviderToolUseContent
   | ProviderServerToolUseContent
   | ProviderWebSearchToolResult
-  | ProviderToolResultContent;
+  | ProviderToolResult;
 
 export interface Provider {
   setModel(model: string): void;

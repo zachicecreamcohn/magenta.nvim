@@ -12,6 +12,7 @@ import type { PositionString, StringIdx } from "../nvim/window.ts";
 import path from "path";
 import type { ToolRequest } from "./toolManager.ts";
 import type {
+  ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
@@ -24,12 +25,12 @@ export type State =
     }
   | {
       state: "done";
-      result: ProviderToolResultContent;
+      result: ProviderToolResult;
     };
 
 export type Msg = {
   type: "finish";
-  result: Result<string>;
+  result: Result<ProviderToolResultContent[]>;
 };
 
 export class FindReferencesTool implements ToolInterface {
@@ -155,7 +156,7 @@ export class FindReferencesTool implements ToolInterface {
           type: "finish",
           result: {
             status: "ok",
-            value: content || "No references found",
+            value: [{ type: "text", text: content || "No references found" }],
           },
         });
       } catch (error) {
@@ -170,7 +171,7 @@ export class FindReferencesTool implements ToolInterface {
     };
   }
 
-  getToolResult(): ProviderToolResultContent {
+  getToolResult(): ProviderToolResult {
     switch (this.state.state) {
       case "processing":
         return {
@@ -178,7 +179,9 @@ export class FindReferencesTool implements ToolInterface {
           id: this.request.id,
           result: {
             status: "ok",
-            value: `This tool use is being processed.`,
+            value: [
+              { type: "text", text: `This tool use is being processed.` },
+            ],
           },
         };
       case "done":

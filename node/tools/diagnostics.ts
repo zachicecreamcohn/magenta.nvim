@@ -6,6 +6,7 @@ import type { Nvim } from "../nvim/nvim-node";
 import { parseLsResponse } from "../utils/lsBuffers.ts";
 import type { ToolRequest } from "./toolManager.ts";
 import type {
+  ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
@@ -17,12 +18,12 @@ export type State =
     }
   | {
       state: "done";
-      result: ProviderToolResultContent;
+      result: ProviderToolResult;
     };
 
 export type Msg = {
   type: "finish";
-  result: Result<string>;
+  result: Result<ProviderToolResultContent[]>;
 };
 
 type DiagnosticsRes = {
@@ -148,13 +149,13 @@ export class DiagnosticsTool implements ToolInterface {
         type: "finish",
         result: {
           status: "ok",
-          value: content,
+          value: [{ type: "text", text: content }],
         },
       });
     };
   }
 
-  getToolResult(): ProviderToolResultContent {
+  getToolResult(): ProviderToolResult {
     switch (this.state.state) {
       case "processing":
         return {
@@ -162,7 +163,12 @@ export class DiagnosticsTool implements ToolInterface {
           id: this.request.id,
           result: {
             status: "ok",
-            value: `This tool use is being processed. Please proceed with your answer or address other parts of the question.`,
+            value: [
+              {
+                type: "text",
+                text: `This tool use is being processed. Please proceed with your answer or address other parts of the question.`,
+              },
+            ],
           },
         };
       case "done":

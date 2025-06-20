@@ -13,12 +13,19 @@ export type Profile = {
 
 export type CommandAllowlist = string[];
 
+export type MCPServerConfig = {
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+};
+
 export type MagentaOptions = {
   profiles: Profile[];
   activeProfile: string;
   sidebarPosition: "left" | "right";
   commandAllowlist: CommandAllowlist;
   autoContext: string[];
+  mcpServers: Record<string, MCPServerConfig>;
 };
 
 // Reusable parsing helpers
@@ -125,6 +132,99 @@ function parseStringArray(
   }) as string[];
 }
 
+function parseMCPServers(
+  input: unknown,
+  logger?: { warn: (msg: string) => void },
+): Record<string, MCPServerConfig> {
+  if (typeof input !== "object" || input === null) {
+    logger?.warn("mcpServers must be an object");
+    return {};
+  }
+
+  const servers: Record<string, MCPServerConfig> = {};
+  const inputObj = input as Record<string, unknown>;
+
+  for (const [serverName, serverConfig] of Object.entries(inputObj)) {
+    try {
+      if (typeof serverConfig !== "object" || serverConfig === null) {
+        logger?.warn(
+          `Skipping invalid MCP server config for ${serverName}: must be an object`,
+        );
+        continue;
+      }
+
+      const config = serverConfig as Record<string, unknown>;
+
+      if (typeof config.command !== "string") {
+        logger?.warn(
+          `Skipping MCP server ${serverName}: command must be a string`,
+        );
+        continue;
+      }
+
+      if (!Array.isArray(config.args)) {
+        logger?.warn(
+          `Skipping MCP server ${serverName}: args must be an array`,
+        );
+        continue;
+      }
+
+      const args = config.args.filter((arg) => {
+        if (typeof arg === "string") {
+          return true;
+        } else {
+          logger?.warn(
+            `Skipping non-string arg in MCP server ${serverName}: ${JSON.stringify(arg)}`,
+          );
+          return false;
+        }
+      }) as string[];
+
+      const serverConfigOut: MCPServerConfig = {
+        command: config.command,
+        args,
+      };
+
+      if (config.env !== undefined) {
+        if (
+          typeof config.env === "object" &&
+          config.env !== null &&
+          !Array.isArray(config.env)
+        ) {
+          const env: Record<string, string> = {};
+          const envObj = config.env as Record<string, unknown>;
+
+          for (const [envKey, envValue] of Object.entries(envObj)) {
+            if (typeof envValue === "string") {
+              env[envKey] = envValue;
+            } else {
+              logger?.warn(
+                `Skipping non-string env value in MCP server ${serverName}: ${envKey}=${JSON.stringify(envValue)}`,
+              );
+            }
+          }
+
+          if (Object.keys(env).length > 0) {
+            serverConfigOut.env = env;
+          }
+        } else {
+          logger?.warn(
+            `Invalid env in MCP server ${serverName}: must be an object`,
+          );
+        }
+      }
+
+      servers[serverName] = serverConfigOut;
+    } catch (error) {
+      logger?.warn(
+        `Error parsing MCP server ${serverName}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  return servers;
+}
+
 function parseSidebarPosition(
   input: unknown,
   logger?: { warn: (msg: string) => void },
@@ -146,6 +246,7 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
     sidebarPosition: "left",
     commandAllowlist: [],
     autoContext: [],
+    mcpServers: {},
   };
 
   if (typeof inputOptions == "object" && inputOptions != null) {
@@ -182,6 +283,13 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
       inputOptionsObj["autoContext"],
       "autoContext",
     );
+
+    // Parse MCP servers (throw errors for invalid MCP servers in main config)
+    options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], {
+      warn: (msg) => {
+        throw new Error(msg);
+      },
+    });
   }
 
   return options;
@@ -248,6 +356,11 @@ export function parseProjectOptions(
     );
   }
 
+  // Parse MCP servers
+  if ("mcpServers" in inputOptionsObj) {
+    options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
+  }
+
   return options;
 }
 
@@ -300,6 +413,13 @@ export function mergeOptions(
 
   if (projectSettings.sidebarPosition !== undefined) {
     merged.sidebarPosition = projectSettings.sidebarPosition;
+  }
+
+  if (projectSettings.mcpServers) {
+    merged.mcpServers = {
+      ...baseOptions.mcpServers,
+      ...projectSettings.mcpServers,
+    };
   }
 
   return merged;

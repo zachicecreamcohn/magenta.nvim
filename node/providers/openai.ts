@@ -163,20 +163,13 @@ export class OpenAIProvider implements Provider {
           case "tool_result":
             if (content.result.status == "ok") {
               const value = content.result.value;
-              if (typeof value === "string") {
-                openaiMessages.push({
-                  type: "function_call_output",
-                  call_id: content.id,
-                  output: value,
-                });
-              } else {
-                // For complex content types, add a string result followed by the rich content
-                switch (value.type) {
+              for (const toolResult of value) {
+                switch (toolResult.type) {
                   case "text":
                     openaiMessages.push({
                       type: "function_call_output",
                       call_id: content.id,
-                      output: value.text,
+                      output: toolResult.text,
                     });
                     break;
                   case "image":
@@ -190,7 +183,7 @@ export class OpenAIProvider implements Provider {
                       content: [
                         {
                           type: "input_image",
-                          image_url: `data:${value.source.media_type};base64,${value.source.data}`,
+                          image_url: `data:${toolResult.source.media_type};base64,${toolResult.source.data}`,
                           detail: "auto",
                         },
                       ],
@@ -207,14 +200,14 @@ export class OpenAIProvider implements Provider {
                       content: [
                         {
                           type: "input_file",
-                          filename: value.title || "untitled.pdf",
-                          file_data: `data:${value.source.media_type};base64,${value.source.data}`,
+                          filename: toolResult.title || "untitled.pdf",
+                          file_data: `data:${toolResult.source.media_type};base64,${toolResult.source.data}`,
                         },
                       ],
                     });
                     break;
                   default:
-                    assertUnreachable(value);
+                    assertUnreachable(toolResult);
                 }
               }
             } else {
