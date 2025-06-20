@@ -5,7 +5,7 @@ import { d } from "../../tea/view.ts";
 import type { StaticToolRequest } from "../toolManager.ts";
 import type { Nvim } from "../../nvim/nvim-node";
 import { assertUnreachable } from "../../utils/assertUnreachable.ts";
-import type { ToolInterface } from "../types.ts";
+import type { Tool } from "../types.ts";
 import type { MCPClient, MCPToolName, MCPToolRequestParams } from "./client.ts";
 
 export type Input = {
@@ -38,7 +38,7 @@ export function validateInput(args: { [key: string]: unknown }): Result<Input> {
   };
 }
 
-export class MCPTool implements ToolInterface {
+export class MCPTool implements Tool {
   state: State;
   toolName: string;
 

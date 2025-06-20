@@ -76,19 +76,19 @@ Key interfaces to extend:
   - [x] Add proper TypeScript types for MCP tool schemas
   - [x] Iterate until type checks pass
 
-- [ ] Create generic MCP tool wrapper
-  - [ ] Create `node/tools/mcp/tool.ts` with `MCPTool` class that implements `ToolInterface`
-  - [ ] Handle tool execution by delegating to `MCPClient`
-  - [ ] Implement proper state management (pending, processing, done, error)
-  - [ ] Add view rendering for MCP tool status
-  - [ ] Add input validation and error handling
-  - [ ] Iterate until type checks pass
+- [x] Create generic MCP tool wrapper
+  - [x] Create `node/tools/mcp/tool.ts` with `MCPTool` class that implements `ToolInterface`
+  - [x] Handle tool execution by delegating to `MCPClient`
+  - [x] Implement proper state management (pending, processing, done, error)
+  - [x] Add view rendering for MCP tool status
+  - [x] Add input validation and error handling
+  - [x] Iterate until type checks pass
 
 ### Phase 2: Prepare tool manager
 
 - [ ] We're going to prepare the codebase to make the Tool more opaque
-  - [ ] outside of the toolManager, toolName should be an opaque, branded `string & {__toolName: true}` type.
-  - [ ] outside of the toolManager, toolRequests and toolResponses should be opaque
+  - [x] outside of the toolManager, toolName should be an opaque, branded `string & {__toolName: true}` type.
+  - [x] outside of the toolManager, toolRequests should be opaque
   - [ ] outside of the toolManager, tool Msg should be opaque
   - [ ] this means we expose just a branded type to chat, thread, message, etc...
 

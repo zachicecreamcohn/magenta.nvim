@@ -13,7 +13,7 @@ import type { Nvim } from "../nvim/nvim-node";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
 import type { ThreadId } from "../chat/thread.ts";
-import type { ToolInterface, ToolName } from "./types.ts";
+import type { Tool, ToolName } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 
@@ -31,7 +31,7 @@ export type Msg = {
   result: Result<ProviderToolResultContent[]>;
 };
 
-export class InsertTool implements ToolInterface {
+export class InsertTool implements Tool {
   state: State;
   toolName = "insert" as const;
 

@@ -17,7 +17,7 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
-import type { ToolInterface, ToolName } from "./types.ts";
+import type { Tool, ToolName } from "./types.ts";
 
 export type State =
   | {
@@ -33,7 +33,7 @@ export type Msg = {
   result: Result<ProviderToolResultContent[]>;
 };
 
-export class FindReferencesTool implements ToolInterface {
+export class FindReferencesTool implements Tool {
   state: State;
   toolName = "find_references" as ToolName;
 

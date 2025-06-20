@@ -1,8 +1,4 @@
-import {
-  ToolManager,
-  type ToolRequestId,
-  type StaticToolMsg,
-} from "../tools/toolManager.ts";
+import { ToolManager, type ToolRequestId } from "../tools/toolManager.ts";
 import { type Role, type ThreadId } from "./thread.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, withBindings } from "../tea/view.ts";
@@ -263,16 +259,7 @@ export class Message {
       this.state.toolDetailsExpanded[tool.request.id] || false;
 
     return withBindings(
-      d`${tool.view((msg) =>
-        this.context.toolManager.myDispatch({
-          type: "tool-msg",
-          msg: {
-            id: tool.request.id,
-            toolName: tool.toolName,
-            msg: msg,
-          } as StaticToolMsg,
-        }),
-      )}${
+      d`${tool.view()}${
         showDetails
           ? d`\nid: ${tool.request.id}\n${tool.displayInput()}\n${this.context.toolManager.renderToolResult(tool.request.id)}`
           : ""

@@ -13,7 +13,7 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { ToolInterface, ToolName } from "./types.ts";
+import type { Tool, ToolName } from "./types.ts";
 
 export type State =
   | {
@@ -74,7 +74,7 @@ async function listDirectoryBFS(
   return results;
 }
 
-export class ListDirectoryTool implements ToolInterface {
+export class ListDirectoryTool implements Tool {
   state: State;
   toolName = "list_directory" as const;
   autoRespond = true;

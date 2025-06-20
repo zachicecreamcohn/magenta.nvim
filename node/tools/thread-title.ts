@@ -9,7 +9,7 @@ import type {
 } from "../providers/provider.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { ToolInterface, ToolName } from "./types.ts";
+import type { Tool, ToolName } from "./types.ts";
 
 export type State =
   | {
@@ -25,7 +25,7 @@ export type Msg = {
   result: Result<ProviderToolResultContent[]>;
 };
 
-export class ThreadTitleTool implements ToolInterface {
+export class ThreadTitleTool implements Tool {
   state: State;
   toolName = "thread_title" as const;
 

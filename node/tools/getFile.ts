@@ -22,7 +22,7 @@ import {
   FileCategory,
   type FileTypeInfo,
 } from "../utils/files.ts";
-import type { ToolInterface, ToolName } from "./types.ts";
+import type { Tool, ToolName } from "./types.ts";
 import type { Msg as ThreadMsg } from "../chat/thread.ts";
 import type { ContextManager } from "../context/context-manager.ts";
 import type {
@@ -65,7 +65,7 @@ export type Msg =
       approved: boolean;
     };
 
-export class GetFileTool implements ToolInterface {
+export class GetFileTool implements Tool {
   state: State;
   toolName = "get_file" as ToolName;
 
@@ -435,7 +435,7 @@ You already have the most up-to-date information about the contents of this file
     }
   }
 
-  view(dispatch: Dispatch<Msg>) {
+  view() {
     switch (this.state.state) {
       case "pending":
       case "processing":
@@ -444,10 +444,15 @@ You already have the most up-to-date information about the contents of this file
         return d`⏳ May I read file \`${this.request.input.filePath}\`? ${withBindings(
           d`**[ NO ]**`,
           {
-            "<CR>": () => dispatch({ type: "user-approval", approved: false }),
+            "<CR>": () =>
+              this.context.myDispatch({
+                type: "user-approval",
+                approved: false,
+              }),
           },
         )} ${withBindings(d`**[ OK ]**`, {
-          "<CR>": () => dispatch({ type: "user-approval", approved: true }),
+          "<CR>": () =>
+            this.context.myDispatch({ type: "user-approval", approved: true }),
         })}`;
       case "done":
         if (this.state.result.result.status == "error") {

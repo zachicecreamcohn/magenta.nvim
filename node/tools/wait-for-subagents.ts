@@ -6,7 +6,7 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { ToolInterface, ToolName } from "./types.ts";
+import type { Tool, ToolName } from "./types.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/thread.ts";
@@ -26,7 +26,7 @@ export type State =
       result: ProviderToolResult;
     };
 
-export class WaitForSubagentsTool implements ToolInterface {
+export class WaitForSubagentsTool implements Tool {
   toolName = "wait_for_subagents" as const;
   public state: State;
 

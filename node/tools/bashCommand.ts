@@ -12,7 +12,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { CommandAllowlist, MagentaOptions } from "../options.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import { withTimeout } from "../utils/async.ts";
-import type { ToolInterface, ToolName } from "./types.ts";
+import type { Tool, ToolName } from "./types.ts";
 
 export const spec: ProviderToolSpec = {
   name: "bash_command" as ToolName,
@@ -128,7 +128,7 @@ export function isCommandAllowed(
   return false;
 }
 
-export class BashCommandTool implements ToolInterface {
+export class BashCommandTool implements Tool {
   state: State;
   toolName = "bash_command" as ToolName;
 
@@ -484,18 +484,24 @@ export class BashCommandTool implements ToolInterface {
     }
   }
 
-  view(dispatch: Dispatch<Msg>) {
+  view() {
     const { state } = this;
 
     if (state.state === "pending-user-action") {
       return d`⏳ May I run this command? \`${this.request.input.command}\`
 ${withBindings(d`**[ NO ]**`, {
-  "<CR>": () => dispatch({ type: "user-approval", approved: false }),
+  "<CR>": () =>
+    this.context.myDispatch({ type: "user-approval", approved: false }),
 })} ${withBindings(d`**[ YES ]**`, {
-        "<CR>": () => dispatch({ type: "user-approval", approved: true }),
+        "<CR>": () =>
+          this.context.myDispatch({ type: "user-approval", approved: true }),
       })} ${withBindings(d`**[ ALWAYS ]**`, {
         "<CR>": () =>
-          dispatch({ type: "user-approval", approved: true, remember: true }),
+          this.context.myDispatch({
+            type: "user-approval",
+            approved: true,
+            remember: true,
+          }),
       })}`;
     }
 
@@ -509,7 +515,7 @@ ${formattedOutput}
 \`\`\``;
 
       return withBindings(content, {
-        t: () => dispatch({ type: "terminate" }),
+        t: () => this.context.myDispatch({ type: "terminate" }),
       });
     }
 

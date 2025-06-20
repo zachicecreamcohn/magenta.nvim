@@ -6,7 +6,7 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { ToolInterface, ToolName } from "./types.ts";
+import type { Tool, ToolName } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 
 export type State = {
@@ -14,7 +14,7 @@ export type State = {
   result: ProviderToolResult;
 };
 
-export class CompactThreadTool implements ToolInterface {
+export class CompactThreadTool implements Tool {
   toolName = "compact_thread" as ToolName;
   public state: State;
 

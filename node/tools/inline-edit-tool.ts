@@ -9,7 +9,7 @@ import type {
 } from "../providers/provider.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { ToolInterface, ToolName } from "./types.ts";
+import type { Tool, ToolName } from "./types.ts";
 import { NvimBuffer, type BufNr, type Line } from "../nvim/buffer.ts";
 import type { ByteIdx, Position0Indexed } from "../nvim/window.ts";
 
@@ -27,7 +27,7 @@ export type Msg = {
   result: Result<ProviderToolResultContent[]>;
 };
 
-export class InlineEditTool implements ToolInterface {
+export class InlineEditTool implements Tool {
   state: State;
   toolName = "inline_edit" as const;
 

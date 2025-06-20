@@ -10,7 +10,7 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { ToolInterface, ToolName } from "./types.ts";
+import type { Tool, ToolName } from "./types.ts";
 
 export type State =
   | {
@@ -26,7 +26,7 @@ export type Msg = {
   result: Result<ProviderToolResultContent[]>;
 };
 
-export class ListBuffersTool implements ToolInterface {
+export class ListBuffersTool implements Tool {
   state: State;
   toolName = "list_buffers" as const;
 

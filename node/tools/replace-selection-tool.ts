@@ -9,7 +9,7 @@ import type {
 } from "../providers/provider.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { ToolInterface, ToolName } from "./types.ts";
+import type { Tool, ToolName } from "./types.ts";
 import { NvimBuffer, type BufNr, type Line } from "../nvim/buffer.ts";
 import type {
   ByteIdx,
@@ -38,7 +38,7 @@ export type NvimSelection = {
   text: string;
 };
 
-export class ReplaceSelectionTool implements ToolInterface {
+export class ReplaceSelectionTool implements Tool {
   state: State;
   toolName = "replace_selection" as const;
 

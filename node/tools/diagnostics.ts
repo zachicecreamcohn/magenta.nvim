@@ -10,7 +10,7 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { ToolInterface, ToolName } from "./types.ts";
+import type { Tool, ToolName } from "./types.ts";
 
 export type State =
   | {
@@ -58,7 +58,7 @@ type DiagnosticsRes = {
   severity: number;
 };
 
-export class DiagnosticsTool implements ToolInterface {
+export class DiagnosticsTool implements Tool {
   state: State;
   toolName = "diagnostics" as ToolName;
 

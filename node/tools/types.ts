@@ -1,3 +1,5 @@
+import type { VDOMNode } from "../tea/view";
+
 export type ToolRequestId = string & { __toolRequestId: true };
 
 /** Opaque toolName type. Internally we'll differentiate between static tools and mcp tools, but external to the tool
@@ -11,6 +13,7 @@ export type ToolRequest = {
   input: unknown;
 };
 
-export interface ToolInterface {
+export interface Tool {
   abort(): void;
+  view(): VDOMNode;
 }
