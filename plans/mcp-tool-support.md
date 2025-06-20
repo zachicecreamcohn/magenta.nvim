@@ -86,11 +86,11 @@ Key interfaces to extend:
 
 ### Phase 2: Prepare tool manager
 
-- [ ] We're going to prepare the codebase to make the Tool more opaque
+- [x] We're going to prepare the codebase to make the Tool more opaque
   - [x] outside of the toolManager, toolName should be an opaque, branded `string & {__toolName: true}` type.
   - [x] outside of the toolManager, toolRequests should be opaque
-  - [ ] outside of the toolManager, tool Msg should be opaque
-  - [ ] this means we expose just a branded type to chat, thread, message, etc...
+  - [x] outside of the toolManager, tool Msg should be opaque
+  - [x] this means we expose just a branded type to chat, thread, message, etc...
 
 ### Phase 3: Integration with Existing Tool System
 

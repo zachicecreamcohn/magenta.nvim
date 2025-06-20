@@ -3,7 +3,7 @@ import path from "path";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d } from "../tea/view.ts";
 import type { Result } from "../utils/result.ts";
-import type { Dispatch, Thunk } from "../tea/tea.ts";
+
 import { getcwd } from "../nvim/nvim.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { readGitignore } from "./util.ts";
@@ -79,21 +79,18 @@ export class ListDirectoryTool implements Tool {
   toolName = "list_directory" as const;
   autoRespond = true;
 
-  private constructor(
+  constructor(
     public request: Extract<StaticToolRequest, { toolName: "list_directory" }>,
-    public context: { nvim: Nvim },
+    public context: { nvim: Nvim; myDispatch: (msg: Msg) => void },
   ) {
     this.state = {
       state: "processing",
     };
-  }
-
-  static create(
-    request: Extract<StaticToolRequest, { toolName: "list_directory" }>,
-    context: { nvim: Nvim },
-  ): [ListDirectoryTool, Thunk<Msg>] {
-    const tool = new ListDirectoryTool(request, context);
-    return [tool, tool.listDirectory()];
+    this.listDirectory().catch((error) => {
+      this.context.nvim.logger?.error(
+        `Error listing directory: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
   }
 
   abort() {
@@ -110,7 +107,7 @@ export class ListDirectoryTool implements Tool {
     };
   }
 
-  update(msg: Msg): Thunk<Msg> | undefined {
+  update(msg: Msg) {
     switch (msg.type) {
       case "finish":
         if (this.state.state == "processing") {
@@ -129,43 +126,41 @@ export class ListDirectoryTool implements Tool {
     }
   }
 
-  listDirectory(): Thunk<Msg> {
-    return async (dispatch: Dispatch<Msg>) => {
-      try {
-        const cwd = await getcwd(this.context.nvim);
-        const dirPath = this.request.input.dirPath || ".";
-        const absolutePath = path.resolve(cwd, dirPath);
+  async listDirectory() {
+    try {
+      const cwd = await getcwd(this.context.nvim);
+      const dirPath = this.request.input.dirPath || ".";
+      const absolutePath = path.resolve(cwd, dirPath);
 
-        if (!absolutePath.startsWith(cwd)) {
-          dispatch({
-            type: "finish",
-            result: {
-              status: "error",
-              error: `The path \`${absolutePath}\` must be inside of neovim cwd \`${cwd}\``,
-            },
-          });
-          return;
-        }
-
-        const files = await listDirectoryBFS(absolutePath, cwd);
-        this.context.nvim.logger?.debug(`files: ${files.join("\n")}`);
-        dispatch({
-          type: "finish",
-          result: {
-            status: "ok",
-            value: [{ type: "text", text: files.join("\n") }],
-          },
-        });
-      } catch (error) {
-        dispatch({
+      if (!absolutePath.startsWith(cwd)) {
+        this.context.myDispatch({
           type: "finish",
           result: {
             status: "error",
-            error: `Failed to list directory: ${(error as Error).message}`,
+            error: `The path \`${absolutePath}\` must be inside of neovim cwd \`${cwd}\``,
           },
         });
+        return;
       }
-    };
+
+      const files = await listDirectoryBFS(absolutePath, cwd);
+      this.context.nvim.logger?.debug(`files: ${files.join("\n")}`);
+      this.context.myDispatch({
+        type: "finish",
+        result: {
+          status: "ok",
+          value: [{ type: "text", text: files.join("\n") }],
+        },
+      });
+    } catch (error) {
+      this.context.myDispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: `Failed to list directory: ${(error as Error).message}`,
+        },
+      });
+    }
   }
 
   getToolResult(): ProviderToolResult {

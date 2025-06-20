@@ -12,6 +12,7 @@ import {
   type Msg as ToolManagerMsg,
   type StaticToolRequest,
 } from "../tools/toolManager.ts";
+import { MCPToolManager } from "../tools/mcp/manager.ts";
 import type { ToolName } from "../tools/types.ts";
 import { Counter } from "../utils/uniqueId.ts";
 import { FileSnapshots } from "../tools/file-snapshots.ts";
@@ -155,6 +156,7 @@ export class Thread {
     public context: {
       dispatch: Dispatch<RootMsg>;
       chat: Chat;
+      mcpToolManager: MCPToolManager;
       bufferTracker: BufferTracker;
       profile: Profile;
       nvim: Nvim;
@@ -181,6 +183,7 @@ export class Thread {
         dispatch: this.context.dispatch,
         threadId: this.id,
         bufferTracker: this.context.bufferTracker,
+        mcpToolManager: this.context.mcpToolManager,
         chat: this.context.chat,
         nvim: this.context.nvim,
         lsp: this.context.lsp,
@@ -448,11 +451,15 @@ export class Thread {
       ) {
         const request = lastContentBlock.request.value;
         if (request.toolName == "yield_to_parent") {
+          const yieldRequest = request as Extract<
+            StaticToolRequest,
+            { toolName: "yield_to_parent" }
+          >;
           this.myUpdate({
             type: "conversation-state",
             conversation: {
               state: "yielded",
-              response: request.input.result,
+              response: yieldRequest.input.result,
             },
           });
           return;

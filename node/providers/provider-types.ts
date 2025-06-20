@@ -4,7 +4,7 @@ import type { StaticToolName } from "../tools/tool-registry.ts";
 import type { Result } from "../utils/result";
 import Anthropic from "@anthropic-ai/sdk";
 import type { SubagentSystemPrompt } from "./system-prompt.ts";
-import type { ToolName } from "../tools/types.ts";
+import type { ToolName, ToolRequest } from "../tools/types.ts";
 
 export const PROVIDER_NAMES = [
   "anthropic",
@@ -81,7 +81,7 @@ export type ProviderToolUseContent = {
   type: "tool_use";
   id: ToolManager.ToolRequestId;
   name: StaticToolName;
-  request: Result<ToolManager.StaticToolRequest, { rawRequest: unknown }>;
+  request: Result<ToolRequest, { rawRequest: unknown }>;
 };
 
 export type ProviderServerToolUseContent = {

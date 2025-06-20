@@ -1,10 +1,6 @@
 import type { WebSearchResultBlock } from "@anthropic-ai/sdk/resources.mjs";
 import { validateInput } from "../tools/helpers";
-import type {
-  ToolManager,
-  StaticToolRequest,
-  ToolRequestId,
-} from "../tools/toolManager";
+import type { ToolManager, ToolRequestId } from "../tools/toolManager";
 import { assertUnreachable } from "../utils/assertUnreachable";
 import type {
   ProviderBlockStartEvent,
@@ -16,6 +12,7 @@ import type {
   ProviderDocumentContent,
 } from "./provider";
 import type { StaticToolName } from "../tools/tool-registry";
+import type { ToolName } from "../tools/types";
 
 export function renderContentValue(
   value:
@@ -212,9 +209,9 @@ export function finalizeStreamingBlock(
                 status: "ok",
                 value: {
                   id: block.id as ToolRequestId,
-                  toolName: block.name,
+                  toolName: block.name as ToolName,
                   input: inputParseResult.value,
-                } as StaticToolRequest,
+                },
               }
             : {
                 ...inputParseResult,

@@ -2,11 +2,11 @@ import type { Result } from "../../utils/result.ts";
 import type { Dispatch, Thunk } from "../../tea/tea.ts";
 import type { ProviderToolResult } from "../../providers/provider.ts";
 import { d } from "../../tea/view.ts";
-import type { StaticToolRequest } from "../toolManager.ts";
 import type { Nvim } from "../../nvim/nvim-node";
 import { assertUnreachable } from "../../utils/assertUnreachable.ts";
-import type { Tool } from "../types.ts";
-import type { MCPClient, MCPToolName, MCPToolRequestParams } from "./client.ts";
+import type { Tool, ToolName, ToolRequestId } from "../types.ts";
+import type { MCPClient } from "./client.ts";
+import { parseToolName, type MCPToolRequestParams } from "./types.ts";
 
 export type Input = {
   [key: string]: unknown;
@@ -43,7 +43,11 @@ export class MCPTool implements Tool {
   toolName: string;
 
   constructor(
-    public request: StaticToolRequest,
+    public request: {
+      id: ToolRequestId;
+      toolName: ToolName;
+      input: Input;
+    },
     public context: {
       nvim: Nvim;
       mcpClient: MCPClient;
@@ -100,10 +104,10 @@ export class MCPTool implements Tool {
 
   async executeMCPTool(): Promise<void> {
     try {
-      const toolName = this.request.toolName as MCPToolName;
+      const mcpToolName = parseToolName(this.request.toolName).mcpToolName;
       const params = this.request.input as MCPToolRequestParams;
 
-      const result = await this.context.mcpClient.callTool(toolName, params);
+      const result = await this.context.mcpClient.callTool(mcpToolName, params);
 
       this.context.myDispatch({
         type: "success",

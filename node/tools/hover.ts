@@ -1,6 +1,5 @@
 import { d } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
-import type { Dispatch, Thunk } from "../tea/tea.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { getOrOpenBuffer } from "../utils/buffers.ts";
 import type { NvimBuffer } from "../nvim/buffer.ts";
@@ -35,24 +34,21 @@ export class HoverTool implements Tool {
   state: State;
   toolName = "hover" as ToolName;
 
-  private constructor(
+  constructor(
     public request: Extract<StaticToolRequest, { toolName: "hover" }>,
-    public context: { nvim: Nvim; lsp: Lsp },
+    public context: { nvim: Nvim; lsp: Lsp; myDispatch: (msg: Msg) => void },
   ) {
     this.state = {
       state: "processing",
     };
+    this.requestHover().catch((error) => {
+      this.context.nvim.logger?.error(
+        `Error requesting hover: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
   }
 
-  static create(
-    request: Extract<StaticToolRequest, { toolName: "hover" }>,
-    context: { nvim: Nvim; lsp: Lsp },
-  ): [HoverTool, Thunk<Msg>] {
-    const tool = new HoverTool(request, context);
-    return [tool, tool.requestHover()];
-  }
-
-  update(msg: Msg): Thunk<Msg> | undefined {
+  update(msg: Msg) {
     switch (msg.type) {
       case "finish":
         if (this.state.state == "processing") {
@@ -85,82 +81,80 @@ export class HoverTool implements Tool {
     };
   }
 
-  requestHover(): Thunk<Msg> {
-    return async (dispatch: Dispatch<Msg>) => {
-      const { lsp } = this.context;
-      const filePath = this.request.input.filePath;
-      const bufferResult = await getOrOpenBuffer({
-        unresolvedPath: filePath,
-        context: this.context,
+  async requestHover() {
+    const { lsp } = this.context;
+    const filePath = this.request.input.filePath;
+    const bufferResult = await getOrOpenBuffer({
+      unresolvedPath: filePath,
+      context: this.context,
+    });
+
+    let buffer: NvimBuffer;
+    let bufferContent: string;
+    if (bufferResult.status == "ok") {
+      bufferContent = (
+        await bufferResult.buffer.getLines({ start: 0, end: -1 })
+      ).join("\n");
+      buffer = bufferResult.buffer;
+    } else {
+      this.context.myDispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: bufferResult.error,
+        },
       });
+      return;
+    }
 
-      let buffer: NvimBuffer;
-      let bufferContent: string;
-      if (bufferResult.status == "ok") {
-        bufferContent = (
-          await bufferResult.buffer.getLines({ start: 0, end: -1 })
-        ).join("\n");
-        buffer = bufferResult.buffer;
-      } else {
-        dispatch({
-          type: "finish",
-          result: {
-            status: "error",
-            error: bufferResult.error,
-          },
-        });
-        return;
-      }
+    const symbolStart = bufferContent.indexOf(
+      this.request.input.symbol,
+    ) as StringIdx;
+    if (symbolStart === -1) {
+      this.context.myDispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: `Symbol "${this.request.input.symbol}" not found in file.`,
+        },
+      });
+      return;
+    }
 
-      const symbolStart = bufferContent.indexOf(
-        this.request.input.symbol,
-      ) as StringIdx;
-      if (symbolStart === -1) {
-        dispatch({
-          type: "finish",
-          result: {
-            status: "error",
-            error: `Symbol "${this.request.input.symbol}" not found in file.`,
-          },
-        });
-        return;
-      }
+    const symbolPos = calculateStringPosition(
+      { row: 0, col: 0 } as PositionString,
+      bufferContent,
+      (symbolStart + this.request.input.symbol.length - 1) as StringIdx,
+    );
 
-      const symbolPos = calculateStringPosition(
-        { row: 0, col: 0 } as PositionString,
-        bufferContent,
-        (symbolStart + this.request.input.symbol.length - 1) as StringIdx,
-      );
-
-      try {
-        const result = await lsp.requestHover(buffer, symbolPos);
-        let content = "";
-        for (const lspResult of result) {
-          if (lspResult != null) {
-            content += `\
+    try {
+      const result = await lsp.requestHover(buffer, symbolPos);
+      let content = "";
+      for (const lspResult of result) {
+        if (lspResult != null) {
+          content += `\
 (${lspResult.result.contents.kind}):
 ${lspResult.result.contents.value}
 `;
-          }
         }
-
-        dispatch({
-          type: "finish",
-          result: {
-            status: "ok",
-            value: [{ type: "text", text: content }],
-          },
-        });
-      } catch (error) {
-        dispatch({
-          type: "finish",
-          result: {
-            status: "error",
-            error: `Error requesting hover: ${(error as Error).message}`,
-          },
-        });
       }
-    };
+
+      this.context.myDispatch({
+        type: "finish",
+        result: {
+          status: "ok",
+          value: [{ type: "text", text: content }],
+        },
+      });
+    } catch (error) {
+      this.context.myDispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: `Error requesting hover: ${(error as Error).message}`,
+        },
+      });
+    }
   }
 
   getToolResult(): ProviderToolResult {

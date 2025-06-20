@@ -7,21 +7,18 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import type { MCPServerConfig } from "../../options.ts";
 import type { Nvim } from "../../nvim/nvim-node";
-import type { ProviderToolResultContent } from "../../providers/provider.ts";
+import type {
+  ProviderToolResultContent,
+  ProviderToolSpec,
+} from "../../providers/provider.ts";
 import { assertUnreachable } from "../../utils/assertUnreachable.ts";
-
-export type MCPToolSchema = {
-  name: string;
-  description: string;
-  inputSchema: {
-    type: "object";
-    properties: Record<string, unknown>;
-    required?: string[];
-  };
-};
-
-export type MCPToolName = string & { __MCPToolName: true };
-export type MCPToolRequestParams = {} & { __MCPTooRequestParams: true };
+import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
+import {
+  mcpToolNameToToolName,
+  type MCPToolName,
+  type MCPToolRequestParams,
+  type ServerName,
+} from "./types.ts";
 
 export class MCPClient {
   private client: Client | undefined;
@@ -30,7 +27,7 @@ export class MCPClient {
   private tools: Tool[] = [];
 
   constructor(
-    public serverName: string,
+    public serverName: ServerName,
     private config: MCPServerConfig,
     private context: {
       nvim: Nvim;
@@ -123,15 +120,15 @@ export class MCPClient {
     }
   }
 
-  listTools(): MCPToolSchema[] {
+  listTools(): ProviderToolSpec[] {
     return this.tools.map((tool) => ({
-      name: `mcp.${this.serverName}.${tool.name}`,
+      name: mcpToolNameToToolName({
+        serverName: this.serverName,
+        mcpToolName: tool.name as MCPToolName,
+      }),
       description: tool.description ?? "",
-      inputSchema: {
-        type: "object",
-        properties: tool.inputSchema.properties || {},
-        required: tool.inputSchema.required || [],
-      },
+      // TODO: possibly need to make all properties required for openai?
+      input_schema: tool.inputSchema as JSONSchemaType,
     }));
   }
 

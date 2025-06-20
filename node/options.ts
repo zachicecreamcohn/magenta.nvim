@@ -1,6 +1,7 @@
 import { PROVIDER_NAMES, type ProviderName } from "./providers/provider";
 import * as fs from "fs";
 import * as path from "path";
+import type { ServerName } from "./tools/mcp/types";
 
 export type Profile = {
   name: string;
@@ -25,7 +26,7 @@ export type MagentaOptions = {
   sidebarPosition: "left" | "right";
   commandAllowlist: CommandAllowlist;
   autoContext: string[];
-  mcpServers: Record<string, MCPServerConfig>;
+  mcpServers: { [serverName: ServerName]: MCPServerConfig };
 };
 
 // Reusable parsing helpers
@@ -136,7 +137,11 @@ function parseMCPServers(
   input: unknown,
   logger?: { warn: (msg: string) => void },
 ): Record<string, MCPServerConfig> {
-  if (typeof input !== "object" || input === null) {
+  if (!input) {
+    return {};
+  }
+
+  if (typeof input !== "object") {
     logger?.warn("mcpServers must be an object");
     return {};
   }
@@ -239,7 +244,10 @@ function parseSidebarPosition(
   return undefined;
 }
 
-export function parseOptions(inputOptions: unknown): MagentaOptions {
+export function parseOptions(
+  inputOptions: unknown,
+  logger: { warn: (msg: string) => void } = console,
+): MagentaOptions {
   const options: MagentaOptions = {
     profiles: [],
     activeProfile: "",
@@ -267,11 +275,7 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
     );
 
     // Parse profiles (throw errors for invalid profiles in main config)
-    options.profiles = parseProfiles(inputOptionsObj["profiles"], {
-      warn: (msg) => {
-        throw new Error(msg);
-      },
-    });
+    options.profiles = parseProfiles(inputOptionsObj["profiles"], logger);
 
     if (options.profiles.length == 0) {
       throw new Error(`Invalid profiles provided`);
@@ -285,11 +289,7 @@ export function parseOptions(inputOptions: unknown): MagentaOptions {
     );
 
     // Parse MCP servers (throw errors for invalid MCP servers in main config)
-    options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], {
-      warn: (msg) => {
-        throw new Error(msg);
-      },
-    });
+    options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
   }
 
   return options;

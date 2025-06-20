@@ -102,7 +102,7 @@ export class OllamaProvider implements Provider {
           case "tool_use": {
             let args: Record<string, unknown>;
             if (content.request.status === "ok") {
-              args = content.request.value.input;
+              args = content.request.value.input as Record<string, unknown>;
             } else {
               args = content.request.rawRequest as Record<string, unknown>;
             }

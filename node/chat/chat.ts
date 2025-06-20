@@ -18,9 +18,10 @@ import {
   type UnresolvedFilePath,
 } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
-import type { StaticToolMsg, ToolRequestId } from "../tools/toolManager.ts";
+import { wrapStaticToolMsg, type ToolRequestId } from "../tools/toolManager.ts";
 import type { SubagentSystemPrompt } from "../providers/system-prompt.ts";
-import type { ToolMsg, ToolName } from "../tools/types.ts";
+import type { ToolName } from "../tools/types.ts";
+import { MCPToolManager } from "../tools/mcp/manager.ts";
 
 type ThreadWrapper = (
   | {
@@ -297,6 +298,11 @@ export class Chat {
       },
     );
 
+    const mcpToolManager = await MCPToolManager.create(
+      this.context.options.mcpServers,
+      this.context,
+    );
+
     if (contextFiles.length > 0) {
       await Promise.all(
         contextFiles.map(async (filePath) => {
@@ -322,6 +328,7 @@ export class Chat {
       {
         ...this.context,
         contextManager,
+        mcpToolManager,
         profile,
         chat: this,
       },
@@ -574,18 +581,6 @@ ${threadViews.map((view) => d`${view}\n`)}`;
         systemPrompt,
       });
 
-      // Notify parent spawn call of successful thread spawn
-      const msg: StaticToolMsg = {
-        id: spawnToolRequestId,
-        toolName: "spawn_subagent",
-        msg: {
-          type: "subagent-created",
-          result: {
-            status: "ok",
-            value: thread.id,
-          },
-        },
-      };
       this.context.dispatch({
         type: "thread-msg",
         id: parentThreadId,
@@ -593,23 +588,22 @@ ${threadViews.map((view) => d`${view}\n`)}`;
           type: "tool-manager-msg",
           msg: {
             type: "tool-msg",
-            msg: msg as unknown as ToolMsg,
+            msg: {
+              id: spawnToolRequestId,
+              toolName: "spawn_subagent" as ToolName,
+              msg: wrapStaticToolMsg({
+                type: "subagent-created",
+                result: {
+                  status: "ok",
+                  value: thread.id,
+                },
+              }),
+            },
           },
         },
       });
     } catch (e) {
       // Notify parent spawn call of failure to spawn
-      const msg: StaticToolMsg = {
-        id: spawnToolRequestId,
-        toolName: "spawn_subagent",
-        msg: {
-          type: "subagent-created",
-          result: {
-            status: "error",
-            error: e instanceof Error ? e.message + "\n" + e.stack : String(e),
-          },
-        },
-      };
       this.context.dispatch({
         type: "thread-msg",
         id: parentThreadId,
@@ -617,7 +611,18 @@ ${threadViews.map((view) => d`${view}\n`)}`;
           type: "tool-manager-msg",
           msg: {
             type: "tool-msg",
-            msg: msg as unknown as ToolMsg,
+            msg: {
+              id: spawnToolRequestId,
+              toolName: "spawn_subagent" as ToolName,
+              msg: wrapStaticToolMsg({
+                type: "subagent-created",
+                result: {
+                  status: "error",
+                  error:
+                    e instanceof Error ? e.message + "\n" + e.stack : String(e),
+                },
+              }),
+            },
           },
         },
       });
@@ -799,13 +804,6 @@ ${threadViews.map((view) => d`${view}\n`)}`;
             const tool = parentThread.toolManager.tools[request.id];
             if (tool && tool.state.state === "waiting") {
               setTimeout(() => {
-                const msg: StaticToolMsg = {
-                  id: tool.request.id,
-                  toolName: "wait_for_subagents",
-                  msg: {
-                    type: "check-threads",
-                  },
-                };
                 this.context.dispatch({
                   type: "thread-msg",
                   id: parentThread.id,
@@ -813,7 +811,13 @@ ${threadViews.map((view) => d`${view}\n`)}`;
                     type: "tool-manager-msg",
                     msg: {
                       type: "tool-msg",
-                      msg: msg as unknown as ToolMsg,
+                      msg: {
+                        id: tool.request.id,
+                        toolName: "wait_for_subagents" as ToolName,
+                        msg: wrapStaticToolMsg({
+                          type: "check-threads",
+                        }),
+                      },
                     },
                   },
                 });

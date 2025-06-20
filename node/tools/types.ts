@@ -17,7 +17,14 @@ export interface Tool {
   abort(): void;
   view(): VDOMNode;
 }
-
+export type ToolManagerToolMsg = {
+  type: "tool-msg";
+  msg: {
+    id: ToolRequestId;
+    toolName: ToolName;
+    msg: ToolMsg;
+  };
+};
 /** Opaque tool message for external consumption
  */
 export type ToolMsg = { __toolMsg: true };

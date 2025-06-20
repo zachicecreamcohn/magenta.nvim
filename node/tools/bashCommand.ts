@@ -1,5 +1,5 @@
 import type { Result } from "../utils/result.ts";
-import type { Dispatch, Thunk } from "../tea/tea.ts";
+import type { Dispatch } from "../tea/tea.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
@@ -173,7 +173,7 @@ export class BashCommandTool implements Tool {
     }
   }
 
-  update(msg: Msg): Thunk<Msg> | undefined {
+  update(msg: Msg) {
     if (this.state.state === "done" || this.state.state === "error") {
       return;
     }

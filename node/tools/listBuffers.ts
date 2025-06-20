@@ -2,7 +2,6 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d } from "../tea/view.ts";
 import { type StaticToolRequest } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
-import type { Dispatch, Thunk } from "../tea/tea.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { parseLsResponse } from "../utils/lsBuffers.ts";
 import type {
@@ -32,18 +31,16 @@ export class ListBuffersTool implements Tool {
 
   constructor(
     public request: Extract<StaticToolRequest, { toolName: "list_buffers" }>,
-    public context: { nvim: Nvim },
+    public context: { nvim: Nvim; myDispatch: (msg: Msg) => void },
   ) {
     this.state = {
       state: "processing",
     };
-  }
-  static create(
-    request: Extract<StaticToolRequest, { toolName: "list_buffers" }>,
-    context: { nvim: Nvim },
-  ): [ListBuffersTool, Thunk<Msg>] {
-    const tool = new ListBuffersTool(request, context);
-    return [tool, tool.fetchBuffers()];
+    this.fetchBuffers().catch((error) => {
+      this.context.nvim.logger?.error(
+        `Error fetching buffers: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
   }
 
   abort() {
@@ -60,7 +57,7 @@ export class ListBuffersTool implements Tool {
     };
   }
 
-  update(msg: Msg): Thunk<Msg> | undefined {
+  update(msg: Msg) {
     switch (msg.type) {
       case "finish":
         if (this.state.state == "processing") {
@@ -79,39 +76,37 @@ export class ListBuffersTool implements Tool {
     }
   }
 
-  fetchBuffers(): Thunk<Msg> {
-    return async (dispatch: Dispatch<Msg>) => {
-      const lsResponse = await this.context.nvim.call("nvim_exec2", [
-        "ls",
-        { output: true },
-      ]);
+  async fetchBuffers() {
+    const lsResponse = await this.context.nvim.call("nvim_exec2", [
+      "ls",
+      { output: true },
+    ]);
 
-      const result = parseLsResponse(lsResponse.output as string);
-      const content = result
-        .map((bufEntry) => {
-          let out = "";
-          if (bufEntry.flags.active) {
-            out += "active ";
-          }
-          if (bufEntry.flags.modified) {
-            out += "modified ";
-          }
-          if (bufEntry.flags.terminal) {
-            out += "terminal ";
-          }
-          out += bufEntry.filePath;
-          return out;
-        })
-        .join("\n");
+    const result = parseLsResponse(lsResponse.output as string);
+    const content = result
+      .map((bufEntry) => {
+        let out = "";
+        if (bufEntry.flags.active) {
+          out += "active ";
+        }
+        if (bufEntry.flags.modified) {
+          out += "modified ";
+        }
+        if (bufEntry.flags.terminal) {
+          out += "terminal ";
+        }
+        out += bufEntry.filePath;
+        return out;
+      })
+      .join("\n");
 
-      dispatch({
-        type: "finish",
-        result: {
-          status: "ok",
-          value: [{ type: "text", text: content }],
-        },
-      });
-    };
+    this.context.myDispatch({
+      type: "finish",
+      result: {
+        status: "ok",
+        value: [{ type: "text", text: content }],
+      },
+    });
   }
 
   getToolResult(): ProviderToolResult {

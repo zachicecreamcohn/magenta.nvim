@@ -12,7 +12,7 @@ import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { Dispatch, Thunk } from "../tea/tea.ts";
+import type { Dispatch } from "../tea/tea.ts";
 import {
   relativePath,
   resolveFilePath,
@@ -109,7 +109,7 @@ export class GetFileTool implements Tool {
     };
   }
 
-  update(msg: Msg): Thunk<Msg> | undefined {
+  update(msg: Msg) {
     switch (msg.type) {
       case "finish":
         this.state = {
