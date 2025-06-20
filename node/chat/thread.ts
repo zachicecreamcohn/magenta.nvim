@@ -12,7 +12,7 @@ import {
   type Msg as ToolManagerMsg,
   type StaticToolRequest,
 } from "../tools/toolManager.ts";
-import { type StaticToolName } from "../tools/tool-registry.ts";
+import type { ToolName } from "../tools/types.ts";
 import { Counter } from "../utils/uniqueId.ts";
 import { FileSnapshots } from "../tools/file-snapshots.ts";
 import type { Nvim } from "../nvim/nvim-node";
@@ -37,7 +37,7 @@ import {
   type Input as ThreadTitleInput,
   spec as threadTitleToolSpec,
 } from "../tools/thread-title.ts";
-import { getToolSpecs } from "../tools/tool-specs.ts";
+
 import type { Chat } from "./chat.ts";
 import {
   DEFAULT_SYSTEM_PROMPT,
@@ -134,7 +134,7 @@ export class Thread {
     profile: Profile;
     conversation: ConversationState;
     messages: Message[];
-    allowedTools: StaticToolName[];
+    toolNames: ToolName[];
     systemPrompt?: SubagentSystemPrompt | undefined;
   };
 
@@ -150,7 +150,7 @@ export class Thread {
     public id: ThreadId,
     options: {
       systemPrompt?: SubagentSystemPrompt | undefined;
-      allowedTools: StaticToolName[];
+      toolNames: ToolName[];
     },
     public context: {
       dispatch: Dispatch<RootMsg>;
@@ -200,7 +200,7 @@ export class Thread {
         usage: { inputTokens: 0, outputTokens: 0 },
       },
       messages: [],
-      allowedTools: options.allowedTools,
+      toolNames: options.toolNames,
       systemPrompt: options.systemPrompt,
     };
 
@@ -365,7 +365,7 @@ export class Thread {
             usage: { inputTokens: 0, outputTokens: 0 },
           },
           messages: [],
-          allowedTools: this.state.allowedTools,
+          toolNames: this.state.toolNames,
           systemPrompt: this.state.systemPrompt,
         };
         this.contextManager.reset();
@@ -592,7 +592,7 @@ export class Thread {
           event,
         });
       },
-      getToolSpecs(this.state.allowedTools),
+      this.toolManager.getToolSpecs(this.state.toolNames),
       { systemPrompt: this.state.systemPrompt },
     );
 
@@ -805,7 +805,7 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
     this.tokenCountUpdatePending = true;
     // OK to do this async, so it doesn't slow down the rest of the plugin
     setTimeout(() => {
-      const toolSpecs = getToolSpecs(this.state.allowedTools);
+      const toolSpecs = this.toolManager.getToolSpecs(this.state.toolNames);
       const toolSpecLength = toolSpecs.reduce(
         (sum, spec) => sum + JSON.stringify(spec).length,
         0,

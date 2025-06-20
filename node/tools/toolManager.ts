@@ -25,7 +25,9 @@ import type { MessageId } from "../chat/message.ts";
 import type { ThreadId } from "../chat/thread.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import type { Chat } from "../chat/chat.ts";
-import type { ToolMsg, ToolRequestId } from "./types.ts";
+import type { ToolMsg, ToolName, ToolRequestId } from "./types.ts";
+import type { ProviderToolSpec } from "../providers/provider-types.ts";
+import type { StaticToolName } from "./tool-registry.ts";
 export type { ToolRequestId } from "./types.ts";
 
 export type StaticToolMap = {
@@ -33,81 +35,97 @@ export type StaticToolMap = {
     controller: GetFile.GetFileTool;
     input: GetFile.Input;
     msg: GetFile.Msg;
+    spec: typeof GetFile.spec;
   };
   insert: {
     controller: Insert.InsertTool;
     input: Insert.Input;
     msg: Insert.Msg;
+    spec: typeof Insert.spec;
   };
   replace: {
     controller: Replace.ReplaceTool;
     input: Replace.Input;
     msg: Replace.Msg;
+    spec: typeof Replace.spec;
   };
   list_buffers: {
     controller: ListBuffers.ListBuffersTool;
     input: ListBuffers.Input;
     msg: ListBuffers.Msg;
+    spec: typeof ListBuffers.spec;
   };
   list_directory: {
     controller: ListDirectory.ListDirectoryTool;
     input: ListDirectory.Input;
     msg: ListDirectory.Msg;
+    spec: typeof ListDirectory.spec;
   };
   hover: {
     controller: Hover.HoverTool;
     input: Hover.Input;
     msg: Hover.Msg;
+    spec: typeof Hover.spec;
   };
   find_references: {
     controller: FindReferences.FindReferencesTool;
     input: FindReferences.Input;
     msg: FindReferences.Msg;
+    spec: typeof FindReferences.spec;
   };
   diagnostics: {
     controller: Diagnostics.DiagnosticsTool;
     input: Diagnostics.Input;
     msg: Diagnostics.Msg;
+    spec: typeof Diagnostics.spec;
   };
   bash_command: {
     controller: BashCommand.BashCommandTool;
     input: BashCommand.Input;
     msg: BashCommand.Msg;
+    spec: typeof BashCommand.spec;
   };
   inline_edit: {
     controller: InlineEdit.InlineEditTool;
     input: InlineEdit.Input;
     msg: InlineEdit.Msg;
+    spec: typeof InlineEdit.spec;
   };
   replace_selection: {
     controller: ReplaceSelection.ReplaceSelectionTool;
     input: ReplaceSelection.Input;
     msg: ReplaceSelection.Msg;
+    spec: typeof ReplaceSelection.spec;
   };
   thread_title: {
     controller: ThreadTitle.ThreadTitleTool;
     input: ThreadTitle.Input;
     msg: ThreadTitle.Msg;
+    spec: typeof ThreadTitle.spec;
   };
   compact_thread: {
     controller: CompactThread.CompactThreadTool;
     input: CompactThread.Input;
     msg: never;
+    spec: typeof CompactThread.spec;
   };
   spawn_subagent: {
     controller: SpawnSubagent.SpawnSubagentTool;
     input: SpawnSubagent.Input;
     msg: SpawnSubagent.Msg;
+    spec: typeof SpawnSubagent.spec;
   };
   wait_for_subagents: {
     controller: WaitForSubagents.WaitForSubagentsTool;
     input: WaitForSubagents.Input;
     msg: WaitForSubagents.Msg;
+    spec: typeof WaitForSubagents.spec;
   };
   yield_to_parent: {
     controller: YieldToParent.YieldToParentTool;
     input: YieldToParent.Input;
     msg: YieldToParent.Msg;
+    spec: typeof YieldToParent.spec;
   };
 };
 
@@ -161,6 +179,32 @@ export class ToolManager {
     },
   ) {
     this.tools = {};
+  }
+  private static readonly TOOL_SPEC_MAP: {
+    [K in StaticToolName]: ProviderToolSpec;
+  } = {
+    get_file: GetFile.spec,
+    insert: Insert.spec,
+    replace: Replace.spec,
+    list_buffers: ListBuffers.spec,
+    list_directory: ListDirectory.spec,
+    hover: Hover.spec,
+    find_references: FindReferences.spec,
+    diagnostics: Diagnostics.spec,
+    bash_command: BashCommand.spec,
+    inline_edit: InlineEdit.spec,
+    replace_selection: ReplaceSelection.spec,
+    thread_title: ThreadTitle.spec,
+    compact_thread: CompactThread.spec,
+    spawn_subagent: SpawnSubagent.spec,
+    yield_to_parent: YieldToParent.spec,
+    wait_for_subagents: WaitForSubagents.spec,
+  };
+
+  getToolSpecs(toolNames: ToolName[]): ProviderToolSpec[] {
+    return toolNames.map(
+      (toolName) => ToolManager.TOOL_SPEC_MAP[toolName as StaticToolName],
+    );
   }
 
   getTool(id: ToolRequestId): StaticTool | undefined {

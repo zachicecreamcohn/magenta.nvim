@@ -11,10 +11,7 @@ import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/thread.ts";
-import {
-  SUBAGENT_STATIC_TOOL_NAMES,
-  type StaticToolName,
-} from "./tool-registry.ts";
+import { SUBAGENT_STATIC_TOOL_NAMES } from "./tool-registry.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import {
   SUBAGENT_SYSTEM_PROMPTS,
@@ -67,14 +64,10 @@ export class SpawnSubagentTool implements Tool {
     const contextFiles = input.contextFiles || [];
     const systemPrompt = input.systemPrompt;
 
-    const suppressTools = input.suppressTools || [];
-    let allowedTools = SUBAGENT_STATIC_TOOL_NAMES.filter(
-      (tool) => !suppressTools.includes(tool),
-    );
-
-    if (!allowedTools.includes("yield_to_parent")) {
-      allowedTools = [...allowedTools, "yield_to_parent"];
-    }
+    const toolNames = [
+      ...SUBAGENT_STATIC_TOOL_NAMES,
+      "yield_to_parent",
+    ] as ToolName[];
 
     this.context.dispatch({
       type: "chat-msg",
@@ -82,7 +75,7 @@ export class SpawnSubagentTool implements Tool {
         type: "spawn-subagent-thread",
         parentThreadId: this.context.threadId,
         spawnToolRequestId: this.request.id,
-        allowedTools,
+        toolNames,
         initialPrompt: prompt,
         contextFiles,
         systemPrompt,
@@ -246,6 +239,8 @@ Because of this, it is important that you write **clear, specific prompts**
 - Don't over-include - focus on what's directly relevant to the task
 - Remember: sub-agents can use tools to discover additional files if needed
 
+Sub-agents have access to all standard tools except spawn_subagent (to prevent recursive spawning) and always have access to yield_to_parent.
+
 <example>
 user: refactor this interface
 assistant: [spawns learn subagent to learn about the interface]
@@ -288,15 +283,7 @@ assistant: Summarizes the results
         description:
           "Optional list of file paths to provide as context to the sub-agent.",
       },
-      suppressTools: {
-        type: "array",
-        items: {
-          type: "string",
-          enum: SUBAGENT_STATIC_TOOL_NAMES,
-        },
-        description:
-          "List of tool names that the sub-agent is not allowed to use. If not provided, all standard tools except spawn_subagent will be available. Note: spawn_subagent is never allowed to prevent recursive spawning. yield_to_parent is always available to subagents regardless of this setting.",
-      },
+
       systemPrompt: {
         type: "string",
         enum: SUBAGENT_SYSTEM_PROMPTS as unknown as string[],
@@ -306,7 +293,7 @@ assistant: Summarizes the results
     },
     // NOTE: openai requries all properties to be required.
     // https://community.openai.com/t/api-rejects-valid-json-schema/906163
-    required: ["prompt", "contextFiles", "suppressTools", "systemPrompt"],
+    required: ["prompt", "contextFiles", "systemPrompt"],
     additionalProperties: false,
   },
 };
@@ -314,7 +301,6 @@ assistant: Summarizes the results
 export type Input = {
   prompt: string;
   contextFiles?: UnresolvedFilePath[];
-  suppressTools?: StaticToolName[];
   systemPrompt?: SubagentSystemPrompt;
 };
 
@@ -342,25 +328,6 @@ export function validateInput(input: {
         error: `expected all items in req.input.contextFiles to be strings but they were ${JSON.stringify(input.contextFiles)}`,
       };
     }
-  }
-
-  if (input.suppressTools !== undefined) {
-    if (!Array.isArray(input.suppressTools)) {
-      return {
-        status: "error",
-        error: `expected req.input.suppressTools to be an array but it was ${JSON.stringify(input.suppressTools)}`,
-      };
-    }
-
-    if (!input.suppressTools.every((item) => typeof item === "string")) {
-      return {
-        status: "error",
-        error: `expected all items in req.input.suppressTools to be strings but they were ${JSON.stringify(input.suppressTools)}`,
-      };
-    }
-
-    // we're not going to check that every tool in suppressTools is a valid tool. If invalid tools are included, we will
-    // just ignore them
   }
 
   if (input.systemPrompt !== undefined) {

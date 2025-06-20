@@ -3,10 +3,7 @@ import type { MagentaOptions, Profile } from "../options";
 import type { RootMsg } from "../root-msg";
 import type { Dispatch } from "../tea/tea";
 import { Thread, view as threadView, type ThreadId } from "./thread";
-import {
-  CHAT_STATIC_TOOL_NAMES,
-  type StaticToolName,
-} from "../tools/tool-registry.ts";
+import { CHAT_STATIC_TOOL_NAMES } from "../tools/tool-registry.ts";
 import type { Lsp } from "../lsp";
 import { assertUnreachable } from "../utils/assertUnreachable";
 import { d, withBindings, type VDOMNode } from "../tea/view";
@@ -23,7 +20,7 @@ import {
 import type { Result } from "../utils/result.ts";
 import type { StaticToolMsg, ToolRequestId } from "../tools/toolManager.ts";
 import type { SubagentSystemPrompt } from "../providers/system-prompt.ts";
-import type { ToolMsg } from "../tools/types.ts";
+import type { ToolMsg, ToolName } from "../tools/types.ts";
 
 type ThreadWrapper = (
   | {
@@ -74,7 +71,7 @@ export type Msg =
       type: "spawn-subagent-thread";
       parentThreadId: ThreadId;
       spawnToolRequestId: ToolRequestId;
-      allowedTools: StaticToolName[];
+      toolNames: ToolName[];
       initialPrompt: string;
       systemPrompt: SubagentSystemPrompt | undefined;
       contextFiles?: UnresolvedFilePath[];
@@ -260,7 +257,7 @@ export class Chat {
   private async createThreadWithContext({
     threadId,
     profile,
-    allowedTools,
+    toolNames,
     contextFiles = [],
     parent,
     switchToThread,
@@ -269,7 +266,7 @@ export class Chat {
   }: {
     threadId: ThreadId;
     profile: Profile;
-    allowedTools: StaticToolName[];
+    toolNames: ToolName[];
     contextFiles?: UnresolvedFilePath[];
     parent?: ThreadId;
     switchToThread: boolean;
@@ -320,7 +317,7 @@ export class Chat {
       threadId,
       {
         systemPrompt,
-        allowedTools,
+        toolNames,
       },
       {
         ...this.context,
@@ -372,7 +369,7 @@ export class Chat {
         this.context.options.activeProfile,
       ),
       switchToThread: true,
-      allowedTools: CHAT_STATIC_TOOL_NAMES,
+      toolNames: CHAT_STATIC_TOOL_NAMES as ToolName[],
     });
   }
 
@@ -529,7 +526,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     await this.createThreadWithContext({
       threadId: newThreadId,
       profile: sourceThread.state.profile,
-      allowedTools: CHAT_STATIC_TOOL_NAMES,
+      toolNames: CHAT_STATIC_TOOL_NAMES as ToolName[],
       contextFiles: contextFilePaths,
       switchToThread: true,
       initialMessage: initialMessage,
@@ -539,14 +536,14 @@ ${threadViews.map((view) => d`${view}\n`)}`;
   async handleSpawnSubagentThread({
     parentThreadId,
     spawnToolRequestId,
-    allowedTools,
+    toolNames,
     initialPrompt,
     contextFiles,
     systemPrompt,
   }: {
     parentThreadId: ThreadId;
     spawnToolRequestId: ToolRequestId;
-    allowedTools: StaticToolName[];
+    toolNames: ToolName[];
     initialPrompt: string;
     contextFiles?: UnresolvedFilePath[];
     systemPrompt?: SubagentSystemPrompt | undefined;
@@ -559,17 +556,17 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const parentThread = parentThreadWrapper.thread;
     const subagentThreadId = this.threadCounter.get() as ThreadId;
 
-    const subagentAllowedTools: StaticToolName[] = allowedTools.includes(
-      "yield_to_parent",
+    const subagentToolNames: ToolName[] = toolNames.includes(
+      "yield_to_parent" as ToolName,
     )
-      ? allowedTools
-      : [...allowedTools, "yield_to_parent"];
+      ? toolNames
+      : [...toolNames, "yield_to_parent" as ToolName];
 
     try {
       const thread = await this.createThreadWithContext({
         threadId: subagentThreadId,
         profile: parentThread.state.profile,
-        allowedTools: subagentAllowedTools,
+        toolNames: subagentToolNames,
         contextFiles: contextFiles || [],
         parent: parentThreadId,
         switchToThread: false,
