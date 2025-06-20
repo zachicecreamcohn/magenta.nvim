@@ -1,12 +1,12 @@
 import { d } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
-import type { ToolRequest } from "./toolManager.ts";
+import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { ToolInterface } from "./types.ts";
+import type { ToolInterface, ToolName } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 
 export type State = {
@@ -15,11 +15,11 @@ export type State = {
 };
 
 export class CompactThreadTool implements ToolInterface {
-  toolName = "compact_thread" as const;
+  toolName = "compact_thread" as ToolName;
   public state: State;
 
   constructor(
-    public request: Extract<ToolRequest, { toolName: "compact_thread" }>,
+    public request: Extract<StaticToolRequest, { toolName: "compact_thread" }>,
     public context: { nvim: Nvim },
   ) {
     this.state = {
@@ -56,7 +56,7 @@ export class CompactThreadTool implements ToolInterface {
 }
 
 export const spec: ProviderToolSpec = {
-  name: "compact_thread",
+  name: "compact_thread" as ToolName,
   description: `\
 This tool extracts specific portions of the conversation history that are directly relevant to the user's next prompt.
 

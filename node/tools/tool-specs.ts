@@ -15,9 +15,9 @@ import * as SpawnSubagent from "./spawn-subagent.ts";
 import * as YieldToParent from "./yield-to-parent.ts";
 import * as WaitForSubagents from "./wait-for-subagents.ts";
 import type { ProviderToolSpec } from "../providers/provider-types.ts";
-import type { ToolName } from "./tool-registry.ts";
+import type { StaticToolName } from "./tool-registry.ts";
 
-export const TOOL_SPEC_MAP: { [K in ToolName]: ProviderToolSpec } = {
+export const TOOL_SPEC_MAP: { [K in StaticToolName]: ProviderToolSpec } = {
   get_file: GetFile.spec,
   insert: Insert.spec,
   replace: Replace.spec,
@@ -36,6 +36,6 @@ export const TOOL_SPEC_MAP: { [K in ToolName]: ProviderToolSpec } = {
   wait_for_subagents: WaitForSubagents.spec,
 };
 
-export function getToolSpecs(toolNames: ToolName[]): ProviderToolSpec[] {
+export function getToolSpecs(toolNames: StaticToolName[]): ProviderToolSpec[] {
   return toolNames.map((toolName) => TOOL_SPEC_MAP[toolName]);
 }

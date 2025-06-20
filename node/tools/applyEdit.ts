@@ -1,6 +1,6 @@
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { ToolRequest } from "./toolManager.ts";
+import type { StaticToolRequest } from "./toolManager.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import path from "node:path";
 import fs from "node:fs";
@@ -19,8 +19,8 @@ import { applyInsert, applyReplace } from "../utils/contentEdits.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import type { ProviderToolResultContent } from "../providers/provider-types.ts";
 
-type InsertRequest = Extract<ToolRequest, { toolName: "insert" }>;
-type ReplaceRequest = Extract<ToolRequest, { toolName: "replace" }>;
+type InsertRequest = Extract<StaticToolRequest, { toolName: "insert" }>;
+type ReplaceRequest = Extract<StaticToolRequest, { toolName: "replace" }>;
 type EditRequest = InsertRequest | ReplaceRequest;
 type Msg = {
   type: "finish";

@@ -4,13 +4,13 @@ import { type Result } from "../utils/result.ts";
 import type { Dispatch, Thunk } from "../tea/tea.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { parseLsResponse } from "../utils/lsBuffers.ts";
-import type { ToolRequest } from "./toolManager.ts";
+import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { ToolInterface } from "./types.ts";
+import type { ToolInterface, ToolName } from "./types.ts";
 
 export type State =
   | {
@@ -60,10 +60,10 @@ type DiagnosticsRes = {
 
 export class DiagnosticsTool implements ToolInterface {
   state: State;
-  toolName = "diagnostics" as const;
+  toolName = "diagnostics" as ToolName;
 
   private constructor(
-    public request: Extract<ToolRequest, { toolName: "diagnostics" }>,
+    public request: Extract<StaticToolRequest, { toolName: "diagnostics" }>,
     public context: { nvim: Nvim },
   ) {
     this.state = {
@@ -72,7 +72,7 @@ export class DiagnosticsTool implements ToolInterface {
   }
 
   static create(
-    request: Extract<ToolRequest, { toolName: "diagnostics" }>,
+    request: Extract<StaticToolRequest, { toolName: "diagnostics" }>,
     context: { nvim: Nvim },
   ): [DiagnosticsTool, Thunk<Msg>] {
     const tool = new DiagnosticsTool(request, context);
@@ -195,7 +195,7 @@ export class DiagnosticsTool implements ToolInterface {
 }
 
 export const spec: ProviderToolSpec = {
-  name: "diagnostics",
+  name: "diagnostics" as ToolName,
   description: "Get all diagnostic messages in the workspace.",
   input_schema: {
     type: "object",

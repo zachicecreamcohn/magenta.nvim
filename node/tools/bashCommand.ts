@@ -5,17 +5,17 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import { d, withBindings } from "../tea/view.ts";
-import type { ToolRequest } from "./toolManager.ts";
+import type { StaticToolRequest } from "./toolManager.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { spawn } from "child_process";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { CommandAllowlist, MagentaOptions } from "../options.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import { withTimeout } from "../utils/async.ts";
-import type { ToolInterface } from "./types.ts";
+import type { ToolInterface, ToolName } from "./types.ts";
 
 export const spec: ProviderToolSpec = {
-  name: "bash_command",
+  name: "bash_command" as ToolName,
   description: `Run a command in a bash shell.
 You will get the stdout and stderr of the command, as well as the exit code.
 For example, you can run \`ls\`, \`echo 'Hello, World!'\`, or \`git status\`.
@@ -130,10 +130,10 @@ export function isCommandAllowed(
 
 export class BashCommandTool implements ToolInterface {
   state: State;
-  toolName = "bash_command" as const;
+  toolName = "bash_command" as ToolName;
 
   constructor(
-    public request: Extract<ToolRequest, { toolName: "bash_command" }>,
+    public request: Extract<StaticToolRequest, { toolName: "bash_command" }>,
     public context: {
       nvim: Nvim;
       options: MagentaOptions;

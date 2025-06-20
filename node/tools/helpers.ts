@@ -16,14 +16,14 @@ import * as WaitForSubagents from "./wait-for-subagents";
 import * as YieldToParent from "./yield-to-parent";
 import type { StreamingBlock } from "../providers/helpers";
 import { d, type VDOMNode } from "../tea/view";
-import type { ToolName } from "./tool-registry";
+import type { StaticToolName } from "./tool-registry";
 import { assertUnreachable } from "../utils/assertUnreachable";
 
 export function validateInput(
   toolName: unknown,
   input: { [key: string]: unknown },
 ) {
-  switch (toolName as ToolName) {
+  switch (toolName as StaticToolName) {
     case "get_file":
       return GetFile.validateInput(input);
     case "insert":
@@ -64,7 +64,7 @@ export function validateInput(
 export function renderStreamdedTool(
   streamingBlock: Extract<StreamingBlock, { type: "tool_use" }>,
 ): string | VDOMNode {
-  const name = streamingBlock.name as ToolName;
+  const name = streamingBlock.name as StaticToolName;
   switch (name) {
     case "get_file":
       break;

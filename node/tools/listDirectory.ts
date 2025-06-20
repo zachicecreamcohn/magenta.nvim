@@ -7,13 +7,13 @@ import type { Dispatch, Thunk } from "../tea/tea.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { readGitignore } from "./util.ts";
-import type { ToolRequest } from "./toolManager.ts";
+import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { ToolInterface } from "./types.ts";
+import type { ToolInterface, ToolName } from "./types.ts";
 
 export type State =
   | {
@@ -80,7 +80,7 @@ export class ListDirectoryTool implements ToolInterface {
   autoRespond = true;
 
   private constructor(
-    public request: Extract<ToolRequest, { toolName: "list_directory" }>,
+    public request: Extract<StaticToolRequest, { toolName: "list_directory" }>,
     public context: { nvim: Nvim },
   ) {
     this.state = {
@@ -89,7 +89,7 @@ export class ListDirectoryTool implements ToolInterface {
   }
 
   static create(
-    request: Extract<ToolRequest, { toolName: "list_directory" }>,
+    request: Extract<StaticToolRequest, { toolName: "list_directory" }>,
     context: { nvim: Nvim },
   ): [ListDirectoryTool, Thunk<Msg>] {
     const tool = new ListDirectoryTool(request, context);
@@ -210,7 +210,7 @@ export class ListDirectoryTool implements ToolInterface {
 }
 
 export const spec: ProviderToolSpec = {
-  name: "list_directory",
+  name: "list_directory" as ToolName,
   description: `List up to 100 files in a directory using breadth-first search, respecting .gitignore and hidden files.`,
   input_schema: {
     type: "object",

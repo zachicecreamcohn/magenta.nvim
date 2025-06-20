@@ -25,10 +25,10 @@ import type { MessageId } from "../chat/message.ts";
 import type { ThreadId } from "../chat/thread.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import type { Chat } from "../chat/chat.ts";
+import type { ToolRequestId } from "./types.ts";
+export type { ToolRequestId } from "./types.ts";
 
-export type ToolRequestId = string & { __toolRequestId: true };
-
-export type ToolMap = {
+export type StaticToolMap = {
   get_file: {
     controller: GetFile.GetFileTool;
     input: GetFile.Input;
@@ -111,41 +111,41 @@ export type ToolMap = {
   };
 };
 
-export type ToolRequest = {
-  [K in keyof ToolMap]: {
+export type StaticToolRequest = {
+  [K in keyof StaticToolMap]: {
     id: ToolRequestId;
     toolName: K;
-    input: ToolMap[K]["input"];
+    input: StaticToolMap[K]["input"];
   };
-}[keyof ToolMap];
+}[keyof StaticToolMap];
 
-export type ToolMsg = {
-  [K in keyof ToolMap]: {
+export type StaticToolMsg = {
+  [K in keyof StaticToolMap]: {
     id: ToolRequestId;
     toolName: K;
-    msg: ToolMap[K]["msg"];
+    msg: StaticToolMap[K]["msg"];
   };
-}[keyof ToolMap];
+}[keyof StaticToolMap];
 
-type Tool = {
-  [K in keyof ToolMap]: ToolMap[K]["controller"];
-}[keyof ToolMap];
+type StaticTool = {
+  [K in keyof StaticToolMap]: StaticToolMap[K]["controller"];
+}[keyof StaticToolMap];
 
 export type Msg =
   | {
       type: "init-tool-use";
       threadId: ThreadId;
       messageId: MessageId;
-      request: ToolRequest;
+      request: StaticToolRequest;
     }
   | {
       type: "tool-msg";
-      msg: ToolMsg;
+      msg: StaticToolMsg;
     };
 
 export class ToolManager {
   tools: {
-    [id: ToolRequestId]: Tool;
+    [id: ToolRequestId]: StaticTool;
   };
 
   constructor(
@@ -163,7 +163,7 @@ export class ToolManager {
     this.tools = {};
   }
 
-  getTool(id: ToolRequestId): Tool | undefined {
+  getTool(id: ToolRequestId): StaticTool | undefined {
     return this.tools[id];
   }
 
@@ -491,7 +491,7 @@ export class ToolManager {
   /** Placeholder while I refactor the architecture. I'd like to stop passing thunks around, as I think it will make
    * things simpler to understand.
    */
-  acceptThunk(tool: Tool, thunk: Thunk<ToolMsg["msg"]>): void {
+  acceptThunk(tool: StaticTool, thunk: Thunk<StaticToolMsg["msg"]>): void {
     // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
     setTimeout(() => {
       thunk((msg) =>
@@ -501,7 +501,7 @@ export class ToolManager {
             id: tool.request.id,
             toolName: tool.toolName,
             msg,
-          } as ToolMsg,
+          } as StaticToolMsg,
         }),
       ).catch((e: Error) =>
         this.myDispatch({
@@ -516,7 +516,7 @@ export class ToolManager {
                 error: e.message,
               },
             },
-          } as ToolMsg,
+          } as StaticToolMsg,
         }),
       );
     });

@@ -2,7 +2,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { Dispatch } from "../tea/tea.ts";
-import type { ToolRequest } from "./toolManager.ts";
+import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
@@ -13,7 +13,7 @@ import type { Nvim } from "../nvim/nvim-node";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
 import type { ThreadId } from "../chat/thread.ts";
-import type { ToolInterface } from "./types.ts";
+import type { ToolInterface, ToolName } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 
@@ -36,7 +36,7 @@ export class InsertTool implements ToolInterface {
   toolName = "insert" as const;
 
   constructor(
-    public request: Extract<ToolRequest, { toolName: "insert" }>,
+    public request: Extract<StaticToolRequest, { toolName: "insert" }>,
     public threadId: ThreadId,
     public messageId: MessageId,
     private context: {
@@ -186,7 +186,7 @@ ${this.request.input.content}
 }
 
 export const spec: ProviderToolSpec = {
-  name: "insert",
+  name: "insert" as ToolName,
   description:
     "Insert content after the specified string in a file. You can also use this tool to create new files.",
   input_schema: {

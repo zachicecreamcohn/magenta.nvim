@@ -1,6 +1,6 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d } from "../tea/view.ts";
-import { type ToolRequest } from "./toolManager.ts";
+import { type StaticToolRequest } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import type { Dispatch, Thunk } from "../tea/tea.ts";
 import type { Nvim } from "../nvim/nvim-node";
@@ -10,7 +10,7 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { ToolInterface } from "./types.ts";
+import type { ToolInterface, ToolName } from "./types.ts";
 
 export type State =
   | {
@@ -31,7 +31,7 @@ export class ListBuffersTool implements ToolInterface {
   toolName = "list_buffers" as const;
 
   constructor(
-    public request: Extract<ToolRequest, { toolName: "list_buffers" }>,
+    public request: Extract<StaticToolRequest, { toolName: "list_buffers" }>,
     public context: { nvim: Nvim },
   ) {
     this.state = {
@@ -39,7 +39,7 @@ export class ListBuffersTool implements ToolInterface {
     };
   }
   static create(
-    request: Extract<ToolRequest, { toolName: "list_buffers" }>,
+    request: Extract<StaticToolRequest, { toolName: "list_buffers" }>,
     context: { nvim: Nvim },
   ): [ListBuffersTool, Thunk<Msg>] {
     const tool = new ListBuffersTool(request, context);
@@ -154,7 +154,7 @@ export class ListBuffersTool implements ToolInterface {
 }
 
 export const spec: ProviderToolSpec = {
-  name: "list_buffers",
+  name: "list_buffers" as ToolName,
   description: `List all the buffers the user currently has open.
 This will be similar to the output of :buffers in neovim, so buffers will be listed in the order they were opened, with the most recent buffers last.
 This can be useful to understand the context of what the user is trying to do.`,

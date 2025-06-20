@@ -8,14 +8,14 @@ import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp } from "../lsp.ts";
 import { calculateStringPosition } from "../tea/util.ts";
 import type { PositionString, StringIdx } from "../nvim/window.ts";
-import type { ToolRequest } from "./toolManager.ts";
+import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
-import type { ToolInterface } from "./types.ts";
+import type { ToolInterface, ToolName } from "./types.ts";
 
 export type State =
   | {
@@ -33,10 +33,10 @@ export type Msg = {
 
 export class HoverTool implements ToolInterface {
   state: State;
-  toolName = "hover" as const;
+  toolName = "hover" as ToolName;
 
   private constructor(
-    public request: Extract<ToolRequest, { toolName: "hover" }>,
+    public request: Extract<StaticToolRequest, { toolName: "hover" }>,
     public context: { nvim: Nvim; lsp: Lsp },
   ) {
     this.state = {
@@ -45,7 +45,7 @@ export class HoverTool implements ToolInterface {
   }
 
   static create(
-    request: Extract<ToolRequest, { toolName: "hover" }>,
+    request: Extract<StaticToolRequest, { toolName: "hover" }>,
     context: { nvim: Nvim; lsp: Lsp },
   ): [HoverTool, Thunk<Msg>] {
     const tool = new HoverTool(request, context);
@@ -203,7 +203,7 @@ ${lspResult.result.contents.value}
 }
 
 export const spec: ProviderToolSpec = {
-  name: "hover",
+  name: "hover" as ToolName,
   description:
     "Get hover information for a symbol in a file. This will use the attached lsp client if one is available.",
   input_schema: {

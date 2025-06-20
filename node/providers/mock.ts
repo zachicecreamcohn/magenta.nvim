@@ -1,4 +1,4 @@
-import { type ToolRequest } from "../tools/toolManager.ts";
+import { type StaticToolRequest } from "../tools/toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import { Defer, pollUntil } from "../utils/async.ts";
 import {
@@ -59,7 +59,7 @@ class MockRequest {
     });
   }
   streamToolUse(
-    toolRequest: Result<ToolRequest, { rawRequest: unknown }>,
+    toolRequest: Result<StaticToolRequest, { rawRequest: unknown }>,
   ): void {
     const blockId = this.getNextBlockId();
     const index = 0;
@@ -104,7 +104,7 @@ class MockRequest {
     stopReason,
   }: {
     text: string;
-    toolRequests: Result<ToolRequest, { rawRequest: unknown }>[];
+    toolRequests: Result<StaticToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;
   }): void {
     if (text) {
@@ -151,7 +151,7 @@ type MockForceToolUseRequest = {
   messages: Array<ProviderMessage>;
   spec: ProviderToolSpec;
   defer: Defer<{
-    toolRequest: Result<ToolRequest, { rawRequest: unknown }>;
+    toolRequest: Result<StaticToolRequest, { rawRequest: unknown }>;
     stopReason: StopReason;
     usage: Usage;
   }>;
@@ -410,7 +410,7 @@ ${this.requests.map((r) => `${r.defer.resolved ? "resolved" : "pending"} - ${JSO
     toolRequest,
     stopReason,
   }: {
-    toolRequest: Result<ToolRequest, { rawRequest: unknown }>;
+    toolRequest: Result<StaticToolRequest, { rawRequest: unknown }>;
     stopReason: StopReason;
   }) {
     const lastRequest = await this.awaitPendingForceToolUseRequest();

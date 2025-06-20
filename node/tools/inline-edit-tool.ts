@@ -1,7 +1,7 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
-import type { ToolRequest } from "./toolManager.ts";
+import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
@@ -9,7 +9,7 @@ import type {
 } from "../providers/provider.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { ToolInterface } from "./types.ts";
+import type { ToolInterface, ToolName } from "./types.ts";
 import { NvimBuffer, type BufNr, type Line } from "../nvim/buffer.ts";
 import type { ByteIdx, Position0Indexed } from "../nvim/window.ts";
 
@@ -32,7 +32,7 @@ export class InlineEditTool implements ToolInterface {
   toolName = "inline_edit" as const;
 
   constructor(
-    public request: Extract<ToolRequest, { toolName: "inline_edit" }>,
+    public request: Extract<StaticToolRequest, { toolName: "inline_edit" }>,
     public context: { bufnr: BufNr; nvim: Nvim; myDispatch: Dispatch<Msg> },
   ) {
     this.state = {
@@ -191,7 +191,7 @@ ${this.request.input.replace}
 }
 
 export const spec: ProviderToolSpec = {
-  name: "inline_edit",
+  name: "inline_edit" as ToolName,
   description: `Replace text. You will only get one shot so do the whole edit in a single tool invocation.`,
   input_schema: {
     type: "object",

@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { type Result } from "../utils/result.ts";
-import type { ToolRequest, ToolRequestId } from "../tools/toolManager.ts";
+import type { StaticToolRequest, ToolRequestId } from "../tools/toolManager.ts";
 import type {
   StopReason,
   Provider,
@@ -274,7 +274,7 @@ export class OpenAIProvider implements Provider {
       });
 
       const tool = response.output[0];
-      let toolRequest: Result<ToolRequest, { rawRequest: unknown }>;
+      let toolRequest: Result<StaticToolRequest, { rawRequest: unknown }>;
       try {
         if (!(tool && tool.type == "function_call")) {
           throw new Error(
@@ -298,7 +298,7 @@ export class OpenAIProvider implements Provider {
                   toolName: tool.name,
                   id: tool.call_id as unknown as ToolRequestId,
                   input: input.value,
-                } as ToolRequest,
+                } as StaticToolRequest,
               }
             : { ...input, rawRequest: tool.arguments };
       } catch (error) {

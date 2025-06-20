@@ -1,12 +1,12 @@
 import { d, withBindings, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
-import type { ToolRequest } from "./toolManager.ts";
+import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { ToolInterface } from "./types.ts";
+import type { ToolInterface, ToolName } from "./types.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/thread.ts";
@@ -31,7 +31,10 @@ export class WaitForSubagentsTool implements ToolInterface {
   public state: State;
 
   constructor(
-    public request: Extract<ToolRequest, { toolName: "wait_for_subagents" }>,
+    public request: Extract<
+      StaticToolRequest,
+      { toolName: "wait_for_subagents" }
+    >,
     public context: {
       nvim: Nvim;
       dispatch: Dispatch<RootMsg>;
@@ -243,7 +246,7 @@ ${threadStatusLines}`;
 }
 
 export const spec: ProviderToolSpec = {
-  name: "wait_for_subagents",
+  name: "wait_for_subagents" as ToolName,
   description: `Wait for one or more subagents to complete execution. This tool blocks until all specified subagents have finished running and returned their results.`,
   input_schema: {
     type: "object",

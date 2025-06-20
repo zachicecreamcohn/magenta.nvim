@@ -1,9 +1,10 @@
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import * as ToolManager from "../tools/toolManager.ts";
-import type { ToolName } from "../tools/tool-registry.ts";
+import type { StaticToolName } from "../tools/tool-registry.ts";
 import type { Result } from "../utils/result";
 import Anthropic from "@anthropic-ai/sdk";
 import type { SubagentSystemPrompt } from "./system-prompt.ts";
+import type { ToolName } from "../tools/types.ts";
 
 export const PROVIDER_NAMES = [
   "anthropic",
@@ -79,8 +80,8 @@ export type ProviderDocumentContent = {
 export type ProviderToolUseContent = {
   type: "tool_use";
   id: ToolManager.ToolRequestId;
-  name: ToolName;
-  request: Result<ToolManager.ToolRequest, { rawRequest: unknown }>;
+  name: StaticToolName;
+  request: Result<ToolManager.StaticToolRequest, { rawRequest: unknown }>;
 };
 
 export type ProviderServerToolUseContent = {
@@ -174,7 +175,7 @@ export interface ProviderStreamRequest {
 }
 
 export type ProviderToolUseResponse = {
-  toolRequest: Result<ToolManager.ToolRequest, { rawRequest: unknown }>;
+  toolRequest: Result<ToolManager.StaticToolRequest, { rawRequest: unknown }>;
   stopReason: StopReason;
   usage: Usage;
 };

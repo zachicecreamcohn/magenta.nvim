@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, withBindings } from "../tea/view.ts";
-import { type ToolRequest } from "./toolManager.ts";
+import { type StaticToolRequest } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import type { Nvim } from "../nvim/nvim-node";
@@ -22,7 +22,7 @@ import {
   FileCategory,
   type FileTypeInfo,
 } from "../utils/files.ts";
-import type { ToolInterface } from "./types.ts";
+import type { ToolInterface, ToolName } from "./types.ts";
 import type { Msg as ThreadMsg } from "../chat/thread.ts";
 import type { ContextManager } from "../context/context-manager.ts";
 import type {
@@ -67,10 +67,10 @@ export type Msg =
 
 export class GetFileTool implements ToolInterface {
   state: State;
-  toolName = "get_file" as const;
+  toolName = "get_file" as ToolName;
 
   constructor(
-    public request: Extract<ToolRequest, { toolName: "get_file" }>,
+    public request: Extract<StaticToolRequest, { toolName: "get_file" }>,
     public context: {
       nvim: Nvim;
       contextManager: ContextManager;
@@ -468,7 +468,7 @@ You already have the most up-to-date information about the contents of this file
 }
 
 export const spec: ProviderToolSpec = {
-  name: "get_file",
+  name: "get_file" as ToolName,
   description: `Get the full contents of a given file. The file will be added to the thread context.
 If a file is part of your context, avoid using get_file on it again, since you will get notified about any future changes about the file.
 

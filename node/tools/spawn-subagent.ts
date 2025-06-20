@@ -1,17 +1,20 @@
 import { d, withBindings } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
-import type { ToolRequest } from "./toolManager.ts";
+import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { ToolInterface } from "./types.ts";
+import type { ToolInterface, ToolName } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/thread.ts";
-import { SUBAGENT_TOOL_NAMES, type ToolName } from "./tool-registry.ts";
+import {
+  SUBAGENT_STATIC_TOOL_NAMES,
+  type StaticToolName,
+} from "./tool-registry.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import {
   SUBAGENT_SYSTEM_PROMPTS,
@@ -39,7 +42,7 @@ export class SpawnSubagentTool implements ToolInterface {
   public state: State;
 
   constructor(
-    public request: Extract<ToolRequest, { toolName: "spawn_subagent" }>,
+    public request: Extract<StaticToolRequest, { toolName: "spawn_subagent" }>,
     public context: {
       nvim: Nvim;
       dispatch: Dispatch<RootMsg>;
@@ -65,7 +68,7 @@ export class SpawnSubagentTool implements ToolInterface {
     const systemPrompt = input.systemPrompt;
 
     const suppressTools = input.suppressTools || [];
-    let allowedTools = SUBAGENT_TOOL_NAMES.filter(
+    let allowedTools = SUBAGENT_STATIC_TOOL_NAMES.filter(
       (tool) => !suppressTools.includes(tool),
     );
 
@@ -176,7 +179,7 @@ export class SpawnSubagentTool implements ToolInterface {
   view() {
     switch (this.state.state) {
       case "preparing":
-        return d`🤖⚙️ Preparing to spawn sub-agent...`;
+        return d`🤖⏳ Preparing to spawn sub-agent...`;
       case "done": {
         const threadId = this.state.threadId;
         const result = this.state.result.result;
@@ -208,7 +211,7 @@ export class SpawnSubagentTool implements ToolInterface {
 }
 
 export const spec: ProviderToolSpec = {
-  name: "spawn_subagent",
+  name: "spawn_subagent" as ToolName,
   description: `Create a sub-agent that can perform a specific task and report back the results.
 
 ## When to Use Sub-agents
@@ -289,7 +292,7 @@ assistant: Summarizes the results
         type: "array",
         items: {
           type: "string",
-          enum: SUBAGENT_TOOL_NAMES,
+          enum: SUBAGENT_STATIC_TOOL_NAMES,
         },
         description:
           "List of tool names that the sub-agent is not allowed to use. If not provided, all standard tools except spawn_subagent will be available. Note: spawn_subagent is never allowed to prevent recursive spawning. yield_to_parent is always available to subagents regardless of this setting.",
@@ -311,7 +314,7 @@ assistant: Summarizes the results
 export type Input = {
   prompt: string;
   contextFiles?: UnresolvedFilePath[];
-  suppressTools?: ToolName[];
+  suppressTools?: StaticToolName[];
   systemPrompt?: SubagentSystemPrompt;
 };
 

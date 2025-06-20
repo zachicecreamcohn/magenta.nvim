@@ -10,9 +10,9 @@ import { d, type View, type VDOMNode } from "../tea/view.ts";
 import {
   ToolManager,
   type Msg as ToolManagerMsg,
-  type ToolRequest,
+  type StaticToolRequest,
 } from "../tools/toolManager.ts";
-import { type ToolName } from "../tools/tool-registry.ts";
+import { type StaticToolName } from "../tools/tool-registry.ts";
 import { Counter } from "../utils/uniqueId.ts";
 import { FileSnapshots } from "../tools/file-snapshots.ts";
 import type { Nvim } from "../nvim/nvim-node";
@@ -134,7 +134,7 @@ export class Thread {
     profile: Profile;
     conversation: ConversationState;
     messages: Message[];
-    allowedTools: ToolName[];
+    allowedTools: StaticToolName[];
     systemPrompt?: SubagentSystemPrompt | undefined;
   };
 
@@ -150,7 +150,7 @@ export class Thread {
     public id: ThreadId,
     options: {
       systemPrompt?: SubagentSystemPrompt | undefined;
-      allowedTools: ToolName[];
+      allowedTools: StaticToolName[];
     },
     public context: {
       dispatch: Dispatch<RootMsg>;
@@ -659,7 +659,7 @@ ${content}`;
 
     if (result.toolRequest.status === "ok") {
       const compactRequest = result.toolRequest.value as Extract<
-        ToolRequest,
+        StaticToolRequest,
         { toolName: "compact_thread" }
       >;
 

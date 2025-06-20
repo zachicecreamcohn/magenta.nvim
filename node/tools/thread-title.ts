@@ -1,7 +1,7 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
-import type { ToolRequest } from "./toolManager.ts";
+import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
@@ -9,7 +9,7 @@ import type {
 } from "../providers/provider.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { ToolInterface } from "./types.ts";
+import type { ToolInterface, ToolName } from "./types.ts";
 
 export type State =
   | {
@@ -30,7 +30,7 @@ export class ThreadTitleTool implements ToolInterface {
   toolName = "thread_title" as const;
 
   constructor(
-    public request: Extract<ToolRequest, { toolName: "thread_title" }>,
+    public request: Extract<StaticToolRequest, { toolName: "thread_title" }>,
     public context: { nvim: Nvim; myDispatch: Dispatch<Msg> },
   ) {
     this.state = {
@@ -129,7 +129,7 @@ export class ThreadTitleTool implements ToolInterface {
 }
 
 export const spec: ProviderToolSpec = {
-  name: "thread_title",
+  name: "thread_title" as ToolName,
   description: `Set a title for the current conversation thread based on the user's message.`,
   input_schema: {
     type: "object",

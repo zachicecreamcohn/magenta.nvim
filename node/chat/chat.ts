@@ -3,7 +3,10 @@ import type { MagentaOptions, Profile } from "../options";
 import type { RootMsg } from "../root-msg";
 import type { Dispatch } from "../tea/tea";
 import { Thread, view as threadView, type ThreadId } from "./thread";
-import { CHAT_TOOL_NAMES, type ToolName } from "../tools/tool-registry.ts";
+import {
+  CHAT_STATIC_TOOL_NAMES,
+  type StaticToolName,
+} from "../tools/tool-registry.ts";
 import type { Lsp } from "../lsp";
 import { assertUnreachable } from "../utils/assertUnreachable";
 import { d, withBindings, type VDOMNode } from "../tea/view";
@@ -70,7 +73,7 @@ export type Msg =
       type: "spawn-subagent-thread";
       parentThreadId: ThreadId;
       spawnToolRequestId: ToolRequestId;
-      allowedTools: ToolName[];
+      allowedTools: StaticToolName[];
       initialPrompt: string;
       systemPrompt: SubagentSystemPrompt | undefined;
       contextFiles?: UnresolvedFilePath[];
@@ -265,7 +268,7 @@ export class Chat {
   }: {
     threadId: ThreadId;
     profile: Profile;
-    allowedTools: ToolName[];
+    allowedTools: StaticToolName[];
     contextFiles?: UnresolvedFilePath[];
     parent?: ThreadId;
     switchToThread: boolean;
@@ -368,7 +371,7 @@ export class Chat {
         this.context.options.activeProfile,
       ),
       switchToThread: true,
-      allowedTools: CHAT_TOOL_NAMES,
+      allowedTools: CHAT_STATIC_TOOL_NAMES,
     });
   }
 
@@ -525,7 +528,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     await this.createThreadWithContext({
       threadId: newThreadId,
       profile: sourceThread.state.profile,
-      allowedTools: CHAT_TOOL_NAMES,
+      allowedTools: CHAT_STATIC_TOOL_NAMES,
       contextFiles: contextFilePaths,
       switchToThread: true,
       initialMessage: initialMessage,
@@ -542,7 +545,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
   }: {
     parentThreadId: ThreadId;
     spawnToolRequestId: ToolRequestId;
-    allowedTools: ToolName[];
+    allowedTools: StaticToolName[];
     initialPrompt: string;
     contextFiles?: UnresolvedFilePath[];
     systemPrompt?: SubagentSystemPrompt | undefined;
@@ -555,7 +558,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const parentThread = parentThreadWrapper.thread;
     const subagentThreadId = this.threadCounter.get() as ThreadId;
 
-    const subagentAllowedTools: ToolName[] = allowedTools.includes(
+    const subagentAllowedTools: StaticToolName[] = allowedTools.includes(
       "yield_to_parent",
     )
       ? allowedTools

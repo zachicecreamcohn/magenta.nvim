@@ -2,7 +2,7 @@ import type { WebSearchResultBlock } from "@anthropic-ai/sdk/resources.mjs";
 import { validateInput } from "../tools/helpers";
 import type {
   ToolManager,
-  ToolRequest,
+  StaticToolRequest,
   ToolRequestId,
 } from "../tools/toolManager";
 import { assertUnreachable } from "../utils/assertUnreachable";
@@ -15,7 +15,7 @@ import type {
   ProviderImageContent,
   ProviderDocumentContent,
 } from "./provider";
-import type { ToolName } from "../tools/tool-registry";
+import type { StaticToolName } from "../tools/tool-registry";
 
 export function renderContentValue(
   value:
@@ -205,7 +205,7 @@ export function finalizeStreamingBlock(
       return {
         type: "tool_use",
         id: block.id as ToolRequestId,
-        name: block.name as ToolName,
+        name: block.name as StaticToolName,
         request:
           inputParseResult.status == "ok"
             ? {
@@ -214,7 +214,7 @@ export function finalizeStreamingBlock(
                   id: block.id as ToolRequestId,
                   toolName: block.name,
                   input: inputParseResult.value,
-                } as ToolRequest,
+                } as StaticToolRequest,
               }
             : {
                 ...inputParseResult,

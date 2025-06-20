@@ -10,14 +10,14 @@ import { getcwd } from "../nvim/nvim.ts";
 import { calculateStringPosition } from "../tea/util.ts";
 import type { PositionString, StringIdx } from "../nvim/window.ts";
 import path from "path";
-import type { ToolRequest } from "./toolManager.ts";
+import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
-import type { ToolInterface } from "./types.ts";
+import type { ToolInterface, ToolName } from "./types.ts";
 
 export type State =
   | {
@@ -35,10 +35,10 @@ export type Msg = {
 
 export class FindReferencesTool implements ToolInterface {
   state: State;
-  toolName = "find_references" as const;
+  toolName = "find_references" as ToolName;
 
   private constructor(
-    public request: Extract<ToolRequest, { toolName: "find_references" }>,
+    public request: Extract<StaticToolRequest, { toolName: "find_references" }>,
     public context: { nvim: Nvim; lsp: Lsp },
   ) {
     this.state = {
@@ -47,7 +47,7 @@ export class FindReferencesTool implements ToolInterface {
   }
 
   static create(
-    request: Extract<ToolRequest, { toolName: "find_references" }>,
+    request: Extract<StaticToolRequest, { toolName: "find_references" }>,
     context: { nvim: Nvim; lsp: Lsp },
   ): [FindReferencesTool, Thunk<Msg>] {
     const tool = new FindReferencesTool(request, context);
@@ -211,7 +211,7 @@ export class FindReferencesTool implements ToolInterface {
 }
 
 export const spec: ProviderToolSpec = {
-  name: "find_references",
+  name: "find_references" as ToolName,
   description: "Find all references to a symbol in the workspace.",
   input_schema: {
     type: "object",

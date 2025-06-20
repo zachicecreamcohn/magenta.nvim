@@ -54,27 +54,27 @@ Key interfaces to extend:
 
 ### Phase 1: Core MCP Infrastructure
 
-- [ ] Install MCP SDK dependency
+- [x] Install MCP SDK dependency
 
-  - [ ] Add `@modelcontextprotocol/sdk` to package.json dependencies
-  - [ ] Run `npm install` and verify installation
+  - [x] Add `@modelcontextprotocol/sdk` to package.json dependencies
+  - [x] Run `npm install` and verify installation
 
-- [ ] Create MCP server configuration schema
+- [x] Create MCP server configuration schema
 
-  - [ ] Extend `MagentaOptions` type in `node/options.ts` to include `mcpServers` field as `Record<string, MCPServerConfig>`
-  - [ ] Add `MCPServerConfig` type with fields: `command: string`, `args: string[]`, `env?: Record<string, string>`
-  - [ ] Update `parseOptions` and `parseProjectOptions` to handle MCP server configuration
-  - [ ] Update `mergeOptions` to merge MCP servers from base and project options (merge at server name key level)
-  - [ ] Iterate until type checks pass
+  - [x] Extend `MagentaOptions` type in `node/options.ts` to include `mcpServers` field as `Record<string, MCPServerConfig>`
+  - [x] Add `MCPServerConfig` type with fields: `command: string`, `args: string[]`, `env?: Record<string, string>`
+  - [x] Update `parseOptions` and `parseProjectOptions` to handle MCP server configuration
+  - [x] Update `mergeOptions` to merge MCP servers from base and project options (merge at server name key level)
+  - [x] Iterate until type checks pass
 
-- [ ] Create MCP client wrapper class
+- [x] Create MCP client wrapper class
 
-  - [ ] Create `node/tools/mcp/client.ts` with `MCPClient` class
-  - [ ] Implement stdio transport connection to MCP servers
-  - [ ] Add methods: `connect()`, `disconnect()`, `listTools()`, `callTool()`
-  - [ ] Handle connection lifecycle and error recovery
-  - [ ] Add proper TypeScript types for MCP tool schemas
-  - [ ] Iterate until type checks pass
+  - [x] Create `node/tools/mcp/client.ts` with `MCPClient` class
+  - [x] Implement stdio transport connection to MCP servers
+  - [x] Add methods: `connect()`, `disconnect()`, `listTools()`, `callTool()`
+  - [x] Handle connection lifecycle and error recovery
+  - [x] Add proper TypeScript types for MCP tool schemas
+  - [x] Iterate until type checks pass
 
 - [ ] Create generic MCP tool wrapper
   - [ ] Create `node/tools/mcp/tool.ts` with `MCPTool` class that implements `ToolInterface`
