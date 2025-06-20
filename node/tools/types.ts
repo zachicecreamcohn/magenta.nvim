@@ -17,3 +17,7 @@ export interface Tool {
   abort(): void;
   view(): VDOMNode;
 }
+
+/** Opaque tool message for external consumption
+ */
+export type ToolMsg = { __toolMsg: true };

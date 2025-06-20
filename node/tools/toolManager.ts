@@ -25,7 +25,7 @@ import type { MessageId } from "../chat/message.ts";
 import type { ThreadId } from "../chat/thread.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import type { Chat } from "../chat/chat.ts";
-import type { ToolRequestId } from "./types.ts";
+import type { ToolMsg, ToolRequestId } from "./types.ts";
 export type { ToolRequestId } from "./types.ts";
 
 export type StaticToolMap = {
@@ -140,7 +140,7 @@ export type Msg =
     }
   | {
       type: "tool-msg";
-      msg: StaticToolMsg;
+      msg: ToolMsg;
     };
 
 export class ToolManager {
@@ -216,7 +216,7 @@ export class ToolManager {
                     id: request.id,
                     toolName: request.toolName,
                     msg,
-                  },
+                  } as unknown as ToolMsg,
                 }),
             });
 
@@ -250,7 +250,7 @@ export class ToolManager {
                       id: request.id,
                       toolName: request.toolName,
                       msg,
-                    },
+                    } as unknown as ToolMsg,
                   }),
               },
             );
@@ -273,7 +273,7 @@ export class ToolManager {
                       id: request.id,
                       toolName: request.toolName,
                       msg,
-                    },
+                    } as unknown as ToolMsg,
                   }),
               },
             );
@@ -338,7 +338,7 @@ export class ToolManager {
                     id: request.id,
                     toolName: "bash_command",
                     msg,
-                  },
+                  } as unknown as ToolMsg,
                 }),
               options: this.context.options,
               rememberedCommands: this.context.chat.rememberedCommands,
@@ -365,7 +365,7 @@ export class ToolManager {
                     id: request.id,
                     toolName: "thread_title",
                     msg,
-                  },
+                  } as unknown as ToolMsg,
                 }),
             });
 
@@ -399,7 +399,7 @@ export class ToolManager {
                       id: request.id,
                       toolName: "spawn_subagent",
                       msg,
-                    },
+                    } as unknown as ToolMsg,
                   }),
               },
             );
@@ -422,7 +422,7 @@ export class ToolManager {
                       id: request.id,
                       toolName: "wait_for_subagents",
                       msg,
-                    },
+                    } as unknown as ToolMsg,
                   }),
               });
 
@@ -444,7 +444,7 @@ export class ToolManager {
                       id: request.id,
                       toolName: "yield_to_parent",
                       msg,
-                    },
+                    } as unknown as ToolMsg,
                   }),
               },
             );
@@ -459,17 +459,20 @@ export class ToolManager {
       }
 
       case "tool-msg": {
-        const tool = this.tools[msg.msg.id];
+        const staticToolMsg = msg.msg as unknown as StaticToolMsg;
+        const tool = this.tools[staticToolMsg.id];
         if (!tool) {
-          throw new Error(`Could not find tool with request id ${msg.msg.id}`);
+          throw new Error(
+            `Could not find tool with request id ${staticToolMsg.id}`,
+          );
         }
 
         // any is safe here since we have correspondence between tool & msg type
         // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
-        const thunk = tool.update(msg.msg.msg as any);
+        const thunk = tool.update(staticToolMsg.msg as any);
 
-        if (msg.msg.toolName == "bash_command") {
-          const toolMsg = msg.msg.msg;
+        if (staticToolMsg.toolName == "bash_command") {
+          const toolMsg = staticToolMsg.msg;
           if (
             toolMsg.type == "user-approval" &&
             toolMsg.approved &&
@@ -482,7 +485,6 @@ export class ToolManager {
         }
         return thunk ? this.acceptThunk(tool, thunk) : undefined;
       }
-
       default:
         return assertUnreachable(msg);
     }
@@ -501,7 +503,7 @@ export class ToolManager {
             id: tool.request.id,
             toolName: tool.toolName,
             msg,
-          } as StaticToolMsg,
+          } as unknown as ToolMsg,
         }),
       ).catch((e: Error) =>
         this.myDispatch({
@@ -516,7 +518,7 @@ export class ToolManager {
                 error: e.message,
               },
             },
-          } as StaticToolMsg,
+          } as unknown as ToolMsg,
         }),
       );
     });

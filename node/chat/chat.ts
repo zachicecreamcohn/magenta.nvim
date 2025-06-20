@@ -21,8 +21,9 @@ import {
   type UnresolvedFilePath,
 } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
-import type { ToolRequestId } from "../tools/toolManager.ts";
+import type { StaticToolMsg, ToolRequestId } from "../tools/toolManager.ts";
 import type { SubagentSystemPrompt } from "../providers/system-prompt.ts";
+import type { ToolMsg } from "../tools/types.ts";
 
 type ThreadWrapper = (
   | {
@@ -577,6 +578,17 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       });
 
       // Notify parent spawn call of successful thread spawn
+      const msg: StaticToolMsg = {
+        id: spawnToolRequestId,
+        toolName: "spawn_subagent",
+        msg: {
+          type: "subagent-created",
+          result: {
+            status: "ok",
+            value: thread.id,
+          },
+        },
+      };
       this.context.dispatch({
         type: "thread-msg",
         id: parentThreadId,
@@ -584,22 +596,23 @@ ${threadViews.map((view) => d`${view}\n`)}`;
           type: "tool-manager-msg",
           msg: {
             type: "tool-msg",
-            msg: {
-              id: spawnToolRequestId,
-              toolName: "spawn_subagent",
-              msg: {
-                type: "subagent-created",
-                result: {
-                  status: "ok",
-                  value: thread.id,
-                },
-              },
-            },
+            msg: msg as unknown as ToolMsg,
           },
         },
       });
     } catch (e) {
       // Notify parent spawn call of failure to spawn
+      const msg: StaticToolMsg = {
+        id: spawnToolRequestId,
+        toolName: "spawn_subagent",
+        msg: {
+          type: "subagent-created",
+          result: {
+            status: "error",
+            error: e instanceof Error ? e.message + "\n" + e.stack : String(e),
+          },
+        },
+      };
       this.context.dispatch({
         type: "thread-msg",
         id: parentThreadId,
@@ -607,18 +620,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
           type: "tool-manager-msg",
           msg: {
             type: "tool-msg",
-            msg: {
-              id: spawnToolRequestId,
-              toolName: "spawn_subagent",
-              msg: {
-                type: "subagent-created",
-                result: {
-                  status: "error",
-                  error:
-                    e instanceof Error ? e.message + "\n" + e.stack : String(e),
-                },
-              },
-            },
+            msg: msg as unknown as ToolMsg,
           },
         },
       });
@@ -799,7 +801,14 @@ ${threadViews.map((view) => d`${view}\n`)}`;
           if (request.toolName === "wait_for_subagents") {
             const tool = parentThread.toolManager.tools[request.id];
             if (tool && tool.state.state === "waiting") {
-              setTimeout(() =>
+              setTimeout(() => {
+                const msg: StaticToolMsg = {
+                  id: tool.request.id,
+                  toolName: "wait_for_subagents",
+                  msg: {
+                    type: "check-threads",
+                  },
+                };
                 this.context.dispatch({
                   type: "thread-msg",
                   id: parentThread.id,
@@ -807,17 +816,11 @@ ${threadViews.map((view) => d`${view}\n`)}`;
                     type: "tool-manager-msg",
                     msg: {
                       type: "tool-msg",
-                      msg: {
-                        id: tool.request.id,
-                        toolName: "wait_for_subagents",
-                        msg: {
-                          type: "check-threads",
-                        },
-                      },
+                      msg: msg as unknown as ToolMsg,
                     },
                   },
-                }),
-              );
+                });
+              });
             }
           }
         }
