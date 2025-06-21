@@ -70,6 +70,7 @@ export class MCPToolManager {
     for (const server of Object.values(this.serverMap)) {
       allToolSpecs.push(...Object.values(server.specs));
     }
+
     return allToolSpecs;
   }
 

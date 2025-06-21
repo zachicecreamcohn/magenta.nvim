@@ -575,10 +575,8 @@ export class Thread {
     this.scheduleTokenEstimateUpdate();
     const messages = this.getMessages();
 
-    const request = getProvider(
-      this.context.nvim,
-      this.state.profile,
-    ).sendMessage(
+    const provider = getProvider(this.context.nvim, this.state.profile);
+    const request = provider.sendMessage(
       messages,
       (event) => {
         this.myDispatch({

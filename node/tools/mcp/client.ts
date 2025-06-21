@@ -139,7 +139,6 @@ export class MCPClient {
         mcpToolName: tool.name as MCPToolName,
       }),
       description: tool.description ?? "",
-      // TODO: possibly need to make all properties required for openai?
       input_schema: tool.inputSchema as JSONSchemaType,
     }));
   }

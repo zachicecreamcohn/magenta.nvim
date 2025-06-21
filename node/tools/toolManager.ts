@@ -231,26 +231,10 @@ export class ToolManager {
       default:
         assertUnreachable(threadType);
     }
-    const specs: ProviderToolSpec[] = [];
-
-    for (const toolName of staticToolNames) {
-      if (this.context.mcpToolManager.isMCPTool(toolName)) {
-        const mcpSpecs = this.context.mcpToolManager.getToolSpecs();
-        const mcpSpec = mcpSpecs.find((spec) => spec.name === toolName);
-        if (mcpSpec) {
-          specs.push(mcpSpec);
-        }
-      } else {
-        const staticSpec = ToolManager.TOOL_SPEC_MAP[toolName];
-        if (staticSpec) {
-          specs.push(staticSpec);
-        }
-      }
-    }
-
-    specs.push(...this.context.mcpToolManager.getToolSpecs());
-
-    return specs;
+    return [
+      ...staticToolNames.map((toolName) => ToolManager.TOOL_SPEC_MAP[toolName]),
+      ...this.context.mcpToolManager.getToolSpecs(),
+    ];
   }
 
   getTool(id: ToolRequestId): Tool {

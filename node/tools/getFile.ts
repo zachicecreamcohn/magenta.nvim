@@ -470,9 +470,7 @@ You already have the most up-to-date information about the contents of this file
   }
 
   displayInput() {
-    return `get_file: {
-    filePath: ${this.request.input.filePath}
-}`;
+    return `get_file: ${JSON.stringify(this.request.input, null, 2)}`;
   }
 }
 
