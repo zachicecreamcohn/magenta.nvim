@@ -522,7 +522,12 @@ Paint their stories in the night.
       expect(myDispatch).toHaveBeenLastCalledWith({
         result: {
           status: "ok",
-          value: "Successfully applied edits.",
+          value: [
+            {
+              type: "text",
+              text: "Successfully applied edits.",
+            },
+          ],
         },
         type: "finish",
       });
@@ -581,7 +586,12 @@ Paint their stories in the night.
       expect(myDispatch).toHaveBeenLastCalledWith({
         result: {
           status: "ok",
-          value: "Successfully applied edits.",
+          value: [
+            {
+              type: "text",
+              text: "Successfully applied edits.",
+            },
+          ],
         },
         type: "finish",
       });

@@ -74,7 +74,12 @@ describe("node/tools/diagnostics.spec.ts", () => {
         id: toolRequestId,
         result: {
           status: "ok",
-          value: `file: node/test/fixtures/test.ts source: typescript, severity: 1, message: "Property 'd' does not exist on type '{ c: "test"; }'."`,
+          value: [
+            {
+              type: "text",
+              text: `file: node/test/fixtures/test.ts source: typescript, severity: 1, message: "Property 'd' does not exist on type '{ c: "test"; }'."`,
+            },
+          ],
         },
       });
     });

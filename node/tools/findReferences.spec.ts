@@ -62,7 +62,12 @@ describe("node/tools/findReferences.spec.ts", () => {
         id: toolRequestId,
         result: {
           status: "ok",
-          value: `node/test/fixtures/test.ts:4:6\nnode/test/fixtures/test.ts:12:6\nnode/test/fixtures/test.ts:17:20\n`,
+          value: [
+            {
+              type: "text",
+              text: `node/test/fixtures/test.ts:4:6\nnode/test/fixtures/test.ts:12:6\nnode/test/fixtures/test.ts:17:20\n`,
+            },
+          ],
         },
       });
     });

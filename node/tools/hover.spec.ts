@@ -63,7 +63,12 @@ describe("node/tools/hover.spec.ts", () => {
         id: toolRequestId,
         result: {
           status: "ok",
-          value: `(markdown):\n\n\`\`\`typescript\n(property) c: "test"\n\`\`\`\n\n`,
+          value: [
+            {
+              type: "text",
+              text: `(markdown):\n\n\`\`\`typescript\n(property) c: "test"\n\`\`\`\n\n`,
+            },
+          ],
         },
       });
     });

@@ -241,7 +241,12 @@ Paint their stories in the night.
               id: "tool1",
               result: {
                 status: "ok",
-                value: "Successfully applied edits.",
+                value: [
+                  {
+                    type: "text",
+                    text: "Successfully applied edits.",
+                  },
+                ],
               },
               type: "tool_result",
             },
@@ -267,7 +272,12 @@ Paint their stories in the night.
               id: "tool1",
               result: {
                 status: "ok",
-                value: "Successfully applied edits.",
+                value: [
+                  {
+                    type: "text",
+                    text: "Successfully applied edits.",
+                  },
+                ],
               },
               type: "tool_result",
             },
@@ -375,7 +385,12 @@ Paint their stories in the night.
               id: "tool1",
               result: {
                 status: "ok",
-                value: "Successfully applied edits.",
+                value: [
+                  {
+                    type: "text",
+                    text: "Successfully applied edits.",
+                  },
+                ],
               },
               type: "tool_result",
             },

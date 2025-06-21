@@ -270,7 +270,7 @@ function parseSidebarPosition(
 
 export function parseOptions(
   inputOptions: unknown,
-  logger: { warn: (msg: string) => void } = console,
+  logger: { warn: (msg: string) => void },
 ): MagentaOptions {
   const options: MagentaOptions = {
     profiles: [],

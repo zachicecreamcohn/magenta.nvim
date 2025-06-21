@@ -62,7 +62,12 @@ describe("node/tools/listBuffers.spec.ts", () => {
         type: "tool_result",
         result: {
           status: "ok",
-          value: `node/test/fixtures/poem.txt\nactive node/test/fixtures/poem2.txt`,
+          value: [
+            {
+              type: "text",
+              text: `node/test/fixtures/poem.txt\nactive node/test/fixtures/poem2.txt`,
+            },
+          ],
         },
       });
     });
