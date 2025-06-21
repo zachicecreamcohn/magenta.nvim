@@ -13,6 +13,7 @@ import type { Line } from "../nvim/buffer";
 import type { DiffUpdate, WholeFileUpdate } from "./context-manager";
 import type { ToolRequestId } from "../tools/toolManager";
 import fs from "node:fs";
+import type { ToolName } from "../tools/types";
 
 const testFilePath = `${TMP_DIR}/poem.txt` as AbsFilePath;
 
@@ -215,7 +216,7 @@ Paint their stories in the night.
             status: "ok",
             value: {
               id: "tool1" as ToolRequestId,
-              toolName: "insert",
+              toolName: "insert" as ToolName,
               input: {
                 filePath: testFilePath as UnresolvedFilePath,
                 insertAfter: "Paint their stories in the night.",
@@ -335,7 +336,7 @@ Paint their stories in the night.
             status: "ok",
             value: {
               id: "tool1" as ToolRequestId,
-              toolName: "insert",
+              toolName: "insert" as ToolName,
               input: {
                 filePath: testFilePath as UnresolvedFilePath,
                 insertAfter: "Paint their stories in the night.",

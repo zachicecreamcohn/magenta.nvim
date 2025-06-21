@@ -31,13 +31,14 @@ import type {
   ToolRequestId,
   ToolRequest,
   ToolManagerToolMsg,
+  Tool,
 } from "./types.ts";
 import type { ProviderToolSpec } from "../providers/provider-types.ts";
 import type { StaticToolName } from "./tool-registry.ts";
 import { MCPToolManager } from "./mcp/manager.ts";
 import type { MCPTool } from "./mcp/tool.ts";
 import { unwrapMcpToolMsg } from "./mcp/types.ts";
-export type { ToolRequestId } from "./types.ts";
+export type { Tool, ToolRequestId } from "./types.ts";
 
 export type StaticToolMap = {
   get_file: {
@@ -172,7 +173,7 @@ export type Msg =
   | ToolManagerToolMsg;
 
 export class ToolManager {
-  tools: {
+  private tools: {
     [id: ToolRequestId]: StaticTool;
   };
 
@@ -234,15 +235,13 @@ export class ToolManager {
     return specs;
   }
 
-  getTool(id: ToolRequestId): StaticTool | undefined {
-    // Check static tools first
-    const staticTool = this.tools[id];
-    if (staticTool) {
-      return staticTool;
+  getTool(id: ToolRequestId): Tool {
+    const mcpTool = this.context.mcpToolManager.getTool(id);
+    if (mcpTool) {
+      return mcpTool;
     }
 
-    // MCP tools are handled separately and don't return a StaticTool
-    return undefined;
+    return this.tools[id] as unknown as Tool;
   }
 
   renderToolResult(id: ToolRequestId) {

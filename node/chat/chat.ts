@@ -22,6 +22,7 @@ import { wrapStaticToolMsg, type ToolRequestId } from "../tools/toolManager.ts";
 import type { SubagentSystemPrompt } from "../providers/system-prompt.ts";
 import type { ToolName } from "../tools/types.ts";
 import { MCPToolManager } from "../tools/mcp/manager.ts";
+import type { WaitForSubagentsTool } from "../tools/wait-for-subagents.ts";
 
 type ThreadWrapper = (
   | {
@@ -298,7 +299,7 @@ export class Chat {
       },
     );
 
-    const mcpToolManager = await MCPToolManager.create(
+    const mcpToolManager = new MCPToolManager(
       this.context.options.mcpServers,
       this.context,
     );
@@ -801,7 +802,9 @@ ${threadViews.map((view) => d`${view}\n`)}`;
         if (content.type === "tool_use" && content.request.status === "ok") {
           const request = content.request.value;
           if (request.toolName === "wait_for_subagents") {
-            const tool = parentThread.toolManager.tools[request.id];
+            const tool = parentThread.toolManager.getTool(
+              request.id,
+            ) as unknown as WaitForSubagentsTool;
             if (tool && tool.state.state === "waiting") {
               setTimeout(() => {
                 this.context.dispatch({

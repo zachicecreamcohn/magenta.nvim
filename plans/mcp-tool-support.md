@@ -94,35 +94,35 @@ Key interfaces to extend:
 
 ### Phase 3: Integration with Existing Tool System
 
-- [ ] Create a MCPToolManager in `node/tools/mcp/manager.ts`.
+- [x] Create a MCPToolManager in `node/tools/mcp/manager.ts`.
 
-  - [ ] this should have a static create method that accepts a config
-  - [ ] the static method should make requests to all the configured servers and discover their tools
-  - [ ] it should then construct the actual MCPToolManager class from the results
+  - [x] this should have a static create method that accepts a config
+  - [x] the static method should make requests to all the configured servers and discover their tools
+  - [x] it should then construct the actual MCPToolManager class from the results
 
-- [ ] Extend tool manager for MCP tool support
+- [x] Extend tool manager for MCP tool support
 
-  - [ ] Modify `ToolManager` constructor to accept `MCPToolManager` instance
-  - [ ] Add logic to check if a tool request is for an MCP tool (starts with "mcp.")
-  - [ ] Delegate MCP tool requests to `MCPToolManager` instead of handling locally
-  - [ ] Update error handling to account for MCP tool failures
-  - [ ] Ensure existing in-code tools continue to work unchanged
-  - [ ] Ensure that we still have strict types for standard tools and exhaustive type checks
-  - [ ] Check for compilation errors and iterate until resolved
+  - [x] Modify `ToolManager` constructor to accept `MCPToolManager` instance
+  - [x] Add logic to check if a tool request is for an MCP tool (starts with "mcp.")
+  - [x] Delegate MCP tool requests to `MCPToolManager` instead of handling locally
+  - [x] Update error handling to account for MCP tool failures
+  - [x] Ensure existing in-code tools continue to work unchanged
+  - [x] Ensure that we still have strict types for standard tools and exhaustive type checks
+  - [x] Check for compilation errors and iterate until resolved
 
-- [ ] Update tool registry for dynamic MCP tools
-  - [ ] Update `allowedTools` and `getToolSpecs()` flows to instead live on the tool manager and depend on the mcp manager state
-  - [ ] Check for type errors and iterate until resolved
+- [x] Update tool registry for dynamic MCP tools
+  - [x] Update `allowedTools` and `getToolSpecs()` flows to instead live on the tool manager and depend on the mcp manager state
+  - [x] Check for type errors and iterate until resolved
 
 ### Phase 4: Thread Integration and Tool Discovery
 
-- [ ] Integrate MCP tool discovery in thread creation
-  - [ ] Modify `Thread` constructor to accept `MCPToolManager` instance
-  - [ ] Modify `Chat` class constructor to create `MCPToolManager` instance from options
-  - [ ] Pass `MCPToolManager` to `Thread` constructor in `createThreadWithContext()`
-  - [ ] Handle MCP configuration loading from both plugin and project settings
-  - [ ] Add error handling for MCP initialization failures
-  - [ ] Check for type errors and iterate until resolved
+- [x] Integrate MCP tool discovery in thread creation
+  - [x] Modify `Thread` constructor to accept `MCPToolManager` instance
+  - [x] Modify `Chat` class constructor to create `MCPToolManager` instance from options
+  - [x] Pass `MCPToolManager` to `Thread` constructor in `createThreadWithContext()`
+  - [x] Handle MCP configuration loading from both plugin and project settings
+  - [x] Add error handling for MCP initialization failures
+  - [x] Check for type errors and iterate until resolved
 
 ## Configuration Example
 

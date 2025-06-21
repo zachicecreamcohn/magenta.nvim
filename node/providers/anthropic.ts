@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { extendError, type Result } from "../utils/result.ts";
-import type { StaticToolRequest, ToolRequestId } from "../tools/toolManager.ts";
+import type { ToolRequestId } from "../tools/toolManager.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import {
   type Provider,
@@ -19,6 +19,7 @@ import {
   getSubagentSystemPrompt,
 } from "./system-prompt.ts";
 import { validateInput } from "../tools/helpers.ts";
+import type { ToolRequest } from "../tools/types.ts";
 
 function mapProviderTextToAnthropicText(
   providerText: ProviderTextContent,
@@ -335,7 +336,7 @@ export class AnthropicProvider implements Provider {
       const contentBlock = response.content[0];
 
       const toolRequest = extendError(
-        ((): Result<StaticToolRequest> => {
+        ((): Result<ToolRequest> => {
           if (contentBlock.type != "tool_use") {
             throw new Error(
               `Expected a tool_use response but got ${response.type}`,
@@ -392,7 +393,7 @@ export class AnthropicProvider implements Provider {
                 toolName: spec.name,
                 id: req2.id as unknown as ToolRequestId,
                 input: input.value,
-              } as StaticToolRequest,
+              } as ToolRequest,
             };
           } else {
             return input;

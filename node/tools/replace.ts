@@ -14,7 +14,7 @@ import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
 import * as diff from "diff";
 import type { ThreadId } from "../chat/thread.ts";
-import type { Tool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 export type State =
@@ -31,7 +31,7 @@ export type Msg = {
   result: Result<ProviderToolResultContent[]>;
 };
 
-export class ReplaceTool implements Tool {
+export class ReplaceTool implements StaticTool {
   state: State;
   toolName = "replace" as const;
 
@@ -65,6 +65,10 @@ export class ReplaceTool implements Tool {
         }),
       );
     });
+  }
+
+  isDone(): boolean {
+    return this.state.state === "done";
   }
 
   abort(): void {

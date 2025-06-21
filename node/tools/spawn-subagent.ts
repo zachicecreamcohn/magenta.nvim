@@ -6,7 +6,7 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { Tool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
@@ -34,7 +34,7 @@ export type State =
       result: ProviderToolResult;
     };
 
-export class SpawnSubagentTool implements Tool {
+export class SpawnSubagentTool implements StaticTool {
   toolName = "spawn_subagent" as const;
   public state: State;
 
@@ -81,6 +81,10 @@ export class SpawnSubagentTool implements Tool {
         systemPrompt,
       },
     });
+  }
+
+  isDone(): boolean {
+    return this.state.state === "done";
   }
 
   abort() {

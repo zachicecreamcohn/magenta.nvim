@@ -1,4 +1,3 @@
-import { type StaticToolRequest } from "../tools/toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import { Defer, pollUntil } from "../utils/async.ts";
 import {
@@ -15,6 +14,7 @@ import {
 import { setClient } from "./provider.ts";
 import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import type { ToolRequest } from "../tools/types.ts";
 
 class MockRequest {
   defer: Defer<{
@@ -59,7 +59,7 @@ class MockRequest {
     });
   }
   streamToolUse(
-    toolRequest: Result<StaticToolRequest, { rawRequest: unknown }>,
+    toolRequest: Result<ToolRequest, { rawRequest: unknown }>,
   ): void {
     const blockId = this.getNextBlockId();
     const index = 0;
@@ -104,7 +104,7 @@ class MockRequest {
     stopReason,
   }: {
     text: string;
-    toolRequests: Result<StaticToolRequest, { rawRequest: unknown }>[];
+    toolRequests: Result<ToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;
   }): void {
     if (text) {
@@ -151,7 +151,7 @@ type MockForceToolUseRequest = {
   messages: Array<ProviderMessage>;
   spec: ProviderToolSpec;
   defer: Defer<{
-    toolRequest: Result<StaticToolRequest, { rawRequest: unknown }>;
+    toolRequest: Result<ToolRequest, { rawRequest: unknown }>;
     stopReason: StopReason;
     usage: Usage;
   }>;
@@ -410,7 +410,7 @@ ${this.requests.map((r) => `${r.defer.resolved ? "resolved" : "pending"} - ${JSO
     toolRequest,
     stopReason,
   }: {
-    toolRequest: Result<StaticToolRequest, { rawRequest: unknown }>;
+    toolRequest: Result<ToolRequest, { rawRequest: unknown }>;
     stopReason: StopReason;
   }) {
     const lastRequest = await this.awaitPendingForceToolUseRequest();

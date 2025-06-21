@@ -19,10 +19,12 @@ import {
   type MCPToolRequestParams,
   type ServerName,
 } from "./types.ts";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { MockMCPServer } from "./mock-server.ts";
 
 export class MCPClient {
   private client: Client | undefined;
-  private transport: StdioClientTransport | undefined;
+  private transport: Transport | undefined;
   private isConnected: boolean = false;
   private tools: Tool[] = [];
 
@@ -39,33 +41,37 @@ export class MCPClient {
       return;
     }
 
-    try {
-      // Create transport and client
-      const env: Record<string, string> = {};
-      for (const [key, value] of Object.entries(process.env)) {
-        if (value !== undefined) {
-          env[key] = value;
-        }
+    const env: Record<string, string> = {};
+    for (const [key, value] of Object.entries(process.env)) {
+      if (value !== undefined) {
+        env[key] = value;
       }
+    }
+
+    this.client = new Client({
+      name: `magenta-mcp-client-${this.serverName}`,
+      version: "1.0.0",
+    });
+
+    if (this.config.type == "mock") {
+      const mockServer = new MockMCPServer(
+        this.serverName,
+        this.config.tools || [],
+      );
+      this.transport = await mockServer.start();
+    } else {
       for (const [key, value] of Object.entries(this.config.env || {})) {
         env[key] = value;
       }
-
       this.transport = new StdioClientTransport({
         command: this.config.command,
         args: this.config.args,
         env,
       });
+    }
 
-      this.client = new Client({
-        name: `magenta-mcp-client-${this.serverName}`,
-        version: "1.0.0",
-      });
-
-      // Connect client to transport
+    try {
       await this.client.connect(this.transport);
-
-      // Discover available tools
       await this.loadTools();
 
       this.isConnected = true;
@@ -88,7 +94,10 @@ export class MCPClient {
       try {
         await this.client.close();
       } catch (error) {
-        console.error(`Error closing MCP client ${this.serverName}:`, error);
+        this.context.nvim.logger?.error(
+          `Error closing MCP client ${this.serverName}:`,
+          error,
+        );
       }
       this.client = undefined;
     }
@@ -97,7 +106,10 @@ export class MCPClient {
       try {
         await this.transport.close();
       } catch (error) {
-        console.error(`Error closing MCP transport ${this.serverName}:`, error);
+        this.context.nvim.logger?.error(
+          `Error closing MCP transport ${this.serverName}:`,
+          error,
+        );
       }
       this.transport = undefined;
     }
@@ -140,20 +152,13 @@ export class MCPClient {
       throw new Error(`MCP client ${this.serverName} is not connected`);
     }
 
-    // Remove the mcp.serverName. prefix from the tool name
-    const expectedPrefix = `mcp.${this.serverName}.`;
-    if (!toolName.startsWith(expectedPrefix)) {
-      throw new Error(
-        `Tool name ${toolName} does not match expected prefix ${expectedPrefix}`,
-      );
-    }
-
-    const actualToolName = toolName.slice(expectedPrefix.length);
-
     const result: CallToolResult = await this.client.request(
       {
-        method: actualToolName,
-        params,
+        method: "tools/call",
+        params: {
+          name: toolName,
+          arguments: params,
+        },
       },
       CallToolResultSchema,
     );

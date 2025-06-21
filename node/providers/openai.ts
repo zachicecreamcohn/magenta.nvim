@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { type Result } from "../utils/result.ts";
-import type { StaticToolRequest, ToolRequestId } from "../tools/toolManager.ts";
+import type { ToolRequestId } from "../tools/toolManager.ts";
 import type {
   StopReason,
   Provider,
@@ -22,6 +22,7 @@ import {
 } from "./system-prompt.ts";
 import { validateInput } from "../tools/helpers.ts";
 import type { ResponseInputMessageContentList } from "openai/resources/responses/responses.mjs";
+import type { ToolRequest } from "../tools/types.ts";
 
 export type OpenAIOptions = {
   model: "gpt-4o";
@@ -274,7 +275,7 @@ export class OpenAIProvider implements Provider {
       });
 
       const tool = response.output[0];
-      let toolRequest: Result<StaticToolRequest, { rawRequest: unknown }>;
+      let toolRequest: Result<ToolRequest, { rawRequest: unknown }>;
       try {
         if (!(tool && tool.type == "function_call")) {
           throw new Error(
@@ -298,7 +299,7 @@ export class OpenAIProvider implements Provider {
                   toolName: tool.name,
                   id: tool.call_id as unknown as ToolRequestId,
                   input: input.value,
-                } as StaticToolRequest,
+                } as ToolRequest,
               }
             : { ...input, rawRequest: tool.arguments };
       } catch (error) {

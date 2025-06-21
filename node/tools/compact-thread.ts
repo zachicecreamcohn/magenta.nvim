@@ -6,7 +6,7 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { Tool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 
 export type State = {
@@ -14,8 +14,8 @@ export type State = {
   result: ProviderToolResult;
 };
 
-export class CompactThreadTool implements Tool {
-  toolName = "compact_thread" as ToolName;
+export class CompactThreadTool implements StaticTool {
+  toolName = "compact_thread" as const;
   public state: State;
 
   constructor(
@@ -33,6 +33,10 @@ export class CompactThreadTool implements Tool {
         },
       },
     };
+  }
+
+  isDone(): boolean {
+    return this.state.state === "done";
   }
 
   abort() {}

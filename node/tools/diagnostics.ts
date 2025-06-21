@@ -9,7 +9,7 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { Tool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName } from "./types.ts";
 
 export type State =
   | {
@@ -57,9 +57,9 @@ type DiagnosticsRes = {
   severity: number;
 };
 
-export class DiagnosticsTool implements Tool {
+export class DiagnosticsTool implements StaticTool {
   state: State;
-  toolName = "diagnostics" as ToolName;
+  toolName = "diagnostics" as const;
 
   constructor(
     public request: Extract<StaticToolRequest, { toolName: "diagnostics" }>,
@@ -92,6 +92,10 @@ export class DiagnosticsTool implements Tool {
       default:
         assertUnreachable(msg.type);
     }
+  }
+
+  isDone(): boolean {
+    return this.state.state === "done";
   }
 
   /** this is expected to execute as part of a dispatch, so we don't need to dispatch anything to update the view

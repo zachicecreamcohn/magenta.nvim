@@ -7,6 +7,7 @@ import {
   assertToolResultHasDocumentSource,
 } from "../test/preamble.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { ToolName } from "./types.ts";
 
 describe("getFile rich content integration tests", () => {
   it("should process image files end-to-end", async () => {
@@ -28,7 +29,7 @@ describe("getFile rich content integration tests", () => {
             status: "ok",
             value: {
               id: "img_request" as ToolRequestId,
-              toolName: "get_file",
+              toolName: "get_file" as ToolName,
               input: {
                 filePath: "./node/test/fixtures/test.jpg" as UnresolvedFilePath,
               },
@@ -91,7 +92,7 @@ describe("getFile rich content integration tests", () => {
             status: "ok",
             value: {
               id: "pdf_request" as ToolRequestId,
-              toolName: "get_file",
+              toolName: "get_file" as ToolName,
               input: {
                 filePath: "./node/test/fixtures/test.pdf" as UnresolvedFilePath,
               },
@@ -154,7 +155,7 @@ describe("getFile rich content integration tests", () => {
             status: "ok",
             value: {
               id: "bin_request" as ToolRequestId,
-              toolName: "get_file",
+              toolName: "get_file" as ToolName,
               input: {
                 filePath: "./node/test/fixtures/test.bin" as UnresolvedFilePath,
               },
@@ -214,7 +215,7 @@ describe("getFile rich content integration tests", () => {
             status: "ok",
             value: {
               id: "img_request" as ToolRequestId,
-              toolName: "get_file",
+              toolName: "get_file" as ToolName,
               input: {
                 filePath: "./node/test/fixtures/test.jpg" as UnresolvedFilePath,
               },
@@ -269,7 +270,7 @@ describe("getFile rich content integration tests", () => {
             status: "ok",
             value: {
               id: "pdf_request" as ToolRequestId,
-              toolName: "get_file",
+              toolName: "get_file" as ToolName,
               input: {
                 filePath: "./node/test/fixtures/test.pdf" as UnresolvedFilePath,
               },
@@ -319,7 +320,7 @@ describe("getFile rich content integration tests", () => {
             status: "ok",
             value: {
               id: "text_request" as ToolRequestId,
-              toolName: "get_file",
+              toolName: "get_file" as ToolName,
               input: {
                 filePath: "./node/test/fixtures/poem.txt" as UnresolvedFilePath,
               },
@@ -373,7 +374,7 @@ describe("getFile rich content integration tests", () => {
             status: "ok",
             value: {
               id: "text_request" as ToolRequestId,
-              toolName: "get_file",
+              toolName: "get_file" as ToolName,
               input: {
                 filePath: "./node/test/fixtures/poem.txt" as UnresolvedFilePath,
               },
@@ -408,7 +409,7 @@ describe("getFile rich content integration tests", () => {
             status: "ok",
             value: {
               id: "img_request" as ToolRequestId,
-              toolName: "get_file",
+              toolName: "get_file" as ToolName,
               input: {
                 filePath: "./node/test/fixtures/test.jpg" as UnresolvedFilePath,
               },
@@ -445,7 +446,7 @@ describe("getFile rich content integration tests", () => {
             status: "ok",
             value: {
               id: "pdf_request" as ToolRequestId,
-              toolName: "get_file",
+              toolName: "get_file" as ToolName,
               input: {
                 filePath: "./node/test/fixtures/test.pdf" as UnresolvedFilePath,
               },
@@ -516,7 +517,7 @@ describe("getFile rich content integration tests", () => {
               status: "ok",
               value: {
                 id: "large_img_request" as ToolRequestId,
-                toolName: "get_file",
+                toolName: "get_file" as ToolName,
                 input: {
                   filePath:
                     "./node/test/fixtures/large-image.jpg" as UnresolvedFilePath,

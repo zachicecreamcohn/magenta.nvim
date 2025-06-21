@@ -13,7 +13,7 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { Tool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName } from "./types.ts";
 
 export type State =
   | {
@@ -74,7 +74,7 @@ async function listDirectoryBFS(
   return results;
 }
 
-export class ListDirectoryTool implements Tool {
+export class ListDirectoryTool implements StaticTool {
   state: State;
   toolName = "list_directory" as const;
   autoRespond = true;
@@ -91,6 +91,10 @@ export class ListDirectoryTool implements Tool {
         `Error listing directory: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
+  }
+
+  isDone(): boolean {
+    return this.state.state === "done";
   }
 
   abort() {

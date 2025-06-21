@@ -1,4 +1,7 @@
+import type { ProviderToolResult } from "../providers/provider-types";
 import type { VDOMNode } from "../tea/view";
+import type { StaticToolName } from "./tool-registry";
+import type { StaticToolRequest } from "./toolManager";
 
 export type ToolRequestId = string & { __toolRequestId: true };
 
@@ -14,9 +17,25 @@ export type ToolRequest = {
 };
 
 export interface Tool {
+  toolName: ToolName;
+  isDone(): boolean;
+  getToolResult(): ProviderToolResult;
+  request: ToolRequest;
   abort(): void;
   view(): VDOMNode;
+  displayInput(): string | VDOMNode;
 }
+
+export interface StaticTool {
+  toolName: StaticToolName;
+  isDone(): boolean;
+  getToolResult(): ProviderToolResult;
+  request: StaticToolRequest;
+  abort(): void;
+  view(): VDOMNode;
+  displayInput(): string | VDOMNode;
+}
+
 export type ToolManagerToolMsg = {
   type: "tool-msg";
   msg: {

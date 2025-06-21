@@ -16,7 +16,7 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
-import type { Tool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName } from "./types.ts";
 
 export type State =
   | {
@@ -32,9 +32,9 @@ export type Msg = {
   result: Result<ProviderToolResultContent[]>;
 };
 
-export class FindReferencesTool implements Tool {
+export class FindReferencesTool implements StaticTool {
   state: State;
-  toolName = "find_references" as ToolName;
+  toolName = "find_references" as const;
 
   constructor(
     public request: Extract<StaticToolRequest, { toolName: "find_references" }>,
@@ -48,6 +48,10 @@ export class FindReferencesTool implements Tool {
         `Error finding references: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
+  }
+
+  isDone(): boolean {
+    return this.state.state === "done";
   }
 
   /** This is expected to be invoked as part of a dispatch so we don't need to dispatch new actions to update the view.

@@ -13,6 +13,8 @@ import type { Chat } from "../chat/chat.ts";
 import type { Thread } from "../chat/thread.ts";
 import type { Message } from "../chat/message.ts";
 import type { ProviderToolResult } from "../providers/provider-types.ts";
+import { type MockMCPServer, mockServers } from "../tools/mcp/mock-server.ts";
+import type { ServerName } from "../tools/mcp/types.ts";
 
 const SOCK = `/tmp/magenta-test.sock`;
 export const TMP_DIR = "node/test/tmp";
@@ -127,6 +129,21 @@ export function assertToolResultHasDocumentSource(
     );
   }
 }
+
+export async function assertHasMcpServer(
+  serverName: ServerName,
+): Promise<MockMCPServer> {
+  return await pollUntil(
+    () => {
+      if (mockServers[serverName]) {
+        return mockServers[serverName];
+      }
+      throw new Error(`Mock server with name ${serverName} was not found.`);
+    },
+    { timeout: 1000 },
+  );
+}
+
 export async function withNvimProcess(
   fn: (sock: string) => Promise<void>,
   options: {
@@ -354,6 +371,10 @@ end
         } finally {
           magenta.destroy();
           nvim.detach();
+          for (const serverName in mockServers) {
+            await mockServers[serverName as ServerName].stop();
+            delete mockServers[serverName as ServerName];
+          }
         }
       });
     },

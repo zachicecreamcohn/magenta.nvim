@@ -6,7 +6,7 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { Tool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName } from "./types.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/thread.ts";
@@ -21,7 +21,7 @@ export type State = {
   result: ProviderToolResult;
 };
 
-export class YieldToParentTool implements Tool {
+export class YieldToParentTool implements StaticTool {
   toolName = "yield_to_parent" as const;
   public state: State;
 
@@ -45,6 +45,10 @@ export class YieldToParentTool implements Tool {
         },
       },
     };
+  }
+
+  isDone(): boolean {
+    return this.state.state === "done";
   }
 
   abort() {}

@@ -23,6 +23,16 @@ export function validateInput(
   toolName: unknown,
   input: { [key: string]: unknown },
 ) {
+  const toolNameStr = toolName as string;
+
+  // Handle MCP tools
+  if (toolNameStr.startsWith("mcp.")) {
+    return {
+      status: "ok" as const,
+      value: input,
+    };
+  }
+
   switch (toolName as StaticToolName) {
     case "get_file":
       return GetFile.validateInput(input);

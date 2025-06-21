@@ -14,7 +14,7 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
-import type { Tool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName } from "./types.ts";
 
 export type State =
   | {
@@ -30,9 +30,9 @@ export type Msg = {
   result: Result<ProviderToolResultContent[]>;
 };
 
-export class HoverTool implements Tool {
+export class HoverTool implements StaticTool {
   state: State;
-  toolName = "hover" as ToolName;
+  toolName = "hover" as const;
 
   constructor(
     public request: Extract<StaticToolRequest, { toolName: "hover" }>,
@@ -65,6 +65,10 @@ export class HoverTool implements Tool {
       default:
         assertUnreachable(msg.type);
     }
+  }
+
+  isDone(): boolean {
+    return this.state.state === "done";
   }
 
   abort() {

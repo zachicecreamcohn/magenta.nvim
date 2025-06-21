@@ -22,28 +22,39 @@ type ServerMap = {
 
 export class MCPToolManager {
   private tools: Map<ToolRequestId, MCPTool> = new Map();
+  private serverMap: ServerMap;
 
-  private constructor(
-    private serverMap: ServerMap,
+  constructor(
+    options: MagentaOptions["mcpServers"],
     private context: { nvim: Nvim },
-  ) {}
+  ) {
+    this.serverMap = {};
+    this.init(options, context).catch((error) => {
+      this.context.nvim.logger?.error(
+        `Failed to initialize MCPToolManager: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+  }
 
-  static async create(
+  private async init(
     mcpServers: MagentaOptions["mcpServers"],
-    context: { nvim: Nvim },
-  ): Promise<MCPToolManager> {
-    const serverMap: ServerMap = {};
+    context: {
+      nvim: Nvim;
+    },
+  ) {
     for (const [serverName, config] of Object.entries(mcpServers)) {
       try {
-        const client = new MCPClient(serverName as ServerName, config, context);
+        const client = new MCPClient(serverName as ServerName, config, {
+          nvim: context.nvim,
+        });
         await client.connect();
         const serverToolSpecs = client.listTools();
-        serverMap[serverName as ServerName] = {
+        this.serverMap[serverName as ServerName] = {
           client,
           specs: {},
         };
         for (const spec of serverToolSpecs) {
-          serverMap[serverName as ServerName].specs[spec.name] = spec;
+          this.serverMap[serverName as ServerName].specs[spec.name] = spec;
         }
       } catch (error) {
         context.nvim.logger?.error(
@@ -52,8 +63,6 @@ export class MCPToolManager {
         // Continue with other servers even if one fails
       }
     }
-
-    return new MCPToolManager(serverMap, context);
   }
 
   getToolSpecs(): ProviderToolSpec[] {
@@ -157,4 +166,3 @@ export class MCPToolManager {
     this.tools.clear();
   }
 }
-

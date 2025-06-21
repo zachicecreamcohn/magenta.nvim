@@ -11,7 +11,6 @@ import type {
   ProviderImageContent,
   ProviderDocumentContent,
 } from "./provider";
-import type { StaticToolName } from "../tools/tool-registry";
 import type { ToolName } from "../tools/types";
 
 export function renderContentValue(
@@ -124,7 +123,7 @@ export function stringifyContent(
     case "tool_result": {
       if (content.result.status == "ok") {
         const result = content.result.value;
-        const tool = toolManager.tools[content.id];
+        const tool = toolManager.getTool(content.id);
 
         const formatResult = (contents: typeof result): string => {
           return contents
@@ -202,7 +201,7 @@ export function finalizeStreamingBlock(
       return {
         type: "tool_use",
         id: block.id as ToolRequestId,
-        name: block.name as StaticToolName,
+        name: block.name as ToolName,
         request:
           inputParseResult.status == "ok"
             ? {

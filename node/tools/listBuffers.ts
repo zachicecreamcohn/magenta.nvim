@@ -9,7 +9,7 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { Tool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName } from "./types.ts";
 
 export type State =
   | {
@@ -25,7 +25,7 @@ export type Msg = {
   result: Result<ProviderToolResultContent[]>;
 };
 
-export class ListBuffersTool implements Tool {
+export class ListBuffersTool implements StaticTool {
   state: State;
   toolName = "list_buffers" as const;
 
@@ -41,6 +41,10 @@ export class ListBuffersTool implements Tool {
         `Error fetching buffers: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
+  }
+
+  isDone(): boolean {
+    return this.state.state === "done";
   }
 
   abort() {

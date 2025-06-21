@@ -12,7 +12,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { CommandAllowlist, MagentaOptions } from "../options.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import { withTimeout } from "../utils/async.ts";
-import type { Tool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName } from "./types.ts";
 
 export const spec: ProviderToolSpec = {
   name: "bash_command" as ToolName,
@@ -128,9 +128,9 @@ export function isCommandAllowed(
   return false;
 }
 
-export class BashCommandTool implements Tool {
+export class BashCommandTool implements StaticTool {
   state: State;
-  toolName = "bash_command" as ToolName;
+  toolName = "bash_command" as const;
 
   constructor(
     public request: Extract<StaticToolRequest, { toolName: "bash_command" }>,
@@ -394,6 +394,10 @@ export class BashCommandTool implements Tool {
       });
       this.context.myDispatch({ type: "exit", code: 1 });
     }
+  }
+
+  isDone(): boolean {
+    return this.state.state === "done" || this.state.state === "error";
   }
 
   /** It is the expectation that this is happening as part of a dispatch, so it should not trigger

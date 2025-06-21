@@ -40,7 +40,7 @@ export function validateInput(args: { [key: string]: unknown }): Result<Input> {
 
 export class MCPTool implements Tool {
   state: State;
-  toolName: string;
+  toolName: ToolName;
 
   constructor(
     public request: {
@@ -69,6 +69,10 @@ export class MCPTool implements Tool {
         }),
       );
     });
+  }
+
+  isDone(): boolean {
+    return this.state.state == "done";
   }
 
   update(msg: Msg): Thunk<Msg> | undefined {

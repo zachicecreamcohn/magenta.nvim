@@ -28,8 +28,9 @@ import {
 } from "./system-prompt.ts";
 import { validateInput } from "../tools/helpers.ts";
 import type { Result } from "../utils/result.ts";
-import type { StaticToolRequest, ToolRequestId } from "../tools/toolManager.ts";
+import type { ToolRequestId } from "../tools/toolManager.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import type { ToolRequest } from "../tools/types.ts";
 
 export type OllamaOptions = {
   model: string;
@@ -211,7 +212,7 @@ export class OllamaProvider implements Provider {
         stream: false,
       });
 
-      let toolRequest: Result<StaticToolRequest, { rawRequest: unknown }>;
+      let toolRequest: Result<ToolRequest, { rawRequest: unknown }>;
       try {
         const args = JSON.parse(response.message.content) as Record<
           string,
@@ -228,7 +229,7 @@ export class OllamaProvider implements Provider {
                   toolName: spec.name,
                   id: `tool-${Date.now()}` as ToolRequestId,
                   input: input.value,
-                } as StaticToolRequest,
+                } as ToolRequest,
               }
             : { ...input, rawRequest: args };
       } catch (error) {

@@ -9,7 +9,7 @@ import type {
 } from "../providers/provider.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { Tool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName } from "./types.ts";
 import { NvimBuffer, type BufNr, type Line } from "../nvim/buffer.ts";
 import type { ByteIdx, Position0Indexed } from "../nvim/window.ts";
 
@@ -27,7 +27,7 @@ export type Msg = {
   result: Result<ProviderToolResultContent[]>;
 };
 
-export class InlineEditTool implements Tool {
+export class InlineEditTool implements StaticTool {
   state: State;
   toolName = "inline_edit" as const;
 
@@ -51,6 +51,10 @@ export class InlineEditTool implements Tool {
         }),
       );
     });
+  }
+
+  isDone(): boolean {
+    return this.state.state === "done";
   }
 
   /** this is expected to be invoked as part of a dispatch, so we don't need to dispatch here to update the view

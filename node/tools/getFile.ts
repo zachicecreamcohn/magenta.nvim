@@ -22,7 +22,7 @@ import {
   FileCategory,
   type FileTypeInfo,
 } from "../utils/files.ts";
-import type { Tool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName } from "./types.ts";
 import type { Msg as ThreadMsg } from "../chat/thread.ts";
 import type { ContextManager } from "../context/context-manager.ts";
 import type {
@@ -65,9 +65,9 @@ export type Msg =
       approved: boolean;
     };
 
-export class GetFileTool implements Tool {
+export class GetFileTool implements StaticTool {
   state: State;
-  toolName = "get_file" as ToolName;
+  toolName = "get_file" as const;
 
   constructor(
     public request: Extract<StaticToolRequest, { toolName: "get_file" }>,
@@ -94,6 +94,10 @@ export class GetFileTool implements Tool {
         }),
       );
     });
+  }
+
+  isDone(): boolean {
+    return this.state.state === "done";
   }
 
   /** this is expected to be invoked as part of a dispatch, so we don't need to dispatch here to update the view

@@ -14,11 +14,25 @@ export type Profile = {
 
 export type CommandAllowlist = string[];
 
-export type MCPServerConfig = {
-  command: string;
-  args: string[];
-  env?: Record<string, string>;
+export type MCPMockToolSchemaType = "string" | "number" | "boolean";
+
+export type MCPMockToolConfig = {
+  name: string;
+  description: string;
+  inputSchema: { [param: string]: MCPMockToolSchemaType };
 };
+
+export type MCPServerConfig =
+  | {
+      type: "command";
+      command: string;
+      args: string[];
+      env?: Record<string, string>;
+    }
+  | {
+      type: "mock";
+      tools?: MCPMockToolConfig[];
+    };
 
 export type MagentaOptions = {
   profiles: Profile[];
@@ -160,6 +174,15 @@ function parseMCPServers(
 
       const config = serverConfig as Record<string, unknown>;
 
+      if (config["type"] == "mock") {
+        const mockConfig: MCPServerConfig = { type: "mock" };
+        if (config.tools && Array.isArray(config.tools)) {
+          mockConfig.tools = config.tools as MCPMockToolConfig[];
+        }
+        servers[serverName] = mockConfig;
+        continue;
+      }
+
       if (typeof config.command !== "string") {
         logger?.warn(
           `Skipping MCP server ${serverName}: command must be a string`,
@@ -186,6 +209,7 @@ function parseMCPServers(
       }) as string[];
 
       const serverConfigOut: MCPServerConfig = {
+        type: "command",
         command: config.command,
         args,
       };

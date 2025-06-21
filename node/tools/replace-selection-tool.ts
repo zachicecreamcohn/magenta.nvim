@@ -9,7 +9,7 @@ import type {
 } from "../providers/provider.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { Tool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName } from "./types.ts";
 import { NvimBuffer, type BufNr, type Line } from "../nvim/buffer.ts";
 import type {
   ByteIdx,
@@ -38,7 +38,7 @@ export type NvimSelection = {
   text: string;
 };
 
-export class ReplaceSelectionTool implements Tool {
+export class ReplaceSelectionTool implements StaticTool {
   state: State;
   toolName = "replace_selection" as const;
 
@@ -66,6 +66,10 @@ export class ReplaceSelectionTool implements Tool {
         }),
       );
     });
+  }
+
+  isDone(): boolean {
+    return this.state.state === "done";
   }
 
   /** this is expected to be invoked as part of a dispatch, so we don't need to dispatch here to update the view
