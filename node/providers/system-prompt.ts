@@ -1,3 +1,6 @@
+import type { ThreadType } from "../chat/types";
+import { assertUnreachable } from "../utils/assertUnreachable";
+
 export const SUBAGENT_SYSTEM_PROMPTS = ["learn", "plan", "default"] as const;
 export type SubagentSystemPrompt = (typeof SUBAGENT_SYSTEM_PROMPTS)[number];
 
@@ -237,14 +240,17 @@ The relevant files and entities are:
 ${CODEBASE_CONVENTIONS}
 ${LEARNING_PROCESS}`;
 
-export function getSubagentSystemPrompt(type?: SubagentSystemPrompt): string {
+export function getSystemPrompt(type: ThreadType): string {
   switch (type) {
-    case "learn":
+    case "subagent_learn":
       return LEARN_SUBAGENT_SYSTEM_PROMPT;
-    case "plan":
+    case "subagent_plan":
       return PLAN_SUBAGENT_SYSTEM_PROMPT;
-    case "default":
-    default:
+    case "subagent_default":
       return DEFAULT_SUBAGENT_SYSTEM_PROMPT;
+    case "root":
+      return DEFAULT_SYSTEM_PROMPT;
+    default:
+      assertUnreachable(type);
   }
 }

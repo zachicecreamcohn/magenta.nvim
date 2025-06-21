@@ -17,7 +17,7 @@ import {
   getCurrentWindow,
 } from "../nvim/nvim";
 import { expect, vi } from "vitest";
-import type { ThreadId } from "../chat/thread";
+import type { ThreadId } from "../chat/types";
 
 export class NvimDriver {
   constructor(

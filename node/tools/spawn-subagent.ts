@@ -10,14 +10,13 @@ import type { StaticTool, ToolName } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
-import type { ThreadId } from "../chat/thread.ts";
-import { SUBAGENT_STATIC_TOOL_NAMES } from "./tool-registry.ts";
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import {
   SUBAGENT_SYSTEM_PROMPTS,
   type SubagentSystemPrompt,
 } from "../providers/system-prompt.ts";
 import { renderContentValue } from "../providers/helpers.ts";
+import type { ThreadId, ThreadType } from "../chat/types.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
 
 export type Msg = {
   type: "subagent-created";
@@ -62,12 +61,13 @@ export class SpawnSubagentTool implements StaticTool {
     const input = this.request.input;
     const prompt = input.prompt;
     const contextFiles = input.contextFiles || [];
-    const systemPrompt = input.systemPrompt;
-
-    const toolNames = [
-      ...SUBAGENT_STATIC_TOOL_NAMES,
-      "yield_to_parent",
-    ] as ToolName[];
+    const threadType: ThreadType = input.systemPrompt
+      ? input.systemPrompt == "learn"
+        ? "subagent_learn"
+        : input.systemPrompt == "plan"
+          ? "subagent_plan"
+          : "subagent_default"
+      : "subagent_default";
 
     this.context.dispatch({
       type: "chat-msg",
@@ -75,10 +75,9 @@ export class SpawnSubagentTool implements StaticTool {
         type: "spawn-subagent-thread",
         parentThreadId: this.context.threadId,
         spawnToolRequestId: this.request.id,
-        toolNames,
         initialPrompt: prompt,
+        threadType,
         contextFiles,
-        systemPrompt,
       },
     });
   }

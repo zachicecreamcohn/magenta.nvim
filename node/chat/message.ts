@@ -1,5 +1,4 @@
 import { ToolManager, type ToolRequestId } from "../tools/toolManager.ts";
-import { type Role, type ThreadId } from "./thread.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, withBindings } from "../tea/view.ts";
 import type { Nvim } from "../nvim/nvim-node";
@@ -28,6 +27,7 @@ import type { FileUpdates } from "../context/context-manager.ts";
 export type MessageId = number & { __messageId: true };
 import type { Input as GetFileInput } from "../tools/getFile.ts";
 import type { Input as ReplaceInput } from "../tools/replace.ts";
+import type { Role, ThreadId } from "./types.ts";
 
 type State = {
   id: MessageId;

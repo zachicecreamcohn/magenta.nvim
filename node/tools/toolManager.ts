@@ -22,7 +22,6 @@ import type { Lsp } from "../lsp.ts";
 import type { MagentaOptions } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
-import type { ThreadId } from "../chat/thread.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import type { Chat } from "../chat/chat.ts";
 import type {
@@ -34,10 +33,15 @@ import type {
   Tool,
 } from "./types.ts";
 import type { ProviderToolSpec } from "../providers/provider-types.ts";
-import type { StaticToolName } from "./tool-registry.ts";
+import {
+  CHAT_STATIC_TOOL_NAMES,
+  SUBAGENT_STATIC_TOOL_NAMES,
+  type StaticToolName,
+} from "./tool-registry.ts";
 import { MCPToolManager } from "./mcp/manager.ts";
 import type { MCPTool } from "./mcp/tool.ts";
 import { unwrapMcpToolMsg } from "./mcp/types.ts";
+import type { ThreadId, ThreadType } from "../chat/types.ts";
 export type { Tool, ToolRequestId } from "./types.ts";
 
 export type StaticToolMap = {
@@ -213,10 +217,23 @@ export class ToolManager {
     wait_for_subagents: WaitForSubagents.spec,
   };
 
-  getToolSpecs(toolNames: ToolName[]): ProviderToolSpec[] {
+  getToolSpecs(threadType: ThreadType): ProviderToolSpec[] {
+    let staticToolNames: StaticToolName[] = [];
+    switch (threadType) {
+      case "subagent_learn":
+      case "subagent_plan":
+      case "subagent_default":
+        staticToolNames = SUBAGENT_STATIC_TOOL_NAMES;
+        break;
+      case "root":
+        staticToolNames = CHAT_STATIC_TOOL_NAMES;
+        break;
+      default:
+        assertUnreachable(threadType);
+    }
     const specs: ProviderToolSpec[] = [];
 
-    for (const toolName of toolNames) {
+    for (const toolName of staticToolNames) {
       if (this.context.mcpToolManager.isMCPTool(toolName)) {
         const mcpSpecs = this.context.mcpToolManager.getToolSpecs();
         const mcpSpec = mcpSpecs.find((spec) => spec.name === toolName);
@@ -224,13 +241,14 @@ export class ToolManager {
           specs.push(mcpSpec);
         }
       } else {
-        const staticSpec =
-          ToolManager.TOOL_SPEC_MAP[toolName as StaticToolName];
+        const staticSpec = ToolManager.TOOL_SPEC_MAP[toolName];
         if (staticSpec) {
           specs.push(staticSpec);
         }
       }
     }
+
+    specs.push(...this.context.mcpToolManager.getToolSpecs());
 
     return specs;
   }

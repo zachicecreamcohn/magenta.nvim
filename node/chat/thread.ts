@@ -13,7 +13,6 @@ import {
   type StaticToolRequest,
 } from "../tools/toolManager.ts";
 import { MCPToolManager } from "../tools/mcp/manager.ts";
-import type { ToolName } from "../tools/types.ts";
 import { Counter } from "../utils/uniqueId.ts";
 import { FileSnapshots } from "../tools/file-snapshots.ts";
 import type { Nvim } from "../nvim/nvim-node";
@@ -40,12 +39,11 @@ import {
 } from "../tools/thread-title.ts";
 
 import type { Chat } from "./chat.ts";
+import type { ThreadId, ThreadType } from "./types.ts";
 import {
   DEFAULT_SYSTEM_PROMPT,
-  type SubagentSystemPrompt,
+  getSystemPrompt,
 } from "../providers/system-prompt.ts";
-
-export type Role = "user" | "assistant";
 
 export type StoppedConversationState = {
   state: "stopped";
@@ -126,8 +124,6 @@ export type ThreadMsg = {
   msg: Msg;
 };
 
-export type ThreadId = number & { __threadId: true };
-
 export class Thread {
   public state: {
     title?: string | undefined;
@@ -135,8 +131,7 @@ export class Thread {
     profile: Profile;
     conversation: ConversationState;
     messages: Message[];
-    toolNames: ToolName[];
-    systemPrompt?: SubagentSystemPrompt | undefined;
+    threadType: ThreadType;
   };
 
   private myDispatch: Dispatch<Msg>;
@@ -149,10 +144,7 @@ export class Thread {
 
   constructor(
     public id: ThreadId,
-    options: {
-      systemPrompt?: SubagentSystemPrompt | undefined;
-      toolNames: ToolName[];
-    },
+    threadType: ThreadType,
     public context: {
       dispatch: Dispatch<RootMsg>;
       chat: Chat;
@@ -203,8 +195,7 @@ export class Thread {
         usage: { inputTokens: 0, outputTokens: 0 },
       },
       messages: [],
-      toolNames: options.toolNames,
-      systemPrompt: options.systemPrompt,
+      threadType: threadType,
     };
 
     this.scheduleTokenEstimateUpdate();
@@ -368,8 +359,7 @@ export class Thread {
             usage: { inputTokens: 0, outputTokens: 0 },
           },
           messages: [],
-          toolNames: this.state.toolNames,
-          systemPrompt: this.state.systemPrompt,
+          threadType: this.state.threadType,
         };
         this.contextManager.reset();
 
@@ -596,8 +586,8 @@ export class Thread {
           event,
         });
       },
-      this.toolManager.getToolSpecs(this.state.toolNames),
-      { systemPrompt: this.state.systemPrompt },
+      this.toolManager.getToolSpecs(this.state.threadType),
+      { systemPrompt: getSystemPrompt(this.state.threadType) },
     );
 
     this.myDispatch({
@@ -646,7 +636,7 @@ ${content}`;
         },
       ],
       compactThreadSpec,
-      { systemPrompt: this.state.systemPrompt },
+      { systemPrompt: getSystemPrompt(this.state.threadType) },
     );
 
     this.myDispatch({
@@ -786,7 +776,7 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
         },
       ],
       threadTitleToolSpec,
-      { systemPrompt: this.state.systemPrompt },
+      { systemPrompt: getSystemPrompt(this.state.threadType) },
     );
     const result = await request.promise;
     if (result.toolRequest.status == "ok") {
@@ -809,7 +799,7 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
     this.tokenCountUpdatePending = true;
     // OK to do this async, so it doesn't slow down the rest of the plugin
     setTimeout(() => {
-      const toolSpecs = this.toolManager.getToolSpecs(this.state.toolNames);
+      const toolSpecs = this.toolManager.getToolSpecs(this.state.threadType);
       const toolSpecLength = toolSpecs.reduce(
         (sum, spec) => sum + JSON.stringify(spec).length,
         0,

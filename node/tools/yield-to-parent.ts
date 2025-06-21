@@ -9,7 +9,7 @@ import type { Nvim } from "../nvim/nvim-node";
 import type { StaticTool, ToolName } from "./types.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
-import type { ThreadId } from "../chat/thread.ts";
+import type { ThreadId } from "../chat/types";
 
 export type Msg = {
   type: "finish";

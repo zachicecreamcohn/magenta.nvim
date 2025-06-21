@@ -54,7 +54,7 @@ it("should call mock tool through chat agent", async () => {
             status: "ok",
             value: {
               id: "test-echo-call" as ToolRequestId,
-              toolName: "mcp.test-server.echo_test" as ToolName,
+              toolName: "mcp_test-server_echo_test" as ToolName,
               input: {
                 text: "Hello World",
               },
@@ -71,7 +71,7 @@ it("should call mock tool through chat agent", async () => {
 
       // Verify the tool completion appears in the chat
       await driver.assertDisplayBufferContains(
-        "🔨✅ MCP tool `mcp.test-server.echo_test` completed",
+        "🔨✅ MCP tool `mcp_test-server_echo_test` completed",
       );
 
       // Continue the conversation to show the tool result was processed
@@ -134,7 +134,7 @@ it("should handle tool errors gracefully", async () => {
             status: "ok",
             value: {
               id: "test-error-call" as ToolRequestId,
-              toolName: "mcp.test-server.error_test" as ToolName,
+              toolName: "mcp_test-server_error_test" as ToolName,
               input: {
                 shouldError: true,
               },
@@ -200,7 +200,7 @@ it("should handle tools with no input schema", async () => {
             status: "ok",
             value: {
               id: "test-simple-call" as ToolRequestId,
-              toolName: "mcp.test-server.simple_test" as ToolName,
+              toolName: "mcp_test-server_simple_test" as ToolName,
               input: {},
             },
           },
@@ -212,7 +212,7 @@ it("should handle tools with no input schema", async () => {
 
       // Verify the response appears
       await driver.assertDisplayBufferContains(
-        "🔨✅ MCP tool `mcp.test-server.simple_test` completed",
+        "🔨✅ MCP tool `mcp_test-server_simple_test` completed",
       );
     },
   );

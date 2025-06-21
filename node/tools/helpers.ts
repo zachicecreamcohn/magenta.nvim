@@ -26,7 +26,7 @@ export function validateInput(
   const toolNameStr = toolName as string;
 
   // Handle MCP tools
-  if (toolNameStr.startsWith("mcp.")) {
+  if (toolNameStr.startsWith("mcp_")) {
     return {
       status: "ok" as const,
       value: input,
@@ -74,6 +74,10 @@ export function validateInput(
 export function renderStreamdedTool(
   streamingBlock: Extract<StreamingBlock, { type: "tool_use" }>,
 ): string | VDOMNode {
+  if (streamingBlock.name.startsWith("mcp_")) {
+    return d`Invoking mcp tool ${streamingBlock.name}`;
+  }
+
   const name = streamingBlock.name as StaticToolName;
   switch (name) {
     case "get_file":

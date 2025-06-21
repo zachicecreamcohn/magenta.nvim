@@ -2,8 +2,7 @@ import type { Nvim } from "../nvim/nvim-node";
 import type { MagentaOptions, Profile } from "../options";
 import type { RootMsg } from "../root-msg";
 import type { Dispatch } from "../tea/tea";
-import { Thread, view as threadView, type ThreadId } from "./thread";
-import { CHAT_STATIC_TOOL_NAMES } from "../tools/tool-registry.ts";
+import { Thread, view as threadView } from "./thread";
 import type { Lsp } from "../lsp";
 import { assertUnreachable } from "../utils/assertUnreachable";
 import { d, withBindings, type VDOMNode } from "../tea/view";
@@ -19,10 +18,10 @@ import {
 } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
 import { wrapStaticToolMsg, type ToolRequestId } from "../tools/toolManager.ts";
-import type { SubagentSystemPrompt } from "../providers/system-prompt.ts";
 import type { ToolName } from "../tools/types.ts";
 import { MCPToolManager } from "../tools/mcp/manager.ts";
 import type { WaitForSubagentsTool } from "../tools/wait-for-subagents.ts";
+import type { ThreadId, ThreadType } from "./types.ts";
 
 type ThreadWrapper = (
   | {
@@ -73,9 +72,8 @@ export type Msg =
       type: "spawn-subagent-thread";
       parentThreadId: ThreadId;
       spawnToolRequestId: ToolRequestId;
-      toolNames: ToolName[];
       initialPrompt: string;
-      systemPrompt: SubagentSystemPrompt | undefined;
+      threadType: ThreadType;
       contextFiles?: UnresolvedFilePath[];
     }
   | {
@@ -259,21 +257,19 @@ export class Chat {
   private async createThreadWithContext({
     threadId,
     profile,
-    toolNames,
     contextFiles = [],
     parent,
     switchToThread,
     initialMessage,
-    systemPrompt,
+    threadType,
   }: {
     threadId: ThreadId;
     profile: Profile;
-    toolNames: ToolName[];
     contextFiles?: UnresolvedFilePath[];
     parent?: ThreadId;
     switchToThread: boolean;
     initialMessage?: string;
-    systemPrompt?: SubagentSystemPrompt | undefined;
+    threadType: ThreadType;
   }) {
     this.threadWrappers[threadId] = {
       state: "pending",
@@ -320,20 +316,13 @@ export class Chat {
       );
     }
 
-    const thread = new Thread(
-      threadId,
-      {
-        systemPrompt,
-        toolNames,
-      },
-      {
-        ...this.context,
-        contextManager,
-        mcpToolManager,
-        profile,
-        chat: this,
-      },
-    );
+    const thread = new Thread(threadId, threadType, {
+      ...this.context,
+      contextManager,
+      mcpToolManager,
+      profile,
+      chat: this,
+    });
 
     this.context.dispatch({
       type: "chat-msg",
@@ -377,7 +366,7 @@ export class Chat {
         this.context.options.activeProfile,
       ),
       switchToThread: true,
-      toolNames: CHAT_STATIC_TOOL_NAMES as ToolName[],
+      threadType: "root",
     });
   }
 
@@ -532,9 +521,9 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const newThreadId = this.threadCounter.get() as ThreadId;
 
     await this.createThreadWithContext({
+      threadType: "root",
       threadId: newThreadId,
       profile: sourceThread.state.profile,
-      toolNames: CHAT_STATIC_TOOL_NAMES as ToolName[],
       contextFiles: contextFilePaths,
       switchToThread: true,
       initialMessage: initialMessage,
@@ -544,17 +533,15 @@ ${threadViews.map((view) => d`${view}\n`)}`;
   async handleSpawnSubagentThread({
     parentThreadId,
     spawnToolRequestId,
-    toolNames,
     initialPrompt,
     contextFiles,
-    systemPrompt,
+    threadType,
   }: {
     parentThreadId: ThreadId;
     spawnToolRequestId: ToolRequestId;
-    toolNames: ToolName[];
     initialPrompt: string;
     contextFiles?: UnresolvedFilePath[];
-    systemPrompt?: SubagentSystemPrompt | undefined;
+    threadType: ThreadType;
   }) {
     const parentThreadWrapper = this.threadWrappers[parentThreadId];
     if (!parentThreadWrapper || parentThreadWrapper.state !== "initialized") {
@@ -564,22 +551,15 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const parentThread = parentThreadWrapper.thread;
     const subagentThreadId = this.threadCounter.get() as ThreadId;
 
-    const subagentToolNames: ToolName[] = toolNames.includes(
-      "yield_to_parent" as ToolName,
-    )
-      ? toolNames
-      : [...toolNames, "yield_to_parent" as ToolName];
-
     try {
       const thread = await this.createThreadWithContext({
         threadId: subagentThreadId,
         profile: parentThread.state.profile,
-        toolNames: subagentToolNames,
         contextFiles: contextFiles || [],
         parent: parentThreadId,
         switchToThread: false,
         initialMessage: initialPrompt,
-        systemPrompt,
+        threadType,
       });
 
       this.context.dispatch({

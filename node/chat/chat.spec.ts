@@ -1,8 +1,9 @@
 import { withDriver } from "../test/preamble.ts";
 import { describe, it } from "vitest";
-import { LOGO, type ThreadId } from "./thread.ts";
+import { LOGO } from "./thread.ts";
 import type { ToolRequestId } from "../tools/toolManager.ts";
 import type { ToolName } from "../tools/types.ts";
+import type { ThreadId } from "./types.ts";
 
 describe("node/chat/chat.spec.ts", () => {
   it("resets view when switching to a new thread", async () => {

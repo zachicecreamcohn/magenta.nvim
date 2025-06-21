@@ -15,11 +15,7 @@ import type {
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { Stream } from "openai/streaming.mjs";
-import {
-  DEFAULT_SYSTEM_PROMPT,
-  type SubagentSystemPrompt,
-  getSubagentSystemPrompt,
-} from "./system-prompt.ts";
+import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
 import { validateInput } from "../tools/helpers.ts";
 import type { ResponseInputMessageContentList } from "openai/resources/responses/responses.mjs";
 import type { ToolRequest } from "../tools/types.ts";
@@ -61,13 +57,11 @@ export class OpenAIProvider implements Provider {
   countTokens(
     messages: Array<ProviderMessage>,
     tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
+    options?: { systemPrompt?: string | undefined },
   ): number {
     const CHARS_PER_TOKEN = 4;
     let charCount = (
-      options?.systemPrompt
-        ? getSubagentSystemPrompt(options.systemPrompt)
-        : DEFAULT_SYSTEM_PROMPT
+      options?.systemPrompt ? options.systemPrompt : DEFAULT_SYSTEM_PROMPT
     ).length;
     charCount += JSON.stringify(tools).length;
     charCount += JSON.stringify(messages).length;
@@ -79,14 +73,14 @@ export class OpenAIProvider implements Provider {
     tools: Array<ProviderToolSpec>,
     options?: {
       disableCaching?: boolean;
-      systemPrompt?: SubagentSystemPrompt | undefined;
+      systemPrompt?: string | undefined;
     },
   ): OpenAI.Responses.ResponseCreateParamsStreaming {
     const openaiMessages: OpenAI.Responses.ResponseInputItem[] = [
       {
         role: "system",
         content: options?.systemPrompt
-          ? getSubagentSystemPrompt(options.systemPrompt)
+          ? options.systemPrompt
           : DEFAULT_SYSTEM_PROMPT,
       },
     ];
@@ -252,7 +246,7 @@ export class OpenAIProvider implements Provider {
   forceToolUse(
     messages: Array<ProviderMessage>,
     spec: ProviderToolSpec,
-    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
+    options?: { systemPrompt?: string | undefined },
   ): ProviderToolUseRequest {
     let aborted = false;
     const promise = (async (): Promise<ProviderToolUseResponse> => {
@@ -343,7 +337,7 @@ export class OpenAIProvider implements Provider {
     messages: Array<ProviderMessage>,
     onStreamEvent: (event: ProviderStreamEvent) => void,
     tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
+    options?: { systemPrompt?: string | undefined },
   ): ProviderStreamRequest {
     let request: Stream<OpenAI.Responses.ResponseStreamEvent>;
     let stopReason: StopReason | undefined;

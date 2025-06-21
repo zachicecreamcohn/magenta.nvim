@@ -7,7 +7,7 @@ The goal is to integrate Model Context Protocol (MCP) tool support into magenta.
 Key requirements:
 
 - Only stdio MCP transport initially
-- Tools namespaced as `mcp.server.toolName`
+- Tools namespaced as `mcp_server_toolName`
 - Static configuration (no dynamic server discovery)
 - Maintain existing tool architecture patterns
 - transition to Tool concept being opaque outside tool manager
@@ -103,7 +103,7 @@ Key interfaces to extend:
 - [x] Extend tool manager for MCP tool support
 
   - [x] Modify `ToolManager` constructor to accept `MCPToolManager` instance
-  - [x] Add logic to check if a tool request is for an MCP tool (starts with "mcp.")
+  - [x] Add logic to check if a tool request is for an MCP tool (starts with "mcp\_")
   - [x] Delegate MCP tool requests to `MCPToolManager` instead of handling locally
   - [x] Update error handling to account for MCP tool failures
   - [x] Ensure existing in-code tools continue to work unchanged

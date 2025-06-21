@@ -216,7 +216,7 @@ export class MCPClient {
   }
 
   isToolAvailable(toolName: string): boolean {
-    const expectedPrefix = `mcp.${this.serverName}.`;
+    const expectedPrefix = `mcp_${this.serverName}.`;
     if (!toolName.startsWith(expectedPrefix)) {
       return false;
     }

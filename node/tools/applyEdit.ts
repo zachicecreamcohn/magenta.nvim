@@ -8,7 +8,7 @@ import { getBufferIfOpen } from "../utils/buffers.ts";
 import type { Result } from "../utils/result.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
-import type { ThreadId } from "../chat/thread.ts";
+import type { ThreadId } from "../chat/types";
 import {
   relativePath,
   resolveFilePath,

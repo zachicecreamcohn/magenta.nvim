@@ -12,10 +12,10 @@ import { applyEdit } from "./applyEdit.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { RootMsg } from "../root-msg.ts";
 import type { MessageId } from "../chat/message.ts";
-import type { ThreadId } from "../chat/thread.ts";
 import type { StaticTool, ToolName } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
+import type { ThreadId } from "../chat/types.ts";
 
 export type State =
   | {

@@ -74,7 +74,7 @@ export class MCPToolManager {
   }
 
   isMCPTool(toolName: string): boolean {
-    return toolName.startsWith("mcp.");
+    return toolName.startsWith("mcp_");
   }
 
   initMCPTool(
