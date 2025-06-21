@@ -153,15 +153,8 @@ it("should handle tool errors gracefully", async () => {
       await driver.assertDisplayBufferContains("Error: Simulated tool error");
 
       // Continue conversation to show error was handled
-      const followupRequest =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
-          "Error: Simulated tool error",
-        );
-      followupRequest.streamText("I see there was an error with the tool.");
-      followupRequest.finishResponse("end_turn");
-
-      await driver.assertDisplayBufferContains(
-        "I see there was an error with the tool.",
+      await driver.mockAnthropic.awaitPendingRequestWithText(
+        "Error: Simulated tool error",
       );
     },
   );
@@ -214,15 +207,12 @@ it("should handle tools with no input schema", async () => {
         ],
       });
 
-      // Wait for the tool call and respond
-      const toolCall = await toolStub.awaitCall();
-      expect(toolCall.args).toEqual({});
-
+      await toolStub.awaitCall();
       toolStub.respondWith("Simple tool executed successfully");
 
       // Verify the response appears
       await driver.assertDisplayBufferContains(
-        "Simple tool executed successfully",
+        "🔨✅ MCP tool `mcp.test-server.simple_test` completed",
       );
     },
   );

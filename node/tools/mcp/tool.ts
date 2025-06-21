@@ -72,7 +72,7 @@ export class MCPTool implements Tool {
   }
 
   isDone(): boolean {
-    return this.state.state == "done";
+    return this.state.state == "done" || this.state.state == "error";
   }
 
   update(msg: Msg): Thunk<Msg> | undefined {

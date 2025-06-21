@@ -163,7 +163,7 @@ export class MCPClient {
       CallToolResultSchema,
     );
 
-    return result.content.map((c): ProviderToolResultContent => {
+    const content = result.content.map((c): ProviderToolResultContent => {
       switch (c.type) {
         case "text":
           return {
@@ -202,6 +202,17 @@ export class MCPClient {
           assertUnreachable(c);
       }
     });
+
+    if (result.isError) {
+      const textContent = content
+        .filter((c) => c.type == "text")
+        .map((c) => c.text)
+        .join("\n");
+
+      throw new Error(textContent);
+    } else {
+      return content;
+    }
   }
 
   isToolAvailable(toolName: string): boolean {
