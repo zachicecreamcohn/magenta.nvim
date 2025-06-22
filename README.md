@@ -19,7 +19,6 @@ Magenta is for agents.
 
 # Roadmap
 
-- MCP support
 - local code embedding & indexing via chroma db, to support a semantic code search tool
 
 # Updates
@@ -29,6 +28,8 @@ Magenta is for agents.
 I implemented **sub-agents** - a powerful feature that allows the main agent to delegate specific tasks to specialized sub-agents. Sub-agents can work in parallel and have their own specialized system prompts for tasks like learning codebases, planning implementations, or performing focused work. This enables complex workflows where multiple agents collaborate on different aspects of a problem.
 
 I added support for images and pdfs. Magenta can now read these using the get_file tool for image-compatible openai and anthropic models.
+
+I implemented **MCP (Model Context Protocol) support** - You can now configure local mcp servers (for now stdio transport only) via the plugin config or via the project `.magenta/options.json` file.
 
 ## May 2025
 
@@ -145,6 +146,19 @@ require('magenta').setup({
         vim.cmd("Magenta submit-inline-edit " .. target_bufnr)
       end,
     },
+  },
+  -- configure MCP servers for external tool integrations
+  mcpServers = {
+    fetch = {
+      command = "uvx",
+      args = { "mcp-server-fetch" }
+    },
+    playwright = {
+      command = "npx",
+      args = {
+        "@playwright/mcp@latest"
+      }
+    }
   }
 })
 ```
@@ -204,6 +218,7 @@ Common use cases include:
 - Adding project-specific commands to the allowlist (e.g., `make`, `cargo`, `npm` commands)
 - Automatically including important project files in context (README, docs, config files)
 - Customizing sidebar position or other UI preferences per project
+- Configuring MCP servers for project-specific integrations (databases, services, etc.)
 
 ### Configuration precedence
 
@@ -212,6 +227,7 @@ The merging works as follows:
 - **Profiles**: Project profiles completely replace global profiles if present
 - **Command allowlist**: Project patterns are added to (not replace) the base allowlist
 - **Auto context**: Project patterns are added to (not replace) the base auto context
+- **MCP servers**: Project MCP servers are merged with global servers (project servers override global ones with the same name)
 - **Other settings**: Project settings override global settings (like `sidebarPosition`)
 
 ### Example project settings
@@ -232,7 +248,20 @@ Create `.magenta/options.json` in your project root:
     "^make( [^;&|()<>]*)?$",
     "^cargo (build|test|run)( [^;&|()<>]*)?$"
   ],
-  "autoContext": ["README.md", "docs/*.md"]
+  "autoContext": ["README.md", "docs/*.md"],
+  "mcpServers": {
+    "postgres": {
+      "command": "mcp-server-postgres",
+      "args": ["--connection-string", "postgresql://localhost/mydb"],
+      "env": {
+        "DATABASE_URL": "postgresql://localhost/mydb"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    }
+  }
 }
 ```
 
