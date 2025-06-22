@@ -227,9 +227,11 @@ export function finalizeStreamingBlock(
         type: "server_tool_use",
         id: block.id,
         name: block.name,
-        input: JSON.parse(
-          block.streamed,
-        ) as ProviderServerToolUseContent["input"],
+        input: block.streamed.length
+          ? (JSON.parse(
+              block.streamed,
+            ) as ProviderServerToolUseContent["input"])
+          : { query: "" },
       };
     }
     case "web_search_tool_result": {

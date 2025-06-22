@@ -17,10 +17,6 @@ import type { Nvim } from "../nvim/nvim-node";
 import type { Stream } from "openai/streaming.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
 import { validateInput } from "../tools/helpers.ts";
-import type {
-  ResponseInputMessageContentList,
-  ResponseOutputMessage,
-} from "openai/resources/responses/responses.mjs";
 import type { ToolRequest } from "../tools/types.ts";
 import type {
   JSONSchemaObject,
@@ -206,96 +202,106 @@ export class OpenAIProvider implements Provider {
       },
     ];
 
-    for (const m of messages) {
-      if (m.role == "user") {
-        const messageContent: ResponseInputMessageContentList = [];
+    let inProgressMessage:
+      | OpenAI.Responses.ResponseInputItem.Message
+      | OpenAI.Responses.ResponseOutputMessage
+      | undefined;
 
-        for (const content of m.content) {
-          switch (content.type) {
-            case "text":
-              if (content.text.trim()) {
-                messageContent.push({
+    const flushInProgressMessage = () => {
+      if (inProgressMessage && inProgressMessage.content.length > 0) {
+        openaiMessages.push(inProgressMessage);
+      }
+      inProgressMessage = undefined;
+    };
+
+    const pushUserContent = (
+      content: OpenAI.Responses.ResponseInputContent,
+    ) => {
+      if (!inProgressMessage || inProgressMessage.role !== "user") {
+        flushInProgressMessage();
+        inProgressMessage = { role: "user", content: [] };
+      }
+      inProgressMessage.content.push(content);
+    };
+
+    const pushAssistantContent = (
+      content: OpenAI.Responses.ResponseOutputText,
+    ) => {
+      if (!inProgressMessage || inProgressMessage.role !== "assistant") {
+        flushInProgressMessage();
+        inProgressMessage = {
+          id: "id",
+          role: "assistant",
+          content: [],
+          status: "completed",
+          type: "message",
+        };
+      }
+      inProgressMessage.content.push(content);
+    };
+
+    const pushMessage = (message: OpenAI.Responses.ResponseInputItem) => {
+      flushInProgressMessage();
+      openaiMessages.push(message);
+    };
+
+    for (const m of messages) {
+      for (const content of m.content) {
+        switch (content.type) {
+          case "text":
+            if (content.text.trim()) {
+              if (m.role === "user") {
+                pushUserContent({
                   type: "input_text",
                   text: content.text,
                 });
+              } else if (m.role === "assistant") {
+                const annotations: OpenAI.Responses.ResponseOutputText.URLCitation[] =
+                  (content.citations || []).map(
+                    (c): OpenAI.Responses.ResponseOutputText.URLCitation => {
+                      return {
+                        end_index: content.text.length - 1,
+                        start_index: content.text.length - 1,
+                        title: c.title,
+                        type: "url_citation",
+                        url: c.url,
+                      };
+                    },
+                  );
+
+                pushAssistantContent({
+                  type: "output_text",
+                  text: content.text,
+                  annotations,
+                });
               }
-              break;
-            case "image":
-              messageContent.push({
+            }
+            break;
+
+          case "image":
+            if (m.role === "user") {
+              pushUserContent({
                 type: "input_image",
                 image_url: `data:${content.source.media_type};base64,${content.source.data}`,
                 detail: "auto",
               });
-              break;
-            case "document":
-              messageContent.push({
+            }
+            // Images are unsupported for assistant messages
+            break;
+
+          case "document":
+            if (m.role === "user") {
+              pushUserContent({
                 type: "input_file",
                 filename: content.title || "untitled pdf",
                 file_data: `data:${content.source.media_type};base64,${content.source.data}`,
               });
-              break;
-            case "tool_use":
-              // Tool use content is handled separately below
-              break;
-            case "tool_result":
-              // Tool result content is handled separately below
-              break;
-            case "server_tool_use":
-              throw new Error("NOT IMPLEMENTED");
-            case "web_search_tool_result":
-              throw new Error("NOT IMPLEMENTED");
-            default:
-              assertUnreachable(content);
-          }
-        }
+            }
+            // Documents are unsupported for assistant messages
+            break;
 
-        if (messageContent.length > 0) {
-          openaiMessages.push({
-            role: m.role,
-            content: messageContent,
-          });
-        }
-      } else if (m.role == "assistant") {
-        const messageContent: ResponseOutputMessage["content"] = [];
-
-        for (const content of m.content) {
-          switch (content.type) {
-            case "text":
-              if (content.text.trim()) {
-                messageContent.push({
-                  type: "output_text",
-                  text: content.text,
-                  annotations: [],
-                });
-              }
-              break;
-            case "image":
-              // unsupported
-              break;
-            case "document":
-              // unsupported
-              break;
-            case "tool_use":
-              // Tool use content is handled separately below
-              break;
-            case "tool_result":
-              // Tool result content is handled separately below
-              break;
-            case "server_tool_use":
-              throw new Error("NOT IMPLEMENTED");
-            case "web_search_tool_result":
-              throw new Error("NOT IMPLEMENTED");
-            default:
-              assertUnreachable(content);
-          }
-        }
-      }
-
-      // Handle tool use and tool result content separately
-      for (const content of m.content) {
-        switch (content.type) {
           case "tool_use":
-            openaiMessages.push(
+            pushMessage(
               content.request.status == "ok"
                 ? {
                     type: "function_call",
@@ -311,25 +317,52 @@ export class OpenAIProvider implements Provider {
                   },
             );
             break;
+
+          case "server_tool_use":
+            if (content.name == "web_search") {
+              pushMessage({
+                type: "web_search_call",
+                id: content.id,
+                status: "completed",
+              });
+            }
+            break;
+
+          case "web_search_tool_result":
+            if (Array.isArray(content.content)) {
+              const searchResults = content.content
+                .map(
+                  (result) =>
+                    `Title: ${result.title}\nURL: ${result.url}\nContent: ${result.encrypted_content}`,
+                )
+                .join("\n\n");
+
+              pushUserContent({
+                type: "input_text",
+                text: `Web search results:\n\n${searchResults}`,
+              });
+            }
+            break;
+
           case "tool_result":
             if (content.result.status == "ok") {
               const value = content.result.value;
               for (const toolResult of value) {
                 switch (toolResult.type) {
                   case "text":
-                    openaiMessages.push({
+                    pushMessage({
                       type: "function_call_output",
                       call_id: content.id,
                       output: toolResult.text,
                     });
                     break;
                   case "image":
-                    openaiMessages.push({
+                    pushMessage({
                       type: "function_call_output",
                       call_id: content.id,
                       output: "Image content follows:",
                     });
-                    openaiMessages.push({
+                    pushMessage({
                       role: "user",
                       content: [
                         {
@@ -341,12 +374,12 @@ export class OpenAIProvider implements Provider {
                     });
                     break;
                   case "document":
-                    openaiMessages.push({
+                    pushMessage({
                       type: "function_call_output",
                       call_id: content.id,
                       output: "Document content follows:",
                     });
-                    openaiMessages.push({
+                    pushMessage({
                       role: "user",
                       content: [
                         {
@@ -362,22 +395,20 @@ export class OpenAIProvider implements Provider {
                 }
               }
             } else {
-              openaiMessages.push({
+              pushMessage({
                 type: "function_call_output",
                 call_id: content.id,
                 output: content.result.error,
               });
             }
             break;
-          case "server_tool_use":
-            throw new Error("NOT IMPLEMENTED");
-          case "web_search_tool_result":
-            throw new Error("NOT IMPLEMENTED");
           default:
-            // Other content types already handled above
-            break;
+            assertUnreachable(content);
         }
       }
+
+      // Flush any remaining in-progress message for this provider message
+      flushInProgressMessage();
     }
 
     return {
@@ -387,16 +418,19 @@ export class OpenAIProvider implements Provider {
       // see https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
       // this recommends disabling parallel tool calls when strict adherence to schema is needed
       parallel_tool_calls: false,
-      tools: tools.map((s): OpenAI.Responses.Tool => {
-        const compatibleSpec = this.makeOpenAICompatible(s);
-        return {
-          type: "function",
-          name: compatibleSpec.name,
-          description: compatibleSpec.description,
-          strict: true,
-          parameters: compatibleSpec.input_schema as OpenAI.FunctionParameters,
-        };
-      }),
+      tools: [
+        ...tools.map((s): OpenAI.Responses.Tool => {
+          const compatibleSpec = this.makeOpenAICompatible(s);
+          return {
+            type: "function",
+            name: compatibleSpec.name,
+            description: compatibleSpec.description,
+            strict: true,
+            parameters:
+              compatibleSpec.input_schema as OpenAI.FunctionParameters,
+          };
+        }),
+      ],
     };
   }
 
@@ -505,11 +539,11 @@ export class OpenAIProvider implements Provider {
       usage: Usage;
       stopReason: StopReason;
     }> => {
-      request = await this.client.responses.create(
-        this.createStreamParameters(messages, tools, {
-          systemPrompt: options?.systemPrompt,
-        }),
-      );
+      const params = this.createStreamParameters(messages, tools, {
+        systemPrompt: options?.systemPrompt,
+      });
+      params.tools!.push({ type: "web_search_preview" });
+      request = await this.client.responses.create(params);
 
       for await (const event of request) {
         this.nvim.logger?.info(`event.type: ${event.type}`);
@@ -536,6 +570,18 @@ export class OpenAIProvider implements Provider {
                     id: event.item.call_id,
                     name: event.item.name,
                     input: {},
+                  },
+                });
+                break;
+              case "web_search_call":
+                onStreamEvent({
+                  type: "content_block_start",
+                  index: event.output_index,
+                  content_block: {
+                    type: "server_tool_use",
+                    id: event.item.id,
+                    name: "web_search",
+                    input: undefined,
                   },
                 });
                 break;
@@ -576,6 +622,13 @@ export class OpenAIProvider implements Provider {
               type: "content_block_stop",
               index: event.output_index,
             });
+            break;
+
+          case "response.web_search_call.in_progress":
+          case "response.web_search_call.searching":
+          case "response.web_search_call.completed":
+            // These events don't need to trigger any UI updates
+            // The web search results will come through as tool results later
             break;
 
           case "response.completed":
