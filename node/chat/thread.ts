@@ -783,7 +783,12 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
         ];
 
       if (lastStop) {
-        return lastStop.usage.inputTokens + lastStop.usage.outputTokens;
+        return (
+          lastStop.usage.inputTokens +
+          lastStop.usage.outputTokens +
+          (lastStop.usage.cacheHits || 0) +
+          (lastStop.usage.cacheMisses || 0)
+        );
       }
     }
 
