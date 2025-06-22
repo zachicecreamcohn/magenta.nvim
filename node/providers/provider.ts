@@ -6,6 +6,7 @@ import { OpenAIProvider } from "./openai.ts";
 import type { Provider, ProviderName } from "./provider-types.ts";
 import { type Profile } from "../options.ts";
 import { OllamaProvider } from "./ollama.ts";
+import { CopilotProvider } from "./copilot.ts";
 
 export * from "./provider-types.ts";
 
@@ -41,6 +42,9 @@ export function getProvider(nvim: Nvim, profile: Profile): Provider {
         break;
       case "ollama":
         clients[clientKey] = new OllamaProvider(nvim);
+        break;
+      case "copilot":
+        clients[clientKey] = new CopilotProvider(nvim);
         break;
       default:
         assertUnreachable(profile.provider);

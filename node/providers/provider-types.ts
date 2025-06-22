@@ -9,6 +9,7 @@ export const PROVIDER_NAMES = [
   "openai",
   "bedrock",
   "ollama",
+  "copilot",
 ] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
 
