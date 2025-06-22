@@ -42,6 +42,16 @@ describe("node/sidebar.spec.ts", () => {
       const largeMessage = "Hello, this is a test message. ".repeat(500);
       await driver.inputMagentaText(largeMessage);
       await driver.send();
+      const request1 = await driver.mockAnthropic.awaitPendingRequest();
+      request1.respond({
+        stopReason: "tool_use",
+        text: "ok, here goes",
+        toolRequests: [],
+        usage: {
+          inputTokens: 1000,
+          outputTokens: 2000,
+        },
+      });
 
       // Wait for token count to update after the large message
       await pollUntil(async () => {

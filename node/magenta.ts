@@ -88,7 +88,7 @@ export class Magenta {
     this.sidebar = new Sidebar(
       this.nvim,
       () => this.getActiveProfile(),
-      () => this.chat.getActiveThread().getEstimatedTokenCount(),
+      () => this.chat.getActiveThread().getLastStopTokenCount(),
     );
 
     this.chatApp = TEA.createApp<Chat>({

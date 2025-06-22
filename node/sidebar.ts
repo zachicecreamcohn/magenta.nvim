@@ -29,7 +29,7 @@ export class Sidebar {
   constructor(
     private nvim: Nvim,
     private getProfile: () => Profile,
-    private getTokenCount: () => number | undefined,
+    private getTokenCount: () => number,
   ) {
     this.state = {
       state: "hidden",
@@ -44,9 +44,6 @@ export class Sidebar {
     const profile = this.getProfile();
     const baseTitle = `Magenta Input (${profile.name})`;
     const tokenCount = this.getTokenCount();
-    if (!tokenCount) {
-      return baseTitle;
-    }
 
     const tokenDisplay =
       tokenCount >= 1000

@@ -102,10 +102,12 @@ class MockRequest {
     text,
     toolRequests,
     stopReason,
+    usage,
   }: {
     text: string;
     toolRequests: Result<ToolRequest, { rawRequest: unknown }>[];
     stopReason: StopReason;
+    usage?: Usage | undefined;
   }): void {
     if (text) {
       this.streamText(text);
@@ -119,7 +121,7 @@ class MockRequest {
 
     this.defer.resolve({
       stopReason,
-      usage: {
+      usage: usage || {
         inputTokens: 0,
         outputTokens: 0,
       },

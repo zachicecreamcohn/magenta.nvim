@@ -40,10 +40,7 @@ import {
 
 import type { Chat } from "./chat.ts";
 import type { ThreadId, ThreadType } from "./types.ts";
-import {
-  DEFAULT_SYSTEM_PROMPT,
-  getSystemPrompt,
-} from "../providers/system-prompt.ts";
+import { getSystemPrompt } from "../providers/system-prompt.ts";
 
 export type StoppedConversationState = {
   state: "stopped";
@@ -139,8 +136,6 @@ export class Thread {
   private counter: Counter;
   public fileSnapshots: FileSnapshots;
   public contextManager: ContextManager;
-  public estimatedTokenCount: number = 0;
-  private tokenCountUpdatePending: boolean = false;
 
   constructor(
     public id: ThreadId,
@@ -197,8 +192,6 @@ export class Thread {
       messages: [],
       threadType: threadType,
     };
-
-    this.scheduleTokenEstimateUpdate();
   }
 
   update(msg: RootMsg): void {
@@ -341,9 +334,6 @@ export class Thread {
           event: msg.event,
         });
 
-        if (msg.event.type === "content_block_stop") {
-          this.scheduleTokenEstimateUpdate();
-        }
         return;
       }
 
@@ -362,8 +352,6 @@ export class Thread {
           threadType: this.state.threadType,
         };
         this.contextManager.reset();
-
-        this.scheduleTokenEstimateUpdate();
 
         return undefined;
       }
@@ -572,7 +560,6 @@ export class Thread {
 
   async sendMessage(content?: string): Promise<void> {
     await this.prepareUserMessage(content);
-    this.scheduleTokenEstimateUpdate();
     const messages = this.getMessages();
 
     const provider = getProvider(this.context.nvim, this.state.profile);
@@ -614,8 +601,6 @@ Use the compact_thread tool to analyze my next prompt and extract only the relev
 
 My next prompt will be:
 ${content}`;
-
-    this.scheduleTokenEstimateUpdate();
 
     const request = getProvider(
       this.context.nvim,
@@ -785,39 +770,24 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
     }
   }
 
-  getEstimatedTokenCount(): number {
-    return this.estimatedTokenCount;
-  }
+  getLastStopTokenCount(): number {
+    for (
+      let msgIdx = this.state.messages.length - 1;
+      msgIdx >= 0;
+      msgIdx -= 1
+    ) {
+      const message = this.state.messages[msgIdx];
+      const lastStop =
+        message.state.stops[
+          Math.max(...Object.keys(message.state.stops).map((s) => Number(s)))
+        ];
 
-  scheduleTokenEstimateUpdate() {
-    if (this.tokenCountUpdatePending) {
-      return;
+      if (lastStop) {
+        return lastStop.usage.inputTokens + lastStop.usage.outputTokens;
+      }
     }
 
-    this.tokenCountUpdatePending = true;
-    // OK to do this async, so it doesn't slow down the rest of the plugin
-    setTimeout(() => {
-      const toolSpecs = this.toolManager.getToolSpecs(this.state.threadType);
-      const toolSpecLength = toolSpecs.reduce(
-        (sum, spec) => sum + JSON.stringify(spec).length,
-        0,
-      );
-      this.estimatedTokenCount = Math.ceil(
-        (DEFAULT_SYSTEM_PROMPT.length +
-          toolSpecLength +
-          this.state.messages.reduce(
-            (sum, message) =>
-              sum +
-              message.state.content.reduce(
-                (sum, content) => sum + JSON.stringify(content).length,
-                0,
-              ),
-            0,
-          )) /
-          4,
-      );
-      this.tokenCountUpdatePending = false;
-    });
+    return 0;
   }
 }
 
