@@ -21,15 +21,12 @@ import type {
   ProviderTextContent,
 } from "./provider-types.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import {
-  DEFAULT_SYSTEM_PROMPT,
-  type SubagentSystemPrompt,
-  getSubagentSystemPrompt,
-} from "./system-prompt.ts";
+import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
 import { validateInput } from "../tools/helpers.ts";
 import type { Result } from "../utils/result.ts";
-import type { ToolRequest, ToolRequestId } from "../tools/toolManager.ts";
+import type { ToolRequestId } from "../tools/toolManager.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import type { ToolRequest } from "../tools/types.ts";
 
 export type OllamaOptions = {
   model: string;
@@ -62,13 +59,11 @@ export class OllamaProvider implements Provider {
   countTokens(
     messages: Array<ProviderMessage>,
     tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
+    options?: { systemPrompt?: string | undefined },
   ): number {
     const CHARS_PER_TOKEN = 4;
     let charCount = (
-      options?.systemPrompt
-        ? getSubagentSystemPrompt(options.systemPrompt)
-        : DEFAULT_SYSTEM_PROMPT
+      options?.systemPrompt ? options.systemPrompt : DEFAULT_SYSTEM_PROMPT
     ).length;
     charCount += JSON.stringify(tools).length;
     charCount += JSON.stringify(messages).length;
@@ -80,14 +75,14 @@ export class OllamaProvider implements Provider {
     tools: Array<ProviderToolSpec>,
     options?: {
       disableCaching?: boolean;
-      systemPrompt?: SubagentSystemPrompt | undefined;
+      systemPrompt?: string | undefined;
     },
   ): ChatRequest & { stream: true } {
     const ollamaMessages: Message[] = [
       {
         role: "system",
         content: options?.systemPrompt
-          ? getSubagentSystemPrompt(options.systemPrompt)
+          ? options.systemPrompt
           : DEFAULT_SYSTEM_PROMPT,
       },
     ];
@@ -102,7 +97,7 @@ export class OllamaProvider implements Provider {
           case "tool_use": {
             let args: Record<string, unknown>;
             if (content.request.status === "ok") {
-              args = content.request.value.input;
+              args = content.request.value.input as Record<string, unknown>;
             } else {
               args = content.request.rawRequest as Record<string, unknown>;
             }
@@ -178,14 +173,14 @@ export class OllamaProvider implements Provider {
   forceToolUse(
     messages: Array<ProviderMessage>,
     spec: ProviderToolSpec,
-    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
+    options?: { systemPrompt?: string | undefined },
   ): ProviderToolUseRequest {
     let aborted = false;
     const promise = (async (): Promise<ProviderToolUseResponse> => {
       // Ollama doesn't support tool_choice (although it is in the roadmap)
       // For now, we can use structured outputs to simulate forced tool use
       const systemPrompt = options?.systemPrompt
-        ? getSubagentSystemPrompt(options.systemPrompt)
+        ? options.systemPrompt
         : DEFAULT_SYSTEM_PROMPT;
 
       const response = await this.client.chat({
@@ -267,7 +262,7 @@ export class OllamaProvider implements Provider {
     messages: Array<ProviderMessage>,
     onStreamEvent: (event: ProviderStreamEvent) => void,
     tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
+    options?: { systemPrompt?: string | undefined },
   ): ProviderStreamRequest {
     let request: AbortableAsyncIterator<ChatResponse>;
     let stopReason: StopReason | undefined;

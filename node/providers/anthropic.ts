@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { extendError, type Result } from "../utils/result.ts";
-import type { ToolRequest, ToolRequestId } from "../tools/toolManager.ts";
+import type { ToolRequestId } from "../tools/toolManager.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import {
   type Provider,
@@ -13,12 +13,9 @@ import {
   type ProviderTextContent,
 } from "./provider-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import {
-  DEFAULT_SYSTEM_PROMPT,
-  type SubagentSystemPrompt,
-  getSubagentSystemPrompt,
-} from "./system-prompt.ts";
+import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
 import { validateInput } from "../tools/helpers.ts";
+import type { ToolRequest } from "../tools/types.ts";
 
 function mapProviderTextToAnthropicText(
   providerText: ProviderTextContent,
@@ -94,7 +91,7 @@ export class AnthropicProvider implements Provider {
     tools: Array<ProviderToolSpec>,
     options?: {
       disableCaching?: boolean;
-      systemPrompt?: SubagentSystemPrompt | undefined;
+      systemPrompt?: string | undefined;
     },
   ): MessageStreamParams {
     const anthropicMessages = messages.map((m): MessageParam => {
@@ -151,21 +148,14 @@ export class AnthropicProvider implements Provider {
 
             case "tool_result":
               if (c.result.status == "ok") {
-                if (typeof c.result.value === "string") {
-                  content.push({
-                    tool_use_id: c.id,
-                    type: "tool_result",
-                    content: c.result.value,
-                    is_error: false,
-                  });
-                } else {
-                  switch (c.result.value.type) {
+                for (const resultContent of c.result.value) {
+                  switch (resultContent.type) {
                     case "text":
                       content.push({
                         tool_use_id: c.id,
                         type: "tool_result",
                         content: [
-                          mapProviderTextToAnthropicText(c.result.value),
+                          mapProviderTextToAnthropicText(resultContent),
                         ],
                         is_error: false,
                       });
@@ -174,7 +164,7 @@ export class AnthropicProvider implements Provider {
                       content.push({
                         tool_use_id: c.id,
                         type: "tool_result",
-                        content: [c.result.value],
+                        content: [resultContent],
                         is_error: false,
                       });
                       break;
@@ -187,12 +177,12 @@ export class AnthropicProvider implements Provider {
                       });
                       content.push({
                         type: "document",
-                        source: c.result.value.source,
-                        title: c.result.value.title || null,
+                        source: resultContent.source,
+                        title: resultContent.title || null,
                       });
                       break;
                     default:
-                      assertUnreachable(c.result.value);
+                      assertUnreachable(resultContent);
                   }
                 }
               } else {
@@ -255,7 +245,7 @@ export class AnthropicProvider implements Provider {
         {
           type: "text",
           text: options?.systemPrompt
-            ? getSubagentSystemPrompt(options.systemPrompt)
+            ? options.systemPrompt
             : DEFAULT_SYSTEM_PROMPT,
           // the prompt appears in the following order:
           // tools
@@ -287,14 +277,12 @@ export class AnthropicProvider implements Provider {
   countTokens(
     messages: Array<ProviderMessage>,
     tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
+    options?: { systemPrompt?: string | undefined },
   ): number {
     const CHARS_PER_TOKEN = 4;
 
     let charCount = (
-      options?.systemPrompt
-        ? getSubagentSystemPrompt(options.systemPrompt)
-        : DEFAULT_SYSTEM_PROMPT
+      options?.systemPrompt ? options.systemPrompt : DEFAULT_SYSTEM_PROMPT
     ).length;
     charCount += JSON.stringify(tools).length;
     charCount += JSON.stringify(messages).length;
@@ -305,7 +293,7 @@ export class AnthropicProvider implements Provider {
   forceToolUse(
     messages: Array<ProviderMessage>,
     spec: ProviderToolSpec,
-    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
+    options?: { systemPrompt?: string | undefined },
   ): ProviderToolUseRequest {
     const request = this.client.messages.stream({
       ...this.createStreamParameters(messages, [], {
@@ -441,7 +429,7 @@ export class AnthropicProvider implements Provider {
     messages: Array<ProviderMessage>,
     onStreamEvent: (event: ProviderStreamEvent) => void,
     tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
+    options?: { systemPrompt?: string | undefined },
   ): ProviderStreamRequest {
     let requestActive = true;
     const request = this.client.messages

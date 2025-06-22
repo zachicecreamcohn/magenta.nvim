@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { type Result } from "../utils/result.ts";
-import type { ToolRequest, ToolRequestId } from "../tools/toolManager.ts";
+import type { ToolRequestId } from "../tools/toolManager.ts";
 import type {
   StopReason,
   Provider,
@@ -15,13 +15,17 @@ import type {
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { Stream } from "openai/streaming.mjs";
-import {
-  DEFAULT_SYSTEM_PROMPT,
-  type SubagentSystemPrompt,
-  getSubagentSystemPrompt,
-} from "./system-prompt.ts";
+import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
 import { validateInput } from "../tools/helpers.ts";
-import type { ResponseInputMessageContentList } from "openai/resources/responses/responses.mjs";
+import type {
+  ResponseInputMessageContentList,
+  ResponseOutputMessage,
+} from "openai/resources/responses/responses.mjs";
+import type { ToolRequest } from "../tools/types.ts";
+import type {
+  JSONSchemaObject,
+  JSONSchemaType,
+} from "openai/lib/jsonschema.mjs";
 
 export type OpenAIOptions = {
   model: "gpt-4o";
@@ -57,16 +61,128 @@ export class OpenAIProvider implements Provider {
     this.model = model;
   }
 
+  /**
+   * Makes a tool spec compatible with OpenAI by ensuring required properties and removing unsupported formats
+   */
+  private makeOpenAICompatible(spec: ProviderToolSpec): ProviderToolSpec {
+    const schema = spec.input_schema;
+
+    // First apply format sanitization
+    const sanitizedSchema = this.sanitizeSchemaForOpenAI(schema);
+
+    // Then apply OpenAI-specific requirements
+    if (
+      typeof sanitizedSchema !== "object" ||
+      sanitizedSchema === null ||
+      Array.isArray(sanitizedSchema) ||
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+      (sanitizedSchema as any).type !== "object"
+    ) {
+      return { ...spec, input_schema: sanitizedSchema };
+    }
+
+    // copy to avoid mutating the underlying spec
+    const compatibleSchema = JSON.parse(
+      JSON.stringify(sanitizedSchema),
+    ) as JSONSchemaObject;
+
+    compatibleSchema.additionalProperties = false;
+
+    if (
+      compatibleSchema.properties &&
+      typeof compatibleSchema.properties === "object"
+    ) {
+      const propertyNames = Object.keys(compatibleSchema.properties);
+      compatibleSchema.required = propertyNames;
+    } else {
+      compatibleSchema.required = [];
+    }
+
+    return {
+      ...spec,
+      input_schema: compatibleSchema,
+    };
+  }
+
+  /**
+   * Sanitizes JSON Schema for OpenAI compatibility by removing unsupported format specifiers
+   * OpenAI doesn't support formats like "uri", "date-time", etc.
+   */
+  private sanitizeSchemaForOpenAI(schema: JSONSchemaType): JSONSchemaType {
+    if (
+      typeof schema !== "object" ||
+      schema === null ||
+      Array.isArray(schema)
+    ) {
+      return schema;
+    }
+
+    const sanitized = { ...schema };
+
+    // Remove unsupported format specifiers
+    if ("format" in sanitized && sanitized.format) {
+      const unsupportedFormats = [
+        "uri",
+        "uri-reference",
+        "uri-template",
+        "date-time",
+        "date",
+        "time",
+        "email",
+        "hostname",
+        "ipv4",
+        "ipv6",
+        "uuid",
+        "regex",
+        "json-pointer",
+      ];
+
+      if (unsupportedFormats.includes(sanitized.format as string)) {
+        delete sanitized.format;
+        // Add a description hint if not already present
+        if (!("description" in sanitized) || !sanitized.description) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+          switch ((schema as any).format) {
+            case "uri":
+            case "uri-reference":
+              sanitized.description = "A valid URI string";
+              break;
+            case "date-time":
+              sanitized.description =
+                'A date-time string (e.g., "2023-12-01T10:30:00Z")';
+              break;
+            case "date":
+              sanitized.description = 'A date string (e.g., "2023-12-01")';
+              break;
+            case "email":
+              sanitized.description = "A valid email address";
+              break;
+            default:
+              sanitized.description = `A string in ${JSON.stringify(schema.format)} format`;
+          }
+        }
+      }
+    }
+
+    // Recursively sanitize nested objects
+    for (const [key, value] of Object.entries(sanitized)) {
+      if (key !== "format" && typeof value === "object" && value !== null) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+        (sanitized as any)[key] = this.sanitizeSchemaForOpenAI(value);
+      }
+    }
+
+    return sanitized;
+  }
+
   countTokens(
     messages: Array<ProviderMessage>,
     tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
+    options?: { systemPrompt?: string | undefined },
   ): number {
     const CHARS_PER_TOKEN = 4;
     let charCount = (
-      options?.systemPrompt
-        ? getSubagentSystemPrompt(options.systemPrompt)
-        : DEFAULT_SYSTEM_PROMPT
+      options?.systemPrompt ? options.systemPrompt : DEFAULT_SYSTEM_PROMPT
     ).length;
     charCount += JSON.stringify(tools).length;
     charCount += JSON.stringify(messages).length;
@@ -78,66 +194,101 @@ export class OpenAIProvider implements Provider {
     tools: Array<ProviderToolSpec>,
     options?: {
       disableCaching?: boolean;
-      systemPrompt?: SubagentSystemPrompt | undefined;
+      systemPrompt?: string | undefined;
     },
   ): OpenAI.Responses.ResponseCreateParamsStreaming {
     const openaiMessages: OpenAI.Responses.ResponseInputItem[] = [
       {
         role: "system",
         content: options?.systemPrompt
-          ? getSubagentSystemPrompt(options.systemPrompt)
+          ? options.systemPrompt
           : DEFAULT_SYSTEM_PROMPT,
       },
     ];
 
     for (const m of messages) {
-      // Use content array format for rich content
-      const messageContent: ResponseInputMessageContentList = [];
+      if (m.role == "user") {
+        const messageContent: ResponseInputMessageContentList = [];
 
-      for (const content of m.content) {
-        switch (content.type) {
-          case "text":
-            if (content.text.trim()) {
+        for (const content of m.content) {
+          switch (content.type) {
+            case "text":
+              if (content.text.trim()) {
+                messageContent.push({
+                  type: "input_text",
+                  text: content.text,
+                });
+              }
+              break;
+            case "image":
               messageContent.push({
-                type: "input_text",
-                text: content.text,
+                type: "input_image",
+                image_url: `data:${content.source.media_type};base64,${content.source.data}`,
+                detail: "auto",
               });
-            }
-            break;
-          case "image":
-            messageContent.push({
-              type: "input_image",
-              image_url: `data:${content.source.media_type};base64,${content.source.data}`,
-              detail: "auto",
-            });
-            break;
-          case "document":
-            messageContent.push({
-              type: "input_file",
-              filename: content.title || "untitled pdf",
-              file_data: `data:${content.source.media_type};base64,${content.source.data}`,
-            });
-            break;
-          case "tool_use":
-            // Tool use content is handled separately below
-            break;
-          case "tool_result":
-            // Tool result content is handled separately below
-            break;
-          case "server_tool_use":
-            throw new Error("NOT IMPLEMENTED");
-          case "web_search_tool_result":
-            throw new Error("NOT IMPLEMENTED");
-          default:
-            assertUnreachable(content);
+              break;
+            case "document":
+              messageContent.push({
+                type: "input_file",
+                filename: content.title || "untitled pdf",
+                file_data: `data:${content.source.media_type};base64,${content.source.data}`,
+              });
+              break;
+            case "tool_use":
+              // Tool use content is handled separately below
+              break;
+            case "tool_result":
+              // Tool result content is handled separately below
+              break;
+            case "server_tool_use":
+              throw new Error("NOT IMPLEMENTED");
+            case "web_search_tool_result":
+              throw new Error("NOT IMPLEMENTED");
+            default:
+              assertUnreachable(content);
+          }
         }
-      }
 
-      if (messageContent.length > 0) {
-        openaiMessages.push({
-          role: m.role,
-          content: messageContent,
-        });
+        if (messageContent.length > 0) {
+          openaiMessages.push({
+            role: m.role,
+            content: messageContent,
+          });
+        }
+      } else if (m.role == "assistant") {
+        const messageContent: ResponseOutputMessage["content"] = [];
+
+        for (const content of m.content) {
+          switch (content.type) {
+            case "text":
+              if (content.text.trim()) {
+                messageContent.push({
+                  type: "output_text",
+                  text: content.text,
+                  annotations: [],
+                });
+              }
+              break;
+            case "image":
+              // unsupported
+              break;
+            case "document":
+              // unsupported
+              break;
+            case "tool_use":
+              // Tool use content is handled separately below
+              break;
+            case "tool_result":
+              // Tool result content is handled separately below
+              break;
+            case "server_tool_use":
+              throw new Error("NOT IMPLEMENTED");
+            case "web_search_tool_result":
+              throw new Error("NOT IMPLEMENTED");
+            default:
+              assertUnreachable(content);
+          }
+        }
       }
 
       // Handle tool use and tool result content separately
@@ -163,20 +314,13 @@ export class OpenAIProvider implements Provider {
           case "tool_result":
             if (content.result.status == "ok") {
               const value = content.result.value;
-              if (typeof value === "string") {
-                openaiMessages.push({
-                  type: "function_call_output",
-                  call_id: content.id,
-                  output: value,
-                });
-              } else {
-                // For complex content types, add a string result followed by the rich content
-                switch (value.type) {
+              for (const toolResult of value) {
+                switch (toolResult.type) {
                   case "text":
                     openaiMessages.push({
                       type: "function_call_output",
                       call_id: content.id,
-                      output: value.text,
+                      output: toolResult.text,
                     });
                     break;
                   case "image":
@@ -190,7 +334,7 @@ export class OpenAIProvider implements Provider {
                       content: [
                         {
                           type: "input_image",
-                          image_url: `data:${value.source.media_type};base64,${value.source.data}`,
+                          image_url: `data:${toolResult.source.media_type};base64,${toolResult.source.data}`,
                           detail: "auto",
                         },
                       ],
@@ -207,14 +351,14 @@ export class OpenAIProvider implements Provider {
                       content: [
                         {
                           type: "input_file",
-                          filename: value.title || "untitled.pdf",
-                          file_data: `data:${value.source.media_type};base64,${value.source.data}`,
+                          filename: toolResult.title || "untitled.pdf",
+                          file_data: `data:${toolResult.source.media_type};base64,${toolResult.source.data}`,
                         },
                       ],
                     });
                     break;
                   default:
-                    assertUnreachable(value);
+                    assertUnreachable(toolResult);
                 }
               }
             } else {
@@ -244,12 +388,13 @@ export class OpenAIProvider implements Provider {
       // this recommends disabling parallel tool calls when strict adherence to schema is needed
       parallel_tool_calls: false,
       tools: tools.map((s): OpenAI.Responses.Tool => {
+        const compatibleSpec = this.makeOpenAICompatible(s);
         return {
           type: "function",
-          name: s.name,
-          description: s.description,
+          name: compatibleSpec.name,
+          description: compatibleSpec.description,
           strict: true,
-          parameters: s.input_schema as OpenAI.FunctionParameters,
+          parameters: compatibleSpec.input_schema as OpenAI.FunctionParameters,
         };
       }),
     };
@@ -258,7 +403,7 @@ export class OpenAIProvider implements Provider {
   forceToolUse(
     messages: Array<ProviderMessage>,
     spec: ProviderToolSpec,
-    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
+    options?: { systemPrompt?: string | undefined },
   ): ProviderToolUseRequest {
     let aborted = false;
     const promise = (async (): Promise<ProviderToolUseResponse> => {
@@ -275,7 +420,8 @@ export class OpenAIProvider implements Provider {
             name: spec.name,
             description: spec.description,
             strict: true,
-            parameters: spec.input_schema as OpenAI.FunctionParameters,
+            parameters: this.makeOpenAICompatible(spec)
+              .input_schema as OpenAI.FunctionParameters,
           },
         ],
       });
@@ -349,7 +495,7 @@ export class OpenAIProvider implements Provider {
     messages: Array<ProviderMessage>,
     onStreamEvent: (event: ProviderStreamEvent) => void,
     tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
+    options?: { systemPrompt?: string | undefined },
   ): ProviderStreamRequest {
     let request: Stream<OpenAI.Responses.ResponseStreamEvent>;
     let stopReason: StopReason | undefined;

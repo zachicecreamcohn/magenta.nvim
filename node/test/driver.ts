@@ -17,7 +17,7 @@ import {
   getCurrentWindow,
 } from "../nvim/nvim";
 import { expect, vi } from "vitest";
-import type { ThreadId } from "../chat/thread";
+import type { ThreadId } from "../chat/types";
 
 export class NvimDriver {
   constructor(
@@ -38,6 +38,23 @@ export class NvimDriver {
     if (this.magenta.sidebar.state.state == "hidden") {
       await this.magenta.command("toggle");
     }
+  }
+
+  async waitForChatReady() {
+    return await pollUntil(
+      () => {
+        try {
+          this.magenta.chat.getActiveThread();
+          return true;
+        } catch (e) {
+          if ((e as Error).message.includes("Chat is not initialized yet")) {
+            throw new Error("Chat is not ready yet");
+          }
+          throw e;
+        }
+      },
+      { timeout: 1000 },
+    );
   }
 
   async inputMagentaText(text: string) {

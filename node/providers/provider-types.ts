@@ -1,9 +1,8 @@
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import * as ToolManager from "../tools/toolManager.ts";
-import type { ToolName } from "../tools/tool-registry.ts";
 import type { Result } from "../utils/result";
 import Anthropic from "@anthropic-ai/sdk";
-import type { SubagentSystemPrompt } from "./system-prompt.ts";
+import type { ToolName, ToolRequest } from "../tools/types.ts";
 
 export const PROVIDER_NAMES = [
   "anthropic",
@@ -80,7 +79,7 @@ export type ProviderToolUseContent = {
   type: "tool_use";
   id: ToolManager.ToolRequestId;
   name: ToolName;
-  request: Result<ToolManager.ToolRequest, { rawRequest: unknown }>;
+  request: Result<ToolRequest, { rawRequest: unknown }>;
 };
 
 export type ProviderServerToolUseContent = {
@@ -98,15 +97,15 @@ export type ProviderWebSearchToolResult = {
   content: Anthropic.WebSearchToolResultBlockContent;
 };
 
-export type ProviderToolResultContent = {
+export type ProviderToolResultContent =
+  | ProviderTextContent
+  | ProviderImageContent
+  | ProviderDocumentContent;
+
+export type ProviderToolResult = {
   type: "tool_result";
   id: ToolManager.ToolRequestId;
-  result: Result<
-    | string
-    | ProviderTextContent
-    | ProviderImageContent
-    | ProviderDocumentContent
-  >;
+  result: Result<ProviderToolResultContent[]>;
 };
 
 export type ProviderToolSpec = {
@@ -122,7 +121,7 @@ export type ProviderMessageContent =
   | ProviderToolUseContent
   | ProviderServerToolUseContent
   | ProviderWebSearchToolResult
-  | ProviderToolResultContent;
+  | ProviderToolResult;
 
 export interface Provider {
   setModel(model: string): void;
@@ -131,25 +130,25 @@ export interface Provider {
     tools: Array<ProviderToolSpec>,
     options?: {
       disableCaching?: boolean;
-      systemPrompt?: SubagentSystemPrompt | undefined;
+      systemPrompt?: string | undefined;
     },
   ): unknown;
   countTokens(
     messages: Array<ProviderMessage>,
     tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
+    options?: { systemPrompt?: string | undefined },
   ): number;
   forceToolUse(
     messages: Array<ProviderMessage>,
     spec: ProviderToolSpec,
-    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
+    options?: { systemPrompt?: string | undefined },
   ): ProviderToolUseRequest;
 
   sendMessage(
     messages: Array<ProviderMessage>,
     onStreamEvent: (event: ProviderStreamEvent) => void,
     tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: SubagentSystemPrompt | undefined },
+    options?: { systemPrompt?: string },
   ): ProviderStreamRequest;
 }
 
@@ -174,7 +173,7 @@ export interface ProviderStreamRequest {
 }
 
 export type ProviderToolUseResponse = {
-  toolRequest: Result<ToolManager.ToolRequest, { rawRequest: unknown }>;
+  toolRequest: Result<ToolRequest, { rawRequest: unknown }>;
   stopReason: StopReason;
   usage: Usage;
 };

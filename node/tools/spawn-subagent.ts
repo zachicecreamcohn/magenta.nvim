@@ -1,23 +1,22 @@
 import { d, withBindings } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
-import type { ToolRequest } from "./toolManager.ts";
+import type { StaticToolRequest } from "./toolManager.ts";
 import type {
-  ProviderToolResultContent,
+  ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { ToolInterface } from "./types.ts";
+import type { StaticTool, ToolName } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
-import type { ThreadId } from "../chat/thread.ts";
-import { SUBAGENT_TOOL_NAMES, type ToolName } from "./tool-registry.ts";
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import {
   SUBAGENT_SYSTEM_PROMPTS,
   type SubagentSystemPrompt,
 } from "../providers/system-prompt.ts";
 import { renderContentValue } from "../providers/helpers.ts";
+import type { ThreadId, ThreadType } from "../chat/types.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
 
 export type Msg = {
   type: "subagent-created";
@@ -31,15 +30,15 @@ export type State =
   | {
       state: "done";
       threadId?: ThreadId;
-      result: ProviderToolResultContent;
+      result: ProviderToolResult;
     };
 
-export class SpawnSubagentTool implements ToolInterface {
+export class SpawnSubagentTool implements StaticTool {
   toolName = "spawn_subagent" as const;
   public state: State;
 
   constructor(
-    public request: Extract<ToolRequest, { toolName: "spawn_subagent" }>,
+    public request: Extract<StaticToolRequest, { toolName: "spawn_subagent" }>,
     public context: {
       nvim: Nvim;
       dispatch: Dispatch<RootMsg>;
@@ -62,16 +61,13 @@ export class SpawnSubagentTool implements ToolInterface {
     const input = this.request.input;
     const prompt = input.prompt;
     const contextFiles = input.contextFiles || [];
-    const systemPrompt = input.systemPrompt;
-
-    const suppressTools = input.suppressTools || [];
-    let allowedTools = SUBAGENT_TOOL_NAMES.filter(
-      (tool) => !suppressTools.includes(tool),
-    );
-
-    if (!allowedTools.includes("yield_to_parent")) {
-      allowedTools = [...allowedTools, "yield_to_parent"];
-    }
+    const threadType: ThreadType = input.systemPrompt
+      ? input.systemPrompt == "learn"
+        ? "subagent_learn"
+        : input.systemPrompt == "plan"
+          ? "subagent_plan"
+          : "subagent_default"
+      : "subagent_default";
 
     this.context.dispatch({
       type: "chat-msg",
@@ -79,12 +75,15 @@ export class SpawnSubagentTool implements ToolInterface {
         type: "spawn-subagent-thread",
         parentThreadId: this.context.threadId,
         spawnToolRequestId: this.request.id,
-        allowedTools,
         initialPrompt: prompt,
+        threadType,
         contextFiles,
-        systemPrompt,
       },
     });
+  }
+
+  isDone(): boolean {
+    return this.state.state === "done";
   }
 
   abort() {
@@ -123,7 +122,12 @@ export class SpawnSubagentTool implements ToolInterface {
                 id: this.request.id,
                 result: {
                   status: "ok",
-                  value: `Sub-agent started with threadId: ${msg.result.value}`,
+                  value: [
+                    {
+                      type: "text",
+                      text: `Sub-agent started with threadId: ${msg.result.value}`,
+                    },
+                  ],
                 },
               },
             };
@@ -151,14 +155,16 @@ export class SpawnSubagentTool implements ToolInterface {
     }
   }
 
-  getToolResult(): ProviderToolResultContent {
+  getToolResult(): ProviderToolResult {
     if (this.state.state !== "done") {
       return {
         type: "tool_result",
         id: this.request.id,
         result: {
           status: "ok",
-          value: `Waiting for subagent to finish running...`,
+          value: [
+            { type: "text", text: `Waiting for subagent to finish running...` },
+          ],
         },
       };
     }
@@ -169,14 +175,14 @@ export class SpawnSubagentTool implements ToolInterface {
   view() {
     switch (this.state.state) {
       case "preparing":
-        return d`🤖⚙️ Preparing to spawn sub-agent...`;
+        return d`🤖⏳ Preparing to spawn sub-agent...`;
       case "done": {
         const threadId = this.state.threadId;
         const result = this.state.result.result;
         if (result.status === "error") {
           return d`🤖❌ Error spawning sub-agent: ${result.error}`;
         } else {
-          return withBindings(d`🤖✅ ${renderContentValue(result.value)}`, {
+          return withBindings(d`🤖✅ ${renderContentValue(result.value[0])}`, {
             "<CR>": () => {
               if (threadId) {
                 this.context.dispatch({
@@ -201,7 +207,7 @@ export class SpawnSubagentTool implements ToolInterface {
 }
 
 export const spec: ProviderToolSpec = {
-  name: "spawn_subagent",
+  name: "spawn_subagent" as ToolName,
   description: `Create a sub-agent that can perform a specific task and report back the results.
 
 ## When to Use Sub-agents
@@ -235,6 +241,8 @@ Because of this, it is important that you write **clear, specific prompts**
 - Include files the sub-agent will need to examine or modify
 - Don't over-include - focus on what's directly relevant to the task
 - Remember: sub-agents can use tools to discover additional files if needed
+
+Sub-agents have access to all standard tools except spawn_subagent (to prevent recursive spawning) and always have access to yield_to_parent.
 
 <example>
 user: refactor this interface
@@ -278,15 +286,7 @@ assistant: Summarizes the results
         description:
           "Optional list of file paths to provide as context to the sub-agent.",
       },
-      suppressTools: {
-        type: "array",
-        items: {
-          type: "string",
-          enum: SUBAGENT_TOOL_NAMES,
-        },
-        description:
-          "List of tool names that the sub-agent is not allowed to use. If not provided, all standard tools except spawn_subagent will be available. Note: spawn_subagent is never allowed to prevent recursive spawning. yield_to_parent is always available to subagents regardless of this setting.",
-      },
+
       systemPrompt: {
         type: "string",
         enum: SUBAGENT_SYSTEM_PROMPTS as unknown as string[],
@@ -296,7 +296,7 @@ assistant: Summarizes the results
     },
     // NOTE: openai requries all properties to be required.
     // https://community.openai.com/t/api-rejects-valid-json-schema/906163
-    required: ["prompt", "contextFiles", "suppressTools", "systemPrompt"],
+    required: ["prompt", "contextFiles", "systemPrompt"],
     additionalProperties: false,
   },
 };
@@ -304,7 +304,6 @@ assistant: Summarizes the results
 export type Input = {
   prompt: string;
   contextFiles?: UnresolvedFilePath[];
-  suppressTools?: ToolName[];
   systemPrompt?: SubagentSystemPrompt;
 };
 
@@ -332,25 +331,6 @@ export function validateInput(input: {
         error: `expected all items in req.input.contextFiles to be strings but they were ${JSON.stringify(input.contextFiles)}`,
       };
     }
-  }
-
-  if (input.suppressTools !== undefined) {
-    if (!Array.isArray(input.suppressTools)) {
-      return {
-        status: "error",
-        error: `expected req.input.suppressTools to be an array but it was ${JSON.stringify(input.suppressTools)}`,
-      };
-    }
-
-    if (!input.suppressTools.every((item) => typeof item === "string")) {
-      return {
-        status: "error",
-        error: `expected all items in req.input.suppressTools to be strings but they were ${JSON.stringify(input.suppressTools)}`,
-      };
-    }
-
-    // we're not going to check that every tool in suppressTools is a valid tool. If invalid tools are included, we will
-    // just ignore them
   }
 
   if (input.systemPrompt !== undefined) {

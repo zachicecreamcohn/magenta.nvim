@@ -1,4 +1,5 @@
-import type { ThreadId, ThreadMsg } from "./chat/thread";
+import type { ThreadId } from "./chat/types";
+import type { ThreadMsg } from "./chat/thread";
 import type { ChatMsg } from "./chat/chat";
 import type { Input as CompactThreadInput } from "./tools/compact-thread";
 

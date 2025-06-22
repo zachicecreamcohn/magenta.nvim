@@ -2,8 +2,7 @@ import type { Nvim } from "../nvim/nvim-node";
 import type { MagentaOptions, Profile } from "../options";
 import type { RootMsg } from "../root-msg";
 import type { Dispatch } from "../tea/tea";
-import { Thread, view as threadView, type ThreadId } from "./thread";
-import { CHAT_TOOL_NAMES, type ToolName } from "../tools/tool-registry.ts";
+import { Thread, view as threadView } from "./thread";
 import type { Lsp } from "../lsp";
 import { assertUnreachable } from "../utils/assertUnreachable";
 import { d, withBindings, type VDOMNode } from "../tea/view";
@@ -18,8 +17,11 @@ import {
   type UnresolvedFilePath,
 } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
-import type { ToolRequestId } from "../tools/toolManager.ts";
-import type { SubagentSystemPrompt } from "../providers/system-prompt.ts";
+import { wrapStaticToolMsg, type ToolRequestId } from "../tools/toolManager.ts";
+import type { ToolName } from "../tools/types.ts";
+import { MCPToolManager } from "../tools/mcp/manager.ts";
+import type { WaitForSubagentsTool } from "../tools/wait-for-subagents.ts";
+import type { ThreadId, ThreadType } from "./types.ts";
 
 type ThreadWrapper = (
   | {
@@ -70,9 +72,8 @@ export type Msg =
       type: "spawn-subagent-thread";
       parentThreadId: ThreadId;
       spawnToolRequestId: ToolRequestId;
-      allowedTools: ToolName[];
       initialPrompt: string;
-      systemPrompt: SubagentSystemPrompt | undefined;
+      threadType: ThreadType;
       contextFiles?: UnresolvedFilePath[];
     }
   | {
@@ -93,6 +94,7 @@ export class Chat {
   state: ChatState;
   public threadWrappers: { [id: ThreadId]: ThreadWrapper };
   public rememberedCommands: Set<string>;
+  private mcpToolManager: MCPToolManager;
 
   constructor(
     private context: {
@@ -110,6 +112,11 @@ export class Chat {
       state: "thread-overview",
       activeThreadId: undefined,
     };
+
+    this.mcpToolManager = new MCPToolManager(
+      this.context.options.mcpServers,
+      this.context,
+    );
 
     setTimeout(() => {
       this.createNewThread().catch((e: Error) => {
@@ -256,21 +263,19 @@ export class Chat {
   private async createThreadWithContext({
     threadId,
     profile,
-    allowedTools,
     contextFiles = [],
     parent,
     switchToThread,
     initialMessage,
-    systemPrompt,
+    threadType,
   }: {
     threadId: ThreadId;
     profile: Profile;
-    allowedTools: ToolName[];
     contextFiles?: UnresolvedFilePath[];
     parent?: ThreadId;
     switchToThread: boolean;
     initialMessage?: string;
-    systemPrompt?: SubagentSystemPrompt | undefined;
+    threadType: ThreadType;
   }) {
     this.threadWrappers[threadId] = {
       state: "pending",
@@ -312,19 +317,13 @@ export class Chat {
       );
     }
 
-    const thread = new Thread(
-      threadId,
-      {
-        systemPrompt,
-        allowedTools,
-      },
-      {
-        ...this.context,
-        contextManager,
-        profile,
-        chat: this,
-      },
-    );
+    const thread = new Thread(threadId, threadType, {
+      ...this.context,
+      contextManager,
+      mcpToolManager: this.mcpToolManager,
+      profile,
+      chat: this,
+    });
 
     this.context.dispatch({
       type: "chat-msg",
@@ -368,7 +367,7 @@ export class Chat {
         this.context.options.activeProfile,
       ),
       switchToThread: true,
-      allowedTools: CHAT_TOOL_NAMES,
+      threadType: "root",
     });
   }
 
@@ -523,9 +522,9 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const newThreadId = this.threadCounter.get() as ThreadId;
 
     await this.createThreadWithContext({
+      threadType: "root",
       threadId: newThreadId,
       profile: sourceThread.state.profile,
-      allowedTools: CHAT_TOOL_NAMES,
       contextFiles: contextFilePaths,
       switchToThread: true,
       initialMessage: initialMessage,
@@ -535,17 +534,15 @@ ${threadViews.map((view) => d`${view}\n`)}`;
   async handleSpawnSubagentThread({
     parentThreadId,
     spawnToolRequestId,
-    allowedTools,
     initialPrompt,
     contextFiles,
-    systemPrompt,
+    threadType,
   }: {
     parentThreadId: ThreadId;
     spawnToolRequestId: ToolRequestId;
-    allowedTools: ToolName[];
     initialPrompt: string;
     contextFiles?: UnresolvedFilePath[];
-    systemPrompt?: SubagentSystemPrompt | undefined;
+    threadType: ThreadType;
   }) {
     const parentThreadWrapper = this.threadWrappers[parentThreadId];
     if (!parentThreadWrapper || parentThreadWrapper.state !== "initialized") {
@@ -555,25 +552,17 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const parentThread = parentThreadWrapper.thread;
     const subagentThreadId = this.threadCounter.get() as ThreadId;
 
-    const subagentAllowedTools: ToolName[] = allowedTools.includes(
-      "yield_to_parent",
-    )
-      ? allowedTools
-      : [...allowedTools, "yield_to_parent"];
-
     try {
       const thread = await this.createThreadWithContext({
         threadId: subagentThreadId,
         profile: parentThread.state.profile,
-        allowedTools: subagentAllowedTools,
         contextFiles: contextFiles || [],
         parent: parentThreadId,
         switchToThread: false,
         initialMessage: initialPrompt,
-        systemPrompt,
+        threadType,
       });
 
-      // Notify parent spawn call of successful thread spawn
       this.context.dispatch({
         type: "thread-msg",
         id: parentThreadId,
@@ -583,14 +572,14 @@ ${threadViews.map((view) => d`${view}\n`)}`;
             type: "tool-msg",
             msg: {
               id: spawnToolRequestId,
-              toolName: "spawn_subagent",
-              msg: {
+              toolName: "spawn_subagent" as ToolName,
+              msg: wrapStaticToolMsg({
                 type: "subagent-created",
                 result: {
                   status: "ok",
                   value: thread.id,
                 },
-              },
+              }),
             },
           },
         },
@@ -606,15 +595,15 @@ ${threadViews.map((view) => d`${view}\n`)}`;
             type: "tool-msg",
             msg: {
               id: spawnToolRequestId,
-              toolName: "spawn_subagent",
-              msg: {
+              toolName: "spawn_subagent" as ToolName,
+              msg: wrapStaticToolMsg({
                 type: "subagent-created",
                 result: {
                   status: "error",
                   error:
                     e instanceof Error ? e.message + "\n" + e.stack : String(e),
                 },
-              },
+              }),
             },
           },
         },
@@ -794,9 +783,11 @@ ${threadViews.map((view) => d`${view}\n`)}`;
         if (content.type === "tool_use" && content.request.status === "ok") {
           const request = content.request.value;
           if (request.toolName === "wait_for_subagents") {
-            const tool = parentThread.toolManager.tools[request.id];
+            const tool = parentThread.toolManager.getTool(
+              request.id,
+            ) as unknown as WaitForSubagentsTool;
             if (tool && tool.state.state === "waiting") {
-              setTimeout(() =>
+              setTimeout(() => {
                 this.context.dispatch({
                   type: "thread-msg",
                   id: parentThread.id,
@@ -806,15 +797,15 @@ ${threadViews.map((view) => d`${view}\n`)}`;
                       type: "tool-msg",
                       msg: {
                         id: tool.request.id,
-                        toolName: "wait_for_subagents",
-                        msg: {
+                        toolName: "wait_for_subagents" as ToolName,
+                        msg: wrapStaticToolMsg({
                           type: "check-threads",
-                        },
+                        }),
                       },
                     },
                   },
-                }),
-              );
+                });
+              });
             }
           }
         }

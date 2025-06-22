@@ -10,9 +10,9 @@ import { d, type View, type VDOMNode } from "../tea/view.ts";
 import {
   ToolManager,
   type Msg as ToolManagerMsg,
-  type ToolRequest,
+  type StaticToolRequest,
 } from "../tools/toolManager.ts";
-import { type ToolName } from "../tools/tool-registry.ts";
+import { MCPToolManager } from "../tools/mcp/manager.ts";
 import { Counter } from "../utils/uniqueId.ts";
 import { FileSnapshots } from "../tools/file-snapshots.ts";
 import type { Nvim } from "../nvim/nvim-node";
@@ -37,14 +37,13 @@ import {
   type Input as ThreadTitleInput,
   spec as threadTitleToolSpec,
 } from "../tools/thread-title.ts";
-import { getToolSpecs } from "../tools/tool-specs.ts";
+
 import type { Chat } from "./chat.ts";
+import type { ThreadId, ThreadType } from "./types.ts";
 import {
   DEFAULT_SYSTEM_PROMPT,
-  type SubagentSystemPrompt,
+  getSystemPrompt,
 } from "../providers/system-prompt.ts";
-
-export type Role = "user" | "assistant";
 
 export type StoppedConversationState = {
   state: "stopped";
@@ -125,8 +124,6 @@ export type ThreadMsg = {
   msg: Msg;
 };
 
-export type ThreadId = number & { __threadId: true };
-
 export class Thread {
   public state: {
     title?: string | undefined;
@@ -134,8 +131,7 @@ export class Thread {
     profile: Profile;
     conversation: ConversationState;
     messages: Message[];
-    allowedTools: ToolName[];
-    systemPrompt?: SubagentSystemPrompt | undefined;
+    threadType: ThreadType;
   };
 
   private myDispatch: Dispatch<Msg>;
@@ -148,13 +144,11 @@ export class Thread {
 
   constructor(
     public id: ThreadId,
-    options: {
-      systemPrompt?: SubagentSystemPrompt | undefined;
-      allowedTools: ToolName[];
-    },
+    threadType: ThreadType,
     public context: {
       dispatch: Dispatch<RootMsg>;
       chat: Chat;
+      mcpToolManager: MCPToolManager;
       bufferTracker: BufferTracker;
       profile: Profile;
       nvim: Nvim;
@@ -181,6 +175,7 @@ export class Thread {
         dispatch: this.context.dispatch,
         threadId: this.id,
         bufferTracker: this.context.bufferTracker,
+        mcpToolManager: this.context.mcpToolManager,
         chat: this.context.chat,
         nvim: this.context.nvim,
         lsp: this.context.lsp,
@@ -200,8 +195,7 @@ export class Thread {
         usage: { inputTokens: 0, outputTokens: 0 },
       },
       messages: [],
-      allowedTools: options.allowedTools,
-      systemPrompt: options.systemPrompt,
+      threadType: threadType,
     };
 
     this.scheduleTokenEstimateUpdate();
@@ -365,8 +359,7 @@ export class Thread {
             usage: { inputTokens: 0, outputTokens: 0 },
           },
           messages: [],
-          allowedTools: this.state.allowedTools,
-          systemPrompt: this.state.systemPrompt,
+          threadType: this.state.threadType,
         };
         this.contextManager.reset();
 
@@ -448,11 +441,15 @@ export class Thread {
       ) {
         const request = lastContentBlock.request.value;
         if (request.toolName == "yield_to_parent") {
+          const yieldRequest = request as Extract<
+            StaticToolRequest,
+            { toolName: "yield_to_parent" }
+          >;
           this.myUpdate({
             type: "conversation-state",
             conversation: {
               state: "yielded",
-              response: request.input.result,
+              response: yieldRequest.input.result,
             },
           });
           return;
@@ -477,8 +474,8 @@ export class Thread {
     if (lastMessage) {
       for (const content of lastMessage.state.content) {
         if (content.type === "tool_use") {
-          const tool = this.toolManager.tools[content.id];
-          if (tool && tool.state.state !== "done") {
+          const tool = this.toolManager.getTool(content.id);
+          if (!tool.isDone()) {
             tool.abort();
           }
         }
@@ -496,12 +493,9 @@ export class Thread {
         for (const content of lastMessage.state.content) {
           if (content.type == "tool_use" && content.request.status == "ok") {
             const request = content.request.value;
-            const tool = this.toolManager.tools[request.id];
+            const tool = this.toolManager.getTool(request.id);
 
-            if (
-              tool.request.toolName == "yield_to_parent" ||
-              tool.state.state != "done"
-            ) {
+            if (tool.request.toolName == "yield_to_parent" || !tool.isDone()) {
               // terminate early if we have a blocking tool use. This will not send a reply message
               return;
             }
@@ -581,10 +575,8 @@ export class Thread {
     this.scheduleTokenEstimateUpdate();
     const messages = this.getMessages();
 
-    const request = getProvider(
-      this.context.nvim,
-      this.state.profile,
-    ).sendMessage(
+    const provider = getProvider(this.context.nvim, this.state.profile);
+    const request = provider.sendMessage(
       messages,
       (event) => {
         this.myDispatch({
@@ -592,8 +584,8 @@ export class Thread {
           event,
         });
       },
-      getToolSpecs(this.state.allowedTools),
-      { systemPrompt: this.state.systemPrompt },
+      this.toolManager.getToolSpecs(this.state.threadType),
+      { systemPrompt: getSystemPrompt(this.state.threadType) },
     );
 
     this.myDispatch({
@@ -642,7 +634,7 @@ ${content}`;
         },
       ],
       compactThreadSpec,
-      { systemPrompt: this.state.systemPrompt },
+      { systemPrompt: getSystemPrompt(this.state.threadType) },
     );
 
     this.myDispatch({
@@ -659,7 +651,7 @@ ${content}`;
 
     if (result.toolRequest.status === "ok") {
       const compactRequest = result.toolRequest.value as Extract<
-        ToolRequest,
+        StaticToolRequest,
         { toolName: "compact_thread" }
       >;
 
@@ -737,7 +729,7 @@ ${content}`,
         if (contentBlock.type == "tool_use") {
           if (contentBlock.request.status == "ok") {
             const request = contentBlock.request.value;
-            const tool = this.toolManager.tools[request.id];
+            const tool = this.toolManager.getTool(request.id);
             pushResponseMessage(tool.getToolResult());
           } else {
             pushResponseMessage({
@@ -782,7 +774,7 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
         },
       ],
       threadTitleToolSpec,
-      { systemPrompt: this.state.systemPrompt },
+      { systemPrompt: getSystemPrompt(this.state.threadType) },
     );
     const result = await request.promise;
     if (result.toolRequest.status == "ok") {
@@ -805,7 +797,7 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
     this.tokenCountUpdatePending = true;
     // OK to do this async, so it doesn't slow down the rest of the plugin
     setTimeout(() => {
-      const toolSpecs = getToolSpecs(this.state.allowedTools);
+      const toolSpecs = this.toolManager.getToolSpecs(this.state.threadType);
       const toolSpecLength = toolSpecs.reduce(
         (sum, spec) => sum + JSON.stringify(spec).length,
         0,
