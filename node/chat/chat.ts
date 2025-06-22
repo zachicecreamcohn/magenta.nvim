@@ -94,6 +94,7 @@ export class Chat {
   state: ChatState;
   public threadWrappers: { [id: ThreadId]: ThreadWrapper };
   public rememberedCommands: Set<string>;
+  private mcpToolManager: MCPToolManager;
 
   constructor(
     private context: {
@@ -111,6 +112,11 @@ export class Chat {
       state: "thread-overview",
       activeThreadId: undefined,
     };
+
+    this.mcpToolManager = new MCPToolManager(
+      this.context.options.mcpServers,
+      this.context,
+    );
 
     setTimeout(() => {
       this.createNewThread().catch((e: Error) => {
@@ -295,11 +301,6 @@ export class Chat {
       },
     );
 
-    const mcpToolManager = new MCPToolManager(
-      this.context.options.mcpServers,
-      this.context,
-    );
-
     if (contextFiles.length > 0) {
       await Promise.all(
         contextFiles.map(async (filePath) => {
@@ -319,7 +320,7 @@ export class Chat {
     const thread = new Thread(threadId, threadType, {
       ...this.context,
       contextManager,
-      mcpToolManager,
+      mcpToolManager: this.mcpToolManager,
       profile,
       chat: this,
     });
