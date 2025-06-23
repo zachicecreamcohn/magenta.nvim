@@ -134,7 +134,7 @@ require('magenta').setup({
       apiKeyEnvVar = "OPENAI_API_KEY"
     },
     {
-      name = "copilot-claude-4",
+      name = "copilot-claude",
       provider = "copilot",
       model = "claude-3.7-sonnet",
       -- No apiKeyEnvVar needed - uses existing Copilot authentication
