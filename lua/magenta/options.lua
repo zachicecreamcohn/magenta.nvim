@@ -25,6 +25,11 @@ local defaults = {
       provider = "openai",
       model = "gpt-4o",
       apiKeyEnvVar = "OPENAI_API_KEY"
+    },
+    {
+      name = "copilot-claude-sonnet",
+      provider = "copilot",
+      model = "claude-3-5-sonnet-20241022"
     }
   },
   picker = "fzf-lua",

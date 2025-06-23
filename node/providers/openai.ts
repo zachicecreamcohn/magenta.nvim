@@ -546,7 +546,6 @@ export class OpenAIProvider implements Provider {
       request = await this.client.responses.create(params);
 
       for await (const event of request) {
-        this.nvim.logger?.info(`event.type: ${event.type}`);
         switch (event.type) {
           case "response.output_item.added":
             switch (event.item.type) {
