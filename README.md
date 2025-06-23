@@ -39,6 +39,8 @@ I added support for images and pdfs. Magenta can now read these using the get_fi
 
 I implemented **MCP (Model Context Protocol) support** - You can now configure local mcp servers (for now stdio transport only) via the plugin config or via the project `.magenta/options.json` file.
 
+I added support for the copilot provider.
+
 ## May 2025
 
 I implemented thread compaction that intelligently analyzes your next prompt and extracts only the relevant parts of the conversation history. This makes it easier to continue long conversations without hitting context limits while ensuring all important information is preserved. I also updated the magenta header to give you an estimate of the token count for your current conversation.
