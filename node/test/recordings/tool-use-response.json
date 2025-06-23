@@ -1,0 +1,112 @@
+[
+  {
+    "scope": "https://api.github.com:443",
+    "method": "GET",
+    "path": "/copilot_internal/v2/token",
+    "body": "",
+    "status": 200,
+    "response": [
+      "1f8b080000000000001385545d73db2010fc2f3cab8e90acefd1437f431f3b1906c1615f8d81c2c9759ac97fef488913b7f5c42f92b8d51e62774fcf4c3ae749127a9704383959d0aca73843c6d45ed2cdda0fa0294abcc1f01ac4cfd913dc44229c107edd8212c8a8f61f9580d613ee9c8f579d8cb40932064e078f8e12eb9f990cc87ab6270aa97f78900137d39cd0414a9b1dd27e9ede7a6d943fb28cf9883b745f284a758078c5fc1bf8bc4988fefc74c55dd79f53082c1c81e235edbdf619f565392f410c1113088b8958ffbdcadbea3163700e18210949ace74d95d7555e5475c6d0693ca19ea57dd7cce21109b49813c4d5209958ef666bff81222420a125c105f671271dfe5e1372d99f0154bc984c956b233b3399bcd856b551a59e9a1a4c6dd8e3aad23190680f1757c33c595422cdbb1da43570ac671ad3abbb198b6022a4bd40c77a5ee579c6d26166fd250dc2f8282e4a8904925e0fc232961c86f024ac975a1024fa2f32d7f25fed48fe008ef58c508f6d5d3560645999ce70c375bbdd76db12caba04d595851cbc1def1d7b8073183f9c18d2611eef7cfdb086e70b84f15e8a8644a3f6b43e2535f26119c5e586cbf528ad413bf20134928f22bccd9a01497384b4bca2c2980f4ac5910fed218c7cc03036d58617ed866f37db6e90c98d5fbf1539e7553f1545cd6b5e9653dd5445d1e95c359369a6b2ae78c7752e9b72ea5ad5944673ae645368d94e5c6ebb5c36baeb165bd66142b713a859cfee09cc32764a4a800545d13b6180d41ea23815ef369e975fc5254eeb422c22bce12f7f004065b733cd040000"
+    ],
+    "rawHeaders": {
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset",
+      "cache-control": "private, max-age=60, s-maxage=60",
+      "content-encoding": "gzip",
+      "content-security-policy": "default-src 'none'",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Mon, 23 Jun 2025 03:14:16 GMT",
+      "etag": "W/\"d1af3c5cb800411ff1a791631126b408aae09604bbb85934e58ed3fbddbe0847\"",
+      "referrer-policy": "origin-when-cross-origin, strict-origin-when-cross-origin",
+      "server": "github.com",
+      "strict-transport-security": "max-age=31536000; includeSubdomains; preload",
+      "transfer-encoding": "chunked",
+      "vary": "Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With",
+      "x-accepted-oauth-scopes": "",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "deny",
+      "x-github-media-type": "github.v3; format=json",
+      "x-github-request-id": "E0C7:1F31B:7A0A29D:7F5B35F:6858C687",
+      "x-oauth-client-id": "Iv1.b507a08c87ecfe98",
+      "x-oauth-scopes": "",
+      "x-ratelimit-limit": "15000",
+      "x-ratelimit-remaining": "14991",
+      "x-ratelimit-reset": "1750651963",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "9",
+      "x-xss-protection": "0"
+    },
+    "reqheaders": {
+      "accept": "application/vnd.github.v3+json",
+      "authorization": "token ghu_1234567890abcdef"
+    },
+    "responseIsBinary": false
+  },
+  {
+    "scope": "https://api.business.githubcopilot.com:443",
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+      "model": "claude-3.7-sonnet",
+      "stream": true,
+      "messages": [
+        {
+          "role": "system",
+          "content": "# Role and Context\n\nYou are a coding assistant to a software engineer inside a neovim plugin called magenta.nvim\n\nIMPORTANT: Stick to the task that the user has given you. If you notice a need for a related or tangential task, ask the user if that is what they want before proceeding.\n\n<example>\nuser: Write a test for the new functionality in file myfile.ts\nassistant: I think I need a new helper function in the test harness [describes the new helper function] would you like me to proceed?\n</example>\n\n- If the user asks you a general question and doesn't mention their project, answer the question without looking at the code base. You may still do an internet search\n- If you are having trouble getting something to work (the code to compile, a test to pass), ask the user for guidance instead of churning on trial-and-error\n\n# Be Concise\n\nIMPORTANT: Avoid restating things that can be gathered from reviewing the code changes. Do not announce what you are about to do, or summarize what you just did. Doing so would waste tokens (which is expensive) and the user's time. When you finish a task, just say \"I finished the task\".\n\n<example>\nuser: Refactor this interface\nassistant: [uses the find_references or greps for the interface]\nassistant: [uses the replace tool to update the interfaces]\nassistant: I finished refactoring the interface.\n</example>\n\n<example>\nuser: Create a function that adds two numbers\nassistant: [uses replace tool to add the function]\nassistant: I created function addTwoNumbers\n</example>\n\n\nIMPORTANT: By default, keep your responses short and to the point. Start by answering with at most one paragraph of text (not including tool use or code generation). The user can always ask for more detail if needed.\n\n<example>\nuser: What are the first 5 numbers of the fibonacci sequence?\nassistant: 1 1 2 3 5\n</example>\n\n<example>\nuser: What's the return value of the function setTimeout?\nassistant: [uses the hover tool] NodeJS.Timeout\nuser: How can I use this to cancel a timeout?\nassistant:\n```\nconst timeout = setTimeout(...)\nclearTimeout(timeout)\n```\n</example>\n\n<example>\nuser: What does this function do?\nassistant: Adds two numbers and returns the result\n</example>\n\n<example>\nuser: how do I find all Python files in subdirectories?\nassistant: find . -name \"*.py\"\n</example>\n\n# Understanding the Codebase\n- Do not guess at interfaces or functions defined in the code. Instead, find exact specifications of all entities\n- Before using any library or framework, verify it's already used in the codebase by checking dependency files, imports in similar files, or existing patterns\n- Match the existing patterns of the code and do not introduce new libraries or modules without asking\n- Examine nearby files to understand naming conventions, file organization, and architectural patterns\n# Code Change Guidelines\n- Prefer small, semantically meaningful steps over trying to complete everything in one go\n- Perform edits within the existing file unless the user explicitly asks you to create a new version of the file. Do not create \"new\" or \"example\" files. The user has access to version control and snapshots of your changes, so they can revert your changes\n- Keep parameters and interfaces minimal - only include what's absolutely necessary\n- Do not write comments that simply restate what the code is doing. Your code should be self-documenting through thoughtful name choices and types, so such comments would be redundant, wasting the user's time and tokens.\n- Only use comments to explain \"why\" the code is necessary, or explain context or connections to other pieces of the code that is not colocated with the comment"
+        },
+        {
+          "role": "user",
+          "content": "What's the weather in London?"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "description": "Get weather information",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "location": {
+                  "type": "string",
+                  "description": "City name"
+                }
+              },
+              "required": ["location"],
+              "additionalProperties": false
+            }
+          }
+        }
+      ]
+    },
+    "status": 200,
+    "response": "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"I\",\"role\":\"assistant\"}}],\"created\":1750648458,\"id\":\"0112d8ee-dbc3-4aba-955e-914c9de7e8fd\",\"model\":\"claude-3.7-sonnet\"}\n\ndata: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"'ll\",\"role\":\"assistant\"}}],\"created\":1750648458,\"id\":\"0112d8ee-dbc3-4aba-955e-914c9de7e8fd\",\"model\":\"claude-3.7-sonnet\"}\n\ndata: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\" check\",\"role\":\"assistant\"}}],\"created\":1750648458,\"id\":\"0112d8ee-dbc3-4aba-955e-914c9de7e8fd\",\"model\":\"claude-3.7-sonnet\"}\n\ndata: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\" the weather in\",\"role\":\"assistant\"}}],\"created\":1750648458,\"id\":\"0112d8ee-dbc3-4aba-955e-914c9de7e8fd\",\"model\":\"claude-3.7-sonnet\"}\n\ndata: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\" London for you.\",\"role\":\"assistant\"}}],\"created\":1750648458,\"id\":\"0112d8ee-dbc3-4aba-955e-914c9de7e8fd\",\"model\":\"claude-3.7-sonnet\"}\n\ndata: {\"choices\":[{\"index\":0,\"delta\":{\"content\":null,\"tool_calls\":[{\"function\":{\"name\":\"get_weather\"},\"id\":\"tooluse_Q5u_4XpLQE6IgoprSwK69g\",\"index\":0,\"type\":\"function\"}]}}],\"created\":1750648458,\"id\":\"0112d8ee-dbc3-4aba-955e-914c9de7e8fd\",\"model\":\"claude-3.7-sonnet\"}\n\ndata: {\"choices\":[{\"index\":0,\"delta\":{\"content\":null,\"tool_calls\":[{\"function\":{\"arguments\":\"\"},\"index\":0,\"type\":\"function\"}]}}],\"created\":1750648458,\"id\":\"0112d8ee-dbc3-4aba-955e-914c9de7e8fd\",\"model\":\"claude-3.7-sonnet\"}\n\ndata: {\"choices\":[{\"index\":0,\"delta\":{\"content\":null,\"tool_calls\":[{\"function\":{\"arguments\":\"{\\\"locatio\"},\"index\":0,\"type\":\"function\"}]}}],\"created\":1750648458,\"id\":\"0112d8ee-dbc3-4aba-955e-914c9de7e8fd\",\"model\":\"claude-3.7-sonnet\"}\n\ndata: {\"choices\":[{\"index\":0,\"delta\":{\"content\":null,\"tool_calls\":[{\"function\":{\"arguments\":\"n\\\":\"},\"index\":0,\"type\":\"function\"}]}}],\"created\":1750648458,\"id\":\"0112d8ee-dbc3-4aba-955e-914c9de7e8fd\",\"model\":\"claude-3.7-sonnet\"}\n\ndata: {\"choices\":[{\"index\":0,\"delta\":{\"content\":null,\"tool_calls\":[{\"function\":{\"arguments\":\" \\\"London\\\"}\"},\"index\":0,\"type\":\"function\"}]}}],\"created\":1750648458,\"id\":\"0112d8ee-dbc3-4aba-955e-914c9de7e8fd\",\"model\":\"claude-3.7-sonnet\"}\n\ndata: {\"choices\":[{\"finish_reason\":\"tool_calls\",\"index\":0,\"delta\":{\"content\":null}}],\"created\":1750648458,\"id\":\"0112d8ee-dbc3-4aba-955e-914c9de7e8fd\",\"usage\":{\"completion_tokens\":48,\"prompt_tokens\":1247,\"prompt_tokens_details\":{\"cached_tokens\":0},\"total_tokens\":1295},\"model\":\"claude-3.7-sonnet\"}\n\ndata: [DONE]\n\n",
+    "rawHeaders": {
+      "cache-control": "no-cache",
+      "content-security-policy": "default-src 'none'; sandbox",
+      "content-type": "text/event-stream",
+      "date": "Mon, 23 Jun 2025 03:14:18 GMT",
+      "strict-transport-security": "max-age=31536000",
+      "transfer-encoding": "chunked",
+      "x-github-backend": "Kubernetes",
+      "x-github-request-id": "E0C8:309762:3A545C:51B0A9:6858C688",
+      "x-request-id": "00000-a434d495-dffa-4137-8e73-102417731f7a"
+    },
+    "reqheaders": {
+      "accept": "application/json",
+      "authorization": "Bearer tid=8657efa35f9f1f1d844943e363ec932a;ol=ee512bf50dfa9fbf02456fc3db76ef6f;exp=1750650256;sku=copilot_for_business_seat_quota;proxy-ep=proxy.business.githubcopilot.com;st=dotcom;ssc=1;chat=1;cit=1;malfil=1;editor_preview_features=1;mcp=0;ccr=1;8kp=1;ip=75.128.14.49;asn=AS20115:b22616133b675229d0c7bf7b365191d0a73b98c73fd11ca72da8b1a490a7d99a",
+      "content-type": "application/json",
+      "copilot-integration-id": "vscode-chat",
+      "editor-version": "Neovim/0.11.0",
+      "x-stainless-arch": "arm64",
+      "x-stainless-lang": "js",
+      "x-stainless-os": "MacOS",
+      "x-stainless-package-version": "5.3.0",
+      "x-stainless-retry-count": "0",
+      "x-stainless-runtime": "node",
+      "x-stainless-runtime-version": "v20.18.1"
+    },
+    "responseIsBinary": false
+  }
+]

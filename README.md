@@ -122,16 +122,22 @@ require('magenta').setup()
 require('magenta').setup({
   profiles = {
     {
-      name = "claude-3-7",
+      name = "claude-4",
       provider = "anthropic",
-      model = "claude-3-7-sonnet-latest",
+      model = "claude-4-sonnet-latest",
       apiKeyEnvVar = "ANTHROPIC_API_KEY"
     },
     {
-      name = "gpt-4o",
+      name = "gpt-4.1",
       provider = "openai",
-      model = "gpt-4o",
+      model = "gpt-4.1",
       apiKeyEnvVar = "OPENAI_API_KEY"
+    },
+    {
+      name = "copilot-claude-4",
+      provider = "copilot",
+      model = "claude-3.7-sonnet",
+      -- No apiKeyEnvVar needed - uses existing Copilot authentication
     }
   },
   -- open chat sidebar on left or right side
@@ -197,14 +203,43 @@ profiles = {
 }
 ```
 
-Currently supported providers are `openai`, `anthropic`, `bedrock`, and `ollama`. The `model` parameter must be compatible with the SDK used for each provider:
+Currently supported providers are `openai`, `anthropic`, `bedrock`, `ollama`, and `copilot`. The `model` parameter must be compatible with the SDK used for each provider:
 
 - For `anthropic`: [Anthropic Node SDK](https://github.com/anthropics/anthropic-sdk-typescript) - supports models like `claude-3-7-sonnet-latest`, `claude-3-5-sonnet-20240620`
-- For `openai`: [OpenAI Node SDK](https://github.com/openai/openai-node) - supports models like `gpt-4o`, `o1`
+- For `openai`: [OpenAI Node SDK](https://github.com/openai/openai-node) - supports models like `gpt-4.1`, `o1`
 - For `bedrock`: [AWS SDK for Bedrock Runtime](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-bedrock-runtime/) - supports models like `anthropic.claude-3-5-sonnet-20241022-v2:0`
 - For `ollama`: [Ollama Node SDK](https://github.com/ollama/ollama-js) - supports models like `qwen3:14b` which have been insalled locally. ([Ollama models](https://ollama.com/search))
+- For `copilot`: Uses GitHub Copilot authentication - No API key required, uses your existing Copilot subscription. See the [aider docs](https://aider.chat/docs/llms/github.html#discover-available-models) for how to discover available models.
 
 Any provider that has a node SDK and supports tool use should be easy to add. Contributions are welcome.
+
+## GitHub Copilot Provider
+
+The Copilot provider leverages your existing GitHub Copilot subscription and doesn't require a separate API key. It automatically discovers your Copilot authentication from standard locations:
+
+- `~/.config/github-copilot/hosts.json`
+- `~/.config/github-copilot/apps.json`
+
+**Prerequisites:**
+
+- Active GitHub Copilot subscription
+- GitHub Copilot CLI or VS Code extension installed and authenticated
+
+**Setup:**
+
+```lua
+{
+  name = "copilot",
+  provider = "copilot",
+  model = "claude-3.7-sonnet"  -- or "gpt-4.1"
+}
+```
+
+The provider handles token refresh automatically and integrates with GitHub's Copilot API endpoints.
+
+**NOTE:**
+
+Copilot does this awkward thing where it gives you access to claude, but only through the openai chat completions api. As such they're really behind the ball on features. So for example, web_search for claude does not work [issue](https://github.com/microsoft/vscode-copilot-release/issues/6755). As such, I would not recommend it, though it is cheaper than paying for claude tokens directly.
 
 ## Command allowlist
 

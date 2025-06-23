@@ -72,7 +72,6 @@ class CopilotAuth {
   private async discoverOAuthToken(): Promise<string> {
     for (const tokenPath of CopilotAuth.TOKEN_PATHS) {
       try {
-        await fs.access(tokenPath);
         const data = await fs.readFile(tokenPath, "utf-8");
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const parsed = JSON.parse(data);
@@ -161,7 +160,7 @@ export class CopilotProvider implements Provider {
 
   constructor(_nvim: Nvim) {
     this.auth = new CopilotAuth();
-    this.model = "gpt-4o";
+    this.model = "claude-3.7-sonnet";
   }
 
   setModel(model: string): void {
@@ -174,8 +173,8 @@ export class CopilotProvider implements Provider {
       apiKey: token,
       baseURL: endpoints.api,
       defaultHeaders: {
-        "Copilot-Integration-Id": "neovim-magenta",
-        "Editor-Version": `Neovim`,
+        "Copilot-Integration-Id": "vscode-chat",
+        "Editor-Version": "Neovim/0.11.0",
       },
     });
   }
