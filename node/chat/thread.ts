@@ -566,7 +566,6 @@ export class Thread {
     const request = provider.sendMessage(
       messages,
       (event) => {
-        this.context.nvim.logger?.info(JSON.stringify(event));
         this.myDispatch({
           type: "stream-event",
           event,

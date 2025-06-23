@@ -293,8 +293,6 @@ export class OllamaProvider implements Provider {
       blockStarted = true;
 
       for await (const chunk of request) {
-        this.nvim.logger?.info(`ollama chunk: ${JSON.stringify(chunk)}`);
-
         if (chunk.message?.content) {
           onStreamEvent({
             type: "content_block_delta",
