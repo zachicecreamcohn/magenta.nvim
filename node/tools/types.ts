@@ -32,7 +32,8 @@ export interface StaticTool {
   getToolResult(): ProviderToolResult;
   request: StaticToolRequest;
   abort(): void;
-  view(): VDOMNode;
+  renderRequest(): VDOMNode;
+  renderResponse(): VDOMNode;
   displayInput(): string | VDOMNode;
 }
 

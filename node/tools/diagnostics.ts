@@ -176,12 +176,27 @@ export class DiagnosticsTool implements StaticTool {
     }
   }
 
-  view() {
+  renderRequest() {
     switch (this.state.state) {
       case "processing":
-        return d`⚙️ Getting diagnostics...`;
+        return d`🔍⚙️ diagnostics`;
       case "done":
-        return d`✅ Finished getting diagnostics.`;
+        return d`🔍 diagnostics`;
+      default:
+        assertUnreachable(this.state);
+    }
+  }
+
+  renderResponse() {
+    switch (this.state.state) {
+      case "processing":
+        return d``;
+      case "done":
+        if (this.state.result.result.status === "error") {
+          return d`❌ ${this.state.result.result.error}`;
+        } else {
+          return d`✅ Diagnostics retrieved`;
+        }
       default:
         assertUnreachable(this.state);
     }

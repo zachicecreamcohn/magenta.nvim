@@ -136,12 +136,27 @@ export class ListBuffersTool implements StaticTool {
     }
   }
 
-  view() {
+  renderRequest() {
     switch (this.state.state) {
       case "processing":
-        return d`⚙️ Grabbing buffers...`;
+        return d`📄⚙️ buffers`;
       case "done":
-        return d`✅ Finished getting buffers.`;
+        return d`📄 buffers`;
+      default:
+        assertUnreachable(this.state);
+    }
+  }
+
+  renderResponse() {
+    switch (this.state.state) {
+      case "processing":
+        return d``;
+      case "done":
+        if (this.state.result.result.status === "error") {
+          return d`❌ ${this.state.result.result.error}`;
+        } else {
+          return d`✅ Buffers listed`;
+        }
       default:
         assertUnreachable(this.state);
     }

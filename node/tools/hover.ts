@@ -181,12 +181,27 @@ ${lspResult.result.contents.value}
     }
   }
 
-  view() {
+  renderRequest() {
     switch (this.state.state) {
       case "processing":
-        return d`⚙️ Requesting hover info...`;
+        return d`ℹ️⚙️ \`${this.request.input.symbol}\` in \`${this.request.input.filePath}\``;
       case "done":
-        return d`✅ Hover request complete.`;
+        return d`ℹ️ \`${this.request.input.symbol}\` in \`${this.request.input.filePath}\``;
+      default:
+        assertUnreachable(this.state);
+    }
+  }
+
+  renderResponse() {
+    switch (this.state.state) {
+      case "processing":
+        return d``;
+      case "done":
+        if (this.state.result.result.status === "error") {
+          return d`❌ ${this.state.result.result.error}`;
+        } else {
+          return d`✅ Hover info retrieved`;
+        }
       default:
         assertUnreachable(this.state);
     }

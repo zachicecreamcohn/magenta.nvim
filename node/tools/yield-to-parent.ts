@@ -86,14 +86,18 @@ export class YieldToParentTool implements StaticTool {
     return this.state.result;
   }
 
-  view() {
+  renderRequest() {
+    return d`↗️ Yielding to parent: ${this.request.input.result}`;
+  }
+
+  renderResponse() {
     switch (this.state.state) {
       case "done": {
         const result = this.state.result.result;
         if (result.status === "error") {
           return d`❌ Error yielding to parent: ${result.error}`;
         } else {
-          return d`↗️ yielded`;
+          return d`✅ Yielded successfully`;
         }
       }
     }
