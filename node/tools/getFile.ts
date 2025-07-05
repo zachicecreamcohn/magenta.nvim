@@ -439,13 +439,13 @@ You already have the most up-to-date information about the contents of this file
     }
   }
 
-  renderRequest() {
+  renderSummary() {
     switch (this.state.state) {
       case "pending":
       case "processing":
-        return d`📄⚙️ \`${this.request.input.filePath}\``;
+        return d`👀⚙️ \`${this.request.input.filePath}\``;
       case "pending-user-action":
-        return d`📄⏳ May I read file  \`${this.request.input.filePath}\`? ${withBindings(
+        return d`👀⏳ May I read file  \`${this.request.input.filePath}\`? ${withBindings(
           d`**[ NO ]**`,
           {
             "<CR>": () =>
@@ -459,23 +459,22 @@ You already have the most up-to-date information about the contents of this file
             this.context.myDispatch({ type: "user-approval", approved: true }),
         })}`;
       case "done":
-        return d`📄 \`${this.request.input.filePath}\``;
-      default:
-        assertUnreachable(this.state);
-    }
-  }
-
-  renderResponse() {
-    switch (this.state.state) {
-      case "pending":
-      case "processing":
-      case "pending-user-action":
-        return d``;
-      case "done":
         if (this.state.result.result.status == "error") {
-          return d`❌ \`${this.request.input.filePath}\`: ${this.state.result.result.error}`;
+          return d`👀❌ \`${this.request.input.filePath}\``;
         } else {
-          return d`✅ \`${this.request.input.filePath}\``;
+          // Count lines in the result
+          let lineCount = 0;
+          if (
+            this.state.result.result.value &&
+            this.state.result.result.value.length > 0
+          ) {
+            const firstValue = this.state.result.result.value[0];
+            if (firstValue.type === "text") {
+              lineCount = firstValue.text.split("\n").length;
+            }
+          }
+          const lineCountStr = lineCount > 0 ? ` [+ ${lineCount}]` : "";
+          return d`👀✅ \`${this.request.input.filePath}\`${lineCountStr}`;
         }
       default:
         assertUnreachable(this.state);

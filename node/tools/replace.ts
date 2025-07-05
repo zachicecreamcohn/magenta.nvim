@@ -104,7 +104,7 @@ export class ReplaceTool implements StaticTool {
     }
   }
 
-  renderRequest(): VDOMNode {
+  renderSummary(): VDOMNode {
     const findLines = this.countLines(this.request.input.find);
     const replaceLines = this.countLines(this.request.input.replace);
 
@@ -118,7 +118,7 @@ export class ReplaceTool implements StaticTool {
     }
   }
 
-  renderResponse(): VDOMNode {
+  renderPreview(): VDOMNode {
     switch (this.state.state) {
       case "processing":
         return d``;

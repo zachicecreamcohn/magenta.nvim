@@ -104,7 +104,7 @@ export class InsertTool implements StaticTool {
     }
   }
 
-  renderRequest(): VDOMNode {
+  renderSummary(): VDOMNode {
     const lineCount =
       (this.request.input.content.match(/\n/g) || []).length + 1;
 
@@ -118,7 +118,7 @@ export class InsertTool implements StaticTool {
     }
   }
 
-  renderResponse(): VDOMNode {
+  renderPreview(): VDOMNode {
     switch (this.state.state) {
       case "processing":
         return d``;

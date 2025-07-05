@@ -159,11 +159,11 @@ export class ReplaceSelectionTool implements StaticTool {
     });
   }
 
-  renderRequest() {
+  renderSummary() {
     return d`✏️ Replacing selected text`;
   }
 
-  renderResponse() {
+  renderPreview() {
     switch (this.state.state) {
       case "processing":
         return d`⚙️ Applying edit...`;

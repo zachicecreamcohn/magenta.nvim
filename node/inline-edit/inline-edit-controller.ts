@@ -213,8 +213,7 @@ export class InlineEditController {
       case "response-pending":
         return d`Input sent, awaiting response...`; // should never be shown...
       case "tool-use":
-        return d`${this.state.tool.renderRequest()}
-${this.state.tool.renderResponse()}`;
+        return d`${this.state.tool.renderSummary()}`;
 
       default:
         return assertUnreachable(this.state);

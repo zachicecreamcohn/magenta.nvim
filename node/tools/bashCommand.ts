@@ -488,7 +488,7 @@ export class BashCommandTool implements StaticTool {
     }
   }
 
-  renderRequest() {
+  renderSummary() {
     switch (this.state.state) {
       case "pending-user-action":
         return d`⚡⏳ May I run command \`${this.request.input.command}\`?
@@ -515,15 +515,21 @@ ${withBindings(d`**[ NO ]**`, {
           t: () => this.context.myDispatch({ type: "terminate" }),
         });
       }
-      case "done":
+      case "done": {
+        if (this.state.exitCode === 0) {
+          return d`⚡✅ \`${this.request.input.command}\``;
+        } else {
+          return d`⚡❌ \`${this.request.input.command}\` - Exit code: ${this.state.exitCode !== undefined ? this.state.exitCode.toString() : "undefined"} `;
+        }
+      }
       case "error":
-        return d`⚡ \`${this.request.input.command}\``;
+        return d`⚡❌ \`${this.request.input.command}\` - ${this.state.error}`;
       default:
         assertUnreachable(this.state);
     }
   }
 
-  renderResponse() {
+  renderPreview() {
     switch (this.state.state) {
       case "pending-user-action":
       case "processing":
@@ -531,7 +537,7 @@ ${withBindings(d`**[ NO ]**`, {
       case "done": {
         const formattedOutput = this.formatOutputPreview(this.state.output);
         if (this.state.exitCode === 0) {
-          return d`✅ \`${this.request.input.command}\`
+          return d`\
 \`\`\`
 ${formattedOutput}
 \`\`\``;

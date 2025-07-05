@@ -102,26 +102,15 @@ export class InlineEditTool implements StaticTool {
     };
   }
 
-  renderRequest() {
+  renderSummary() {
     switch (this.state.state) {
       case "processing":
         return d`✏️⚙️ Applying edit`;
       case "done":
-        return d`✏️ Applying edit`;
-      default:
-        assertUnreachable(this.state);
-    }
-  }
-
-  renderResponse() {
-    switch (this.state.state) {
-      case "processing":
-        return d``;
-      case "done":
         if (this.state.result.result.status === "error") {
-          return d`❌ ${this.state.result.result.error}`;
+          return d`✏️❌ Applying edit`;
         } else {
-          return d`✅ Edit applied`;
+          return d`✏️✅ Applying edit`;
         }
       default:
         assertUnreachable(this.state);

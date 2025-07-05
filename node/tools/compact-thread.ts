@@ -47,11 +47,7 @@ export class CompactThreadTool implements StaticTool {
     return this.state.result;
   }
 
-  renderRequest() {
-    return d``; // this should never need to be rendered
-  }
-
-  renderResponse() {
+  renderSummary() {
     return d``; // this should never need to be rendered
   }
 
