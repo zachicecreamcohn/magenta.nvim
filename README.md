@@ -111,7 +111,7 @@ Plug('dlants/magenta.nvim', {
 })
 vim.call('plug#end')
 
-require('magenta').setup {}
+require('magenta').setup({})
 ```
 
 # Config
