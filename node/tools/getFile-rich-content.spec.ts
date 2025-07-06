@@ -40,7 +40,7 @@ describe("getFile rich content integration tests", () => {
 
       // Should show successful processing
       await driver.assertDisplayBufferContains(
-        `✅ Finished reading file \`./node/test/fixtures/test.jpg\``,
+        `👀✅ \`./node/test/fixtures/test.jpg\``,
       );
 
       // Verify the tool result contains image content
@@ -103,7 +103,7 @@ describe("getFile rich content integration tests", () => {
 
       // Should show successful processing
       await driver.assertDisplayBufferContains(
-        `✅ Finished reading file \`./node/test/fixtures/test.pdf\``,
+        `👀✅ \`./node/test/fixtures/test.pdf\``,
       );
 
       // Verify the tool result contains document content
@@ -166,7 +166,7 @@ describe("getFile rich content integration tests", () => {
 
       // Should show error for unsupported file type
       await driver.assertDisplayBufferContains(
-        `❌ Error reading file \`./node/test/fixtures/test.bin\`: Unsupported file type`,
+        `👀❌ \`./node/test/fixtures/test.bin\``,
       );
 
       // Verify the tool result contains error
@@ -225,7 +225,7 @@ describe("getFile rich content integration tests", () => {
       });
 
       await driver.assertDisplayBufferContains(
-        `✅ Finished reading file \`./node/test/fixtures/test.jpg\``,
+        `👀✅ \`./node/test/fixtures/test.jpg\``,
       );
 
       // Handle the auto-respond message
@@ -280,7 +280,7 @@ describe("getFile rich content integration tests", () => {
       });
 
       await driver.assertDisplayBufferContains(
-        `✅ Finished reading file \`./node/test/fixtures/test.pdf\``,
+        `👀✅ \`./node/test/fixtures/test.pdf\``,
       );
 
       // Handle the auto-respond message
@@ -330,7 +330,7 @@ describe("getFile rich content integration tests", () => {
       });
 
       await driver.assertDisplayBufferContains(
-        `✅ Finished reading file \`./node/test/fixtures/poem.txt\``,
+        `👀✅ \`./node/test/fixtures/poem.txt\``,
       );
 
       // Handle the auto-respond message
@@ -384,7 +384,7 @@ describe("getFile rich content integration tests", () => {
       });
 
       await driver.assertDisplayBufferContains(
-        `✅ Finished reading file \`./node/test/fixtures/poem.txt\``,
+        `👀✅ \`./node/test/fixtures/poem.txt\``,
       );
 
       // Handle first auto-respond message
@@ -419,7 +419,7 @@ describe("getFile rich content integration tests", () => {
       });
 
       await driver.assertDisplayBufferContains(
-        `✅ Finished reading file \`./node/test/fixtures/test.jpg\``,
+        `👀✅ \`./node/test/fixtures/test.jpg\``,
       );
 
       // Handle second auto-respond message
@@ -456,7 +456,7 @@ describe("getFile rich content integration tests", () => {
       });
 
       await driver.assertDisplayBufferContains(
-        `✅ Finished reading file \`./node/test/fixtures/test.pdf\``,
+        `👀✅ \`./node/test/fixtures/test.pdf\``,
       );
 
       // Handle final auto-respond message
@@ -529,7 +529,7 @@ describe("getFile rich content integration tests", () => {
 
         // Should show error for file too large
         await driver.assertDisplayBufferContains(
-          `❌ Error reading file \`./node/test/fixtures/large-image.jpg\`: File too large`,
+          `👀❌ \`./node/test/fixtures/large-image.jpg\``,
         );
 
         // Verify the tool result contains error

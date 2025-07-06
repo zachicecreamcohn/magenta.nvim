@@ -41,12 +41,12 @@ describe("node/tools/bashCommand.spec.ts", () => {
 
       // Verify the command output is displayed
       await driver.assertDisplayBufferContains(
-        "⚡ `echo 'Hello from Magenta!'`",
+        "⚡✅ `echo 'Hello from Magenta!'`",
       );
       await driver.assertDisplayBufferContains("```");
       await driver.assertDisplayBufferContains("stdout:");
       await driver.assertDisplayBufferContains("Hello from Magenta!");
-      await driver.assertDisplayBufferContains("Exit code:");
+      await driver.assertDisplayBufferContains("```");
     });
   });
 
@@ -76,7 +76,9 @@ describe("node/tools/bashCommand.spec.ts", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains("May I run this command?");
+      await driver.assertDisplayBufferContains(
+        "⚡⏳ May I run command `nonexistentcommand`?",
+      );
       const pos = await driver.assertDisplayBufferContains("[ YES ]");
       await driver.triggerDisplayBufferKey(pos, "<CR>");
 
@@ -116,7 +118,9 @@ describe("node/tools/bashCommand.spec.ts", () => {
       });
 
       // Since this command is not in the allowlist, it should require approval
-      await driver.assertDisplayBufferContains("May I run this command?");
+      await driver.assertDisplayBufferContains(
+        '⚡⏳ May I run command `true && echo "hello, world"`?',
+      );
 
       // Verify approval UI is fully displayed
       await driver.assertDisplayBufferContains('true && echo "hello, world"');
@@ -127,11 +131,10 @@ describe("node/tools/bashCommand.spec.ts", () => {
 
       // Wait for command execution and verify output
       await driver.assertDisplayBufferContains("hello, world");
-      await driver.assertDisplayBufferContains("Exit code:");
 
       // Verify the command format
       await driver.assertDisplayBufferContains(
-        '⚡ `true && echo "hello, world"`',
+        '⚡✅ `true && echo "hello, world"`',
       );
       await driver.assertDisplayBufferContains("```");
     });
@@ -164,7 +167,9 @@ describe("node/tools/bashCommand.spec.ts", () => {
       });
 
       // Wait for the user approval prompt
-      await driver.assertDisplayBufferContains("May I run this command?");
+      await driver.assertDisplayBufferContains(
+        "⚡⏳ May I run command `true && ls -la`?",
+      );
 
       // Find approval text position and trigger key on NO button
       const pos = await driver.assertDisplayBufferContains("[ NO ]");
@@ -202,12 +207,13 @@ describe("node/tools/bashCommand.spec.ts", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains("May I run this command?");
+      await driver.assertDisplayBufferContains(
+        "⚡⏳ May I run command `sleep 30`?",
+      );
       const approvePos = await driver.assertDisplayBufferContains("[ YES ]");
       await driver.triggerDisplayBufferKey(approvePos, "<CR>");
 
-      await driver.assertDisplayBufferContains("⚡ (");
-      const pos = await driver.assertDisplayBufferContains("`sleep 30`");
+      const pos = await driver.assertDisplayBufferContains("⚡⚙️ (");
 
       // Press 't' to terminate the command
       await driver.triggerDisplayBufferKey(pos, "t");
@@ -218,7 +224,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       );
 
       // Ensure the command prompt is updated to show completion
-      await driver.assertDisplayBufferContains("⚡ `sleep 30`");
+      await driver.assertDisplayBufferContains("⚡❌ `sleep 30`");
       await driver.assertDisplayBufferContains("```");
     });
   });
@@ -251,12 +257,12 @@ describe("node/tools/bashCommand.spec.ts", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains("May I run this command?");
+      await driver.assertDisplayBufferContains(
+        "⚡⏳ May I run command `true && echo 'tada'`?",
+      );
 
       const alwaysPos = await driver.assertDisplayBufferContains("[ ALWAYS ]");
       await driver.triggerDisplayBufferKey(alwaysPos, "<CR>");
-
-      await driver.assertDisplayBufferContains("Exit code:");
 
       await driver.inputMagentaText(`Ok, run it again`);
       await driver.send();
@@ -287,14 +293,12 @@ Ok, run it again
 
 # assistant:
 Running that command again.
-⚡ \`true && echo 'tada'\`
+⚡✅ \`true && echo 'tada'\`
 \`\`\`
 stdout:
 tada
 
-\`\`\`
-
-Exit code: 0`);
+\`\`\``);
     });
   });
 
@@ -336,14 +340,14 @@ Exit code: 0`);
       });
 
       // Wait for the approval prompt
-      await driver.assertDisplayBufferContains("May I run this command?");
+      await driver.assertDisplayBufferContains("⚡⏳ May I run command");
 
       // Click the YES button to approve the command
       const yesPos = await driver.assertDisplayBufferContains("[ YES ]");
       await driver.triggerDisplayBufferKey(yesPos, "<CR>");
 
       // Wait for command to complete
-      await driver.assertDisplayBufferContains("Exit code: 0");
+      await driver.assertDisplayBufferContains("⚡✅");
 
       // Directly check the file content using fs module
       expect(fs.existsSync(uniqueFile)).toBe(true);

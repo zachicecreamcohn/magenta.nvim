@@ -149,14 +149,11 @@ hello
 
 # assistant:
 ok, here goes
-⏳ May I read file \`.secret\`? **[ NO ]** **[ OK ]**
-
-Stopped (tool_use) [input: 0, output: 0]
-`);
+👀⏳ May I read file \`.secret\`? **[ NO ]** **[ OK ]**`);
 
     await driver.abort();
 
-    await driver.assertDisplayBufferContains(`The user aborted this request`);
+    await driver.assertDisplayBufferContains(`👀❌ \`.secret\``);
   });
 });
 
@@ -258,10 +255,9 @@ it("should use project settings to allow bash commands without permission", asyn
       // because it's in the project's commandAllowlist
 
       // First verify the command output appears (meaning it executed)
-      await driver.assertDisplayBufferContains(`⚡ \`echo 'hello world'\``);
+      await driver.assertDisplayBufferContains(`⚡✅ \`echo 'hello world'\``);
       await driver.assertDisplayBufferContains(`stdout:
 hello world`);
-      await driver.assertDisplayBufferContains(`Exit code: 0`);
 
       // Most importantly, verify there's no permission request
       const displayText = await driver.getDisplayBufferText();

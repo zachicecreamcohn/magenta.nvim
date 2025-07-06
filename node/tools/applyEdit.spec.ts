@@ -45,7 +45,7 @@ describe("node/tools/applyEdit.spec.ts", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains("✏️ Insert [[ +2 ]]");
+      await driver.assertDisplayBufferContains("✏️✅ Insert [[ +2 ]]");
 
       const poemPath = path.join(
         await getcwd(driver.nvim),
@@ -85,7 +85,7 @@ describe("node/tools/applyEdit.spec.ts", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains("✏️ Insert [[ +1 ]]");
+      await driver.assertDisplayBufferContains("✏️✅ Insert [[ +1 ]]");
 
       const filePath = path.join(
         await getcwd(driver.nvim),
@@ -137,7 +137,7 @@ Paints its colors `,
         ],
       });
 
-      await driver.assertDisplayBufferContains("✏️ Replace [[ -3 / +3 ]]");
+      await driver.assertDisplayBufferContains("✏️✅ Replace [[ -3 / +3 ]]");
 
       // Verify file was updated
       const filePath = path.join(
@@ -250,7 +250,7 @@ Paints its colors stories in the night.
         ],
       });
 
-      await driver.assertDisplayBufferContains("✏️ Replace [[ -1 / +1 ]]");
+      await driver.assertDisplayBufferContains("✏️✅ Replace [[ -1 / +1 ]]");
 
       // Verify the line was replaced
       const filePath = path.join(
@@ -297,8 +297,7 @@ Paint their stories in the night.
         ],
       });
 
-      await driver.assertDisplayBufferContains("✏️ Replace [[ -1 / +3 ]]");
-      await driver.assertDisplayBufferContains("Success");
+      await driver.assertDisplayBufferContains("✏️✅ Replace [[ -1 / +3 ]]");
 
       // Verify the entire file was replaced
       const filePath = path.join(
@@ -376,13 +375,13 @@ Paint their stories in the night.
       });
 
       await driver.assertDisplayBufferContains(
-        'Replace [[ -1 / +1 ]] in `node/test/tmp/poem.txt` Error: Unable to find text "bogus 1 / bogus 2..." in file `node/test/tmp/poem.txt`',
+        '✏️❌ Replace [[ -1 / +1 ]] in `node/test/tmp/poem.txt` - Unable to find text "bogus 1 / bogus 2..." in file `node/test/tmp/poem.txt`',
       );
       await driver.assertDisplayBufferContains(
-        'Insert [[ +6 ]] in `node/test/tmp/poem.txt` Error: Unable to find insert location "Paint their stories in the night.\n" in file `node/test/tmp/poem.txt`',
+        '✏️❌ Insert [[ +6 ]] in `node/test/tmp/poem.txt` - Unable to find insert location "Paint their stories in the night.\n" in file `node/test/tmp/poem.txt`',
       );
       await driver.assertDisplayBufferContains(
-        "Replace [[ -1 / +1 ]] in `node/test/tmp/poem.txt` Success",
+        "✏️✅ Replace [[ -1 / +1 ]] in `node/test/tmp/poem.txt`",
       );
 
       // Verify that the first edit failed but the third succeeded
@@ -410,7 +409,7 @@ Paint their stories in the night.
       const detailsPos = await driver.assertDisplayBufferContains("Replace");
       await driver.triggerDisplayBufferKey(detailsPos, "<CR>");
 
-      await driver.assertDisplayBufferContains("Replace [[ -1 / +1 ]]");
+      await driver.assertDisplayBufferContains("✅ Replace [[ -1 / +1 ]]");
       await driver.assertDisplayBufferContains("diff snapshot");
     });
   });
@@ -455,10 +454,7 @@ Paint their stories in the night.
         ],
       });
 
-      await driver.assertDisplayBufferContains("Error");
-      await driver.assertDisplayBufferContains(
-        "has unsaved changes that could not be written",
-      );
+      await driver.assertDisplayBufferContains("✏️❌ Insert [[ +2 ]]");
     });
   });
 
@@ -635,10 +631,10 @@ Paint their stories in the night.
         ],
       });
 
-      const detailsPos =
-        await driver.assertDisplayBufferContains("Insert [[ +2 ]]");
+      const detailsPos = await driver.assertDisplayBufferContains(
+        "✏️❌ Insert [[ +2 ]]",
+      );
 
-      await driver.assertDisplayBufferContains("Error");
       await driver.assertDisplayBufferContains(
         "Unable to find insert location",
       );
@@ -701,8 +697,7 @@ Paint their stories in the night.
         ],
       });
 
-      await driver.assertDisplayBufferContains("✏️ Insert [[ +2 ]]");
-      await driver.assertDisplayBufferContains("Success");
+      await driver.assertDisplayBufferContains("✏️✅ Insert [[ +2 ]]");
 
       const bufferLines = await buffer.getLines({
         start: 0,

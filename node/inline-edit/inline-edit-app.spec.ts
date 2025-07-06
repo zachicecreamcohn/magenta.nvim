@@ -56,10 +56,7 @@ describe("node/inline-edit/inline-edit-app.spec.ts", () => {
         },
       });
 
-      await driver.assertBufferContains(
-        inputBuffer,
-        `✅ Successfully applied edit`,
-      );
+      await driver.assertBufferContains(inputBuffer, `✏️✅ Applying edit`);
 
       await driver.assertBufferContains(
         targetBuffer,
@@ -173,7 +170,7 @@ Golden shadows dance with ease.`,
 
       await driver.assertBufferContains(
         inputBuffer,
-        `✅ Successfully replaced selection`,
+        `✏️ Replacing selected text`,
       );
 
       await driver.assertBufferContains(
@@ -229,7 +226,7 @@ Paint their stories in the night.`,
 
       await driver.assertBufferContains(
         inputBuffer,
-        `✅ Successfully replaced selection`,
+        `✏️ Replacing selected text`,
       );
 
       await driver.assertBufferContains(
