@@ -157,29 +157,26 @@ ${results
     return this.state.result;
   }
 
-  view() {
+  renderSummary() {
     switch (this.state.state) {
-      case "waiting":
-        return this.renderWaitingView();
+      case "waiting": {
+        const threadIds = this.request.input.threadIds;
+        const threadStatusLines = threadIds.map((threadId) =>
+          this.renderThreadStatus(threadId),
+        );
+
+        return d`⏸️⏳ Waiting for ${threadIds.length.toString()} subagent(s):
+${threadStatusLines}`;
+      }
       case "done": {
         const result = this.state.result.result;
         if (result.status === "error") {
-          return d`⏸️❌ ${result.error}`;
+          return d`⏸️❌ Waiting for ${this.request.input.threadIds.length.toString()} subagent(s)`;
         } else {
-          return d`⏸️✅ All subagents completed.`;
+          return d`⏸️✅ Waiting for ${this.request.input.threadIds.length.toString()} subagent(s)`;
         }
       }
     }
-  }
-
-  private renderWaitingView() {
-    const threadIds = this.request.input.threadIds;
-    const threadStatusLines = threadIds.map((threadId) =>
-      this.renderThreadStatus(threadId),
-    );
-
-    return d`⏸️⏳ Waiting for ${threadIds.length.toString()} subagent(s):
-${threadStatusLines}`;
   }
 
   private renderThreadStatus(threadId: ThreadId): VDOMNode {

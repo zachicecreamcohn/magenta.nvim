@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as Insert from "./insert";
 import { type VDOMNode } from "../tea/view";
-import { stream } from "glob";
 
 describe("node/tools/insert.spec.ts", () => {
   it("validate input", () => {
@@ -56,10 +55,10 @@ function test() {
     const streamed = JSON.stringify(request);
 
     const result = Insert.renderStreamedBlock(
-      streamed.slice(0, stream.length - 4),
+      streamed.slice(0, streamed.length - 4),
     );
     const resultStr = vdomToString(result);
-    expect(resultStr).toContain("Insert [[ +4 ]]"); // 4 lines in the content
+    expect(resultStr).toContain("Insert [[ +3 ]]"); // 3 lines in the content
     expect(resultStr).toContain("example.js");
     expect(resultStr).toContain("streaming...");
   });
@@ -76,7 +75,7 @@ function test() {
 
     const result = Insert.renderStreamedBlock(streamed);
     const resultStr = vdomToString(result);
-    expect(resultStr).toContain("Preparing insert operation");
+    expect(resultStr).toContain("⏳ Insert...");
   });
 
   it("renderStreamedBlock - with escaped content", () => {

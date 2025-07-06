@@ -17,396 +17,393 @@ import type { ToolName } from "../tools/types";
 
 const testFilePath = `${TMP_DIR}/poem.txt` as AbsFilePath;
 
-describe("unit tests", () => {
-  it("returns full file contents on first getContextUpdate and no updates on second call when file hasn't changed", async () => {
-    await withDriver({}, async (driver) => {
-      const testFilePath = `${TMP_DIR}/poem.txt`;
+it("returns full file contents on first getContextUpdate and no updates on second call when file hasn't changed", async () => {
+  await withDriver({}, async (driver) => {
+    const testFilePath = `${TMP_DIR}/poem.txt`;
 
-      await driver.showSidebar();
+    await driver.showSidebar();
 
-      // Get the context manager from the driver
-      const contextManager =
-        driver.magenta.chat.getActiveThread().context.contextManager;
+    // Get the context manager from the driver
+    const contextManager =
+      driver.magenta.chat.getActiveThread().context.contextManager;
 
-      const cwd = await getcwd(driver.nvim);
-      const absFilePath = resolveFilePath(
-        cwd,
-        testFilePath as UnresolvedFilePath,
+    const cwd = await getcwd(driver.nvim);
+    const absFilePath = resolveFilePath(
+      cwd,
+      testFilePath as UnresolvedFilePath,
+    );
+
+    // Get file type info and add file to context
+    const fileTypeInfo = await detectFileType(absFilePath);
+    contextManager.myDispatch({
+      type: "add-file-context",
+      relFilePath: "poem.txt" as RelFilePath,
+      absFilePath,
+      fileTypeInfo,
+    });
+
+    // Get context updates - first call
+    const firstUpdates = await contextManager.getContextUpdate();
+
+    // Check that the update contains the file
+    expect(firstUpdates[absFilePath]).toBeDefined();
+
+    // Check that it's a whole-file update
+    const firstUpdate = firstUpdates[absFilePath];
+    expect(firstUpdate.update.status).toBe("ok");
+    if (firstUpdate.update.status === "ok") {
+      expect(firstUpdate.update.value.type).toBe("whole-file");
+      expect(firstUpdate.absFilePath).toBe(absFilePath);
+      expect((firstUpdate.update.value as WholeFileUpdate).content).toContain(
+        "Moonlight whispers through the trees",
       );
+    }
 
-      // Get file type info and add file to context
-      const fileTypeInfo = await detectFileType(absFilePath);
-      contextManager.myDispatch({
-        type: "add-file-context",
-        relFilePath: "poem.txt" as RelFilePath,
-        absFilePath,
-        fileTypeInfo,
-      });
+    // Get context updates second time without changing the file
+    const secondUpdates = await contextManager.getContextUpdate();
 
-      // Get context updates - first call
-      const firstUpdates = await contextManager.getContextUpdate();
+    // The second update should be empty if no changes were made
+    expect(Object.keys(secondUpdates).length).toBe(0);
+  });
+});
 
-      // Check that the update contains the file
-      expect(firstUpdates[absFilePath]).toBeDefined();
+it("returns diff when file is edited in a buffer", async () => {
+  await withDriver({}, async (driver) => {
+    const testFilePath = `${TMP_DIR}/poem.txt`;
+    await driver.showSidebar();
 
-      // Check that it's a whole-file update
-      const firstUpdate = firstUpdates[absFilePath];
-      expect(firstUpdate.update.status).toBe("ok");
-      if (firstUpdate.update.status === "ok") {
-        expect(firstUpdate.update.value.type).toBe("whole-file");
-        expect(firstUpdate.absFilePath).toBe(absFilePath);
-        expect((firstUpdate.update.value as WholeFileUpdate).content).toContain(
-          "Moonlight whispers through the trees",
-        );
+    // Get the context manager from the driver
+    const contextManager =
+      driver.magenta.chat.getActiveThread().context.contextManager;
+
+    const cwd = await getcwd(driver.nvim);
+    const absFilePath = resolveFilePath(
+      cwd,
+      testFilePath as UnresolvedFilePath,
+    );
+
+    // Get file type info and add the file to context
+    const fileTypeInfo = await detectFileType(absFilePath);
+    contextManager.myDispatch({
+      type: "add-file-context",
+      relFilePath: testFilePath as RelFilePath,
+      absFilePath,
+      fileTypeInfo,
+    });
+
+    // First, edit the file to track the buffer
+    await driver.editFile(testFilePath);
+    await contextManager.getContextUpdate();
+
+    const window = await driver.findWindow(async (w) => {
+      const buffer = await w.buffer();
+      const bufName = await buffer.getName();
+      return bufName.indexOf(testFilePath) > -1;
+    });
+    const buffer = await window.buffer();
+    await buffer.setLines({
+      start: 0,
+      end: 1,
+      lines: ["Edited moonlight dances through the trees," as Line],
+    });
+
+    // Get context updates after the edit
+    const updates = await contextManager.getContextUpdate();
+    const update = updates[absFilePath];
+    // Check that it's a diff update
+    expect(update).toBeDefined();
+    expect(update.update.status).toBe("ok");
+    if (update.update.status === "ok") {
+      expect(update.update.value.type).toBe("diff");
+      expect(update.absFilePath).toBe(absFilePath);
+      // Check that the diff contains the change
+      expect((update.update.value as DiffUpdate).patch).toContain(
+        "Edited moonlight",
+      );
+      expect((update.update.value as DiffUpdate).patch).toContain(
+        "Moonlight whispers",
+      );
+    }
+  });
+});
+
+it("returns diff when file is edited on disk", async () => {
+  await withDriver({}, async (driver) => {
+    const testFilePath = `${TMP_DIR}/poem.txt`;
+    await driver.showSidebar();
+
+    // Get the context manager from the driver
+    const contextManager =
+      driver.magenta.chat.getActiveThread().context.contextManager;
+
+    const cwd = await getcwd(driver.nvim);
+    const absFilePath = resolveFilePath(
+      cwd,
+      testFilePath as UnresolvedFilePath,
+    );
+
+    // Get file type info and add a file to context
+    const fileTypeInfo = await detectFileType(absFilePath);
+    contextManager.myDispatch({
+      type: "add-file-context",
+      relFilePath: "poem.txt" as RelFilePath,
+      absFilePath,
+      fileTypeInfo,
+    });
+
+    // Get initial context update
+    await contextManager.getContextUpdate();
+
+    // Edit the file on disk
+    const updatedContent =
+      "Modified content directly on disk\nThis should be detected.";
+    await fs.promises.writeFile(absFilePath, updatedContent);
+
+    // Get context updates after the edit
+    const updates = await contextManager.getContextUpdate();
+
+    // Check that the update contains the file
+    expect(updates[absFilePath]).toBeDefined();
+
+    // Check that it reflects the changes from disk
+    const update = updates[absFilePath];
+    expect(
+      update.update.status == "ok" &&
+        update.update.value.type == "diff" &&
+        update.update.value.patch,
+    ).toContain("Modified content");
+
+    // Restore the original file content for other tests
+    const originalContent = `Moonlight whispers through the trees,
+      Silver shadows dance with ease.
+      Stars above like diamonds bright,
+    Paint their stories in the night.
+      `;
+    await fs.promises.writeFile(absFilePath, originalContent);
+  });
+});
+
+it("avoids sending redundant context updates after tool application", async () => {
+  await withDriver({}, async (driver) => {
+    const testFilePath = `${TMP_DIR}/poem.txt`;
+    await driver.showSidebar();
+
+    // Add file to context using the context-files command
+    await driver.nvim.call("nvim_command", [
+      `Magenta context-files '${testFilePath}'`,
+    ]);
+
+    // Wait for context to be added to the display
+    await pollUntil(async () => {
+      const content = await driver.getDisplayBufferText();
+      if (!content.includes(`- \`${testFilePath}\``)) {
+        throw new Error("Context file not yet displayed");
       }
-
-      // Get context updates second time without changing the file
-      const secondUpdates = await contextManager.getContextUpdate();
-
-      // The second update should be empty if no changes were made
-      expect(Object.keys(secondUpdates).length).toBe(0);
     });
-  });
 
-  it("returns diff when file is edited in a buffer", async () => {
-    await withDriver({}, async (driver) => {
-      const testFilePath = `${TMP_DIR}/poem.txt`;
-      await driver.showSidebar();
+    // Start a conversation and send a message requesting a modification
+    await driver.inputMagentaText(`Add a new line to the poem.txt file`);
+    await driver.send();
 
-      // Get the context manager from the driver
-      const contextManager =
-        driver.magenta.chat.getActiveThread().context.contextManager;
-
-      const cwd = await getcwd(driver.nvim);
-      const absFilePath = resolveFilePath(
-        cwd,
-        testFilePath as UnresolvedFilePath,
-      );
-
-      // Get file type info and add the file to context
-      const fileTypeInfo = await detectFileType(absFilePath);
-      contextManager.myDispatch({
-        type: "add-file-context",
-        relFilePath: testFilePath as RelFilePath,
-        absFilePath,
-        fileTypeInfo,
-      });
-
-      // First, edit the file to track the buffer
-      await driver.editFile(testFilePath);
-      await contextManager.getContextUpdate();
-
-      const window = await driver.findWindow(async (w) => {
-        const buffer = await w.buffer();
-        const bufName = await buffer.getName();
-        return bufName.indexOf(testFilePath) > -1;
-      });
-      const buffer = await window.buffer();
-      await buffer.setLines({
-        start: 0,
-        end: 1,
-        lines: ["Edited moonlight dances through the trees," as Line],
-      });
-
-      // Get context updates after the edit
-      const updates = await contextManager.getContextUpdate();
-      const update = updates[absFilePath];
-      // Check that it's a diff update
-      expect(update).toBeDefined();
-      expect(update.update.status).toBe("ok");
-      if (update.update.status === "ok") {
-        expect(update.update.value.type).toBe("diff");
-        expect(update.absFilePath).toBe(absFilePath);
-        // Check that the diff contains the change
-        expect((update.update.value as DiffUpdate).patch).toContain(
-          "Edited moonlight",
-        );
-        expect((update.update.value as DiffUpdate).patch).toContain(
-          "Moonlight whispers",
-        );
-      }
-    });
-  });
-
-  it("returns diff when file is edited on disk", async () => {
-    await withDriver({}, async (driver) => {
-      const testFilePath = `${TMP_DIR}/poem.txt`;
-      await driver.showSidebar();
-
-      // Get the context manager from the driver
-      const contextManager =
-        driver.magenta.chat.getActiveThread().context.contextManager;
-
-      const cwd = await getcwd(driver.nvim);
-      const absFilePath = resolveFilePath(
-        cwd,
-        testFilePath as UnresolvedFilePath,
-      );
-
-      // Get file type info and add a file to context
-      const fileTypeInfo = await detectFileType(absFilePath);
-      contextManager.myDispatch({
-        type: "add-file-context",
-        relFilePath: "poem.txt" as RelFilePath,
-        absFilePath,
-        fileTypeInfo,
-      });
-
-      // Get initial context update
-      await contextManager.getContextUpdate();
-
-      // Edit the file on disk
-      const updatedContent =
-        "Modified content directly on disk\nThis should be detected.";
-      await fs.promises.writeFile(absFilePath, updatedContent);
-
-      // Get context updates after the edit
-      const updates = await contextManager.getContextUpdate();
-
-      // Check that the update contains the file
-      expect(updates[absFilePath]).toBeDefined();
-
-      // Check that it reflects the changes from disk
-      const update = updates[absFilePath];
-      expect(
-        update.update.status == "ok" &&
-          update.update.value.type == "diff" &&
-          update.update.value.patch,
-      ).toContain("Modified content");
-
-      // Restore the original file content for other tests
-      const originalContent = `Moonlight whispers through the trees,
-Silver shadows dance with ease.
-Stars above like diamonds bright,
-Paint their stories in the night.
-`;
-      await fs.promises.writeFile(absFilePath, originalContent);
-    });
-  });
-
-  it("avoids sending redundant context updates after tool application", async () => {
-    await withDriver({}, async (driver) => {
-      const testFilePath = `${TMP_DIR}/poem.txt`;
-      await driver.showSidebar();
-
-      // Add file to context using the context-files command
-      await driver.nvim.call("nvim_command", [
-        `Magenta context-files '${testFilePath}'`,
-      ]);
-
-      // Wait for context to be added to the display
-      await pollUntil(async () => {
-        const content = await driver.getDisplayBufferText();
-        if (!content.includes(`- \`${testFilePath}\``)) {
-          throw new Error("Context file not yet displayed");
-        }
-      });
-
-      // Start a conversation and send a message requesting a modification
-      await driver.inputMagentaText(`Add a new line to the poem.txt file`);
-      await driver.send();
-
-      // Respond with a tool call that will modify the file
-      const request1 = await driver.mockAnthropic.awaitPendingRequest();
-      request1.respond({
-        stopReason: "tool_use",
-        text: "I'll add a new line to the poem",
-        toolRequests: [
-          {
-            status: "ok",
-            value: {
-              id: "tool1" as ToolRequestId,
-              toolName: "insert" as ToolName,
-              input: {
-                filePath: testFilePath as UnresolvedFilePath,
-                insertAfter: "Paint their stories in the night.",
-                content: "\nAdded by Magenta tool call",
-              },
+    // Respond with a tool call that will modify the file
+    const request1 = await driver.mockAnthropic.awaitPendingRequest();
+    request1.respond({
+      stopReason: "tool_use",
+      text: "I'll add a new line to the poem",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "tool1" as ToolRequestId,
+            toolName: "insert" as ToolName,
+            input: {
+              filePath: testFilePath as UnresolvedFilePath,
+              insertAfter: "Paint their stories in the night.",
+              content: "\nAdded by Magenta tool call",
             },
           },
-        ],
-      });
+        },
+      ],
+    });
 
-      await driver.assertDisplayBufferContains("✏️ Insert [[ +2 ]]");
-      await driver.assertDisplayBufferContains("Success");
+    await driver.assertDisplayBufferContains("✅ Insert [[ +2 ]]");
 
-      {
-        const request = await driver.mockAnthropic.awaitPendingRequest();
-        expect(
-          request.messages[request.messages.length - 1],
-          "auto-respond request goes out",
-        ).toEqual({
-          content: [
-            {
-              id: "tool1",
-              result: {
-                status: "ok",
-                value: [
-                  {
-                    type: "text",
-                    text: "Successfully applied edits.",
-                  },
-                ],
-              },
-              type: "tool_result",
-            },
-          ],
-          role: "user",
-        });
-      }
-      {
-        const request2 = await driver.mockAnthropic.awaitPendingRequest();
-        request2.respond({
-          stopReason: "end_turn",
-          text: "I did it!",
-          toolRequests: [],
-        });
-
-        const request = await driver.mockAnthropic.awaitStopped();
-        expect(
-          request.messages[request.messages.length - 1],
-          "end_turn request stopped agent",
-        ).toEqual({
-          content: [
-            {
-              id: "tool1",
-              result: {
-                status: "ok",
-                value: [
-                  {
-                    type: "text",
-                    text: "Successfully applied edits.",
-                  },
-                ],
-              },
-              type: "tool_result",
-            },
-          ],
-          role: "user",
-        });
-      }
-
-      await driver.inputMagentaText(`testing`);
-      await driver.send();
-
-      const userRequest = await driver.mockAnthropic.awaitPendingUserRequest();
-
+    {
+      const request = await driver.mockAnthropic.awaitPendingRequest();
       expect(
-        userRequest.messages[userRequest.messages.length - 1],
-        "next user message does not have context update",
+        request.messages[request.messages.length - 1],
+        "auto-respond request goes out",
       ).toEqual({
         content: [
           {
-            type: "text",
-            text: "testing",
+            id: "tool1",
+            result: {
+              status: "ok",
+              value: [
+                {
+                  type: "text",
+                  text: "Successfully applied edits.",
+                },
+              ],
+            },
+            type: "tool_result",
           },
         ],
         role: "user",
       });
-    });
-  });
-
-  it("sends update if the file was edited pre-insert", async () => {
-    await withDriver({}, async (driver) => {
-      const testFilePath = `${TMP_DIR}/poem.txt`;
-      await driver.showSidebar();
-
-      await driver.nvim.call("nvim_command", [
-        `Magenta context-files '${testFilePath}'`,
-      ]);
-
-      // Wait for context to be added to the display
-      await pollUntil(async () => {
-        const content = await driver.getDisplayBufferText();
-        if (!content.includes(`- \`${testFilePath}\``)) {
-          throw new Error("Context file not yet displayed");
-        }
+    }
+    {
+      const request2 = await driver.mockAnthropic.awaitPendingRequest();
+      request2.respond({
+        stopReason: "end_turn",
+        text: "I did it!",
+        toolRequests: [],
       });
 
-      const pos = await driver.assertDisplayBufferContains(
-        `- \`${testFilePath}\``,
-      );
-      await driver.triggerDisplayBufferKey(pos, "<CR>");
-
-      const poemWindow = await driver.findWindow(async (w) => {
-        const winBuffer = await w.buffer();
-        const bufferName = await winBuffer.getName();
-        return bufferName.includes(testFilePath);
-      });
-      const poemBuffer = await poemWindow.buffer();
-      await driver.inputMagentaText(`Add a new line to the poem.txt file`);
-      await driver.send();
-
-      const request3 = await driver.mockAnthropic.awaitPendingRequest();
-      request3.respond({
-        stopReason: "tool_use",
-        text: "I'll add a new line to the poem",
-        toolRequests: [
+      const request = await driver.mockAnthropic.awaitStopped();
+      expect(
+        request.messages[request.messages.length - 1],
+        "end_turn request stopped agent",
+      ).toEqual({
+        content: [
           {
-            status: "ok",
-            value: {
-              id: "tool1" as ToolRequestId,
-              toolName: "insert" as ToolName,
-              input: {
-                filePath: testFilePath as UnresolvedFilePath,
-                insertAfter: "Paint their stories in the night.",
-                content: "\nAdded by Magenta tool call",
-              },
+            id: "tool1",
+            result: {
+              status: "ok",
+              value: [
+                {
+                  type: "text",
+                  text: "Successfully applied edits.",
+                },
+              ],
             },
+            type: "tool_result",
           },
         ],
+        role: "user",
       });
-      const autoRespondCatcher = driver.interceptSendMessage();
+    }
 
-      await driver.assertDisplayBufferContains("✏️ Insert [[ +2 ]]");
-      await driver.assertDisplayBufferContains("Success");
+    await driver.inputMagentaText(`testing`);
+    await driver.send();
 
-      const args = await autoRespondCatcher.promise;
+    const userRequest = await driver.mockAnthropic.awaitPendingUserRequest();
 
-      // edit the input buffer before the end turn response
-      await poemBuffer.setLines({
-        start: 0,
-        end: 1,
-        lines: ["changed first line" as Line],
-      });
-
-      // this promise will not resolve until we respond via mockAnthropic
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
-      autoRespondCatcher.execute(...args);
-
-      {
-        const request = await driver.mockAnthropic.awaitPendingRequest();
-        expect(
-          request.messages[request.messages.length - 2],
-          "auto-respond request goes out",
-        ).toEqual({
-          content: [
-            {
-              id: "tool1",
-              result: {
-                status: "ok",
-                value: [
-                  {
-                    type: "text",
-                    text: "Successfully applied edits.",
-                  },
-                ],
-              },
-              type: "tool_result",
-            },
-          ],
-          role: "user",
-        });
-
-        expect(
-          request.messages[request.messages.length - 1],
-          "auto-respond request goes out",
-        ).toMatchSnapshot();
-      }
+    expect(
+      userRequest.messages[userRequest.messages.length - 1],
+      "next user message does not have context update",
+    ).toEqual({
+      content: [
+        {
+          type: "text",
+          text: "testing",
+        },
+      ],
+      role: "user",
     });
   });
 });
 
+it("sends update if the file was edited pre-insert", async () => {
+  await withDriver({}, async (driver) => {
+    const testFilePath = `${TMP_DIR}/poem.txt`;
+    await driver.showSidebar();
+
+    await driver.nvim.call("nvim_command", [
+      `Magenta context-files '${testFilePath}'`,
+    ]);
+
+    // Wait for context to be added to the display
+    await pollUntil(async () => {
+      const content = await driver.getDisplayBufferText();
+      if (!content.includes(`- \`${testFilePath}\``)) {
+        throw new Error("Context file not yet displayed");
+      }
+    });
+
+    const pos = await driver.assertDisplayBufferContains(
+      `- \`${testFilePath}\``,
+    );
+    await driver.triggerDisplayBufferKey(pos, "<CR>");
+
+    const poemWindow = await driver.findWindow(async (w) => {
+      const winBuffer = await w.buffer();
+      const bufferName = await winBuffer.getName();
+      return bufferName.includes(testFilePath);
+    });
+    const poemBuffer = await poemWindow.buffer();
+    await driver.inputMagentaText(`Add a new line to the poem.txt file`);
+    await driver.send();
+
+    const request3 = await driver.mockAnthropic.awaitPendingRequest();
+    request3.respond({
+      stopReason: "tool_use",
+      text: "I'll add a new line to the poem",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "tool1" as ToolRequestId,
+            toolName: "insert" as ToolName,
+            input: {
+              filePath: testFilePath as UnresolvedFilePath,
+              insertAfter: "Paint their stories in the night.",
+              content: "\nAdded by Magenta tool call",
+            },
+          },
+        },
+      ],
+    });
+    const autoRespondCatcher = driver.interceptSendMessage();
+
+    await driver.assertDisplayBufferContains(
+      "✏️✅ Insert [[ +2 ]] in `node/test/tmp/poem.txt`",
+    );
+
+    const args = await autoRespondCatcher.promise;
+
+    // edit the input buffer before the end turn response
+    await poemBuffer.setLines({
+      start: 0,
+      end: 1,
+      lines: ["changed first line" as Line],
+    });
+
+    // this promise will not resolve until we respond via mockAnthropic
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    autoRespondCatcher.execute(...args);
+
+    {
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      expect(
+        request.messages[request.messages.length - 2],
+        "auto-respond request goes out",
+      ).toEqual({
+        content: [
+          {
+            id: "tool1",
+            result: {
+              status: "ok",
+              value: [
+                {
+                  type: "text",
+                  text: "Successfully applied edits.",
+                },
+              ],
+            },
+            type: "tool_result",
+          },
+        ],
+        role: "user",
+      });
+
+      expect(
+        request.messages[request.messages.length - 1],
+        "auto-respond request goes out",
+      ).toMatchSnapshot();
+    }
+  });
+});
 describe("key bindings", () => {
   it("'dd' key correctly removes the middle file when three files are in context", async () => {
     await withDriver({}, async (driver) => {
