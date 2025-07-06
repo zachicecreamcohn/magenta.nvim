@@ -50,8 +50,7 @@ Paints its colors in the light.`,
       });
 
       // Verify edits were applied immediately
-      await driver.assertDisplayBufferContains("✏️ Replace [[ -4 / +4 ]]");
-      await driver.assertDisplayBufferContains("Success");
+      await driver.assertDisplayBufferContains("✏️✅ Replace [[ -4 / +4 ]]");
 
       // Verify file was updated with the new content
       const poemPath = path.join(

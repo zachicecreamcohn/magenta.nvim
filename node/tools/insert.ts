@@ -112,7 +112,11 @@ export class InsertTool implements StaticTool {
       case "processing":
         return d`✏️⚙️ Insert [[ +${lineCount.toString()} ]] in \`${this.request.input.filePath}\``;
       case "done":
-        return d`✏️ Insert [[ +${lineCount.toString()} ]] in \`${this.request.input.filePath}\``;
+        if (this.state.result.result.status === "error") {
+          return d`✏️❌ Insert [[ +${lineCount.toString()} ]] in \`${this.request.input.filePath}\` - ${this.state.result.result.error}`;
+        } else {
+          return d`✏️✅ Insert [[ +${lineCount.toString()} ]] in \`${this.request.input.filePath}\``;
+        }
       default:
         assertUnreachable(this.state);
     }
@@ -124,10 +128,9 @@ export class InsertTool implements StaticTool {
         return d``;
       case "done":
         if (this.state.result.result.status === "error") {
-          return d`❌ ${this.state.result.result.error}`;
+          return d``;
         } else {
-          return d`✅ Insert applied
-\`\`\`diff
+          return d`\`\`\`diff
 ${this.getInsertPreview()}
 \`\`\``;
         }
@@ -295,6 +298,6 @@ export function renderStreamedBlock(streamed: string): VDOMNode {
   if (filePath) {
     return d`⏳ Insert [[ +${lineCount.toString()} ]] in \`${filePath}\` streaming...`;
   } else {
-    return d`⏳ Preparing insert operation...`;
+    return d`⏳ Insert...`;
   }
 }

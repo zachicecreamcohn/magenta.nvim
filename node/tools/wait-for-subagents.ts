@@ -159,8 +159,15 @@ ${results
 
   renderSummary() {
     switch (this.state.state) {
-      case "waiting":
-        return this.renderWaitingView();
+      case "waiting": {
+        const threadIds = this.request.input.threadIds;
+        const threadStatusLines = threadIds.map((threadId) =>
+          this.renderThreadStatus(threadId),
+        );
+
+        return d`⏸️⏳ Waiting for ${threadIds.length.toString()} subagent(s):
+${threadStatusLines}`;
+      }
       case "done": {
         const result = this.state.result.result;
         if (result.status === "error") {
@@ -170,16 +177,6 @@ ${results
         }
       }
     }
-  }
-
-  private renderWaitingView() {
-    const threadIds = this.request.input.threadIds;
-    const threadStatusLines = threadIds.map((threadId) =>
-      this.renderThreadStatus(threadId),
-    );
-
-    return d`⏳ Waiting for ${threadIds.length.toString()} subagent(s):
-${threadStatusLines}`;
   }
 
   private renderThreadStatus(threadId: ThreadId): VDOMNode {

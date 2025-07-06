@@ -445,7 +445,7 @@ You already have the most up-to-date information about the contents of this file
       case "processing":
         return d`👀⚙️ \`${this.request.input.filePath}\``;
       case "pending-user-action":
-        return d`👀⏳ May I read file  \`${this.request.input.filePath}\`? ${withBindings(
+        return d`👀⏳ May I read file \`${this.request.input.filePath}\`? ${withBindings(
           d`**[ NO ]**`,
           {
             "<CR>": () =>

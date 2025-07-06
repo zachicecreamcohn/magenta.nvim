@@ -95,9 +95,7 @@ describe("node/chat/chat.spec.ts", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains(
-        "🤖✅ Sub-agent started with threadId: 2",
-      );
+      await driver.assertDisplayBufferContains("🤖✅ Spawning subagent");
 
       const request = await driver.mockAnthropic.awaitPendingRequestWithText(
         "Sub-agent started with threadId: 2",
@@ -130,9 +128,7 @@ describe("node/chat/chat.spec.ts", () => {
       );
 
       // Assert we see the waiting state in the parent thread
-      await driver.assertDisplayBufferContains(
-        "⏸️⏳ Waiting for 1 subagent(s):",
-      );
+      await driver.assertDisplayBufferContains("⏳ Waiting for 1 subagent(s):");
       await driver.assertDisplayBufferContains(
         "- 2 [Untitled]: ⏳ streaming response",
       );
@@ -184,8 +180,7 @@ describe("node/chat/chat.spec.ts", () => {
       );
 
       await driver.assertDisplayBufferContains(
-        `\
-⏸️✅ All subagents completed.`,
+        `⏸️✅ Waiting for 1 subagent(s)`,
       );
     });
   });
@@ -219,9 +214,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       // Verify we see the missing thread status
-      await driver.assertDisplayBufferContains(
-        "⏸️⏳ Waiting for 1 subagent(s):",
-      );
+      await driver.assertDisplayBufferContains("⏳ Waiting for 1 subagent(s):");
       await driver.assertDisplayBufferContains(
         "- 999 [Untitled]: ❓ not found",
       );
@@ -258,9 +251,7 @@ describe("node/chat/chat.spec.ts", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains(
-        "🤖✅ Sub-agent started with threadId: 2",
-      );
+      await driver.assertDisplayBufferContains("🤖✅ Spawning subagent");
 
       const request2 = await driver.mockAnthropic.awaitPendingRequestWithText(
         "Sub-agent started with threadId: 2",
@@ -282,9 +273,7 @@ describe("node/chat/chat.spec.ts", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains(
-        "🤖✅ Sub-agent started with threadId: 3",
-      );
+      await driver.assertDisplayBufferContains("🤖✅ Spawning subagent");
 
       // Start waiting for both subagents
       const request3 = await driver.mockAnthropic.awaitPendingRequestWithText(
@@ -308,9 +297,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       // Verify we see both threads in waiting state
-      await driver.assertDisplayBufferContains(
-        "⏸️⏳ Waiting for 2 subagent(s):",
-      );
+      await driver.assertDisplayBufferContains("⏳ Waiting for 2 subagent(s):");
       await driver.assertDisplayBufferContains(
         "- 2 [Untitled]: ⏳ streaming response",
       );
@@ -372,7 +359,9 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       // Verify both threads have completed and the wait tool shows final results
-      await driver.assertDisplayBufferContains(`⏸️✅ All subagents completed.`);
+      await driver.assertDisplayBufferContains(
+        `⏸️✅ Waiting for 2 subagent(s)`,
+      );
     });
   });
 
@@ -405,9 +394,7 @@ describe("node/chat/chat.spec.ts", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains(
-        "🤖✅ Sub-agent started with threadId: 2",
-      );
+      await driver.assertDisplayBufferContains("🤖✅ Spawning subagent");
 
       const request2 = await driver.mockAnthropic.awaitPendingRequestWithText(
         "Sub-agent started with threadId: 2",
@@ -429,9 +416,7 @@ describe("node/chat/chat.spec.ts", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains(
-        "🤖✅ Sub-agent started with threadId: 3",
-      );
+      await driver.assertDisplayBufferContains("🤖✅ Spawning subagent");
 
       // Start waiting for both subagents
       const request3 = await driver.mockAnthropic.awaitPendingRequestWithText(
@@ -455,9 +440,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       // Verify we see both threads in waiting state initially
-      await driver.assertDisplayBufferContains(
-        "⏸️⏳ Waiting for 2 subagent(s):",
-      );
+      await driver.assertDisplayBufferContains("⏳ Waiting for 2 subagent(s):");
 
       // First subagent stops without yielding
       const subagent1Request =
@@ -562,9 +545,7 @@ describe("node/chat/chat.spec.ts", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains(
-        "🤖✅ Sub-agent started with threadId: 2",
-      );
+      await driver.assertDisplayBufferContains("🤖✅ Spawning subagent");
 
       // Start waiting for the subagent
       const request2 = await driver.mockAnthropic.awaitPendingRequestWithText(
@@ -588,9 +569,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       // Verify we see the waiting state with the thread line
-      await driver.assertDisplayBufferContains(
-        "⏸️⏳ Waiting for 1 subagent(s):",
-      );
+      await driver.assertDisplayBufferContains("⏳ Waiting for 1 subagent(s):");
       const threadLinePos = await driver.assertDisplayBufferContains(
         "- 2 [Untitled]: ⏳ streaming response",
       );
@@ -626,9 +605,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       // We should see the wait_for_subagents view again
-      await driver.assertDisplayBufferContains(
-        "⏸️⏳ Waiting for 1 subagent(s):",
-      );
+      await driver.assertDisplayBufferContains("⏳ Waiting for 1 subagent(s):");
     });
   });
 
@@ -661,9 +638,7 @@ describe("node/chat/chat.spec.ts", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains(
-        "🤖✅ Sub-agent started with threadId: 2",
-      );
+      await driver.assertDisplayBufferContains("🤖✅ Spawning subagent");
 
       // Create another parent thread
       await driver.magenta.command("new-thread");
@@ -697,9 +672,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       // Wait for the spawn message to appear in the display buffer
-      await driver.assertDisplayBufferContains(
-        "🤖✅ Sub-agent started with threadId: 4",
-      );
+      await driver.assertDisplayBufferContains("🤖✅ Spawning subagent");
 
       // Now view the thread hierarchy
       await driver.magenta.command("threads-overview");
@@ -856,9 +829,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       // Wait for the subagent to be spawned
-      await driver.assertDisplayBufferContains(
-        "🤖✅ Sub-agent started with threadId: 2",
-      );
+      await driver.assertDisplayBufferContains("🤖✅ Spawning subagent");
 
       await driver.magenta.command("threads-overview");
 

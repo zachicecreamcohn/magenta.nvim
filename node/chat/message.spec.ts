@@ -26,20 +26,12 @@ describe("node/chat/message.spec.ts", () => {
               toolName: "replace" as ToolName,
               input: {
                 filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
-                find: `Moonlight whispers through the trees,\nSilver shadows dance with ease.`,
-                replace: `Replace 1`,
-              },
-            },
-          },
-          {
-            status: "ok",
-            value: {
-              id: "id2" as ToolRequestId,
-              toolName: "replace" as ToolName,
-              input: {
-                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
-                find: `Stars above like diamonds bright,\nPaint their stories in the night.`,
-                replace: `Replace 2`,
+                find: `Moonlight whispers through the trees,
+Silver shadows dance with ease.
+Stars above like diamonds bright,
+Paint their stories in the night.`,
+                replace: `Replace 1
+Replace 2`,
               },
             },
           },
@@ -52,22 +44,14 @@ Update the poem in the file ${TMP_DIR}/poem.txt`);
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success!
+✏️✅ Replace [[ -4 / +2 ]] in \`${TMP_DIR}/poem.txt\`
 \`\`\`diff
 -Moonlight whispers through the trees,
 -Silver shadows dance with ease.
-\\ No newline at end of file
-+Replace 1
-\\ No newline at end of file
-
-\`\`\``);
-
-      await driver.assertDisplayBufferContains(`\
-✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success!
-\`\`\`diff
 -Stars above like diamonds bright,
 -Paint their stories in the night.
 \\ No newline at end of file
++Replace 1
 +Replace 2
 \\ No newline at end of file
 
@@ -75,7 +59,7 @@ ok, I will try to rewrite the poem in that file
 
       await driver.assertDisplayBufferContains(`\
 Edits:
-  \`${TMP_DIR}/poem.txt\` (2 edits). **[± diff snapshot]**`);
+  \`${TMP_DIR}/poem.txt\` (1 edits). **[± diff snapshot]**`);
 
       const reviewPos =
         await driver.assertDisplayBufferContains("diff snapshot");
@@ -84,7 +68,7 @@ Edits:
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success!`);
+✏️✅ Replace [[ -4 / +2 ]] in \`${TMP_DIR}/poem.txt\``);
 
       // Go back to main view
       await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
@@ -92,7 +76,7 @@ ok, I will try to rewrite the poem in that file
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-✏️ Replace [[ -2 / +1 ]] in \`${TMP_DIR}/poem.txt\` Success!`);
+✏️✅ Replace [[ -4 / +2 ]] in \`${TMP_DIR}/poem.txt\``);
     });
   });
 

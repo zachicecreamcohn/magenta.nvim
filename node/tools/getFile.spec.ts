@@ -31,7 +31,7 @@ it("render the getFile tool.", async () => {
     });
 
     await driver.assertDisplayBufferContains(
-      `✅ Finished reading file \`./node/test/fixtures/poem.txt\``,
+      `👀✅ \`./node/test/fixtures/poem.txt\``,
     );
   });
 });
@@ -63,12 +63,12 @@ it("getFile rejection", async () => {
     });
 
     await driver.assertDisplayBufferContains(`\
-May I read file \`node/test/fixtures/.secret\`? **[ NO ]** **[ OK ]**`);
+👀⏳ May I read file \`node/test/fixtures/.secret\`? **[ NO ]** **[ OK ]**`);
     const noPos = await driver.assertDisplayBufferContains("**[ NO ]**");
 
     await driver.triggerDisplayBufferKey(noPos, "<CR>");
     await driver.assertDisplayBufferContains(
-      "❌ Error reading file `node/test/fixtures/.secret`: The user did not allow the reading of this file.",
+      "👀❌ `node/test/fixtures/.secret`",
     );
   });
 });
@@ -100,12 +100,12 @@ it("getFile approval", async () => {
     });
 
     await driver.assertDisplayBufferContains(`\
-May I read file \`node/test/fixtures/.secret\`? **[ NO ]** **[ OK ]**`);
+👀⏳ May I read file \`node/test/fixtures/.secret\`? **[ NO ]** **[ OK ]**`);
     const okPos = await driver.assertDisplayBufferContains("**[ OK ]**");
 
     await driver.triggerDisplayBufferKey(okPos, "<CR>");
     await driver.assertDisplayBufferContains(`\
-Finished reading file \`node/test/fixtures/.secret\``);
+👀✅ \`node/test/fixtures/.secret\``);
   });
 });
 
@@ -134,7 +134,7 @@ it("getFile requests approval for gitignored file", async () => {
     });
 
     await driver.assertDisplayBufferContains(`\
-May I read file \`node_modules/test\`? **[ NO ]** **[ OK ]**`);
+👀⏳ May I read file \`node_modules/test\`? **[ NO ]** **[ OK ]**`);
   });
 });
 
@@ -163,7 +163,7 @@ it("getFile requests approval for file outside cwd", async () => {
     });
 
     await driver.assertDisplayBufferContains(`\
-May I read file \`/tmp/file\`? **[ NO ]** **[ OK ]**`);
+👀⏳ May I read file \`/tmp/file\`? **[ NO ]** **[ OK ]**`);
   });
 });
 
@@ -204,7 +204,7 @@ it("getFile returns early when file is already in context", async () => {
 
     // Should return the early message about file already being in context
     await driver.assertDisplayBufferContains(
-      `✅ Finished reading file \`./node/test/fixtures/poem.txt\``,
+      `👀✅ \`./node/test/fixtures/poem.txt\``,
     );
 
     // Check the actual response content in the next request
@@ -263,7 +263,7 @@ it("getFile reads file when force is true even if already in context", async () 
     });
 
     await driver.assertDisplayBufferContains(
-      `✅ Finished reading file \`./node/test/fixtures/poem.txt\``,
+      `👀✅ \`./node/test/fixtures/poem.txt\``,
     );
 
     const toolResultRequest = await driver.mockAnthropic.awaitPendingRequest();
@@ -331,7 +331,7 @@ it("getFile adds file to context after reading", async () => {
     });
 
     await driver.assertDisplayBufferContains(
-      `✅ Finished reading file \`./node/test/fixtures/poem.txt\``,
+      `👀✅ \`./node/test/fixtures/poem.txt\``,
     );
 
     // Handle the auto-respond message

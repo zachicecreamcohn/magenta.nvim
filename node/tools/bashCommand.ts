@@ -532,8 +532,15 @@ ${withBindings(d`**[ NO ]**`, {
   renderPreview() {
     switch (this.state.state) {
       case "pending-user-action":
-      case "processing":
         return d``;
+      case "processing": {
+        const formattedOutput = this.formatOutputPreview(this.state.output);
+        return formattedOutput
+          ? d`\`\`\`
+${formattedOutput}
+\`\`\``
+          : d``;
+      }
       case "done": {
         const formattedOutput = this.formatOutputPreview(this.state.output);
         if (this.state.exitCode === 0) {

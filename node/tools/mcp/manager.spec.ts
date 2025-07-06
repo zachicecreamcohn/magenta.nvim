@@ -71,7 +71,7 @@ it("should call mock tool through chat agent", async () => {
 
       // Verify the tool completion appears in the chat
       await driver.assertDisplayBufferContains(
-        "🔨✅ MCP tool `mcp_test-server_echo_test` completed",
+        "🔨✅ MCP tool `mcp_test-server_echo_test`",
       );
 
       // Continue the conversation to show the tool result was processed
@@ -150,7 +150,9 @@ it("should handle tool errors gracefully", async () => {
       toolStub.respondWithError("Simulated tool error");
 
       // Verify the error appears in the chat
-      await driver.assertDisplayBufferContains("Error: Simulated tool error");
+      await driver.assertDisplayBufferContains(
+        "🔨❌ MCP tool `mcp_test-server_error_test`",
+      );
 
       // Continue conversation to show error was handled
       await driver.mockAnthropic.awaitPendingRequestWithText(
@@ -212,7 +214,7 @@ it("should handle tools with no input schema", async () => {
 
       // Verify the response appears
       await driver.assertDisplayBufferContains(
-        "🔨✅ MCP tool `mcp_test-server_simple_test` completed",
+        "🔨✅ MCP tool `mcp_test-server_simple_test`",
       );
     },
   );

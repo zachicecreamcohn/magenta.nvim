@@ -112,7 +112,11 @@ export class ReplaceTool implements StaticTool {
       case "processing":
         return d`✏️⚙️ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in \`${this.request.input.filePath}\``;
       case "done":
-        return d`✏️ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in \`${this.request.input.filePath}\``;
+        if (this.state.result.result.status === "error") {
+          return d`✏️❌ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in \`${this.request.input.filePath}\` - ${this.state.result.result.error}`;
+        } else {
+          return d`✏️✅ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in \`${this.request.input.filePath}\``;
+        }
       default:
         assertUnreachable(this.state);
     }
@@ -124,10 +128,9 @@ export class ReplaceTool implements StaticTool {
         return d``;
       case "done":
         if (this.state.result.result.status === "error") {
-          return d`❌ ${this.state.result.result.error}`;
+          return d``;
         } else {
-          return d`✅ Replace applied
-\`\`\`diff
+          return d`\`\`\`diff
 ${this.getReplacePreview()}
 \`\`\``;
         }
@@ -347,7 +350,7 @@ export function renderStreamedBlock(streamed: string): VDOMNode {
 
   // Format the message in the same style as the view method
   if (filePath) {
-    return d`⏳ Replace [[ -${findLineCount.toString()} / +${replaceLineCount.toString()} ]] in \`${filePath}\` streaming...`;
+    return d`⏳✅ Replace [[ -${findLineCount.toString()} / +${replaceLineCount.toString()} ]] in \`${filePath}\` streaming...`;
   } else {
     return d`⏳ Preparing replace operation...`;
   }
