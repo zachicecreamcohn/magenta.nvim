@@ -79,13 +79,6 @@ export function categorizeFileType(mimeType: string): FileCategory {
 }
 
 export async function isLikelyTextFile(filePath: string): Promise<boolean> {
-  let fileHandle;
-  try {
-    fileHandle = await fs.open(filePath, "r");
-  } catch {
-    return false; // File does not exist or cannot be opened
-  }
-
   // Check file extension patterns as fallback
   const ext = path.extname(filePath).toLowerCase();
   const textExtensions = [
@@ -152,8 +145,11 @@ export async function isLikelyTextFile(filePath: string): Promise<boolean> {
   }
 
   // Sample file content for binary detection
-  const SAMPLE_SIZE = 8192; // 8KB
+  let fileHandle;
   try {
+    fileHandle = await fs.open(filePath, "r");
+
+    const SAMPLE_SIZE = 8192; // 8KB
     const buffer = Buffer.alloc(SAMPLE_SIZE);
     const { bytesRead } = await fileHandle.read(buffer, 0, SAMPLE_SIZE, 0);
     const sampleBuffer = buffer.subarray(0, bytesRead);
@@ -184,8 +180,12 @@ export async function isLikelyTextFile(filePath: string): Promise<boolean> {
     } catch {
       return false; // Invalid UTF-8
     }
+  } catch {
+    return false; // File does not exist or cannot be opened
   } finally {
-    await fileHandle.close();
+    if (fileHandle) {
+      await fileHandle.close();
+    }
   }
 }
 export async function detectFileType(filePath: string): Promise<FileTypeInfo> {

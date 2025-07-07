@@ -187,9 +187,11 @@ async function handleFileEdit(
       }
 
       if (fileExists) {
-        const fileHandle = await fs.promises.open(absFilePath, "a");
-        await fileHandle.write(request.input.content);
-        await fileHandle.close();
+        await fs.promises.appendFile(
+          absFilePath,
+          request.input.content,
+          "utf-8",
+        );
       } else {
         const dirPath = path.dirname(absFilePath);
         await fs.promises.mkdir(dirPath, { recursive: true });
