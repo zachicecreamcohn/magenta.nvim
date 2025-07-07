@@ -202,11 +202,6 @@ export class SpawnSubagentTool implements StaticTool {
       }
     }
   }
-
-  displayInput(): string {
-    const input = this.request.input;
-    return `spawn_subagent: ${JSON.stringify(input, null, 2)}`;
-  }
 }
 
 export const spec: ProviderToolSpec = {

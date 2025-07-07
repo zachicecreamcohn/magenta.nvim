@@ -50,13 +50,6 @@ export class CompactThreadTool implements StaticTool {
   renderSummary() {
     return d``; // this should never need to be rendered
   }
-
-  displayInput() {
-    return `compact_thread: {
-    summary: "${this.request.input.summary}",
-    contextFiles: [${this.request.input.contextFiles.map((file) => `"${file}"`).join(", ")}]
-}`;
-  }
 }
 
 export const spec: ProviderToolSpec = {

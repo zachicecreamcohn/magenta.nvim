@@ -561,10 +561,4 @@ ${formattedOutput}
         assertUnreachable(this.state);
     }
   }
-
-  displayInput(): string {
-    return `bash_command: {
-    command: ${this.request.input.command}
-}`;
-  }
 }

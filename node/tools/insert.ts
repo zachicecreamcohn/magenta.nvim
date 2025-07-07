@@ -176,17 +176,6 @@ ${this.getInsertPreview()}
         assertUnreachable(this.state);
     }
   }
-
-  displayInput() {
-    return `insert: {
-    filePath: ${this.request.input.filePath}
-    insertAfter: "${this.request.input.insertAfter}"
-    content:
-\`\`\`
-${this.request.input.content}
-\`\`\`
-}`;
-  }
 }
 
 export const spec: ProviderToolSpec = {

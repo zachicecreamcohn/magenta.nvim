@@ -234,16 +234,6 @@ ${threadStatusLines}`;
         }),
     });
   }
-
-  displayInput(): string {
-    const threadIds = this.request.input.threadIds
-      .map((id) => `"${id.toString()}"`)
-      .join(", ");
-
-    return `wait_for_subagents: {
-    threadIds: [${threadIds}]
-}`;
-  }
 }
 
 export const spec: ProviderToolSpec = {

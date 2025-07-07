@@ -179,15 +179,6 @@ export class ReplaceSelectionTool implements StaticTool {
         assertUnreachable(this.state);
     }
   }
-
-  displayInput() {
-    return `replace: {
-    replace:
-\`\`\`
-${this.request.input.replace}
-\`\`\`
-}`;
-  }
 }
 
 export const spec: ProviderToolSpec = {

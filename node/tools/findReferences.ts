@@ -203,13 +203,6 @@ export class FindReferencesTool implements StaticTool {
         assertUnreachable(this.state);
     }
   }
-
-  displayInput() {
-    return `find_references: {
-    filePath: "${this.request.input.filePath}",
-    symbol: "${this.request.input.symbol}"
-}`;
-  }
 }
 
 export const spec: ProviderToolSpec = {

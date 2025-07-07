@@ -150,10 +150,6 @@ export class ListBuffersTool implements StaticTool {
         assertUnreachable(this.state);
     }
   }
-
-  displayInput() {
-    return `list_buffers: {}`;
-  }
 }
 
 export const spec: ProviderToolSpec = {

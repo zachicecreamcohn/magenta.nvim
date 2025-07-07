@@ -207,20 +207,6 @@ ${this.getReplacePreview()}
         assertUnreachable(this.state);
     }
   }
-
-  displayInput() {
-    return `replace: {
-    filePath: ${this.request.input.filePath}
-    match:
-\`\`\`
-${this.request.input.find}
-\`\`\`
-    replace:
-\`\`\`
-${this.request.input.replace}
-\`\`\`
-}`;
-  }
 }
 
 export const spec: ProviderToolSpec = {

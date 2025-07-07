@@ -190,10 +190,6 @@ export class DiagnosticsTool implements StaticTool {
         assertUnreachable(this.state);
     }
   }
-
-  displayInput() {
-    return `diagnostics: {}`;
-  }
 }
 
 export const spec: ProviderToolSpec = {
