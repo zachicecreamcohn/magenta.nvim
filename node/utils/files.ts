@@ -79,6 +79,13 @@ export function categorizeFileType(mimeType: string): FileCategory {
 }
 
 export async function isLikelyTextFile(filePath: string): Promise<boolean> {
+  // First check if file exists
+  try {
+    await fs.stat(filePath);
+  } catch {
+    return false; // File does not exist or cannot be accessed
+  }
+
   // Check file extension patterns as fallback
   const ext = path.extname(filePath).toLowerCase();
   const textExtensions = [
@@ -181,7 +188,7 @@ export async function isLikelyTextFile(filePath: string): Promise<boolean> {
       return false; // Invalid UTF-8
     }
   } catch {
-    return false; // File does not exist or cannot be opened
+    return false; // File cannot be opened
   } finally {
     if (fileHandle) {
       await fileHandle.close();
