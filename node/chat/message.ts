@@ -8,7 +8,12 @@ import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.t
 import type { MagentaOptions } from "../options.ts";
 import type { FileSnapshots } from "../tools/file-snapshots.ts";
 import { displaySnapshotDiff } from "../tools/display-snapshot-diff.ts";
-import type { AbsFilePath, UnresolvedFilePath } from "../utils/files.ts";
+import {
+  relativePath,
+  type AbsFilePath,
+  type RelFilePath,
+  type UnresolvedFilePath,
+} from "../utils/files.ts";
 import type {
   ProviderMessageContent,
   ProviderStreamEvent,
@@ -45,7 +50,7 @@ type State = {
     [absFilePath: string]: boolean;
   };
   edits: {
-    [filePath: UnresolvedFilePath]: {
+    [filePath: RelFilePath]: {
       requestIds: ToolRequestId[];
       status:
         | {
@@ -116,6 +121,7 @@ export class Message {
       dispatch: Dispatch<RootMsg>;
       myDispatch: Dispatch<Msg>;
       threadId: ThreadId;
+      cwd: AbsFilePath;
       nvim: Nvim;
       toolManager: ToolManager;
       fileSnapshots: FileSnapshots;
@@ -188,7 +194,7 @@ export class Message {
 
               if (tool.toolName == "insert" || tool.toolName == "replace") {
                 const input = tool.request.input as GetFileInput | ReplaceInput;
-                const filePath = input.filePath;
+                const filePath = relativePath(this.context.cwd, input.filePath);
 
                 if (!this.state.edits[filePath]) {
                   this.state.edits[filePath] = {
@@ -546,7 +552,7 @@ ${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${t
   renderEdits() {
     const fileEdits = [];
     for (const filePath in this.state.edits) {
-      const edit = this.state.edits[filePath as UnresolvedFilePath];
+      const edit = this.state.edits[filePath as RelFilePath];
 
       const filePathLink = withBindings(d`\`${filePath}\``, {
         "<CR>": () =>

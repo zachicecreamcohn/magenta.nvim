@@ -29,6 +29,7 @@ type Msg = {
 
 type EditContext = {
   nvim: Nvim;
+  cwd: AbsFilePath;
   bufferTracker: BufferTracker;
   myDispatch: Dispatch<Msg>;
   dispatch: Dispatch<RootMsg>;
@@ -173,9 +174,8 @@ async function handleFileEdit(
 ): Promise<void> {
   const { myDispatch } = context;
   const { filePath } = request.input;
-  const cwd = await getcwd(context.nvim);
-  const absFilePath = resolveFilePath(cwd, filePath);
-  const relFilePath = relativePath(cwd, absFilePath);
+  const absFilePath = resolveFilePath(context.cwd, filePath);
+  const relFilePath = relativePath(context.cwd, absFilePath);
 
   if (request.toolName === "insert" && request.input.insertAfter === "") {
     try {

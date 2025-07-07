@@ -31,7 +31,7 @@ import { spec as compactThreadSpec } from "../tools/compact-thread.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type MagentaOptions, type Profile } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
-import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { AbsFilePath, UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import {
   type Input as ThreadTitleInput,
@@ -147,6 +147,7 @@ export class Thread {
       bufferTracker: BufferTracker;
       profile: Profile;
       nvim: Nvim;
+      cwd: AbsFilePath;
       lsp: Lsp;
       contextManager: ContextManager;
       options: MagentaOptions;
@@ -167,14 +168,8 @@ export class Thread {
           msg,
         }),
       {
-        dispatch: this.context.dispatch,
+        ...this.context,
         threadId: this.id,
-        bufferTracker: this.context.bufferTracker,
-        mcpToolManager: this.context.mcpToolManager,
-        chat: this.context.chat,
-        nvim: this.context.nvim,
-        lsp: this.context.lsp,
-        options: this.context.options,
       },
     );
 
@@ -544,6 +539,7 @@ export class Thread {
               msg,
             }),
           nvim: this.context.nvim,
+          cwd: this.context.cwd,
           toolManager: this.toolManager,
           fileSnapshots: this.fileSnapshots,
           options: this.context.options,

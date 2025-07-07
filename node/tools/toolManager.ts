@@ -42,6 +42,7 @@ import { MCPToolManager } from "./mcp/manager.ts";
 import type { MCPTool } from "./mcp/tool.ts";
 import { unwrapMcpToolMsg } from "./mcp/types.ts";
 import type { ThreadId, ThreadType } from "../chat/types.ts";
+import type { AbsFilePath } from "../utils/files.ts";
 export type { Tool, ToolRequestId } from "./types.ts";
 
 export type StaticToolMap = {
@@ -190,6 +191,7 @@ export class ToolManager {
       threadId: ThreadId;
       nvim: Nvim;
       lsp: Lsp;
+      cwd: AbsFilePath;
       options: MagentaOptions;
       chat: Chat;
     },
