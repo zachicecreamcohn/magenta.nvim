@@ -189,6 +189,10 @@ export class Magenta {
           );
           const relFilePath = relativePath(cwd, absFilePath);
           const fileTypeInfo = await detectFileType(absFilePath);
+          if (!fileTypeInfo) {
+            this.nvim.logger?.error(`File ${filePath} does not exist.`);
+            continue;
+          }
 
           this.dispatch({
             type: "thread-msg",

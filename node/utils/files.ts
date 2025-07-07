@@ -79,13 +79,6 @@ export function categorizeFileType(mimeType: string): FileCategory {
 }
 
 export async function isLikelyTextFile(filePath: string): Promise<boolean> {
-  // First check if file exists
-  try {
-    await fs.stat(filePath);
-  } catch {
-    return false; // File does not exist or cannot be accessed
-  }
-
   // Check file extension patterns as fallback
   const ext = path.extname(filePath).toLowerCase();
   const textExtensions = [
@@ -195,7 +188,16 @@ export async function isLikelyTextFile(filePath: string): Promise<boolean> {
     }
   }
 }
-export async function detectFileType(filePath: string): Promise<FileTypeInfo> {
+export async function detectFileType(
+  filePath: string,
+): Promise<FileTypeInfo | undefined> {
+  // First check if file exists
+  try {
+    await fs.stat(filePath);
+  } catch {
+    return undefined; // File does not exist or cannot be accessed
+  }
+
   const extension = path.extname(filePath).toLowerCase();
   let mimeType: string | undefined;
   let category: FileCategory;

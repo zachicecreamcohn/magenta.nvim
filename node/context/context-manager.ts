@@ -478,6 +478,10 @@ export class ContextManager {
       matchedFiles.map(async (fileInfo) => {
         try {
           const fileTypeInfo = await detectFileType(fileInfo.absFilePath);
+          if (!fileTypeInfo) {
+            nvim.logger?.error(`File ${fileInfo.relFilePath} does not exist.`);
+            return;
+          }
           if (fileTypeInfo.category === FileCategory.TEXT) {
             textFiles.push(fileInfo);
           } else {

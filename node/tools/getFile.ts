@@ -20,7 +20,6 @@ import {
   detectFileType,
   validateFileSize,
   FileCategory,
-  type FileTypeInfo,
 } from "../utils/files.ts";
 import type { StaticTool, ToolName } from "./types.ts";
 import type { Msg as ThreadMsg } from "../chat/thread.ts";
@@ -254,15 +253,13 @@ You already have the most up-to-date information about the contents of this file
     const cwd = await getcwd(this.context.nvim);
     const absFilePath = resolveFilePath(cwd, filePath);
 
-    let fileTypeInfo: FileTypeInfo;
-    try {
-      fileTypeInfo = await detectFileType(absFilePath);
-    } catch (error) {
+    const fileTypeInfo = await detectFileType(absFilePath);
+    if (!fileTypeInfo) {
       this.context.myDispatch({
         type: "finish",
         result: {
           status: "error",
-          error: `Failed to detect file type: ${error instanceof Error ? error.message : String(error)}`,
+          error: `File ${filePath} does not exist.`,
         },
       });
       return;
