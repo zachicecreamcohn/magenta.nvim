@@ -149,13 +149,18 @@ export class AnthropicProvider implements Provider {
             case "tool_result":
               if (c.result.status == "ok") {
                 // Collect all contents into one array
-                const allContents: Array<Anthropic.Messages.ContentBlockParam> = [];
+                const allContents: Array<
+                  | Anthropic.Messages.TextBlockParam
+                  | Anthropic.Messages.ImageBlockParam
+                > = [];
                 let hasDocument = false;
-                
+
                 for (const resultContent of c.result.value) {
                   switch (resultContent.type) {
                     case "text":
-                      allContents.push(mapProviderTextToAnthropicText(resultContent));
+                      allContents.push(
+                        mapProviderTextToAnthropicText(resultContent),
+                      );
                       break;
                     case "image":
                       allContents.push(resultContent);
@@ -168,7 +173,7 @@ export class AnthropicProvider implements Provider {
                       assertUnreachable(resultContent);
                   }
                 }
-                
+
                 // If no documents are included, create a single tool_result block
                 if (!hasDocument) {
                   content.push({
@@ -195,7 +200,7 @@ export class AnthropicProvider implements Provider {
                       });
                     }
                   }
-                  
+
                   // If there are text and images, put them in a separate tool_result block
                   if (allContents.length > 0) {
                     content.push({
