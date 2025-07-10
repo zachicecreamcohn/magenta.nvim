@@ -76,7 +76,7 @@ async function main() {
   // Check if any checks failed
   const failed = results.filter((result) => result.status === "rejected");
   if (failed.length > 0) {
-    console.error(`${failed.length} checks failed`);
+    console.error(`${failed.length} checks failed: ${JSON.stringify(failed)}`);
     exit(1);
   }
 

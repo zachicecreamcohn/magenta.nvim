@@ -207,8 +207,4 @@ export class MCPTool implements Tool {
 
     return d``;
   }
-
-  displayInput(): string {
-    return `${this.toolName}: ${JSON.stringify(this.request.input, null, 2)}`;
-  }
 }

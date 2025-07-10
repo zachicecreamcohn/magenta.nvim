@@ -39,7 +39,7 @@ export async function getBufferIfOpen({
   for (const buffer of buffers) {
     const bufferName = await buffer.getName();
 
-    if (bufferName === absolutePath) {
+    if (resolveFilePath(cwd, bufferName) === absolutePath) {
       return { status: "ok", buffer };
     }
   }

@@ -94,13 +94,6 @@ export class YieldToParentTool implements StaticTool {
       return d`↗️✅ Yielding to parent: ${this.request.input.result}`;
     }
   }
-
-  displayInput(): string {
-    const input = this.request.input;
-    return `yield_to_parent: {
-    result: "${input.result}"
-}`;
-  }
 }
 
 export const spec: ProviderToolSpec = {

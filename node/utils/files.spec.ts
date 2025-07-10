@@ -67,11 +67,6 @@ describe("isLikelyTextFile", () => {
       expect(await isLikelyTextFile(binaryFile)).toBe(false);
     });
   });
-
-  it("should handle non-existent files gracefully", async () => {
-    const nonExistentFile = path.join(TMP_DIR, "nonexistent.txt");
-    expect(await isLikelyTextFile(nonExistentFile)).toBe(false);
-  });
 });
 
 describe("detectFileType", () => {
@@ -80,9 +75,10 @@ describe("detectFileType", () => {
       const textFile = path.join(TMP_DIR, "poem.txt");
       const result = await detectFileType(textFile);
 
-      expect(result.category).toBe(FileCategory.TEXT);
-      expect(result.mimeType).toBe("text/plain");
-      expect(result.extension).toBe(".txt");
+      expect(result).toBeDefined();
+      expect(result!.category).toBe(FileCategory.TEXT);
+      expect(result!.mimeType).toBe("text/plain");
+      expect(result!.extension).toBe(".txt");
     });
   });
 
@@ -91,12 +87,13 @@ describe("detectFileType", () => {
       const tsFile = path.join(TMP_DIR, "test.ts");
       const result = await detectFileType(tsFile);
 
-      expect(result.category).toBe(FileCategory.TEXT);
+      expect(result).toBeDefined();
+      expect(result!.category).toBe(FileCategory.TEXT);
       // TypeScript files may be detected as text/plain if no magic number is found
-      expect(result.mimeType).toMatch(
+      expect(result!.mimeType).toMatch(
         /^(application\/typescript|text\/plain)$/,
       );
-      expect(result.extension).toBe(".ts");
+      expect(result!.extension).toBe(".ts");
     });
   });
 
@@ -105,9 +102,10 @@ describe("detectFileType", () => {
       const jsonFile = path.join(TMP_DIR, "tsconfig.json");
       const result = await detectFileType(jsonFile);
 
-      expect(result.category).toBe(FileCategory.TEXT);
-      expect(result.mimeType).toBe("application/json");
-      expect(result.extension).toBe(".json");
+      expect(result).toBeDefined();
+      expect(result!.category).toBe(FileCategory.TEXT);
+      expect(result!.mimeType).toBe("application/json");
+      expect(result!.extension).toBe(".json");
     });
   });
 
@@ -116,9 +114,10 @@ describe("detectFileType", () => {
       const jpegFile = path.join(TMP_DIR, "test.jpg");
       const result = await detectFileType(jpegFile);
 
-      expect(result.category).toBe(FileCategory.IMAGE);
-      expect(result.mimeType).toBe("image/jpeg");
-      expect(result.extension).toBe(".jpg");
+      expect(result).toBeDefined();
+      expect(result!.category).toBe(FileCategory.IMAGE);
+      expect(result!.mimeType).toBe("image/jpeg");
+      expect(result!.extension).toBe(".jpg");
     });
   });
 
@@ -127,9 +126,10 @@ describe("detectFileType", () => {
       const pdfFile = path.join(TMP_DIR, "test.pdf");
       const result = await detectFileType(pdfFile);
 
-      expect(result.category).toBe(FileCategory.PDF);
-      expect(result.mimeType).toBe("application/pdf");
-      expect(result.extension).toBe(".pdf");
+      expect(result).toBeDefined();
+      expect(result!.category).toBe(FileCategory.PDF);
+      expect(result!.mimeType).toBe("application/pdf");
+      expect(result!.extension).toBe(".pdf");
     });
   });
 
@@ -138,8 +138,16 @@ describe("detectFileType", () => {
       const binaryFile = path.join(TMP_DIR, "test.bin");
       const result = await detectFileType(binaryFile);
 
-      expect(result.category).toBe(FileCategory.UNSUPPORTED);
+      expect(result).toBeDefined();
+      expect(result!.category).toBe(FileCategory.UNSUPPORTED);
     });
+  });
+
+  it("should return undefined for non-existent files", async () => {
+    const nonExistentFile = path.join(TMP_DIR, "nonexistent.txt");
+    const result = await detectFileType(nonExistentFile);
+
+    expect(result).toBeUndefined();
   });
 });
 

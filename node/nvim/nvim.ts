@@ -5,7 +5,7 @@ import {
   type Position1IndexedCol1Indexed,
   type WindowId,
 } from "./window.ts";
-import type { AbsFilePath } from "../utils/files.ts";
+import type { NvimCwd } from "../utils/files.ts";
 
 export function getOption(option: string, nvim: Nvim) {
   return nvim.call("nvim_get_option", [option]);
@@ -31,7 +31,7 @@ export async function getAllWindows(nvim: Nvim) {
   return winIds.map((winId) => new NvimWindow(winId, nvim));
 }
 
-export async function getcwd(nvim: Nvim): Promise<AbsFilePath> {
+export async function getcwd(nvim: Nvim): Promise<NvimCwd> {
   const res = await nvim.call("nvim_exec2", [
     "echo getcwd()",
     { output: true },
@@ -39,7 +39,7 @@ export async function getcwd(nvim: Nvim): Promise<AbsFilePath> {
   if (typeof res.output != "string") {
     throw new Error(`Unable to get cwd`);
   }
-  return res.output as AbsFilePath;
+  return res.output as NvimCwd;
 }
 
 export async function mode(nvim: Nvim) {

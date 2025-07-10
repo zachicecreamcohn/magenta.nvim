@@ -129,12 +129,6 @@ export class ThreadTitleTool implements StaticTool {
       },
     });
   }
-
-  displayInput() {
-    return `thread_title: {
-    title: "${this.request.input.title}"
-}`;
-  }
 }
 
 export const spec: ProviderToolSpec = {

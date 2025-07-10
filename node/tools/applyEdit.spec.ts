@@ -461,10 +461,8 @@ Paint their stories in the night.
   it("applyEdit immediately updates buffer tracker on insert", async () => {
     await withDriver({}, async (driver) => {
       // Create a file and open it in a buffer
-      const poemFile = path.join(
-        await getcwd(driver.nvim),
-        `${TMP_DIR}/poem.txt`,
-      );
+      const cwd = await getcwd(driver.nvim);
+      const poemFile = path.join(cwd, `${TMP_DIR}/poem.txt`);
 
       await driver.command(`edit ${poemFile}`);
       await driver.showSidebar();
@@ -490,6 +488,7 @@ Paint their stories in the night.
         driver.magenta.chat.getActiveThread().id,
         0 as MessageId,
         {
+          cwd,
           nvim: driver.nvim,
           bufferTracker: driver.magenta.bufferTracker,
           myDispatch,
@@ -541,11 +540,9 @@ Paint their stories in the night.
 
   it("applyEdit immediately updates buffer tracker on replace", async () => {
     await withDriver({}, async (driver) => {
+      const cwd = await getcwd(driver.nvim);
       // Create a file and open it in a buffer
-      const poemFile = path.join(
-        await getcwd(driver.nvim),
-        `${TMP_DIR}/poem.txt`,
-      );
+      const poemFile = path.join(cwd, `${TMP_DIR}/poem.txt`);
 
       await driver.command(`edit ${poemFile}`);
       await driver.showSidebar();
@@ -572,6 +569,7 @@ Paint their stories in the night.
         0 as MessageId,
         {
           nvim: driver.nvim,
+          cwd,
           bufferTracker: driver.magenta.bufferTracker,
           myDispatch,
           dispatch,

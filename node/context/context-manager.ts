@@ -12,6 +12,7 @@ import {
   relativePath,
   resolveFilePath,
   type AbsFilePath,
+  type NvimCwd,
   type RelFilePath,
   type UnresolvedFilePath,
   detectFileType,
@@ -103,7 +104,7 @@ export class ContextManager {
   private constructor(
     public myDispatch: Dispatch<Msg>,
     private context: {
-      cwd: AbsFilePath;
+      cwd: NvimCwd;
       dispatch: Dispatch<RootMsg>;
       bufferTracker: BufferTracker;
       nvim: Nvim;
@@ -121,7 +122,7 @@ export class ContextManager {
     myDispatch: Dispatch<Msg>,
     context: {
       dispatch: Dispatch<RootMsg>;
-      cwd: AbsFilePath;
+      cwd: NvimCwd;
       nvim: Nvim;
       options: MagentaOptions;
       bufferTracker: BufferTracker;
@@ -400,7 +401,7 @@ export class ContextManager {
 
   private static async findFilesCrossPlatform(
     globPatterns: string[],
-    cwd: string,
+    cwd: NvimCwd,
     nvim: Nvim,
   ): Promise<Array<{ absFilePath: AbsFilePath; relFilePath: RelFilePath }>> {
     const allMatchedPaths: Array<{
@@ -478,6 +479,10 @@ export class ContextManager {
       matchedFiles.map(async (fileInfo) => {
         try {
           const fileTypeInfo = await detectFileType(fileInfo.absFilePath);
+          if (!fileTypeInfo) {
+            nvim.logger?.error(`File ${fileInfo.relFilePath} does not exist.`);
+            return;
+          }
           if (fileTypeInfo.category === FileCategory.TEXT) {
             textFiles.push(fileInfo);
           } else {

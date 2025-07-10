@@ -195,13 +195,6 @@ ${lspResult.result.contents.value}
         assertUnreachable(this.state);
     }
   }
-
-  displayInput() {
-    return `hover: {
-  filePath: "${this.request.input.filePath}",
-  symbol: "${this.request.input.symbol}"
-}`;
-  }
 }
 
 export const spec: ProviderToolSpec = {

@@ -13,7 +13,7 @@ import {
   detectFileType,
   relativePath,
   resolveFilePath,
-  type AbsFilePath,
+  type NvimCwd,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
@@ -101,7 +101,7 @@ export class Chat {
       dispatch: Dispatch<RootMsg>;
       bufferTracker: BufferTracker;
       options: MagentaOptions;
-      cwd: AbsFilePath;
+      cwd: NvimCwd;
       nvim: Nvim;
       lsp: Lsp;
     },
@@ -307,6 +307,10 @@ export class Chat {
           const absFilePath = resolveFilePath(this.context.cwd, filePath);
           const relFilePath = relativePath(this.context.cwd, absFilePath);
           const fileTypeInfo = await detectFileType(absFilePath);
+          if (!fileTypeInfo) {
+            this.context.nvim.logger?.error(`File ${filePath} does not exist.`);
+            return;
+          }
           contextManager.update({
             type: "add-file-context",
             absFilePath,

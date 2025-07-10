@@ -14,6 +14,13 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { StaticTool, ToolName } from "./types.ts";
+import {
+  relativePath,
+  resolveFilePath,
+  type AbsFilePath,
+  type NvimCwd,
+  type UnresolvedFilePath,
+} from "../utils/files.ts";
 
 export type State =
   | {
@@ -30,8 +37,8 @@ export type Msg = {
 };
 
 async function listDirectoryBFS(
-  startPath: string,
-  cwd: string,
+  startPath: AbsFilePath,
+  cwd: NvimCwd,
 ): Promise<string[]> {
   const ig = await readGitignore(cwd);
   const queue: string[] = [startPath];
@@ -46,14 +53,15 @@ async function listDirectoryBFS(
     });
 
     for (const entry of entries) {
-      const fullPath = path.join(currentPath, entry.name);
-      const relativePath = path.relative(cwd, fullPath);
+      const fullPath = path.join(currentPath, entry.name) as UnresolvedFilePath;
+      const relFilePath = relativePath(cwd, fullPath);
 
       // Skip hidden files and respected gitignored files
-      if (entry.name.startsWith(".") || ig.ignores(relativePath)) {
+      if (entry.name.startsWith(".") || ig.ignores(relFilePath)) {
         continue;
       }
 
+      // Skip files outside of cwd
       if (!fullPath.startsWith(cwd)) {
         continue;
       }
@@ -62,10 +70,10 @@ async function listDirectoryBFS(
         seen.add(fullPath);
 
         if (entry.isDirectory()) {
-          results.push(relativePath + "/");
+          results.push(relFilePath + "/");
           queue.push(fullPath);
         } else {
-          results.push(relativePath);
+          results.push(relFilePath);
         }
       }
     }
@@ -133,8 +141,8 @@ export class ListDirectoryTool implements StaticTool {
   async listDirectory() {
     try {
       const cwd = await getcwd(this.context.nvim);
-      const dirPath = this.request.input.dirPath || ".";
-      const absolutePath = path.resolve(cwd, dirPath);
+      const dirPath = (this.request.input.dirPath || ".") as UnresolvedFilePath;
+      const absolutePath = resolveFilePath(cwd, dirPath);
 
       if (!absolutePath.startsWith(cwd)) {
         this.context.myDispatch({

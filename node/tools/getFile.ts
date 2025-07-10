@@ -5,7 +5,6 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, withBindings } from "../tea/view.ts";
 import { type StaticToolRequest } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
-import { getcwd } from "../nvim/nvim.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { readGitignore } from "./util.ts";
 import type {
@@ -20,7 +19,7 @@ import {
   detectFileType,
   validateFileSize,
   FileCategory,
-  type FileTypeInfo,
+  type NvimCwd,
 } from "../utils/files.ts";
 import type { StaticTool, ToolName } from "./types.ts";
 import type { Msg as ThreadMsg } from "../chat/thread.ts";
@@ -30,6 +29,7 @@ import type {
   ProviderImageContent,
   ProviderDocumentContent,
 } from "../providers/provider-types.ts";
+import { delay } from "../utils/async.ts";
 
 export type State =
   | {
@@ -73,6 +73,7 @@ export class GetFileTool implements StaticTool {
     public request: Extract<StaticToolRequest, { toolName: "get_file" }>,
     public context: {
       nvim: Nvim;
+      cwd: NvimCwd;
       contextManager: ContextManager;
       threadDispatch: Dispatch<ThreadMsg>;
       myDispatch: Dispatch<Msg>;
@@ -201,8 +202,7 @@ export class GetFileTool implements StaticTool {
 
   async initReadFile(): Promise<void> {
     const filePath = this.request.input.filePath;
-    const cwd = await getcwd(this.context.nvim);
-    const absFilePath = resolveFilePath(cwd, filePath);
+    const absFilePath = resolveFilePath(this.context.cwd, filePath);
 
     if (
       this.context.contextManager.files[absFilePath] &&
@@ -224,10 +224,10 @@ You already have the most up-to-date information about the contents of this file
       return;
     }
 
-    const relFilePath = relativePath(cwd, absFilePath);
+    const relFilePath = relativePath(this.context.cwd, absFilePath);
 
     if (this.state.state === "pending") {
-      if (!absFilePath.startsWith(cwd)) {
+      if (!absFilePath.startsWith(this.context.cwd)) {
         this.context.myDispatch({ type: "request-user-approval" });
         return;
       }
@@ -237,7 +237,7 @@ You already have the most up-to-date information about the contents of this file
         return;
       }
 
-      const ig = await readGitignore(cwd);
+      const ig = await readGitignore(this.context.cwd);
       if (ig.ignores(relFilePath)) {
         this.context.myDispatch({ type: "request-user-approval" });
         return;
@@ -251,18 +251,15 @@ You already have the most up-to-date information about the contents of this file
 
   async readFile() {
     const filePath = this.request.input.filePath;
-    const cwd = await getcwd(this.context.nvim);
-    const absFilePath = resolveFilePath(cwd, filePath);
+    const absFilePath = resolveFilePath(this.context.cwd, filePath);
 
-    let fileTypeInfo: FileTypeInfo;
-    try {
-      fileTypeInfo = await detectFileType(absFilePath);
-    } catch (error) {
+    const fileTypeInfo = await detectFileType(absFilePath);
+    if (!fileTypeInfo) {
       this.context.myDispatch({
         type: "finish",
         result: {
           status: "error",
-          error: `Failed to detect file type: ${error instanceof Error ? error.message : String(error)}`,
+          error: `File ${filePath} does not exist.`,
         },
       });
       return;
@@ -296,21 +293,6 @@ You already have the most up-to-date information about the contents of this file
       return;
     }
 
-    if (
-      this.state.state === "processing" &&
-      !this.state.approved &&
-      sizeValidation.actualSize > 1024 * 1024
-    ) {
-      this.context.myDispatch({
-        type: "finish",
-        result: {
-          status: "error",
-          error: "Large file requires user approval",
-        },
-      });
-      return;
-    }
-
     let result:
       | ProviderTextContent
       | ProviderImageContent
@@ -327,6 +309,29 @@ You already have the most up-to-date information about the contents of this file
         textContent = (
           await bufferContents.buffer.getLines({ start: 0, end: -1 })
         ).join("\n");
+
+        // TODO: this is a bit of a hag / for debug purposes.
+        // Sometimes we get empty buffer contents here. Is it because there's a delay between the buffer
+        // being added and the content being populated? Or perhaps it's because a plugin (formatter?) is
+        // making the file contents disappear for an instant?
+        if (textContent == "") {
+          this.context.nvim.logger?.warn(
+            `Got empty buffer contents for buffer ${await bufferContents.buffer.getName()}`,
+          );
+
+          // try one more time
+          await delay(5);
+
+          textContent = (
+            await bufferContents.buffer.getLines({ start: 0, end: -1 })
+          ).join("\n");
+
+          if (textContent == "") {
+            this.context.nvim.logger?.warn(
+              `Got empty buffer contents for buffer ${await bufferContents.buffer.getName()} again`,
+            );
+          }
+        }
       } else if (bufferContents.status == "not-found") {
         textContent = await fs.promises.readFile(absFilePath, "utf-8");
       } else {
@@ -479,10 +484,6 @@ You already have the most up-to-date information about the contents of this file
       default:
         assertUnreachable(this.state);
     }
-  }
-
-  displayInput() {
-    return `get_file: ${JSON.stringify(this.request.input, null, 2)}`;
   }
 }
 

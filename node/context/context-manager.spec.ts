@@ -39,7 +39,7 @@ it("returns full file contents on first getContextUpdate and no updates on secon
       type: "add-file-context",
       relFilePath: "poem.txt" as RelFilePath,
       absFilePath,
-      fileTypeInfo,
+      fileTypeInfo: fileTypeInfo!,
     });
 
     // Get context updates - first call
@@ -88,7 +88,7 @@ it("returns diff when file is edited in a buffer", async () => {
       type: "add-file-context",
       relFilePath: testFilePath as RelFilePath,
       absFilePath,
-      fileTypeInfo,
+      fileTypeInfo: fileTypeInfo!,
     });
 
     // First, edit the file to track the buffer
@@ -148,7 +148,7 @@ it("returns diff when file is edited on disk", async () => {
       type: "add-file-context",
       relFilePath: "poem.txt" as RelFilePath,
       absFilePath,
-      fileTypeInfo,
+      fileTypeInfo: fileTypeInfo!,
     });
 
     // Get initial context update

@@ -364,6 +364,166 @@ tada
     });
   });
 
+  it("truncates display preview but preserves full output for agent", async () => {
+    await withDriver(
+      {
+        options: {
+          commandAllowlist: ["^echo .*$"],
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+
+        const longText = "A".repeat(200); // 200 characters, much longer than WIDTH-5 (95)
+        await driver.inputMagentaText(`Run this command: echo "${longText}"`);
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const toolRequestId = "test-truncation" as ToolRequestId;
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "I'll run that command for you.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: toolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command: `echo "${longText}"`,
+                },
+              },
+            },
+          ],
+        });
+
+        await driver.assertDisplayBufferContains("⚡✅");
+
+        // Verify display shows truncated text
+        const truncatedText = "A".repeat(95) + "...";
+        await driver.assertDisplayBufferContains(truncatedText);
+
+        // Verify the full output is preserved for the agent
+        const toolResultRequest =
+          await driver.mockAnthropic.awaitPendingRequest();
+        const toolResultMessage =
+          toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+        if (
+          toolResultMessage.role === "user" &&
+          Array.isArray(toolResultMessage.content)
+        ) {
+          const toolResult = toolResultMessage.content[0];
+          if (toolResult.type === "tool_result") {
+            expect(toolResult.result.status).toBe("ok");
+            if (toolResult.result.status === "ok") {
+              const resultItem = toolResult.result.value[0];
+              if (resultItem.type !== "text") {
+                throw new Error("Expected text result from bash command");
+              }
+              const resultText = resultItem.text;
+
+              // Verify the full 200-character string is preserved for the agent
+              expect(resultText).toContain(longText);
+              expect(resultText).toContain("exit code 0");
+            }
+          }
+        }
+      },
+    );
+  });
+
+  it("trims output to token limit for agent", async () => {
+    await withDriver(
+      {
+        options: {
+          commandAllowlist: ["^yes .*$"],
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+
+        // Generate output that will exceed the 10,000 token limit (40,000 characters)
+        // Use 'yes' command with a long string to create repetitive output
+        const longString = "A".repeat(100); // 100 characters per line
+        await driver.inputMagentaText(
+          `Run this command: yes "${longString}" | head -500`,
+        );
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const toolRequestId = "test-token-limit" as ToolRequestId;
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "I'll run that command for you.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: toolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command: `yes "${longString}" | head -500`,
+                },
+              },
+            },
+          ],
+        });
+
+        await driver.assertDisplayBufferContains("⚡✅");
+
+        const toolResultRequest =
+          await driver.mockAnthropic.awaitPendingRequest();
+        const toolResultMessage =
+          toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+        if (
+          toolResultMessage.role === "user" &&
+          Array.isArray(toolResultMessage.content)
+        ) {
+          const toolResult = toolResultMessage.content[0];
+          if (toolResult.type === "tool_result") {
+            expect(toolResult.result.status).toBe("ok");
+            if (toolResult.result.status === "ok") {
+              const resultItem = toolResult.result.value[0];
+              if (resultItem.type !== "text") {
+                throw new Error("Expected text result from bash command");
+              }
+              const resultText = resultItem.text;
+
+              // Verify the output is limited by token count (40,000 characters max)
+              // Account for "stdout:\n" and "exit code 0\n" overhead
+              expect(resultText.length).toBeLessThan(40100); // Small buffer for overhead
+
+              // Should contain the exit code at the end
+              expect(resultText).toContain("exit code 0");
+
+              // Should contain the repeated string pattern
+              expect(resultText).toContain(longString);
+
+              // Should not contain the very beginning of the output since we're trimming from the start
+              // The output starts with many repetitions, so early lines should be trimmed
+              const lines = resultText
+                .split("\n")
+                .filter((line) => line.trim() !== "");
+              const contentLines = lines.filter(
+                (line) =>
+                  !line.startsWith("stdout:") && !line.startsWith("exit code"),
+              );
+
+              // With 100 chars per line + newline, we should have roughly 40,000 / 101 ≈ 396 lines max
+              // But the actual limit depends on the overhead from "stdout:" markers
+              expect(contentLines.length).toBeLessThan(500); // Should be less than the full 500 lines
+              expect(contentLines.length).toBeGreaterThan(300); // Should have a substantial portion
+            }
+          }
+        }
+      },
+    );
+  });
+
   describe("isCommandAllowed with regex patterns", () => {
     it("should allow simple commands with prefix patterns", () => {
       const allowlist: CommandAllowlist = ["^ls", "^echo"];

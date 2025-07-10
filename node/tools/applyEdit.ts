@@ -13,6 +13,7 @@ import {
   relativePath,
   resolveFilePath,
   type AbsFilePath,
+  type NvimCwd,
 } from "../utils/files.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import { applyInsert, applyReplace } from "../utils/contentEdits.ts";
@@ -29,6 +30,7 @@ type Msg = {
 
 type EditContext = {
   nvim: Nvim;
+  cwd: NvimCwd;
   bufferTracker: BufferTracker;
   myDispatch: Dispatch<Msg>;
   dispatch: Dispatch<RootMsg>;
@@ -173,9 +175,8 @@ async function handleFileEdit(
 ): Promise<void> {
   const { myDispatch } = context;
   const { filePath } = request.input;
-  const cwd = await getcwd(context.nvim);
-  const absFilePath = resolveFilePath(cwd, filePath);
-  const relFilePath = relativePath(cwd, absFilePath);
+  const absFilePath = resolveFilePath(context.cwd, filePath);
+  const relFilePath = relativePath(context.cwd, absFilePath);
 
   if (request.toolName === "insert" && request.input.insertAfter === "") {
     try {

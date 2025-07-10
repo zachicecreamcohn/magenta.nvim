@@ -182,19 +182,6 @@ ${input.find}
       },
     });
   }
-
-  displayInput() {
-    return `replace: {
-    match:
-\`\`\`
-${this.request.input.find}
-\`\`\`
-    replace:
-\`\`\`
-${this.request.input.replace}
-\`\`\`
-}`;
-  }
 }
 
 export const spec: ProviderToolSpec = {
