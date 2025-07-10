@@ -424,7 +424,7 @@ export class BashCommandTool implements StaticTool {
   private trimOutputByTokens(output: OutputLine[]): OutputLine[] {
     const maxCharacters = MAX_OUTPUT_TOKENS_FOR_AGENT * CHARACTERS_PER_TOKEN;
     let totalCharacters = 0;
-    let result: OutputLine[] = [];
+    const result: OutputLine[] = [];
 
     // Work backwards through the output to find the tail that fits within token limit
     for (let i = output.length - 1; i >= 0; i--) {

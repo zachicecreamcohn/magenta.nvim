@@ -31,11 +31,7 @@ import { spec as compactThreadSpec } from "../tools/compact-thread.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type MagentaOptions, type Profile } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
-import type {
-  AbsFilePath,
-  NvimCwd,
-  UnresolvedFilePath,
-} from "../utils/files.ts";
+import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import {
   type Input as ThreadTitleInput,

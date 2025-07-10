@@ -13,7 +13,6 @@ import {
   detectFileType,
   relativePath,
   resolveFilePath,
-  type AbsFilePath,
   type NvimCwd,
   type UnresolvedFilePath,
 } from "../utils/files.ts";

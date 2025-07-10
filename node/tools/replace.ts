@@ -15,11 +15,7 @@ import type { MessageId } from "../chat/message.ts";
 import * as diff from "diff";
 import type { ThreadId } from "../chat/types";
 import type { StaticTool, ToolName } from "./types.ts";
-import type {
-  AbsFilePath,
-  NvimCwd,
-  UnresolvedFilePath,
-} from "../utils/files.ts";
+import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 export type State =
   | {

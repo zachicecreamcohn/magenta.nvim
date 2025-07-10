@@ -41,7 +41,7 @@
   },
   "scripts": {
     "start": "npx tsx node/index.ts",
-    "setup-precommit": "ln -sf ./pre-commit .git/hooks/pre-commit"
+    "setup-precommit": "ln -sf ../../pre-commit .git/hooks/pre-commit"
   },
   "version": "0.0.0",
   "description": "an AI agent / LLM coding assistant for neovim",
