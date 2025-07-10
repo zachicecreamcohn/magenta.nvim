@@ -13,6 +13,10 @@ import type { CommandAllowlist, MagentaOptions } from "../options.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import { withTimeout } from "../utils/async.ts";
 import type { StaticTool, ToolName } from "./types.ts";
+import { WIDTH } from "../sidebar.ts";
+
+const MAX_OUTPUT_TOKENS_FOR_AGENT = 10000;
+const CHARACTERS_PER_TOKEN = 4;
 
 export const spec: ProviderToolSpec = {
   name: "bash_command" as ToolName,
@@ -233,13 +237,10 @@ export class BashCommandTool implements StaticTool {
           return;
         }
 
-        // Trim line to 80 characters
-        const trimmedText =
-          msg.text.length > 80 ? msg.text.substring(0, 80) : msg.text;
-        if (trimmedText.trim() !== "") {
+        if (msg.text.trim() !== "") {
           this.state.output.push({
             stream: "stdout",
-            text: trimmedText,
+            text: msg.text,
           });
         }
         return;
@@ -250,13 +251,10 @@ export class BashCommandTool implements StaticTool {
           return;
         }
 
-        // Trim line to 80 characters
-        const trimmedText =
-          msg.text.length > 80 ? msg.text.substring(0, 80) : msg.text;
-        if (trimmedText.trim() !== "") {
+        if (msg.text.trim() !== "") {
           this.state.output.push({
             stream: "stderr",
-            text: trimmedText,
+            text: msg.text,
           });
         }
         return;
@@ -268,8 +266,8 @@ export class BashCommandTool implements StaticTool {
         }
 
         // Process the output array to format with stream markers
-        // trim to last 1000 lines to avoid over-filling the context
-        const outputTail = this.state.output.slice(-1000);
+        // trim to last N tokens to avoid over-filling the context
+        const outputTail = this.trimOutputByTokens(this.state.output);
         let formattedOutput = "";
         let currentStream: "stdout" | "stderr" | null = null;
 
@@ -423,6 +421,28 @@ export class BashCommandTool implements StaticTool {
     }
   }
 
+  private trimOutputByTokens(output: OutputLine[]): OutputLine[] {
+    const maxCharacters = MAX_OUTPUT_TOKENS_FOR_AGENT * CHARACTERS_PER_TOKEN;
+    let totalCharacters = 0;
+    let result: OutputLine[] = [];
+
+    // Work backwards through the output to find the tail that fits within token limit
+    for (let i = output.length - 1; i >= 0; i--) {
+      const line = output[i];
+      const lineLength = line.text.length + 1; // +1 for newline
+
+      if (totalCharacters + lineLength > maxCharacters && result.length > 0) {
+        // We've hit the limit, stop here
+        break;
+      }
+
+      result.unshift(line);
+      totalCharacters += lineLength;
+    }
+
+    return result;
+  }
+
   formatOutputPreview(output: OutputLine[]): string {
     let formattedOutput = "";
     let currentStream: "stdout" | "stderr" | null = null;
@@ -434,7 +454,13 @@ export class BashCommandTool implements StaticTool {
         formattedOutput += line.stream === "stdout" ? "stdout:\n" : "stderr:\n";
         currentStream = line.stream;
       }
-      formattedOutput += line.text + "\n";
+      // Truncate line to WIDTH - 5 characters for display only
+      const displayWidth = WIDTH - 5;
+      const displayText =
+        line.text.length > displayWidth
+          ? line.text.substring(0, displayWidth) + "..."
+          : line.text;
+      formattedOutput += displayText + "\n";
     }
 
     return formattedOutput;
