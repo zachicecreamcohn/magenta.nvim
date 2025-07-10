@@ -1,7 +1,7 @@
 import type { Nvim } from "./nvim-node";
 import type { Position0Indexed, Position1Indexed } from "./window";
 import { withTimeout } from "../utils/async";
-import type { AbsFilePath } from "../utils/files";
+import type { AbsFilePath, UnresolvedFilePath } from "../utils/files";
 
 export type Line = string & { __line: true };
 export type BufNr = number & { __bufnr: true };
@@ -129,8 +129,10 @@ export class NvimBuffer {
     ]);
   }
 
-  getName() {
-    return this.nvim.call("nvim_buf_get_name", [this.id]);
+  getName(): Promise<UnresolvedFilePath> {
+    return this.nvim.call("nvim_buf_get_name", [
+      this.id,
+    ]) as Promise<UnresolvedFilePath>;
   }
 
   setName(name: string) {

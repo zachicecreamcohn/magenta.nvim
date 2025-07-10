@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import type { ServerName } from "./tools/mcp/types";
 import { validateServerName } from "./tools/mcp/types";
+import type { NvimCwd } from "./utils/files";
 
 export type Profile = {
   name: string;
@@ -400,7 +401,7 @@ export function parseProjectOptions(
 }
 
 export function loadProjectSettings(
-  cwd: string,
+  cwd: NvimCwd,
   logger?: { warn: (msg: string) => void },
 ): Partial<MagentaOptions> | undefined {
   const settingsPath = path.join(cwd, ".magenta", "options.json");

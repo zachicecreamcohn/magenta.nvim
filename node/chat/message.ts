@@ -11,6 +11,7 @@ import { displaySnapshotDiff } from "../tools/display-snapshot-diff.ts";
 import {
   relativePath,
   type AbsFilePath,
+  type NvimCwd,
   type RelFilePath,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
@@ -121,7 +122,7 @@ export class Message {
       dispatch: Dispatch<RootMsg>;
       myDispatch: Dispatch<Msg>;
       threadId: ThreadId;
-      cwd: AbsFilePath;
+      cwd: NvimCwd;
       nvim: Nvim;
       toolManager: ToolManager;
       fileSnapshots: FileSnapshots;

@@ -8,14 +8,13 @@ import type { Lsp } from "../lsp.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import { calculateStringPosition } from "../tea/util.ts";
 import type { PositionString, StringIdx } from "../nvim/window.ts";
-import path from "path";
 import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { UnresolvedFilePath } from "../utils/files.ts";
+import { relativePath, type UnresolvedFilePath } from "../utils/files.ts";
 import type { StaticTool, ToolName } from "./types.ts";
 
 export type State =
@@ -145,8 +144,8 @@ export class FindReferencesTool implements StaticTool {
             const uri = ref.uri.startsWith("file://")
               ? ref.uri.slice(7)
               : ref.uri;
-            const relativePath = path.relative(cwd, uri);
-            content += `${relativePath}:${ref.range.start.line + 1}:${ref.range.start.character}\n`;
+            const relFilePath = relativePath(cwd, uri as UnresolvedFilePath);
+            content += `${relFilePath}:${ref.range.start.line + 1}:${ref.range.start.character}\n`;
           }
         }
       }

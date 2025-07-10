@@ -1,11 +1,15 @@
 import ignore from "ignore";
-import path from "node:path";
 import fs from "node:fs";
+import {
+  resolveFilePath,
+  type NvimCwd,
+  type RelFilePath,
+} from "../utils/files";
 
-export async function readGitignore(cwd: string): Promise<ignore.Ignore> {
+export async function readGitignore(cwd: NvimCwd): Promise<ignore.Ignore> {
   const ig = ignore();
   try {
-    const gitignorePath = path.join(cwd, ".gitignore");
+    const gitignorePath = resolveFilePath(cwd, ".gitignore" as RelFilePath);
     const gitignoreContent = await fs.promises.readFile(gitignorePath, "utf8");
     ig.add(gitignoreContent);
   } catch {

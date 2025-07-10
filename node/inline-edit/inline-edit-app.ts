@@ -20,6 +20,11 @@ import {
 } from "../tools/replace-selection-tool";
 import { spec as inlineEditSpec } from "../tools/inline-edit-tool";
 import type { Dispatch } from "../tea/tea";
+import {
+  relativePath,
+  resolveFilePath,
+  type UnresolvedFilePath,
+} from "../utils/files";
 
 export type InlineEditId = number & { __inlineEdit: true };
 
@@ -189,7 +194,7 @@ export class InlineEditManager {
           {
             type: "text",
             text: `\
-I am working in file \`${path.relative(cwd, bufferName)}\` with the following contents:
+I am working in file \`${relativePath(cwd, resolveFilePath(cwd, bufferName))}\` with the following contents:
 \`\`\`${getMarkdownExt(bufferName)}
 ${targetLines.join("\n")}
 \`\`\`

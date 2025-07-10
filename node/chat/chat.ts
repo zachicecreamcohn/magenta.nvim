@@ -14,6 +14,7 @@ import {
   relativePath,
   resolveFilePath,
   type AbsFilePath,
+  type NvimCwd,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
@@ -101,7 +102,7 @@ export class Chat {
       dispatch: Dispatch<RootMsg>;
       bufferTracker: BufferTracker;
       options: MagentaOptions;
-      cwd: AbsFilePath;
+      cwd: NvimCwd;
       nvim: Nvim;
       lsp: Lsp;
     },

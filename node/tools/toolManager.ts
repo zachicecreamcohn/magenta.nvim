@@ -42,7 +42,7 @@ import { MCPToolManager } from "./mcp/manager.ts";
 import type { MCPTool } from "./mcp/tool.ts";
 import { unwrapMcpToolMsg } from "./mcp/types.ts";
 import type { ThreadId, ThreadType } from "../chat/types.ts";
-import type { AbsFilePath } from "../utils/files.ts";
+import type { NvimCwd } from "../utils/files.ts";
 export type { Tool, ToolRequestId } from "./types.ts";
 
 export type StaticToolMap = {
@@ -191,7 +191,7 @@ export class ToolManager {
       threadId: ThreadId;
       nvim: Nvim;
       lsp: Lsp;
-      cwd: AbsFilePath;
+      cwd: NvimCwd;
       options: MagentaOptions;
       chat: Chat;
     },
@@ -301,7 +301,7 @@ export class ToolManager {
             }
 
             const getFileTool = new GetFile.GetFileTool(staticRequest, {
-              nvim: this.context.nvim,
+              ...this.context,
               contextManager: threadWrapper.thread.contextManager,
               threadDispatch: (msg) =>
                 this.context.dispatch({

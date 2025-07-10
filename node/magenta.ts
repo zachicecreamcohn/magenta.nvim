@@ -6,7 +6,6 @@ import type { Nvim } from "./nvim/nvim-node";
 import { Lsp } from "./lsp.ts";
 import { getProvider } from "./providers/provider.ts";
 import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
-import path from "node:path";
 import type { BufNr, Line } from "./nvim/buffer.ts";
 import { pos1col1to0 } from "./nvim/window.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
@@ -27,6 +26,7 @@ import {
   resolveFilePath,
   type UnresolvedFilePath,
   type AbsFilePath,
+  type NvimCwd,
   detectFileType,
 } from "./utils/files.ts";
 import { assertUnreachable } from "./utils/assertUnreachable.ts";
@@ -50,7 +50,7 @@ export class Magenta {
   constructor(
     public nvim: Nvim,
     public lsp: Lsp,
-    public cwd: AbsFilePath,
+    public cwd: NvimCwd,
     public options: MagentaOptions,
   ) {
     this.bufferTracker = new BufferTracker(this.nvim);
@@ -307,7 +307,7 @@ export class Magenta {
           endPos: pos1col1to0(endPos),
         });
 
-        const relFileName = path.relative(cwd, await currentBuffer.getName());
+        const relFileName = relativePath(cwd, await currentBuffer.getName());
         const content = `
 Here is a snippet from the file \`${relFileName}\`
 \`\`\`${getMarkdownExt(relFileName)}

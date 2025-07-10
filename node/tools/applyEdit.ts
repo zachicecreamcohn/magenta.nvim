@@ -13,6 +13,7 @@ import {
   relativePath,
   resolveFilePath,
   type AbsFilePath,
+  type NvimCwd,
 } from "../utils/files.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import { applyInsert, applyReplace } from "../utils/contentEdits.ts";
@@ -29,7 +30,7 @@ type Msg = {
 
 type EditContext = {
   nvim: Nvim;
-  cwd: AbsFilePath;
+  cwd: NvimCwd;
   bufferTracker: BufferTracker;
   myDispatch: Dispatch<Msg>;
   dispatch: Dispatch<RootMsg>;
