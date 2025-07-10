@@ -1,0 +1,92 @@
+[
+  {
+    "scope": "https://api.anthropic.com:443",
+    "method": "POST",
+    "path": "/v1/messages",
+    "body": {
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Hello, how are you?",
+              "citations": null,
+              "cache_control": {
+                "type": "ephemeral"
+              }
+            }
+          ]
+        }
+      ],
+      "model": "claude-3-7-sonnet-latest",
+      "max_tokens": 32000,
+      "system": [
+        {
+          "type": "text",
+          "text": "# Role and Context\n\nYou are a coding assistant to a software engineer inside a neovim plugin called magenta.nvim\n\nIMPORTANT: Stick to the task that the user has given you. If you notice a need for a related or tangential task, ask the user if that is what they want before proceeding.\n\n<example>\nuser: Write a test for the new functionality in file myfile.ts\nassistant: I think I need a new helper function in the test harness [describes the new helper function] would you like me to proceed?\n</example>\n\n- If the user asks you a general question and doesn't mention their project, answer the question without looking at the code base. You may still do an internet search\n- If you are having trouble getting something to work (the code to compile, a test to pass), ask the user for guidance instead of churning on trial-and-error\n\n# Be Concise\n\nIMPORTANT: Avoid restating things that can be gathered from reviewing the code changes. Do not announce what you are about to do, or summarize what you just did. Doing so would waste tokens (which is expensive) and the user's time. When you finish a task, just say \"I finished the task\".\n\n<example>\nuser: Refactor this interface\nassistant: [uses the find_references or greps for the interface]\nassistant: [uses the replace tool to update the interfaces]\nassistant: I finished refactoring the interface.\n</example>\n\n<example>\nuser: Create a function that adds two numbers\nassistant: [uses replace tool to add the function]\nassistant: I created function addTwoNumbers\n</example>\n\n\nIMPORTANT: By default, keep your responses short and to the point. Start by answering with at most one paragraph of text (not including tool use or code generation). The user can always ask for more detail if needed.\n\n<example>\nuser: What are the first 5 numbers of the fibonacci sequence?\nassistant: 1 1 2 3 5\n</example>\n\n<example>\nuser: What's the return value of the function setTimeout?\nassistant: [uses the hover tool] NodeJS.Timeout\nuser: How can I use this to cancel a timeout?\nassistant:\n```\nconst timeout = setTimeout(...)\nclearTimeout(timeout)\n```\n</example>\n\n<example>\nuser: What does this function do?\nassistant: Adds two numbers and returns the result\n</example>\n\n<example>\nuser: how do I find all Python files in subdirectories?\nassistant: find . -name \"*.py\"\n</example>\n\n# Understanding the Codebase\n- Do not guess at interfaces or functions defined in the code. Instead, find exact specifications of all entities\n- Before using any library or framework, verify it's already used in the codebase by checking dependency files, imports in similar files, or existing patterns\n- Match the existing patterns of the code and do not introduce new libraries or modules without asking\n- Examine nearby files to understand naming conventions, file organization, and architectural patterns\n# Code Change Guidelines\n- Prefer small, semantically meaningful steps over trying to complete everything in one go\n- Perform edits within the existing file unless the user explicitly asks you to create a new version of the file. Do not create \"new\" or \"example\" files. The user has access to version control and snapshots of your changes, so they can revert your changes\n- Keep parameters and interfaces minimal - only include what's absolutely necessary\n- Do not write comments that simply restate what the code is doing. Your code should be self-documenting through thoughtful name choices and types, so such comments would be redundant, wasting the user's time and tokens.\n- Only use comments to explain \"why\" the code is necessary, or explain context or connections to other pieces of the code that is not colocated with the comment",
+          "cache_control": {
+            "type": "ephemeral"
+          }
+        }
+      ],
+      "tool_choice": {
+        "type": "auto",
+        "disable_parallel_tool_use": true
+      },
+      "tools": [
+        {
+          "type": "web_search_20250305",
+          "name": "web_search",
+          "max_uses": 5
+        }
+      ],
+      "stream": true
+    },
+    "status": 200,
+    "response": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_01MzQWtVawSpoDeTKwtHoPKT\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-3-7-sonnet-20250219\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":4,\"cache_creation_input_tokens\":3507,\"cache_read_input_tokens\":0,\"output_tokens\":2,\"service_tier\":\"standard\"}}        }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}              }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"I'm\"}               }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" doing well, thank you for asking! I'm\"}}\n\nevent: ping\ndata: {\"type\": \"ping\"}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" here to assist you with coding\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" tasks. Is there something specific relate\"}   }\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"d to programming or software development that you\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"'d like help with today?\"}   }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0 }\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"input_tokens\":4,\"cache_creation_input_tokens\":3507,\"cache_read_input_tokens\":0,\"output_tokens\":41}             }\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"              }\n\n",
+    "rawHeaders": {
+      "anthropic-organization-id": "927196f0-c935-4d52-a298-5c816b6e5053",
+      "anthropic-ratelimit-input-tokens-limit": "200000",
+      "anthropic-ratelimit-input-tokens-remaining": "196000",
+      "anthropic-ratelimit-input-tokens-reset": "2025-07-10T11:32:58Z",
+      "anthropic-ratelimit-output-tokens-limit": "80000",
+      "anthropic-ratelimit-output-tokens-remaining": "80000",
+      "anthropic-ratelimit-output-tokens-reset": "2025-07-10T11:32:57Z",
+      "anthropic-ratelimit-requests-limit": "4000",
+      "anthropic-ratelimit-requests-remaining": "3999",
+      "anthropic-ratelimit-requests-reset": "2025-07-10T11:32:57Z",
+      "anthropic-ratelimit-tokens-limit": "280000",
+      "anthropic-ratelimit-tokens-remaining": "276000",
+      "anthropic-ratelimit-tokens-reset": "2025-07-10T11:32:57Z",
+      "cache-control": "no-cache",
+      "cf-cache-status": "DYNAMIC",
+      "cf-ray": "95cfbe535815a608-NRT",
+      "connection": "keep-alive",
+      "content-type": "text/event-stream; charset=utf-8",
+      "date": "Thu, 10 Jul 2025 11:32:59 GMT",
+      "request-id": "req_011CQyGLmR27oRjW1uMiu48k",
+      "server": "cloudflare",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+      "transfer-encoding": "chunked",
+      "via": "1.1 google",
+      "x-robots-tag": "none"
+    },
+    "reqheaders": {
+      "accept": "application/json",
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+      "x-api-key": "sk-ant-api03-***********************************************************************************************",
+      "x-stainless-arch": "arm64",
+      "x-stainless-helper-method": "stream",
+      "x-stainless-lang": "js",
+      "x-stainless-os": "MacOS",
+      "x-stainless-package-version": "0.52.0",
+      "x-stainless-retry-count": "0",
+      "x-stainless-runtime": "node",
+      "x-stainless-runtime-version": "v22.15.0",
+      "x-stainless-timeout": "600"
+    },
+    "responseIsBinary": false
+  }
+]
