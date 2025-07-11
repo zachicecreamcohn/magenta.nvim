@@ -1,7 +1,7 @@
 import * as GetFile from "./getFile.ts";
 import * as Insert from "./insert.ts";
 import * as Replace from "./replace.ts";
-import * as ListBuffers from "./listBuffers.ts";
+
 import * as ListDirectory from "./listDirectory.ts";
 import * as Hover from "./hover.ts";
 import * as FindReferences from "./findReferences.ts";
@@ -64,12 +64,7 @@ export type StaticToolMap = {
     msg: Replace.Msg;
     spec: typeof Replace.spec;
   };
-  list_buffers: {
-    controller: ListBuffers.ListBuffersTool;
-    input: ListBuffers.Input;
-    msg: ListBuffers.Msg;
-    spec: typeof ListBuffers.spec;
-  };
+
   list_directory: {
     controller: ListDirectory.ListDirectoryTool;
     input: ListDirectory.Input;
@@ -204,7 +199,7 @@ export class ToolManager {
     get_file: GetFile.spec,
     insert: Insert.spec,
     replace: Replace.spec,
-    list_buffers: ListBuffers.spec,
+
     list_directory: ListDirectory.spec,
     hover: Hover.spec,
     find_references: FindReferences.spec,
@@ -321,28 +316,6 @@ export class ToolManager {
             });
 
             this.tools[staticRequest.id] = getFileTool;
-
-            return;
-          }
-
-          case "list_buffers": {
-            const listBuffersTool = new ListBuffers.ListBuffersTool(
-              staticRequest,
-              {
-                nvim: this.context.nvim,
-                myDispatch: (msg) =>
-                  this.myDispatch({
-                    type: "tool-msg",
-                    msg: {
-                      id: staticRequest.id,
-                      toolName: staticRequest.toolName as ToolName,
-                      msg: msg as unknown as ToolMsg,
-                    },
-                  }),
-              },
-            );
-
-            this.tools[staticRequest.id] = listBuffersTool;
 
             return;
           }

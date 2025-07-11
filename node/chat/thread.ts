@@ -19,6 +19,7 @@ import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp } from "../lsp.ts";
 import { getDiagnostics } from "../utils/diagnostics.ts";
 import { getQuickfixList, quickfixListToString } from "../nvim/nvim.ts";
+import { getBuffersList } from "../utils/listBuffers.ts";
 import {
   getProvider as getProvider,
   type ProviderMessage,
@@ -586,6 +587,31 @@ export class Thread {
             messageContent.push({
               type: "text",
               text: `Error fetching quickfix list: ${error instanceof Error ? error.message : String(error)}`,
+            });
+          }
+        }
+
+        // Check for buffer keywords in user messages
+        if (
+          m.type === "user" &&
+          (m.text.includes("@buf") || m.text.includes("@buffers"))
+        ) {
+          try {
+            const buffersList = await getBuffersList(this.context.nvim);
+
+            // Append buffers list as a separate content block
+            messageContent.push({
+              type: "text",
+              text: `Current buffers list:\n${buffersList}`,
+            });
+          } catch (error) {
+            this.context.nvim.logger?.error(
+              `Failed to fetch buffers list for message: ${error instanceof Error ? error.message : String(error)}`,
+            );
+            // Append error message as a separate content block
+            messageContent.push({
+              type: "text",
+              text: `Error fetching buffers list: ${error instanceof Error ? error.message : String(error)}`,
             });
           }
         }

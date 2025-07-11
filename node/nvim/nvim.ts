@@ -113,7 +113,7 @@ export async function quickfixListToString(
     } else if (entry.bufnr > 0) {
       // Get the filename from buffer number
       const bufname = await nvim.call("nvim_buf_get_name", [entry.bufnr]);
-      filename = bufname ? (bufname) : `buffer ${entry.bufnr}`;
+      filename = bufname ? bufname : `buffer ${entry.bufnr}`;
     } else {
       filename = `buffer ${entry.bufnr}`;
     }

@@ -681,4 +681,167 @@ describe("node/chat/thread.spec.ts", () => {
       });
     },
   );
+
+  it(
+    "processes @buf keyword to include buffers list in message",
+    { timeout: 10000 },
+    async () => {
+      await withDriver({}, async (driver) => {
+        // Create some test buffers
+        await driver.editFile("node/test/fixtures/poem.txt");
+        await driver.editFile("node/test/fixtures/poem2.txt");
+        await driver.showSidebar();
+
+        // Send a message with @buf keyword
+        await driver.inputMagentaText("Help me organize my files @buf");
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingRequest();
+        request.respond({
+          stopReason: "end_turn",
+          text: "I can see the buffers you have open. Let me help you organize them.",
+          toolRequests: [],
+        });
+
+        // Verify the original message is displayed
+        await driver.assertDisplayBufferContains(
+          "Help me organize my files @buf",
+        );
+
+        // Verify the buffers list is appended as a separate content block
+        await driver.assertDisplayBufferContains("Current buffers list:");
+        await driver.assertDisplayBufferContains("node/test/fixtures/poem.txt");
+        await driver.assertDisplayBufferContains(
+          "active node/test/fixtures/poem2.txt",
+        );
+
+        // Check the thread message structure
+        const thread = driver.magenta.chat.getActiveThread();
+        const messages = thread.getMessages();
+
+        // Should have user message and assistant response
+        expect(messages.length).toBe(2);
+
+        // The user message should have two content blocks: original text + buffers list
+        expect(messages[0].content.length).toBe(2);
+        const content0 = messages[0].content[0];
+        expect(content0.type).toBe("text");
+        expect(
+          (content0 as Extract<typeof content0, { type: "text" }>).text,
+        ).toBe("Help me organize my files @buf");
+        const content1 = messages[0].content[1];
+        expect(content1.type).toBe("text");
+        expect(
+          (content1 as Extract<typeof content1, { type: "text" }>).text,
+        ).toContain("Current buffers list:");
+        expect(
+          (content1 as Extract<typeof content1, { type: "text" }>).text,
+        ).toContain("node/test/fixtures/poem.txt");
+        expect(
+          (content1 as Extract<typeof content1, { type: "text" }>).text,
+        ).toContain("active node/test/fixtures/poem2.txt");
+      });
+    },
+  );
+
+  it(
+    "processes @buffers keyword to include buffers list in message",
+    { timeout: 10000 },
+    async () => {
+      await withDriver({}, async (driver) => {
+        // Create some test buffers
+        await driver.editFile("node/test/fixtures/poem.txt");
+        await driver.editFile("node/test/fixtures/poem2.txt");
+        await driver.showSidebar();
+
+        // Send a message with @buffers keyword
+        await driver.inputMagentaText("Show me my current @buffers");
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingRequest();
+        request.respond({
+          stopReason: "end_turn",
+          text: "I can see your current buffers. Here's what you have open.",
+          toolRequests: [],
+        });
+
+        // Verify the original message is displayed
+        await driver.assertDisplayBufferContains("Show me my current @buffers");
+
+        // Verify the buffers list is appended as a separate content block
+        await driver.assertDisplayBufferContains("Current buffers list:");
+        await driver.assertDisplayBufferContains("node/test/fixtures/poem.txt");
+        await driver.assertDisplayBufferContains(
+          "active node/test/fixtures/poem2.txt",
+        );
+
+        // Check the thread message structure
+        const thread = driver.magenta.chat.getActiveThread();
+        const messages = thread.getMessages();
+
+        // Should have user message and assistant response
+        expect(messages.length).toBe(2);
+
+        // The user message should have two content blocks: original text + buffers list
+        expect(messages[0].content.length).toBe(2);
+        const content0 = messages[0].content[0];
+        expect(content0.type).toBe("text");
+        expect(
+          (content0 as Extract<typeof content0, { type: "text" }>).text,
+        ).toBe("Show me my current @buffers");
+        const content1 = messages[0].content[1];
+        expect(content1.type).toBe("text");
+        expect(
+          (content1 as Extract<typeof content1, { type: "text" }>).text,
+        ).toContain("Current buffers list:");
+        expect(
+          (content1 as Extract<typeof content1, { type: "text" }>).text,
+        ).toContain("node/test/fixtures/poem.txt");
+      });
+    },
+  );
+
+  it(
+    "handles empty buffers list with @buf command",
+    { timeout: 10000 },
+    async () => {
+      await withDriver({}, async (driver) => {
+        await driver.showSidebar();
+
+        // Send a message with @buf keyword
+        await driver.inputMagentaText("What files do I have open? @buf");
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingRequest();
+        request.respond({
+          stopReason: "end_turn",
+          text: "I can see your current buffers. It looks like you have minimal files open.",
+          toolRequests: [],
+        });
+
+        // Verify the original message is displayed
+        await driver.assertDisplayBufferContains(
+          "What files do I have open? @buf",
+        );
+
+        // Verify the buffers list is handled properly
+        await driver.assertDisplayBufferContains("Current buffers list:");
+
+        // Check the thread message structure
+        const thread = driver.magenta.chat.getActiveThread();
+        const messages = thread.getMessages();
+
+        // Should have user message and assistant response
+        expect(messages.length).toBe(2);
+
+        // The user message should have two content blocks: original text + buffers list
+        expect(messages[0].content.length).toBe(2);
+        const content1 = messages[0].content[1];
+        expect(content1.type).toBe("text");
+        expect(
+          (content1 as Extract<typeof content1, { type: "text" }>).text,
+        ).toContain("Current buffers list:");
+      });
+    },
+  );
 });

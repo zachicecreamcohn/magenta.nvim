@@ -490,7 +490,11 @@ The display buffer is not modifiable, however you can interact with some parts o
 - hit `enter` on a diff to see a detailed side-by-side comparison between the original file snapshot and proposed changes
 - hit `t` on a running bash command to terminate it (SIGTERM)
 
-### Thread compaction
+### Input commands
+
+Magenta supports several special commands that you can use in the input buffer to enhance your prompts with current editor state:
+
+#### @compact - Thread compaction
 
 Thread compaction allows you to retain relevant pieces of context as you shift focus to new tasks.
 
@@ -510,9 +514,35 @@ Example usage:
 @compact Now let's implement unit tests for the new feature we just discussed
 ```
 
-#### terminating running commands
+#### @diag / @diagnostics - Include current diagnostics
 
-When a bash command is running, you can press the `t` key in the display buffer while your cursor is over the executing command to terminate it immediately. This is useful for long-running commands or commands that have entered an undesired state. When terminated, the command will display a message indicating it was terminated by user with SIGTERM.
+Automatically includes the current LSP diagnostics (errors, warnings, etc.) from your workspace in your message.
+
+Example usage:
+
+```
+@diag Can you help me fix these TypeScript errors?
+```
+
+#### @buf / @buffers - Include current buffer list
+
+Includes a list of all currently open buffers in your message, showing their file paths and modification status.
+
+Example usage:
+
+```
+@buf Which of these files should I focus on for the authentication feature?
+```
+
+#### @qf / @quickfix - Include current quickfix list
+
+Includes the current quickfix list entries in your message, useful for working with search results, build errors, or other structured lists.
+
+Example usage:
+
+```
+@qf Let's go through each of these search results and update the API calls
+```
 
 ## tools available to the LLM
 
