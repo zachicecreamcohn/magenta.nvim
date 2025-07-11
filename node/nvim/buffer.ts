@@ -61,6 +61,43 @@ export class NvimBuffer {
     return lines as Line[];
   }
 
+  /**
+   * Sometimes buffer contents are empty due to timing issues when the buffer
+   * is recently opened or being modified by plugins (formatters, etc.)
+   * This method retries once with a small delay to handle such cases
+   */
+  async getLinesWithRetry({
+    start,
+    end,
+  }: {
+    start: number;
+    end: number;
+  }): Promise<Line[]> {
+    const lines = await this.getLines({ start, end });
+    const content = lines.join("\n");
+
+    // If content is empty, wait and try again
+    if (content === "") {
+      this.nvim.logger?.warn(
+        `Got empty buffer contents for buffer ${this.id}, retrying...`,
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const retryLines = await this.getLines({ start, end });
+      const retryContent = retryLines.join("\n");
+
+      if (retryContent === "") {
+        this.nvim.logger?.warn(
+          `Got empty buffer contents for buffer ${this.id} after retry`,
+        );
+      }
+
+      return retryLines;
+    }
+
+    return lines;
+  }
+
   async getText({
     startPos,
     endPos,

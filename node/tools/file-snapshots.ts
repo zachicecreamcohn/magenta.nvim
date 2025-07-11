@@ -83,7 +83,7 @@ export class FileSnapshots {
 
     if (bufferResult.status === "ok") {
       // Get content from buffer
-      const lines = await bufferResult.buffer.getLines({
+      const lines = await bufferResult.buffer.getLinesWithRetry({
         start: 0,
         end: -1,
       });

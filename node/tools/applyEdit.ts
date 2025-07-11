@@ -88,7 +88,7 @@ async function handleBufferEdit(
       lines: contentLines,
     });
   } else {
-    const lines = await buffer.getLines({
+    const lines = await buffer.getLinesWithRetry({
       start: 0,
       end: -1,
     });
@@ -119,7 +119,7 @@ async function handleBufferEdit(
         context.nvim.logger?.error(`\
 Failed to apply replace to buffer.
 request: ${JSON.stringify(request.input, null, 2)}
-content:
+bufferContent:
 ${bufferContent}`);
         dispatch({
           type: "finish",
@@ -273,7 +273,7 @@ async function handleFileEdit(
     context.nvim.logger?.error(`\
 Failed to apply replace to file.
 request: ${JSON.stringify(request.input, null, 2)}
-content:
+fileContent:
 ${fileContent}`);
 
     if (result.status === "error") {
