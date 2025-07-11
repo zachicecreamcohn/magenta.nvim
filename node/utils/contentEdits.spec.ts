@@ -277,7 +277,7 @@ import { InitialFilter, UnitType } from "../../iso/units";`);
         }
       });
 
-      it("fails when multiple matches are found", () => {
+      it("replaces first match when multiple matches exist (exact matching)", () => {
         const content = `const x = 1;
 const y = 2;
 
@@ -293,9 +293,15 @@ const y = 2;`;
 const b = 5;`;
 
         const result = applyReplace(content, findText, replaceText);
-        expect(result.status).toEqual("error");
-        if (result.status === "error") {
-          expect(result.error).toContain("Multiple matches found");
+        expect(result.status).toEqual("ok");
+        if (result.status === "ok") {
+          expect(result.content).toEqual(`const a = 4;
+const b = 5;
+
+const x = 1;
+const y = 2;
+
+const z = 3;`);
         }
       });
 

@@ -41,10 +41,10 @@ export function applyInsert(
 }
 
 /**
- * Normalize a line by trimming whitespace and removing trailing semicolons
+ * Normalize a line by trimming whitespace and removing trailing semicolons and commas
  */
 export function normalizeLine(line: string): string {
-  return line.trim().replace(/;$/, "");
+  return line.trim().replace(/[;,]$/, "");
 }
 
 /**

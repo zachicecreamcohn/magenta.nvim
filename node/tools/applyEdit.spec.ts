@@ -375,7 +375,7 @@ Paint their stories in the night.
       });
 
       await driver.assertDisplayBufferContains(
-        '✏️❌ Replace [[ -1 / +1 ]] in `node/test/tmp/poem.txt` - Unable to find text "bogus 1 / bogus 2..." in file `node/test/tmp/poem.txt`',
+        "✏️❌ Replace [[ -1 / +1 ]] in `node/test/tmp/poem.txt` - Unable to find text in content. Try to re-read the file and make sure you match the latest content updates exactly. in file `node/test/tmp/poem.txt`",
       );
       await driver.assertDisplayBufferContains(
         '✏️❌ Insert [[ +6 ]] in `node/test/tmp/poem.txt` - Unable to find insert location "Paint their stories in the night.\n" in file `node/test/tmp/poem.txt`',
