@@ -148,27 +148,45 @@ export class AnthropicProvider implements Provider {
 
             case "tool_result":
               if (c.result.status == "ok") {
+                // Collect all contents into one array
+                const allContents: Array<
+                  | Anthropic.Messages.TextBlockParam
+                  | Anthropic.Messages.ImageBlockParam
+                > = [];
+                let hasDocument = false;
+
                 for (const resultContent of c.result.value) {
                   switch (resultContent.type) {
                     case "text":
-                      content.push({
-                        tool_use_id: c.id,
-                        type: "tool_result",
-                        content: [
-                          mapProviderTextToAnthropicText(resultContent),
-                        ],
-                        is_error: false,
-                      });
+                      allContents.push(
+                        mapProviderTextToAnthropicText(resultContent),
+                      );
                       break;
                     case "image":
-                      content.push({
-                        tool_use_id: c.id,
-                        type: "tool_result",
-                        content: [resultContent],
-                        is_error: false,
-                      });
+                      allContents.push(resultContent);
                       break;
                     case "document":
+                      hasDocument = true;
+                      // Documents need special handling, so don't add them to the array yet
+                      break;
+                    default:
+                      assertUnreachable(resultContent);
+                  }
+                }
+
+                // If no documents are included, create a single tool_result block
+                if (!hasDocument) {
+                  content.push({
+                    tool_use_id: c.id,
+                    type: "tool_result",
+                    content: allContents,
+                    is_error: false,
+                  });
+                } else {
+                  // If documents are included, maintain the special processing for them
+                  // Documents require special handling
+                  for (const resultContent of c.result.value) {
+                    if (resultContent.type === "document") {
                       content.push({
                         tool_use_id: c.id,
                         type: "tool_result",
@@ -180,9 +198,17 @@ export class AnthropicProvider implements Provider {
                         source: resultContent.source,
                         title: resultContent.title || null,
                       });
-                      break;
-                    default:
-                      assertUnreachable(resultContent);
+                    }
+                  }
+
+                  // If there are text and images, put them in a separate tool_result block
+                  if (allContents.length > 0) {
+                    content.push({
+                      tool_use_id: c.id,
+                      type: "tool_result",
+                      content: allContents,
+                      is_error: false,
+                    });
                   }
                 }
               } else {
