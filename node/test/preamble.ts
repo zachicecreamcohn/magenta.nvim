@@ -1,5 +1,5 @@
 import { attach, type LogLevel, type Nvim } from "../nvim/nvim-node/index.ts";
-import { unlink, access, rm, cp, mkdir } from "node:fs/promises";
+import { access, rm, cp, mkdir } from "node:fs/promises";
 import { spawn } from "child_process";
 import { type MountedVDOM } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
@@ -16,8 +16,6 @@ import type { ProviderToolResult } from "../providers/provider-types.ts";
 import { type MockMCPServer, mockServers } from "../tools/mcp/mock-server.ts";
 import type { ServerName } from "../tools/mcp/types.ts";
 
-const SOCK = `/tmp/magenta-test.sock`;
-export const TMP_DIR = "node/test/tmp";
 /**
  * Helper functions for asserting properties of tool result arrays
  */
@@ -150,19 +148,14 @@ export async function withNvimProcess(
     setupFiles?: ((tmpDir: string) => Promise<void>) | undefined;
   } = {},
 ) {
-  try {
-    await unlink(SOCK);
-  } catch (e) {
-    if ((e as { code: string }).code !== "ENOENT") {
-      console.error(e);
-    }
-  }
+  // Generate unique ID for this test run
+  const testId = Math.random().toString(36).substring(2, 15);
 
   // Set up test directory paths
   const testDir = path.dirname(__filename);
-  const rootDir = path.resolve(testDir, "../../");
-  const tmpDir = path.join(rootDir, TMP_DIR);
-  const fixturesDir = path.join(rootDir, "node/test/fixtures");
+  const fixturesDir = path.join(testDir, "fixtures");
+  const tmpDir = path.join("/tmp/magenta-test", testId);
+  const sock = path.join(tmpDir, "magenta-test.sock");
 
   // Clean up and recreate tmp directory
   try {
@@ -189,9 +182,17 @@ export async function withNvimProcess(
 
   const nvimProcess = spawn(
     "nvim",
-    ["--headless", "-n", "--clean", "--listen", SOCK, "-u", "minimal-init.lua"],
+    [
+      "--headless",
+      "-n",
+      "--clean",
+      "--listen",
+      sock,
+      "-u",
+      path.resolve(testDir, "../../minimal-init.lua"),
+    ],
     {
-      cwd: rootDir,
+      cwd: tmpDir,
     },
   );
 
@@ -215,18 +216,25 @@ export async function withNvimProcess(
     await pollUntil(
       async () => {
         try {
-          await access(SOCK);
+          await access(sock);
           return true;
         } catch (e) {
-          throw new Error(`socket ${SOCK} not ready: ${(e as Error).message}`);
+          throw new Error(`socket ${sock} not ready: ${(e as Error).message}`);
         }
       },
       { timeout: 500 },
     );
 
-    await fn(SOCK);
+    await fn(sock);
   } finally {
     nvimProcess.kill();
+    // Clean up temporary directory
+    try {
+      await rm(tmpDir, { recursive: true, force: true });
+    } catch (e) {
+      // Ignore cleanup errors to avoid masking test failures
+      console.warn(`Failed to cleanup test directory ${tmpDir}:`, e);
+    }
   }
 }
 

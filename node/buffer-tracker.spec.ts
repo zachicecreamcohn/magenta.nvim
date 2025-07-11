@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { withDriver, TMP_DIR } from "./test/preamble";
+import { withDriver } from "./test/preamble";
 import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "util";
-import { getCurrentBuffer } from "./nvim/nvim";
+import { getCurrentBuffer, getcwd } from "./nvim/nvim";
 import type { AbsFilePath } from "./utils/files";
 import type { Line } from "./nvim/buffer";
 
@@ -13,7 +13,8 @@ describe("node/buffer-tracker.spec.ts", () => {
   it("should track buffer as not modified after initial read", async () => {
     await withDriver({}, async (driver) => {
       // Create a temporary file for testing
-      const filePath = path.join(TMP_DIR, "test-file.txt") as AbsFilePath;
+      const cwd = await getcwd(driver.nvim);
+      const filePath = path.join(cwd, "test-file.txt") as AbsFilePath;
       await writeFile(filePath, "initial content");
 
       await driver.editFile(filePath);
@@ -44,10 +45,8 @@ describe("node/buffer-tracker.spec.ts", () => {
   it("should detect buffer as modified after edits without saving", async () => {
     await withDriver({}, async (driver) => {
       // Create a temporary file for testing
-      const filePath = path.join(
-        TMP_DIR,
-        "test-file-modified.txt",
-      ) as AbsFilePath;
+      const cwd = await getcwd(driver.nvim);
+      const filePath = path.join(cwd, "test-file-modified.txt") as AbsFilePath;
       await writeFile(filePath, "initial content");
 
       // Edit the file
@@ -86,7 +85,8 @@ describe("node/buffer-tracker.spec.ts", () => {
   it("should update sync info after writing changes to disk", async () => {
     await withDriver({}, async (driver) => {
       // Create a temporary file for testing
-      const filePath = path.join(TMP_DIR, "test-file-write.txt") as AbsFilePath;
+      const cwd = await getcwd(driver.nvim);
+      const filePath = path.join(cwd, "test-file-write.txt") as AbsFilePath;
       await writeFile(filePath, "initial content");
 
       // Edit the file
@@ -133,7 +133,8 @@ describe("node/buffer-tracker.spec.ts", () => {
   it("should clear tracking info when requested", async () => {
     await withDriver({}, async (driver) => {
       // Create a temporary file for testing
-      const filePath = path.join(TMP_DIR, "test-file-clear.txt") as AbsFilePath;
+      const cwd = await getcwd(driver.nvim);
+      const filePath = path.join(cwd, "test-file-clear.txt") as AbsFilePath;
       await writeFile(filePath, "initial content");
 
       // Edit the file

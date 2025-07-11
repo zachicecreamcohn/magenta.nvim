@@ -2,10 +2,10 @@
 import fs from "node:fs/promises";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { TMP_DIR, withNvimClient } from "../../test/preamble";
+import { withNvimClient } from "../../test/preamble";
 
 describe("src/logger.test.ts", () => {
-  const logFilePath = resolve(`${TMP_DIR}/test-logging.log`);
+  const logFilePath = resolve(`/tmp/magenta-test/test-logging.log`);
 
   beforeEach(async () => {
     try {

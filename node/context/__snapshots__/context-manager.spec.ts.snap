@@ -7,7 +7,7 @@ exports[`context-files end-to-end 1`] = `
       {
         "text": "These files are part of your context. This is the latest information about the content of each file.
 From now on, whenever any of these files are updated by the user, you will get a message letting you know.
-- \`node/test/tmp/poem.txt\`
+- \`poem.txt\`
 \`\`\`
 Moonlight whispers through the trees,
 Silver shadows dance with ease.
@@ -34,7 +34,7 @@ exports[`context-files multiple, weird path names 1`] = `
       {
         "text": "These files are part of your context. This is the latest information about the content of each file.
 From now on, whenever any of these files are updated by the user, you will get a message letting you know.
-- \`node/test/tmp/poem.txt\`
+- \`poem.txt\`
 \`\`\`
 Moonlight whispers through the trees,
 Silver shadows dance with ease.
@@ -42,7 +42,7 @@ Stars above like diamonds bright,
 Paint their stories in the night.
 
 \`\`\`
-- \`node/test/tmp/poem 3.txt\`
+- \`poem 3.txt\`
 \`\`\`
 poem3
 
@@ -65,12 +65,12 @@ exports[`sends update if the file was edited pre-insert 1`] = `
     {
       "text": "These files are part of your context. This is the latest information about the content of each file.
 From now on, whenever any of these files are updated by the user, you will get a message letting you know.
-- \`node/test/tmp/poem.txt\`
+- \`poem.txt\`
 \`\`\`diff
-Index: node/test/tmp/poem.txt
+Index: poem.txt
 ===================================================================
---- node/test/tmp/poem.txt	previous
-+++ node/test/tmp/poem.txt	current
+--- poem.txt	previous
++++ poem.txt	current
 @@ -1,3 +1,3 @@
 -Moonlight whispers through the trees,
 +changed first line

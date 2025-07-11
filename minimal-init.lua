@@ -1,3 +1,10 @@
+-- Get the directory where this init file is located (project root)
+local init_file_path = debug.getinfo(1, "S").source:sub(2)
+local project_root = vim.fn.fnamemodify(init_file_path, ":h")
+
+-- Add project root to runtimepath so we can find the magenta module
+vim.opt.runtimepath:append(project_root)
+-- Also add current directory for any test-specific files
 vim.opt.runtimepath:append(".")
 
 -- Set default restrictive options for tests
@@ -28,7 +35,7 @@ vim.api.nvim_create_autocmd(
     pattern = "typescript",
     callback = function(ev)
       vim.notify("FileType autocmd")
-      local root_dir = vim.fs.root(ev.buf, {"tsconfig.json", "package.json"})
+      local root_dir = vim.fs.root(ev.buf, { "tsconfig.json", "package.json" })
       if not root_dir then
         root_dir = vim.fn.getcwd()
       end
@@ -40,7 +47,7 @@ vim.api.nvim_create_autocmd(
       -- Capture any config validation errors
       local config = {
         name = "ts_ls",
-        cmd = {"typescript-language-server", "--stdio"},
+        cmd = { "typescript-language-server", "--stdio" },
         root_dir = root_dir,
         on_init = function(client, initialize_result)
           vim.notify("LSP client initialized with capabilities: " .. vim.inspect(initialize_result.capabilities))
@@ -55,24 +62,24 @@ vim.api.nvim_create_autocmd(
       }
 
       local ok, err =
-        pcall(
-        function()
-          local client_id = vim.lsp.start(config)
-          if client_id then
-            vim.notify("Started LSP client with ID: " .. client_id)
-            -- Check if client actually attached
-            vim.defer_fn(
-              function()
-                local clients = vim.lsp.get_active_clients({bufnr = ev.buf})
-                vim.notify("Active clients after start: " .. vim.inspect(clients))
-              end,
-              100
-            )
-          else
-            vim.notify("Failed to start LSP client", vim.log.levels.ERROR)
-          end
-        end
-      )
+          pcall(
+            function()
+              local client_id = vim.lsp.start(config)
+              if client_id then
+                vim.notify("Started LSP client with ID: " .. client_id)
+                -- Check if client actually attached
+                vim.defer_fn(
+                  function()
+                    local clients = vim.lsp.get_active_clients({ bufnr = ev.buf })
+                    vim.notify("Active clients after start: " .. vim.inspect(clients))
+                  end,
+                  100
+                )
+              else
+                vim.notify("Failed to start LSP client", vim.log.levels.ERROR)
+              end
+            end
+          )
 
       if not ok then
         vim.notify("Error starting LSP: " .. tostring(err), vim.log.levels.ERROR)
@@ -82,7 +89,7 @@ vim.api.nvim_create_autocmd(
 )
 
 vim.api.nvim_create_autocmd(
-  {"LspAttach", "LspDetach"},
+  { "LspAttach", "LspDetach" },
   {
     callback = function(ev)
       vim.notify(

@@ -1,4 +1,4 @@
-import { TMP_DIR, withDriver } from "../test/preamble.ts";
+import { withDriver } from "../test/preamble.ts";
 import { LOGO } from "./thread.ts";
 import { type ToolRequestId } from "../tools/toolManager.ts";
 import { describe, expect, it } from "vitest";
@@ -6,6 +6,8 @@ import type { UnresolvedFilePath } from "../utils/files.ts";
 import { type Input as CompactThreadInput } from "../tools/compact-thread";
 import type { ToolName } from "../tools/types.ts";
 import { pollUntil } from "../utils/async.ts";
+import { getcwd } from "../nvim/nvim.ts";
+import * as path from "path";
 
 describe("node/chat/thread.spec.ts", () => {
   it("chat render and a few updates", async () => {
@@ -284,9 +286,10 @@ describe("node/chat/thread.spec.ts", () => {
 
       expect(request.messages).toMatchSnapshot("forced-tool-request-messages");
 
+      const cwd = await getcwd(driver.nvim);
       const contextFiles = [
-        `${TMP_DIR}/poem.txt` as unknown as UnresolvedFilePath,
-        `${TMP_DIR}/poem2.txt` as unknown as UnresolvedFilePath,
+        path.join(cwd, "poem.txt") as unknown as UnresolvedFilePath,
+        path.join(cwd, "poem2.txt") as unknown as UnresolvedFilePath,
       ];
 
       const compactInput: CompactThreadInput = {
@@ -371,7 +374,7 @@ describe("node/chat/thread.spec.ts", () => {
     async () => {
       await withDriver({}, async (driver) => {
         // Create a file with syntax errors to generate diagnostics
-        await driver.editFile("node/test/fixtures/test.ts");
+        await driver.editFile("test.ts");
         await driver.showSidebar();
 
         // Wait for diagnostics to be available
@@ -410,7 +413,7 @@ describe("node/chat/thread.spec.ts", () => {
         await driver.assertDisplayBufferContains(
           "Property 'd' does not exist on type",
         );
-        await driver.assertDisplayBufferContains("node/test/fixtures/test.ts");
+        await driver.assertDisplayBufferContains("test.ts");
 
         // Check the thread message structure
         const thread = driver.magenta.chat.getActiveThread();
@@ -444,7 +447,7 @@ describe("node/chat/thread.spec.ts", () => {
     async () => {
       await withDriver({}, async (driver) => {
         // Create a file with syntax errors to generate diagnostics
-        await driver.editFile("node/test/fixtures/test.ts");
+        await driver.editFile("test.ts");
         await driver.showSidebar();
 
         // Wait for diagnostics to be available
@@ -688,8 +691,8 @@ describe("node/chat/thread.spec.ts", () => {
     async () => {
       await withDriver({}, async (driver) => {
         // Create some test buffers
-        await driver.editFile("node/test/fixtures/poem.txt");
-        await driver.editFile("node/test/fixtures/poem2.txt");
+        await driver.editFile("poem.txt");
+        await driver.editFile("poem2.txt");
         await driver.showSidebar();
 
         // Send a message with @buf keyword
@@ -710,10 +713,8 @@ describe("node/chat/thread.spec.ts", () => {
 
         // Verify the buffers list is appended as a separate content block
         await driver.assertDisplayBufferContains("Current buffers list:");
-        await driver.assertDisplayBufferContains("node/test/fixtures/poem.txt");
-        await driver.assertDisplayBufferContains(
-          "active node/test/fixtures/poem2.txt",
-        );
+        await driver.assertDisplayBufferContains("poem.txt");
+        await driver.assertDisplayBufferContains("active poem2.txt");
 
         // Check the thread message structure
         const thread = driver.magenta.chat.getActiveThread();
@@ -736,10 +737,10 @@ describe("node/chat/thread.spec.ts", () => {
         ).toContain("Current buffers list:");
         expect(
           (content1 as Extract<typeof content1, { type: "text" }>).text,
-        ).toContain("node/test/fixtures/poem.txt");
+        ).toContain("poem.txt");
         expect(
           (content1 as Extract<typeof content1, { type: "text" }>).text,
-        ).toContain("active node/test/fixtures/poem2.txt");
+        ).toContain("active poem2.txt");
       });
     },
   );
@@ -750,8 +751,8 @@ describe("node/chat/thread.spec.ts", () => {
     async () => {
       await withDriver({}, async (driver) => {
         // Create some test buffers
-        await driver.editFile("node/test/fixtures/poem.txt");
-        await driver.editFile("node/test/fixtures/poem2.txt");
+        await driver.editFile("poem.txt");
+        await driver.editFile("poem2.txt");
         await driver.showSidebar();
 
         // Send a message with @buffers keyword
@@ -770,10 +771,8 @@ describe("node/chat/thread.spec.ts", () => {
 
         // Verify the buffers list is appended as a separate content block
         await driver.assertDisplayBufferContains("Current buffers list:");
-        await driver.assertDisplayBufferContains("node/test/fixtures/poem.txt");
-        await driver.assertDisplayBufferContains(
-          "active node/test/fixtures/poem2.txt",
-        );
+        await driver.assertDisplayBufferContains("poem.txt");
+        await driver.assertDisplayBufferContains("active poem2.txt");
 
         // Check the thread message structure
         const thread = driver.magenta.chat.getActiveThread();
@@ -796,7 +795,7 @@ describe("node/chat/thread.spec.ts", () => {
         ).toContain("Current buffers list:");
         expect(
           (content1 as Extract<typeof content1, { type: "text" }>).text,
-        ).toContain("node/test/fixtures/poem.txt");
+        ).toContain("poem.txt");
       });
     },
   );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TMP_DIR, withDriver } from "../test/preamble";
+import { withDriver } from "../test/preamble";
 import { FileSnapshots } from "./file-snapshots";
 import * as path from "path";
 import * as fs from "node:fs";
@@ -11,7 +11,7 @@ describe("FileSnapshots", () => {
   it("should create a snapshot for a file that exists", async () => {
     await withDriver({}, async (driver) => {
       const cwd = await getcwd(driver.nvim);
-      const filePath = path.join(cwd, TMP_DIR, "test-file.txt");
+      const filePath = path.join(cwd, "test-file.txt");
       const fileContent = "This is a test file content";
       fs.writeFileSync(filePath, fileContent);
 
@@ -37,7 +37,7 @@ describe("FileSnapshots", () => {
   it("should create an empty snapshot for a file that doesn't exist", async () => {
     await withDriver({}, async (driver) => {
       const cwd = await getcwd(driver.nvim);
-      const nonExistentPath = path.join(cwd, TMP_DIR, "non-existent.txt");
+      const nonExistentPath = path.join(cwd, "non-existent.txt");
 
       const fileSnapshots = new FileSnapshots(driver.nvim);
       const messageId = 2 as MessageId;
@@ -61,7 +61,7 @@ describe("FileSnapshots", () => {
   it("should not create a duplicate snapshot for the same file and message", async () => {
     await withDriver({}, async (driver) => {
       const cwd = await getcwd(driver.nvim);
-      const filePath = path.join(cwd, TMP_DIR, "duplicate-test.txt");
+      const filePath = path.join(cwd, "duplicate-test.txt");
       const fileContent = "Original content";
       fs.writeFileSync(filePath, fileContent);
 
@@ -97,7 +97,7 @@ describe("FileSnapshots", () => {
   it("should create different snapshots for different messages", async () => {
     await withDriver({}, async (driver) => {
       const cwd = await getcwd(driver.nvim);
-      const filePath = path.join(cwd, TMP_DIR, "multiple-messages.txt");
+      const filePath = path.join(cwd, "multiple-messages.txt");
       const initialContent = "Initial content";
       fs.writeFileSync(filePath, initialContent);
 
@@ -135,8 +135,8 @@ describe("FileSnapshots", () => {
   it("should clear all snapshots when clearSnapshots is called with no arguments", async () => {
     await withDriver({}, async (driver) => {
       const cwd = await getcwd(driver.nvim);
-      const file1 = path.join(cwd, TMP_DIR, "file1.txt");
-      const file2 = path.join(cwd, TMP_DIR, "file2.txt");
+      const file1 = path.join(cwd, "file1.txt");
+      const file2 = path.join(cwd, "file2.txt");
 
       fs.writeFileSync(file1, "File 1 content");
       fs.writeFileSync(file2, "File 2 content");
@@ -167,8 +167,8 @@ describe("FileSnapshots", () => {
   it("should clear only snapshots for a specific message", async () => {
     await withDriver({}, async (driver) => {
       const cwd = await getcwd(driver.nvim);
-      const file1 = path.join(cwd, TMP_DIR, "file1.txt");
-      const file2 = path.join(cwd, TMP_DIR, "file2.txt");
+      const file1 = path.join(cwd, "file1.txt");
+      const file2 = path.join(cwd, "file2.txt");
 
       fs.writeFileSync(file1, "File 1 content");
       fs.writeFileSync(file2, "File 2 content");
@@ -199,7 +199,7 @@ describe("FileSnapshots", () => {
   it("should get content from buffer when file is open", async () => {
     await withDriver({}, async (driver) => {
       const cwd = await getcwd(driver.nvim);
-      const filePath = path.join(cwd, TMP_DIR, "buffer-test.txt");
+      const filePath = path.join(cwd, "buffer-test.txt");
       const fileContent = "Original file content";
       fs.writeFileSync(filePath, fileContent);
 

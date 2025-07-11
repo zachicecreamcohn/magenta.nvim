@@ -1,9 +1,10 @@
-import { withDriver, TMP_DIR } from "../test/preamble";
+import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "./toolManager";
 import { describe, it, expect } from "vitest";
 import type { CommandAllowlist } from "../options";
 import { isCommandAllowed } from "./bashCommand";
 import fs from "node:fs";
+import { getcwd } from "../nvim/nvim";
 import type { ToolName } from "./types";
 
 describe("node/tools/bashCommand.spec.ts", () => {
@@ -307,7 +308,8 @@ tada
       await driver.showSidebar();
 
       // Create a unique filename for this test
-      const uniqueFile = `${TMP_DIR}/command-execution-count-${Date.now()}.txt`;
+      const cwd = await getcwd(driver.nvim);
+      const uniqueFile = `${cwd}/command-execution-count-${Date.now()}.txt`;
       const appendCmd = `echo "executed" >> ${uniqueFile}`;
 
       // First, make sure the file doesn't exist
