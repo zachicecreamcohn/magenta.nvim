@@ -29,7 +29,6 @@ import type {
   ProviderImageContent,
   ProviderDocumentContent,
 } from "../providers/provider-types.ts";
-import { delay } from "../utils/async.ts";
 
 export type State =
   | {
@@ -309,29 +308,6 @@ You already have the most up-to-date information about the contents of this file
         textContent = (
           await bufferContents.buffer.getLines({ start: 0, end: -1 })
         ).join("\n");
-
-        // TODO: this is a bit of a hag / for debug purposes.
-        // Sometimes we get empty buffer contents here. Is it because there's a delay between the buffer
-        // being added and the content being populated? Or perhaps it's because a plugin (formatter?) is
-        // making the file contents disappear for an instant?
-        if (textContent == "") {
-          this.context.nvim.logger?.warn(
-            `Got empty buffer contents for buffer ${await bufferContents.buffer.getName()}`,
-          );
-
-          // try one more time
-          await delay(5);
-
-          textContent = (
-            await bufferContents.buffer.getLines({ start: 0, end: -1 })
-          ).join("\n");
-
-          if (textContent == "") {
-            this.context.nvim.logger?.warn(
-              `Got empty buffer contents for buffer ${await bufferContents.buffer.getName()} again`,
-            );
-          }
-        }
       } else if (bufferContents.status == "not-found") {
         textContent = await fs.promises.readFile(absFilePath, "utf-8");
       } else {

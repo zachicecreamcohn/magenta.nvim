@@ -52,6 +52,10 @@ export class NvimBuffer {
     start: number;
     end: number;
   }): Promise<Line[]> {
+    // Ensure buffer is loaded before getting lines
+    // unloaded buffers return no lines, see https://github.com/neovim/neovim/pull/8660
+    await this.nvim.call("nvim_eval", [`bufload(${this.id})`]);
+
     const lines = await this.nvim.call("nvim_buf_get_lines", [
       this.id,
       start,

@@ -100,6 +100,7 @@ export class Sidebar {
       displayBuffer = existingDisplayBuffer;
     } else {
       displayBuffer = await NvimBuffer.create(false, true, this.nvim);
+      await displayBuffer.setName("[Magenta Chat]");
       await displayBuffer.setOption("bufhidden", "hide");
       await displayBuffer.setOption("buftype", "nofile");
       await displayBuffer.setOption("swapfile", false);
@@ -123,6 +124,7 @@ export class Sidebar {
       inputBuffer = existingInputBuffer;
     } else {
       inputBuffer = await NvimBuffer.create(false, true, this.nvim);
+      await inputBuffer.setName("[Magenta Input]");
       await inputBuffer.setOption("bufhidden", "hide");
       await inputBuffer.setOption("buftype", "nofile");
       await inputBuffer.setOption("swapfile", false);

@@ -145,6 +145,9 @@ export type Model = immer.Immutable<
 
       fs.writeFileSync(testFile, originalContent, "utf-8");
 
+      // Open the file in a buffer to trigger the unloaded buffer scenario
+      await driver.nvim.call("nvim_command", [`edit ${testFile}`]);
+
       await driver.showSidebar();
       await driver.inputMagentaText(
         "Update imports in measure-selection-box.tsx",
@@ -269,6 +272,93 @@ import { MeasureStats } from "../../iso/protocol";`,
       expect(fileContent).not.toContain(
         'import { Update, View } from "../tea";',
       );
+    });
+  });
+
+  it("replace on unloaded buffer", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+
+      const cwd = await getcwd(driver.nvim);
+      const testFile = path.join(cwd, "unloaded-buffer-replace.tsx");
+
+      const originalContent = `import React from "react";
+import * as immer from "immer";
+import { Update, View } from "../tea";
+
+export const Component = () => {
+  return <div>Hello</div>;
+};`;
+
+      fs.writeFileSync(testFile, originalContent, "utf-8");
+
+      // First, open the file to create a buffer
+      await driver.nvim.call("nvim_command", [`edit ${testFile}`]);
+
+      // Get the buffer number
+      const bufNr = (await driver.nvim.call("nvim_eval", [
+        `bufnr('unloaded-buffer-replace.tsx')`,
+      ])) as import("../nvim/buffer").BufNr;
+
+      // Verify buffer is loaded initially
+      const isLoadedInitially = await driver.nvim.call("nvim_buf_is_loaded", [
+        bufNr,
+      ]);
+      expect(isLoadedInitially).toBe(true);
+
+      // Unload the buffer using nvim_exec_lua
+      await driver.nvim.call("nvim_exec_lua", [
+        `vim.api.nvim_buf_call(${bufNr}, function() vim.cmd('bunload') end)`,
+        [],
+      ]);
+
+      // Verify buffer is unloaded
+      const isLoaded = await driver.nvim.call("nvim_buf_is_loaded", [bufNr]);
+      expect(isLoaded).toBe(false);
+
+      // Now try to replace in the file via replace tool
+      await driver.inputMagentaText(
+        "Update imports in unloaded-buffer-replace.tsx",
+      );
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      request.respond({
+        stopReason: "end_turn",
+        text: "I'll update the imports",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "toolu_01Cj7KxmYJ1STqcHiuHFuWJi" as ToolRequestId,
+              toolName: "replace" as ToolName,
+              input: {
+                filePath: testFile as UnresolvedFilePath,
+                find: `import React from "react";
+import * as immer from "immer";
+import { Update, View } from "../tea";`,
+                replace: `import React from "react";
+import { Dispatch } from "../tea";`,
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains("✏️✅ Replace [[ -3 / +2 ]]");
+
+      // Check that the file contents are properly updated
+      const fileContent = fs.readFileSync(testFile, "utf-8");
+      expect(fileContent).toContain('import { Dispatch } from "../tea";');
+      expect(fileContent).not.toContain('import * as immer from "immer";');
+      expect(fileContent).not.toContain(
+        'import { Update, View } from "../tea";',
+      );
+
+      // Verify the full content is updated, not empty
+      expect(fileContent.trim()).not.toBe("");
+      expect(fileContent).toContain("export const Component = () => {");
+      expect(fileContent).toContain("return <div>Hello</div>;");
     });
   });
 });
