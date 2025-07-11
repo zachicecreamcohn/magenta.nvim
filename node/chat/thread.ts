@@ -17,6 +17,7 @@ import { Counter } from "../utils/uniqueId.ts";
 import { FileSnapshots } from "../tools/file-snapshots.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp } from "../lsp.ts";
+import { getDiagnostics } from "../utils/diagnostics.ts";
 import {
   getProvider as getProvider,
   type ProviderMessage,
@@ -526,12 +527,40 @@ export class Thread {
     const contextUpdates = await this.contextManager.getContextUpdate();
 
     if (messages?.length || Object.keys(contextUpdates).length) {
-      const messageContent: ProviderMessageContent[] = (messages || []).map(
-        (m) => ({
+      const messageContent: ProviderMessageContent[] = [];
+
+      for (const m of messages || []) {
+        messageContent.push({
           type: "text",
           text: m.text,
-        }),
-      );
+        });
+
+        // Check for diagnostics keywords in user messages
+        if (
+          m.type === "user" &&
+          (m.text.includes("@diag") || m.text.includes("@diagnostics"))
+        ) {
+          try {
+            const diagnostics = await getDiagnostics(this.context.nvim);
+
+            // Append diagnostics as a separate content block
+            messageContent.push({
+              type: "text",
+              text: `Current diagnostics:\n${diagnostics}`,
+            });
+          } catch (error) {
+            this.context.nvim.logger?.error(
+              `Failed to fetch diagnostics for message: ${error instanceof Error ? error.message : String(error)}`,
+            );
+            // Append error message as a separate content block
+            messageContent.push({
+              type: "text",
+              text: `Error fetching diagnostics: ${error instanceof Error ? error.message : String(error)}`,
+            });
+          }
+        }
+      }
+
       const message = new Message(
         {
           id: messageId,

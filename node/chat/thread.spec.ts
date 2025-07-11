@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import { type Input as CompactThreadInput } from "../tools/compact-thread";
 import type { ToolName } from "../tools/types.ts";
+import { pollUntil } from "../utils/async.ts";
 
 describe("node/chat/thread.spec.ts", () => {
   it("chat render and a few updates", async () => {
@@ -356,10 +357,153 @@ describe("node/chat/thread.spec.ts", () => {
       expect(
         messages.flatMap((m) => m.content.map((b) => m.role + ":" + b.type)),
       ).toEqual([
-        "user:text", // The compacted thread summary (context)
+        "user:text", // Context files added to the new thread
+        "user:text", // The compacted thread summary (system message)
         "user:text", // The user question about Italy
         "assistant:text", // The assistant response about Rome
       ]);
     });
   });
+
+  it(
+    "processes @diag keyword to include diagnostics in message",
+    { timeout: 10000 },
+    async () => {
+      await withDriver({}, async (driver) => {
+        // Create a file with syntax errors to generate diagnostics
+        await driver.editFile("node/test/fixtures/test.ts");
+        await driver.showSidebar();
+
+        // Wait for diagnostics to be available
+        await pollUntil(
+          async () => {
+            const diagnostics = (await driver.nvim.call("nvim_exec_lua", [
+              `return vim.diagnostic.get(nil)`,
+              [],
+            ])) as unknown[];
+
+            if (diagnostics.length === 0) {
+              throw new Error("No diagnostics available yet");
+            }
+          },
+          { timeout: 5000 },
+        );
+
+        // Send a message with @diag keyword
+        await driver.inputMagentaText("Help me fix this issue @diag");
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingRequest();
+        request.respond({
+          stopReason: "end_turn",
+          text: "I can see the diagnostics you've provided. Let me help you fix the issue.",
+          toolRequests: [],
+        });
+
+        // Verify the original message is displayed
+        await driver.assertDisplayBufferContains(
+          "Help me fix this issue @diag",
+        );
+
+        // Verify the diagnostics are appended as a separate content block
+        await driver.assertDisplayBufferContains("Current diagnostics:");
+        await driver.assertDisplayBufferContains(
+          "Property 'd' does not exist on type",
+        );
+        await driver.assertDisplayBufferContains("node/test/fixtures/test.ts");
+
+        // Check the thread message structure
+        const thread = driver.magenta.chat.getActiveThread();
+        const messages = thread.getMessages();
+
+        // Should have user message and assistant response
+        expect(messages.length).toBe(2);
+
+        // The user message should have two content blocks: original text + diagnostics
+        expect(messages[0].content.length).toBe(2);
+        const content0 = messages[0].content[0];
+        expect(content0.type).toBe("text");
+        expect(
+          (content0 as Extract<typeof content0, { type: "text" }>).text,
+        ).toBe("Help me fix this issue @diag");
+        const content1 = messages[0].content[1];
+        expect(content1.type).toBe("text");
+        expect(
+          (content1 as Extract<typeof content1, { type: "text" }>).text,
+        ).toContain("Current diagnostics:");
+        expect(
+          (content1 as Extract<typeof content1, { type: "text" }>).text,
+        ).toContain("Property 'd' does not exist on type");
+      });
+    },
+  );
+
+  it(
+    "processes @diagnostics keyword to include diagnostics in message",
+    { timeout: 10000 },
+    async () => {
+      await withDriver({}, async (driver) => {
+        // Create a file with syntax errors to generate diagnostics
+        await driver.editFile("node/test/fixtures/test.ts");
+        await driver.showSidebar();
+
+        // Wait for diagnostics to be available
+        await pollUntil(
+          async () => {
+            const diagnostics = (await driver.nvim.call("nvim_exec_lua", [
+              `return vim.diagnostic.get(nil)`,
+              [],
+            ])) as unknown[];
+
+            if (diagnostics.length === 0) {
+              throw new Error("No diagnostics available yet");
+            }
+          },
+          { timeout: 5000 },
+        );
+
+        // Send a message with @diagnostics keyword
+        await driver.inputMagentaText("Check these @diagnostics please");
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingRequest();
+        request.respond({
+          stopReason: "end_turn",
+          text: "I can see the diagnostics. Let me analyze them for you.",
+          toolRequests: [],
+        });
+
+        // Verify the original message is displayed
+        await driver.assertDisplayBufferContains(
+          "Check these @diagnostics please",
+        );
+
+        // Verify the diagnostics are appended as a separate content block
+        await driver.assertDisplayBufferContains("Current diagnostics:");
+        await driver.assertDisplayBufferContains(
+          "Property 'd' does not exist on type",
+        );
+
+        // Check the thread message structure
+        const thread = driver.magenta.chat.getActiveThread();
+        const messages = thread.getMessages();
+
+        // Should have user message and assistant response
+        expect(messages.length).toBe(2);
+
+        // The user message should have two content blocks: original text + diagnostics
+        expect(messages[0].content.length).toBe(2);
+        const content0 = messages[0].content[0];
+        expect(content0.type).toBe("text");
+        expect(
+          (content0 as Extract<typeof content0, { type: "text" }>).text,
+        ).toBe("Check these @diagnostics please");
+        const content1 = messages[0].content[1];
+        expect(content1.type).toBe("text");
+        expect(
+          (content1 as Extract<typeof content1, { type: "text" }>).text,
+        ).toContain("Current diagnostics:");
+      });
+    },
+  );
 });
