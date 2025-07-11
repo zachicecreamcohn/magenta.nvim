@@ -19,7 +19,6 @@ async function recordTest<T>(
   testName: string,
   testFn: () => Promise<T>,
 ): Promise<T> {
-  nock.restore();
   nock.recorder.rec({
     dont_print: true,
     output_objects: true,
