@@ -64,4 +64,3 @@ export async function getDiagnostics(nvim: Nvim): Promise<string> {
   nvim.logger?.debug(`got diagnostics content: ${content}`);
   return content;
 }
-
