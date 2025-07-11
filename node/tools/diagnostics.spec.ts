@@ -8,7 +8,7 @@ import type { DiagnosticsTool } from "./diagnostics.ts";
 describe("node/tools/diagnostics.spec.ts", () => {
   it("diagnostics end-to-end", { timeout: 10000 }, async () => {
     await withDriver({}, async (driver) => {
-      await driver.editFile("node/test/fixtures/test.ts");
+      await driver.editFile("test.ts");
       await driver.showSidebar();
 
       await driver.inputMagentaText(`Try getting the diagnostics`);
@@ -77,7 +77,7 @@ describe("node/tools/diagnostics.spec.ts", () => {
           value: [
             {
               type: "text",
-              text: `file: node/test/fixtures/test.ts source: typescript, severity: 1, message: "Property 'd' does not exist on type '{ c: "test"; }'."`,
+              text: `file: test.ts source: typescript, severity: 1, message: "Property 'd' does not exist on type '{ c: "test"; }'."`,
             },
           ],
         },

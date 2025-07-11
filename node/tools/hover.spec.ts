@@ -9,7 +9,7 @@ import type { ToolName } from "./types.ts";
 describe("node/tools/hover.spec.ts", () => {
   it("hover end-to-end", async () => {
     await withDriver({}, async (driver) => {
-      await driver.editFile("node/test/fixtures/test.ts");
+      await driver.editFile("test.ts");
       await driver.showSidebar();
 
       await driver.inputMagentaText(`Try hovering a symbol`);
@@ -28,7 +28,7 @@ describe("node/tools/hover.spec.ts", () => {
               id: toolRequestId,
               toolName: "hover" as ToolName,
               input: {
-                filePath: "node/test/fixtures/test.ts" as UnresolvedFilePath,
+                filePath: "test.ts" as UnresolvedFilePath,
                 symbol: "val.a.b.c",
               },
             },

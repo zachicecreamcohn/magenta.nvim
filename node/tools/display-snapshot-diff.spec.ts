@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TMP_DIR, withDriver } from "../test/preamble";
+import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "./toolManager";
 import * as fs from "node:fs";
 import * as path from "path";
@@ -16,9 +16,7 @@ describe("node/tools/display-snapshot-diff.spec.ts", () => {
         {},
       ]);
       await driver.showSidebar();
-      await driver.inputMagentaText(
-        `Update the poem in the file ${TMP_DIR}/poem.txt`,
-      );
+      await driver.inputMagentaText(`Update the poem in the file poem.txt`);
       await driver.send();
 
       const request = await driver.mockAnthropic.awaitPendingRequest();
@@ -32,7 +30,7 @@ describe("node/tools/display-snapshot-diff.spec.ts", () => {
               id: "id" as ToolRequestId,
               toolName: "replace" as ToolName,
               input: {
-                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
+                filePath: `poem.txt` as UnresolvedFilePath,
                 find: `\
 Moonlight whispers through the trees,
 Silver shadows dance with ease.
@@ -53,10 +51,7 @@ Paints its colors in the light.`,
       await driver.assertDisplayBufferContains("✏️✅ Replace [[ -4 / +4 ]]");
 
       // Verify file was updated with the new content
-      const poemPath = path.join(
-        await getcwd(driver.nvim),
-        `${TMP_DIR}/poem.txt`,
-      );
+      const poemPath = path.join(await getcwd(driver.nvim), "poem.txt");
       const fileContent = fs.readFileSync(poemPath, "utf-8");
       expect(fileContent).toContain("In gardens wild and flowing free");
       expect(fileContent).toContain("Magenta blooms for all to see");
@@ -78,7 +73,7 @@ Paints its colors in the light.`,
       const poemWin = await driver.findWindow(async (w) => {
         const buf = await w.buffer();
         const name = await buf.getName();
-        return new RegExp(`${TMP_DIR}/poem.txt$`).test(name);
+        return new RegExp(`poem.txt$`).test(name);
       });
 
       expect(await poemWin.getOption("diff")).toBe(true);

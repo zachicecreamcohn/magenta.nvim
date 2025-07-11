@@ -9,7 +9,7 @@ import type { ToolName } from "./types.ts";
 describe("node/tools/findReferences.spec.ts", () => {
   it("findReferences end-to-end", async () => {
     await withDriver({}, async (driver) => {
-      await driver.editFile("node/test/fixtures/test.ts");
+      await driver.editFile("test.ts");
       await driver.showSidebar();
 
       await driver.inputMagentaText(`Try finding references for a symbol`);
@@ -27,7 +27,7 @@ describe("node/tools/findReferences.spec.ts", () => {
               id: toolRequestId,
               toolName: "find_references" as ToolName,
               input: {
-                filePath: "node/test/fixtures/test.ts" as UnresolvedFilePath,
+                filePath: "test.ts" as UnresolvedFilePath,
                 symbol: "val.a.b.c",
               },
             },
@@ -65,7 +65,7 @@ describe("node/tools/findReferences.spec.ts", () => {
           value: [
             {
               type: "text",
-              text: `node/test/fixtures/test.ts:4:6\nnode/test/fixtures/test.ts:12:6\nnode/test/fixtures/test.ts:17:20\n`,
+              text: `test.ts:4:6\ntest.ts:12:6\ntest.ts:17:20\n`,
             },
           ],
         },

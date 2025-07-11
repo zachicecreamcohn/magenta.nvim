@@ -1,5 +1,5 @@
 import { attach, type LogLevel, type Nvim } from "../nvim/nvim-node/index.ts";
-import { unlink, access, rm, cp, mkdir } from "node:fs/promises";
+import { access, rm, cp, mkdir } from "node:fs/promises";
 import { spawn } from "child_process";
 import { type MountedVDOM } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
@@ -16,7 +16,6 @@ import type { ProviderToolResult } from "../providers/provider-types.ts";
 import { type MockMCPServer, mockServers } from "../tools/mcp/mock-server.ts";
 import type { ServerName } from "../tools/mcp/types.ts";
 
-export const TMP_DIR = "/tmp/magenta-test";
 /**
  * Helper functions for asserting properties of tool result arrays
  */
@@ -155,7 +154,7 @@ export async function withNvimProcess(
   // Set up test directory paths
   const testDir = path.dirname(__filename);
   const fixturesDir = path.join(testDir, "fixtures");
-  const tmpDir = path.join(TMP_DIR, testId);
+  const tmpDir = path.join("/tmp/magenta-test", testId);
   const sock = path.join(tmpDir, "magenta-test.sock");
 
   // Clean up and recreate tmp directory

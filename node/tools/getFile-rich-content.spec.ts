@@ -2,7 +2,6 @@ import type { ToolRequestId } from "./toolManager.ts";
 import { expect, it, describe } from "vitest";
 import {
   withDriver,
-  TMP_DIR,
   assertToolResultHasImageSource,
   assertToolResultHasDocumentSource,
 } from "../test/preamble.ts";
@@ -15,9 +14,7 @@ describe("getFile rich content integration tests", () => {
       await driver.showSidebar();
 
       // Request to read an image file
-      await driver.inputMagentaText(
-        `Please analyze the image in node/test/fixtures/test.jpg`,
-      );
+      await driver.inputMagentaText(`Please analyze the image in test.jpg`);
       await driver.send();
 
       const request = await driver.mockAnthropic.awaitPendingRequest();
@@ -31,7 +28,7 @@ describe("getFile rich content integration tests", () => {
               id: "img_request" as ToolRequestId,
               toolName: "get_file" as ToolName,
               input: {
-                filePath: "./node/test/fixtures/test.jpg" as UnresolvedFilePath,
+                filePath: "test.jpg" as UnresolvedFilePath,
               },
             },
           },
@@ -39,9 +36,7 @@ describe("getFile rich content integration tests", () => {
       });
 
       // Should show successful processing
-      await driver.assertDisplayBufferContains(
-        `👀✅ \`./node/test/fixtures/test.jpg\``,
-      );
+      await driver.assertDisplayBufferContains(`👀✅ \`test.jpg\``);
 
       // Verify the tool result contains image content
       const toolResultRequest =
@@ -79,7 +74,7 @@ describe("getFile rich content integration tests", () => {
 
       // Request to read a PDF file
       await driver.inputMagentaText(
-        `Please read and analyze the PDF document in node/test/fixtures/test.pdf`,
+        `Please read and analyze the PDF document in test.pdf`,
       );
       await driver.send();
 
@@ -94,7 +89,7 @@ describe("getFile rich content integration tests", () => {
               id: "pdf_request" as ToolRequestId,
               toolName: "get_file" as ToolName,
               input: {
-                filePath: "./node/test/fixtures/test.pdf" as UnresolvedFilePath,
+                filePath: "test.pdf" as UnresolvedFilePath,
               },
             },
           },
@@ -102,9 +97,7 @@ describe("getFile rich content integration tests", () => {
       });
 
       // Should show successful processing
-      await driver.assertDisplayBufferContains(
-        `👀✅ \`./node/test/fixtures/test.pdf\``,
-      );
+      await driver.assertDisplayBufferContains(`👀✅ \`test.pdf\``);
 
       // Verify the tool result contains document content
       const toolResultRequest =
@@ -141,9 +134,7 @@ describe("getFile rich content integration tests", () => {
       await driver.showSidebar();
 
       // Request to read an unsupported binary file
-      await driver.inputMagentaText(
-        `Please read the file node/test/fixtures/test.bin`,
-      );
+      await driver.inputMagentaText(`Please read the file test.bin`);
       await driver.send();
 
       const request = await driver.mockAnthropic.awaitPendingRequest();
@@ -157,7 +148,7 @@ describe("getFile rich content integration tests", () => {
               id: "bin_request" as ToolRequestId,
               toolName: "get_file" as ToolName,
               input: {
-                filePath: "./node/test/fixtures/test.bin" as UnresolvedFilePath,
+                filePath: "test.bin" as UnresolvedFilePath,
               },
             },
           },
@@ -165,9 +156,7 @@ describe("getFile rich content integration tests", () => {
       });
 
       // Should show error for unsupported file type
-      await driver.assertDisplayBufferContains(
-        `👀❌ \`./node/test/fixtures/test.bin\``,
-      );
+      await driver.assertDisplayBufferContains(`👀❌ \`test.bin\``);
 
       // Verify the tool result contains error
       const toolResultRequest =
@@ -201,9 +190,7 @@ describe("getFile rich content integration tests", () => {
       ).toEqual({});
 
       // Read an image file
-      await driver.inputMagentaText(
-        `Please analyze node/test/fixtures/test.jpg`,
-      );
+      await driver.inputMagentaText(`Please analyze test.jpg`);
       await driver.send();
 
       const request = await driver.mockAnthropic.awaitPendingRequest();
@@ -217,16 +204,14 @@ describe("getFile rich content integration tests", () => {
               id: "img_request" as ToolRequestId,
               toolName: "get_file" as ToolName,
               input: {
-                filePath: "./node/test/fixtures/test.jpg" as UnresolvedFilePath,
+                filePath: "test.jpg" as UnresolvedFilePath,
               },
             },
           },
         ],
       });
 
-      await driver.assertDisplayBufferContains(
-        `👀✅ \`./node/test/fixtures/test.jpg\``,
-      );
+      await driver.assertDisplayBufferContains(`👀✅ \`test.jpg\``);
 
       // Handle the auto-respond message
       const toolResultRequest =
@@ -258,7 +243,7 @@ describe("getFile rich content integration tests", () => {
       ).toEqual({});
 
       // Read a PDF file
-      await driver.inputMagentaText(`Please read node/test/fixtures/test.pdf`);
+      await driver.inputMagentaText(`Please read test.pdf`);
       await driver.send();
 
       const request = await driver.mockAnthropic.awaitPendingRequest();
@@ -272,16 +257,14 @@ describe("getFile rich content integration tests", () => {
               id: "pdf_request" as ToolRequestId,
               toolName: "get_file" as ToolName,
               input: {
-                filePath: "./node/test/fixtures/test.pdf" as UnresolvedFilePath,
+                filePath: "test.pdf" as UnresolvedFilePath,
               },
             },
           },
         ],
       });
 
-      await driver.assertDisplayBufferContains(
-        `👀✅ \`./node/test/fixtures/test.pdf\``,
-      );
+      await driver.assertDisplayBufferContains(`👀✅ \`test.pdf\``);
 
       // Handle the auto-respond message
       const toolResultRequest =
@@ -308,7 +291,7 @@ describe("getFile rich content integration tests", () => {
       await driver.showSidebar();
 
       // Read a text file
-      await driver.inputMagentaText(`Please read node/test/fixtures/poem.txt`);
+      await driver.inputMagentaText(`Please read poem.txt`);
       await driver.send();
 
       const request = await driver.mockAnthropic.awaitPendingRequest();
@@ -322,16 +305,14 @@ describe("getFile rich content integration tests", () => {
               id: "text_request" as ToolRequestId,
               toolName: "get_file" as ToolName,
               input: {
-                filePath: "./node/test/fixtures/poem.txt" as UnresolvedFilePath,
+                filePath: "poem.txt" as UnresolvedFilePath,
               },
             },
           },
         ],
       });
 
-      await driver.assertDisplayBufferContains(
-        `👀✅ \`./node/test/fixtures/poem.txt\``,
-      );
+      await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\``);
 
       // Handle the auto-respond message
       const toolResultRequest =
@@ -344,14 +325,12 @@ describe("getFile rich content integration tests", () => {
 
       // Text file should be added to context normally
       await driver.assertDisplayBufferContains("# context:");
-      await driver.assertDisplayBufferContains(
-        "- `node/test/fixtures/poem.txt`",
-      );
+      await driver.assertDisplayBufferContains("- `poem.txt`");
 
       const relativeFiles = Object.values(
         driver.magenta.chat.getActiveThread().contextManager.files,
       ).map((f) => f.relFilePath);
-      expect(relativeFiles).toContain("node/test/fixtures/poem.txt");
+      expect(relativeFiles).toContain("poem.txt");
     });
   });
 
@@ -360,9 +339,7 @@ describe("getFile rich content integration tests", () => {
       await driver.showSidebar();
 
       // Read the text file first
-      await driver.inputMagentaText(
-        `Please read the poem.txt file from the fixtures directory`,
-      );
+      await driver.inputMagentaText(`Please read the poem.txt file`);
       await driver.send();
 
       const request1 = await driver.mockAnthropic.awaitPendingRequest();
@@ -376,16 +353,14 @@ describe("getFile rich content integration tests", () => {
               id: "text_request" as ToolRequestId,
               toolName: "get_file" as ToolName,
               input: {
-                filePath: "./node/test/fixtures/poem.txt" as UnresolvedFilePath,
+                filePath: "poem.txt" as UnresolvedFilePath,
               },
             },
           },
         ],
       });
 
-      await driver.assertDisplayBufferContains(
-        `👀✅ \`./node/test/fixtures/poem.txt\``,
-      );
+      await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\``);
 
       // Handle first auto-respond message
       const toolResultRequest1 =
@@ -411,16 +386,14 @@ describe("getFile rich content integration tests", () => {
               id: "img_request" as ToolRequestId,
               toolName: "get_file" as ToolName,
               input: {
-                filePath: "./node/test/fixtures/test.jpg" as UnresolvedFilePath,
+                filePath: "test.jpg" as UnresolvedFilePath,
               },
             },
           },
         ],
       });
 
-      await driver.assertDisplayBufferContains(
-        `👀✅ \`./node/test/fixtures/test.jpg\``,
-      );
+      await driver.assertDisplayBufferContains(`👀✅ \`test.jpg\``);
 
       // Handle second auto-respond message
       const toolResultRequest2 =
@@ -448,16 +421,14 @@ describe("getFile rich content integration tests", () => {
               id: "pdf_request" as ToolRequestId,
               toolName: "get_file" as ToolName,
               input: {
-                filePath: "./node/test/fixtures/test.pdf" as UnresolvedFilePath,
+                filePath: "test.pdf" as UnresolvedFilePath,
               },
             },
           },
         ],
       });
 
-      await driver.assertDisplayBufferContains(
-        `👀✅ \`./node/test/fixtures/test.pdf\``,
-      );
+      await driver.assertDisplayBufferContains(`👀✅ \`test.pdf\``);
 
       // Handle final auto-respond message
       const toolResultRequest3 =
@@ -470,14 +441,12 @@ describe("getFile rich content integration tests", () => {
 
       // Only text file should be in context
       await driver.assertDisplayBufferContains("# context:");
-      await driver.assertDisplayBufferContains(
-        "- `node/test/fixtures/poem.txt`",
-      );
+      await driver.assertDisplayBufferContains("- `poem.txt`");
 
       const relativeFiles = Object.values(
         driver.magenta.chat.getActiveThread().contextManager.files,
       ).map((f) => f.relFilePath);
-      expect(relativeFiles).toEqual(["node/test/fixtures/poem.txt"]);
+      expect(relativeFiles).toEqual(["poem.txt"]);
     });
   });
 
@@ -494,17 +463,9 @@ describe("getFile rich content integration tests", () => {
       async (driver) => {
         await driver.showSidebar();
 
-        // Request to read a large image file from the fixtures directory (copying it there)
-        // First, copy the large file to fixtures to avoid approval issues
-        const { copyFile } = await import("node:fs/promises");
-        const fixturesDir = "node/test/fixtures";
-        await copyFile(
-          `${TMP_DIR}/large-image.jpg`,
-          `${fixturesDir}/large-image.jpg`,
-        );
-
+        // The large image file should already be in the test cwd
         await driver.inputMagentaText(
-          `Please analyze the large image in node/test/fixtures/large-image.jpg`,
+          `Please analyze the large image in large-image.jpg`,
         );
         await driver.send();
 
@@ -519,8 +480,7 @@ describe("getFile rich content integration tests", () => {
                 id: "large_img_request" as ToolRequestId,
                 toolName: "get_file" as ToolName,
                 input: {
-                  filePath:
-                    "./node/test/fixtures/large-image.jpg" as UnresolvedFilePath,
+                  filePath: "large-image.jpg" as UnresolvedFilePath,
                 },
               },
             },
@@ -528,9 +488,7 @@ describe("getFile rich content integration tests", () => {
         });
 
         // Should show error for file too large
-        await driver.assertDisplayBufferContains(
-          `👀❌ \`./node/test/fixtures/large-image.jpg\``,
-        );
+        await driver.assertDisplayBufferContains(`👀❌ \`large-image.jpg\``);
 
         // Verify the tool result contains error
         const toolResultRequest =
@@ -552,13 +510,7 @@ describe("getFile rich content integration tests", () => {
           }
         }
 
-        // Clean up the copied file
-        const { unlink } = await import("node:fs/promises");
-        try {
-          await unlink("node/test/fixtures/large-image.jpg");
-        } catch {
-          // Ignore cleanup errors
-        }
+        // No cleanup needed since the file is in the temporary test directory
       },
     );
   });

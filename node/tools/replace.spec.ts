@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as Replace from "./replace";
 import { type VDOMNode } from "../tea/view";
-import { TMP_DIR, withDriver } from "../test/preamble";
+import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "./toolManager";
 import type { ToolName } from "./types";
 import * as path from "path";
@@ -118,10 +118,8 @@ let fourthLine;`;
 
   it("reproduce exact error from measure-selection-box.tsx", async () => {
     await withDriver({}, async (driver) => {
-      const testFile = path.join(
-        await getcwd(driver.nvim),
-        `${TMP_DIR}/measure-selection-box.tsx`,
-      );
+      const cwd = await getcwd(driver.nvim);
+      const testFile = path.join(cwd, "measure-selection-box.tsx");
 
       const originalContent = `import React from "react";
 import * as immer from "immer";
@@ -196,10 +194,8 @@ import { MeasureStats } from "../../iso/protocol";`,
   });
   it("reproduce exact error from measure-selection-box.tsx with buffer open", async () => {
     await withDriver({}, async (driver) => {
-      const testFile = path.join(
-        await getcwd(driver.nvim),
-        `${TMP_DIR}/measure-selection-box-buffer.tsx`,
-      );
+      const cwd = await getcwd(driver.nvim);
+      const testFile = path.join(cwd, "measure-selection-box-buffer.tsx");
 
       const originalContent = `import React from "react";
 import * as immer from "immer";

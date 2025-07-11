@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { TMP_DIR, withDriver } from "../test/preamble";
+import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "./toolManager";
 import type { ToolName } from "./types";
 import * as path from "path";
@@ -36,7 +36,7 @@ describe("node/tools/applyEdit.spec.ts", () => {
               id: "id" as ToolRequestId,
               toolName: "insert" as ToolName,
               input: {
-                filePath: `${TMP_DIR}/new.txt` as UnresolvedFilePath,
+                filePath: "new.txt" as UnresolvedFilePath,
                 insertAfter: "",
                 content: "a poem\nwith some lines",
               },
@@ -47,10 +47,7 @@ describe("node/tools/applyEdit.spec.ts", () => {
 
       await driver.assertDisplayBufferContains("✏️✅ Insert [[ +2 ]]");
 
-      const poemPath = path.join(
-        await getcwd(driver.nvim),
-        `${TMP_DIR}/new.txt`,
-      );
+      const poemPath = path.join(await getcwd(driver.nvim), "new.txt");
       expect(fs.existsSync(poemPath)).toBe(true);
       const poemContent = fs.readFileSync(poemPath, "utf-8");
       expect(poemContent).toEqual("a poem\nwith some lines");
@@ -76,7 +73,7 @@ describe("node/tools/applyEdit.spec.ts", () => {
               id: "id" as ToolRequestId,
               toolName: "insert" as ToolName,
               input: {
-                filePath: `${TMP_DIR}/toolManager.ts` as UnresolvedFilePath,
+                filePath: "toolManager.ts" as UnresolvedFilePath,
                 insertAfter: "",
                 content: "a poem",
               },
@@ -87,10 +84,7 @@ describe("node/tools/applyEdit.spec.ts", () => {
 
       await driver.assertDisplayBufferContains("✏️✅ Insert [[ +1 ]]");
 
-      const filePath = path.join(
-        await getcwd(driver.nvim),
-        `${TMP_DIR}/toolManager.ts`,
-      );
+      const filePath = path.join(await getcwd(driver.nvim), "toolManager.ts");
       const fileContent = fs.readFileSync(filePath, "utf-8");
 
       // The file content might end with a newline, so check if it contains our poem
@@ -106,9 +100,7 @@ describe("node/tools/applyEdit.spec.ts", () => {
         {},
       ]);
       await driver.showSidebar();
-      await driver.inputMagentaText(
-        `Update the poem in the file ${TMP_DIR}/poem.txt`,
-      );
+      await driver.inputMagentaText(`Update the poem in the file poem.txt`);
       await driver.send();
 
       const request = await driver.mockAnthropic.awaitPendingRequest();
@@ -122,7 +114,7 @@ describe("node/tools/applyEdit.spec.ts", () => {
               id: "id" as ToolRequestId,
               toolName: "replace" as ToolName,
               input: {
-                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
+                filePath: "poem.txt" as UnresolvedFilePath,
                 find: `\
 shadows dance with ease.
 Stars above like diamonds bright,
@@ -140,10 +132,7 @@ Paints its colors `,
       await driver.assertDisplayBufferContains("✏️✅ Replace [[ -3 / +3 ]]");
 
       // Verify file was updated
-      const filePath = path.join(
-        await getcwd(driver.nvim),
-        `${TMP_DIR}/poem.txt`,
-      );
+      const filePath = path.join(await getcwd(driver.nvim), "poem.txt");
       const fileContent = fs.readFileSync(filePath, "utf-8");
       expect(fileContent).toEqual(
         `\
@@ -175,7 +164,7 @@ Paints its colors stories in the night.
               id: "id" as ToolRequestId,
               toolName: "insert" as ToolName,
               input: {
-                filePath: `${TMP_DIR}/multiple.txt` as UnresolvedFilePath,
+                filePath: "multiple.txt" as UnresolvedFilePath,
                 insertAfter: "",
                 content: "a poem",
               },
@@ -187,10 +176,7 @@ Paints its colors stories in the night.
       await driver.assertDisplayBufferContains("Insert [[ +1 ]]");
 
       // Verify first edit was applied
-      const poemPath = path.join(
-        await getcwd(driver.nvim),
-        `${TMP_DIR}/multiple.txt`,
-      );
+      const poemPath = path.join(await getcwd(driver.nvim), "multiple.txt");
       expect(fs.existsSync(poemPath)).toBe(true);
       let fileContent = fs.readFileSync(poemPath, "utf-8");
       expect(fileContent).toEqual("a poem");
@@ -209,7 +195,7 @@ Paints its colors stories in the night.
               id: "id" as ToolRequestId,
               toolName: "insert" as ToolName,
               input: {
-                filePath: `${TMP_DIR}/multiple.txt` as UnresolvedFilePath,
+                filePath: "multiple.txt" as UnresolvedFilePath,
                 insertAfter: "a poem",
                 content: "\nanother poem",
               },
@@ -227,7 +213,7 @@ Paints its colors stories in the night.
   it("replace a single line", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
-      await driver.inputMagentaText(`Update line 2 in ${TMP_DIR}/poem.txt`);
+      await driver.inputMagentaText(`Update line 2 in poem.txt`);
       await driver.send();
 
       const request = await driver.mockAnthropic.awaitPendingRequest();
@@ -241,7 +227,7 @@ Paints its colors stories in the night.
               id: "id" as ToolRequestId,
               toolName: "replace" as ToolName,
               input: {
-                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
+                filePath: "poem.txt" as UnresolvedFilePath,
                 find: "Silver shadows dance with ease.",
                 replace: "Golden moonbeams dance with ease.",
               },
@@ -253,10 +239,7 @@ Paints its colors stories in the night.
       await driver.assertDisplayBufferContains("✏️✅ Replace [[ -1 / +1 ]]");
 
       // Verify the line was replaced
-      const filePath = path.join(
-        await getcwd(driver.nvim),
-        `${TMP_DIR}/poem.txt`,
-      );
+      const filePath = path.join(await getcwd(driver.nvim), "poem.txt");
       const fileContent = fs.readFileSync(filePath, "utf-8");
       expect(fileContent).toEqual(
         `Moonlight whispers through the trees,
@@ -272,7 +255,7 @@ Paint their stories in the night.
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
       await driver.inputMagentaText(
-        `Replace the entire contents of ${TMP_DIR}/poem.txt with a new poem`,
+        `Replace the entire contents of poem.txt with a new poem`,
       );
       await driver.send();
 
@@ -287,7 +270,7 @@ Paint their stories in the night.
               id: "id" as ToolRequestId,
               toolName: "replace" as ToolName,
               input: {
-                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
+                filePath: "poem.txt" as UnresolvedFilePath,
                 find: "",
                 replace:
                   "A brand new poem\nWritten from scratch\nReplacing all that came before",
@@ -300,10 +283,7 @@ Paint their stories in the night.
       await driver.assertDisplayBufferContains("✏️✅ Replace [[ -1 / +3 ]]");
 
       // Verify the entire file was replaced
-      const filePath = path.join(
-        await getcwd(driver.nvim),
-        `${TMP_DIR}/poem.txt`,
-      );
+      const filePath = path.join(await getcwd(driver.nvim), "poem.txt");
       const fileContent = fs.readFileSync(filePath, "utf-8");
       expect(fileContent).toEqual(
         "A brand new poem\nWritten from scratch\nReplacing all that came before",
@@ -314,10 +294,7 @@ Paint their stories in the night.
   it("failed edit is not fatal", async () => {
     await withDriver({}, async (driver) => {
       // First open the poem file in a buffer
-      const poemFile = path.join(
-        await getcwd(driver.nvim),
-        `${TMP_DIR}/poem.txt`,
-      );
+      const poemFile = path.join(await getcwd(driver.nvim), "poem.txt");
       await driver.command(`edit ${poemFile}`);
 
       // Verify the buffer is open
@@ -325,9 +302,7 @@ Paint their stories in the night.
       expect(await buffer.getName()).toContain("poem.txt");
 
       await driver.showSidebar();
-      await driver.inputMagentaText(
-        `Update the poem in the file ${TMP_DIR}/poem.txt`,
-      );
+      await driver.inputMagentaText(`Update the poem in the file poem.txt`);
       await driver.send();
 
       const request = await driver.mockAnthropic.awaitPendingRequest();
@@ -341,7 +316,7 @@ Paint their stories in the night.
               id: "id1" as ToolRequestId,
               toolName: "replace" as ToolName,
               input: {
-                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
+                filePath: "poem.txt" as UnresolvedFilePath,
                 find: `bogus 1 / bogus 2...`,
                 replace: `Replace text`,
               },
@@ -353,7 +328,7 @@ Paint their stories in the night.
               id: "id2" as ToolRequestId,
               toolName: "insert" as ToolName,
               input: {
-                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
+                filePath: "poem.txt" as UnresolvedFilePath,
                 insertAfter: `Paint their stories in the night.\n`, // note newline at the end of file does not match
                 content: `\nGentle breezes softly sway,\nIn the quiet, dreams convey.\nMoonlit paths of silver glow,\nLead to places hearts may go.\n`,
               },
@@ -365,7 +340,7 @@ Paint their stories in the night.
               id: "id3" as ToolRequestId,
               toolName: "replace" as ToolName,
               input: {
-                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
+                filePath: "poem.txt" as UnresolvedFilePath,
                 find: `Moonlight whispers through the trees,`,
                 replace: `Starlight whispers through the trees,`,
               },
@@ -375,13 +350,13 @@ Paint their stories in the night.
       });
 
       await driver.assertDisplayBufferContains(
-        "✏️❌ Replace [[ -1 / +1 ]] in `node/test/tmp/poem.txt` - Unable to find text in content. Try to re-read the file and make sure you match the latest content updates exactly. in file `node/test/tmp/poem.txt`",
+        "✏️❌ Replace [[ -1 / +1 ]] in `poem.txt` - Unable to find text in content. Try to re-read the file and make sure you match the latest content updates exactly. in file `poem.txt`",
       );
       await driver.assertDisplayBufferContains(
-        '✏️❌ Insert [[ +6 ]] in `node/test/tmp/poem.txt` - Unable to find insert location "Paint their stories in the night.\n" in file `node/test/tmp/poem.txt`',
+        '✏️❌ Insert [[ +6 ]] in `poem.txt` - Unable to find insert location "Paint their stories in the night.\n" in file `poem.txt`',
       );
       await driver.assertDisplayBufferContains(
-        "✏️✅ Replace [[ -1 / +1 ]] in `node/test/tmp/poem.txt`",
+        "✏️✅ Replace [[ -1 / +1 ]] in `poem.txt`",
       );
 
       // Verify that the first edit failed but the third succeeded
@@ -419,7 +394,7 @@ Paint their stories in the night.
       // Create a file and open it in a buffer
       const poemFile = path.join(
         await getcwd(driver.nvim),
-        `${TMP_DIR}/poem_to_change.txt`,
+        "poem_to_change.txt",
       );
       fs.writeFileSync(poemFile, "Original content here", "utf-8");
 
@@ -462,7 +437,7 @@ Paint their stories in the night.
     await withDriver({}, async (driver) => {
       // Create a file and open it in a buffer
       const cwd = await getcwd(driver.nvim);
-      const poemFile = path.join(cwd, `${TMP_DIR}/poem.txt`);
+      const poemFile = path.join(cwd, "poem.txt");
 
       await driver.command(`edit ${poemFile}`);
       await driver.showSidebar();
@@ -542,7 +517,7 @@ Paint their stories in the night.
     await withDriver({}, async (driver) => {
       const cwd = await getcwd(driver.nvim);
       // Create a file and open it in a buffer
-      const poemFile = path.join(cwd, `${TMP_DIR}/poem.txt`);
+      const poemFile = path.join(cwd, "poem.txt");
 
       await driver.command(`edit ${poemFile}`);
       await driver.showSidebar();
@@ -620,7 +595,7 @@ Paint their stories in the night.
               id: "id" as ToolRequestId,
               toolName: "insert" as ToolName,
               input: {
-                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
+                filePath: "poem.txt" as UnresolvedFilePath,
                 insertAfter: "Text that doesn't exist in the file",
                 content: "\nNew content to add",
               },
@@ -652,7 +627,7 @@ Paint their stories in the night.
       // Create a file and open it in a buffer
       const poemFile = path.join(
         await getcwd(driver.nvim),
-        `${TMP_DIR}/buffer_with_changes.txt`,
+        "buffer_with_changes.txt",
       ) as UnresolvedFilePath;
 
       fs.writeFileSync(poemFile, "Original content\nSecond line", "utf-8");

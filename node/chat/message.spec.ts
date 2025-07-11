@@ -4,8 +4,6 @@ import type { ToolRequestId } from "../tools/toolManager";
 import type { UnresolvedFilePath } from "../utils/files";
 import type { WebSearchResultBlock } from "@anthropic-ai/sdk/resources.mjs";
 import type { ToolName } from "../tools/types";
-import { getcwd } from "../nvim/nvim";
-import path from "path";
 
 describe("node/chat/message.spec.ts", () => {
   it("display multiple edits to the same file, and edit details", async () => {
