@@ -71,6 +71,16 @@ export type ConversationState =
       response: string;
     };
 
+export type InputMessage =
+  | {
+      type: "user";
+      text: string;
+    }
+  | {
+      type: "system";
+      text: string;
+    };
+
 export type Msg =
   | { type: "set-title"; title: string }
   | { type: "update-profile"; profile: Profile }
@@ -80,7 +90,7 @@ export type Msg =
     }
   | {
       type: "send-message";
-      content: string;
+      messages: InputMessage[];
     }
   | {
       type: "conversation-state";
@@ -265,16 +275,22 @@ export class Thread {
       }
 
       case "send-message": {
-        if (msg.content?.startsWith("@compact")) {
-          this.compactThread(msg.content.slice("@compact".length + 1)).catch(
-            this.handleSendMessageError.bind(this),
-          );
+        if (
+          msg.messages.length == 1 &&
+          msg.messages[0].type == "user" &&
+          msg.messages[0].text.startsWith("@compact")
+        ) {
+          this.compactThread(
+            msg.messages[0].text.slice("@compact".length + 1),
+          ).catch(this.handleSendMessageError.bind(this));
         } else {
-          this.sendMessage(msg.content).catch(
+          this.sendMessage(msg.messages).catch(
             this.handleSendMessageError.bind(this),
           );
           if (!this.state.title) {
-            this.setThreadTitle(msg.content).catch((err: Error) =>
+            this.setThreadTitle(
+              msg.messages.map((m) => m.text).join("\n"),
+            ).catch((err: Error) =>
               this.context.nvim.logger?.error(
                 "Error getting thread title: " + err.message + "\n" + err.stack,
               ),
@@ -282,7 +298,7 @@ export class Thread {
           }
         }
 
-        if (msg.content) {
+        if (msg.messages.length) {
           // NOTE: this is a bit hacky. We want to scroll after the user message has been populated in the display
           // buffer. the 100ms timeout is not the most precise way to do that, but it works for now
           setTimeout(() => {
@@ -504,22 +520,18 @@ export class Thread {
   };
 
   private async prepareUserMessage(
-    content?: string,
+    messages?: InputMessage[],
   ): Promise<{ messageId: MessageId; addedMessage: boolean }> {
     const messageId = this.counter.get() as MessageId;
     const contextUpdates = await this.contextManager.getContextUpdate();
 
-    if ((content && content.length) || Object.keys(contextUpdates).length) {
-      const messageContent: ProviderMessageContent[] =
-        content && content.length
-          ? [
-              {
-                type: "text",
-                text: content,
-              },
-            ]
-          : [];
-
+    if (messages?.length || Object.keys(contextUpdates).length) {
+      const messageContent: ProviderMessageContent[] = (messages || []).map(
+        (m) => ({
+          type: "text",
+          text: m.text,
+        }),
+      );
       const message = new Message(
         {
           id: messageId,
@@ -554,8 +566,8 @@ export class Thread {
     return { messageId, addedMessage: false };
   }
 
-  async sendMessage(content?: string): Promise<void> {
-    await this.prepareUserMessage(content);
+  async sendMessage(inputMessages?: InputMessage[]): Promise<void> {
+    await this.prepareUserMessage(inputMessages);
     const messages = this.getMessages();
 
     const provider = getProvider(this.context.nvim, this.state.profile);
@@ -591,12 +603,12 @@ export class Thread {
     });
   }
 
-  async compactThread(content: string): Promise<void> {
+  async compactThread(text: string): Promise<void> {
     const userMsgContent = `\
 Use the compact_thread tool to analyze my next prompt and extract only the relevant parts of our conversation history.
 
 My next prompt will be:
-${content}`;
+${text}`;
 
     const request = getProvider(
       this.context.nvim,
@@ -642,12 +654,16 @@ ${content}`;
           type: "compact-thread",
           threadId: this.id,
           contextFilePaths: compactRequest.input.contextFiles,
-          initialMessage: `\
-# Previous thread summary:
+          inputMessages: [
+            {
+              type: "system",
+              text: `# Previous thread summary:
 ${compactRequest.input.summary}
-
 # The user would like you to address this prompt next:
-${content}`,
+`,
+            },
+            { type: "user", text: text },
+          ],
         },
       });
 
