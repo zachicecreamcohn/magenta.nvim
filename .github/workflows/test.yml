@@ -9,9 +9,17 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install --frozen-lockfile
 
       - name: Setup Neovim
         uses: rhysd/action-setup-vim@v1
@@ -22,17 +30,32 @@ jobs:
       - name: Install typescript-language-server
         run: npm install -g typescript-language-server typescript
 
+      - name: Run tests
+        run: npx vitest
+
+  lint-and-format:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        command:
+          - name: "typecheck"
+            run: "npx tsc --noEmit"
+          - name: "eslint"
+            run: "npx eslint ."
+          - name: "prettier"
+            run: "npx prettier --check ."
+    name: ${{ matrix.command.name }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+          cache: "npm"
+
       - name: Install dependencies
         run: npm install --frozen-lockfile
 
-      - name: Run typecheck
-        run: npx tsc --noEmit
-
-      - name: Run eslint
-        run: npx eslint .
-
-      - name: Run prettier check
-        run: npx prettier --check .
-
-      - name: Run tests
-        run: npx vitest
+      - name: Run ${{ matrix.command.name }}
+        run: ${{ matrix.command.run }}
