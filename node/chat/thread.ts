@@ -18,6 +18,7 @@ import { FileSnapshots } from "../tools/file-snapshots.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp } from "../lsp.ts";
 import { getDiagnostics } from "../utils/diagnostics.ts";
+import { getQuickfixList, quickfixListToString } from "../nvim/nvim.ts";
 import {
   getProvider as getProvider,
   type ProviderMessage,
@@ -556,6 +557,35 @@ export class Thread {
             messageContent.push({
               type: "text",
               text: `Error fetching diagnostics: ${error instanceof Error ? error.message : String(error)}`,
+            });
+          }
+        }
+
+        // Check for quickfix keywords in user messages
+        if (
+          m.type === "user" &&
+          (m.text.includes("@qf") || m.text.includes("@quickfix"))
+        ) {
+          try {
+            const qflist = await getQuickfixList(this.context.nvim);
+            const quickfixStr = await quickfixListToString(
+              qflist,
+              this.context.nvim,
+            );
+
+            // Append quickfix as a separate content block
+            messageContent.push({
+              type: "text",
+              text: `Current quickfix list:\n${quickfixStr}`,
+            });
+          } catch (error) {
+            this.context.nvim.logger?.error(
+              `Failed to fetch quickfix list for message: ${error instanceof Error ? error.message : String(error)}`,
+            );
+            // Append error message as a separate content block
+            messageContent.push({
+              type: "text",
+              text: `Error fetching quickfix list: ${error instanceof Error ? error.message : String(error)}`,
             });
           }
         }
