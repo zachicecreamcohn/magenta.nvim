@@ -74,7 +74,7 @@ export class SpawnSubagentTool implements StaticTool {
         type: "spawn-subagent-thread",
         parentThreadId: this.context.threadId,
         spawnToolRequestId: this.request.id,
-        initialPrompt: prompt,
+        inputMessages: [{ type: "system", text: prompt }],
         threadType,
         contextFiles,
       },

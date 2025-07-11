@@ -2,7 +2,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import { parseLsResponse } from "../utils/lsBuffers.ts";
+import { getDiagnostics } from "../utils/diagnostics.ts";
 import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
@@ -23,38 +23,6 @@ export type State =
 export type Msg = {
   type: "finish";
   result: Result<ProviderToolResultContent[]>;
-};
-
-type DiagnosticsRes = {
-  end_col: number;
-  message: string;
-  namespace: number;
-  col: number;
-  code: number;
-  end_lnum: number;
-  source: string;
-  lnum: number;
-  user_data: {
-    lsp: {
-      code: number;
-      message: string;
-      range: {
-        start: {
-          character: number;
-          line: number;
-        };
-        end: {
-          character: number;
-          line: number;
-        };
-      };
-      tags: [];
-      source: string;
-      severity: number;
-    };
-  };
-  bufnr: number;
-  severity: number;
 };
 
 export class DiagnosticsTool implements StaticTool {
@@ -115,42 +83,24 @@ export class DiagnosticsTool implements StaticTool {
   }
 
   async getDiagnostics() {
-    this.context.nvim.logger?.debug(`in diagnostics initModel`);
-    let diagnostics;
     try {
-      diagnostics = (await this.context.nvim.call("nvim_exec_lua", [
-        `return vim.diagnostic.get(nil)`,
-        [],
-      ])) as DiagnosticsRes[];
-    } catch (e) {
-      throw new Error(`failed to nvim_exec_lua: ${JSON.stringify(e)}`);
+      const content = await getDiagnostics(this.context.nvim);
+      this.context.myDispatch({
+        type: "finish",
+        result: {
+          status: "ok",
+          value: [{ type: "text", text: content }],
+        },
+      });
+    } catch (error) {
+      this.context.myDispatch({
+        type: "finish",
+        result: {
+          status: "error",
+          error: `Failed to get diagnostics: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      });
     }
-    const lsResponse = await this.context.nvim.call("nvim_exec2", [
-      "ls",
-      { output: true },
-    ]);
-
-    const result = parseLsResponse(lsResponse.output as string);
-    const bufMap: { [bufId: string]: string } = {};
-    for (const res of result) {
-      bufMap[res.id] = res.filePath;
-    }
-
-    const content = diagnostics
-      .map(
-        (d) =>
-          `file: ${bufMap[d.bufnr]} source: ${d.source}, severity: ${d.severity}, message: "${d.message}"`,
-      )
-      .join("\n");
-    this.context.nvim.logger?.debug(`got diagnostics content: ${content}`);
-
-    this.context.myDispatch({
-      type: "finish",
-      result: {
-        status: "ok",
-        value: [{ type: "text", text: content }],
-      },
-    });
   }
 
   getToolResult(): ProviderToolResult {

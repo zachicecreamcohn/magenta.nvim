@@ -2,7 +2,7 @@ import type { Nvim } from "../nvim/nvim-node";
 import type { MagentaOptions, Profile } from "../options";
 import type { RootMsg } from "../root-msg";
 import type { Dispatch } from "../tea/tea";
-import { Thread, view as threadView } from "./thread";
+import { Thread, view as threadView, type InputMessage } from "./thread";
 import type { Lsp } from "../lsp";
 import { assertUnreachable } from "../utils/assertUnreachable";
 import { d, withBindings, type VDOMNode } from "../tea/view";
@@ -66,13 +66,13 @@ export type Msg =
       type: "compact-thread";
       threadId: ThreadId;
       contextFilePaths: UnresolvedFilePath[];
-      initialMessage: string;
+      inputMessages: InputMessage[];
     }
   | {
       type: "spawn-subagent-thread";
       parentThreadId: ThreadId;
       spawnToolRequestId: ToolRequestId;
-      initialPrompt: string;
+      inputMessages: InputMessage[];
       threadType: ThreadType;
       contextFiles?: UnresolvedFilePath[];
     }
@@ -266,7 +266,7 @@ export class Chat {
     contextFiles = [],
     parent,
     switchToThread,
-    initialMessage,
+    inputMessages,
     threadType,
   }: {
     threadId: ThreadId;
@@ -274,7 +274,7 @@ export class Chat {
     contextFiles?: UnresolvedFilePath[];
     parent?: ThreadId;
     switchToThread: boolean;
-    initialMessage?: string;
+    inputMessages?: InputMessage[];
     threadType: ThreadType;
   }) {
     this.threadWrappers[threadId] = {
@@ -347,13 +347,13 @@ export class Chat {
       });
     }
 
-    if (initialMessage) {
+    if (inputMessages) {
       this.context.dispatch({
         type: "thread-msg",
         id: threadId,
         msg: {
           type: "send-message",
-          content: initialMessage,
+          messages: inputMessages,
         },
       });
     }
@@ -511,11 +511,11 @@ ${threadViews.map((view) => d`${view}\n`)}`;
   async handleCompactThread({
     threadId,
     contextFilePaths,
-    initialMessage,
+    inputMessages,
   }: {
     threadId: ThreadId;
     contextFilePaths: UnresolvedFilePath[];
-    initialMessage: string;
+    inputMessages: InputMessage[];
   }) {
     const sourceThreadWrapper = this.threadWrappers[threadId];
     if (!sourceThreadWrapper || sourceThreadWrapper.state !== "initialized") {
@@ -531,20 +531,20 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       profile: sourceThread.state.profile,
       contextFiles: contextFilePaths,
       switchToThread: true,
-      initialMessage: initialMessage,
+      inputMessages,
     });
   }
 
   async handleSpawnSubagentThread({
     parentThreadId,
     spawnToolRequestId,
-    initialPrompt,
+    inputMessages,
     contextFiles,
     threadType,
   }: {
     parentThreadId: ThreadId;
     spawnToolRequestId: ToolRequestId;
-    initialPrompt: string;
+    inputMessages: InputMessage[];
     contextFiles?: UnresolvedFilePath[];
     threadType: ThreadType;
   }) {
@@ -563,7 +563,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
         contextFiles: contextFiles || [],
         parent: parentThreadId,
         switchToThread: false,
-        initialMessage: initialPrompt,
+        inputMessages,
         threadType,
       });
 

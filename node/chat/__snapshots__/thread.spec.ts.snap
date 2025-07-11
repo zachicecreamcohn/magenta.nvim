@@ -28,9 +28,12 @@ Paint their stories in the night.
       {
         "text": "# Previous thread summary:
 We discussed European capitals (France: Paris, Germany: Berlin) and examined your project structure, which contains TypeScript files.
-
 # The user would like you to address this prompt next:
-Tell me about Italy",
+",
+        "type": "text",
+      },
+      {
+        "text": "Tell me about Italy",
         "type": "text",
       },
     ],

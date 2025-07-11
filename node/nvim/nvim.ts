@@ -79,6 +79,53 @@ export function diffthis(nvim: Nvim) {
   return nvim.call("nvim_command", ["diffthis"]);
 }
 
+export interface QuickfixEntry {
+  bufnr: number;
+  lnum: number;
+  col: number;
+  text: string;
+  type?: string;
+  filename?: string;
+  valid?: number;
+}
+
+export async function getQuickfixList(nvim: Nvim): Promise<QuickfixEntry[]> {
+  const qflist = await nvim.call("nvim_exec2", [
+    "echo json_encode(getqflist())",
+    { output: true },
+  ]);
+  if (typeof qflist.output !== "string") {
+    throw new Error("Unable to get quickfix list");
+  }
+  return JSON.parse(qflist.output) as QuickfixEntry[];
+}
+
+export async function quickfixListToString(
+  entries: QuickfixEntry[],
+  nvim: Nvim,
+): Promise<string> {
+  const lines: string[] = [];
+
+  for (const entry of entries) {
+    let filename: string;
+    if (entry.filename) {
+      filename = entry.filename;
+    } else if (entry.bufnr > 0) {
+      // Get the filename from buffer number
+      const bufname = await nvim.call("nvim_buf_get_name", [entry.bufnr]);
+      filename = bufname ? bufname : `buffer ${entry.bufnr}`;
+    } else {
+      filename = `buffer ${entry.bufnr}`;
+    }
+
+    const line = entry.lnum > 0 ? `:${entry.lnum}` : "";
+    const col = entry.col > 0 ? `:${entry.col}` : "";
+    lines.push(`${filename}${line}${col}: ${entry.text}`);
+  }
+
+  return lines.join("\n");
+}
+
 export function notifyErr(nvim: Nvim, err: Error | string, ...rest: unknown[]) {
   return nvim.call("nvim_notify", [
     `Unexpected error:

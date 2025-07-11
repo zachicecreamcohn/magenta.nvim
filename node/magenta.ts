@@ -227,16 +227,21 @@ export class Magenta {
       }
 
       case "send": {
-        const message = await this.sidebar.getMessage();
-        this.nvim.logger?.debug(`current message: ${message}`);
-        if (!message) return;
+        const text = await this.sidebar.getMessage();
+        this.nvim.logger?.debug(`current message: ${text}`);
+        if (!text) return;
 
         this.dispatch({
           type: "thread-msg",
           id: this.chat.getActiveThread().id,
           msg: {
             type: "send-message",
-            content: message,
+            messages: [
+              {
+                type: "user",
+                text,
+              },
+            ],
           },
         });
 

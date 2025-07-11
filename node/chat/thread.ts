@@ -17,6 +17,9 @@ import { Counter } from "../utils/uniqueId.ts";
 import { FileSnapshots } from "../tools/file-snapshots.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp } from "../lsp.ts";
+import { getDiagnostics } from "../utils/diagnostics.ts";
+import { getQuickfixList, quickfixListToString } from "../nvim/nvim.ts";
+import { getBuffersList } from "../utils/listBuffers.ts";
 import {
   getProvider as getProvider,
   type ProviderMessage,
@@ -71,6 +74,16 @@ export type ConversationState =
       response: string;
     };
 
+export type InputMessage =
+  | {
+      type: "user";
+      text: string;
+    }
+  | {
+      type: "system";
+      text: string;
+    };
+
 export type Msg =
   | { type: "set-title"; title: string }
   | { type: "update-profile"; profile: Profile }
@@ -80,7 +93,7 @@ export type Msg =
     }
   | {
       type: "send-message";
-      content: string;
+      messages: InputMessage[];
     }
   | {
       type: "conversation-state";
@@ -265,16 +278,22 @@ export class Thread {
       }
 
       case "send-message": {
-        if (msg.content?.startsWith("@compact")) {
-          this.compactThread(msg.content.slice("@compact".length + 1)).catch(
-            this.handleSendMessageError.bind(this),
-          );
+        if (
+          msg.messages.length == 1 &&
+          msg.messages[0].type == "user" &&
+          msg.messages[0].text.startsWith("@compact")
+        ) {
+          this.compactThread(
+            msg.messages[0].text.slice("@compact".length + 1),
+          ).catch(this.handleSendMessageError.bind(this));
         } else {
-          this.sendMessage(msg.content).catch(
+          this.sendMessage(msg.messages).catch(
             this.handleSendMessageError.bind(this),
           );
           if (!this.state.title) {
-            this.setThreadTitle(msg.content).catch((err: Error) =>
+            this.setThreadTitle(
+              msg.messages.map((m) => m.text).join("\n"),
+            ).catch((err: Error) =>
               this.context.nvim.logger?.error(
                 "Error getting thread title: " + err.message + "\n" + err.stack,
               ),
@@ -282,7 +301,7 @@ export class Thread {
           }
         }
 
-        if (msg.content) {
+        if (msg.messages.length) {
           // NOTE: this is a bit hacky. We want to scroll after the user message has been populated in the display
           // buffer. the 100ms timeout is not the most precise way to do that, but it works for now
           setTimeout(() => {
@@ -504,21 +523,99 @@ export class Thread {
   };
 
   private async prepareUserMessage(
-    content?: string,
+    messages?: InputMessage[],
   ): Promise<{ messageId: MessageId; addedMessage: boolean }> {
     const messageId = this.counter.get() as MessageId;
     const contextUpdates = await this.contextManager.getContextUpdate();
 
-    if ((content && content.length) || Object.keys(contextUpdates).length) {
-      const messageContent: ProviderMessageContent[] =
-        content && content.length
-          ? [
-              {
-                type: "text",
-                text: content,
-              },
-            ]
-          : [];
+    if (messages?.length || Object.keys(contextUpdates).length) {
+      const messageContent: ProviderMessageContent[] = [];
+
+      for (const m of messages || []) {
+        messageContent.push({
+          type: "text",
+          text: m.text,
+        });
+
+        // Check for diagnostics keywords in user messages
+        if (
+          m.type === "user" &&
+          (m.text.includes("@diag") || m.text.includes("@diagnostics"))
+        ) {
+          try {
+            const diagnostics = await getDiagnostics(this.context.nvim);
+
+            // Append diagnostics as a separate content block
+            messageContent.push({
+              type: "text",
+              text: `Current diagnostics:\n${diagnostics}`,
+            });
+          } catch (error) {
+            this.context.nvim.logger?.error(
+              `Failed to fetch diagnostics for message: ${error instanceof Error ? error.message : String(error)}`,
+            );
+            // Append error message as a separate content block
+            messageContent.push({
+              type: "text",
+              text: `Error fetching diagnostics: ${error instanceof Error ? error.message : String(error)}`,
+            });
+          }
+        }
+
+        // Check for quickfix keywords in user messages
+        if (
+          m.type === "user" &&
+          (m.text.includes("@qf") || m.text.includes("@quickfix"))
+        ) {
+          try {
+            const qflist = await getQuickfixList(this.context.nvim);
+            const quickfixStr = await quickfixListToString(
+              qflist,
+              this.context.nvim,
+            );
+
+            // Append quickfix as a separate content block
+            messageContent.push({
+              type: "text",
+              text: `Current quickfix list:\n${quickfixStr}`,
+            });
+          } catch (error) {
+            this.context.nvim.logger?.error(
+              `Failed to fetch quickfix list for message: ${error instanceof Error ? error.message : String(error)}`,
+            );
+            // Append error message as a separate content block
+            messageContent.push({
+              type: "text",
+              text: `Error fetching quickfix list: ${error instanceof Error ? error.message : String(error)}`,
+            });
+          }
+        }
+
+        // Check for buffer keywords in user messages
+        if (
+          m.type === "user" &&
+          (m.text.includes("@buf") || m.text.includes("@buffers"))
+        ) {
+          try {
+            const buffersList = await getBuffersList(this.context.nvim);
+
+            // Append buffers list as a separate content block
+            messageContent.push({
+              type: "text",
+              text: `Current buffers list:\n${buffersList}`,
+            });
+          } catch (error) {
+            this.context.nvim.logger?.error(
+              `Failed to fetch buffers list for message: ${error instanceof Error ? error.message : String(error)}`,
+            );
+            // Append error message as a separate content block
+            messageContent.push({
+              type: "text",
+              text: `Error fetching buffers list: ${error instanceof Error ? error.message : String(error)}`,
+            });
+          }
+        }
+      }
 
       const message = new Message(
         {
@@ -554,8 +651,8 @@ export class Thread {
     return { messageId, addedMessage: false };
   }
 
-  async sendMessage(content?: string): Promise<void> {
-    await this.prepareUserMessage(content);
+  async sendMessage(inputMessages?: InputMessage[]): Promise<void> {
+    await this.prepareUserMessage(inputMessages);
     const messages = this.getMessages();
 
     const provider = getProvider(this.context.nvim, this.state.profile);
@@ -591,12 +688,12 @@ export class Thread {
     });
   }
 
-  async compactThread(content: string): Promise<void> {
+  async compactThread(text: string): Promise<void> {
     const userMsgContent = `\
 Use the compact_thread tool to analyze my next prompt and extract only the relevant parts of our conversation history.
 
 My next prompt will be:
-${content}`;
+${text}`;
 
     const request = getProvider(
       this.context.nvim,
@@ -642,12 +739,16 @@ ${content}`;
           type: "compact-thread",
           threadId: this.id,
           contextFilePaths: compactRequest.input.contextFiles,
-          initialMessage: `\
-# Previous thread summary:
+          inputMessages: [
+            {
+              type: "system",
+              text: `# Previous thread summary:
 ${compactRequest.input.summary}
-
 # The user would like you to address this prompt next:
-${content}`,
+`,
+            },
+            { type: "user", text: text },
+          ],
         },
       });
 
