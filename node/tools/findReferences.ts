@@ -100,7 +100,7 @@ export class FindReferencesTool implements StaticTool {
     let bufferContent: string;
     if (bufferResult.status == "ok") {
       bufferContent = (
-        await bufferResult.buffer.getLinesWithRetry({ start: 0, end: -1 })
+        await bufferResult.buffer.getLines({ start: 0, end: -1 })
       ).join("\n");
       buffer = bufferResult.buffer;
     } else {

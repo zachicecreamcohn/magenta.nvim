@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import { withDriver, assertToolResultContainsText } from "../test/preamble.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { ToolName } from "./types.ts";
+import type { BufNr } from "../nvim/buffer.ts";
 
 it("render the getFile tool.", async () => {
   await withDriver({}, async (driver) => {
@@ -203,8 +204,10 @@ it("getFile returns early when file is already in context", async () => {
       toolResultMessage.role === "user" &&
       Array.isArray(toolResultMessage.content)
     ) {
-      const toolResult = toolResultMessage.content[0];
-      if (toolResult.type === "tool_result") {
+      const toolResult = toolResultMessage.content.find(
+        (item) => item.type === "tool_result",
+      );
+      if (toolResult && toolResult.type === "tool_result") {
         assertToolResultContainsText(
           toolResult,
           "already part of the thread context",
@@ -257,8 +260,10 @@ it("getFile reads file when force is true even if already in context", async () 
       toolResultMessage.role === "user" &&
       Array.isArray(toolResultMessage.content)
     ) {
-      const toolResult = toolResultMessage.content[0];
-      if (toolResult.type === "tool_result") {
+      const toolResult = toolResultMessage.content.find(
+        (item) => item.type === "tool_result",
+      );
+      if (toolResult && toolResult.type === "tool_result") {
         assertToolResultContainsText(
           toolResult,
           "Moonlight whispers through the trees",
@@ -323,5 +328,106 @@ it("getFile adds file to context after reading", async () => {
 
     await driver.assertDisplayBufferContains("# context:");
     await driver.assertDisplayBufferContains("- `poem.txt`");
+  });
+});
+
+it("getFile reads unloaded buffer", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    // First, open the file to create a buffer
+    await driver.nvim.call("nvim_command", ["edit poem.txt"]);
+
+    // Get the buffer number
+    const bufNr = (await driver.nvim.call("nvim_eval", [
+      "bufnr('poem.txt')",
+    ])) as BufNr;
+
+    // Verify buffer is loaded initially
+    const isLoadedInitially = await driver.nvim.call("nvim_buf_is_loaded", [
+      bufNr,
+    ]);
+    expect(isLoadedInitially).toBe(true);
+
+    // Unload the buffer using nvim_exec_lua
+    await driver.nvim.call("nvim_exec_lua", [
+      `vim.api.nvim_buf_call(${bufNr}, function() vim.cmd('bunload') end)`,
+      [],
+    ]);
+
+    // Verify buffer is unloaded
+    const isLoaded = await driver.nvim.call("nvim_buf_is_loaded", [bufNr]);
+    expect(isLoaded).toBe(false);
+
+    // Now try to read the file via getFile tool
+    await driver.inputMagentaText(`Try reading the file ./poem.txt`);
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "request_id" as ToolRequestId,
+            toolName: "get_file" as ToolName,
+            input: {
+              filePath: "./poem.txt" as UnresolvedFilePath,
+            },
+          },
+        },
+      ],
+    });
+
+    await driver.assertDisplayBufferContains(`👀✅ \`./poem.txt\``);
+
+    // Check that the file contents are properly returned
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingRequest();
+    const toolResultMessage =
+      toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+    expect(toolResultMessage.role).toBe("user");
+    expect(Array.isArray(toolResultMessage.content)).toBe(true);
+
+    const toolResult = toolResultMessage.content.find(
+      (item) => item.type === "tool_result",
+    );
+    expect(toolResult).toBeDefined();
+    if (!toolResult || toolResult.type !== "tool_result") {
+      throw new Error("Expected tool result");
+    }
+
+    assertToolResultContainsText(
+      toolResult,
+      "Moonlight whispers through the trees",
+    );
+
+    // Verify the full content is returned, not empty content
+    const result = toolResult.result;
+    expect(result.status).toBe("ok");
+
+    if (result.status !== "ok") {
+      throw new Error("Expected ok status");
+    }
+
+    const content = result.value.find((item) => item.type === "text");
+    expect(content).toBeDefined();
+    if (!content || content.type !== "text") {
+      throw new Error("Expected text content");
+    }
+
+    // Should contain the full poem, not be empty
+    expect(content.text.trim()).not.toBe("");
+    expect(content.text).toContain("Moonlight whispers through the trees");
+    expect(content.text).toContain("Silver shadows dance with ease");
+
+    // Respond to complete the conversation
+    toolResultRequest.respond({
+      stopReason: "end_turn",
+      toolRequests: [],
+      text: "I've successfully read the file.",
+    });
   });
 });

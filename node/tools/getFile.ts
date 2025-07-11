@@ -306,7 +306,7 @@ You already have the most up-to-date information about the contents of this file
       let textContent: string;
       if (bufferContents.status === "ok") {
         textContent = (
-          await bufferContents.buffer.getLinesWithRetry({ start: 0, end: -1 })
+          await bufferContents.buffer.getLines({ start: 0, end: -1 })
         ).join("\n");
       } else if (bufferContents.status == "not-found") {
         textContent = await fs.promises.readFile(absFilePath, "utf-8");

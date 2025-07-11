@@ -88,7 +88,7 @@ async function handleBufferEdit(
       lines: contentLines,
     });
   } else {
-    const lines = await buffer.getLinesWithRetry({
+    const lines = await buffer.getLines({
       start: 0,
       end: -1,
     });
