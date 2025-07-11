@@ -1,17 +1,17 @@
 import { describe, it } from "vitest";
-import { TMP_DIR, withDriver } from "../test/preamble";
+import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "../tools/toolManager";
 import type { UnresolvedFilePath } from "../utils/files";
 import type { WebSearchResultBlock } from "@anthropic-ai/sdk/resources.mjs";
 import type { ToolName } from "../tools/types";
+import { getcwd } from "../nvim/nvim";
+import path from "path";
 
 describe("node/chat/message.spec.ts", () => {
   it("display multiple edits to the same file, and edit details", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
-      await driver.inputMagentaText(
-        `Update the poem in the file ${TMP_DIR}/poem.txt`,
-      );
+      await driver.inputMagentaText(`Update the poem in the file poem.txt`);
       await driver.send();
 
       const request = await driver.mockAnthropic.awaitPendingRequest();
@@ -25,7 +25,7 @@ describe("node/chat/message.spec.ts", () => {
               id: "id1" as ToolRequestId,
               toolName: "replace" as ToolName,
               input: {
-                filePath: `${TMP_DIR}/poem.txt` as UnresolvedFilePath,
+                filePath: "poem.txt" as UnresolvedFilePath,
                 find: `Moonlight whispers through the trees,
 Silver shadows dance with ease.
 Stars above like diamonds bright,
@@ -39,12 +39,12 @@ Replace 2`,
       });
       await driver.assertDisplayBufferContains(`\
 # user:
-Update the poem in the file ${TMP_DIR}/poem.txt`);
+Update the poem in the file poem.txt`);
 
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-✏️✅ Replace [[ -4 / +2 ]] in \`${TMP_DIR}/poem.txt\`
+✏️✅ Replace [[ -4 / +2 ]] in \`poem.txt\`
 \`\`\`diff
 -Moonlight whispers through the trees,
 -Silver shadows dance with ease.
@@ -59,7 +59,7 @@ ok, I will try to rewrite the poem in that file
 
       await driver.assertDisplayBufferContains(`\
 Edits:
-  \`${TMP_DIR}/poem.txt\` (1 edits). **[± diff snapshot]**`);
+  \`poem.txt\` (1 edits). **[± diff snapshot]**`);
 
       const reviewPos =
         await driver.assertDisplayBufferContains("diff snapshot");
@@ -68,7 +68,7 @@ Edits:
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-✏️✅ Replace [[ -4 / +2 ]] in \`${TMP_DIR}/poem.txt\``);
+✏️✅ Replace [[ -4 / +2 ]] in \`poem.txt\``);
 
       // Go back to main view
       await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
@@ -76,7 +76,7 @@ ok, I will try to rewrite the poem in that file
       await driver.assertDisplayBufferContains(`\
 # assistant:
 ok, I will try to rewrite the poem in that file
-✏️✅ Replace [[ -4 / +2 ]] in \`${TMP_DIR}/poem.txt\``);
+✏️✅ Replace [[ -4 / +2 ]] in \`poem.txt\``);
     });
   });
 

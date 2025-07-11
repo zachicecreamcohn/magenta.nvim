@@ -191,7 +191,7 @@ it("can switch profiles", async () => {
 
 it("paste-selection command", async () => {
   await withDriver({}, async (driver) => {
-    await driver.editFile("node/test/fixtures/poem.txt");
+    await driver.editFile("poem.txt");
     await driver.selectRange(
       { row: 0, col: 5 } as Position0Indexed,
       { row: 2, col: 11 } as Position0Indexed,
@@ -199,7 +199,7 @@ it("paste-selection command", async () => {
 
     await driver.pasteSelection();
     await driver.assertInputBufferContains(`
-Here is a snippet from the file \`node/test/fixtures/poem.txt\`
+Here is a snippet from the file \`poem.txt\`
 \`\`\`txt
 ight whispers through the trees,
 Silver shadows dance with ease.

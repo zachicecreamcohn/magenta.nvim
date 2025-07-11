@@ -9,7 +9,8 @@ import {
   FileCategory,
   FILE_SIZE_LIMITS,
 } from "./files";
-import { TMP_DIR, withNvimProcess } from "../test/preamble";
+import { withNvimClient } from "../test/preamble";
+import { getcwd } from "../nvim/nvim";
 
 describe("categorizeFileType", () => {
   it("should categorize text MIME types correctly", () => {
@@ -48,22 +49,25 @@ describe("categorizeFileType", () => {
 
 describe("isLikelyTextFile", () => {
   it("should detect text files by extension", async () => {
-    await withNvimProcess(async () => {
-      const textFile = path.join(TMP_DIR, "poem.txt");
+    await withNvimClient(async (nvim) => {
+      const cwd = await getcwd(nvim);
+      const textFile = path.join(cwd, "poem.txt");
       expect(await isLikelyTextFile(textFile)).toBe(true);
     });
   });
 
   it("should detect code files by extension", async () => {
-    await withNvimProcess(async () => {
-      const tsFile = path.join(TMP_DIR, "test.ts");
+    await withNvimClient(async (nvim) => {
+      const cwd = await getcwd(nvim);
+      const tsFile = path.join(cwd, "test.ts");
       expect(await isLikelyTextFile(tsFile)).toBe(true);
     });
   });
 
   it("should detect binary files by content", async () => {
-    await withNvimProcess(async () => {
-      const binaryFile = path.join(TMP_DIR, "test.bin");
+    await withNvimClient(async (nvim) => {
+      const cwd = await getcwd(nvim);
+      const binaryFile = path.join(cwd, "test.bin");
       expect(await isLikelyTextFile(binaryFile)).toBe(false);
     });
   });
@@ -71,8 +75,9 @@ describe("isLikelyTextFile", () => {
 
 describe("detectFileType", () => {
   it("should detect text files correctly", async () => {
-    await withNvimProcess(async () => {
-      const textFile = path.join(TMP_DIR, "poem.txt");
+    await withNvimClient(async (nvim) => {
+      const cwd = await getcwd(nvim);
+      const textFile = path.join(cwd, "poem.txt");
       const result = await detectFileType(textFile);
 
       expect(result).toBeDefined();
@@ -83,8 +88,9 @@ describe("detectFileType", () => {
   });
 
   it("should detect TypeScript files correctly", async () => {
-    await withNvimProcess(async () => {
-      const tsFile = path.join(TMP_DIR, "test.ts");
+    await withNvimClient(async (nvim) => {
+      const cwd = await getcwd(nvim);
+      const tsFile = path.join(cwd, "test.ts");
       const result = await detectFileType(tsFile);
 
       expect(result).toBeDefined();
@@ -98,8 +104,9 @@ describe("detectFileType", () => {
   });
 
   it("should detect JSON files correctly", async () => {
-    await withNvimProcess(async () => {
-      const jsonFile = path.join(TMP_DIR, "tsconfig.json");
+    await withNvimClient(async (nvim) => {
+      const cwd = await getcwd(nvim);
+      const jsonFile = path.join(cwd, "tsconfig.json");
       const result = await detectFileType(jsonFile);
 
       expect(result).toBeDefined();
@@ -110,8 +117,9 @@ describe("detectFileType", () => {
   });
 
   it("should detect JPEG images correctly", async () => {
-    await withNvimProcess(async () => {
-      const jpegFile = path.join(TMP_DIR, "test.jpg");
+    await withNvimClient(async (nvim) => {
+      const cwd = await getcwd(nvim);
+      const jpegFile = path.join(cwd, "test.jpg");
       const result = await detectFileType(jpegFile);
 
       expect(result).toBeDefined();
@@ -122,8 +130,9 @@ describe("detectFileType", () => {
   });
 
   it("should detect PDF files correctly", async () => {
-    await withNvimProcess(async () => {
-      const pdfFile = path.join(TMP_DIR, "test.pdf");
+    await withNvimClient(async (nvim) => {
+      const cwd = await getcwd(nvim);
+      const pdfFile = path.join(cwd, "test.pdf");
       const result = await detectFileType(pdfFile);
 
       expect(result).toBeDefined();
@@ -134,8 +143,9 @@ describe("detectFileType", () => {
   });
 
   it("should detect binary files as unsupported", async () => {
-    await withNvimProcess(async () => {
-      const binaryFile = path.join(TMP_DIR, "test.bin");
+    await withNvimClient(async (nvim) => {
+      const cwd = await getcwd(nvim);
+      const binaryFile = path.join(cwd, "test.bin");
       const result = await detectFileType(binaryFile);
 
       expect(result).toBeDefined();
@@ -144,34 +154,43 @@ describe("detectFileType", () => {
   });
 
   it("should return undefined for non-existent files", async () => {
-    const nonExistentFile = path.join(TMP_DIR, "nonexistent.txt");
-    const result = await detectFileType(nonExistentFile);
+    await withNvimClient(async (nvim) => {
+      const cwd = await getcwd(nvim);
+      const nonExistentFile = path.join(cwd, "nonexistent.txt");
+      const result = await detectFileType(nonExistentFile);
 
-    expect(result).toBeUndefined();
+      expect(result).toBeUndefined();
+    });
   });
 });
 
 describe("validateFileSize", () => {
   it("should validate text file sizes correctly", async () => {
-    const textFile = path.join(TMP_DIR, "poem.txt");
-    const result = await validateFileSize(textFile, FileCategory.TEXT);
+    await withNvimClient(async (nvim) => {
+      const cwd = await getcwd(nvim);
+      const textFile = path.join(cwd, "poem.txt");
+      const result = await validateFileSize(textFile, FileCategory.TEXT);
 
-    expect(result.isValid).toBe(true);
-    expect(result.actualSize).toBeGreaterThan(0);
-    expect(result.maxSize).toBe(FILE_SIZE_LIMITS.TEXT);
+      expect(result.isValid).toBe(true);
+      expect(result.actualSize).toBeGreaterThan(0);
+      expect(result.maxSize).toBe(FILE_SIZE_LIMITS.TEXT);
+    });
   });
 
   it("should reject oversized text files", async () => {
-    const largeFile = path.join(TMP_DIR, "large.txt");
+    await withNvimClient(async (nvim) => {
+      const cwd = await getcwd(nvim);
+      const largeFile = path.join(cwd, "large.txt");
 
-    // Create a file that exceeds the text file size limit
-    const content = "x".repeat(FILE_SIZE_LIMITS.TEXT + 1000);
-    await fs.writeFile(largeFile, content);
+      // Create a file that exceeds the text file size limit
+      const content = "x".repeat(FILE_SIZE_LIMITS.TEXT + 1000);
+      await fs.writeFile(largeFile, content);
 
-    const result = await validateFileSize(largeFile, FileCategory.TEXT);
+      const result = await validateFileSize(largeFile, FileCategory.TEXT);
 
-    expect(result.isValid).toBe(false);
-    expect(result.actualSize).toBeGreaterThan(FILE_SIZE_LIMITS.TEXT);
-    expect(result.maxSize).toBe(FILE_SIZE_LIMITS.TEXT);
+      expect(result.isValid).toBe(false);
+      expect(result.actualSize).toBeGreaterThan(FILE_SIZE_LIMITS.TEXT);
+      expect(result.maxSize).toBe(FILE_SIZE_LIMITS.TEXT);
+    });
   });
 });
