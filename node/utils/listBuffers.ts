@@ -2,10 +2,7 @@ import type { Nvim } from "../nvim/nvim-node";
 import { parseLsResponse } from "./lsBuffers.ts";
 
 export async function getBuffersList(nvim: Nvim): Promise<string> {
-  const lsResponse = await nvim.call("nvim_exec2", [
-    "ls",
-    { output: true },
-  ]);
+  const lsResponse = await nvim.call("nvim_exec2", ["ls", { output: true }]);
 
   const result = parseLsResponse(lsResponse.output as string);
   return result
