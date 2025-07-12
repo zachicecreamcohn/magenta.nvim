@@ -156,15 +156,9 @@ class CopilotAuth {
 
 export class CopilotProvider implements Provider {
   private auth: CopilotAuth;
-  private model: string;
 
   constructor(_nvim: Nvim) {
     this.auth = new CopilotAuth();
-    this.model = "claude-3.7-sonnet";
-  }
-
-  setModel(model: string): void {
-    this.model = model;
   }
 
   private async createClient(): Promise<OpenAI> {
@@ -306,20 +300,18 @@ export class CopilotProvider implements Provider {
     return Math.ceil(charCount / CHARS_PER_TOKEN);
   }
 
-  createStreamParameters(
-    messages: Array<ProviderMessage>,
-    tools: Array<ProviderToolSpec>,
-    options?: {
-      disableCaching?: boolean;
-      systemPrompt?: string | undefined;
-    },
-  ): OpenAI.Chat.ChatCompletionCreateParamsStreaming {
+  createStreamParameters(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    tools: Array<ProviderToolSpec>;
+    disableCaching?: boolean;
+    systemPrompt?: string;
+  }): OpenAI.Chat.ChatCompletionCreateParamsStreaming {
+    const { messages, tools, systemPrompt } = options;
     const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: options?.systemPrompt
-          ? options.systemPrompt
-          : DEFAULT_SYSTEM_PROMPT,
+        content: systemPrompt || DEFAULT_SYSTEM_PROMPT,
       },
     ];
 
@@ -415,7 +407,7 @@ export class CopilotProvider implements Provider {
     }
 
     return {
-      model: this.model,
+      model: options.model,
       stream: true,
       messages: chatMessages,
       tools: tools.map((spec) => {
@@ -446,11 +438,13 @@ export class CopilotProvider implements Provider {
       .join("\n");
   }
 
-  forceToolUse(
-    messages: Array<ProviderMessage>,
-    spec: ProviderToolSpec,
-    options?: { systemPrompt?: string | undefined },
-  ): ProviderToolUseRequest {
+  forceToolUse(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    spec: ProviderToolSpec;
+    systemPrompt?: string;
+  }): ProviderToolUseRequest {
+    const { messages, spec, systemPrompt } = options;
     let aborted = false;
     const promise = (async (): Promise<ProviderToolUseResponse> => {
       const client = await this.createClient();
@@ -458,9 +452,7 @@ export class CopilotProvider implements Provider {
       const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
         {
           role: "system",
-          content: options?.systemPrompt
-            ? options.systemPrompt
-            : DEFAULT_SYSTEM_PROMPT,
+          content: systemPrompt || DEFAULT_SYSTEM_PROMPT,
         },
       ];
 
@@ -477,7 +469,7 @@ export class CopilotProvider implements Provider {
       }
 
       const response = await client.chat.completions.create({
-        model: this.model,
+        model: options.model,
         messages: chatMessages,
         tools: [
           {
@@ -546,12 +538,14 @@ export class CopilotProvider implements Provider {
     };
   }
 
-  sendMessage(
-    messages: Array<ProviderMessage>,
-    onStreamEvent: (event: ProviderStreamEvent) => void,
-    tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: string },
-  ): ProviderStreamRequest {
+  sendMessage(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    onStreamEvent: (event: ProviderStreamEvent) => void;
+    tools: Array<ProviderToolSpec>;
+    systemPrompt?: string;
+  }): ProviderStreamRequest {
+    const { model, messages, onStreamEvent, tools, systemPrompt } = options;
     let streamRequest: Stream<OpenAI.Chat.ChatCompletionChunk>;
     let currentContentBlockIndex = 0;
     let blockStarted = false;
@@ -563,7 +557,12 @@ export class CopilotProvider implements Provider {
       const client = await this.createClient();
 
       streamRequest = await client.chat.completions.create(
-        this.createStreamParameters(messages, tools, options),
+        this.createStreamParameters({
+          model,
+          messages,
+          tools,
+          ...(systemPrompt && { systemPrompt }),
+        }),
       );
 
       // Start first content block

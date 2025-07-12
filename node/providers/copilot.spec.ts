@@ -92,11 +92,12 @@ describe.skip("CopilotProvider", () => {
         mockFs.setFile(hostsPath, HOSTS_JSON_CONTENT);
 
         const streamEvents: ProviderStreamEvent[] = [];
-        const request = provider.sendMessage(
-          SIMPLE_MESSAGES,
-          (event) => streamEvents.push(event),
-          [],
-        );
+        const request = provider.sendMessage({
+          model: "claude-3.7-sonnet",
+          messages: SIMPLE_MESSAGES,
+          onStreamEvent: (event) => streamEvents.push(event),
+          tools: [],
+        });
 
         const result = await request.promise;
         expect(result.stopReason).toBe("end_turn");
@@ -119,11 +120,12 @@ describe.skip("CopilotProvider", () => {
     it("should handle simple text response", async () => {
       await withRecording("simple-text-response", async () => {
         const streamEvents: ProviderStreamEvent[] = [];
-        const request = provider.sendMessage(
-          SIMPLE_MESSAGES,
-          (event) => streamEvents.push(event),
-          [],
-        );
+        const request = provider.sendMessage({
+          model: "claude-3.7-sonnet",
+          messages: SIMPLE_MESSAGES,
+          onStreamEvent: (event) => streamEvents.push(event),
+          tools: [],
+        });
 
         const result = await request.promise;
 
@@ -136,8 +138,9 @@ describe.skip("CopilotProvider", () => {
     it("should handle tool use response", async () => {
       await withRecording("tool-use-response", async () => {
         const streamEvents: ProviderStreamEvent[] = [];
-        const request = provider.sendMessage(
-          [
+        const request = provider.sendMessage({
+          model: "claude-3.7-sonnet",
+          messages: [
             {
               role: "user",
               content: [
@@ -145,9 +148,9 @@ describe.skip("CopilotProvider", () => {
               ],
             },
           ],
-          (event) => streamEvents.push(event),
-          [TOOL_SPEC],
-        );
+          onStreamEvent: (event) => streamEvents.push(event),
+          tools: [TOOL_SPEC],
+        });
 
         const result = await request.promise;
 
@@ -173,7 +176,11 @@ describe.skip("CopilotProvider", () => {
         },
       };
 
-      const params = provider.createStreamParameters([], [spec]);
+      const params = provider.createStreamParameters({
+        model: "claude-3.7-sonnet",
+        messages: [],
+        tools: [spec],
+      });
       const tool = params.tools?.[0];
       const schema = tool?.function?.parameters;
 
@@ -222,11 +229,12 @@ describe.skip("CopilotProvider", () => {
         .reply(401, "Unauthorized");
 
       const streamEvents: ProviderStreamEvent[] = [];
-      const request = provider.sendMessage(
-        SIMPLE_MESSAGES,
-        (event) => streamEvents.push(event),
-        [],
-      );
+      const request = provider.sendMessage({
+        model: "claude-3.7-sonnet",
+        messages: SIMPLE_MESSAGES,
+        onStreamEvent: (event) => streamEvents.push(event),
+        tools: [],
+      });
 
       await expect(request.promise).rejects.toThrow();
       expect(tokenScope.isDone()).toBe(true);
@@ -242,11 +250,12 @@ describe.skip("CopilotProvider", () => {
         .reply(500, "Internal Server Error");
 
       const streamEvents: ProviderStreamEvent[] = [];
-      const request = provider.sendMessage(
-        SIMPLE_MESSAGES,
-        (event) => streamEvents.push(event),
-        [],
-      );
+      const request = provider.sendMessage({
+        model: "claude-3.7-sonnet",
+        messages: SIMPLE_MESSAGES,
+        onStreamEvent: (event) => streamEvents.push(event),
+        tools: [],
+      });
 
       await expect(request.promise).rejects.toThrow();
       expect(tokenScope.isDone()).toBe(true);

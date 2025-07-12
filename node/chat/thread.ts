@@ -656,17 +656,18 @@ export class Thread {
     const messages = this.getMessages();
 
     const provider = getProvider(this.context.nvim, this.state.profile);
-    const request = provider.sendMessage(
+    const request = provider.sendMessage({
+      model: this.state.profile.model,
       messages,
-      (event) => {
+      onStreamEvent: (event) => {
         this.myDispatch({
           type: "stream-event",
           event,
         });
       },
-      this.toolManager.getToolSpecs(this.state.threadType),
-      { systemPrompt: getSystemPrompt(this.state.threadType) },
-    );
+      tools: this.toolManager.getToolSpecs(this.state.threadType),
+      systemPrompt: getSystemPrompt(this.state.threadType),
+    });
 
     this.myDispatch({
       type: "conversation-state",
@@ -698,8 +699,9 @@ ${text}`;
     const request = getProvider(
       this.context.nvim,
       this.state.profile,
-    ).forceToolUse(
-      [
+    ).forceToolUse({
+      model: this.state.profile.model,
+      messages: [
         ...this.getMessages(),
         {
           role: "user",
@@ -711,9 +713,9 @@ ${text}`;
           ],
         },
       ],
-      compactThreadSpec,
-      { systemPrompt: getSystemPrompt(this.state.threadType) },
-    );
+      spec: compactThreadSpec,
+      systemPrompt: getSystemPrompt(this.state.threadType),
+    });
 
     this.myDispatch({
       type: "conversation-state",
@@ -838,8 +840,9 @@ ${compactRequest.input.summary}
     const request = getProvider(
       this.context.nvim,
       this.context.profile,
-    ).forceToolUse(
-      [
+    ).forceToolUse({
+      model: this.context.profile.model,
+      messages: [
         {
           role: "user",
           content: [
@@ -855,9 +858,9 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
           ],
         },
       ],
-      threadTitleToolSpec,
-      { systemPrompt: getSystemPrompt(this.state.threadType) },
-    );
+      spec: threadTitleToolSpec,
+      systemPrompt: getSystemPrompt(this.state.threadType),
+    });
     const result = await request.promise;
     if (result.toolRequest.status == "ok") {
       this.myDispatch({

@@ -233,10 +233,11 @@ ${inputLines.join("\n")}`,
     });
     this.inlineEdits[targetBufnr].mountedApp = mountedApp;
 
-    const request = provider.forceToolUse(
+    const request = provider.forceToolUse({
+      model: "claude-3-5-sonnet-20241022", // TODO: get from options
       messages,
-      selection ? replaceSelectionSpec : inlineEditSpec,
-    );
+      spec: selection ? replaceSelectionSpec : inlineEditSpec,
+    });
     dispatch({
       type: "request-sent",
       request,

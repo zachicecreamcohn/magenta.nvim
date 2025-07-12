@@ -51,6 +51,7 @@ describe("OpenAIProvider", () => {
         name: "gpt-4o",
         provider: "openai" as ProviderName,
         model: "gpt-4o",
+        fastModel: "gpt-4o",
         baseUrl: "https://api.openai.com/v1",
       };
 
@@ -58,6 +59,7 @@ describe("OpenAIProvider", () => {
         name: "qwen3:14b",
         provider: "openai" as ProviderName,
         model: "qwen3:14b",
+        fastModel: "qwen3:14b",
         baseUrl: "http://localhost:11434/v1",
       };
 

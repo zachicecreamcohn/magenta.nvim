@@ -51,7 +51,6 @@ type MessageStreamParams = Omit<
 
 export class AnthropicProvider implements Provider {
   protected client: Anthropic;
-  protected model: string;
 
   constructor(
     protected nvim: Nvim,
@@ -65,7 +64,6 @@ export class AnthropicProvider implements Provider {
   ) {
     const apiKeyEnvVar = options?.apiKeyEnvVar || "ANTHROPIC_API_KEY";
     const apiKey = process.env[apiKeyEnvVar];
-    this.model = "claude-3-7-sonnet-latest";
 
     if (!options?.awsAPIKey && !apiKey) {
       throw new Error(
@@ -82,18 +80,19 @@ export class AnthropicProvider implements Provider {
   private promptCaching = true;
   private disableParallelToolUseFlag = true;
 
-  setModel(model: string): void {
-    this.model = model;
-  }
-
-  createStreamParameters(
-    messages: ProviderMessage[],
-    tools: Array<ProviderToolSpec>,
-    options?: {
-      disableCaching?: boolean;
-      systemPrompt?: string | undefined;
-    },
-  ): MessageStreamParams {
+  createStreamParameters({
+    model,
+    messages,
+    tools,
+    disableCaching,
+    systemPrompt,
+  }: {
+    model: string;
+    messages: ProviderMessage[];
+    tools: Array<ProviderToolSpec>;
+    disableCaching?: boolean;
+    systemPrompt?: string | undefined;
+  }): MessageStreamParams {
     const anthropicMessages = messages.map((m): MessageParam => {
       let content: Anthropic.Messages.ContentBlockParam[];
       if (typeof m.content == "string") {
@@ -249,7 +248,7 @@ export class AnthropicProvider implements Provider {
     });
 
     // Use the promptCaching class property but allow it to be overridden by options parameter
-    const useCaching = options?.disableCaching !== true && this.promptCaching;
+    const useCaching = disableCaching !== true && this.promptCaching;
 
     if (useCaching) {
       placeCacheBreakpoints(anthropicMessages);
@@ -264,14 +263,12 @@ export class AnthropicProvider implements Provider {
 
     return {
       messages: anthropicMessages,
-      model: this.model,
+      model: model,
       max_tokens: 32000,
       system: [
         {
           type: "text",
-          text: options?.systemPrompt
-            ? options.systemPrompt
-            : DEFAULT_SYSTEM_PROMPT,
+          text: systemPrompt ? systemPrompt : DEFAULT_SYSTEM_PROMPT,
           // the prompt appears in the following order:
           // tools
           // system
@@ -295,31 +292,20 @@ export class AnthropicProvider implements Provider {
     };
   }
 
-  countTokens(
-    messages: Array<ProviderMessage>,
-    tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: string | undefined },
-  ): number {
-    const CHARS_PER_TOKEN = 4;
-
-    let charCount = (
-      options?.systemPrompt ? options.systemPrompt : DEFAULT_SYSTEM_PROMPT
-    ).length;
-    charCount += JSON.stringify(tools).length;
-    charCount += JSON.stringify(messages).length;
-
-    return Math.ceil(charCount / CHARS_PER_TOKEN);
-  }
-
-  forceToolUse(
-    messages: Array<ProviderMessage>,
-    spec: ProviderToolSpec,
-    options?: { systemPrompt?: string | undefined },
-  ): ProviderToolUseRequest {
+  forceToolUse(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    spec: ProviderToolSpec;
+    systemPrompt?: string;
+  }): ProviderToolUseRequest {
+    const { model, messages, spec, systemPrompt } = options;
     const request = this.client.messages.stream({
-      ...this.createStreamParameters(messages, [], {
+      ...this.createStreamParameters({
+        model,
+        messages,
+        tools: [],
         disableCaching: true,
-        systemPrompt: options?.systemPrompt,
+        systemPrompt,
       }),
       tools: [
         {
@@ -446,17 +432,22 @@ export class AnthropicProvider implements Provider {
   /**
    * Example of stream events from anthropic https://docs.anthropic.com/en/api/messages-streaming
    */
-  sendMessage(
-    messages: Array<ProviderMessage>,
-    onStreamEvent: (event: ProviderStreamEvent) => void,
-    tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: string | undefined },
-  ): ProviderStreamRequest {
+  sendMessage(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    onStreamEvent: (event: ProviderStreamEvent) => void;
+    tools: Array<ProviderToolSpec>;
+    systemPrompt?: string;
+  }): ProviderStreamRequest {
+    const { model, messages, onStreamEvent, tools, systemPrompt } = options;
     let requestActive = true;
     const request = this.client.messages
       .stream(
-        this.createStreamParameters(messages, tools, {
-          systemPrompt: options?.systemPrompt,
+        this.createStreamParameters({
+          model,
+          messages,
+          tools,
+          systemPrompt,
         }) as Anthropic.Messages.MessageStreamParams,
       )
       .on("streamEvent", (e) => {

@@ -29,10 +29,9 @@ export type OpenAIOptions = {
 
 export class OpenAIProvider implements Provider {
   private client: OpenAI;
-  private model: string;
 
   constructor(
-    private nvim: Nvim,
+    _nvim: Nvim,
     options?: {
       baseUrl?: string | undefined;
       apiKeyEnvVar?: string | undefined;
@@ -49,12 +48,6 @@ export class OpenAIProvider implements Provider {
       apiKey,
       baseURL: options?.baseUrl || process.env.OPENAI_BASE_URL,
     });
-
-    this.model = "gpt-4o";
-  }
-
-  setModel(model: string): void {
-    this.model = model;
   }
 
   /**
@@ -171,34 +164,18 @@ export class OpenAIProvider implements Provider {
     return sanitized;
   }
 
-  countTokens(
-    messages: Array<ProviderMessage>,
-    tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: string | undefined },
-  ): number {
-    const CHARS_PER_TOKEN = 4;
-    let charCount = (
-      options?.systemPrompt ? options.systemPrompt : DEFAULT_SYSTEM_PROMPT
-    ).length;
-    charCount += JSON.stringify(tools).length;
-    charCount += JSON.stringify(messages).length;
-    return Math.ceil(charCount / CHARS_PER_TOKEN);
-  }
-
-  createStreamParameters(
-    messages: Array<ProviderMessage>,
-    tools: Array<ProviderToolSpec>,
-    options?: {
-      disableCaching?: boolean;
-      systemPrompt?: string | undefined;
-    },
-  ): OpenAI.Responses.ResponseCreateParamsStreaming {
+  createStreamParameters(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    tools: Array<ProviderToolSpec>;
+    disableCaching?: boolean;
+    systemPrompt?: string;
+  }): OpenAI.Responses.ResponseCreateParamsStreaming {
+    const { model, messages, tools, systemPrompt } = options;
     const openaiMessages: OpenAI.Responses.ResponseInputItem[] = [
       {
         role: "system",
-        content: options?.systemPrompt
-          ? options.systemPrompt
-          : DEFAULT_SYSTEM_PROMPT,
+        content: systemPrompt || DEFAULT_SYSTEM_PROMPT,
       },
     ];
 
@@ -412,7 +389,7 @@ export class OpenAIProvider implements Provider {
     }
 
     return {
-      model: this.model,
+      model,
       stream: true,
       input: openaiMessages,
       // see https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
@@ -434,15 +411,20 @@ export class OpenAIProvider implements Provider {
     };
   }
 
-  forceToolUse(
-    messages: Array<ProviderMessage>,
-    spec: ProviderToolSpec,
-    options?: { systemPrompt?: string | undefined },
-  ): ProviderToolUseRequest {
+  forceToolUse(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    spec: ProviderToolSpec;
+    systemPrompt?: string;
+  }): ProviderToolUseRequest {
+    const { model, messages, spec, systemPrompt } = options;
     let aborted = false;
     const promise = (async (): Promise<ProviderToolUseResponse> => {
-      const params = this.createStreamParameters(messages, [spec], {
-        systemPrompt: options?.systemPrompt,
+      const params = this.createStreamParameters({
+        model,
+        messages,
+        tools: [spec],
+        ...(systemPrompt && { systemPrompt }),
       });
       const response = await this.client.responses.create({
         ...params,
@@ -525,12 +507,14 @@ export class OpenAIProvider implements Provider {
     };
   }
 
-  sendMessage(
-    messages: Array<ProviderMessage>,
-    onStreamEvent: (event: ProviderStreamEvent) => void,
-    tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: string | undefined },
-  ): ProviderStreamRequest {
+  sendMessage(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    onStreamEvent: (event: ProviderStreamEvent) => void;
+    tools: Array<ProviderToolSpec>;
+    systemPrompt?: string;
+  }): ProviderStreamRequest {
+    const { model, messages, onStreamEvent, tools, systemPrompt } = options;
     let request: Stream<OpenAI.Responses.ResponseStreamEvent>;
     let stopReason: StopReason | undefined;
     let usage: Usage | undefined;
@@ -539,8 +523,11 @@ export class OpenAIProvider implements Provider {
       usage: Usage;
       stopReason: StopReason;
     }> => {
-      const params = this.createStreamParameters(messages, tools, {
-        systemPrompt: options?.systemPrompt,
+      const params = this.createStreamParameters({
+        model,
+        messages,
+        tools,
+        ...(systemPrompt && { systemPrompt }),
       });
       params.tools!.push({ type: "web_search_preview" });
       request = await this.client.responses.create(params);

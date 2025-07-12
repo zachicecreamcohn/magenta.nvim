@@ -51,10 +51,7 @@ export function getProvider(nvim: Nvim, profile: Profile): Provider {
     }
   }
 
-  const provider = clients[clientKey];
-  provider.setModel(profile.model);
-
-  return provider;
+  return clients[clientKey];
 }
 
 export function setClient(providerName: ProviderName, c: Provider | undefined) {
