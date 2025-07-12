@@ -319,7 +319,7 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
             }),
           );
           throw new Error(
-            `${message ?? `Expected ${n} windows to appear`}. Saw ${windows.length} windows: [${windowDetails.join(", ")}]`,
+            `${message ?? `Expected ${n} windows to appear`}. Saw ${windows.length} windows: ${JSON.stringify(windowDetails, null, 2)}`,
           );
         }
 

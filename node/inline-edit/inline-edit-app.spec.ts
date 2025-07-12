@@ -98,6 +98,58 @@ Golden shadows dance with ease.`,
     });
   });
 
+  it("resets existing inline edit when starting new one on same buffer", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.editFile("poem.txt");
+      const targetWindow = await getCurrentWindow(driver.nvim);
+      const targetBuffer = await getCurrentBuffer(driver.nvim);
+
+      // Start first inline edit
+      await driver.startInlineEdit();
+      await driver.assertWindowCount(2);
+
+      const firstInputBuffer = await getCurrentBuffer(driver.nvim);
+      await firstInputBuffer.setLines({
+        start: 0,
+        end: -1,
+        lines: ["First edit request"] as Line[],
+      });
+
+      // Focus back on the target window before starting second inline edit
+      await driver.nvim.call("nvim_set_current_win", [targetWindow.id]);
+
+      // Start second inline edit without closing the first
+      await driver.startInlineEdit();
+      await driver.assertWindowCount(2); // Should still have 2 windows
+
+      // Verify we have a fresh input buffer with empty content
+      const secondInputBuffer = await getCurrentBuffer(driver.nvim);
+      const lines = await secondInputBuffer.getLines({ start: 0, end: -1 });
+      expect(lines).toEqual([""]); // Fresh buffer should be empty
+
+      // Verify we can use the new inline edit
+      await secondInputBuffer.setLines({
+        start: 0,
+        end: -1,
+        lines: ["Second edit request"] as Line[],
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      driver.submitInlineEdit(targetBuffer.id);
+      const request =
+        await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+
+      // Verify the request contains the second edit content, not the first
+      const userMessage = request.messages.find((m) => m.role === "user");
+      const firstContent = userMessage?.content[0];
+      expect(firstContent?.type).toBe("text");
+      if (firstContent?.type === "text") {
+        expect(firstContent.text).toContain("Second edit request");
+        expect(firstContent.text).not.toContain("First edit request");
+      }
+    });
+  });
+
   it("performs inline edit with selection", async () => {
     await withDriver({}, async (driver) => {
       await driver.editFile("poem.txt");

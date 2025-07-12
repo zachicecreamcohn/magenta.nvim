@@ -89,19 +89,40 @@ export class InlineEditManager {
       return;
     }
 
+    const isMagentaInputWindow = await targetWindow.getVar("magenta-inline");
+    if (isMagentaInputWindow) {
+      return;
+    }
+
     const targetBufnr = (await this.nvim.call("nvim_win_get_buf", [
       targetWindow.id,
     ])) as BufNr;
 
     if (this.inlineEdits[targetBufnr]) {
-      return;
+      // Reset existing inline edit for this buffer
+      const existingEdit = this.inlineEdits[targetBufnr];
+      existingEdit.app.destroy();
+
+      // Close the existing input window
+      const existingInputWindow = new NvimWindow(
+        existingEdit.inputWindowId,
+        this.nvim,
+      );
+
+      await existingInputWindow.close(true);
+
+      delete this.inlineEdits[targetBufnr];
     }
+
     const targetBuffer = new NvimBuffer(targetBufnr, this.nvim);
     const cursor = await targetWindow.getCursor();
 
     const inputBuffer = await NvimBuffer.create(false, true, this.nvim);
     await inputBuffer.setOption("bufhidden", "wipe");
     await inputBuffer.setOption("filetype", "markdown");
+    await inputBuffer.setName(
+      `[Inline edit for buffer ${await targetBuffer.getName()}]`,
+    );
 
     const inlineInputWindowId = (await this.nvim.call("nvim_open_win", [
       inputBuffer.id,
@@ -116,6 +137,7 @@ export class InlineEditManager {
 
     const inlineInputWindow = new NvimWindow(inlineInputWindowId, this.nvim);
     await inlineInputWindow.setOption("winbar", "Magenta Inline Prompt");
+    await inlineInputWindow.setVar("magenta-inline", true);
 
     // Enter insert mode
     await this.nvim.call("nvim_exec2", ["startinsert", {}]);
