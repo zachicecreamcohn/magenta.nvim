@@ -11,7 +11,7 @@ import {
 import { getCurrentWindow, getcwd } from "../nvim/nvim";
 import * as TEA from "../tea/tea";
 import * as InlineEdit from "./inline-edit-controller";
-import type { Provider, ProviderMessage } from "../providers/provider";
+import { getProvider, type ProviderMessage } from "../providers/provider";
 import path from "node:path";
 import { getMarkdownExt } from "../utils/markdown";
 import {
@@ -21,6 +21,7 @@ import {
 import { spec as inlineEditSpec } from "../tools/inline-edit-tool";
 import type { Dispatch } from "../tea/tea";
 import { relativePath, resolveFilePath } from "../utils/files";
+import { getActiveProfile, type MagentaOptions } from "../options";
 
 export type InlineEditId = number & { __inlineEdit: true };
 
@@ -43,9 +44,12 @@ export class InlineEditManager {
     [bufnr: BufNr]: InlineEditState;
   } = {};
 
-  constructor({ nvim }: { nvim: Nvim }) {
+  constructor({ nvim, options }: { nvim: Nvim; options: MagentaOptions }) {
     this.nvim = nvim;
+    this.options = options;
   }
+
+  private options: MagentaOptions;
 
   onWinClosed() {
     return Promise.all(
@@ -57,6 +61,14 @@ export class InlineEditManager {
         }
       }),
     );
+  }
+
+  getActiveProfile() {
+    return getActiveProfile(this.options.profiles, this.options.activeProfile);
+  }
+
+  updateOptions(options: MagentaOptions) {
+    this.options = options;
   }
 
   destroy() {
@@ -156,11 +168,8 @@ export class InlineEditManager {
     };
   }
 
-  async submitInlineEdit(
-    targetBufnr: BufNr,
-    provider: Provider,
-    messages: ProviderMessage[],
-  ) {
+  async submitInlineEdit(targetBufnr: BufNr, messages: ProviderMessage[]) {
+    const activeProfile = this.getActiveProfile();
     if (!this.inlineEdits[targetBufnr]) {
       return;
     }
@@ -233,8 +242,11 @@ ${inputLines.join("\n")}`,
     });
     this.inlineEdits[targetBufnr].mountedApp = mountedApp;
 
-    const request = provider.forceToolUse({
-      model: "claude-3-5-sonnet-20241022", // TODO: get from options
+    const request = getProvider(
+      this.nvim,
+      this.getActiveProfile(),
+    ).forceToolUse({
+      model: activeProfile.model,
       messages,
       spec: selection ? replaceSelectionSpec : inlineEditSpec,
     });

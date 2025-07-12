@@ -494,3 +494,11 @@ export function mergeOptions(
 
   return merged;
 }
+
+export function getActiveProfile(profiles: Profile[], activeProfile: string) {
+  const profile = profiles.find((p) => p.name == activeProfile);
+  if (!profile) {
+    throw new Error(`Profile ${activeProfile} not found.`);
+  }
+  return profile;
+}

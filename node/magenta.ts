@@ -4,7 +4,6 @@ import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
 import { pos } from "./tea/view.ts";
 import type { Nvim } from "./nvim/nvim-node";
 import { Lsp } from "./lsp.ts";
-import { getProvider } from "./providers/provider.ts";
 import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
 import type { BufNr, Line } from "./nvim/buffer.ts";
 import { pos1col1to0 } from "./nvim/window.ts";
@@ -14,7 +13,7 @@ import {
   loadProjectSettings,
   mergeOptions,
   type MagentaOptions,
-  type Profile,
+  getActiveProfile,
 } from "./options.ts";
 import { InlineEditManager } from "./inline-edit/inline-edit-app.ts";
 import type { RootMsg, SidebarMsg } from "./root-msg.ts";
@@ -97,7 +96,7 @@ export class Magenta {
       View: () => this.chat.view(),
     });
 
-    this.inlineEditManager = new InlineEditManager({ nvim });
+    this.inlineEditManager = new InlineEditManager({ nvim, options });
   }
 
   getActiveProfile() {
@@ -151,6 +150,9 @@ export class Magenta {
 
         if (profile) {
           this.options.activeProfile = profile.name;
+
+          // Update inline edit manager with new options
+          this.inlineEditManager.updateOptions(this.options);
 
           this.dispatch({
             type: "thread-msg",
@@ -370,14 +372,8 @@ ${lines.join("\n")}
           return;
         }
 
-        const provider = getProvider(this.nvim, this.getActiveProfile());
-
         const messages = this.chat.getMessages();
-        await this.inlineEditManager.submitInlineEdit(
-          bufnr,
-          provider,
-          messages,
-        );
+        await this.inlineEditManager.submitInlineEdit(bufnr, messages);
         break;
       }
 
@@ -543,12 +539,4 @@ ${lines.join("\n")}
     nvim.logger?.info(`Magenta initialized. ${JSON.stringify(parsedOptions)}`);
     return magenta;
   }
-}
-
-function getActiveProfile(profiles: Profile[], activeProfile: string) {
-  const profile = profiles.find((p) => p.name == activeProfile);
-  if (!profile) {
-    throw new Error(`Profile ${activeProfile} not found.`);
-  }
-  return profile;
 }
