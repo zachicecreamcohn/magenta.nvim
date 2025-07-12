@@ -21,6 +21,9 @@ describe("node/tools/thread-title.spec.ts", () => {
       const request =
         await driver.mockAnthropic.awaitPendingForceToolUseRequest();
 
+      // Verify the request uses the fast model
+      expect(request.model).toBe("claude-3-5-haiku-latest");
+
       // Verify the request contains the user message
       expect(request.messages).toMatchObject([
         {

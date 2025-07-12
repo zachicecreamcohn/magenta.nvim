@@ -150,6 +150,7 @@ class MockRequest {
 }
 
 type MockForceToolUseRequest = {
+  model: string;
   messages: Array<ProviderMessage>;
   spec: ProviderToolSpec;
   defer: Defer<{
@@ -195,8 +196,9 @@ export class MockProvider implements Provider {
     spec: ProviderToolSpec;
     systemPrompt?: string;
   }): ProviderToolUseRequest {
-    const { messages, spec } = options;
+    const { model, messages, spec } = options;
     const request: MockForceToolUseRequest = {
+      model,
       messages,
       spec,
       defer: new Defer(),
