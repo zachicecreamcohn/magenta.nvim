@@ -116,11 +116,6 @@ async function handleBufferEdit(
       const result = applyReplace(bufferContent, find, replace);
 
       if (result.status === "error") {
-        context.nvim.logger?.error(`\
-Failed to apply replace to buffer.
-request: ${JSON.stringify(request.input, null, 2)}
-bufferContent:
-${bufferContent}`);
         dispatch({
           type: "finish",
           result: {
@@ -270,12 +265,6 @@ async function handleFileEdit(
   } else if (request.toolName === "replace") {
     const { find, replace } = request.input;
     const result = applyReplace(fileContent, find, replace);
-    context.nvim.logger?.error(`\
-Failed to apply replace to file.
-request: ${JSON.stringify(request.input, null, 2)}
-fileContent:
-${fileContent}`);
-
     if (result.status === "error") {
       myDispatch({
         type: "finish",
