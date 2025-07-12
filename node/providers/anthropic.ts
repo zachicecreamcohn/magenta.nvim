@@ -80,6 +80,41 @@ export class AnthropicProvider implements Provider {
   private promptCaching = true;
   private disableParallelToolUseFlag = true;
 
+  private getMaxTokensForModel(model: string): number {
+    // Claude 4 models - use high limits
+    if (model.match(/^claude-(opus-4|sonnet-4|4-opus|4-sonnet)/)) {
+      return 32000;
+    }
+
+    // Claude 3.7 Sonnet - supports up to 128k with beta header
+    if (model.match(/^claude-3-7-sonnet/)) {
+      return 32000; // Conservative default, can be increased to 128k with beta header
+    }
+
+    // Claude 3.5 Sonnet - 8k limit
+    if (model.match(/^claude-3-5-sonnet/)) {
+      return 8192;
+    }
+
+    // Claude 3.5 Haiku - 8k limit (same as Sonnet)
+    if (model.match(/^claude-3-5-haiku/)) {
+      return 8192;
+    }
+
+    // Legacy Claude 3 models (Opus, Sonnet, Haiku) - 4k limit
+    if (model.match(/^claude-3-(opus|sonnet|haiku)/)) {
+      return 4096;
+    }
+
+    // Legacy Claude 2.x models - 4k limit
+    if (model.match(/^claude-2\./)) {
+      return 4096;
+    }
+
+    // Default for unknown models - conservative 4k limit
+    return 4096;
+  }
+
   createStreamParameters({
     model,
     messages,
@@ -264,7 +299,7 @@ export class AnthropicProvider implements Provider {
     return {
       messages: anthropicMessages,
       model: model,
-      max_tokens: 32000,
+      max_tokens: this.getMaxTokensForModel(model),
       system: [
         {
           type: "text",
