@@ -271,4 +271,73 @@ Paint their stories in the night.`,
       expect(request.defer.resolved).toBe(true);
     });
   });
+  it("uses fast model when input starts with @fast", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.editFile("poem.txt");
+      const targetBuffer = await getCurrentBuffer(driver.nvim);
+      await driver.startInlineEdit();
+
+      const inputBuffer = await getCurrentBuffer(driver.nvim);
+      await inputBuffer.setLines({
+        start: 0,
+        end: -1,
+        lines: ["@fast Please change 'Silver' to 'Golden' in line 2"] as Line[],
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      driver.submitInlineEdit(targetBuffer.id);
+      const request =
+        await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+
+      // Should use fast model
+      expect(request.model).toBe("claude-3-5-haiku-latest");
+
+      // Should not include @fast in the message content
+      const userMessage = request.messages.find((m) => m.role === "user");
+      const firstContent = userMessage?.content[0];
+      expect(firstContent?.type).toBe("text");
+      if (firstContent?.type === "text") {
+        expect(firstContent.text).not.toContain("@fast");
+        expect(firstContent.text).toContain(
+          "Please change 'Silver' to 'Golden' in line 2",
+        );
+      }
+    });
+  });
+
+  it("uses fast model with @fast and whitespace", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.editFile("poem.txt");
+      const targetBuffer = await getCurrentBuffer(driver.nvim);
+      await driver.startInlineEdit();
+
+      const inputBuffer = await getCurrentBuffer(driver.nvim);
+      await inputBuffer.setLines({
+        start: 0,
+        end: -1,
+        lines: [
+          "  @fast   Please change 'Silver' to 'Golden' in line 2",
+        ] as Line[],
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      driver.submitInlineEdit(targetBuffer.id);
+      const request =
+        await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+
+      // Should use fast model
+      expect(request.model).toBe("claude-3-5-haiku-latest");
+
+      // Should not include @fast or leading whitespace in the message content
+      const userMessage = request.messages.find((m) => m.role === "user");
+      const firstContent = userMessage?.content[0];
+      expect(firstContent?.type).toBe("text");
+      if (firstContent?.type === "text") {
+        expect(firstContent.text).not.toContain("@fast");
+        expect(firstContent.text).toContain(
+          "Please change 'Silver' to 'Golden' in line 2",
+        );
+      }
+    });
+  });
 });

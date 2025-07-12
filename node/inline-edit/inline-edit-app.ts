@@ -190,7 +190,17 @@ export class InlineEditManager {
     const bufferName = await targetBuffer.getName();
     const cwd = await getcwd(this.nvim);
 
-    // TODO: do not include buffer content if it's already in the context manager.
+    // Check if input starts with @fast and determine model to use
+    const inputText = inputLines.join("\n");
+    const useFastModel = inputText.trimStart().startsWith("@fast");
+    const model = useFastModel ? activeProfile.fastModel : activeProfile.model;
+
+    // Remove @fast from the input if present
+    let processedInputText = inputText;
+    if (useFastModel) {
+      const trimmedInput = inputText.trimStart();
+      processedInputText = trimmedInput.slice(5).trimStart(); // slice off "@fast" and trim again
+    }
 
     if (selection) {
       messages.push({
@@ -209,7 +219,7 @@ I have the following text selected on line ${selection.startPos.row - 1}:
 ${selection.text}
 \`\`\`
 
-${inputLines.join("\n")}`,
+${processedInputText}`,
           },
         ],
       });
@@ -227,7 +237,7 @@ ${targetLines.join("\n")}
 
 My cursor is on line ${cursor.row - 1}: ${targetLines[cursor.row - 1]}
 
-${inputLines.join("\n")}`,
+${processedInputText}`,
           },
         ],
       });
@@ -246,7 +256,7 @@ ${inputLines.join("\n")}`,
       this.nvim,
       this.getActiveProfile(),
     ).forceToolUse({
-      model: activeProfile.model,
+      model,
       messages,
       spec: selection ? replaceSelectionSpec : inlineEditSpec,
     });
