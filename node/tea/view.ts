@@ -132,11 +132,22 @@ export async function mountView<P>({
   return {
     async render(props) {
       const next = view(props);
-      mountedNode = await update({
-        currentRoot: mountedNode,
-        nextRoot: next,
-        mount,
-      });
+      try {
+        mountedNode = await update({
+          currentRoot: mountedNode,
+          nextRoot: next,
+          mount,
+        });
+      } catch (e) {
+        // Check if the buffer/mount point is still valid
+        const isBufferValid = await mount.buffer.isValid();
+        if (!isBufferValid) {
+          // Buffer is no longer valid, ignore the error
+          return;
+        }
+        // Buffer is still valid, re-throw the error
+        throw e;
+      }
     },
     unmount() {
       // TODO
