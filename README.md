@@ -22,13 +22,30 @@ Magenta is for agents.
 - openai provider reasoning, to allow use of the o models, ability to configure reasoning for claude models
 - findDefinition tool / improved discovery of project types and docs
 - gemini 2.5 pro provider
-- @quickfix command to place quickfix into input buffer
-- fast/cheap provider configuration
 - foreach tool to spawn multiple (fast) subagents (like to do the same operation to many files)
 - @file completion for input buffer
 - local code embedding & indexing via chroma db, to support a semantic code search tool
 
 # Updates
+
+## July 2025
+
+**fast models** - Each profile now supports both a primary model and a fast model. The fast model is automatically used for lightweight tasks like generating thread titles, providing snappier UI interactions while reserving the primary model for substantive coding work. (defaults to haiku for anthropic).
+
+**@fast modifier** for inline edits - Prefix your inline edit prompts with `@fast` to use the fast model instead of the primary model, perfect for simple refactoring tasks that don't require the full power of your main model.
+
+**inline edit replay** functionality with `<leader>m.` - You can now quickly re-apply your last inline edit prompt to the current buffer or selection. Combined with @fast, this gives you a nice dot-repeat pattern for inline edits.
+
+**enhanced input commands** - New `@diag`/`@diagnostics`, `@buf`/`@buffers`, and `@qf`/`@quickfix` commands add current LSP diagnostics, buffer lists, and quickfix entries in your prompts, making it easier to work with current editor state.
+
+**major stability improvements** - Fixed critical issues with buffer operations and file tools that were causing occasional misfires. The plugin now properly handles unloaded buffers and prevents spurious errors when buffers get unloaded. Additionally, improved buffer naming to prevent conflicts when creating scratch buffers. These changes make the plugin significantly more robust and reliable.
+
+**test performance improvements** - Tests now run in parallel, significantly reducing test suite execution time and improving the developer experience.
+
+**cache improvements** - Taking advantage of new anthropic [cache mechanisms](https://www.anthropic.com/news/token-saving-updates) for better performance and lower costs.
+
+<details>
+<summary>Previous updates</summary>
 
 ## June 2025
 
@@ -49,9 +66,6 @@ I updated the architecture around context following. We now track the state of t
 I updated the architecture around streaming, so we now process partial tool calls, which means we can preview Insert and Replace commands gradually as they stream in. This makes the tool feel a lot more responsive. I also added support for anthropic web search and citations!
 
 I made a significant architectural shift in how magenta.nvim handles edits. Instead of merely proposing changes that require user confirmation, the agent can now directly apply edits to files with automatic snapshots for safety. Combined with the recent PR that implemented robust bash command execution, this creates a powerful iteration loop capability: agents can now modify files, run tests through bash, analyze results, and make further changes - all without user intervention.
-
-<details>
-<summary>Previous updates</summary>
 
 ## Jan 2025
 
@@ -126,18 +140,21 @@ require('magenta').setup({
       name = "claude-4",
       provider = "anthropic",
       model = "claude-4-sonnet-latest",
+      fastModel = "claude-3-5-haiku-latest", -- optional, defaults provided
       apiKeyEnvVar = "ANTHROPIC_API_KEY"
     },
     {
       name = "gpt-4.1",
       provider = "openai",
       model = "gpt-4.1",
+      fastModel = "gpt-4o-mini", -- optional, defaults provided
       apiKeyEnvVar = "OPENAI_API_KEY"
     },
     {
       name = "copilot-claude",
       provider = "copilot",
       model = "claude-3.7-sonnet",
+      fastModel = "claude-3-5-haiku-latest", -- optional, defaults provided
       -- No apiKeyEnvVar needed - uses existing Copilot authentication
     }
   },
@@ -184,6 +201,8 @@ require('magenta').setup({
 
 The first profile in your `profiles` list is used as the default when the plugin starts. You can switch between profiles using `:Magenta pick-provider` (bound to `<leader>mp` by default).
 
+Each profile supports both a primary model and a fast model. If not specified, sensible defaults are provided for each provider. The fast model is automatically used for lightweight tasks like generating thread titles and can be explicitly requested for inline edits using the `@fast` modifier.
+
 For example, you can set up multiple profiles for different providers or API endpoints:
 
 ```lua
@@ -192,12 +211,14 @@ profiles = {
     name = "claude-3-7",
     provider = "anthropic",
     model = "claude-3-7-sonnet-latest",
+    fastModel = "claude-3-5-haiku-latest", -- optional, defaults provided
     apiKeyEnvVar = "ANTHROPIC_API_KEY"
   },
   {
     name = "custom",
     provider = "anthropic",
     model = "claude-3-7-sonnet-latest",
+    fastModel = "claude-3-5-haiku-latest",
     apiKeyEnvVar = "CUSTOM_API_KEY_ENV_VAR",
     baseUrl = "custom anthropic endpoint"
   }
@@ -372,6 +393,34 @@ vim.keymap.set(
 
 vim.keymap.set(
   "n",
+  "<leader>mr",
+  ":Magenta replay-inline-edit<CR>",
+  {silent = true, noremap = true, desc = "Replay last inline edit"}
+)
+
+vim.keymap.set(
+  "v",
+  "<leader>mr",
+  ":Magenta replay-inline-edit-selection<CR>",
+  {silent = true, noremap = true, desc = "Replay last inline edit on selection"}
+)
+
+vim.keymap.set(
+  "n",
+  "<leader>m.",
+  ":Magenta replay-inline-edit<CR>",
+  {silent = true, noremap = true, desc = "Replay last inline edit"}
+)
+
+vim.keymap.set(
+  "v",
+  "<leader>m.",
+  ":Magenta replay-inline-edit-selection<CR>",
+  {silent = true, noremap = true, desc = "Replay last inline edit on selection"}
+)
+
+vim.keymap.set(
+  "n",
   "<leader>mb", -- like "magenta buffer"?
   Actions.add_buffer_to_context,
   { noremap = true, silent = true, desc = "Add current buffer to Magenta context" }
@@ -477,7 +526,17 @@ This architecture enables more sophisticated problem-solving by allowing the age
 
 - `<leader>mi` is for `:Magenta start-inline-edit`, or `start-inline-edit-selection` in visual mode. This will bring up a new split where you can write a prompt to edit the current buffer. Magenta will force a find-and-replace tool use for normal mode, or force a replace tool use for the selection in visual mode.
 
+- `<leader>mr` (or `<leader>m.`) is for `:Magenta replay-inline-edit`. This replays your last inline edit prompt on the current buffer or selection, creating a powerful iteration workflow where you can refine an edit and then quickly apply it to similar code sections.
+
 Inline edit uses your chat history so far, so a great workflow is to build up context in the chat panel, and then use it to perform inline edits in a buffer.
+
+#### Fast model for inline edits
+
+You can prefix your inline edit prompts with `@fast` to use the fast model instead of the primary model. This is perfect for simple refactoring tasks that don't require the full power of your main model:
+
+```
+@fast Convert this function to use arrow syntax
+```
 
 ### display buffer
 
