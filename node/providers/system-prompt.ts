@@ -1,8 +1,8 @@
 import type { ThreadType } from "../chat/types";
 import { assertUnreachable } from "../utils/assertUnreachable";
 
-export const SUBAGENT_SYSTEM_PROMPTS = ["learn", "plan", "default"] as const;
-export type SubagentSystemPrompt = (typeof SUBAGENT_SYSTEM_PROMPTS)[number];
+export const AGENT_TYPES = ["learn", "plan", "default"] as const;
+export type AgentType = (typeof AGENT_TYPES)[number];
 
 const CODEBASE_CONVENTIONS = `\
 # Understanding the Codebase

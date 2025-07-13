@@ -10,10 +10,7 @@ import type { StaticTool, ToolName } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
-import {
-  SUBAGENT_SYSTEM_PROMPTS,
-  type SubagentSystemPrompt,
-} from "../providers/system-prompt.ts";
+import { AGENT_TYPES, type AgentType } from "../providers/system-prompt.ts";
 import type { ThreadId, ThreadType } from "../chat/types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 
@@ -60,10 +57,10 @@ export class SpawnSubagentTool implements StaticTool {
     const input = this.request.input;
     const prompt = input.prompt;
     const contextFiles = input.contextFiles || [];
-    const threadType: ThreadType = input.systemPrompt
-      ? input.systemPrompt == "learn"
+    const threadType: ThreadType = input.agentType
+      ? input.agentType == "learn"
         ? "subagent_learn"
-        : input.systemPrompt == "plan"
+        : input.agentType == "plan"
           ? "subagent_plan"
           : "subagent_default"
       : "subagent_default";
@@ -172,20 +169,20 @@ export class SpawnSubagentTool implements StaticTool {
   }
 
   renderSummary() {
-    const systemPromptText = this.request.input.systemPrompt
-      ? ` (${this.request.input.systemPrompt})`
+    const agentTypeText = this.request.input.agentType
+      ? ` (${this.request.input.agentType})`
       : "";
 
     switch (this.state.state) {
       case "preparing":
-        return d`🤖⚙️ Spawning subagent${systemPromptText}`;
+        return d`🤖⚙️ Spawning subagent${agentTypeText}`;
       case "done": {
         const threadId = this.state.threadId;
         const result = this.state.result.result;
         if (result.status === "error") {
-          return d`🤖❌ Spawning subagent${systemPromptText}`;
+          return d`🤖❌ Spawning subagent${agentTypeText}`;
         } else {
-          return withBindings(d`🤖✅ Spawning subagent${systemPromptText}`, {
+          return withBindings(d`🤖✅ Spawning subagent${agentTypeText}`, {
             "<CR>": () => {
               if (threadId) {
                 this.context.dispatch({
@@ -230,7 +227,7 @@ Because of this, it is important that you write **clear, specific prompts**
 - Include relevant context about what you're trying to achieve
 - Clearly define what specific information the sub-agent should include in its final response
 
-**Choose appropriate system prompts:**
+**Choose appropriate agent types:**
 - Use 'learn' for discovery, research, and understanding tasks
 - Use 'plan' for strategic planning and breaking down complex work
 - Use default for everything else
@@ -285,16 +282,16 @@ assistant: Summarizes the results
           "Optional list of file paths to provide as context to the sub-agent.",
       },
 
-      systemPrompt: {
+      agentType: {
         type: "string",
-        enum: SUBAGENT_SYSTEM_PROMPTS as unknown as string[],
+        enum: AGENT_TYPES as unknown as string[],
         description:
-          "Optional preset system prompt to use for the sub-agent. 'learn' provides instructions optimized for learning and discovery tasks. 'plan' provides instructions optimized for planning and strategy tasks.",
+          "Optional agent type to use for the sub-agent. 'learn' is optimized for learning and discovery tasks. 'plan' is optimized for planning and strategy tasks.",
       },
     },
     // NOTE: openai requries all properties to be required.
     // https://community.openai.com/t/api-rejects-valid-json-schema/906163
-    required: ["prompt", "contextFiles", "systemPrompt"],
+    required: ["prompt", "contextFiles", "agentType"],
     additionalProperties: false,
   },
 };
@@ -302,7 +299,7 @@ assistant: Summarizes the results
 export type Input = {
   prompt: string;
   contextFiles?: UnresolvedFilePath[];
-  systemPrompt?: SubagentSystemPrompt;
+  agentType?: AgentType;
 };
 
 export function validateInput(input: {
@@ -331,22 +328,18 @@ export function validateInput(input: {
     }
   }
 
-  if (input.systemPrompt !== undefined) {
-    if (typeof input.systemPrompt !== "string") {
+  if (input.agentType !== undefined) {
+    if (typeof input.agentType !== "string") {
       return {
         status: "error",
-        error: `expected req.input.systemPrompt to be a string but it was ${JSON.stringify(input.systemPrompt)}`,
+        error: `expected req.input.agentType to be a string but it was ${JSON.stringify(input.agentType)}`,
       };
     }
 
-    if (
-      !SUBAGENT_SYSTEM_PROMPTS.includes(
-        input.systemPrompt as SubagentSystemPrompt,
-      )
-    ) {
+    if (!AGENT_TYPES.includes(input.agentType as AgentType)) {
       return {
         status: "error",
-        error: `expected req.input.systemPrompt to be one of ${SUBAGENT_SYSTEM_PROMPTS.join(", ")} but it was ${JSON.stringify(input.systemPrompt)}`,
+        error: `expected req.input.agentType to be one of ${AGENT_TYPES.join(", ")} but it was ${JSON.stringify(input.agentType)}`,
       };
     }
   }
