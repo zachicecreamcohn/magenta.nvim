@@ -12,6 +12,7 @@ export const STATIC_TOOL_NAMES = [
   "thread_title",
   "compact_thread",
   "spawn_subagent",
+  "spawn_foreach",
   "wait_for_subagents",
   "yield_to_parent",
 ] as const;
@@ -28,6 +29,7 @@ export const CHAT_STATIC_TOOL_NAMES: StaticToolName[] = [
   "diagnostics",
   "bash_command",
   "spawn_subagent",
+  "spawn_foreach",
   "wait_for_subagents",
 ];
 

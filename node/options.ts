@@ -70,6 +70,7 @@ export type MagentaOptions = {
   sidebarPosition: "left" | "right";
   commandAllowlist: CommandAllowlist;
   autoContext: string[];
+  maxConcurrentSubagents: number;
   mcpServers: { [serverName: ServerName]: MCPServerConfig };
 };
 
@@ -322,6 +323,7 @@ export function parseOptions(
     profiles: [],
     activeProfile: "",
     sidebarPosition: "left",
+    maxConcurrentSubagents: 3,
     commandAllowlist: [],
     autoContext: [],
     mcpServers: {},
@@ -357,6 +359,16 @@ export function parseOptions(
       inputOptionsObj["autoContext"],
       "autoContext",
     );
+
+    // Parse max concurrent subagents
+    if (
+      "maxConcurrentSubagents" in inputOptionsObj &&
+      typeof inputOptionsObj["maxConcurrentSubagents"] === "number" &&
+      inputOptionsObj["maxConcurrentSubagents"] > 0
+    ) {
+      options.maxConcurrentSubagents =
+        inputOptionsObj["maxConcurrentSubagents"];
+    }
 
     // Parse MCP servers (throw errors for invalid MCP servers in main config)
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
@@ -426,6 +438,15 @@ export function parseProjectOptions(
     );
   }
 
+  // Parse max concurrent subagents
+  if (
+    "maxConcurrentSubagents" in inputOptionsObj &&
+    typeof inputOptionsObj["maxConcurrentSubagents"] === "number" &&
+    inputOptionsObj["maxConcurrentSubagents"] > 0
+  ) {
+    options.maxConcurrentSubagents = inputOptionsObj["maxConcurrentSubagents"];
+  }
+
   // Parse MCP servers
   if ("mcpServers" in inputOptionsObj) {
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
@@ -483,6 +504,10 @@ export function mergeOptions(
 
   if (projectSettings.sidebarPosition !== undefined) {
     merged.sidebarPosition = projectSettings.sidebarPosition;
+  }
+
+  if (projectSettings.maxConcurrentSubagents !== undefined) {
+    merged.maxConcurrentSubagents = projectSettings.maxConcurrentSubagents;
   }
 
   if (projectSettings.mcpServers) {

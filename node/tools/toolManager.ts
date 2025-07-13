@@ -12,6 +12,7 @@ import * as ReplaceSelection from "./replace-selection-tool.ts";
 import * as ThreadTitle from "./thread-title.ts";
 import * as CompactThread from "./compact-thread.ts";
 import * as SpawnSubagent from "./spawn-subagent.ts";
+import * as SpawnForeach from "./spawn-foreach.ts";
 import * as WaitForSubagents from "./wait-for-subagents.ts";
 import * as YieldToParent from "./yield-to-parent.ts";
 
@@ -125,6 +126,12 @@ export type StaticToolMap = {
     msg: SpawnSubagent.Msg;
     spec: typeof SpawnSubagent.spec;
   };
+  spawn_foreach: {
+    controller: SpawnForeach.SpawnForeachTool;
+    input: SpawnForeach.Input;
+    msg: SpawnForeach.Msg;
+    spec: typeof SpawnForeach.spec;
+  };
   wait_for_subagents: {
     controller: WaitForSubagents.WaitForSubagentsTool;
     input: WaitForSubagents.Input;
@@ -210,6 +217,7 @@ export class ToolManager {
     thread_title: ThreadTitle.spec,
     compact_thread: CompactThread.spec,
     spawn_subagent: SpawnSubagent.spec,
+    spawn_foreach: SpawnForeach.spec,
     yield_to_parent: YieldToParent.spec,
     wait_for_subagents: WaitForSubagents.spec,
   };
@@ -533,6 +541,31 @@ export class ToolManager {
             );
 
             this.tools[staticRequest.id] = spawnSubagentTool;
+            return;
+          }
+
+          case "spawn_foreach": {
+            const spawnForeachTool = new SpawnForeach.SpawnForeachTool(
+              staticRequest,
+              {
+                nvim: this.context.nvim,
+                dispatch: this.context.dispatch,
+                threadId: this.context.threadId,
+                myDispatch: (msg) =>
+                  this.myDispatch({
+                    type: "tool-msg",
+                    msg: {
+                      id: staticRequest.id,
+                      toolName: "spawn_foreach" as ToolName,
+                      msg: msg as unknown as ToolMsg,
+                    },
+                  }),
+                maxConcurrentSubagents:
+                  this.context.options.maxConcurrentSubagents || 3,
+              },
+            );
+
+            this.tools[staticRequest.id] = spawnForeachTool;
             return;
           }
 

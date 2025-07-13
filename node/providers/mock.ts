@@ -147,6 +147,41 @@ class MockRequest {
       },
     });
   }
+
+  getToolResponses(): Array<{ tool_use_id: string; content: string }> {
+    const toolResponses: Array<{ tool_use_id: string; content: string }> = [];
+
+    for (const message of this.messages) {
+      if (message.role === "user") {
+        for (const content of message.content) {
+          if (content.type === "tool_result") {
+            const toolUseId = content.id;
+            const result = content.result;
+
+            let contentStr = "";
+            if (result.status === "ok") {
+              contentStr = result.value
+                .map((item) =>
+                  item && typeof item === "object" && "text" in item
+                    ? item.text
+                    : JSON.stringify(item),
+                )
+                .join("");
+            } else {
+              contentStr = String(result.error);
+            }
+
+            toolResponses.push({
+              tool_use_id: toolUseId,
+              content: contentStr,
+            });
+          }
+        }
+      }
+    }
+
+    return toolResponses;
+  }
 }
 
 type MockForceToolUseRequest = {
