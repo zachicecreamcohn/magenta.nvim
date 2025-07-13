@@ -222,7 +222,6 @@ We will use the right-most character of this string, so if the string is "a.b.c"
       },
     },
     required: ["filePath", "symbol"],
-    additionalProperties: false,
   },
 };
 

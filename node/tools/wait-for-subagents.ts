@@ -252,7 +252,6 @@ export const spec: ProviderToolSpec = {
       },
     },
     required: ["threadIds"],
-    additionalProperties: false,
   },
 };
 

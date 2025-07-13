@@ -487,10 +487,7 @@ File size limits: 1MB for text files, 10MB for images, 32MB for PDFs.`,
           "If true, get the full file contents even if the file is already part of the context.",
       },
     },
-    // NOTE: openai requries all properties to be required.
-    // https://community.openai.com/t/api-rejects-valid-json-schema/906163
-    required: ["filePath", "force"],
-    additionalProperties: false,
+    required: ["filePath"],
   },
 };
 

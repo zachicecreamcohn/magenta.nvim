@@ -22,7 +22,6 @@ Magenta is for agents.
 - openai provider reasoning, to allow use of the o models, ability to configure reasoning for claude models
 - findDefinition tool / improved discovery of project types and docs
 - gemini 2.5 pro provider
-- foreach tool to spawn multiple (fast) subagents (like to do the same operation to many files)
 - @file completion for input buffer
 - local code embedding & indexing via chroma db, to support a semantic code search tool
 
@@ -37,6 +36,10 @@ Magenta is for agents.
 **inline edit replay** functionality with `<leader>m.` - You can now quickly re-apply your last inline edit prompt to the current buffer or selection. Combined with @fast, this gives you a nice dot-repeat pattern for inline edits.
 
 **enhanced input commands** - New `@diag`/`@diagnostics`, `@buf`/`@buffers`, and `@qf`/`@quickfix` commands add current LSP diagnostics, buffer lists, and quickfix entries in your prompts, making it easier to work with current editor state.
+
+**spawn_foreach tool** - enables spawning multiple sub-agents in parallel to process arrays of elements, dramatically speeding up bulk operations like updating multiple files or fixing multiple locations. Combined with the existing `find_references` tool, and the new `@qf` command, this enables doing quick refactors across the codebase.
+
+**fast agent type** - All sub-agent tools now support a "fast" agent type that uses the fast model (like Haiku) for quick transformations that don't require the full capabilities of the primary model. Perfect for simple refactoring tasks, batch operations, and lightweight processing.
 
 **major stability improvements** - Fixed critical issues with buffer operations and file tools that were causing occasional misfires. The plugin now properly handles unloaded buffers and prevents spurious errors when buffers get unloaded. Additionally, improved buffer naming to prevent conflicts when creating scratch buffers. These changes make the plugin significantly more robust and reliable.
 
@@ -164,6 +167,8 @@ require('magenta').setup({
   picker = "fzf-lua",
   -- enable default keymaps shown below
   defaultKeymaps = true,
+  -- maximum number of sub-agents that can run concurrently (default: 3)
+  maxConcurrentSubagents = 3,
   -- keymaps for the sidebar input buffer
   sidebarKeymaps = {
     normal = {
@@ -314,6 +319,7 @@ Create `.magenta/options.json` in your project root:
     "^cargo (build|test|run)( [^;&|()<>]*)?$"
   ],
   "autoContext": ["README.md", "docs/*.md"],
+  "maxConcurrentSubagents": 5,
   "mcpServers": {
     "postgres": {
       "command": "mcp-server-postgres",
@@ -496,6 +502,7 @@ The main agent uses `spawn_subagent` and `wait_for_subagents` tools to create an
 
 - `learn`: System prompt focused on code discovery, understanding APIs, and analyzing existing implementations
 - `plan`: System prompt specialized for strategic planning and breaking down complex implementations
+- `fast`: Lightweight system prompt optimized for quick transformations using the fast model
 - `default`: General-purpose system prompt with standard coding assistant behavior
 
 **Example workflows:**
@@ -518,6 +525,17 @@ user: I want to build a new authentication system
 → Sub-agent analyzes existing auth patterns, creates detailed plan in plans/auth-system.md
 → Sub-agent yields plan location back to main agent
 → Main agent responds: "Please review `plans/auth-system.md` and confirm before I proceed"
+```
+
+_Parallel processing workflow:_
+
+```
+user: Update all the imports in this project to use the new module path
+→ Main agent uses bash_command to find all files with the old import
+→ Main agent uses spawn_foreach with fast agent type and the file list
+→ Multiple fast sub-agents process different files simultaneously
+→ Main agent waits for all sub-agents to complete
+→ Main agent reports: "Updated imports in 15 files"
 ```
 
 This architecture enables more sophisticated problem-solving by allowing the agent to gather focused context and work on multiple independent tasks simultaneously.
@@ -619,7 +637,8 @@ See the most up-to-date list of implemented tools [here](https://github.com/dlan
 - [x] get lsp references for a symbol in a buffer
 - [x] get lsp "hover" info for a symbol in a buffer
 - [x] insert or replace in a file with automatic file snapshots for comparison
-- [x] spawn sub-agents with specialized system prompts and toolsets
+- [x] spawn sub-agents with specialized system prompts and toolsets (supports `learn`, `plan`, `fast`, and `default` agent types)
+- [x] spawn multiple parallel sub-agents to process arrays of elements (enables batch operations and concurrent workflows)
 - [x] wait for multiple sub-agents to complete (enables parallel workflows)
 - [x] yield results back to parent agent (for sub-agents)
 

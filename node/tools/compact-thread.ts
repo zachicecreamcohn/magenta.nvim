@@ -111,7 +111,6 @@ This should not restate anything relating to contextFiles, since those will be r
       },
     },
     required: ["contextFiles", "summary"],
-    additionalProperties: false,
   },
 };
 

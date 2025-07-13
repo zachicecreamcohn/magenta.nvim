@@ -1,8 +1,8 @@
 import type { ThreadType } from "../chat/types";
 import { assertUnreachable } from "../utils/assertUnreachable";
 
-export const SUBAGENT_SYSTEM_PROMPTS = ["learn", "plan", "default"] as const;
-export type SubagentSystemPrompt = (typeof SUBAGENT_SYSTEM_PROMPTS)[number];
+export const AGENT_TYPES = ["learn", "plan", "default", "fast"] as const;
+export type AgentType = (typeof AGENT_TYPES)[number];
 
 const CODEBASE_CONVENTIONS = `\
 # Understanding the Codebase
@@ -17,7 +17,14 @@ const CODE_CHANGES = `\
 - Perform edits within the existing file unless the user explicitly asks you to create a new version of the file. Do not create "new" or "example" files. The user has access to version control and snapshots of your changes, so they can revert your changes
 - Keep parameters and interfaces minimal - only include what's absolutely necessary
 - Do not write comments that simply restate what the code is doing. Your code should be self-documenting through thoughtful name choices and types, so such comments would be redundant, wasting the user's time and tokens.
-- Only use comments to explain "why" the code is necessary, or explain context or connections to other pieces of the code that is not colocated with the comment`;
+- Only use comments to explain "why" the code is necessary, or explain context or connections to other pieces of the code that is not colocated with the comment
+
+# Working with Plans
+
+When working on implementing a plan from a \`plans/\` file:
+- Check off completed items by changing \`- [ ]\` to \`- [x]\` as you complete each step
+- Update the plan file regularly to track your progress
+- This helps both you and the user see what's been accomplished and what remains`;
 
 const LEARNING_PROCESS = `\
 # Learning Process
@@ -81,8 +88,8 @@ IMPORTANT: Avoid restating things that can be gathered from reviewing the code c
 
 <example>
 user: Refactor this interface
-assistant: [uses the find_references or greps for the interface]
-assistant: [uses the replace tool to update the interfaces]
+assistant: [uses the find_references tool to get list of file locations]
+assistant: [uses spawn_foreach with the file locations to update all references in parallel]
 assistant: I finished refactoring the interface.
 </example>
 
@@ -92,6 +99,12 @@ assistant: [uses replace tool to add the function]
 assistant: I created function addTwoNumbers
 </example>
 
+<example>
+user: Update all the imports in this project to use the new module path
+assistant: [uses bash_command to find all files with the old import]
+assistant: [uses spawn_foreach with the fast agent type and file list to update imports in parallel]
+assistant: I finished updating the imports.
+</example>
 
 IMPORTANT: By default, keep your responses short and to the point. Start by answering with at most one paragraph of text (not including tool use or code generation). The user can always ask for more detail if needed.
 
@@ -138,11 +151,10 @@ Your goal is to understand and learn a specific part of the codebase, to provide
 ${LEARNING_PROCESS}
 ${CODEBASE_CONVENTIONS}
 
-# Yielding Results
+# Write the notes
+As you conduct your research, continuously write your findings to \`notes/<name>.md\`. Record the following:
 
-When you complete your learning task, yield a comprehensive report structured as follows:
-
-## Key Entities Section
+## Key Entities
 For each important function, class, interface, or type you discovered:
 - **Name and Location**: Full name and file path
 - **Signature/Interface**: Complete type information
@@ -151,17 +163,13 @@ For each important function, class, interface, or type you discovered:
 - **Dependencies**: What other entities it relies on
 - **Important Notes**: Any constraints, gotchas, or architectural considerations
 
-## Relationships and Patterns Section
+## Relationships and Patterns
 - How the different entities work together
 - Common architectural patterns used
 - Data flow between components
 - Important conventions to follow
 
-## Recommendations Section
-- Specific guidance for the parent based on your findings
-- Suggested approach for their task
-- Potential pitfalls to avoid
-- References to similar existing implementations they can follow
+When you complete your learning task, yield to the parent with just the location of your notes file.
 
 <example>
 user: Learn about how authentication works in this codebase so I can add a new auth provider
@@ -247,6 +255,8 @@ export function getSystemPrompt(type: ThreadType): string {
     case "subagent_plan":
       return PLAN_SUBAGENT_SYSTEM_PROMPT;
     case "subagent_default":
+      return DEFAULT_SUBAGENT_SYSTEM_PROMPT;
+    case "subagent_fast":
       return DEFAULT_SUBAGENT_SYSTEM_PROMPT;
     case "root":
       return DEFAULT_SYSTEM_PROMPT;

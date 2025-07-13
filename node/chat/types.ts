@@ -6,4 +6,5 @@ export type ThreadType =
   | "subagent_learn"
   | "subagent_plan"
   | "subagent_default"
+  | "subagent_fast"
   | "root";

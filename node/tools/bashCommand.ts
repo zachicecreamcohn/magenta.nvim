@@ -37,7 +37,6 @@ You should not run commands that do not halt, such as \`docker compose up\` with
       },
     },
     required: ["command"],
-    additionalProperties: false,
   },
 };
 

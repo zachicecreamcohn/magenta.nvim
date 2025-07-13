@@ -149,7 +149,6 @@ export const spec: ProviderToolSpec = {
     type: "object",
     properties: {},
     required: [],
-    additionalProperties: false,
   },
 };
 

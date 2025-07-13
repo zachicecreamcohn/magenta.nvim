@@ -12,6 +12,7 @@ import * as InlineEdit from "./inline-edit-tool";
 import * as ThreadTitle from "./thread-title";
 import * as CompactThread from "./compact-thread";
 import * as SpawnSubagent from "./spawn-subagent";
+import * as SpawnForeach from "./spawn-foreach";
 import * as WaitForSubagents from "./wait-for-subagents";
 import * as YieldToParent from "./yield-to-parent";
 import type { StreamingBlock } from "../providers/helpers";
@@ -40,7 +41,6 @@ export function validateInput(
       return Insert.validateInput(input);
     case "replace":
       return Replace.validateInput(input);
-
     case "list_directory":
       return ListDirectory.validateInput(input);
     case "hover":
@@ -59,6 +59,8 @@ export function validateInput(
       return ThreadTitle.validateInput(input);
     case "compact_thread":
       return CompactThread.validateInput(input);
+    case "spawn_foreach":
+      return SpawnForeach.validateInput(input);
     case "spawn_subagent":
       return SpawnSubagent.validateInput(input);
     case "wait_for_subagents":
@@ -97,6 +99,7 @@ export function renderStreamdedTool(
     case "spawn_subagent":
     case "wait_for_subagents":
     case "yield_to_parent":
+    case "spawn_foreach":
       break;
     default:
       assertUnreachable(name);

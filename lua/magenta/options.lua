@@ -70,7 +70,8 @@ local defaults = {
     "^ls [^;&()<>]* | grep [^;&|()<>]*$",
     "^echo [^;&|()<>]* > [a-zA-Z0-9_\\-.]+$",
     "^grep( -[A-Za-z]*)? [^;&|()<>]*$"
-  }
+  },
+  maxConcurrentSubagents = 3
 }
 
 M.options = defaults

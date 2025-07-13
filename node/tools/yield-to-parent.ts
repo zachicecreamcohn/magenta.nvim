@@ -115,7 +115,6 @@ After using this tool, the sub-agent thread will be terminated.`,
       },
     },
     required: ["result"],
-    additionalProperties: false,
   },
 };
 
