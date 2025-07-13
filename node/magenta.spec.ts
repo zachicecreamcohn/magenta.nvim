@@ -166,6 +166,7 @@ it("can switch profiles", async () => {
         name: "claude-sonnet-3.7",
         provider: "anthropic",
         model: "claude-3-7-sonnet-latest",
+        fastModel: "claude-3-5-haiku-latest",
         apiKeyEnvVar: "ANTHROPIC_API_KEY",
       });
     }
@@ -181,6 +182,7 @@ it("can switch profiles", async () => {
         name: "gpt-4o",
         provider: "openai",
         model: "gpt-4o",
+        fastModel: "gpt-4o-mini",
         apiKeyEnvVar: "OPENAI_API_KEY",
       });
       const winbar = await displayState.inputWindow.getOption("winbar");
