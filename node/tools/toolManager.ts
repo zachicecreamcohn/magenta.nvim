@@ -550,6 +550,7 @@ export class ToolManager {
               staticRequest,
               {
                 nvim: this.context.nvim,
+                chat: this.context.chat,
                 dispatch: this.context.dispatch,
                 threadId: this.context.threadId,
                 myDispatch: (msg) =>

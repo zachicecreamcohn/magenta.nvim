@@ -13,6 +13,7 @@ import type { RootMsg } from "../root-msg.ts";
 import { AGENT_TYPES, type AgentType } from "../providers/system-prompt.ts";
 import type { ThreadId, ThreadType } from "../chat/types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import type { Chat } from "../chat/chat.ts";
 
 export type ForEachElement = string & { __forEachElement: true };
 
@@ -67,6 +68,7 @@ export class SpawnForeachTool implements StaticTool {
     public context: {
       nvim: Nvim;
       dispatch: Dispatch<RootMsg>;
+      chat: Chat;
       threadId: ThreadId;
       myDispatch: Dispatch<Msg>;
       maxConcurrentSubagents: number;
@@ -388,6 +390,62 @@ ${element}`;
     return this.state.result;
   }
 
+  private renderElementWithThread(element: ForEachElement, threadId: ThreadId) {
+    const summary = this.context.chat.getThreadSummary(threadId);
+
+    let statusText: string;
+    switch (summary.status.type) {
+      case "missing":
+        statusText = `  - ${element}: ❓ not found`;
+        break;
+
+      case "pending":
+        statusText = `  - ${element}: ⏳ initializing`;
+        break;
+
+      case "running":
+        statusText = `  - ${element}: ⏳ ${summary.status.activity}`;
+        break;
+
+      case "stopped":
+        statusText = `  - ${element}: ⏹️ stopped (${summary.status.reason})`;
+        break;
+
+      case "yielded": {
+        const truncatedResponse =
+          summary.status.response.length > 50
+            ? summary.status.response.substring(0, 47) + "..."
+            : summary.status.response;
+        statusText = `  - ${element}: ✅ yielded: ${truncatedResponse}`;
+        break;
+      }
+
+      case "error": {
+        const truncatedError =
+          summary.status.message.length > 50
+            ? summary.status.message.substring(0, 47) + "..."
+            : summary.status.message;
+        statusText = `  - ${element}: ❌ error: ${truncatedError}`;
+        break;
+      }
+
+      default:
+        return assertUnreachable(summary.status);
+    }
+
+    return withBindings(d`${statusText}\n`, {
+      "<CR>": () => {
+        this.context.dispatch({
+          type: "chat-msg",
+          msg: {
+            type: "select-thread",
+            id: threadId,
+          },
+        });
+      },
+    });
+  }
+
   renderSummary() {
     // Re-validate input to get proper typing
     const validationResult = validateInput(
@@ -413,33 +471,13 @@ ${element}`;
             case "completed": {
               const status = state.result.status === "ok" ? "✅" : "❌";
               if (state.threadId) {
-                return withBindings(d`  - ${element}: ${status}\n`, {
-                  "<CR>": () => {
-                    this.context.dispatch({
-                      type: "chat-msg",
-                      msg: {
-                        type: "select-thread",
-                        id: state.threadId!,
-                      },
-                    });
-                  },
-                });
+                return this.renderElementWithThread(element, state.threadId);
               } else {
                 return d`  - ${element}: ${status}\n`;
               }
             }
             case "running": {
-              return withBindings(d`  - ${element}: ⏳\n`, {
-                "<CR>": () => {
-                  this.context.dispatch({
-                    type: "chat-msg",
-                    msg: {
-                      type: "select-thread",
-                      id: state.threadId,
-                    },
-                  });
-                },
-              });
+              return this.renderElementWithThread(element, state.threadId);
             }
             case "spawning": {
               return d`  - ${element}: 🚀\n`;
