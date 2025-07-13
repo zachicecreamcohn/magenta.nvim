@@ -701,6 +701,9 @@ ${text}`;
       this.state.profile,
     ).forceToolUse({
       model: this.state.profile.model,
+      // In this request we will be using a different set of tools, which will invalidate any cache we may have so far.
+      // Also, since we're compacting, we do not expect this thread to be used in the future.
+      disableCaching: true,
       messages: [
         ...this.getMessages(),
         {
