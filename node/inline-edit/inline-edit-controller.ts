@@ -219,4 +219,19 @@ export class InlineEditController {
         return assertUnreachable(this.state);
     }
   }
+
+  abort() {
+    if (this.state.state == "tool-use") {
+      this.state.tool.abort();
+    }
+
+    if (this.state.state == "response-pending") {
+      this.state.request.abort();
+    }
+
+    this.state = {
+      state: "error",
+      error: "This edit was aborted.",
+    };
+  }
 }

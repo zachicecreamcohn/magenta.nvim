@@ -96,7 +96,12 @@ export class Magenta {
       View: () => this.chat.view(),
     });
 
-    this.inlineEditManager = new InlineEditManager({ nvim, options });
+    this.inlineEditManager = new InlineEditManager({
+      nvim,
+      cwd: this.cwd,
+      options,
+      getMessages: () => this.chat.getMessages(),
+    });
   }
 
   getActiveProfile() {
@@ -348,12 +353,33 @@ ${lines.join("\n")}
           getpos(this.nvim, "'>"),
         ]);
 
-        await this.inlineEditManager.initInlineEdit({ startPos, endPos });
+        await this.inlineEditManager.initInlineEdit({
+          startPos,
+          endPos,
+        });
         break;
       }
 
       case "start-inline-edit": {
         await this.inlineEditManager.initInlineEdit();
+        break;
+      }
+
+      case "replay-inline-edit": {
+        await this.inlineEditManager.replay();
+        break;
+      }
+
+      case "replay-inline-edit-selection": {
+        const [startPos, endPos] = await Promise.all([
+          getpos(this.nvim, "'<"),
+          getpos(this.nvim, "'>"),
+        ]);
+
+        await this.inlineEditManager.replay({
+          startPos,
+          endPos,
+        });
         break;
       }
 
@@ -372,8 +398,7 @@ ${lines.join("\n")}
           return;
         }
 
-        const messages = this.chat.getMessages();
-        await this.inlineEditManager.submitInlineEdit(bufnr, messages);
+        await this.inlineEditManager.submitInlineEdit(bufnr);
         break;
       }
 

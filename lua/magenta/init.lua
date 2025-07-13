@@ -57,6 +57,7 @@ local normal_commands = {
   "context-files",
   "profile",
   "start-inline-edit",
+  "replay-inline-edit",
   "toggle",
   "new-thread",
   "threads-overview",
@@ -64,6 +65,7 @@ local normal_commands = {
 
 local visual_commands = {
   "start-inline-edit-selection",
+  "replay-inline-edit-selection",
   "paste-selection",
 }
 

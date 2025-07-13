@@ -392,4 +392,155 @@ Paint their stories in the night.`,
       }
     });
   });
+
+  it("replays inline edit with same input", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.editFile("poem.txt");
+      const targetBuffer = await getCurrentBuffer(driver.nvim);
+
+      // First, do an inline edit
+      await driver.startInlineEdit();
+      const inputBuffer = await getCurrentBuffer(driver.nvim);
+      await inputBuffer.setLines({
+        start: 0,
+        end: -1,
+        lines: ["Please change 'Silver' to 'Golden' in line 2"] as Line[],
+      });
+
+      // Submit and complete the first edit
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      driver.submitInlineEdit(targetBuffer.id);
+      const firstRequest =
+        await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+      await driver.mockAnthropic.respondToForceToolUse({
+        stopReason: "end_turn",
+        toolRequest: {
+          status: "ok",
+          value: {
+            id: "id" as ToolRequestId,
+            toolName: "inline_edit" as ToolName,
+            input: {
+              find: "Silver shadows dance with ease.",
+              replace: "Golden shadows dance with ease.",
+            },
+          },
+        },
+      });
+
+      // Close the input window
+      const inputWindow = await getCurrentWindow(driver.nvim);
+      await inputWindow.close();
+
+      // Now replay the inline edit
+      await driver.replayInlineEdit();
+      await driver.assertWindowCount(2);
+
+      const replayInputBuffer = await getCurrentBuffer(driver.nvim);
+      const winbar = await (
+        await getCurrentWindow(driver.nvim)
+      ).getOption("winbar");
+      expect(winbar).toEqual("Magenta Inline Replay");
+
+      // Verify the input is pre-populated
+      const lines = await replayInputBuffer.getLines({ start: 0, end: -1 });
+      expect(lines.join("\n")).toEqual(
+        "Please change 'Silver' to 'Golden' in line 2",
+      );
+
+      const replayRequest =
+        await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+
+      // Verify the requests have the same user input text
+      const firstUserMessage = firstRequest.messages.find(
+        (m) => m.role === "user",
+      );
+      const replayUserMessage = replayRequest.messages.find(
+        (m) => m.role === "user",
+      );
+
+      expect(firstUserMessage?.content[0]?.type).toBe("text");
+      expect(replayUserMessage?.content[0]?.type).toBe("text");
+
+      if (
+        firstUserMessage?.content[0]?.type === "text" &&
+        replayUserMessage?.content[0]?.type === "text"
+      ) {
+        // Both should contain the same user input
+        expect(replayUserMessage.content[0].text).toContain(
+          "Please change 'Silver' to 'Golden' in line 2",
+        );
+        expect(firstUserMessage.content[0].text).toContain(
+          "Please change 'Silver' to 'Golden' in line 2",
+        );
+      }
+    });
+  });
+
+  it("replays inline edit with selection", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.editFile("poem.txt");
+      const targetBuffer = await getCurrentBuffer(driver.nvim);
+      const targetWindow = await getCurrentWindow(driver.nvim);
+
+      // First, do an inline edit with selection
+      await driver.selectRange(
+        { row: 1, col: 0 } as Position0Indexed,
+        { row: 1, col: 32 } as Position0Indexed,
+      );
+      await driver.startInlineEditWithSelection();
+
+      const inputBuffer = await getCurrentBuffer(driver.nvim);
+      await inputBuffer.setLines({
+        start: 0,
+        end: -1,
+        lines: ["Please change 'Silver' to 'Golden'"] as Line[],
+      });
+
+      // Submit and complete the first edit
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      driver.submitInlineEdit(targetBuffer.id);
+      await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+      await driver.mockAnthropic.respondToForceToolUse({
+        stopReason: "end_turn",
+        toolRequest: {
+          status: "ok",
+          value: {
+            id: "id" as ToolRequestId,
+            toolName: "replace_selection" as ToolName,
+            input: {
+              replace: "Golden shadows dance with ease.",
+            },
+          },
+        },
+      });
+
+      await driver.nvim.call("nvim_set_current_win", [targetWindow.id]);
+
+      // Now replay with a new selection
+      await driver.selectRange(
+        { row: 2, col: 0 } as Position0Indexed,
+        { row: 2, col: 34 } as Position0Indexed,
+      );
+      await driver.replayInlineEditWithSelection();
+      await driver.assertWindowCount(2);
+
+      const replayRequest =
+        await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+
+      // Verify the request uses replace_selection tool and has the new selection
+      const userMessage = replayRequest.messages.find((m) => m.role === "user");
+      const firstContent = userMessage?.content[0];
+      expect(firstContent?.type).toBe("text");
+
+      expect(
+        (firstContent as Extract<typeof firstContent, { type: "text" }>).text,
+      ).toContain("I have the following text selected on line 2:");
+      expect(
+        (firstContent as Extract<typeof firstContent, { type: "text" }>).text,
+      ).toContain("Stars above like diamonds bright");
+      expect(
+        (firstContent as Extract<typeof firstContent, { type: "text" }>).text,
+      ).toContain("Please change 'Silver' to 'Golden'");
+    });
+  });
 });

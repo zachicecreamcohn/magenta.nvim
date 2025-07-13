@@ -121,6 +121,14 @@ export class NvimDriver {
     );
   }
 
+  async replayInlineEdit() {
+    return this.magenta.command("replay-inline-edit");
+  }
+
+  async replayInlineEditWithSelection() {
+    return this.magenta.command("replay-inline-edit-selection");
+  }
+
   async submitInlineEdit(bufnr: BufNr) {
     return this.magenta.command(`submit-inline-edit ${bufnr}`);
   }
