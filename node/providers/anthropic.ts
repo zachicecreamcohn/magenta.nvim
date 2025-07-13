@@ -125,7 +125,7 @@ export class AnthropicProvider implements Provider {
     model: string;
     messages: ProviderMessage[];
     tools: Array<ProviderToolSpec>;
-    disableCaching?: boolean;
+    disableCaching?: boolean | undefined;
     systemPrompt?: string | undefined;
   }): MessageStreamParams {
     const anthropicMessages = messages.map((m): MessageParam => {
@@ -332,14 +332,15 @@ export class AnthropicProvider implements Provider {
     messages: Array<ProviderMessage>;
     spec: ProviderToolSpec;
     systemPrompt?: string;
+    disableCaching?: boolean;
   }): ProviderToolUseRequest {
-    const { model, messages, spec, systemPrompt } = options;
+    const { model, messages, spec, systemPrompt, disableCaching } = options;
     const request = this.client.messages.stream({
       ...this.createStreamParameters({
         model,
         messages,
         tools: [],
-        disableCaching: true,
+        disableCaching,
         systemPrompt,
       }),
       tools: [

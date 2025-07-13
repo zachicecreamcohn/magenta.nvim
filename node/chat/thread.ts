@@ -860,6 +860,7 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
       ],
       spec: threadTitleToolSpec,
       systemPrompt: getSystemPrompt(this.state.threadType),
+      disableCaching: true,
     });
     const result = await request.promise;
     if (result.toolRequest.status == "ok") {

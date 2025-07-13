@@ -138,6 +138,7 @@ export interface Provider {
     messages: Array<ProviderMessage>;
     spec: ProviderToolSpec;
     systemPrompt?: string;
+    disableCaching?: boolean;
   }): ProviderToolUseRequest;
 
   sendMessage(options: {
