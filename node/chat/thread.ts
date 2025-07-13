@@ -883,18 +883,33 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
       msgIdx -= 1
     ) {
       const message = this.state.messages[msgIdx];
-      const lastStop =
-        message.state.stops[
-          Math.max(...Object.keys(message.state.stops).map((s) => Number(s)))
-        ];
 
-      if (lastStop) {
-        return (
-          lastStop.usage.inputTokens +
-          lastStop.usage.outputTokens +
-          (lastStop.usage.cacheHits || 0) +
-          (lastStop.usage.cacheMisses || 0)
-        );
+      // Find the most recent stop event by iterating content in reverse order
+      for (
+        let contentIdx = message.state.content.length - 1;
+        contentIdx >= 0;
+        contentIdx--
+      ) {
+        const content = message.state.content[contentIdx];
+        let stopInfo: { stopReason: StopReason; usage: Usage } | undefined;
+
+        if (content.type === "tool_use" && content.request.status === "ok") {
+          // For tool use content, check toolMeta
+          const toolMeta = message.state.toolMeta[content.request.value.id];
+          stopInfo = toolMeta?.stop;
+        } else {
+          // For regular content, check stops map
+          stopInfo = message.state.stops[contentIdx];
+        }
+
+        if (stopInfo) {
+          return (
+            stopInfo.usage.inputTokens +
+            stopInfo.usage.outputTokens +
+            (stopInfo.usage.cacheHits || 0) +
+            (stopInfo.usage.cacheMisses || 0)
+          );
+        }
       }
     }
 
