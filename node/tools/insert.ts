@@ -215,7 +215,6 @@ Make sure you match braces and indentation.
       },
     },
     required: ["filePath", "insertAfter", "content"],
-    additionalProperties: false,
   },
 };
 

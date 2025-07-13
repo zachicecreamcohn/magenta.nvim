@@ -194,7 +194,6 @@ export const spec: ProviderToolSpec = {
       },
     },
     required: ["replace"],
-    additionalProperties: false,
   },
 };
 

@@ -203,7 +203,6 @@ If the text appears multiple times, only the first match will be replaced.`,
       },
     },
     required: ["find", "replace"],
-    additionalProperties: false,
   },
 };
 

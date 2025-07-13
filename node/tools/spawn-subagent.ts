@@ -289,10 +289,8 @@ assistant: Summarizes the results
           "Optional agent type to use for the sub-agent. 'learn' is optimized for learning and discovery tasks. 'plan' is optimized for planning and strategy tasks.",
       },
     },
-    // NOTE: openai requries all properties to be required.
-    // https://community.openai.com/t/api-rejects-valid-json-schema/906163
-    required: ["prompt", "contextFiles", "agentType"],
-    additionalProperties: false,
+
+    required: ["prompt"],
   },
 };
 

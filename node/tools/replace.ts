@@ -246,7 +246,6 @@ This MUST be the complete and exact replacement text. Make sure to match braces 
       },
     },
     required: ["filePath", "find", "replace"],
-    additionalProperties: false,
   },
 };
 

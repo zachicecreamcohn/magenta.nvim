@@ -234,7 +234,6 @@ export const spec: ProviderToolSpec = {
       },
     },
     required: ["dirPath"],
-    additionalProperties: false,
   },
 };
 
