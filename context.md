@@ -166,6 +166,8 @@ to run a specific test file, use `npx vitest run <file>`. **Important** You do n
 tests should make use of the `node/test/preamble.ts` helpers.
 when doing integration-level testing, like user flows, use the `withDriver` helper and the interactions in `node/test/driver.ts`. When performing generic user actions that may be reusable between tests, put them into the NvimDriver class as helpers.
 
+As of July 2025, tests are now run in parallel for improved performance. The test infrastructure has been updated to support concurrent test execution.
+
 # Type checks
 
 use `npx tsc --noEmit` to run type checking, from the project root. Once again, I remind you, you do not need to cd into any subdirectory.

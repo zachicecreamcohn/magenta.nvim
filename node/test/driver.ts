@@ -121,6 +121,14 @@ export class NvimDriver {
     );
   }
 
+  async replayInlineEdit() {
+    return this.magenta.command("replay-inline-edit");
+  }
+
+  async replayInlineEditWithSelection() {
+    return this.magenta.command("replay-inline-edit-selection");
+  }
+
   async submitInlineEdit(bufnr: BufNr) {
     return this.magenta.command(`submit-inline-edit ${bufnr}`);
   }
@@ -306,6 +314,85 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
     ]);
   }
 
+  async triggerDisplayBufferKeyOnContent(
+    text: string,
+    key: BindingKey,
+    start: number = 0,
+  ): Promise<void> {
+    let latestContent;
+    try {
+      await pollUntil(
+        async () => {
+          const displayBuffer = this.getDisplayBuffer();
+
+          const findTextPosition = (content: string): Position0Indexed => {
+            const index = Buffer.from(content).indexOf(text) as ByteIdx;
+            if (index == -1) {
+              throw new Error(
+                `! Unable to find text ${text} after line ${start} in displayBuffer`,
+              );
+            }
+            return calculatePosition(
+              { row: start, col: 0 } as Position0Indexed,
+              Buffer.from(content),
+              index,
+            );
+          };
+
+          const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+          latestContent = lines.slice(start).join("\n");
+          const position = findTextPosition(latestContent);
+
+          // Set cursor position and re-verify the content is still there
+          const { displayWindow } = this.getVisibleState();
+          await this.nvim.call("nvim_set_current_win", [displayWindow.id]);
+          await displayWindow.setCursor(pos0to1(position));
+
+          // Re-verify content under cursor by checking buffer again
+          const updatedLines = await displayBuffer.getLines({
+            start: 0,
+            end: -1,
+          });
+          const updatedContent = updatedLines.slice(start).join("\n");
+          const updatedPosition = findTextPosition(updatedContent);
+
+          // Verify cursor is still at the correct position
+          if (
+            position.row !== updatedPosition.row ||
+            position.col !== updatedPosition.col
+          ) {
+            throw new Error(
+              `! Content position changed after setting cursor. Original: ${JSON.stringify(position)}, Updated: ${JSON.stringify(updatedPosition)}`,
+            );
+          }
+
+          // Double-check cursor position right before triggering the key
+          const currentCursor = await displayWindow.getCursor();
+          const expectedCursor = pos0to1(updatedPosition);
+          if (
+            currentCursor.row !== expectedCursor.row ||
+            currentCursor.col !== expectedCursor.col
+          ) {
+            throw new Error(
+              `! Cursor position mismatch before triggering key. Expected: ${JSON.stringify(expectedCursor)}, Actual: ${JSON.stringify(currentCursor)}`,
+            );
+          }
+
+          await this.nvim.call("nvim_exec_lua", [
+            `vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")`,
+            [],
+          ]);
+
+          return; // Success - found content and triggered key
+        },
+        { timeout: 2000 },
+      );
+    } catch (e) {
+      expect(latestContent, (e as Error).message).toContain(text);
+      throw e;
+    }
+  }
+
   async assertWindowCount(n: number, message?: string) {
     return await pollUntil(
       async () => {
@@ -319,7 +406,7 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
             }),
           );
           throw new Error(
-            `${message ?? `Expected ${n} windows to appear`}. Saw ${windows.length} windows: [${windowDetails.join(", ")}]`,
+            `${message ?? `Expected ${n} windows to appear`}. Saw ${windows.length} windows: ${JSON.stringify(windowDetails, null, 2)}`,
           );
         }
 

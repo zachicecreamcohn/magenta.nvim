@@ -34,10 +34,9 @@ export type OllamaOptions = {
 
 export class OllamaProvider implements Provider {
   private client: Ollama;
-  private model: string;
 
   constructor(
-    private nvim: Nvim,
+    _nvim: Nvim,
     options?: {
       baseUrl?: string | undefined;
       apiKeyEnvVar?: string | undefined;
@@ -46,44 +45,20 @@ export class OllamaProvider implements Provider {
     this.client = new Ollama({
       host: options?.baseUrl || "http://127.0.0.1:11434",
     });
-
-    this.model = "llama3";
   }
 
-  setModel(model: string): void {
-    // It is possible to set the model to a model that is not downloaded or does not exist
-    // Ollama itself returns an error if it can't find a model, so seperate checking here is not necessary
-    this.model = model;
-  }
-
-  countTokens(
-    messages: Array<ProviderMessage>,
-    tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: string | undefined },
-  ): number {
-    const CHARS_PER_TOKEN = 4;
-    let charCount = (
-      options?.systemPrompt ? options.systemPrompt : DEFAULT_SYSTEM_PROMPT
-    ).length;
-    charCount += JSON.stringify(tools).length;
-    charCount += JSON.stringify(messages).length;
-    return Math.ceil(charCount / CHARS_PER_TOKEN);
-  }
-
-  createStreamParameters(
-    messages: Array<ProviderMessage>,
-    tools: Array<ProviderToolSpec>,
-    options?: {
-      disableCaching?: boolean;
-      systemPrompt?: string | undefined;
-    },
-  ): ChatRequest & { stream: true } {
+  createStreamParameters(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    tools: Array<ProviderToolSpec>;
+    disableCaching?: boolean;
+    systemPrompt?: string;
+  }): ChatRequest & { stream: true } {
+    const { messages, tools, systemPrompt } = options;
     const ollamaMessages: Message[] = [
       {
         role: "system",
-        content: options?.systemPrompt
-          ? options.systemPrompt
-          : DEFAULT_SYSTEM_PROMPT,
+        content: systemPrompt || DEFAULT_SYSTEM_PROMPT,
       },
     ];
 
@@ -163,32 +138,32 @@ export class OllamaProvider implements Provider {
     })) as Tool[];
 
     return {
-      model: this.model,
+      model: options.model,
       stream: true,
       messages: ollamaMessages,
       tools: ollamaTools,
     };
   }
 
-  forceToolUse(
-    messages: Array<ProviderMessage>,
-    spec: ProviderToolSpec,
-    options?: { systemPrompt?: string | undefined },
-  ): ProviderToolUseRequest {
+  forceToolUse(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    spec: ProviderToolSpec;
+    systemPrompt?: string;
+  }): ProviderToolUseRequest {
+    const { messages, spec, systemPrompt } = options;
     let aborted = false;
     const promise = (async (): Promise<ProviderToolUseResponse> => {
       // Ollama doesn't support tool_choice (although it is in the roadmap)
       // For now, we can use structured outputs to simulate forced tool use
-      const systemPrompt = options?.systemPrompt
-        ? options.systemPrompt
-        : DEFAULT_SYSTEM_PROMPT;
+      const systemPromptText = systemPrompt || DEFAULT_SYSTEM_PROMPT;
 
       const response = await this.client.chat({
-        model: this.model,
+        model: options.model,
         messages: [
           {
             role: "system",
-            content: `${systemPrompt}\n\nYou must use the ${spec.name} tool. Respond only with the tool arguments.`,
+            content: `${systemPromptText}\n\nYou must use the ${spec.name} tool. Respond only with the tool arguments.`,
           },
           ...messages.flatMap((message) =>
             message.content
@@ -258,12 +233,14 @@ export class OllamaProvider implements Provider {
     };
   }
 
-  sendMessage(
-    messages: Array<ProviderMessage>,
-    onStreamEvent: (event: ProviderStreamEvent) => void,
-    tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: string | undefined },
-  ): ProviderStreamRequest {
+  sendMessage(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    onStreamEvent: (event: ProviderStreamEvent) => void;
+    tools: Array<ProviderToolSpec>;
+    systemPrompt?: string;
+  }): ProviderStreamRequest {
+    const { model, messages, onStreamEvent, tools, systemPrompt } = options;
     let request: AbortableAsyncIterator<ChatResponse>;
     let stopReason: StopReason | undefined;
     let usage: Usage | undefined;
@@ -274,8 +251,11 @@ export class OllamaProvider implements Provider {
       stopReason: StopReason;
     }> => {
       request = await this.client.chat(
-        this.createStreamParameters(messages, tools, {
-          systemPrompt: options?.systemPrompt,
+        this.createStreamParameters({
+          model,
+          messages,
+          tools,
+          ...(systemPrompt && { systemPrompt }),
         }),
       );
 

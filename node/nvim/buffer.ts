@@ -195,6 +195,14 @@ end)`,
     return new NvimBuffer(bufNr, nvim);
   }
 
+  delete(options?: { force?: boolean; unload?: boolean }) {
+    return this.nvim.call("nvim_buf_delete", [this.id, options || {}]);
+  }
+
+  isValid(): Promise<boolean> {
+    return this.nvim.call("nvim_buf_is_valid", [this.id]);
+  }
+
   static async bufadd(absolutePath: AbsFilePath, nvim: Nvim) {
     const bufNr = (await nvim.call("nvim_eval", [
       `bufadd("${absolutePath}")`,

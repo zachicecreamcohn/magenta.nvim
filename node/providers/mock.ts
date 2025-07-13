@@ -150,6 +150,7 @@ class MockRequest {
 }
 
 type MockForceToolUseRequest = {
+  model: string;
   messages: Array<ProviderMessage>;
   spec: ProviderToolSpec;
   defer: Defer<{
@@ -166,12 +167,14 @@ export class MockProvider implements Provider {
 
   setModel(_model: string): void {}
 
-  createStreamParameters(
-    messages: Array<ProviderMessage>,
-    tools: Array<ProviderToolSpec>,
-    _options?: { disableCaching?: boolean },
-  ): unknown {
-    return { messages, tools };
+  createStreamParameters(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    tools: Array<ProviderToolSpec>;
+    disableCaching?: boolean;
+    systemPrompt?: string;
+  }): unknown {
+    return { messages: options.messages, tools: options.tools };
   }
 
   countTokens(
@@ -187,11 +190,15 @@ export class MockProvider implements Provider {
     return Math.ceil(charCount / CHARS_PER_TOKEN);
   }
 
-  forceToolUse(
-    messages: Array<ProviderMessage>,
-    spec: ProviderToolSpec,
-  ): ProviderToolUseRequest {
+  forceToolUse(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    spec: ProviderToolSpec;
+    systemPrompt?: string;
+  }): ProviderToolUseRequest {
+    const { model, messages, spec } = options;
     const request: MockForceToolUseRequest = {
+      model,
       messages,
       spec,
       defer: new Defer(),
@@ -208,11 +215,14 @@ export class MockProvider implements Provider {
     };
   }
 
-  sendMessage(
-    messages: Array<ProviderMessage>,
-    onStreamEvent: (event: ProviderStreamEvent) => void,
-    _tools: Array<ProviderToolSpec>,
-  ): ProviderStreamRequest {
+  sendMessage(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    onStreamEvent: (event: ProviderStreamEvent) => void;
+    tools: Array<ProviderToolSpec>;
+    systemPrompt?: string;
+  }): ProviderStreamRequest {
+    const { messages, onStreamEvent } = options;
     const request = new MockRequest(
       messages,
       onStreamEvent,

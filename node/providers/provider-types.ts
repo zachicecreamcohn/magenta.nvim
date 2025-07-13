@@ -125,32 +125,29 @@ export type ProviderMessageContent =
   | ProviderToolResult;
 
 export interface Provider {
-  setModel(model: string): void;
-  createStreamParameters(
-    messages: Array<ProviderMessage>,
-    tools: Array<ProviderToolSpec>,
-    options?: {
-      disableCaching?: boolean;
-      systemPrompt?: string | undefined;
-    },
-  ): unknown;
-  countTokens(
-    messages: Array<ProviderMessage>,
-    tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: string | undefined },
-  ): number;
-  forceToolUse(
-    messages: Array<ProviderMessage>,
-    spec: ProviderToolSpec,
-    options?: { systemPrompt?: string | undefined },
-  ): ProviderToolUseRequest;
+  createStreamParameters(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    tools: Array<ProviderToolSpec>;
+    disableCaching?: boolean;
+    systemPrompt?: string;
+  }): unknown;
 
-  sendMessage(
-    messages: Array<ProviderMessage>,
-    onStreamEvent: (event: ProviderStreamEvent) => void,
-    tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: string },
-  ): ProviderStreamRequest;
+  forceToolUse(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    spec: ProviderToolSpec;
+    systemPrompt?: string;
+    disableCaching?: boolean;
+  }): ProviderToolUseRequest;
+
+  sendMessage(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    onStreamEvent: (event: ProviderStreamEvent) => void;
+    tools: Array<ProviderToolSpec>;
+    systemPrompt?: string;
+  }): ProviderStreamRequest;
 }
 
 /** Using Anthropic types for now since they're the most mature / well documented

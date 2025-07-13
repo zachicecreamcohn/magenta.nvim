@@ -428,13 +428,15 @@ export class Thread {
 
   private handleConversationStop(stoppedState: StoppedConversationState) {
     const lastMessage = this.state.messages[this.state.messages.length - 1];
-    lastMessage.update({
-      type: "stop",
-      stopReason: stoppedState.stopReason,
-      usage: stoppedState.usage,
-    });
+    if (lastMessage) {
+      lastMessage.update({
+        type: "stop",
+        stopReason: stoppedState.stopReason,
+        usage: stoppedState.usage,
+      });
+    }
 
-    if (lastMessage.state.role == "assistant") {
+    if (lastMessage && lastMessage.state.role == "assistant") {
       const lastContentBlock =
         lastMessage.state.content[lastMessage.state.content.length - 1];
       if (
@@ -656,17 +658,18 @@ export class Thread {
     const messages = this.getMessages();
 
     const provider = getProvider(this.context.nvim, this.state.profile);
-    const request = provider.sendMessage(
+    const request = provider.sendMessage({
+      model: this.state.profile.model,
       messages,
-      (event) => {
+      onStreamEvent: (event) => {
         this.myDispatch({
           type: "stream-event",
           event,
         });
       },
-      this.toolManager.getToolSpecs(this.state.threadType),
-      { systemPrompt: getSystemPrompt(this.state.threadType) },
-    );
+      tools: this.toolManager.getToolSpecs(this.state.threadType),
+      systemPrompt: getSystemPrompt(this.state.threadType),
+    });
 
     this.myDispatch({
       type: "conversation-state",
@@ -698,8 +701,12 @@ ${text}`;
     const request = getProvider(
       this.context.nvim,
       this.state.profile,
-    ).forceToolUse(
-      [
+    ).forceToolUse({
+      model: this.state.profile.model,
+      // In this request we will be using a different set of tools, which will invalidate any cache we may have so far.
+      // Also, since we're compacting, we do not expect this thread to be used in the future.
+      disableCaching: true,
+      messages: [
         ...this.getMessages(),
         {
           role: "user",
@@ -711,9 +718,9 @@ ${text}`;
           ],
         },
       ],
-      compactThreadSpec,
-      { systemPrompt: getSystemPrompt(this.state.threadType) },
-    );
+      spec: compactThreadSpec,
+      systemPrompt: getSystemPrompt(this.state.threadType),
+    });
 
     this.myDispatch({
       type: "conversation-state",
@@ -838,8 +845,9 @@ ${compactRequest.input.summary}
     const request = getProvider(
       this.context.nvim,
       this.context.profile,
-    ).forceToolUse(
-      [
+    ).forceToolUse({
+      model: this.context.profile.fastModel,
+      messages: [
         {
           role: "user",
           content: [
@@ -855,9 +863,10 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
           ],
         },
       ],
-      threadTitleToolSpec,
-      { systemPrompt: getSystemPrompt(this.state.threadType) },
-    );
+      spec: threadTitleToolSpec,
+      systemPrompt: getSystemPrompt(this.state.threadType),
+      disableCaching: true,
+    });
     const result = await request.promise;
     if (result.toolRequest.status == "ok") {
       this.myDispatch({
@@ -989,16 +998,16 @@ ${contextManagerView}`;
 
 export const LOGO = `\
 
- ██████   ██████                                         █████             
-░░██████ ██████                                         ░░███              
- ░███░█████░███   ██████    ███████  ██████  ████████   ███████    ██████  
- ░███░░███ ░███  ░░░░░███  ███░░███ ███░░███░░███░░███ ░░░███░    ░░░░░███ 
- ░███ ░░░  ░███   ███████ ░███ ░███░███████  ░███ ░███   ░███      ███████ 
- ░███      ░███  ███░░███ ░███ ░███░███░░░   ░███ ░███   ░███ ███ ███░░███ 
+ ██████   ██████                                         █████
+░░██████ ██████                                         ░░███
+ ░███░█████░███   ██████    ███████  ██████  ████████   ███████    ██████
+ ░███░░███ ░███  ░░░░░███  ███░░███ ███░░███░░███░░███ ░░░███░    ░░░░░███
+ ░███ ░░░  ░███   ███████ ░███ ░███░███████  ░███ ░███   ░███      ███████
+ ░███      ░███  ███░░███ ░███ ░███░███░░░   ░███ ░███   ░███ ███ ███░░███
  █████     █████░░████████░░███████░░██████  ████ █████  ░░█████ ░░████████
-░░░░░     ░░░░░  ░░░░░░░░  ░░░░░███ ░░░░░░  ░░░░ ░░░░░    ░░░░░   ░░░░░░░░ 
-                           ███ ░███                                        
-                          ░░██████                                         
+░░░░░     ░░░░░  ░░░░░░░░  ░░░░░███ ░░░░░░  ░░░░ ░░░░░    ░░░░░   ░░░░░░░░
+                           ███ ░███
+                          ░░██████
                            ░░░░░░                                          `;
 
 const MESSAGE_ANIMATION = ["⠁", "⠂", "⠄", "⠂"];

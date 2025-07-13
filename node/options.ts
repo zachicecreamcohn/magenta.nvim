@@ -5,10 +5,38 @@ import type { ServerName } from "./tools/mcp/types";
 import { validateServerName } from "./tools/mcp/types";
 import type { NvimCwd } from "./utils/files";
 
+// Default models by provider
+const DEFAULT_MODELS: Record<
+  ProviderName,
+  { model: string; fastModel: string }
+> = {
+  anthropic: {
+    model: "claude-4-sonnet-latest",
+    fastModel: "claude-3-5-haiku-latest",
+  },
+  openai: {
+    model: "gpt-4.1",
+    fastModel: "gpt-4o-mini",
+  },
+  bedrock: {
+    model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+    fastModel: "anthropic.claude-3-5-haiku-20241022-v1:0",
+  },
+  ollama: {
+    model: "llama3.1:8b",
+    fastModel: "llama3.1:8b",
+  },
+  copilot: {
+    model: "claude-3.7-sonnet",
+    fastModel: "claude-3-5-haiku-latest",
+  },
+};
+
 export type Profile = {
   name: string;
   provider: ProviderName;
   model: string;
+  fastModel: string;
   baseUrl?: string;
   apiKeyEnvVar?: string;
   promptCaching?: boolean; // Primarily used by Bedrock provider
@@ -70,8 +98,7 @@ function parseProfiles(
         !(
           typeof p["name"] === "string" &&
           typeof p["provider"] === "string" &&
-          PROVIDER_NAMES.indexOf(p["provider"] as ProviderName) !== -1 &&
-          typeof p["model"] === "string"
+          PROVIDER_NAMES.indexOf(p["provider"] as ProviderName) !== -1
         )
       ) {
         logger?.warn(
@@ -80,10 +107,17 @@ function parseProfiles(
         continue;
       }
 
+      const provider = p["provider"] as ProviderName;
+      const defaults = DEFAULT_MODELS[provider];
+
       const out: Profile = {
         name: p["name"],
-        provider: p["provider"] as ProviderName,
-        model: p["model"],
+        provider,
+        model: typeof p["model"] === "string" ? p["model"] : defaults.model,
+        fastModel:
+          typeof p["fastModel"] === "string"
+            ? p["fastModel"]
+            : defaults.fastModel,
       };
 
       if ("base_url" in p) {
@@ -459,4 +493,12 @@ export function mergeOptions(
   }
 
   return merged;
+}
+
+export function getActiveProfile(profiles: Profile[], activeProfile: string) {
+  const profile = profiles.find((p) => p.name == activeProfile);
+  if (!profile) {
+    throw new Error(`Profile ${activeProfile} not found.`);
+  }
+  return profile;
 }

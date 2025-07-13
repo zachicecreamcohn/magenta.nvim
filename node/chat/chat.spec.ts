@@ -53,10 +53,10 @@ describe("node/chat/chat.spec.ts", () => {
 - 1 [Untitled]: ⏹️ stopped (end_turn)
 * 2 [Untitled]: ⏹️ stopped (end_turn)`);
 
-      const threadPos = await driver.assertDisplayBufferContains(
+      await driver.triggerDisplayBufferKeyOnContent(
         "- 1 [Untitled]: ⏹️ stopped (end_turn)",
+        "<CR>",
       );
-      await driver.triggerDisplayBufferKey(threadPos, "<CR>");
       await driver.awaitChatState({
         state: "thread-selected",
         id: 1 as ThreadId,
@@ -570,10 +570,6 @@ describe("node/chat/chat.spec.ts", () => {
 
       // Verify we see the waiting state with the thread line
       await driver.assertDisplayBufferContains("⏳ Waiting for 1 subagent(s):");
-      const threadLinePos = await driver.assertDisplayBufferContains(
-        "- 2 [Untitled]: ⏳ streaming response",
-      );
-
       // We should currently be in thread 1 (the parent)
       await driver.awaitChatState({
         state: "thread-selected",
@@ -581,7 +577,10 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       // Click on the thread line to navigate to thread 2
-      await driver.triggerDisplayBufferKey(threadLinePos, "<CR>");
+      await driver.triggerDisplayBufferKeyOnContent(
+        "- 2 [Untitled]: ⏳ streaming response",
+        "<CR>",
+      );
 
       // Verify we switched to thread 2
       await driver.awaitChatState({
@@ -594,9 +593,7 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.assertDisplayBufferContains("# [ Untitled ]");
 
       // Navigate back to thread 1 via the parent thread link
-      const parentLinkPos =
-        await driver.assertDisplayBufferContains("Parent thread: 1");
-      await driver.triggerDisplayBufferKey(parentLinkPos, "<CR>");
+      await driver.triggerDisplayBufferKeyOnContent("Parent thread: 1", "<CR>");
 
       // Verify we're back in thread 1
       await driver.awaitChatState({
@@ -833,10 +830,10 @@ describe("node/chat/chat.spec.ts", () => {
 
       await driver.magenta.command("threads-overview");
 
-      const childThreadPos = await driver.assertDisplayBufferContains(
+      await driver.triggerDisplayBufferKeyOnContent(
         "  - 2 [Untitled]: ⏳ streaming response",
+        "<CR>",
       );
-      await driver.triggerDisplayBufferKey(childThreadPos, "<CR>");
 
       await driver.awaitChatState({
         state: "thread-selected",
@@ -845,10 +842,10 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.assertDisplayBufferContains("Parent thread: 1");
 
       await driver.magenta.command("threads-overview");
-      const parentThreadPos = await driver.assertDisplayBufferContains(
+      await driver.triggerDisplayBufferKeyOnContent(
         "- 1 [Untitled]: ⏳ streaming response",
+        "<CR>",
       );
-      await driver.triggerDisplayBufferKey(parentThreadPos, "<CR>");
 
       // Verify we switched to the parent thread
       await driver.awaitChatState({

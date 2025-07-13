@@ -24,6 +24,9 @@ describe("src/logger.test.ts", () => {
         nvim.logger?.info("Info level message");
         nvim.logger?.debug("Debug level message");
 
+        // Wait for logs to be written (winston may be async)
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
         // Read log file and verify contents
         const logContent = await fs.readFile(logFilePath, "utf-8");
 

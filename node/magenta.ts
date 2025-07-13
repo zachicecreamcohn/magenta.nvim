@@ -4,7 +4,6 @@ import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
 import { pos } from "./tea/view.ts";
 import type { Nvim } from "./nvim/nvim-node";
 import { Lsp } from "./lsp.ts";
-import { getProvider } from "./providers/provider.ts";
 import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
 import type { BufNr, Line } from "./nvim/buffer.ts";
 import { pos1col1to0 } from "./nvim/window.ts";
@@ -14,7 +13,7 @@ import {
   loadProjectSettings,
   mergeOptions,
   type MagentaOptions,
-  type Profile,
+  getActiveProfile,
 } from "./options.ts";
 import { InlineEditManager } from "./inline-edit/inline-edit-app.ts";
 import type { RootMsg, SidebarMsg } from "./root-msg.ts";
@@ -97,7 +96,12 @@ export class Magenta {
       View: () => this.chat.view(),
     });
 
-    this.inlineEditManager = new InlineEditManager({ nvim });
+    this.inlineEditManager = new InlineEditManager({
+      nvim,
+      cwd: this.cwd,
+      options,
+      getMessages: () => this.chat.getMessages(),
+    });
   }
 
   getActiveProfile() {
@@ -151,6 +155,9 @@ export class Magenta {
 
         if (profile) {
           this.options.activeProfile = profile.name;
+
+          // Update inline edit manager with new options
+          this.inlineEditManager.updateOptions(this.options);
 
           this.dispatch({
             type: "thread-msg",
@@ -346,12 +353,33 @@ ${lines.join("\n")}
           getpos(this.nvim, "'>"),
         ]);
 
-        await this.inlineEditManager.initInlineEdit({ startPos, endPos });
+        await this.inlineEditManager.initInlineEdit({
+          startPos,
+          endPos,
+        });
         break;
       }
 
       case "start-inline-edit": {
         await this.inlineEditManager.initInlineEdit();
+        break;
+      }
+
+      case "replay-inline-edit": {
+        await this.inlineEditManager.replay();
+        break;
+      }
+
+      case "replay-inline-edit-selection": {
+        const [startPos, endPos] = await Promise.all([
+          getpos(this.nvim, "'<"),
+          getpos(this.nvim, "'>"),
+        ]);
+
+        await this.inlineEditManager.replay({
+          startPos,
+          endPos,
+        });
         break;
       }
 
@@ -370,14 +398,7 @@ ${lines.join("\n")}
           return;
         }
 
-        const provider = getProvider(this.nvim, this.getActiveProfile());
-
-        const messages = this.chat.getMessages();
-        await this.inlineEditManager.submitInlineEdit(
-          bufnr,
-          provider,
-          messages,
-        );
+        await this.inlineEditManager.submitInlineEdit(bufnr);
         break;
       }
 
@@ -443,7 +464,11 @@ ${lines.join("\n")}
       this.mountedChatApp.unmount();
       this.mountedChatApp = undefined;
     }
-    this.inlineEditManager.destroy();
+    this.inlineEditManager.destroy().catch((e) => {
+      this.nvim.logger?.warn(
+        `Error destroying inline edit manager: ${e instanceof Error ? e.message + "\n" + e.stack : JSON.stringify(e)}`,
+      );
+    });
   }
 
   static async start(nvim: Nvim) {
@@ -543,12 +568,4 @@ ${lines.join("\n")}
     nvim.logger?.info(`Magenta initialized. ${JSON.stringify(parsedOptions)}`);
     return magenta;
   }
-}
-
-function getActiveProfile(profiles: Profile[], activeProfile: string) {
-  const profile = profiles.find((p) => p.name == activeProfile);
-  if (!profile) {
-    throw new Error(`Profile ${activeProfile} not found.`);
-  }
-  return profile;
 }

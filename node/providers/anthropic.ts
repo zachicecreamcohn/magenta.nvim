@@ -51,7 +51,6 @@ type MessageStreamParams = Omit<
 
 export class AnthropicProvider implements Provider {
   protected client: Anthropic;
-  protected model: string;
 
   constructor(
     protected nvim: Nvim,
@@ -65,7 +64,6 @@ export class AnthropicProvider implements Provider {
   ) {
     const apiKeyEnvVar = options?.apiKeyEnvVar || "ANTHROPIC_API_KEY";
     const apiKey = process.env[apiKeyEnvVar];
-    this.model = "claude-3-7-sonnet-latest";
 
     if (!options?.awsAPIKey && !apiKey) {
       throw new Error(
@@ -82,18 +80,54 @@ export class AnthropicProvider implements Provider {
   private promptCaching = true;
   private disableParallelToolUseFlag = true;
 
-  setModel(model: string): void {
-    this.model = model;
+  private getMaxTokensForModel(model: string): number {
+    // Claude 4 models - use high limits
+    if (model.match(/^claude-(opus-4|sonnet-4|4-opus|4-sonnet)/)) {
+      return 32000;
+    }
+
+    // Claude 3.7 Sonnet - supports up to 128k with beta header
+    if (model.match(/^claude-3-7-sonnet/)) {
+      return 32000; // Conservative default, can be increased to 128k with beta header
+    }
+
+    // Claude 3.5 Sonnet - 8k limit
+    if (model.match(/^claude-3-5-sonnet/)) {
+      return 8192;
+    }
+
+    // Claude 3.5 Haiku - 8k limit (same as Sonnet)
+    if (model.match(/^claude-3-5-haiku/)) {
+      return 8192;
+    }
+
+    // Legacy Claude 3 models (Opus, Sonnet, Haiku) - 4k limit
+    if (model.match(/^claude-3-(opus|sonnet|haiku)/)) {
+      return 4096;
+    }
+
+    // Legacy Claude 2.x models - 4k limit
+    if (model.match(/^claude-2\./)) {
+      return 4096;
+    }
+
+    // Default for unknown models - conservative 4k limit
+    return 4096;
   }
 
-  createStreamParameters(
-    messages: ProviderMessage[],
-    tools: Array<ProviderToolSpec>,
-    options?: {
-      disableCaching?: boolean;
-      systemPrompt?: string | undefined;
-    },
-  ): MessageStreamParams {
+  createStreamParameters({
+    model,
+    messages,
+    tools,
+    disableCaching,
+    systemPrompt,
+  }: {
+    model: string;
+    messages: ProviderMessage[];
+    tools: Array<ProviderToolSpec>;
+    disableCaching?: boolean | undefined;
+    systemPrompt?: string | undefined;
+  }): MessageStreamParams {
     const anthropicMessages = messages.map((m): MessageParam => {
       let content: Anthropic.Messages.ContentBlockParam[];
       if (typeof m.content == "string") {
@@ -249,7 +283,7 @@ export class AnthropicProvider implements Provider {
     });
 
     // Use the promptCaching class property but allow it to be overridden by options parameter
-    const useCaching = options?.disableCaching !== true && this.promptCaching;
+    const useCaching = disableCaching !== true && this.promptCaching;
 
     if (useCaching) {
       placeCacheBreakpoints(anthropicMessages);
@@ -264,14 +298,12 @@ export class AnthropicProvider implements Provider {
 
     return {
       messages: anthropicMessages,
-      model: this.model,
-      max_tokens: 32000,
+      model: model,
+      max_tokens: this.getMaxTokensForModel(model),
       system: [
         {
           type: "text",
-          text: options?.systemPrompt
-            ? options.systemPrompt
-            : DEFAULT_SYSTEM_PROMPT,
+          text: systemPrompt ? systemPrompt : DEFAULT_SYSTEM_PROMPT,
           // the prompt appears in the following order:
           // tools
           // system
@@ -295,31 +327,21 @@ export class AnthropicProvider implements Provider {
     };
   }
 
-  countTokens(
-    messages: Array<ProviderMessage>,
-    tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: string | undefined },
-  ): number {
-    const CHARS_PER_TOKEN = 4;
-
-    let charCount = (
-      options?.systemPrompt ? options.systemPrompt : DEFAULT_SYSTEM_PROMPT
-    ).length;
-    charCount += JSON.stringify(tools).length;
-    charCount += JSON.stringify(messages).length;
-
-    return Math.ceil(charCount / CHARS_PER_TOKEN);
-  }
-
-  forceToolUse(
-    messages: Array<ProviderMessage>,
-    spec: ProviderToolSpec,
-    options?: { systemPrompt?: string | undefined },
-  ): ProviderToolUseRequest {
+  forceToolUse(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    spec: ProviderToolSpec;
+    systemPrompt?: string;
+    disableCaching?: boolean;
+  }): ProviderToolUseRequest {
+    const { model, messages, spec, systemPrompt, disableCaching } = options;
     const request = this.client.messages.stream({
-      ...this.createStreamParameters(messages, [], {
-        disableCaching: true,
-        systemPrompt: options?.systemPrompt,
+      ...this.createStreamParameters({
+        model,
+        messages,
+        tools: [],
+        disableCaching,
+        systemPrompt,
       }),
       tools: [
         {
@@ -446,17 +468,22 @@ export class AnthropicProvider implements Provider {
   /**
    * Example of stream events from anthropic https://docs.anthropic.com/en/api/messages-streaming
    */
-  sendMessage(
-    messages: Array<ProviderMessage>,
-    onStreamEvent: (event: ProviderStreamEvent) => void,
-    tools: Array<ProviderToolSpec>,
-    options?: { systemPrompt?: string | undefined },
-  ): ProviderStreamRequest {
+  sendMessage(options: {
+    model: string;
+    messages: Array<ProviderMessage>;
+    onStreamEvent: (event: ProviderStreamEvent) => void;
+    tools: Array<ProviderToolSpec>;
+    systemPrompt?: string;
+  }): ProviderStreamRequest {
+    const { model, messages, onStreamEvent, tools, systemPrompt } = options;
     let requestActive = true;
     const request = this.client.messages
       .stream(
-        this.createStreamParameters(messages, tools, {
-          systemPrompt: options?.systemPrompt,
+        this.createStreamParameters({
+          model,
+          messages,
+          tools,
+          systemPrompt,
         }) as Anthropic.Messages.MessageStreamParams,
       )
       .on("streamEvent", (e) => {

@@ -85,10 +85,12 @@ export function createApp<Model>({
                 ? `render failed: ${err.message}\n${err.stack}`
                 : `render failed: ${JSON.stringify(err)}`,
             );
-            nvim.logger?.error(
-              "render error: " +
-                prettyPrintMountedNode(root!._getMountedNode()),
-            );
+            if (root) {
+              nvim.logger?.error(
+                "render error: " +
+                  prettyPrintMountedNode(root._getMountedNode()),
+              );
+            }
             if (renderDefer) {
               renderDefer.reject(err as Error);
               renderDefer = undefined;
