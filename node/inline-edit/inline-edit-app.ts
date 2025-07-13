@@ -91,7 +91,8 @@ export class InlineEditManager {
 
   async destroy() {
     for (const bufnr in this.inlineEdits) {
-      await this.cleanupInlineEdit(Number(bufnr) as BufNr);
+      await this.cleanupInlineEdit(this.inlineEdits[Number(bufnr) as BufNr]);
+      delete this.inlineEdits[Number(bufnr) as BufNr];
     }
   }
 
@@ -122,10 +123,7 @@ export class InlineEditManager {
     );
   }
 
-  private async cleanupInlineEdit(targetBufnr: BufNr) {
-    const inlineEdit = this.inlineEdits[targetBufnr];
-    if (!inlineEdit) return;
-
+  private async cleanupInlineEdit(inlineEdit: InlineEditState) {
     const inputWindow = new NvimWindow(inlineEdit.inputWindowId, this.nvim);
     const inputBuffer = new NvimBuffer(inlineEdit.inputBufnr, this.nvim);
 
@@ -138,7 +136,6 @@ export class InlineEditManager {
 
     inlineEdit.app.destroy();
     inlineEdit.controller.abort();
-    delete this.inlineEdits[targetBufnr];
   }
 
   private createInlineEditState(
@@ -158,15 +155,16 @@ export class InlineEditManager {
         return; // This edit was already destroyed, skip dispatch
       }
 
-      controller.update(msg);
+      currentEdit.controller.update(msg);
 
       // Check if the edit completed successfully and cleanup if so
-      if (this.isInlineEditSuccessfullyCompleted(controller)) {
-        this.cleanupInlineEdit(targetBuffer.id).catch((error) => {
+      if (this.isInlineEditSuccessfullyCompleted(currentEdit.controller)) {
+        this.cleanupInlineEdit(currentEdit).catch((error) => {
           this.nvim.logger?.error("Failed to cleanup inline edit:", error);
         });
+        delete this.inlineEdits[targetBuffer.id];
       } else {
-        const mountedApp = this.inlineEdits[targetBuffer.id].mountedApp;
+        const mountedApp = currentEdit.mountedApp;
         if (mountedApp) {
           mountedApp.render();
         }
@@ -293,8 +291,9 @@ export class InlineEditManager {
     ])) as BufNr;
 
     if (this.inlineEdits[targetBufnr]) {
-      // Reset existing inline edit for this buffer
-      await this.cleanupInlineEdit(targetBufnr);
+      const inlineEdit = this.inlineEdits[targetBufnr];
+      delete this.inlineEdits[targetBufnr];
+      await this.cleanupInlineEdit(inlineEdit);
     }
 
     const cursor = await targetWindow.getCursor();

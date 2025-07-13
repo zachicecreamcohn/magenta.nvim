@@ -428,13 +428,15 @@ export class Thread {
 
   private handleConversationStop(stoppedState: StoppedConversationState) {
     const lastMessage = this.state.messages[this.state.messages.length - 1];
-    lastMessage.update({
-      type: "stop",
-      stopReason: stoppedState.stopReason,
-      usage: stoppedState.usage,
-    });
+    if (lastMessage) {
+      lastMessage.update({
+        type: "stop",
+        stopReason: stoppedState.stopReason,
+        usage: stoppedState.usage,
+      });
+    }
 
-    if (lastMessage.state.role == "assistant") {
+    if (lastMessage && lastMessage.state.role == "assistant") {
       const lastContentBlock =
         lastMessage.state.content[lastMessage.state.content.length - 1];
       if (

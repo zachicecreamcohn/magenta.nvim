@@ -206,9 +206,10 @@ export async function withNvimProcess(
     });
 
     nvimProcess.on("exit", (code, signal) => {
-      if (code !== 1) {
+      // Only throw error for unexpected exits (not normal cleanup)
+      if (code !== null && code !== 0 && code !== 1) {
         throw new Error(
-          `Nvim process exited with code ${code} and signal ${signal}`,
+          `Nvim process exited unexpectedly with code ${code} and signal ${signal}`,
         );
       }
     });
@@ -445,8 +446,3 @@ export function renderChat(chat: Chat) {
 
   return out.join("\n");
 }
-
-process.on("uncaughtException", (err) => {
-  console.error(err);
-  process.exit(1);
-});

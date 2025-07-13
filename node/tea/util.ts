@@ -20,8 +20,9 @@ export async function replaceBetweenPositions({
   lines: Line[];
   context: { nvim: Nvim };
 }) {
-  await buffer.setOption("modifiable", true);
   try {
+    await buffer.setOption("modifiable", true);
+
     await context.nvim.call("nvim_buf_set_text", [
       buffer.id,
       startPos.row,
@@ -30,6 +31,8 @@ export async function replaceBetweenPositions({
       endPos.col,
       lines,
     ]);
+
+    await buffer.setOption("modifiable", false);
   } catch (e) {
     const err = new Error(
       `Unable to replaceBetweenPositions ${JSON.stringify({ startPos, endPos })}: ${e as string}`,
@@ -37,7 +40,6 @@ export async function replaceBetweenPositions({
     context.nvim.logger?.error(err);
     throw err;
   }
-  await buffer.setOption("modifiable", false);
 }
 
 export function calculatePosition(
