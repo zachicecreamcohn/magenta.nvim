@@ -299,6 +299,27 @@ export class NvimDriver {
     }
   }
 
+  async assertDisplayBufferDoesNotContain(text: string): Promise<void> {
+    try {
+      return await pollUntil(async () => {
+        const displayBuffer = this.getDisplayBuffer();
+        const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+        const content = lines.join("\n");
+        if (content.includes(text)) {
+          throw new Error(
+            `display buffer should not contain text:\n"${text}"\nbut displayBuffer content:\n${content}`,
+          );
+        }
+      });
+    } catch (e) {
+      const displayBuffer = this.getDisplayBuffer();
+      const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+      const content = lines.join("\n");
+      expect(content).not.toContain(text);
+      throw e;
+    }
+  }
+
   async triggerDisplayBufferKey(pos: Position0Indexed, key: BindingKey) {
     const { displayWindow } = this.getVisibleState();
     await this.nvim.call("nvim_set_current_win", [displayWindow.id]);

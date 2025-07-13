@@ -282,3 +282,68 @@ it("handles subagent errors gracefully and continues processing remaining elemen
     },
   );
 });
+it("aborts all child threads when the foreach request is aborted", async () => {
+  await withDriver(
+    {
+      options: { maxConcurrentSubagents: 2 },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // Create a foreach request with 3 elements
+      await driver.inputMagentaText("Use spawn_foreach to process 3 elements.");
+      await driver.send();
+
+      const request1 =
+        await driver.mockAnthropic.awaitPendingRequestWithText(
+          "Use spawn_foreach",
+        );
+      request1.respond({
+        stopReason: "tool_use",
+        text: "I'll use spawn_foreach to process 3 elements.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "test-foreach-abort" as ToolRequestId,
+              toolName: "spawn_foreach" as ToolName,
+              input: {
+                prompt: "Process this element",
+                elements: ["element1", "element2", "element3"],
+              },
+            },
+          },
+        ],
+      });
+
+      // First 2 subagents should start running (due to maxConcurrentSubagents: 2)
+      const subagent1Request =
+        await driver.mockAnthropic.awaitPendingRequestWithText("element1");
+      const subagent2Request =
+        await driver.mockAnthropic.awaitPendingRequestWithText("element2");
+
+      // Verify initial state: 2 running, 1 pending
+      await driver.assertDisplayBufferContains("🤖⏳ Foreach subagents (0/3):");
+      await driver.assertDisplayBufferContains("- element1: ⏳");
+      await driver.assertDisplayBufferContains("- element2: ⏳");
+      await driver.assertDisplayBufferContains("- element3: ⏸️");
+
+      // Abort the chat (which should abort all running tools including foreach)
+      await driver.abort();
+
+      // Verify that both running subagent requests were aborted
+      expect(subagent1Request.wasAborted()).toBe(true);
+      expect(subagent2Request.wasAborted()).toBe(true);
+
+      // Verify that the foreach tool shows as aborted/done
+      // The display should no longer show the pending foreach tool
+      await driver.assertDisplayBufferDoesNotContain("🤖⏳ Foreach subagents");
+
+      // Verify no third subagent was started for element3
+      // (since the foreach was aborted before element3 could start)
+      expect(driver.mockAnthropic.hasPendingRequestWithText("element3")).toBe(
+        false,
+      );
+    },
+  );
+});

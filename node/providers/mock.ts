@@ -21,6 +21,7 @@ class MockRequest {
     stopReason: StopReason;
     usage: Usage;
   }>;
+  private aborted = false;
 
   constructor(
     public messages: Array<ProviderMessage>,
@@ -134,8 +135,13 @@ class MockRequest {
 
   abort() {
     if (!this.defer.resolved) {
+      this.aborted = true;
       this.defer.reject(new Error("request aborted"));
     }
+  }
+
+  wasAborted(): boolean {
+    return this.aborted;
   }
 
   finishResponse(stopReason: StopReason) {
@@ -396,6 +402,76 @@ ${this.requests.map((r) => `${r.defer.resolved ? "resolved" : "pending"} - ${JSO
       }
       throw new Error(`no pending force tool use requests: ${message}`);
     });
+  }
+
+  hasPendingRequestWithText(text: string): boolean {
+    function blockIncludesText(block: ProviderMessageContent) {
+      switch (block.type) {
+        case "text":
+          return block.text.includes(text);
+        case "tool_use":
+          if (
+            block.request.status == "ok" &&
+            JSON.stringify(block.request.value).includes(text)
+          ) {
+            return true;
+          }
+          return false;
+        case "server_tool_use":
+          return false;
+        case "web_search_tool_result":
+          if (Array.isArray(block.content)) {
+            for (const result of block.content) {
+              if (result.title.includes(text) || result.url.includes(text)) {
+                return true;
+              }
+            }
+          }
+          return false;
+        case "tool_result":
+          if (block.result.status == "ok") {
+            const value = block.result.value;
+            if (Array.isArray(value)) {
+              for (const item of value) {
+                if (
+                  item &&
+                  typeof item === "object" &&
+                  item.type === "text" &&
+                  item.text.includes(text)
+                ) {
+                  return true;
+                }
+              }
+            }
+          } else if (block.result.status == "error") {
+            if (block.result.error.includes(text)) {
+              return true;
+            }
+          }
+          return false;
+        case "image":
+          return block.source.media_type.includes(text);
+        case "document":
+          return (
+            block.source.media_type.includes(text) ||
+            (block.title && block.title.includes(text))
+          );
+        default:
+          assertUnreachable(block);
+      }
+    }
+
+    for (const request of this.requests) {
+      if (request && !request.defer.resolved) {
+        const lastMessage = request.messages[request.messages.length - 1];
+        for (const block of lastMessage.content) {
+          if (blockIncludesText(block)) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
   }
 
   private getNextBlockId(): string {
