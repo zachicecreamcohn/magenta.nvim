@@ -27,6 +27,7 @@ class MockRequest {
     public messages: Array<ProviderMessage>,
     public onStreamEvent: (event: ProviderStreamEvent) => void,
     private getNextBlockId: () => string,
+    public model: string,
   ) {
     this.defer = new Defer();
   }
@@ -263,11 +264,12 @@ export class MockProvider implements Provider {
     tools: Array<ProviderToolSpec>;
     systemPrompt?: string;
   }): ProviderStreamRequest {
-    const { messages, onStreamEvent } = options;
+    const { messages, onStreamEvent, model } = options;
     const request = new MockRequest(
       messages,
       onStreamEvent,
       this.getNextBlockId.bind(this),
+      model,
     );
 
     this.requests.push(request);

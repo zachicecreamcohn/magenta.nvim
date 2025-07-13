@@ -165,7 +165,9 @@ ${element}`;
         ? "subagent_learn"
         : input.agentType == "plan"
           ? "subagent_plan"
-          : "subagent_default"
+          : input.agentType == "fast"
+            ? "subagent_fast"
+            : "subagent_default"
       : "subagent_default";
 
     this.context.dispatch({
@@ -480,40 +482,23 @@ export const spec: ProviderToolSpec = {
   name: "spawn_foreach" as ToolName,
   description: `Create multiple sub-agents that run in parallel to process an array of elements.
 
-## When to Use Foreach Sub-agents
-
-Use foreach sub-agents for:
-- **Parallel processing** of multiple similar tasks
-- **Batch operations** where you need to apply the same logic to multiple inputs
-- **Concurrent updates** to multiple files or locations
-
 ## Effective Usage
-
-Each sub-agent will receive the base prompt enhanced with its specific element. The sub-agents run concurrently up to the configured limit.
-
 **Provide clear prompts:**
 - Write the prompt as if working on a single element
 - The specific element will be appended to your prompt automatically
 - Include context about what the element represents
 
-**Choose appropriate agent types:**
-- Use 'learn' for discovery tasks across multiple elements
-- Use 'plan' for planning tasks that need to consider multiple cases
-- Use default for most implementation tasks
-
 **Examples:**
-
-<example>
-user: Update all references to this interface
-assistant: [uses find_references tool to get list of file locations]
-assistant: [spawns foreach subagents with array of file paths to update each location in parallel]
-assistant: [waits for all foreach subagents to complete]
-</example>
 
 <example>
 user: I have these quickfix locations that need to be fixed: [file1.ts:10, file2.ts:25, file3.ts:40]
 assistant: [spawns foreach subagents with ["file1.ts:10", "file2.ts:25", "file3.ts:40"] to fix each location in parallel]
-assistant: [waits for all foreach subagents to complete]
+</example>
+
+<example>
+user: refactor this interface
+assistant: [uses find_references tool to get all reference locations: file1.ts:15, file2.ts:10, file2.ts:25, file2.ts:40]
+assistant: [spawns foreach subagents with fast agent type and elements ["file1.ts:15", "file2.ts:10,25,40"]]
 </example>`,
   input_schema: {
     type: "object",
@@ -527,22 +512,23 @@ assistant: [waits for all foreach subagents to complete]
         items: {
           type: "string",
         },
-        description:
-          "Array of elements to process in parallel. Each element will be appended to the prompt for its corresponding sub-agent.",
+        description: `Array of elements to process in parallel.
+Each element will be appended to the prompt for its corresponding sub-agent.`,
       },
       contextFiles: {
         type: "array",
         items: {
           type: "string",
         },
-        description:
-          "Optional list of file paths to provide as context to all sub-agents.",
+        description: `Optional list of file paths to provide as context to all sub-agents.`,
       },
       agentType: {
         type: "string",
         enum: AGENT_TYPES as unknown as string[],
-        description:
-          "Optional agent type to use for all sub-agents. 'learn' is optimized for learning and discovery tasks. 'plan' is optimized for planning and strategy tasks.",
+        description: `Optional agent type to use for sub-agents.
+'learn' for learning and discovery tasks
+'plan' for planning and strategy tasks
+'fast' for quick and simple transformations that don't require a very intelligent model`,
       },
     },
     required: ["prompt", "elements"],

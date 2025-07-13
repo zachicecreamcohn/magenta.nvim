@@ -62,7 +62,9 @@ export class SpawnSubagentTool implements StaticTool {
         ? "subagent_learn"
         : input.agentType == "plan"
           ? "subagent_plan"
-          : "subagent_default"
+          : input.agentType == "fast"
+            ? "subagent_fast"
+            : "subagent_default"
       : "subagent_default";
 
     this.context.dispatch({
@@ -230,6 +232,7 @@ Because of this, it is important that you write **clear, specific prompts**
 **Choose appropriate agent types:**
 - Use 'learn' for discovery, research, and understanding tasks
 - Use 'plan' for strategic planning and breaking down complex work
+- Use 'fast' for quick tasks that don't require the full model capabilities
 - Use default for everything else
 
 **Provide relevant context files:**
@@ -286,7 +289,7 @@ assistant: Summarizes the results
         type: "string",
         enum: AGENT_TYPES as unknown as string[],
         description:
-          "Optional agent type to use for the sub-agent. 'learn' is optimized for learning and discovery tasks. 'plan' is optimized for planning and strategy tasks.",
+          "Optional agent type to use for the sub-agent. 'learn' is optimized for learning and discovery tasks. 'plan' is optimized for planning and strategy tasks. 'fast' uses the fast model for quick tasks.",
       },
     },
 

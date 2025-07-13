@@ -144,6 +144,26 @@ export class Chat {
         const thread = threadState.thread;
         thread.update(msg);
 
+        if (msg.msg.type == "abort") {
+          // Find all child threads of the parent thread and abort them directly
+          for (const [threadId, threadWrapper] of Object.entries(
+            this.threadWrappers,
+          )) {
+            if (
+              threadWrapper.parentThreadId === thread.id &&
+              threadWrapper.state === "initialized"
+            ) {
+              threadWrapper.thread.update({
+                type: "thread-msg",
+                id: Number(threadId) as ThreadId,
+                msg: {
+                  type: "abort",
+                },
+              });
+            }
+          }
+        }
+
         // it's ok to do this on every dispatch. After the initial yielded/error message, the thread should be dormant
         // and should not generate any more thread messages. As such, this won't be terribly inefficient.
         if (
@@ -578,11 +598,20 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const parentThread = parentThreadWrapper.thread;
     const subagentThreadId = this.threadCounter.get() as ThreadId;
 
+    // Create profile for subagent - use fast model if threadType is "subagent_fast"
+    const subagentProfile =
+      threadType === "subagent_fast"
+        ? {
+            ...parentThread.state.profile,
+            model: parentThread.state.profile.fastModel,
+          }
+        : parentThread.state.profile;
+
     if (foreachElement) {
       try {
         const thread = await this.createThreadWithContext({
           threadId: subagentThreadId,
-          profile: parentThread.state.profile,
+          profile: subagentProfile,
           contextFiles: contextFiles || [],
           parent: parentThreadId,
           switchToThread: false,
@@ -643,7 +672,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       try {
         const thread = await this.createThreadWithContext({
           threadId: subagentThreadId,
-          profile: parentThread.state.profile,
+          profile: subagentProfile,
           contextFiles: contextFiles || [],
           parent: parentThreadId,
           switchToThread: false,

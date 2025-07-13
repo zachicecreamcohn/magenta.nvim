@@ -1,7 +1,7 @@
 import type { ThreadType } from "../chat/types";
 import { assertUnreachable } from "../utils/assertUnreachable";
 
-export const AGENT_TYPES = ["learn", "plan", "default"] as const;
+export const AGENT_TYPES = ["learn", "plan", "default", "fast"] as const;
 export type AgentType = (typeof AGENT_TYPES)[number];
 
 const CODEBASE_CONVENTIONS = `\
@@ -247,6 +247,8 @@ export function getSystemPrompt(type: ThreadType): string {
     case "subagent_plan":
       return PLAN_SUBAGENT_SYSTEM_PROMPT;
     case "subagent_default":
+      return DEFAULT_SUBAGENT_SYSTEM_PROMPT;
+    case "subagent_fast":
       return DEFAULT_SUBAGENT_SYSTEM_PROMPT;
     case "root":
       return DEFAULT_SYSTEM_PROMPT;

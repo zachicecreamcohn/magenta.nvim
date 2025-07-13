@@ -514,6 +514,7 @@ describe("node/chat/chat.spec.ts", () => {
       );
     });
   });
+
   it("wait_for_subagents view allows clicking on thread lines to navigate to them", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();

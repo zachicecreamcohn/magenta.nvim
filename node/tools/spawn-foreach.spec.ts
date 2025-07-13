@@ -175,6 +175,58 @@ it("respects maxConcurrentSubagents limit and processes elements in batches", as
   );
 });
 
+it("uses fast model for subagents when agentType is 'fast'", async () => {
+  await withDriver(
+    {
+      options: { maxConcurrentSubagents: 1 },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // Create a foreach request with fast agent type
+      await driver.inputMagentaText(
+        "Use spawn_foreach with fast agent type to process 1 element.",
+      );
+      await driver.send();
+
+      const request1 =
+        await driver.mockAnthropic.awaitPendingRequestWithText(
+          "Use spawn_foreach",
+        );
+
+      // Get the parent thread's profile to know what the fast model should be
+      const activeThread = driver.magenta.chat.getActiveThread();
+      const parentProfile = activeThread.state.profile;
+
+      request1.respond({
+        stopReason: "tool_use",
+        text: "I'll use spawn_foreach with fast agent type.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "test-foreach-fast" as ToolRequestId,
+              toolName: "spawn_foreach" as ToolName,
+              input: {
+                prompt: "Process this element quickly",
+                elements: ["test_element"],
+                agentType: "fast",
+              },
+            },
+          },
+        ],
+      });
+
+      // The subagent should start running
+      const subagentRequest =
+        await driver.mockAnthropic.awaitPendingRequestWithText("test_element");
+
+      // Verify that the subagent request uses the fast model
+      expect(subagentRequest.model).toBe(parentProfile.fastModel);
+    },
+  );
+});
+
 it("handles subagent errors gracefully and continues processing remaining elements", async () => {
   await withDriver(
     {
@@ -282,6 +334,7 @@ it("handles subagent errors gracefully and continues processing remaining elemen
     },
   );
 });
+
 it("aborts all child threads when the foreach request is aborted", async () => {
   await withDriver(
     {
@@ -335,9 +388,8 @@ it("aborts all child threads when the foreach request is aborted", async () => {
       expect(subagent1Request.wasAborted()).toBe(true);
       expect(subagent2Request.wasAborted()).toBe(true);
 
-      // Verify that the foreach tool shows as aborted/done
-      // The display should no longer show the pending foreach tool
-      await driver.assertDisplayBufferDoesNotContain("🤖⏳ Foreach subagents");
+      // Verify that the foreach tool shows as aborted/error state
+      await driver.assertDisplayBufferContains("🤖❌ Foreach subagents");
 
       // Verify no third subagent was started for element3
       // (since the foreach was aborted before element3 could start)
