@@ -464,7 +464,11 @@ ${lines.join("\n")}
       this.mountedChatApp.unmount();
       this.mountedChatApp = undefined;
     }
-    this.inlineEditManager.destroy();
+    this.inlineEditManager.destroy().catch((e) => {
+      this.nvim.logger?.warn(
+        `Error destroying inline edit manager: ${e instanceof Error ? e.message + "\n" + e.stack : JSON.stringify(e)}`,
+      );
+    });
   }
 
   static async start(nvim: Nvim) {

@@ -56,7 +56,7 @@ describe("node/inline-edit/inline-edit-app.spec.ts", () => {
         },
       });
 
-      await driver.assertBufferContains(inputBuffer, `✏️✅ Applying edit`);
+      await driver.assertBufferContains(inputBuffer, `✏️⚙️ Applying edit`);
 
       await driver.assertBufferContains(
         targetBuffer,
@@ -439,13 +439,11 @@ Paint their stories in the night.`,
       const winbar = await (
         await getCurrentWindow(driver.nvim)
       ).getOption("winbar");
-      expect(winbar).toEqual("Magenta Inline Replay");
+      expect(winbar).toEqual("Magenta Inline Prompt");
 
-      // Verify the input is pre-populated
+      // Verify the request was immediately sent (no pre-populated input)
       const lines = await replayInputBuffer.getLines({ start: 0, end: -1 });
-      expect(lines.join("\n")).toEqual(
-        "Please change 'Silver' to 'Golden' in line 2",
-      );
+      expect(lines.join("\n")).toEqual("Input sent, awaiting response...");
 
       const replayRequest =
         await driver.mockAnthropic.awaitPendingForceToolUseRequest();

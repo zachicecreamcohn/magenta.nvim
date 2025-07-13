@@ -22,10 +22,12 @@ import { spec as inlineEditSpec } from "../tools/inline-edit-tool";
 import type { Dispatch } from "../tea/tea";
 import { relativePath, resolveFilePath, type NvimCwd } from "../utils/files";
 import { getActiveProfile, type MagentaOptions } from "../options";
+import { Counter } from "../utils/uniqueId.ts";
 
 export type InlineEditId = number & { __inlineEdit: true };
 
 export type InlineEditState = {
+  id: InlineEditId;
   targetWindowId: WindowId;
   targetBufnr: BufNr;
   inputWindowId: WindowId;
@@ -45,6 +47,7 @@ export class InlineEditManager {
     [bufnr: BufNr]: InlineEditState;
   } = {};
   private lastInput: string = "";
+  private idCounter = new Counter();
 
   constructor({
     nvim,
@@ -86,11 +89,10 @@ export class InlineEditManager {
     this.options = options;
   }
 
-  destroy() {
-    Object.entries(this.inlineEdits).map(([bufnr, edit]) => {
-      delete this.inlineEdits[bufnr as unknown as BufNr];
-      edit.app.destroy();
-    });
+  async destroy() {
+    for (const bufnr in this.inlineEdits) {
+      await this.cleanupInlineEdit(Number(bufnr) as BufNr);
+    }
   }
 
   private processFastModifier(inputText: string): {
@@ -147,18 +149,27 @@ export class InlineEditManager {
     cursor: Position1Indexed,
     selection?: InlineEditState["selection"],
   ): InlineEditState {
+    const id = this.idCounter.get() as InlineEditId;
+
     const dispatch = (msg: InlineEdit.Msg) => {
-      controller.update(msg);
-      const mountedApp = this.inlineEdits[targetBuffer.id].mountedApp;
-      if (mountedApp) {
-        mountedApp.render();
+      // Check if this inline edit still exists and has the same id
+      const currentEdit = this.inlineEdits[targetBuffer.id];
+      if (!currentEdit || currentEdit.id !== id) {
+        return; // This edit was already destroyed, skip dispatch
       }
+
+      controller.update(msg);
 
       // Check if the edit completed successfully and cleanup if so
       if (this.isInlineEditSuccessfullyCompleted(controller)) {
         this.cleanupInlineEdit(targetBuffer.id).catch((error) => {
           this.nvim.logger?.error("Failed to cleanup inline edit:", error);
         });
+      } else {
+        const mountedApp = this.inlineEdits[targetBuffer.id].mountedApp;
+        if (mountedApp) {
+          mountedApp.render();
+        }
       }
     };
 
@@ -176,6 +187,7 @@ export class InlineEditManager {
     });
 
     return {
+      id,
       targetWindowId: targetWindow.id,
       targetBufnr: targetBuffer.id,
       inputWindowId: inlineInputWindow.id,
