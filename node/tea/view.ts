@@ -1,6 +1,12 @@
 import { render } from "./render.ts";
 import { update } from "./update.ts";
 import { type Bindings } from "./bindings.ts";
+import {
+  type ExtmarkOptions,
+  type ExtmarkId,
+  type TextStyle,
+  createTextStyleGroup,
+} from "./highlights.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { NvimBuffer } from "../nvim/buffer.ts";
 import { type Position0Indexed } from "../nvim/window.ts";
@@ -22,17 +28,20 @@ export type StringVDOMNode = {
   type: "string";
   content: string;
   bindings?: Bindings | undefined;
+  extmarkOptions?: ExtmarkOptions;
 };
 export type ComponentVDOMNode = {
   type: "node";
   children: VDOMNode[];
   template: TemplateStringsArray;
   bindings?: Bindings;
+  extmarkOptions?: ExtmarkOptions;
 };
 export type ArrayVDOMNode = {
   type: "array";
   children: VDOMNode[];
   bindings?: Bindings;
+  extmarkOptions?: ExtmarkOptions;
 };
 
 export type VDOMNode = StringVDOMNode | ComponentVDOMNode | ArrayVDOMNode;
@@ -43,6 +52,8 @@ export type MountedStringNode = {
   startPos: Position0Indexed;
   endPos: Position0Indexed;
   bindings?: Bindings | undefined;
+  extmarkOptions?: ExtmarkOptions;
+  extmarkId?: ExtmarkId;
 };
 
 export type MountedComponentNode = {
@@ -52,6 +63,8 @@ export type MountedComponentNode = {
   startPos: Position0Indexed;
   endPos: Position0Indexed;
   bindings?: Bindings | undefined;
+  extmarkOptions?: ExtmarkOptions;
+  extmarkId?: ExtmarkId;
 };
 
 export type MountedArrayNode = {
@@ -60,6 +73,8 @@ export type MountedArrayNode = {
   startPos: Position0Indexed;
   endPos: Position0Indexed;
   bindings?: Bindings | undefined;
+  extmarkOptions?: ExtmarkOptions;
+  extmarkId?: ExtmarkId;
 };
 
 export type MountedVDOM =
@@ -187,4 +202,42 @@ export function withBindings(node: VDOMNode, bindings: Bindings) {
     ...node,
     bindings,
   };
+}
+
+export function withExtmark(node: VDOMNode, extmarkOptions: ExtmarkOptions) {
+  return {
+    ...node,
+    extmarkOptions,
+  };
+}
+
+export function withError(node: VDOMNode) {
+  return withExtmark(node, { hl_group: "ErrorMsg" });
+}
+
+export function withWarning(node: VDOMNode) {
+  return withExtmark(node, { hl_group: "WarningMsg" });
+}
+
+export function withInfo(node: VDOMNode) {
+  return withExtmark(node, { hl_group: "Directory" });
+}
+
+export function withSuccess(node: VDOMNode) {
+  return withExtmark(node, { hl_group: "String" });
+}
+
+export function withMuted(node: VDOMNode) {
+  return withExtmark(node, { hl_group: "Comment" });
+}
+
+export function withEmphasis(node: VDOMNode) {
+  return withExtmark(node, { hl_group: "Bold" });
+}
+
+export function withCode(node: VDOMNode) {
+  return withExtmark(node, { hl_group: "Identifier" });
+}
+export function withStyle(node: VDOMNode, style: TextStyle) {
+  return withExtmark(node, { hl_group: createTextStyleGroup(style) });
 }
