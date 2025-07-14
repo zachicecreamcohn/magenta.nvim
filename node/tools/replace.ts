@@ -249,23 +249,40 @@ ${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`
   }
 
   renderRequestInput(): VDOMNode {
-    const findContent = this.request.input.find
-      .split("\n")
-      .map((line) => withExtmark(d`-${line}`, { line_hl_group: "DiffDelete" }));
+    const find = this.request.input.find;
+    const replace = this.request.input.replace;
 
-    const replaceContent = this.request.input.replace
-      .split("\n")
-      .map((line) => withExtmark(d`+${line}`, { line_hl_group: "DiffAdd" }));
+    const diffResult = diff.createPatch(
+      this.request.input.filePath,
+      find,
+      replace,
+      "before",
+      "after",
+      {
+        context: 5,
+        ignoreNewlineAtEof: true,
+      },
+    );
+
+    // slice off the diff header
+    const diffLines = diffResult.split("\n").slice(5);
+
+    // Create diff content with individual line highlighting
+    const diffContent = diffLines.map((line) => {
+      if (line.startsWith("+")) {
+        return withExtmark(d`${line}`, { line_hl_group: "DiffAdd" });
+      } else if (line.startsWith("-")) {
+        return withExtmark(d`${line}`, { line_hl_group: "DiffDelete" });
+      } else {
+        return d`${line}`;
+      }
+    });
 
     return d`\
 filePath: ${withInlineCode(d`\`${this.request.input.filePath}\``)}
-find:
+diff:
 ${withCode(d`\`\`\`diff
-${findContent.map((line, index) => (index === findContent.length - 1 ? line : d`${line}\n`))}
-\`\`\``)}
-replace:
-${withCode(d`\`\`\`diff
-${replaceContent.map((line, index) => (index === replaceContent.length - 1 ? line : d`${line}\n`))}
+${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`${line}\n`))}
 \`\`\``)}`;
   }
 

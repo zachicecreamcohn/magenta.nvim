@@ -581,8 +581,8 @@ ${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${t
     }
 
     return fileEdits.length
-      ? d`
-Edits:
+      ? d`\
+${withExtmark(d`## Edits:`, { hl_group: "@markup.heading.2.markdown" })}
 ${fileEdits}`
       : "";
   }

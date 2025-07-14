@@ -1,5 +1,11 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { d, type VDOMNode, withInlineCode, withCode } from "../tea/view.ts";
+import {
+  d,
+  type VDOMNode,
+  withInlineCode,
+  withCode,
+  withExtmark,
+} from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { StaticToolRequest } from "./toolManager.ts";
@@ -16,6 +22,7 @@ import type { StaticTool, ToolName } from "./types.ts";
 import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import type { ThreadId } from "../chat/types.ts";
+import { WIDTH } from "../sidebar.ts";
 
 export type State =
   | {
@@ -131,8 +138,26 @@ export class InsertTool implements StaticTool {
         if (this.state.result.result.status === "error") {
           return d``;
         } else {
-          return withCode(d`\`\`\`diff
-${this.getInsertPreview()}
+          const content = this.request.input.content;
+          const lines = content.split("\n");
+          const maxLines = 5;
+          const maxLength = WIDTH - 5;
+
+          let previewLines =
+            lines.length > maxLines ? lines.slice(-maxLines) : lines;
+          previewLines = previewLines.map((line) =>
+            line.length > maxLength
+              ? line.substring(0, maxLength) + "..."
+              : line,
+          );
+
+          let result = previewLines.join("\n");
+          if (lines.length > maxLines) {
+            result = "...\n" + result;
+          }
+
+          return withCode(d`\`\`\`
+${withExtmark(d`${result}`, { line_hl_group: "DiffAdd" })}
 \`\`\``);
         }
       default:
@@ -140,24 +165,16 @@ ${this.getInsertPreview()}
     }
   }
 
-  getInsertPreview(): string {
-    const content = this.request.input.content;
-    const lines = content.split("\n");
-    const maxLines = 5;
-    const maxLength = 80;
-
-    let previewLines = lines.length > maxLines ? lines.slice(-maxLines) : lines;
-    previewLines = previewLines.map((line) =>
-      line.length > maxLength ? line.substring(0, maxLength) + "..." : line,
-    );
-
-    let result = previewLines.map((line) => "+ " + line).join("\n");
-    if (lines.length > maxLines) {
-      result = "...\n" + result;
-    }
-
-    return result;
+  renderRequestInput(): VDOMNode {
+    return d`\
+filePath: ${withInlineCode(d`\`${this.request.input.filePath}\``)}
+insertAfter: ${withInlineCode(d`\`${this.request.input.insertAfter}\``)}
+content:
+${withCode(d`\`\`\`
+${withExtmark(d`${this.request.input.content}`, { line_hl_group: "DiffAdd" })}
+\`\`\``)}`;
   }
+
   getToolResult(): ProviderToolResult {
     switch (this.state.state) {
       case "done":
