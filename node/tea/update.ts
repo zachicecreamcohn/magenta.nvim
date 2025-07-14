@@ -130,8 +130,29 @@ export function remapCurrentToNextPos(
 }
 
 /**
- * Handle extmark updates when a node's highlights or position change.
+ * Recursively clean up extmarks from a node and all its children.
+ */
+async function cleanupExtmarks(
+  node: MountedVDOM,
+  mount: MountPoint,
+): Promise<void> {
+  // Delete this node's extmark if it exists
+  if (node.extmarkId) {
+    await mount.buffer.deleteExtmark(node.extmarkId);
+  }
+
+  // Recursively clean up children's extmarks
+  if (node.type === "node" || node.type === "array") {
+    for (const child of node.children) {
+      await cleanupExtmarks(child, mount);
+    }
+  }
+}
+
+/**
+ * Handle extmark updates when a node's highlights or options change.
  * Returns the updated extmark ID or undefined if no extmark should exist.
+ * Note: Extmark positions are automatically updated by Neovim when buffer content changes.
  */
 async function handleExtmarkUpdate({
   currentExtmarkOptions,
@@ -174,22 +195,16 @@ async function handleExtmarkUpdate({
     return undefined;
   }
 
-  // Case 4: Had extmark, still need one - check if update needed
+  // Case 4: Had extmark, still need one - check if options changed
   if (currentExtmarkOptions && nextExtmarkOptions && currentExtmarkId) {
-    // If options are the same, just update position
+    // If options are the same, keep existing extmark (position automatically updated by Neovim)
     if (extmarkOptionsEqual(currentExtmarkOptions, nextExtmarkOptions)) {
-      return await mount.buffer.updateExtmark({
-        extmarkId: currentExtmarkId,
-        startPos,
-        endPos,
-        options: nextExtmarkOptions,
-      });
+      return currentExtmarkId;
     } else {
-      // Options changed - delete old and create new
+      // Options changed, need to recreate extmark
       await mount.buffer.deleteExtmark(currentExtmarkId);
 
-      // Only create new if there's actual content
-      if (startPos.row !== endPos.row || startPos.col !== endPos.col) {
+      if (!(startPos.row === endPos.row && startPos.col === endPos.col)) {
         return await mount.buffer.setExtmark({
           startPos,
           endPos,
@@ -238,6 +253,8 @@ export async function update({
     current: CurrentMountedVDOM,
     next: VDOMNode,
   ): Promise<NextMountedVDOM> {
+    await cleanupExtmarks(current as unknown as MountedVDOM, mount);
+
     // udpate the node pos based on previous edits, to see where the content of this node is now, part-way
     // through the update
     const nextPos = updateNodePos(current);
@@ -380,7 +397,6 @@ export async function update({
             ? nextChildren[nextChildren.length - 1].endPos
             : preChildrenPos.endPos) as unknown as Position0Indexed;
 
-          // Handle extmark updates for the parent node
           const extmarkId = await handleExtmarkUpdate({
             currentExtmarkOptions: current.extmarkOptions,
             currentExtmarkId: current.extmarkId,
@@ -426,6 +442,8 @@ export async function update({
           current.children.length,
           nextNode.children.length,
         );
+
+        // update the children that remain in common
         for (let i = 0; i < numChildrenRetained; i += 1) {
           const currentChild = current.children[i];
           const nextChild = nextNode.children[i];
@@ -438,6 +456,11 @@ export async function update({
           : updatedParentPos.startPos;
 
         if (nextNode.children.length < current.children.length) {
+          // Clean up extmarks from children that are being removed
+          for (let i = numChildrenRetained; i < current.children.length; i++) {
+            await cleanupExtmarks(current.children[i], mount);
+          }
+
           // remove all the text between the end of the last re-rendered child and where the remaining children shifted during
           // re-rendering
           // before: <child 1> <child 2> <child 3>
@@ -498,7 +521,7 @@ export async function update({
           updatedParentPos.startPos as unknown as Position0Indexed;
         const finalEndPos = nextChildrenEndPos as unknown as Position0Indexed;
 
-        // Handle extmark updates for the array node
+        // Handle extmark updates for the parent array node
         const extmarkId = await handleExtmarkUpdate({
           currentExtmarkOptions: current.extmarkOptions,
           currentExtmarkId: current.extmarkId,

@@ -1,6 +1,6 @@
 import { ToolManager, type ToolRequestId } from "../tools/toolManager.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { d, withBindings } from "../tea/view.ts";
+import { d, withBindings, withExtmark } from "../tea/view.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { type Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
@@ -372,7 +372,7 @@ export class Message {
     };
 
     return d`\
-# ${this.state.role}:
+${withExtmark(d`# ${this.state.role}:`, { hl_group: "@markup.heading.1.markdown" })}
 ${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${this.renderStreamingBlock()}${this.renderEdits()}`;
   }
 

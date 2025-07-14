@@ -204,10 +204,13 @@ export function withBindings(node: VDOMNode, bindings: Bindings) {
   };
 }
 
-export function withExtmark(node: VDOMNode, extmarkOptions: ExtmarkOptions) {
+export function withExtmark(
+  node: VDOMNode,
+  extmarkOptions: ExtmarkOptions | undefined,
+) {
   return {
     ...node,
-    extmarkOptions,
+    ...(extmarkOptions ? { extmarkOptions } : {}),
   };
 }
 
@@ -236,8 +239,13 @@ export function withEmphasis(node: VDOMNode) {
 }
 
 export function withCode(node: VDOMNode) {
-  return withExtmark(node, { hl_group: "Identifier" });
+  return withExtmark(node, { hl_group: "@markup.raw.markdown" });
 }
+
+export function withInlineCode(node: VDOMNode) {
+  return withExtmark(node, { hl_group: "@markup.raw.markdown_inline" });
+}
+
 export function withStyle(node: VDOMNode, style: TextStyle) {
   return withExtmark(node, { hl_group: createTextStyleGroup(style) });
 }

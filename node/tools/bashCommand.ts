@@ -4,7 +4,7 @@ import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import { d, withBindings } from "../tea/view.ts";
+import { d, withBindings, withCode, withInlineCode } from "../tea/view.ts";
 import type { StaticToolRequest } from "./toolManager.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { spawn } from "child_process";
@@ -516,7 +516,7 @@ export class BashCommandTool implements StaticTool {
   renderSummary() {
     switch (this.state.state) {
       case "pending-user-action":
-        return d`⚡⏳ May I run command \`${this.request.input.command}\`?
+        return d`⚡⏳ May I run command ${withInlineCode(d`\`${this.request.input.command}\``)}?
 ${withBindings(d`**[ NO ]**`, {
   "<CR>": () =>
     this.context.myDispatch({ type: "user-approval", approved: false }),
@@ -535,25 +535,24 @@ ${withBindings(d`**[ NO ]**`, {
         const runningTime = Math.floor(
           (Date.now() - this.state.startTime) / 1000,
         );
-        const content = d`⚡⚙️ (${String(runningTime)}s / 300s) \`${this.request.input.command}\``;
+        const content = d`⚡⚙️ (${String(runningTime)}s / 300s) ${withInlineCode(d`\`${this.request.input.command}\``)}`;
         return withBindings(content, {
           t: () => this.context.myDispatch({ type: "terminate" }),
         });
       }
       case "done": {
         if (this.state.exitCode === 0) {
-          return d`⚡✅ \`${this.request.input.command}\``;
+          return d`⚡✅ ${withInlineCode(d`\`${this.request.input.command}\``)}`;
         } else {
-          return d`⚡❌ \`${this.request.input.command}\` - Exit code: ${this.state.exitCode !== undefined ? this.state.exitCode.toString() : "undefined"} `;
+          return d`⚡❌ ${withInlineCode(d`\`${this.request.input.command}\``)} - Exit code: ${this.state.exitCode !== undefined ? this.state.exitCode.toString() : "undefined"} `;
         }
       }
       case "error":
-        return d`⚡❌ \`${this.request.input.command}\` - ${this.state.error}`;
+        return d`⚡❌ ${withInlineCode(d`\`${this.request.input.command}\``)} - ${this.state.error}`;
       default:
         assertUnreachable(this.state);
     }
   }
-
   renderPreview() {
     switch (this.state.state) {
       case "pending-user-action":
@@ -561,23 +560,26 @@ ${withBindings(d`**[ NO ]**`, {
       case "processing": {
         const formattedOutput = this.formatOutputPreview(this.state.output);
         return formattedOutput
-          ? d`\`\`\`
+          ? withCode(
+              d`\`\`\`
 ${formattedOutput}
-\`\`\``
+\`\`\``,
+            )
           : d``;
       }
       case "done": {
         const formattedOutput = this.formatOutputPreview(this.state.output);
         if (this.state.exitCode === 0) {
-          return d`\
-\`\`\`
+          return withCode(
+            d`\`\`\`
 ${formattedOutput}
-\`\`\``;
+\`\`\``,
+          );
         } else {
           return d`❌ Exit code: ${this.state.exitCode !== undefined ? this.state.exitCode.toString() : "undefined"}
-\`\`\`
+${withCode(d`\`\`\`
 ${formattedOutput}
-\`\`\``;
+\`\`\``)}`;
         }
       }
       case "error":

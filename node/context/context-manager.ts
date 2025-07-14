@@ -23,7 +23,7 @@ import type { Result } from "../utils/result";
 import * as diff from "diff";
 import type { BufferTracker } from "../buffer-tracker";
 import { NvimBuffer } from "../nvim/buffer";
-import { d, withBindings } from "../tea/view";
+import { d, withBindings, withExtmark } from "../tea/view";
 import type { ProviderMessageContent } from "../providers/provider-types";
 import { applyInsert, applyReplace } from "../utils/contentEdits";
 
@@ -513,7 +513,7 @@ export class ContextManager {
     for (const absFilePath in this.files) {
       fileContext.push(
         withBindings(
-          d`- \`${this.files[absFilePath as AbsFilePath].relFilePath}\`\n`,
+          d`- ${withExtmark(d`\`${this.files[absFilePath as AbsFilePath].relFilePath}\``, { hl_group: "@markup.raw.markdown_inline" })}\n`,
           {
             dd: () =>
               this.myDispatch({
@@ -531,7 +531,7 @@ export class ContextManager {
     }
 
     return d`\
-# context:
+${withExtmark(d`# context:`, { hl_group: "@markup.heading.1.markdown" })}
 ${fileContext}`;
   }
 }

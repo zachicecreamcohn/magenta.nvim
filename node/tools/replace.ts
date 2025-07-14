@@ -1,5 +1,5 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { d, type VDOMNode } from "../tea/view.ts";
+import { d, type VDOMNode, withInlineCode, withCode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { StaticToolRequest } from "./toolManager.ts";
@@ -111,12 +111,12 @@ export class ReplaceTool implements StaticTool {
 
     switch (this.state.state) {
       case "processing":
-        return d`✏️⚙️ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in \`${this.request.input.filePath}\``;
+        return d`✏️⚙️ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
       case "done":
         if (this.state.result.result.status === "error") {
-          return d`✏️❌ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in \`${this.request.input.filePath}\` - ${this.state.result.result.error}`;
+          return d`✏️❌ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${this.request.input.filePath}\``)} - ${this.state.result.result.error}`;
         } else {
-          return d`✏️✅ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in \`${this.request.input.filePath}\``;
+          return d`✏️✅ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
         }
       default:
         assertUnreachable(this.state);
@@ -131,9 +131,9 @@ export class ReplaceTool implements StaticTool {
         if (this.state.result.result.status === "error") {
           return d``;
         } else {
-          return d`\`\`\`diff
+          return withCode(d`\`\`\`diff
 ${this.getReplacePreview()}
-\`\`\``;
+\`\`\``);
         }
       default:
         assertUnreachable(this.state);
@@ -336,7 +336,7 @@ export function renderStreamedBlock(streamed: string): VDOMNode {
 
   // Format the message in the same style as the view method
   if (filePath) {
-    return d`⏳✅ Replace [[ -${findLineCount.toString()} / +${replaceLineCount.toString()} ]] in \`${filePath}\` streaming...`;
+    return d`⏳✅ Replace [[ -${findLineCount.toString()} / +${replaceLineCount.toString()} ]] in ${withInlineCode(d`\`${filePath}\``)} streaming...`;
   } else {
     return d`⏳ Preparing replace operation...`;
   }

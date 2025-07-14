@@ -1,4 +1,4 @@
-import { d } from "../tea/view.ts";
+import { d, withInlineCode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { getOrOpenBuffer } from "../utils/buffers.ts";
@@ -191,12 +191,12 @@ export class FindReferencesTool implements StaticTool {
   renderSummary() {
     switch (this.state.state) {
       case "processing":
-        return d`🔍⚙️ \`${this.request.input.symbol}\` in \`${this.request.input.filePath}\``;
+        return d`🔍⚙️ ${withInlineCode(d`\`${this.request.input.symbol}\``)} in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
       case "done":
         if (this.state.result.result.status === "error") {
-          return d`🔍❌ \`${this.request.input.symbol}\` in \`${this.request.input.filePath}\``;
+          return d`🔍❌ ${withInlineCode(d`\`${this.request.input.symbol}\``)} in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
         } else {
-          return d`🔍✅ \`${this.request.input.symbol}\` in \`${this.request.input.filePath}\``;
+          return d`🔍✅ ${withInlineCode(d`\`${this.request.input.symbol}\``)} in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
         }
       default:
         assertUnreachable(this.state);
