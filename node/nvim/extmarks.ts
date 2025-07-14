@@ -20,6 +20,11 @@ export const HL_GROUPS = [
   "Underlined",
   "Normal",
   "Function",
+  // Diff highlight groups
+  "DiffAdd",
+  "DiffDelete",
+  "DiffChange",
+  "DiffText",
   // Treesitter groups
   "@variable",
   "@function.call",

@@ -24,6 +24,7 @@ export interface Tool {
   abort(): void;
   renderSummary(): VDOMNode;
   renderPreview?(): VDOMNode;
+  renderRequestInput?(): VDOMNode;
 }
 
 export interface StaticTool {
@@ -34,6 +35,7 @@ export interface StaticTool {
   abort(): void;
   renderSummary(): VDOMNode;
   renderPreview?(): VDOMNode;
+  renderRequestInput?(): VDOMNode;
 }
 
 export type ToolManagerToolMsg = {

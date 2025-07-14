@@ -312,7 +312,7 @@ export class Message {
     return withBindings(
       d`${tool.renderSummary()}${tool.renderPreview ? d`\n${tool.renderPreview()}` : ""}${
         showDetails
-          ? d`\n${tool.toolName}: ${JSON.stringify(tool.request.input, null, 2)}${
+          ? d`\n${tool.toolName}: ${tool.renderRequestInput ? tool.renderRequestInput() : JSON.stringify(tool.request.input, null, 2)}${
               toolMeta?.stop
                 ? d`\n${this.renderStopInfo(toolMeta.stop.stopReason, toolMeta.stop.usage)}`
                 : ""
