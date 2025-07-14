@@ -1,6 +1,6 @@
 import { ToolManager, type ToolRequestId } from "../tools/toolManager.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { d, withBindings } from "../tea/view.ts";
+import { d, withBindings, withExtmark, withInlineCode } from "../tea/view.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { type Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
@@ -310,14 +310,16 @@ export class Message {
     const showDetails = toolMeta?.details || false;
 
     return withBindings(
-      d`${tool.renderSummary()}${tool.renderPreview ? d`\n${tool.renderPreview()}` : ""}${
+      d`${tool.renderSummary()}${
         showDetails
-          ? d`\n${tool.toolName}: ${JSON.stringify(tool.request.input, null, 2)}${
+          ? d`\n${tool.toolName}: ${tool.renderDetail ? tool.renderDetail() : JSON.stringify(tool.request.input, null, 2)}${
               toolMeta?.stop
                 ? d`\n${this.renderStopInfo(toolMeta.stop.stopReason, toolMeta.stop.usage)}`
                 : ""
             }\n${this.renderToolResult(tool.request.id)}`
-          : ""
+          : tool.renderPreview
+            ? d`\n${tool.renderPreview()}`
+            : ""
       }`,
       {
         "<CR>": () =>
@@ -372,7 +374,7 @@ export class Message {
     };
 
     return d`\
-# ${this.state.role}:
+${withExtmark(d`# ${this.state.role}:`, { hl_group: "@markup.heading.1.markdown" })}
 ${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${this.renderStreamingBlock()}${this.renderEdits()}`;
   }
 
@@ -555,7 +557,7 @@ ${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${t
     for (const filePath in this.state.edits) {
       const edit = this.state.edits[filePath as RelFilePath];
 
-      const filePathLink = withBindings(d`\`${filePath}\``, {
+      const filePathLink = withBindings(withInlineCode(d`\`${filePath}\``), {
         "<CR>": () =>
           this.context.myDispatch({
             type: "open-edit-file",
@@ -563,13 +565,18 @@ ${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${t
           }),
       });
 
-      const diffSnapshot = withBindings(d`**[± diff snapshot]**`, {
-        "<CR>": () =>
-          this.context.myDispatch({
-            type: "diff-snapshot",
-            filePath,
-          }),
-      });
+      const diffSnapshot = withBindings(
+        withExtmark(d`[± diff snapshot]`, {
+          hl_group: ["@markup.link.markdown", "@markup.strong.markdown"],
+        }),
+        {
+          "<CR>": () =>
+            this.context.myDispatch({
+              type: "diff-snapshot",
+              filePath,
+            }),
+        },
+      );
 
       fileEdits.push(
         d`  ${filePathLink} (${edit.requestIds.length.toString()} edits). ${diffSnapshot}${
@@ -580,9 +587,10 @@ ${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${t
       );
     }
 
+    // NOTE: we need the newline before the ## Edits: here
     return fileEdits.length
       ? d`
-Edits:
+${withExtmark(d`## Edits:`, { hl_group: "@markup.heading.2.markdown" })}
 ${fileEdits}`
       : "";
   }
