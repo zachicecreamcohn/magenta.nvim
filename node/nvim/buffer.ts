@@ -2,10 +2,22 @@ import type { Nvim } from "./nvim-node";
 import type { Position0Indexed, Position1Indexed } from "./window";
 import { withTimeout } from "../utils/async";
 import type { AbsFilePath, UnresolvedFilePath } from "../utils/files";
+import type { ExtmarkId, ExtmarkOptions } from "./extmarks";
 
 export type Line = string & { __line: true };
 export type BufNr = number & { __bufnr: true };
 export type Mode = "n" | "i" | "v";
+
+/**
+ * Branded type for Neovim namespace IDs.
+ */
+export type NamespaceId = number & { __namespaceId: true };
+
+/**
+ * Well-known namespace for magenta highlighting system.
+ * This ensures all magenta highlights are grouped together and can be cleared as a unit.
+ */
+export const MAGENTA_HIGHLIGHT_NAMESPACE = "magenta-highlights";
 
 export class NvimBuffer {
   constructor(
@@ -209,5 +221,207 @@ end)`,
     ])) as BufNr;
     await nvim.call("nvim_eval", [`bufload(${bufNr})`]);
     return new NvimBuffer(bufNr, nvim);
+  }
+
+  // Extmark methods
+
+  /**
+   * Set an extmark in this buffer with the given options.
+   * Returns the extmark ID for later updates or deletion.
+   */
+  async setExtmark({
+    startPos,
+    endPos,
+    options,
+  }: {
+    startPos: Position0Indexed;
+    endPos: Position0Indexed;
+    options: ExtmarkOptions;
+  }): Promise<ExtmarkId> {
+    const namespaceId = await this.getMagentaNamespace();
+
+    // Prepare extmark options with end position
+    const extmarkOpts = {
+      ...options,
+      end_row: endPos.row,
+      end_col: endPos.col,
+    };
+
+    const extmarkId = await this.nvim.call("nvim_buf_set_extmark", [
+      this.id,
+      namespaceId,
+      startPos.row,
+      startPos.col,
+      extmarkOpts,
+    ]);
+
+    return extmarkId as ExtmarkId;
+  }
+
+  /**
+   * Delete a specific extmark from this buffer.
+   */
+  async deleteExtmark(extmarkId: ExtmarkId): Promise<void> {
+    const namespaceId = await this.getMagentaNamespace();
+    await this.nvim.call("nvim_buf_del_extmark", [
+      this.id,
+      namespaceId,
+      extmarkId,
+    ]);
+  }
+
+  /**
+   * Clear all extmarks in the magenta highlight namespace for this buffer.
+   * This is useful for bulk cleanup when unmounting views or clearing highlights.
+   */
+  async clearAllExtmarks(): Promise<void> {
+    const namespaceId = await this.getMagentaNamespace();
+
+    // Clear all extmarks in the namespace for this buffer
+    await this.nvim.call("nvim_buf_clear_namespace", [
+      this.id,
+      namespaceId,
+      0, // start line
+      -1, // end line (-1 means end of buffer)
+    ]);
+  }
+
+  /**
+   * Update an existing extmark with new options and/or position.
+   * This is more efficient than deleting and recreating for position/style changes.
+   */
+  async updateExtmark({
+    extmarkId,
+    startPos,
+    endPos,
+    options,
+  }: {
+    extmarkId: ExtmarkId;
+    startPos: Position0Indexed;
+    endPos: Position0Indexed;
+    options: ExtmarkOptions;
+  }): Promise<ExtmarkId> {
+    const namespaceId = await this.getMagentaNamespace();
+
+    // Prepare extmark options with end position and existing ID
+    const extmarkOpts = {
+      ...options,
+      id: extmarkId,
+      end_row: endPos.row,
+      end_col: endPos.col,
+    };
+
+    const updatedId = await this.nvim.call("nvim_buf_set_extmark", [
+      this.id,
+      namespaceId,
+      startPos.row,
+      startPos.col,
+      extmarkOpts,
+    ]);
+
+    return updatedId as ExtmarkId;
+  }
+
+  /**
+   * Get all extmarks in the magenta namespace for this buffer.
+   * Returns an array of extmark information including ID, position, and options.
+   */
+  async getExtmarks(): Promise<
+    Array<{
+      id: ExtmarkId;
+      startPos: Position0Indexed;
+      endPos: Position0Indexed;
+      options: ExtmarkOptions;
+    }>
+  > {
+    const namespaceId = await this.getMagentaNamespace();
+
+    // Get all extmarks in the namespace
+    const extmarks = await this.nvim.call("nvim_buf_get_extmarks", [
+      this.id,
+      namespaceId,
+      0, // start position
+      -1, // end position (-1 means end of buffer)
+      { details: true }, // include details like end position and options
+    ]);
+
+    return (extmarks as unknown[][]).map((extmarkData) =>
+      this.parseExtmarkData(extmarkData),
+    );
+  }
+
+  /**
+   * Get a specific extmark by its ID from the magenta namespace.
+   * Returns undefined if the extmark doesn't exist.
+   */
+  async getExtmarkById(extmarkId: ExtmarkId): Promise<
+    | {
+        id: ExtmarkId;
+        startPos: Position0Indexed;
+        endPos: Position0Indexed;
+        options: ExtmarkOptions;
+      }
+    | undefined
+  > {
+    const namespaceId = await this.getMagentaNamespace();
+
+    try {
+      // Get the specific extmark by ID
+      const extmarksResult = await this.nvim.call("nvim_buf_get_extmarks", [
+        this.id,
+        namespaceId,
+        extmarkId, // start from this specific extmark ID
+        extmarkId, // end at this specific extmark ID
+        { details: true, limit: 1 }, // include details and limit to 1 result
+      ]);
+
+      const extmarksArray = extmarksResult as unknown[][];
+      if (extmarksArray.length === 0) {
+        return undefined;
+      }
+
+      return this.parseExtmarkData(extmarksArray[0]);
+    } catch {
+      // If the extmark doesn't exist, nvim_buf_get_extmarks may throw
+      return undefined;
+    }
+  }
+
+  /**
+   * Parse raw extmark data from nvim_buf_get_extmarks into our structured format.
+   */
+  private parseExtmarkData(extmarkData: unknown[]): {
+    id: ExtmarkId;
+    startPos: Position0Indexed;
+    endPos: Position0Indexed;
+    options: ExtmarkOptions;
+  } {
+    const [id, startRow, startCol, details] = extmarkData;
+    return {
+      id: id as ExtmarkId,
+      startPos: { row: startRow, col: startCol } as Position0Indexed,
+      endPos: {
+        row: (details as { end_row: unknown }).end_row || startRow,
+        col: (details as { end_col: unknown }).end_col || startCol,
+      } as Position0Indexed,
+      options: {
+        hl_group: (details as { hl_group: unknown }).hl_group,
+        priority: (details as { priority: unknown }).priority,
+        hl_eol: (details as { hl_eol: unknown }).hl_eol,
+        sign_text: (details as { sign_text: unknown }).sign_text,
+        sign_hl_group: (details as { sign_hl_group: unknown }).sign_hl_group,
+      } as ExtmarkOptions,
+    };
+  }
+
+  /**
+   * Create or get the magenta highlighting namespace.
+   * Uses a well-known namespace name for consistency across views.
+   */
+  async getMagentaNamespace(): Promise<NamespaceId> {
+    const namespaceId = await this.nvim.call("nvim_create_namespace", [
+      MAGENTA_HIGHLIGHT_NAMESPACE,
+    ]);
+    return namespaceId as NamespaceId;
   }
 }

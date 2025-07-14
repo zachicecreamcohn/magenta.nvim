@@ -119,3 +119,41 @@ export function createTextStyleGroup(style: TextStyle): TextStyleGroup {
   return parts.join(",") as TextStyleGroup;
 }
 
+/**
+ * Compare two ExtmarkOptions objects for equality.
+ * Used for efficient diffing during updates to avoid unnecessary extmark operations.
+ */
+export function extmarkOptionsEqual(
+  options1: ExtmarkOptions | undefined,
+  options2: ExtmarkOptions | undefined,
+): boolean {
+  // Both undefined - equal
+  if (options1 === undefined && options2 === undefined) {
+    return true;
+  }
+
+  // One undefined, one defined - not equal
+  if (options1 === undefined || options2 === undefined) {
+    return false;
+  }
+
+  // Compare all relevant properties
+  return (
+    options1.hl_group === options2.hl_group &&
+    options1.hl_eol === options2.hl_eol &&
+    options1.hl_mode === options2.hl_mode &&
+    options1.priority === options2.priority &&
+    options1.line_hl_group === options2.line_hl_group &&
+    options1.sign_text === options2.sign_text &&
+    options1.sign_hl_group === options2.sign_hl_group &&
+    options1.number_hl_group === options2.number_hl_group &&
+    options1.conceal === options2.conceal &&
+    options1.url === options2.url &&
+    options1.right_gravity === options2.right_gravity &&
+    options1.end_right_gravity === options2.end_right_gravity &&
+    options1.strict === options2.strict &&
+    options1.undo_restore === options2.undo_restore &&
+    options1.invalidate === options2.invalidate &&
+    options1.ephemeral === options2.ephemeral
+  );
+}

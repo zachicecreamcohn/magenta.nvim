@@ -8,7 +8,7 @@ import {
   type CurrentPosition,
 } from "./update.ts";
 import { type Position0Indexed } from "../nvim/window.ts";
-import { d, mountView, pos } from "./view.ts";
+import { d, mountView, pos, withError, withWarning } from "./view.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 import { extractMountTree, withNvimClient } from "../test/preamble.ts";
 
@@ -867,6 +867,185 @@ ${m.parts.map((p) => d`${p}\n`)}`,
           "test",
           "",
         ] as Line[]);
+      }
+    });
+  });
+
+  // Highlight update tests
+  it("updates highlights when content remains the same", async () => {
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
+      await buffer.setOption("modifiable", false);
+
+      const view = (props: { isError: boolean }) =>
+        props.isError
+          ? withError(d`Error message`)
+          : withWarning(d`Error message`);
+
+      const mountedView = await mountView({
+        view,
+        props: { isError: true },
+        mount: {
+          nvim,
+          buffer,
+          startPos: pos(0, 0),
+          endPos: pos(0, 0),
+        },
+      });
+
+      const lines = await buffer.getLines({ start: 0, end: 1 });
+      expect(lines[0]).toEqual("Error message" as Line);
+
+      // Content stays the same, but highlight should change
+      await mountedView.render({ isError: false });
+
+      const lines2 = await buffer.getLines({ start: 0, end: 1 });
+      expect(lines2[0]).toEqual("Error message" as Line);
+
+      // Check that highlight was updated
+      const mountedNode = mountedView._getMountedNode();
+      expect(mountedNode.extmarkOptions).toEqual({ hl_group: "WarningMsg" });
+      expect(mountedNode.extmarkId).toBeDefined();
+      expect(mountedNode.extmarkId).not.toBe(-1);
+    });
+  });
+
+  it("adds highlights to content that previously had none", async () => {
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
+      await buffer.setOption("modifiable", false);
+
+      const view = (props: { highlighted: boolean }) =>
+        props.highlighted ? withError(d`Text`) : d`Text`;
+
+      const mountedView = await mountView({
+        view,
+        props: { highlighted: false },
+        mount: {
+          nvim,
+          buffer,
+          startPos: pos(0, 0),
+          endPos: pos(0, 0),
+        },
+      });
+
+      let mountedNode = mountedView._getMountedNode();
+      expect(mountedNode.extmarkOptions).toBeUndefined();
+      expect(mountedNode.extmarkId).toBeUndefined();
+
+      // Add highlight
+      await mountedView.render({ highlighted: true });
+
+      mountedNode = mountedView._getMountedNode();
+      expect(mountedNode.extmarkOptions).toEqual({ hl_group: "ErrorMsg" });
+      expect(mountedNode.extmarkId).toBeDefined();
+      expect(mountedNode.extmarkId).not.toBe(-1);
+    });
+  });
+
+  it("removes highlights from content", async () => {
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
+      await buffer.setOption("modifiable", false);
+
+      const view = (props: { highlighted: boolean }) =>
+        props.highlighted ? withError(d`Text`) : d`Text`;
+
+      const mountedView = await mountView({
+        view,
+        props: { highlighted: true },
+        mount: {
+          nvim,
+          buffer,
+          startPos: pos(0, 0),
+          endPos: pos(0, 0),
+        },
+      });
+
+      let mountedNode = mountedView._getMountedNode();
+      expect(mountedNode.extmarkOptions).toEqual({ hl_group: "ErrorMsg" });
+      expect(mountedNode.extmarkId).toBeDefined();
+
+      // Remove highlight
+      await mountedView.render({ highlighted: false });
+
+      mountedNode = mountedView._getMountedNode();
+      expect(mountedNode.extmarkOptions).toBeUndefined();
+      expect(mountedNode.extmarkId).toBeUndefined();
+    });
+  });
+
+  it("updates highlights when content changes", async () => {
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
+      await buffer.setOption("modifiable", false);
+
+      const view = (props: { text: string }) => withError(d`${props.text}`);
+
+      const mountedView = await mountView({
+        view,
+        props: { text: "Short" },
+        mount: {
+          nvim,
+          buffer,
+          startPos: pos(0, 0),
+          endPos: pos(0, 0),
+        },
+      });
+
+      let lines = await buffer.getLines({ start: 0, end: 1 });
+      expect(lines[0]).toEqual("Short" as Line);
+
+      // Change content length - extmark should be updated with new boundaries
+      await mountedView.render({ text: "Much longer text" });
+
+      lines = await buffer.getLines({ start: 0, end: 1 });
+      expect(lines[0]).toEqual("Much longer text" as Line);
+
+      const mountedNode = mountedView._getMountedNode();
+      expect(mountedNode.extmarkOptions).toEqual({ hl_group: "ErrorMsg" });
+      expect(mountedNode.extmarkId).toBeDefined();
+      expect(mountedNode.extmarkId).not.toBe(-1);
+    });
+  });
+
+  it("handles nested highlights during updates", async () => {
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
+      await buffer.setOption("modifiable", false);
+
+      const view = (props: { inner: string }) =>
+        withError(d`Error: ${withWarning(d`${props.inner}`)} end`);
+
+      const mountedView = await mountView({
+        view,
+        props: { inner: "warn" },
+        mount: {
+          nvim,
+          buffer,
+          startPos: pos(0, 0),
+          endPos: pos(0, 0),
+        },
+      });
+
+      let lines = await buffer.getLines({ start: 0, end: 1 });
+      expect(lines[0]).toEqual("Error: warn end" as Line);
+
+      // Change inner content - both parent and child extmarks should update
+      await mountedView.render({ inner: "warning text" });
+
+      lines = await buffer.getLines({ start: 0, end: 1 });
+      expect(lines[0]).toEqual("Error: warning text end" as Line);
+
+      // Both parent and child should still have extmarks
+      const mountedNode = mountedView._getMountedNode();
+      expect(mountedNode.extmarkOptions).toEqual({ hl_group: "ErrorMsg" });
+      expect(mountedNode.extmarkId).toBeDefined();
+
+      if (mountedNode.type === "node") {
+        const warningNode = mountedNode.children[1];
+        expect(warningNode.extmarkOptions).toEqual({ hl_group: "WarningMsg" });
+        expect(warningNode.extmarkId).toBeDefined();
       }
     });
   });

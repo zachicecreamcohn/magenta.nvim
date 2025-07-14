@@ -6,7 +6,7 @@ import {
   type ExtmarkId,
   type TextStyle,
   createTextStyleGroup,
-} from "./highlights.ts";
+} from "../nvim/extmarks.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { NvimBuffer } from "../nvim/buffer.ts";
 import { type Position0Indexed } from "../nvim/window.ts";

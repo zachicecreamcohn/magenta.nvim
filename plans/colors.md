@@ -68,63 +68,119 @@ Key interfaces to extend:
 
 ## Implementation
 
-### Phase 1: Core Type Definitions and API Design
+### Phase 1: Core Type Definitions and API Design ✅
 
-- [ ] Define highlight types and interfaces in `node/tea/highlights.ts`
+- [x] Define highlight types and interfaces in `node/tea/highlights.ts`
 
-  - [ ] Create `HighlightGroup` type for semantic highlight group names (string literals for standard groups)
-  - [ ] Create `ExtmarkOptions` type covering all nvim_buf_set_extmark options:
-    - `hl_group`: string (highlight group name)
+  - [x] Create `HLGroup` type as union of all available highlight group strings for type safety
+  - [x] Create `ExtmarkOptions` type covering all nvim_buf_set_extmark options:
+    - `hl_group`: HLGroup | TextStyleGroup (highlight group name with type safety)
     - `hl_eol`: boolean (continue highlight to end of line)
     - `hl_mode`: "replace" | "combine" | "blend"
     - `priority`: number (higher = more important)
-    - `line_hl_group`: string (highlight entire line)
+    - `line_hl_group`: HLGroup (highlight entire line)
     - `sign_text`: string (1-2 chars for sign column)
-    - `sign_hl_group`: string (sign column highlight)
-    - `number_hl_group`: string (line number highlight)
+    - `sign_hl_group`: HLGroup (sign column highlight)
+    - `number_hl_group`: HLGroup (line number highlight)
     - `conceal`: string (concealment character)
     - `url`: string (clickable hyperlink)
-  - [ ] Create convenience types for common styling:
+  - [x] Create convenience types for common styling:
     - `TextStyle`: { bold?: boolean, italic?: boolean, underline?: boolean, strikethrough?: boolean }
     - `ColorStyle`: { fg?: string, bg?: string } (for custom colors when needed)
-  - [ ] Create `Highlights` type that maps text ranges to highlight options
-  - [ ] Create `ExtmarkId` branded type for tracking extmark IDs
-  - [ ] Check for type errors and iterate until they pass
+    - `TextStyleGroup`: branded string type for dynamic highlight groups
+  - [x] Create `ExtmarkId` branded type for tracking extmark IDs
+  - [x] Create `createTextStyleGroup()` utility for dynamic highlight group creation
+  - [x] All types compile successfully with TypeScript
 
-- [ ] Extend VDOM type definitions in `node/tea/view.ts`
-  - [ ] Add optional `highlights?: Highlights` to `StringVDOMNode`, `ComponentVDOMNode`, and `ArrayVDOMNode`
-  - [ ] Add optional `highlights?: Highlights` and `extmarkIds?: ExtmarkId[]` to corresponding `MountedVDOM` types
-  - [ ] Add `withHighlight()` function that mirrors `withBindings()` pattern
-  - [ ] Check for type errors and iterate until they pass
+- [x] Extend VDOM type definitions in `node/tea/view.ts`
+  - [x] Add optional `extmarkOptions?: ExtmarkOptions` to all VDOM node types (simplified from ranges)
+  - [x] Add optional `extmarkOptions?: ExtmarkOptions` and `extmarkId?: ExtmarkId` to mounted VDOM types (single ID per node)
+  - [x] Add `withExtmark()` function that combines extmark options with existing ones (composable design)
+  - [x] Add semantic convenience functions: `withError()`, `withWarning()`, `withInfo()`, `withSuccess()`, `withMuted()`, `withEmphasis()`, `withCode()`
+  - [x] Add `withStyle()` function for dynamic text styling combinations
+  - [x] All types compile successfully with TypeScript
 
-### Phase 2: Extmark Utilities
+**Design Decisions Made:**
 
-- [ ] Create extmark utilities in `node/tea/extmarks.ts`
+- **Simplified API**: Each node has one `ExtmarkOptions` that applies to its entire content (no complex range mapping)
+- **Type Safety**: `HLGroup` union type prevents invalid highlight group usage
+- **Composable**: `withExtmark()` merges options, allowing chaining and combination
+- **Semantic**: Convenience functions use literal highlight group names for better colorscheme compatibility
 
-  - [ ] Add `setExtmark()` and `deleteExtmark()` wrapper functions
-  - [ ] Add `clearAllExtmarks()` function for bulk cleanup (clears entire buffer namespace)
-  - [ ] Use a single well-known namespace name like "magenta-highlights"
-  - [ ] Write unit tests for extmark utilities
-  - [ ] Iterate until unit tests pass
+### Phase 2: Extmark Utilities ✅
 
-### Phase 3: Render Pipeline Integration
+- [x] Create `node/tea/extmarks.ts` with core utilities:
 
-- [ ] Extend render pipeline in `node/tea/render.ts`
+  - [x] `getHighlightNamespace()` - Creates/gets the "magenta-highlights" namespace
+  - [x] `setExtmark()` - Sets extmarks with error handling and placeholder IDs for failures
+  - [x] `deleteExtmark()` - Deletes extmarks with graceful error handling
+  - [x] `clearAllExtmarks()` - Bulk cleanup of all extmarks in the namespace
+  - [x] `updateExtmark()` - Updates existing extmarks efficiently
+  - [x] `isBufferValid()` - Checks buffer validity before operations
+  - [x] `NamespaceId` branded type for type safety
+  - [x] `MAGENTA_HIGHLIGHT_NAMESPACE` constant for consistent namespace usage
 
-  - [ ] Modify `render()` function to process highlights during tree traversal
-  - [ ] Add highlight application after text content is set in buffer
-  - [ ] Store extmark IDs directly in mounted nodes for later cleanup/updates
-  - [ ] Add error handling for extmark creation failures
-  - [ ] Check for type errors and iterate until they pass
+- [x] Write comprehensive unit tests in `node/tea/extmarks.spec.ts`:
 
-- [ ] Add highlight processing utility functions in `node/tea/highlights.ts`
-  - [ ] Implement `applyHighlights()` function that creates extmarks and returns IDs
-  - [ ] Implement `clearHighlights()` function that removes extmarks by ID array
-  - [ ] Add highlight inheritance logic (child highlights combine with parent highlights using `hl_mode: "combine"`)
-  - [ ] Add priority calculation for overlapping highlights (children get higher priority than parents)
-  - [ ] **Key principle**: Parent node extmarks are applied AFTER entire subtree renders, covering the full range the node occupies
-  - [ ] Write unit tests for highlight utilities
-  - [ ] Iterate until unit tests pass
+  - [x] Test namespace creation and management
+  - [x] Test basic extmark set/delete operations
+  - [x] Test error handling with invalid positions (returns placeholder ID -1)
+  - [x] Test extmark updates and boundary changes
+  - [x] Test placeholder ID handling in update/delete operations
+  - [x] Test bulk cleanup with `clearAllExtmarks()`
+  - [x] Test buffer validity checking
+  - [x] Test complex extmark options (priority, signs, etc.)
+  - [x] Test multi-line extmark ranges
+  - [x] All 9 tests pass successfully
+
+- [x] Follow established patterns:
+  - [x] Use `withNvimClient()` helper from test preamble
+  - [x] Error handling logs warnings but doesn't throw (graceful degradation)
+  - [x] Consistent with existing Neovim API call patterns in buffer.ts
+  - [x] TypeScript compiles without errors
+
+**Design Decisions Made:**
+
+- **Single Namespace**: Use "magenta-highlights" for all magenta extmarks
+- **Graceful Degradation**: Highlighting failures return placeholder IDs but don't break render
+- **Type Safety**: Branded types for NamespaceId and ExtmarkId prevent confusion
+- **Error Resilience**: All functions handle buffer deletion and API errors gracefully
+
+### Phase 3: Render Pipeline Integration ✅
+
+- [x] Extend render pipeline in `node/tea/render.ts`:
+
+  - [x] Add `extmarkOptions` to internal `NodePosition` type for tracking highlight options during render
+  - [x] Import extmark utilities and required types
+  - [x] Convert `assignPositions` to async function to handle extmark creation
+  - [x] Apply extmarks after content is set in buffer, during position assignment phase
+  - [x] **Key principle implemented**: Parent node extmarks are applied AFTER entire subtree renders, covering the full range the node occupies
+  - [x] Store extmark IDs directly in mounted nodes for later cleanup/updates
+  - [x] Handle empty content gracefully (don't create extmarks for zero-length ranges)
+  - [x] Use conditional object spreading to only include extmark properties when they exist
+  - [x] TypeScript compiles without errors
+
+- [x] Write comprehensive tests in `node/tea/render.spec.ts`:
+
+  - [x] Test basic highlighting with `withError()` and `withWarning()` convenience functions
+  - [x] Test custom extmark options with `withExtmark()` (priority, sign_text, etc.)
+  - [x] Test nested highlights (parent and child extmarks both created)
+  - [x] Test empty content doesn't create extmarks (extmarkId remains undefined)
+  - [x] All 4 new highlight tests pass, plus all 6 existing tests still pass
+  - [x] Tests verify extmarkId creation and extmarkOptions preservation
+
+- [x] Maintain backward compatibility:
+  - [x] All existing render tests continue to pass
+  - [x] No breaking changes to VDOM or MountedVDOM interfaces
+  - [x] Highlight functionality is purely additive
+
+**Design Decisions Made:**
+
+- **Render-then-highlight**: Extmarks are applied after buffer content is set, ensuring accurate positioning
+- **Async rendering**: Converted render pipeline to async to handle extmark API calls
+- **Graceful degradation**: Empty content (zero-length ranges) don't create extmarks
+- **Performance**: Only create extmarks when explicitly requested via extmarkOptions
+- **Type safety**: Conditional object spreading ensures optional properties are handled correctly
 
 ### Phase 4: Update Pipeline Integration
 
@@ -218,21 +274,20 @@ Key interfaces to extend:
 
 ## Key Design Decisions
 
-1. **Single Namespace**: Use one well-known namespace for all magenta highlighting in any buffer
-2. **Priority System**: Use Neovim's extmark priority to handle overlapping highlights predictably
-3. **Semantic Groups**: Prefer semantic highlight groups over hardcoded colors for colorscheme compatibility
-4. **Error Resilience**: Highlighting failures should not break the render cycle - degrade gracefully
-5. **Performance**: Minimize extmark operations during updates by diffing highlight changes
-6. **API Consistency**: Mirror the `withBindings()` pattern for familiar developer experience
-7. **Render-then-highlight**: Parent node extmarks are applied after the entire subtree renders, covering the full range the parent node occupies in the buffer
-8. **Dynamic boundary updates**: When child nodes update and change boundaries, parent extmarks are updated to match the new range
-9. **Highlight combination**: Child highlights combine with parent highlights using `hl_mode: "combine"` and higher priority values, preserving both effects
+- **Single Namespace**: Use one well-known namespace for each view, provided at root
+- **Semantic Groups**: Prefer semantic highlight groups over hardcoded colors for colorscheme compatibility
+- **Error Resilience**: Highlighting failures should not break the render cycle - degrade gracefully
+- **Performance**: Minimize extmark operations during updates by diffing highlight changes
+- **API Consistency**: Mirror the `withBindings()` pattern for familiar developer experience
+- **Render-then-highlight**: Parent node extmarks are applied after the entire subtree renders, covering the full range the parent node occupies in the buffer
+- **Dynamic boundary updates**: When child nodes update and change boundaries, parent extmarks are updated to match the new range
+- **Highlight combination**: Child highlights combine with parent highlights using `hl_mode: "combine"` and higher priority values, preserving both effects
 
 ## Notes## Highlight Configuration Options
 
 The system will support multiple ways to configure highlighting:
 
-### 1. Semantic Highlighting (Recommended)
+### Semantic Highlighting (Recommended)
 
 ```typescript
 withError(d`Error message`); // Uses ErrorMsg highlight group
@@ -241,35 +296,12 @@ withInfo(d`Info text`); // Uses Directory highlight group
 withCode(d`function_name()`); // Uses @function.call treesitter group
 ```
 
-### 2. Text Styling
+### Text Styling
 
 ```typescript
 withBold(d`Important text`); // Creates bold highlight group
 withItalic(d`Emphasized`); // Creates italic highlight group
 withStyle(d`Text`, { bold: true, italic: true }); // Combined styles
-```
-
-### 3. Custom Colors (Use Sparingly)
-
-```typescript
-withColors(d`Text`, { fg: "#ff0000", bg: "#ffffff" }); // Custom colors
-```
-
-### 4. Full Control
-
-```typescript
-withHighlight(d`Text`, {
-  hl_group: "MyCustomGroup",
-  hl_mode: "combine",
-  priority: 200,
-  hl_eol: true,
-});
-```
-
-### 5. Arbitrary Highlight Groups
-
-```typescript
-withGroup(d`Text`, "CursorLine"); // Use any existing highlight group
 ```
 
 ### Nesting and Combination
@@ -452,4 +484,3 @@ Creates a new namespace or gets an existing one. _namespace_
 
     Return: ~
         Namespace id
-
