@@ -58,8 +58,8 @@ it("getFile rejection", async () => {
     });
 
     await driver.assertDisplayBufferContains(`\
-👀⏳ May I read file \`.secret\`? **[ NO ]** **[ OK ]**`);
-    const noPos = await driver.assertDisplayBufferContains("**[ NO ]**");
+👀⏳ May I read file \`.secret\`?`);
+    const noPos = await driver.assertDisplayBufferContains("[ NO ]");
 
     await driver.triggerDisplayBufferKey(noPos, "<CR>");
     await driver.assertDisplayBufferContains("👀❌ `.secret`");
@@ -133,8 +133,8 @@ it("getFile approval", async () => {
     });
 
     await driver.assertDisplayBufferContains(`\
-👀⏳ May I read file \`.secret\`? **[ NO ]** **[ OK ]**`);
-    const okPos = await driver.assertDisplayBufferContains("**[ OK ]**");
+👀⏳ May I read file \`.secret\`?`);
+    const okPos = await driver.assertDisplayBufferContains("[ YES ]");
 
     await driver.triggerDisplayBufferKey(okPos, "<CR>");
     await driver.assertDisplayBufferContains(`\
@@ -197,7 +197,7 @@ it("getFile requests approval for file outside cwd", async () => {
     });
 
     await driver.assertDisplayBufferContains(`\
-👀⏳ May I read file \`/tmp/file\`? **[ NO ]** **[ OK ]**`);
+👀⏳ May I read file \`/tmp/file\`?`);
   });
 });
 

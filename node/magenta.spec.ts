@@ -149,7 +149,7 @@ hello
 
 # assistant:
 ok, here goes
-👀⏳ May I read file \`.secret\`? **[ NO ]** **[ OK ]**`);
+👀⏳ May I read file \`.secret\`?`);
 
     await driver.abort();
 

@@ -587,8 +587,9 @@ ${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${t
       );
     }
 
+    // NOTE: we need the newline before the ## Edits: here
     return fileEdits.length
-      ? d`\
+      ? d`
 ${withExtmark(d`## Edits:`, { hl_group: "@markup.heading.2.markdown" })}
 ${fileEdits}`
       : "";

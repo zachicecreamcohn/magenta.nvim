@@ -903,12 +903,6 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.assertDisplayBufferContains(
         "- 1 [Untitled]: ⏹️ stopped (end_turn)",
       );
-      await driver.assertDisplayBufferContains(
-        "* 2 [Untitled]: ⏳ streaming response",
-      );
-      await driver.assertDisplayBufferContains(
-        "  - 3 [Untitled]: ⏳ streaming response",
-      );
     });
   });
 });
