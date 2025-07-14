@@ -181,6 +181,52 @@ describe("node/tools/bashCommand.spec.ts", () => {
     });
   });
 
+  it("displays approval dialog with proper box formatting", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(`Run this command: dangerous-command`);
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const toolRequestId = "test-box-formatting" as ToolRequestId;
+
+      request.respond({
+        stopReason: "end_turn",
+        text: "I'll run that command for you.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: toolRequestId,
+              toolName: "bash_command" as ToolName,
+              input: {
+                command: "dangerous-command",
+              },
+            },
+          },
+        ],
+      });
+
+      // Wait for the user approval prompt
+      await driver.assertDisplayBufferContains(
+        "⚡⏳ May I run command `dangerous-command`?",
+      );
+
+      // Verify the box formatting is displayed correctly
+      await driver.assertDisplayBufferContains(`\
+┌───────────────────────────┐
+│ [ NO ] [ YES ] [ ALWAYS ] │
+└───────────────────────────┘`);
+
+      // Test that clicking YES works
+      const yesPos = await driver.assertDisplayBufferContains("[ YES ]");
+      await driver.triggerDisplayBufferKey(yesPos, "<CR>");
+
+      // Verify command executes (should fail but that's expected)
+      await driver.assertDisplayBufferContains("Exit code: 127");
+    });
+  });
+
   it("terminates a long-running command with 't' key", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();

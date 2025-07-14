@@ -66,6 +66,48 @@ it("getFile rejection", async () => {
   });
 });
 
+it("displays approval dialog with proper box formatting", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText(`Try reading the file .secret`);
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+    request.respond({
+      stopReason: "end_turn",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "id" as ToolRequestId,
+            toolName: "get_file" as ToolName,
+            input: {
+              filePath: ".secret" as UnresolvedFilePath,
+            },
+          },
+        },
+      ],
+    });
+
+    // Wait for the user approval prompt
+    await driver.assertDisplayBufferContains("👀⏳ May I read file `.secret`?");
+
+    // Verify the box formatting is displayed correctly
+    await driver.assertDisplayBufferContains(`\
+┌────────────────┐
+│ [ NO ] [ YES ] │
+└────────────────┘`);
+
+    // Test that clicking YES works
+    const yesPos = await driver.assertDisplayBufferContains("[ YES ]");
+    await driver.triggerDisplayBufferKey(yesPos, "<CR>");
+
+    // Verify file is read successfully
+    await driver.assertDisplayBufferContains("👀✅ `.secret`");
+  });
+});
+
 it("getFile approval", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
