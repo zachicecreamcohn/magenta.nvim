@@ -165,7 +165,7 @@ ${withExtmark(d`${result}`, { line_hl_group: "DiffAdd" })}
     }
   }
 
-  renderRequestInput(): VDOMNode {
+  renderDetail(): VDOMNode {
     return d`\
 filePath: ${withInlineCode(d`\`${this.request.input.filePath}\``)}
 insertAfter: ${withInlineCode(d`\`${this.request.input.insertAfter}\``)}

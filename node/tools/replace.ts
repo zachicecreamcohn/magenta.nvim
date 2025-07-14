@@ -248,7 +248,7 @@ ${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`
 \`\`\``);
   }
 
-  renderRequestInput(): VDOMNode {
+  renderDetail(): VDOMNode {
     const find = this.request.input.find;
     const replace = this.request.input.replace;
 
@@ -280,7 +280,6 @@ ${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`
 
     return d`\
 filePath: ${withInlineCode(d`\`${this.request.input.filePath}\``)}
-diff:
 ${withCode(d`\`\`\`diff
 ${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`${line}\n`))}
 \`\`\``)}`;

@@ -95,7 +95,7 @@ export type ExtmarkId = number & { __extmarkId: true };
  */
 export type ExtmarkOptions = {
   // Basic highlighting
-  hl_group?: HLGroup | TextStyleGroup;
+  hl_group?: HLGroup | TextStyleGroup | (HLGroup | TextStyleGroup)[];
   hl_eol?: boolean;
   hl_mode?: "replace" | "combine" | "blend";
   priority?: number;
@@ -160,8 +160,14 @@ export function extmarkOptionsEqual(
   }
 
   // Compare all relevant properties
+  const hlGroupsEqual =
+    Array.isArray(options1.hl_group) && Array.isArray(options2.hl_group)
+      ? options1.hl_group.length === options2.hl_group.length &&
+        options1.hl_group.every((group, i) => group === options2.hl_group![i])
+      : options1.hl_group === options2.hl_group;
+
   return (
-    options1.hl_group === options2.hl_group &&
+    hlGroupsEqual &&
     options1.hl_eol === options2.hl_eol &&
     options1.hl_mode === options2.hl_mode &&
     options1.priority === options2.priority &&
