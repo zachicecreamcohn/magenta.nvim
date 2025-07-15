@@ -44,6 +44,9 @@ import {
 import type { Chat } from "./chat.ts";
 import type { ThreadId, ThreadType } from "./types.ts";
 import { getSystemPrompt } from "../providers/system-prompt.ts";
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
 export type StoppedConversationState = {
   state: "stopped";
@@ -982,7 +985,13 @@ export const view: View<{
     thread.state.conversation.state == "stopped" &&
     thread.state.conversation.stopReason == "end_turn"
   ) {
-    return d`${titleView}\n${LOGO}\n${thread.context.contextManager.view()}`;
+    return d`\
+${titleView}
+${LOGO}
+
+magenta is for agentic flow
+
+${thread.context.contextManager.view()}`;
   }
 
   const conversationStateView = renderConversationState(
@@ -1011,18 +1020,9 @@ ${conversationStateView}\
 ${contextManagerView}`;
 };
 
-export const LOGO = `\
-
- ██████   ██████                                         █████
-░░██████ ██████                                         ░░███
- ░███░█████░███   ██████    ███████  ██████  ████████   ███████    ██████
- ░███░░███ ░███  ░░░░░███  ███░░███ ███░░███░░███░░███ ░░░███░    ░░░░░███
- ░███ ░░░  ░███   ███████ ░███ ░███░███████  ░███ ░███   ░███      ███████
- ░███      ░███  ███░░███ ░███ ░███░███░░░   ░███ ░███   ░███ ███ ███░░███
- █████     █████░░████████░░███████░░██████  ████ █████  ░░█████ ░░████████
-░░░░░     ░░░░░  ░░░░░░░░  ░░░░░███ ░░░░░░  ░░░░ ░░░░░    ░░░░░   ░░░░░░░░
-                           ███ ░███
-                          ░░██████
-                           ░░░░░░                                          `;
+export const LOGO = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "logo.txt"),
+  "utf-8",
+);
 
 const MESSAGE_ANIMATION = ["⠁", "⠂", "⠄", "⠂"];

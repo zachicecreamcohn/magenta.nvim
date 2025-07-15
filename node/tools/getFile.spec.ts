@@ -375,11 +375,14 @@ it("getFile adds file to context after reading", async () => {
 
 it("getFile reads unloaded buffer", async () => {
   await withDriver({}, async (driver) => {
-    await driver.showSidebar();
+    // First, create a dummy buffer to avoid "cannot unload last buffer" error
+    await driver.nvim.call("nvim_command", ["new"]);
 
-    // First, open the file to create a buffer
+    // Then open the file to create a buffer
     await driver.nvim.call("nvim_command", ["edit poem.txt"]);
 
+    // next, open the sidebar
+    await driver.showSidebar();
     // Get the buffer number
     const bufNr = (await driver.nvim.call("nvim_eval", [
       "bufnr('poem.txt')",
@@ -400,6 +403,9 @@ it("getFile reads unloaded buffer", async () => {
     // Verify buffer is unloaded
     const isLoaded = await driver.nvim.call("nvim_buf_is_loaded", [bufNr]);
     expect(isLoaded).toBe(false);
+
+    // Ensure sidebar is still visible after file operations
+    await driver.showSidebar();
 
     // Now try to read the file via getFile tool
     await driver.inputMagentaText(`Try reading the file ./poem.txt`);

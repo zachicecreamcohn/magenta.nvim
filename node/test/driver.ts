@@ -35,8 +35,48 @@ export class NvimDriver {
   }
 
   async showSidebar() {
-    if (this.magenta.sidebar.state.state == "hidden") {
+    // Check if magenta windows are already visible
+    const magentaWindowExists = await this.checkMagentaWindowsExist();
+
+    if (!magentaWindowExists) {
       await this.magenta.command("toggle");
+    }
+
+    // Wait until magenta windows are actually visible
+    await pollUntil(async () => {
+      const windowsExist = await this.checkMagentaWindowsExist();
+      if (!windowsExist) {
+        throw new Error(`Magenta windows not visible yet`);
+      }
+    });
+  }
+
+  private async checkMagentaWindowsExist(): Promise<boolean> {
+    try {
+      const windows = await getAllWindows(this.nvim);
+      let inputWindowExists = false;
+
+      for (const window of windows) {
+        try {
+          const magentaVar = await window.getVar("magenta");
+          if (magentaVar) {
+            // Check if this is specifically the input window (not display window)
+            const isDisplayWindow = await window
+              .getVar("magenta_display_window")
+              .catch(() => false);
+            if (!isDisplayWindow) {
+              inputWindowExists = true;
+              break;
+            }
+          }
+        } catch {
+          // Window doesn't have magenta var, continue
+        }
+      }
+
+      return inputWindowExists;
+    } catch {
+      return false;
     }
   }
 

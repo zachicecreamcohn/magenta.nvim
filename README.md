@@ -1,17 +1,17 @@
 # magenta.nvim
 
 ```
-   ________
-  ╱        ╲
- ╱         ╱
-╱         ╱
-╲__╱__╱__╱
-Magenta is for agents.
+  ___ ___
+/' __` __`\
+/\ \/\ \/\ \
+\ \_\ \_\ \_\
+ \/_/\/_/\/_/
+ magenta is for agentic flow
 ```
 
-`magenta.nvim` is a plugin for leveraging LLM agents in neovim. It provides a chat window where you can talk to your AI coding assistant, as well as tools to populate context and perform inline edits. It's similar to copilot agent, claude code, cursor compose, ampcode or windsurf.
+magenta seeks to provide transparent tools to empower ai workflows in neovim. It allows one to fluidly shift control between the developer and the AI, from targeted context-powered inline edits to ai automation and agent-led feature planning and development.
 
-(Developed by [dlants.me](https://dlants.me). I was tempted by other editors due to lack of high-quality agentic coding support in neovim. I missed neovim a lot, though, so I decided to go back and implement my own. I now happily code in neovim using magenta, and find that it's just as good!)
+Developed by [dlants.me](https://dlants.me): I was tempted by other editors due to lack of high-quality agentic coding support in neovim. I missed neovim a lot, though, so I decided to go back and implement my own. I now happily code in neovim using magenta, and find that it's just as good as cursor, windsurf, ampcode & claude code.
 
 (Note - I mostly develop using the Anthropic provider, so claude sonnet 3.7 or 4 are recommended. The OpenAI provider is supported, but with limitations. Contributions are welcome! See for example https://github.com/dlants/magenta.nvim/issues/82 and https://github.com/dlants/magenta.nvim/issues/84 )
 
@@ -28,6 +28,8 @@ Magenta is for agents.
 # Updates
 
 ## July 2025
+
+**improved styling** - I was using markdown for the display buffer for a while, but it was unreliable (due to agent-generated code and file contents interfering with makrdown boundaries), and started crashing with the latest markdown grammar. So I added an extmark-based system for highlighting the display buffer instead. This means more consistent colors, and more control (like coloring the diffs of the replace & insert tools). This is all done via nvim's hl_groups so it should automatically be compatible with your colorscheme. I also made a small quality-of-life improvement that allows you to open search results and citations in the browser by pressing "Enter" over them.
 
 **fast models** - Each profile now supports both a primary model and a fast model. The fast model is automatically used for lightweight tasks like generating thread titles, providing snappier UI interactions while reserving the primary model for substantive coding work. (defaults to haiku for anthropic).
 
@@ -565,6 +567,7 @@ The display buffer is not modifiable, however you can interact with some parts o
 - hit `enter` on a context file to open it
 - hit `d` on a context file to remove it
 - hit `enter` on a diff to see a detailed side-by-side comparison between the original file snapshot and proposed changes
+- hit `enter` on web search results or citations to open them in your default browser
 - hit `t` on a running bash command to terminate it (SIGTERM)
 
 ### Input commands
@@ -663,15 +666,16 @@ Codecompanion has a single buffer, while magenta.nvim has separate input & displ
 
 ## compared to avante:
 
-I think it's fairly similar. However, magenta.nvim is written in typescript and uses the sdks to implement streaming, which I think makes it more stable. I think the main advantage is the architecture is very clean so it should be easy to extend the functionality. Between typescript, sdks and the architecture, I think my velocity is pretty high.
+I think it's fairly similar. However, magenta.nvim is written in typescript and uses the sdks to implement streaming, which I think makes it more stable. I think the main advantage is the architecture is very clean so it should be easy to extend the functionality. Between typescript, sdks and the architecture, I think my velocity is really high.
 
 ## compared to both:
 
 magenta.nvim includes capabilities that neither plugin offers:
 
-- **Web search tools**: Agents can search the internet for current information, documentation, and solutions, and cite these in their responses
-- **Sub-agents**: Complex tasks can be broken down and delegated to specialized agents that work in parallel with focused context and system prompts
-- **Smart context tracking**: The plugin automatically tracks the state of files on disk, in buffers, and what the agent has seen, sending only diffs when files change. This enables better cache utilization and more efficient communication without re-sending full file contents for small changes.
+- **Web search tools**: Agents can search the internet for current information, documentation, and solutions, and cite these in their responses.
+- **Sub-agents**: Complex tasks can be broken down and delegated to specialized agents that work in parallel with focused context and system prompts.
+- **User-friendly, context-aware inline edits**: apply inline edits at a cursor position or to a selection. Dot-repeat to replay promtps against new locations.
+- **Smart context tracking**: The plugin automatically tracks the state of files on disk, in buffers, and what the agent has seen, sending only diffs when files change. This enables better cache utilization and more efficient communication while sending only diffs to the agent.
 
 # Contributions
 
