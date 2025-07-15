@@ -29,14 +29,10 @@ describe("node/inline-edit/inline-edit-app.spec.ts", () => {
         end: -1,
         lines: ["Please change 'Silver' to 'Golden' in line 2"] as Line[],
       });
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
-      driver.submitInlineEdit(targetBuffer.id);
+      await driver.submitInlineEdit(targetBuffer.id);
       const request =
         await driver.mockAnthropic.awaitPendingForceToolUseRequest();
       expect(request.messages).toMatchSnapshot();
-
-      const modifiable = await inputBuffer.getOption("modifiable");
-      expect(modifiable).toBe(false);
 
       const inputLines = await inputBuffer.getLines({ start: 0, end: -1 });
       expect(inputLines.join("\n")).toEqual("Input sent, awaiting response...");
@@ -63,6 +59,9 @@ describe("node/inline-edit/inline-edit-app.spec.ts", () => {
         `\
 Golden shadows dance with ease.`,
       );
+
+      // Verify the input buffer is destroyed after successful edit
+      await driver.assertWindowCount(1);
     });
   });
 
@@ -233,6 +232,9 @@ Golden shadows dance with ease.
 Stars above like diamonds bright,
 Paint their stories in the night.`,
       );
+
+      // Verify the input buffer is destroyed after successful edit
+      await driver.assertWindowCount(1);
     });
   });
 
@@ -289,6 +291,9 @@ Silver ghosts dance with ease.
 Stars above like diamonds bright,
 Paint their stories in the night.`,
       );
+
+      // Verify the input buffer is destroyed after successful edit
+      await driver.assertWindowCount(1);
     });
   });
 

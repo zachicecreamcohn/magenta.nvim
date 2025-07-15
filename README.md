@@ -1,17 +1,17 @@
 # magenta.nvim
 
 ```
-   ________
-  ╱        ╲
- ╱         ╱
-╱         ╱
-╲__╱__╱__╱
-Magenta is for agents.
+  ___ ___
+/' __` __`\
+/\ \/\ \/\ \
+\ \_\ \_\ \_\
+ \/_/\/_/\/_/
+ magenta.nvim
 ```
 
-`magenta.nvim` is a plugin for leveraging LLM agents in neovim. It provides a chat window where you can talk to your AI coding assistant, as well as tools to populate context and perform inline edits. It's similar to copilot agent, claude code, cursor compose, ampcode or windsurf.
+magenta seeks to provide transparent tools to empower ai workflows in neovim. It allows one to fluidly shift control between the developer and the AI, from targeted context-powered inline edits to ai automation and agent-led feature planning and development.
 
-(Developed by [dlants.me](https://dlants.me). I was tempted by other editors due to lack of high-quality agentic coding support in neovim. I missed neovim a lot, though, so I decided to go back and implement my own. I now happily code in neovim using magenta, and find that it's just as good!)
+Developed by [dlants.me](https://dlants.me): I was tempted by other editors due to lack of high-quality agentic coding support in neovim. I missed neovim a lot, though, so I decided to go back and implement my own. I now happily code in neovim using magenta, and find that it's just as good as cursor, windsurf, ampcode & claude code.
 
 (Note - I mostly develop using the Anthropic provider, so claude sonnet 3.7 or 4 are recommended. The OpenAI provider is supported, but with limitations. Contributions are welcome! See for example https://github.com/dlants/magenta.nvim/issues/82 and https://github.com/dlants/magenta.nvim/issues/84 )
 
@@ -28,6 +28,8 @@ Magenta is for agents.
 # Updates
 
 ## July 2025
+
+**improved styling** - I was using markdown for the display buffer for a while, but it was unreliable (due to agent-generated code and file contents interfering with makrdown boundaries), and started crashing with the latest markdown grammar. So I added an extmark-based system for highlighting the display buffer instead. This means more consistent colors, and more control (like coloring the diffs of the replace & insert tools). This is all done via nvim's hl_groups so it should automatically be compatible with your colorscheme.
 
 **fast models** - Each profile now supports both a primary model and a fast model. The fast model is automatically used for lightweight tasks like generating thread titles, providing snappier UI interactions while reserving the primary model for substantive coding work. (defaults to haiku for anthropic).
 
