@@ -4,6 +4,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type Bindings } from "./bindings.ts";
 import { calculatePosition, replaceBetweenPositions } from "./util.ts";
 import { type MountedVDOM, type MountPoint, type VDOMNode } from "./view.ts";
+import type { ExtmarkId, ExtmarkOptions } from "../nvim/extmarks.ts";
 
 export async function render({
   vdom,
@@ -19,6 +20,7 @@ export async function render({
         start: ByteIdx;
         end: ByteIdx;
         bindings?: Bindings | undefined;
+        extmarkOptions?: ExtmarkOptions | undefined;
       }
     | {
         type: "node";
@@ -27,6 +29,7 @@ export async function render({
         start: ByteIdx;
         end: ByteIdx;
         bindings?: Bindings | undefined;
+        extmarkOptions?: ExtmarkOptions | undefined;
       }
     | {
         type: "array";
@@ -34,6 +37,7 @@ export async function render({
         start: ByteIdx;
         end: ByteIdx;
         bindings?: Bindings | undefined;
+        extmarkOptions?: ExtmarkOptions | undefined;
       };
 
   // First pass: build the complete string and create tree structure with positions
@@ -54,6 +58,7 @@ export async function render({
           start,
           end: currentByteWidth,
           bindings: node.bindings,
+          extmarkOptions: node.extmarkOptions,
         };
       }
       case "node": {
@@ -66,6 +71,7 @@ export async function render({
           start,
           end: currentByteWidth,
           bindings: node.bindings,
+          extmarkOptions: node.extmarkOptions,
         };
       }
       case "array": {
@@ -77,6 +83,7 @@ export async function render({
           start,
           end: currentByteWidth,
           bindings: node.bindings,
+          extmarkOptions: node.extmarkOptions,
         };
       }
       default: {
@@ -96,9 +103,20 @@ export async function render({
 
   const mountPos = mount.startPos;
   const contentBuf = Buffer.from(content, "utf-8");
-  function assignPositions(node: NodePosition): MountedVDOM {
+
+  async function assignPositions(node: NodePosition): Promise<MountedVDOM> {
     const startPos = calculatePosition(mountPos, contentBuf, node.start);
     const endPos = calculatePosition(mountPos, contentBuf, node.end);
+
+    // Set extmark if options are provided and there's actual content
+    let extmarkId: ExtmarkId | undefined = undefined;
+    if (node.extmarkOptions && node.start < node.end) {
+      extmarkId = await mount.buffer.setExtmark({
+        startPos,
+        endPos,
+        options: node.extmarkOptions,
+      });
+    }
 
     switch (node.type) {
       case "string":
@@ -108,28 +126,38 @@ export async function render({
           startPos,
           endPos,
           bindings: node.bindings,
+          ...(node.extmarkOptions && { extmarkOptions: node.extmarkOptions }),
+          ...(extmarkId && { extmarkId }),
         };
-      case "node":
+      case "node": {
+        const children = await Promise.all(node.children.map(assignPositions));
         return {
           type: "node",
           template: node.template,
-          children: node.children.map(assignPositions),
+          children,
           startPos,
           endPos,
           bindings: node.bindings,
+          ...(node.extmarkOptions && { extmarkOptions: node.extmarkOptions }),
+          ...(extmarkId && { extmarkId }),
         };
-      case "array":
+      }
+      case "array": {
+        const children = await Promise.all(node.children.map(assignPositions));
         return {
           type: "array",
-          children: node.children.map(assignPositions),
+          children,
           startPos,
           endPos,
           bindings: node.bindings,
+          ...(node.extmarkOptions && { extmarkOptions: node.extmarkOptions }),
+          ...(extmarkId && { extmarkId }),
         };
+      }
       default:
         assertUnreachable(node);
     }
   }
 
-  return assignPositions(positionTree);
+  return await assignPositions(positionTree);
 }

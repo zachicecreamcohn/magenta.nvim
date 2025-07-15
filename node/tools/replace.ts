@@ -1,5 +1,11 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { d, type VDOMNode } from "../tea/view.ts";
+import {
+  d,
+  type VDOMNode,
+  withInlineCode,
+  withCode,
+  withExtmark,
+} from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { StaticToolRequest } from "./toolManager.ts";
@@ -17,6 +23,7 @@ import type { ThreadId } from "../chat/types";
 import type { StaticTool, ToolName } from "./types.ts";
 import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
+import { WIDTH } from "../sidebar.ts";
 export type State =
   | {
       state: "processing";
@@ -111,12 +118,12 @@ export class ReplaceTool implements StaticTool {
 
     switch (this.state.state) {
       case "processing":
-        return d`✏️⚙️ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in \`${this.request.input.filePath}\``;
+        return d`✏️⚙️ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
       case "done":
         if (this.state.result.result.status === "error") {
-          return d`✏️❌ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in \`${this.request.input.filePath}\` - ${this.state.result.result.error}`;
+          return d`✏️❌ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${this.request.input.filePath}\``)} - ${this.state.result.result.error}`;
         } else {
-          return d`✏️✅ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in \`${this.request.input.filePath}\``;
+          return d`✏️✅ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
         }
       default:
         assertUnreachable(this.state);
@@ -131,9 +138,7 @@ export class ReplaceTool implements StaticTool {
         if (this.state.result.result.status === "error") {
           return d``;
         } else {
-          return d`\`\`\`diff
-${this.getReplacePreview()}
-\`\`\``;
+          return this.renderDiffPreview();
         }
       default:
         assertUnreachable(this.state);
@@ -187,6 +192,97 @@ ${this.getReplacePreview()}
     }
 
     return result;
+  }
+
+  private renderDiffPreview(): VDOMNode {
+    const find = this.request.input.find;
+    const replace = this.request.input.replace;
+
+    const diffResult = diff.createPatch(
+      this.request.input.filePath,
+      find,
+      replace,
+      "before",
+      "after",
+      {
+        context: 2,
+        ignoreNewlineAtEof: true,
+      },
+    );
+
+    // slice off the diff header
+    const diffLines = diffResult.split("\n").slice(5);
+
+    const maxLines = 10;
+    const maxLength = WIDTH - 5;
+
+    let previewLines =
+      diffLines.length > maxLines
+        ? diffLines.slice(diffLines.length - maxLines)
+        : diffLines;
+
+    previewLines = previewLines.map((line) => {
+      if (line.length > maxLength) {
+        return line.substring(0, maxLength) + "...";
+      }
+      return line;
+    });
+
+    // Add ellipsis if we truncated
+    const allLines =
+      diffLines.length > maxLines ? ["...", ...previewLines] : previewLines;
+
+    // Create diff content with individual line highlighting
+    const diffContent = allLines.map((line) => {
+      if (line.startsWith("+")) {
+        return withExtmark(d`${line}`, { line_hl_group: "DiffAdd" });
+      } else if (line.startsWith("-")) {
+        return withExtmark(d`${line}`, { line_hl_group: "DiffDelete" });
+      } else {
+        return d`${line}`;
+      }
+    });
+
+    return withCode(d`\`\`\`diff
+${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`${line}\n`))}
+\`\`\``);
+  }
+
+  renderDetail(): VDOMNode {
+    const find = this.request.input.find;
+    const replace = this.request.input.replace;
+
+    const diffResult = diff.createPatch(
+      this.request.input.filePath,
+      find,
+      replace,
+      "before",
+      "after",
+      {
+        context: 5,
+        ignoreNewlineAtEof: true,
+      },
+    );
+
+    // slice off the diff header
+    const diffLines = diffResult.split("\n").slice(5);
+
+    // Create diff content with individual line highlighting
+    const diffContent = diffLines.map((line) => {
+      if (line.startsWith("+")) {
+        return withExtmark(d`${line}`, { line_hl_group: "DiffAdd" });
+      } else if (line.startsWith("-")) {
+        return withExtmark(d`${line}`, { line_hl_group: "DiffDelete" });
+      } else {
+        return d`${line}`;
+      }
+    });
+
+    return d`\
+filePath: ${withInlineCode(d`\`${this.request.input.filePath}\``)}
+${withCode(d`\`\`\`diff
+${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`${line}\n`))}
+\`\`\``)}`;
   }
 
   getToolResult(): ProviderToolResult {
@@ -336,7 +432,7 @@ export function renderStreamedBlock(streamed: string): VDOMNode {
 
   // Format the message in the same style as the view method
   if (filePath) {
-    return d`⏳✅ Replace [[ -${findLineCount.toString()} / +${replaceLineCount.toString()} ]] in \`${filePath}\` streaming...`;
+    return d`⏳✅ Replace [[ -${findLineCount.toString()} / +${replaceLineCount.toString()} ]] in ${withInlineCode(d`\`${filePath}\``)} streaming...`;
   } else {
     return d`⏳ Preparing replace operation...`;
   }

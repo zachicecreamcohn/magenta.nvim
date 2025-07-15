@@ -2,7 +2,7 @@ import { getBufferIfOpen } from "../utils/buffers.ts";
 import fs from "fs";
 import path from "path";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { d, withBindings } from "../tea/view.ts";
+import { d, withBindings, withInlineCode, withExtmark } from "../tea/view.ts";
 import { type StaticToolRequest } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import type { Nvim } from "../nvim/nvim-node";
@@ -424,10 +424,15 @@ You already have the most up-to-date information about the contents of this file
     switch (this.state.state) {
       case "pending":
       case "processing":
-        return d`👀⚙️ \`${this.request.input.filePath}\``;
+        return d`👀⚙️ ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
       case "pending-user-action":
-        return d`👀⏳ May I read file \`${this.request.input.filePath}\`? ${withBindings(
-          d`**[ NO ]**`,
+        return d`👀⏳ May I read file ${withInlineCode(d`\`${this.request.input.filePath}\``)}?
+
+┌────────────────┐
+│ ${withBindings(
+          withExtmark(d`[ NO ]`, {
+            hl_group: ["ErrorMsg", "@markup.strong.markdown"],
+          }),
           {
             "<CR>": () =>
               this.context.myDispatch({
@@ -435,13 +440,22 @@ You already have the most up-to-date information about the contents of this file
                 approved: false,
               }),
           },
-        )} ${withBindings(d`**[ OK ]**`, {
-          "<CR>": () =>
-            this.context.myDispatch({ type: "user-approval", approved: true }),
-        })}`;
+        )} ${withBindings(
+          withExtmark(d`[ YES ]`, {
+            hl_group: ["String", "@markup.strong.markdown"],
+          }),
+          {
+            "<CR>": () =>
+              this.context.myDispatch({
+                type: "user-approval",
+                approved: true,
+              }),
+          },
+        )} │
+└────────────────┘`;
       case "done":
         if (this.state.result.result.status == "error") {
-          return d`👀❌ \`${this.request.input.filePath}\``;
+          return d`👀❌ ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
         } else {
           // Count lines in the result
           let lineCount = 0;
@@ -455,7 +469,7 @@ You already have the most up-to-date information about the contents of this file
             }
           }
           const lineCountStr = lineCount > 0 ? ` [+ ${lineCount}]` : "";
-          return d`👀✅ \`${this.request.input.filePath}\`${lineCountStr}`;
+          return d`👀✅ ${withInlineCode(d`\`${this.request.input.filePath}\``)}${lineCountStr}`;
         }
       default:
         assertUnreachable(this.state);

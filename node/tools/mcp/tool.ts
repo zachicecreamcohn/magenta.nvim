@@ -1,7 +1,7 @@
 import type { Result } from "../../utils/result.ts";
 import type { Dispatch, Thunk } from "../../tea/tea.ts";
 import type { ProviderToolResult } from "../../providers/provider.ts";
-import { d } from "../../tea/view.ts";
+import { d, withInlineCode } from "../../tea/view.ts";
 import type { Nvim } from "../../nvim/nvim-node";
 import { assertUnreachable } from "../../utils/assertUnreachable.ts";
 import type { Tool, ToolName, ToolRequestId } from "../types.ts";
@@ -194,15 +194,15 @@ export class MCPTool implements Tool {
 
     if (state.state === "processing") {
       const runningTime = Math.floor((Date.now() - state.startTime) / 1000);
-      return d`🔨⚙️ (${String(runningTime)}s) MCP tool \`${this.toolName}\``;
+      return d`🔨⚙️ (${String(runningTime)}s) MCP tool ${withInlineCode(d`\`${this.toolName}\``)}`;
     }
 
     if (state.state === "done") {
-      return d`🔨✅ MCP tool \`${this.toolName}\``;
+      return d`🔨✅ MCP tool ${withInlineCode(d`\`${this.toolName}\``)}`;
     }
 
     if (state.state === "error") {
-      return d`🔨❌ MCP tool \`${this.toolName}\``;
+      return d`🔨❌ MCP tool ${withInlineCode(d`\`${this.toolName}\``)}`;
     }
 
     return d``;

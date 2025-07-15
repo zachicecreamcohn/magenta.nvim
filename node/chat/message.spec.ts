@@ -57,7 +57,7 @@ ok, I will try to rewrite the poem in that file
 
       await driver.assertDisplayBufferContains(`\
 Edits:
-  \`poem.txt\` (1 edits). **[± diff snapshot]**`);
+  \`poem.txt\` (1 edits). [± diff snapshot]`);
 
       const reviewPos =
         await driver.assertDisplayBufferContains("diff snapshot");

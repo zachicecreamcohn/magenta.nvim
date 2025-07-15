@@ -1,5 +1,11 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { d, type VDOMNode } from "../tea/view.ts";
+import {
+  d,
+  type VDOMNode,
+  withInlineCode,
+  withCode,
+  withExtmark,
+} from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { StaticToolRequest } from "./toolManager.ts";
@@ -16,6 +22,7 @@ import type { StaticTool, ToolName } from "./types.ts";
 import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import type { ThreadId } from "../chat/types.ts";
+import { WIDTH } from "../sidebar.ts";
 
 export type State =
   | {
@@ -111,12 +118,12 @@ export class InsertTool implements StaticTool {
 
     switch (this.state.state) {
       case "processing":
-        return d`✏️⚙️ Insert [[ +${lineCount.toString()} ]] in \`${this.request.input.filePath}\``;
+        return d`✏️⚙️ Insert [[ +${lineCount.toString()} ]] in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
       case "done":
         if (this.state.result.result.status === "error") {
-          return d`✏️❌ Insert [[ +${lineCount.toString()} ]] in \`${this.request.input.filePath}\` - ${this.state.result.result.error}`;
+          return d`✏️❌ Insert [[ +${lineCount.toString()} ]] in ${withInlineCode(d`\`${this.request.input.filePath}\``)} - ${this.state.result.result.error}`;
         } else {
-          return d`✏️✅ Insert [[ +${lineCount.toString()} ]] in \`${this.request.input.filePath}\``;
+          return d`✏️✅ Insert [[ +${lineCount.toString()} ]] in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
         }
       default:
         assertUnreachable(this.state);
@@ -131,33 +138,43 @@ export class InsertTool implements StaticTool {
         if (this.state.result.result.status === "error") {
           return d``;
         } else {
-          return d`\`\`\`diff
-${this.getInsertPreview()}
-\`\`\``;
+          const content = this.request.input.content;
+          const lines = content.split("\n");
+          const maxLines = 5;
+          const maxLength = WIDTH - 5;
+
+          let previewLines =
+            lines.length > maxLines ? lines.slice(-maxLines) : lines;
+          previewLines = previewLines.map((line) =>
+            line.length > maxLength
+              ? line.substring(0, maxLength) + "..."
+              : line,
+          );
+
+          let result = previewLines.join("\n");
+          if (lines.length > maxLines) {
+            result = "...\n" + result;
+          }
+
+          return withCode(d`\`\`\`
+${withExtmark(d`${result}`, { line_hl_group: "DiffAdd" })}
+\`\`\``);
         }
       default:
         assertUnreachable(this.state);
     }
   }
 
-  getInsertPreview(): string {
-    const content = this.request.input.content;
-    const lines = content.split("\n");
-    const maxLines = 5;
-    const maxLength = 80;
-
-    let previewLines = lines.length > maxLines ? lines.slice(-maxLines) : lines;
-    previewLines = previewLines.map((line) =>
-      line.length > maxLength ? line.substring(0, maxLength) + "..." : line,
-    );
-
-    let result = previewLines.map((line) => "+ " + line).join("\n");
-    if (lines.length > maxLines) {
-      result = "...\n" + result;
-    }
-
-    return result;
+  renderDetail(): VDOMNode {
+    return d`\
+filePath: ${withInlineCode(d`\`${this.request.input.filePath}\``)}
+insertAfter: ${withInlineCode(d`\`${this.request.input.insertAfter}\``)}
+content:
+${withCode(d`\`\`\`
+${withExtmark(d`${this.request.input.content}`, { line_hl_group: "DiffAdd" })}
+\`\`\``)}`;
   }
+
   getToolResult(): ProviderToolResult {
     switch (this.state.state) {
       case "done":
@@ -285,7 +302,7 @@ export function renderStreamedBlock(streamed: string): VDOMNode {
 
   // Format the message in the same style as the view method
   if (filePath) {
-    return d`⏳ Insert [[ +${lineCount.toString()} ]] in \`${filePath}\` streaming...`;
+    return d`⏳ Insert [[ +${lineCount.toString()} ]] in ${withInlineCode(d`\`${filePath}\``)} streaming...`;
   } else {
     return d`⏳ Insert...`;
   }
