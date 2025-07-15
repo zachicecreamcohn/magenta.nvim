@@ -82,7 +82,11 @@ export type DiffUpdate = {
   patch: Patch;
 };
 
-export type FileUpdate = WholeFileUpdate | DiffUpdate;
+export type FileDeletedUpdate = {
+  type: "file-deleted";
+};
+
+export type FileUpdate = WholeFileUpdate | DiffUpdate | FileDeletedUpdate;
 
 export type FileUpdates = {
   [absFilePath: AbsFilePath]: {
@@ -269,6 +273,23 @@ export class ContextManager {
     let currentFileContent: string;
     const relFilePath = relativePath(this.context.cwd, absFilePath);
 
+    // Check if file exists first
+    if (!fs.existsSync(absFilePath)) {
+      // File has been deleted or moved, remove it from context
+      delete this.files[absFilePath];
+      delete this.agentsViewOfFiles[absFilePath];
+      return {
+        absFilePath,
+        relFilePath,
+        update: {
+          status: "ok",
+          value: {
+            type: "file-deleted",
+          },
+        },
+      };
+    }
+
     if (bufSyncInfo) {
       // This file is open in a buffer
       try {
@@ -312,7 +333,26 @@ export class ContextManager {
       }
     } else {
       // This file is only on disk. We need to read the latest version of it and send the diff along to the agent
-      currentFileContent = fs.readFileSync(absFilePath).toString();
+      try {
+        currentFileContent = fs.readFileSync(absFilePath).toString();
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+          // File has been deleted or moved, remove it from context
+          delete this.files[absFilePath];
+          delete this.agentsViewOfFiles[absFilePath];
+          return {
+            absFilePath,
+            relFilePath,
+            update: {
+              status: "ok",
+              value: {
+                type: "file-deleted",
+              },
+            },
+          };
+        }
+        throw err;
+      }
     }
 
     const prev = this.agentsViewOfFiles[absFilePath];
@@ -563,6 +603,12 @@ ${update.update.value.content}
 ${update.update.value.patch}
 \`\`\``,
           );
+          break;
+        }
+        case "file-deleted": {
+          fileUpdates.push(`\
+- \`${update.relFilePath}\`
+This file has been deleted and removed from context.`);
           break;
         }
         default:

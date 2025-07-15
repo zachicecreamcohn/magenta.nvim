@@ -524,4 +524,22 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
     await window.setCursor(pos0to1(endPos));
     await buf.setMark({ mark: ">", pos: pos0to1(endPos) });
   }
+  async addContextFiles(...filePaths: string[]) {
+    const quotedPaths = filePaths.map((path) => `'${path}'`).join(" ");
+    await this.nvim.call("nvim_command", [
+      `Magenta context-files ${quotedPaths}`,
+    ]);
+
+    // Wait for all files to be displayed in the context
+    await pollUntil(async () => {
+      const content = await this.getDisplayBufferText();
+      for (const filePath of filePaths) {
+        // Normalize the path to match display format (remove ./ prefix if present)
+        const normalizedPath = filePath.replace(/^\.\//, "");
+        if (!content.includes(`- \`${normalizedPath}\``)) {
+          throw new Error(`Context file ${filePath} not yet displayed`);
+        }
+      }
+    });
+  }
 }

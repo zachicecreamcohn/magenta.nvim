@@ -206,11 +206,7 @@ it("getFile returns early when file is already in context", async () => {
     await driver.showSidebar();
 
     // Add the file to context first
-    await driver.nvim.call("nvim_command", [
-      `Magenta context-files './poem.txt'`,
-    ]);
-
-    await driver.assertDisplayBufferContains("- `poem.txt`");
+    await driver.addContextFiles("./poem.txt");
 
     // Now try to read the same file without force
     await driver.inputMagentaText(`Try reading the file ./poem.txt`);
@@ -264,11 +260,7 @@ it("getFile reads file when force is true even if already in context", async () 
     await driver.showSidebar();
 
     // Add the file to context first
-    await driver.nvim.call("nvim_command", [
-      `Magenta context-files './poem.txt'`,
-    ]);
-
-    await driver.assertDisplayBufferContains("- `poem.txt`");
+    await driver.addContextFiles("./poem.txt");
 
     await driver.inputMagentaText(`Try reading the file ./poem.txt with force`);
     await driver.send();
