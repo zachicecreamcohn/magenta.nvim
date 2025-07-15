@@ -2,12 +2,7 @@ import { describe, expect, it } from "vitest";
 import { withDriver } from "../test/preamble";
 import { pollUntil } from "../utils/async";
 import { getAllWindows, getcwd } from "../nvim/nvim";
-import {
-  resolveFilePath,
-  detectFileType,
-  type RelFilePath,
-  type UnresolvedFilePath,
-} from "../utils/files";
+import { resolveFilePath, type UnresolvedFilePath } from "../utils/files";
 import type { Line } from "../nvim/buffer";
 import type { DiffUpdate, WholeFileUpdate } from "./context-manager";
 import type { ToolRequestId } from "../tools/toolManager";
@@ -25,14 +20,8 @@ it("returns full file contents on first getContextUpdate and no updates on secon
     const cwd = await getcwd(driver.nvim);
     const absFilePath = resolveFilePath(cwd, "poem.txt" as UnresolvedFilePath);
 
-    // Get file type info and add file to context
-    const fileTypeInfo = await detectFileType(absFilePath);
-    contextManager.myDispatch({
-      type: "add-file-context",
-      relFilePath: "poem.txt" as RelFilePath,
-      absFilePath,
-      fileTypeInfo: fileTypeInfo!,
-    });
+    // Add file to context using the helper method
+    await driver.addContextFiles("poem.txt");
 
     // Get context updates - first call
     const firstUpdates = await contextManager.getContextUpdate();
@@ -70,14 +59,8 @@ it("returns diff when file is edited in a buffer", async () => {
     const cwd = await getcwd(driver.nvim);
     const absFilePath = resolveFilePath(cwd, "poem.txt" as UnresolvedFilePath);
 
-    // Get file type info and add the file to context
-    const fileTypeInfo = await detectFileType(absFilePath);
-    contextManager.myDispatch({
-      type: "add-file-context",
-      relFilePath: "poem.txt" as RelFilePath,
-      absFilePath,
-      fileTypeInfo: fileTypeInfo!,
-    });
+    // Add file to context using the helper method
+    await driver.addContextFiles("poem.txt");
 
     // First, edit the file to track the buffer
     await driver.editFile("poem.txt");
@@ -126,14 +109,8 @@ it("returns diff when file is edited on disk", async () => {
     const cwd = await getcwd(driver.nvim);
     const absFilePath = resolveFilePath(cwd, "poem.txt" as UnresolvedFilePath);
 
-    // Get file type info and add a file to context
-    const fileTypeInfo = await detectFileType(absFilePath);
-    contextManager.myDispatch({
-      type: "add-file-context",
-      relFilePath: "poem.txt" as RelFilePath,
-      absFilePath,
-      fileTypeInfo: fileTypeInfo!,
-    });
+    // Add file to context using the helper method
+    await driver.addContextFiles("poem.txt");
 
     // Get initial context update
     await contextManager.getContextUpdate();
@@ -171,18 +148,8 @@ it("avoids sending redundant context updates after tool application", async () =
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
 
-    // Add file to context using the context-files command
-    await driver.nvim.call("nvim_command", [
-      `Magenta context-files 'poem.txt'`,
-    ]);
-
-    // Wait for context to be added to the display
-    await pollUntil(async () => {
-      const content = await driver.getDisplayBufferText();
-      if (!content.includes(`- \`poem.txt\``)) {
-        throw new Error("Context file not yet displayed");
-      }
-    });
+    // Add file to context using the helper method
+    await driver.addContextFiles("poem.txt");
 
     // Start a conversation and send a message requesting a modification
     await driver.inputMagentaText(`Add a new line to the poem.txt file`);
@@ -291,17 +258,7 @@ it("sends update if the file was edited pre-insert", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
 
-    await driver.nvim.call("nvim_command", [
-      `Magenta context-files 'poem.txt'`,
-    ]);
-
-    // Wait for context to be added to the display
-    await pollUntil(async () => {
-      const content = await driver.getDisplayBufferText();
-      if (!content.includes(`- \`poem.txt\``)) {
-        throw new Error("Context file not yet displayed");
-      }
-    });
+    await driver.addContextFiles("poem.txt");
 
     const pos = await driver.assertDisplayBufferContains(`- \`poem.txt\``);
     await driver.triggerDisplayBufferKey(pos, "<CR>");
@@ -384,29 +341,14 @@ it("sends update if the file was edited pre-insert", async () => {
     }
   });
 });
+
 describe("key bindings", () => {
   it("'dd' key correctly removes the middle file when three files are in context", async () => {
     await withDriver({}, async (driver) => {
       // Open context sidebar
       await driver.showSidebar();
 
-      await driver.nvim.call("nvim_command", [
-        `Magenta context-files 'poem 3.txt' 'poem2.txt' 'poem.txt'`,
-      ]);
-
-      // Wait for all context files to be added to the display
-      await pollUntil(async () => {
-        const content = await driver.getDisplayBufferText();
-        if (
-          !content.includes(`- \`poem 3.txt\``) ||
-          !content.includes(`- \`poem2.txt\``) ||
-          !content.includes(`- \`poem.txt\``)
-        ) {
-          throw new Error(
-            `Not all context files displayed yet. Content: ${content}`,
-          );
-        }
-      });
+      await driver.addContextFiles("poem 3.txt", "poem2.txt", "poem.txt");
 
       const middleFilePos =
         await driver.assertDisplayBufferContains(`- \`poem2.txt\``);
@@ -441,10 +383,8 @@ describe("key bindings", () => {
       // Open context sidebar
       await driver.showSidebar();
 
-      // Add file to context using the context-files command
-      await driver.nvim.call("nvim_command", [
-        `Magenta context-files 'poem.txt'`,
-      ]);
+      // Add file to context using the helper method
+      await driver.addContextFiles("poem.txt");
 
       const pos = await driver.assertDisplayBufferContains(`\`poem.txt\``);
 
@@ -474,10 +414,8 @@ describe("key bindings", () => {
 
       await driver.showSidebar();
 
-      // Add file to context using the context-files command
-      await driver.nvim.call("nvim_command", [
-        `Magenta context-files 'poem.txt'`,
-      ]);
+      // Add file to context using the helper method
+      await driver.addContextFiles("poem.txt");
 
       const pos = await driver.assertDisplayBufferContains(`\`poem.txt\``);
 
@@ -507,9 +445,7 @@ describe("key bindings", () => {
           "now only magenta windows open",
         ).toBe(2);
 
-        await driver.nvim.call("nvim_command", [
-          `Magenta context-files 'poem.txt'`,
-        ]);
+        await driver.addContextFiles("poem.txt");
 
         const displayWindow = driver.getVisibleState().displayWindow;
 
@@ -547,9 +483,7 @@ describe("key bindings", () => {
           "now only magenta windows open",
         ).toBe(2);
 
-        await driver.nvim.call("nvim_command", [
-          `Magenta context-files 'poem.txt'`,
-        ]);
+        await driver.addContextFiles("poem.txt");
 
         const displayWindow = driver.getVisibleState().displayWindow;
 
@@ -579,9 +513,7 @@ describe("key bindings", () => {
 it("context-files end-to-end", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
-    await driver.nvim.call("nvim_command", [
-      `Magenta context-files 'poem.txt'`,
-    ]);
+    await driver.addContextFiles("poem.txt");
 
     await driver.assertDisplayBufferContains(`\
 # context:
@@ -594,12 +526,100 @@ it("context-files end-to-end", async () => {
   });
 });
 
+it("removes deleted files from context during updates", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    // Get the context manager from the driver
+    const contextManager =
+      driver.magenta.chat.getActiveThread().context.contextManager;
+
+    const cwd = await getcwd(driver.nvim);
+    const tempFilePath = resolveFilePath(
+      cwd,
+      "temp-file.txt" as UnresolvedFilePath,
+    );
+
+    // Create a temporary file
+    await fs.promises.writeFile(tempFilePath, "temporary content");
+
+    // Add file to context using the helper method
+    await driver.addContextFiles("temp-file.txt");
+
+    // Verify file is in context
+    expect(contextManager.files[tempFilePath]).toBeDefined();
+
+    // Get initial context update
+    const firstUpdates = await contextManager.getContextUpdate();
+    expect(firstUpdates[tempFilePath]).toBeDefined();
+
+    // Delete the file
+    await fs.promises.unlink(tempFilePath);
+
+    // Get context updates after deletion
+    const secondUpdates = await contextManager.getContextUpdate();
+
+    // File should be removed from context and file-deleted update should be returned
+    expect(contextManager.files[tempFilePath]).toBeUndefined();
+    expect(secondUpdates[tempFilePath]).toBeDefined();
+    expect(secondUpdates[tempFilePath].update.status).toBe("ok");
+    if (secondUpdates[tempFilePath].update.status === "ok") {
+      expect(secondUpdates[tempFilePath].update.value.type).toBe(
+        "file-deleted",
+      );
+    }
+  });
+});
+
+it("handles file deletion during buffer tracking", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    // Get the context manager from the driver
+    const contextManager =
+      driver.magenta.chat.getActiveThread().context.contextManager;
+
+    const cwd = await getcwd(driver.nvim);
+    const tempFilePath = resolveFilePath(
+      cwd,
+      "temp-tracked.txt" as UnresolvedFilePath,
+    );
+
+    // Create a temporary file
+    await fs.promises.writeFile(tempFilePath, "tracked content");
+
+    // Add file to context using the helper method
+    await driver.addContextFiles("temp-tracked.txt");
+
+    // Open the file in a buffer to start tracking it
+    await driver.editFile("temp-tracked.txt");
+
+    // Get initial context update to establish buffer tracking
+    const firstUpdates = await contextManager.getContextUpdate();
+    expect(firstUpdates[tempFilePath]).toBeDefined();
+
+    // Delete the file while it's being tracked
+    await fs.promises.unlink(tempFilePath);
+
+    // Get context updates after deletion
+    const secondUpdates = await contextManager.getContextUpdate();
+
+    // File should be removed from context and file-deleted update should be returned
+    expect(contextManager.files[tempFilePath]).toBeUndefined();
+    expect(secondUpdates[tempFilePath]).toBeDefined();
+    expect(secondUpdates[tempFilePath].update.status).toBe("ok");
+    if (secondUpdates[tempFilePath].update.status === "ok") {
+      expect(secondUpdates[tempFilePath].update.value.type).toBe(
+        "file-deleted",
+      );
+    }
+  });
+});
+
 it("context-files multiple, weird path names", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
-    await driver.nvim.call("nvim_command", [
-      `Magenta context-files 'poem.txt' 'poem 3.txt'`,
-    ]);
+    await driver.addContextFiles("poem.txt", "poem 3.txt");
 
     await driver.assertDisplayBufferContains(`\
 # context:

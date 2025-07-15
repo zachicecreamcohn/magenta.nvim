@@ -429,17 +429,28 @@ ${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${t
 
       if (update.update.status === "ok") {
         let changeIndicator = "";
-        if (update.update.value.type === "diff") {
-          // Count additions and deletions in the patch
-          const patch = update.update.value.patch;
-          const additions = (patch.match(/^\+[^+]/gm) || []).length;
-          const deletions = (patch.match(/^-[^-]/gm) || []).length;
-          changeIndicator = `[ +${additions} / -${deletions} ]`;
-        } else {
-          // Count lines in the whole file content
-          const lineCount =
-            (update.update.value.content.match(/\n/g) || []).length + 1;
-          changeIndicator = `[ +${lineCount} ]`;
+        switch (update.update.value.type) {
+          case "diff": {
+            // Count additions and deletions in the patch
+            const patch = update.update.value.patch;
+            const additions = (patch.match(/^\+[^+]/gm) || []).length;
+            const deletions = (patch.match(/^-[^-]/gm) || []).length;
+            changeIndicator = `[ +${additions} / -${deletions} ]`;
+            break;
+          }
+          case "whole-file": {
+            // Count lines in the whole file content
+            const lineCount =
+              (update.update.value.content.match(/\n/g) || []).length + 1;
+            changeIndicator = `[ +${lineCount} ]`;
+            break;
+          }
+          case "file-deleted": {
+            changeIndicator = "[ deleted ]";
+            break;
+          }
+          default:
+            assertUnreachable(update.update.value);
         }
 
         const filePathLink = withBindings(d`- \`${update.relFilePath}\``, {
@@ -465,14 +476,24 @@ ${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${t
           this.state.expandedUpdates &&
           this.state.expandedUpdates[absFilePath]
         ) {
-          if (update.update.value.type === "whole-file") {
-            fileUpdates.push(
-              d`\`\`\`\n${update.update.value.content}\n\`\`\`\n`,
-            );
-          } else if (update.update.value.type === "diff") {
-            fileUpdates.push(
-              d`\`\`\`diff\n${update.update.value.patch}\n\`\`\`\n`,
-            );
+          switch (update.update.value.type) {
+            case "whole-file":
+              fileUpdates.push(
+                d`\`\`\`\n${update.update.value.content}\n\`\`\`\n`,
+              );
+              break;
+            case "diff":
+              fileUpdates.push(
+                d`\`\`\`diff\n${update.update.value.patch}\n\`\`\`\n`,
+              );
+              break;
+            case "file-deleted":
+              fileUpdates.push(
+                d`This file has been deleted and removed from context.\n`,
+              );
+              break;
+            default:
+              assertUnreachable(update.update.value);
           }
         }
       } else {
