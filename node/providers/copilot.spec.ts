@@ -52,6 +52,27 @@ const TOOL_SPEC: ProviderToolSpec = {
   },
 };
 
+const BASH_COMMAND_TOOL_SPEC: ProviderToolSpec = {
+  name: "bash_command" as ToolName,
+  description: `Run a command in a bash shell.
+You will get the stdout and stderr of the command, as well as the exit code.
+For example, you can run \`ls\`, \`echo 'Hello, World!'\`, or \`git status\`.
+The command will time out after 1 min.
+You should not run commands that require user input, such as \`git commit\` without \`-m\` or \`ssh\`.
+You should not run commands that do not halt, such as \`docker compose up\` without \`-d\`, \`tail -f\` or \`watch\`.
+`,
+  input_schema: {
+    type: "object",
+    properties: {
+      command: {
+        type: "string",
+        description: "The command to run in the terminal",
+      },
+    },
+    required: ["command"],
+  },
+};
+
 describe.skip("CopilotProvider", () => {
   let provider: CopilotProvider;
   let mockNvim: Nvim;
@@ -156,6 +177,53 @@ describe.skip("CopilotProvider", () => {
 
         expect(result.stopReason).toBe("tool_use");
         expect(streamEvents.length).toBeGreaterThan(0);
+      });
+    });
+
+    it("should handle bash_command tool use", async () => {
+      await withRecording("bash-command-tool-use", async () => {
+        const streamEvents: ProviderStreamEvent[] = [];
+        const request = provider.sendMessage({
+          model: "claude-3.7-sonnet",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "Please run the command: echo test" },
+              ],
+            },
+          ],
+          onStreamEvent: (event) => streamEvents.push(event),
+          tools: [BASH_COMMAND_TOOL_SPEC],
+        });
+
+        const result = await request.promise;
+
+        expect(result.stopReason).toBe("tool_use");
+        expect(streamEvents.length).toBeGreaterThan(0);
+
+        // Check that we have the expected stream event types
+        const eventTypes = streamEvents.map((e) => e.type);
+        expect(eventTypes).toContain("content_block_start");
+        expect(eventTypes).toContain("content_block_stop");
+
+        // Check that we have tool use content blocks
+        const toolUseBlocks = streamEvents.filter(
+          (e) =>
+            e.type === "content_block_start" &&
+            e.content_block.type === "tool_use",
+        );
+        expect(toolUseBlocks.length).toBeGreaterThan(0);
+
+        // Verify the tool use block has the expected structure
+        const toolUseBlock = toolUseBlocks[0];
+        if (
+          toolUseBlock.type === "content_block_start" &&
+          toolUseBlock.content_block.type === "tool_use"
+        ) {
+          expect(toolUseBlock.content_block.id).toBeTruthy();
+          expect(toolUseBlock.content_block.name).toBe("bash_command");
+        }
       });
     });
   });

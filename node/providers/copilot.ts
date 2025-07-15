@@ -555,6 +555,17 @@ export class CopilotProvider implements Provider {
     let currentContentBlockIndex = 0;
     let blockStarted = false;
 
+    // Track accumulated tool call data across chunks
+    const toolCallAccumulator = new Map<
+      number,
+      {
+        id: string;
+        name: string;
+        arguments: string;
+        blockIndex?: number;
+      }
+    >();
+
     const promise = (async (): Promise<{
       usage: Usage;
       stopReason: StopReason;
@@ -601,45 +612,78 @@ export class CopilotProvider implements Provider {
         }
 
         if (delta?.tool_calls) {
-          // Tool call handling
-          if (blockStarted) {
-            onStreamEvent({
-              type: "content_block_stop",
-              index: currentContentBlockIndex,
-            });
+          // Accumulate tool call data across chunks
+          for (const toolCallDelta of delta.tool_calls) {
+            const toolCallIndex = toolCallDelta.index || 0;
+
+            if (!toolCallAccumulator.has(toolCallIndex)) {
+              toolCallAccumulator.set(toolCallIndex, {
+                id: "",
+                name: "",
+                arguments: "",
+              });
+            }
+
+            const accumulated = toolCallAccumulator.get(toolCallIndex)!;
+
+            // Accumulate data
+            if (toolCallDelta.id) {
+              accumulated.id = toolCallDelta.id;
+            }
+            if (toolCallDelta.function?.name) {
+              accumulated.name = toolCallDelta.function.name;
+            }
+            if (toolCallDelta.function?.arguments) {
+              accumulated.arguments += toolCallDelta.function.arguments;
+            }
+
+            // Only create content block when we have complete tool info
+            if (
+              accumulated.id &&
+              accumulated.name &&
+              accumulated.blockIndex === undefined
+            ) {
+              // Close any existing text block
+              if (blockStarted) {
+                onStreamEvent({
+                  type: "content_block_stop",
+                  index: currentContentBlockIndex,
+                });
+                blockStarted = false;
+              }
+
+              // Start new tool use block
+              currentContentBlockIndex++;
+              accumulated.blockIndex = currentContentBlockIndex;
+              stopReason = "tool_use";
+
+              onStreamEvent({
+                type: "content_block_start",
+                index: currentContentBlockIndex,
+                content_block: {
+                  type: "tool_use",
+                  id: accumulated.id,
+                  name: accumulated.name,
+                  input: {},
+                },
+              });
+            }
+
+            // Send argument deltas if we have a block started
+            if (
+              accumulated.blockIndex !== undefined &&
+              toolCallDelta.function?.arguments
+            ) {
+              onStreamEvent({
+                type: "content_block_delta",
+                index: accumulated.blockIndex,
+                delta: {
+                  type: "input_json_delta",
+                  partial_json: toolCallDelta.function.arguments,
+                },
+              });
+            }
           }
-
-          currentContentBlockIndex++;
-          const toolCall = delta.tool_calls[0];
-          stopReason = "tool_use";
-
-          onStreamEvent({
-            type: "content_block_start",
-            index: currentContentBlockIndex,
-            content_block: {
-              type: "tool_use",
-              id: toolCall.id || "",
-              name: toolCall.function?.name || "",
-              input: {},
-            },
-          });
-
-          if (toolCall.function?.arguments) {
-            onStreamEvent({
-              type: "content_block_delta",
-              index: currentContentBlockIndex,
-              delta: {
-                type: "input_json_delta",
-                partial_json: toolCall.function.arguments,
-              },
-            });
-          }
-
-          onStreamEvent({
-            type: "content_block_stop",
-            index: currentContentBlockIndex,
-          });
-          blockStarted = false;
         }
 
         // Extract usage if available
@@ -651,12 +695,22 @@ export class CopilotProvider implements Provider {
         }
       }
 
-      // Final cleanup
+      // Final cleanup - close any open blocks
       if (blockStarted) {
         onStreamEvent({
           type: "content_block_stop",
           index: currentContentBlockIndex,
         });
+      }
+
+      // Close any tool use blocks
+      for (const accumulated of toolCallAccumulator.values()) {
+        if (accumulated.blockIndex !== undefined) {
+          onStreamEvent({
+            type: "content_block_stop",
+            index: accumulated.blockIndex,
+          });
+        }
       }
 
       return {
