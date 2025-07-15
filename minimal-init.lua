@@ -70,7 +70,7 @@ vim.api.nvim_create_autocmd(
                 -- Check if client actually attached
                 vim.defer_fn(
                   function()
-                    local clients = vim.lsp.get_active_clients({ bufnr = ev.buf })
+                    local clients = vim.lsp.get_clients({ bufnr = ev.buf })
                     vim.notify("Active clients after start: " .. vim.inspect(clients))
                   end,
                   100

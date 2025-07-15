@@ -241,7 +241,7 @@ M.wait_for_lsp_attach = function(bufnr, capability, timeout_ms)
   return vim.wait(
     timeout_ms,
     function()
-      local clients = vim.lsp.get_active_clients({ bufnr = bufnr })
+      local clients = vim.lsp.get_clients({ bufnr = bufnr })
       for _, client in ipairs(clients) do
         if client.server_capabilities[capability] then
           return true
