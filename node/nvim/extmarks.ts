@@ -91,7 +91,7 @@ export type ExtmarkId = number & { __extmarkId: true };
 
 /**
  * Comprehensive options for nvim_buf_set_extmark.
- * Covers all available extmark functionality.
+l* Covers all available extmark functionality.
  */
 export type ExtmarkOptions = {
   // Basic highlighting

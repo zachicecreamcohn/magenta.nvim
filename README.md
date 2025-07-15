@@ -29,7 +29,7 @@ Developed by [dlants.me](https://dlants.me): I was tempted by other editors due 
 
 ## July 2025
 
-**improved styling** - I was using markdown for the display buffer for a while, but it was unreliable (due to agent-generated code and file contents interfering with makrdown boundaries), and started crashing with the latest markdown grammar. So I added an extmark-based system for highlighting the display buffer instead. This means more consistent colors, and more control (like coloring the diffs of the replace & insert tools). This is all done via nvim's hl_groups so it should automatically be compatible with your colorscheme.
+**improved styling** - I was using markdown for the display buffer for a while, but it was unreliable (due to agent-generated code and file contents interfering with makrdown boundaries), and started crashing with the latest markdown grammar. So I added an extmark-based system for highlighting the display buffer instead. This means more consistent colors, and more control (like coloring the diffs of the replace & insert tools). This is all done via nvim's hl_groups so it should automatically be compatible with your colorscheme. I also made a small quality-of-life improvement that allows you to open search results and citations in the browser by pressing "Enter" over them.
 
 **fast models** - Each profile now supports both a primary model and a fast model. The fast model is automatically used for lightweight tasks like generating thread titles, providing snappier UI interactions while reserving the primary model for substantive coding work. (defaults to haiku for anthropic).
 
@@ -567,6 +567,7 @@ The display buffer is not modifiable, however you can interact with some parts o
 - hit `enter` on a context file to open it
 - hit `d` on a context file to remove it
 - hit `enter` on a diff to see a detailed side-by-side comparison between the original file snapshot and proposed changes
+- hit `enter` on web search results or citations to open them in your default browser
 - hit `t` on a running bash command to terminate it (SIGTERM)
 
 ### Input commands
@@ -665,15 +666,16 @@ Codecompanion has a single buffer, while magenta.nvim has separate input & displ
 
 ## compared to avante:
 
-I think it's fairly similar. However, magenta.nvim is written in typescript and uses the sdks to implement streaming, which I think makes it more stable. I think the main advantage is the architecture is very clean so it should be easy to extend the functionality. Between typescript, sdks and the architecture, I think my velocity is pretty high.
+I think it's fairly similar. However, magenta.nvim is written in typescript and uses the sdks to implement streaming, which I think makes it more stable. I think the main advantage is the architecture is very clean so it should be easy to extend the functionality. Between typescript, sdks and the architecture, I think my velocity is really high.
 
 ## compared to both:
 
 magenta.nvim includes capabilities that neither plugin offers:
 
-- **Web search tools**: Agents can search the internet for current information, documentation, and solutions, and cite these in their responses
-- **Sub-agents**: Complex tasks can be broken down and delegated to specialized agents that work in parallel with focused context and system prompts
-- **Smart context tracking**: The plugin automatically tracks the state of files on disk, in buffers, and what the agent has seen, sending only diffs when files change. This enables better cache utilization and more efficient communication without re-sending full file contents for small changes.
+- **Web search tools**: Agents can search the internet for current information, documentation, and solutions, and cite these in their responses.
+- **Sub-agents**: Complex tasks can be broken down and delegated to specialized agents that work in parallel with focused context and system prompts.
+- **User-friendly, context-aware inline edits**: apply inline edits at a cursor position or to a selection. Dot-repeat to replay promtps against new locations.
+- **Smart context tracking**: The plugin automatically tracks the state of files on disk, in buffers, and what the agent has seen, sending only diffs when files change. This enables better cache utilization and more efficient communication while sending only diffs to the agent.
 
 # Contributions
 

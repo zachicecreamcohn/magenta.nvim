@@ -34,6 +34,7 @@ export type MessageId = number & { __messageId: true };
 import type { Input as GetFileInput } from "../tools/getFile.ts";
 import type { Input as ReplaceInput } from "../tools/replace.ts";
 import type { Role, ThreadId } from "./types.ts";
+import open from "open";
 
 type State = {
   id: MessageId;
@@ -283,6 +284,18 @@ export class Message {
     this.state.contextUpdates = updates;
   }
 
+  private withUrlBinding(node: ReturnType<typeof withExtmark>, url: string) {
+    return withBindings(node, {
+      "<CR>": () => {
+        open(url).catch((error: Error) => {
+          this.context.nvim.logger?.error(
+            `Failed to open URL: ${error.message}`,
+          );
+        });
+      },
+    });
+  }
+
   renderToolResult(id: ToolRequestId) {
     const tool = this.context.toolManager.getTool(id);
     if (!tool) {
@@ -475,24 +488,24 @@ ${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${t
   renderContent(content: ProviderMessageContent) {
     switch (content.type) {
       case "text": {
-        return d`${content.text}${content.citations ? content.citations.map((c) => d`[${c.title}](${c.url})`) : ""}`;
+        return d`${content.text}${content.citations ? content.citations.map((c) => this.withUrlBinding(withExtmark(d`[${c.title}](${c.url})`, { hl_group: "@markup.link.markdown", url: c.url }), c.url)) : ""}`;
       }
 
       case "server_tool_use":
-        return d`🔍 Searching ${content.input.query}...`;
+        return d`🔍 Searching ${withExtmark(d`${content.input.query}`, { hl_group: "@string" })}...`;
 
       case "web_search_tool_result": {
         if (
           "type" in content.content &&
           content.content.type === "web_search_tool_result_error"
         ) {
-          return d`🌐 Search error: ${content.content.error_code}`;
+          return d`🌐 Search error: ${withExtmark(d`${content.content.error_code}`, { hl_group: "ErrorMsg" })}`;
         } else {
           const results = content.content as Array<WebSearchResultBlock>;
           return d`\
 🌐 Search results:\n${results.map(
             (result) => d`\
-- [${result.title}](${result.url})${result.page_age ? ` (${result.page_age})` : ""}\n`,
+- ${this.withUrlBinding(withExtmark(d`[${result.title}](${result.url})`, { hl_group: "@markup.link.markdown", url: result.url }), result.url)}${result.page_age ? withExtmark(d` (${result.page_age})`, { hl_group: "@markup.emphasis.markdown" }) : ""}\n`,
           )}`;
         }
       }
