@@ -89,9 +89,13 @@ class CopilotAuth {
     }
 
     // Handle hosts.json format
-    const githubConfigKey = Object.keys(config).find((key) => key.startsWith("github.com"))
+    const githubConfigKey = Object.keys(config).find((key) =>
+      key.startsWith("github.com"),
+    );
     if (githubConfigKey) {
-      const githubConfig = (config as { [key: string]: unknown })[githubConfigKey];
+      const githubConfig = (config as { [key: string]: unknown })[
+        githubConfigKey
+      ];
       if (
         typeof githubConfig === "object" &&
         githubConfig !== null &&
