@@ -36,7 +36,7 @@ export class BufferTracker {
         bufnr,
       };
     } catch (error) {
-      this.nvim.logger?.error(
+      this.nvim.logger.error(
         `Error tracking buffer sync for ${absFilePath}:`,
         error,
       );

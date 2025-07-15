@@ -37,7 +37,7 @@ export async function replaceBetweenPositions({
     const err = new Error(
       `Unable to replaceBetweenPositions ${JSON.stringify({ startPos, endPos })}: ${e as string}`,
     );
-    context.nvim.logger?.error(err);
+    context.nvim.logger.error(err);
     throw err;
   }
 }
@@ -91,7 +91,7 @@ export async function logBuffer(buffer: NvimBuffer, context: { nvim: Nvim }) {
     start: 0,
     end: -1,
   });
-  context.nvim.logger?.info("buffer:\n" + lines.join("\n") + "\nend");
+  context.nvim.logger.info("buffer:\n" + lines.join("\n") + "\nend");
 }
 
 export function strWidthInBytes(str: string) {

@@ -89,7 +89,7 @@ export class Sidebar {
       displayBuffer: existingDisplayBuffer,
       inputBuffer: existingInputBuffer,
     } = this.state;
-    this.nvim.logger?.debug(`sidebar.show`);
+    this.nvim.logger.debug(`sidebar.show`);
     const totalHeight = (await getOption("lines", this.nvim)) as number;
     const cmdHeight = (await getOption("cmdheight", this.nvim)) as number;
     const displayHeight = Math.floor((totalHeight - cmdHeight) * 0.8);
@@ -171,7 +171,7 @@ export class Sidebar {
     await inputWindow.setVar("magenta", true);
     await inputWindow.setOption("winfixheight", true);
 
-    this.nvim.logger?.debug(`sidebar.create setting state`);
+    this.nvim.logger.debug(`sidebar.create setting state`);
     this.state = {
       state: "visible",
       displayBuffer,
@@ -251,7 +251,7 @@ export class Sidebar {
 
   async getMessage(): Promise<string> {
     if (this.state.state != "visible") {
-      this.nvim.logger?.debug(
+      this.nvim.logger.debug(
         `sidebar state is ${this.state.state} in getMessage`,
       );
       return "";
@@ -264,7 +264,7 @@ export class Sidebar {
       end: -1,
     });
 
-    this.nvim.logger?.debug(
+    this.nvim.logger.debug(
       `sidebar got lines ${JSON.stringify(lines)} from inputBuffer`,
     );
     const message = lines.join("\n");

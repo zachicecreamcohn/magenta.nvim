@@ -65,7 +65,7 @@ export async function openFileInNonMagentaWindow(
       await context.nvim.call("nvim_command", [`split ${absFilePath}`]);
     }
   } catch (error) {
-    context.nvim.logger?.error(
+    context.nvim.logger.error(
       `Error opening file ${filePath}: ${(error as Error).message}`,
     );
   }

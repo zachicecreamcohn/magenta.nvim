@@ -28,14 +28,14 @@ export class Lsp {
       const requestId = this.getRequestId();
       this.requests[requestId] = { type: "hover", resolve, reject };
 
-      this.nvim.logger?.debug(`Initiating hover command...`);
+      this.nvim.logger.debug(`Initiating hover command...`);
       this.nvim
         .call("nvim_exec_lua", [
           `require('magenta').lsp_hover_request("${requestId}", ${buffer.id}, ${pos.row}, ${pos.col})`,
           [],
         ])
         .catch((...args: string[][]) => {
-          this.nvim.logger?.error(`lsp request error: ${JSON.stringify(args)}`);
+          this.nvim.logger.error(`lsp request error: ${JSON.stringify(args)}`);
           this.rejectRequest(
             requestId,
             new Error(args[0][1] as unknown as string),
@@ -52,7 +52,7 @@ export class Lsp {
       const requestId = this.getRequestId();
       this.requests[requestId] = { type: "find_references", resolve, reject };
 
-      this.nvim.logger?.debug(`Initiating references command...`);
+      this.nvim.logger.debug(`Initiating references command...`);
       this.nvim
         .call("nvim_exec_lua", [
           `require('magenta').lsp_references_request("${requestId}", ${buffer.id}, ${pos.row}, ${pos.col})`,
@@ -79,7 +79,7 @@ export class Lsp {
   }
 
   onLspResponse(result: unknown) {
-    this.nvim.logger?.debug(`onLspResponse: ${JSON.stringify(result)}`);
+    this.nvim.logger.debug(`onLspResponse: ${JSON.stringify(result)}`);
     const [[[requestId, res]]] = result as [[[number, unknown]]];
     const request = this.requests[requestId];
     if (!request) {

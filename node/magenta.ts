@@ -66,12 +66,12 @@ export class Magenta {
         }
 
         this.sidebar.renderInputHeader().catch((e) => {
-          this.nvim.logger?.error(
+          this.nvim.logger.error(
             `Error rendering sidebar input header: ${e instanceof Error ? e.message + "\n" + e.stack : JSON.stringify(e)}`,
           );
         });
       } catch (e) {
-        nvim.logger?.error(e as Error);
+        nvim.logger.error(e as Error);
       }
     };
 
@@ -122,7 +122,7 @@ export class Magenta {
               lines: msg.lastUserMessage.split("\n") as Line[],
             })
             .catch((error) => {
-              this.nvim.logger?.error(`Error updating sidebar input: ${error}`);
+              this.nvim.logger.error(`Error updating sidebar input: ${error}`);
             });
         }
         break;
@@ -132,7 +132,7 @@ export class Magenta {
             await this.mountedChatApp?.waitForRender();
             await this.sidebar.scrollToLastUserMessage();
           })().catch((error: Error) =>
-            this.nvim.logger?.error(
+            this.nvim.logger.error(
               `Error scrolling to last user message: ${error.message + "\n" + error.stack}`,
             ),
           );
@@ -145,7 +145,7 @@ export class Magenta {
 
   async command(input: string): Promise<void> {
     const [command, ...rest] = input.trim().split(/\s+/);
-    this.nvim.logger?.debug(`Received command ${command}`);
+    this.nvim.logger.debug(`Received command ${command}`);
     switch (command) {
       case "profile": {
         const profileName = rest.join(" ");
@@ -168,7 +168,7 @@ export class Magenta {
             },
           });
         } else {
-          this.nvim.logger?.error(`Profile "${profileName}" not found.`);
+          this.nvim.logger.error(`Profile "${profileName}" not found.`);
           // eslint-disable-next-line @typescript-eslint/no-floating-promises
           notifyErr(
             this.nvim,
@@ -197,7 +197,7 @@ export class Magenta {
           const relFilePath = relativePath(cwd, absFilePath);
           const fileTypeInfo = await detectFileType(absFilePath);
           if (!fileTypeInfo) {
-            this.nvim.logger?.error(`File ${filePath} does not exist.`);
+            this.nvim.logger.error(`File ${filePath} does not exist.`);
             continue;
           }
 
@@ -228,14 +228,14 @@ export class Magenta {
             startPos: pos(0, 0),
             endPos: pos(-1, -1),
           });
-          this.nvim.logger?.debug(`Chat mounted.`);
+          this.nvim.logger.debug(`Chat mounted.`);
         }
         break;
       }
 
       case "send": {
         const text = await this.sidebar.getMessage();
-        this.nvim.logger?.debug(`current message: ${text}`);
+        this.nvim.logger.debug(`current message: ${text}`);
         if (!text) return;
 
         this.dispatch({
@@ -385,7 +385,7 @@ ${lines.join("\n")}
 
       case "submit-inline-edit": {
         if (rest.length != 1 || typeof rest[0] != "string") {
-          this.nvim.logger?.error(
+          this.nvim.logger.error(
             `Expected bufnr argument to submit-inline-edit`,
           );
           return;
@@ -394,7 +394,7 @@ ${lines.join("\n")}
         const bufnr = Number.parseInt(rest[0]) as BufNr;
         const chat = this.chatApp.getState();
         if (chat.status !== "running") {
-          this.nvim.logger?.error(`Chat is not running.`);
+          this.nvim.logger.error(`Chat is not running.`);
           return;
         }
 
@@ -403,7 +403,7 @@ ${lines.join("\n")}
       }
 
       default:
-        this.nvim.logger?.error(`Unrecognized command ${command}\n`);
+        this.nvim.logger.error(`Unrecognized command ${command}\n`);
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
         notifyErr(
           this.nvim,
@@ -419,7 +419,7 @@ ${lines.join("\n")}
       if (BINDING_KEYS.indexOf(key as BindingKey) > -1) {
         this.mountedChatApp.onKey(key as BindingKey);
       } else {
-        this.nvim.logger?.error(`Unexpected MagentaKey ${JSON.stringify(key)}`);
+        this.nvim.logger.error(`Unexpected MagentaKey ${JSON.stringify(key)}`);
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
         notifyErr(
           this.nvim,
@@ -446,7 +446,7 @@ ${lines.join("\n")}
       case "read":
       case "write":
         this.bufferTracker.trackBufferSync(absFilePath, bufnr).catch((err) => {
-          this.nvim.logger?.error(
+          this.nvim.logger.error(
             `Error tracking buffer sync for ${absFilePath}: ${err}`,
           );
         });
@@ -465,7 +465,7 @@ ${lines.join("\n")}
       this.mountedChatApp = undefined;
     }
     this.inlineEditManager.destroy().catch((e) => {
-      this.nvim.logger?.warn(
+      this.nvim.logger.warn(
         `Error destroying inline edit manager: ${e instanceof Error ? e.message + "\n" + e.stack : JSON.stringify(e)}`,
       );
     });
@@ -477,7 +477,7 @@ ${lines.join("\n")}
       try {
         await magenta.command(args[0] as string);
       } catch (err) {
-        nvim.logger?.error(
+        nvim.logger.error(
           err instanceof Error
             ? `Error executing command ${args[0] as string}: ${err.message}\n${err.stack}`
             : JSON.stringify(err),
@@ -491,7 +491,7 @@ ${lines.join("\n")}
       try {
         await magenta.onWinClosed();
       } catch (err) {
-        nvim.logger?.error(err as Error);
+        nvim.logger.error(err as Error);
       }
     });
 
@@ -499,7 +499,7 @@ ${lines.join("\n")}
       try {
         magenta.onKey(args as string[]);
       } catch (err) {
-        nvim.logger?.error(err as Error);
+        nvim.logger.error(err as Error);
       }
     });
 
@@ -507,7 +507,7 @@ ${lines.join("\n")}
       try {
         lsp.onLspResponse(args);
       } catch (err) {
-        nvim.logger?.error(JSON.stringify(err));
+        nvim.logger.error(JSON.stringify(err));
       }
     });
 
@@ -541,7 +541,7 @@ ${lines.join("\n")}
 
         magenta.onBufferTrackerEvent(eventType, absFilePath, bufnr);
       } catch (err) {
-        nvim.logger?.error(
+        nvim.logger.error(
           `Error handling buffer tracker event for ${JSON.stringify(args)}: ${err instanceof Error ? err.message + "\n" + err.stack : JSON.stringify(err)}`,
         );
       }
@@ -552,12 +552,12 @@ ${lines.join("\n")}
     ]);
 
     // Parse base options from Lua
-    const baseOptions = parseOptions(opts, nvim.logger!);
+    const baseOptions = parseOptions(opts, nvim.logger);
 
     // Load and parse project settings
     const cwd = await getcwd(nvim);
     const projectSettings = loadProjectSettings(cwd, {
-      warn: (msg) => nvim.logger?.warn(`Project settings: ${msg}`),
+      warn: (msg) => nvim.logger.warn(`Project settings: ${msg}`),
     });
 
     // Merge project settings with base options
@@ -565,7 +565,7 @@ ${lines.join("\n")}
       ? mergeOptions(baseOptions, projectSettings)
       : baseOptions;
     const magenta = new Magenta(nvim, lsp, cwd, parsedOptions);
-    nvim.logger?.info(`Magenta initialized. ${JSON.stringify(parsedOptions)}`);
+    nvim.logger.info(`Magenta initialized. ${JSON.stringify(parsedOptions)}`);
     return magenta;
   }
 }

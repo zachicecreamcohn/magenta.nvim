@@ -291,19 +291,19 @@ export async function withNvimClient(
           const { msg, level } = args[0] as { msg: string; level: number };
           switch (level) {
             case 0: // ERROR
-              nvim.logger?.error(msg);
+              nvim.logger.error(msg);
               break;
             case 2: // WARN
-              nvim.logger?.warn(msg);
+              nvim.logger.warn(msg);
               break;
             case 3: // INFO
-              nvim.logger?.info(msg);
+              nvim.logger.info(msg);
               break;
             default: // DEBUG and others
-              nvim.logger?.debug(msg);
+              nvim.logger.debug(msg);
           }
         } catch (err) {
-          nvim.logger?.error(err as Error);
+          nvim.logger.error(err as Error);
         }
       });
 

@@ -148,7 +148,7 @@ export class SpawnForeachTool implements StaticTool {
       this.request.input as Record<string, unknown>,
     );
     if (validationResult.status === "error") {
-      this.context.nvim.logger?.error(
+      this.context.nvim.logger.error(
         `Input validation failed: ${validationResult.error}`,
       );
       return;
@@ -232,7 +232,7 @@ ${element}`;
     );
 
     if (!elementWrapper) {
-      this.context.nvim.logger?.error(
+      this.context.nvim.logger.error(
         `Received subagent-created for unknown element: ${msg.element}`,
       );
       return;

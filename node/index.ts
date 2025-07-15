@@ -16,7 +16,7 @@ const nvim = await attach({
   logging: { level: ENV.LOG_LEVEL },
 });
 
-if (nvim.logger?.error) {
+if (nvim.logger.error) {
   const original = nvim.logger.error.bind(nvim.logger);
   nvim.logger.error = ((error: Error | string, ...rest: unknown[]) => {
     original(
@@ -36,7 +36,7 @@ if (nvim.logger?.error) {
 }
 
 process.on("uncaughtException", (error) => {
-  nvim.logger?.error(error);
+  nvim.logger.error(error);
   setTimeout(() => {
     // wait for logger to finish writing
     process.exit(1);

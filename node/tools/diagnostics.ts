@@ -37,7 +37,7 @@ export class DiagnosticsTool implements StaticTool {
       state: "processing",
     };
     this.getDiagnostics().catch((error) => {
-      this.context.nvim.logger?.error(
+      this.context.nvim.logger.error(
         `Error getting diagnostics: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
