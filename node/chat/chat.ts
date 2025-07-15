@@ -203,6 +203,16 @@ export class Chat {
           };
         }
 
+        // Scroll to top when a new thread is created
+        setTimeout(() => {
+          this.context.dispatch({
+            type: "sidebar-msg",
+            msg: {
+              type: "scroll-to-top",
+            },
+          });
+        }, 100);
+
         return;
       }
 

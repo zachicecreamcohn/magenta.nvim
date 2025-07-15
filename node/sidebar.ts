@@ -231,6 +231,17 @@ export class Sidebar {
     }
   }
 
+  async scrollToTop() {
+    const { displayWindow } = await this.getWindowIfVisible();
+    if (displayWindow) {
+      await displayWindow.setCursor({
+        row: 1,
+        col: 0,
+      } as Position1Indexed);
+      await displayWindow.zt();
+    }
+  }
+
   async getWindowIfVisible(): Promise<{
     displayWindow?: NvimWindow | undefined;
     inputWindow?: NvimWindow | undefined;
