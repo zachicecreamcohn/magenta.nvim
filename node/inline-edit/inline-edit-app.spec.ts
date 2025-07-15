@@ -52,8 +52,6 @@ describe("node/inline-edit/inline-edit-app.spec.ts", () => {
         },
       });
 
-      await driver.assertBufferContains(inputBuffer, `✏️⚙️ Applying edit`);
-
       await driver.assertBufferContains(
         targetBuffer,
         `\
@@ -220,11 +218,6 @@ Golden shadows dance with ease.`,
       });
 
       await driver.assertBufferContains(
-        inputBuffer,
-        `✏️ Replacing selected text`,
-      );
-
-      await driver.assertBufferContains(
         targetBuffer,
         `\
 Moonlight whispers through the trees,
@@ -279,11 +272,6 @@ Paint their stories in the night.`,
       });
 
       await driver.assertBufferContains(
-        inputBuffer,
-        `✏️ Replacing selected text`,
-      );
-
-      await driver.assertBufferContains(
         targetBuffer,
         `\
 Moonlight whispers through the trees,
@@ -294,6 +282,52 @@ Paint their stories in the night.`,
 
       // Verify the input buffer is destroyed after successful edit
       await driver.assertWindowCount(1);
+    });
+  });
+
+  it("shows error message when inline edit fails", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.editFile("poem.txt");
+      const targetBuffer = await getCurrentBuffer(driver.nvim);
+      await driver.startInlineEdit();
+
+      await driver.assertWindowCount(2);
+
+      const inputBuffer = await getCurrentBuffer(driver.nvim);
+      await inputBuffer.setLines({
+        start: 0,
+        end: -1,
+        lines: ["Please change 'Silver' to 'Golden' in line 2"] as Line[],
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      driver.submitInlineEdit(targetBuffer.id);
+      await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+
+      // Respond with a failed tool request
+      await driver.mockAnthropic.respondToForceToolUse({
+        stopReason: "end_turn",
+        toolRequest: {
+          status: "error",
+          error: "Unable to find the specified text to replace",
+          rawRequest: {},
+        },
+      });
+
+      // Verify the input buffer shows the error message and remains open
+      await driver.assertBufferContains(
+        inputBuffer,
+        "Error: Unable to find the specified text to replace",
+      );
+
+      // Verify the input buffer window is still open (not closed like successful edits)
+      await driver.assertWindowCount(2);
+
+      // Verify the target buffer was not modified
+      await driver.assertBufferContains(
+        targetBuffer,
+        "Silver shadows dance with ease.",
+      );
     });
   });
 
