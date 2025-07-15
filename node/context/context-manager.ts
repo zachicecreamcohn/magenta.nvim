@@ -158,7 +158,7 @@ export class ContextManager {
         openFileInNonMagentaWindow(msg.absFilePath, {
           nvim: this.context.nvim,
           options: this.context.options,
-        }).catch((e: Error) => this.context.nvim.logger?.error(e.message));
+        }).catch((e: Error) => this.context.nvim.logger.error(e.message));
 
         return;
       case "tool-applied":
@@ -391,7 +391,7 @@ export class ContextManager {
         };
       }
     } catch (err) {
-      nvim.logger?.error(
+      nvim.logger.error(
         `Error loading auto context: ${(err as Error).message}`,
       );
     }
@@ -432,7 +432,7 @@ export class ContextManager {
             }
           }
         } catch (err) {
-          nvim.logger?.error(
+          nvim.logger.error(
             `Error processing glob pattern "${pattern}": ${(err as Error).message}`,
           );
         }
@@ -480,19 +480,19 @@ export class ContextManager {
         try {
           const fileTypeInfo = await detectFileType(fileInfo.absFilePath);
           if (!fileTypeInfo) {
-            nvim.logger?.error(`File ${fileInfo.relFilePath} does not exist.`);
+            nvim.logger.error(`File ${fileInfo.relFilePath} does not exist.`);
             return;
           }
           if (fileTypeInfo.category === FileCategory.TEXT) {
             textFiles.push(fileInfo);
           } else {
             // Log informational message about skipped non-text files
-            nvim.logger?.warn(
+            nvim.logger.warn(
               `Skipping ${fileInfo.relFilePath} from auto-context: ${fileTypeInfo.category} files are not supported in context (detected MIME type: ${fileTypeInfo.mimeType})`,
             );
           }
         } catch (error) {
-          nvim.logger?.error(
+          nvim.logger.error(
             `Failed to detect file type for ${fileInfo.relFilePath} during auto-context loading: ${(error as Error).message}`,
           );
         }

@@ -297,7 +297,7 @@ export class Thread {
             this.setThreadTitle(
               msg.messages.map((m) => m.text).join("\n"),
             ).catch((err: Error) =>
-              this.context.nvim.logger?.error(
+              this.context.nvim.logger.error(
                 "Error getting thread title: " + err.message + "\n" + err.stack,
               ),
             );
@@ -386,7 +386,7 @@ export class Thread {
         this.fileSnapshots
           .willEditFile(msg.unresolvedFilePath, msg.messageId)
           .catch((e: Error) => {
-            this.context.nvim.logger?.error(
+            this.context.nvim.logger.error(
               `Failed to take file snapshot: ${e.message}`,
             );
           });
@@ -515,7 +515,7 @@ export class Thread {
   }
 
   private handleSendMessageError = (error: Error): void => {
-    this.context.nvim.logger?.error(error);
+    this.context.nvim.logger.error(error);
     if (this.state.conversation.state == "message-in-flight") {
       this.myDispatch({
         type: "conversation-state",
@@ -556,7 +556,7 @@ export class Thread {
               text: `Current diagnostics:\n${diagnostics}`,
             });
           } catch (error) {
-            this.context.nvim.logger?.error(
+            this.context.nvim.logger.error(
               `Failed to fetch diagnostics for message: ${error instanceof Error ? error.message : String(error)}`,
             );
             // Append error message as a separate content block
@@ -585,7 +585,7 @@ export class Thread {
               text: `Current quickfix list:\n${quickfixStr}`,
             });
           } catch (error) {
-            this.context.nvim.logger?.error(
+            this.context.nvim.logger.error(
               `Failed to fetch quickfix list for message: ${error instanceof Error ? error.message : String(error)}`,
             );
             // Append error message as a separate content block
@@ -610,7 +610,7 @@ export class Thread {
               text: `Current buffers list:\n${buffersList}`,
             });
           } catch (error) {
-            this.context.nvim.logger?.error(
+            this.context.nvim.logger.error(
               `Failed to fetch buffers list for message: ${error instanceof Error ? error.message : String(error)}`,
             );
             // Append error message as a separate content block

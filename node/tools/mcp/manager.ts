@@ -30,7 +30,7 @@ export class MCPToolManager {
   ) {
     this.serverMap = {};
     this.init(options, context).catch((error) => {
-      this.context.nvim.logger?.error(
+      this.context.nvim.logger.error(
         `Failed to initialize MCPToolManager: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
@@ -57,7 +57,7 @@ export class MCPToolManager {
           this.serverMap[serverName as ServerName].specs[spec.name] = spec;
         }
       } catch (error) {
-        context.nvim.logger?.error(
+        context.nvim.logger.error(
           `Failed to connect to MCP server ${serverName}: ${error instanceof Error ? error.message : String(error)}`,
         );
         // Continue with other servers even if one fails
@@ -157,7 +157,7 @@ export class MCPToolManager {
         await client.disconnect();
       } catch (error) {
         // Log but don't throw - we want to try to disconnect all clients
-        this.context.nvim.logger?.error(
+        this.context.nvim.logger.error(
           `Error disconnecting MCP client:`,
           error,
         );

@@ -125,7 +125,7 @@ export class Chat {
 
     setTimeout(() => {
       this.createNewThread().catch((e: Error) => {
-        this.context.nvim.logger?.error(
+        this.context.nvim.logger.error(
           "Failed to create thread: " + e.message + "\n" + e.stack,
         );
       });
@@ -241,7 +241,7 @@ export class Chat {
         // wrap in setTimeout to force new eventloop frame, to avoid dispatch-in-dispatch
         setTimeout(() => {
           this.createNewThread().catch((e: Error) => {
-            this.context.nvim.logger?.error(
+            this.context.nvim.logger.error(
               "Failed to create new thread: " + e.message + "\n" + e.stack,
             );
           });
@@ -266,7 +266,7 @@ export class Chat {
 
       case "compact-thread": {
         this.handleCompactThread(msg).catch((e: Error) => {
-          this.context.nvim.logger?.error(
+          this.context.nvim.logger.error(
             "Failed to handle thread compaction: " + e.message + "\n" + e.stack,
           );
         });
@@ -275,7 +275,7 @@ export class Chat {
 
       case "spawn-subagent-thread": {
         this.handleSpawnSubagentThread(msg).catch((e: Error) => {
-          this.context.nvim.logger?.error(
+          this.context.nvim.logger.error(
             `Failed to spawn sub-agent thread: ${e.message} ${e.stack}`,
           );
         });
@@ -348,7 +348,7 @@ export class Chat {
           const relFilePath = relativePath(this.context.cwd, absFilePath);
           const fileTypeInfo = await detectFileType(absFilePath);
           if (!fileTypeInfo) {
-            this.context.nvim.logger?.error(`File ${filePath} does not exist.`);
+            this.context.nvim.logger.error(`File ${filePath} does not exist.`);
             return;
           }
           contextManager.update({

@@ -34,7 +34,7 @@ export type DiagnosticsRes = {
 };
 
 export async function getDiagnostics(nvim: Nvim): Promise<string> {
-  nvim.logger?.debug(`Getting diagnostics`);
+  nvim.logger.debug(`Getting diagnostics`);
 
   let diagnostics: DiagnosticsRes[];
   try {
@@ -61,6 +61,6 @@ export async function getDiagnostics(nvim: Nvim): Promise<string> {
     )
     .join("\n");
 
-  nvim.logger?.debug(`got diagnostics content: ${content}`);
+  nvim.logger.debug(`got diagnostics content: ${content}`);
   return content;
 }

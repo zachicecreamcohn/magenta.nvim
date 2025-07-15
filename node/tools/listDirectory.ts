@@ -95,7 +95,7 @@ export class ListDirectoryTool implements StaticTool {
       state: "processing",
     };
     this.listDirectory().catch((error) => {
-      this.context.nvim.logger?.error(
+      this.context.nvim.logger.error(
         `Error listing directory: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
@@ -156,7 +156,7 @@ export class ListDirectoryTool implements StaticTool {
       }
 
       const files = await listDirectoryBFS(absolutePath, cwd);
-      this.context.nvim.logger?.debug(`files: ${files.join("\n")}`);
+      this.context.nvim.logger.debug(`files: ${files.join("\n")}`);
       this.context.myDispatch({
         type: "finish",
         result: {

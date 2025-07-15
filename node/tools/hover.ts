@@ -42,7 +42,7 @@ export class HoverTool implements StaticTool {
       state: "processing",
     };
     this.requestHover().catch((error) => {
-      this.context.nvim.logger?.error(
+      this.context.nvim.logger.error(
         `Error requesting hover: ${error instanceof Error ? error.message : String(error)}`,
       );
     });

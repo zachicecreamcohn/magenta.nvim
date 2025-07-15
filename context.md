@@ -128,12 +128,12 @@ export class Toggle {
 
         if (this.state.isOn) {
           this.notifyServer().catch((error) => {
-            this.context.nvim.logger?.error("Failed to notify server:", error);
+            this.context.nvim.logger.error("Failed to notify server:", error);
           });
         }
         return;
       case "request-finished":
-        this.context.nvim.logger?.info("Server notification completed");
+        this.context.nvim.logger.info("Server notification completed");
         return;
       default:
         assertUnreachable(msg);

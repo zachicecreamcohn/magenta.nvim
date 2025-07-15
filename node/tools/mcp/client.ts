@@ -77,7 +77,7 @@ export class MCPClient {
       this.isConnected = true;
     } catch (error) {
       this.disconnect().catch((e) =>
-        this.context.nvim.logger?.error(
+        this.context.nvim.logger.error(
           `Error disconnecting MCP client: ${e instanceof Error ? e.message : String(e)}`,
         ),
       );
@@ -94,7 +94,7 @@ export class MCPClient {
       try {
         await this.client.close();
       } catch (error) {
-        this.context.nvim.logger?.error(
+        this.context.nvim.logger.error(
           `Error closing MCP client ${this.serverName}:`,
           error,
         );
@@ -106,7 +106,7 @@ export class MCPClient {
       try {
         await this.transport.close();
       } catch (error) {
-        this.context.nvim.logger?.error(
+        this.context.nvim.logger.error(
           `Error closing MCP transport ${this.serverName}:`,
           error,
         );

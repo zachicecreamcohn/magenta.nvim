@@ -87,7 +87,7 @@ export class NvimWindow {
     try {
       return await this.nvim.call("nvim_win_get_var", [this.id, name]);
     } catch (e) {
-      this.nvim.logger?.warn(`getVar(${name}) failed: ${JSON.stringify(e)}`);
+      this.nvim.logger.warn(`getVar(${name}) failed: ${JSON.stringify(e)}`);
       return undefined;
     }
   }

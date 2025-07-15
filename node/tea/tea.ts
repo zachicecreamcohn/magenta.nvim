@@ -80,13 +80,13 @@ export function createApp<Model>({
         renderPromise = root
           .render({ currentState })
           .catch((err) => {
-            nvim.logger?.error(
+            nvim.logger.error(
               err instanceof Error
                 ? `render failed: ${err.message}\n${err.stack}`
                 : `render failed: ${JSON.stringify(err)}`,
             );
             if (root) {
-              nvim.logger?.error(
+              nvim.logger.error(
                 "render error: " +
                   prettyPrintMountedNode(root._getMountedNode()),
               );
@@ -100,7 +100,7 @@ export function createApp<Model>({
             renderPromise = undefined;
             if (reRender) {
               reRender = false;
-              nvim.logger?.debug(`followup render triggered`);
+              nvim.logger.debug(`followup render triggered`);
               render();
             } else {
               if (renderDefer) {
@@ -166,7 +166,7 @@ export function createApp<Model>({
           const window = await getCurrentWindow(mount.nvim);
           const buffer = await window.buffer();
           if (buffer.id != mount.buffer.id) {
-            nvim.logger?.warn(
+            nvim.logger.warn(
               `Got onKey event ${key}, but current window is not showing mounted buffer`,
             );
             return;
@@ -182,7 +182,7 @@ export function createApp<Model>({
               bindings[key]();
             }
           } else {
-            nvim.logger?.debug(
+            nvim.logger.debug(
               `Got onKey event ${key}, but root is no longer mounted.`,
             );
           }

@@ -23,7 +23,7 @@ export async function displaySnapshotDiff({
   const snapshot = fileSnapshots.getSnapshot(absFilePath, messageId);
   if (snapshot == undefined) {
     // No need to call dispatchError as this may be used in contexts outside of a tool request
-    nvim.logger?.error(
+    nvim.logger.error(
       `No snapshot found for file ${unresolvedFilePath} with messageId ${messageId}`,
     );
     return;

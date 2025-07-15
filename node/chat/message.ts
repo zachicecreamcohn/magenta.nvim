@@ -219,7 +219,7 @@ export class Message {
 
       case "open-edit-file": {
         openFileInNonMagentaWindow(msg.filePath, this.context).catch(
-          (e: Error) => this.context.nvim.logger?.error(e.message),
+          (e: Error) => this.context.nvim.logger.error(e.message),
         );
         return;
       }
@@ -230,7 +230,7 @@ export class Message {
           messageId: this.state.id,
           nvim: this.context.nvim,
           fileSnapshots: this.context.fileSnapshots,
-        }).catch((e: Error) => this.context.nvim.logger?.error(e.message));
+        }).catch((e: Error) => this.context.nvim.logger.error(e.message));
         return;
       }
 
@@ -288,7 +288,7 @@ export class Message {
     return withBindings(node, {
       "<CR>": () => {
         open(url).catch((error: Error) => {
-          this.context.nvim.logger?.error(
+          this.context.nvim.logger.error(
             `Failed to open URL: ${error.message}`,
           );
         });
@@ -521,7 +521,7 @@ ${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${t
             content.request.value.id,
           );
           if (!tool) {
-            this.context.nvim.logger?.error(
+            this.context.nvim.logger.error(
               `Unable to find tool with requestId ${content.request.value.id}`,
             );
             throw new Error(

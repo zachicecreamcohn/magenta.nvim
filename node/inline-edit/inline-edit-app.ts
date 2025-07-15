@@ -160,7 +160,7 @@ export class InlineEditManager {
       // Check if the edit completed successfully and cleanup if so
       if (this.isInlineEditSuccessfullyCompleted(currentEdit.controller)) {
         this.cleanupInlineEdit(currentEdit).catch((error) => {
-          this.nvim.logger?.error("Failed to cleanup inline edit:", error);
+          this.nvim.logger.error("Failed to cleanup inline edit:", error);
         });
         delete this.inlineEdits[targetBuffer.id];
       } else {
@@ -204,7 +204,7 @@ export class InlineEditManager {
   }) {
     // If replay is requested but no previous input exists, warn and return
     if (!this.lastInput) {
-      this.nvim.logger?.warn("No previous inline edit input to replay");
+      this.nvim.logger.warn("No previous inline edit input to replay");
       return;
     }
 

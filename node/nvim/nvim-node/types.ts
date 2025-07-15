@@ -192,11 +192,13 @@ export type Nvim<ApiInfo extends BaseEvents = BaseEvents> = {
     func: M,
     args: NeovimApi["functions"][M]["parameters"],
   ): Promise<NeovimApi["functions"][M]["return_type"]>;
+
   /**
    *
    * RPC channel
    */
   channelId: number;
+
   /**
    *
    * Register a handler for rpc notifications.
@@ -211,7 +213,7 @@ export type Nvim<ApiInfo extends BaseEvents = BaseEvents> = {
    * await nvim.call("nvim_subscribe", ["my_rpc_notification"]);
    *
    * nvim.onNotification("my_rpc_notification", (args) => {
-   *   nvim.logger?.info(args);
+   *   nvim.logger.info(args);
    *   // return true to remove listener
    *   return true;
    * });
@@ -224,6 +226,7 @@ export type Nvim<ApiInfo extends BaseEvents = BaseEvents> = {
       unknown
     >,
   ): void;
+
   /**
    *
    * Register/Update a handler for rpc requests.
@@ -253,15 +256,17 @@ export type Nvim<ApiInfo extends BaseEvents = BaseEvents> = {
     method: M,
     callback: EventHandler<ApiInfo["requests"][M], unknown>,
   ): void;
+
   /**
    *
    * Close socket connection to neovim.
    */
   detach(): void;
+
   /**
    *
    * Reference to winston logger. `undefined` if no `logging` provided
    * to `attach`
    */
-  logger: winston.Logger | undefined;
+  logger: winston.Logger;
 };

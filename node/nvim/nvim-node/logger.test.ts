@@ -19,10 +19,10 @@ describe("src/logger.test.ts", () => {
     await withNvimClient(
       async (nvim) => {
         // Add various log messages at different levels
-        nvim.logger?.error("Error level message");
-        nvim.logger?.warn("Warning level message");
-        nvim.logger?.info("Info level message");
-        nvim.logger?.debug("Debug level message");
+        nvim.logger.error("Error level message");
+        nvim.logger.warn("Warning level message");
+        nvim.logger.info("Info level message");
+        nvim.logger.debug("Debug level message");
 
         // Wait for logs to be written (winston may be async)
         await new Promise((resolve) => setTimeout(resolve, 100));

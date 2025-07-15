@@ -43,7 +43,7 @@ export class FindReferencesTool implements StaticTool {
       state: "processing",
     };
     this.findReferences().catch((error) => {
-      this.context.nvim.logger?.error(
+      this.context.nvim.logger.error(
         `Error finding references: ${error instanceof Error ? error.message : String(error)}`,
       );
     });

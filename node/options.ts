@@ -77,10 +77,10 @@ export type MagentaOptions = {
 // Reusable parsing helpers
 function parseProfiles(
   profilesInput: unknown,
-  logger?: { warn: (msg: string) => void },
+  logger: { warn: (msg: string) => void },
 ): Profile[] {
   if (!Array.isArray(profilesInput)) {
-    logger?.warn("profiles must be an array");
+    logger.warn("profiles must be an array");
     return [];
   }
 
@@ -89,7 +89,7 @@ function parseProfiles(
   for (const profile of profilesInput) {
     try {
       if (typeof profile !== "object" || profile === null) {
-        logger?.warn(`Skipping invalid profile: ${JSON.stringify(profile)}`);
+        logger.warn(`Skipping invalid profile: ${JSON.stringify(profile)}`);
         continue;
       }
 
@@ -102,7 +102,7 @@ function parseProfiles(
           PROVIDER_NAMES.indexOf(p["provider"] as ProviderName) !== -1
         )
       ) {
-        logger?.warn(
+        logger.warn(
           `Skipping profile with missing required fields: ${JSON.stringify(p)}`,
         );
         continue;
@@ -125,7 +125,7 @@ function parseProfiles(
         if (typeof p["base_url"] === "string") {
           out.baseUrl = p["base_url"];
         } else {
-          logger?.warn(
+          logger.warn(
             `Invalid base_url in profile ${p["name"]}, ignoring field`,
           );
         }
@@ -135,7 +135,7 @@ function parseProfiles(
         if (typeof p["apiKeyEnvVar"] === "string") {
           out.apiKeyEnvVar = p["apiKeyEnvVar"];
         } else {
-          logger?.warn(
+          logger.warn(
             `Invalid apiKeyEnvVar in profile ${p["name"]}, ignoring field`,
           );
         }
@@ -145,7 +145,7 @@ function parseProfiles(
         if (typeof p["promptCaching"] === "boolean") {
           out.promptCaching = p["promptCaching"];
         } else {
-          logger?.warn(
+          logger.warn(
             `Invalid promptCaching in profile ${p["name"]}, ignoring field`,
           );
         }
@@ -153,7 +153,7 @@ function parseProfiles(
 
       profiles.push(out);
     } catch (error) {
-      logger?.warn(
+      logger.warn(
         `Error parsing profile: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
@@ -186,14 +186,14 @@ function parseStringArray(
 
 function parseMCPServers(
   input: unknown,
-  logger?: { warn: (msg: string) => void },
+  logger: { warn: (msg: string) => void },
 ): Record<string, MCPServerConfig> {
   if (!input) {
     return {};
   }
 
   if (typeof input !== "object") {
-    logger?.warn("mcpServers must be an object");
+    logger.warn("mcpServers must be an object");
     return {};
   }
 
@@ -206,14 +206,14 @@ function parseMCPServers(
       try {
         validateServerName(serverName);
       } catch (error) {
-        logger?.warn(
+        logger.warn(
           `Skipping MCP server with invalid name "${serverName}": ${error instanceof Error ? error.message : String(error)}`,
         );
         continue;
       }
 
       if (typeof serverConfig !== "object" || serverConfig === null) {
-        logger?.warn(
+        logger.warn(
           `Skipping invalid MCP server config for ${serverName}: must be an object`,
         );
         continue;
@@ -231,16 +231,14 @@ function parseMCPServers(
       }
 
       if (typeof config.command !== "string") {
-        logger?.warn(
+        logger.warn(
           `Skipping MCP server ${serverName}: command must be a string`,
         );
         continue;
       }
 
       if (!Array.isArray(config.args)) {
-        logger?.warn(
-          `Skipping MCP server ${serverName}: args must be an array`,
-        );
+        logger.warn(`Skipping MCP server ${serverName}: args must be an array`);
         continue;
       }
 
@@ -248,7 +246,7 @@ function parseMCPServers(
         if (typeof arg === "string") {
           return true;
         } else {
-          logger?.warn(
+          logger.warn(
             `Skipping non-string arg in MCP server ${serverName}: ${JSON.stringify(arg)}`,
           );
           return false;
@@ -274,7 +272,7 @@ function parseMCPServers(
             if (typeof envValue === "string") {
               env[envKey] = envValue;
             } else {
-              logger?.warn(
+              logger.warn(
                 `Skipping non-string env value in MCP server ${serverName}: ${envKey}=${JSON.stringify(envValue)}`,
               );
             }
@@ -284,7 +282,7 @@ function parseMCPServers(
             serverConfigOut.env = env;
           }
         } else {
-          logger?.warn(
+          logger.warn(
             `Invalid env in MCP server ${serverName}: must be an object`,
           );
         }
@@ -292,7 +290,7 @@ function parseMCPServers(
 
       servers[serverName] = serverConfigOut;
     } catch (error) {
-      logger?.warn(
+      logger.warn(
         `Error parsing MCP server ${serverName}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
@@ -379,12 +377,12 @@ export function parseOptions(
 
 export function parseProjectOptions(
   inputOptions: unknown,
-  logger?: { warn: (msg: string) => void },
+  logger: { warn: (msg: string) => void },
 ): Partial<MagentaOptions> {
   const options: Partial<MagentaOptions> = {};
 
   if (typeof inputOptions !== "object" || inputOptions === null) {
-    logger?.warn("Project options must be an object");
+    logger.warn("Project options must be an object");
     return options;
   }
 
@@ -425,7 +423,7 @@ export function parseProjectOptions(
     if (typeof inputOptionsObj["activeProfile"] === "string") {
       options.activeProfile = inputOptionsObj["activeProfile"];
     } else {
-      logger?.warn("activeProfile must be a string");
+      logger.warn("activeProfile must be a string");
     }
   }
 
@@ -457,7 +455,7 @@ export function parseProjectOptions(
 
 export function loadProjectSettings(
   cwd: NvimCwd,
-  logger?: { warn: (msg: string) => void },
+  logger: { warn: (msg: string) => void },
 ): Partial<MagentaOptions> | undefined {
   const settingsPath = path.join(cwd, ".magenta", "options.json");
 
@@ -469,7 +467,7 @@ export function loadProjectSettings(
       return parseProjectOptions(rawSettings, logger);
     }
   } catch (error) {
-    logger?.warn(
+    logger.warn(
       `Failed to parse project settings at ${settingsPath}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
