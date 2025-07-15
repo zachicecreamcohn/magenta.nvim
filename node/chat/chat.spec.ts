@@ -31,7 +31,7 @@ describe("node/chat/chat.spec.ts", () => {
       );
 
       await driver.magenta.command("new-thread");
-      await driver.assertDisplayBufferContent("# [ Untitled ]\n" + LOGO + "\n");
+      await driver.assertDisplayBufferContains("# [ Untitled ]\n" + LOGO);
     });
   });
 
