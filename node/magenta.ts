@@ -138,6 +138,18 @@ export class Magenta {
           );
         }
         break;
+      case "scroll-to-top":
+        if (this.mountedChatApp) {
+          (async () => {
+            await this.mountedChatApp?.waitForRender();
+            await this.sidebar.scrollToTop();
+          })().catch((error: Error) =>
+            this.nvim.logger.error(
+              `Error scrolling to top: ${error.message + "\n" + error.stack}`,
+            ),
+          );
+        }
+        break;
       default:
         assertUnreachable(msg);
     }

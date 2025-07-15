@@ -10,6 +10,9 @@ export type SidebarMsg =
     }
   | {
       type: "scroll-to-last-user-message";
+    }
+  | {
+      type: "scroll-to-top";
     };
 
 export type RootMsg =
