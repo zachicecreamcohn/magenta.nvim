@@ -6,7 +6,7 @@
 /\ \/\ \/\ \
 \ \_\ \_\ \_\
  \/_/\/_/\/_/
- magenta.nvim
+ magenta is for agentic flow
 ```
 
 magenta seeks to provide transparent tools to empower ai workflows in neovim. It allows one to fluidly shift control between the developer and the AI, from targeted context-powered inline edits to ai automation and agent-led feature planning and development.

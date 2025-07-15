@@ -988,7 +988,8 @@ export const view: View<{
     return d`\
 ${titleView}
 ${LOGO}
-magenta.nvim
+
+magenta is for agentic flow
 
 ${thread.context.contextManager.view()}`;
   }
