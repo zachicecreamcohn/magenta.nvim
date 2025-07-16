@@ -58,7 +58,53 @@ I implemented **sub-agents** - a powerful feature that allows the main agent to 
 
 I added support for images and pdfs. Magenta can now read these using the get_file tool for image-compatible openai and anthropic models.
 
-I implemented **MCP (Model Context Protocol) support** - You can now configure local mcp servers (for now stdio transport only) via the plugin config or via the project `.magenta/options.json` file.
+## MCP (Model Context Protocol) Support
+
+Magenta supports MCP servers through two transport methods:
+
+1. **Standard I/O (stdio)** - The traditional way to run MCP servers as child processes
+2. **Streamable HTTP** - Connect to MCP servers over HTTP, useful for remote servers or services
+
+### Standard I/O MCP Servers
+
+Configure stdio MCP servers by specifying a command and arguments:
+
+```lua
+mcpServers = {
+  fetch = {
+    command = "uvx",
+    args = { "mcp-server-fetch" },
+    env = {
+      CUSTOM_VAR = "value"
+    }
+  }
+}
+```
+
+### Streamable HTTP MCP Servers
+
+Configure HTTP-based MCP servers by specifying a URL and optional authentication:
+
+```lua
+mcpServers = {
+  httpServer = {
+    url = "http://localhost:8000/mcp",
+    requestInit = {
+      headers = {
+        Authorization = "Bearer your-token-here",
+      },
+    },
+  }
+}
+```
+
+The `requestInit` field accepts standard [Fetch API RequestInit options](https://developer.mozilla.org/en-US/docs/Web/API/fetch#options), allowing you to configure headers, authentication, and other request parameters as needed.
+
+### MCP Server Configuration
+
+MCP servers can be configured in your main plugin configuration or in project-specific `.magenta/options.json` files. When configured, MCP tools become available to the AI agent with the prefix `mcp_{serverName}.{toolName}`.
+
+For example, if you have a server named `postgres` with a tool called `query`, it would be available as `mcp_postgres.query` to the AI agent.
 
 I added support for the copilot provider.
 
@@ -197,6 +243,15 @@ require('magenta').setup({
       args = {
         "@playwright/mcp@latest"
       }
+    },
+    -- HTTP-based MCP server example
+    httpServer = {
+      url = "http://localhost:8000/mcp",
+      requestInit = {
+        headers = {
+          Authorization = "Bearer your-token-here",
+        },
+      },
     }
   }
 })
@@ -333,6 +388,14 @@ Create `.magenta/options.json` in your project root:
     "filesystem": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    },
+    "httpServer": {
+      "url": "http://localhost:8000/mcp",
+      "requestInit": {
+        "headers": {
+          "Authorization": "Bearer your-token-here"
+        }
+      }
     }
   }
 }

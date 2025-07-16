@@ -60,6 +60,12 @@ export type MCPServerConfig =
       env?: Record<string, string>;
     }
   | {
+      type: "streamable-http";
+      url: string;
+      requestInit?: RequestInit;
+      sessionId?: string;
+    }
+  | {
       type: "mock";
       tools?: MCPMockToolConfig[];
     };
@@ -227,6 +233,47 @@ function parseMCPServers(
           mockConfig.tools = config.tools as MCPMockToolConfig[];
         }
         servers[serverName] = mockConfig;
+        continue;
+      }
+
+      // Auto-detect streamable-http type by presence of url field
+      if (config["type"] == "streamable-http" || config.url) {
+        if (typeof config.url !== "string") {
+          logger.warn(
+            `Skipping MCP server ${serverName}: url must be a string for streamable-http type`,
+          );
+          continue;
+        }
+
+        const httpConfig: MCPServerConfig = {
+          type: "streamable-http",
+          url: config.url,
+        };
+
+        if (config.requestInit !== undefined) {
+          if (
+            typeof config.requestInit === "object" &&
+            config.requestInit !== null
+          ) {
+            httpConfig.requestInit = config.requestInit as RequestInit;
+          } else {
+            logger.warn(
+              `Invalid requestInit in MCP server ${serverName}: must be an object`,
+            );
+          }
+        }
+
+        if (config.sessionId !== undefined) {
+          if (typeof config.sessionId === "string") {
+            httpConfig.sessionId = config.sessionId;
+          } else {
+            logger.warn(
+              `Invalid sessionId in MCP server ${serverName}: must be a string`,
+            );
+          }
+        }
+
+        servers[serverName] = httpConfig;
         continue;
       }
 

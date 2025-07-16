@@ -1,6 +1,10 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import {
+  StreamableHTTPClientTransport,
+  type StreamableHTTPClientTransportOptions,
+} from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import {
   CallToolResultSchema,
   type CallToolResult,
   type Tool,
@@ -59,6 +63,18 @@ export class MCPClient {
         this.config.tools || [],
       );
       this.transport = await mockServer.start();
+    } else if (this.config.type == "streamable-http") {
+      const options: StreamableHTTPClientTransportOptions = {};
+      if (this.config.requestInit !== undefined) {
+        options.requestInit = this.config.requestInit;
+      }
+      if (this.config.sessionId !== undefined) {
+        options.sessionId = this.config.sessionId;
+      }
+      this.transport = new StreamableHTTPClientTransport(
+        new URL(this.config.url),
+        options,
+      ) as Transport;
     } else {
       for (const [key, value] of Object.entries(this.config.env || {})) {
         env[key] = value;
