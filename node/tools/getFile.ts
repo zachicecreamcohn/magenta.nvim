@@ -1,6 +1,7 @@
 import { getBufferIfOpen } from "../utils/buffers.ts";
 import fs from "fs";
 import path from "path";
+import { glob } from "glob";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, withBindings, withInlineCode, withExtmark } from "../tea/view.ts";
 import { type StaticToolRequest } from "./toolManager.ts";
@@ -29,6 +30,7 @@ import type {
   ProviderImageContent,
   ProviderDocumentContent,
 } from "../providers/provider-types.ts";
+import type { MagentaOptions } from "../options.ts";
 
 export type State =
   | {
@@ -76,6 +78,7 @@ export class GetFileTool implements StaticTool {
       contextManager: ContextManager;
       threadDispatch: Dispatch<ThreadMsg>;
       myDispatch: Dispatch<Msg>;
+      options: MagentaOptions;
     },
   ) {
     this.state = {
@@ -226,6 +229,14 @@ You already have the most up-to-date information about the contents of this file
     const relFilePath = relativePath(this.context.cwd, absFilePath);
 
     if (this.state.state === "pending") {
+      // Check if file matches any auto-allow globs first
+      if (await this.isFileAutoAllowed(relFilePath)) {
+        this.context.myDispatch({
+          type: "automatic-approval",
+        });
+        return;
+      }
+
       if (!absFilePath.startsWith(this.context.cwd)) {
         this.context.myDispatch({ type: "request-user-approval" });
         return;
@@ -246,6 +257,33 @@ You already have the most up-to-date information about the contents of this file
     this.context.myDispatch({
       type: "automatic-approval",
     });
+  }
+
+  private async isFileAutoAllowed(relFilePath: string): Promise<boolean> {
+    if (this.context.options.getFileAutoAllowGlobs.length === 0) {
+      return false;
+    }
+
+    for (const pattern of this.context.options.getFileAutoAllowGlobs) {
+      try {
+        const matches = await glob(pattern, {
+          cwd: this.context.cwd,
+          nocase: true,
+          nodir: true,
+        });
+
+        if (matches.includes(relFilePath)) {
+          return true;
+        }
+      } catch (error) {
+        // Log error but continue checking other patterns
+        this.context.nvim.logger.error(
+          `Error checking getFileAutoAllowGlobs pattern "${pattern}": ${(error as Error).message}`,
+        );
+      }
+    }
+
+    return false;
   }
 
   async readFile() {

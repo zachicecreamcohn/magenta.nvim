@@ -305,4 +305,54 @@ M.lsp_references_request = function(requestId, bufnr, row, col)
   )
 end
 
+M.lsp_definition_request = function(requestId, bufnr, row, col)
+  local success = M.wait_for_lsp_attach(bufnr, "definitionProvider", 1000)
+  if not success then
+    M.lsp_response(requestId, "Timeout waiting for LSP client with definitionProvider to attach")
+    return
+  end
+
+  vim.lsp.buf_request_all(
+    bufnr,
+    "textDocument/definition",
+    {
+      textDocument = {
+        uri = vim.uri_from_bufnr(bufnr)
+      },
+      position = {
+        line = row,
+        character = col
+      }
+    },
+    function(responses)
+      M.lsp_response(requestId, responses)
+    end
+  )
+end
+
+M.lsp_type_definition_request = function(requestId, bufnr, row, col)
+  local success = M.wait_for_lsp_attach(bufnr, "typeDefinitionProvider", 1000)
+  if not success then
+    M.lsp_response(requestId, "Timeout waiting for LSP client with typeDefinitionProvider to attach")
+    return
+  end
+
+  vim.lsp.buf_request_all(
+    bufnr,
+    "textDocument/typeDefinition",
+    {
+      textDocument = {
+        uri = vim.uri_from_bufnr(bufnr)
+      },
+      position = {
+        line = row,
+        character = col
+      }
+    },
+    function(responses)
+      M.lsp_response(requestId, responses)
+    end
+  )
+end
+
 return M

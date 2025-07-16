@@ -171,6 +171,9 @@ require('magenta').setup({
   defaultKeymaps = true,
   -- maximum number of sub-agents that can run concurrently (default: 3)
   maxConcurrentSubagents = 3,
+  -- glob patterns for files that should be auto-approved for getFile tool
+  -- (bypasses user approval for hidden/gitignored files matching these patterns)
+  getFileAutoAllowGlobs = { "node_modules/*" }, -- default includes node_modules
   -- keymaps for the sidebar input buffer
   sidebarKeymaps = {
     normal = {

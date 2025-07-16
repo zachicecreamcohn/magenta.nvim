@@ -401,6 +401,7 @@ export class ToolManager {
             const hoverTool = new Hover.HoverTool(staticRequest, {
               nvim: this.context.nvim,
               lsp: this.context.lsp,
+              cwd: this.context.cwd,
               myDispatch: (msg) =>
                 this.myDispatch({
                   type: "tool-msg",

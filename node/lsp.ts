@@ -15,6 +15,16 @@ export class Lsp {
           type: "find_references";
           resolve: (result: LspReferencesResponse) => void;
           reject: (err: Error) => void;
+        }
+      | {
+          type: "definition";
+          resolve: (result: LspDefinitionResponse) => void;
+          reject: (err: Error) => void;
+        }
+      | {
+          type: "type_definition";
+          resolve: (result: LspTypeDefinitionResponse) => void;
+          reject: (err: Error) => void;
         };
   } = {};
 
@@ -64,6 +74,46 @@ export class Lsp {
     });
   }
 
+  requestDefinition(
+    buffer: NvimBuffer,
+    pos: PositionString,
+  ): Promise<LspDefinitionResponse> {
+    return new Promise((resolve, reject) => {
+      const requestId = this.getRequestId();
+      this.requests[requestId] = { type: "definition", resolve, reject };
+
+      this.nvim.logger.debug(`Initiating definition command...`);
+      this.nvim
+        .call("nvim_exec_lua", [
+          `require('magenta').lsp_definition_request("${requestId}", ${buffer.id}, ${pos.row}, ${pos.col})`,
+          [],
+        ])
+        .catch((err: Error) => {
+          this.rejectRequest(requestId, err);
+        });
+    });
+  }
+
+  requestTypeDefinition(
+    buffer: NvimBuffer,
+    pos: PositionString,
+  ): Promise<LspTypeDefinitionResponse> {
+    return new Promise((resolve, reject) => {
+      const requestId = this.getRequestId();
+      this.requests[requestId] = { type: "type_definition", resolve, reject };
+
+      this.nvim.logger.debug(`Initiating type definition command...`);
+      this.nvim
+        .call("nvim_exec_lua", [
+          `require('magenta').lsp_type_definition_request("${requestId}", ${buffer.id}, ${pos.row}, ${pos.col})`,
+          [],
+        ])
+        .catch((err: Error) => {
+          this.rejectRequest(requestId, err);
+        });
+    });
+  }
+
   private rejectRequest(requestId: string, error: Error) {
     const request = this.requests[requestId];
     if (request) {
@@ -93,12 +143,21 @@ export class Lsp {
   }
 }
 
+// LSP Protocol types - these document what we expect from vim.lsp.buf_request_all responses
+
+type LspPosition = {
+  line: number;
+  character: number;
+};
+
+export type LspRange = {
+  start: LspPosition;
+  end: LspPosition;
+};
+
 type LspHoverResponse = (null | {
   result: {
-    range: {
-      start: { character: number; line: number };
-      end: { character: number; line: number };
-    };
+    range: LspRange;
     contents: {
       kind: string;
       value: string;
@@ -109,9 +168,39 @@ type LspHoverResponse = (null | {
 type LspReferencesResponse = (null | {
   result: {
     uri: string;
-    range: {
-      start: { line: number; character: number };
-      end: { line: number; character: number };
-    };
+    range: LspRange;
   }[];
+})[];
+
+// Definition responses can have two formats:
+// 1. Simple format with uri and range
+// 2. LSP LocationLink format with targetUri and targetRange
+export type LspDefinitionResponse = (null | {
+  result: (
+    | {
+        uri: string;
+        range: LspRange;
+      }
+    | {
+        targetUri: string;
+        targetRange: LspRange;
+        targetSelectionRange?: LspRange;
+        originSelectionRange?: LspRange;
+      }
+  )[];
+})[];
+
+type LspTypeDefinitionResponse = (null | {
+  result: (
+    | {
+        uri: string;
+        range: LspRange;
+      }
+    | {
+        targetUri: string;
+        targetRange: LspRange;
+        targetSelectionRange?: LspRange;
+        originSelectionRange?: LspRange;
+      }
+  )[];
 })[];
