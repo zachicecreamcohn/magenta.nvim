@@ -117,18 +117,60 @@ export class HoverTool implements StaticTool {
       return;
     }
 
-    const symbolStart = bufferContent.indexOf(
-      this.request.input.symbol,
-    ) as StringIdx;
-    if (symbolStart === -1) {
-      this.context.myDispatch({
-        type: "finish",
-        result: {
-          status: "error",
-          error: `Symbol "${this.request.input.symbol}" not found in file.`,
-        },
-      });
-      return;
+    // Find the symbol bounded by non-alphanumeric characters
+    let symbolStart: StringIdx;
+
+    if (this.request.input.context) {
+      // If context is provided, find the context first
+      const contextIndex = bufferContent.indexOf(this.request.input.context);
+      if (contextIndex === -1) {
+        this.context.myDispatch({
+          type: "finish",
+          result: {
+            status: "error",
+            error: `Context "${this.request.input.context}" not found in file.`,
+          },
+        });
+        return;
+      }
+
+      // Find the symbol within the context
+      const contextContent = bufferContent.substring(
+        contextIndex,
+        contextIndex + this.request.input.context.length,
+      );
+      const symbolRegex = new RegExp(
+        `(?<![a-zA-Z0-9_])${this.request.input.symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![a-zA-Z0-9_])`,
+      );
+      const match = contextContent.match(symbolRegex);
+      if (!match || match.index === undefined) {
+        this.context.myDispatch({
+          type: "finish",
+          result: {
+            status: "error",
+            error: `Symbol "${this.request.input.symbol}" not found within the provided context.`,
+          },
+        });
+        return;
+      }
+      symbolStart = (contextIndex + match.index) as StringIdx;
+    } else {
+      // Original behavior - find first occurrence
+      const symbolRegex = new RegExp(
+        `(?<![a-zA-Z0-9_])${this.request.input.symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![a-zA-Z0-9_])`,
+      );
+      const match = bufferContent.match(symbolRegex);
+      if (!match || match.index === undefined) {
+        this.context.myDispatch({
+          type: "finish",
+          result: {
+            status: "error",
+            error: `Symbol "${this.request.input.symbol}" not found in file.`,
+          },
+        });
+        return;
+      }
+      symbolStart = match.index as StringIdx;
     }
 
     const symbolPos = calculateStringPosition(
@@ -304,6 +346,21 @@ export const spec: ProviderToolSpec = {
 We will use the first occurrence of the symbol.
 We will use the right-most character of this string, so if the string is "a.b.c", we will hover c.`,
       },
+      context: {
+        type: "string",
+        description: `Optional context to disambiguate which instance of the symbol to target when there are multiple occurrences. This should be an exact match for a portion of the file containing the target symbol.
+
+For example, if you have multiple instances of a variable "res":
+{
+  const res = request1()
+}
+
+{
+  const res = request2()
+}
+
+You could use context "  const res = request2()" to specify the second instance. If context is provided but not found in the file, the tool will fail.`,
+      },
     },
     required: ["filePath", "symbol"],
   },
@@ -312,6 +369,7 @@ We will use the right-most character of this string, so if the string is "a.b.c"
 export type Input = {
   filePath: UnresolvedFilePath;
   symbol: string;
+  context?: string;
 };
 
 export function validateInput(input: {
@@ -323,6 +381,10 @@ export function validateInput(input: {
 
   if (typeof input.symbol != "string") {
     return { status: "error", error: "expected input.symbol to be a string" };
+  }
+
+  if (input.context !== undefined && typeof input.context != "string") {
+    return { status: "error", error: "expected input.context to be a string" };
   }
 
   return {
