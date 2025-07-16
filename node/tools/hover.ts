@@ -4,7 +4,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { getOrOpenBuffer } from "../utils/buffers.ts";
 import type { NvimBuffer } from "../nvim/buffer.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { Lsp } from "../lsp.ts";
+import type { Lsp, LspDefinitionResponse, LspRange } from "../lsp.ts";
 import { calculateStringPosition } from "../tea/util.ts";
 import type { PositionString, StringIdx } from "../nvim/window.ts";
 import type { StaticToolRequest } from "./toolManager.ts";
@@ -13,8 +13,9 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { StaticTool, ToolName } from "./types.ts";
+import path from "path";
 
 export type State =
   | {
@@ -36,7 +37,12 @@ export class HoverTool implements StaticTool {
 
   constructor(
     public request: Extract<StaticToolRequest, { toolName: "hover" }>,
-    public context: { nvim: Nvim; lsp: Lsp; myDispatch: (msg: Msg) => void },
+    public context: {
+      nvim: Nvim;
+      cwd: NvimCwd;
+      lsp: Lsp;
+      myDispatch: (msg: Msg) => void;
+    },
   ) {
     this.state = {
       state: "processing",
@@ -132,14 +138,98 @@ export class HoverTool implements StaticTool {
     );
 
     try {
-      const result = await lsp.requestHover(buffer, symbolPos);
+      const [hoverResult, definitionResult, typeDefinitionResult] =
+        await Promise.all([
+          lsp.requestHover(buffer, symbolPos),
+          lsp.requestDefinition(buffer, symbolPos).catch(() => null),
+          lsp.requestTypeDefinition(buffer, symbolPos).catch(() => null),
+        ]);
+
       let content = "";
-      for (const lspResult of result) {
+
+      // Add hover information
+      for (const lspResult of hoverResult) {
         if (lspResult != null) {
-          content += `\
-(${lspResult.result.contents.kind}):
-${lspResult.result.contents.value}
+          content += `${lspResult.result.contents.value}
 `;
+        }
+      }
+
+      // Helper function to extract location info from different LSP response formats
+      const extractLocationInfo = (
+        def: NonNullable<LspDefinitionResponse[number]>["result"][number],
+      ): {
+        uri: string;
+        range: LspRange;
+      } | null => {
+        if ("uri" in def && "range" in def) {
+          return { uri: def.uri, range: def.range };
+        }
+        if ("targetUri" in def && "targetRange" in def) {
+          return { uri: def.targetUri, range: def.targetRange };
+        }
+        return null;
+      };
+
+      // Add definition locations
+      if (definitionResult) {
+        const definitions = definitionResult
+          .filter((result) => result != null)
+          .flatMap((result) => result.result)
+          .map(extractLocationInfo)
+          .filter((loc): loc is NonNullable<typeof loc> => loc !== null);
+
+        if (definitions.length > 0) {
+          content += "\nDefinition locations:\n";
+          for (const def of definitions) {
+            const absolutePath = def.uri.replace(/^file:\/\//, "");
+            let displayPath = absolutePath;
+
+            if (this.context.cwd) {
+              const relativePath = path.relative(
+                this.context.cwd,
+                absolutePath,
+              );
+              displayPath = relativePath.startsWith("../")
+                ? absolutePath
+                : relativePath;
+            }
+
+            const line = def.range.start.line + 1;
+            const char = def.range.start.character + 1;
+            content += `  ${displayPath}:${line}:${char}\n`;
+          }
+        }
+      }
+
+      // Add type definition locations
+      if (typeDefinitionResult) {
+        const typeDefinitions = typeDefinitionResult
+          .filter((result) => result != null)
+          .flatMap((result) => result.result)
+          .map(extractLocationInfo)
+          .filter((loc): loc is NonNullable<typeof loc> => loc !== null);
+
+        if (typeDefinitions.length > 0) {
+          content += "\nType definition locations:\n";
+          for (const typeDef of typeDefinitions) {
+            const absolutePath = typeDef.uri.replace(/^file:\/\//, "");
+            let displayPath = absolutePath;
+
+            if (this.context.cwd) {
+              const relativePath = path.relative(
+                this.context.cwd,
+                absolutePath,
+              );
+              displayPath = relativePath.startsWith("../")
+                ? absolutePath
+                : relativePath;
+            }
+
+            const line = typeDef.range.start.line + 1;
+            const char = typeDef.range.start.character + 1;
+            content += `  ${displayPath}:${line}:${char}\n`;
+          }
         }
       }
 

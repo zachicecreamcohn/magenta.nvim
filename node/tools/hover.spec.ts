@@ -58,19 +58,28 @@ describe("node/tools/hover.spec.ts", () => {
         { timeout: 5000 },
       );
 
-      expect(result).toEqual({
-        type: "tool_result",
-        id: toolRequestId,
-        result: {
-          status: "ok",
-          value: [
-            {
-              type: "text",
-              text: `(markdown):\n\n\`\`\`typescript\n(property) c: "test"\n\`\`\`\n\n`,
-            },
-          ],
-        },
-      });
+      expect(result.type).toBe("tool_result");
+      expect(result.id).toBe(toolRequestId);
+      expect(result.result.status).toBe("ok");
+      const res = result.result as Extract<
+        typeof result.result,
+        { status: "ok" }
+      >;
+      expect(res.value).toHaveLength(1);
+      expect(res.value[0].type).toBe("text");
+
+      const val0 = res.value[0];
+      const text = (val0 as Extract<typeof val0, { type: "text" }>).text;
+
+      expect(text).toBe(`
+\`\`\`typescript
+(property) c: "test"
+\`\`\`
+
+
+Definition locations:
+  test.ts:4:7
+`);
     });
   });
 });
