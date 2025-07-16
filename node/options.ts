@@ -384,7 +384,7 @@ export function parseOptions(
     commandAllowlist: [],
     autoContext: [],
     mcpServers: {},
-    getFileAutoAllowGlobs: ["node_modules/*"],
+    getFileAutoAllowGlobs: [],
   };
 
   if (typeof inputOptions == "object" && inputOptions != null) {

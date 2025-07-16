@@ -33,6 +33,13 @@ user: install the lodash library
 assistant: [uses bash_command to run "npm show lodash version"]
 assistant: [uses bash_command to run "npm install lodash"]
 assistant: Installed lodash (latest version 4.17.21)
+</example>
+
+<example>
+user: what parameters does .stream expect?
+assistant: [uses hover tool on "this.client.messages.stream" in the file]
+assistant: [uses get_file on the returned definition path to examine MessageStreamParams type]
+assistant: The .stream method expects MessageStreamParams which includes required parameters like max_tokens, messages, and model, plus optional parameters like temperature, tools, system prompt, etc.
 </example>`;
 
 const CODE_CHANGES = `\

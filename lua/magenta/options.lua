@@ -71,7 +71,10 @@ local defaults = {
     "^echo [^;&|()<>]* > [a-zA-Z0-9_\\-.]+$",
     "^grep( -[A-Za-z]*)? [^;&|()<>]*$"
   },
-  maxConcurrentSubagents = 3
+  maxConcurrentSubagents = 3,
+  getFileAutoAllowGlobs = {
+    "node_modules/**/*"
+  }
 }
 
 M.options = defaults
