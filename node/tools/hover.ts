@@ -343,14 +343,14 @@ export const spec: ProviderToolSpec = {
       symbol: {
         type: "string",
         description: `The symbol to get hover information for.
-We will use the first occurrence of the symbol.
-We will use the right-most character of this string, so if the string is "a.b.c", we will hover c.`,
+We will use the first occurrence of the complete symbol, so if the symbol is Transport, we will hover the first instance of "Transport", but not "AutoTransport".`,
       },
       context: {
         type: "string",
         description: `Optional context to disambiguate which instance of the symbol to target when there are multiple occurrences. This should be an exact match for a portion of the file containing the target symbol.
 
 For example, if you have multiple instances of a variable "res":
+\`\`\`
 {
   const res = request1()
 }
@@ -358,8 +358,10 @@ For example, if you have multiple instances of a variable "res":
 {
   const res = request2()
 }
+\`\`\`
 
-You could use context "  const res = request2()" to specify the second instance. If context is provided but not found in the file, the tool will fail.`,
+You could use context "  const res = request2()" to specify the second instance. Context should match the content of the file exactly, including whitespace.
+If context is provided but not found in the file, the tool will fail.`,
       },
     },
     required: ["filePath", "symbol"],
