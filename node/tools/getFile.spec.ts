@@ -33,6 +33,165 @@ it("render the getFile tool.", async () => {
   });
 });
 
+it("getFile automatically allows files matching getFileAutoAllowGlobs", async () => {
+  await withDriver(
+    {
+      options: {
+        getFileAutoAllowGlobs: [".secret", "*.log"],
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // Test that .secret is automatically allowed
+      await driver.inputMagentaText(`Try reading the file .secret`);
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      request.respond({
+        stopReason: "tool_use",
+        text: "ok, here goes",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "request_id" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath: ".secret" as UnresolvedFilePath,
+              },
+            },
+          },
+        ],
+      });
+
+      // Should be automatically approved, not show approval dialog
+      await driver.assertDisplayBufferContains(`👀✅ \`.secret\``);
+    },
+  );
+});
+
+it("getFile automatically allows files matching glob patterns", async () => {
+  await withDriver(
+    {
+      options: {
+        getFileAutoAllowGlobs: ["*.log", "config/*"],
+      },
+      setupFiles: async (tmpDir) => {
+        // Create some test files
+        const fs = await import("fs/promises");
+        const path = await import("path");
+
+        await fs.writeFile(path.join(tmpDir, "test.log"), "log content");
+        await fs.mkdir(path.join(tmpDir, "config"));
+        await fs.writeFile(path.join(tmpDir, "config/settings.json"), "{}");
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // Test that .log files are automatically allowed
+      await driver.inputMagentaText(`Try reading the file test.log`);
+      await driver.send();
+
+      const request1 = await driver.mockAnthropic.awaitPendingRequest();
+      request1.respond({
+        stopReason: "tool_use",
+        text: "ok, here goes",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "request_id_1" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath: "test.log" as UnresolvedFilePath,
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains(`👀✅ \`test.log\``);
+
+      // Handle the first request response
+      const toolResultRequest1 =
+        await driver.mockAnthropic.awaitPendingRequest();
+      toolResultRequest1.respond({
+        stopReason: "end_turn",
+        toolRequests: [],
+        text: "I've read the log file.",
+      });
+
+      // Test that config/* files are automatically allowed
+      await driver.inputMagentaText(
+        `Try reading the file config/settings.json`,
+      );
+      await driver.send();
+
+      const request2 = await driver.mockAnthropic.awaitPendingRequest();
+      request2.respond({
+        stopReason: "tool_use",
+        text: "ok, here goes",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "request_id_2" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath: "config/settings.json" as UnresolvedFilePath,
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains(`👀✅ \`config/settings.json\``);
+    },
+  );
+});
+
+it("getFile still requires approval for files not matching getFileAutoAllowGlobs", async () => {
+  await withDriver(
+    {
+      options: {
+        getFileAutoAllowGlobs: ["*.log"],
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // Test that .secret is NOT automatically allowed since it doesn't match *.log
+      await driver.inputMagentaText(`Try reading the file .secret`);
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      request.respond({
+        stopReason: "tool_use",
+        text: "ok, here goes",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "request_id" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath: ".secret" as UnresolvedFilePath,
+              },
+            },
+          },
+        ],
+      });
+
+      // Should still require approval
+      await driver.assertDisplayBufferContains(
+        `👀⏳ May I read file \`.secret\`?`,
+      );
+    },
+  );
+});
+
 it("getFile rejection", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();

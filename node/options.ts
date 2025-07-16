@@ -78,6 +78,7 @@ export type MagentaOptions = {
   autoContext: string[];
   maxConcurrentSubagents: number;
   mcpServers: { [serverName: ServerName]: MCPServerConfig };
+  getFileAutoAllowGlobs: string[];
 };
 
 // Reusable parsing helpers
@@ -383,6 +384,7 @@ export function parseOptions(
     commandAllowlist: [],
     autoContext: [],
     mcpServers: {},
+    getFileAutoAllowGlobs: ["node_modules/*"],
   };
 
   if (typeof inputOptions == "object" && inputOptions != null) {
@@ -414,6 +416,12 @@ export function parseOptions(
     options.autoContext = parseStringArray(
       inputOptionsObj["autoContext"],
       "autoContext",
+    );
+
+    // Parse getFile auto allow globs
+    options.getFileAutoAllowGlobs = parseStringArray(
+      inputOptionsObj["getFileAutoAllowGlobs"],
+      "getFileAutoAllowGlobs",
     );
 
     // Parse max concurrent subagents
@@ -494,6 +502,15 @@ export function parseProjectOptions(
     );
   }
 
+  // Parse getFile auto allow globs
+  if ("getFileAutoAllowGlobs" in inputOptionsObj) {
+    options.getFileAutoAllowGlobs = parseStringArray(
+      inputOptionsObj["getFileAutoAllowGlobs"],
+      "getFileAutoAllowGlobs",
+      logger,
+    );
+  }
+
   // Parse max concurrent subagents
   if (
     "maxConcurrentSubagents" in inputOptionsObj &&
@@ -555,6 +572,13 @@ export function mergeOptions(
     merged.autoContext = [
       ...baseOptions.autoContext,
       ...projectSettings.autoContext,
+    ];
+  }
+
+  if (projectSettings.getFileAutoAllowGlobs) {
+    merged.getFileAutoAllowGlobs = [
+      ...baseOptions.getFileAutoAllowGlobs,
+      ...projectSettings.getFileAutoAllowGlobs,
     ];
   }
 
