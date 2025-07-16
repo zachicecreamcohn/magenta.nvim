@@ -277,7 +277,8 @@ import { MeasureStats } from "../../iso/protocol";`,
 
   it("replace on unloaded buffer", async () => {
     await withDriver({}, async (driver) => {
-      await driver.showSidebar();
+      // First, create a dummy buffer to avoid "cannot unload last buffer" error
+      await driver.nvim.call("nvim_command", ["new"]);
 
       const cwd = await getcwd(driver.nvim);
       const testFile = path.join(cwd, "unloaded-buffer-replace.tsx");
@@ -292,9 +293,39 @@ export const Component = () => {
 
       fs.writeFileSync(testFile, originalContent, "utf-8");
 
-      // First, open the file to create a buffer
+      // Then open the file to create a buffer
       await driver.nvim.call("nvim_command", [`edit ${testFile}`]);
 
+      // next, open the sidebar
+      await driver.showSidebar();
+
+      // First, the agent should read the file to know what content to replace
+      await driver.inputMagentaText(
+        "Read the file unloaded-buffer-replace.tsx and then update the imports",
+      );
+      await driver.send();
+
+      const getFileRequest = await driver.mockAnthropic.awaitPendingRequest();
+      getFileRequest.respond({
+        stopReason: "tool_use",
+        text: "I'll read the file first to see the current imports",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "get_file_request" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath: testFile as UnresolvedFilePath,
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains(`👀✅ \`${testFile}\``);
+
+      // Now unload the buffer to test replace on unloaded buffer
       // Get the buffer number
       const bufNr = (await driver.nvim.call("nvim_eval", [
         `bufnr('unloaded-buffer-replace.tsx')`,
@@ -316,21 +347,19 @@ export const Component = () => {
       const isLoaded = await driver.nvim.call("nvim_buf_is_loaded", [bufNr]);
       expect(isLoaded).toBe(false);
 
-      // Now try to replace in the file via replace tool
-      await driver.inputMagentaText(
-        "Update imports in unloaded-buffer-replace.tsx",
-      );
-      await driver.send();
+      // Ensure sidebar is still visible after file operations
+      await driver.showSidebar();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
-      request.respond({
-        stopReason: "end_turn",
-        text: "I'll update the imports",
+      // Now the agent can make the replace request on the unloaded buffer
+      const replaceRequest = await driver.mockAnthropic.awaitPendingRequest();
+      replaceRequest.respond({
+        stopReason: "tool_use",
+        text: "Now I'll update the imports",
         toolRequests: [
           {
             status: "ok",
             value: {
-              id: "toolu_01Cj7KxmYJ1STqcHiuHFuWJi" as ToolRequestId,
+              id: "replace_request" as ToolRequestId,
               toolName: "replace" as ToolName,
               input: {
                 filePath: testFile as UnresolvedFilePath,
@@ -347,6 +376,31 @@ import { Dispatch } from "../tea";`,
 
       await driver.assertDisplayBufferContains("✏️✅ Replace [[ -3 / +2 ]]");
 
+      // Check that the tool result is properly returned
+      const toolResultRequest =
+        await driver.mockAnthropic.awaitPendingRequest();
+      const toolResultMessage =
+        toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+      expect(toolResultMessage.role).toBe("user");
+      expect(Array.isArray(toolResultMessage.content)).toBe(true);
+
+      const toolResult = toolResultMessage.content.find(
+        (item) => item.type === "tool_result",
+      );
+      expect(toolResult).toBeDefined();
+      if (!toolResult || toolResult.type !== "tool_result") {
+        throw new Error("Expected tool result");
+      }
+
+      // Verify the tool result indicates success
+      const result = toolResult.result;
+      expect(result.status).toBe("ok");
+
+      if (result.status !== "ok") {
+        throw new Error("Expected ok status");
+      }
+
       // Check that the file contents are properly updated
       const fileContent = fs.readFileSync(testFile, "utf-8");
       expect(fileContent).toContain('import { Dispatch } from "../tea";');
@@ -359,6 +413,13 @@ import { Dispatch } from "../tea";`,
       expect(fileContent.trim()).not.toBe("");
       expect(fileContent).toContain("export const Component = () => {");
       expect(fileContent).toContain("return <div>Hello</div>;");
+
+      // Respond to complete the conversation
+      toolResultRequest.respond({
+        stopReason: "end_turn",
+        toolRequests: [],
+        text: "I've successfully updated the imports.",
+      });
     });
   });
 });
