@@ -60,6 +60,12 @@ export type MCPServerConfig =
       env?: Record<string, string>;
     }
   | {
+      type: "remote";
+      url: string;
+      requestInit?: RequestInit;
+      sessionId?: string;
+    }
+  | {
       type: "mock";
       tools?: MCPMockToolConfig[];
     };
@@ -221,74 +227,126 @@ function parseMCPServers(
 
       const config = serverConfig as Record<string, unknown>;
 
-      if (config["type"] == "mock") {
-        const mockConfig: MCPServerConfig = { type: "mock" };
-        if (config.tools && Array.isArray(config.tools)) {
-          mockConfig.tools = config.tools as MCPMockToolConfig[];
-        }
+      // Auto-detect mock type by presence of tools field
+      if (config.tools && Array.isArray(config.tools)) {
+        const mockConfig: MCPServerConfig = {
+          type: "mock",
+          tools: config.tools as MCPMockToolConfig[],
+        };
         servers[serverName] = mockConfig;
         continue;
       }
 
-      if (typeof config.command !== "string") {
-        logger.warn(
-          `Skipping MCP server ${serverName}: command must be a string`,
-        );
-        continue;
-      }
-
-      if (!Array.isArray(config.args)) {
-        logger.warn(`Skipping MCP server ${serverName}: args must be an array`);
-        continue;
-      }
-
-      const args = config.args.filter((arg) => {
-        if (typeof arg === "string") {
-          return true;
-        } else {
+      // Auto-detect remote type by presence of url field
+      if (config.url) {
+        if (typeof config.url !== "string") {
           logger.warn(
-            `Skipping non-string arg in MCP server ${serverName}: ${JSON.stringify(arg)}`,
+            `Skipping MCP server ${serverName}: url must be a string for remote type`,
           );
-          return false;
+          continue;
         }
-      }) as string[];
 
-      const serverConfigOut: MCPServerConfig = {
-        type: "command",
-        command: config.command,
-        args,
-      };
+        const remoteConfig: MCPServerConfig = {
+          type: "remote",
+          url: config.url,
+        };
 
-      if (config.env !== undefined) {
-        if (
-          typeof config.env === "object" &&
-          config.env !== null &&
-          !Array.isArray(config.env)
-        ) {
-          const env: Record<string, string> = {};
-          const envObj = config.env as Record<string, unknown>;
+        if (config.requestInit !== undefined) {
+          if (
+            typeof config.requestInit === "object" &&
+            config.requestInit !== null
+          ) {
+            remoteConfig.requestInit = config.requestInit as RequestInit;
+          } else {
+            logger.warn(
+              `Invalid requestInit in MCP server ${serverName}: must be an object`,
+            );
+          }
+        }
 
-          for (const [envKey, envValue] of Object.entries(envObj)) {
-            if (typeof envValue === "string") {
-              env[envKey] = envValue;
-            } else {
-              logger.warn(
-                `Skipping non-string env value in MCP server ${serverName}: ${envKey}=${JSON.stringify(envValue)}`,
-              );
+        if (config.sessionId !== undefined) {
+          if (typeof config.sessionId === "string") {
+            remoteConfig.sessionId = config.sessionId;
+          } else {
+            logger.warn(
+              `Invalid sessionId in MCP server ${serverName}: must be a string`,
+            );
+          }
+        }
+
+        servers[serverName] = remoteConfig;
+        continue;
+      }
+
+      // Auto-detect command type by presence of command field
+      if (config.command) {
+        if (typeof config.command !== "string") {
+          logger.warn(
+            `Skipping MCP server ${serverName}: command must be a string`,
+          );
+          continue;
+        }
+
+        if (!Array.isArray(config.args)) {
+          logger.warn(
+            `Skipping MCP server ${serverName}: args must be an array`,
+          );
+          continue;
+        }
+
+        const args = config.args.filter((arg) => {
+          if (typeof arg === "string") {
+            return true;
+          } else {
+            logger.warn(
+              `Skipping non-string arg in MCP server ${serverName}: ${JSON.stringify(arg)}`,
+            );
+            return false;
+          }
+        }) as string[];
+
+        const serverConfigOut: MCPServerConfig = {
+          type: "command",
+          command: config.command,
+          args,
+        };
+
+        if (config.env !== undefined) {
+          if (
+            typeof config.env === "object" &&
+            config.env !== null &&
+            !Array.isArray(config.env)
+          ) {
+            const env: Record<string, string> = {};
+            const envObj = config.env as Record<string, unknown>;
+
+            for (const [envKey, envValue] of Object.entries(envObj)) {
+              if (typeof envValue === "string") {
+                env[envKey] = envValue;
+              } else {
+                logger.warn(
+                  `Skipping non-string env value in MCP server ${serverName}: ${envKey}=${JSON.stringify(envValue)}`,
+                );
+              }
             }
-          }
 
-          if (Object.keys(env).length > 0) {
-            serverConfigOut.env = env;
+            if (Object.keys(env).length > 0) {
+              serverConfigOut.env = env;
+            }
+          } else {
+            logger.warn(
+              `Invalid env in MCP server ${serverName}: must be an object`,
+            );
           }
-        } else {
-          logger.warn(
-            `Invalid env in MCP server ${serverName}: must be an object`,
-          );
         }
+
+        servers[serverName] = serverConfigOut;
+        continue;
       }
 
-      servers[serverName] = serverConfigOut;
+      logger.warn(
+        `Skipping MCP server ${serverName}: missing required fields (must have either 'url' for remote, 'command' for command, or 'tools' for mock)`,
+      );
     } catch (error) {
       logger.warn(
         `Error parsing MCP server ${serverName}: ${error instanceof Error ? error.message : String(error)}`,

@@ -1,6 +1,14 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import {
+  StreamableHTTPClientTransport,
+  type StreamableHTTPClientTransportOptions,
+} from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import {
+  SSEClientTransport,
+  type SSEClientTransportOptions,
+} from "@modelcontextprotocol/sdk/client/sse.js";
+import {
   CallToolResultSchema,
   type CallToolResult,
   type Tool,
@@ -53,27 +61,95 @@ export class MCPClient {
       version: "1.0.0",
     });
 
-    if (this.config.type == "mock") {
-      const mockServer = new MockMCPServer(
-        this.serverName,
-        this.config.tools || [],
-      );
-      this.transport = await mockServer.start();
-    } else {
-      for (const [key, value] of Object.entries(this.config.env || {})) {
-        env[key] = value;
+    switch (this.config.type) {
+      case "mock": {
+        const mockServer = new MockMCPServer(
+          this.serverName,
+          this.config.tools || [],
+        );
+        this.transport = await mockServer.start();
+        break;
       }
-      this.transport = new StdioClientTransport({
-        command: this.config.command,
-        args: this.config.args,
-        env,
-      });
+      case "remote": {
+        const options: StreamableHTTPClientTransportOptions = {};
+        if (this.config.requestInit !== undefined) {
+          options.requestInit = this.config.requestInit;
+        }
+        if (this.config.sessionId !== undefined) {
+          options.sessionId = this.config.sessionId;
+        }
+        this.transport = new StreamableHTTPClientTransport(
+          new URL(this.config.url),
+          options,
+        ) as Transport;
+
+        try {
+          await this.client.connect(this.transport);
+          await this.loadTools();
+          this.isConnected = true;
+          return;
+        } catch (error) {
+          // For remote servers, always try SSE transport as fallback
+          this.context.nvim.logger.warn(
+            `Streamable HTTP connection failed for ${this.serverName}, falling back to SSE transport: ${error instanceof Error ? error.message : String(error)}`,
+          );
+
+          try {
+            // Clean up the failed transport
+            if (this.transport) {
+              await this.transport.close();
+            }
+
+            // Create SSE transport with same URL
+            const sseOptions: SSEClientTransportOptions = {};
+            if (this.config.requestInit !== undefined) {
+              sseOptions.requestInit = this.config.requestInit;
+            }
+
+            this.transport = new SSEClientTransport(
+              new URL(this.config.url),
+              sseOptions,
+            ) as Transport;
+
+            // Try connecting with SSE transport
+            await this.client.connect(this.transport);
+            await this.loadTools();
+
+            this.isConnected = true;
+            this.context.nvim.logger.info(
+              `Successfully connected to ${this.serverName} using SSE transport fallback`,
+            );
+            return;
+          } catch (sseError) {
+            this.disconnect().catch((e) =>
+              this.context.nvim.logger.error(
+                `Error disconnecting MCP client after SSE fallback: ${e instanceof Error ? e.message : String(e)}`,
+              ),
+            );
+            throw new Error(
+              `Failed to connect to MCP server ${this.serverName} with both streamable-http and SSE transports. Streamable HTTP error: ${error instanceof Error ? error.message : String(error)}. SSE error: ${sseError instanceof Error ? sseError.message : String(sseError)}`,
+            );
+          }
+        }
+      }
+      case "command": {
+        for (const [key, value] of Object.entries(this.config.env || {})) {
+          env[key] = value;
+        }
+        this.transport = new StdioClientTransport({
+          command: this.config.command,
+          args: this.config.args,
+          env,
+        });
+        break;
+      }
+      default:
+        assertUnreachable(this.config);
     }
 
     try {
       await this.client.connect(this.transport);
       await this.loadTools();
-
       this.isConnected = true;
     } catch (error) {
       this.disconnect().catch((e) =>
