@@ -29,6 +29,8 @@ Developed by [dlants.me](https://dlants.me): I was tempted by other editors due 
 
 ## July 2025
 
+**remote mcp support** - we now support streamable http transport, with fallback to sse transport for mcp. This means that mcphub now works via the /mcp endpoint (no lua integration yet).
+
 **improved styling** - I was using markdown for the display buffer for a while, but it was unreliable (due to agent-generated code and file contents interfering with makrdown boundaries), and started crashing with the latest markdown grammar. So I added an extmark-based system for highlighting the display buffer instead. This means more consistent colors, and more control (like coloring the diffs of the replace & insert tools). This is all done via nvim's hl_groups so it should automatically be compatible with your colorscheme. I also made a small quality-of-life improvement that allows you to open search results and citations in the browser by pressing "Enter" over them.
 
 **fast models** - Each profile now supports both a primary model and a fast model. The fast model is automatically used for lightweight tasks like generating thread titles, providing snappier UI interactions while reserving the primary model for substantive coding work. (defaults to haiku for anthropic).
@@ -57,54 +59,6 @@ Developed by [dlants.me](https://dlants.me): I was tempted by other editors due 
 I implemented **sub-agents** - a powerful feature that allows the main agent to delegate specific tasks to specialized sub-agents. Sub-agents can work in parallel and have their own specialized system prompts for tasks like learning codebases, planning implementations, or performing focused work. This enables complex workflows where multiple agents collaborate on different aspects of a problem.
 
 I added support for images and pdfs. Magenta can now read these using the get_file tool for image-compatible openai and anthropic models.
-
-## MCP (Model Context Protocol) Support
-
-Magenta supports MCP servers through two transport methods:
-
-1. **Standard I/O (stdio)** - The traditional way to run MCP servers as child processes
-2. **Streamable HTTP** - Connect to MCP servers over HTTP, useful for remote servers or services
-
-### Standard I/O MCP Servers
-
-Configure stdio MCP servers by specifying a command and arguments:
-
-```lua
-mcpServers = {
-  fetch = {
-    command = "uvx",
-    args = { "mcp-server-fetch" },
-    env = {
-      CUSTOM_VAR = "value"
-    }
-  }
-}
-```
-
-### Streamable HTTP MCP Servers
-
-Configure HTTP-based MCP servers by specifying a URL and optional authentication:
-
-```lua
-mcpServers = {
-  httpServer = {
-    url = "http://localhost:8000/mcp",
-    requestInit = {
-      headers = {
-        Authorization = "Bearer your-token-here",
-      },
-    },
-  }
-}
-```
-
-The `requestInit` field accepts standard [Fetch API RequestInit options](https://developer.mozilla.org/en-US/docs/Web/API/fetch#options), allowing you to configure headers, authentication, and other request parameters as needed.
-
-### MCP Server Configuration
-
-MCP servers can be configured in your main plugin configuration or in project-specific `.magenta/options.json` files. When configured, MCP tools become available to the AI agent with the prefix `mcp_{serverName}.{toolName}`.
-
-For example, if you have a server named `postgres` with a tool called `query`, it would be available as `mcp_postgres.query` to the AI agent.
 
 I added support for the copilot provider.
 
@@ -707,6 +661,64 @@ See the most up-to-date list of implemented tools [here](https://github.com/dlan
 - [x] spawn multiple parallel sub-agents to process arrays of elements (enables batch operations and concurrent workflows)
 - [x] wait for multiple sub-agents to complete (enables parallel workflows)
 - [x] yield results back to parent agent (for sub-agents)
+
+## MCP (Model Context Protocol) Support
+
+Magenta supports MCP servers through two transport methods:
+
+1. **Standard I/O (stdio)** - The traditional way to run MCP servers as child processes
+2. **Streamable HTTP** - Connect to MCP servers over HTTP, useful for remote servers or services
+
+### Standard I/O MCP Servers
+
+Configure stdio MCP servers by specifying a command and arguments:
+
+```lua
+mcpServers = {
+  fetch = {
+    command = "uvx",
+    args = { "mcp-server-fetch" },
+    env = {
+      CUSTOM_VAR = "value"
+    }
+  }
+}
+```
+
+### Streamable HTTP transport (with fallback to SSE transport)
+
+Configure HTTP-based MCP servers by specifying a URL and optional authentication:
+
+```lua
+mcpServers = {
+  httpServer = {
+    url = "http://localhost:8000/mcp",
+    requestInit = {
+      headers = {
+        Authorization = "Bearer your-token-here",
+      },
+    },
+  }
+}
+```
+
+The `requestInit` field accepts standard [Fetch API RequestInit options](https://developer.mozilla.org/en-US/docs/Web/API/fetch#options), allowing you to configure headers, authentication, and other request parameters as needed.
+
+Magenta automatically handles protocol fallback for HTTP-based MCP servers. It first attempts to use the streamable HTTP transport, and if that fails, it falls back to Server-Sent Events (SSE) transport. This ensures compatibility with a wider range of MCP server implementations.
+
+### MCPHub Support
+
+Magenta now supports [MCPHub.nvim](https://github.com/ravitemer/mcphub.nvim).
+
+Configure Magenta to connect to MCPHub:
+
+```lua
+mcpServers = {
+  mcphub = {
+    url = "http://localhost:37373/mcp"
+  }
+}
+```
 
 # Why it's cool
 
