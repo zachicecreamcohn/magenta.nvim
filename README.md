@@ -13,6 +13,10 @@ magenta seeks to provide transparent tools to empower ai workflows in neovim. It
 
 Developed by [dlants.me](https://dlants.me): I was tempted by other editors due to lack of high-quality agentic coding support in neovim. I missed neovim a lot, though, so I decided to go back and implement my own. I now happily code in neovim using magenta, and find that it's just as good as cursor, windsurf, ampcode & claude code.
 
+I sometimes write about AI, neovim and magenta specifically:
+
+- [AI whiplash, and neovim in the age of AI](https://dlants.me/ai-whiplash.html)
+
 (Note - I mostly develop using the Anthropic provider, so claude sonnet 3.7 or 4 are recommended. The OpenAI provider is supported, but with limitations. Contributions are welcome! See for example https://github.com/dlants/magenta.nvim/issues/82 and https://github.com/dlants/magenta.nvim/issues/84 )
 
 [![June 2025 demo](https://img.youtube.com/vi/W_YctNT20NQ/0.jpg)](https://www.youtube.com/watch?v=W_YctNT20NQ)
@@ -20,7 +24,6 @@ Developed by [dlants.me](https://dlants.me): I was tempted by other editors due 
 # Roadmap
 
 - openai provider reasoning, to allow use of the o models, ability to configure reasoning for claude models
-- findDefinition tool / improved discovery of project types and docs
 - gemini 2.5 pro provider
 - @file completion for input buffer
 - local code embedding & indexing via chroma db, to support a semantic code search tool
