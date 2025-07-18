@@ -138,14 +138,14 @@ export class Magenta {
           );
         }
         break;
-      case "scroll-to-top":
+      case "scroll-to-bottom":
         if (this.mountedChatApp) {
           (async () => {
             await this.mountedChatApp?.waitForRender();
-            await this.sidebar.scrollToTop();
+            await this.sidebar.scrollToBottom();
           })().catch((error: Error) =>
             this.nvim.logger.error(
-              `Error scrolling to top: ${error.message + "\n" + error.stack}`,
+              `Error scrolling to bottom: ${error.message + "\n" + error.stack}`,
             ),
           );
         }
@@ -192,6 +192,10 @@ export class Magenta {
       }
 
       case "context-files": {
+        if (!this.sidebar.isVisible()) {
+          await this.command("toggle");
+        }
+
         const thread = this.chat.getActiveThread();
 
         const parts = input.trim().match(/[^\s']+|'([^']*)'|\S+/g) || [];
@@ -293,7 +297,7 @@ export class Magenta {
       }
 
       case "new-thread": {
-        if (!this.sidebar.state.displayBuffer) {
+        if (!this.sidebar.isVisible()) {
           await this.command("toggle");
         }
 
@@ -307,11 +311,39 @@ export class Magenta {
         break;
       }
 
+      case "threads-navigate-up": {
+        this.dispatch({
+          type: "chat-msg",
+          msg: {
+            type: "threads-navigate-up",
+          },
+        });
+
+        // Scroll to bottom when navigating to threads overview
+        // (The chat handler will determine if we go to overview or parent)
+        this.dispatch({
+          type: "sidebar-msg",
+          msg: {
+            type: "scroll-to-bottom",
+          },
+        });
+
+        break;
+      }
+
       case "threads-overview": {
+        // Backward compatibility - force navigation to overview
         this.dispatch({
           type: "chat-msg",
           msg: {
             type: "threads-overview",
+          },
+        });
+
+        this.dispatch({
+          type: "sidebar-msg",
+          msg: {
+            type: "scroll-to-bottom",
           },
         });
 
@@ -339,13 +371,11 @@ ${lines.join("\n")}
 \`\`\`
 `;
 
-        let inputBuffer;
-        inputBuffer = this.sidebar.state.inputBuffer;
-        if (!inputBuffer) {
+        if (!this.sidebar.isVisible()) {
           await this.command("toggle");
         }
 
-        inputBuffer = this.sidebar.state.inputBuffer;
+        const inputBuffer = this.sidebar.state.inputBuffer;
         if (!inputBuffer) {
           throw new Error(`Unable to init inputBuffer`);
         }

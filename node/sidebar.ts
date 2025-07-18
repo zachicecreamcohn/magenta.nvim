@@ -231,14 +231,21 @@ export class Sidebar {
     }
   }
 
-  async scrollToTop() {
+  async scrollToBottom() {
     const { displayWindow } = await this.getWindowIfVisible();
     if (displayWindow) {
+      const displayBuffer = await displayWindow.buffer();
+      const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+      const lastLineIdx = lines.length - 1;
+
+      // Move to the last line
       await displayWindow.setCursor({
-        row: 1,
-        col: 0,
+        row: lastLineIdx + 1,
+        col: lines[lastLineIdx].length,
       } as Position1Indexed);
-      await displayWindow.zt();
+
+      // Execute zb to position cursor at bottom of window
+      await displayWindow.zb();
     }
   }
 
@@ -258,6 +265,10 @@ export class Sidebar {
       displayWindow: displayWindowValid ? displayWindow : undefined,
       inputWindow: inputWindowValid ? inputWindow : undefined,
     };
+  }
+
+  isVisible(): boolean {
+    return this.state.state === "visible";
   }
 
   async getMessage(): Promise<string> {

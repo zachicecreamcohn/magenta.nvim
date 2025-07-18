@@ -42,7 +42,7 @@ local defaults = {
   },
   displayKeymaps = {
     normal = {
-      ["-"] = ":Magenta threads-overview<CR>",
+      ["-"] = ":Magenta threads-navigate-up<CR>",
     }
   },
   inlineKeymaps = {

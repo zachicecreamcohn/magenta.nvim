@@ -123,6 +123,13 @@ export class NvimWindow {
     ]);
   }
 
+  zb() {
+    return this.nvim.call("nvim_exec2", [
+      `call win_execute(${this.id}, 'normal! zb')`,
+      {},
+    ]);
+  }
+
   /**
    * Get the window position (row, column) in the grid
    * @returns Promise<[row, col]> where (0,0) is top-left

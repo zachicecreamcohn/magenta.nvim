@@ -86,6 +86,9 @@ export type Msg =
       id: ThreadId;
     }
   | {
+      type: "threads-navigate-up";
+    }
+  | {
       type: "threads-overview";
     };
 
@@ -203,12 +206,12 @@ export class Chat {
           };
         }
 
-        // Scroll to top when a new thread is created
+        // Scroll to bottom when a new thread is created
         setTimeout(() => {
           this.context.dispatch({
             type: "sidebar-msg",
             msg: {
-              type: "scroll-to-top",
+              type: "scroll-to-bottom",
             },
           });
         }, 100);
@@ -267,7 +270,43 @@ export class Chat {
         }
         return;
 
+      case "threads-navigate-up":
+        // If we're viewing a thread and it has a parent, navigate to parent
+        if (
+          this.state.state === "thread-selected" &&
+          this.state.activeThreadId
+        ) {
+          const threadWrapper = this.threadWrappers[this.state.activeThreadId];
+          if (threadWrapper && threadWrapper.parentThreadId) {
+            // Navigate to parent thread
+            this.state = {
+              state: "thread-selected",
+              activeThreadId: threadWrapper.parentThreadId,
+            };
+
+            // Scroll to bottom when navigating to parent
+            setTimeout(() => {
+              this.context.dispatch({
+                type: "sidebar-msg",
+                msg: {
+                  type: "scroll-to-last-user-message",
+                },
+              });
+            }, 100);
+
+            return;
+          }
+        }
+
+        // Otherwise, navigate to thread overview
+        this.state = {
+          state: "thread-overview",
+          activeThreadId: this.state.activeThreadId,
+        };
+        return;
+
       case "threads-overview":
+        // Force navigation to thread overview regardless of current state
         this.state = {
           state: "thread-overview",
           activeThreadId: this.state.activeThreadId,
