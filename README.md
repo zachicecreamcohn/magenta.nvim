@@ -16,6 +16,7 @@ Developed by [dlants.me](https://dlants.me): I was tempted by other editors due 
 I sometimes write about AI, neovim and magenta specifically:
 
 - [AI whiplash, and neovim in the age of AI](https://dlants.me/ai-whiplash.html)
+- [AI is not mid](https://dlants.me/ai-mid.html)
 
 (Note - I mostly develop using the Anthropic provider, so claude sonnet 3.7 or 4 are recommended. The OpenAI provider is supported, but with limitations. Contributions are welcome! See for example https://github.com/dlants/magenta.nvim/issues/82 and https://github.com/dlants/magenta.nvim/issues/84 )
 
@@ -25,7 +26,7 @@ I sometimes write about AI, neovim and magenta specifically:
 
 - openai provider reasoning, to allow use of the o models, ability to configure reasoning for claude models
 - gemini 2.5 pro provider
-- @file completion for input buffer
+- @file and @diff commands (with completion) for input buffer
 - local code embedding & indexing via chroma db, to support a semantic code search tool
 
 # Updates
