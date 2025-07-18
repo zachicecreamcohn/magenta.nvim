@@ -71,7 +71,6 @@ Key interfaces to extend:
 ### Phase 1: Core Type Definitions and API Design ✅
 
 - [x] Define highlight types and interfaces in `node/tea/highlights.ts`
-
   - [x] Create `HLGroup` type as union of all available highlight group strings for type safety
   - [x] Create `ExtmarkOptions` type covering all nvim_buf_set_extmark options:
     - `hl_group`: HLGroup | TextStyleGroup (highlight group name with type safety)
@@ -110,7 +109,6 @@ Key interfaces to extend:
 ### Phase 2: Extmark Utilities ✅
 
 - [x] Create `node/tea/extmarks.ts` with core utilities:
-
   - [x] `getHighlightNamespace()` - Creates/gets the "magenta-highlights" namespace
   - [x] `setExtmark()` - Sets extmarks with error handling and placeholder IDs for failures
   - [x] `deleteExtmark()` - Deletes extmarks with graceful error handling
@@ -121,7 +119,6 @@ Key interfaces to extend:
   - [x] `MAGENTA_HIGHLIGHT_NAMESPACE` constant for consistent namespace usage
 
 - [x] Write comprehensive unit tests in `node/tea/extmarks.spec.ts`:
-
   - [x] Test namespace creation and management
   - [x] Test basic extmark set/delete operations
   - [x] Test error handling with invalid positions (returns placeholder ID -1)
@@ -149,7 +146,6 @@ Key interfaces to extend:
 ### Phase 3: Render Pipeline Integration ✅
 
 - [x] Extend render pipeline in `node/tea/render.ts`:
-
   - [x] Add `extmarkOptions` to internal `NodePosition` type for tracking highlight options during render
   - [x] Import extmark utilities and required types
   - [x] Convert `assignPositions` to async function to handle extmark creation
@@ -161,7 +157,6 @@ Key interfaces to extend:
   - [x] TypeScript compiles without errors
 
 - [x] Write comprehensive tests in `node/tea/render.spec.ts`:
-
   - [x] Test basic highlighting with `withError()` and `withWarning()` convenience functions
   - [x] Test custom extmark options with `withExtmark()` (priority, sign_text, etc.)
   - [x] Test nested highlights (parent and child extmarks both created)
@@ -185,7 +180,6 @@ Key interfaces to extend:
 ### Phase 4: Update Pipeline Integration
 
 - [ ] Extend update pipeline in `node/tea/update.ts`
-
   - [ ] Modify `visitNode()` function to handle highlight changes
   - [ ] Add highlight diffing to determine when extmarks need updating
   - [ ] **When child nodes update**: Recalculate parent node boundaries and update parent extmarks accordingly
@@ -204,7 +198,6 @@ Key interfaces to extend:
 ### Phase 5: Semantic Highlight Groups and API
 
 - [ ] Define semantic highlight groups and styling options in `node/tea/highlights.ts`
-
   - [ ] Create predefined semantic highlight constants:
     - `SEMANTIC_GROUPS`: `ERROR`, `WARNING`, `INFO`, `SUCCESS`, `MUTED`, `EMPHASIS`, `CODE`, `LINK`
     - Map to standard Neovim groups: `ErrorMsg`, `WarningMsg`, `Directory`, `String`, `Comment`, `Bold`, `Identifier`, `Underlined`
@@ -233,7 +226,6 @@ Key interfaces to extend:
 ### Phase 6: Error Handling and Cleanup
 
 - [ ] Implement robust error handling in `node/tea/extmarks.ts`
-
   - [ ] Handle buffer invalidation gracefully (catch and ignore extmark errors)
   - [ ] Add retry logic for transient Neovim API failures
   - [ ] Log extmark errors at appropriate levels (warn for expected failures)
@@ -252,7 +244,6 @@ Key interfaces to extend:
 ### Phase 7: Integration Testing and Performance
 
 - [ ] Add highlight tests to existing test files following established patterns
-
   - [ ] Extend `node/tea/render.spec.ts` with highlight rendering tests:
     - [ ] Test basic highlighting with `withHighlight()`
     - [ ] Test semantic convenience functions (`withError()`, `withWarning()`, etc.)
