@@ -144,7 +144,7 @@ it("returns diff when file is edited on disk", async () => {
   });
 });
 
-it("avoids sending redundant context updates after tool application", async () => {
+it("avoids sending redundant context updates after tool application (no buffer)", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
 
@@ -636,6 +636,187 @@ it("context-files multiple, weird path names", async () => {
     const request =
       driver.mockAnthropic.requests[driver.mockAnthropic.requests.length - 1];
     expect(request.messages).toMatchSnapshot();
+  });
+});
+
+it("adding a binary file sends the initial update. Further messages do not send further updates.", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    // Get the context manager from the driver
+    const contextManager =
+      driver.magenta.chat.getActiveThread().context.contextManager;
+
+    // Add a binary file to context using the helper method
+    await driver.addContextFiles("test.jpg");
+
+    // First getContextUpdate call should return the initial content
+    const firstUpdates = await contextManager.getContextUpdate();
+    const cwd = await getcwd(driver.nvim);
+    const absFilePath = resolveFilePath(cwd, "test.jpg" as UnresolvedFilePath);
+
+    expect(firstUpdates[absFilePath]).toBeDefined();
+    const firstUpdate = firstUpdates[absFilePath];
+    expect(firstUpdate.update.status).toBe("ok");
+    if (firstUpdate.update.status === "ok") {
+      expect(firstUpdate.update.value.type).toBe("whole-file");
+      expect(firstUpdate.absFilePath).toBe(absFilePath);
+      expect(firstUpdate.relFilePath).toBe("test.jpg");
+      // Content should be base64 encoded binary data
+      expect((firstUpdate.update.value as WholeFileUpdate).content).toMatch(
+        /^[A-Za-z0-9+/]+=*$/,
+      );
+    }
+
+    // Second getContextUpdate call should return no updates (file hasn't changed)
+    const secondUpdates = await contextManager.getContextUpdate();
+    expect(Object.keys(secondUpdates).length).toBe(0);
+  });
+});
+
+it("updating a tracked binary file on disk triggers a whole-file update of context", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    // Get the context manager from the driver
+    const contextManager =
+      driver.magenta.chat.getActiveThread().context.contextManager;
+
+    const cwd = await getcwd(driver.nvim);
+    const absFilePath = resolveFilePath(cwd, "test.jpg" as UnresolvedFilePath);
+
+    // Add file to context and get initial update
+    await driver.addContextFiles("test.jpg");
+    await contextManager.getContextUpdate();
+
+    // Wait a moment to ensure mtime difference
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    // Modify the binary file on disk
+    const newContent = Buffer.from("new binary content for testing");
+    await fs.promises.writeFile(absFilePath, newContent);
+
+    // Get context updates after the modification
+    const updates = await contextManager.getContextUpdate();
+
+    // Should detect the change and return a whole-file update
+    expect(updates[absFilePath]).toBeDefined();
+    const update = updates[absFilePath];
+    expect(update.update.status).toBe("ok");
+    if (update.update.status === "ok") {
+      expect(update.update.value.type).toBe("whole-file");
+      expect(update.absFilePath).toBe(absFilePath);
+      // Content should be base64 encoded
+      expect((update.update.value as WholeFileUpdate).content).toBe(
+        newContent.toString("base64"),
+      );
+    }
+  });
+});
+
+it("removing a binary file on disk removes it from the context and sends a delete message", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    // Get the context manager from the driver
+    const contextManager =
+      driver.magenta.chat.getActiveThread().context.contextManager;
+
+    const cwd = await getcwd(driver.nvim);
+    const testFilePath = resolveFilePath(cwd, "test.jpg" as UnresolvedFilePath);
+
+    // Add file to context using the helper method
+    await driver.addContextFiles("test.jpg");
+
+    // Verify file is in context
+    expect(contextManager.files[testFilePath]).toBeDefined();
+
+    // Get initial context update
+    const firstUpdates = await contextManager.getContextUpdate();
+    expect(firstUpdates[testFilePath]).toBeDefined();
+
+    // Delete the file
+    await fs.promises.unlink(testFilePath);
+
+    // Get context updates after deletion
+    const secondUpdates = await contextManager.getContextUpdate();
+
+    // File should be removed from context and file-deleted update should be returned
+    expect(contextManager.files[testFilePath]).toBeUndefined();
+    expect(secondUpdates[testFilePath]).toBeDefined();
+    expect(secondUpdates[testFilePath].update.status).toBe("ok");
+    if (secondUpdates[testFilePath].update.status === "ok") {
+      expect(secondUpdates[testFilePath].update.value.type).toBe(
+        "file-deleted",
+      );
+    }
+  });
+});
+
+it("issuing a getFile request adds the file to the context but doesn't send its contents twice", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    // Get the context manager from the driver
+    const contextManager =
+      driver.magenta.chat.getActiveThread().context.contextManager;
+
+    // Verify context is empty initially
+    expect(contextManager.files).toEqual({});
+
+    // Issue a getFile request for a binary file
+    await driver.inputMagentaText(`Please analyze the image test.jpg`);
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+    request.respond({
+      stopReason: "tool_use",
+      text: "I'll analyze the image",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "img_request" as ToolRequestId,
+            toolName: "get_file" as ToolName,
+            input: {
+              filePath: "test.jpg" as UnresolvedFilePath,
+            },
+          },
+        },
+      ],
+    });
+
+    await driver.assertDisplayBufferContains(`👀✅ \`test.jpg\``);
+
+    // Handle the auto-respond message
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingRequest();
+
+    const flattenedMessages = toolResultRequest.messages.flatMap((msg) =>
+      Array.isArray(msg.content)
+        ? msg.content.map(
+            (content) =>
+              `${msg.role};${content.type};${content.type === "text" ? content.text : ""}`,
+          )
+        : [
+            `${msg.role};text;${typeof msg.content === "string" ? msg.content : ""}`,
+          ],
+    );
+
+    expect(flattenedMessages).toEqual([
+      "user;text;Please analyze the image test.jpg",
+      "assistant;text;I'll analyze the image",
+      "assistant;tool_use;",
+      "user;tool_result;",
+    ]);
+
+    // Verify the tool result contains the file content exactly once
+    // Now the file should be in context
+    const cwd = await getcwd(driver.nvim);
+    const absFilePath = resolveFilePath(cwd, "test.jpg" as UnresolvedFilePath);
+    expect(contextManager.files[absFilePath]).toBeDefined();
+    expect(contextManager.files[absFilePath].fileTypeInfo.category).toBe(
+      "image",
+    );
   });
 });
 

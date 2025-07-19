@@ -180,7 +180,7 @@ describe("getFile rich content integration tests", () => {
     });
   });
 
-  it("should not add images to context manager", async () => {
+  it("should add images to context manager", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
 
@@ -222,18 +222,24 @@ describe("getFile rich content integration tests", () => {
         text: "I've analyzed the image successfully.",
       });
 
-      // Context should still be empty (images not added to context)
-      expect(
-        driver.magenta.chat.getActiveThread().contextManager.files,
-      ).toEqual({});
+      // Wait for the conversation to complete (animation should stop)
+      await driver.assertDisplayBufferDoesNotContain("Streaming response");
 
-      // Context section should not be shown since no files were added
-      const displayText = await driver.getDisplayBufferText();
-      expect(displayText).not.toContain("# context:");
+      // Context should contain the image
+      const contextFiles =
+        driver.magenta.chat.getActiveThread().contextManager.files;
+      expect(Object.keys(contextFiles)).toHaveLength(1);
+      const fileEntry = Object.values(contextFiles)[0];
+      expect(fileEntry.relFilePath).toBe("test.jpg");
+      expect(fileEntry.fileTypeInfo.category).toBe("image");
+
+      // Context section should be shown
+      await driver.assertDisplayBufferContains("# context:");
+      await driver.assertDisplayBufferContains("- `test.jpg`");
     });
   });
 
-  it("should not add PDFs to context manager", async () => {
+  it("should add PDFs to context manager", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
 
@@ -275,14 +281,20 @@ describe("getFile rich content integration tests", () => {
         text: "I've read the PDF document successfully.",
       });
 
-      // Context should still be empty (PDFs not added to context)
-      expect(
-        driver.magenta.chat.getActiveThread().contextManager.files,
-      ).toEqual({});
+      // Wait for the conversation to complete (animation should stop)
+      await driver.assertDisplayBufferDoesNotContain("Streaming response");
 
-      // Context section should not be shown since no files were added
-      const displayText = await driver.getDisplayBufferText();
-      expect(displayText).not.toContain("# context:");
+      // Context should contain the PDF
+      const contextFiles =
+        driver.magenta.chat.getActiveThread().contextManager.files;
+      expect(Object.keys(contextFiles)).toHaveLength(1);
+      const fileEntry = Object.values(contextFiles)[0];
+      expect(fileEntry.relFilePath).toBe("test.pdf");
+      expect(fileEntry.fileTypeInfo.category).toBe("pdf");
+
+      // Context section should be shown
+      await driver.assertDisplayBufferContains("# context:");
+      await driver.assertDisplayBufferContains("- `test.pdf`");
     });
   });
 
@@ -439,14 +451,18 @@ describe("getFile rich content integration tests", () => {
         text: "I've successfully processed all three files with different content types.",
       });
 
-      // Only text file should be in context
+      // All files should be in context
       await driver.assertDisplayBufferContains("# context:");
       await driver.assertDisplayBufferContains("- `poem.txt`");
+      await driver.assertDisplayBufferContains("- `test.jpg`");
+      await driver.assertDisplayBufferContains("- `test.pdf`");
 
       const relativeFiles = Object.values(
         driver.magenta.chat.getActiveThread().contextManager.files,
-      ).map((f) => f.relFilePath);
-      expect(relativeFiles).toEqual(["poem.txt"]);
+      )
+        .map((f) => f.relFilePath)
+        .sort();
+      expect(relativeFiles).toEqual(["poem.txt", "test.jpg", "test.pdf"]);
     });
   });
 

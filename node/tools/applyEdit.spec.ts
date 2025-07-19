@@ -483,6 +483,11 @@ Paint their stories in the night.
               type: "insert",
             },
             type: "tool-applied",
+            fileTypeInfo: {
+              category: "text",
+              mimeType: "text/plain",
+              extension: "",
+            },
           },
           type: "context-manager-msg",
         },

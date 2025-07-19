@@ -14,6 +14,7 @@ import {
   resolveFilePath,
   type AbsFilePath,
   type NvimCwd,
+  FileCategory,
 } from "../utils/files.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import { applyInsert, applyReplace } from "../utils/contentEdits.ts";
@@ -371,6 +372,11 @@ export async function applyEdit(
                   find: request.input.find,
                   replace: request.input.replace,
                 },
+          fileTypeInfo: {
+            category: FileCategory.TEXT,
+            mimeType: "text/plain",
+            extension: "",
+          },
         },
       },
     });
