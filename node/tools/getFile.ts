@@ -368,6 +368,7 @@ You already have the most up-to-date information about the contents of this file
             type: "get-file",
             content: textContent,
           },
+          fileTypeInfo,
         },
       });
 
@@ -378,6 +379,24 @@ You already have the most up-to-date information about the contents of this file
     } else {
       const buffer = await fs.promises.readFile(absFilePath);
       const base64Data = buffer.toString("base64");
+
+      // Get file modification time for binary files
+      const stats = await fs.promises.stat(absFilePath);
+      const mtime = stats.mtime.getTime();
+
+      // Notify context manager of the binary file
+      this.context.threadDispatch({
+        type: "context-manager-msg",
+        msg: {
+          type: "tool-applied",
+          absFilePath,
+          tool: {
+            type: "get-file-binary",
+            mtime,
+          },
+          fileTypeInfo,
+        },
+      });
 
       switch (fileTypeInfo.category) {
         case FileCategory.IMAGE:

@@ -2,7 +2,6 @@ import { Message, type MessageId, type Msg as MessageMsg } from "./message.ts";
 
 import {
   ContextManager,
-  contextUpdatesToContent,
   type Msg as ContextManagerMsg,
 } from "../context/context-manager.ts";
 import { type Dispatch } from "../tea/tea.ts";
@@ -820,9 +819,10 @@ ${compactRequest.input.summary}
       }
 
       if (message.state.contextUpdates) {
-        messageContent.push(
-          contextUpdatesToContent(message.state.contextUpdates),
+        const contextContent = this.contextManager.contextUpdatesToContent(
+          message.state.contextUpdates,
         );
+        messageContent.push(...contextContent);
       }
 
       for (const contentBlock of message.state.content) {

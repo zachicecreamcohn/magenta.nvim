@@ -33,6 +33,10 @@ export type ToolApplication =
       content: string;
     }
   | {
+      type: "get-file-binary";
+      mtime: number;
+    }
+  | {
       type: "insert";
       insertAfter: string;
       content: string;
@@ -62,11 +66,19 @@ export type Msg =
       type: "tool-applied";
       absFilePath: AbsFilePath;
       tool: ToolApplication;
+      fileTypeInfo: FileTypeInfo;
     };
 
 type Files = {
   [absFilePath: AbsFilePath]: {
     relFilePath: RelFilePath;
+    fileTypeInfo: FileTypeInfo;
+    /** What was the last update we sent to the agent about this file?
+     */
+    agentView:
+      | { type: "text"; content: string }
+      | { type: "binary"; mtime: number }
+      | undefined;
   };
 };
 
@@ -99,12 +111,6 @@ export type FileUpdates = {
 export class ContextManager {
   public files: Files;
 
-  /** Tracks what the agent thinks the files in the context look like.
-   */
-  private agentsViewOfFiles: {
-    [absFilePath: AbsFilePath]: string;
-  } = {};
-
   private constructor(
     public myDispatch: Dispatch<Msg>,
     private context: {
@@ -117,9 +123,6 @@ export class ContextManager {
     initialFiles: Files = {},
   ) {
     this.files = initialFiles;
-
-    // until we send the agent updates about the files, it doesn't know anything about them.
-    this.agentsViewOfFiles = {};
   }
 
   static async create(
@@ -140,34 +143,58 @@ export class ContextManager {
   }
 
   reset() {
-    this.agentsViewOfFiles = {};
+    // Reset agent view for all files
+    for (const absFilePath in this.files) {
+      this.files[absFilePath as AbsFilePath].agentView = undefined;
+    }
   }
 
   update(msg: Msg): void {
     switch (msg.type) {
       case "add-file-context":
-        this.addFileContextWithTypeCheck(
-          msg.absFilePath,
-          msg.relFilePath,
-          msg.fileTypeInfo,
-        );
+        if (msg.fileTypeInfo.category === FileCategory.UNSUPPORTED) {
+          throw new Error(
+            `Cannot add ${msg.relFilePath} to context: ${msg.fileTypeInfo.category} files are not supported in context (detected MIME type: ${msg.fileTypeInfo.mimeType})`,
+          );
+        }
+
+        this.files[msg.absFilePath] = {
+          relFilePath: msg.relFilePath,
+          fileTypeInfo: msg.fileTypeInfo,
+          agentView: undefined,
+        };
 
         return;
 
-      case "remove-file-context":
+      case "remove-file-context": {
         delete this.files[msg.absFilePath];
         return;
+      }
 
       case "open-file":
+        // TODO: if the file is a binary file, then use the os's open on it instead
         openFileInNonMagentaWindow(msg.absFilePath, {
           nvim: this.context.nvim,
           options: this.context.options,
         }).catch((e: Error) => this.context.nvim.logger.error(e.message));
 
         return;
-      case "tool-applied":
-        this.toolApplied(msg.absFilePath, msg.tool);
+
+      case "tool-applied": {
+        const relFilePath = relativePath(this.context.cwd, msg.absFilePath);
+
+        // make sure we add the file to context
+        if (!this.files[msg.absFilePath]) {
+          this.files[msg.absFilePath] = {
+            relFilePath,
+            fileTypeInfo: msg.fileTypeInfo,
+            agentView: undefined,
+          };
+        }
+
+        this.updateAgentsViewOfFiles(msg.absFilePath, msg.tool);
         return;
+      }
       default:
         assertUnreachable(msg);
     }
@@ -177,62 +204,85 @@ export class ContextManager {
     return Object.keys(this.files).length == 0;
   }
 
-  private addFileContextWithTypeCheck(
+  private updateAgentsViewOfFiles(
     absFilePath: AbsFilePath,
-    relFilePath: RelFilePath,
-    fileTypeInfo: FileTypeInfo,
-  ): void {
-    if (fileTypeInfo.category === FileCategory.TEXT) {
-      this.files[absFilePath] = {
-        relFilePath,
-      };
-    } else {
-      throw new Error(
-        `Cannot add ${relFilePath} to context: ${fileTypeInfo.category} files are not supported in context (detected MIME type: ${fileTypeInfo.mimeType})`,
-      );
+    tool: ToolApplication,
+  ) {
+    const fileInfo = this.files[absFilePath];
+    if (!fileInfo) {
+      throw new Error(`File ${absFilePath} not found in context`);
     }
-  }
-
-  /**
-   * Called when the agent invokes a tool that causes it to receive an update about the file content.
-   * After the tool is applied, the agent's view of the file should match the current buffer state of the file.
-   */
-  toolApplied(absFilePath: AbsFilePath, tool: ToolApplication) {
-    const relFilePath = relativePath(this.context.cwd, absFilePath);
-
-    // make sure we add the file to context
-    this.files[absFilePath] = { relFilePath };
 
     switch (tool.type) {
       case "get-file":
-        this.agentsViewOfFiles[absFilePath] = tool.content;
-        return;
-      case "insert": {
-        // We need to update the agent's view of the file to match what the file would be after the edit
-        const currentContent = this.agentsViewOfFiles[absFilePath] || "";
-        const { insertAfter, content } = tool;
+        fileInfo.agentView = {
+          type: "text",
+          content: tool.content,
+        };
 
-        const result = applyInsert(currentContent, insertAfter, content);
-        if (result.status === "ok") {
-          this.agentsViewOfFiles[absFilePath] = result.content;
-        } else {
+        return;
+
+      case "get-file-binary":
+        fileInfo.agentView = {
+          type: "binary",
+          mtime: tool.mtime,
+        };
+        return;
+
+      case "insert":
+      case "replace": {
+        if (fileInfo.fileTypeInfo.category !== FileCategory.TEXT) {
           throw new Error(
-            `Failed to update agent's view of ${absFilePath}: ${result.error}`,
+            `Cannot perform ${tool.type} operation on non-text file ${absFilePath} (file type: ${fileInfo.fileTypeInfo.category})`,
           );
         }
-        return;
-      }
-      case "replace": {
-        const currentContent = this.agentsViewOfFiles[absFilePath] || "";
-        const { find, replace } = tool;
 
-        const result = applyReplace(currentContent, find, replace);
-        if (result.status === "ok") {
-          this.agentsViewOfFiles[absFilePath] = result.content;
-        } else {
+        if (fileInfo.agentView && fileInfo.agentView.type !== "text") {
           throw new Error(
-            `Failed to update agent's view of ${absFilePath}: ${result.error}`,
+            `Cannot perform ${tool.type} operation on ${absFilePath}: agent view type is ${fileInfo.agentView.type}, expected text`,
           );
+        }
+
+        // If we don't have the agent's view of the file yet, we need to read the current file content
+        // This may happen if the agent performs the edit based on a text snippet the user sent without adding the
+        // file to the context
+        if (fileInfo.agentView) {
+          const result =
+            tool.type === "insert"
+              ? applyInsert(
+                  fileInfo.agentView.content,
+                  tool.insertAfter,
+                  tool.content,
+                )
+              : applyReplace(
+                  fileInfo.agentView.content,
+                  tool.find,
+                  tool.replace,
+                );
+
+          if (result.status === "ok") {
+            fileInfo.agentView = {
+              type: "text",
+              content: result.content,
+            };
+          } else {
+            throw new Error(
+              `Failed to update agent's view of ${absFilePath}: ${result.error}`,
+            );
+          }
+        } else {
+          // Read the current file content from disk
+          try {
+            const currentContent = fs.readFileSync(absFilePath, "utf8");
+            fileInfo.agentView = {
+              type: "text",
+              content: currentContent,
+            };
+          } catch (err) {
+            throw new Error(
+              `Failed to read file ${absFilePath} to update agent's view: ${(err as Error).message}`,
+            );
+          }
         }
         return;
       }
@@ -269,15 +319,19 @@ export class ContextManager {
   }: {
     absFilePath: AbsFilePath;
   }): Promise<FileUpdates[keyof FileUpdates] | undefined> {
-    const bufSyncInfo = this.context.bufferTracker.getSyncInfo(absFilePath);
-    let currentFileContent: string;
     const relFilePath = relativePath(this.context.cwd, absFilePath);
+    const fileInfo = this.files[absFilePath];
+
+    if (!fileInfo) {
+      // File not in context, skip
+      return undefined;
+    }
 
     // Check if file exists first
     if (!fs.existsSync(absFilePath)) {
       // File has been deleted or moved, remove it from context
       delete this.files[absFilePath];
-      delete this.agentsViewOfFiles[absFilePath];
+
       return {
         absFilePath,
         relFilePath,
@@ -289,6 +343,26 @@ export class ContextManager {
         },
       };
     }
+
+    if (fileInfo.fileTypeInfo.category === FileCategory.TEXT) {
+      return await this.handleTextFileUpdate(
+        absFilePath,
+        relFilePath,
+        fileInfo,
+      );
+    } else {
+      return this.handleBinaryFileUpdate(absFilePath, relFilePath, fileInfo);
+    }
+  }
+
+  private async handleTextFileUpdate(
+    absFilePath: AbsFilePath,
+    relFilePath: RelFilePath,
+    fileInfo: Files[AbsFilePath],
+  ): Promise<FileUpdates[keyof FileUpdates] | undefined> {
+    let currentFileContent: string;
+    // Handle text files (with potential buffer tracking)
+    const bufSyncInfo = this.context.bufferTracker.getSyncInfo(absFilePath);
 
     if (bufSyncInfo) {
       // This file is open in a buffer
@@ -339,7 +413,6 @@ export class ContextManager {
         if ((err as NodeJS.ErrnoException).code === "ENOENT") {
           // File has been deleted or moved, remove it from context
           delete this.files[absFilePath];
-          delete this.agentsViewOfFiles[absFilePath];
           return {
             absFilePath,
             relFilePath,
@@ -355,10 +428,18 @@ export class ContextManager {
       }
     }
 
-    const prev = this.agentsViewOfFiles[absFilePath];
-    this.agentsViewOfFiles[absFilePath] = currentFileContent;
+    // For text files, track the agent's view and generate diffs
+    const prevContent =
+      fileInfo.agentView?.type === "text"
+        ? fileInfo.agentView.content
+        : undefined;
 
-    if (!prev) {
+    fileInfo.agentView = {
+      type: "text",
+      content: currentFileContent,
+    };
+
+    if (!prevContent) {
       return {
         absFilePath,
         relFilePath,
@@ -372,13 +453,13 @@ export class ContextManager {
       };
     }
 
-    if (prev == currentFileContent) {
+    if (prevContent === currentFileContent) {
       return undefined;
     }
 
     const patch = diff.createPatch(
       relFilePath,
-      prev,
+      prevContent,
       currentFileContent,
       "previous",
       "current",
@@ -398,15 +479,62 @@ export class ContextManager {
     };
   }
 
+  private handleBinaryFileUpdate(
+    absFilePath: AbsFilePath,
+    relFilePath: RelFilePath,
+    fileInfo: Files[AbsFilePath],
+  ): FileUpdates[keyof FileUpdates] | undefined {
+    // Handle binary files (images/PDFs) - always read from disk, no buffer tracking
+    try {
+      const stats = fs.statSync(absFilePath);
+      const currentMtime = stats.mtime.getTime();
+
+      const prevMtime =
+        fileInfo.agentView?.type === "binary"
+          ? fileInfo.agentView.mtime
+          : undefined;
+
+      // Update agent's view with current mtime
+      fileInfo.agentView = {
+        type: "binary",
+        mtime: currentMtime,
+      };
+
+      // Only send update if file has changed or agent hasn't seen it before
+      if (prevMtime && prevMtime >= currentMtime) {
+        // File hasn't changed, no update needed
+        return undefined;
+      } else {
+        const buffer = fs.readFileSync(absFilePath);
+        return {
+          absFilePath,
+          relFilePath,
+          update: {
+            status: "ok",
+            value: {
+              type: "whole-file",
+              content: buffer.toString("base64"),
+            },
+          },
+        };
+      }
+    } catch (err) {
+      return {
+        absFilePath,
+        relFilePath,
+        update: {
+          status: "error",
+          error: `Error checking file stats for ${absFilePath}: ${(err as Error).message}`,
+        },
+      };
+    }
+  }
+
   private static async loadAutoContext(
     nvim: Nvim,
     options: MagentaOptions,
   ): Promise<Files> {
-    const files: {
-      [absFilePath: AbsFilePath]: {
-        relFilePath: RelFilePath;
-      };
-    } = {};
+    const files: Files = {};
 
     if (!options.autoContext || options.autoContext.length === 0) {
       return files;
@@ -422,12 +550,14 @@ export class ContextManager {
         nvim,
       );
 
-      const filteredFiles = await this.filterTextFiles(matchedFiles, nvim);
+      const filteredFiles = await this.filterSupportedFiles(matchedFiles, nvim);
 
       // Convert to the expected format
       for (const matchInfo of filteredFiles) {
         files[matchInfo.absFilePath] = {
           relFilePath: matchInfo.relFilePath,
+          fileTypeInfo: matchInfo.fileTypeInfo,
+          agentView: undefined,
         };
       }
     } catch (err) {
@@ -506,13 +636,20 @@ export class ContextManager {
     return Array.from(uniqueFiles.values());
   }
 
-  private static async filterTextFiles(
+  private static async filterSupportedFiles(
     matchedFiles: Array<{ absFilePath: AbsFilePath; relFilePath: RelFilePath }>,
     nvim: Nvim,
-  ): Promise<Array<{ absFilePath: AbsFilePath; relFilePath: RelFilePath }>> {
-    const textFiles: Array<{
+  ): Promise<
+    Array<{
       absFilePath: AbsFilePath;
       relFilePath: RelFilePath;
+      fileTypeInfo: FileTypeInfo;
+    }>
+  > {
+    const supportedFiles: Array<{
+      absFilePath: AbsFilePath;
+      relFilePath: RelFilePath;
+      fileTypeInfo: FileTypeInfo;
     }> = [];
 
     await Promise.all(
@@ -523,10 +660,10 @@ export class ContextManager {
             nvim.logger.error(`File ${fileInfo.relFilePath} does not exist.`);
             return;
           }
-          if (fileTypeInfo.category === FileCategory.TEXT) {
-            textFiles.push(fileInfo);
+          if (fileTypeInfo.category !== FileCategory.UNSUPPORTED) {
+            supportedFiles.push({ ...fileInfo, fileTypeInfo });
           } else {
-            // Log informational message about skipped non-text files
+            // Log informational message about skipped unsupported files
             nvim.logger.warn(
               `Skipping ${fileInfo.relFilePath} from auto-context: ${fileTypeInfo.category} files are not supported in context (detected MIME type: ${fileTypeInfo.mimeType})`,
             );
@@ -539,7 +676,7 @@ export class ContextManager {
       }),
     );
 
-    return textFiles;
+    return supportedFiles;
   }
 
   /** renders a summary of all the files we're tracking, with the ability to delete or navigate to each file.
@@ -551,22 +688,20 @@ export class ContextManager {
     }
 
     for (const absFilePath in this.files) {
+      const fileInfo = this.files[absFilePath as AbsFilePath];
       fileContext.push(
-        withBindings(
-          d`- ${withInlineCode(d`\`${this.files[absFilePath as AbsFilePath].relFilePath}\``)}\n`,
-          {
-            dd: () =>
-              this.myDispatch({
-                type: "remove-file-context",
-                absFilePath: absFilePath as AbsFilePath,
-              }),
-            "<CR>": () =>
-              this.myDispatch({
-                type: "open-file",
-                absFilePath: absFilePath as AbsFilePath,
-              }),
-          },
-        ),
+        withBindings(d`- ${withInlineCode(d`\`${fileInfo.relFilePath}\``)}\n`, {
+          dd: () =>
+            this.myDispatch({
+              type: "remove-file-context",
+              absFilePath: absFilePath as AbsFilePath,
+            }),
+          "<CR>": () =>
+            this.myDispatch({
+              type: "open-file",
+              absFilePath: absFilePath as AbsFilePath,
+            }),
+        }),
       );
     }
 
@@ -574,58 +709,103 @@ export class ContextManager {
 ${withExtmark(d`# context:`, { hl_group: "@markup.heading.1.markdown" })}
 ${fileContext}`;
   }
-}
 
-export function contextUpdatesToContent(
-  contextUpdates: FileUpdates,
-): ProviderMessageContent {
-  const fileUpdates: string[] = [];
-  for (const path in contextUpdates) {
-    const absFilePath = path as AbsFilePath;
+  contextUpdatesToContent(
+    contextUpdates: FileUpdates,
+  ): ProviderMessageContent[] {
+    const content: ProviderMessageContent[] = [];
+    const textUpdates: string[] = [];
 
-    const update = contextUpdates[absFilePath];
+    for (const path in contextUpdates) {
+      const absFilePath = path as AbsFilePath;
+      const update = contextUpdates[absFilePath];
+      const fileInfo = this.files[absFilePath];
 
-    if (update.update.status === "ok") {
-      switch (update.update.value.type) {
-        case "whole-file": {
-          fileUpdates.push(`\
+      if (update.update.status === "ok") {
+        switch (update.update.value.type) {
+          case "whole-file": {
+            if (fileInfo?.fileTypeInfo.category === FileCategory.TEXT) {
+              // Text file - include in text updates
+              textUpdates.push(`\
 - \`${update.relFilePath}\`
 \`\`\`
 ${update.update.value.content}
 \`\`\``);
-          break;
-        }
-        case "diff": {
-          fileUpdates.push(
-            `\
+            } else if (fileInfo?.fileTypeInfo.category === FileCategory.IMAGE) {
+              // Image file - add as separate image content
+              content.push({
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: fileInfo.fileTypeInfo.mimeType as
+                    | "image/jpeg"
+                    | "image/png"
+                    | "image/gif"
+                    | "image/webp",
+                  data: update.update.value.content,
+                },
+              });
+              textUpdates.push(`\
+- \`${update.relFilePath}\`
+Image file updated (see attached image).`);
+            } else if (fileInfo?.fileTypeInfo.category === FileCategory.PDF) {
+              // PDF file - add as separate document content
+              content.push({
+                type: "document",
+                source: {
+                  type: "base64",
+                  media_type: "application/pdf",
+                  data: update.update.value.content,
+                },
+              });
+              textUpdates.push(`\
+- \`${update.relFilePath}\`
+PDF document updated (see attached document).`);
+            } else {
+              // Fallback for unknown file types
+              textUpdates.push(`\
+- \`${update.relFilePath}\`
+File content updated.`);
+            }
+            break;
+          }
+          case "diff": {
+            textUpdates.push(
+              `\
 - \`${update.relFilePath}\`
 \`\`\`diff
 ${update.update.value.patch}
 \`\`\``,
-          );
-          break;
-        }
-        case "file-deleted": {
-          fileUpdates.push(`\
+            );
+            break;
+          }
+          case "file-deleted": {
+            textUpdates.push(`\
 - \`${update.relFilePath}\`
 This file has been deleted and removed from context.`);
-          break;
+            break;
+          }
+          default:
+            assertUnreachable(update.update.value);
         }
-        default:
-          assertUnreachable(update.update.value);
-      }
-    } else {
-      fileUpdates.push(`\
+      } else {
+        textUpdates.push(`\
 - \`${update.relFilePath}\`
 Error fetching update: ${update.update.error}`);
+      }
     }
-  }
 
-  return {
-    type: "text",
-    text: `\
+    // Add text content first
+    if (textUpdates.length > 0) {
+      content.unshift({
+        type: "text",
+        text: `\
 These files are part of your context. This is the latest information about the content of each file.
 From now on, whenever any of these files are updated by the user, you will get a message letting you know.
-${fileUpdates.join("\n")}`,
-  };
+${textUpdates.join("\n")}`,
+      });
+    }
+
+    return content;
+  }
 }

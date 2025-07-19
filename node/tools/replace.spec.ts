@@ -388,6 +388,7 @@ import { Dispatch } from "../tea";`,
       const toolResult = toolResultMessage.content.find(
         (item) => item.type === "tool_result",
       );
+
       expect(toolResult).toBeDefined();
       if (!toolResult || toolResult.type !== "tool_result") {
         throw new Error("Expected tool result");
