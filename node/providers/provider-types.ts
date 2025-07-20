@@ -177,6 +177,10 @@ export interface Provider {
       enabled: boolean;
       budgetTokens?: number;
     };
+    reasoning?: {
+      effort?: "low" | "medium" | "high";
+      summary?: "auto" | "concise" | "detailed";
+    };
   }): ProviderStreamRequest;
 }
 

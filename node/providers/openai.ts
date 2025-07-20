@@ -97,6 +97,36 @@ export class OpenAIProvider implements Provider {
    * Sanitizes JSON Schema for OpenAI compatibility by removing unsupported format specifiers
    * OpenAI doesn't support formats like "uri", "date-time", etc.
    */
+  /**
+   * Checks if a model is a reasoning model (o-series)
+   */
+  private isReasoningModel(model: string): boolean {
+    return /^(o1|o3|o4|o-|o1-|o3-|o4-)/i.test(model);
+  }
+
+  /**
+   * Checks if a model supports the web search tool
+   * Web search is supported in GPT-4o series, GPT-4.1 series, and o-series models
+   */
+  private supportsWebSearch(model: string): boolean {
+    // GPT-4o series models (gpt-4o, gpt-4o-mini, etc.)
+    if (/^gpt-4o/i.test(model)) {
+      return true;
+    }
+
+    // GPT-4.1 series models
+    if (/^gpt-4\.1/i.test(model)) {
+      return true;
+    }
+
+    // O-series reasoning models (o1, o3, o4, etc.)
+    if (this.isReasoningModel(model)) {
+      return true;
+    }
+
+    return false;
+  }
+
   private sanitizeSchemaForOpenAI(schema: JSONSchemaType): JSONSchemaType {
     if (
       typeof schema !== "object" ||
@@ -170,6 +200,10 @@ export class OpenAIProvider implements Provider {
     tools: Array<ProviderToolSpec>;
     disableCaching?: boolean;
     systemPrompt?: string;
+    reasoning?: {
+      effort?: "low" | "medium" | "high";
+      summary?: "auto" | "concise" | "detailed";
+    };
   }): OpenAI.Responses.ResponseCreateParamsStreaming {
     const { model, messages, tools, systemPrompt } = options;
     const openaiMessages: OpenAI.Responses.ResponseInputItem[] = [
@@ -438,7 +472,7 @@ export class OpenAIProvider implements Provider {
       flushInProgressUserMessage();
     }
 
-    return {
+    const params: OpenAI.Responses.ResponseCreateParamsStreaming = {
       model,
       stream: true,
       input: openaiMessages,
@@ -459,6 +493,26 @@ export class OpenAIProvider implements Provider {
         }),
       ],
     };
+
+    // Add reasoning configuration for o-series models
+    const { reasoning } = options;
+    if (reasoning && this.isReasoningModel(model)) {
+      const reasoningConfig: {
+        effort?: "low" | "medium" | "high";
+        summary?: "auto" | "concise" | "detailed";
+      } = {};
+      if (reasoning.effort) {
+        reasoningConfig.effort = reasoning.effort;
+      }
+      if (reasoning.summary) {
+        reasoningConfig.summary = reasoning.summary;
+      }
+      if (Object.keys(reasoningConfig).length > 0) {
+        params.reasoning = reasoningConfig;
+      }
+    }
+
+    return params;
   }
 
   forceToolUse(options: {
@@ -563,12 +617,12 @@ export class OpenAIProvider implements Provider {
     onStreamEvent: (event: ProviderStreamEvent) => void;
     tools: Array<ProviderToolSpec>;
     systemPrompt?: string;
-    thinking?: {
-      enabled: boolean;
-      budgetTokens?: number;
+    reasoning?: {
+      effort?: "low" | "medium" | "high";
+      summary?: "auto" | "concise" | "detailed";
     };
   }): ProviderStreamRequest {
-    const { model, messages, tools, systemPrompt } = options;
+    const { model, messages, tools, systemPrompt, reasoning } = options;
     let request: Stream<OpenAI.Responses.ResponseStreamEvent>;
     let stopReason: StopReason | undefined;
     let usage: Usage | undefined;
@@ -582,8 +636,12 @@ export class OpenAIProvider implements Provider {
         messages,
         tools,
         ...(systemPrompt && { systemPrompt }),
+        ...(reasoning && { reasoning }),
       });
-      params.tools!.push({ type: "web_search_preview" });
+
+      if (this.supportsWebSearch(model)) {
+        params.tools!.push({ type: "web_search_preview" });
+      }
 
       this.nvim.logger.info(
         "OpenAI input messages:" + JSON.stringify(params.input, null, 2),
