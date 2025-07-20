@@ -11,6 +11,8 @@ import type {
   ProviderStreamEvent,
   ProviderToolUseRequest,
   ProviderToolUseResponse,
+  ProviderThinkingContent,
+  ProviderRedactedThinkingContent,
 } from "./provider-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Nvim } from "../nvim/nvim-node";
@@ -380,11 +382,8 @@ export class OpenAIProvider implements Provider {
             }
             break;
           case "thinking":
-            // Thinking content is typically internal and not sent to the model
-            break;
-
           case "redacted_thinking":
-            // Redacted thinking content is also internal and not sent to the model
+            // Skip individual thinking blocks - they will be aggregated below
             break;
 
           default:
@@ -394,6 +393,75 @@ export class OpenAIProvider implements Provider {
 
       // Flush any remaining in-progress message for this provider message
       flushInProgressMessage();
+
+      // Aggregate thinking and redacted thinking blocks into reasoning messages
+      if (m.role === "assistant") {
+        const thinkingByItemId = new Map<
+          string,
+          {
+            thinking: ProviderThinkingContent[];
+            redactedThinking: ProviderRedactedThinkingContent[];
+          }
+        >();
+
+        // Group thinking content by itemId
+        for (const content of m.content) {
+          if (
+            content.type === "thinking" ||
+            content.type === "redacted_thinking"
+          ) {
+            const itemId = content.providerMetadata?.openai?.itemId;
+            if (!itemId) {
+              throw new Error(
+                `Thinking content must have an itemId in providerMetadata.openai`,
+              );
+            }
+
+            if (!thinkingByItemId.has(itemId)) {
+              thinkingByItemId.set(itemId, {
+                thinking: [],
+                redactedThinking: [],
+              });
+            }
+
+            const group = thinkingByItemId.get(itemId)!;
+            if (content.type === "thinking") {
+              group.thinking.push(content);
+            } else {
+              group.redactedThinking.push(content);
+            }
+          }
+        }
+
+        // Convert grouped thinking content to reasoning messages
+        for (const [itemId, group] of thinkingByItemId) {
+          // Assert there's at most one redacted thinking block per itemId
+          if (group.redactedThinking.length > 1) {
+            throw new Error(
+              `Multiple redacted thinking blocks found for itemId ${itemId}. Expected at most one.`,
+            );
+          }
+
+          const encrypted_content =
+            group.redactedThinking.length > 0
+              ? group.redactedThinking[0].data
+              : null;
+
+          const summary = group.thinking
+            .filter((t) => t.thinking.trim())
+            .map((t) => ({
+              type: "summary_text" as const,
+              text: t.thinking,
+            }));
+
+          pushMessage({
+            type: "reasoning",
+            id: itemId,
+            encrypted_content,
+            summary,
+          });
+        }
+      }
     }
 
     return {
@@ -583,6 +651,34 @@ export class OpenAIProvider implements Provider {
                   },
                 });
                 break;
+              case "reasoning":
+                // If there's encrypted content, emit a redacted thinking block
+                if (event.item.encrypted_content) {
+                  onStreamEvent({
+                    type: "content_block_start",
+                    index: event.output_index,
+                    content_block: {
+                      type: "redacted_thinking",
+                      data: event.item.encrypted_content,
+                    },
+                    providerMetadata: {
+                      openai: {
+                        itemId: event.item.id,
+                      },
+                    },
+                  });
+                  onStreamEvent({
+                    type: "content_block_stop",
+                    index: event.output_index,
+                    providerMetadata: {
+                      openai: {
+                        itemId: event.item.id,
+                      },
+                    },
+                  });
+                }
+                // We ignore the reasoning item itself and let summary parts handle the events
+                break;
               default:
                 throw new Error(
                   `output_item.added ${event.item.type} not implemented`,
@@ -615,10 +711,65 @@ export class OpenAIProvider implements Provider {
           case "response.output_item.done":
             if (event.item.type === "function_call") {
               stopReason = "tool_use";
+            } else if (event.item.type === "reasoning") {
+              // Ignore reasoning done events as summary parts handle their own lifecycle
+              break;
             }
             onStreamEvent({
               type: "content_block_stop",
               index: event.output_index,
+            });
+            break;
+
+          case "response.reasoning_summary_part.added":
+            onStreamEvent({
+              type: "content_block_start",
+              index: event.summary_index,
+              content_block: {
+                type: "thinking",
+                thinking: "",
+                signature: "",
+              },
+              providerMetadata: {
+                openai: {
+                  itemId: event.item_id,
+                  summaryIndex: event.summary_index,
+                },
+              },
+            });
+            break;
+
+          case "response.reasoning_summary_text.delta":
+            onStreamEvent({
+              type: "content_block_delta",
+              index: event.summary_index,
+              delta: {
+                type: "thinking_delta",
+                thinking: event.delta,
+              },
+              providerMetadata: {
+                openai: {
+                  itemId: event.item_id,
+                  summaryIndex: event.summary_index,
+                },
+              },
+            });
+            break;
+
+          case "response.reasoning_summary_text.done":
+            // Ignore text done events as per notes
+            break;
+
+          case "response.reasoning_summary_part.done":
+            onStreamEvent({
+              type: "content_block_stop",
+              index: event.summary_index,
+              providerMetadata: {
+                openai: {
+                  itemId: event.item_id,
+                  summaryIndex: event.summary_index,
+                },
+              },
             });
             break;
 

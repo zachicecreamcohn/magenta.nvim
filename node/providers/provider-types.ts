@@ -41,6 +41,11 @@ export type Usage = {
 export type ProviderMessage = {
   role: "user" | "assistant";
   content: Array<ProviderMessageContent>;
+  providerMetadata?: {
+    openai?: {
+      itemId?: string;
+    };
+  };
 };
 
 export type ProviderWebSearchCitation = {
@@ -55,17 +60,35 @@ export type ProviderTextContent = {
   type: "text";
   text: string;
   citations?: ProviderWebSearchCitation[] | undefined;
+  providerMetadata?: {
+    openai?: {
+      itemId?: string;
+      summaryIndex?: number;
+    };
+  };
 };
 
 export type ProviderThinkingContent = {
   type: "thinking";
   thinking: string;
   signature: string;
+  providerMetadata?: {
+    openai?: {
+      itemId?: string;
+      summaryIndex?: number;
+    };
+  };
 };
 
 export type ProviderRedactedThinkingContent = {
   type: "redacted_thinking";
   data: string;
+  providerMetadata?: {
+    openai?: {
+      itemId?: string;
+      summaryIndex?: number;
+    };
+  };
 };
 
 export type ProviderImageContent = {
@@ -172,7 +195,14 @@ export interface Provider {
 export type ProviderStreamEvent = Extract<
   Anthropic.RawMessageStreamEvent,
   { type: "content_block_start" | "content_block_delta" | "content_block_stop" }
->;
+> & {
+  providerMetadata?: {
+    openai?: {
+      itemId?: string;
+      summaryIndex?: number;
+    };
+  };
+};
 
 export type ProviderBlockStartEvent = Extract<
   ProviderStreamEvent,
