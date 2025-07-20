@@ -41,6 +41,7 @@ export type Usage = {
 export type ProviderMessage = {
   role: "user" | "assistant";
   content: Array<ProviderMessageContent>;
+  providerMetadata?: ProviderMetadata | undefined;
 };
 
 export type ProviderWebSearchCitation = {
@@ -55,6 +56,17 @@ export type ProviderTextContent = {
   type: "text";
   text: string;
   citations?: ProviderWebSearchCitation[] | undefined;
+};
+
+export type ProviderThinkingContent = {
+  type: "thinking";
+  thinking: string;
+  signature: string;
+};
+
+export type ProviderRedactedThinkingContent = {
+  type: "redacted_thinking";
+  data: string;
 };
 
 export type ProviderImageContent = {
@@ -116,13 +128,27 @@ export type ProviderToolSpec = {
 };
 
 export type ProviderMessageContent =
-  | ProviderTextContent
-  | ProviderImageContent
-  | ProviderDocumentContent
-  | ProviderToolUseContent
-  | ProviderServerToolUseContent
-  | ProviderWebSearchToolResult
-  | ProviderToolResult;
+  | (ProviderTextContent & { providerMetadata?: ProviderMetadata | undefined })
+  | (ProviderImageContent & { providerMetadata?: ProviderMetadata | undefined })
+  | (ProviderDocumentContent & {
+      providerMetadata?: ProviderMetadata | undefined;
+    })
+  | (ProviderToolUseContent & {
+      providerMetadata?: ProviderMetadata | undefined;
+    })
+  | (ProviderServerToolUseContent & {
+      providerMetadata?: ProviderMetadata | undefined;
+    })
+  | (ProviderWebSearchToolResult & {
+      providerMetadata?: ProviderMetadata | undefined;
+    })
+  | (ProviderToolResult & { providerMetadata?: ProviderMetadata | undefined })
+  | (ProviderThinkingContent & {
+      providerMetadata?: ProviderMetadata | undefined;
+    })
+  | (ProviderRedactedThinkingContent & {
+      providerMetadata?: ProviderMetadata | undefined;
+    });
 
 export interface Provider {
   createStreamParameters(options: {
@@ -147,20 +173,35 @@ export interface Provider {
     onStreamEvent: (event: ProviderStreamEvent) => void;
     tools: Array<ProviderToolSpec>;
     systemPrompt?: string;
+    thinking?: {
+      enabled: boolean;
+      budgetTokens?: number;
+    };
+    reasoning?: {
+      effort?: "low" | "medium" | "high";
+      summary?: "auto" | "concise" | "detailed";
+    };
   }): ProviderStreamRequest;
 }
 
-/** Using Anthropic types for now since they're the most mature / well documented
- */
-export type ProviderStreamEvent = Extract<
-  Anthropic.RawMessageStreamEvent,
-  { type: "content_block_start" | "content_block_delta" | "content_block_stop" }
->;
+export type ProviderMetadata = {
+  openai?: {
+    itemId?: string | undefined;
+  };
+};
 
-export type ProviderBlockStartEvent = Extract<
-  ProviderStreamEvent,
-  { type: "content_block_start" }
->;
+export type ProviderBlockStartEvent = Anthropic.RawContentBlockStartEvent & {
+  providerMetadata?: ProviderMetadata;
+};
+
+export type ProviderBlockDeltaEvent = Anthropic.RawContentBlockDeltaEvent;
+
+export type ProviderBlockStopEvent = Anthropic.RawContentBlockStopEvent;
+
+export type ProviderStreamEvent =
+  | ProviderBlockStartEvent
+  | ProviderBlockDeltaEvent
+  | ProviderBlockStopEvent;
 
 export interface ProviderStreamRequest {
   abort(): void;

@@ -13,7 +13,6 @@ import type {
   ProviderToolUseResponse,
 } from "./provider-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { Nvim } from "../nvim/nvim-node";
 import type { Stream } from "openai/streaming.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
 import { validateInput } from "../tools/helpers.ts";
@@ -22,6 +21,7 @@ import type {
   JSONSchemaObject,
   JSONSchemaType,
 } from "openai/lib/jsonschema.mjs";
+import type { Nvim } from "../nvim/nvim-node/types.ts";
 
 export type OpenAIOptions = {
   model: "gpt-4o";
@@ -31,7 +31,7 @@ export class OpenAIProvider implements Provider {
   private client: OpenAI;
 
   constructor(
-    _nvim: Nvim,
+    private nvim: Nvim,
     options?: {
       baseUrl?: string | undefined;
       apiKeyEnvVar?: string | undefined;
@@ -97,6 +97,36 @@ export class OpenAIProvider implements Provider {
    * Sanitizes JSON Schema for OpenAI compatibility by removing unsupported format specifiers
    * OpenAI doesn't support formats like "uri", "date-time", etc.
    */
+  /**
+   * Checks if a model is a reasoning model (o-series)
+   */
+  private isReasoningModel(model: string): boolean {
+    return /^(o1|o3|o4|o-|o1-|o3-|o4-)/i.test(model);
+  }
+
+  /**
+   * Checks if a model supports the web search tool
+   * Web search is supported in GPT-4o series, GPT-4.1 series, and o-series models
+   */
+  private supportsWebSearch(model: string): boolean {
+    // GPT-4o series models (gpt-4o, gpt-4o-mini, etc.)
+    if (/^gpt-4o/i.test(model)) {
+      return true;
+    }
+
+    // GPT-4.1 series models
+    if (/^gpt-4\.1/i.test(model)) {
+      return true;
+    }
+
+    // O-series reasoning models (o1, o3, o4, etc.)
+    if (this.isReasoningModel(model)) {
+      return true;
+    }
+
+    return false;
+  }
+
   private sanitizeSchemaForOpenAI(schema: JSONSchemaType): JSONSchemaType {
     if (
       typeof schema !== "object" ||
@@ -170,6 +200,10 @@ export class OpenAIProvider implements Provider {
     tools: Array<ProviderToolSpec>;
     disableCaching?: boolean;
     systemPrompt?: string;
+    reasoning?: {
+      effort?: "low" | "medium" | "high";
+      summary?: "auto" | "concise" | "detailed";
+    };
   }): OpenAI.Responses.ResponseCreateParamsStreaming {
     const { model, messages, tools, systemPrompt } = options;
     const openaiMessages: OpenAI.Responses.ResponseInputItem[] = [
@@ -179,48 +213,38 @@ export class OpenAIProvider implements Provider {
       },
     ];
 
-    let inProgressMessage:
+    let inProgressUserMessage:
       | OpenAI.Responses.ResponseInputItem.Message
       | OpenAI.Responses.ResponseOutputMessage
       | undefined;
 
-    const flushInProgressMessage = () => {
-      if (inProgressMessage && inProgressMessage.content.length > 0) {
-        openaiMessages.push(inProgressMessage);
+    const flushInProgressUserMessage = () => {
+      if (inProgressUserMessage && inProgressUserMessage.content.length > 0) {
+        openaiMessages.push(inProgressUserMessage);
       }
-      inProgressMessage = undefined;
+      inProgressUserMessage = undefined;
     };
 
     const pushUserContent = (
       content: OpenAI.Responses.ResponseInputContent,
     ) => {
-      if (!inProgressMessage || inProgressMessage.role !== "user") {
-        flushInProgressMessage();
-        inProgressMessage = { role: "user", content: [] };
+      if (!inProgressUserMessage || inProgressUserMessage.role !== "user") {
+        flushInProgressUserMessage();
+        inProgressUserMessage = { role: "user", content: [] };
       }
-      inProgressMessage.content.push(content);
-    };
-
-    const pushAssistantContent = (
-      content: OpenAI.Responses.ResponseOutputText,
-    ) => {
-      if (!inProgressMessage || inProgressMessage.role !== "assistant") {
-        flushInProgressMessage();
-        inProgressMessage = {
-          id: "id",
-          role: "assistant",
-          content: [],
-          status: "completed",
-          type: "message",
-        };
-      }
-      inProgressMessage.content.push(content);
+      inProgressUserMessage.content.push(content);
     };
 
     const pushMessage = (message: OpenAI.Responses.ResponseInputItem) => {
-      flushInProgressMessage();
+      flushInProgressUserMessage();
       openaiMessages.push(message);
     };
+
+    // Track reasoning messages to add them immediately when encountered
+    const reasoningMessages: Record<
+      string,
+      OpenAI.Responses.ResponseReasoningItem
+    > = {};
 
     for (const m of messages) {
       for (const content of m.content) {
@@ -246,11 +270,28 @@ export class OpenAIProvider implements Provider {
                     },
                   );
 
-                pushAssistantContent({
-                  type: "output_text",
-                  text: content.text,
-                  annotations,
-                });
+                const itemId = content.providerMetadata?.openai?.itemId;
+                if (!itemId) {
+                  throw new Error(
+                    `Text content must have an itemId in providerMetadata.openai`,
+                  );
+                }
+                const message: OpenAI.Responses.ResponseOutputMessage = {
+                  id: itemId,
+                  role: "assistant",
+                  content: [
+                    {
+                      type: "output_text",
+                      text: content.text,
+                      annotations,
+                    },
+                  ],
+                  status: "completed",
+                  type: "message",
+                };
+
+                flushInProgressUserMessage();
+                openaiMessages.push(message);
               }
             }
             break;
@@ -379,16 +420,59 @@ export class OpenAIProvider implements Provider {
               });
             }
             break;
+          case "thinking":
+          case "redacted_thinking":
+            if (m.role === "assistant") {
+              const itemId = content.providerMetadata?.openai?.itemId;
+              if (!itemId) {
+                throw new Error(
+                  `Thinking content must have an itemId in providerMetadata.openai`,
+                );
+              }
+
+              // Get or create reasoning message for this itemId
+              let reasoningMessage = reasoningMessages[itemId];
+              if (!reasoningMessage) {
+                reasoningMessage = {
+                  type: "reasoning",
+                  id: itemId,
+                  encrypted_content: null,
+                  summary: [],
+                };
+                reasoningMessages[itemId] = reasoningMessage;
+                pushMessage(reasoningMessage);
+              }
+
+              if (content.type === "thinking" && content.thinking.trim()) {
+                reasoningMessage.summary.push({
+                  type: "summary_text",
+                  text: content.thinking,
+                });
+              } else if (content.type === "redacted_thinking") {
+                if (reasoningMessage.encrypted_content !== null) {
+                  throw new Error(
+                    `Multiple redacted thinking blocks found for itemId ${itemId}. Expected at most one.`,
+                  );
+                }
+                reasoningMessage.encrypted_content = content.data;
+              }
+            } else {
+              throw new Error(
+                `encountered thinking block in non-assistant message`,
+              );
+            }
+            break;
+
           default:
             assertUnreachable(content);
         }
       }
 
       // Flush any remaining in-progress message for this provider message
-      flushInProgressMessage();
+      flushInProgressUserMessage();
     }
 
-    return {
+    const params: OpenAI.Responses.ResponseCreateParamsStreaming = {
       model,
       stream: true,
       input: openaiMessages,
@@ -409,6 +493,26 @@ export class OpenAIProvider implements Provider {
         }),
       ],
     };
+
+    // Add reasoning configuration for o-series models
+    const { reasoning } = options;
+    if (reasoning && this.isReasoningModel(model)) {
+      const reasoningConfig: {
+        effort?: "low" | "medium" | "high";
+        summary?: "auto" | "concise" | "detailed";
+      } = {};
+      if (reasoning.effort) {
+        reasoningConfig.effort = reasoning.effort;
+      }
+      if (reasoning.summary) {
+        reasoningConfig.summary = reasoning.summary;
+      }
+      if (Object.keys(reasoningConfig).length > 0) {
+        params.reasoning = reasoningConfig;
+      }
+    }
+
+    return params;
   }
 
   forceToolUse(options: {
@@ -513,8 +617,12 @@ export class OpenAIProvider implements Provider {
     onStreamEvent: (event: ProviderStreamEvent) => void;
     tools: Array<ProviderToolSpec>;
     systemPrompt?: string;
+    reasoning?: {
+      effort?: "low" | "medium" | "high";
+      summary?: "auto" | "concise" | "detailed";
+    };
   }): ProviderStreamRequest {
-    const { model, messages, onStreamEvent, tools, systemPrompt } = options;
+    const { model, messages, tools, systemPrompt, reasoning } = options;
     let request: Stream<OpenAI.Responses.ResponseStreamEvent>;
     let stopReason: StopReason | undefined;
     let usage: Usage | undefined;
@@ -528,11 +636,29 @@ export class OpenAIProvider implements Provider {
         messages,
         tools,
         ...(systemPrompt && { systemPrompt }),
+        ...(reasoning && { reasoning }),
       });
-      params.tools!.push({ type: "web_search_preview" });
+
+      if (this.supportsWebSearch(model)) {
+        params.tools!.push({ type: "web_search_preview" });
+      }
+
+      this.nvim.logger.info(
+        "OpenAI input messages:" + JSON.stringify(params.input, null, 2),
+      );
+
       request = await this.client.responses.create(params);
 
+      // Wrap onStreamEvent to log all events
+      const onStreamEvent = (event: ProviderStreamEvent) => {
+        this.nvim.logger.info(
+          "OpenAI provider event:" + JSON.stringify(event, null, 2),
+        );
+        options.onStreamEvent(event);
+      };
+
       for await (const event of request) {
+        this.nvim.logger.info(JSON.stringify(event, null, 2));
         switch (event.type) {
           case "response.output_item.added":
             switch (event.item.type) {
@@ -544,6 +670,11 @@ export class OpenAIProvider implements Provider {
                     type: "text",
                     text: "",
                     citations: null,
+                  },
+                  providerMetadata: {
+                    openai: {
+                      itemId: event.item.id,
+                    },
                   },
                 });
                 break;
@@ -557,6 +688,11 @@ export class OpenAIProvider implements Provider {
                     name: event.item.name,
                     input: {},
                   },
+                  providerMetadata: {
+                    openai: {
+                      itemId: event.item.id,
+                    },
+                  },
                 });
                 break;
               case "web_search_call":
@@ -569,7 +705,59 @@ export class OpenAIProvider implements Provider {
                     name: "web_search",
                     input: undefined,
                   },
+                  providerMetadata: {
+                    openai: {
+                      itemId: event.item.id,
+                    },
+                  },
                 });
+                break;
+              case "reasoning":
+                // If there's encrypted content, emit a redacted thinking block
+                if (event.item.encrypted_content) {
+                  onStreamEvent({
+                    type: "content_block_start",
+                    index: event.output_index,
+                    content_block: {
+                      type: "redacted_thinking",
+                      data: event.item.encrypted_content,
+                    },
+                    providerMetadata: {
+                      openai: {
+                        itemId: event.item.id,
+                      },
+                    },
+                  });
+                  onStreamEvent({
+                    type: "content_block_stop",
+                    index: event.output_index,
+                  });
+                } else {
+                  // reasoning models in openai often output an empty reasoning block for a user message. If this block
+                  // is not captured, then followup requests will fail
+                  // So we'll create an empty block here.
+                  // When we re-constitute the reasoning block, we'll use this to create the block and make sure it
+                  // exists. However, we'll skip creating a block summary for it since the thinking and signature
+                  // are empty
+                  onStreamEvent({
+                    type: "content_block_start",
+                    index: event.output_index,
+                    content_block: {
+                      type: "thinking",
+                      thinking: "",
+                      signature: "",
+                    },
+                    providerMetadata: {
+                      openai: {
+                        itemId: event.item.id,
+                      },
+                    },
+                  });
+                  onStreamEvent({
+                    type: "content_block_stop",
+                    index: event.output_index,
+                  });
+                }
                 break;
               default:
                 throw new Error(
@@ -586,6 +774,13 @@ export class OpenAIProvider implements Provider {
                 type: "text_delta",
                 text: event.delta,
               },
+              ...(event.item_id && {
+                providerMetadata: {
+                  openai: {
+                    itemId: event.item_id,
+                  },
+                },
+              }),
             });
             break;
 
@@ -597,16 +792,72 @@ export class OpenAIProvider implements Provider {
                 type: "input_json_delta",
                 partial_json: event.delta,
               },
+              ...(event.item_id && {
+                providerMetadata: {
+                  openai: {
+                    itemId: event.item_id,
+                  },
+                },
+              }),
             });
             break;
 
           case "response.output_item.done":
             if (event.item.type === "function_call") {
               stopReason = "tool_use";
+            } else if (event.item.type === "reasoning") {
+              // Ignore reasoning done events as all reasoning events handle their own lifecycle
+              break;
             }
             onStreamEvent({
               type: "content_block_stop",
               index: event.output_index,
+            });
+            break;
+
+          case "response.reasoning_summary_part.added":
+            onStreamEvent({
+              type: "content_block_start",
+              index: event.summary_index,
+              content_block: {
+                type: "thinking",
+                thinking: "",
+                signature: "",
+              },
+              providerMetadata: {
+                openai: {
+                  itemId: event.item_id,
+                },
+              },
+            });
+            break;
+
+          case "response.reasoning_summary_text.delta":
+            onStreamEvent({
+              type: "content_block_delta",
+              index: event.summary_index,
+              delta: {
+                type: "thinking_delta",
+                thinking: event.delta,
+              },
+              ...(event.item_id && {
+                providerMetadata: {
+                  openai: {
+                    itemId: event.item_id,
+                  },
+                },
+              }),
+            });
+            break;
+
+          case "response.reasoning_summary_text.done":
+            // Ignore text done events as per notes
+            break;
+
+          case "response.reasoning_summary_part.done":
+            onStreamEvent({
+              type: "content_block_stop",
+              index: event.summary_index,
             });
             break;
 

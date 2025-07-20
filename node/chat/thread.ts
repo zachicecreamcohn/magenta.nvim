@@ -687,6 +687,14 @@ export class Thread {
       },
       tools: this.toolManager.getToolSpecs(this.state.threadType),
       systemPrompt: this.state.systemPrompt,
+      ...(this.state.profile.thinking &&
+        this.state.profile.provider === "anthropic" && {
+          thinking: this.state.profile.thinking,
+        }),
+      ...(this.state.profile.reasoning &&
+        this.state.profile.provider === "openai" && {
+          reasoning: this.state.profile.reasoning,
+        }),
     });
 
     this.myDispatch({

@@ -24,7 +24,6 @@ I sometimes write about AI, neovim and magenta specifically:
 
 # Roadmap
 
-- openai provider reasoning, to allow use of the o models, ability to configure reasoning for claude models
 - gemini 2.5 pro provider
 - @file and @diff commands (with completion) for input buffer
 - local code embedding & indexing via chroma db, to support a semantic code search tool
@@ -32,6 +31,8 @@ I sometimes write about AI, neovim and magenta specifically:
 # Updates
 
 ## July 2025
+
+**thinking & reasoning support** - Added full support for Anthropic's thinking blocks and OpenAI's reasoning capabilities. Claude 3.7, Sonnet 4, and Opus 4 can now use extended thinking to show their step-by-step reasoning process before delivering answers.
 
 **remote mcp support** - we now support streamable http transport, with fallback to sse transport for mcp. This means that mcphub now works via the /mcp endpoint (no lua integration yet).
 
@@ -145,20 +146,27 @@ require('magenta').setup({})
 ```lua
 require('magenta').setup({
   profiles = {
-    {
-      name = "claude-4",
-      provider = "anthropic",
-      model = "claude-4-sonnet-latest",
-      fastModel = "claude-3-5-haiku-latest", -- optional, defaults provided
-      apiKeyEnvVar = "ANTHROPIC_API_KEY"
-    },
-    {
-      name = "gpt-4.1",
-      provider = "openai",
-      model = "gpt-4.1",
-      fastModel = "gpt-4o-mini", -- optional, defaults provided
-      apiKeyEnvVar = "OPENAI_API_KEY"
-    },
+  {
+    name = "claude-4",
+    provider = "anthropic",
+    model = "claude-4-sonnet-latest",
+    fastModel = "claude-3-5-haiku-latest", -- optional, defaults provided
+    apiKeyEnvVar = "ANTHROPIC_API_KEY",
+    thinking = {
+      enabled = true,
+      budgetTokens = 1024 -- optional, defaults to 1024, must be >= 1024
+    }
+  },
+  {
+    name = "o4-mini",
+    provider = "openai",
+    model = "o4-mini",
+    apiKeyEnvVar = "OPENAI_API_KEY",
+    reasoning = {
+      effort = "low", -- optional: "low", "medium", "high"
+      summary = "auto" -- optional: "auto", "concise", "detailed"
+    }
+  },
     {
       name = "copilot-claude",
       provider = "copilot",
@@ -225,6 +233,30 @@ require('magenta').setup({
 The first profile in your `profiles` list is used as the default when the plugin starts. You can switch between profiles using `:Magenta pick-provider` (bound to `<leader>mp` by default).
 
 Each profile supports both a primary model and a fast model. If not specified, sensible defaults are provided for each provider. The fast model is automatically used for lightweight tasks like generating thread titles and can be explicitly requested for inline edits using the `@fast` modifier.
+
+### Thinking & Reasoning
+
+Profiles can optionally enable thinking/reasoning capabilities for supported models:
+
+**Anthropic thinking models:**
+
+- Claude 3.7 Sonnet (`claude-3-7-sonnet-*`) - returns full thinking content
+- Claude 4 Sonnet (`claude-4-sonnet-*`) - returns summarized thinking (billed for full tokens)
+- Claude 4 Opus (`claude-4-opus-*`) - returns summarized thinking (billed for full tokens)
+
+**OpenAI reasoning models:**
+
+- o1 series models (`o1`, `o1-mini`, `o1-pro`) - show reasoning traces when available
+- o3 series models (`o3`, `o3-mini`, `o3-pro`) - show reasoning traces when available
+- o4 series models (`o4-mini`) - show reasoning traces when available
+
+When thinking/reasoning is enabled:
+
+- The model shows step-by-step reasoning process before delivering answers
+- Thinking blocks are expandable/collapsible in the display buffer
+- Input buffer title shows "thinking" status when enabled for Anthropic models
+- For Anthropic: `budgetTokens` controls how many tokens the model can use for thinking (minimum 1024)
+- For OpenAI: `effort` controls reasoning depth ("low", "medium", "high") and `summary` controls detail level ("auto", "concise", "detailed")
 
 For example, you can set up multiple profiles for different providers or API endpoints:
 

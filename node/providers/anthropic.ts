@@ -121,12 +121,17 @@ export class AnthropicProvider implements Provider {
     tools,
     disableCaching,
     systemPrompt,
+    thinking,
   }: {
     model: string;
     messages: ProviderMessage[];
     tools: Array<ProviderToolSpec>;
     disableCaching?: boolean | undefined;
     systemPrompt?: string | undefined;
+    thinking?: {
+      enabled: boolean;
+      budgetTokens?: number;
+    };
   }): MessageStreamParams {
     const anthropicMessages = messages.map((m): MessageParam => {
       let content: Anthropic.Messages.ContentBlockParam[];
@@ -270,6 +275,21 @@ export class AnthropicProvider implements Provider {
               });
               break;
 
+            case "thinking":
+              content.push({
+                type: "thinking",
+                thinking: c.thinking,
+                signature: c.signature,
+              });
+              break;
+
+            case "redacted_thinking":
+              content.push({
+                type: "redacted_thinking",
+                data: c.data,
+              });
+              break;
+
             default:
               assertUnreachable(c);
           }
@@ -296,7 +316,7 @@ export class AnthropicProvider implements Provider {
       };
     });
 
-    return {
+    const params: MessageStreamParams = {
       messages: anthropicMessages,
       model: model,
       max_tokens: this.getMaxTokensForModel(model),
@@ -325,6 +345,16 @@ export class AnthropicProvider implements Provider {
         } as unknown as Anthropic.Messages.Tool,
       ],
     };
+
+    // Add thinking configuration if enabled
+    if (thinking?.enabled) {
+      params.thinking = {
+        type: "enabled",
+        budget_tokens: thinking.budgetTokens || 1024,
+      };
+    }
+
+    return params;
   }
 
   forceToolUse(options: {
@@ -353,9 +383,9 @@ export class AnthropicProvider implements Provider {
       tool_choice: {
         type: "tool",
         name: spec.name,
-        disable_parallel_tool_use: this.disableParallelToolUseFlag || undefined,
+        disable_parallel_tool_use: this.disableParallelToolUseFlag,
       },
-    } as Anthropic.Messages.MessageStreamParams);
+    });
 
     const promise = (async () => {
       const response: Anthropic.Message = await request.finalMessage();
@@ -474,8 +504,13 @@ export class AnthropicProvider implements Provider {
     onStreamEvent: (event: ProviderStreamEvent) => void;
     tools: Array<ProviderToolSpec>;
     systemPrompt?: string;
+    thinking?: {
+      enabled: boolean;
+      budgetTokens?: number;
+    };
   }): ProviderStreamRequest {
-    const { model, messages, onStreamEvent, tools, systemPrompt } = options;
+    const { model, messages, onStreamEvent, tools, systemPrompt, thinking } =
+      options;
     let requestActive = true;
     const request = this.client.messages
       .stream(
@@ -484,6 +519,7 @@ export class AnthropicProvider implements Provider {
           messages,
           tools,
           systemPrompt,
+          ...(thinking && { thinking }),
         }) as Anthropic.Messages.MessageStreamParams,
       )
       .on("streamEvent", (e) => {

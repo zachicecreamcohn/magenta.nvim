@@ -122,6 +122,11 @@ export class OllamaProvider implements Provider {
               "Document content is not supported by Ollama provider",
             );
 
+          case "thinking":
+          case "redacted_thinking":
+            // Skip thinking content for Ollama as it's not a part of the message
+            break;
+
           default:
             assertUnreachable(content);
         }
@@ -239,6 +244,10 @@ export class OllamaProvider implements Provider {
     onStreamEvent: (event: ProviderStreamEvent) => void;
     tools: Array<ProviderToolSpec>;
     systemPrompt?: string;
+    thinking?: {
+      enabled: boolean;
+      budgetTokens?: number;
+    };
   }): ProviderStreamRequest {
     const { model, messages, onStreamEvent, tools, systemPrompt } = options;
     let request: AbortableAsyncIterator<ChatResponse>;

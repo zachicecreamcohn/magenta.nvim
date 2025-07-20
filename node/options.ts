@@ -40,6 +40,14 @@ export type Profile = {
   baseUrl?: string;
   apiKeyEnvVar?: string;
   promptCaching?: boolean; // Primarily used by Bedrock provider
+  thinking?: {
+    enabled: boolean;
+    budgetTokens?: number;
+  };
+  reasoning?: {
+    effort?: "low" | "medium" | "high";
+    summary?: "auto" | "concise" | "detailed";
+  };
 };
 
 export type CommandAllowlist = string[];
@@ -154,6 +162,78 @@ function parseProfiles(
         } else {
           logger.warn(
             `Invalid promptCaching in profile ${p["name"]}, ignoring field`,
+          );
+        }
+      }
+
+      if ("thinking" in p) {
+        if (typeof p["thinking"] === "object" && p["thinking"] !== null) {
+          const thinking = p["thinking"] as { [key: string]: unknown };
+          if (typeof thinking["enabled"] === "boolean") {
+            out.thinking = {
+              enabled: thinking["enabled"],
+            };
+            if (
+              typeof thinking["budgetTokens"] === "number" &&
+              thinking["budgetTokens"] >= 1024
+            ) {
+              out.thinking.budgetTokens = thinking["budgetTokens"];
+            } else if ("budgetTokens" in thinking) {
+              logger.warn(
+                `Invalid budgetTokens in profile ${p["name"]}, must be a number >= 1024`,
+              );
+            }
+          } else {
+            logger.warn(
+              `Invalid thinking config in profile ${p["name"]}, must have enabled boolean field`,
+            );
+          }
+        } else {
+          logger.warn(
+            `Invalid thinking in profile ${p["name"]}, must be an object`,
+          );
+        }
+      }
+
+      if ("reasoning" in p) {
+        if (typeof p["reasoning"] === "object" && p["reasoning"] !== null) {
+          const reasoning = p["reasoning"] as { [key: string]: unknown };
+          out.reasoning = {};
+
+          if ("effort" in reasoning) {
+            if (
+              typeof reasoning["effort"] === "string" &&
+              ["low", "medium", "high"].includes(reasoning["effort"])
+            ) {
+              out.reasoning.effort = reasoning["effort"] as
+                | "low"
+                | "medium"
+                | "high";
+            } else {
+              logger.warn(
+                `Invalid effort in profile ${p["name"]}, must be "low", "medium", or "high"`,
+              );
+            }
+          }
+
+          if ("summary" in reasoning) {
+            if (
+              typeof reasoning["summary"] === "string" &&
+              ["auto", "concise", "detailed"].includes(reasoning["summary"])
+            ) {
+              out.reasoning.summary = reasoning["summary"] as
+                | "auto"
+                | "concise"
+                | "detailed";
+            } else {
+              logger.warn(
+                `Invalid summary in profile ${p["name"]}, must be "auto", "concise", or "detailed"`,
+              );
+            }
+          }
+        } else {
+          logger.warn(
+            `Invalid reasoning in profile ${p["name"]}, must be an object`,
           );
         }
       }

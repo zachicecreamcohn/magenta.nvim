@@ -405,6 +405,22 @@ export class CopilotProvider implements Provider {
             });
             break;
 
+          case "thinking":
+            // Thinking content is not directly supported, so add it as a note
+            chatMessages.push({
+              role: "assistant",
+              content: `[Thinking: ${content.thinking}]`,
+            });
+            break;
+
+          case "redacted_thinking":
+            // Redacted thinking content is not directly supported, so add it as a note
+            chatMessages.push({
+              role: "assistant",
+              content: `[Redacted Thinking]`,
+            });
+            break;
+
           default:
             assertUnreachable(content);
         }
@@ -549,6 +565,10 @@ export class CopilotProvider implements Provider {
     onStreamEvent: (event: ProviderStreamEvent) => void;
     tools: Array<ProviderToolSpec>;
     systemPrompt?: string;
+    thinking?: {
+      enabled: boolean;
+      budgetTokens?: number;
+    };
   }): ProviderStreamRequest {
     const { model, messages, onStreamEvent, tools, systemPrompt } = options;
     let streamRequest: Stream<OpenAI.Chat.ChatCompletionChunk>;
