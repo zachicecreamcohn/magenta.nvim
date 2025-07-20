@@ -42,7 +42,7 @@ import {
 
 import type { Chat } from "./chat.ts";
 import type { ThreadId, ThreadType } from "./types.ts";
-import { getSystemPrompt } from "../providers/system-prompt.ts";
+import type { SystemPrompt } from "../providers/system-prompt.ts";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -144,6 +144,7 @@ export class Thread {
     conversation: ConversationState;
     messages: Message[];
     threadType: ThreadType;
+    systemPrompt: SystemPrompt;
   };
 
   private myDispatch: Dispatch<Msg>;
@@ -155,6 +156,7 @@ export class Thread {
   constructor(
     public id: ThreadId,
     threadType: ThreadType,
+    systemPrompt: SystemPrompt,
     public context: {
       dispatch: Dispatch<RootMsg>;
       chat: Chat;
@@ -201,6 +203,7 @@ export class Thread {
       },
       messages: [],
       threadType: threadType,
+      systemPrompt: systemPrompt,
     };
   }
 
@@ -367,6 +370,7 @@ export class Thread {
           },
           messages: [],
           threadType: this.state.threadType,
+          systemPrompt: this.state.systemPrompt,
         };
         this.contextManager.reset();
 
@@ -682,7 +686,7 @@ export class Thread {
         });
       },
       tools: this.toolManager.getToolSpecs(this.state.threadType),
-      systemPrompt: getSystemPrompt(this.state.threadType),
+      systemPrompt: this.state.systemPrompt,
     });
 
     this.myDispatch({
@@ -733,7 +737,7 @@ ${text}`;
         },
       ],
       spec: compactThreadSpec,
-      systemPrompt: getSystemPrompt(this.state.threadType),
+      systemPrompt: this.state.systemPrompt,
     });
 
     this.myDispatch({
@@ -879,7 +883,7 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
         },
       ],
       spec: threadTitleToolSpec,
-      systemPrompt: getSystemPrompt(this.state.threadType),
+      systemPrompt: this.state.systemPrompt,
       disableCaching: true,
     });
     const result = await request.promise;

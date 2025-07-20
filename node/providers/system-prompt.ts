@@ -1,8 +1,31 @@
 import type { ThreadType } from "../chat/types";
 import { assertUnreachable } from "../utils/assertUnreachable";
+import type { Nvim } from "../nvim/nvim-node";
+import type { NvimCwd } from "../utils/files";
+import { platform } from "os";
 
 export const AGENT_TYPES = ["learn", "plan", "default", "fast"] as const;
 export type AgentType = (typeof AGENT_TYPES)[number];
+
+export type SystemPrompt = string & { __systemPrompt: true };
+
+export interface SystemInfo {
+  timestamp: string;
+  platform: string;
+  neovimVersion: string;
+  cwd: NvimCwd;
+}
+
+async function getSystemInfo(nvim: Nvim, cwd: NvimCwd): Promise<SystemInfo> {
+  const neovimVersion = (await nvim.call("nvim_eval", ["v:version"])) as string;
+
+  return {
+    timestamp: new Date().toString(),
+    platform: platform(),
+    neovimVersion,
+    cwd: cwd,
+  };
+}
 
 const CODEBASE_CONVENTIONS = `\
 # Understanding the Codebase
@@ -279,7 +302,7 @@ The relevant files and entities are:
 ${CODEBASE_CONVENTIONS}
 ${LEARNING_PROCESS}`;
 
-export function getSystemPrompt(type: ThreadType): string {
+function getBaseSystemPrompt(type: ThreadType): string {
   switch (type) {
     case "subagent_learn":
       return LEARN_SUBAGENT_SYSTEM_PROMPT;
@@ -294,4 +317,23 @@ export function getSystemPrompt(type: ThreadType): string {
     default:
       assertUnreachable(type);
   }
+}
+
+export async function createSystemPrompt(
+  type: ThreadType,
+  nvim: Nvim,
+  cwd: NvimCwd,
+): Promise<SystemPrompt> {
+  const basePrompt = getBaseSystemPrompt(type);
+  const systemInfo = await getSystemInfo(nvim, cwd);
+
+  const systemInfoText = `
+
+# System Information
+- Current time: ${systemInfo.timestamp}
+- Operating system: ${systemInfo.platform}
+- Neovim version: ${systemInfo.neovimVersion}
+- Current working directory: ${systemInfo.cwd}`;
+
+  return (basePrompt + systemInfoText) as SystemPrompt;
 }
