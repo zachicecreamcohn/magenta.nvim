@@ -15,7 +15,6 @@ import type {
   ProviderRedactedThinkingContent,
 } from "./provider-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { Nvim } from "../nvim/nvim-node";
 import type { Stream } from "openai/streaming.mjs";
 import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
 import { validateInput } from "../tools/helpers.ts";
@@ -32,13 +31,10 @@ export type OpenAIOptions = {
 export class OpenAIProvider implements Provider {
   private client: OpenAI;
 
-  constructor(
-    _nvim: Nvim,
-    options?: {
-      baseUrl?: string | undefined;
-      apiKeyEnvVar?: string | undefined;
-    },
-  ) {
+  constructor(options?: {
+    baseUrl?: string | undefined;
+    apiKeyEnvVar?: string | undefined;
+  }) {
     const apiKeyEnvVar = options?.apiKeyEnvVar || "OPENAI_API_KEY";
     const apiKey = process.env[apiKeyEnvVar];
 
