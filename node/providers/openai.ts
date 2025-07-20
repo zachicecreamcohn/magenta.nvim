@@ -379,6 +379,14 @@ export class OpenAIProvider implements Provider {
               });
             }
             break;
+          case "thinking":
+            // Thinking content is typically internal and not sent to the model
+            break;
+
+          case "redacted_thinking":
+            // Redacted thinking content is also internal and not sent to the model
+            break;
+
           default:
             assertUnreachable(content);
         }
@@ -513,6 +521,10 @@ export class OpenAIProvider implements Provider {
     onStreamEvent: (event: ProviderStreamEvent) => void;
     tools: Array<ProviderToolSpec>;
     systemPrompt?: string;
+    thinking?: {
+      enabled: boolean;
+      budgetTokens?: number;
+    };
   }): ProviderStreamRequest {
     const { model, messages, onStreamEvent, tools, systemPrompt } = options;
     let request: Stream<OpenAI.Responses.ResponseStreamEvent>;

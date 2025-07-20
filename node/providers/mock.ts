@@ -263,6 +263,10 @@ export class MockProvider implements Provider {
     onStreamEvent: (event: ProviderStreamEvent) => void;
     tools: Array<ProviderToolSpec>;
     systemPrompt?: string;
+    thinking?: {
+      enabled: boolean;
+      budgetTokens?: number;
+    };
   }): ProviderStreamRequest {
     const { messages, onStreamEvent, model } = options;
     const request = new MockRequest(
@@ -357,6 +361,10 @@ ${this.requests.map((r) => `${r.defer.resolved ? "resolved" : "pending"} - ${JSO
             (block.title && block.title.includes(text))
           );
 
+        case "thinking":
+          return block.thinking.includes(text);
+        case "redacted_thinking":
+          return false;
         default:
           assertUnreachable(block);
       }
@@ -458,6 +466,10 @@ ${this.requests.map((r) => `${r.defer.resolved ? "resolved" : "pending"} - ${JSO
             block.source.media_type.includes(text) ||
             (block.title && block.title.includes(text))
           );
+        case "thinking":
+          return block.thinking.includes(text);
+        case "redacted_thinking":
+          return false;
         default:
           assertUnreachable(block);
       }

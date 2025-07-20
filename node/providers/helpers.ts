@@ -10,7 +10,7 @@ import type {
   ProviderTextContent,
   ProviderImageContent,
   ProviderDocumentContent,
-} from "./provider";
+} from "./provider-types";
 import type { ToolName } from "../tools/types";
 
 export function renderContentValue(
@@ -67,9 +67,22 @@ export function applyDelta(
       break;
     }
     case "thinking_delta":
-      throw new Error("NOT IMPLEMENTED");
+      if (block.type != "thinking") {
+        throw new Error(
+          `Unexpected thinking_delta update to non-thinking block.`,
+        );
+      }
+      block.thinking = (block.thinking || "") + event.delta.thinking;
+      break;
     case "signature_delta":
-      throw new Error("NOT IMPLEMENTED");
+      if (block.type != "thinking") {
+        throw new Error(
+          `Unexpected signature_delta update to non-thinking block.`,
+        );
+      }
+      // TypeScript now knows block is a thinking block due to the discriminated union
+      block.signature = (block.signature || "") + event.delta.signature;
+      break;
     default:
       assertUnreachable(event.delta);
   }
@@ -146,6 +159,12 @@ export function stringifyContent(
 
     case "document":
       return `[Document: ${content.source.media_type}${content.title ? ` - ${content.title}` : ""}]`;
+
+    case "thinking":
+      return `[Thinking]\n${content.thinking}`;
+
+    case "redacted_thinking":
+      return `[Redacted Thinking]`;
 
     default:
       assertUnreachable(content);
@@ -243,11 +262,12 @@ export function finalizeStreamingBlock(
         content: block.content,
       };
     }
-    case "thinking":
-    case "redacted_thinking":
-      // Based on current implementation these are not yet handled
-      // and we're throwing errors for thinking_delta in applyDelta
-      throw new Error(`Unsupported content block type: ${block.type}`);
+    case "thinking": {
+      return block;
+    }
+    case "redacted_thinking": {
+      return block;
+    }
     default:
       assertUnreachable(block);
   }

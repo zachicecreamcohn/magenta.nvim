@@ -261,3 +261,181 @@ TypeScript offers significant advantages for large projects compared to JavaScri
 Stopped (end_turn) [input: 0, output: 0]`);
   });
 });
+
+it("handles thinking and redacted thinking blocks", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText(
+      "What should I consider when designing a database schema?",
+    );
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+
+    // Create thinking block
+    const thinkingIndex = 0;
+    request.onStreamEvent({
+      type: "content_block_start",
+      index: thinkingIndex,
+      content_block: {
+        type: "thinking",
+        thinking: "",
+        signature: "",
+      },
+    });
+    request.onStreamEvent({
+      type: "content_block_delta",
+      index: thinkingIndex,
+      delta: {
+        type: "thinking_delta",
+        thinking: "abc\ndef\nghi",
+      },
+    });
+    request.onStreamEvent({
+      type: "content_block_stop",
+      index: thinkingIndex,
+    });
+
+    const redactedThinkingIndex = 1;
+    request.onStreamEvent({
+      type: "content_block_start",
+      index: redactedThinkingIndex,
+      content_block: {
+        type: "redacted_thinking",
+        data: "This thinking contains sensitive information that has been redacted.",
+      },
+    });
+    request.onStreamEvent({
+      type: "content_block_stop",
+      index: redactedThinkingIndex,
+    });
+
+    request.finishResponse("end_turn");
+
+    // Assert initial collapsed state of thinking block
+    await driver.assertDisplayBufferContains(`\
+# user:
+What should I consider when designing a database schema?
+
+# assistant:
+💭 [Thinking]
+💭 [Redacted Thinking]`);
+
+    // Test expanding the thinking block
+    const thinkingPos =
+      await driver.assertDisplayBufferContains("💭 [Thinking]");
+    console.log(JSON.stringify(thinkingPos));
+    await driver.triggerDisplayBufferKey(thinkingPos, "<CR>");
+
+    await driver.assertDisplayBufferContains(`\
+# user:
+What should I consider when designing a database schema?
+
+# assistant:
+💭 [Thinking]
+abc
+def
+ghi
+💭 [Redacted Thinking]`);
+
+    // Test collapsing the thinking block
+    const expandedThinkingPos =
+      await driver.assertDisplayBufferContains("💭 [Thinking]");
+    await driver.triggerDisplayBufferKey(expandedThinkingPos, "<CR>");
+
+    await driver.assertDisplayBufferContains(`\
+# user:
+What should I consider when designing a database schema?
+
+# assistant:
+💭 [Thinking]
+💭 [Redacted Thinking]`);
+
+    // Send a followup message to test that thinking blocks are included in context
+    await driver.inputMagentaText("Can you elaborate on normalization?");
+    await driver.send();
+
+    const followupRequest = await driver.mockAnthropic.awaitPendingRequest();
+
+    // Verify that the followup request includes both thinking blocks in messages
+    const assistantMessage = followupRequest.messages.find(
+      (msg) => msg.role === "assistant",
+    );
+    expect(assistantMessage).toBeTruthy();
+    expect(assistantMessage!.content).toHaveLength(2);
+
+    // Check thinking block is included with full content
+    const thinkingContent = assistantMessage!.content[0];
+    expect(thinkingContent.type).toBe("thinking");
+    expect(
+      (thinkingContent as Extract<typeof thinkingContent, { type: "thinking" }>)
+        .thinking,
+    ).toEqual("abc\ndef\nghi");
+
+    const redactedThinkingContent = assistantMessage!.content[1];
+    expect(redactedThinkingContent.type).toBe("redacted_thinking");
+    expect(
+      (
+        redactedThinkingContent as Extract<
+          typeof redactedThinkingContent,
+          { type: "redacted_thinking" }
+        >
+      ).data,
+    ).toBe(
+      "This thinking contains sensitive information that has been redacted.",
+    );
+  });
+});
+
+it("handles streaming thinking blocks correctly", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText("Explain how async/await works");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+
+    // Start streaming thinking block
+    const thinkingIndex = 0;
+    request.onStreamEvent({
+      type: "content_block_start",
+      index: thinkingIndex,
+      content_block: {
+        type: "thinking",
+        thinking: "",
+        signature: "",
+      },
+    });
+
+    // Add thinking content in multiple chunks to test streaming
+    request.onStreamEvent({
+      type: "content_block_delta",
+      index: thinkingIndex,
+      delta: {
+        type: "thinking_delta",
+        thinking:
+          "I need to explain async/await.\n\nThis is a JavaScript feature that makes asynchronous code look synchronous.",
+      },
+    });
+
+    // Assert that during streaming, we see the preview with last line
+    await driver.assertDisplayBufferContains(
+      "💭 [Thinking] This is a JavaScript feature that makes asynchronous code look synchronous.",
+    );
+
+    // Add more content to the thinking block
+    request.onStreamEvent({
+      type: "content_block_delta",
+      index: thinkingIndex,
+      delta: {
+        type: "thinking_delta",
+        thinking: "\n\nIt's built on top of Promises.",
+      },
+    });
+
+    // Assert that the preview now shows the new last line
+    await driver.assertDisplayBufferContains(
+      "💭 [Thinking] It's built on top of Promises.",
+    );
+  });
+});

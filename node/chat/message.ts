@@ -54,6 +54,9 @@ type State = {
   expandedUpdates?: {
     [absFilePath: string]: boolean;
   };
+  expandedThinking?: {
+    [contentIdx: number]: boolean;
+  };
   edits: {
     [filePath: RelFilePath]: {
       requestIds: ToolRequestId[];
@@ -106,6 +109,10 @@ export type Msg =
   | {
       type: "toggle-tool-details";
       requestId: ToolRequestId;
+    }
+  | {
+      type: "toggle-expand-thinking-block";
+      contentIdx: number;
     }
   | {
       type: "stop";
@@ -254,6 +261,13 @@ export class Message {
         return;
       }
 
+      case "toggle-expand-thinking-block": {
+        this.state.expandedThinking = this.state.expandedThinking || {};
+        this.state.expandedThinking[msg.contentIdx] =
+          !this.state.expandedThinking[msg.contentIdx];
+        return;
+      }
+
       case "stop": {
         // Check if this stop corresponds to a tool request
         const lastContent = this.state.content[this.state.content.length - 1];
@@ -348,6 +362,43 @@ export class Message {
     );
   }
 
+  renderThinking(
+    content: Extract<ProviderMessageContent, { type: "thinking" }>,
+    contentIdx: number,
+  ) {
+    const isExpanded = this.state.expandedThinking?.[contentIdx] || false;
+
+    if (isExpanded) {
+      return withBindings(
+        withExtmark(d`💭 [Thinking]\n${content.thinking}`, {
+          hl_group: "@comment",
+        }),
+        {
+          "<CR>": () => {
+            console.log(`toggle-thinking`);
+            this.context.myDispatch({
+              type: "toggle-expand-thinking-block",
+              contentIdx,
+            });
+          },
+        },
+      );
+    } else {
+      return withBindings(
+        withExtmark(d`💭 [Thinking]`, {
+          hl_group: "@comment",
+        }),
+        {
+          "<CR>": () =>
+            this.context.myDispatch({
+              type: "toggle-expand-thinking-block",
+              contentIdx,
+            }),
+        },
+      );
+    }
+  }
+
   toString() {
     // Basic message info
     let result = `Message(id=${this.state.id}, role=${this.state.role}):\n`;
@@ -387,7 +438,7 @@ export class Message {
         stopView = this.renderStop(contentIdx);
       }
 
-      return d`${this.renderContent(content)}\n${stopView ?? ""}`;
+      return d`${this.renderContent(content, contentIdx)}\n${stopView ?? ""}`;
     };
 
     return d`\
@@ -416,7 +467,7 @@ ${this.context.contextManager.renderContextUpdate(this.state.contextUpdates)}${t
     return d`\n${this.renderStopInfo(stop.stopReason, stop.usage)}\n`;
   }
 
-  renderContent(content: ProviderMessageContent) {
+  renderContent(content: ProviderMessageContent, contentIdx: number) {
     switch (content.type) {
       case "text": {
         return d`${content.text}${content.citations ? content.citations.map((c) => this.withUrlBinding(withExtmark(d`[${c.title}](${c.url})`, { hl_group: "@markup.link.markdown", url: c.url }), c.url)) : ""}`;
@@ -467,6 +518,13 @@ ${this.context.contextManager.renderContextUpdate(this.state.contextUpdates)}${t
       case "document":
         return renderContentValue(content);
 
+      case "thinking":
+        return this.renderThinking(content, contentIdx);
+      case "redacted_thinking":
+        return withExtmark(d`💭 [Redacted Thinking]`, {
+          hl_group: "@comment",
+        });
+
       default:
         assertUnreachable(content);
     }
@@ -488,9 +546,16 @@ ${this.context.contextManager.renderContextUpdate(this.state.contextUpdates)}${t
       case "tool_use": {
         return renderStreamdedTool(block);
       }
-      case "thinking":
+      case "thinking": {
+        const lastLine = block.thinking.slice(
+          block.thinking.lastIndexOf("\n") + 1,
+        );
+        return withExtmark(d`💭 [Thinking] ${lastLine}`, {
+          hl_group: "@comment",
+        });
+      }
       case "redacted_thinking":
-        throw new Error(`NOT IMPLEMENTED`);
+        return withExtmark(d`💭 [Redacted Thinking]`, { hl_group: "@comment" });
       default:
         return assertUnreachable(block);
     }

@@ -57,6 +57,17 @@ export type ProviderTextContent = {
   citations?: ProviderWebSearchCitation[] | undefined;
 };
 
+export type ProviderThinkingContent = {
+  type: "thinking";
+  thinking: string;
+  signature: string;
+};
+
+export type ProviderRedactedThinkingContent = {
+  type: "redacted_thinking";
+  data: string;
+};
+
 export type ProviderImageContent = {
   type: "image";
   source: {
@@ -122,7 +133,9 @@ export type ProviderMessageContent =
   | ProviderToolUseContent
   | ProviderServerToolUseContent
   | ProviderWebSearchToolResult
-  | ProviderToolResult;
+  | ProviderToolResult
+  | ProviderThinkingContent
+  | ProviderRedactedThinkingContent;
 
 export interface Provider {
   createStreamParameters(options: {
@@ -147,6 +160,10 @@ export interface Provider {
     onStreamEvent: (event: ProviderStreamEvent) => void;
     tools: Array<ProviderToolSpec>;
     systemPrompt?: string;
+    thinking?: {
+      enabled: boolean;
+      budgetTokens?: number;
+    };
   }): ProviderStreamRequest;
 }
 

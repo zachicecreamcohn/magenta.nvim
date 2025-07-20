@@ -687,6 +687,9 @@ export class Thread {
       },
       tools: this.toolManager.getToolSpecs(this.state.threadType),
       systemPrompt: this.state.systemPrompt,
+      ...(this.state.profile.thinking && {
+        thinking: this.state.profile.thinking,
+      }),
     });
 
     this.myDispatch({

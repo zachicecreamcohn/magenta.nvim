@@ -40,6 +40,10 @@ export type Profile = {
   baseUrl?: string;
   apiKeyEnvVar?: string;
   promptCaching?: boolean; // Primarily used by Bedrock provider
+  thinking?: {
+    enabled: boolean;
+    budgetTokens?: number;
+  };
 };
 
 export type CommandAllowlist = string[];
@@ -154,6 +158,35 @@ function parseProfiles(
         } else {
           logger.warn(
             `Invalid promptCaching in profile ${p["name"]}, ignoring field`,
+          );
+        }
+      }
+
+      if ("thinking" in p) {
+        if (typeof p["thinking"] === "object" && p["thinking"] !== null) {
+          const thinking = p["thinking"] as { [key: string]: unknown };
+          if (typeof thinking["enabled"] === "boolean") {
+            out.thinking = {
+              enabled: thinking["enabled"],
+            };
+            if (
+              typeof thinking["budgetTokens"] === "number" &&
+              thinking["budgetTokens"] >= 1024
+            ) {
+              out.thinking.budgetTokens = thinking["budgetTokens"];
+            } else if ("budgetTokens" in thinking) {
+              logger.warn(
+                `Invalid budgetTokens in profile ${p["name"]}, must be a number >= 1024`,
+              );
+            }
+          } else {
+            logger.warn(
+              `Invalid thinking config in profile ${p["name"]}, must have enabled boolean field`,
+            );
+          }
+        } else {
+          logger.warn(
+            `Invalid thinking in profile ${p["name"]}, must be an object`,
           );
         }
       }
