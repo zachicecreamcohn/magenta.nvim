@@ -22,6 +22,7 @@ import type { ToolName } from "../tools/types.ts";
 import { MCPToolManager } from "../tools/mcp/manager.ts";
 import type { WaitForSubagentsTool } from "../tools/wait-for-subagents.ts";
 import type { ThreadId, ThreadType } from "./types.ts";
+import { createSystemPrompt } from "../providers/system-prompt.ts";
 import type {
   ForEachElement,
   SpawnForeachTool,
@@ -371,24 +372,27 @@ export class Chat {
       parentThreadId: parent,
     };
 
-    const contextManager = await ContextManager.create(
-      (msg) =>
-        this.context.dispatch({
-          type: "thread-msg",
-          id: threadId,
-          msg: {
-            type: "context-manager-msg",
-            msg,
-          },
-        }),
-      {
-        dispatch: this.context.dispatch,
-        bufferTracker: this.context.bufferTracker,
-        cwd: this.context.cwd,
-        nvim: this.context.nvim,
-        options: this.context.options,
-      },
-    );
+    const [contextManager, systemPrompt] = await Promise.all([
+      ContextManager.create(
+        (msg) =>
+          this.context.dispatch({
+            type: "thread-msg",
+            id: threadId,
+            msg: {
+              type: "context-manager-msg",
+              msg,
+            },
+          }),
+        {
+          dispatch: this.context.dispatch,
+          bufferTracker: this.context.bufferTracker,
+          cwd: this.context.cwd,
+          nvim: this.context.nvim,
+          options: this.context.options,
+        },
+      ),
+      createSystemPrompt(threadType, this.context.nvim, this.context.cwd),
+    ]);
 
     if (contextFiles.length > 0) {
       await Promise.all(
@@ -410,7 +414,7 @@ export class Chat {
       );
     }
 
-    const thread = new Thread(threadId, threadType, {
+    const thread = new Thread(threadId, threadType, systemPrompt, {
       ...this.context,
       contextManager,
       mcpToolManager: this.mcpToolManager,
