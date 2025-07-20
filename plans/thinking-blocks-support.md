@@ -65,7 +65,7 @@ Key findings from thinking block API:
 - [x] Add user interface controls for thinking blocks
   - [x] Display whether thinking is enabled in the input buffer next to "Magenta Input" in the sidebar
 
-- [ ] write integration tests. Test both thinking and redacted_thinking blocks. Verify that the blocks are displayed correctly and included in followup messages.
+- [x] write integration tests. Test both thinking and redacted_thinking blocks. Verify that the blocks are displayed correctly and included in followup messages.
 
 # Anthropic thinking types
 
@@ -106,4 +106,3 @@ type: 'thinking_delta';
 }
 
 in `/Users/denislantsman/src/magenta.nvim/node_modules/@anthropic-ai/sdk/src/resources/messages/messages.ts`
-

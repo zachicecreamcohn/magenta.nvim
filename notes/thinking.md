@@ -184,4 +184,3 @@ data: {"type": "message_delta", "delta": {"stop_reason": "end_turn", "stop_seque
 event: message_stop
 data: {"type": "message_stop"}
 ```
-
