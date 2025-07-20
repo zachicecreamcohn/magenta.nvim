@@ -338,6 +338,7 @@ export class Thread {
                 }),
               toolManager: this.toolManager,
               fileSnapshots: this.fileSnapshots,
+              contextManager: this.contextManager,
             },
           );
 
@@ -654,6 +655,7 @@ export class Thread {
           toolManager: this.toolManager,
           fileSnapshots: this.fileSnapshots,
           options: this.context.options,
+          contextManager: this.contextManager,
         },
       );
 

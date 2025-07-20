@@ -29,7 +29,10 @@ import {
 } from "../providers/helpers.ts";
 import { renderStreamdedTool } from "../tools/helpers.ts";
 import type { WebSearchResultBlock } from "@anthropic-ai/sdk/resources.mjs";
-import type { FileUpdates } from "../context/context-manager.ts";
+import {
+  type FileUpdates,
+  ContextManager,
+} from "../context/context-manager.ts";
 export type MessageId = number & { __messageId: true };
 import type { Input as GetFileInput } from "../tools/getFile.ts";
 import type { Input as ReplaceInput } from "../tools/replace.ts";
@@ -128,6 +131,7 @@ export class Message {
       toolManager: ToolManager;
       fileSnapshots: FileSnapshots;
       options: MagentaOptions;
+      contextManager: ContextManager;
     },
   ) {
     this.state = {
@@ -388,7 +392,7 @@ export class Message {
 
     return d`\
 ${withExtmark(d`# ${this.state.role}:`, { hl_group: "@markup.heading.1.markdown" })}
-${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${this.renderStreamingBlock()}${this.renderEdits()}`;
+${this.context.contextManager.renderContextUpdate(this.state.contextUpdates)}${this.state.content.map(renderContentWithStop)}${this.renderStreamingBlock()}${this.renderEdits()}`;
   }
 
   renderStopInfo(stopReason: StopReason, usage: Usage) {
@@ -410,100 +414,6 @@ ${this.renderContextUpdate()}${this.state.content.map(renderContentWithStop)}${t
     }
 
     return d`\n${this.renderStopInfo(stop.stopReason, stop.usage)}\n`;
-  }
-
-  renderContextUpdate() {
-    if (
-      !(
-        this.state.contextUpdates &&
-        Object.keys(this.state.contextUpdates).length
-      )
-    ) {
-      return "";
-    }
-
-    const fileUpdates = [];
-    for (const path in this.state.contextUpdates) {
-      const absFilePath = path as AbsFilePath;
-      const update = this.state.contextUpdates[absFilePath];
-
-      if (update.update.status === "ok") {
-        let changeIndicator = "";
-        switch (update.update.value.type) {
-          case "diff": {
-            // Count additions and deletions in the patch
-            const patch = update.update.value.patch;
-            const additions = (patch.match(/^\+[^+]/gm) || []).length;
-            const deletions = (patch.match(/^-[^-]/gm) || []).length;
-            changeIndicator = `[ +${additions} / -${deletions} ]`;
-            break;
-          }
-          case "whole-file": {
-            // Count lines in the whole file content
-            const lineCount =
-              (update.update.value.content.match(/\n/g) || []).length + 1;
-            changeIndicator = `[ +${lineCount} ]`;
-            break;
-          }
-          case "file-deleted": {
-            changeIndicator = "[ deleted ]";
-            break;
-          }
-          default:
-            assertUnreachable(update.update.value);
-        }
-
-        const filePathLink = withBindings(d`- \`${update.relFilePath}\``, {
-          "<CR>": () =>
-            this.context.myDispatch({
-              type: "open-edit-file",
-              filePath: absFilePath,
-            }),
-        });
-
-        const updateLink = withBindings(d`${changeIndicator}`, {
-          "<CR>": () =>
-            this.context.myDispatch({
-              type: "toggle-expand-update",
-              filePath: absFilePath,
-            }),
-        });
-
-        fileUpdates.push(d`${filePathLink} ${updateLink}\n`);
-
-        // Show expanded content if this update is expanded
-        if (
-          this.state.expandedUpdates &&
-          this.state.expandedUpdates[absFilePath]
-        ) {
-          switch (update.update.value.type) {
-            case "whole-file":
-              fileUpdates.push(
-                d`\`\`\`\n${update.update.value.content}\n\`\`\`\n`,
-              );
-              break;
-            case "diff":
-              fileUpdates.push(
-                d`\`\`\`diff\n${update.update.value.patch}\n\`\`\`\n`,
-              );
-              break;
-            case "file-deleted":
-              fileUpdates.push(
-                d`This file has been deleted and removed from context.\n`,
-              );
-              break;
-            default:
-              assertUnreachable(update.update.value);
-          }
-        }
-      } else {
-        fileUpdates.push(
-          d`- \`${absFilePath}\` [Error: ${update.update.error}]\n`,
-        );
-      }
-    }
-
-    return fileUpdates.length > 0 ? d`Context Updates:\n${fileUpdates}\n` : "";
   }
 
   renderContent(content: ProviderMessageContent) {
