@@ -192,7 +192,9 @@ export function finalizeStreamingBlock(
                 url: c.url,
               }))
           : undefined,
-        providerMetadata: block.providerMetadata,
+        ...(block.providerMetadata && {
+          providerMetadata: block.providerMetadata,
+        }),
       };
     }
     case "tool_use": {
@@ -222,7 +224,6 @@ export function finalizeStreamingBlock(
       }
       return {
         type: "tool_use",
-        providerMetadata: block.providerMetadata,
         id: block.id as ToolRequestId,
         name: block.name as ToolName,
         request:
@@ -243,12 +244,14 @@ export function finalizeStreamingBlock(
                       streamed_json: block.streamed,
                     },
               },
+        ...(block.providerMetadata && {
+          providerMetadata: block.providerMetadata,
+        }),
       };
     }
     case "server_tool_use": {
       return {
         type: "server_tool_use",
-        providerMetadata: block.providerMetadata,
         id: block.id,
         name: block.name,
         input: block.streamed.length
@@ -256,16 +259,21 @@ export function finalizeStreamingBlock(
               block.streamed,
             ) as ProviderServerToolUseContent["input"])
           : { query: "" },
+        ...(block.providerMetadata && {
+          providerMetadata: block.providerMetadata,
+        }),
       };
     }
     case "web_search_tool_result": {
       return {
         type: "web_search_tool_result",
-        providerMetadata: block.providerMetadata,
         tool_use_id: block.tool_use_id,
         // it seems that all results are going to be given in the initial block_start event
         // https://docs.anthropic.com/en/docs/build-with-claude/tool-use/web-search-tool#streaming
         content: block.content,
+        ...(block.providerMetadata && {
+          providerMetadata: block.providerMetadata,
+        }),
       };
     }
     case "thinking": {
