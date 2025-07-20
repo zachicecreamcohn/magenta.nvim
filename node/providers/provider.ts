@@ -32,7 +32,7 @@ export function getProvider(nvim: Nvim, profile: Profile): Provider {
         });
         break;
       case "openai":
-        clients[clientKey] = new OpenAIProvider({
+        clients[clientKey] = new OpenAIProvider(nvim, {
           baseUrl: profile.baseUrl,
           apiKeyEnvVar: profile.apiKeyEnvVar,
         });

@@ -165,6 +165,7 @@ export class Message {
             this.state.streamingBlock = {
               ...msg.event.content_block,
               streamed: "",
+              providerMetadata: msg.event.providerMetadata,
             };
             return;
           }
