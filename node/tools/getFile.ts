@@ -28,8 +28,8 @@ import type { ContextManager } from "../context/context-manager.ts";
 import type {
   ProviderTextContent,
   ProviderImageContent,
-  ProviderDocumentContent,
 } from "../providers/provider-types.ts";
+import { extractPdfText } from "../utils/pdf.ts";
 import type { MagentaOptions } from "../options.ts";
 
 export type State =
@@ -51,9 +51,7 @@ export type State =
 export type Msg =
   | {
       type: "finish";
-      result: Result<
-        (ProviderTextContent | ProviderImageContent | ProviderDocumentContent)[]
-      >;
+      result: Result<(ProviderTextContent | ProviderImageContent)[]>;
     }
   | {
       type: "automatic-approval";
@@ -330,10 +328,7 @@ You already have the most up-to-date information about the contents of this file
       return;
     }
 
-    let result:
-      | ProviderTextContent
-      | ProviderImageContent
-      | ProviderDocumentContent;
+    let result: ProviderTextContent | ProviderImageContent;
 
     if (fileTypeInfo.category === FileCategory.TEXT) {
       const bufferContents = await getBufferIfOpen({
@@ -376,7 +371,39 @@ You already have the most up-to-date information about the contents of this file
         type: "text",
         text: textContent,
       };
+    } else if (fileTypeInfo.category === FileCategory.PDF) {
+      // Extract text from PDF
+      const pdfTextResult = await extractPdfText(absFilePath);
+      if (pdfTextResult.status === "error") {
+        this.context.myDispatch({
+          type: "finish",
+          result: {
+            status: "error",
+            error: pdfTextResult.error,
+          },
+        });
+        return;
+      }
+
+      this.context.threadDispatch({
+        type: "context-manager-msg",
+        msg: {
+          type: "tool-applied",
+          absFilePath,
+          tool: {
+            type: "get-file",
+            content: pdfTextResult.value,
+          },
+          fileTypeInfo,
+        },
+      });
+
+      result = {
+        type: "text",
+        text: pdfTextResult.value,
+      };
     } else {
+      // Handle other binary files (images)
       const buffer = await fs.promises.readFile(absFilePath);
       const base64Data = buffer.toString("base64");
 
@@ -409,16 +436,6 @@ You already have the most up-to-date information about the contents of this file
                 | "image/png"
                 | "image/gif"
                 | "image/webp",
-              data: base64Data,
-            },
-          };
-          break;
-        case FileCategory.PDF:
-          result = {
-            type: "document",
-            source: {
-              type: "base64",
-              media_type: "application/pdf",
               data: base64Data,
             },
           };

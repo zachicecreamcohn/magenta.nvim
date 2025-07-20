@@ -26,6 +26,8 @@ import { NvimBuffer } from "../nvim/buffer";
 import { d, withBindings, withExtmark, withInlineCode } from "../tea/view";
 import type { ProviderMessageContent } from "../providers/provider-types";
 import { applyInsert, applyReplace } from "../utils/contentEdits";
+import { extractPdfText } from "../utils/pdf";
+import open from "open";
 
 export type ToolApplication =
   | {
@@ -171,14 +173,26 @@ export class ContextManager {
         return;
       }
 
-      case "open-file":
-        // TODO: if the file is a binary file, then use the os's open on it instead
-        openFileInNonMagentaWindow(msg.absFilePath, {
-          nvim: this.context.nvim,
-          options: this.context.options,
-        }).catch((e: Error) => this.context.nvim.logger.error(e.message));
+      case "open-file": {
+        const fileInfo = this.files[msg.absFilePath];
+
+        if (fileInfo && fileInfo.fileTypeInfo.category !== FileCategory.TEXT) {
+          // For non-text files (images, PDFs, etc.), use the OS's default application
+          open(msg.absFilePath).catch((error: Error) => {
+            this.context.nvim.logger.error(
+              `Failed to open file with OS: ${error.message}`,
+            );
+          });
+        } else {
+          // For text files or files not in context, open in neovim
+          openFileInNonMagentaWindow(msg.absFilePath, {
+            nvim: this.context.nvim,
+            options: this.context.options,
+          }).catch((e: Error) => this.context.nvim.logger.error(e.message));
+        }
 
         return;
+      }
 
       case "tool-applied": {
         const relFilePath = relativePath(this.context.cwd, msg.absFilePath);
@@ -351,7 +365,11 @@ export class ContextManager {
         fileInfo,
       );
     } else {
-      return this.handleBinaryFileUpdate(absFilePath, relFilePath, fileInfo);
+      return await this.handleBinaryFileUpdate(
+        absFilePath,
+        relFilePath,
+        fileInfo,
+      );
     }
   }
 
@@ -479,11 +497,11 @@ export class ContextManager {
     };
   }
 
-  private handleBinaryFileUpdate(
+  private async handleBinaryFileUpdate(
     absFilePath: AbsFilePath,
     relFilePath: RelFilePath,
     fileInfo: Files[AbsFilePath],
-  ): FileUpdates[keyof FileUpdates] | undefined {
+  ): Promise<FileUpdates[keyof FileUpdates] | undefined> {
     // Handle binary files (images/PDFs) - always read from disk, no buffer tracking
     try {
       const stats = fs.statSync(absFilePath);
@@ -505,18 +523,46 @@ export class ContextManager {
         // File hasn't changed, no update needed
         return undefined;
       } else {
-        const buffer = fs.readFileSync(absFilePath);
-        return {
-          absFilePath,
-          relFilePath,
-          update: {
-            status: "ok",
-            value: {
-              type: "whole-file",
-              content: buffer.toString("base64"),
+        if (fileInfo.fileTypeInfo.category === FileCategory.PDF) {
+          // Extract text from PDF
+          const pdfTextResult = await extractPdfText(absFilePath);
+          if (pdfTextResult.status === "error") {
+            return {
+              absFilePath,
+              relFilePath,
+              update: {
+                status: "error",
+                error: pdfTextResult.error,
+              },
+            };
+          }
+
+          return {
+            absFilePath,
+            relFilePath,
+            update: {
+              status: "ok",
+              value: {
+                type: "whole-file",
+                content: pdfTextResult.value,
+              },
             },
-          },
-        };
+          };
+        } else {
+          // Handle other binary files (images) with base64
+          const buffer = fs.readFileSync(absFilePath);
+          return {
+            absFilePath,
+            relFilePath,
+            update: {
+              status: "ok",
+              value: {
+                type: "whole-file",
+                content: buffer.toString("base64"),
+              },
+            },
+          };
+        }
       }
     } catch (err) {
       return {
@@ -710,6 +756,61 @@ ${withExtmark(d`# context:`, { hl_group: "@markup.heading.1.markdown" })}
 ${fileContext}`;
   }
 
+  renderContextUpdate(contextUpdates: FileUpdates | undefined) {
+    if (!(contextUpdates && Object.keys(contextUpdates).length)) {
+      return "";
+    }
+
+    const fileUpdates = [];
+    for (const path in contextUpdates) {
+      const absFilePath = path as AbsFilePath;
+      const update = contextUpdates[absFilePath];
+
+      if (update.update.status === "ok") {
+        let changeIndicator = "";
+        switch (update.update.value.type) {
+          case "diff": {
+            // Count additions and deletions in the patch
+            const patch = update.update.value.patch;
+            const additions = (patch.match(/^\+[^+]/gm) || []).length;
+            const deletions = (patch.match(/^-[^-]/gm) || []).length;
+            changeIndicator = `[ +${additions} / -${deletions} ]`;
+            break;
+          }
+          case "whole-file": {
+            // Count lines in the whole file content
+            const lineCount =
+              (update.update.value.content.match(/\n/g) || []).length + 1;
+            changeIndicator = `[ +${lineCount} ]`;
+            break;
+          }
+          case "file-deleted": {
+            changeIndicator = "[ deleted ]";
+            break;
+          }
+          default:
+            assertUnreachable(update.update.value);
+        }
+
+        const filePathLink = withBindings(d`- \`${update.relFilePath}\``, {
+          "<CR>": () =>
+            this.myDispatch({
+              type: "open-file",
+              absFilePath,
+            }),
+        });
+
+        fileUpdates.push(d`${filePathLink} ${changeIndicator}\n`);
+      } else {
+        fileUpdates.push(
+          d`- \`${absFilePath}\` [Error: ${update.update.error}]\n`,
+        );
+      }
+    }
+
+    return fileUpdates.length > 0 ? d`Context Updates:\n${fileUpdates}\n` : "";
+  }
+
   contextUpdatesToContent(
     contextUpdates: FileUpdates,
   ): ProviderMessageContent[] {
@@ -726,6 +827,13 @@ ${fileContext}`;
           case "whole-file": {
             if (fileInfo?.fileTypeInfo.category === FileCategory.TEXT) {
               // Text file - include in text updates
+              textUpdates.push(`\
+- \`${update.relFilePath}\`
+\`\`\`
+${update.update.value.content}
+\`\`\``);
+            } else if (fileInfo?.fileTypeInfo.category === FileCategory.PDF) {
+              // PDF file - content is extracted text
               textUpdates.push(`\
 - \`${update.relFilePath}\`
 \`\`\`
@@ -748,19 +856,6 @@ ${update.update.value.content}
               textUpdates.push(`\
 - \`${update.relFilePath}\`
 Image file updated (see attached image).`);
-            } else if (fileInfo?.fileTypeInfo.category === FileCategory.PDF) {
-              // PDF file - add as separate document content
-              content.push({
-                type: "document",
-                source: {
-                  type: "base64",
-                  media_type: "application/pdf",
-                  data: update.update.value.content,
-                },
-              });
-              textUpdates.push(`\
-- \`${update.relFilePath}\`
-PDF document updated (see attached document).`);
             } else {
               // Fallback for unknown file types
               textUpdates.push(`\
