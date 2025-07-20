@@ -18,7 +18,7 @@ I sometimes write about AI, neovim and magenta specifically:
 - [AI whiplash, and neovim in the age of AI](https://dlants.me/ai-whiplash.html)
 - [AI is not mid](https://dlants.me/ai-mid.html)
 
-(Note - I mostly develop using the Anthropic provider, so claude sonnet 3.7 or 4 are recommended. The OpenAI provider is supported, but with limitations. Contributions are welcome! See for example https://github.com/dlants/magenta.nvim/issues/82 and https://github.com/dlants/magenta.nvim/issues/84 )
+(Note - I mostly develop using the Anthropic provider, so claude sonnet 3.7 or 4 are recommended. The OpenAI provider is supported, however may be less stable since I am not using it day to day. Please report any issues you encounter. Contributions are also welcome.)
 
 [![June 2025 demo](https://img.youtube.com/vi/W_YctNT20NQ/0.jpg)](https://www.youtube.com/watch?v=W_YctNT20NQ)
 
