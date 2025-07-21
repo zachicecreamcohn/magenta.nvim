@@ -305,11 +305,10 @@ it("getFile approval", async () => {
   });
 });
 
-// TODO: how to setup gitignore in the tmp test dir?
-it.skip("getFile requests approval for gitignored file", async () => {
+it("getFile requests approval for gitignored file", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
-    await driver.inputMagentaText(`Try reading the file node_modules/test`);
+    await driver.inputMagentaText(`Try reading the file ignored-file.txt`);
     await driver.send();
 
     const request = await driver.mockAnthropic.awaitPendingRequest();
@@ -323,7 +322,7 @@ it.skip("getFile requests approval for gitignored file", async () => {
             id: "id" as ToolRequestId,
             toolName: "get_file" as ToolName,
             input: {
-              filePath: "node_modules/test" as UnresolvedFilePath,
+              filePath: "ignored-file.txt" as UnresolvedFilePath,
             },
           },
         },
@@ -331,7 +330,7 @@ it.skip("getFile requests approval for gitignored file", async () => {
     });
 
     await driver.assertDisplayBufferContains(`\
-👀⏳ May I read file \`node_modules/test\`? **[ NO ]** **[ OK ]**`);
+👀⏳ May I read file \`ignored-file.txt\`?`);
   });
 });
 

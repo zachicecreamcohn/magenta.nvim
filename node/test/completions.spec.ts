@@ -1,5 +1,7 @@
 import { it, expect } from "vitest";
 import { withDriver } from "./preamble.ts";
+import { $ } from "zx";
+import { getcwd } from "../nvim/nvim.ts";
 
 it("should have nvim-cmp available", async () => {
   await withDriver({}, async (driver) => {
@@ -83,6 +85,69 @@ it("should fuzzy-find in @file:", async () => {
       await driver.completions.waitForCompletionContaining("poem 3.txt");
 
     expect(entries.length).toEqual(1); // we filter down to just poem3, which is the only one that matches p3
+  });
+});
+
+it("should ignore gitignored files in @file: completions", async () => {
+  await withDriver({}, async (driver) => {
+    // Set up sidebar and wait for it to be ready
+    await driver.showSidebar();
+    await driver.waitForChatReady();
+
+    // Switch to input window, enter insert mode and type '@file:ignore' to search for ignored files
+    await driver.sendKeysToInputBuffer("i@file:ignore");
+
+    // Wait for completion and check entries
+    await driver.completions.waitForVisible(3000);
+    const entries = await driver.completions.getEntries();
+    const entryWords = entries.map((e) => e.word);
+
+    // The ignored-file.txt should not appear in completions
+    const hasIgnoredFile = entryWords.some((word) =>
+      word.includes("ignored-file.txt"),
+    );
+    expect(hasIgnoredFile).toBe(false);
+  });
+});
+
+it("should show @diff: completions for unstaged files", async () => {
+  await withDriver({}, async (driver) => {
+    // Get the test working directory
+    const cwd = await getcwd(driver.nvim);
+
+    // Create an unstaged change by modifying a file
+    await $`cd ${cwd} && echo 'modified content' >> poem.txt`;
+
+    // Set up sidebar and wait for it to be ready
+    await driver.showSidebar();
+    await driver.waitForChatReady();
+
+    // Switch to input window, enter insert mode and type '@diff:' to trigger diff completion
+    await driver.sendKeysToInputBuffer("i@diff:");
+
+    // Wait for completion menu to appear with the modified file
+    await driver.completions.waitForCompletionContaining("poem.txt");
+  });
+});
+
+it("should show @staged: completions for staged files", async () => {
+  await withDriver({}, async (driver) => {
+    // Get the test working directory
+    const cwd = await getcwd(driver.nvim);
+
+    // Create and stage a change
+    await $`cd ${cwd} && echo 'staged content' >> poem2.txt`;
+    await $`cd ${cwd} && git add poem2.txt`;
+
+    // Set up sidebar and wait for it to be ready
+    await driver.showSidebar();
+    await driver.waitForChatReady();
+
+    // Switch to input window, enter insert mode and type '@staged:' to trigger staged completion
+    await driver.sendKeysToInputBuffer("i@staged:");
+
+    // Wait for completion menu to appear with the staged file
+    await driver.completions.waitForCompletionContaining("poem2.txt");
   });
 });
 
