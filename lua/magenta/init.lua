@@ -73,6 +73,9 @@ M.bridge = function(channelId)
   -- Store the channel ID for later use by other functions
   M.channel_id = channelId
 
+  -- Initialize completion support
+  require('magenta.completion.source').setup()
+
   vim.api.nvim_create_user_command(
     "Magenta",
     function(opts)
