@@ -7,6 +7,40 @@ vim.opt.runtimepath:append(project_root)
 -- Also add current directory for any test-specific files
 vim.opt.runtimepath:append(".")
 
+-- Add test plugins directory if it exists
+local test_plugins_dir = project_root .. "/test-plugins"
+if vim.fn.isdirectory(test_plugins_dir) == 1 then
+  vim.opt.runtimepath:append(test_plugins_dir .. "/nvim-cmp")
+
+  -- Configure nvim-cmp for testing
+  vim.defer_fn(function()
+    local ok, cmp = pcall(require, 'cmp')
+    if ok then
+      cmp.setup({
+        mapping = {
+          ['<Down>'] = cmp.mapping.select_next_item(),
+          ['<Up>'] = cmp.mapping.select_prev_item(),
+          ['<CR>'] = cmp.mapping.confirm({ select = true }),
+          ['<C-Space>'] = cmp.mapping.complete(),
+        },
+        sources = {
+          { name = 'buffer', keyword_length = 1, option = { keyword_pattern = [[\k\+]] } },
+        },
+        completion = {
+          autocomplete = { 'TextChanged', 'InsertEnter' },
+        },
+        enabled = function()
+          -- Disable during command line and search modes
+          if vim.api.nvim_get_mode().mode == 'c' then
+            return false
+          end
+          return true
+        end,
+      })
+    end
+  end, 100)
+end
+
 -- Set default restrictive options for tests
 _G.magenta_test_options = {
   autoContext = {},

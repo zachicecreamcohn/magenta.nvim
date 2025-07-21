@@ -15,6 +15,29 @@ import type { Message } from "../chat/message.ts";
 import type { ProviderToolResult } from "../providers/provider-types.ts";
 import { type MockMCPServer, mockServers } from "../tools/mcp/mock-server.ts";
 import type { ServerName } from "../tools/mcp/types.ts";
+import { $ } from "zx";
+import { beforeAll } from "vitest";
+
+// Ensure test plugins are set up before any tests run
+beforeAll(async () => {
+  // Get project root by going up from node/test/preamble.ts to project root
+  const projectRoot = path.resolve(
+    path.dirname(new URL(import.meta.url).pathname),
+    "../..",
+  );
+  const pluginDir = path.join(projectRoot, "test-plugins");
+  const cmpDir = path.join(pluginDir, "nvim-cmp");
+
+  try {
+    await access(cmpDir);
+    return;
+  } catch {
+    // Plugin doesn't exist, need to download it
+  }
+
+  await $`mkdir -p ${cmpDir}`;
+  await $`git clone --depth=1 https://github.com/hrsh7th/nvim-cmp.git ${cmpDir}`;
+});
 
 /**
  * Helper functions for asserting properties of tool result arrays

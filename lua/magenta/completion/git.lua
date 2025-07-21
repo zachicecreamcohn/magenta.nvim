@@ -99,7 +99,7 @@ M.get_git_status = function()
 end
 
 -- Create completion items from git files (async with fzf)
-M.create_git_completion_items_async = function(git_files, search_term, filter_text, prefix, callback)
+M.create_git_completion_items_async = function(job_state, git_files, search_term, filter_text, prefix, callback)
   local items = {}
   local git_file_map = {}
 
@@ -121,7 +121,7 @@ M.create_git_completion_items_async = function(git_files, search_term, filter_te
 
   local search_cmd = fzf.create_git_fzf_command(git_files, search_term)
 
-  jobctl.run_job_with_timeout({
+  jobctl.run_job_with_timeout(job_state, {
     command = search_cmd,
     timeout = jobctl.TIMEOUT_MS,
     on_results = function(lines)
@@ -174,8 +174,7 @@ M.create_git_completion_items_async = function(git_files, search_term, filter_te
 
         callback({ items = items, isIncomplete = true })
       end
-    end,
-    cancel_pending_jobs = true
+    end
   })
 end
 

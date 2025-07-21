@@ -2,50 +2,33 @@ local M = {}
 
 M.TIMEOUT_MS = 500
 
--- Job state for file completion
-local file_completion_state = {
-  active_jobs = {},
-  timeout_ms = M.TIMEOUT_MS
-}
+-- Create a new job state for a completion source
+function M.create_job_state()
+  return {
+    active_job = nil,
+    timeout_timer = nil
+  }
+end
 
-M.run_job_with_timeout = function(opts)
+M.run_job_with_timeout = function(job_state, opts)
   local command = opts.command
   local timeout = opts.timeout
   local on_results = opts.on_results
   local on_completion = opts.on_completion
-  local cancel_pending_jobs = opts.cancel_pending_jobs
 
-  -- Helper function to clean up all pending jobs
-  local function cleanup_all_jobs()
-    for _, active_job_id in ipairs(file_completion_state.active_jobs) do
-      pcall(vim.fn.jobstop, active_job_id)
-    end
-    file_completion_state.active_jobs = {}
-  end
-
-  -- Helper function to remove a specific job from the list
-  local function remove_job(id)
-    for i, active_id in ipairs(file_completion_state.active_jobs) do
-      if active_id == id then
-        table.remove(file_completion_state.active_jobs, i)
-        break
-      end
-    end
-  end
-
-  if cancel_pending_jobs then
-    cleanup_all_jobs()
-  end
-
-  -- Declare job_id variable before use
-  local job_id
+  -- Clean up any existing job
+  M.cleanup_job(job_state)
 
   -- Start new job
-  job_id = vim.fn.jobstart({ 'sh', '-c', command }, {
+  job_state.active_job = vim.fn.jobstart({ 'sh', '-c', command }, {
     stdout_buffered = false,
     cwd = vim.fn.getcwd(),
     on_exit = function(_, _, _)
-      remove_job(job_id)
+      job_state.active_job = nil
+      if job_state.timeout_timer then
+        vim.fn.timer_stop(job_state.timeout_timer)
+        job_state.timeout_timer = nil
+      end
       on_completion()
     end,
     on_stdout = function(_, lines, _)
@@ -53,16 +36,25 @@ M.run_job_with_timeout = function(opts)
     end
   })
 
-  -- Add to active jobs list
-  table.insert(file_completion_state.active_jobs, job_id)
-
   -- Set up timeout
-  vim.fn.timer_start(timeout, function()
-    remove_job(job_id)
+  job_state.timeout_timer = vim.fn.timer_start(timeout, function()
+    M.cleanup_job(job_state)
     on_completion()
   end)
 
-  return job_id
+  return job_state.active_job
+end
+
+-- Clean up any active job and timer for this job state
+function M.cleanup_job(job_state)
+  if job_state.active_job then
+    pcall(vim.fn.jobstop, job_state.active_job)
+    job_state.active_job = nil
+  end
+  if job_state.timeout_timer then
+    vim.fn.timer_stop(job_state.timeout_timer)
+    job_state.timeout_timer = nil
+  end
 end
 
 return M

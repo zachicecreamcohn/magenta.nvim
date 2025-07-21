@@ -18,13 +18,21 @@ import {
 } from "../nvim/nvim";
 import { expect, vi } from "vitest";
 import type { ThreadId } from "../chat/types";
+import { CompletionsInteraction } from "./driver/completions.ts";
+import { SidebarInteraction } from "./driver/sidebar.ts";
 
 export class NvimDriver {
+  public completions: CompletionsInteraction;
+  public sidebar: SidebarInteraction;
+
   constructor(
     public nvim: Nvim,
     public magenta: Magenta,
     public mockAnthropic: MockProvider,
-  ) {}
+  ) {
+    this.completions = new CompletionsInteraction(nvim);
+    this.sidebar = new SidebarInteraction(nvim, magenta);
+  }
 
   async wait(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -541,5 +549,21 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
         }
       }
     });
+  }
+
+  async sendKeysToInputBuffer(keys: string): Promise<void> {
+    const { inputWindow } = this.getVisibleState();
+
+    // Switch to input window
+    await this.nvim.call("nvim_set_current_win", [inputWindow.id]);
+
+    // Send keys using nvim_feedkeys
+    const escapedKeys = await this.nvim.call("nvim_replace_termcodes", [
+      keys,
+      true,
+      false,
+      true,
+    ]);
+    await this.nvim.call("nvim_feedkeys", [escapedKeys, "n", false]);
   }
 }
