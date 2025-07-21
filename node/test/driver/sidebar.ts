@@ -69,24 +69,30 @@ export class SidebarInteraction {
    * Wait for sidebar to become visible
    */
   async waitForVisible(timeout: number = 1000): Promise<void> {
-    await pollUntil(async () => {
-      const visible = await this.isVisible();
-      if (!visible) {
-        throw new Error("Sidebar not visible yet");
-      }
-    }, { timeout });
+    await pollUntil(
+      async () => {
+        const visible = await this.isVisible();
+        if (!visible) {
+          throw new Error("Sidebar not visible yet");
+        }
+      },
+      { timeout },
+    );
   }
 
   /**
    * Wait for sidebar to become hidden
    */
   async waitForHidden(timeout: number = 1000): Promise<void> {
-    await pollUntil(async () => {
-      const visible = await this.isVisible();
-      if (visible) {
-        throw new Error("Sidebar should be hidden");
-      }
-    }, { timeout });
+    await pollUntil(
+      async () => {
+        const visible = await this.isVisible();
+        if (visible) {
+          throw new Error("Sidebar should be hidden");
+        }
+      },
+      { timeout },
+    );
   }
 
   /**
@@ -186,23 +192,26 @@ export class SidebarInteraction {
     timeout: number = 2000,
     start: number = 0,
   ): Promise<Position0Indexed> {
-    return pollUntil(async () => {
-      const inputBuffer = this.getInputBuffer();
-      const lines = await inputBuffer.getLines({ start: 0, end: -1 });
-      const content = lines.slice(start).join("\n");
-      const index = Buffer.from(content).indexOf(text) as ByteIdx;
-      if (index === -1) {
-        throw new Error(
-          `Unable to find text "${text}" after line ${start} in inputBuffer. Content: "${content}"`,
-        );
-      }
+    return pollUntil(
+      async () => {
+        const inputBuffer = this.getInputBuffer();
+        const lines = await inputBuffer.getLines({ start: 0, end: -1 });
+        const content = lines.slice(start).join("\n");
+        const index = Buffer.from(content).indexOf(text) as ByteIdx;
+        if (index === -1) {
+          throw new Error(
+            `Unable to find text "${text}" after line ${start} in inputBuffer. Content: "${content}"`,
+          );
+        }
 
-      return calculatePosition(
-        { row: start, col: 0 } as Position0Indexed,
-        Buffer.from(content),
-        index,
-      );
-    }, { timeout });
+        return calculatePosition(
+          { row: start, col: 0 } as Position0Indexed,
+          Buffer.from(content),
+          index,
+        );
+      },
+      { timeout },
+    );
   }
 
   /**
@@ -212,20 +221,26 @@ export class SidebarInteraction {
     text: string,
     timeout: number = 2000,
   ): Promise<void> {
-    await pollUntil(async () => {
-      const content = await this.getDisplayText();
-      if (content.includes(text)) {
-        throw new Error(
-          `Display buffer should not contain text "${text}", but content is: "${content}"`,
-        );
-      }
-    }, { timeout });
+    await pollUntil(
+      async () => {
+        const content = await this.getDisplayText();
+        if (content.includes(text)) {
+          throw new Error(
+            `Display buffer should not contain text "${text}", but content is: "${content}"`,
+          );
+        }
+      },
+      { timeout },
+    );
   }
 
   /**
    * Trigger a key on the display buffer at a specific position
    */
-  async triggerDisplayKey(pos: Position0Indexed, key: BindingKey): Promise<void> {
+  async triggerDisplayKey(
+    pos: Position0Indexed,
+    key: BindingKey,
+  ): Promise<void> {
     const visibleState = this.getVisibleState();
     const { displayWindow } = visibleState;
 
@@ -298,29 +313,41 @@ export class SidebarInteraction {
   /**
    * Assert that display buffer content exactly matches expected text
    */
-  async assertDisplayContent(expectedText: string, timeout: number = 2000): Promise<void> {
-    await pollUntil(async () => {
-      const content = await this.getDisplayText();
-      if (content !== expectedText) {
-        throw new Error(
-          `Display buffer content does not match.\nExpected:\n"${expectedText}"\nActual:\n"${content}"`,
-        );
-      }
-    }, { timeout });
+  async assertDisplayContent(
+    expectedText: string,
+    timeout: number = 2000,
+  ): Promise<void> {
+    await pollUntil(
+      async () => {
+        const content = await this.getDisplayText();
+        if (content !== expectedText) {
+          throw new Error(
+            `Display buffer content does not match.\nExpected:\n"${expectedText}"\nActual:\n"${content}"`,
+          );
+        }
+      },
+      { timeout },
+    );
   }
 
   /**
    * Assert that input buffer content exactly matches expected text
    */
-  async assertInputContent(expectedText: string, timeout: number = 2000): Promise<void> {
-    await pollUntil(async () => {
-      const content = await this.getInputText();
-      if (content !== expectedText) {
-        throw new Error(
-          `Input buffer content does not match.\nExpected:\n"${expectedText}"\nActual:\n"${content}"`,
-        );
-      }
-    }, { timeout });
+  async assertInputContent(
+    expectedText: string,
+    timeout: number = 2000,
+  ): Promise<void> {
+    await pollUntil(
+      async () => {
+        const content = await this.getInputText();
+        if (content !== expectedText) {
+          throw new Error(
+            `Input buffer content does not match.\nExpected:\n"${expectedText}"\nActual:\n"${content}"`,
+          );
+        }
+      },
+      { timeout },
+    );
   }
 
   /**

@@ -198,5 +198,31 @@ export class CompletionsInteraction {
       { timeout },
     );
   }
-}
 
+  /**
+   * Wait for a completion entry containing the specified substring to appear
+   */
+  async waitForCompletionContaining(
+    substring: string,
+    timeout: number = 5000,
+  ): Promise<Array<{ word: string; kind?: number }>> {
+    return await pollUntil(
+      async () => {
+        const entries = await this.getEntries();
+        const entryWords = entries.map((e) => e.word);
+
+        const hasSubstring = entryWords.some((word) =>
+          word.includes(substring),
+        );
+        if (!hasSubstring) {
+          throw new Error(
+            `No completion entry containing "${substring}" found yet. Current entries: ${JSON.stringify(entryWords)}`,
+          );
+        }
+
+        return entries;
+      },
+      { timeout },
+    );
+  }
+}
