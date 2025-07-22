@@ -643,22 +643,14 @@ export class OpenAIProvider implements Provider {
         params.tools!.push({ type: "web_search_preview" });
       }
 
-      this.nvim.logger.info(
-        "OpenAI input messages:" + JSON.stringify(params.input, null, 2),
-      );
-
       request = await this.client.responses.create(params);
 
       // Wrap onStreamEvent to log all events
       const onStreamEvent = (event: ProviderStreamEvent) => {
-        this.nvim.logger.info(
-          "OpenAI provider event:" + JSON.stringify(event, null, 2),
-        );
         options.onStreamEvent(event);
       };
 
       for await (const event of request) {
-        this.nvim.logger.info(JSON.stringify(event, null, 2));
         switch (event.type) {
           case "response.output_item.added":
             switch (event.item.type) {

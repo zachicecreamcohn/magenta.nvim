@@ -25,12 +25,13 @@ I sometimes write about AI, neovim and magenta specifically:
 # Roadmap
 
 - gemini 2.5 pro provider
-- @file and @diff commands (with completion) for input buffer
 - local code embedding & indexing via chroma db, to support a semantic code search tool
 
 # Updates
 
 ## July 2025
+
+**input buffer completion** - we now support @-command completion in the input buffer using nvim-cmp. We also have new @file:, @diff: and @staged: commands, which use fuzzy-find to autocomplete paths within your repo.
 
 **thinking & reasoning support** - Added full support for Anthropic's thinking blocks and OpenAI's reasoning capabilities. Claude 3.7, Sonnet 4, and Opus 4 can now use extended thinking to show their step-by-step reasoning process before delivering answers.
 
@@ -111,6 +112,37 @@ The plugin uses profiles to configure provider access. Each profile specifies:
 - model: the specific model to use.
 - apiKeyEnvVar: environment variable containing the API key
 - baseUrl: (optional) custom API endpoint
+
+## Prerequisites
+
+Magenta includes smart completions for input commands that depend on [nvim-cmp](https://github.com/hrsh7th/nvim-cmp). Make sure you have nvim-cmp installed and configured in your setup.
+
+### Recommended Tools
+
+For optimal file discovery and completions that respect `.gitignore` files, install one of these tools:
+
+- **fd** ([sharkdp/fd](https://github.com/sharkdp/fd)) - Fast alternative to `find`
+
+  ```bash
+  # macOS
+  brew install fd
+  # Ubuntu/Debian
+  sudo apt install fd-find
+  # Arch Linux
+  sudo pacman -S fd
+  ```
+
+- **ripgrep** ([BurntSushi/ripgrep](https://github.com/BurntSushi/ripgrep)) - Fast text search tool
+  ```bash
+  # macOS
+  brew install ripgrep
+  # Ubuntu/Debian
+  sudo apt install ripgrep
+  # Arch Linux
+  sudo pacman -S ripgrep
+  ```
+
+Without these tools, Magenta falls back to using `find`, which doesn't respect `.gitignore` files and may include unwanted files in completions.
 
 ## Using lazy.nvim
 
@@ -679,6 +711,58 @@ Example usage:
 ```
 @qf Let's go through each of these search results and update the API calls
 ```
+
+#### @file - Add files to context
+
+Add files to your thread's context by referencing them with `@file:path`.
+
+Example usage:
+
+```
+@file:src/main.ts @file:README.md Let me analyze these files
+```
+
+#### @diff - Include git diff
+
+Include git diff for specific files showing unstaged changes.
+
+Example usage:
+
+```
+@diff:src/main.ts Review my changes before I commit
+```
+
+#### @staged - Include staged diff
+
+Include staged git diff for specific files showing changes ready to commit.
+
+Example usage:
+
+```
+@staged:src/main.ts Review my staged changes
+```
+
+### Smart Completions
+
+Magenta provides intelligent completions for input commands when using nvim-cmp:
+
+#### File Path Completions
+
+When typing `@file:`, you get intelligent file path completions that:
+
+- **Prioritize open buffers** - Files currently open in buffers appear first
+- **Support fuzzy finding** - Type partial matches like `@file:p3` to find `poem 3.txt`
+- **Respect .gitignore** - Hidden and gitignored files are automatically excluded
+- **Show project files** - All files in your current working directory and subdirectories
+
+#### Git Diff Completions
+
+When typing `@diff:` or `@staged:`, you get completions for:
+
+- **Unstaged files** (`@diff:`) - Files with unstaged changes in your working directory
+- **Staged files** (`@staged:`) - Files with changes staged for commit
+
+All completions work seamlessly with nvim-cmp's fuzzy matching and selection interface.
 
 ## tools available to the LLM
 

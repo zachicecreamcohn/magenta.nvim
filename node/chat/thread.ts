@@ -39,6 +39,11 @@ import {
   type Input as ThreadTitleInput,
   spec as threadTitleToolSpec,
 } from "../tools/thread-title.ts";
+import {
+  resolveFilePath,
+  relativePath,
+  detectFileType,
+} from "../utils/files.ts";
 
 import type { Chat } from "./chat.ts";
 import type { ThreadId, ThreadType } from "./types.ts";
@@ -46,6 +51,7 @@ import type { SystemPrompt } from "../providers/system-prompt.ts";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { $, within } from "zx";
 
 export type StoppedConversationState = {
   state: "stopped";
@@ -545,97 +551,173 @@ export class Thread {
     messages?: InputMessage[],
   ): Promise<{ messageId: MessageId; addedMessage: boolean }> {
     const messageId = this.counter.get() as MessageId;
-    const contextUpdates = await this.contextManager.getContextUpdate();
 
-    if (messages?.length || Object.keys(contextUpdates).length) {
-      const messageContent: ProviderMessageContent[] = [];
+    // Process messages first to handle @file commands
+    const messageContent: ProviderMessageContent[] = [];
+    for (const m of messages || []) {
+      messageContent.push({
+        type: "text",
+        text: m.text,
+      });
 
-      for (const m of messages || []) {
-        messageContent.push({
-          type: "text",
-          text: m.text,
-        });
+      // Check for diagnostics keywords in user messages
+      if (
+        m.type === "user" &&
+        (m.text.includes("@diag") || m.text.includes("@diagnostics"))
+      ) {
+        try {
+          const diagnostics = await getDiagnostics(this.context.nvim);
 
-        // Check for diagnostics keywords in user messages
-        if (
-          m.type === "user" &&
-          (m.text.includes("@diag") || m.text.includes("@diagnostics"))
-        ) {
+          // Append diagnostics as a separate content block
+          messageContent.push({
+            type: "text",
+            text: `Current diagnostics:\n${diagnostics}`,
+          });
+        } catch (error) {
+          this.context.nvim.logger.error(
+            `Failed to fetch diagnostics for message: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          // Append error message as a separate content block
+          messageContent.push({
+            type: "text",
+            text: `Error fetching diagnostics: ${error instanceof Error ? error.message : String(error)}`,
+          });
+        }
+      }
+
+      // Check for quickfix keywords in user messages
+      if (
+        m.type === "user" &&
+        (m.text.includes("@qf") || m.text.includes("@quickfix"))
+      ) {
+        try {
+          const qflist = await getQuickfixList(this.context.nvim);
+          const quickfixStr = await quickfixListToString(
+            qflist,
+            this.context.nvim,
+          );
+
+          // Append quickfix as a separate content block
+          messageContent.push({
+            type: "text",
+            text: `Current quickfix list:\n${quickfixStr}`,
+          });
+        } catch (error) {
+          this.context.nvim.logger.error(
+            `Failed to fetch quickfix list for message: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          // Append error message as a separate content block
+          messageContent.push({
+            type: "text",
+            text: `Error fetching quickfix list: ${error instanceof Error ? error.message : String(error)}`,
+          });
+        }
+      }
+
+      // Check for buffer keywords in user messages
+      if (
+        m.type === "user" &&
+        (m.text.includes("@buf") || m.text.includes("@buffers"))
+      ) {
+        try {
+          const buffersList = await getBuffersList(this.context.nvim);
+
+          // Append buffers list as a separate content block
+          messageContent.push({
+            type: "text",
+            text: `Current buffers list:\n${buffersList}`,
+          });
+        } catch (error) {
+          this.context.nvim.logger.error(
+            `Failed to fetch buffers list for message: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          // Append error message as a separate content block
+          messageContent.push({
+            type: "text",
+            text: `Error fetching buffers list: ${error instanceof Error ? error.message : String(error)}`,
+          });
+        }
+      }
+      // Check for file commands in user messages
+      if (m.type === "user") {
+        const fileMatches = m.text.matchAll(/@file:(\S+)/g);
+        for (const match of fileMatches) {
+          const filePath = match[1] as UnresolvedFilePath;
           try {
-            const diagnostics = await getDiagnostics(this.context.nvim);
+            const absFilePath = resolveFilePath(this.context.cwd, filePath);
+            const relFilePath = relativePath(this.context.cwd, absFilePath);
+            const fileTypeInfo = await detectFileType(absFilePath);
 
-            // Append diagnostics as a separate content block
-            messageContent.push({
-              type: "text",
-              text: `Current diagnostics:\n${diagnostics}`,
+            if (!fileTypeInfo) {
+              throw new Error(`File ${filePath} does not exist`);
+            }
+
+            this.contextManager.update({
+              type: "add-file-context",
+              relFilePath,
+              absFilePath,
+              fileTypeInfo,
             });
           } catch (error) {
             this.context.nvim.logger.error(
-              `Failed to fetch diagnostics for message: ${error instanceof Error ? error.message : String(error)}`,
+              `Failed to add file to context for ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
             );
-            // Append error message as a separate content block
             messageContent.push({
               type: "text",
-              text: `Error fetching diagnostics: ${error instanceof Error ? error.message : String(error)}`,
+              text: `Error adding file to context for ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
             });
           }
         }
 
-        // Check for quickfix keywords in user messages
-        if (
-          m.type === "user" &&
-          (m.text.includes("@qf") || m.text.includes("@quickfix"))
-        ) {
+        const diffMatches = m.text.matchAll(/@diff:(\S+)/g);
+        for (const match of diffMatches) {
+          const filePath = match[1] as UnresolvedFilePath;
           try {
-            const qflist = await getQuickfixList(this.context.nvim);
-            const quickfixStr = await quickfixListToString(
-              qflist,
-              this.context.nvim,
-            );
-
-            // Append quickfix as a separate content block
+            const diffContent = await getGitDiff(filePath, this.context.cwd);
             messageContent.push({
               type: "text",
-              text: `Current quickfix list:\n${quickfixStr}`,
+              text: `Git diff for \`${filePath}\`:\n\`\`\`diff\n${diffContent}\n\`\`\``,
             });
           } catch (error) {
             this.context.nvim.logger.error(
-              `Failed to fetch quickfix list for message: ${error instanceof Error ? error.message : String(error)}`,
+              `Failed to fetch git diff for \`${filePath}\`: ${error instanceof Error ? error.message : String(error)}`,
             );
-            // Append error message as a separate content block
             messageContent.push({
               type: "text",
-              text: `Error fetching quickfix list: ${error instanceof Error ? error.message : String(error)}`,
+              text: `Error fetching git diff for \`${filePath}\`: ${error instanceof Error ? error.message : String(error)}`,
             });
           }
         }
 
-        // Check for buffer keywords in user messages
-        if (
-          m.type === "user" &&
-          (m.text.includes("@buf") || m.text.includes("@buffers"))
-        ) {
+        const stagedMatches = m.text.matchAll(/@staged:(\S+)/g);
+        for (const match of stagedMatches) {
+          const filePath = match[1] as UnresolvedFilePath;
           try {
-            const buffersList = await getBuffersList(this.context.nvim);
-
-            // Append buffers list as a separate content block
+            const stagedContent = await getStagedDiff(
+              filePath,
+              this.context.cwd,
+            );
             messageContent.push({
               type: "text",
-              text: `Current buffers list:\n${buffersList}`,
+              text: `Staged diff for \`${filePath}\`:\n\`\`\`diff\n${stagedContent}\n\`\`\``,
             });
           } catch (error) {
             this.context.nvim.logger.error(
-              `Failed to fetch buffers list for message: ${error instanceof Error ? error.message : String(error)}`,
+              `Failed to fetch staged diff for \`${filePath}\`: ${error instanceof Error ? error.message : String(error)}`,
             );
-            // Append error message as a separate content block
             messageContent.push({
               type: "text",
-              text: `Error fetching buffers list: ${error instanceof Error ? error.message : String(error)}`,
+              text: `Error fetching staged diff for \`${filePath}\`: ${error instanceof Error ? error.message : String(error)}`,
             });
           }
         }
       }
+    }
 
+    // Now get context updates after all @file commands have been processed
+    const contextUpdates = await this.contextManager.getContextUpdate();
+
+    if (messages?.length || Object.keys(contextUpdates).length) {
       const message = new Message(
         {
           id: messageId,
@@ -1050,3 +1132,40 @@ export const LOGO = readFileSync(
 );
 
 const MESSAGE_ANIMATION = ["⠁", "⠂", "⠄", "⠂"];
+
+/**
+ * Helper functions for new @ commands
+ */
+async function getGitDiff(
+  filePath: UnresolvedFilePath,
+  cwd: NvimCwd,
+): Promise<string> {
+  try {
+    const result = await within(async () => {
+      $.cwd = cwd;
+      return await $`git diff ${filePath}`;
+    });
+    return result.stdout || "(no unstaged changes)";
+  } catch (error) {
+    throw new Error(
+      `Failed to get git diff: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+async function getStagedDiff(
+  filePath: UnresolvedFilePath,
+  cwd: NvimCwd,
+): Promise<string> {
+  try {
+    const result = await within(async () => {
+      $.cwd = cwd;
+      return await $`git diff --staged ${filePath}`;
+    });
+    return result.stdout || "(no staged changes)";
+  } catch (error) {
+    throw new Error(
+      `Failed to get staged diff: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}

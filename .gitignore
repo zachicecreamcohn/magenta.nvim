@@ -2,6 +2,9 @@
 deps/
 vendor/plenary.nvim
 
+# Test plugins
+test-plugins/
+
 # Lua
 *.rock
 *.src.rock
