@@ -2,6 +2,7 @@ local Utils = require("magenta.utils")
 local Options = require("magenta.options")
 require("magenta.actions")
 local M = {}
+local LspServer = require('magenta.lsp-server')
 
 M.setup = function(opts)
   Options.set_options(opts)
@@ -79,6 +80,42 @@ M.bridge = function(channelId)
     completion_source.setup()
   end
 
+  -- Setup LSP server for change tracking
+  local notify_fn = function(data)
+    vim.rpcnotify(channelId, 'magentaTextDocumentDidChange', data)
+  end
+  M.lsp_server = LspServer.new(notify_fn)
+  local client_id = M.lsp_server:start()
+
+  -- Attach LSP server to all existing buffers
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(bufnr) and vim.api.nvim_buf_get_name(bufnr) ~= '' then
+      vim.lsp.buf_attach_client(bufnr, client_id)
+    end
+  end
+
+  -- Auto-attach LSP server to new buffers
+  vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
+    callback = function(ev)
+      local bufnr = ev.buf
+      if vim.api.nvim_buf_get_name(bufnr) ~= '' then
+        -- Check if client is already attached to avoid duplicate attachments
+        local clients = vim.lsp.get_clients({ bufnr = bufnr })
+        local already_attached = false
+        for _, client in ipairs(clients) do
+          if client.id == client_id then
+            already_attached = true
+            break
+          end
+        end
+
+        if not already_attached then
+          vim.lsp.buf_attach_client(bufnr, client_id)
+        end
+      end
+    end
+  })
+
   vim.api.nvim_create_user_command(
     "Magenta",
     function(opts)
@@ -112,94 +149,7 @@ M.bridge = function(channelId)
     }
   )
 
-  -- Helper function to check if a buffer is a real file
-  local function is_real_file(file_path, bufnr, strict_mode)
-    -- Basic path check
-    if not file_path or file_path == "" then
-      return false
-    end
 
-    -- Buffer validity check
-    if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
-      return false
-    end
-
-    -- Check buffer type (must be empty for real files)
-    if vim.bo[bufnr].buftype ~= "" then
-      return false
-    end
-
-    -- For strict mode, perform additional checks
-    if strict_mode then
-      -- Check if buffer is listed
-      if not vim.bo[bufnr].buflisted then
-        return false
-      end
-
-      -- Check if file exists or has a filetype
-      if vim.fn.filereadable(file_path) ~= 1 and vim.fn.getftype(file_path) == "" then
-        return false
-      end
-    else
-      -- For non-strict mode, just verify the path format
-      if not (file_path:match("^%a:[\\/]") or file_path:match("^/")) then
-        return false
-      end
-    end
-
-    return true
-  end
-
-  -- Setup buffer event tracking
-  vim.api.nvim_create_autocmd(
-    "BufWritePost",
-    {
-      pattern = "*",
-      callback = function()
-        local file_path = vim.fn.expand("<afile>:p")
-        local bufnrString = vim.fn.expand("<abuf>")
-        local bufnr = tonumber(bufnrString)
-
-        -- For write events, we need to verify readability
-        if is_real_file(file_path, bufnr, true) and vim.fn.filereadable(file_path) == 1 then
-          vim.rpcnotify(channelId, "magentaBufferTracker", "write", file_path, bufnr)
-        end
-      end
-    }
-  )
-
-  vim.api.nvim_create_autocmd(
-    "BufReadPost",
-    {
-      pattern = "*",
-      callback = function()
-        local file_path = vim.fn.expand("<afile>:p")
-        local bufnrString = vim.fn.expand("<abuf>")
-        local bufnr = tonumber(bufnrString)
-
-        if is_real_file(file_path, bufnr, true) then
-          vim.rpcnotify(channelId, "magentaBufferTracker", "read", file_path, bufnr)
-        end
-      end
-    }
-  )
-
-  vim.api.nvim_create_autocmd(
-    "BufDelete",
-    {
-      pattern = "*",
-      callback = function()
-        local file_path = vim.fn.expand("<afile>:p")
-        local bufnrString = vim.fn.expand("<abuf>")
-        local bufnr = tonumber(bufnrString)
-
-        -- For delete events, we use less strict checks
-        if is_real_file(file_path, bufnr, false) then
-          vim.rpcnotify(channelId, "magentaBufferTracker", "close", file_path, bufnr)
-        end
-      end
-    }
-  )
 
   M.listenToBufKey = function(bufnr, vimKey)
     vim.keymap.set(

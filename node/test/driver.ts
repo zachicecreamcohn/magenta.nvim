@@ -566,4 +566,79 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
     ]);
     await this.nvim.call("nvim_feedkeys", [escapedKeys, "n", false]);
   }
+
+  async assertChangeTrackerHasEdits(expectedCount: number): Promise<void> {
+    await pollUntil(
+      () => {
+        const changes = this.magenta.changeTracker.getChanges();
+        if (changes.length !== expectedCount) {
+          const changeDetails = changes
+            .map(
+              (change, i) =>
+                `  ${i}: ${change.filePath} [${change.range.start.line}:${change.range.start.character}-${change.range.end.line}:${change.range.end.character}] "${change.oldText}" -> "${change.newText}"`,
+            )
+            .join("\n");
+          throw new Error(
+            `Expected ${expectedCount} changes, but found ${changes.length}:\n${changeDetails}`,
+          );
+        }
+        return;
+      },
+      { timeout: 2000 },
+    );
+  }
+
+  async assertChangeTrackerContains(
+    expectedChanges: Array<{
+      oldText?: string;
+      newText?: string;
+      filePath?: string;
+    }>,
+  ): Promise<void> {
+    await pollUntil(
+      () => {
+        const changes = this.magenta.changeTracker.getChanges();
+        const changeDetails = changes
+          .map(
+            (change, i) =>
+              `  ${i}: ${change.filePath} [${change.range.start.line}:${change.range.start.character}-${change.range.end.line}:${change.range.end.character}] "${change.oldText}" -> "${change.newText}"`,
+          )
+          .join("\n");
+
+        if (changes.length != expectedChanges.length) {
+          throw new Error(
+            `Expected ${expectedChanges.length} changes, but found ${changes.length}:\n${changeDetails}`,
+          );
+        }
+
+        for (let i = 0; i < expectedChanges.length; i++) {
+          const expected = expectedChanges[i];
+          const change = changes[i];
+
+          if (expected.oldText && !change.oldText.includes(expected.oldText)) {
+            throw new Error(
+              `Expected change ${i} oldText to contain "${expected.oldText}", but got "${change.oldText}".\nAll changes:\n${changeDetails}`,
+            );
+          }
+
+          if (expected.newText && !change.newText.includes(expected.newText)) {
+            throw new Error(
+              `Expected change ${i} newText to contain "${expected.newText}", but got "${change.newText}".\nAll changes:\n${changeDetails}`,
+            );
+          }
+
+          if (
+            expected.filePath &&
+            !change.filePath.endsWith(expected.filePath)
+          ) {
+            throw new Error(
+              `Expected change ${i} filePath to end with "${expected.filePath}", but got "${change.filePath}".\nAll changes:\n${changeDetails}`,
+            );
+          }
+        }
+        return;
+      },
+      { timeout: 2000 },
+    );
+  }
 }

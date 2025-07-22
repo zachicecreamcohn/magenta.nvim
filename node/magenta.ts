@@ -20,6 +20,7 @@ import type { RootMsg, SidebarMsg } from "./root-msg.ts";
 import { Chat } from "./chat/chat.ts";
 import type { Dispatch } from "./tea/tea.ts";
 import { BufferTracker } from "./buffer-tracker.ts";
+import { ChangeTracker } from "./change-tracker.ts";
 import {
   relativePath,
   resolveFilePath,
@@ -36,6 +37,7 @@ const MAGENTA_ON_WINDOW_CLOSED = "magentaWindowClosed";
 const MAGENTA_KEY = "magentaKey";
 const MAGENTA_LSP_RESPONSE = "magentaLspResponse";
 const MAGENTA_BUFFER_TRACKER = "magentaBufferTracker";
+const MAGENTA_TEXT_DOCUMENT_DID_CHANGE = "magentaTextDocumentDidChange";
 
 export class Magenta {
   public sidebar: Sidebar;
@@ -45,6 +47,7 @@ export class Magenta {
   public chat: Chat;
   public dispatch: Dispatch<RootMsg>;
   public bufferTracker: BufferTracker;
+  public changeTracker: ChangeTracker;
 
   constructor(
     public nvim: Nvim,
@@ -53,6 +56,9 @@ export class Magenta {
     public options: MagentaOptions,
   ) {
     this.bufferTracker = new BufferTracker(this.nvim);
+    this.changeTracker = new ChangeTracker(this.nvim, {
+      maxChanges: this.options.changeTrackerMaxChanges ?? 100,
+    });
 
     this.dispatch = (msg: RootMsg) => {
       try {
@@ -585,6 +591,52 @@ ${lines.join("\n")}
       } catch (err) {
         nvim.logger.error(
           `Error handling buffer tracker event for ${JSON.stringify(args)}: ${err instanceof Error ? err.message + "\n" + err.stack : JSON.stringify(err)}`,
+        );
+      }
+    });
+
+    nvim.onNotification(MAGENTA_TEXT_DOCUMENT_DID_CHANGE, (data) => {
+      try {
+        // Data comes as an array with a single object element from Lua
+        if (!Array.isArray(data) || data.length !== 1) {
+          throw new Error(
+            "Expected change data to be an array with one element",
+          );
+        }
+
+        const changeData = data[0] as {
+          filePath?: unknown;
+          oldText?: unknown;
+          newText?: unknown;
+          range?: unknown;
+        };
+
+        if (
+          typeof changeData.filePath !== "string" ||
+          typeof changeData.oldText !== "string" ||
+          typeof changeData.newText !== "string" ||
+          typeof changeData.range !== "object" ||
+          changeData.range === null
+        ) {
+          throw new Error(
+            "Invalid change data format: expected { filePath: string, oldText: string, newText: string, range: object }",
+          );
+        }
+
+        magenta.changeTracker.onTextDocumentDidChange(
+          changeData as {
+            filePath: string;
+            oldText: string;
+            newText: string;
+            range: {
+              start: { line: number; character: number };
+              end: { line: number; character: number };
+            };
+          },
+        );
+      } catch (err) {
+        nvim.logger.error(
+          `Error handling text document change: ${err instanceof Error ? err.message + "\n" + err.stack : JSON.stringify(err)}`,
         );
       }
     });

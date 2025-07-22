@@ -87,6 +87,7 @@ export type MagentaOptions = {
   maxConcurrentSubagents: number;
   mcpServers: { [serverName: ServerName]: MCPServerConfig };
   getFileAutoAllowGlobs: string[];
+  changeTrackerMaxChanges?: number;
 };
 
 // Reusable parsing helpers
@@ -516,6 +517,16 @@ export function parseOptions(
 
     // Parse MCP servers (throw errors for invalid MCP servers in main config)
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
+
+    // Parse change tracker max changes
+    if (
+      "changeTrackerMaxChanges" in inputOptionsObj &&
+      typeof inputOptionsObj["changeTrackerMaxChanges"] === "number" &&
+      inputOptionsObj["changeTrackerMaxChanges"] > 0
+    ) {
+      options.changeTrackerMaxChanges =
+        inputOptionsObj["changeTrackerMaxChanges"];
+    }
   }
 
   return options;
@@ -605,6 +616,16 @@ export function parseProjectOptions(
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
   }
 
+  // Parse change tracker max changes
+  if (
+    "changeTrackerMaxChanges" in inputOptionsObj &&
+    typeof inputOptionsObj["changeTrackerMaxChanges"] === "number" &&
+    inputOptionsObj["changeTrackerMaxChanges"] > 0
+  ) {
+    options.changeTrackerMaxChanges =
+      inputOptionsObj["changeTrackerMaxChanges"];
+  }
+
   return options;
 }
 
@@ -675,6 +696,10 @@ export function mergeOptions(
       ...baseOptions.mcpServers,
       ...projectSettings.mcpServers,
     };
+  }
+
+  if (projectSettings.changeTrackerMaxChanges !== undefined) {
+    merged.changeTrackerMaxChanges = projectSettings.changeTrackerMaxChanges;
   }
 
   return merged;
