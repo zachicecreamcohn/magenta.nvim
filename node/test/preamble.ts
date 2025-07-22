@@ -31,9 +31,14 @@ beforeAll(async () => {
   try {
     await access(cmpDir);
   } catch {
-    // Plugin doesn't exist, need to download it
-    await $`mkdir -p ${pluginDir}`;
-    await $`git clone --depth=1 https://github.com/hrsh7th/nvim-cmp.git ${cmpDir}`;
+    try {
+      // Plugin doesn't exist, need to download it
+      await $`mkdir -p ${pluginDir}`;
+      await $`git clone --depth=1 https://github.com/hrsh7th/nvim-cmp.git ${cmpDir}`;
+    } catch (e) {
+      console.error(`Uh-oh. nvim-cmp setup failed`);
+      console.error(e);
+    }
   }
 
   // Set up git repo in fixtures directory
