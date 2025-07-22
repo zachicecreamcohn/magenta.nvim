@@ -116,9 +116,6 @@ export class MCPClient {
             await this.loadTools();
 
             this.isConnected = true;
-            this.context.nvim.logger.info(
-              `Successfully connected to ${this.serverName} using SSE transport fallback`,
-            );
             return;
           } catch (sseError) {
             this.disconnect().catch((e) =>
