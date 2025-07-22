@@ -90,23 +90,34 @@ it("should fuzzy-find in @file:", async () => {
 
 it("should ignore gitignored files in @file: completions", async () => {
   await withDriver({}, async (driver) => {
-    // Set up sidebar and wait for it to be ready
-    await driver.showSidebar();
-    await driver.waitForChatReady();
+    // Get the test working directory
+    const cwd = await getcwd(driver.nvim);
 
-    // Switch to input window, enter insert mode and type '@file:ignore' to search for ignored files
-    await driver.sendKeysToInputBuffer("i@file:ignore");
+    // Create .gitignore file for this test
+    await $`cd ${cwd} && echo 'ignored-file.txt' > .gitignore`;
 
-    // Wait for completion and check entries
-    await driver.completions.waitForVisible(3000);
-    const entries = await driver.completions.getEntries();
-    const entryWords = entries.map((e) => e.word);
+    try {
+      // Set up sidebar and wait for it to be ready
+      await driver.showSidebar();
+      await driver.waitForChatReady();
 
-    // The ignored-file.txt should not appear in completions
-    const hasIgnoredFile = entryWords.some((word) =>
-      word.includes("ignored-file.txt"),
-    );
-    expect(hasIgnoredFile).toBe(false);
+      // Switch to input window, enter insert mode and type '@file:ignore' to search for ignored files
+      await driver.sendKeysToInputBuffer("i@file:ignore");
+
+      // Wait for completion and check entries
+      await driver.completions.waitForVisible(3000);
+      const entries = await driver.completions.getEntries();
+      const entryWords = entries.map((e) => e.word);
+
+      // The ignored-file.txt should not appear in completions
+      const hasIgnoredFile = entryWords.some((word) =>
+        word.includes("ignored-file.txt"),
+      );
+      expect(hasIgnoredFile).toBe(false);
+    } finally {
+      // Clean up the .gitignore file
+      await $`cd ${cwd} && rm -f .gitignore`;
+    }
   });
 });
 

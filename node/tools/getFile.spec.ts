@@ -307,6 +307,12 @@ it("getFile approval", async () => {
 
 it("getFile requests approval for gitignored file", async () => {
   await withDriver({}, async (driver) => {
+    // Get the test working directory and create .gitignore file for this test
+    const { getcwd } = await import("../nvim/nvim.ts");
+    const { $ } = await import("zx");
+    const cwd = await getcwd(driver.nvim);
+    await $`cd ${cwd} && echo 'ignored-file.txt' > .gitignore`;
+
     await driver.showSidebar();
     await driver.inputMagentaText(`Try reading the file ignored-file.txt`);
     await driver.send();
