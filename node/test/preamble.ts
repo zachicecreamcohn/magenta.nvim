@@ -27,6 +27,16 @@ beforeAll(async () => {
   );
   const pluginDir = path.join(projectRoot, "test-plugins");
   const cmpDir = path.join(pluginDir, "nvim-cmp");
+  const forceSetup = process.env.FORCE_SETUP === "true";
+
+  // Force remove existing directories if FORCE_SETUP is set
+  if (forceSetup) {
+    try {
+      await $`rm -rf ${cmpDir}`;
+    } catch {
+      // Ignore errors if directory doesn't exist
+    }
+  }
 
   try {
     await access(cmpDir);
@@ -47,6 +57,15 @@ beforeAll(async () => {
     "fixtures",
   );
 
+  // Force remove existing git repo if FORCE_SETUP is set
+  if (forceSetup) {
+    try {
+      await $`rm -rf ${path.join(fixturesDir, ".git")}`;
+    } catch {
+      // Ignore errors if directory doesn't exist
+    }
+  }
+
   try {
     await access(path.join(fixturesDir, ".git"));
   } catch {
@@ -54,10 +73,6 @@ beforeAll(async () => {
       await within(async () => {
         $.cwd = fixturesDir;
         await $`git init`;
-        await $`git config user.email "test@example.com"`;
-        await $`git config user.name "Test User"`;
-        await $`git add .`;
-        await $`git commit -m "Initial fixtures commit"`;
       });
     } catch (e) {
       console.error(`Uh-oh. git is already initialized`);
