@@ -30,8 +30,8 @@ jobs:
       - name: Install typescript-language-server
         run: npm install -g typescript-language-server typescript
 
-      - name: Install fzf
-        run: sudo apt-get update && sudo apt-get install -y fzf
+      - name: Install fzf and fd
+        run: sudo apt-get update && sudo apt-get install -y fzf fd-find
 
       - name: Run tests
         run: npx vitest

@@ -117,6 +117,33 @@ The plugin uses profiles to configure provider access. Each profile specifies:
 
 Magenta includes smart completions for input commands that depend on [nvim-cmp](https://github.com/hrsh7th/nvim-cmp). Make sure you have nvim-cmp installed and configured in your setup.
 
+### Recommended Tools
+
+For optimal file discovery and completions that respect `.gitignore` files, install one of these tools:
+
+- **fd** ([sharkdp/fd](https://github.com/sharkdp/fd)) - Fast alternative to `find`
+
+  ```bash
+  # macOS
+  brew install fd
+  # Ubuntu/Debian
+  sudo apt install fd-find
+  # Arch Linux
+  sudo pacman -S fd
+  ```
+
+- **ripgrep** ([BurntSushi/ripgrep](https://github.com/BurntSushi/ripgrep)) - Fast text search tool
+  ```bash
+  # macOS
+  brew install ripgrep
+  # Ubuntu/Debian
+  sudo apt install ripgrep
+  # Arch Linux
+  sudo pacman -S ripgrep
+  ```
+
+Without these tools, Magenta falls back to using `find`, which doesn't respect `.gitignore` files and may include unwanted files in completions.
+
 ## Using lazy.nvim
 
 ```lua
