@@ -909,9 +909,6 @@ describe("node/chat/thread.spec.ts", () => {
         const cwd = await getcwd(driver.nvim);
         await within(async () => {
           $.cwd = cwd;
-          await $`git add poem2.txt`;
-          await $`git commit -m "Initial commit"`;
-          // Now create and stage a change
           await $`echo 'staged content' >> poem2.txt`;
           await $`git add poem2.txt`;
         });

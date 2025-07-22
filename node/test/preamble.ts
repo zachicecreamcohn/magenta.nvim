@@ -15,7 +15,7 @@ import type { Message } from "../chat/message.ts";
 import type { ProviderToolResult } from "../providers/provider-types.ts";
 import { type MockMCPServer, mockServers } from "../tools/mcp/mock-server.ts";
 import type { ServerName } from "../tools/mcp/types.ts";
-import { $ } from "zx";
+import { $, within } from "zx";
 import { beforeAll } from "vitest";
 
 // Ensure test plugins are set up before any tests run
@@ -30,13 +30,31 @@ beforeAll(async () => {
 
   try {
     await access(cmpDir);
-    return;
   } catch {
     // Plugin doesn't exist, need to download it
+    await $`mkdir -p ${cmpDir}`;
+    await $`git clone --depth=1 https://github.com/hrsh7th/nvim-cmp.git ${cmpDir}`;
   }
 
-  await $`mkdir -p ${cmpDir}`;
-  await $`git clone --depth=1 https://github.com/hrsh7th/nvim-cmp.git ${cmpDir}`;
+  // Set up git repo in fixtures directory
+  const fixturesDir = path.join(
+    path.dirname(new URL(import.meta.url).pathname),
+    "fixtures",
+  );
+
+  try {
+    await access(path.join(fixturesDir, ".git"));
+  } catch {
+    // Git repo doesn't exist, initialize it
+    await within(async () => {
+      $.cwd = fixturesDir;
+      await $`git init`;
+      await $`git config user.email "test@example.com"`;
+      await $`git config user.name "Test User"`;
+      await $`git add .`;
+      await $`git commit -m "Initial fixtures commit"`;
+    });
+  }
 });
 
 /**
