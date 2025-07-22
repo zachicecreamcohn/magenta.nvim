@@ -50,15 +50,19 @@ beforeAll(async () => {
   try {
     await access(path.join(fixturesDir, ".git"));
   } catch {
-    // Git repo doesn't exist, initialize it
-    await within(async () => {
-      $.cwd = fixturesDir;
-      await $`git init`;
-      await $`git config user.email "test@example.com"`;
-      await $`git config user.name "Test User"`;
-      await $`git add .`;
-      await $`git commit -m "Initial fixtures commit"`;
-    });
+    try {
+      await within(async () => {
+        $.cwd = fixturesDir;
+        await $`git init`;
+        await $`git config user.email "test@example.com"`;
+        await $`git config user.name "Test User"`;
+        await $`git add .`;
+        await $`git commit -m "Initial fixtures commit"`;
+      });
+    } catch (e) {
+      console.error(`Uh-oh. git is already initialized`);
+      console.error(e);
+    }
   }
 });
 
