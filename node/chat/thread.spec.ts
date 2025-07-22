@@ -8,6 +8,7 @@ import type { ToolName } from "../tools/types.ts";
 import { pollUntil } from "../utils/async.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import * as path from "path";
+import { $, within } from "zx";
 
 describe("node/chat/thread.spec.ts", () => {
   it("chat render and a few updates", async () => {
@@ -840,6 +841,232 @@ describe("node/chat/thread.spec.ts", () => {
         expect(
           (content1 as Extract<typeof content1, { type: "text" }>).text,
         ).toContain("Current buffers list:");
+      });
+    },
+  );
+
+  it(
+    "processes @diff command to include git diff in message",
+    { timeout: 10000 },
+    async () => {
+      await withDriver({}, async (driver) => {
+        // First, initialize git and commit the file so we can create a diff
+        const cwd = await getcwd(driver.nvim);
+        await within(async () => {
+          $.cwd = cwd;
+          // stage the file
+          await $`git add poem.txt`;
+          // add an unstaged change
+          await $`echo 'modified content' >> poem.txt`;
+        });
+
+        await driver.showSidebar();
+
+        // Send a message with @diff command
+        await driver.inputMagentaText("Show me changes in @diff:poem.txt");
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingRequest();
+
+        // Check that the request messages contain the git diff
+        const userMessage = request.messages.find((msg) => msg.role === "user");
+        expect(userMessage).toBeDefined();
+        expect(userMessage!.content.length).toBeGreaterThan(1);
+
+        // Find the diff content block in the request
+        const diffContent = userMessage!.content.find(
+          (content) =>
+            content.type === "text" &&
+            content.text.includes("Git diff for `poem.txt`:") &&
+            content.text.includes("modified content"),
+        );
+        expect(diffContent).toBeDefined();
+
+        request.respond({
+          stopReason: "end_turn",
+          text: "I can see the git diff you've provided. Let me analyze the changes.",
+          toolRequests: [],
+        });
+
+        // Verify the original message is displayed
+        await driver.assertDisplayBufferContains(
+          "Show me changes in @diff:poem.txt",
+        );
+
+        // Verify git diff content is included
+        await driver.assertDisplayBufferContains("Git diff for `poem.txt`:");
+        await driver.assertDisplayBufferContains("modified content");
+      });
+    },
+  );
+
+  it(
+    "processes @staged command to include staged diff in message",
+    { timeout: 10000 },
+    async () => {
+      await withDriver({}, async (driver) => {
+        // First, initialize git and commit the file so we can create a staged diff
+        const cwd = await getcwd(driver.nvim);
+        await within(async () => {
+          $.cwd = cwd;
+          await $`git add poem2.txt`;
+          await $`git commit -m "Initial commit"`;
+          // Now create and stage a change
+          await $`echo 'staged content' >> poem2.txt`;
+          await $`git add poem2.txt`;
+        });
+
+        await driver.showSidebar();
+
+        // Send a message with @staged command
+        await driver.inputMagentaText(
+          "Review staged changes @staged:poem2.txt",
+        );
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingRequest();
+
+        // Check that the request messages contain the staged diff
+        const userMessage = request.messages.find((msg) => msg.role === "user");
+        expect(userMessage).toBeDefined();
+        expect(userMessage!.content.length).toBeGreaterThan(1);
+
+        // Find the staged diff content block in the request
+        const stagedContent = userMessage!.content.find(
+          (content) =>
+            content.type === "text" &&
+            content.text.includes("Staged diff for `poem2.txt`:") &&
+            content.text.includes("staged content"),
+        );
+        expect(stagedContent).toBeDefined();
+
+        request.respond({
+          stopReason: "end_turn",
+          text: "I can see the staged changes you've provided. Let me review them.",
+          toolRequests: [],
+        });
+
+        // Verify the original message is displayed
+        await driver.assertDisplayBufferContains(
+          "Review staged changes @staged:poem2.txt",
+        );
+
+        // Verify staged diff content is included
+        await driver.assertDisplayBufferContains(
+          "Staged diff for `poem2.txt`:",
+        );
+        await driver.assertDisplayBufferContains("staged content");
+      });
+    },
+  );
+
+  it("handles @file commands", { timeout: 10000 }, async () => {
+    await withDriver({}, async (driver) => {
+      // Create test files
+      await driver.editFile("poem.txt");
+      await driver.editFile("poem2.txt");
+      await driver.showSidebar();
+
+      // Send a message with multiple @file commands
+      await driver.inputMagentaText(
+        "Compare these files @file:poem.txt and @file:poem2.txt",
+      );
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+
+      // Check that the request messages contain context updates for the added files
+      const userMessage = request.messages.find((msg) => msg.role === "user");
+      expect(userMessage).toBeDefined();
+
+      // Look for context updates in the request messages - they should appear as text content
+      // containing the file contents
+      const contextContent = userMessage!.content.find(
+        (content) =>
+          content.type === "text" &&
+          (content.text.includes("poem.txt") ||
+            content.text.includes("poem2.txt")) &&
+          content.text.includes("```"), // Context updates are formatted as code blocks
+      );
+      expect(contextContent).toBeDefined();
+
+      request.respond({
+        stopReason: "end_turn",
+        text: "I can see both files you've added to context. Let me compare them.",
+        toolRequests: [],
+      });
+
+      // Verify the original message is displayed
+      await driver.assertDisplayBufferContains(
+        "Compare these files @file:poem.txt and @file:poem2.txt",
+      );
+
+      // Verify both files were added to context manager
+      const thread = driver.magenta.chat.getActiveThread();
+      const contextManager = thread.contextManager;
+      const files = contextManager.files;
+
+      // Check that both files are in the context
+      const hasPoem1 = Object.keys(files).some((path) =>
+        path.includes("poem.txt"),
+      );
+      const hasPoem2 = Object.keys(files).some((path) =>
+        path.includes("poem2.txt"),
+      );
+      expect(hasPoem1).toBe(true);
+      expect(hasPoem2).toBe(true);
+    });
+  });
+
+  it(
+    "handles @file command with non-existent file",
+    { timeout: 10000 },
+    async () => {
+      await withDriver({}, async (driver) => {
+        await driver.showSidebar();
+
+        // Send a message with @file command for non-existent file
+        await driver.inputMagentaText("Help with @file:nonexistent.txt");
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingRequest();
+        request.respond({
+          stopReason: "end_turn",
+          text: "I see there was an error adding that file to context.",
+          toolRequests: [],
+        });
+
+        // Verify the original message is displayed
+        await driver.assertDisplayBufferContains(
+          "Help with @file:nonexistent.txt",
+        );
+
+        // Verify error message is included
+        await driver.assertDisplayBufferContains(
+          "Error adding file to context",
+        );
+        await driver.assertDisplayBufferContains("nonexistent.txt");
+
+        // Check the thread message structure
+        const thread = driver.magenta.chat.getActiveThread();
+        const messages = thread.getMessages();
+
+        // Should have user message and assistant response
+        expect(messages.length).toBe(2);
+
+        // The user message should have multiple content blocks including error
+        expect(messages[0].content.length).toBeGreaterThan(1);
+
+        // The user message should have multiple content blocks including error
+        expect(messages[0].content.length).toBeGreaterThan(1);
+
+        // Find the error content block
+        const errorContent = messages[0].content.find(
+          (content) =>
+            content.type === "text" &&
+            content.text.includes("Error adding file to context"),
+        );
+        expect(errorContent).toBeDefined();
       });
     },
   );
