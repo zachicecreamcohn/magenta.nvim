@@ -6,7 +6,7 @@ import type { NvimBuffer } from "../nvim/buffer.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp, LspDefinitionResponse, LspRange } from "../lsp.ts";
 import { calculateStringPosition } from "../tea/util.ts";
-import type { PositionString, StringIdx } from "../nvim/window.ts";
+import type { PositionString, Row0Indexed, StringIdx } from "../nvim/window.ts";
 import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
@@ -103,7 +103,10 @@ export class HoverTool implements StaticTool {
     let bufferContent: string;
     if (bufferResult.status == "ok") {
       bufferContent = (
-        await bufferResult.buffer.getLines({ start: 0, end: -1 })
+        await bufferResult.buffer.getLines({
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
+        })
       ).join("\n");
       buffer = bufferResult.buffer;
     } else {

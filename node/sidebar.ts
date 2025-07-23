@@ -5,6 +5,7 @@ import {
   type Position1Indexed,
   NvimWindow,
   type WindowId,
+  type Row0Indexed,
 } from "./nvim/window.ts";
 import type { Profile } from "./options.ts";
 export const WIDTH = 100;
@@ -147,8 +148,8 @@ export class Sidebar {
     await inputWindow.clearjumps();
 
     await inputBuffer.setLines({
-      start: 0,
-      end: -1,
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
       lines: ["" as Line],
     });
 
@@ -214,7 +215,10 @@ export class Sidebar {
     const { displayWindow } = await this.getWindowIfVisible();
     if (displayWindow) {
       const displayBuffer = await displayWindow.buffer();
-      const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+      const lines = await displayBuffer.getLines({
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
+      });
       const lineIdx = lines.findLastIndex((l) => l == "# user:");
       if (lineIdx != -1) {
         await displayWindow.setCursor({
@@ -236,7 +240,10 @@ export class Sidebar {
     const { displayWindow } = await this.getWindowIfVisible();
     if (displayWindow) {
       const displayBuffer = await displayWindow.buffer();
-      const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+      const lines = await displayBuffer.getLines({
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
+      });
       const lastLineIdx = lines.length - 1;
 
       // Move to the last line
@@ -283,8 +290,8 @@ export class Sidebar {
     const { inputBuffer } = this.state;
 
     const lines = await inputBuffer.getLines({
-      start: 0,
-      end: -1,
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
     });
 
     this.nvim.logger.debug(
@@ -292,8 +299,8 @@ export class Sidebar {
     );
     const message = lines.join("\n");
     await inputBuffer.setLines({
-      start: 0,
-      end: -1,
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
       lines: [""] as Line[],
     });
 

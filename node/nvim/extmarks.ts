@@ -91,7 +91,7 @@ export type ExtmarkId = number & { __extmarkId: true };
 
 /**
  * Comprehensive options for nvim_buf_set_extmark.
-l* Covers all available extmark functionality.
+ * Covers all available extmark functionality.
  */
 export type ExtmarkOptions = {
   // Basic highlighting
@@ -109,6 +109,18 @@ export type ExtmarkOptions = {
 
   // Line number styling
   number_hl_group?: HLGroup;
+
+  // Virtual text
+  virt_text?: Array<[string, HLGroup]>;
+  virt_text_pos?: "overlay" | "eol" | "right_align" | "inline";
+  virt_text_win_col?: number;
+  virt_text_hide?: boolean;
+  virt_text_repeat_linebreak?: boolean;
+
+  // Virtual lines
+  virt_lines?: Array<Array<[string, HLGroup]>>;
+  virt_lines_above?: boolean;
+  virt_lines_leftcol?: boolean;
 
   // Advanced features
   conceal?: string;
@@ -166,6 +178,35 @@ export function extmarkOptionsEqual(
         options1.hl_group.every((group, i) => group === options2.hl_group![i])
       : options1.hl_group === options2.hl_group;
 
+  // Compare virtual text arrays
+  const virtTextEqual =
+    (options1.virt_text === undefined && options2.virt_text === undefined) ||
+    (Array.isArray(options1.virt_text) &&
+      Array.isArray(options2.virt_text) &&
+      options1.virt_text.length === options2.virt_text.length &&
+      options1.virt_text.every(
+        ([text1, hl1], i) =>
+          options2.virt_text![i][0] === text1 &&
+          options2.virt_text![i][1] === hl1,
+      ));
+
+  // Compare virtual lines arrays
+  const virtLinesEqual =
+    (options1.virt_lines === undefined && options2.virt_lines === undefined) ||
+    (Array.isArray(options1.virt_lines) &&
+      Array.isArray(options2.virt_lines) &&
+      options1.virt_lines.length === options2.virt_lines.length &&
+      options1.virt_lines.every(
+        (line1, i) =>
+          Array.isArray(options2.virt_lines![i]) &&
+          line1.length === options2.virt_lines![i].length &&
+          line1.every(
+            ([text1, hl1], j) =>
+              options2.virt_lines![i][j][0] === text1 &&
+              options2.virt_lines![i][j][1] === hl1,
+          ),
+      ));
+
   return (
     hlGroupsEqual &&
     options1.hl_eol === options2.hl_eol &&
@@ -175,6 +216,15 @@ export function extmarkOptionsEqual(
     options1.sign_text === options2.sign_text &&
     options1.sign_hl_group === options2.sign_hl_group &&
     options1.number_hl_group === options2.number_hl_group &&
+    virtTextEqual &&
+    options1.virt_text_pos === options2.virt_text_pos &&
+    options1.virt_text_win_col === options2.virt_text_win_col &&
+    options1.virt_text_hide === options2.virt_text_hide &&
+    options1.virt_text_repeat_linebreak ===
+      options2.virt_text_repeat_linebreak &&
+    virtLinesEqual &&
+    options1.virt_lines_above === options2.virt_lines_above &&
+    options1.virt_lines_leftcol === options2.virt_lines_leftcol &&
     options1.conceal === options2.conceal &&
     options1.url === options2.url &&
     options1.right_gravity === options2.right_gravity &&

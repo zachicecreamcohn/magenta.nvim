@@ -6,7 +6,7 @@ import type { Nvim } from "./nvim/nvim-node";
 import { Lsp } from "./lsp.ts";
 import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
 import type { BufNr, Line } from "./nvim/buffer.ts";
-import { pos1col1to0 } from "./nvim/window.ts";
+import { pos1col1to0, type Row0Indexed } from "./nvim/window.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
 import {
   parseOptions,
@@ -140,8 +140,8 @@ export class Magenta {
         ) {
           this.sidebar.state.inputBuffer
             .setLines({
-              start: 0,
-              end: -1,
+              start: 0 as Row0Indexed,
+              end: -1 as Row0Indexed,
               lines: msg.lastUserMessage.split("\n") as Line[],
             })
             .catch((error) => {
@@ -264,8 +264,8 @@ export class Magenta {
           this.mountedChatApp = await this.chatApp.mount({
             nvim: this.nvim,
             buffer: buffers.displayBuffer,
-            startPos: pos(0, 0),
-            endPos: pos(-1, -1),
+            startPos: pos(0 as Row0Indexed, 0),
+            endPos: pos(-1 as Row0Indexed, -1),
           });
           this.nvim.logger.debug(`Chat mounted.`);
         }
@@ -404,8 +404,8 @@ ${lines.join("\n")}
         }
 
         await inputBuffer.setLines({
-          start: -1,
-          end: -1,
+          start: -1 as Row0Indexed,
+          end: -1 as Row0Indexed,
           lines: content.split("\n") as Line[],
         });
 
@@ -454,6 +454,28 @@ ${lines.join("\n")}
           id: this.editPredictionController.id,
           msg: {
             type: "trigger-prediction",
+          },
+        });
+        break;
+      }
+
+      case "accept-prediction": {
+        this.dispatch({
+          type: "edit-prediction-msg",
+          id: this.editPredictionController.id,
+          msg: {
+            type: "prediction-accepted",
+          },
+        });
+        break;
+      }
+
+      case "dismiss-prediction": {
+        this.dispatch({
+          type: "edit-prediction-msg",
+          id: this.editPredictionController.id,
+          msg: {
+            type: "prediction-dismissed",
           },
         });
         break;
@@ -526,6 +548,17 @@ ${lines.join("\n")}
             `Error tracking buffer sync for ${absFilePath}: ${err}`,
           );
         });
+
+        // Dismiss any active prediction when buffer changes
+        if (eventType === "write") {
+          this.dispatch({
+            type: "edit-prediction-msg",
+            id: this.editPredictionController.id,
+            msg: {
+              type: "prediction-dismissed",
+            },
+          });
+        }
         break;
       case "close":
         this.bufferTracker.clearFileTracking(absFilePath);

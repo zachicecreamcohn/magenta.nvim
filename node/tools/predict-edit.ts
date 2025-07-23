@@ -141,7 +141,8 @@ export const spec: ProviderToolSpec = {
     properties: {
       find: {
         type: "string",
-        description: "The text to find and replace within the captured context window.",
+        description:
+          "The text to find and replace within the captured context window.",
       },
       replace: {
         type: "string",

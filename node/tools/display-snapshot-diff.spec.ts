@@ -6,6 +6,7 @@ import * as path from "path";
 import { getcwd } from "../nvim/nvim";
 import type { UnresolvedFilePath } from "../utils/files";
 import type { ToolName } from "./types";
+import type { Row0Indexed } from "../nvim/window";
 
 describe("node/tools/display-snapshot-diff.spec.ts", () => {
   it("compare current file with snapshot", async () => {
@@ -80,7 +81,9 @@ Paints its colors in the light.`,
       expect(await poemWin.getOption("relativenumber")).toBe(true);
 
       const poemText = (
-        await (await poemWin.buffer()).getLines({ start: 0, end: -1 })
+        await (
+          await poemWin.buffer()
+        ).getLines({ start: 0 as Row0Indexed, end: -1 as Row0Indexed })
       ).join("\n");
       expect(poemText).toContain("In gardens wild and flowing free");
       expect(poemText).toContain("Magenta blooms for all to see");
@@ -95,7 +98,9 @@ Paints its colors in the light.`,
       expect(await diffWin.getOption("diff")).toBe(true);
 
       const diffText = (
-        await (await diffWin.buffer()).getLines({ start: 0, end: -1 })
+        await (
+          await diffWin.buffer()
+        ).getLines({ start: 0 as Row0Indexed, end: -1 as Row0Indexed })
       ).join("\n");
       expect(diffText).toContain("Moonlight whispers through the trees");
       expect(diffText).toContain("Silver shadows dance with ease");

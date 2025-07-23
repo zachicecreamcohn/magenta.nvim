@@ -4,6 +4,7 @@ import { pollUntil } from "../utils/async";
 import { getAllWindows, getcwd } from "../nvim/nvim";
 import { resolveFilePath, type UnresolvedFilePath } from "../utils/files";
 import type { Line } from "../nvim/buffer";
+import type { Row0Indexed } from "../nvim/window";
 import type { DiffUpdate, WholeFileUpdate } from "./context-manager";
 import type { ToolRequestId } from "../tools/toolManager";
 import fs from "node:fs";
@@ -73,8 +74,8 @@ it("returns diff when file is edited in a buffer", async () => {
     });
     const buffer = await window.buffer();
     await buffer.setLines({
-      start: 0,
-      end: 1,
+      start: 0 as Row0Indexed,
+      end: 1 as Row0Indexed,
       lines: ["Edited moonlight dances through the trees," as Line],
     });
 
@@ -301,8 +302,8 @@ it("sends update if the file was edited pre-insert", async () => {
 
     // edit the input buffer before the end turn response
     await poemBuffer.setLines({
-      start: 0,
-      end: 1,
+      start: 0 as Row0Indexed,
+      end: 1 as Row0Indexed,
       lines: ["changed first line" as Line],
     });
 

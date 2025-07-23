@@ -7,7 +7,7 @@ import {
   type NextRow,
   type CurrentPosition,
 } from "./update.ts";
-import { type Position0Indexed } from "../nvim/window.ts";
+import { type Position0Indexed, type Row0Indexed } from "../nvim/window.ts";
 import {
   d,
   mountView,
@@ -271,8 +271,8 @@ describe("tea/update.spec.ts", () => {
 
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 1,
+          start: 0 as Row0Indexed,
+          end: 1 as Row0Indexed,
         });
 
         expect(lines[0]).toEqual("13" as Line);
@@ -282,8 +282,8 @@ describe("tea/update.spec.ts", () => {
 
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 1,
+          start: 0 as Row0Indexed,
+          end: 1 as Row0Indexed,
         });
 
         expect(lines[0]).toEqual("123" as Line);
@@ -292,8 +292,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ prop: "" });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 1,
+          start: 0 as Row0Indexed,
+          end: 1 as Row0Indexed,
         });
 
         expect(lines[0]).toEqual("13" as Line);
@@ -302,8 +302,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ prop: "\n" });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 2,
+          start: 0 as Row0Indexed,
+          end: 2 as Row0Indexed,
         });
 
         expect(lines).toEqual(["1", "3"] as Line[]);
@@ -312,8 +312,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ prop: "" });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 2,
+          start: 0 as Row0Indexed,
+          end: 2 as Row0Indexed,
         });
 
         expect(lines).toEqual(["13"] as Line[]);
@@ -341,8 +341,8 @@ describe("tea/update.spec.ts", () => {
 
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 1,
+          start: 0 as Row0Indexed,
+          end: 1 as Row0Indexed,
         });
 
         expect(
@@ -354,8 +354,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ prop1: "1", prop2: "2" });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 1,
+          start: 0 as Row0Indexed,
+          end: 1 as Row0Indexed,
         });
 
         expect(
@@ -367,8 +367,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ prop1: "11", prop2: "22" });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 1,
+          start: 0 as Row0Indexed,
+          end: 1 as Row0Indexed,
         });
 
         expect(
@@ -380,8 +380,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ prop1: "1", prop2: "2" });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 1,
+          start: 0 as Row0Indexed,
+          end: 1 as Row0Indexed,
         });
 
         expect(
@@ -393,8 +393,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ prop1: "1", prop2: "2" });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 1,
+          start: 0 as Row0Indexed,
+          end: 1 as Row0Indexed,
         });
 
         expect(
@@ -406,8 +406,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ prop1: "1\n111", prop2: "22" });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 2,
+          start: 0 as Row0Indexed,
+          end: 2 as Row0Indexed,
         });
 
         expect(lines).toEqual(["1", "11122"] as Line[]);
@@ -416,8 +416,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ prop1: "\n1\n1\n", prop2: "\n2\n2" });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 6,
+          start: 0 as Row0Indexed,
+          end: 6 as Row0Indexed,
         });
 
         expect(lines, "should handle updating a prop on a moving line").toEqual(
@@ -448,8 +448,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ prop1: "1\n111", prop2: "22" });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
         });
 
         expect(lines).toEqual(["1", "11122"] as Line[]);
@@ -458,8 +458,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ prop1: "1\n11", prop2: "22" });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 6,
+          start: 0 as Row0Indexed,
+          end: 6 as Row0Indexed,
         });
 
         expect(
@@ -471,8 +471,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ prop1: "11", prop2: "22" });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 6,
+          start: 0 as Row0Indexed,
+          end: 6 as Row0Indexed,
         });
 
         expect(
@@ -508,8 +508,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ items: [true, true] });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
         });
 
         expect(lines).toEqual(["SuccessSuccess"] as Line[]);
@@ -518,8 +518,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ items: [false, false, true] });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
         });
 
         expect(lines).toEqual(["ErrorErrorSuccess"] as Line[]);
@@ -548,8 +548,8 @@ describe("tea/update.spec.ts", () => {
 
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 1,
+          start: 0 as Row0Indexed,
+          end: 1 as Row0Indexed,
         });
 
         expect(
@@ -561,8 +561,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ items: ["1", "2"] });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 1,
+          start: 0 as Row0Indexed,
+          end: 1 as Row0Indexed,
         });
 
         expect(
@@ -574,8 +574,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ items: [] });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 1,
+          start: 0 as Row0Indexed,
+          end: 1 as Row0Indexed,
         });
 
         expect(lines[0], "should handle shortened array").toEqual("" as Line);
@@ -584,8 +584,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ items: ["1\n1\n1\n", "2\n2"] });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
         });
 
         expect(lines, "should handle multiline array items").toEqual([
@@ -600,8 +600,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ items: ["1\n1\n11", "22\n2"] });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
         });
 
         expect(lines, "should handle multiline array updates").toEqual([
@@ -635,8 +635,8 @@ describe("tea/update.spec.ts", () => {
 
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: 1,
+          start: 0 as Row0Indexed,
+          end: 1 as Row0Indexed,
         });
 
         expect(
@@ -648,8 +648,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ items: ["\n", "\n"] });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
         });
 
         expect(
@@ -661,8 +661,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ items: [] });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
         });
 
         expect(lines, "should handle array dropping lines").toEqual([
@@ -700,8 +700,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ items: ["\n", "\n123"] });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
         });
 
         expect(lines, "should handle array dropping lines and columns").toEqual(
@@ -712,8 +712,8 @@ describe("tea/update.spec.ts", () => {
       await mountedView.render({ items: [] });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
         });
 
         expect(lines, "should handle array dropping lines").toEqual([
@@ -806,7 +806,10 @@ ${fileEdits}`
         });
 
         {
-          const lines = await buffer.getLines({ start: 0, end: -1 });
+          const lines = await buffer.getLines({
+            start: 0 as Row0Indexed,
+            end: -1 as Row0Indexed,
+          });
           expect(lines).toEqual([
             "edit Processing insert...",
             "Edits:",
@@ -825,7 +828,10 @@ ${fileEdits}`
         });
 
         {
-          const lines = await buffer.getLines({ start: 0, end: -1 });
+          const lines = await buffer.getLines({
+            start: 0 as Row0Indexed,
+            end: -1 as Row0Indexed,
+          });
           expect(lines).toEqual(["", "Edits:", "  edit. ", ""] as Line[]);
         }
       });
@@ -863,8 +869,8 @@ ${m.parts.map((p) => d`${p}\n`)}`,
       });
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
         });
 
         expect(lines, "should handle multiline array updates").toEqual([
@@ -899,7 +905,10 @@ ${m.parts.map((p) => d`${p}\n`)}`,
         },
       });
 
-      const lines = await buffer.getLines({ start: 0, end: 1 });
+      const lines = await buffer.getLines({
+        start: 0 as Row0Indexed,
+        end: 1 as Row0Indexed,
+      });
       expect(lines[0]).toEqual("Error message" as Line);
 
       let initialExtmarkId;
@@ -912,7 +921,10 @@ ${m.parts.map((p) => d`${p}\n`)}`,
 
       await mountedView.render({ isError: false });
 
-      const lines2 = await buffer.getLines({ start: 0, end: 1 });
+      const lines2 = await buffer.getLines({
+        start: 0 as Row0Indexed,
+        end: 1 as Row0Indexed,
+      });
       expect(lines2[0]).toEqual("Error message" as Line);
 
       const mountedNode = mountedView._getMountedNode();
@@ -1032,7 +1044,10 @@ ${m.parts.map((p) => d`${p}\n`)}`,
         },
       });
 
-      let lines = await buffer.getLines({ start: 0, end: 1 });
+      let lines = await buffer.getLines({
+        start: 0 as Row0Indexed,
+        end: 1 as Row0Indexed,
+      });
       expect(lines[0]).toEqual("Short" as Line);
 
       let extmarks = await buffer.getExtmarks();
@@ -1044,7 +1059,10 @@ ${m.parts.map((p) => d`${p}\n`)}`,
 
       await mountedView.render({ text: "Much longer text" });
 
-      lines = await buffer.getLines({ start: 0, end: 1 });
+      lines = await buffer.getLines({
+        start: 0 as Row0Indexed,
+        end: 1 as Row0Indexed,
+      });
       expect(lines[0]).toEqual("Much longer text" as Line);
 
       const mountedNode = mountedView._getMountedNode();
@@ -1080,7 +1098,10 @@ ${m.parts.map((p) => d`${p}\n`)}`,
         },
       });
 
-      let lines = await buffer.getLines({ start: 0, end: 1 });
+      let lines = await buffer.getLines({
+        start: 0 as Row0Indexed,
+        end: 1 as Row0Indexed,
+      });
       expect(lines[0]).toEqual("Error: warn end" as Line);
 
       let extmarks = await buffer.getExtmarks();
@@ -1103,7 +1124,10 @@ ${m.parts.map((p) => d`${p}\n`)}`,
 
       await mountedView.render({ inner: "warning text" });
 
-      lines = await buffer.getLines({ start: 0, end: 1 });
+      lines = await buffer.getLines({
+        start: 0 as Row0Indexed,
+        end: 1 as Row0Indexed,
+      });
       expect(lines[0]).toEqual("Error: warning text end" as Line);
 
       const mountedNode = mountedView._getMountedNode();
@@ -1165,7 +1189,10 @@ ${m.parts.map((p) => d`${p}\n`)}`,
 
       await mountedView.render({ prefix: "longer prefix " });
 
-      const lines = await buffer.getLines({ start: 0, end: 1 });
+      const lines = await buffer.getLines({
+        start: 0 as Row0Indexed,
+        end: 1 as Row0Indexed,
+      });
       expect(lines[0]).toEqual("longer prefix error" as Line);
 
       extmarks = await buffer.getExtmarks();
@@ -1204,7 +1231,10 @@ ${m.parts.map((p) => d`${p}\n`)}`,
       // Change to multiline content
       await mountedView.render({ text: "line 1\nline 2\nline 3" });
 
-      const lines = await buffer.getLines({ start: 0, end: 3 });
+      const lines = await buffer.getLines({
+        start: 0 as Row0Indexed,
+        end: 3 as Row0Indexed,
+      });
       expect(lines).toEqual(["line 1", "line 2", "line 3"] as Line[]);
 
       // Check extmark spans multiple lines
@@ -1218,7 +1248,10 @@ ${m.parts.map((p) => d`${p}\n`)}`,
       // Change back to single line
       await mountedView.render({ text: "back to single" });
 
-      const lines2 = await buffer.getLines({ start: 0, end: 1 });
+      const lines2 = await buffer.getLines({
+        start: 0 as Row0Indexed,
+        end: 1 as Row0Indexed,
+      });
       expect(lines2).toEqual(["back to single"] as Line[]);
 
       // Check extmark is back to single line
@@ -1278,7 +1311,10 @@ ${m.parts.map((p) => d`${p}\n`)}`,
       // Add more items
       await mountedView.render({ items: ["x", "y", "z"] });
 
-      const lines = await buffer.getLines({ start: 0, end: 1 });
+      const lines = await buffer.getLines({
+        start: 0 as Row0Indexed,
+        end: 1 as Row0Indexed,
+      });
       expect(lines[0]).toEqual("x y z " as Line);
 
       // Check updated extmarks (1 parent + 3 children)

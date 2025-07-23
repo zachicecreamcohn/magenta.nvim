@@ -20,6 +20,7 @@ import { getcwd } from "../nvim/nvim.ts";
 import { applyInsert, applyReplace } from "../utils/contentEdits.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import type { ProviderToolResultContent } from "../providers/provider-types.ts";
+import type { Row0Indexed } from "../nvim/window.ts";
 
 type InsertRequest = Extract<StaticToolRequest, { toolName: "insert" }>;
 type ReplaceRequest = Extract<StaticToolRequest, { toolName: "replace" }>;
@@ -84,14 +85,14 @@ async function handleBufferEdit(
 
     const contentLines = content.split("\n") as Line[];
     await buffer.setLines({
-      start: -1,
-      end: -1,
+      start: -1 as Row0Indexed,
+      end: -1 as Row0Indexed,
       lines: contentLines,
     });
   } else {
     const lines = await buffer.getLines({
-      start: 0,
-      end: -1,
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
     });
     const bufferContent = lines.join("\n");
     let newContent: string;
@@ -141,8 +142,8 @@ async function handleBufferEdit(
     }
 
     await buffer.setLines({
-      start: 0,
-      end: -1,
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
       lines: newContent.split("\n") as Line[],
     });
   }

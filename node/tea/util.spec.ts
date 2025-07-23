@@ -7,7 +7,7 @@ import {
 import { pos } from "./view.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 import { withNvimClient } from "../test/preamble.ts";
-import type { ByteIdx, Position0Indexed } from "../nvim/window.ts";
+import type { ByteIdx, Position0Indexed, Row0Indexed } from "../nvim/window.ts";
 
 describe("tea/util.spec.ts", () => {
   it("strWidthInBytes", async () => {
@@ -22,8 +22,8 @@ describe("tea/util.spec.ts", () => {
       }
 
       await buffer.setLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: symbols,
       });
 
@@ -81,8 +81,8 @@ describe("tea/util.spec.ts", () => {
     await withNvimClient(async (nvim) => {
       const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: ["abcdef"] as Line[],
       });
 
@@ -97,8 +97,8 @@ describe("tea/util.spec.ts", () => {
 
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
         });
         expect(lines.join("\n"), "replacing a single line string").toEqual(
           "1def",
@@ -113,8 +113,8 @@ describe("tea/util.spec.ts", () => {
       const str = "⚙️";
       await buffer.setLines({
         lines: [str] as Line[],
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
       });
 
       await buffer.setOption("modifiable", false);
@@ -128,8 +128,8 @@ describe("tea/util.spec.ts", () => {
 
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
         });
         expect(lines.join("\n"), "replacing unicode").toEqual("✅");
       }
@@ -141,8 +141,8 @@ describe("tea/util.spec.ts", () => {
       const buffer = await NvimBuffer.create(false, true, nvim);
       await buffer.setLines({
         lines: ["abcdef", "hijklm"] as Line[],
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
       });
 
       await buffer.setOption("modifiable", false);
@@ -156,8 +156,8 @@ describe("tea/util.spec.ts", () => {
 
       {
         const lines = await buffer.getLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
         });
         expect(
           lines.join("\n"),

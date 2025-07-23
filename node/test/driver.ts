@@ -7,6 +7,7 @@ import {
   pos0to1,
   type ByteIdx,
   type Position0Indexed,
+  type Row0Indexed,
 } from "../nvim/window";
 import { Defer, pollUntil } from "../utils/async";
 import { calculatePosition } from "../tea/util";
@@ -112,8 +113,8 @@ export class NvimDriver {
     }
 
     await inputBuffer.setLines({
-      start: 0,
-      end: -1,
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
       lines: text.split("\n") as Line[],
     });
   }
@@ -203,7 +204,10 @@ export class NvimDriver {
 
   async getDisplayBufferText() {
     const displayBuffer = this.getDisplayBuffer();
-    const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+    const lines = await displayBuffer.getLines({
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
+    });
     return lines.join("\n");
   }
 
@@ -223,7 +227,10 @@ export class NvimDriver {
       return await pollUntil(
         async () => {
           const displayBuffer = this.getDisplayBuffer();
-          const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+          const lines = await displayBuffer.getLines({
+            start: 0 as Row0Indexed,
+            end: -1 as Row0Indexed,
+          });
           latestContent = lines.slice(start).join("\n");
           const index = Buffer.from(latestContent).indexOf(text) as ByteIdx;
           if (index == -1) {
@@ -252,7 +259,10 @@ export class NvimDriver {
   ): Promise<Position0Indexed> {
     return pollUntil(async () => {
       const inputBuffer = this.getInputBuffer();
-      const lines = await inputBuffer.getLines({ start: 0, end: -1 });
+      const lines = await inputBuffer.getLines({
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
+      });
       const content = lines.slice(start).join("\n");
       const index = Buffer.from(content).indexOf(text) as ByteIdx;
       if (index == -1) {
@@ -303,7 +313,10 @@ export class NvimDriver {
   ): Promise<Position0Indexed> {
     try {
       return await pollUntil(async () => {
-        const lines = await buffer.getLines({ start: 0, end: -1 });
+        const lines = await buffer.getLines({
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
+        });
         const content = lines.slice(start).join("\n");
         const index = Buffer.from(content).indexOf(text) as ByteIdx;
         if (index == -1) {
@@ -319,7 +332,10 @@ export class NvimDriver {
         );
       });
     } catch (e) {
-      const lines = await buffer.getLines({ start: 0, end: -1 });
+      const lines = await buffer.getLines({
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
+      });
       const content = lines.slice(start).join("\n");
       expect(content).toContain(text);
       throw e;
@@ -330,7 +346,10 @@ export class NvimDriver {
     try {
       return await pollUntil(async () => {
         const displayBuffer = this.getDisplayBuffer();
-        const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+        const lines = await displayBuffer.getLines({
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
+        });
         const content = lines.join("\n");
         if (content != text) {
           throw new Error(
@@ -340,7 +359,10 @@ export class NvimDriver {
       });
     } catch (e) {
       const displayBuffer = this.getDisplayBuffer();
-      const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+      const lines = await displayBuffer.getLines({
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
+      });
       const content = lines.join("\n");
       expect(content).toEqual(text);
       throw e;
@@ -351,7 +373,10 @@ export class NvimDriver {
     try {
       return await pollUntil(async () => {
         const displayBuffer = this.getDisplayBuffer();
-        const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+        const lines = await displayBuffer.getLines({
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
+        });
         const content = lines.join("\n");
         if (content.includes(text)) {
           throw new Error(
@@ -361,7 +386,10 @@ export class NvimDriver {
       });
     } catch (e) {
       const displayBuffer = this.getDisplayBuffer();
-      const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+      const lines = await displayBuffer.getLines({
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
+      });
       const content = lines.join("\n");
       expect(content).not.toContain(text);
       throw e;
@@ -408,7 +436,10 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
             );
           };
 
-          const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+          const lines = await displayBuffer.getLines({
+            start: 0 as Row0Indexed,
+            end: -1 as Row0Indexed,
+          });
           latestContent = lines.slice(start).join("\n");
           const position = findTextPosition(latestContent);
 
@@ -419,8 +450,8 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
 
           // Re-verify content under cursor by checking buffer again
           const updatedLines = await displayBuffer.getLines({
-            start: 0,
-            end: -1,
+            start: 0 as Row0Indexed,
+            end: -1 as Row0Indexed,
           });
           const updatedContent = updatedLines.slice(start).join("\n");
           const updatedPosition = findTextPosition(updatedContent);
@@ -639,6 +670,24 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
         return;
       },
       { timeout: 2000 },
+    );
+  }
+
+  async awaitPredictionControllerState(
+    expectedStateType: string,
+    timeout: number = 2000,
+  ): Promise<void> {
+    await pollUntil(
+      () => {
+        const currentState = this.magenta.editPredictionController.state.type;
+        if (currentState !== expectedStateType) {
+          throw new Error(
+            `Expected prediction controller state to be "${expectedStateType}", but got "${currentState}"`,
+          );
+        }
+        return;
+      },
+      { timeout },
     );
   }
 

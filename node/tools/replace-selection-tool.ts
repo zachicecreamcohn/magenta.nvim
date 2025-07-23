@@ -121,7 +121,10 @@ export class ReplaceSelectionTool implements StaticTool {
     const input = this.request.input;
 
     const buffer = new NvimBuffer(this.context.bufnr, this.context.nvim);
-    const lines = await buffer.getLines({ start: 0, end: -1 });
+    const lines = await buffer.getLines({
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
+    });
 
     // in visual mode, you can select past the end of the line, so we need to clamp the columns
     function clamp(pos: Position0Indexed): Position0Indexed {

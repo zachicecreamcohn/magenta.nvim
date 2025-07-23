@@ -62,6 +62,9 @@ local normal_commands = {
   "toggle",
   "new-thread",
   "threads-overview",
+  "predict-edit",
+  "accept-prediction",
+  "dismiss-prediction",
 }
 
 local visual_commands = {

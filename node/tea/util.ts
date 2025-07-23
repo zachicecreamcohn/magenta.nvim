@@ -5,6 +5,7 @@ import type {
   ByteIdx,
   Position0Indexed,
   StringIdx,
+  Row0Indexed,
 } from "../nvim/window.ts";
 
 export async function replaceBetweenPositions({
@@ -88,8 +89,8 @@ export function calculateStringPosition(
 
 export async function logBuffer(buffer: NvimBuffer, context: { nvim: Nvim }) {
   const lines = await buffer.getLines({
-    start: 0,
-    end: -1,
+    start: 0 as Row0Indexed,
+    end: -1 as Row0Indexed,
   });
   context.nvim.logger.info("buffer:\n" + lines.join("\n") + "\nend");
 }

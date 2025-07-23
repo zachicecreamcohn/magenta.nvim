@@ -6,6 +6,7 @@ import {
   type Position0Indexed,
   type Position1Indexed,
   type Position1IndexedCol1Indexed,
+  type Row0Indexed,
   type WindowId,
 } from "../nvim/window";
 import { getCurrentWindow } from "../nvim/nvim";
@@ -385,8 +386,8 @@ export class InlineEditManager {
 
     const targetBuffer = new NvimBuffer(targetBufnr, this.nvim);
     const targetLines = await targetBuffer.getLines({
-      start: 0,
-      end: -1,
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
     });
     const bufferName = await targetBuffer.getName();
 
@@ -442,8 +443,8 @@ ${processedInputText}`,
 
     const inputBuffer = new NvimBuffer(inputBufnr, this.nvim);
     const inputLines = await inputBuffer.getLines({
-      start: 0,
-      end: -1,
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
     });
 
     const inputText = inputLines.join("\n");

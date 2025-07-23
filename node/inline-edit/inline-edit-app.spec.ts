@@ -4,7 +4,7 @@ import type { ToolRequestId } from "../tools/toolManager";
 import type { ToolName } from "../tools/types";
 import { getCurrentBuffer, getCurrentWindow } from "../nvim/nvim";
 import type { Line } from "../nvim/buffer";
-import type { Position0Indexed } from "../nvim/window";
+import type { Position0Indexed, Row0Indexed } from "../nvim/window";
 
 describe("node/inline-edit/inline-edit-app.spec.ts", () => {
   it("performs inline edit on file", async () => {
@@ -25,8 +25,8 @@ describe("node/inline-edit/inline-edit-app.spec.ts", () => {
 
       const inputBuffer = await getCurrentBuffer(driver.nvim);
       await inputBuffer.setLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: ["Please change 'Silver' to 'Golden' in line 2"] as Line[],
       });
       await driver.submitInlineEdit(targetBuffer.id);
@@ -34,7 +34,10 @@ describe("node/inline-edit/inline-edit-app.spec.ts", () => {
         await driver.mockAnthropic.awaitPendingForceToolUseRequest();
       expect(request.messages).toMatchSnapshot();
 
-      const inputLines = await inputBuffer.getLines({ start: 0, end: -1 });
+      const inputLines = await inputBuffer.getLines({
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
+      });
       expect(inputLines.join("\n")).toEqual("Input sent, awaiting response...");
 
       await driver.mockAnthropic.respondToForceToolUse({
@@ -82,15 +85,18 @@ Golden shadows dance with ease.`,
 
       const inputBuffer = await getCurrentBuffer(driver.nvim);
       await inputBuffer.setLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: ["Please change 'Silver' to 'Golden' in line 2"] as Line[],
       });
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       driver.submitInlineEdit(targetBuffer.id);
       await driver.mockAnthropic.awaitPendingForceToolUseRequest();
 
-      const inputLines = await inputBuffer.getLines({ start: 0, end: -1 });
+      const inputLines = await inputBuffer.getLines({
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
+      });
       expect(inputLines.join("\n")).toEqual("Input sent, awaiting response...");
     });
   });
@@ -107,8 +113,8 @@ Golden shadows dance with ease.`,
 
       const firstInputBuffer = await getCurrentBuffer(driver.nvim);
       await firstInputBuffer.setLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: ["First edit request"] as Line[],
       });
 
@@ -121,13 +127,16 @@ Golden shadows dance with ease.`,
 
       // Verify we have a fresh input buffer with empty content
       const secondInputBuffer = await getCurrentBuffer(driver.nvim);
-      const lines = await secondInputBuffer.getLines({ start: 0, end: -1 });
+      const lines = await secondInputBuffer.getLines({
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
+      });
       expect(lines).toEqual([""]); // Fresh buffer should be empty
 
       // Verify we can use the new inline edit
       await secondInputBuffer.setLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: ["Second edit request"] as Line[],
       });
 
@@ -163,8 +172,8 @@ Golden shadows dance with ease.`,
 
       const inputBuffer = await getCurrentBuffer(driver.nvim);
       await inputBuffer.setLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: ["Please change 'Silver' to 'Golden'"] as Line[],
       });
 
@@ -192,8 +201,8 @@ Golden shadows dance with ease.`,
 
       const inputBuffer = await getCurrentBuffer(driver.nvim);
       await inputBuffer.setLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: ["Please change 'Silver' to 'Golden'"] as Line[],
       });
 
@@ -247,8 +256,8 @@ Paint their stories in the night.`,
 
       const inputBuffer = await getCurrentBuffer(driver.nvim);
       await inputBuffer.setLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: ["Please change 'shadows' to 'ghosts'"] as Line[],
       });
 
@@ -295,8 +304,8 @@ Paint their stories in the night.`,
 
       const inputBuffer = await getCurrentBuffer(driver.nvim);
       await inputBuffer.setLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: ["Please change 'Silver' to 'Golden' in line 2"] as Line[],
       });
 
@@ -347,8 +356,8 @@ Paint their stories in the night.`,
 
       const inputBuffer = await getCurrentBuffer(driver.nvim);
       await inputBuffer.setLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: ["Please change 'Silver' to 'Golden'"] as Line[],
       });
 
@@ -370,8 +379,8 @@ Paint their stories in the night.`,
 
       const inputBuffer = await getCurrentBuffer(driver.nvim);
       await inputBuffer.setLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: ["@fast Please change 'Silver' to 'Golden' in line 2"] as Line[],
       });
 
@@ -404,8 +413,8 @@ Paint their stories in the night.`,
 
       const inputBuffer = await getCurrentBuffer(driver.nvim);
       await inputBuffer.setLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: [
           "  @fast   Please change 'Silver' to 'Golden' in line 2",
         ] as Line[],
@@ -441,8 +450,8 @@ Paint their stories in the night.`,
       await driver.startInlineEdit();
       const inputBuffer = await getCurrentBuffer(driver.nvim);
       await inputBuffer.setLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: ["Please change 'Silver' to 'Golden' in line 2"] as Line[],
       });
 
@@ -481,7 +490,10 @@ Paint their stories in the night.`,
       expect(winbar).toEqual("Magenta Inline Prompt");
 
       // Verify the request was immediately sent (no pre-populated input)
-      const lines = await replayInputBuffer.getLines({ start: 0, end: -1 });
+      const lines = await replayInputBuffer.getLines({
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
+      });
       expect(lines.join("\n")).toEqual("Input sent, awaiting response...");
 
       const replayRequest =
@@ -528,8 +540,8 @@ Paint their stories in the night.`,
 
       const inputBuffer = await getCurrentBuffer(driver.nvim);
       await inputBuffer.setLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: ["Please change 'Silver' to 'Golden'"] as Line[],
       });
 

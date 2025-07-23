@@ -4,7 +4,7 @@ import type { Line } from "../../nvim/buffer.ts";
 import { pollUntil } from "../../utils/async.ts";
 import { getAllWindows } from "../../nvim/nvim.ts";
 import type { BindingKey } from "../../tea/bindings.ts";
-import type { Position0Indexed } from "../../nvim/window.ts";
+import type { Position0Indexed, Row0Indexed } from "../../nvim/window.ts";
 import { calculatePosition } from "../../tea/util.ts";
 import { pos0to1, type ByteIdx } from "../../nvim/window.ts";
 
@@ -123,8 +123,8 @@ export class SidebarInteraction {
   async setInputText(text: string): Promise<void> {
     const inputBuffer = this.getInputBuffer();
     await inputBuffer.setLines({
-      start: 0,
-      end: -1,
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
       lines: text.split("\n") as Line[],
     });
   }
@@ -134,7 +134,10 @@ export class SidebarInteraction {
    */
   async getInputText(): Promise<string> {
     const inputBuffer = this.getInputBuffer();
-    const lines = await inputBuffer.getLines({ start: 0, end: -1 });
+    const lines = await inputBuffer.getLines({
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
+    });
     return lines.join("\n");
   }
 
@@ -143,7 +146,10 @@ export class SidebarInteraction {
    */
   async getDisplayText(): Promise<string> {
     const displayBuffer = this.getDisplayBuffer();
-    const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+    const lines = await displayBuffer.getLines({
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
+    });
     return lines.join("\n");
   }
 
@@ -160,7 +166,10 @@ export class SidebarInteraction {
       return await pollUntil(
         async () => {
           const displayBuffer = this.getDisplayBuffer();
-          const lines = await displayBuffer.getLines({ start: 0, end: -1 });
+          const lines = await displayBuffer.getLines({
+            start: 0 as Row0Indexed,
+            end: -1 as Row0Indexed,
+          });
           latestContent = lines.slice(start).join("\n");
           const index = Buffer.from(latestContent).indexOf(text) as ByteIdx;
           if (index === -1) {
@@ -195,7 +204,10 @@ export class SidebarInteraction {
     return pollUntil(
       async () => {
         const inputBuffer = this.getInputBuffer();
-        const lines = await inputBuffer.getLines({ start: 0, end: -1 });
+        const lines = await inputBuffer.getLines({
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
+        });
         const content = lines.slice(start).join("\n");
         const index = Buffer.from(content).indexOf(text) as ByteIdx;
         if (index === -1) {

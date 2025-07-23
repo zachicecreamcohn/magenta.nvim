@@ -35,8 +35,8 @@ poem.txt:1:1
 
 Current context ( │ marks cursor position):
 poem.txt:1:4
-Moonlight whispers through the trees,
-S│ilver shadows dance with ease.
+│Moonlight whispers through the trees,
+Silver shadows dance with ease.
 Stars above like diamonds bright,
 Paint their stories in the night.
 
@@ -48,7 +48,8 @@ exports[`context window trims to 10 lines before and after cursor 1`] = `
 
 
 Current context ( │ marks cursor position):
-test-long-file.txt:16:36
+test-long-file.txt:15:35
+Line 15
 Line 16
 Line 17
 Line 18
@@ -58,8 +59,8 @@ Line 21
 Line 22
 Line 23
 Line 24
-Line 25
-L│ine 26
+│Line 25
+Line 26
 Line 27
 Line 28
 Line 29
@@ -69,7 +70,6 @@ Line 32
 Line 33
 Line 34
 Line 35
-Line 36
 
 Predict the most likely next edit the user will make."
 `;
@@ -90,8 +90,7 @@ poem.txt:1:4
 Moonlight whispers through the trees,
 Silver Starlight dance with ease.
 Stars above like diamonds bright,
-Paint their stories in the night.
-│
+Paint their stories│ in the night.
 
 Predict the most likely next edit the user will make."
 `;

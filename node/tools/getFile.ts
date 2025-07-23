@@ -31,6 +31,7 @@ import type {
 } from "../providers/provider-types.ts";
 import { extractPdfText } from "../utils/pdf.ts";
 import type { MagentaOptions } from "../options.ts";
+import type { Row0Indexed } from "../nvim/window.ts";
 
 export type State =
   | {
@@ -339,7 +340,10 @@ You already have the most up-to-date information about the contents of this file
       let textContent: string;
       if (bufferContents.status === "ok") {
         textContent = (
-          await bufferContents.buffer.getLines({ start: 0, end: -1 })
+          await bufferContents.buffer.getLines({
+            start: 0 as Row0Indexed,
+            end: -1 as Row0Indexed,
+          })
         ).join("\n");
       } else if (bufferContents.status == "not-found") {
         textContent = await fs.promises.readFile(absFilePath, "utf-8");
