@@ -30,6 +30,10 @@ import {
   detectFileType,
 } from "./utils/files.ts";
 import { assertUnreachable } from "./utils/assertUnreachable.ts";
+import {
+  EditPredictionController,
+  type EditPredictionId,
+} from "./edit-prediction/edit-prediction-controller.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
@@ -48,6 +52,7 @@ export class Magenta {
   public dispatch: Dispatch<RootMsg>;
   public bufferTracker: BufferTracker;
   public changeTracker: ChangeTracker;
+  public editPredictionController: EditPredictionController;
 
   constructor(
     public nvim: Nvim,
@@ -56,13 +61,14 @@ export class Magenta {
     public options: MagentaOptions,
   ) {
     this.bufferTracker = new BufferTracker(this.nvim);
-    this.changeTracker = new ChangeTracker(this.nvim, {
+    this.changeTracker = new ChangeTracker(this.nvim, this.cwd, {
       maxChanges: this.options.changeTrackerMaxChanges ?? 100,
     });
 
     this.dispatch = (msg: RootMsg) => {
       try {
         this.chat.update(msg);
+        this.editPredictionController.update(msg);
 
         if (msg.type == "sidebar-msg") {
           this.handleSidebarMsg(msg.msg);
@@ -89,6 +95,17 @@ export class Magenta {
       options: this.options,
       lsp: this.lsp,
     });
+
+    this.editPredictionController = new EditPredictionController(
+      1 as EditPredictionId,
+      {
+        dispatch: this.dispatch,
+        nvim: this.nvim,
+        changeTracker: this.changeTracker,
+        cwd: this.cwd,
+        getActiveProfile: () => this.getActiveProfile(),
+      },
+    );
 
     this.sidebar = new Sidebar(
       this.nvim,
@@ -427,6 +444,17 @@ ${lines.join("\n")}
         await this.inlineEditManager.replay({
           startPos,
           endPos,
+        });
+        break;
+      }
+
+      case "predict-edit": {
+        this.dispatch({
+          type: "edit-prediction-msg",
+          id: this.editPredictionController.id,
+          msg: {
+            type: "trigger-prediction",
+          },
         });
         break;
       }

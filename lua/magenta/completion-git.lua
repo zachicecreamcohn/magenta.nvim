@@ -1,4 +1,5 @@
 local M = {}
+local text_utils = require('magenta.text-utils')
 
 local has_cmp, cmp = pcall(require, 'cmp')
 if not has_cmp then
@@ -46,7 +47,8 @@ M.get_git_status = function()
 
   -- Parse git status output
   if output then
-    for line in output:gmatch('[^\r\n]+') do
+    local lines = text_utils.split_lines(output)
+    for _, line in ipairs(lines) do
       if line and #line >= 3 then
         local staged_status = line:sub(1, 1)
         local unstaged_status = line:sub(2, 2)

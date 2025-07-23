@@ -15,6 +15,7 @@ import * as SpawnSubagent from "./spawn-subagent";
 import * as SpawnForeach from "./spawn-foreach";
 import * as WaitForSubagents from "./wait-for-subagents";
 import * as YieldToParent from "./yield-to-parent";
+import * as PredictEdit from "./predict-edit";
 import type { StreamingBlock } from "../providers/helpers";
 import { d, type VDOMNode } from "../tea/view";
 import type { StaticToolName } from "./tool-registry";
@@ -67,6 +68,8 @@ export function validateInput(
       return WaitForSubagents.validateInput(input);
     case "yield_to_parent":
       return YieldToParent.validateInput(input);
+    case "predict_edit":
+      return PredictEdit.validateInput(input);
     default:
       throw new Error(`Unexpected toolName: ${toolName as string}`);
   }
@@ -100,6 +103,7 @@ export function renderStreamdedTool(
     case "wait_for_subagents":
     case "yield_to_parent":
     case "spawn_foreach":
+    case "predict_edit":
       break;
     default:
       assertUnreachable(name);

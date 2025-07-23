@@ -15,6 +15,7 @@ import * as SpawnSubagent from "./spawn-subagent.ts";
 import * as SpawnForeach from "./spawn-foreach.ts";
 import * as WaitForSubagents from "./wait-for-subagents.ts";
 import * as YieldToParent from "./yield-to-parent.ts";
+import * as PredictEdit from "./predict-edit.ts";
 
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type Dispatch } from "../tea/tea.ts";
@@ -144,6 +145,12 @@ export type StaticToolMap = {
     msg: YieldToParent.Msg;
     spec: typeof YieldToParent.spec;
   };
+  predict_edit: {
+    controller: PredictEdit.PredictEditTool;
+    input: PredictEdit.Input;
+    msg: PredictEdit.Msg;
+    spec: typeof PredictEdit.spec;
+  };
 };
 
 export type StaticToolRequest = {
@@ -220,6 +227,7 @@ export class ToolManager {
     spawn_foreach: SpawnForeach.spec,
     yield_to_parent: YieldToParent.spec,
     wait_for_subagents: WaitForSubagents.spec,
+    predict_edit: PredictEdit.spec,
   };
 
   getToolSpecs(threadType: ThreadType): ProviderToolSpec[] {
@@ -614,6 +622,28 @@ export class ToolManager {
             );
 
             this.tools[staticRequest.id] = yieldToParentTool;
+            return;
+          }
+
+          case "predict_edit": {
+            const predictEditTool = new PredictEdit.PredictEditTool(
+              staticRequest,
+              msg.threadId,
+              msg.messageId,
+              {
+                myDispatch: (msg) =>
+                  this.myDispatch({
+                    type: "tool-msg",
+                    msg: {
+                      id: staticRequest.id,
+                      toolName: "predict_edit" as ToolName,
+                      msg: msg as unknown as ToolMsg,
+                    },
+                  }),
+              },
+            );
+
+            this.tools[staticRequest.id] = predictEditTool;
             return;
           }
 

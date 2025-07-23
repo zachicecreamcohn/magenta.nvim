@@ -1,0 +1,59 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`should track edits across multiple files 1`] = `
+[
+  {
+    "filePath": "file1.js",
+    "newText": "function hello() {
+  return 'universe';
+}",
+    "oldText": "function hello() {
+  return 'world';
+}",
+    "range": {
+      "end": {
+        "character": 0,
+        "line": 2,
+      },
+      "start": {
+        "character": 0,
+        "line": 0,
+      },
+    },
+  },
+  {
+    "filePath": "file1.js",
+    "newText": "function hello() {
+  return 'universe!';
+}",
+    "oldText": "function hello() {
+  return 'universe';
+}",
+    "range": {
+      "end": {
+        "character": 0,
+        "line": 2,
+      },
+      "start": {
+        "character": 0,
+        "line": 0,
+      },
+    },
+  },
+  {
+    "filePath": "file2.js",
+    "newText": "const greeting = 'hi';",
+    "oldText": "const greeting = 'hello';",
+    "range": {
+      "end": {
+        "character": 0,
+        "line": 0,
+      },
+      "start": {
+        "character": 0,
+        "line": 0,
+      },
+    },
+  },
+]
+`;

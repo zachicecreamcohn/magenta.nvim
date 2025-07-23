@@ -195,6 +195,7 @@ type MockForceToolUseRequest = {
   model: string;
   messages: Array<ProviderMessage>;
   spec: ProviderToolSpec;
+  systemPrompt?: string | undefined;
   defer: Defer<{
     toolRequest: Result<ToolRequest, { rawRequest: unknown }>;
     stopReason: StopReason;
@@ -214,7 +215,7 @@ export class MockProvider implements Provider {
     messages: Array<ProviderMessage>;
     tools: Array<ProviderToolSpec>;
     disableCaching?: boolean;
-    systemPrompt?: string;
+    systemPrompt?: string | undefined;
   }): unknown {
     return { messages: options.messages, tools: options.tools };
   }
@@ -236,13 +237,14 @@ export class MockProvider implements Provider {
     model: string;
     messages: Array<ProviderMessage>;
     spec: ProviderToolSpec;
-    systemPrompt?: string;
+    systemPrompt?: string | undefined;
   }): ProviderToolUseRequest {
-    const { model, messages, spec } = options;
+    const { model, messages, spec, systemPrompt } = options;
     const request: MockForceToolUseRequest = {
       model,
       messages,
       spec,
+      systemPrompt,
       defer: new Defer(),
     };
     this.forceToolUseRequests.push(request);
@@ -262,7 +264,7 @@ export class MockProvider implements Provider {
     messages: Array<ProviderMessage>;
     onStreamEvent: (event: ProviderStreamEvent) => void;
     tools: Array<ProviderToolSpec>;
-    systemPrompt?: string;
+    systemPrompt?: string | undefined;
     thinking?: {
       enabled: boolean;
       budgetTokens?: number;

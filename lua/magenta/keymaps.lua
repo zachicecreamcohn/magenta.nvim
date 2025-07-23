@@ -101,6 +101,13 @@ M.default_keymaps = function()
     ":Magenta new-thread<CR>",
     { silent = true, noremap = true, desc = "Create a new thread" }
   )
+
+  vim.keymap.set(
+    "n",
+    "<C-l>",
+    ":Magenta predict-edit<CR>",
+    { silent = true, noremap = true, desc = "Predict next edit" }
+  )
 end
 
 local mode_to_keymap = {

@@ -15,6 +15,7 @@ export const STATIC_TOOL_NAMES = [
   "spawn_foreach",
   "wait_for_subagents",
   "yield_to_parent",
+  "predict_edit",
 ] as const;
 
 export type StaticToolName = (typeof STATIC_TOOL_NAMES)[number];

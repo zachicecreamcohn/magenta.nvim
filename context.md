@@ -168,6 +168,76 @@ when doing integration-level testing, like user flows, use the `withDriver` help
 
 As of July 2025, tests are now run in parallel for improved performance. The test infrastructure has been updated to support concurrent test execution.
 
+## Test Environment Setup
+
+**Fixture Files & Directory Structure:**
+
+- Each test gets a fresh temporary directory in `/tmp/magenta-test/{testId}/`
+- Files from `node/test/fixtures/` are copied into this temp directory for each test
+- Available fixture files include `poem.txt` and others
+- Nvim runs in this temporary directory, so files can be safely mutated during tests
+- The temp directory is automatically cleaned up after each test
+
+**Test Pattern:**
+
+```typescript
+import { withDriver } from "../test/preamble";
+
+test("my test", async () => {
+  await withDriver({}, async (driver) => {
+    // Test code here - nvim runs in temp dir with fixture files
+  });
+});
+```
+
+## Available Mocks & Test Interactions
+
+**Mock Provider:**
+
+- `driver.mockAnthropic` - Pre-configured mock provider that captures all requests
+- `await driver.mockAnthropic.awaitPendingForceToolUseRequest()` - Wait for and capture forced tool use requests
+- `await driver.mockAnthropic.awaitPendingRequest()` - Wait for regular message requests
+- `await driver.mockAnthropic.respondToForceToolUse({...})` - Send mock responses
+- No need to manually mock providers - they're already set up in the test infrastructure
+
+**Driver Interactions (prefer these over internal API access):**
+
+- `await driver.editFile("poem.txt")` - Open fixture files
+- `await driver.command("normal! gg")` - Execute vim commands
+- `await driver.magenta.command("predict-edit")` - Execute magenta commands
+- Use real nvim interactions to trigger change tracking naturally
+
+**Testing Best Practices:**
+
+- **DO**: Use realistic nvim interactions (`driver.editFile()`, `driver.command()`)
+- **DON'T**: Reach into internal APIs (`driver.magenta.changeTracker.onTextDocumentDidChange()`)
+- **DO**: Let the system work naturally - make real edits and let change tracking happen
+- **DO**: Write integration tests that exercise the full user flow
+- **DON'T**: Mock internal components - use the provided driver and mock provider
+
+**Change Tracker Testing:**
+
+- **DO**: Use `driver.assertChangeTrackerHasEdits(count)` and `driver.assertChangeTrackerContains(changes)` instead of arbitrary timeouts
+- **DO**: Be aware that rapid edits may be batched into single changes by the tracker
+- **DO**: Use explicit assertions about what changes should be tracked rather than waiting fixed amounts of time
+- **DON'T**: Use `setTimeout()` or fixed delays when waiting for change tracking - use the assertion methods instead
+
+**Mock Provider Request Objects:**
+Force tool use requests captured by `awaitPendingForceToolUseRequest()` contain:
+
+- `request.spec` - The tool specification used
+- `request.model` - Which model was requested
+- `request.messages` - The messages array containing user/assistant conversation
+- `request.systemPrompt` - The system prompt used (if any)
+- `request.defer` - Promise resolution control
+
+**System Prompt vs User Messages:**
+When implementing AI features, maintain proper separation:
+
+- **System prompt**: General instructions about the agent's role and behavior ("You have to do your best to predict...")
+- **User messages**: Specific contextual data (buffer content, cursor position, recent changes)
+  This separation keeps the system prompt focused on behavior while allowing dynamic context in messages.
+
 # Type checks
 
 use `npx tsc --noEmit` to run type checking, from the project root. Once again, I remind you, you do not need to cd into any subdirectory.

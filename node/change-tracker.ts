@@ -1,8 +1,9 @@
-import type { AbsFilePath } from "./utils/files.ts";
+import type { AbsFilePath, RelFilePath, NvimCwd } from "./utils/files.ts";
+import { relativePath } from "./utils/files.ts";
 import type { Nvim } from "./nvim/nvim-node";
 
 export interface TextChange {
-  filePath: AbsFilePath;
+  filePath: RelFilePath;
   oldText: string;
   newText: string;
   range: {
@@ -18,11 +19,12 @@ export class ChangeTracker {
 
   constructor(
     private nvim: Nvim,
+    private cwd: NvimCwd,
     options: {
       maxChanges?: number;
     } = {},
   ) {
-    this.maxChanges = options.maxChanges ?? 100;
+    this.maxChanges = options.maxChanges ?? 5;
   }
 
   onTextDocumentDidChange(data: {
@@ -34,8 +36,12 @@ export class ChangeTracker {
       end: { line: number; character: number };
     };
   }): void {
+    console.log(`onTextDocumentDidChange ${data.filePath}`);
+    const absFilePath = data.filePath as AbsFilePath;
+    const relFilePath = relativePath(this.cwd, absFilePath);
+
     const change: TextChange = {
-      filePath: data.filePath as AbsFilePath,
+      filePath: relFilePath,
       oldText: data.oldText,
       newText: data.newText,
       range: data.range,
@@ -48,17 +54,13 @@ export class ChangeTracker {
     if (this.changes.length > this.maxChanges) {
       this.changes.shift();
     }
-
-    this.nvim.logger.debug(
-      `Tracked change in ${data.filePath}: "${data.oldText}" -> "${data.newText}"`,
-    );
   }
 
   getChanges(): TextChange[] {
     return [...this.changes];
   }
 
-  getChangesForFile(filePath: AbsFilePath): TextChange[] {
+  getChangesForFile(filePath: RelFilePath): TextChange[] {
     return this.changes.filter((change) => change.filePath === filePath);
   }
 

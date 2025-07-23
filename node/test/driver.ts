@@ -641,4 +641,16 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
       { timeout: 2000 },
     );
   }
+
+  async getVimMessages(): Promise<string> {
+    const messages = await this.nvim.call("nvim_exec2", [
+      "messages",
+      { output: true },
+    ]);
+    return (messages.output as string) || "";
+  }
+
+  async clearVimMessages(): Promise<void> {
+    await this.nvim.call("nvim_exec2", ["messages clear", {}]);
+  }
 }
