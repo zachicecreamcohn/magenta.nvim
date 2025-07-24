@@ -74,7 +74,10 @@ M.bridge = function(channelId)
   M.channel_id = channelId
 
   -- Initialize completion support
-  require('magenta.completion.source').setup()
+  local completion_source = require('magenta.completion.source')
+  if completion_source.setup then
+    completion_source.setup()
+  end
 
   vim.api.nvim_create_user_command(
     "Magenta",
