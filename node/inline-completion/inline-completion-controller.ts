@@ -1,11 +1,7 @@
 import type { Nvim } from "../nvim/nvim-node";
 import type { RootMsg } from "../root-msg";
 import type { Dispatch } from "../tea/tea";
-import type {
-  InlineCompletionMsg,
-  InlineCompletionState,
-  CacheEntry,
-} from "./types";
+import type { InlineCompletionMsg, InlineCompletionState } from "./types";
 import { getProvider } from "../providers/provider";
 import { getActiveProfile, type MagentaOptions } from "../options";
 import { assertUnreachable } from "../utils/assertUnreachable";
@@ -39,16 +35,16 @@ export class InlineCompletionController {
   private myUpdate(msg: InlineCompletionMsg): void {
     switch (msg.type) {
       case "trigger-completion":
-        this.triggerCompletion(msg.bufnr, msg.line, msg.col);
+        void this.triggerCompletion(msg.bufnr, msg.line, msg.col);
         return;
       case "accept-completion":
-        this.acceptCompletion(msg.bufnr);
+        void this.acceptCompletion(msg.bufnr);
         return;
       case "reject-completion":
         this.rejectCompletion(msg.bufnr);
         return;
       case "completion-received":
-        this.handleCompletionReceived(msg.bufnr, msg.completion);
+        void this.handleCompletionReceived(msg.bufnr, msg.completion);
         return;
       case "completion-error":
         this.handleCompletionError(msg.bufnr, msg.error);
@@ -88,8 +84,10 @@ export class InlineCompletionController {
         { output: true },
       ]);
 
-      const lines = JSON.parse((linesRes as any).output);
-      const currentLine = JSON.parse((currentLineRes as any).output);
+      const lines = JSON.parse(linesRes.output as string) as string[];
+      const currentLine = JSON.parse(
+        currentLineRes.output as string,
+      ) as string[];
 
       if (
         !Array.isArray(lines) ||
@@ -100,11 +98,11 @@ export class InlineCompletionController {
       }
 
       const context = lines.join("\n");
-      const prefix = currentLine[0].substring(0, col);
-      const suffix = currentLine[0].substring(col);
+      const prefix = (currentLine[0] || "").substring(0, col);
+      const suffix = (currentLine[0] || "").substring(col);
 
       // Get magenta context
-      const magentaContext = await this.getMagentaContext();
+      const magentaContext = this.getMagentaContext();
 
       // Check cache first (including magenta context in cache key)
       const cacheKey = this.getCacheKey(
@@ -146,7 +144,8 @@ export class InlineCompletionController {
         `echo json_encode(fnamemodify(bufname(${bufnr}), ':t'))`,
         { output: true },
       ]);
-      const filename = JSON.parse((filenameRes as any).output) || "";
+      const filename =
+        (JSON.parse(filenameRes.output as string) as string) || "";
       const language = this.detectLanguage(filename);
 
       // Create improved completion prompt
@@ -191,7 +190,7 @@ export class InlineCompletionController {
       });
 
       // Wait for completion
-      const result = await request.promise;
+      await request.promise;
 
       // Get the final accumulated text
       const finalState = this.state.get(bufnr);
@@ -224,7 +223,7 @@ export class InlineCompletionController {
           error.message.includes("cancelled")
         ) {
           // Request was cancelled, don't show error to user
-          this.cleanupCompletion(bufnr);
+          void this.cleanupCompletion(bufnr);
           return;
         } else if (
           error.message.includes("network") ||
@@ -263,13 +262,13 @@ export class InlineCompletionController {
         `echo json_encode(getbufvar(${bufnr}, '&buftype'))`,
         { output: true },
       ]);
-      const buftype = JSON.parse((buftypeRes as any).output);
+      const buftype = JSON.parse(buftypeRes.output as string) as string;
 
       const modifiableRes = await this.context.nvim.call("nvim_exec2", [
         `echo json_encode(getbufvar(${bufnr}, '&modifiable'))`,
         { output: true },
       ]);
-      const modifiable = JSON.parse((modifiableRes as any).output);
+      const modifiable = JSON.parse(modifiableRes.output as string) as boolean;
 
       // Don't enable completion in non-file buffers or non-modifiable buffers
       if (buftype !== "" || !modifiable) {
@@ -281,16 +280,21 @@ export class InlineCompletionController {
         `echo json_encode(win_findbuf(${bufnr}))`,
         { output: true },
       ]);
-      const windows = JSON.parse((windowsRes as any).output);
+      const windows = JSON.parse(windowsRes.output as string) as number[];
 
       // Check each window that displays this buffer for magenta display window variable
       for (const winId of windows) {
         try {
-          const magentaDisplayVarRes = await this.context.nvim.call("nvim_exec2", [
-            `echo json_encode(getwinvar(${winId}, 'magenta_display_window', v:null))`,
-            { output: true },
-          ]);
-          const magentaDisplayVar = JSON.parse((magentaDisplayVarRes as any).output);
+          const magentaDisplayVarRes = await this.context.nvim.call(
+            "nvim_exec2",
+            [
+              `echo json_encode(getwinvar(${winId}, 'magenta_display_window', v:null))`,
+              { output: true },
+            ],
+          );
+          const magentaDisplayVar = JSON.parse(
+            magentaDisplayVarRes.output as string,
+          ) as boolean | null;
 
           if (magentaDisplayVar === true) {
             return false; // This is a magenta display buffer, don't enable completion
@@ -324,7 +328,7 @@ export class InlineCompletionController {
         'echo json_encode(getpos("."))',
         { output: true },
       ]);
-      const cursor = JSON.parse((cursorRes as any).output);
+      const cursor = JSON.parse(cursorRes.output as string) as number[];
       const line = cursor[1] - 1; // Convert to 0-based
       const col = cursor[2] - 1;
 
@@ -365,7 +369,7 @@ export class InlineCompletionController {
 
     // For now, we silently fail inline completions to avoid disrupting the user's flow
     // In the future, we could show a subtle indicator in the status line
-    this.cleanupCompletion(bufnr);
+    void this.cleanupCompletion(bufnr);
   }
 
   private async acceptCompletion(bufnr: number): Promise<void> {
@@ -392,15 +396,15 @@ export class InlineCompletionController {
         {},
       ]);
 
-      this.cleanupCompletion(bufnr);
+      void this.cleanupCompletion(bufnr);
     } catch (error) {
       this.context.nvim.logger.error("Error accepting completion:", error);
-      this.cleanupCompletion(bufnr);
+      void this.cleanupCompletion(bufnr);
     }
   }
 
   private rejectCompletion(bufnr: number): void {
-    this.cleanupCompletion(bufnr);
+    void this.cleanupCompletion(bufnr);
   }
 
   private cancelCompletion(bufnr: number): void {
@@ -411,7 +415,7 @@ export class InlineCompletionController {
     if (state?.debounceTimer) {
       clearTimeout(state.debounceTimer);
     }
-    this.cleanupCompletion(bufnr);
+    void this.cleanupCompletion(bufnr);
   }
 
   private async cleanupCompletion(bufnr: number): Promise<void> {
@@ -423,7 +427,7 @@ export class InlineCompletionController {
           await this.getOrCreateNamespace(),
           state.suggestion.extmarkId,
         ]);
-      } catch (error) {
+      } catch {
         // Ignore errors when cleaning up extmarks
       }
     }
@@ -438,7 +442,7 @@ export class InlineCompletionController {
       "magenta_inline_completion",
     ]);
   }
-  private async getCompletionHighlightGroup(bufnr: number): Promise<string> {
+  private async getCompletionHighlightGroup(_bufnr: number): Promise<string> {
     try {
       // First, ensure our custom highlight group exists
       await this.context.nvim.call("nvim_exec2", [
@@ -540,13 +544,13 @@ export class InlineCompletionController {
         'echo bufnr("%")',
         { output: true },
       ]);
-      const bufnr = parseInt((bufnrRes as any).output);
+      const bufnr = parseInt(bufnrRes.output as string);
 
       const cursorRes = await this.context.nvim.call("nvim_exec2", [
         'echo json_encode(getpos("."))',
         { output: true },
       ]);
-      const cursor = JSON.parse((cursorRes as any).output);
+      const cursor = JSON.parse(cursorRes.output as string) as number[];
       const line = cursor[1];
       const col = cursor[2] - 1; // Convert to 0-based for our internal use
 
@@ -570,7 +574,7 @@ export class InlineCompletionController {
         'echo bufnr("%")',
         { output: true },
       ]);
-      const bufnr = parseInt((bufnrRes as any).output);
+      const bufnr = parseInt(bufnrRes.output as string);
 
       this.myDispatch({
         type: "accept-completion",
@@ -587,7 +591,7 @@ export class InlineCompletionController {
         'echo bufnr("%")',
         { output: true },
       ]);
-      const bufnr = parseInt((bufnrRes as any).output);
+      const bufnr = parseInt(bufnrRes.output as string);
 
       this.myDispatch({
         type: "reject-completion",
@@ -602,7 +606,7 @@ export class InlineCompletionController {
     bufnr: number,
     line: number,
     col: number,
-    text: string,
+    _text: string,
   ): void {
     if (!this.context.options.inlineCompletion?.autoTrigger) {
       return;
@@ -623,7 +627,7 @@ export class InlineCompletionController {
     if (state.suggestion) {
       const { line: sugLine, col: sugCol } = state.suggestion;
       if (line !== sugLine || col < sugCol) {
-        this.cleanupCompletion(bufnr);
+        void this.cleanupCompletion(bufnr);
       }
     }
   }
@@ -709,14 +713,14 @@ export class InlineCompletionController {
           `echo json_encode(getbufline(${bufnr}, ${line}, ${line}))`,
           { output: true },
         ]);
-        const lineArray = JSON.parse((lineRes as any).output);
+        const lineArray = JSON.parse(lineRes.output as string) as string[];
         return lineArray[0] || "";
       } catch {
         return "";
       }
     };
 
-    getCurrentLineText()
+    void getCurrentLineText()
       .then((currentLineText) => {
         const prefix = currentLineText.substring(0, col);
         const isImmediateTrigger =
@@ -778,7 +782,7 @@ export class InlineCompletionController {
         'echo bufnr("%")',
         { output: true },
       ]);
-      const currentBuf = parseInt((currentBufRes as any).output);
+      const currentBuf = parseInt(currentBufRes.output as string);
 
       if (currentBuf !== bufnr) {
         return null;
@@ -788,7 +792,7 @@ export class InlineCompletionController {
         'echo json_encode(getpos("."))',
         { output: true },
       ]);
-      const cursor = JSON.parse((cursorRes as any).output);
+      const cursor = JSON.parse(cursorRes.output as string) as number[];
       return {
         line: cursor[1],
         col: cursor[2] - 1, // Convert to 0-based
@@ -876,7 +880,7 @@ export class InlineCompletionController {
     return languageMap[ext] || "code";
   }
 
-  private async getMagentaContext(): Promise<string> {
+  private getMagentaContext(): string {
     try {
       const activeThread = this.context.chat.getActiveThread();
       if (!activeThread) {
@@ -900,7 +904,7 @@ export class InlineCompletionController {
         .map((msg) => {
           const textContent = msg.content
             .filter((content) => content.type === "text")
-            .map((content) => (content as any).text)
+            .map((content) => (content as { type: "text"; text: string }).text)
             .join(" ")
             .trim();
 
@@ -1030,8 +1034,8 @@ Instructions:
 
   private analyzeCompletionType(
     prefix: string,
-    suffix: string,
-    context: string,
+    _suffix: string,
+    _context: string,
   ): string {
     const trimmedPrefix = prefix.trim();
 
