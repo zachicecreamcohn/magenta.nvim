@@ -50,6 +50,8 @@ I sometimes write about AI, neovim and magenta specifically:
 
 **enhanced input commands** - New `@diag`/`@diagnostics`, `@buf`/`@buffers`, and `@qf`/`@quickfix` commands add current LSP diagnostics, buffer lists, and quickfix entries in your prompts, making it easier to work with current editor state.
 
+**copilot-style inline completion** - AI-powered inline completions that appear as ghost text in your editor. Features intelligent language-aware prompting, smart trigger conditions, manual triggering via `:Magenta inline-complete`, automatic triggering after typing trigger characters or pausing, smart caching, and intuitive keybindings with `<Tab>` to accept and `<C-e>` to reject. Uses your provider's fast model for snappy responses and includes syntax highlighting for completion previews. Works seamlessly in regular code files and magenta input buffers while staying out of the way in chat display areas.
+
 **spawn_foreach tool** - enables spawning multiple sub-agents in parallel to process arrays of elements, dramatically speeding up bulk operations like updating multiple files or fixing multiple locations. Combined with the existing `find_references` tool, and the new `@qf` command, this enables doing quick refactors across the codebase.
 
 **fast agent type** - All sub-agent tools now support a "fast" agent type that uses the fast model (like Haiku) for quick transformations that don't require the full capabilities of the primary model. Perfect for simple refactoring tasks, batch operations, and lightweight processing.
@@ -221,6 +223,12 @@ require('magenta').setup({
   -- glob patterns for files that should be auto-approved for getFile tool
   -- (bypasses user approval for hidden/gitignored files matching these patterns)
   getFileAutoAllowGlobs = { "node_modules/*" }, -- default includes node_modules
+  -- inline completion configuration
+  inlineCompletion = {
+    enabled = false,        -- enable inline completion feature
+    autoTrigger = false,    -- auto-trigger completions after typing
+    debounceMs = 2000,      -- delay before auto-triggering (milliseconds)
+  },
   -- keymaps for the sidebar input buffer
   sidebarKeymaps = {
     normal = {
@@ -538,6 +546,13 @@ vim.keymap.set(
   Actions.pick_provider,
   { noremap = true, silent = true, desc = "Select provider and model" }
 )
+
+-- Inline completion (when enabled)
+-- Manual trigger: :Magenta inline-complete
+-- Auto keybindings are set up when inlineCompletion.enabled = true:
+-- <Tab> in insert mode: Accept completion (with smart fallback to normal tab)
+-- <C-y> in insert mode: Accept completion (alternative)
+-- <Esc> in insert mode: Reject completion and exit insert mode
 ```
 
 </details>
@@ -648,6 +663,57 @@ You can prefix your inline edit prompts with `@fast` to use the fast model inste
 ```
 @fast Convert this function to use arrow syntax
 ```
+
+### Inline Completion
+
+Magenta provides AI-powered inline completions that appear as ghost text in your editor, similar to GitHub Copilot. The feature uses your provider's fast model for responsive suggestions based on your current code context.
+
+#### Configuration
+
+Enable inline completion in your setup:
+
+```lua
+require('magenta').setup({
+  -- your existing config...
+  inlineCompletion = {
+    enabled = true,        -- Turn on the feature
+    autoTrigger = false,   -- Start with manual-only (recommended)
+    debounceMs = 2000,     -- 2 second delay for auto-trigger
+  }
+})
+```
+
+#### Usage
+
+**Manual completion:**
+- Position your cursor where you want a completion
+- Run `:Magenta inline-complete` in normal mode
+- Ghost text appears in gray italic after your cursor
+
+**Auto-trigger (when enabled):**
+- Completions appear automatically after any text change with configurable delay
+- Immediate completion (150ms) for certain trigger characters like `.`, `::`, `->`, `=>`, `(`, `[`
+- Normal delay for other changes (default 2000ms, configurable)
+- Continue typing to cancel the previous request
+
+**Accepting/Rejecting completions:**
+- **Primary keybinding**: `<Tab>` to accept (smart - only when completion is active, otherwise normal tab)
+- **Alternative keybinding**: `<C-y>` to accept (for compatibility)
+- **Reject**: `<Esc>` rejects completion and exits insert mode (automatic)
+
+#### Features
+
+- **Intelligent prompting**: Automatically detects programming language (40+ languages supported), analyzes completion context (method calls, property access, function definitions, etc.), and provides language-specific guidance
+- **Smart triggers**: Context-aware auto-triggering based on programming patterns like property access (`.`), scope resolution (`::`), arrow operators (`->`, `=>`), function calls, and language keywords
+- **Adaptive delays**: Immediate completion for certain triggers like `.` (150ms), longer delays for general typing (configurable)
+- **Smart context**: Uses 20 lines before/after cursor for relevant suggestions with proper indentation detection
+- **Caching**: Repeated requests at the same position are cached for 5 minutes
+- **Syntax highlighting**: Completion text is highlighted with a subtle gray italic style that respects your colorscheme
+- **Fast model**: Uses your provider's fast model (like Haiku) for snappy responses
+- **Error handling**: Graceful handling of network issues, rate limits, and API errors
+- **Smart buffer detection**: Automatically enabled in regular code files and magenta input buffers, while respectfully staying disabled in chat display areas
+
+The feature integrates seamlessly with your existing magenta configuration and provider setup. No additional API keys or services required.
 
 ### display buffer
 
