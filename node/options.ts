@@ -87,6 +87,11 @@ export type MagentaOptions = {
   maxConcurrentSubagents: number;
   mcpServers: { [serverName: ServerName]: MCPServerConfig };
   getFileAutoAllowGlobs: string[];
+  inlineCompletion: {
+    enabled: boolean;
+    autoTrigger: boolean;
+    debounceMs: number;
+  };
 };
 
 // Reusable parsing helpers
@@ -465,6 +470,11 @@ export function parseOptions(
     autoContext: [],
     mcpServers: {},
     getFileAutoAllowGlobs: [],
+    inlineCompletion: {
+      enabled: false,
+      autoTrigger: false,
+      debounceMs: 2000,
+    },
   };
 
   if (typeof inputOptions == "object" && inputOptions != null) {
@@ -516,6 +526,37 @@ export function parseOptions(
 
     // Parse MCP servers (throw errors for invalid MCP servers in main config)
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
+
+    // Parse inline completion
+    if ("inlineCompletion" in inputOptionsObj) {
+      const inlineCompletionInput = inputOptionsObj["inlineCompletion"];
+      if (
+        typeof inlineCompletionInput === "object" &&
+        inlineCompletionInput !== null
+      ) {
+        const ic = inlineCompletionInput as Record<string, unknown>;
+
+        if (typeof ic.enabled === "boolean") {
+          options.inlineCompletion.enabled = ic.enabled;
+        } else if ("enabled" in ic) {
+          logger.warn("inlineCompletion.enabled must be a boolean");
+        }
+
+        if (typeof ic.autoTrigger === "boolean") {
+          options.inlineCompletion.autoTrigger = ic.autoTrigger;
+        } else if ("autoTrigger" in ic) {
+          logger.warn("inlineCompletion.autoTrigger must be a boolean");
+        }
+
+        if (typeof ic.debounceMs === "number" && ic.debounceMs > 0) {
+          options.inlineCompletion.debounceMs = ic.debounceMs;
+        } else if ("debounceMs" in ic) {
+          logger.warn("inlineCompletion.debounceMs must be a positive number");
+        }
+      } else {
+        logger.warn("inlineCompletion must be an object");
+      }
+    }
   }
 
   return options;
@@ -605,6 +646,42 @@ export function parseProjectOptions(
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
   }
 
+  // Parse inline completion
+  if ("inlineCompletion" in inputOptionsObj) {
+    const inlineCompletionInput = inputOptionsObj["inlineCompletion"];
+    if (
+      typeof inlineCompletionInput === "object" &&
+      inlineCompletionInput !== null
+    ) {
+      const ic = inlineCompletionInput as Record<string, unknown>;
+      options.inlineCompletion = {
+        enabled: false,
+        autoTrigger: false,
+        debounceMs: 2000,
+      };
+
+      if (typeof ic.enabled === "boolean") {
+        options.inlineCompletion.enabled = ic.enabled;
+      } else if ("enabled" in ic) {
+        logger.warn("inlineCompletion.enabled must be a boolean");
+      }
+
+      if (typeof ic.autoTrigger === "boolean") {
+        options.inlineCompletion.autoTrigger = ic.autoTrigger;
+      } else if ("autoTrigger" in ic) {
+        logger.warn("inlineCompletion.autoTrigger must be a boolean");
+      }
+
+      if (typeof ic.debounceMs === "number" && ic.debounceMs > 0) {
+        options.inlineCompletion.debounceMs = ic.debounceMs;
+      } else if ("debounceMs" in ic) {
+        logger.warn("inlineCompletion.debounceMs must be a positive number");
+      }
+    } else {
+      logger.warn("inlineCompletion must be an object");
+    }
+  }
+
   return options;
 }
 
@@ -674,6 +751,13 @@ export function mergeOptions(
     merged.mcpServers = {
       ...baseOptions.mcpServers,
       ...projectSettings.mcpServers,
+    };
+  }
+
+  if (projectSettings.inlineCompletion) {
+    merged.inlineCompletion = {
+      ...baseOptions.inlineCompletion,
+      ...projectSettings.inlineCompletion,
     };
   }
 

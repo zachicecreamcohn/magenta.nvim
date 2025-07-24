@@ -61,6 +61,12 @@ local normal_commands = {
   "toggle",
   "new-thread",
   "threads-overview",
+  "inline-complete",
+  "inline-complete-toggle",
+  "inline-accept",
+  "inline-reject",
+  "inline-buffer-changed",
+  "inline-cursor-moved",
 }
 
 local visual_commands = {
@@ -75,6 +81,11 @@ M.bridge = function(channelId)
 
   -- Initialize completion support
   require('magenta.completion.source').setup()
+  
+  -- Initialize inline completion
+  local inline_completion = require('magenta.inline-completion')
+  inline_completion.setup_keybindings(Options.options)
+  inline_completion.setup_auto_trigger(Options.options)
 
   vim.api.nvim_create_user_command(
     "Magenta",

@@ -74,6 +74,11 @@ local defaults = {
   maxConcurrentSubagents = 3,
   getFileAutoAllowGlobs = {
     "node_modules/**/*"
+  },
+  inlineCompletion = {
+    enabled = false,
+    autoTrigger = false,
+    debounceMs = 2000,
   }
 }
 

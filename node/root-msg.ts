@@ -2,6 +2,7 @@ import type { ThreadId } from "./chat/types";
 import type { ThreadMsg } from "./chat/thread";
 import type { ChatMsg } from "./chat/chat";
 import type { Input as CompactThreadInput } from "./tools/compact-thread";
+import type { InlineCompletionMsg } from "./inline-completion/types";
 
 export type SidebarMsg =
   | {
@@ -26,4 +27,8 @@ export type RootMsg =
       type: "compact-thread";
       threadId: ThreadId;
       compactRequest: CompactThreadInput;
+    }
+  | {
+      type: "inline-completion-msg";
+      msg: InlineCompletionMsg;
     };

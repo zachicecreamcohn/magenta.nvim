@@ -18,6 +18,7 @@ import {
 import { InlineEditManager } from "./inline-edit/inline-edit-app.ts";
 import type { RootMsg, SidebarMsg } from "./root-msg.ts";
 import { Chat } from "./chat/chat.ts";
+import { InlineCompletionController } from "./inline-completion/inline-completion-controller.ts";
 import type { Dispatch } from "./tea/tea.ts";
 import { BufferTracker } from "./buffer-tracker.ts";
 import {
@@ -42,6 +43,7 @@ export class Magenta {
   public chatApp: TEA.App<Chat>;
   public mountedChatApp: TEA.MountedApp | undefined;
   public inlineEditManager: InlineEditManager;
+  public inlineCompletionController: InlineCompletionController;
   public chat: Chat;
   public dispatch: Dispatch<RootMsg>;
   public bufferTracker: BufferTracker;
@@ -57,6 +59,7 @@ export class Magenta {
     this.dispatch = (msg: RootMsg) => {
       try {
         this.chat.update(msg);
+        this.inlineCompletionController.update(msg);
 
         if (msg.type == "sidebar-msg") {
           this.handleSidebarMsg(msg.msg);
@@ -101,6 +104,12 @@ export class Magenta {
       cwd: this.cwd,
       options,
       getMessages: () => this.chat.getMessages(),
+    });
+
+    this.inlineCompletionController = new InlineCompletionController({
+      dispatch: this.dispatch,
+      nvim: this.nvim,
+      options: this.options,
     });
   }
 
@@ -444,6 +453,97 @@ ${lines.join("\n")}
         break;
       }
 
+      case "inline-complete": {
+        await this.inlineCompletionController.triggerManualCompletion();
+        break;
+      }
+
+      case "inline-accept": {
+        await this.inlineCompletionController.acceptCurrentCompletion();
+        break;
+      }
+
+      case "inline-reject": {
+        await this.inlineCompletionController.rejectCurrentCompletion();
+        break;
+      }
+
+      case "inline-buffer-changed": {
+        if (rest.length < 4) {
+          this.nvim.logger.error(
+            `Expected bufnr, line, col, text arguments for inline-buffer-changed`,
+          );
+          return;
+        }
+
+        const bufnr = Number.parseInt(rest[0]);
+        const line = Number.parseInt(rest[1]);
+        const col = Number.parseInt(rest[2]);
+        const text = rest.slice(3).join(" ");
+
+        this.dispatch({
+          type: "inline-completion-msg",
+          msg: {
+            type: "buffer-changed",
+            bufnr,
+            line,
+            col,
+            text,
+          },
+        });
+        break;
+      }
+
+      case "inline-cursor-moved": {
+        if (rest.length < 3) {
+          this.nvim.logger.error(
+            `Expected bufnr, line, col arguments for inline-cursor-moved`,
+          );
+          return;
+        }
+
+        const bufnr = Number.parseInt(rest[0]);
+        const line = Number.parseInt(rest[1]);
+        const col = Number.parseInt(rest[2]);
+
+        this.dispatch({
+          type: "inline-completion-msg",
+          msg: {
+            type: "cursor-moved",
+            bufnr,
+            line,
+            col,
+          },
+        });
+        break;
+      }
+
+      case "inline-complete-toggle": {
+        // Toggle the autoTrigger setting
+        this.options.inlineCompletion.autoTrigger =
+          !this.options.inlineCompletion.autoTrigger;
+
+        // Echo the current state
+        const state = this.options.inlineCompletion.autoTrigger ? "on" : "off";
+        await this.nvim.call("nvim_notify", [
+          `Inline completion ${state}`,
+          1, // info level
+          {},
+        ]);
+
+        // Update the inline completion controller with new settings
+        this.inlineCompletionController.updateAutoTrigger(
+          this.options.inlineCompletion.autoTrigger,
+        );
+
+        // Update the Lua side auto-trigger settings
+        await this.nvim.call("nvim_exec_lua", [
+          `require('magenta.inline-completion').update_auto_trigger(${this.options.inlineCompletion.autoTrigger})`,
+          [],
+        ]);
+        break;
+      }
+
       default:
         this.nvim.logger.error(`Unrecognized command ${command}\n`);
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
@@ -511,6 +611,7 @@ ${lines.join("\n")}
         `Error destroying inline edit manager: ${e instanceof Error ? e.message + "\n" + e.stack : JSON.stringify(e)}`,
       );
     });
+    this.inlineCompletionController.destroy();
   }
 
   static async start(nvim: Nvim) {
