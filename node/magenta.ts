@@ -110,6 +110,7 @@ export class Magenta {
       dispatch: this.dispatch,
       nvim: this.nvim,
       options: this.options,
+      chat: this.chat,
     });
   }
 

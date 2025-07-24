@@ -3,7 +3,21 @@ local M = {}
 M.ns_id = vim.api.nvim_create_namespace("magenta_inline_completion")
 
 local function should_enable_completion(bufnr)
-	return vim.bo[bufnr].buftype == "" and vim.bo[bufnr].modifiable
+	-- Check basic buffer properties
+	if vim.bo[bufnr].buftype ~= "" or not vim.bo[bufnr].modifiable then
+		return false
+	end
+
+	-- Check if this buffer is displayed in a magenta display window (but allow input buffer)
+	local windows = vim.fn.win_findbuf(bufnr)
+	for _, winid in ipairs(windows) do
+		local magenta_display_var = vim.fn.getwinvar(winid, "magenta_display_window", vim.NIL)
+		if magenta_display_var == true then
+			return false -- This is a magenta display buffer, don't enable completion
+		end
+	end
+
+	return true
 end
 
 M.setup_highlight_groups = function()

@@ -9,6 +9,7 @@ import type {
 import { getProvider } from "../providers/provider";
 import { getActiveProfile, type MagentaOptions } from "../options";
 import { assertUnreachable } from "../utils/assertUnreachable";
+import type { Chat } from "../chat/chat";
 
 export class InlineCompletionController {
   private state: Map<number, InlineCompletionState> = new Map();
@@ -19,6 +20,7 @@ export class InlineCompletionController {
       dispatch: Dispatch<RootMsg>;
       nvim: Nvim;
       options: MagentaOptions;
+      chat: Chat;
     },
   ) {
     this.myDispatch = (msg) =>
@@ -101,8 +103,18 @@ export class InlineCompletionController {
       const prefix = currentLine[0].substring(0, col);
       const suffix = currentLine[0].substring(col);
 
-      // Check cache first
-      const cacheKey = this.getCacheKey(bufnr, line, col, prefix, suffix);
+      // Get magenta context
+      const magentaContext = await this.getMagentaContext();
+
+      // Check cache first (including magenta context in cache key)
+      const cacheKey = this.getCacheKey(
+        bufnr,
+        line,
+        col,
+        prefix,
+        suffix,
+        magentaContext,
+      );
       const cached = this.getCachedCompletion(bufnr, cacheKey);
       if (cached) {
         this.myDispatch({
@@ -144,6 +156,7 @@ export class InlineCompletionController {
         suffix,
         language,
         filename,
+        magentaContext,
       );
 
       // Initialize state for accumulating text
@@ -245,22 +258,55 @@ export class InlineCompletionController {
 
   private async shouldEnableCompletion(bufnr: number): Promise<boolean> {
     try {
-      // Simple check: only enable for normal file buffers
+      // Check basic buffer properties
       const buftypeRes = await this.context.nvim.call("nvim_exec2", [
         `echo json_encode(getbufvar(${bufnr}, '&buftype'))`,
         { output: true },
       ]);
       const buftype = JSON.parse((buftypeRes as any).output);
-      
+
       const modifiableRes = await this.context.nvim.call("nvim_exec2", [
         `echo json_encode(getbufvar(${bufnr}, '&modifiable'))`,
         { output: true },
       ]);
       const modifiable = JSON.parse((modifiableRes as any).output);
 
-      return buftype === "" && modifiable;
+      // Don't enable completion in non-file buffers or non-modifiable buffers
+      if (buftype !== "" || !modifiable) {
+        return false;
+      }
+
+      // Check if this is a magenta display buffer (but allow input buffer)
+      const windowsRes = await this.context.nvim.call("nvim_exec2", [
+        `echo json_encode(win_findbuf(${bufnr}))`,
+        { output: true },
+      ]);
+      const windows = JSON.parse((windowsRes as any).output);
+
+      // Check each window that displays this buffer for magenta display window variable
+      for (const winId of windows) {
+        try {
+          const magentaDisplayVarRes = await this.context.nvim.call("nvim_exec2", [
+            `echo json_encode(getwinvar(${winId}, 'magenta_display_window', v:null))`,
+            { output: true },
+          ]);
+          const magentaDisplayVar = JSON.parse((magentaDisplayVarRes as any).output);
+
+          if (magentaDisplayVar === true) {
+            return false; // This is a magenta display buffer, don't enable completion
+          }
+        } catch {
+          // Ignore errors when checking individual windows
+          continue;
+        }
+      }
+
+      return true;
     } catch (error) {
-      this.context.nvim.logger.error("Error checking buffer eligibility:", error);
+      this.context.nvim.logger.error(
+        "Error checking buffer eligibility:",
+        error,
+      );
       return false;
     }
   }
@@ -426,8 +472,13 @@ export class InlineCompletionController {
     col: number,
     prefix: string,
     suffix: string,
+    magentaContext?: string,
   ): string {
-    return `${bufnr}:${line}:${col}:${prefix}:${suffix}`;
+    // Create a short hash of magenta context to keep cache key manageable
+    const contextHash = magentaContext
+      ? Buffer.from(magentaContext).toString("base64").substring(0, 8)
+      : "none";
+    return `${bufnr}:${line}:${col}:${prefix}:${suffix}:${contextHash}`;
   }
 
   private getCachedCompletion(
@@ -750,7 +801,7 @@ export class InlineCompletionController {
   public updateAutoTrigger(enabled: boolean): void {
     // Update the options
     this.context.options.inlineCompletion.autoTrigger = enabled;
-    
+
     // If auto-trigger is being disabled, cancel all active completions
     if (!enabled) {
       for (const [bufnr] of this.state) {
@@ -825,12 +876,84 @@ export class InlineCompletionController {
     return languageMap[ext] || "code";
   }
 
+  private async getMagentaContext(): Promise<string> {
+    try {
+      const activeThread = this.context.chat.getActiveThread();
+      if (!activeThread) {
+        return "";
+      }
+
+      // Get thread title for high-level context
+      const threadTitle = activeThread.state.title;
+
+      // Get recent relevant messages (last 3 messages, excluding tool results)
+      const messages = activeThread.getMessages();
+      const recentMessages = messages
+        .slice(-6) // Last 6 messages (3 user + 3 assistant pairs)
+        .filter((msg) => {
+          // Only include text content, exclude tool results and very short messages
+          return msg.content.some(
+            (content) =>
+              content.type === "text" && content.text.trim().length > 10,
+          );
+        })
+        .map((msg) => {
+          const textContent = msg.content
+            .filter((content) => content.type === "text")
+            .map((content) => (content as any).text)
+            .join(" ")
+            .trim();
+
+          // Truncate very long messages
+          const truncated =
+            textContent.length > 200
+              ? textContent.substring(0, 197) + "..."
+              : textContent;
+
+          return `${msg.role}: ${truncated}`;
+        });
+
+      // Get context files summary (just file names and types, not full content)
+      const contextFiles = Object.keys(activeThread.contextManager.files)
+        .slice(0, 10) // Limit to prevent prompt bloat
+        .map((filePath) => {
+          const file =
+            activeThread.contextManager.files[
+              filePath as keyof typeof activeThread.contextManager.files
+            ];
+          return `- ${filePath} (${file.fileTypeInfo.category})`;
+        });
+
+      // Build compact context string
+      let magentaContext = "";
+
+      if (threadTitle) {
+        magentaContext += `# Current Thread: ${threadTitle}\n\n`;
+      }
+
+      if (contextFiles.length > 0) {
+        magentaContext += `# Context Files:\n${contextFiles.join("\n")}\n\n`;
+      }
+
+      if (recentMessages.length > 0) {
+        magentaContext += `# Recent Discussion:\n${recentMessages.join("\n")}\n\n`;
+      }
+
+      return magentaContext.trim();
+    } catch (error) {
+      // Graceful degradation - don't break completion if magenta context fails
+      this.context.nvim.logger.warn("Failed to get magenta context:", error);
+      return "";
+    }
+  }
+
   private createCompletionPrompt(
     context: string,
     prefix: string,
     suffix: string,
     language: string,
     filename: string,
+    magentaContext?: string,
   ): string {
     // Analyze the context to provide better completion hints
     const completionType = this.analyzeCompletionType(prefix, suffix, context);
@@ -840,7 +963,17 @@ export class InlineCompletionController {
 
 File: ${filename}
 Language: ${language}
-Completion Type: ${completionType}
+Completion Type: ${completionType}`;
+
+    // Add magenta context if available
+    if (magentaContext && magentaContext.trim().length > 0) {
+      prompt += `
+
+## Project Context from Current Conversation:
+${magentaContext}`;
+    }
+
+    prompt += `
 
 Context (surrounding code):
 \`\`\`${language.toLowerCase()}
@@ -855,7 +988,7 @@ ${prefix}|${suffix}
 Instructions:
 - Provide ONLY the text that should be inserted at the cursor position (marked with |)
 - Match the existing code style, indentation, and naming conventions
-- Consider the context and provide the most likely completion
+- Consider both the immediate code context and the broader project context
 - Do not include explanations, comments, or surrounding code
 - Maintain proper ${language} syntax and idioms`;
 
