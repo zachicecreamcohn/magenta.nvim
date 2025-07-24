@@ -68,6 +68,11 @@ export class InlineCompletionController {
     col: number,
   ): Promise<void> {
     try {
+      // Check if this buffer should have inline completion
+      if (!(await this.shouldEnableCompletion(bufnr))) {
+        return;
+      }
+
       // Cancel any existing completion for this buffer
       this.cancelCompletion(bufnr);
 
@@ -235,6 +240,28 @@ export class InlineCompletionController {
         bufnr,
         error: errorMessage,
       });
+    }
+  }
+
+  private async shouldEnableCompletion(bufnr: number): Promise<boolean> {
+    try {
+      // Simple check: only enable for normal file buffers
+      const buftypeRes = await this.context.nvim.call("nvim_exec2", [
+        `echo json_encode(getbufvar(${bufnr}, '&buftype'))`,
+        { output: true },
+      ]);
+      const buftype = JSON.parse((buftypeRes as any).output);
+      
+      const modifiableRes = await this.context.nvim.call("nvim_exec2", [
+        `echo json_encode(getbufvar(${bufnr}, '&modifiable'))`,
+        { output: true },
+      ]);
+      const modifiable = JSON.parse((modifiableRes as any).output);
+
+      return buftype === "" && modifiable;
+    } catch (error) {
+      this.context.nvim.logger.error("Error checking buffer eligibility:", error);
+      return false;
     }
   }
 
