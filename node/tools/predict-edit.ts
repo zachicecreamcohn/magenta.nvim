@@ -141,12 +141,14 @@ export const spec: ProviderToolSpec = {
     properties: {
       find: {
         type: "string",
-        description:
-          "The text to find and replace within the captured context window.",
+        description: `\`find\` identifies the text you want to replace.
+This should be the complete text to replace, exactly as it appears in the provided context, including indentation.
+Regular expressions are not supported.`,
       },
       replace: {
         type: "string",
-        description: "The replacement text for the found text.",
+        description: `This will replace the find text.
+This MUST be the complete and exact replacement text. Make sure to match braces and indentation.`,
       },
     },
     required: ["find", "replace"],

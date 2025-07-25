@@ -40,7 +40,6 @@ test("prediction after making edits", async () => {
 
     // Verify the request uses the predict_edit tool
     expect(request.spec.name).toBe("predict_edit");
-    expect(request.spec.description).toContain("Predicts the user's next edit");
 
     // Verify the request is for the fast model
     expect(request.model).toBe("claude-3-5-haiku-latest");
@@ -49,11 +48,6 @@ test("prediction after making edits", async () => {
 
     // Verify the system prompt contains general instructions
     expect(request.systemPrompt).toBeDefined();
-    const systemPrompt = request.systemPrompt!;
-    expect(systemPrompt.toLowerCase()).toContain(
-      "predict the user's next edit",
-    );
-    expect(systemPrompt).not.toContain("│"); // Specific content should not be in system prompt
 
     // Verify the user message contains the specific context
     expect(request.messages).toHaveLength(1);
@@ -815,5 +809,186 @@ database: {
     );
     expect(finalContent).not.toContain("port: 420");
     expect(finalContent).not.toContain("cache: { enabled: true, ttl: 300 }");
+  });
+});
+
+test("prediction selects appropriate match when multiple matches exist", async () => {
+  await withDriver({}, async (driver) => {
+    // Create a file with multiple instances of the same text
+    const repeatedContent = `\
+function test() {
+  // First instance
+  const text = "replace me";
+  console.log(text);
+
+  // Second instance
+  const anotherVar = "replace me";
+  console.log(anotherVar);
+
+  // Third instance
+  return "replace me";
+}`;
+
+    // Write the file with repeated text
+    const testFilePath = path.join(driver.magenta.cwd, "repeated-text.js");
+    await fs.writeFile(testFilePath, repeatedContent);
+
+    // Open the file
+    await driver.command(`edit ${testFilePath}`);
+    const buffer = await getCurrentBuffer(driver.nvim);
+
+    // Test case 1: Cursor before first instance - should select first instance
+    await driver.command("normal! 2G"); // Position at line 2 (before first instance)
+    await driver.command("normal! $"); // End of line
+
+    await driver.magenta.command("predict-edit");
+    await driver.awaitPredictionControllerState("awaiting-agent-reply");
+
+    await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+    await driver.mockAnthropic.respondToForceToolUse({
+      stopReason: "end_turn",
+      toolRequest: {
+        status: "ok",
+        value: {
+          id: "id" as ToolRequestId,
+          toolName: "predict_edit" as ToolName,
+          input: {
+            find: `"replace me"`,
+            replace: `"updated text"`,
+          },
+        },
+      },
+    });
+
+    await driver.awaitPredictionControllerState("displaying-proposed-edit");
+    await driver.magenta.command("accept-prediction");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Verify first instance was replaced
+    let lines = await buffer.getLines({
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
+    });
+    expect(lines[2]).toContain(`const text = "updated text";`);
+    expect(lines[6]).toContain(`const anotherVar = "replace me";`); // Not changed
+    expect(lines[10]).toContain(`return "replace me";`); // Not changed
+
+    // Reset the file
+    await driver.command(":e!");
+
+    // Test case 2: Cursor between first and second instances - should select second instance
+    await driver.command("normal! 5G"); // Position at line 5 (between first and second)
+    await driver.command("normal! $"); // End of line
+
+    await driver.magenta.command("predict-edit");
+    await driver.awaitPredictionControllerState("awaiting-agent-reply");
+
+    await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+    await driver.mockAnthropic.respondToForceToolUse({
+      stopReason: "end_turn",
+      toolRequest: {
+        status: "ok",
+        value: {
+          id: "id" as ToolRequestId,
+          toolName: "predict_edit" as ToolName,
+          input: {
+            find: `"replace me"`,
+            replace: `"updated text"`,
+          },
+        },
+      },
+    });
+
+    await driver.awaitPredictionControllerState("displaying-proposed-edit");
+    await driver.magenta.command("accept-prediction");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Verify second instance was replaced
+    lines = await buffer.getLines({
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
+    });
+    expect(lines[2]).toContain(`const text = "replace me";`); // Not changed
+    expect(lines[6]).toContain(`const anotherVar = "updated text";`); // Changed
+    expect(lines[10]).toContain(`return "replace me";`); // Not changed
+
+    // Reset the file
+    await driver.command(":e!");
+
+    // Test case 3: Cursor at end of file - should select third instance
+    await driver.command("normal! 10G"); // Position at line 10 (after third instance)
+    await driver.command("normal! $"); // End of line
+
+    await driver.magenta.command("predict-edit");
+    await driver.awaitPredictionControllerState("awaiting-agent-reply");
+
+    await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+    await driver.mockAnthropic.respondToForceToolUse({
+      stopReason: "end_turn",
+      toolRequest: {
+        status: "ok",
+        value: {
+          id: "id" as ToolRequestId,
+          toolName: "predict_edit" as ToolName,
+          input: {
+            find: `"replace me"`,
+            replace: `"updated text"`,
+          },
+        },
+      },
+    });
+
+    await driver.awaitPredictionControllerState("displaying-proposed-edit");
+    await driver.magenta.command("accept-prediction");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Verify third instance was replaced
+    lines = await buffer.getLines({
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
+    });
+    expect(lines[2]).toContain(`const text = "replace me";`); // Not changed
+    expect(lines[6]).toContain(`const anotherVar = "replace me";`); // Not changed
+    expect(lines[10]).toContain(`return "updated text";`); // Changed
+
+    // Reset the file
+    await driver.command(":e!");
+
+    // Test case 4: No matches after cursor - should select closest match before cursor
+    // Position after all matches and make them all before cursor
+    await driver.command("normal! 11G"); // Position at the last line, after all instances
+    await driver.command("normal! $"); // End of line
+
+    await driver.magenta.command("predict-edit");
+    await driver.awaitPredictionControllerState("awaiting-agent-reply");
+
+    await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+    await driver.mockAnthropic.respondToForceToolUse({
+      stopReason: "end_turn",
+      toolRequest: {
+        status: "ok",
+        value: {
+          id: "id" as ToolRequestId,
+          toolName: "predict_edit" as ToolName,
+          input: {
+            find: `"replace me"`,
+            replace: `"updated text"`,
+          },
+        },
+      },
+    });
+
+    await driver.awaitPredictionControllerState("displaying-proposed-edit");
+    await driver.magenta.command("accept-prediction");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Verify the closest match (the third one) was replaced
+    lines = await buffer.getLines({
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
+    });
+    expect(lines[2]).toContain(`const text = "replace me";`); // Not changed
+    expect(lines[6]).toContain(`const anotherVar = "replace me";`); // Not changed
+    expect(lines[10]).toContain(`return "updated text";`); // Changed (closest to cursor)
   });
 });

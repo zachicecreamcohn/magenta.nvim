@@ -302,6 +302,38 @@ The relevant files and entities are:
 ${CODEBASE_CONVENTIONS}
 ${LEARNING_PROCESS}`;
 
+export const PREDICTION_SYSTEM_PROMPT = `\
+Predict the user's next edit based on their recent changes and current cursor position.
+
+Examples:
+
+<example>
+context:
+const x = ...
+console│
+
+prediction:
+{
+  find: "console",
+  replace: "console.log('x', JSON.stringify(x, null, 2));"
+}
+</example>
+
+<example>
+recent diffs:
+- function myFunction(a: string, b: number, c: boolean) {
++ function myFunction({a, b, c}: {a: string, b: number, c: boolean}) {
+
+context:
+myFunction(│'hello', 2, true);
+
+prediction:
+{
+  find: "myFunction('hello', 2, true);"
+  replace: "myFunction({a: 'hello', b: 2, c: true});"
+}
+</example>`;
+
 function getBaseSystemPrompt(type: ThreadType): string {
   switch (type) {
     case "subagent_learn":

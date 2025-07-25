@@ -21,6 +21,7 @@ import {
 } from "../nvim/window.ts";
 import { calculateDiff } from "./diff.ts";
 import { MAGENTA_HIGHLIGHT_GROUPS } from "../nvim/extmarks.ts";
+import { PREDICTION_SYSTEM_PROMPT } from "../providers/system-prompt.ts";
 
 export type PredictionState =
   | { type: "idle" }
@@ -379,10 +380,47 @@ export class EditPredictionController {
       throw new Error("Find text not found in context window");
     }
 
-    const replacedText = contextText.replace(
-      prediction.find,
-      prediction.replace,
+    // Calculate cursor position in the context text
+    const cursorLineOffset =
+      contextWindow.contextLines.slice(0, contextWindow.cursorDelta).join("\n")
+        .length + (contextWindow.cursorDelta > 0 ? 1 : 0); // +1 for newline if not first line
+    const cursorPosInContext = cursorLineOffset + contextWindow.cursorCol;
+
+    // Find all occurrences of the prediction.find text
+    const findIndices: number[] = [];
+    let startIndex = 0;
+    let index: number;
+    while ((index = contextText.indexOf(prediction.find, startIndex)) !== -1) {
+      findIndices.push(index);
+      startIndex = index + 1;
+    }
+
+    // Choose the most appropriate replacement position
+    // First try to find positions after the cursor
+    const positionsAfterCursor = findIndices.filter(
+      (pos) => pos >= cursorPosInContext,
     );
+
+    // If positions exist after cursor, take the first one (closest to cursor)
+    // Otherwise, find the closest position before the cursor
+    const findStartPos =
+      positionsAfterCursor.length > 0
+        ? positionsAfterCursor[0]
+        : findIndices.reduce(
+            (closest, pos) =>
+              Math.abs(pos - cursorPosInContext) <
+              Math.abs(closest - cursorPosInContext)
+                ? pos
+                : closest,
+            findIndices[0],
+          );
+
+    // Apply the replacement at the selected position
+    const replacedText =
+      contextText.substring(0, findStartPos) +
+      prediction.replace +
+      contextText.substring(findStartPos + prediction.find.length);
+
     const replacedLines = replacedText.split("\n");
 
     // Apply the changes to the buffer using 0-indexed positions
@@ -393,7 +431,6 @@ export class EditPredictionController {
     });
 
     // Move cursor to the last replaced character position
-    const findStartPos = contextText.indexOf(prediction.find);
     if (findStartPos !== -1) {
       // Calculate the position after replacement
       const lastPos = findStartPos + prediction.replace.length - 1;
@@ -491,9 +528,6 @@ Predict the most likely next edit the user will make.`;
     const contextWindow = await this.captureContextWindow();
     const userMessage = await this.composeUserMessage(contextWindow);
 
-    const systemPrompt = `\
-Predict the user's next edit based on their recent changes and current cursor position.`;
-
     const request = provider.forceToolUse({
       model: profile.fastModel || profile.model,
       messages: [
@@ -503,7 +537,7 @@ Predict the user's next edit based on their recent changes and current cursor po
         },
       ],
       spec,
-      systemPrompt,
+      systemPrompt: PREDICTION_SYSTEM_PROMPT,
       disableCaching: true,
     });
 
