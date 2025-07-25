@@ -702,4 +702,29 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
   async clearVimMessages(): Promise<void> {
     await this.nvim.call("nvim_exec2", ["messages clear", {}]);
   }
+
+  async awaitExtmarks(
+    buffer: NvimBuffer,
+    expectedCount?: number,
+    timeout: number = 2000,
+  ) {
+    return await pollUntil(
+      async () => {
+        const marks = await buffer.getExtmarks();
+        if (expectedCount !== undefined) {
+          if (marks.length !== expectedCount) {
+            throw new Error(
+              `Expected ${expectedCount} extmarks, but found ${marks.length}`,
+            );
+          }
+        } else if (marks.length === 0) {
+          throw new Error("No extmarks found yet");
+        }
+        return marks;
+      },
+      {
+        timeout,
+      },
+    );
+  }
 }

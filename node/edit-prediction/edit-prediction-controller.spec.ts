@@ -5,7 +5,6 @@ import type { ToolName } from "../tools/types";
 import { getCurrentBuffer } from "../nvim/nvim";
 import type { Row0Indexed } from "../nvim/window";
 import type { AbsFilePath } from "../utils/files";
-import { pollUntil } from "../utils/async";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { MAGENTA_HIGHLIGHT_GROUPS } from "../nvim/extmarks";
@@ -363,6 +362,18 @@ test("prediction accepted applies edits", async () => {
     });
     expect(newLines[0]).toContain("Starlight");
     expect(newLines[0]).not.toContain("Moonlight");
+
+    // Verify cursor position moved to the end of the replaced text
+    const cursorPos = await driver.nvim.call("nvim_win_get_cursor", [0]);
+    const [row, col] = cursorPos;
+
+    // Find where "Starlight" ends in the first line
+    const starLightEndCol =
+      newLines[0].indexOf("Starlight") + "Starlight".length - 1;
+
+    // Row should be 1 (1-indexed) and column should be at the end of "Starlight"
+    expect(row).toBe(1); // First line, 1-indexed
+    expect(col).toBe(starLightEndCol);
   });
 });
 
@@ -559,16 +570,7 @@ database: {
     expect(previewLines).toEqual(originalLines);
 
     // Check the extmarks created for the preview - poll until they appear
-    const extmarks = await pollUntil(
-      async () => {
-        const marks = await buffer.getExtmarks();
-        if (marks.length === 0) {
-          throw new Error("No extmarks found yet");
-        }
-        return marks;
-      },
-      { timeout: 2000, message: "Extmarks did not appear within timeout" },
-    );
+    const extmarks = await driver.awaitExtmarks(buffer, 16);
 
     // Extract and verify strikethrough segments match expected "find" text
     const strikethroughExtmarks = extmarks.filter(
@@ -801,16 +803,7 @@ database: {
     expect(finalLines).toEqual(originalLines);
 
     // Verify extmarks are cleared after dismissal
-    await pollUntil(
-      async () => {
-        const extmarks = await buffer.getExtmarks();
-        if (extmarks.length > 0) {
-          throw new Error("Extmarks still present");
-        }
-        return extmarks;
-      },
-      { timeout: 2000, message: "Extmarks were not cleared within timeout" },
-    );
+    await driver.awaitExtmarks(buffer, 15);
 
     // Specifically verify that the complex replacement did NOT happen
     const finalContent = finalLines.join("\n");

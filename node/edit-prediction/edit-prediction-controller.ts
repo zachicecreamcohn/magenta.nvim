@@ -391,6 +391,27 @@ export class EditPredictionController {
       end: (contextWindow.endLine + 1) as Row0Indexed,
       lines: replacedLines as Line[],
     });
+
+    // Move cursor to the last replaced character position
+    const findStartPos = contextText.indexOf(prediction.find);
+    if (findStartPos !== -1) {
+      // Calculate the position after replacement
+      const lastPos = findStartPos + prediction.replace.length - 1;
+
+      // Convert character position to line and column
+      const lastPosition = this.convertCharPosToLineCol(
+        replacedText,
+        lastPos,
+        contextWindow.startLine,
+        0 as ByteIdx,
+      );
+
+      // Move cursor to the last character of the replaced text
+      await this.context.nvim.call("nvim_win_set_cursor", [
+        0, // 0 means current window
+        [lastPosition.row + 1, lastPosition.col], // Convert to 1-indexed row for nvim_win_set_cursor
+      ]);
+    }
   }
 
   async composeUserMessage(contextWindow?: CapturedContext): Promise<string> {
