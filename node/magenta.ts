@@ -34,6 +34,8 @@ import {
   EditPredictionController,
   type EditPredictionId,
 } from "./edit-prediction/edit-prediction-controller.ts";
+import { initializeMagentaHighlightGroups } from "./nvim/extmarks.ts";
+import { MAGENTA_HIGHLIGHT_NAMESPACE } from "./nvim/buffer.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
@@ -42,6 +44,7 @@ const MAGENTA_KEY = "magentaKey";
 const MAGENTA_LSP_RESPONSE = "magentaLspResponse";
 const MAGENTA_BUFFER_TRACKER = "magentaBufferTracker";
 const MAGENTA_TEXT_DOCUMENT_DID_CHANGE = "magentaTextDocumentDidChange";
+const MAGENTA_UI_EVENTS = "magentaUiEvents";
 
 export class Magenta {
   public sidebar: Sidebar;
@@ -449,13 +452,26 @@ ${lines.join("\n")}
       }
 
       case "predict-edit": {
-        this.dispatch({
-          type: "edit-prediction-msg",
-          id: this.editPredictionController.id,
-          msg: {
-            type: "trigger-prediction",
-          },
-        });
+        if (
+          this.editPredictionController.state.type ===
+          "displaying-proposed-edit"
+        ) {
+          this.dispatch({
+            type: "edit-prediction-msg",
+            id: this.editPredictionController.id,
+            msg: {
+              type: "prediction-accepted",
+            },
+          });
+        } else {
+          this.dispatch({
+            type: "edit-prediction-msg",
+            id: this.editPredictionController.id,
+            msg: {
+              type: "trigger-prediction",
+            },
+          });
+        }
         break;
       }
 
@@ -534,6 +550,7 @@ ${lines.join("\n")}
       this.inlineEditManager.onWinClosed(),
     ]);
   }
+
   onBufferTrackerEvent(
     eventType: "read" | "write" | "close",
     absFilePath: AbsFilePath,
@@ -565,6 +582,20 @@ ${lines.join("\n")}
         break;
       default:
         assertUnreachable(eventType);
+    }
+  }
+
+  onUiEvent(_eventType: "mode-change" | "buffer-focus-change") {
+    if (
+      this.editPredictionController.state.type === "displaying-proposed-edit"
+    ) {
+      this.dispatch({
+        type: "edit-prediction-msg",
+        id: this.editPredictionController.id,
+        msg: {
+          type: "prediction-dismissed",
+        },
+      });
     }
   }
 
@@ -701,6 +732,35 @@ ${lines.join("\n")}
         );
       }
     });
+
+    nvim.onNotification(MAGENTA_UI_EVENTS, (args) => {
+      try {
+        if (
+          !Array.isArray(args) ||
+          args.length < 1 ||
+          typeof args[0] !== "string"
+        ) {
+          throw new Error(`Expected UI event args to be [eventType]`);
+        }
+
+        const eventType = args[0];
+        // Validate that eventType is one of the expected values
+        if (
+          eventType !== "mode-change" &&
+          eventType !== "buffer-focus-change"
+        ) {
+          throw new Error(
+            `Invalid UI eventType: ${eventType}. Expected 'mode-change' or 'buffer-focus-change'`,
+          );
+        }
+
+        magenta.onUiEvent(eventType);
+      } catch (err) {
+        nvim.logger.error(
+          `Error handling UI event for ${JSON.stringify(args)}: ${err instanceof Error ? err.message + "\n" + err.stack : JSON.stringify(err)}`,
+        );
+      }
+    });
     const opts = await nvim.call("nvim_exec_lua", [
       `return require('magenta').bridge(${nvim.channelId})`,
       [],
@@ -720,6 +780,18 @@ ${lines.join("\n")}
       ? mergeOptions(baseOptions, projectSettings)
       : baseOptions;
     const magenta = new Magenta(nvim, lsp, cwd, parsedOptions);
+
+    // Initialize highlight groups in the magenta namespace
+    try {
+      await nvim.call("nvim_create_namespace", [MAGENTA_HIGHLIGHT_NAMESPACE]);
+      await initializeMagentaHighlightGroups(nvim);
+    } catch (error) {
+      nvim.logger.error(
+        "Failed to initialize highlight groups:",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+
     nvim.logger.info(`Magenta initialized. ${JSON.stringify(parsedOptions)}`);
     return magenta;
   }

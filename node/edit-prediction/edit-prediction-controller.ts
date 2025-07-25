@@ -20,7 +20,7 @@ import {
   type Position0Indexed,
 } from "../nvim/window.ts";
 import { calculateDiff } from "./diff.ts";
-import { createTextStyleGroup } from "../nvim/extmarks.ts";
+import { MAGENTA_HIGHLIGHT_GROUPS } from "../nvim/extmarks.ts";
 
 export type PredictionState =
   | { type: "idle" }
@@ -69,6 +69,7 @@ export type EditPredictionId = number & { __editPredictionId: true };
 
 export class EditPredictionController {
   public state: PredictionState;
+  private renderedExtMarks: BufNr | undefined;
 
   private myDispatch: Dispatch<EditPredictionMsg>;
 
@@ -90,6 +91,7 @@ export class EditPredictionController {
       });
 
     this.state = { type: "idle" };
+    this.renderedExtMarks = undefined;
   }
 
   update(msg: RootMsg): void {
@@ -131,8 +133,8 @@ export class EditPredictionController {
         };
         this.showVirtualTextPreview().catch((error) => {
           this.context.nvim.logger.warn(
-            "Virtual text preview failed (continuing anyway):",
-            error instanceof Error ? error.message : String(error),
+            "Virtual text preview failed (continuing anyway):" +
+              (error instanceof Error ? error.message : String(error)),
           );
           // Don't dispatch an error, just log the warning and continue
           // This allows tests to work even if virtual text setup fails
@@ -192,17 +194,14 @@ export class EditPredictionController {
   }
 
   private async clearVirtualText(): Promise<void> {
-    if (this.state.type !== "displaying-proposed-edit") {
+    if (this.renderedExtMarks === undefined) {
       return;
     }
 
     try {
-      const buffer = new NvimBuffer(
-        this.state.contextWindow.bufferId,
-        this.context.nvim,
-      );
-
+      const buffer = new NvimBuffer(this.renderedExtMarks, this.context.nvim);
       await buffer.clearAllExtmarks();
+      this.renderedExtMarks = undefined;
     } catch (error) {
       this.context.nvim.logger.error("Failed to clear virtual text:", error);
     }
@@ -212,12 +211,16 @@ export class EditPredictionController {
     text: string,
     charPos: number,
     startLine: Row0Indexed,
+    startCol: ByteIdx,
   ): Position0Indexed {
     const lines = text.slice(0, charPos).split("\n");
-    return {
-      row: (startLine + lines.length - 1) as Row0Indexed,
-      col: lines[lines.length - 1].length as ByteIdx,
-    };
+    const row = (startLine + lines.length - 1) as Row0Indexed;
+    const col =
+      lines.length === 1
+        ? ((startCol + lines[0].length) as ByteIdx) // Same line: add start column offset
+        : (lines[lines.length - 1].length as ByteIdx); // New line: column is absolute
+
+    return { row, col };
   }
 
   private async showVirtualTextPreview(): Promise<void> {
@@ -229,11 +232,14 @@ export class EditPredictionController {
     const buffer = new NvimBuffer(contextWindow.bufferId, this.context.nvim);
 
     await this.clearVirtualText();
+    this.renderedExtMarks = contextWindow.bufferId;
 
     const contextText = contextWindow.contextLines.join("\n");
 
     // Check if the find text exists in context
     if (!contextText.includes(prediction.find)) {
+      console.error("context: ", contextText);
+      console.error("find: ", prediction.find);
       throw new Error("Find text not found in current context");
     }
 
@@ -251,18 +257,20 @@ export class EditPredictionController {
           contextText,
           op.startPos,
           contextWindow.startLine,
+          0 as ByteIdx,
         );
         const bufferEndPos = this.convertCharPosToLineCol(
           contextText,
           op.endPos,
           contextWindow.startLine,
+          0 as ByteIdx,
         );
 
         await buffer.setExtmark({
           startPos: bufferStartPos,
           endPos: bufferEndPos,
           options: {
-            hl_group: createTextStyleGroup({ strikethrough: true }),
+            hl_group: MAGENTA_HIGHLIGHT_GROUPS.PREDICTION_STRIKETHROUGH,
           },
         });
       } else if (op.type === "insert") {
@@ -271,6 +279,7 @@ export class EditPredictionController {
           contextText,
           op.insertAfterPos,
           contextWindow.startLine,
+          0 as ByteIdx,
         );
 
         // Split inserted text by newlines

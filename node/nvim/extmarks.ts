@@ -1,4 +1,25 @@
-// Core highlight types and interfaces for the magenta.nvim VDOM system
+import type { Nvim } from "./nvim-node";
+
+/**
+ * Highlight group names used by magenta
+ */
+export const MAGENTA_HIGHLIGHT_GROUPS = {
+  PREDICTION_STRIKETHROUGH: "MagentaPredictionStrikethrough",
+} as const;
+
+/**
+ * Initialize all magenta highlight groups within the magenta namespace.
+ * This should be called once during plugin initialization.
+ */
+export async function initializeMagentaHighlightGroups(
+  nvim: Nvim,
+): Promise<void> {
+  await nvim.call("nvim_set_hl", [
+    0, // clearing a namespace clears highlight definitions on that namespace
+    MAGENTA_HIGHLIGHT_GROUPS.PREDICTION_STRIKETHROUGH,
+    { strikethrough: true },
+  ]);
+}
 
 /**
  * Union type of all available highlight groups for type safety.
@@ -58,22 +79,14 @@ export const HL_GROUPS = [
   "@lsp.type.comment",
   "@lsp.type.type",
   "@lsp.type.constant",
+  MAGENTA_HIGHLIGHT_GROUPS.PREDICTION_STRIKETHROUGH,
 ] as const;
 
 /**
  * Union type of all available highlight groups for type safety.
+ * Includes both predefined groups and custom highlight groups (strings).
  */
 export type HLGroup = (typeof HL_GROUPS)[number];
-
-/**
- * Text styling options for bold, italic, underline, etc.
- */
-export type TextStyle = {
-  bold?: boolean;
-  italic?: boolean;
-  underline?: boolean;
-  strikethrough?: boolean;
-};
 
 /**
  * Custom color styling when semantic groups aren't sufficient.
@@ -95,7 +108,7 @@ export type ExtmarkId = number & { __extmarkId: true };
  */
 export type ExtmarkOptions = {
   // Basic highlighting
-  hl_group?: HLGroup | TextStyleGroup | (HLGroup | TextStyleGroup)[];
+  hl_group?: HLGroup | HLGroup[];
   hl_eol?: boolean;
   hl_mode?: "replace" | "combine" | "blend";
   priority?: number;
@@ -136,22 +149,6 @@ export type ExtmarkOptions = {
   invalidate?: boolean;
   ephemeral?: boolean;
 };
-
-export type TextStyleGroup = string & { __textStyleGroup: true };
-
-/**
- * Create a text style highlight group dynamically.
- * Returns highlight group name for use in ExtmarkOptions.
- * Note: This creates dynamic highlight groups that may need to be registered with Neovim.
- */
-export function createTextStyleGroup(style: TextStyle): TextStyleGroup {
-  const parts: string[] = [];
-  if (style.bold) parts.push("bold");
-  if (style.italic) parts.push("italic");
-  if (style.underline) parts.push("underline");
-  if (style.strikethrough) parts.push("strikethrough");
-  return parts.join(",") as TextStyleGroup;
-}
 
 /**
  * Compare two ExtmarkOptions objects for equality.

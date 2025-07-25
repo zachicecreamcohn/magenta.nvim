@@ -1,12 +1,7 @@
 import { render } from "./render.ts";
 import { update } from "./update.ts";
 import { type Bindings } from "./bindings.ts";
-import {
-  type ExtmarkOptions,
-  type ExtmarkId,
-  type TextStyle,
-  createTextStyleGroup,
-} from "../nvim/extmarks.ts";
+import { type ExtmarkOptions, type ExtmarkId } from "../nvim/extmarks.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { NvimBuffer } from "../nvim/buffer.ts";
 import { type Position0Indexed } from "../nvim/window.ts";
@@ -244,8 +239,4 @@ export function withCode(node: VDOMNode) {
 
 export function withInlineCode(node: VDOMNode) {
   return withExtmark(node, { hl_group: "@markup.raw.markdown_inline" });
-}
-
-export function withStyle(node: VDOMNode, style: TextStyle) {
-  return withExtmark(node, { hl_group: createTextStyleGroup(style) });
 }

@@ -5,6 +5,10 @@ import type { ToolName } from "../tools/types";
 import { getCurrentBuffer } from "../nvim/nvim";
 import type { Row0Indexed } from "../nvim/window";
 import type { AbsFilePath } from "../utils/files";
+import { pollUntil } from "../utils/async";
+import * as fs from "fs/promises";
+import * as path from "path";
+import { MAGENTA_HIGHLIGHT_GROUPS } from "../nvim/extmarks";
 
 test("prediction after making edits", async () => {
   await withDriver({}, async (driver) => {
@@ -464,5 +468,359 @@ test("buffer changes auto-dismiss predictions", async () => {
 
     // Verify state returned to idle due to buffer change
     expect(controller.state.type).toBe("idle");
+  });
+});
+
+test("complex multi-line prediction preview and acceptance", async () => {
+  await withDriver({}, async (driver) => {
+    const controller = driver.magenta.editPredictionController;
+
+    // Create a custom test file with specific content for predictable testing
+    const customContent = `\
+function processConfig() {
+  const config = {
+    database: {
+      host: 'localhost',
+      port: 5432,
+      credentials: {
+        username: 'admin',
+        password: 'secret'
+      }
+    },
+    logging: {
+      level: 'info'
+    }
+  };
+  return config;
+}`;
+
+    // Write the custom file directly to the temp directory
+    const customFilePath = path.join(driver.magenta.cwd, "custom-test.js");
+    await fs.writeFile(customFilePath, customContent);
+
+    // Open the custom file and position cursor at line 3 (start of database object)
+    await driver.command(`edit ${customFilePath}`);
+
+    // Get the original buffer content for comparison
+    const buffer = await getCurrentBuffer(driver.nvim);
+    const originalLines = await buffer.getLines({
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
+    });
+
+    // Trigger prediction
+    await driver.magenta.command("predict-edit");
+    await driver.awaitPredictionControllerState("awaiting-agent-reply");
+
+    // Mock a complex multi-line replacement that:
+    // - Starts partway through line 3 ("database: {")
+    // - Continues through lines 4-9 (the nested database structure)
+    // - Replaces with a flattened structure spanning different number of lines
+    await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+    await driver.mockAnthropic.respondToForceToolUse({
+      stopReason: "end_turn",
+      toolRequest: {
+        status: "ok",
+        value: {
+          id: "id" as ToolRequestId,
+          toolName: "predict_edit" as ToolName,
+          input: {
+            find: `\
+database: {
+      host: 'localhost',
+      port: 5432,
+      credentials: {
+        username: 'admin',
+        password: 'secret'
+      }
+    },`,
+            replace: `\
+database: {
+      url: 'postgresql://admin:secret@localhost:5432/mydb',
+      port: 420,
+      cache: { enabled: true, ttl: 300 }
+    },`,
+          },
+        },
+      },
+    });
+
+    // Wait for display state
+    await driver.awaitPredictionControllerState("displaying-proposed-edit");
+
+    // Verify state is displaying proposed edit with correct prediction
+    expect(controller.state.type).toBe("displaying-proposed-edit");
+
+    // Verify the original buffer content is unchanged during preview
+    const previewLines = await buffer.getLines({
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
+    });
+    expect(previewLines).toEqual(originalLines);
+
+    // Check the extmarks created for the preview - poll until they appear
+    const extmarks = await pollUntil(
+      async () => {
+        const marks = await buffer.getExtmarks();
+        if (marks.length === 0) {
+          throw new Error("No extmarks found yet");
+        }
+        return marks;
+      },
+      { timeout: 2000, message: "Extmarks did not appear within timeout" },
+    );
+
+    // Extract and verify strikethrough segments match expected "find" text
+    const strikethroughExtmarks = extmarks.filter(
+      (mark) =>
+        mark.options.hl_group ===
+        MAGENTA_HIGHLIGHT_GROUPS.PREDICTION_STRIKETHROUGH,
+    );
+    const bufferLines = await buffer.getLines({
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
+    });
+
+    // Sort extmarks by position to ensure correct order
+    const sortedMarks = strikethroughExtmarks.sort((a, b) => {
+      if (a.startPos.row !== b.startPos.row) {
+        return a.startPos.row - b.startPos.row;
+      }
+      return a.startPos.col - b.startPos.col;
+    });
+
+    const strikeThroughSegments: string[] = [];
+
+    for (const mark of sortedMarks) {
+      const startRow = mark.startPos.row;
+      const startCol = mark.startPos.col;
+      const endRow = mark.endPos.row;
+      const endCol = mark.endPos.col;
+
+      let text = "";
+      if (startRow === endRow) {
+        // Single line extraction
+        const line = bufferLines[startRow];
+        text = line.slice(startCol, endCol);
+      } else {
+        // Multi-line extraction
+        // First line
+        const firstLine = bufferLines[startRow];
+        text += firstLine.slice(startCol);
+        text += "\n";
+
+        // Middle lines
+        for (let row = startRow + 1; row < endRow; row++) {
+          text += bufferLines[row];
+          text += "\n";
+        }
+
+        // Last line
+        const lastLine = bufferLines[endRow];
+        text += lastLine.slice(0, endCol);
+      }
+
+      if (text.length > 0) {
+        strikeThroughSegments.push(text);
+      }
+    }
+
+    expect(strikeThroughSegments, "strikethroughs").toEqual([
+      "host",
+      "5432",
+      "credentials",
+      `
+        username`,
+      "'admin'",
+      `
+        password`,
+      `'secret'
+      `,
+    ]);
+
+    // Extract and verify virtual text insertion points
+    const virtualTextExtmarks = extmarks.filter(
+      (mark) => !mark.options.hl_group,
+    );
+
+    // Verify we have insertion point markers (zero-width extmarks for virtual text)
+    expect(virtualTextExtmarks.length).toBeGreaterThan(0);
+
+    // Verify these are zero-width insertion markers
+    const insertionMarkers = virtualTextExtmarks.filter(
+      (mark) =>
+        mark.startPos.row === mark.endPos.row &&
+        mark.startPos.col === mark.endPos.col,
+    );
+    expect(insertionMarkers.length).toBeGreaterThan(0);
+
+    // Verify we have insertion points across multiple lines (multiline replacement)
+    const uniqueRows = new Set(
+      virtualTextExtmarks.map((mark) => mark.startPos.row),
+    );
+    expect(uniqueRows.size).toBeGreaterThan(1);
+
+    // Accept the prediction
+    await driver.magenta.command("accept-prediction");
+
+    // Wait for prediction to be applied
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Verify state returned to idle
+    expect(controller.state.type).toBe("idle");
+
+    // Verify the complex edit was applied correctly
+    const newContent = (
+      await buffer.getLines({
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
+      })
+    ).join("\n");
+
+    const expectedResult = `\
+function processConfig() {
+  const config = {
+    database: {
+      url: 'postgresql://admin:secret@localhost:5432/mydb',
+      port: 420,
+      cache: { enabled: true, ttl: 300 }
+    },
+    logging: {
+      level: 'info'
+    }
+  };
+  return config;
+}`;
+
+    expect(newContent).toEqual(expectedResult);
+  });
+});
+
+test("complex multi-line prediction dismissal preserves original content", async () => {
+  await withDriver({}, async (driver) => {
+    const controller = driver.magenta.editPredictionController;
+
+    // Create a custom test file with specific content for predictable testing
+    const customContent = `\
+function processConfig() {
+  const config = {
+    database: {
+      host: 'localhost',
+      port: 5432,
+      credentials: {
+        username: 'admin',
+        password: 'secret'
+      }
+    },
+    logging: {
+      level: 'info'
+    }
+  };
+  return config;
+}`;
+
+    // Write the custom file directly to the temp directory
+    const customFilePath = path.join(driver.magenta.cwd, "custom-test.js");
+    await fs.writeFile(customFilePath, customContent);
+
+    // Open the custom file and position cursor at line 3 (start of database object)
+    await driver.command(`edit ${customFilePath}`);
+
+    // Get the original buffer content for comparison
+    const buffer = await getCurrentBuffer(driver.nvim);
+    const originalLines = await buffer.getLines({
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
+    });
+
+    // Trigger prediction
+    await driver.magenta.command("predict-edit");
+    await driver.awaitPredictionControllerState("awaiting-agent-reply");
+
+    // Mock a complex multi-line replacement that:
+    // - Starts partway through line 3 ("database: {")
+    // - Continues through lines 4-9 (the nested database structure)
+    // - Replaces with a flattened structure spanning different number of lines
+    await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+    await driver.mockAnthropic.respondToForceToolUse({
+      stopReason: "end_turn",
+      toolRequest: {
+        status: "ok",
+        value: {
+          id: "id" as ToolRequestId,
+          toolName: "predict_edit" as ToolName,
+          input: {
+            find: `\
+database: {
+      host: 'localhost',
+      port: 5432,
+      credentials: {
+        username: 'admin',
+        password: 'secret'
+      }
+    },`,
+            replace: `\
+database: {
+      url: 'postgresql://admin:secret@localhost:5432/mydb',
+      port: 420,
+      cache: { enabled: true, ttl: 300 }
+    },`,
+          },
+        },
+      },
+    });
+
+    // Wait for display state
+    await driver.awaitPredictionControllerState("displaying-proposed-edit");
+
+    // Verify state is displaying proposed edit with correct prediction
+    expect(controller.state.type).toBe("displaying-proposed-edit");
+
+    // Verify the original buffer content is unchanged during preview
+    const previewLines = await buffer.getLines({
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
+    });
+    expect(previewLines).toEqual(originalLines);
+
+    // Dismiss the prediction instead of accepting it
+    await driver.magenta.command("dismiss-prediction");
+
+    // Wait for dismissal to complete
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Verify state returned to idle
+    expect(controller.state.type).toBe("idle");
+
+    // Verify the buffer content remains unchanged after dismissal
+    const finalLines = await buffer.getLines({
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
+    });
+
+    expect(finalLines).toEqual(originalLines);
+
+    // Verify extmarks are cleared after dismissal
+    await pollUntil(
+      async () => {
+        const extmarks = await buffer.getExtmarks();
+        if (extmarks.length > 0) {
+          throw new Error("Extmarks still present");
+        }
+        return extmarks;
+      },
+      { timeout: 2000, message: "Extmarks were not cleared within timeout" },
+    );
+
+    // Specifically verify that the complex replacement did NOT happen
+    const finalContent = finalLines.join("\n");
+    expect(finalContent).toEqual(customContent);
+    expect(finalContent).toContain("host: 'localhost'");
+    expect(finalContent).toContain("port: 5432");
+    expect(finalContent).not.toContain(
+      "url: 'postgresql://admin:secret@localhost:5432/mydb'",
+    );
+    expect(finalContent).not.toContain("port: 420");
+    expect(finalContent).not.toContain("cache: { enabled: true, ttl: 300 }");
   });
 });

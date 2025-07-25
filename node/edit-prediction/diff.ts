@@ -10,7 +10,7 @@ export function calculateDiff(
   originalText: string,
   newText: string,
 ): EditPredictionDiff {
-  const changes = diff.diffChars(originalText, newText);
+  const changes = diff.diffWordsWithSpace(originalText, newText);
   const operations: EditPredictionDiff = [];
   let originalPosition = 0; // Position in the original text
 

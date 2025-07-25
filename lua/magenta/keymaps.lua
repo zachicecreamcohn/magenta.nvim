@@ -103,9 +103,9 @@ M.default_keymaps = function()
   )
 
   vim.keymap.set(
-    "n",
+    "i",
     "<C-l>",
-    ":Magenta predict-edit<CR>",
+    "<Cmd>Magenta predict-edit<CR>",
     { silent = true, noremap = true, desc = "Predict next edit" }
   )
 end

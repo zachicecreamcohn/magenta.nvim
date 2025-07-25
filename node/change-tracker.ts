@@ -36,7 +36,6 @@ export class ChangeTracker {
       end: { line: number; character: number };
     };
   }): void {
-    console.log(`onTextDocumentDidChange ${data.filePath}`);
     const absFilePath = data.filePath as AbsFilePath;
     const relFilePath = relativePath(this.cwd, absFilePath);
 
