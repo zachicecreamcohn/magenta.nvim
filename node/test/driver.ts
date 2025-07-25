@@ -707,17 +707,31 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
     buffer: NvimBuffer,
     expectedCount?: number,
     timeout: number = 2000,
+    predicate?: (
+      marks: Awaited<ReturnType<NvimBuffer["getExtmarks"]>>,
+    ) => boolean,
   ) {
     return await pollUntil(
       async () => {
         const marks = await buffer.getExtmarks();
+
+        // If predicate is provided, use it as the primary filter
+        if (predicate) {
+          if (!predicate(marks)) {
+            throw new Error(
+              `Extmarks predicate not satisfied. Buffer ${buffer.id}. Extmarks: ${JSON.stringify(marks, null, 2)}`,
+            );
+          }
+        }
+
+        // Then apply count check if specified
         if (expectedCount !== undefined) {
           if (marks.length !== expectedCount) {
             throw new Error(
               `Expected ${expectedCount} extmarks, but found ${marks.length}`,
             );
           }
-        } else if (marks.length === 0) {
+        } else if (!predicate && marks.length === 0) {
           throw new Error("No extmarks found yet");
         }
         return marks;

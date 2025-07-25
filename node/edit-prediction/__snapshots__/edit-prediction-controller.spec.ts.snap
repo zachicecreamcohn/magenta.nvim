@@ -9,7 +9,7 @@ poem.txt:4:4
 \\ No newline at end of file
 
 
-Current context ( │ marks cursor position):
+Current context (│ marks cursor position):
 poem.txt:1:4
 │Moonlight whispers through the trees,
 Silver shadows dance with ease.
@@ -82,7 +82,7 @@ poem.txt:1:1
 \\ No newline at end of file
 
 
-Current context ( │ marks cursor position):
+Current context (│ marks cursor position):
 poem.txt:1:4
 │Moonlight whispers through the trees,
 Silver shadows dance with ease.
@@ -96,7 +96,7 @@ exports[`context window trims to 10 lines before and after cursor 1`] = `
 "Recent changes:
 
 
-Current context ( │ marks cursor position):
+Current context (│ marks cursor position):
 test-long-file.txt:15:35
 Line 15
 Line 16
@@ -134,7 +134,7 @@ poem.txt:1:4
 \\ No newline at end of file
 
 
-Current context ( │ marks cursor position):
+Current context (│ marks cursor position):
 poem.txt:1:4
 Moonlight whispers through the trees,
 Silver Starlight dance with ease.

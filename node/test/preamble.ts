@@ -368,7 +368,7 @@ end
           magenta.nvim.logger = {
             error: (msg: string) => console.error(msg),
             warn: (msg: string) => console.warn(msg),
-            info: (msg: string) => console.info(msg),
+            info: (msg: string) => console.log(msg),
             debug: (msg: string) =>
               process.env.LOG_LEVEL == "debug" && console.debug(msg),
             // eslint-disable-next-line @typescript-eslint/no-explicit-any

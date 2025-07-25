@@ -22,6 +22,10 @@ import {
 import { calculateDiff } from "./diff.ts";
 import { MAGENTA_HIGHLIGHT_GROUPS } from "../nvim/extmarks.ts";
 import { PREDICTION_SYSTEM_PROMPT } from "../providers/system-prompt.ts";
+import {
+  selectBestPredictionLocation,
+  type MatchRange,
+} from "./cursor-utils.ts";
 
 // Default token budget for recent changes (approximately 3 characters per token)
 export const DEFAULT_RECENT_CHANGE_TOKEN_BUDGET = 1000;
@@ -387,7 +391,7 @@ export class EditPredictionController {
     }
   }
 
-  private async captureContextWindow(): Promise<CapturedContext> {
+  async captureContextWindow(): Promise<CapturedContext> {
     const buffer = await getCurrentBuffer(this.context.nvim);
     const pos1Indexed = await getpos(this.context.nvim, ".");
     const pos0Indexed = pos1col1to0(pos1Indexed);
@@ -441,10 +445,7 @@ export class EditPredictionController {
     });
 
     for (let i = 0; i < contextWindow.contextLines.length; i += 1) {
-      if (
-        currentLines[contextWindow.startLine + i] !==
-        contextWindow.contextLines[i]
-      ) {
+      if (currentLines[i] !== contextWindow.contextLines[i]) {
         throw new Error(`Context window has changed since prediction was made`);
       }
     }
@@ -452,45 +453,50 @@ export class EditPredictionController {
     const contextText = contextWindow.contextLines.join("\n");
     const findText = this.resolveFindText(prediction.find, contextText);
 
-    const cursorLineOffset =
-      contextWindow.contextLines.slice(0, contextWindow.cursorDelta).join("\n")
-        .length + (contextWindow.cursorDelta > 0 ? 1 : 0); // +1 for newline if not first line
-    const cursorPosInContext = cursorLineOffset + contextWindow.cursorCol;
-
-    // Find all occurrences of the find text
-    const findIndices: number[] = [];
+    // Find all occurrences of the find text in context coordinates
+    const contextFindIndices: number[] = [];
     let startIndex = 0;
     let index: number;
     while ((index = contextText.indexOf(findText, startIndex)) !== -1) {
-      findIndices.push(index);
+      contextFindIndices.push(index);
       startIndex = index + 1;
     }
 
-    // Choose the most appropriate replacement position
-    // First try to find positions after the cursor
-    const positionsAfterCursor = findIndices.filter(
-      (pos) => pos >= cursorPosInContext,
-    );
+    // Cursor position in document coordinates
+    const cursorDocumentPos: Position0Indexed = {
+      row: (contextWindow.startLine + contextWindow.cursorDelta) as Row0Indexed,
+      col: contextWindow.cursorCol,
+    };
 
-    // If positions exist after cursor, take the first one (closest to cursor)
-    // Otherwise, find the closest position before the cursor
-    const findStartPos =
-      positionsAfterCursor.length > 0
-        ? positionsAfterCursor[0]
-        : findIndices.reduce(
-            (closest, pos) =>
-              Math.abs(pos - cursorPosInContext) <
-              Math.abs(closest - cursorPosInContext)
-                ? pos
-                : closest,
-            findIndices[0],
-          );
+    // Convert context indices to match ranges with document positions
+    const matchRanges: MatchRange[] = contextFindIndices.map((contextPos) => ({
+      contextPosStart: contextPos,
+      contextPosEnd: contextPos + findText.length,
+      startPos: this.convertCharPosToLineCol(
+        contextText,
+        contextPos,
+        contextWindow.startLine,
+        0 as ByteIdx,
+      ),
+      endPos: this.convertCharPosToLineCol(
+        contextText,
+        contextPos + findText.length,
+        contextWindow.startLine,
+        0 as ByteIdx,
+      ),
+    }));
+
+    // Select the best match using our priority logic
+    const bestMatchRange = selectBestPredictionLocation(
+      matchRanges,
+      cursorDocumentPos,
+    );
 
     // Apply the replacement at the selected position
     const replacedText =
-      contextText.substring(0, findStartPos) +
+      contextText.substring(0, bestMatchRange.contextPosStart) +
       prediction.replace +
-      contextText.substring(findStartPos + findText.length);
+      contextText.substring(bestMatchRange.contextPosEnd);
 
     const replacedLines = replacedText.split("\n");
 
@@ -501,25 +507,18 @@ export class EditPredictionController {
       lines: replacedLines as Line[],
     });
 
-    // Move cursor to the last replaced character position
-    if (findStartPos !== -1) {
-      // Calculate the position after replacement
-      const lastPos = findStartPos + prediction.replace.length - 1;
+    // Move cursor to the end of the replacement text
+    const newEndPos = this.convertCharPosToLineCol(
+      replacedText,
+      bestMatchRange.contextPosStart + prediction.replace.length,
+      contextWindow.startLine,
+      0 as ByteIdx,
+    );
 
-      // Convert character position to line and column
-      const lastPosition = this.convertCharPosToLineCol(
-        replacedText,
-        lastPos,
-        contextWindow.startLine,
-        0 as ByteIdx,
-      );
-
-      // Move cursor to the last character of the replaced text
-      await this.context.nvim.call("nvim_win_set_cursor", [
-        0, // 0 means current window
-        [lastPosition.row + 1, lastPosition.col], // Convert to 1-indexed row for nvim_win_set_cursor
-      ]);
-    }
+    await this.context.nvim.call("nvim_win_set_cursor", [
+      0, // 0 means current window
+      [newEndPos.row + 1, newEndPos.col], // Convert to 1-indexed row for nvim_win_set_cursor
+    ]);
   }
 
   async composeUserMessage(contextWindow?: CapturedContext): Promise<string> {

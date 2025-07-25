@@ -404,13 +404,7 @@ end)`,
         row: (details as { end_row: unknown }).end_row || startRow,
         col: (details as { end_col: unknown }).end_col || startCol,
       } as Position0Indexed,
-      options: {
-        hl_group: (details as { hl_group: unknown }).hl_group,
-        priority: (details as { priority: unknown }).priority,
-        hl_eol: (details as { hl_eol: unknown }).hl_eol,
-        sign_text: (details as { sign_text: unknown }).sign_text,
-        sign_hl_group: (details as { sign_hl_group: unknown }).sign_hl_group,
-      } as ExtmarkOptions,
+      options: details as ExtmarkOptions,
     };
   }
 

@@ -593,9 +593,8 @@ export function parseOptions(
         typeof editPrediction["changeTrackerMaxChanges"] === "number" &&
         editPrediction["changeTrackerMaxChanges"] > 0
       ) {
-        options.editPrediction.changeTrackerMaxChanges = editPrediction[
-          "changeTrackerMaxChanges"
-        ];
+        options.editPrediction.changeTrackerMaxChanges =
+          editPrediction["changeTrackerMaxChanges"];
       }
 
       // Parse recentChangeTokenBudget
@@ -604,9 +603,8 @@ export function parseOptions(
         typeof editPrediction["recentChangeTokenBudget"] === "number" &&
         editPrediction["recentChangeTokenBudget"] > 0
       ) {
-        options.editPrediction.recentChangeTokenBudget = editPrediction[
-          "recentChangeTokenBudget"
-        ];
+        options.editPrediction.recentChangeTokenBudget =
+          editPrediction["recentChangeTokenBudget"];
       }
 
       // Parse systemPrompt
@@ -615,9 +613,7 @@ export function parseOptions(
         typeof editPrediction["systemPrompt"] === "string" &&
         editPrediction["systemPrompt"].trim() !== ""
       ) {
-        options.editPrediction.systemPrompt = editPrediction[
-          "systemPrompt"
-        ];
+        options.editPrediction.systemPrompt = editPrediction["systemPrompt"];
       }
 
       // Parse systemPromptAppend
@@ -626,9 +622,8 @@ export function parseOptions(
         typeof editPrediction["systemPromptAppend"] === "string" &&
         editPrediction["systemPromptAppend"].trim() !== ""
       ) {
-        options.editPrediction.systemPromptAppend = editPrediction[
-          "systemPromptAppend"
-        ];
+        options.editPrediction.systemPromptAppend =
+          editPrediction["systemPromptAppend"];
       }
     }
   }
@@ -769,9 +764,8 @@ export function parseProjectOptions(
       typeof editPrediction["changeTrackerMaxChanges"] === "number" &&
       editPrediction["changeTrackerMaxChanges"] > 0
     ) {
-      options.editPrediction.changeTrackerMaxChanges = editPrediction[
-        "changeTrackerMaxChanges"
-      ];
+      options.editPrediction.changeTrackerMaxChanges =
+        editPrediction["changeTrackerMaxChanges"];
     }
 
     // Parse recentChangeTokenBudget
@@ -780,9 +774,8 @@ export function parseProjectOptions(
       typeof editPrediction["recentChangeTokenBudget"] === "number" &&
       editPrediction["recentChangeTokenBudget"] > 0
     ) {
-      options.editPrediction.recentChangeTokenBudget = editPrediction[
-        "recentChangeTokenBudget"
-      ];
+      options.editPrediction.recentChangeTokenBudget =
+        editPrediction["recentChangeTokenBudget"];
     }
 
     // Parse systemPrompt
@@ -791,9 +784,7 @@ export function parseProjectOptions(
       typeof editPrediction["systemPrompt"] === "string" &&
       editPrediction["systemPrompt"].trim() !== ""
     ) {
-      options.editPrediction.systemPrompt = editPrediction[
-        "systemPrompt"
-      ];
+      options.editPrediction.systemPrompt = editPrediction["systemPrompt"];
     }
 
     // Parse systemPromptAppend
@@ -802,9 +793,8 @@ export function parseProjectOptions(
       typeof editPrediction["systemPromptAppend"] === "string" &&
       editPrediction["systemPromptAppend"].trim() !== ""
     ) {
-      options.editPrediction.systemPromptAppend = editPrediction[
-        "systemPromptAppend"
-      ];
+      options.editPrediction.systemPromptAppend =
+        editPrediction["systemPromptAppend"];
     }
   }
 
