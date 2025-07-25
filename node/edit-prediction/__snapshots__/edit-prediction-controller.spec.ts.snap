@@ -1,7 +1,56 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`change selection respects token budget 1`] = `
+"Recent changes:
+poem.txt:4:4
+-recent
+\\ No newline at end of file
++recent_changed
+\\ No newline at end of file
+
+
+Current context ( │ marks cursor position):
+poem.txt:1:4
+│Moonlight whispers through the trees,
+Silver shadows dance with ease.
+Stars above like diamonds bright,
+Paint their stories in the night.
+
+Predict the most likely next edit the user will make."
+`;
+
 exports[`context recent changes to requested count 1`] = `
 "Recent changes:
+poem.txt:1:1
+-0
+\\ No newline at end of file
++1
+\\ No newline at end of file
+
+poem.txt:1:1
+-1
+\\ No newline at end of file
++2
+\\ No newline at end of file
+
+poem.txt:1:1
+-2
+\\ No newline at end of file
++3
+\\ No newline at end of file
+
+poem.txt:1:1
+-3
+\\ No newline at end of file
++4
+\\ No newline at end of file
+
+poem.txt:1:1
+-4
+\\ No newline at end of file
++5
+\\ No newline at end of file
+
 poem.txt:1:1
 -5
 \\ No newline at end of file

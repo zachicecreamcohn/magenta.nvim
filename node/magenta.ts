@@ -65,7 +65,7 @@ export class Magenta {
   ) {
     this.bufferTracker = new BufferTracker(this.nvim);
     this.changeTracker = new ChangeTracker(this.nvim, this.cwd, {
-      maxChanges: this.options.changeTrackerMaxChanges ?? 100,
+      maxChanges: this.options.changeTrackerMaxChanges ?? 10,
     });
 
     this.dispatch = (msg: RootMsg) => {
@@ -107,6 +107,7 @@ export class Magenta {
         changeTracker: this.changeTracker,
         cwd: this.cwd,
         getActiveProfile: () => this.getActiveProfile(),
+        editPrediction: this.options.editPrediction,
       },
     );
 

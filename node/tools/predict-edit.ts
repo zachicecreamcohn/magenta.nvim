@@ -143,12 +143,15 @@ export const spec: ProviderToolSpec = {
         type: "string",
         description: `\`find\` identifies the text you want to replace.
 This should be the complete text to replace, exactly as it appears in the provided context, including indentation.
-Regular expressions are not supported.`,
+Regular expressions are not supported.
+Make sure to remove │ from this parameter, as it is a cursor indicator and not actually present in the text.
+`,
       },
       replace: {
         type: "string",
         description: `This will replace the find text.
-This MUST be the complete and exact replacement text. Make sure to match braces and indentation.`,
+This MUST be the complete and exact replacement text. Make sure to match braces and indentation.
+Make sure to remove │ from this parameter, as it is a cursor indicator and not actually present in the text.`,
       },
     },
     required: ["find", "replace"],

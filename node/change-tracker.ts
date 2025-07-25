@@ -21,10 +21,10 @@ export class ChangeTracker {
     private nvim: Nvim,
     private cwd: NvimCwd,
     options: {
-      maxChanges?: number;
-    } = {},
+      maxChanges: number;
+    },
   ) {
-    this.maxChanges = options.maxChanges ?? 5;
+    this.maxChanges = options.maxChanges;
   }
 
   onTextDocumentDidChange(data: {

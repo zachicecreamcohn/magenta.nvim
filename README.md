@@ -33,6 +33,8 @@ I sometimes write about AI, neovim and magenta specifically:
 
 ## July 2025
 
+**next edit prediction** - suggests the most likely next edit based on your recent changes and cursor context. Press `<C-l>` in insert mode to trigger a prediction, and `<C-l>` again to accept it. Predictions appear as virtual text with strikethrough for removed text and highlighting for added text. This feature adapts to your editing patterns and is perfect for completing repetitive edits.
+
 **input buffer completion** - we now support @-command completion in the input buffer using nvim-cmp. We also have new @file:, @diff: and @staged: commands, which use fuzzy-find to autocomplete paths within your repo.
 
 **thinking & reasoning support** - Added full support for Anthropic's thinking blocks and OpenAI's reasoning capabilities. Claude 3.7, Sonnet 4, and Opus 4 can now use extended thinking to show their step-by-step reasoning process before delivering answers.
@@ -185,6 +187,7 @@ require('magenta').setup({
     provider = "anthropic",
     model = "claude-4-sonnet-latest",
     fastModel = "claude-3-5-haiku-latest", -- optional, defaults provided
+    predictionModel = "claude-3-5-haiku-latest", -- optional, defaults to fastModel
     apiKeyEnvVar = "ANTHROPIC_API_KEY",
     thinking = {
       enabled = true,
@@ -234,6 +237,17 @@ require('magenta').setup({
         vim.cmd("Magenta submit-inline-edit " .. target_bufnr)
       end,
     },
+  },
+  -- configure edit prediction options
+  editPrediction = {
+    -- Maximum number of changes to track for context (default: 10)
+    changeTrackerMaxChanges = 20,
+    -- Token budget for including recent changes (default: 1000)
+    recentChangeTokenBudget = 1500,
+    -- Customize the system prompt (optional)
+    -- systemPrompt = "Your custom prediction system prompt here...",
+    -- Add instructions to the default system prompt (optional)
+    systemPromptAppend = "Focus on completing function calls and variable declarations."
   },
   -- configure MCP servers for external tool integrations
   mcpServers = {
@@ -301,6 +315,7 @@ profiles = {
     provider = "anthropic",
     model = "claude-3-7-sonnet-latest",
     fastModel = "claude-3-5-haiku-latest", -- optional, defaults provided
+    predictionModel = "claude-3-5-haiku-latest", -- optional, defaults to fastModel
     apiKeyEnvVar = "ANTHROPIC_API_KEY"
   },
   {
@@ -308,6 +323,7 @@ profiles = {
     provider = "anthropic",
     model = "claude-3-7-sonnet-latest",
     fastModel = "claude-3-5-haiku-latest",
+    predictionModel = "claude-3-5-haiku-latest", -- optional, defaults to fastModel
     apiKeyEnvVar = "CUSTOM_API_KEY_ENV_VAR",
     baseUrl = "custom anthropic endpoint"
   }
@@ -430,6 +446,44 @@ Create `.magenta/options.json` in your project root:
 
 The project settings file supports all the same options as the global configuration, just in JSON format instead of Lua.
 
+## Edit Prediction
+
+Magenta includes an AI-powered edit prediction feature that can suggest the most likely next edit you'll make based on your recent changes and cursor context.
+
+- Use `<C-l>` in insert mode to trigger a prediction at your cursor position
+- When a prediction is shown:
+  - Press `<C-l>` again to accept and apply the prediction
+  - Press `<Esc>` to dismiss the prediction
+  - Make any other edit to automatically dismiss the prediction
+
+The prediction appears as virtual text with:
+
+- Strikethrough text that will be removed
+- Highlighted text that will be added
+
+This feature is especially helpful for repetitive edits, completing function calls, fixing common patterns, and other predictable changes. It uses your recent editing history to make intelligent suggestions based on your current context.
+
+### Edit Prediction Configuration
+
+You can customize the edit prediction feature using the `editPrediction` options:
+
+```lua
+editPrediction = {
+  -- Maximum number of changes to track for context (default: 10)
+  changeTrackerMaxChanges = 20,
+
+  -- Token budget for including recent changes (default: 1000)
+  -- Higher values include more history but use more tokens
+  recentChangeTokenBudget = 1500,
+
+  -- Replace the default system prompt entirely
+  systemPrompt = "Your custom prediction system prompt here...",
+
+  -- Append to the default system prompt instead of replacing it
+  systemPromptAppend = "Additional instructions to improve predictions..."
+}
+```
+
 ## Keymaps
 
 If `default_keymaps` is set to true, the plugin will configure the following global keymaps:
@@ -440,6 +494,7 @@ If `default_keymaps` is set to true, the plugin will configure the following glo
 ```lua
 local Actions = require("magenta.actions")
 
+-- Chat and thread management
 vim.keymap.set(
   "n",
   "<leader>mn",
@@ -468,55 +523,7 @@ vim.keymap.set(
   {silent = true, noremap = true, desc = "Toggle Magenta window"}
 )
 
-vim.keymap.set(
-  "n",
-  "<leader>mi",
-  ":Magenta start-inline-edit<CR>",
-  {silent = true, noremap = true, desc = "Inline edit"}
-)
-
-vim.keymap.set(
-  "v",
-  "<leader>mi",
-  ":Magenta start-inline-edit-selection<CR>",
-  {silent = true, noremap = true, desc = "Inline edit selection"}
-)
-
-vim.keymap.set(
-  "v",
-  "<leader>mp",
-  ":Magenta paste-selection<CR>",
-  {silent = true, noremap = true, desc = "Send selection to Magenta"}
-)
-
-vim.keymap.set(
-  "n",
-  "<leader>mr",
-  ":Magenta replay-inline-edit<CR>",
-  {silent = true, noremap = true, desc = "Replay last inline edit"}
-)
-
-vim.keymap.set(
-  "v",
-  "<leader>mr",
-  ":Magenta replay-inline-edit-selection<CR>",
-  {silent = true, noremap = true, desc = "Replay last inline edit on selection"}
-)
-
-vim.keymap.set(
-  "n",
-  "<leader>m.",
-  ":Magenta replay-inline-edit<CR>",
-  {silent = true, noremap = true, desc = "Replay last inline edit"}
-)
-
-vim.keymap.set(
-  "v",
-  "<leader>m.",
-  ":Magenta replay-inline-edit-selection<CR>",
-  {silent = true, noremap = true, desc = "Replay last inline edit on selection"}
-)
-
+-- Context management
 vim.keymap.set(
   "n",
   "<leader>mb", -- like "magenta buffer"?
@@ -532,10 +539,72 @@ vim.keymap.set(
 )
 
 vim.keymap.set(
+  "v",
+  "<leader>mp",
+  ":Magenta paste-selection<CR>",
+  {silent = true, noremap = true, desc = "Send selection to Magenta"}
+)
+
+-- Inline edit
+vim.keymap.set(
+  "n",
+  "<leader>mi",
+  ":Magenta start-inline-edit<CR>",
+  {silent = true, noremap = true, desc = "Inline edit"}
+)
+
+vim.keymap.set(
+  "v",
+  "<leader>mi",
+  ":Magenta start-inline-edit-selection<CR>",
+  {silent = true, noremap = true, desc = "Inline edit selection"}
+)
+
+vim.keymap.set(
+  "n",
+  "<leader>mr",
+  ":Magenta replay-inline-edit<CR>",
+  {silent = true, noremap = true, desc = "Replay last inline edit"}
+)
+
+vim.keymap.set(
+  "v",
+  "<leader>mr",
+  ":Magenta replay-inline-edit-selection<CR>",
+  {silent = true, noremap = true, desc = "Replay last inline edit on selection"}
+)
+
+vim.keymap.set(
+  "n",
+  "<leader>m.",
+  ":Magenta replay-inline-edit<CR>",
+  {silent = true, noremap = true, desc = "Replay last inline edit"}
+)
+
+vim.keymap.set(
+  "v",
+  "<leader>m.",
+  ":Magenta replay-inline-edit-selection<CR>",
+  {silent = true, noremap = true, desc = "Replay last inline edit on selection"}
+)
+
+-- Provider selection
+vim.keymap.set(
   "n",
   "<leader>mp",
   Actions.pick_provider,
   { noremap = true, silent = true, desc = "Select provider and model" }
+)
+
+-- Edit prediction
+vim.keymap.set(
+  "i",
+  "<C-l>",
+  function()
+    vim.cmd("Magenta predict-edit")
+    return ""
+  end,
+  {silent = true, noremap = true, expr = true, desc = "Predict/accept edit at cursor"}
 )
 ```
 
@@ -631,6 +700,28 @@ user: Update all the imports in this project to use the new module path
 ```
 
 This architecture enables more sophisticated problem-solving by allowing the agent to gather focused context and work on multiple independent tasks simultaneously.
+
+### Edit prediction
+
+- `<C-l>` (Ctrl+L) in insert mode triggers the edit prediction feature. This analyzes your recent changes and current cursor context to suggest what you're likely to type next.
+- When a prediction appears:
+  - Press `<C-l>` again to accept and apply the prediction
+  - Press `<Esc>` to dismiss the prediction
+  - Making any other edit automatically dismisses the prediction
+
+The prediction is shown as virtual text:
+
+- Text to be removed is displayed with strikethrough formatting
+- Text to be added is highlighted in a different color
+
+This feature is particularly useful for:
+
+- Completing repetitive patterns
+- Finishing function calls and imports
+- Applying consistent formatting changes
+- Repeating similar edits across a codebase
+
+The AI model takes into account your recent editing history and the current context around your cursor to make intelligent suggestions.
 
 ### Inline edit
 

@@ -37,6 +37,7 @@ export type Profile = {
   provider: ProviderName;
   model: string;
   fastModel: string;
+  predictionModel?: string;
   baseUrl?: string;
   apiKeyEnvVar?: string;
   promptCaching?: boolean; // Primarily used by Bedrock provider
@@ -78,6 +79,13 @@ export type MCPServerConfig =
       tools?: MCPMockToolConfig[];
     };
 
+export type EditPredictionOptions = {
+  changeTrackerMaxChanges?: number;
+  recentChangeTokenBudget?: number;
+  systemPrompt?: string;
+  systemPromptAppend?: string;
+};
+
 export type MagentaOptions = {
   profiles: Profile[];
   activeProfile: string;
@@ -87,7 +95,14 @@ export type MagentaOptions = {
   maxConcurrentSubagents: number;
   mcpServers: { [serverName: ServerName]: MCPServerConfig };
   getFileAutoAllowGlobs: string[];
+
+  // Legacy options (for backward compatibility)
   changeTrackerMaxChanges?: number;
+  recentChangeTokenBudget?: number;
+  predictionSystemPrompt?: string;
+
+  // New structured options
+  editPrediction?: EditPredictionOptions;
 };
 
 // Reusable parsing helpers
@@ -136,6 +151,16 @@ function parseProfiles(
             ? p["fastModel"]
             : defaults.fastModel,
       };
+
+      if ("predictionModel" in p) {
+        if (typeof p["predictionModel"] === "string") {
+          out.predictionModel = p["predictionModel"];
+        } else {
+          logger.warn(
+            `Invalid predictionModel in profile ${p["name"]}, ignoring field`,
+          );
+        }
+      }
 
       if ("base_url" in p) {
         if (typeof p["base_url"] === "string") {
@@ -518,6 +543,8 @@ export function parseOptions(
     // Parse MCP servers (throw errors for invalid MCP servers in main config)
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
 
+    // Parse legacy options (for backward compatibility)
+
     // Parse change tracker max changes
     if (
       "changeTrackerMaxChanges" in inputOptionsObj &&
@@ -526,6 +553,83 @@ export function parseOptions(
     ) {
       options.changeTrackerMaxChanges =
         inputOptionsObj["changeTrackerMaxChanges"];
+    }
+
+    // Parse recent change token budget
+    if (
+      "recentChangeTokenBudget" in inputOptionsObj &&
+      typeof inputOptionsObj["recentChangeTokenBudget"] === "number" &&
+      inputOptionsObj["recentChangeTokenBudget"] > 0
+    ) {
+      options.recentChangeTokenBudget =
+        inputOptionsObj["recentChangeTokenBudget"];
+    }
+
+    // Parse prediction system prompt
+    if (
+      "predictionSystemPrompt" in inputOptionsObj &&
+      typeof inputOptionsObj["predictionSystemPrompt"] === "string" &&
+      inputOptionsObj["predictionSystemPrompt"].trim() !== ""
+    ) {
+      options.predictionSystemPrompt =
+        inputOptionsObj["predictionSystemPrompt"];
+    }
+
+    // Parse structured edit prediction options
+    if (
+      "editPrediction" in inputOptionsObj &&
+      typeof inputOptionsObj["editPrediction"] === "object" &&
+      inputOptionsObj["editPrediction"] !== null
+    ) {
+      const editPrediction = inputOptionsObj["editPrediction"] as Record<
+        string,
+        unknown
+      >;
+      options.editPrediction = {};
+
+      // Parse changeTrackerMaxChanges
+      if (
+        "changeTrackerMaxChanges" in editPrediction &&
+        typeof editPrediction["changeTrackerMaxChanges"] === "number" &&
+        editPrediction["changeTrackerMaxChanges"] > 0
+      ) {
+        options.editPrediction.changeTrackerMaxChanges = editPrediction[
+          "changeTrackerMaxChanges"
+        ];
+      }
+
+      // Parse recentChangeTokenBudget
+      if (
+        "recentChangeTokenBudget" in editPrediction &&
+        typeof editPrediction["recentChangeTokenBudget"] === "number" &&
+        editPrediction["recentChangeTokenBudget"] > 0
+      ) {
+        options.editPrediction.recentChangeTokenBudget = editPrediction[
+          "recentChangeTokenBudget"
+        ];
+      }
+
+      // Parse systemPrompt
+      if (
+        "systemPrompt" in editPrediction &&
+        typeof editPrediction["systemPrompt"] === "string" &&
+        editPrediction["systemPrompt"].trim() !== ""
+      ) {
+        options.editPrediction.systemPrompt = editPrediction[
+          "systemPrompt"
+        ];
+      }
+
+      // Parse systemPromptAppend
+      if (
+        "systemPromptAppend" in editPrediction &&
+        typeof editPrediction["systemPromptAppend"] === "string" &&
+        editPrediction["systemPromptAppend"].trim() !== ""
+      ) {
+        options.editPrediction.systemPromptAppend = editPrediction[
+          "systemPromptAppend"
+        ];
+      }
     }
   }
 
@@ -616,6 +720,8 @@ export function parseProjectOptions(
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
   }
 
+  // Parse legacy options (for backward compatibility)
+
   // Parse change tracker max changes
   if (
     "changeTrackerMaxChanges" in inputOptionsObj &&
@@ -624,6 +730,82 @@ export function parseProjectOptions(
   ) {
     options.changeTrackerMaxChanges =
       inputOptionsObj["changeTrackerMaxChanges"];
+  }
+
+  // Parse recent change token budget
+  if (
+    "recentChangeTokenBudget" in inputOptionsObj &&
+    typeof inputOptionsObj["recentChangeTokenBudget"] === "number" &&
+    inputOptionsObj["recentChangeTokenBudget"] > 0
+  ) {
+    options.recentChangeTokenBudget =
+      inputOptionsObj["recentChangeTokenBudget"];
+  }
+
+  // Parse prediction system prompt
+  if (
+    "predictionSystemPrompt" in inputOptionsObj &&
+    typeof inputOptionsObj["predictionSystemPrompt"] === "string" &&
+    inputOptionsObj["predictionSystemPrompt"].trim() !== ""
+  ) {
+    options.predictionSystemPrompt = inputOptionsObj["predictionSystemPrompt"];
+  }
+
+  // Parse structured edit prediction options
+  if (
+    "editPrediction" in inputOptionsObj &&
+    typeof inputOptionsObj["editPrediction"] === "object" &&
+    inputOptionsObj["editPrediction"] !== null
+  ) {
+    const editPrediction = inputOptionsObj["editPrediction"] as Record<
+      string,
+      unknown
+    >;
+    options.editPrediction = {};
+
+    // Parse changeTrackerMaxChanges
+    if (
+      "changeTrackerMaxChanges" in editPrediction &&
+      typeof editPrediction["changeTrackerMaxChanges"] === "number" &&
+      editPrediction["changeTrackerMaxChanges"] > 0
+    ) {
+      options.editPrediction.changeTrackerMaxChanges = editPrediction[
+        "changeTrackerMaxChanges"
+      ];
+    }
+
+    // Parse recentChangeTokenBudget
+    if (
+      "recentChangeTokenBudget" in editPrediction &&
+      typeof editPrediction["recentChangeTokenBudget"] === "number" &&
+      editPrediction["recentChangeTokenBudget"] > 0
+    ) {
+      options.editPrediction.recentChangeTokenBudget = editPrediction[
+        "recentChangeTokenBudget"
+      ];
+    }
+
+    // Parse systemPrompt
+    if (
+      "systemPrompt" in editPrediction &&
+      typeof editPrediction["systemPrompt"] === "string" &&
+      editPrediction["systemPrompt"].trim() !== ""
+    ) {
+      options.editPrediction.systemPrompt = editPrediction[
+        "systemPrompt"
+      ];
+    }
+
+    // Parse systemPromptAppend
+    if (
+      "systemPromptAppend" in editPrediction &&
+      typeof editPrediction["systemPromptAppend"] === "string" &&
+      editPrediction["systemPromptAppend"].trim() !== ""
+    ) {
+      options.editPrediction.systemPromptAppend = editPrediction[
+        "systemPromptAppend"
+      ];
+    }
   }
 
   return options;
@@ -700,6 +882,27 @@ export function mergeOptions(
 
   if (projectSettings.changeTrackerMaxChanges !== undefined) {
     merged.changeTrackerMaxChanges = projectSettings.changeTrackerMaxChanges;
+  }
+
+  // Merge legacy options for backward compatibility
+  if (projectSettings.recentChangeTokenBudget !== undefined) {
+    merged.recentChangeTokenBudget = projectSettings.recentChangeTokenBudget;
+  }
+
+  if (projectSettings.predictionSystemPrompt !== undefined) {
+    merged.predictionSystemPrompt = projectSettings.predictionSystemPrompt;
+  }
+
+  if (projectSettings.changeTrackerMaxChanges !== undefined) {
+    merged.changeTrackerMaxChanges = projectSettings.changeTrackerMaxChanges;
+  }
+
+  // Merge structured edit prediction options
+  if (projectSettings.editPrediction) {
+    merged.editPrediction = {
+      ...merged.editPrediction,
+      ...projectSettings.editPrediction,
+    };
   }
 
   return merged;

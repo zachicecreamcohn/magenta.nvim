@@ -23,6 +23,9 @@ import { calculateDiff } from "./diff.ts";
 import { MAGENTA_HIGHLIGHT_GROUPS } from "../nvim/extmarks.ts";
 import { PREDICTION_SYSTEM_PROMPT } from "../providers/system-prompt.ts";
 
+// Default token budget for recent changes (approximately 3 characters per token)
+export const DEFAULT_RECENT_CHANGE_TOKEN_BUDGET = 1000;
+
 export type PredictionState =
   | { type: "idle" }
   | { type: "preparing-request" }
@@ -71,6 +74,8 @@ export type EditPredictionId = number & { __editPredictionId: true };
 export class EditPredictionController {
   public state: PredictionState;
   private renderedExtMarks: BufNr | undefined;
+  public recentChangeTokenBudget: number;
+  private predictionSystemPrompt: string;
 
   private myDispatch: Dispatch<EditPredictionMsg>;
 
@@ -82,6 +87,14 @@ export class EditPredictionController {
       changeTracker: ChangeTracker;
       cwd: NvimCwd;
       getActiveProfile: () => Profile;
+      // Structured options
+      editPrediction?:
+        | {
+            recentChangeTokenBudget?: number;
+            systemPrompt?: string;
+            systemPromptAppend?: string;
+          }
+        | undefined;
     },
   ) {
     this.myDispatch = (msg) =>
@@ -93,6 +106,26 @@ export class EditPredictionController {
 
     this.state = { type: "idle" };
     this.renderedExtMarks = undefined;
+
+    // Get token budget with priority:
+    // 1. structured option, 2. legacy option, 3. default value
+    this.recentChangeTokenBudget =
+      context.editPrediction?.recentChangeTokenBudget ??
+      DEFAULT_RECENT_CHANGE_TOKEN_BUDGET;
+
+    // Get system prompt with priority:
+    // 1. structured replacement, 2. legacy option, 3. default with optional append
+    if (context.editPrediction?.systemPrompt) {
+      this.predictionSystemPrompt = context.editPrediction.systemPrompt;
+    } else {
+      this.predictionSystemPrompt = PREDICTION_SYSTEM_PROMPT;
+
+      // Append additional instructions if provided
+      if (context.editPrediction?.systemPromptAppend) {
+        this.predictionSystemPrompt +=
+          "\n\n" + context.editPrediction.systemPromptAppend;
+      }
+    }
   }
 
   update(msg: RootMsg): void {
@@ -133,12 +166,10 @@ export class EditPredictionController {
           prediction: msg.input,
         };
         this.showVirtualTextPreview().catch((error) => {
-          this.context.nvim.logger.warn(
-            "Virtual text preview failed (continuing anyway):" +
-              (error instanceof Error ? error.message : String(error)),
-          );
-          // Don't dispatch an error, just log the warning and continue
-          // This allows tests to work even if virtual text setup fails
+          this.myDispatch({
+            type: "prediction-error",
+            error: error instanceof Error ? error.message : String(error),
+          });
         });
         return;
 
@@ -208,6 +239,31 @@ export class EditPredictionController {
     }
   }
 
+  private async showCompletingIndicator(
+    contextWindow: CapturedContext,
+  ): Promise<void> {
+    const buffer = new NvimBuffer(contextWindow.bufferId, this.context.nvim);
+
+    await this.clearVirtualText();
+    this.renderedExtMarks = contextWindow.bufferId;
+
+    // Calculate cursor position in buffer coordinates
+    const cursorPos: Position0Indexed = {
+      row: (contextWindow.startLine + contextWindow.cursorDelta) as Row0Indexed,
+      col: contextWindow.cursorCol,
+    };
+
+    // Add virtual text "completing..." after the cursor
+    await buffer.setExtmark({
+      startPos: cursorPos,
+      endPos: cursorPos,
+      options: {
+        virt_text: [["completing...", "Comment"]],
+        right_gravity: false,
+      },
+    });
+  }
+
   private convertCharPosToLineCol(
     text: string,
     charPos: number,
@@ -224,6 +280,27 @@ export class EditPredictionController {
     return { row, col };
   }
 
+  private resolveFindText(findText: string, contextText: string): string {
+    // Check if the find text exists in context, with fallback for cursor marker
+    if (contextText.includes(findText)) {
+      return findText;
+    }
+
+    // Try removing cursor marker if present
+    if (findText.includes("│")) {
+      const fallbackFind = findText.replace(/│/g, "");
+      if (contextText.includes(fallbackFind)) {
+        return fallbackFind;
+      } else {
+        throw new Error(
+          `Find text "${findText}" (or fallback "${fallbackFind}") not found in current context`,
+        );
+      }
+    } else {
+      throw new Error(`Find text "${findText}" not found in current context`);
+    }
+  }
+
   private async showVirtualTextPreview(): Promise<void> {
     if (this.state.type !== "displaying-proposed-edit") {
       return;
@@ -236,16 +313,10 @@ export class EditPredictionController {
     this.renderedExtMarks = contextWindow.bufferId;
 
     const contextText = contextWindow.contextLines.join("\n");
-
-    // Check if the find text exists in context
-    if (!contextText.includes(prediction.find)) {
-      console.error("context: ", contextText);
-      console.error("find: ", prediction.find);
-      throw new Error("Find text not found in current context");
-    }
+    const findText = this.resolveFindText(prediction.find, contextText);
 
     // Calculate the new text after replacement
-    const newText = contextText.replace(prediction.find, prediction.replace);
+    const newText = contextText.replace(findText, prediction.replace);
 
     // Calculate diff operations
     const diffOps = calculateDiff(contextText, newText);
@@ -369,28 +440,28 @@ export class EditPredictionController {
       end: (contextWindow.endLine + 1) as Row0Indexed,
     });
 
-    // Simple validation that context hasn't changed significantly
-    if (currentLines.length !== contextWindow.contextLines.length) {
-      throw new Error("Context window has changed since prediction was made");
+    for (let i = 0; i < contextWindow.contextLines.length; i += 1) {
+      if (
+        currentLines[contextWindow.startLine + i] !==
+        contextWindow.contextLines[i]
+      ) {
+        throw new Error(`Context window has changed since prediction was made`);
+      }
     }
 
-    // Apply the find/replace within the context window
     const contextText = contextWindow.contextLines.join("\n");
-    if (!contextText.includes(prediction.find)) {
-      throw new Error("Find text not found in context window");
-    }
+    const findText = this.resolveFindText(prediction.find, contextText);
 
-    // Calculate cursor position in the context text
     const cursorLineOffset =
       contextWindow.contextLines.slice(0, contextWindow.cursorDelta).join("\n")
         .length + (contextWindow.cursorDelta > 0 ? 1 : 0); // +1 for newline if not first line
     const cursorPosInContext = cursorLineOffset + contextWindow.cursorCol;
 
-    // Find all occurrences of the prediction.find text
+    // Find all occurrences of the find text
     const findIndices: number[] = [];
     let startIndex = 0;
     let index: number;
-    while ((index = contextText.indexOf(prediction.find, startIndex)) !== -1) {
+    while ((index = contextText.indexOf(findText, startIndex)) !== -1) {
       findIndices.push(index);
       startIndex = index + 1;
     }
@@ -419,7 +490,7 @@ export class EditPredictionController {
     const replacedText =
       contextText.substring(0, findStartPos) +
       prediction.replace +
-      contextText.substring(findStartPos + prediction.find.length);
+      contextText.substring(findStartPos + findText.length);
 
     const replacedLines = replacedText.split("\n");
 
@@ -462,9 +533,6 @@ export class EditPredictionController {
       endLine,
     } = contextWindow || (await this.captureContextWindow());
 
-    // Get recent changes (up to 5 recent changes for context)
-    const recentChanges = this.context.changeTracker.getRecentChanges(5);
-
     // Create context with cursor marker
     const contextWithCursor = [...contextLines];
     const line = contextWithCursor[cursorLine] || "";
@@ -476,32 +544,56 @@ export class EditPredictionController {
       bufferName as UnresolvedFilePath,
     );
 
-    // Format recent changes using proper diffs
-    const recentChangesDiffs = recentChanges
-      .map((change) => {
-        // Create a unified diff patch
-        const patch = diff.createPatch(
-          change.filePath,
-          change.oldText,
-          change.newText,
-          `${change.filePath}:${change.range.start.line + 1}`,
-          `${change.filePath}:${change.range.start.line + 1}`,
-        );
+    // Get all recent changes
+    const allRecentChanges = this.context.changeTracker.getChanges();
 
-        // Remove the standard diff headers and @@ hunk headers
-        const lines = patch.split("\n");
-        const hunkStart = lines.findIndex((line) => line.startsWith("@@"));
+    // Process changes starting from the most recent, stopping when we hit the token budget
+    const selectedChanges: string[] = [];
+    let tokenCount = 0;
 
-        if (hunkStart === -1) return patch; // No hunks found, return as-is
+    // Start from the most recent change (end of array) and work backwards
+    for (let i = allRecentChanges.length - 1; i >= 0; i--) {
+      const change = allRecentChanges[i];
 
+      // Create a unified diff patch
+      const patch = diff.createPatch(
+        change.filePath,
+        change.oldText,
+        change.newText,
+        `${change.filePath}:${change.range.start.line + 1}`,
+        `${change.filePath}:${change.range.start.line + 1}`,
+      );
+
+      // Remove the standard diff headers and @@ hunk headers
+      const lines = patch.split("\n");
+      const hunkStart = lines.findIndex((line) => line.startsWith("@@"));
+
+      let formattedDiff: string;
+      if (hunkStart === -1) {
+        formattedDiff = patch; // No hunks found, use as-is
+      } else {
         // Skip the @@ header line and get the actual diff content
         const hunks = lines.slice(hunkStart + 1);
         const lineStart = change.range.start.line + 1;
         const lineEnd = change.range.end.line + 1;
+        formattedDiff = `${change.filePath}:${lineStart}:${lineEnd}\n${hunks.join("\n")}`;
+      }
 
-        return `${change.filePath}:${lineStart}:${lineEnd}\n${hunks.join("\n")}`;
-      })
-      .join("\n");
+      // Estimate token count (3 chars per token is a rough approximation)
+      const estimatedTokens = Math.ceil(formattedDiff.length / 3);
+
+      // Check if adding this change would exceed our budget
+      if (tokenCount + estimatedTokens > this.recentChangeTokenBudget) {
+        // If we can't fit any more changes, stop processing
+        break;
+      }
+
+      // This change fits within our budget, so include it
+      selectedChanges.unshift(formattedDiff); // Add to beginning to maintain chronological order
+      tokenCount += estimatedTokens;
+    }
+
+    const recentChangesDiffs = selectedChanges.join("\n");
 
     // Convert 0-indexed positions to 1-indexed for display
     const displayStartLine = (startLine + 1) as Row1Indexed;
@@ -510,7 +602,7 @@ export class EditPredictionController {
     return `Recent changes:
 ${recentChangesDiffs}
 
-Current context ( │ marks cursor position):
+Current context (│ marks cursor position):
 ${bufferRelPath}:${displayStartLine}:${displayEndLine}
 ${contextWithCursor.join("\n")}
 
@@ -528,8 +620,11 @@ Predict the most likely next edit the user will make.`;
     const contextWindow = await this.captureContextWindow();
     const userMessage = await this.composeUserMessage(contextWindow);
 
+    const predictionModel =
+      profile.predictionModel || profile.fastModel || profile.model;
+
     const request = provider.forceToolUse({
-      model: profile.fastModel || profile.model,
+      model: predictionModel,
       messages: [
         {
           role: "user",
@@ -537,7 +632,7 @@ Predict the most likely next edit the user will make.`;
         },
       ],
       spec,
-      systemPrompt: PREDICTION_SYSTEM_PROMPT,
+      systemPrompt: this.predictionSystemPrompt,
       disableCaching: true,
     });
 
@@ -548,6 +643,14 @@ Predict the most likely next edit the user will make.`;
       requestStartTime: Date.now(),
       request,
     };
+
+    // Show "completing..." indicator at cursor position
+    this.showCompletingIndicator(contextWindow).catch((error) => {
+      this.context.nvim.logger.warn(
+        "Failed to show completing indicator:",
+        error instanceof Error ? error.message : String(error),
+      );
+    });
 
     const response = await request.promise;
 

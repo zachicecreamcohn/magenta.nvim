@@ -303,9 +303,9 @@ ${CODEBASE_CONVENTIONS}
 ${LEARNING_PROCESS}`;
 
 export const PREDICTION_SYSTEM_PROMPT = `\
-Predict the user's next edit based on their recent changes and current cursor position.
+Predict the user's next edit based on their recent changes and current cursor position ( marked by │).
 
-Examples:
+Make sure to remove │ from the find and replace text.
 
 <example>
 context:
@@ -314,10 +314,23 @@ console│
 
 prediction:
 {
-  find: "console",
-  replace: "console.log('x', JSON.stringify(x, null, 2));"
+  find: "console\n",
+  replace: "console.log('x', JSON.stringify(x, null, 2));\n"
 }
 </example>
+
+<example>
+context:
+const x = ...
+console.log(│
+
+prediction:
+{
+  find: "console.log(\n",
+  replace: "console.log('x', JSON.stringify(x, null, 2));\n"
+}
+</example>
+
 
 <example>
 recent diffs:
