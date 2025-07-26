@@ -488,6 +488,14 @@ editPrediction = {
 }
 ```
 
+**Note**: By default, we use the fast model for each provider when doing predictons. So for example, for anthropic
+this would be haiku. This doesn't have super consistent results, but is faster. Personally, I just use sonnet 4 for
+my predictions as well. It takes about a second, but the UI is immediately responsive, and the results are generally
+much better, so for me the tradeoff makes sense.
+
+I think hooking up a model specifically designed for completion, like supermaven or zeta, would be a lot nicer. If you
+want, try it out and let us know in the discussion area.
+
 ## Keymaps
 
 If `default_keymaps` is set to true, the plugin will configure the following global keymaps:
