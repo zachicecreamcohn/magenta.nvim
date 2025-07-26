@@ -589,7 +589,7 @@ ${lines.join("\n")}
     _eventType:
       | "mode-change"
       | "buffer-focus-change"
-      | "insert-char"
+      | "text-changed-insert"
       | "escape-pressed",
   ) {
     if (
@@ -754,11 +754,11 @@ ${lines.join("\n")}
         if (
           eventType !== "mode-change" &&
           eventType !== "buffer-focus-change" &&
-          eventType !== "insert-char" &&
+          eventType !== "text-changed-insert" &&
           eventType !== "escape-pressed"
         ) {
           throw new Error(
-            `Invalid UI eventType: ${eventType}. Expected 'mode-change', 'buffer-focus-change', 'insert-char', or 'escape-pressed'`,
+            `Invalid UI eventType: ${eventType}. Expected 'mode-change', 'buffer-focus-change', 'text-changed-insert', or 'escape-pressed'`,
           );
         }
 

@@ -81,6 +81,7 @@ export class EditPredictionController {
   public recentChangeTokenBudget: number;
   private predictionSystemPrompt: string;
   private hasEscMapping: { bufnr: BufNr } | undefined;
+  private hasTextChangedListener: { bufnr: BufNr } | undefined;
 
   private myDispatch: Dispatch<EditPredictionMsg>;
 
@@ -104,6 +105,7 @@ export class EditPredictionController {
     this.state = { type: "idle" };
     this.renderedExtMarks = undefined;
     this.hasEscMapping = undefined;
+    this.hasTextChangedListener = undefined;
 
     // Get token budget with priority:
     // 1. structured option, 2. legacy option, 3. default value
@@ -140,10 +142,10 @@ export class EditPredictionController {
           this.state.request.abort();
         }
 
-        // Clean up any existing ESC mapping before starting new prediction
-        this.cleanupEscMappingIfNeeded().catch((error) => {
+        // Clean up any existing listeners before starting new prediction
+        this.cleanupPredictionListeners().catch((error) => {
           this.context.nvim.logger.warn(
-            "Failed to cleanup ESC mapping before new prediction:",
+            "Failed to cleanup prediction listeners before new prediction:",
             error instanceof Error ? error.message : String(error),
           );
         });
@@ -171,9 +173,9 @@ export class EditPredictionController {
           contextWindow: this.state.contextWindow,
           prediction: msg.input,
         };
-        this.setupEscMappingIfNeeded().catch((error) => {
+        this.setupPredictionListeners().catch((error) => {
           this.context.nvim.logger.warn(
-            "Failed to setup ESC mapping:",
+            "Failed to setup prediction listeners:",
             error instanceof Error ? error.message : String(error),
           );
         });
@@ -218,9 +220,9 @@ export class EditPredictionController {
             error instanceof Error ? error.message : String(error),
           );
         });
-        this.cleanupEscMappingIfNeeded().catch((error) => {
+        this.cleanupPredictionListeners().catch((error) => {
           this.context.nvim.logger.warn(
-            "Failed to cleanup ESC mapping:",
+            "Failed to cleanup prediction listeners:",
             error instanceof Error ? error.message : String(error),
           );
         });
@@ -235,9 +237,9 @@ export class EditPredictionController {
             error instanceof Error ? error.message : String(error),
           );
         });
-        this.cleanupEscMappingIfNeeded().catch((error) => {
+        this.cleanupPredictionListeners().catch((error) => {
           this.context.nvim.logger.warn(
-            "Failed to cleanup ESC mapping on error:",
+            "Failed to cleanup prediction listeners on error:",
             error instanceof Error ? error.message : String(error),
           );
         });
@@ -263,52 +265,86 @@ export class EditPredictionController {
     }
   }
 
-  private async setupEscMappingIfNeeded(): Promise<void> {
+  private async setupPredictionListeners(): Promise<void> {
     if (this.state.type !== "displaying-proposed-edit") {
       return;
     }
 
-    // Check if we're in normal mode
+    const bufnr = this.state.contextWindow.bufferId;
     const res = await this.context.nvim.call("nvim_get_mode", []);
-    if (res.mode !== "n") {
-      return;
+
+    // Setup ESC mapping if in normal mode
+    if (res.mode === "n") {
+      try {
+        await this.context.nvim.call("nvim_exec_lua", [
+          `require("magenta").setup_prediction_esc_mapping(${bufnr})`,
+          [],
+        ]);
+        this.hasEscMapping = { bufnr };
+      } catch (error) {
+        this.context.nvim.logger.warn(
+          "Failed to setup ESC mapping:",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
     }
 
-    const bufnr = this.state.contextWindow.bufferId;
-
-    try {
-      await this.context.nvim.call("nvim_exec_lua", [
-        `require("magenta").setup_prediction_esc_mapping(${bufnr})`,
-        [],
-      ]);
-
-      this.hasEscMapping = { bufnr };
-    } catch (error) {
-      this.context.nvim.logger.warn(
-        "Failed to setup ESC mapping:",
-        error instanceof Error ? error.message : String(error),
-      );
+    // Setup TextChangedI listener if in insert mode
+    if (res.mode === "i") {
+      try {
+        await this.context.nvim.call("nvim_exec_lua", [
+          `require("magenta").listenForTextChangedI(${bufnr})`,
+          [],
+        ]);
+        this.hasTextChangedListener = { bufnr };
+      } catch (error) {
+        this.context.nvim.logger.warn(
+          "Failed to setup TextChangedI listener:",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
     }
   }
 
-  private async cleanupEscMappingIfNeeded(): Promise<void> {
-    if (!this.hasEscMapping) {
+  private async cleanupPredictionListeners(): Promise<void> {
+    if (this.state.type !== "displaying-proposed-edit") {
       return;
     }
 
-    try {
-      await this.context.nvim.call("nvim_exec_lua", [
-        `require("magenta").cleanup_prediction_esc_mapping(${this.hasEscMapping.bufnr})`,
-        [],
-      ]);
-    } catch (error) {
-      // Ignore errors during cleanup - the mapping might already be gone
-      this.context.nvim.logger.debug(
-        "Error cleaning up ESC mapping (this is usually harmless):",
-        error instanceof Error ? error.message : String(error),
-      );
-    } finally {
-      this.hasEscMapping = undefined;
+    // Cleanup ESC mapping
+    if (this.hasEscMapping) {
+      try {
+        await this.context.nvim.call("nvim_exec_lua", [
+          `require("magenta").cleanup_prediction_esc_mapping(${this.hasEscMapping.bufnr})`,
+          [],
+        ]);
+      } catch (error) {
+        // Ignore errors during cleanup - the mapping might already be gone
+        this.context.nvim.logger.debug(
+          "Error cleaning up ESC mapping (this is usually harmless):",
+          error instanceof Error ? error.message : String(error),
+        );
+      } finally {
+        this.hasEscMapping = undefined;
+      }
+    }
+
+    // Cleanup TextChangedI listener
+    if (this.hasTextChangedListener) {
+      try {
+        await this.context.nvim.call("nvim_exec_lua", [
+          `require("magenta").cleanupListenForTextChangedI(${this.hasTextChangedListener.bufnr})`,
+          [],
+        ]);
+      } catch (error) {
+        // Ignore errors during cleanup - the autocmd might already be gone
+        this.context.nvim.logger.debug(
+          "Error cleaning up TextChangedI listener (this is usually harmless):",
+          error instanceof Error ? error.message : String(error),
+        );
+      } finally {
+        this.hasTextChangedListener = undefined;
+      }
     }
   }
 
@@ -502,9 +538,9 @@ export class EditPredictionController {
     const { contextWindow, prediction } = this.state;
 
     await this.clearVirtualText();
-    this.cleanupEscMappingIfNeeded().catch((error) => {
+    this.cleanupPredictionListeners().catch((error) => {
       this.context.nvim.logger.warn(
-        "Failed to cleanup ESC mapping after applying prediction:",
+        "Failed to cleanup prediction listeners after applying prediction:",
         error instanceof Error ? error.message : String(error),
       );
     });

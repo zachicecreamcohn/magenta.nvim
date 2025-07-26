@@ -262,16 +262,6 @@ M.bridge = function(channelId)
     }
   )
 
-  vim.api.nvim_create_autocmd(
-    "InsertCharPre",
-    {
-      pattern = "*",
-      callback = function()
-        vim.rpcnotify(channelId, "magentaUiEvents", "insert-char")
-      end
-    }
-  )
-
   M.listenToBufKey = function(bufnr, vimKey)
     vim.keymap.set(
       "n",
@@ -324,6 +314,35 @@ M.bridge = function(channelId)
     end
 
     original_esc_mappings[bufnr] = nil
+  end
+
+  -- Store autocmd IDs for cleanup
+  local text_changed_autocmds = {}
+
+  M.listenForTextChangedI = function(bufnr)
+    -- Clean up any existing autocmd for this buffer first
+    M.cleanupListenForTextChangedI(bufnr)
+
+    local autocmd_id = vim.api.nvim_create_autocmd(
+      "TextChangedI",
+      {
+        buffer = bufnr,
+        callback = function()
+          vim.rpcnotify(channelId, "magentaUiEvents", "text-changed-insert")
+          M.cleanupListenForTextChangedI(bufnr)
+        end
+      }
+    )
+
+    text_changed_autocmds[bufnr] = autocmd_id
+  end
+
+  M.cleanupListenForTextChangedI = function(bufnr)
+    local autocmd_id = text_changed_autocmds[bufnr]
+    if autocmd_id then
+      vim.api.nvim_del_autocmd(autocmd_id)
+      text_changed_autocmds[bufnr] = nil
+    end
   end
 
   local opts = Options.options

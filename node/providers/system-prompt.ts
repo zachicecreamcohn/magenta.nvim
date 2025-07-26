@@ -345,7 +345,27 @@ prediction:
   find: "myFunction('hello', 2, true);"
   replace: "myFunction({a: 'hello', b: 2, c: true});"
 }
-</example>`;
+</example>
+
+<example>
+recent diffs:
+- type MyType = {
++ type NewType = {
+
+context:
+
+// some stuff
+│const x: UnrelatedType = ...
+const val: MyType = ...
+
+prediction:
+{
+  find: "const val: MyType"
+  replace: "const val: NewType"
+}
+</example>
+
+`;
 
 function getBaseSystemPrompt(type: ThreadType): string {
   switch (type) {
