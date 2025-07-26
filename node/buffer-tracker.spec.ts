@@ -6,6 +6,7 @@ import { promisify } from "util";
 import { getCurrentBuffer, getcwd } from "./nvim/nvim";
 import type { AbsFilePath } from "./utils/files";
 import type { Line } from "./nvim/buffer";
+import type { Row0Indexed } from "./nvim/window";
 
 const writeFile = promisify(fs.writeFile);
 
@@ -64,8 +65,8 @@ describe("node/buffer-tracker.spec.ts", () => {
 
       // Modify the buffer without saving
       await buffer.setLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: ["modified content" as Line],
       });
 
@@ -104,8 +105,8 @@ describe("node/buffer-tracker.spec.ts", () => {
 
       // Modify the buffer
       await buffer.setLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: ["modified content" as Line],
       });
 

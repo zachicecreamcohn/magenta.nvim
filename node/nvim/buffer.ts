@@ -1,5 +1,5 @@
 import type { Nvim } from "./nvim-node";
-import type { Position0Indexed, Position1Indexed } from "./window";
+import type { Position0Indexed, Position1Indexed, Row0Indexed } from "./window";
 import { withTimeout } from "../utils/async";
 import type { AbsFilePath, UnresolvedFilePath } from "../utils/files";
 import type { ExtmarkId, ExtmarkOptions } from "./extmarks";
@@ -44,8 +44,8 @@ export class NvimBuffer {
     end,
     lines,
   }: {
-    start: number;
-    end: number;
+    start: Row0Indexed;
+    end: Row0Indexed;
     lines: Line[];
   }) {
     return this.nvim.call("nvim_buf_set_lines", [
@@ -61,8 +61,8 @@ export class NvimBuffer {
     start,
     end,
   }: {
-    start: number;
-    end: number;
+    start: Row0Indexed;
+    end: Row0Indexed;
   }): Promise<Line[]> {
     // Ensure buffer is loaded before getting lines
     // unloaded buffers return no lines, see https://github.com/neovim/neovim/pull/8660
@@ -404,13 +404,7 @@ end)`,
         row: (details as { end_row: unknown }).end_row || startRow,
         col: (details as { end_col: unknown }).end_col || startCol,
       } as Position0Indexed,
-      options: {
-        hl_group: (details as { hl_group: unknown }).hl_group,
-        priority: (details as { priority: unknown }).priority,
-        hl_eol: (details as { hl_eol: unknown }).hl_eol,
-        sign_text: (details as { sign_text: unknown }).sign_text,
-        sign_hl_group: (details as { sign_hl_group: unknown }).sign_hl_group,
-      } as ExtmarkOptions,
+      options: details as ExtmarkOptions,
     };
   }
 

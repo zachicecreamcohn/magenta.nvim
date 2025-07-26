@@ -78,6 +78,21 @@ export type MCPServerConfig =
       tools?: MCPMockToolConfig[];
     };
 
+export type EditPredictionProfile = {
+  provider: ProviderName;
+  model: string;
+  baseUrl?: string | undefined;
+  apiKeyEnvVar?: string | undefined;
+};
+
+export type EditPredictionOptions = {
+  changeTrackerMaxChanges?: number;
+  recentChangeTokenBudget?: number;
+  systemPrompt?: string;
+  systemPromptAppend?: string;
+  profile?: EditPredictionProfile;
+};
+
 export type MagentaOptions = {
   profiles: Profile[];
   activeProfile: string;
@@ -87,9 +102,63 @@ export type MagentaOptions = {
   maxConcurrentSubagents: number;
   mcpServers: { [serverName: ServerName]: MCPServerConfig };
   getFileAutoAllowGlobs: string[];
+  lspDebounceMs?: number;
+  debug?: boolean;
+  // New structured options
+  editPrediction?: EditPredictionOptions;
 };
 
 // Reusable parsing helpers
+function parseEditPredictionProfile(
+  profileInput: unknown,
+  logger: { warn: (msg: string) => void },
+): EditPredictionProfile | undefined {
+  if (typeof profileInput !== "object" || profileInput === null) {
+    logger.warn("editPrediction.profile must be an object");
+    return undefined;
+  }
+
+  const p = profileInput as { [key: string]: unknown };
+
+  if (
+    !(
+      typeof p["provider"] === "string" &&
+      PROVIDER_NAMES.indexOf(p["provider"] as ProviderName) !== -1
+    )
+  ) {
+    logger.warn("editPrediction.profile must have a valid provider field");
+    return undefined;
+  }
+
+  const provider = p["provider"] as ProviderName;
+  const defaults = DEFAULT_MODELS[provider];
+
+  const profile: EditPredictionProfile = {
+    provider,
+    model: typeof p["model"] === "string" ? p["model"] : defaults.model,
+  };
+
+  if ("baseUrl" in p) {
+    if (typeof p["baseUrl"] === "string") {
+      profile.baseUrl = p["baseUrl"];
+    } else {
+      logger.warn("Invalid baseUrl in editPrediction.profile, ignoring field");
+    }
+  }
+
+  if ("apiKeyEnvVar" in p) {
+    if (typeof p["apiKeyEnvVar"] === "string") {
+      profile.apiKeyEnvVar = p["apiKeyEnvVar"];
+    } else {
+      logger.warn(
+        "Invalid apiKeyEnvVar in editPrediction.profile, ignoring field",
+      );
+    }
+  }
+
+  return profile;
+}
+
 function parseProfiles(
   profilesInput: unknown,
   logger: { warn: (msg: string) => void },
@@ -514,8 +583,87 @@ export function parseOptions(
         inputOptionsObj["maxConcurrentSubagents"];
     }
 
+    // Parse LSP debounce ms
+    if (
+      "lspDebounceMs" in inputOptionsObj &&
+      typeof inputOptionsObj["lspDebounceMs"] === "number" &&
+      inputOptionsObj["lspDebounceMs"] > 0
+    ) {
+      options.lspDebounceMs = inputOptionsObj["lspDebounceMs"];
+    }
+
+    // Parse debug flag
+    if (
+      "debug" in inputOptionsObj &&
+      typeof inputOptionsObj["debug"] === "boolean"
+    ) {
+      options.debug = inputOptionsObj["debug"];
+    }
+
     // Parse MCP servers (throw errors for invalid MCP servers in main config)
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
+
+    if (
+      "editPrediction" in inputOptionsObj &&
+      typeof inputOptionsObj["editPrediction"] === "object" &&
+      inputOptionsObj["editPrediction"] !== null
+    ) {
+      const editPrediction = inputOptionsObj["editPrediction"] as Record<
+        string,
+        unknown
+      >;
+      options.editPrediction = {};
+
+      // Parse changeTrackerMaxChanges
+      if (
+        "changeTrackerMaxChanges" in editPrediction &&
+        typeof editPrediction["changeTrackerMaxChanges"] === "number" &&
+        editPrediction["changeTrackerMaxChanges"] > 0
+      ) {
+        options.editPrediction.changeTrackerMaxChanges =
+          editPrediction["changeTrackerMaxChanges"];
+      }
+
+      // Parse recentChangeTokenBudget
+      if (
+        "recentChangeTokenBudget" in editPrediction &&
+        typeof editPrediction["recentChangeTokenBudget"] === "number" &&
+        editPrediction["recentChangeTokenBudget"] > 0
+      ) {
+        options.editPrediction.recentChangeTokenBudget =
+          editPrediction["recentChangeTokenBudget"];
+      }
+
+      // Parse systemPrompt
+      if (
+        "systemPrompt" in editPrediction &&
+        typeof editPrediction["systemPrompt"] === "string" &&
+        editPrediction["systemPrompt"].trim() !== ""
+      ) {
+        options.editPrediction.systemPrompt = editPrediction["systemPrompt"];
+      }
+
+      // Parse systemPromptAppend
+      if (
+        "systemPromptAppend" in editPrediction &&
+        typeof editPrediction["systemPromptAppend"] === "string" &&
+        editPrediction["systemPromptAppend"].trim() !== ""
+      ) {
+        options.editPrediction.systemPromptAppend =
+          editPrediction["systemPromptAppend"];
+      }
+
+      // Parse profile
+      if ("profile" in editPrediction) {
+        const profile = parseEditPredictionProfile(
+          editPrediction["profile"],
+          logger,
+        );
+        if (profile) {
+          options.editPrediction.profile = profile;
+        }
+      }
+    }
   }
 
   return options;
@@ -600,9 +748,88 @@ export function parseProjectOptions(
     options.maxConcurrentSubagents = inputOptionsObj["maxConcurrentSubagents"];
   }
 
+  // Parse LSP debounce ms
+  if (
+    "lspDebounceMs" in inputOptionsObj &&
+    typeof inputOptionsObj["lspDebounceMs"] === "number" &&
+    inputOptionsObj["lspDebounceMs"] > 0
+  ) {
+    options.lspDebounceMs = inputOptionsObj["lspDebounceMs"];
+  }
+
+  // Parse debug flag
+  if (
+    "debug" in inputOptionsObj &&
+    typeof inputOptionsObj["debug"] === "boolean"
+  ) {
+    options.debug = inputOptionsObj["debug"];
+  }
+
   // Parse MCP servers
   if ("mcpServers" in inputOptionsObj) {
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
+  }
+
+  if (
+    "editPrediction" in inputOptionsObj &&
+    typeof inputOptionsObj["editPrediction"] === "object" &&
+    inputOptionsObj["editPrediction"] !== null
+  ) {
+    const editPrediction = inputOptionsObj["editPrediction"] as Record<
+      string,
+      unknown
+    >;
+    options.editPrediction = {};
+
+    // Parse changeTrackerMaxChanges
+    if (
+      "changeTrackerMaxChanges" in editPrediction &&
+      typeof editPrediction["changeTrackerMaxChanges"] === "number" &&
+      editPrediction["changeTrackerMaxChanges"] > 0
+    ) {
+      options.editPrediction.changeTrackerMaxChanges =
+        editPrediction["changeTrackerMaxChanges"];
+    }
+
+    // Parse recentChangeTokenBudget
+    if (
+      "recentChangeTokenBudget" in editPrediction &&
+      typeof editPrediction["recentChangeTokenBudget"] === "number" &&
+      editPrediction["recentChangeTokenBudget"] > 0
+    ) {
+      options.editPrediction.recentChangeTokenBudget =
+        editPrediction["recentChangeTokenBudget"];
+    }
+
+    // Parse systemPrompt
+    if (
+      "systemPrompt" in editPrediction &&
+      typeof editPrediction["systemPrompt"] === "string" &&
+      editPrediction["systemPrompt"].trim() !== ""
+    ) {
+      options.editPrediction.systemPrompt = editPrediction["systemPrompt"];
+    }
+
+    // Parse systemPromptAppend
+    if (
+      "systemPromptAppend" in editPrediction &&
+      typeof editPrediction["systemPromptAppend"] === "string" &&
+      editPrediction["systemPromptAppend"].trim() !== ""
+    ) {
+      options.editPrediction.systemPromptAppend =
+        editPrediction["systemPromptAppend"];
+    }
+
+    // Parse profile
+    if ("profile" in editPrediction) {
+      const profile = parseEditPredictionProfile(
+        editPrediction["profile"],
+        logger,
+      );
+      if (profile) {
+        options.editPrediction.profile = profile;
+      }
+    }
   }
 
   return options;
@@ -670,10 +897,26 @@ export function mergeOptions(
     merged.maxConcurrentSubagents = projectSettings.maxConcurrentSubagents;
   }
 
+  if (projectSettings.lspDebounceMs !== undefined) {
+    merged.lspDebounceMs = projectSettings.lspDebounceMs;
+  }
+
+  if (projectSettings.debug !== undefined) {
+    merged.debug = projectSettings.debug;
+  }
+
   if (projectSettings.mcpServers) {
     merged.mcpServers = {
       ...baseOptions.mcpServers,
       ...projectSettings.mcpServers,
+    };
+  }
+
+  // Merge structured edit prediction options
+  if (projectSettings.editPrediction) {
+    merged.editPrediction = {
+      ...merged.editPrediction,
+      ...projectSettings.editPrediction,
     };
   }
 

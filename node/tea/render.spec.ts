@@ -10,6 +10,7 @@ import {
 } from "./view.ts";
 import { describe, expect, it } from "vitest";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
+import { type Row0Indexed } from "../nvim/window.ts";
 
 describe("tea/render.spec.ts", () => {
   it("rendering empty string", async () => {
@@ -30,8 +31,8 @@ describe("tea/render.spec.ts", () => {
       });
 
       const lines = await buffer.getLines({
-        start: 0,
-        end: 1,
+        start: 0 as Row0Indexed,
+        end: 1 as Row0Indexed,
       });
 
       expect(lines[0]).toEqual("12" as Line);
@@ -63,8 +64,8 @@ third line`;
       });
 
       const lines = await buffer.getLines({
-        start: 0,
-        end: 4,
+        start: 0 as Row0Indexed,
+        end: 4 as Row0Indexed,
       });
 
       expect(lines).toEqual([
@@ -102,8 +103,8 @@ third line`;
       });
 
       const lines = await buffer.getLines({
-        start: 0,
-        end: 5,
+        start: 0 as Row0Indexed,
+        end: 5 as Row0Indexed,
       });
 
       expect(lines).toEqual([
@@ -139,8 +140,8 @@ third line`;
       });
 
       const lines = await buffer.getLines({
-        start: 0,
-        end: 1,
+        start: 0 as Row0Indexed,
+        end: 1 as Row0Indexed,
       });
 
       expect(lines[0]).toEqual("outer(inner)end" as Line);
@@ -170,8 +171,8 @@ third line`;
       });
 
       const lines = await buffer.getLines({
-        start: 0,
-        end: 1,
+        start: 0 as Row0Indexed,
+        end: 1 as Row0Indexed,
       });
 
       expect(lines[0]).toEqual("" as Line);
@@ -201,8 +202,8 @@ third line`;
       });
 
       const lines = await buffer.getLines({
-        start: 0,
-        end: 2,
+        start: 0 as Row0Indexed,
+        end: 2 as Row0Indexed,
       });
 
       expect(lines).toEqual(["1", "2"] as Line[]);
@@ -232,8 +233,8 @@ third line`;
       });
 
       const lines = await buffer.getLines({
-        start: 0,
-        end: 1,
+        start: 0 as Row0Indexed,
+        end: 1 as Row0Indexed,
       });
 
       expect(lines[0]).toEqual("Error text and Warning text" as Line);
@@ -328,8 +329,8 @@ third line`;
       });
 
       const lines = await buffer.getLines({
-        start: 0,
-        end: 1,
+        start: 0 as Row0Indexed,
+        end: 1 as Row0Indexed,
       });
 
       expect(lines[0]).toEqual("Highlighted text" as Line);
@@ -403,8 +404,8 @@ third line`;
       });
 
       const lines = await buffer.getLines({
-        start: 0,
-        end: 1,
+        start: 0 as Row0Indexed,
+        end: 1 as Row0Indexed,
       });
 
       expect(lines[0]).toEqual("Error: warning inside" as Line);
@@ -443,8 +444,8 @@ third line`;
       });
 
       const lines = await buffer.getLines({
-        start: 0,
-        end: 1,
+        start: 0 as Row0Indexed,
+        end: 1 as Row0Indexed,
       });
 
       expect(lines[0]).toEqual("end" as Line);
@@ -668,8 +669,8 @@ third line`;
         });
 
         const lines = await buffer.getLines({
-          start: 0,
-          end: 1,
+          start: 0 as Row0Indexed,
+          end: 1 as Row0Indexed,
         });
 
         expect(lines[0]).toEqual("Error: Warning: Info message" as Line);
@@ -777,8 +778,8 @@ third line`;
         });
 
         const lines = await buffer.getLines({
-          start: 0,
-          end: 1,
+          start: 0 as Row0Indexed,
+          end: 1 as Row0Indexed,
         });
 
         expect(lines[0]).toEqual("error and warning" as Line);
@@ -872,8 +873,8 @@ third line`;
         });
 
         const lines = await buffer.getLines({
-          start: 0,
-          end: 1,
+          start: 0 as Row0Indexed,
+          end: 1 as Row0Indexed,
         });
 
         expect(lines[0]).toEqual("item1 item2 item3 " as Line);

@@ -8,6 +8,7 @@ import {
   type UnresolvedFilePath,
 } from "../utils/files.ts";
 import { getcwd } from "../nvim/nvim.ts";
+import type { Row0Indexed } from "../nvim/window.ts";
 
 export interface FileSnapshot {
   content: string;
@@ -84,8 +85,8 @@ export class FileSnapshots {
     if (bufferResult.status === "ok") {
       // Get content from buffer
       const lines = await bufferResult.buffer.getLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
       });
       return lines.join("\n");
     } else {

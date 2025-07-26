@@ -1,4 +1,25 @@
-// Core highlight types and interfaces for the magenta.nvim VDOM system
+import type { Nvim } from "./nvim-node";
+
+/**
+ * Highlight group names used by magenta
+ */
+export const MAGENTA_HIGHLIGHT_GROUPS = {
+  PREDICTION_STRIKETHROUGH: "MagentaPredictionStrikethrough",
+} as const;
+
+/**
+ * Initialize all magenta highlight groups within the magenta namespace.
+ * This should be called once during plugin initialization.
+ */
+export async function initializeMagentaHighlightGroups(
+  nvim: Nvim,
+): Promise<void> {
+  await nvim.call("nvim_set_hl", [
+    0, // clearing a namespace clears highlight definitions on that namespace
+    MAGENTA_HIGHLIGHT_GROUPS.PREDICTION_STRIKETHROUGH,
+    { strikethrough: true },
+  ]);
+}
 
 /**
  * Union type of all available highlight groups for type safety.
@@ -58,22 +79,14 @@ export const HL_GROUPS = [
   "@lsp.type.comment",
   "@lsp.type.type",
   "@lsp.type.constant",
+  MAGENTA_HIGHLIGHT_GROUPS.PREDICTION_STRIKETHROUGH,
 ] as const;
 
 /**
  * Union type of all available highlight groups for type safety.
+ * Includes both predefined groups and custom highlight groups (strings).
  */
 export type HLGroup = (typeof HL_GROUPS)[number];
-
-/**
- * Text styling options for bold, italic, underline, etc.
- */
-export type TextStyle = {
-  bold?: boolean;
-  italic?: boolean;
-  underline?: boolean;
-  strikethrough?: boolean;
-};
 
 /**
  * Custom color styling when semantic groups aren't sufficient.
@@ -91,11 +104,11 @@ export type ExtmarkId = number & { __extmarkId: true };
 
 /**
  * Comprehensive options for nvim_buf_set_extmark.
-l* Covers all available extmark functionality.
+ * Covers all available extmark functionality.
  */
 export type ExtmarkOptions = {
   // Basic highlighting
-  hl_group?: HLGroup | TextStyleGroup | (HLGroup | TextStyleGroup)[];
+  hl_group?: HLGroup | HLGroup[];
   hl_eol?: boolean;
   hl_mode?: "replace" | "combine" | "blend";
   priority?: number;
@@ -109,6 +122,18 @@ export type ExtmarkOptions = {
 
   // Line number styling
   number_hl_group?: HLGroup;
+
+  // Virtual text
+  virt_text?: Array<[string, HLGroup]>;
+  virt_text_pos?: "overlay" | "eol" | "right_align" | "inline";
+  virt_text_win_col?: number;
+  virt_text_hide?: boolean;
+  virt_text_repeat_linebreak?: boolean;
+
+  // Virtual lines
+  virt_lines?: Array<Array<[string, HLGroup]>>;
+  virt_lines_above?: boolean;
+  virt_lines_leftcol?: boolean;
 
   // Advanced features
   conceal?: string;
@@ -124,22 +149,6 @@ export type ExtmarkOptions = {
   invalidate?: boolean;
   ephemeral?: boolean;
 };
-
-export type TextStyleGroup = string & { __textStyleGroup: true };
-
-/**
- * Create a text style highlight group dynamically.
- * Returns highlight group name for use in ExtmarkOptions.
- * Note: This creates dynamic highlight groups that may need to be registered with Neovim.
- */
-export function createTextStyleGroup(style: TextStyle): TextStyleGroup {
-  const parts: string[] = [];
-  if (style.bold) parts.push("bold");
-  if (style.italic) parts.push("italic");
-  if (style.underline) parts.push("underline");
-  if (style.strikethrough) parts.push("strikethrough");
-  return parts.join(",") as TextStyleGroup;
-}
 
 /**
  * Compare two ExtmarkOptions objects for equality.
@@ -166,6 +175,35 @@ export function extmarkOptionsEqual(
         options1.hl_group.every((group, i) => group === options2.hl_group![i])
       : options1.hl_group === options2.hl_group;
 
+  // Compare virtual text arrays
+  const virtTextEqual =
+    (options1.virt_text === undefined && options2.virt_text === undefined) ||
+    (Array.isArray(options1.virt_text) &&
+      Array.isArray(options2.virt_text) &&
+      options1.virt_text.length === options2.virt_text.length &&
+      options1.virt_text.every(
+        ([text1, hl1], i) =>
+          options2.virt_text![i][0] === text1 &&
+          options2.virt_text![i][1] === hl1,
+      ));
+
+  // Compare virtual lines arrays
+  const virtLinesEqual =
+    (options1.virt_lines === undefined && options2.virt_lines === undefined) ||
+    (Array.isArray(options1.virt_lines) &&
+      Array.isArray(options2.virt_lines) &&
+      options1.virt_lines.length === options2.virt_lines.length &&
+      options1.virt_lines.every(
+        (line1, i) =>
+          Array.isArray(options2.virt_lines![i]) &&
+          line1.length === options2.virt_lines![i].length &&
+          line1.every(
+            ([text1, hl1], j) =>
+              options2.virt_lines![i][j][0] === text1 &&
+              options2.virt_lines![i][j][1] === hl1,
+          ),
+      ));
+
   return (
     hlGroupsEqual &&
     options1.hl_eol === options2.hl_eol &&
@@ -175,6 +213,15 @@ export function extmarkOptionsEqual(
     options1.sign_text === options2.sign_text &&
     options1.sign_hl_group === options2.sign_hl_group &&
     options1.number_hl_group === options2.number_hl_group &&
+    virtTextEqual &&
+    options1.virt_text_pos === options2.virt_text_pos &&
+    options1.virt_text_win_col === options2.virt_text_win_col &&
+    options1.virt_text_hide === options2.virt_text_hide &&
+    options1.virt_text_repeat_linebreak ===
+      options2.virt_text_repeat_linebreak &&
+    virtLinesEqual &&
+    options1.virt_lines_above === options2.virt_lines_above &&
+    options1.virt_lines_leftcol === options2.virt_lines_leftcol &&
     options1.conceal === options2.conceal &&
     options1.url === options2.url &&
     options1.right_gravity === options2.right_gravity &&

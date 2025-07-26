@@ -8,6 +8,7 @@ import { getcwd } from "../nvim/nvim";
 import type { Dispatch } from "../tea/tea";
 import type { RootMsg } from "../root-msg";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow";
+import type { Row0Indexed } from "../nvim/window";
 import {
   relativePath,
   resolveFilePath,
@@ -411,7 +412,10 @@ export class ContextManager {
         }
 
         // now the buffer should have the latest version of the file
-        const lines = await buffer.getLines({ start: 0, end: -1 });
+        const lines = await buffer.getLines({
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
+        });
         currentFileContent = lines.join("\n");
       } catch (err) {
         return {

@@ -1,7 +1,7 @@
 import { WIDTH } from "../sidebar.ts";
 import { diffthis, getAllWindows, getcwd } from "../nvim/nvim.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
-import { type WindowId } from "../nvim/window.ts";
+import { type WindowId, type Row0Indexed } from "../nvim/window.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { MessageId } from "../chat/message.ts";
 import type { FileSnapshots } from "./file-snapshots.ts";
@@ -62,8 +62,8 @@ export async function displaySnapshotDiff({
 
   await scratchBuffer.setOption("bufhidden", "wipe");
   await scratchBuffer.setLines({
-    start: 0,
-    end: -1,
+    start: 0 as Row0Indexed,
+    end: -1 as Row0Indexed,
     lines: snapshot.content.split("\n") as Line[],
   });
 

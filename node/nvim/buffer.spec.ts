@@ -7,6 +7,7 @@ import {
   type ExtmarkId,
   type ExtmarkOptions,
 } from "./extmarks.ts";
+import type { Row0Indexed } from "./window.ts";
 
 describe("nvim/buffer.spec.ts", () => {
   describe("extmark management", () => {
@@ -16,8 +17,8 @@ describe("nvim/buffer.spec.ts", () => {
 
         // Set up buffer content
         await buffer.setLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
           lines: ["Hello world", "Second line"] as Line[],
         });
 
@@ -95,8 +96,8 @@ describe("nvim/buffer.spec.ts", () => {
 
         // Set up buffer content
         await buffer.setLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
           lines: ["Hello world", "Second line"] as Line[],
         });
 
@@ -153,8 +154,8 @@ describe("nvim/buffer.spec.ts", () => {
 
         // Set up buffer content
         await buffer.setLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
           lines: ["Hello world", "Second line"] as Line[],
         });
 
@@ -213,8 +214,8 @@ describe("nvim/buffer.spec.ts", () => {
 
         // Set up buffer content
         await buffer.setLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
           lines: ["Hello world test"] as Line[],
         });
 
@@ -251,8 +252,8 @@ describe("nvim/buffer.spec.ts", () => {
 
         // Set up multi-line buffer content
         await buffer.setLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
           lines: ["First line", "Second line", "Third line"] as Line[],
         });
 
@@ -279,8 +280,8 @@ describe("nvim/buffer.spec.ts", () => {
 
         // Set up buffer content
         await buffer.setLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
           lines: ["Line one", "Line two", "Line three"] as Line[],
         });
 
@@ -378,8 +379,8 @@ describe("nvim/buffer.spec.ts", () => {
 
         // Set up buffer content
         await buffer.setLines({
-          start: 0,
-          end: -1,
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
           lines: ["Test line one", "Test line two"] as Line[],
         });
 

@@ -6,7 +6,7 @@ import type { Nvim } from "./nvim/nvim-node";
 import { Lsp } from "./lsp.ts";
 import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
 import type { BufNr, Line } from "./nvim/buffer.ts";
-import { pos1col1to0 } from "./nvim/window.ts";
+import { pos1col1to0, type Row0Indexed } from "./nvim/window.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
 import {
   parseOptions,
@@ -20,6 +20,7 @@ import type { RootMsg, SidebarMsg } from "./root-msg.ts";
 import { Chat } from "./chat/chat.ts";
 import type { Dispatch } from "./tea/tea.ts";
 import { BufferTracker } from "./buffer-tracker.ts";
+import { ChangeTracker } from "./change-tracker.ts";
 import {
   relativePath,
   resolveFilePath,
@@ -29,6 +30,12 @@ import {
   detectFileType,
 } from "./utils/files.ts";
 import { assertUnreachable } from "./utils/assertUnreachable.ts";
+import {
+  EditPredictionController,
+  type EditPredictionId,
+} from "./edit-prediction/edit-prediction-controller.ts";
+import { initializeMagentaHighlightGroups } from "./nvim/extmarks.ts";
+import { MAGENTA_HIGHLIGHT_NAMESPACE } from "./nvim/buffer.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
@@ -36,6 +43,8 @@ const MAGENTA_ON_WINDOW_CLOSED = "magentaWindowClosed";
 const MAGENTA_KEY = "magentaKey";
 const MAGENTA_LSP_RESPONSE = "magentaLspResponse";
 const MAGENTA_BUFFER_TRACKER = "magentaBufferTracker";
+const MAGENTA_TEXT_DOCUMENT_DID_CHANGE = "magentaTextDocumentDidChange";
+const MAGENTA_UI_EVENTS = "magentaUiEvents";
 
 export class Magenta {
   public sidebar: Sidebar;
@@ -45,6 +54,8 @@ export class Magenta {
   public chat: Chat;
   public dispatch: Dispatch<RootMsg>;
   public bufferTracker: BufferTracker;
+  public changeTracker: ChangeTracker;
+  public editPredictionController: EditPredictionController;
 
   constructor(
     public nvim: Nvim,
@@ -53,10 +64,12 @@ export class Magenta {
     public options: MagentaOptions,
   ) {
     this.bufferTracker = new BufferTracker(this.nvim);
+    this.changeTracker = new ChangeTracker(this.nvim, this.cwd, this.options);
 
     this.dispatch = (msg: RootMsg) => {
       try {
         this.chat.update(msg);
+        this.editPredictionController.update(msg);
 
         if (msg.type == "sidebar-msg") {
           this.handleSidebarMsg(msg.msg);
@@ -83,6 +96,17 @@ export class Magenta {
       options: this.options,
       lsp: this.lsp,
     });
+
+    this.editPredictionController = new EditPredictionController(
+      1 as EditPredictionId,
+      {
+        dispatch: this.dispatch,
+        nvim: this.nvim,
+        changeTracker: this.changeTracker,
+        cwd: this.cwd,
+        options: this.options,
+      },
+    );
 
     this.sidebar = new Sidebar(
       this.nvim,
@@ -117,8 +141,8 @@ export class Magenta {
         ) {
           this.sidebar.state.inputBuffer
             .setLines({
-              start: 0,
-              end: -1,
+              start: 0 as Row0Indexed,
+              end: -1 as Row0Indexed,
               lines: msg.lastUserMessage.split("\n") as Line[],
             })
             .catch((error) => {
@@ -241,8 +265,8 @@ export class Magenta {
           this.mountedChatApp = await this.chatApp.mount({
             nvim: this.nvim,
             buffer: buffers.displayBuffer,
-            startPos: pos(0, 0),
-            endPos: pos(-1, -1),
+            startPos: pos(0 as Row0Indexed, 0),
+            endPos: pos(-1 as Row0Indexed, -1),
           });
           this.nvim.logger.debug(`Chat mounted.`);
         }
@@ -381,8 +405,8 @@ ${lines.join("\n")}
         }
 
         await inputBuffer.setLines({
-          start: -1,
-          end: -1,
+          start: -1 as Row0Indexed,
+          end: -1 as Row0Indexed,
           lines: content.split("\n") as Line[],
         });
 
@@ -421,6 +445,63 @@ ${lines.join("\n")}
         await this.inlineEditManager.replay({
           startPos,
           endPos,
+        });
+        break;
+      }
+
+      case "predict-edit": {
+        if (
+          this.editPredictionController.state.type ===
+          "displaying-proposed-edit"
+        ) {
+          this.dispatch({
+            type: "edit-prediction-msg",
+            id: this.editPredictionController.id,
+            msg: {
+              type: "prediction-accepted",
+            },
+          });
+        } else {
+          this.dispatch({
+            type: "edit-prediction-msg",
+            id: this.editPredictionController.id,
+            msg: {
+              type: "trigger-prediction",
+            },
+          });
+        }
+        break;
+      }
+
+      case "accept-prediction": {
+        this.dispatch({
+          type: "edit-prediction-msg",
+          id: this.editPredictionController.id,
+          msg: {
+            type: "prediction-accepted",
+          },
+        });
+        break;
+      }
+
+      case "dismiss-prediction": {
+        this.dispatch({
+          type: "edit-prediction-msg",
+          id: this.editPredictionController.id,
+          msg: {
+            type: "prediction-dismissed",
+          },
+        });
+        break;
+      }
+
+      case "debug-prediction-message": {
+        this.dispatch({
+          type: "edit-prediction-msg",
+          id: this.editPredictionController.id,
+          msg: {
+            type: "debug-log-message",
+          },
         });
         break;
       }
@@ -478,6 +559,7 @@ ${lines.join("\n")}
       this.inlineEditManager.onWinClosed(),
     ]);
   }
+
   onBufferTrackerEvent(
     eventType: "read" | "write" | "close",
     absFilePath: AbsFilePath,
@@ -492,12 +574,43 @@ ${lines.join("\n")}
             `Error tracking buffer sync for ${absFilePath}: ${err}`,
           );
         });
+
+        // Dismiss any active prediction when buffer changes
+        if (eventType === "write") {
+          this.dispatch({
+            type: "edit-prediction-msg",
+            id: this.editPredictionController.id,
+            msg: {
+              type: "prediction-dismissed",
+            },
+          });
+        }
         break;
       case "close":
         this.bufferTracker.clearFileTracking(absFilePath);
         break;
       default:
         assertUnreachable(eventType);
+    }
+  }
+
+  onUiEvent(
+    _eventType:
+      | "mode-change"
+      | "buffer-focus-change"
+      | "text-changed-insert"
+      | "escape-pressed",
+  ) {
+    if (
+      this.editPredictionController.state.type === "displaying-proposed-edit"
+    ) {
+      this.dispatch({
+        type: "edit-prediction-msg",
+        id: this.editPredictionController.id,
+        msg: {
+          type: "prediction-dismissed",
+        },
+      });
     }
   }
 
@@ -588,6 +701,83 @@ ${lines.join("\n")}
         );
       }
     });
+
+    nvim.onNotification(MAGENTA_TEXT_DOCUMENT_DID_CHANGE, (data) => {
+      try {
+        // Data comes as an array with a single object element from Lua
+        if (!Array.isArray(data) || data.length !== 1) {
+          throw new Error(
+            "Expected change data to be an array with one element",
+          );
+        }
+
+        const changeData = data[0] as {
+          filePath?: unknown;
+          oldText?: unknown;
+          newText?: unknown;
+          range?: unknown;
+        };
+
+        if (
+          typeof changeData.filePath !== "string" ||
+          typeof changeData.oldText !== "string" ||
+          typeof changeData.newText !== "string" ||
+          typeof changeData.range !== "object" ||
+          changeData.range === null
+        ) {
+          throw new Error(
+            `Invalid change data format: expected { filePath: string, oldText: string, newText: string, range: object }, got ${JSON.stringify(changeData)}`,
+          );
+        }
+
+        magenta.changeTracker.onTextDocumentDidChange(
+          changeData as {
+            filePath: string;
+            oldText: string;
+            newText: string;
+            range: {
+              start: { line: number; character: number };
+              end: { line: number; character: number };
+            };
+          },
+        );
+      } catch (err) {
+        nvim.logger.error(
+          `Error handling text document change: ${err instanceof Error ? err.message + "\n" + err.stack : JSON.stringify(err)}`,
+        );
+      }
+    });
+
+    nvim.onNotification(MAGENTA_UI_EVENTS, (args) => {
+      try {
+        if (
+          !Array.isArray(args) ||
+          args.length < 1 ||
+          typeof args[0] !== "string"
+        ) {
+          throw new Error(`Expected UI event args to be [eventType]`);
+        }
+
+        const eventType = args[0];
+        // Validate that eventType is one of the expected values
+        if (
+          eventType !== "mode-change" &&
+          eventType !== "buffer-focus-change" &&
+          eventType !== "text-changed-insert" &&
+          eventType !== "escape-pressed"
+        ) {
+          throw new Error(
+            `Invalid UI eventType: ${eventType}. Expected 'mode-change', 'buffer-focus-change', 'text-changed-insert', or 'escape-pressed'`,
+          );
+        }
+
+        magenta.onUiEvent(eventType);
+      } catch (err) {
+        nvim.logger.error(
+          `Error handling UI event for ${JSON.stringify(args)}: ${err instanceof Error ? err.message + "\n" + err.stack : JSON.stringify(err)}`,
+        );
+      }
+    });
     const opts = await nvim.call("nvim_exec_lua", [
       `return require('magenta').bridge(${nvim.channelId})`,
       [],
@@ -607,6 +797,18 @@ ${lines.join("\n")}
       ? mergeOptions(baseOptions, projectSettings)
       : baseOptions;
     const magenta = new Magenta(nvim, lsp, cwd, parsedOptions);
+
+    // Initialize highlight groups in the magenta namespace
+    try {
+      await nvim.call("nvim_create_namespace", [MAGENTA_HIGHLIGHT_NAMESPACE]);
+      await initializeMagentaHighlightGroups(nvim);
+    } catch (error) {
+      nvim.logger.error(
+        "Failed to initialize highlight groups:",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+
     nvim.logger.info(`Magenta initialized. ${JSON.stringify(parsedOptions)}`);
     return magenta;
   }

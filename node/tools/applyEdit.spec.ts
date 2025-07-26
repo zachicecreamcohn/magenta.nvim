@@ -9,6 +9,7 @@ import { type Line } from "../nvim/buffer";
 import type { AbsFilePath, UnresolvedFilePath } from "../utils/files";
 import { applyEdit } from "./applyEdit";
 import type { MessageId } from "../chat/message";
+import type { Row0Indexed } from "../nvim/window";
 
 describe("node/tools/applyEdit.spec.ts", () => {
   it("insert into new file", async () => {
@@ -361,8 +362,8 @@ Paint their stories in the night.
 
       // Verify that the first edit failed but the third succeeded
       const bufferLines = await buffer.getLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
       });
       expect(bufferLines).toEqual([
         "Starlight whispers through the trees,",
@@ -642,8 +643,8 @@ Paint their stories in the night.
       const buffer = await getCurrentBuffer(driver.nvim);
       expect(await buffer.getName()).toContain("buffer_with_changes.txt");
       await buffer.setLines({
-        start: -1,
-        end: -1,
+        start: -1 as Row0Indexed,
+        end: -1 as Row0Indexed,
         lines: ["Unsaved buffer changes"] as Line[],
       });
       const isModified = await buffer.getOption("modified");
@@ -678,8 +679,8 @@ Paint their stories in the night.
       await driver.assertDisplayBufferContains("✏️✅ Insert [[ +2 ]]");
 
       const bufferLines = await buffer.getLines({
-        start: 0,
-        end: -1,
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
       });
       expect(bufferLines).toEqual([
         "Original content",
