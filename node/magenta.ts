@@ -497,6 +497,17 @@ ${lines.join("\n")}
         break;
       }
 
+      case "debug-prediction-message": {
+        this.dispatch({
+          type: "edit-prediction-msg",
+          id: this.editPredictionController.id,
+          msg: {
+            type: "debug-log-message",
+          },
+        });
+        break;
+      }
+
       case "submit-inline-edit": {
         if (rest.length != 1 || typeof rest[0] != "string") {
           this.nvim.logger.error(

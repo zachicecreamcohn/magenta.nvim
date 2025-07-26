@@ -56,6 +56,7 @@ local normal_commands = {
   "abort",
   "clear",
   "context-files",
+  "debug-prediction-message",
   "profile",
   "start-inline-edit",
   "replay-inline-edit",
@@ -87,7 +88,15 @@ M.bridge = function(channelId)
   local notify_fn = function(data)
     vim.rpcnotify(channelId, 'magentaTextDocumentDidChange', data)
   end
-  M.lsp_server = LspServer.new(notify_fn)
+
+  local opts = Options.options
+  if _G.magenta_test_options then
+    for k, v in pairs(_G.magenta_test_options) do
+      opts[k] = v
+    end
+  end
+
+  M.lsp_server = LspServer.new(notify_fn, opts)
   local client_id = M.lsp_server:start()
 
   -- Attach LSP server to all existing buffers

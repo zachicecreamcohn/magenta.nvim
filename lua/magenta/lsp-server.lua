@@ -11,11 +11,12 @@ local capabilities = {
   }
 }
 
-function LspServer.new(notify_fn)
+function LspServer.new(notify_fn, options)
   local self = setmetatable({}, LspServer)
   self.notify_fn = notify_fn
   self.client_id = nil
   self.documents = {} -- Track file contents { [filePath] = { lines = {}, version = number } }
+  self.options = options or {}
   return self
 end
 
@@ -166,13 +167,16 @@ end
 function LspServer:start()
   local cmd = self:create_server_cmd()
 
+  -- Use configurable debounce rate, defaulting to 1000ms
+  local debounce_ms = self.options.lspDebounceMs or 1000
+
   self.client_id = vim.lsp.start({
     cmd = cmd,
     name = 'magenta-lsp',
     root_dir = vim.fn.getcwd(),
     flags = {
       allow_incremental_sync = true,
-      debounce_text_changes = 150 -- ms
+      debounce_text_changes = debounce_ms
     }
   }, {
     attach = false

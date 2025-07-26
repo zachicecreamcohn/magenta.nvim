@@ -102,6 +102,7 @@ export type MagentaOptions = {
   maxConcurrentSubagents: number;
   mcpServers: { [serverName: ServerName]: MCPServerConfig };
   getFileAutoAllowGlobs: string[];
+  lspDebounceMs?: number;
 
   // Legacy options (for backward compatibility)
   changeTrackerMaxChanges?: number;
@@ -587,6 +588,15 @@ export function parseOptions(
         inputOptionsObj["maxConcurrentSubagents"];
     }
 
+    // Parse LSP debounce ms
+    if (
+      "lspDebounceMs" in inputOptionsObj &&
+      typeof inputOptionsObj["lspDebounceMs"] === "number" &&
+      inputOptionsObj["lspDebounceMs"] > 0
+    ) {
+      options.lspDebounceMs = inputOptionsObj["lspDebounceMs"];
+    }
+
     // Parse MCP servers (throw errors for invalid MCP servers in main config)
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
 
@@ -768,6 +778,15 @@ export function parseProjectOptions(
     options.maxConcurrentSubagents = inputOptionsObj["maxConcurrentSubagents"];
   }
 
+  // Parse LSP debounce ms
+  if (
+    "lspDebounceMs" in inputOptionsObj &&
+    typeof inputOptionsObj["lspDebounceMs"] === "number" &&
+    inputOptionsObj["lspDebounceMs"] > 0
+  ) {
+    options.lspDebounceMs = inputOptionsObj["lspDebounceMs"];
+  }
+
   // Parse MCP servers
   if ("mcpServers" in inputOptionsObj) {
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
@@ -930,6 +949,10 @@ export function mergeOptions(
 
   if (projectSettings.maxConcurrentSubagents !== undefined) {
     merged.maxConcurrentSubagents = projectSettings.maxConcurrentSubagents;
+  }
+
+  if (projectSettings.lspDebounceMs !== undefined) {
+    merged.lspDebounceMs = projectSettings.lspDebounceMs;
   }
 
   if (projectSettings.mcpServers) {

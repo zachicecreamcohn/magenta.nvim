@@ -71,7 +71,8 @@ export type EditPredictionMsg =
   | { type: "prediction-received"; input: PredictionInput }
   | { type: "prediction-accepted" }
   | { type: "prediction-dismissed" }
-  | { type: "prediction-error"; error: string };
+  | { type: "prediction-error"; error: string }
+  | { type: "debug-log-message" };
 
 export type EditPredictionId = number & { __editPredictionId: true };
 
@@ -244,6 +245,15 @@ export class EditPredictionController {
           );
         });
         this.state = { type: "idle" };
+        return;
+
+      case "debug-log-message":
+        this.debugLogMessage().catch((error) => {
+          this.context.nvim.logger.error(
+            "Failed to debug log message:",
+            error instanceof Error ? error.message : String(error),
+          );
+        });
         return;
 
       default:
@@ -749,6 +759,126 @@ Predict the most likely next edit the user will make.`;
       baseUrl: profile.baseUrl,
       apiKeyEnvVar: profile.apiKeyEnvVar,
     };
+  }
+
+  private async debugLogMessage(): Promise<void> {
+    try {
+      const contextWindow = await this.captureContextWindow();
+      const userMessage = await this.composeUserMessage(contextWindow);
+
+      // Create a scratch buffer for the debug message
+      const bufnr = await this.context.nvim.call("nvim_create_buf", [
+        false,
+        true,
+      ]);
+
+      // Set buffer options
+      await this.context.nvim.call("nvim_buf_set_option", [
+        bufnr,
+        "buftype",
+        "nofile",
+      ]);
+      await this.context.nvim.call("nvim_buf_set_option", [
+        bufnr,
+        "bufhidden",
+        "wipe",
+      ]);
+      await this.context.nvim.call("nvim_buf_set_option", [
+        bufnr,
+        "swapfile",
+        false,
+      ]);
+      await this.context.nvim.call("nvim_buf_set_option", [
+        bufnr,
+        "modifiable",
+        true,
+      ]);
+
+      // Set the content
+      const lines = `Edit Prediction Debug Message:\n\n${userMessage}`.split(
+        "\n",
+      );
+      await this.context.nvim.call("nvim_buf_set_lines", [
+        bufnr,
+        0,
+        -1,
+        false,
+        lines,
+      ]);
+
+      // Make buffer read-only
+      await this.context.nvim.call("nvim_buf_set_option", [
+        bufnr,
+        "modifiable",
+        false,
+      ]);
+
+      // Get editor dimensions for sizing the floating window
+      const editorWidth = (await this.context.nvim.call("nvim_get_option", [
+        "columns",
+      ])) as number;
+      const editorHeight = (await this.context.nvim.call("nvim_get_option", [
+        "lines",
+      ])) as number;
+
+      // Calculate floating window size (80% of editor size, with reasonable limits)
+      const width = Math.min(120, Math.floor(editorWidth * 0.8));
+      const height = Math.min(40, Math.floor(editorHeight * 0.8));
+
+      // Center the window
+      const row = Math.floor((editorHeight - height) / 2);
+      const col = Math.floor((editorWidth - width) / 2);
+
+      // Create floating window
+      const winId = await this.context.nvim.call("nvim_open_win", [
+        bufnr,
+        true, // enter the window
+        {
+          relative: "editor",
+          width,
+          height,
+          row,
+          col,
+          style: "minimal",
+          border: "rounded",
+          title: " Edit Prediction Debug ",
+          title_pos: "center",
+        },
+      ]);
+
+      // Set window options
+      await this.context.nvim.call("nvim_win_set_option", [
+        winId,
+        "wrap",
+        true,
+      ]);
+      await this.context.nvim.call("nvim_win_set_option", [
+        winId,
+        "linebreak",
+        true,
+      ]);
+
+      // Set up a keymap to close the window with 'q' or ESC
+      await this.context.nvim.call("nvim_buf_set_keymap", [
+        bufnr,
+        "n",
+        "q",
+        `<cmd>lua vim.api.nvim_win_close(${winId}, true)<cr>`,
+        { noremap: true, silent: true },
+      ]);
+
+      await this.context.nvim.call("nvim_buf_set_keymap", [
+        bufnr,
+        "n",
+        "<Esc>",
+        `<cmd>lua vim.api.nvim_win_close(${winId}, true)<cr>`,
+        { noremap: true, silent: true },
+      ]);
+    } catch (error) {
+      this.context.nvim.logger.error(
+        `Failed to generate debug message: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   private async triggerPrediction(): Promise<void> {
