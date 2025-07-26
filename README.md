@@ -20,6 +20,8 @@ I sometimes write about AI, neovim and magenta specifically:
 
 (Note - I mostly develop using the Anthropic provider, so claude sonnet 3.7 or 4 are recommended. The OpenAI provider is supported, however may be less stable since I am not using it day to day. Please report any issues you encounter. Contributions are also welcome.)
 
+![next-edit-prediction July 2025](https://github.com/user-attachments/assets/2bebf6bb-9552-4396-94ce-f3f694b7265d)
+
 ![completion commands (July 2025)](https://github.com/user-attachments/assets/70eb1ddc-a592-47cb-a803-19414829c5d2)
 
 [![June 2025 demo](https://img.youtube.com/vi/W_YctNT20NQ/0.jpg)](https://www.youtube.com/watch?v=W_YctNT20NQ)
