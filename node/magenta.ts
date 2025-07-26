@@ -106,8 +106,7 @@ export class Magenta {
         nvim: this.nvim,
         changeTracker: this.changeTracker,
         cwd: this.cwd,
-        getActiveProfile: () => this.getActiveProfile(),
-        editPrediction: this.options.editPrediction,
+        options: this.options,
       },
     );
 

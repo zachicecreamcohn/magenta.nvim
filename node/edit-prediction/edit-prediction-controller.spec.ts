@@ -62,6 +62,133 @@ test("prediction after making edits", async () => {
     expect(text).toMatchSnapshot();
   });
 });
+test("uses dedicated profile when editPrediction.profile is configured", async () => {
+  await withDriver(
+    {
+      // Set custom options with a dedicated prediction profile
+      options: {
+        profiles: [
+          {
+            name: "main-claude",
+            provider: "anthropic",
+            model: "claude-4-sonnet-latest",
+            fastModel: "claude-3-5-haiku-latest",
+            apiKeyEnvVar: "ANTHROPIC_API_KEY",
+          },
+        ],
+        editPrediction: {
+          profile: {
+            provider: "anthropic",
+            model: "claude-3-5-haiku-latest",
+            apiKeyEnvVar: "ANTHROPIC_API_KEY",
+          },
+        },
+      },
+    },
+    async (driver) => {
+      // Open the poem.txt fixture file
+      await driver.editFile("poem.txt");
+
+      // Make some real edits to generate change tracking
+      await driver.command("normal! gg");
+      await driver.command("normal! f M");
+      await driver.command("normal! ciwStarlight");
+
+      // Position cursor for prediction
+      await driver.command("normal! jj");
+      await driver.command("normal! f a");
+
+      // Wait for our edits to be tracked
+      await driver.assertChangeTrackerHasEdits(1);
+
+      await driver.magenta.command("predict-edit");
+
+      // Wait for the mock provider to receive the force tool use request
+      const request =
+        await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+
+      // Verify the request uses the dedicated prediction profile's model
+      expect(request.model).toBe("claude-3-5-haiku-latest");
+
+      // Verify the request uses the predict_edit tool
+      expect(request.spec.name).toBe("predict_edit");
+    },
+  );
+});
+
+test("uses different provider for predictions when configured", async () => {
+  await withDriver(
+    {
+      // Set custom options with a different provider for predictions
+      options: {
+        profiles: [
+          {
+            name: "main-claude",
+            provider: "anthropic",
+            model: "claude-4-sonnet-latest",
+            fastModel: "claude-3-5-haiku-latest",
+            apiKeyEnvVar: "ANTHROPIC_API_KEY",
+          },
+        ],
+        editPrediction: {
+          profile: {
+            provider: "openai",
+            model: "gpt-4o-mini",
+            apiKeyEnvVar: "OPENAI_API_KEY",
+          },
+        },
+      },
+    },
+    async (driver) => {
+      // Open file and trigger prediction
+      await driver.editFile("poem.txt");
+      await driver.command("normal! gg");
+
+      await driver.magenta.command("predict-edit");
+
+      // Wait for the mock provider to receive the force tool use request
+      const request =
+        await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+
+      // Should use the OpenAI model specified in the prediction profile
+      expect(request.model).toBe("gpt-4o-mini");
+    },
+  );
+});
+
+test("uses active profile when editPrediction.profile not configured", async () => {
+  await withDriver(
+    {
+      // Set custom options without editPrediction.profile
+      options: {
+        profiles: [
+          {
+            name: "main-claude",
+            provider: "anthropic",
+            model: "claude-4-sonnet-latest",
+            fastModel: "claude-3-5-haiku-latest",
+            apiKeyEnvVar: "ANTHROPIC_API_KEY",
+          },
+        ],
+        // No editPrediction.profile specified
+      },
+    },
+    async (driver) => {
+      // Open file and trigger prediction
+      await driver.editFile("poem.txt");
+      await driver.command("normal! gg");
+
+      await driver.magenta.command("predict-edit");
+
+      // Wait for the mock provider to receive the force tool use request
+      const request =
+        await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+
+      // Should use the active profile's fast model (fallback behavior)
+      expect(request.model).toBe("claude-3-5-haiku-latest");
+    },
+  );
+});
 
 test("context window trims to 10 lines before and after cursor", async () => {
   await withDriver({}, async (driver) => {
@@ -524,7 +651,7 @@ test("prediction dismissed clears virtual text", async () => {
   });
 });
 
-test.only("prediction dismissed by ESC key in normal mode", async () => {
+test("prediction dismissed by ESC key in normal mode", async () => {
   await withDriver({}, async (driver) => {
     await driver.editFile("poem.txt");
     await driver.command("normal! gg");

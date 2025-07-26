@@ -37,7 +37,6 @@ export type Profile = {
   provider: ProviderName;
   model: string;
   fastModel: string;
-  predictionModel?: string;
   baseUrl?: string;
   apiKeyEnvVar?: string;
   promptCaching?: boolean; // Primarily used by Bedrock provider
@@ -79,11 +78,19 @@ export type MCPServerConfig =
       tools?: MCPMockToolConfig[];
     };
 
+export type EditPredictionProfile = {
+  provider: ProviderName;
+  model: string;
+  baseUrl?: string | undefined;
+  apiKeyEnvVar?: string | undefined;
+};
+
 export type EditPredictionOptions = {
   changeTrackerMaxChanges?: number;
   recentChangeTokenBudget?: number;
   systemPrompt?: string;
   systemPromptAppend?: string;
+  profile?: EditPredictionProfile;
 };
 
 export type MagentaOptions = {
@@ -106,6 +113,56 @@ export type MagentaOptions = {
 };
 
 // Reusable parsing helpers
+function parseEditPredictionProfile(
+  profileInput: unknown,
+  logger: { warn: (msg: string) => void },
+): EditPredictionProfile | undefined {
+  if (typeof profileInput !== "object" || profileInput === null) {
+    logger.warn("editPrediction.profile must be an object");
+    return undefined;
+  }
+
+  const p = profileInput as { [key: string]: unknown };
+
+  if (
+    !(
+      typeof p["provider"] === "string" &&
+      PROVIDER_NAMES.indexOf(p["provider"] as ProviderName) !== -1
+    )
+  ) {
+    logger.warn("editPrediction.profile must have a valid provider field");
+    return undefined;
+  }
+
+  const provider = p["provider"] as ProviderName;
+  const defaults = DEFAULT_MODELS[provider];
+
+  const profile: EditPredictionProfile = {
+    provider,
+    model: typeof p["model"] === "string" ? p["model"] : defaults.model,
+  };
+
+  if ("baseUrl" in p) {
+    if (typeof p["baseUrl"] === "string") {
+      profile.baseUrl = p["baseUrl"];
+    } else {
+      logger.warn("Invalid baseUrl in editPrediction.profile, ignoring field");
+    }
+  }
+
+  if ("apiKeyEnvVar" in p) {
+    if (typeof p["apiKeyEnvVar"] === "string") {
+      profile.apiKeyEnvVar = p["apiKeyEnvVar"];
+    } else {
+      logger.warn(
+        "Invalid apiKeyEnvVar in editPrediction.profile, ignoring field",
+      );
+    }
+  }
+
+  return profile;
+}
+
 function parseProfiles(
   profilesInput: unknown,
   logger: { warn: (msg: string) => void },
@@ -151,16 +208,6 @@ function parseProfiles(
             ? p["fastModel"]
             : defaults.fastModel,
       };
-
-      if ("predictionModel" in p) {
-        if (typeof p["predictionModel"] === "string") {
-          out.predictionModel = p["predictionModel"];
-        } else {
-          logger.warn(
-            `Invalid predictionModel in profile ${p["name"]}, ignoring field`,
-          );
-        }
-      }
 
       if ("base_url" in p) {
         if (typeof p["base_url"] === "string") {
@@ -625,6 +672,17 @@ export function parseOptions(
         options.editPrediction.systemPromptAppend =
           editPrediction["systemPromptAppend"];
       }
+
+      // Parse profile
+      if ("profile" in editPrediction) {
+        const profile = parseEditPredictionProfile(
+          editPrediction["profile"],
+          logger,
+        );
+        if (profile) {
+          options.editPrediction.profile = profile;
+        }
+      }
     }
   }
 
@@ -795,6 +853,17 @@ export function parseProjectOptions(
     ) {
       options.editPrediction.systemPromptAppend =
         editPrediction["systemPromptAppend"];
+    }
+
+    // Parse profile
+    if ("profile" in editPrediction) {
+      const profile = parseEditPredictionProfile(
+        editPrediction["profile"],
+        logger,
+      );
+      if (profile) {
+        options.editPrediction.profile = profile;
+      }
     }
   }
 

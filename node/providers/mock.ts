@@ -570,6 +570,7 @@ export async function withMockClient(
 ) {
   const mock = new MockProvider();
   setClient("anthropic", mock);
+  setClient("openai", mock);
   try {
     await fn(mock);
   } finally {

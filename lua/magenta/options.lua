@@ -45,6 +45,17 @@ local defaults = {
       ["-"] = ":Magenta threads-navigate-up<CR>",
     }
   },
+  editPrediction = {
+    -- profile = {
+    --   provider = "anthropic",
+    --   model = "claude-3-5-haiku-latest",
+    --   apiKeyEnvVar = "ANTHROPIC_API_KEY"
+    -- },
+    -- changeTrackerMaxChanges = 20,
+    -- recentChangeTokenBudget = 1500,
+    -- systemPrompt = "Your custom prediction system prompt here...",
+    -- systemPromptAppend = "Focus on completing function calls and variable declarations."
+  },
   inlineKeymaps = {
     normal = {
       ["<CR>"] = function(target_bufnr)

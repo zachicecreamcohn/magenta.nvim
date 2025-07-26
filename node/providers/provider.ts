@@ -4,7 +4,7 @@ import { AnthropicProvider } from "./anthropic.ts";
 import { BedrockProvider } from "./bedrock.ts";
 import { OpenAIProvider } from "./openai.ts";
 import type { Provider, ProviderName } from "./provider-types.ts";
-import { type Profile } from "../options.ts";
+import { type EditPredictionProfile, type Profile } from "../options.ts";
 import { OllamaProvider } from "./ollama.ts";
 import { CopilotProvider } from "./copilot.ts";
 
@@ -13,7 +13,10 @@ export * from "./provider-types.ts";
 const clients: { [key: string]: Provider } = {};
 
 // lazy load so we have a chance to init context before constructing the class
-export function getProvider(nvim: Nvim, profile: Profile): Provider {
+export function getProvider(
+  nvim: Nvim,
+  profile: Profile | EditPredictionProfile,
+): Provider {
   const providerName = profile.provider;
 
   // use a composite key for the client to allow the openai provider to be used for openai and ollama
@@ -38,7 +41,10 @@ export function getProvider(nvim: Nvim, profile: Profile): Provider {
         });
         break;
       case "bedrock":
-        clients[clientKey] = new BedrockProvider(nvim, !!profile.promptCaching);
+        clients[clientKey] = new BedrockProvider(
+          nvim,
+          !!(profile as Profile).promptCaching,
+        );
         break;
       case "ollama":
         clients[clientKey] = new OllamaProvider(nvim);

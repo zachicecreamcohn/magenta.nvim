@@ -177,7 +177,7 @@ require('magenta').setup({})
 # Config
 
 <details>
-<summary>Default options</summary>
+<summary>Example options</summary>
 
 ```lua
 require('magenta').setup({
@@ -187,7 +187,6 @@ require('magenta').setup({
     provider = "anthropic",
     model = "claude-4-sonnet-latest",
     fastModel = "claude-3-5-haiku-latest", -- optional, defaults provided
-    predictionModel = "claude-3-5-haiku-latest", -- optional, defaults to fastModel
     apiKeyEnvVar = "ANTHROPIC_API_KEY",
     thinking = {
       enabled = true,
@@ -240,6 +239,13 @@ require('magenta').setup({
   },
   -- configure edit prediction options
   editPrediction = {
+    -- Use a dedicated profile for predictions (optional)
+    -- If not specified, uses the current active profile's fastModel
+    profile = {
+      provider = "anthropic",
+      model = "claude-3-5-haiku-latest",
+      apiKeyEnvVar = "ANTHROPIC_API_KEY"
+    },
     -- Maximum number of changes to track for context (default: 10)
     changeTrackerMaxChanges = 20,
     -- Token budget for including recent changes (default: 1000)
@@ -315,7 +321,6 @@ profiles = {
     provider = "anthropic",
     model = "claude-3-7-sonnet-latest",
     fastModel = "claude-3-5-haiku-latest", -- optional, defaults provided
-    predictionModel = "claude-3-5-haiku-latest", -- optional, defaults to fastModel
     apiKeyEnvVar = "ANTHROPIC_API_KEY"
   },
   {
@@ -323,7 +328,6 @@ profiles = {
     provider = "anthropic",
     model = "claude-3-7-sonnet-latest",
     fastModel = "claude-3-5-haiku-latest",
-    predictionModel = "claude-3-5-haiku-latest", -- optional, defaults to fastModel
     apiKeyEnvVar = "CUSTOM_API_KEY_ENV_VAR",
     baseUrl = "custom anthropic endpoint"
   }
@@ -453,15 +457,7 @@ Magenta includes an AI-powered edit prediction feature that can suggest the most
 - Use `<S-C-l>` (Shift+Ctrl+L) in both insert and normal mode to trigger a prediction at your cursor position
 - When a prediction is shown:
   - Press `<S-C-l>` again to accept and apply the prediction
-  - Press `<Esc>` to dismiss the prediction (when in normal mode)
-  - Make any other edit to automatically dismiss the prediction
-
-The prediction appears as virtual text with:
-
-- Strikethrough text that will be removed
-- Highlighted text that will be added
-
-This feature is especially helpful for repetitive edits, completing function calls, fixing common patterns, and other predictable changes. It uses your recent editing history to make intelligent suggestions based on your current context.
+  - Press `<Esc>` to dismiss the prediction
 
 ### Edit Prediction Configuration
 
@@ -469,6 +465,14 @@ You can customize the edit prediction feature using the `editPrediction` options
 
 ```lua
 editPrediction = {
+  -- Use a dedicated profile for predictions (independent of main profiles)
+  profile = {
+    provider = "anthropic",
+    model = "claude-3-5-haiku-latest",
+    apiKeyEnvVar = "ANTHROPIC_API_KEY",
+    -- baseUrl = "custom-endpoint", -- optional
+  },
+
   -- Maximum number of changes to track for context (default: 10)
   changeTrackerMaxChanges = 20,
 
@@ -477,7 +481,7 @@ editPrediction = {
   recentChangeTokenBudget = 1500,
 
   -- Replace the default system prompt entirely
-  systemPrompt = "Your custom prediction system prompt here...",
+  -- systemPrompt = "Your custom prediction system prompt here...",
 
   -- Append to the default system prompt instead of replacing it
   systemPromptAppend = "Additional instructions to improve predictions..."

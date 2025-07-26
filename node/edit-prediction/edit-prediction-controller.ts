@@ -9,7 +9,7 @@ import { NvimBuffer } from "../nvim/buffer.ts";
 import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import * as diff from "diff";
 import { getProvider } from "../providers/provider.ts";
-import type { Profile } from "../options.ts";
+import { type EditPredictionProfile, type MagentaOptions } from "../options.ts";
 import { spec } from "../tools/predict-edit.ts";
 import { relativePath } from "../utils/files.ts";
 import {
@@ -91,15 +91,7 @@ export class EditPredictionController {
       nvim: Nvim;
       changeTracker: ChangeTracker;
       cwd: NvimCwd;
-      getActiveProfile: () => Profile;
-      // Structured options
-      editPrediction?:
-        | {
-            recentChangeTokenBudget?: number;
-            systemPrompt?: string;
-            systemPromptAppend?: string;
-          }
-        | undefined;
+      options: MagentaOptions;
     },
   ) {
     this.myDispatch = (msg) =>
@@ -116,20 +108,20 @@ export class EditPredictionController {
     // Get token budget with priority:
     // 1. structured option, 2. legacy option, 3. default value
     this.recentChangeTokenBudget =
-      context.editPrediction?.recentChangeTokenBudget ??
+      context.options.editPrediction?.recentChangeTokenBudget ??
       DEFAULT_RECENT_CHANGE_TOKEN_BUDGET;
 
     // Get system prompt with priority:
     // 1. structured replacement, 2. legacy option, 3. default with optional append
-    if (context.editPrediction?.systemPrompt) {
-      this.predictionSystemPrompt = context.editPrediction.systemPrompt;
+    if (context.options.editPrediction?.systemPrompt) {
+      this.predictionSystemPrompt = context.options.editPrediction.systemPrompt;
     } else {
       this.predictionSystemPrompt = PREDICTION_SYSTEM_PROMPT;
 
       // Append additional instructions if provided
-      if (context.editPrediction?.systemPromptAppend) {
+      if (context.options.editPrediction?.systemPromptAppend) {
         this.predictionSystemPrompt +=
-          "\n\n" + context.editPrediction.systemPromptAppend;
+          "\n\n" + context.options.editPrediction.systemPromptAppend;
       }
     }
   }
@@ -691,22 +683,52 @@ ${contextWithCursor.join("\n")}
 Predict the most likely next edit the user will make.`;
   }
 
+  private resolvePredictionProfile(): EditPredictionProfile {
+    // If editPrediction.profile is specified, use that profile
+    if (this.context.options.editPrediction?.profile) {
+      const predictionProfile = this.context.options.editPrediction.profile;
+
+      // Convert EditPredictionProfile to Profile by adding required fields
+      const profile: EditPredictionProfile = {
+        provider: predictionProfile.provider,
+        model: predictionProfile.model,
+      };
+
+      // Only add optional fields if they're defined
+      if (predictionProfile.baseUrl) {
+        profile.baseUrl = predictionProfile.baseUrl;
+      }
+      if (predictionProfile.apiKeyEnvVar) {
+        profile.apiKeyEnvVar = predictionProfile.apiKeyEnvVar;
+      }
+
+      return profile;
+    }
+
+    // Fall back to the active profile
+    const profile = this.context.options.profiles[0];
+    return {
+      provider: profile.provider,
+      model: profile.fastModel || profile.model,
+      baseUrl: profile.baseUrl,
+      apiKeyEnvVar: profile.apiKeyEnvVar,
+    };
+  }
+
   private async triggerPrediction(): Promise<void> {
     // Transition to preparing-request state
     this.state = { type: "preparing-request" };
 
-    const profile = this.context.getActiveProfile();
+    // Resolve profile for predictions
+    const profile = this.resolvePredictionProfile();
     const provider = getProvider(this.context.nvim, profile);
 
     // Capture context window
     const contextWindow = await this.captureContextWindow();
     const userMessage = await this.composeUserMessage(contextWindow);
 
-    const predictionModel =
-      profile.predictionModel || profile.fastModel || profile.model;
-
     const request = provider.forceToolUse({
-      model: predictionModel,
+      model: profile.model,
       messages: [
         {
           role: "user",
