@@ -33,7 +33,7 @@ I sometimes write about AI, neovim and magenta specifically:
 
 ## July 2025
 
-**next edit prediction** - suggests the most likely next edit based on your recent changes and cursor context. Press `<C-l>` in insert mode to trigger a prediction, and `<C-l>` again to accept it. Predictions appear as virtual text with strikethrough for removed text and highlighting for added text. This feature adapts to your editing patterns and is perfect for completing repetitive edits.
+**next edit prediction** - suggests the most likely next edit based on your recent changes and cursor context. Press `<S-C-l>` (Shift+Ctrl+L) in both insert and normal mode to trigger a prediction, and `<S-C-l>` again to accept it. Predictions appear as virtual text with strikethrough for removed text and highlighting for added text. Exit insert mode, or press `<Esc>` in normal mode to dismiss predictions. This feature adapts to your editing patterns and is perfect for completing repetitive edits.
 
 **input buffer completion** - we now support @-command completion in the input buffer using nvim-cmp. We also have new @file:, @diff: and @staged: commands, which use fuzzy-find to autocomplete paths within your repo.
 
@@ -450,10 +450,10 @@ The project settings file supports all the same options as the global configurat
 
 Magenta includes an AI-powered edit prediction feature that can suggest the most likely next edit you'll make based on your recent changes and cursor context.
 
-- Use `<C-l>` in insert mode to trigger a prediction at your cursor position
+- Use `<S-C-l>` (Shift+Ctrl+L) in both insert and normal mode to trigger a prediction at your cursor position
 - When a prediction is shown:
-  - Press `<C-l>` again to accept and apply the prediction
-  - Press `<Esc>` to dismiss the prediction
+  - Press `<S-C-l>` again to accept and apply the prediction
+  - Press `<Esc>` to dismiss the prediction (when in normal mode)
   - Make any other edit to automatically dismiss the prediction
 
 The prediction appears as virtual text with:
@@ -599,12 +599,16 @@ vim.keymap.set(
 -- Edit prediction
 vim.keymap.set(
   "i",
-  "<C-l>",
-  function()
-    vim.cmd("Magenta predict-edit")
-    return ""
-  end,
-  {silent = true, noremap = true, expr = true, desc = "Predict/accept edit at cursor"}
+  "<S-C-l>",
+  "<Cmd>Magenta predict-edit<CR>",
+  {silent = true, noremap = true, desc = "Predict/accept edit"}
+)
+
+vim.keymap.set(
+  "n",
+  "<S-C-l>",
+  "<Cmd>Magenta predict-edit<CR>",
+  {silent = true, noremap = true, desc = "Predict/accept edit"}
 )
 ```
 
@@ -703,10 +707,10 @@ This architecture enables more sophisticated problem-solving by allowing the age
 
 ### Edit prediction
 
-- `<C-l>` (Ctrl+L) in insert mode triggers the edit prediction feature. This analyzes your recent changes and current cursor context to suggest what you're likely to type next.
+- `<S-C-l>` (Shift+Ctrl+L) in both insert and normal mode triggers the edit prediction feature. This analyzes your recent changes and current cursor context to suggest what you're likely to type next.
 - When a prediction appears:
-  - Press `<C-l>` again to accept and apply the prediction
-  - Press `<Esc>` to dismiss the prediction
+  - Press `<S-C-l>` again to accept and apply the prediction
+  - Press `<Esc>` to dismiss the prediction (when in normal mode)
   - Making any other edit automatically dismisses the prediction
 
 The prediction is shown as virtual text:

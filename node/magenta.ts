@@ -586,7 +586,13 @@ ${lines.join("\n")}
     }
   }
 
-  onUiEvent(_eventType: "mode-change" | "buffer-focus-change") {
+  onUiEvent(
+    _eventType:
+      | "mode-change"
+      | "buffer-focus-change"
+      | "insert-char"
+      | "escape-pressed",
+  ) {
     if (
       this.editPredictionController.state.type === "displaying-proposed-edit"
     ) {
@@ -748,10 +754,12 @@ ${lines.join("\n")}
         // Validate that eventType is one of the expected values
         if (
           eventType !== "mode-change" &&
-          eventType !== "buffer-focus-change"
+          eventType !== "buffer-focus-change" &&
+          eventType !== "insert-char" &&
+          eventType !== "escape-pressed"
         ) {
           throw new Error(
-            `Invalid UI eventType: ${eventType}. Expected 'mode-change' or 'buffer-focus-change'`,
+            `Invalid UI eventType: ${eventType}. Expected 'mode-change', 'buffer-focus-change', 'insert-char', or 'escape-pressed'`,
           );
         }
 

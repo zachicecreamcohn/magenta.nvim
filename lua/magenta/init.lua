@@ -262,6 +262,16 @@ M.bridge = function(channelId)
     }
   )
 
+  vim.api.nvim_create_autocmd(
+    "InsertCharPre",
+    {
+      pattern = "*",
+      callback = function()
+        vim.rpcnotify(channelId, "magentaUiEvents", "insert-char")
+      end
+    }
+  )
+
   M.listenToBufKey = function(bufnr, vimKey)
     vim.keymap.set(
       "n",
@@ -275,6 +285,45 @@ M.bridge = function(channelId)
 
   M.lsp_response = function(requestId, response)
     vim.rpcnotify(channelId, "magentaLspResponse", { requestId, response })
+  end
+
+  -- Store original mappings for cleanup
+  local original_esc_mappings = {}
+
+  M.setup_prediction_esc_mapping = function(bufnr)
+    original_esc_mappings[bufnr] = vim.fn.maparg("<Esc>", "n", false, true)
+    vim.keymap.set(
+      "n",
+      "<Esc>",
+      function()
+        vim.rpcnotify(channelId, "magentaUiEvents", "escape-pressed")
+        M.cleanup_prediction_esc_mapping(bufnr)
+      end,
+      {
+        buffer = bufnr,
+        noremap = true,
+        silent = true,
+        desc = "Dismiss prediction"
+      }
+    )
+  end
+
+  M.cleanup_prediction_esc_mapping = function(bufnr)
+    local original = original_esc_mappings[bufnr]
+    if original and original.lhs then
+      local restore_opts = {
+        silent = original.silent == 1,
+        noremap = original.noremap == 1,
+        expr = original.expr == 1,
+        buffer = original.buffer ~= 0 and original.buffer or nil,
+      }
+
+      vim.keymap.set("n", original.lhs, original.rhs, restore_opts)
+    else
+      vim.keymap.del("n", "<Esc>", { buffer = bufnr })
+    end
+
+    original_esc_mappings[bufnr] = nil
   end
 
   local opts = Options.options

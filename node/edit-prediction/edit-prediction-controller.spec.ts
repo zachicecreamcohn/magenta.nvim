@@ -31,7 +31,6 @@ test("prediction after making edits", async () => {
       { newText: "Starlight", filePath: "poem.txt" },
     ]);
 
-    // Trigger predict-edit command (ctrl-l)
     await driver.magenta.command("predict-edit");
 
     // Wait for the mock provider to receive the force tool use request
@@ -522,6 +521,38 @@ test("prediction dismissed clears virtual text", async () => {
     });
     expect(lines[0]).toContain("Moonlight");
     expect(lines[0]).not.toContain("Starlight");
+  });
+});
+
+test.only("prediction dismissed by ESC key in normal mode", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.editFile("poem.txt");
+    await driver.command("normal! gg");
+
+    // Trigger prediction
+    await driver.magenta.command("predict-edit");
+    await driver.awaitPredictionControllerState("awaiting-agent-reply");
+
+    // Mock response
+    await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+    await driver.mockAnthropic.respondToForceToolUse({
+      stopReason: "end_turn",
+      toolRequest: {
+        status: "ok",
+        value: {
+          id: "id" as ToolRequestId,
+          toolName: "predict_edit" as ToolName,
+          input: {
+            find: "Moonlight",
+            replace: "Starlight",
+          },
+        },
+      },
+    });
+
+    await driver.awaitPredictionControllerState("displaying-proposed-edit");
+    await driver.nvim.call("nvim_feedkeys", ["<Esc>", "n", true]);
+    await driver.awaitPredictionControllerState("idle");
   });
 });
 
