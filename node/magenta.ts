@@ -64,9 +64,7 @@ export class Magenta {
     public options: MagentaOptions,
   ) {
     this.bufferTracker = new BufferTracker(this.nvim);
-    this.changeTracker = new ChangeTracker(this.nvim, this.cwd, {
-      maxChanges: this.options.changeTrackerMaxChanges ?? 10,
-    });
+    this.changeTracker = new ChangeTracker(this.nvim, this.cwd, this.options);
 
     this.dispatch = (msg: RootMsg) => {
       try {
@@ -728,7 +726,7 @@ ${lines.join("\n")}
           changeData.range === null
         ) {
           throw new Error(
-            "Invalid change data format: expected { filePath: string, oldText: string, newText: string, range: object }",
+            `Invalid change data format: expected { filePath: string, oldText: string, newText: string, range: object }, got ${JSON.stringify(changeData)}`,
           );
         }
 

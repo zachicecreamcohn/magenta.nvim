@@ -40,11 +40,6 @@ test("prediction after making edits", async () => {
     // Verify the request uses the predict_edit tool
     expect(request.spec.name).toBe("predict_edit");
 
-    // Verify the request is for the fast model
-    expect(request.model).toBe("claude-3-5-haiku-latest");
-
-    // Verify we have exactly one user message with context
-
     // Verify the system prompt contains general instructions
     expect(request.systemPrompt).toBeDefined();
 
@@ -62,6 +57,7 @@ test("prediction after making edits", async () => {
     expect(text).toMatchSnapshot();
   });
 });
+
 test("uses dedicated profile when editPrediction.profile is configured", async () => {
   await withDriver(
     {
@@ -184,8 +180,8 @@ test("uses active profile when editPrediction.profile not configured", async () 
       const request =
         await driver.mockAnthropic.awaitPendingForceToolUseRequest();
 
-      // Should use the active profile's fast model (fallback behavior)
-      expect(request.model).toBe("claude-3-5-haiku-latest");
+      // Should use the active profile's model (fallback behavior)
+      expect(request.model).toBe("claude-4-sonnet-latest");
     },
   );
 });

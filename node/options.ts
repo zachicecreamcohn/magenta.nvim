@@ -103,12 +103,7 @@ export type MagentaOptions = {
   mcpServers: { [serverName: ServerName]: MCPServerConfig };
   getFileAutoAllowGlobs: string[];
   lspDebounceMs?: number;
-
-  // Legacy options (for backward compatibility)
-  changeTrackerMaxChanges?: number;
-  recentChangeTokenBudget?: number;
-  predictionSystemPrompt?: string;
-
+  debug?: boolean;
   // New structured options
   editPrediction?: EditPredictionOptions;
 };
@@ -597,42 +592,17 @@ export function parseOptions(
       options.lspDebounceMs = inputOptionsObj["lspDebounceMs"];
     }
 
+    // Parse debug flag
+    if (
+      "debug" in inputOptionsObj &&
+      typeof inputOptionsObj["debug"] === "boolean"
+    ) {
+      options.debug = inputOptionsObj["debug"];
+    }
+
     // Parse MCP servers (throw errors for invalid MCP servers in main config)
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
 
-    // Parse legacy options (for backward compatibility)
-
-    // Parse change tracker max changes
-    if (
-      "changeTrackerMaxChanges" in inputOptionsObj &&
-      typeof inputOptionsObj["changeTrackerMaxChanges"] === "number" &&
-      inputOptionsObj["changeTrackerMaxChanges"] > 0
-    ) {
-      options.changeTrackerMaxChanges =
-        inputOptionsObj["changeTrackerMaxChanges"];
-    }
-
-    // Parse recent change token budget
-    if (
-      "recentChangeTokenBudget" in inputOptionsObj &&
-      typeof inputOptionsObj["recentChangeTokenBudget"] === "number" &&
-      inputOptionsObj["recentChangeTokenBudget"] > 0
-    ) {
-      options.recentChangeTokenBudget =
-        inputOptionsObj["recentChangeTokenBudget"];
-    }
-
-    // Parse prediction system prompt
-    if (
-      "predictionSystemPrompt" in inputOptionsObj &&
-      typeof inputOptionsObj["predictionSystemPrompt"] === "string" &&
-      inputOptionsObj["predictionSystemPrompt"].trim() !== ""
-    ) {
-      options.predictionSystemPrompt =
-        inputOptionsObj["predictionSystemPrompt"];
-    }
-
-    // Parse structured edit prediction options
     if (
       "editPrediction" in inputOptionsObj &&
       typeof inputOptionsObj["editPrediction"] === "object" &&
@@ -787,43 +757,19 @@ export function parseProjectOptions(
     options.lspDebounceMs = inputOptionsObj["lspDebounceMs"];
   }
 
+  // Parse debug flag
+  if (
+    "debug" in inputOptionsObj &&
+    typeof inputOptionsObj["debug"] === "boolean"
+  ) {
+    options.debug = inputOptionsObj["debug"];
+  }
+
   // Parse MCP servers
   if ("mcpServers" in inputOptionsObj) {
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
   }
 
-  // Parse legacy options (for backward compatibility)
-
-  // Parse change tracker max changes
-  if (
-    "changeTrackerMaxChanges" in inputOptionsObj &&
-    typeof inputOptionsObj["changeTrackerMaxChanges"] === "number" &&
-    inputOptionsObj["changeTrackerMaxChanges"] > 0
-  ) {
-    options.changeTrackerMaxChanges =
-      inputOptionsObj["changeTrackerMaxChanges"];
-  }
-
-  // Parse recent change token budget
-  if (
-    "recentChangeTokenBudget" in inputOptionsObj &&
-    typeof inputOptionsObj["recentChangeTokenBudget"] === "number" &&
-    inputOptionsObj["recentChangeTokenBudget"] > 0
-  ) {
-    options.recentChangeTokenBudget =
-      inputOptionsObj["recentChangeTokenBudget"];
-  }
-
-  // Parse prediction system prompt
-  if (
-    "predictionSystemPrompt" in inputOptionsObj &&
-    typeof inputOptionsObj["predictionSystemPrompt"] === "string" &&
-    inputOptionsObj["predictionSystemPrompt"].trim() !== ""
-  ) {
-    options.predictionSystemPrompt = inputOptionsObj["predictionSystemPrompt"];
-  }
-
-  // Parse structured edit prediction options
   if (
     "editPrediction" in inputOptionsObj &&
     typeof inputOptionsObj["editPrediction"] === "object" &&
@@ -955,28 +901,15 @@ export function mergeOptions(
     merged.lspDebounceMs = projectSettings.lspDebounceMs;
   }
 
+  if (projectSettings.debug !== undefined) {
+    merged.debug = projectSettings.debug;
+  }
+
   if (projectSettings.mcpServers) {
     merged.mcpServers = {
       ...baseOptions.mcpServers,
       ...projectSettings.mcpServers,
     };
-  }
-
-  if (projectSettings.changeTrackerMaxChanges !== undefined) {
-    merged.changeTrackerMaxChanges = projectSettings.changeTrackerMaxChanges;
-  }
-
-  // Merge legacy options for backward compatibility
-  if (projectSettings.recentChangeTokenBudget !== undefined) {
-    merged.recentChangeTokenBudget = projectSettings.recentChangeTokenBudget;
-  }
-
-  if (projectSettings.predictionSystemPrompt !== undefined) {
-    merged.predictionSystemPrompt = projectSettings.predictionSystemPrompt;
-  }
-
-  if (projectSettings.changeTrackerMaxChanges !== undefined) {
-    merged.changeTrackerMaxChanges = projectSettings.changeTrackerMaxChanges;
   }
 
   // Merge structured edit prediction options

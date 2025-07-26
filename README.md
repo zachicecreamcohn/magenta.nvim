@@ -240,7 +240,7 @@ require('magenta').setup({
   -- configure edit prediction options
   editPrediction = {
     -- Use a dedicated profile for predictions (optional)
-    -- If not specified, uses the current active profile's fastModel
+    -- If not specified, uses the current active profile's model
     profile = {
       provider = "anthropic",
       model = "claude-3-5-haiku-latest",
@@ -468,7 +468,7 @@ editPrediction = {
   -- Use a dedicated profile for predictions (independent of main profiles)
   profile = {
     provider = "anthropic",
-    model = "claude-3-5-haiku-latest",
+    model = "claude-4-sonnet-latest",
     apiKeyEnvVar = "ANTHROPIC_API_KEY",
     -- baseUrl = "custom-endpoint", -- optional
   },
@@ -488,10 +488,10 @@ editPrediction = {
 }
 ```
 
-**Note**: By default, we use the fast model for each provider when doing predictons. So for example, for anthropic
-this would be haiku. This doesn't have super consistent results, but is faster. Personally, I just use sonnet 4 for
-my predictions as well. It takes about a second, but the UI is immediately responsive, and the results are generally
-much better, so for me the tradeoff makes sense.
+**Note**: Initially, I thought about using the fastModel as the default for completions, like claude's haiku model.
+Unfortunately, I wasn't able to get reliably good results for it. Bigger models like sonnet 4 are slower (though still
+taking under a second for me), but the UI has good feedback, and the completion results are much much better, so the
+tradeoff makes sense - especially since we are working with user-triggered completions.
 
 I think hooking up a model specifically designed for completion, like supermaven or zeta, would be a lot nicer. If you
 want, try it out and let us know in the discussion area.

@@ -317,7 +317,9 @@ export async function withNvimClient(
   );
 }
 
-export type TestOptions = Partial<MagentaOptions>;
+export type TestOptions = Partial<MagentaOptions> & {
+  changeDebounceMs?: number;
+};
 
 export async function withDriver(
   driverOptions: {

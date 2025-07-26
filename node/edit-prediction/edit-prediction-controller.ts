@@ -515,12 +515,11 @@ export class EditPredictionController {
     ]);
     const bufferName = await buffer.getName();
 
-    // Capture ~20 lines around cursor (10 before, 10 after)
-    const contextSize = 10;
-    const startLine = Math.max(0, pos0Indexed.row - contextSize) as Row0Indexed;
+    // capture some context around the cursor
+    const startLine = Math.max(0, pos0Indexed.row - 10) as Row0Indexed;
     const endLine = Math.min(
       totalLines - 1,
-      pos0Indexed.row + contextSize,
+      pos0Indexed.row + 20,
     ) as Row0Indexed;
 
     const contextLines = await buffer.getLines({
@@ -755,7 +754,7 @@ Predict the most likely next edit the user will make.`;
     const profile = this.context.options.profiles[0];
     return {
       provider: profile.provider,
-      model: profile.fastModel || profile.model,
+      model: profile.model,
       baseUrl: profile.baseUrl,
       apiKeyEnvVar: profile.apiKeyEnvVar,
     };

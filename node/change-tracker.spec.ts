@@ -8,7 +8,7 @@ it("should track edits across multiple files", async () => {
   await withDriver(
     {
       options: {
-        lspDebounceMs: 100, // Use shorter debounce for faster tests
+        changeDebounceMs: 100, // Use shorter debounce for faster tests
       },
     },
     async (driver: NvimDriver) => {
@@ -66,11 +66,6 @@ it("should track edits across multiple files", async () => {
         { oldText: "hello", newText: "hi", filePath: "file2.js" },
         {
           oldText: "const greeting = 'hi';",
-          newText: "const greeting = 'hi';\n",
-          filePath: "file2.js",
-        },
-        {
-          oldText: "const greeting = 'hi';\n",
           newText: "const greeting = 'hi';\n// Added via insert mode typing\n",
           filePath: "file2.js",
         },
@@ -84,6 +79,61 @@ it("should track edits across multiple files", async () => {
           return changeWithoutTimestamp;
         });
       expect(changes).toMatchSnapshot();
+    },
+  );
+});
+
+it("should respect LSP debouncing during continuous typing", async () => {
+  await withDriver(
+    {
+      options: {
+        changeDebounceMs: 300, // Shorter debounce for test but still meaningful
+      },
+    },
+    async (driver: NvimDriver) => {
+      writeFileSync(join(driver.magenta.cwd, "test.js"), "// test file\n");
+      await driver.editFile("test.js");
+
+      // Track changes before starting
+      const initialChangeCount =
+        driver.magenta.changeTracker.getChanges().length;
+
+      // Go to end of file and enter insert mode, then type quickly
+      await driver.command("normal! Go");
+
+      // Use feedkeys to simulate rapid typing in insert mode
+      const typingSequence = "iconst msg = 'hello'; console.log(msg);";
+      for (let i = 0; i < typingSequence.length; i++) {
+        const char = typingSequence[i];
+        const escapedChar = await driver.nvim.call("nvim_replace_termcodes", [
+          char,
+          true,
+          false,
+          true,
+        ]);
+        await driver.nvim.call("nvim_feedkeys", [escapedChar, "n", false]);
+
+        // Small delay between characters (faster than debounce)
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+
+      // Exit insert mode
+      const escKey = await driver.nvim.call("nvim_replace_termcodes", [
+        "<Esc>",
+        true,
+        false,
+        true,
+      ]);
+      await driver.nvim.call("nvim_feedkeys", [escKey, "n", false]);
+
+      // Wait for debounce to complete
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const finalChangeCount = driver.magenta.changeTracker.getChanges().length;
+      const changesDuringTyping = finalChangeCount - initialChangeCount;
+
+      expect(changesDuringTyping).toBeLessThanOrEqual(2);
+      expect(changesDuringTyping).toBeGreaterThan(0);
     },
   );
 });

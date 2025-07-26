@@ -1,6 +1,7 @@
 import type { AbsFilePath, RelFilePath, NvimCwd } from "./utils/files.ts";
 import { relativePath } from "./utils/files.ts";
 import type { Nvim } from "./nvim/nvim-node";
+import type { MagentaOptions } from "./options.ts";
 
 export interface TextChange {
   filePath: RelFilePath;
@@ -20,11 +21,9 @@ export class ChangeTracker {
   constructor(
     private nvim: Nvim,
     private cwd: NvimCwd,
-    options: {
-      maxChanges: number;
-    },
+    options: MagentaOptions,
   ) {
-    this.maxChanges = options.maxChanges;
+    this.maxChanges = options.editPrediction?.changeTrackerMaxChanges ?? 10;
   }
 
   onTextDocumentDidChange(data: {

@@ -97,7 +97,7 @@ exports[`context window trims to 10 lines before and after cursor 1`] = `
 
 
 Current context (│ marks cursor position):
-test-long-file.txt:15:35
+test-long-file.txt:15:45
 Line 15
 Line 16
 Line 17
@@ -119,6 +119,16 @@ Line 32
 Line 33
 Line 34
 Line 35
+Line 36
+Line 37
+Line 38
+Line 39
+Line 40
+Line 41
+Line 42
+Line 43
+Line 44
+Line 45
 
 Predict the most likely next edit the user will make."
 `;

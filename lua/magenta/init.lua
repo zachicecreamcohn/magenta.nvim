@@ -309,7 +309,7 @@ M.bridge = function(channelId)
 
   M.cleanup_prediction_esc_mapping = function(bufnr)
     local original = original_esc_mappings[bufnr]
-    if original and original.lhs then
+    if original and original.lhs and original.rhs then
       local restore_opts = {
         silent = original.silent == 1,
         noremap = original.noremap == 1,

@@ -58,28 +58,9 @@ exports[`should track edits across multiple files 1`] = `
   {
     "filePath": "file2.js",
     "newText": "const greeting = 'hi';
-
-",
-    "oldText": "const greeting = 'hi';",
-    "range": {
-      "end": {
-        "character": 0,
-        "line": 2,
-      },
-      "start": {
-        "character": 0,
-        "line": 0,
-      },
-    },
-  },
-  {
-    "filePath": "file2.js",
-    "newText": "const greeting = 'hi';
 // Added via insert mode typing
 ",
-    "oldText": "const greeting = 'hi';
-
-",
+    "oldText": "const greeting = 'hi';",
     "range": {
       "end": {
         "character": 0,

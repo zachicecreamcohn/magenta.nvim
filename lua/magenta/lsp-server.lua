@@ -17,7 +17,102 @@ function LspServer.new(notify_fn, options)
   self.client_id = nil
   self.documents = {} -- Track file contents { [filePath] = { lines = {}, version = number } }
   self.options = options or {}
+
+  -- Manual debouncing setup
+  self.change_buffer = {} -- Simple array of raw params
+  self.flush_timer = nil
+  self.debounce_interval = self.options.changeDebounceMs or 500
+
   return self
+end
+
+function LspServer:flush_changes()
+  if not self.notify_fn or #self.change_buffer == 0 then
+    return
+  end
+
+  if self.options.debug then
+    print(string.format("[MAGENTA LSP] Flushing %d buffered change events", #self.change_buffer))
+  end
+
+  -- Group params by file path
+  local files_to_process = {}
+  for _, params in ipairs(self.change_buffer) do
+    local uri = params.textDocument.uri
+    local file_path = vim.uri_to_fname(uri)
+
+    if not files_to_process[file_path] then
+      files_to_process[file_path] = {}
+    end
+    table.insert(files_to_process[file_path], params)
+  end
+
+  for file_path, params_list in pairs(files_to_process) do
+    local doc = self.documents[file_path]
+
+    if not doc then
+      -- Try to initialize from buffer if document not tracked
+      local bufnr = vim.fn.bufnr(file_path)
+      if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then
+        -- Use version from first params to initialize
+        local first_params = params_list[1]
+        doc = {
+          lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false),
+          version = first_params.textDocument.version - 1
+        }
+        self.documents[file_path] = doc
+      else
+        -- Skip this file if we can't track it
+        goto continue
+      end
+    end
+
+    -- Save initial document state before applying all changes
+    local old_lines = {}
+    for i = 1, #doc.lines do
+      old_lines[i] = doc.lines[i]
+    end
+
+    -- Apply all buffered changes for this file in order
+    for _, params in ipairs(params_list) do
+      for _, change in ipairs(params.contentChanges) do
+        if change.range then
+          text_utils.apply_change(doc.lines, change.range, change.text)
+        end
+      end
+      doc.version = params.textDocument.version
+    end
+
+    -- Extract the final diff after all changes
+    local diff = text_utils.extract_diff(old_lines, doc.lines)
+
+    -- Only include files that actually changed
+    if diff.oldText ~= diff.newText then
+      self.notify_fn({
+        filePath = file_path,
+        oldText = diff.oldText,
+        newText = diff.newText,
+        range = diff.range
+      })
+    end
+
+    ::continue::
+  end
+
+  self.change_buffer = {}
+end
+
+function LspServer:schedule_flush()
+  -- Cancel existing timer if it exists
+  if self.flush_timer then
+    vim.fn.timer_stop(self.flush_timer)
+  end
+
+  -- Schedule new flush
+  self.flush_timer = vim.fn.timer_start(self.debounce_interval, function()
+    self:flush_changes()
+    self.flush_timer = nil
+  end)
 end
 
 function LspServer:create_methods()
@@ -47,49 +142,8 @@ function LspServer:create_methods()
 
   methods['textDocument/didChange'] = function(params, _)
     if not self.notify_fn then return end
-
-    local uri = params.textDocument.uri
-    local file_path = vim.uri_to_fname(uri)
-    local doc = self.documents[file_path]
-
-    if not doc then
-      -- Document not tracked, try to initialize from buffer
-      local bufnr = vim.fn.bufnr(file_path)
-      if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then
-        doc = {
-          lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false),
-          version = params.textDocument.version - 1
-        }
-        self.documents[file_path] = doc
-      else
-        return -- Can't track without initial content
-      end
-    end
-
-    -- Save old document state
-    local old_lines = {}
-    for i = 1, #doc.lines do
-      old_lines[i] = doc.lines[i]
-    end
-
-    -- Apply all changes to the document
-    for _, change in ipairs(params.contentChanges) do
-      if change.range then
-        text_utils.apply_change(doc.lines, change.range, change.text)
-      end
-    end
-
-    -- Extract the diff between old and new versions
-    local diff = text_utils.extract_diff(old_lines, doc.lines)
-
-    self.notify_fn({
-      filePath = file_path,
-      oldText = diff.oldText,
-      newText = diff.newText,
-      range = diff.range
-    })
-
-    doc.version = params.textDocument.version
+    table.insert(self.change_buffer, params)
+    self:schedule_flush()
   end
 
   return methods
@@ -167,16 +221,12 @@ end
 function LspServer:start()
   local cmd = self:create_server_cmd()
 
-  -- Use configurable debounce rate, defaulting to 1000ms
-  local debounce_ms = self.options.lspDebounceMs or 1000
-
   self.client_id = vim.lsp.start({
     cmd = cmd,
     name = 'magenta-lsp',
     root_dir = vim.fn.getcwd(),
     flags = {
-      allow_incremental_sync = true,
-      debounce_text_changes = debounce_ms
+      allow_incremental_sync = true
     }
   }, {
     attach = false
@@ -186,6 +236,15 @@ function LspServer:start()
 end
 
 function LspServer:stop()
+  -- Clean up timer if it exists
+  if self.flush_timer then
+    vim.fn.timer_stop(self.flush_timer)
+    self.flush_timer = nil
+  end
+
+  -- Flush any remaining changes before stopping
+  self:flush_changes()
+
   if self.client_id then
     vim.lsp.stop_client(self.client_id)
     self.client_id = nil
