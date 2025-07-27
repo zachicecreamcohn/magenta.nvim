@@ -28,6 +28,7 @@ I sometimes write about AI, neovim and magenta specifically:
 
 # Roadmap
 
+- use claude code auth / api (copy from opencode)
 - gemini 2.5 pro provider
 - local code embedding & indexing via chroma db, to support a semantic code search tool
 
