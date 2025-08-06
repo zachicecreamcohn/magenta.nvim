@@ -93,12 +93,34 @@ export type EditPredictionOptions = {
   profile?: EditPredictionProfile;
 };
 
+export type HSplitWindowDimensions = {
+  displayHeightPercentage: number;
+  inputHeightPercentage: number;
+};
+
+export type VSplitWindowDimensions = {
+  widthPercentage: number;
+  displayHeightPercentage: number;
+};
+
+export type TabWindowDimensions = {
+  displayHeightPercentage: number;
+};
+
 export type SidebarPositions = "left" | "right" | "below" | "above" | "tab"; 
+export type SidebarPositionOpts = {
+  left: VSplitWindowDimensions;
+  right: VSplitWindowDimensions;
+  below: HSplitWindowDimensions;
+  above: HSplitWindowDimensions;
+  tab: TabWindowDimensions;
+};
 
 export type MagentaOptions = {
   profiles: Profile[];
   activeProfile: string;
   sidebarPosition: SidebarPositions;
+  sidebarPositionOpts: SidebarPositionOpts;
   commandAllowlist: CommandAllowlist;
   autoContext: string[];
   maxConcurrentSubagents: number;
@@ -523,14 +545,118 @@ function parseSidebarPosition(
   return undefined;
 }
 
+function parseSidebarPositionOpts(
+  input: unknown,
+  logger?: { warn: (msg: string) => void },
+): SidebarPositionOpts | undefined {
+  if (typeof input !== "object" || input === null) {
+    logger?.warn("sidebarPositionOpts must be an object");
+    return undefined;
+  }
+
+  const opts = input as { [key: string]: unknown };
+  const result: Partial<SidebarPositionOpts> = {};
+
+  // Parse left/right (VSplitWindowDimensions)
+  for (const side of ["left", "right"] as const) {
+    if (side in opts) {
+      const sideOpts = opts[side];
+      if (typeof sideOpts === "object" && sideOpts !== null) {
+        const sideOptsObj = sideOpts as { [key: string]: unknown };
+        if (
+          typeof sideOptsObj["widthPercentage"] === "number" &&
+          typeof sideOptsObj["displayHeightPercentage"] === "number"
+        ) {
+          result[side] = {
+            widthPercentage: sideOptsObj["widthPercentage"],
+            displayHeightPercentage: sideOptsObj["displayHeightPercentage"],
+          };
+        } else {
+          logger?.warn(`sidebarPositionOpts.${side} must have widthPercentage and displayHeightPercentage`);
+        }
+      } else {
+        logger?.warn(`sidebarPositionOpts.${side} must be an object`);
+      }
+    }
+  }
+
+  // Parse above/below (HSplitWindowDimensions)
+  for (const side of ["above", "below"] as const) {
+    if (side in opts) {
+      const sideOpts = opts[side];
+      if (typeof sideOpts === "object" && sideOpts !== null) {
+        const sideOptsObj = sideOpts as { [key: string]: unknown };
+        if (
+          typeof sideOptsObj["displayHeightPercentage"] === "number" &&
+          typeof sideOptsObj["inputHeightPercentage"] === "number"
+        ) {
+          result[side] = {
+            displayHeightPercentage: sideOptsObj["displayHeightPercentage"],
+            inputHeightPercentage: sideOptsObj["inputHeightPercentage"],
+          };
+        } else {
+          logger?.warn(`sidebarPositionOpts.${side} must have displayHeightPercentage and inputHeightPercentage`);
+        }
+      } else {
+        logger?.warn(`sidebarPositionOpts.${side} must be an object`);
+      }
+    }
+  }
+
+  // Parse tab (TabWindowDimensions)
+  if ("tab" in opts) {
+    const tabOpts = opts["tab"];
+    if (typeof tabOpts === "object" && tabOpts !== null) {
+      const tabOptsObj = tabOpts as { [key: string]: unknown };
+      if (typeof tabOptsObj["displayHeightPercentage"] === "number") {
+        result.tab = {
+          displayHeightPercentage: tabOptsObj["displayHeightPercentage"],
+        };
+      } else {
+        logger?.warn("sidebarPositionOpts.tab must have displayHeightPercentage");
+      }
+    } else {
+      logger?.warn("sidebarPositionOpts.tab must be an object");
+    }
+  }
+
+  // Return undefined if no valid options were parsed
+  if (Object.keys(result).length === 0) {
+    return undefined;
+  }
+
+  return result as SidebarPositionOpts;
+}
+
 export function parseOptions(
   inputOptions: unknown,
-  logger: { warn: (msg: string) => void },
+  logger: { warn: (msg: string) => void, error: (msg: string) => void },
 ): MagentaOptions {
   const options: MagentaOptions = {
     profiles: [],
     activeProfile: "",
     sidebarPosition: "left",
+    sidebarPositionOpts: {
+      above: {
+        displayHeightPercentage: 0.2,
+        inputHeightPercentage: 0.2,
+      },
+      below: {
+        displayHeightPercentage: 0.2,
+        inputHeightPercentage: 0.2,
+      },
+      tab: {
+        displayHeightPercentage: 0.8,
+      },
+      left: {
+        widthPercentage: 0.2,
+        displayHeightPercentage: 0.8,
+      },
+      right: {
+        widthPercentage: 0.2,
+        displayHeightPercentage: 0.8,
+      }
+    },
     maxConcurrentSubagents: 3,
     commandAllowlist: [],
     autoContext: [],
@@ -547,6 +673,14 @@ export function parseOptions(
     );
     if (sidebarPosition) {
       options.sidebarPosition = sidebarPosition;
+    }
+
+    // Parse sidebar position opts
+    const sidebarPositionOpts = parseSidebarPositionOpts(
+      inputOptionsObj["sidebarPositionOpts"],
+    );
+    if (sidebarPositionOpts) {
+      options.sidebarPositionOpts = sidebarPositionOpts;
     }
 
     // Parse command allowlist

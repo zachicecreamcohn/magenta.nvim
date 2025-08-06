@@ -7,8 +7,7 @@ import {
   type WindowId,
   type Row0Indexed,
 } from "./nvim/window.ts";
-import type { Profile, SidebarPositions } from "./options.ts";
-import { relative } from "node:path";
+import type { Profile, SidebarPositionOpts, SidebarPositions } from "./options.ts";
 export const WIDTH = 100;
 
 /** This will mostly manage the window toggle
@@ -73,18 +72,19 @@ export class Sidebar {
    */
   async toggle(
     sidebarPosition: SidebarPositions,
+    sidebarPositionOpts: SidebarPositionOpts,
   ): Promise<
     { displayBuffer: NvimBuffer; inputBuffer: NvimBuffer } | undefined
   > {
     if (this.state.state == "hidden") {
-      return await this.show(sidebarPosition);
+      return await this.show(sidebarPosition, sidebarPositionOpts);
     } else {
       await this.hide();
       return undefined;
     }
   }
 
-  private async show(sidebarPosition: SidebarPositions): Promise<{
+  private async show(sidebarPosition: SidebarPositions, sidebarPositionOpts: SidebarPositionOpts): Promise<{
     displayBuffer: NvimBuffer;
     inputBuffer: NvimBuffer;
   }> {
@@ -95,8 +95,8 @@ export class Sidebar {
     this.nvim.logger.debug(`sidebar.show`);
     const totalHeight = (await getOption("lines", this.nvim)) as number;
     const cmdHeight = (await getOption("cmdheight", this.nvim)) as number;
-    const displayHeight = Math.floor((totalHeight - cmdHeight) * 0.8);
-    const inputHeight = totalHeight - displayHeight - 2;
+    const windowHeight = totalHeight - cmdHeight;
+    const totalWidth = (await getOption("columns", this.nvim)) as number;
 
     let displayBuffer: NvimBuffer;
     if (existingDisplayBuffer) {
@@ -110,8 +110,46 @@ export class Sidebar {
       await displayBuffer.setDisplayKeymaps();
     }
 
-    let displayWindowId: WindowId;
+    let inputHeight;
+    let inputWidth;
+    let displayHeight;
+    let displayWidth;
+
+    switch (sidebarPosition) {
+      case "left":
+        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.left.displayHeightPercentage);
+        inputHeight = totalHeight - displayHeight - 2;
+        inputWidth = Math.floor(totalWidth * sidebarPositionOpts.left.widthPercentage);
+        displayWidth = inputWidth;
+        break;
+      case "right":
+        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.right.displayHeightPercentage);
+        inputHeight = totalHeight - displayHeight - 2;
+        inputWidth = Math.floor(totalWidth * sidebarPositionOpts.right.widthPercentage);
+        displayWidth = inputWidth;
+        break;
+      case "above":
+        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.above.displayHeightPercentage);
+        inputHeight = Math.floor(windowHeight * sidebarPositionOpts.above.inputHeightPercentage);
+        inputWidth = totalWidth;
+        displayWidth = totalWidth;
+        break;
+      case "below":
+        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.below.displayHeightPercentage);
+        inputHeight = Math.floor(windowHeight * sidebarPositionOpts.below.inputHeightPercentage);
+        inputWidth = totalWidth;
+        displayWidth = totalWidth;
+        break;
+      case "tab":
+        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.tab.displayHeightPercentage);
+        inputHeight = totalHeight - displayHeight - 2;
+        inputWidth = totalWidth;
+        displayWidth = totalWidth;
+        break;
+    }
    
+    let displayWindowId: WindowId;
+
     if (sidebarPosition == "tab") {
       await this.nvim.call('nvim_command', ["tabnew"]);
       displayWindowId = await this.nvim.call("nvim_get_current_win", []) as unknown as WindowId;
@@ -123,8 +161,6 @@ export class Sidebar {
         {
           win: -1, // global split
           split: sidebarPosition,
-          width: WIDTH,
-          height: displayHeight,
         },
       ])) as WindowId;
     }
@@ -149,10 +185,16 @@ export class Sidebar {
       {
         win: displayWindow.id, // split inside this window
         split: "below",
-        width: WIDTH,
-        height: inputHeight,
       },
     ])) as WindowId;
+
+    if (sidebarPosition === "above" || sidebarPosition === "below") {
+      await this.nvim.call("nvim_win_set_height", [displayWindowId, displayHeight]);
+      await this.nvim.call("nvim_win_set_height", [inputWindowId, inputHeight]);
+    } else if (sidebarPosition === "left" || sidebarPosition === "right") {
+      await this.nvim.call("nvim_win_set_width", [displayWindowId, displayWidth]);
+      await this.nvim.call("nvim_win_set_width", [inputWindowId, inputWidth]);
+    }
 
     const inputWindow = new NvimWindow(inputWindowId, this.nvim);
     await inputWindow.clearjumps();
