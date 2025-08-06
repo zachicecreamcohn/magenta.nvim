@@ -161,6 +161,8 @@ export class Sidebar {
         {
           win: -1, // global split
           split: sidebarPosition,
+          height: displayHeight,
+          width: displayWidth,
         },
       ])) as WindowId;
     }
@@ -185,16 +187,10 @@ export class Sidebar {
       {
         win: displayWindow.id, // split inside this window
         split: "below",
+        height: inputHeight,
+        width: inputWidth,
       },
     ])) as WindowId;
-
-    if (sidebarPosition === "above" || sidebarPosition === "below") {
-      await this.nvim.call("nvim_win_set_height", [displayWindowId, displayHeight]);
-      await this.nvim.call("nvim_win_set_height", [inputWindowId, inputHeight]);
-    } else if (sidebarPosition === "left" || sidebarPosition === "right") {
-      await this.nvim.call("nvim_win_set_width", [displayWindowId, displayWidth]);
-      await this.nvim.call("nvim_win_set_width", [inputWindowId, inputWidth]);
-    }
 
     const inputWindow = new NvimWindow(inputWindowId, this.nvim);
     await inputWindow.clearjumps();
