@@ -638,22 +638,22 @@ export function parseOptions(
     sidebarPosition: "left",
     sidebarPositionOpts: {
       above: {
-        displayHeightPercentage: 0.2,
-        inputHeightPercentage: 0.2,
+        displayHeightPercentage: 0.3,
+        inputHeightPercentage: 0.1,
       },
       below: {
-        displayHeightPercentage: 0.2,
-        inputHeightPercentage: 0.2,
+        displayHeightPercentage: 0.3,
+        inputHeightPercentage: 0.1,
       },
       tab: {
         displayHeightPercentage: 0.8,
       },
       left: {
-        widthPercentage: 0.2,
+        widthPercentage: 0.3,
         displayHeightPercentage: 0.8,
       },
       right: {
-        widthPercentage: 0.2,
+        widthPercentage: 0.3,
         displayHeightPercentage: 0.8,
       }
     },
