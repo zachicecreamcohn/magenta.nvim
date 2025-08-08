@@ -197,22 +197,18 @@ require('magenta').setup({
     }
   },
   {
-    name = "o4-mini",
+    name = "gpt-5",
     provider = "openai",
-    model = "o4-mini",
-    apiKeyEnvVar = "OPENAI_API_KEY",
-    reasoning = {
-      effort = "low", -- optional: "low", "medium", "high"
-      summary = "auto" -- optional: "auto", "concise", "detailed"
-    }
+    model = "gpt-5",
+    fastModel = "gpt-5-mini",
+    apiKeyEnvVar = "OPENAI_API_KEY"
   },
-    {
-      name = "copilot-claude",
-      provider = "copilot",
-      model = "claude-3.7-sonnet",
-      fastModel = "claude-3-5-haiku-latest", -- optional, defaults provided
-      -- No apiKeyEnvVar needed - uses existing Copilot authentication
-    }
+  {
+    name = "copilot-claude",
+    provider = "copilot",
+    model = "claude-3.7-sonnet",
+    fastModel = "claude-3-5-haiku-latest", -- optional, defaults provided
+    -- No apiKeyEnvVar needed - uses existing Copilot authentication
   },
   -- open chat sidebar on left or right side
   sidebarPosition = "left",
@@ -306,6 +302,7 @@ Profiles can optionally enable thinking/reasoning capabilities for supported mod
 - o1 series models (`o1`, `o1-mini`, `o1-pro`) - show reasoning traces when available
 - o3 series models (`o3`, `o3-mini`, `o3-pro`) - show reasoning traces when available
 - o4 series models (`o4-mini`) - show reasoning traces when available
+- o5 series models (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`) - show reasoning traces when available
 
 When thinking/reasoning is enabled:
 
@@ -340,7 +337,7 @@ profiles = {
 Currently supported providers are `openai`, `anthropic`, `bedrock`, `ollama`, and `copilot`. The `model` parameter must be compatible with the SDK used for each provider:
 
 - For `anthropic`: [Anthropic Node SDK](https://github.com/anthropics/anthropic-sdk-typescript) - supports models like `claude-3-7-sonnet-latest`, `claude-3-5-sonnet-20240620`
-- For `openai`: [OpenAI Node SDK](https://github.com/openai/openai-node) - supports models like `gpt-4.1`, `o1`
+- For `openai`: [OpenAI Node SDK](https://github.com/openai/openai-node) - supports models like `gpt-5`, `gpt-5-mini`, `o1`
 - For `bedrock`: [AWS SDK for Bedrock Runtime](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-bedrock-runtime/) - supports models like `anthropic.claude-3-5-sonnet-20241022-v2:0`
 - For `ollama`: [Ollama Node SDK](https://github.com/ollama/ollama-js) - supports models like `qwen3:14b` which have been insalled locally. ([Ollama models](https://ollama.com/search))
 - For `copilot`: Uses GitHub Copilot authentication - No API key required, uses your existing Copilot subscription. See the [aider docs](https://aider.chat/docs/llms/github.html#discover-available-models) for how to discover available models.
@@ -365,7 +362,7 @@ The Copilot provider leverages your existing GitHub Copilot subscription and doe
 {
   name = "copilot",
   provider = "copilot",
-  model = "claude-3.7-sonnet"  -- or "gpt-4.1"
+  model = "claude-3.7-sonnet"  -- or "gpt-5"
 }
 ```
 

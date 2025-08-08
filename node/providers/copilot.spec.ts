@@ -250,7 +250,8 @@ describe.skip("CopilotProvider", () => {
         tools: [spec],
       });
       const tool = params.tools?.[0];
-      const schema = tool?.function?.parameters;
+      const schema = (tool as Extract<typeof tool, { type: "function" }>)
+        ?.function?.parameters;
 
       if (
         schema &&

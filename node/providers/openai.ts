@@ -22,9 +22,10 @@ import type {
   JSONSchemaType,
 } from "openai/lib/jsonschema.mjs";
 import type { Nvim } from "../nvim/nvim-node/types.ts";
+import type { Reasoning, ReasoningEffort } from "openai/resources";
 
 export type OpenAIOptions = {
-  model: "gpt-4o";
+  model: "gpt-5";
 };
 
 export class OpenAIProvider implements Provider {
@@ -101,7 +102,11 @@ export class OpenAIProvider implements Provider {
    * Checks if a model is a reasoning model (o-series)
    */
   private isReasoningModel(model: string): boolean {
-    return /^(o1|o3|o4|o-|o1-|o3-|o4-)/i.test(model);
+    return /^(o1|o3|o4|o-|o1-|o3-|o4-)/i.test(model) || this.isGpt5(model);
+  }
+
+  private isGpt5(model: string): boolean {
+    return /^gpt-5/i.test(model);
   }
 
   /**
@@ -119,7 +124,7 @@ export class OpenAIProvider implements Provider {
       return true;
     }
 
-    // O-series reasoning models (o1, o3, o4, etc.)
+    // GPT5 and O-series reasoning models (o1, o3, o4, etc.)
     if (this.isReasoningModel(model)) {
       return true;
     }
@@ -478,7 +483,7 @@ export class OpenAIProvider implements Provider {
       input: openaiMessages,
       // see https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
       // this recommends disabling parallel tool calls when strict adherence to schema is needed
-      parallel_tool_calls: false,
+      parallel_tool_calls: this.isGpt5(model),
       tools: [
         ...tools.map((s): OpenAI.Responses.Tool => {
           const compatibleSpec = this.makeOpenAICompatible(s);
@@ -498,8 +503,8 @@ export class OpenAIProvider implements Provider {
     const { reasoning } = options;
     if (reasoning && this.isReasoningModel(model)) {
       const reasoningConfig: {
-        effort?: "low" | "medium" | "high";
-        summary?: "auto" | "concise" | "detailed";
+        effort?: ReasoningEffort;
+        summary?: NonNullable<Reasoning["summary"]>;
       } = {};
       if (reasoning.effort) {
         reasoningConfig.effort = reasoning.effort;
