@@ -9,6 +9,33 @@ import {
 } from "./nvim/window.ts";
 import type { Profile, SidebarPositionOpts, SidebarPositions } from "./options.ts";
 export const WIDTH = 100;
+/** Resolves responsive positions based on terminal orientation */
+function resolveResponsivePosition(
+  position: SidebarPositions,
+  totalWidth: number,
+  totalHeight: number
+): SidebarPositions {
+  // If not a responsive position, return as-is
+  if (!["leftbelow", "leftabove", "rightbelow", "rightabove"].includes(position)) {
+    return position;
+  }
+
+  // Determine if terminal is in landscape (wider than tall) or portrait mode
+  const isLandscape = totalWidth > totalHeight;
+
+  switch (position) {
+    case "leftbelow":
+      return isLandscape ? "left" : "below";
+    case "leftabove":
+      return isLandscape ? "left" : "above";
+    case "rightbelow":
+      return isLandscape ? "right" : "below";
+    case "rightabove":
+      return isLandscape ? "right" : "above";
+    default:
+      return position;
+  }
+}
 
 /** This will mostly manage the window toggle
  */
@@ -27,13 +54,16 @@ export class Sidebar {
     const cmdHeight = (await getOption("cmdheight", nvim)) as number;
     const windowHeight = totalHeight - cmdHeight;
     const totalWidth = (await getOption("columns", nvim)) as number;
+    
+    // Resolve responsive positions based on terminal orientation
+    const resolvedPosition = resolveResponsivePosition(sidebarPosition, totalWidth, totalHeight);
 
     let inputHeight;
     let inputWidth;
     let displayHeight;
     let displayWidth;
 
-    switch (sidebarPosition) {
+    switch (resolvedPosition) {
       case "left":
         displayHeight = Math.floor(windowHeight * sidebarPositionOpts.left.displayHeightPercentage);
         inputHeight = totalHeight - displayHeight - 2;
@@ -64,6 +94,9 @@ export class Sidebar {
         inputWidth = totalWidth;
         displayWidth = totalWidth;
         break;
+      default:
+        // This should never happen since resolveResponsivePosition always returns a base position
+        throw new Error(`Unexpected resolved position: ${resolvedPosition}`);
     }
 
     return { inputHeight, inputWidth, displayHeight, displayWidth };
@@ -164,9 +197,14 @@ export class Sidebar {
     const { inputHeight, inputWidth, displayHeight, displayWidth } = 
       await Sidebar.calculateWindowDimensions(sidebarPosition, sidebarPositionOpts, this.nvim);
    
+    // Get terminal dimensions for resolving responsive positions  
+    const totalHeight = (await getOption("lines", this.nvim)) as number;
+    const totalWidth = (await getOption("columns", this.nvim)) as number;
+    const resolvedPosition = resolveResponsivePosition(sidebarPosition, totalWidth, totalHeight);
+
     let displayWindowId: WindowId;
 
-    if (sidebarPosition == "tab") {
+    if (resolvedPosition == "tab") {
       await this.nvim.call('nvim_command', ["tabnew"]);
       displayWindowId = await this.nvim.call("nvim_get_current_win", []) as unknown as WindowId;
       await this.nvim.call("nvim_win_set_buf", [displayWindowId, displayBuffer.id]);
@@ -176,7 +214,7 @@ export class Sidebar {
         false,
         {
           win: -1, // global split
-          split: sidebarPosition,
+          split: resolvedPosition,
           height: displayHeight,
           width: displayWidth,
         },

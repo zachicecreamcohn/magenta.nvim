@@ -107,7 +107,7 @@ export type TabWindowDimensions = {
   displayHeightPercentage: number;
 };
 
-export type SidebarPositions = "left" | "right" | "below" | "above" | "tab"; 
+export type SidebarPositions = "left" | "right" | "below" | "above" | "tab" | "leftbelow" | "leftabove" | "rightbelow" | "rightabove"; 
 export type SidebarPositionOpts = {
   left: VSplitWindowDimensions;
   right: VSplitWindowDimensions;
@@ -535,11 +535,12 @@ function parseSidebarPosition(
   input: unknown,
   logger?: { warn: (msg: string) => void },
 ): SidebarPositions | undefined {
-  if (input === "right" || input === "left" || input == "above" || input == "below" || input == "tab") {
+  if (input === "right" || input === "left" || input == "above" || input == "below" || input == "tab" || 
+      input === "leftbelow" || input === "leftabove" || input === "rightbelow" || input === "rightabove") {
     return input as SidebarPositions;
   } else if (input !== undefined) {
     logger?.warn(
-      `Invalid sidebarPosition: ${JSON.stringify(input)}, must be "left", "right", "above", "below" or "tab"`,
+      `Invalid sidebarPosition: ${JSON.stringify(input)}, must be "left", "right", "above", "below", "tab", "leftbelow", "leftabove", "rightbelow", or "rightabove"`,
     );
   }
   return undefined;
