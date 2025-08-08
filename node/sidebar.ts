@@ -13,6 +13,62 @@ export const WIDTH = 100;
 /** This will mostly manage the window toggle
  */
 export class Sidebar {
+  static async calculateWindowDimensions(
+    sidebarPosition: SidebarPositions,
+    sidebarPositionOpts: SidebarPositionOpts,
+    nvim: Nvim
+  ): Promise<{
+    inputHeight: number;
+    inputWidth: number;
+    displayHeight: number;
+    displayWidth: number;
+  }> {
+    const totalHeight = (await getOption("lines", nvim)) as number;
+    const cmdHeight = (await getOption("cmdheight", nvim)) as number;
+    const windowHeight = totalHeight - cmdHeight;
+    const totalWidth = (await getOption("columns", nvim)) as number;
+
+    let inputHeight;
+    let inputWidth;
+    let displayHeight;
+    let displayWidth;
+
+    switch (sidebarPosition) {
+      case "left":
+        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.left.displayHeightPercentage);
+        inputHeight = totalHeight - displayHeight - 2;
+        inputWidth = Math.floor(totalWidth * sidebarPositionOpts.left.widthPercentage);
+        displayWidth = inputWidth;
+        break;
+      case "right":
+        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.right.displayHeightPercentage);
+        inputHeight = totalHeight - displayHeight - 2;
+        inputWidth = Math.floor(totalWidth * sidebarPositionOpts.right.widthPercentage);
+        displayWidth = inputWidth;
+        break;
+      case "above":
+        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.above.displayHeightPercentage);
+        inputHeight = Math.floor(windowHeight * sidebarPositionOpts.above.inputHeightPercentage);
+        inputWidth = totalWidth;
+        displayWidth = totalWidth;
+        break;
+      case "below":
+        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.below.displayHeightPercentage);
+        inputHeight = Math.floor(windowHeight * sidebarPositionOpts.below.inputHeightPercentage);
+        inputWidth = totalWidth;
+        displayWidth = totalWidth;
+        break;
+      case "tab":
+        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.tab.displayHeightPercentage);
+        inputHeight = totalHeight - displayHeight - 2;
+        inputWidth = totalWidth;
+        displayWidth = totalWidth;
+        break;
+    }
+
+    return { inputHeight, inputWidth, displayHeight, displayWidth };
+  }
+
   public state:
     | {
         state: "hidden";
@@ -93,11 +149,6 @@ export class Sidebar {
       inputBuffer: existingInputBuffer,
     } = this.state;
     this.nvim.logger.debug(`sidebar.show`);
-    const totalHeight = (await getOption("lines", this.nvim)) as number;
-    const cmdHeight = (await getOption("cmdheight", this.nvim)) as number;
-    const windowHeight = totalHeight - cmdHeight;
-    const totalWidth = (await getOption("columns", this.nvim)) as number;
-
     let displayBuffer: NvimBuffer;
     if (existingDisplayBuffer) {
       displayBuffer = existingDisplayBuffer;
@@ -110,43 +161,8 @@ export class Sidebar {
       await displayBuffer.setDisplayKeymaps();
     }
 
-    let inputHeight;
-    let inputWidth;
-    let displayHeight;
-    let displayWidth;
-
-    switch (sidebarPosition) {
-      case "left":
-        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.left.displayHeightPercentage);
-        inputHeight = totalHeight - displayHeight - 2;
-        inputWidth = Math.floor(totalWidth * sidebarPositionOpts.left.widthPercentage);
-        displayWidth = inputWidth;
-        break;
-      case "right":
-        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.right.displayHeightPercentage);
-        inputHeight = totalHeight - displayHeight - 2;
-        inputWidth = Math.floor(totalWidth * sidebarPositionOpts.right.widthPercentage);
-        displayWidth = inputWidth;
-        break;
-      case "above":
-        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.above.displayHeightPercentage);
-        inputHeight = Math.floor(windowHeight * sidebarPositionOpts.above.inputHeightPercentage);
-        inputWidth = totalWidth;
-        displayWidth = totalWidth;
-        break;
-      case "below":
-        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.below.displayHeightPercentage);
-        inputHeight = Math.floor(windowHeight * sidebarPositionOpts.below.inputHeightPercentage);
-        inputWidth = totalWidth;
-        displayWidth = totalWidth;
-        break;
-      case "tab":
-        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.tab.displayHeightPercentage);
-        inputHeight = totalHeight - displayHeight - 2;
-        inputWidth = totalWidth;
-        displayWidth = totalWidth;
-        break;
-    }
+    const { inputHeight, inputWidth, displayHeight, displayWidth } = 
+      await Sidebar.calculateWindowDimensions(sidebarPosition, sidebarPositionOpts, this.nvim);
    
     let displayWindowId: WindowId;
 
