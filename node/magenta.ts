@@ -260,7 +260,10 @@ export class Magenta {
       }
 
       case "toggle": {
-        const buffers = await this.sidebar.toggle(this.options.sidebarPosition, this.options.sidebarPositionOpts);
+        const buffers = await this.sidebar.toggle(
+          this.options.sidebarPosition,
+          this.options.sidebarPositionOpts,
+        );
         if (buffers && !this.mountedChatApp) {
           this.mountedChatApp = await this.chatApp.mount({
             nvim: this.nvim,

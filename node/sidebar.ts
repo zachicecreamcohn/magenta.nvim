@@ -7,16 +7,22 @@ import {
   type WindowId,
   type Row0Indexed,
 } from "./nvim/window.ts";
-import type { Profile, SidebarPositionOpts, SidebarPositions } from "./options.ts";
+import type {
+  Profile,
+  SidebarPositionOpts,
+  SidebarPositions,
+} from "./options.ts";
 export const WIDTH = 100;
 /** Resolves responsive positions based on terminal orientation */
 function resolveResponsivePosition(
   position: SidebarPositions,
   totalWidth: number,
-  totalHeight: number
+  totalHeight: number,
 ): SidebarPositions {
   // If not a responsive position, return as-is
-  if (!["leftbelow", "leftabove", "rightbelow", "rightabove"].includes(position)) {
+  if (
+    !["leftbelow", "leftabove", "rightbelow", "rightabove"].includes(position)
+  ) {
     return position;
   }
 
@@ -43,7 +49,7 @@ export class Sidebar {
   static async calculateWindowDimensions(
     sidebarPosition: SidebarPositions,
     sidebarPositionOpts: SidebarPositionOpts,
-    nvim: Nvim
+    nvim: Nvim,
   ): Promise<{
     inputHeight: number;
     inputWidth: number;
@@ -54,9 +60,13 @@ export class Sidebar {
     const cmdHeight = (await getOption("cmdheight", nvim)) as number;
     const windowHeight = totalHeight - cmdHeight;
     const totalWidth = (await getOption("columns", nvim)) as number;
-    
+
     // Resolve responsive positions based on terminal orientation
-    const resolvedPosition = resolveResponsivePosition(sidebarPosition, totalWidth, totalHeight);
+    const resolvedPosition = resolveResponsivePosition(
+      sidebarPosition,
+      totalWidth,
+      totalHeight,
+    );
 
     let inputHeight;
     let inputWidth;
@@ -65,31 +75,49 @@ export class Sidebar {
 
     switch (resolvedPosition) {
       case "left":
-        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.left.displayHeightPercentage);
+        displayHeight = Math.floor(
+          windowHeight * sidebarPositionOpts.left.displayHeightPercentage,
+        );
         inputHeight = totalHeight - displayHeight - 2;
-        inputWidth = Math.floor(totalWidth * sidebarPositionOpts.left.widthPercentage);
+        inputWidth = Math.floor(
+          totalWidth * sidebarPositionOpts.left.widthPercentage,
+        );
         displayWidth = inputWidth;
         break;
       case "right":
-        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.right.displayHeightPercentage);
+        displayHeight = Math.floor(
+          windowHeight * sidebarPositionOpts.right.displayHeightPercentage,
+        );
         inputHeight = totalHeight - displayHeight - 2;
-        inputWidth = Math.floor(totalWidth * sidebarPositionOpts.right.widthPercentage);
+        inputWidth = Math.floor(
+          totalWidth * sidebarPositionOpts.right.widthPercentage,
+        );
         displayWidth = inputWidth;
         break;
       case "above":
-        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.above.displayHeightPercentage);
-        inputHeight = Math.floor(windowHeight * sidebarPositionOpts.above.inputHeightPercentage);
+        displayHeight = Math.floor(
+          windowHeight * sidebarPositionOpts.above.displayHeightPercentage,
+        );
+        inputHeight = Math.floor(
+          windowHeight * sidebarPositionOpts.above.inputHeightPercentage,
+        );
         inputWidth = totalWidth;
         displayWidth = totalWidth;
         break;
       case "below":
-        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.below.displayHeightPercentage);
-        inputHeight = Math.floor(windowHeight * sidebarPositionOpts.below.inputHeightPercentage);
+        displayHeight = Math.floor(
+          windowHeight * sidebarPositionOpts.below.displayHeightPercentage,
+        );
+        inputHeight = Math.floor(
+          windowHeight * sidebarPositionOpts.below.inputHeightPercentage,
+        );
         inputWidth = totalWidth;
         displayWidth = totalWidth;
         break;
       case "tab":
-        displayHeight = Math.floor(windowHeight * sidebarPositionOpts.tab.displayHeightPercentage);
+        displayHeight = Math.floor(
+          windowHeight * sidebarPositionOpts.tab.displayHeightPercentage,
+        );
         inputHeight = totalHeight - displayHeight - 2;
         inputWidth = totalWidth;
         displayWidth = totalWidth;
@@ -173,7 +201,10 @@ export class Sidebar {
     }
   }
 
-  private async show(sidebarPosition: SidebarPositions, sidebarPositionOpts: SidebarPositionOpts): Promise<{
+  private async show(
+    sidebarPosition: SidebarPositions,
+    sidebarPositionOpts: SidebarPositionOpts,
+  ): Promise<{
     displayBuffer: NvimBuffer;
     inputBuffer: NvimBuffer;
   }> {
@@ -194,20 +225,34 @@ export class Sidebar {
       await displayBuffer.setDisplayKeymaps();
     }
 
-    const { inputHeight, inputWidth, displayHeight, displayWidth } = 
-      await Sidebar.calculateWindowDimensions(sidebarPosition, sidebarPositionOpts, this.nvim);
-   
-    // Get terminal dimensions for resolving responsive positions  
+    const { inputHeight, inputWidth, displayHeight, displayWidth } =
+      await Sidebar.calculateWindowDimensions(
+        sidebarPosition,
+        sidebarPositionOpts,
+        this.nvim,
+      );
+
+    // Get terminal dimensions for resolving responsive positions
     const totalHeight = (await getOption("lines", this.nvim)) as number;
     const totalWidth = (await getOption("columns", this.nvim)) as number;
-    const resolvedPosition = resolveResponsivePosition(sidebarPosition, totalWidth, totalHeight);
+    const resolvedPosition = resolveResponsivePosition(
+      sidebarPosition,
+      totalWidth,
+      totalHeight,
+    );
 
     let displayWindowId: WindowId;
 
     if (resolvedPosition == "tab") {
-      await this.nvim.call('nvim_command', ["tabnew"]);
-      displayWindowId = await this.nvim.call("nvim_get_current_win", []) as unknown as WindowId;
-      await this.nvim.call("nvim_win_set_buf", [displayWindowId, displayBuffer.id]);
+      await this.nvim.call("nvim_command", ["tabnew"]);
+      displayWindowId = (await this.nvim.call(
+        "nvim_get_current_win",
+        [],
+      )) as unknown as WindowId;
+      await this.nvim.call("nvim_win_set_buf", [
+        displayWindowId,
+        displayBuffer.id,
+      ]);
     } else {
       displayWindowId = (await this.nvim.call("nvim_open_win", [
         displayBuffer.id,

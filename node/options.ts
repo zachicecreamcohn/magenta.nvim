@@ -107,7 +107,16 @@ export type TabWindowDimensions = {
   displayHeightPercentage: number;
 };
 
-export type SidebarPositions = "left" | "right" | "below" | "above" | "tab" | "leftbelow" | "leftabove" | "rightbelow" | "rightabove"; 
+export type SidebarPositions =
+  | "left"
+  | "right"
+  | "below"
+  | "above"
+  | "tab"
+  | "leftbelow"
+  | "leftabove"
+  | "rightbelow"
+  | "rightabove";
 export type SidebarPositionOpts = {
   left: VSplitWindowDimensions;
   right: VSplitWindowDimensions;
@@ -535,8 +544,17 @@ function parseSidebarPosition(
   input: unknown,
   logger?: { warn: (msg: string) => void },
 ): SidebarPositions | undefined {
-  if (input === "right" || input === "left" || input == "above" || input == "below" || input == "tab" || 
-      input === "leftbelow" || input === "leftabove" || input === "rightbelow" || input === "rightabove") {
+  if (
+    input === "right" ||
+    input === "left" ||
+    input == "above" ||
+    input == "below" ||
+    input == "tab" ||
+    input === "leftbelow" ||
+    input === "leftabove" ||
+    input === "rightbelow" ||
+    input === "rightabove"
+  ) {
     return input as SidebarPositions;
   } else if (input !== undefined) {
     logger?.warn(
@@ -573,7 +591,9 @@ function parseSidebarPositionOpts(
             displayHeightPercentage: sideOptsObj["displayHeightPercentage"],
           };
         } else {
-          logger?.warn(`sidebarPositionOpts.${side} must have widthPercentage and displayHeightPercentage`);
+          logger?.warn(
+            `sidebarPositionOpts.${side} must have widthPercentage and displayHeightPercentage`,
+          );
         }
       } else {
         logger?.warn(`sidebarPositionOpts.${side} must be an object`);
@@ -596,7 +616,9 @@ function parseSidebarPositionOpts(
             inputHeightPercentage: sideOptsObj["inputHeightPercentage"],
           };
         } else {
-          logger?.warn(`sidebarPositionOpts.${side} must have displayHeightPercentage and inputHeightPercentage`);
+          logger?.warn(
+            `sidebarPositionOpts.${side} must have displayHeightPercentage and inputHeightPercentage`,
+          );
         }
       } else {
         logger?.warn(`sidebarPositionOpts.${side} must be an object`);
@@ -614,7 +636,9 @@ function parseSidebarPositionOpts(
           displayHeightPercentage: tabOptsObj["displayHeightPercentage"],
         };
       } else {
-        logger?.warn("sidebarPositionOpts.tab must have displayHeightPercentage");
+        logger?.warn(
+          "sidebarPositionOpts.tab must have displayHeightPercentage",
+        );
       }
     } else {
       logger?.warn("sidebarPositionOpts.tab must be an object");
@@ -631,7 +655,7 @@ function parseSidebarPositionOpts(
 
 export function parseOptions(
   inputOptions: unknown,
-  logger: { warn: (msg: string) => void, error: (msg: string) => void },
+  logger: { warn: (msg: string) => void; error: (msg: string) => void },
 ): MagentaOptions {
   const options: MagentaOptions = {
     profiles: [],
@@ -656,7 +680,7 @@ export function parseOptions(
       right: {
         widthPercentage: 0.3,
         displayHeightPercentage: 0.8,
-      }
+      },
     },
     maxConcurrentSubagents: 3,
     commandAllowlist: [],

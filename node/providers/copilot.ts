@@ -516,7 +516,6 @@ export class CopilotProvider implements Provider {
       const input = validateInput(
         spec.name,
         JSON.parse(
-           
           (toolCall as Extract<typeof toolCall, { type: "function" }>).function
             .arguments,
         ) as Record<string, unknown>,
@@ -534,10 +533,9 @@ export class CopilotProvider implements Provider {
             }
           : {
               ...input,
-              rawRequest:
-                 
-                (toolCall as Extract<typeof toolCall, { type: "function" }>)
-                  .function.arguments,
+              rawRequest: (
+                toolCall as Extract<typeof toolCall, { type: "function" }>
+              ).function.arguments,
             };
 
       const usage: Usage = response.usage
