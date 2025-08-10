@@ -184,6 +184,10 @@ export async function withNvimProcess(
     "nvim",
     [
       "--headless",
+      "--cmd",
+      "set columns=200",
+      "--cmd",
+      "set lines=60",
       "-n",
       "--clean",
       "--listen",
