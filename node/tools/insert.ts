@@ -22,7 +22,6 @@ import type { StaticTool, ToolName } from "./types.ts";
 import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import type { ThreadId } from "../chat/types.ts";
-import { WIDTH } from "../sidebar.ts";
 
 export type State =
   | {
@@ -52,6 +51,7 @@ export class InsertTool implements StaticTool {
       nvim: Nvim;
       cwd: NvimCwd;
       dispatch: Dispatch<RootMsg>;
+      getDisplayWidth: () => number;
     },
   ) {
     this.state = { state: "processing" };
@@ -141,7 +141,7 @@ export class InsertTool implements StaticTool {
           const content = this.request.input.content;
           const lines = content.split("\n");
           const maxLines = 5;
-          const maxLength = WIDTH - 5;
+          const maxLength = this.context.getDisplayWidth() - 5;
 
           let previewLines =
             lines.length > maxLines ? lines.slice(-maxLines) : lines;

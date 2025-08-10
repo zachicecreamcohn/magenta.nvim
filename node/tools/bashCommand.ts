@@ -19,7 +19,6 @@ import type { CommandAllowlist, MagentaOptions } from "../options.ts";
 import { getcwd } from "../nvim/nvim.ts";
 import { withTimeout } from "../utils/async.ts";
 import type { StaticTool, ToolName } from "./types.ts";
-import { WIDTH } from "../sidebar.ts";
 
 const MAX_OUTPUT_TOKENS_FOR_AGENT = 10000;
 const CHARACTERS_PER_TOKEN = 4;
@@ -148,6 +147,7 @@ export class BashCommandTool implements StaticTool {
       options: MagentaOptions;
       myDispatch: Dispatch<Msg>;
       rememberedCommands: Set<string>;
+      getDisplayWidth(): number;
     },
   ) {
     const commandAllowlist = this.context.options.commandAllowlist;
@@ -460,7 +460,7 @@ export class BashCommandTool implements StaticTool {
         currentStream = line.stream;
       }
       // Truncate line to WIDTH - 5 characters for display only
-      const displayWidth = WIDTH - 5;
+      const displayWidth = this.context.getDisplayWidth() - 5;
       const displayText =
         line.text.length > displayWidth
           ? line.text.substring(0, displayWidth) + "..."

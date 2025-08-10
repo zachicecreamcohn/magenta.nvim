@@ -12,7 +12,7 @@ import type {
   SidebarPositionOpts,
   SidebarPositions,
 } from "./options.ts";
-export const WIDTH = 100;
+
 /** Resolves responsive positions based on terminal orientation */
 function resolveResponsivePosition(
   position: SidebarPositions,
@@ -141,6 +141,7 @@ export class Sidebar {
         displayBuffer: NvimBuffer;
         inputBuffer: NvimBuffer;
         displayWindow: NvimWindow;
+        displayWidth: number;
         inputWindow: NvimWindow;
       };
 
@@ -191,7 +192,11 @@ export class Sidebar {
     sidebarPosition: SidebarPositions,
     sidebarPositionOpts: SidebarPositionOpts,
   ): Promise<
-    { displayBuffer: NvimBuffer; inputBuffer: NvimBuffer } | undefined
+    | {
+        displayBuffer: NvimBuffer;
+        inputBuffer: NvimBuffer;
+      }
+    | undefined
   > {
     if (this.state.state == "hidden") {
       return await this.show(sidebarPosition, sidebarPositionOpts);
@@ -326,6 +331,7 @@ export class Sidebar {
       displayBuffer,
       inputBuffer,
       displayWindow,
+      displayWidth,
       inputWindow,
     };
 

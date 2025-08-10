@@ -90,6 +90,14 @@ export class Magenta {
 
     this.chat = new Chat({
       dispatch: this.dispatch,
+      getDisplayWidth: () => {
+        if (this.sidebar.state.state == "visible") {
+          return this.sidebar.state.displayWidth;
+        } else {
+          // a placeholder value
+          return 100;
+        }
+      },
       bufferTracker: this.bufferTracker,
       cwd: this.cwd,
       nvim: this.nvim,

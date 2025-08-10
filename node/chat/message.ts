@@ -139,6 +139,7 @@ export class Message {
       fileSnapshots: FileSnapshots;
       options: MagentaOptions;
       contextManager: ContextManager;
+      getDisplayWidth: () => number;
     },
   ) {
     this.state = {
@@ -242,6 +243,7 @@ export class Message {
           messageId: this.state.id,
           nvim: this.context.nvim,
           fileSnapshots: this.context.fileSnapshots,
+          getDisplayWidth: this.context.getDisplayWidth,
         }).catch((e: Error) => this.context.nvim.logger.error(e.message));
         return;
       }

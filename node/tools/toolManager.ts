@@ -197,6 +197,7 @@ export class ToolManager {
       dispatch: Dispatch<RootMsg>;
       mcpToolManager: MCPToolManager;
       bufferTracker: BufferTracker;
+      getDisplayWidth: () => number;
       threadId: ThreadId;
       nvim: Nvim;
       lsp: Lsp;
@@ -484,6 +485,7 @@ export class ToolManager {
                   }),
                 options: this.context.options,
                 rememberedCommands: this.context.chat.rememberedCommands,
+                getDisplayWidth: this.context.getDisplayWidth,
               },
             );
 
