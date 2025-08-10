@@ -1,7 +1,7 @@
 import type { ThreadId } from "./chat/types";
 import type { ThreadMsg } from "./chat/thread";
 import type { ChatMsg } from "./chat/chat";
-import type { Input as CompactThreadInput } from "./tools/compact-thread";
+import type { Input as CompactThreadInput } from "./tools/fork-thread.ts";
 import type {
   EditPredictionMsg,
   EditPredictionId,

@@ -29,7 +29,7 @@ import {
   type StopReason,
   type Usage,
 } from "../providers/provider.ts";
-import { spec as compactThreadSpec } from "../tools/compact-thread.ts";
+import { spec as forkThreadSpec } from "../tools/fork-thread.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type MagentaOptions, type Profile } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
@@ -828,7 +828,7 @@ ${text}`;
           ],
         },
       ],
-      spec: compactThreadSpec,
+      spec: forkThreadSpec,
       systemPrompt: this.state.systemPrompt,
     });
 
@@ -845,9 +845,9 @@ ${text}`;
     const result = await request.promise;
 
     if (result.toolRequest.status === "ok") {
-      const compactRequest = result.toolRequest.value as Extract<
+      const forkRequest = result.toolRequest.value as Extract<
         StaticToolRequest,
-        { toolName: "compact_thread" }
+        { toolName: "fork_thread" }
       >;
 
       this.context.dispatch({
@@ -855,12 +855,12 @@ ${text}`;
         msg: {
           type: "compact-thread",
           threadId: this.id,
-          contextFilePaths: compactRequest.input.contextFiles,
+          contextFilePaths: forkRequest.input.contextFiles,
           inputMessages: [
             {
               type: "system",
               text: `# Previous thread summary:
-${compactRequest.input.summary}
+${forkRequest.input.summary}
 # The user would like you to address this prompt next:
 `,
             },
@@ -884,7 +884,7 @@ ${compactRequest.input.summary}
         conversation: {
           state: "error",
           error: new Error(
-            `Failed to compact thread: ${JSON.stringify(result.toolRequest.error)}`,
+            `Failed to fork thread: ${JSON.stringify(result.toolRequest.error)}`,
           ),
         },
       });

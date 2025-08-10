@@ -10,7 +10,7 @@ export const STATIC_TOOL_NAMES = [
   "inline_edit",
   "replace_selection",
   "thread_title",
-  "compact_thread",
+  "fork_thread",
   "spawn_subagent",
   "spawn_foreach",
   "wait_for_subagents",
