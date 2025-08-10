@@ -23,7 +23,6 @@ import type { ThreadId } from "../chat/types";
 import type { StaticTool, ToolName } from "./types.ts";
 import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
-import { WIDTH } from "../sidebar.ts";
 export type State =
   | {
       state: "processing";
@@ -52,6 +51,7 @@ export class ReplaceTool implements StaticTool {
       bufferTracker: BufferTracker;
       cwd: NvimCwd;
       nvim: Nvim;
+      getDisplayWidth(): number;
     },
   ) {
     this.state = { state: "processing" };
@@ -214,7 +214,7 @@ export class ReplaceTool implements StaticTool {
     const diffLines = diffResult.split("\n").slice(5);
 
     const maxLines = 10;
-    const maxLength = WIDTH - 5;
+    const maxLength = this.context.getDisplayWidth() - 5;
 
     let previewLines =
       diffLines.length > maxLines

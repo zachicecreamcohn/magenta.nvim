@@ -90,6 +90,14 @@ export class Magenta {
 
     this.chat = new Chat({
       dispatch: this.dispatch,
+      getDisplayWidth: () => {
+        if (this.sidebar.state.state == "visible") {
+          return this.sidebar.state.displayWidth;
+        } else {
+          // a placeholder value
+          return 100;
+        }
+      },
       bufferTracker: this.bufferTracker,
       cwd: this.cwd,
       nvim: this.nvim,
@@ -260,7 +268,10 @@ export class Magenta {
       }
 
       case "toggle": {
-        const buffers = await this.sidebar.toggle(this.options.sidebarPosition);
+        const buffers = await this.sidebar.toggle(
+          this.options.sidebarPosition,
+          this.options.sidebarPositionOpts,
+        );
         if (buffers && !this.mountedChatApp) {
           this.mountedChatApp = await this.chatApp.mount({
             nvim: this.nvim,

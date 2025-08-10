@@ -1,4 +1,3 @@
-import { WIDTH } from "../sidebar.ts";
 import { diffthis, getAllWindows, getcwd } from "../nvim/nvim.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 import { type WindowId, type Row0Indexed } from "../nvim/window.ts";
@@ -12,11 +11,13 @@ export async function displaySnapshotDiff({
   messageId,
   nvim,
   fileSnapshots,
+  getDisplayWidth,
 }: {
   unresolvedFilePath: UnresolvedFilePath;
   messageId: MessageId;
   nvim: Nvim;
   fileSnapshots: FileSnapshots;
+  getDisplayWidth: () => number;
 }) {
   const absFilePath = resolveFilePath(await getcwd(nvim), unresolvedFilePath);
 
@@ -51,7 +52,6 @@ export async function displaySnapshotDiff({
     {
       win: -1, // global split
       split: "right",
-      width: WIDTH,
     },
   ])) as WindowId;
 
@@ -74,7 +74,6 @@ export async function displaySnapshotDiff({
     {
       win: fileWindowId, // global split
       split: "left",
-      width: WIDTH,
     },
   ]);
 
@@ -82,6 +81,6 @@ export async function displaySnapshotDiff({
 
   // now that both diff buffers are open, adjust the magenta window width again
   for (const window of magentaWindows) {
-    await window.setWidth(WIDTH);
+    await window.setWidth(getDisplayWidth());
   }
 }

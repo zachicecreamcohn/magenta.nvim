@@ -108,6 +108,7 @@ export class Chat {
   constructor(
     private context: {
       dispatch: Dispatch<RootMsg>;
+      getDisplayWidth: () => number;
       bufferTracker: BufferTracker;
       options: MagentaOptions;
       cwd: NvimCwd;

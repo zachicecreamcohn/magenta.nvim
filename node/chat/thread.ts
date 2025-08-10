@@ -174,6 +174,7 @@ export class Thread {
       lsp: Lsp;
       contextManager: ContextManager;
       options: MagentaOptions;
+      getDisplayWidth: () => number;
     },
   ) {
     this.myDispatch = (msg) =>
@@ -742,6 +743,7 @@ export class Thread {
           fileSnapshots: this.fileSnapshots,
           options: this.context.options,
           contextManager: this.contextManager,
+          getDisplayWidth: this.context.getDisplayWidth,
         },
       );
 

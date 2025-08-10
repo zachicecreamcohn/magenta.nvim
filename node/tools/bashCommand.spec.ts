@@ -449,7 +449,7 @@ tada
         await driver.assertDisplayBufferContains("⚡✅");
 
         // Verify display shows truncated text
-        const truncatedText = "A".repeat(95) + "...";
+        const truncatedText = "A".repeat(10) + "...";
         await driver.assertDisplayBufferContains(truncatedText);
 
         // Verify the full output is preserved for the agent

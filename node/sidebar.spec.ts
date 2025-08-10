@@ -30,6 +30,194 @@ describe("node/sidebar.spec.ts", () => {
     });
   });
 
+  describe("sidebar position options", () => {
+    it("should position sidebar on the left", async () => {
+      await withDriver(
+        {
+          options: {
+            sidebarPosition: "left",
+          },
+        },
+        async (driver) => {
+          // Open a file first to have something to compare position against
+          await driver.editFile("poem.txt");
+          await driver.showSidebar();
+          const { displayWindow, inputWindow } = driver.getVisibleState();
+
+          // Find the file window
+          const fileWindow = await driver.findWindow(async (w) => {
+            const buf = await w.buffer();
+            const name = await buf.getName();
+            return name.includes("poem.txt");
+          });
+          expect(fileWindow).toBeDefined();
+
+          // Verify sidebar windows are positioned to the left of the file window
+          const displayWinPos = await displayWindow.getPosition();
+          const inputWinPos = await inputWindow.getPosition();
+          const fileWinPos = await fileWindow.getPosition();
+
+          // Left sidebar should have lower column index than file window
+          expect(displayWinPos[1]).toBeLessThan(fileWinPos[1]);
+          expect(inputWinPos[1]).toBeLessThan(fileWinPos[1]);
+
+          // Display and input windows should have same column position
+          expect(displayWinPos[1]).toBe(inputWinPos[1]);
+        },
+      );
+    });
+
+    it("should position sidebar on the right", async () => {
+      await withDriver(
+        {
+          options: {
+            sidebarPosition: "right",
+          },
+        },
+        async (driver) => {
+          // Open a file first to have something to compare position against
+          await driver.editFile("poem.txt");
+          await driver.showSidebar();
+          const { displayWindow, inputWindow } = driver.getVisibleState();
+
+          // Find the file window
+          const fileWindow = await driver.findWindow(async (w) => {
+            const buf = await w.buffer();
+            const name = await buf.getName();
+            return name.includes("poem.txt");
+          });
+          expect(fileWindow).toBeDefined();
+
+          // Verify sidebar windows are positioned to the right of the file window
+          const displayWinPos = await displayWindow.getPosition();
+          const inputWinPos = await inputWindow.getPosition();
+          const fileWinPos = await fileWindow.getPosition();
+
+          // Right sidebar should have higher column index than file window
+          expect(displayWinPos[1]).toBeGreaterThan(fileWinPos[1]);
+          expect(inputWinPos[1]).toBeGreaterThan(fileWinPos[1]);
+
+          // Display and input windows should have same column position
+          expect(displayWinPos[1]).toBe(inputWinPos[1]);
+        },
+      );
+    });
+
+    it("should position sidebar above", async () => {
+      await withDriver(
+        {
+          options: {
+            sidebarPosition: "above",
+          },
+        },
+        async (driver) => {
+          // Open a file first to have something to compare position against
+          await driver.editFile("poem.txt");
+          await driver.showSidebar();
+          const { displayWindow, inputWindow } = driver.getVisibleState();
+
+          // Find the file window
+          const fileWindow = await driver.findWindow(async (w) => {
+            const buf = await w.buffer();
+            const name = await buf.getName();
+            return name.includes("poem.txt");
+          });
+          expect(fileWindow).toBeDefined();
+
+          // Verify sidebar windows are positioned above the file window
+          const displayWinPos = await displayWindow.getPosition();
+          const inputWinPos = await inputWindow.getPosition();
+          const fileWinPos = await fileWindow.getPosition();
+
+          // Above sidebar should have lower row index than file window
+          expect(displayWinPos[0]).toBeLessThan(fileWinPos[0]);
+          expect(inputWinPos[0]).toBeLessThan(fileWinPos[0]);
+
+          // Display window should be above input window
+          expect(displayWinPos[0]).toBeLessThan(inputWinPos[0]);
+        },
+      );
+    });
+
+    it("should position sidebar below", async () => {
+      await withDriver(
+        {
+          options: {
+            sidebarPosition: "below",
+          },
+        },
+        async (driver) => {
+          // Open a file first to have something to compare position against
+          await driver.editFile("poem.txt");
+          await driver.showSidebar();
+          const { displayWindow, inputWindow } = driver.getVisibleState();
+
+          // Find the file window
+          const fileWindow = await driver.findWindow(async (w) => {
+            const buf = await w.buffer();
+            const name = await buf.getName();
+            return name.includes("poem.txt");
+          });
+          expect(fileWindow).toBeDefined();
+
+          // Verify sidebar windows are positioned below the file window
+          const displayWinPos = await displayWindow.getPosition();
+          const inputWinPos = await inputWindow.getPosition();
+          const fileWinPos = await fileWindow.getPosition();
+
+          // Below sidebar should have higher row index than file window
+          expect(displayWinPos[0]).toBeGreaterThan(fileWinPos[0]);
+          expect(inputWinPos[0]).toBeGreaterThan(fileWinPos[0]);
+
+          // Display window should be above input window
+          expect(displayWinPos[0]).toBeLessThan(inputWinPos[0]);
+        },
+      );
+    });
+
+    it("should position sidebar in a new tab", async () => {
+      await withDriver(
+        {
+          options: {
+            sidebarPosition: "tab",
+          },
+        },
+        async (driver) => {
+          // Open a file first
+          await driver.editFile("poem.txt");
+
+          // Get initial tab count
+          const initialTabCount = (await driver.nvim.call(
+            "nvim_call_function",
+            ["tabpagenr", ["$"]],
+          )) as number;
+
+          await driver.showSidebar();
+          const { displayWindow, inputWindow } = driver.getVisibleState();
+
+          // Should have created a new tab
+          const finalTabCount = await driver.nvim.call("nvim_call_function", [
+            "tabpagenr",
+            ["$"],
+          ]);
+          expect(finalTabCount).toBeGreaterThan(initialTabCount);
+
+          // Verify we're in the new tab by checking current tab
+          const currentTab = await driver.nvim.call("nvim_call_function", [
+            "tabpagenr",
+            [],
+          ]);
+          expect(currentTab).toBeGreaterThan(1);
+
+          // Display window should be above input window in the same tab
+          const displayWinPos = await displayWindow.getPosition();
+          const inputWinPos = await inputWindow.getPosition();
+          expect(displayWinPos[0]).toBeLessThan(inputWinPos[0]);
+        },
+      );
+    });
+  });
+
   it("should display and update token count in input window title", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
