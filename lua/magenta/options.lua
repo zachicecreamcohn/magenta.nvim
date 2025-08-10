@@ -47,11 +47,11 @@ local defaults = {
       displayHeightPercentage = 0.8,
     },
     left = {
-      widthPercentage = 0.3,
+      widthPercentage = 0.4,
       displayHeightPercentage = 0.8,
     },
     right = {
-      widthPercentage = 0.3,
+      widthPercentage = 0.4,
       displayHeightPercentage = 0.8,
     }
   },
