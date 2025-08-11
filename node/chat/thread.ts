@@ -553,8 +553,8 @@ export class Thread {
   }
 
   private handleSendMessageError = (error: Error): void => {
-    this.context.nvim.logger.error(error);
     if (this.state.conversation.state == "message-in-flight") {
+      this.context.nvim.logger.error(error);
       this.myDispatch({
         type: "conversation-state",
         conversation: {
