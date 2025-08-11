@@ -1249,3 +1249,46 @@ it("handles @async messages and sends them on end turn", async () => {
     expect(request2.messages).toMatchSnapshot();
   });
 });
+
+it("removes server_tool_use content when aborted before receiving results", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText("Search for information about TypeScript");
+    await driver.send();
+
+    const request1 = await driver.mockAnthropic.awaitPendingRequest();
+
+    // First send text content
+    request1.streamText("I'll search for information about TypeScript.");
+
+    // Then send server tool use streaming events
+    request1.streamServerToolUse("web-search-123", "web_search", {
+      query: "TypeScript programming language",
+    });
+
+    // Finish the request with tool_use stop reason (no web_search_tool_result sent yet)
+    request1.finishResponse("tool_use");
+
+    // Wait for the server tool use to be displayed
+    await driver.assertDisplayBufferContains(
+      "I'll search for information about TypeScript.",
+    );
+
+    // Verify the server tool use content is in the message before abort
+    const thread = driver.magenta.chat.getActiveThread();
+    const contentTypesBeforeAbort = thread.state.messages[
+      thread.state.messages.length - 1
+    ].state.content.map((c) => c.type);
+    expect(contentTypesBeforeAbort).toEqual(["text", "server_tool_use"]);
+
+    // Send a new message to abort the current operation before web search result comes back
+    await driver.inputMagentaText("Actually, cancel that search");
+    await driver.send();
+
+    // The server tool use should be removed since no result was received
+    const contentTypesAfterAbort = thread.state.messages[
+      thread.state.messages.length - 1
+    ].state.content.map((c) => c.type);
+    expect(contentTypesAfterAbort).toEqual(["text"]);
+  });
+});

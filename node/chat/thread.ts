@@ -504,6 +504,31 @@ export class Thread {
           }
         }
       }
+
+      // Remove server_tool_use content that doesn't have corresponding results
+      if (lastMessage.state.role === "assistant") {
+        const serverToolUseIds = new Set<string>();
+        const toolResultIds = new Set<string>();
+
+        // Collect server tool use IDs and tool result IDs
+        for (const content of lastMessage.state.content) {
+          if (content.type === "server_tool_use") {
+            serverToolUseIds.add(content.id);
+          } else if (content.type === "web_search_tool_result") {
+            toolResultIds.add(content.tool_use_id);
+          }
+        }
+
+        // Remove server_tool_use content that has no corresponding result
+        lastMessage.state.content = lastMessage.state.content.filter(
+          (content) => {
+            if (content.type === "server_tool_use") {
+              return toolResultIds.has(content.id);
+            }
+            return true;
+          },
+        );
+      }
     }
 
     this.handleConversationStop({

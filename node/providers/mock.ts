@@ -64,6 +64,7 @@ class MockRequest {
       index: 0,
     });
   }
+
   streamToolUse(
     toolRequest: Result<ToolRequest, { rawRequest: unknown }>,
   ): void {
@@ -95,6 +96,38 @@ class MockRequest {
       delta: {
         type: "input_json_delta",
         partial_json: inputJson,
+      },
+    });
+
+    this.onStreamEvent({
+      type: "content_block_stop",
+      index,
+    });
+  }
+
+  streamServerToolUse(
+    id: string,
+    name: "web_search",
+    input: unknown,
+    index: number = 1,
+  ): void {
+    this.onStreamEvent({
+      type: "content_block_start",
+      index,
+      content_block: {
+        type: "server_tool_use",
+        id,
+        name,
+        input: "",
+      },
+    });
+
+    this.onStreamEvent({
+      type: "content_block_delta",
+      index,
+      delta: {
+        type: "input_json_delta",
+        partial_json: JSON.stringify(input),
       },
     });
 
