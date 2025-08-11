@@ -34,6 +34,14 @@ I sometimes write about AI, neovim and magenta specifically:
 
 # Updates
 
+## August 2025
+
+I reworked `@compact` into `@fork`. Instead of a forced tool use, fork is now just like any other tool. Using @fork just sends a nice message with some extra instructions to the agent, which then uses fork_thread like any other tool. There are a few advantages of this:
+
+- first, and most important, this allows for the reuse of the thread cache when forking. Since the fork tool is there from the beginning, we are not changing the prefix of the thread at all when requesting a fork (like we did with forceTooluse)
+- the agent can now think before requesting the fork, which can result in better decisions about which files to include and a better summary
+- the instructions for how to fork now appear at the end of the thread, which makes them more relevant and easier to follow than putting them into the tool declaration
+
 ## July 2025
 
 **next edit prediction** - suggests the most likely next edit based on your recent changes and cursor context. Press `<S-C-l>` (Shift+Ctrl+L) in both insert and normal mode to trigger a prediction, and `<S-C-l>` again to accept it. Predictions appear as virtual text with strikethrough for removed text and highlighting for added text. Exit insert mode, or press `<Esc>` in normal mode to dismiss predictions. This feature adapts to your editing patterns and is perfect for completing repetitive edits.
@@ -771,24 +779,24 @@ The display buffer is not modifiable, however you can interact with some parts o
 
 Magenta supports several special commands that you can use in the input buffer to enhance your prompts with current editor state:
 
-#### @compact - Thread compaction
+#### @fork - Thread forking
 
-Thread compaction allows you to retain relevant pieces of context as you shift focus to new tasks.
+Thread forking allows you to retain relevant pieces of context as you shift focus to new tasks.
 
-1. Type `@compact` followed by your next prompt in the input buffer
-2. Press Enter to send the compaction request
+1. Type `@fork` followed by your next prompt in the input buffer
+2. Press Enter to send the request
 3. Magenta will:
    - Analyze your next prompt to understand what you're trying to achieve
    - Extract only the parts of the current thread directly relevant to your prompt
    - Identify which context files are still needed
    - Create a new thread with this focused context and your prompt
 
-This smart compaction ensures that only information specifically relevant to your next task is carried forward, while irrelevant parts of the conversation are summarized or removed.
+This ensures that only information specifically relevant to your next task is carried forward, while irrelevant parts of the conversation are removed.
 
 Example usage:
 
 ```
-@compact Now let's implement unit tests for the new feature we just discussed
+@fork Now let's implement unit tests for the new feature we just discussed
 ```
 
 #### @diag / @diagnostics - Include current diagnostics
