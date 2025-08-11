@@ -543,17 +543,19 @@ export class Thread {
         messageContent.push({
           type: "text",
           text: `\
-Use the fork_thread tool to analyze my next prompt and extract only the relevant parts of this conversation so far.
+My next prompt will be:
+${forkText}
 
-- Carefully analyze the next prompt
+Use the fork_thread tool to start a new thread for this prompt.
+
+- Carefully analyze the prompt
 - Identify key concepts, patterns, files and decisions that may be relevant
 - Include higly relevant files as contextFiles
 - Name less relevant files that may be useful in the summary, but leave them out of contextFiles.
 - Summarize ONLY information that directly supports addressing the next prompt, especially previous user instructions and observations that cannot be directly observable in the codebase.
 - Prefer including files in contextFiles to copying code from those files into the summary. Do not repeat anything in the summary that can be learned directly from contextFiles.
 
-My next prompt will be:
-${forkText}`,
+You must use the fork_thread tool immediately, with only the information you already have. Do not use any other tools.`,
         });
         this.forkNextPrompt = forkText;
       } else {
