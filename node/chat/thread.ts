@@ -950,6 +950,23 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
     ) {
       const message = this.state.messages[msgIdx];
 
+      if (
+        message.state.stop &&
+        // aborted requests and errors don't have usage so we should probably skip those
+        message.state.stop.usage.inputTokens +
+          message.state.stop.usage.outputTokens >
+          0
+      ) {
+        const stopInfo = message.state.stop;
+
+        return (
+          stopInfo.usage.inputTokens +
+          stopInfo.usage.outputTokens +
+          (stopInfo.usage.cacheHits || 0) +
+          (stopInfo.usage.cacheMisses || 0)
+        );
+      }
+
       // Find the most recent stop event by iterating content in reverse order
       for (
         let contentIdx = message.state.content.length - 1;
@@ -957,24 +974,19 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
         contentIdx--
       ) {
         const content = message.state.content[contentIdx];
-        let stopInfo: { stopReason: StopReason; usage: Usage } | undefined;
-
         if (content.type === "tool_use" && content.request.status === "ok") {
           // For tool use content, check toolMeta
           const toolMeta = message.state.toolMeta[content.request.value.id];
-          stopInfo = toolMeta?.stop;
-        } else {
-          // For regular content, check stops map
-          stopInfo = message.state.stops[contentIdx];
-        }
+          if (toolMeta?.stop) {
+            const stopInfo = toolMeta.stop;
 
-        if (stopInfo) {
-          return (
-            stopInfo.usage.inputTokens +
-            stopInfo.usage.outputTokens +
-            (stopInfo.usage.cacheHits || 0) +
-            (stopInfo.usage.cacheMisses || 0)
-          );
+            return (
+              stopInfo.usage.inputTokens +
+              stopInfo.usage.outputTokens +
+              (stopInfo.usage.cacheHits || 0) +
+              (stopInfo.usage.cacheMisses || 0)
+            );
+          }
         }
       }
     }
@@ -1002,7 +1014,7 @@ const renderConversationState = (conversation: ConversationState): VDOMNode => {
     case "message-in-flight":
       return d`Streaming response ${getAnimationFrame(conversation.sendDate)}`;
     case "stopped":
-      return d``;
+      return d``; // will be rendered by the last message
     case "yielded":
       return d`↗️ yielded to parent: ${conversation.response}`;
     case "error":

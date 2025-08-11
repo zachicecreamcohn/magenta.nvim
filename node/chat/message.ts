@@ -44,12 +44,12 @@ type State = {
   role: Role;
   streamingBlock: StreamingBlock | undefined;
   content: ProviderMessageContent[];
-  stops: {
-    [contentIdx: number]: {
-      stopReason: StopReason;
-      usage: Usage;
-    };
-  };
+  stop?:
+    | {
+        stopReason: StopReason;
+        usage: Usage;
+      }
+    | undefined;
   contextUpdates?: FileUpdates | undefined;
   expandedUpdates?: {
     [absFilePath: string]: boolean;
@@ -145,7 +145,7 @@ export class Message {
     this.state = {
       streamingBlock: undefined,
       content: [],
-      stops: {},
+      stop: undefined,
       edits: {},
       toolMeta: {},
       ...initialState,
@@ -288,7 +288,7 @@ export class Message {
             usage: msg.usage,
           };
         } else {
-          this.state.stops[this.state.content.length - 1] = {
+          this.state.stop = {
             stopReason: msg.stopReason,
             usage: msg.usage,
           };
@@ -432,24 +432,27 @@ export class Message {
   }
 
   view() {
-    const renderContentWithStop = (
+    const renderContent = (
       content: ProviderMessageContent,
       contentIdx: number,
     ) => {
-      let stopView;
-      if (this.state.stops[contentIdx]) {
-        stopView = this.renderStop(contentIdx);
-      }
-
-      return d`${this.renderContent(content, contentIdx)}\n${stopView ?? ""}`;
+      return d`${this.renderContent(content, contentIdx)}\n`;
     };
 
     return d`\
 ${withExtmark(d`# ${this.state.role}:`, { hl_group: "@markup.heading.1.markdown" })}
-${this.context.contextManager.renderContextUpdate(this.state.contextUpdates)}${this.state.content.map(renderContentWithStop)}${this.renderStreamingBlock()}${this.renderEdits()}`;
+${this.context.contextManager.renderContextUpdate(this.state.contextUpdates)}\
+${this.state.content.map(renderContent)}\
+${this.renderStreamingBlock()}\
+${this.renderEdits()}\
+${this.state.stop ? this.renderStopInfo(this.state.stop.stopReason, this.state.stop.usage) : ""}`;
   }
 
   renderStopInfo(stopReason: StopReason, usage: Usage) {
+    if (stopReason == "aborted") {
+      return "[ABORTED]";
+    }
+
     return d`Stopped (${stopReason}) [input: ${usage.inputTokens.toString()}, output: ${usage.outputTokens.toString()}${
       usage.cacheHits !== undefined
         ? d`, cache hits: ${usage.cacheHits.toString()}`
@@ -459,15 +462,6 @@ ${this.context.contextManager.renderContextUpdate(this.state.contextUpdates)}${t
         ? d`, cache misses: ${usage.cacheMisses.toString()}`
         : ""
     }]`;
-  }
-
-  renderStop(contentIdx: number) {
-    const stop = this.state.stops[contentIdx];
-    if (!stop) {
-      return "";
-    }
-
-    return d`\n${this.renderStopInfo(stop.stopReason, stop.usage)}\n`;
   }
 
   renderContent(content: ProviderMessageContent, contentIdx: number) {
