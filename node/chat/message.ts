@@ -445,7 +445,7 @@ ${this.context.contextManager.renderContextUpdate(this.state.contextUpdates)}\
 ${this.state.content.map(renderContent)}\
 ${this.renderStreamingBlock()}\
 ${this.renderEdits()}\
-${this.state.stop ? this.renderStopInfo(this.state.stop.stopReason, this.state.stop.usage) : ""}`;
+${this.state.stop ? d`\n${this.renderStopInfo(this.state.stop.stopReason, this.state.stop.usage)}` : ""}`;
   }
 
   renderStopInfo(stopReason: StopReason, usage: Usage) {

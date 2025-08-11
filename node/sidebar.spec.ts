@@ -20,7 +20,7 @@ describe("node/sidebar.spec.ts", () => {
       const displayWindow = driver.getVisibleState().displayWindow;
       await pollUntil(async () => {
         const current = await displayWindow.topLine();
-        const expected = 110;
+        const expected = 109;
         if (current != expected) {
           throw new Error(
             `Expected to scroll to line ${expected} but we were at ${current}`,
