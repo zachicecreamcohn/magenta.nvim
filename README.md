@@ -36,6 +36,8 @@ I sometimes write about AI, neovim and magenta specifically:
 
 ## August 2025
 
+I improved the turn-taking behavior. Sending a message to the agent while it's streaming will now automatically abort the current request. You can also prepend your message with `@async` to enqueue the message. The message will be sent to the agent on the next opportunity (either with the next tool autoresponse, or when the agent ends its turn).
+
 I reworked `@compact` into `@fork`. Instead of a forced tool use, fork is now just like any other tool. Using @fork just sends a nice message with some extra instructions to the agent, which then uses fork_thread like any other tool. There are a few advantages of this:
 
 - first, and most important, this allows for the reuse of the thread cache when forking. Since the fork tool is there from the beginning, we are not changing the prefix of the thread at all when requesting a fork (like we did with forceTooluse)

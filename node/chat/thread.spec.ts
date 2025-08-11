@@ -7,7 +7,6 @@ import { type Input as ForkThreadInput } from "../tools/fork-thread.ts";
 import type { ToolName } from "../tools/types.ts";
 import { pollUntil } from "../utils/async.ts";
 import { getcwd } from "../nvim/nvim.ts";
-import * as path from "path";
 import { $, within } from "zx";
 
 describe("node/chat/thread.spec.ts", () => {
@@ -281,14 +280,8 @@ describe("node/chat/thread.spec.ts", () => {
       const request = await driver.mockAnthropic.awaitPendingRequest();
       expect(request.messages).toMatchSnapshot("fork-tool-request-messages");
 
-      const cwd = await getcwd(driver.nvim);
-      const contextFiles = [
-        path.join(cwd, "poem.txt") as unknown as UnresolvedFilePath,
-        path.join(cwd, "poem2.txt") as unknown as UnresolvedFilePath,
-      ];
-
       const forkInput: ForkThreadInput = {
-        contextFiles,
+        contextFiles: ["poem.txt", "poem2.txt"] as UnresolvedFilePath[],
         summary:
           "We discussed European capitals (France: Paris, Germany: Berlin) and examined your project structure, which contains TypeScript files.",
       };
@@ -348,19 +341,6 @@ describe("node/chat/thread.spec.ts", () => {
       const messages = thread.getMessages();
 
       expect(messages).toMatchSnapshot("forked-thread-messages");
-
-      // First message should be the summary (context), second should be the user's question about Italy
-      expect(messages.length).toBe(2);
-
-      // Verify we captured expected message structure (user->assistant)
-      expect(
-        messages.flatMap((m) => m.content.map((b) => m.role + ":" + b.type)),
-      ).toEqual([
-        "user:text", // Context files added to the new thread
-        "user:text", // The forked thread summary (system message)
-        "user:text", // The user question about Italy
-        "assistant:text", // The assistant response about Rome
-      ]);
     });
   });
 
@@ -1062,4 +1042,210 @@ describe("node/chat/thread.spec.ts", () => {
       });
     },
   );
+
+  it("aborts request when sending new message while waiting for response", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText("First message");
+      await driver.send();
+
+      const request1 = await driver.mockAnthropic.awaitPendingRequest();
+
+      // Send a second message before the first request responds
+      await driver.inputMagentaText("Second message while first is pending");
+      await driver.send();
+
+      // The first request should be aborted
+      expect(request1.aborted).toBe(true);
+
+      // Respond to the aborted request - this should be ignored
+      request1.respond({
+        stopReason: "end_turn",
+        text: "This response should be ignored because request was aborted",
+        toolRequests: [],
+      });
+
+      // Handle the second request
+      const request2 = await driver.mockAnthropic.awaitPendingRequest();
+      request2.respond({
+        stopReason: "end_turn",
+        text: "Second response that should be shown",
+        toolRequests: [],
+      });
+
+      // Verify that only the second message and response are displayed
+      await driver.assertDisplayBufferContains(
+        "Second message while first is pending",
+      );
+      await driver.assertDisplayBufferContains(
+        "Second response that should be shown",
+      );
+
+      // Verify the aborted response is NOT displayed
+      const bufferContent = await driver.getDisplayBufferText();
+      expect(bufferContent).not.toContain(
+        "This response should be ignored because request was aborted",
+      );
+
+      // Check the thread message structure - should only have the second exchange
+      const thread = driver.magenta.chat.getActiveThread();
+      const messages = thread.getMessages();
+      expect(messages).toMatchSnapshot();
+    });
+  });
+
+  it("aborts tool use when sending new message while tool is executing", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText("Run a slow command");
+      await driver.send();
+
+      const request1 = await driver.mockAnthropic.awaitPendingRequest();
+      const toolRequestId = "slow-bash-command" as ToolRequestId;
+
+      // Respond with a tool use that would normally take time
+      request1.respond({
+        stopReason: "tool_use",
+        text: "I'll run a slow bash command for you.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: toolRequestId,
+              toolName: "bash_command" as ToolName,
+              input: { command: "sleep 5 && echo 'This should be aborted'" },
+            },
+          },
+        ],
+      });
+
+      // Wait for the tool execution to start
+      await driver.assertDisplayBufferContains(
+        "I'll run a slow bash command for you.",
+      );
+
+      // Send a new message while the tool is executing
+      await driver.inputMagentaText("Cancel that, run something else");
+      await driver.send();
+
+      // Handle the second request
+      await driver.mockAnthropic.awaitPendingRequest();
+      // Verify that the second exchange is displayed
+      await driver.assertDisplayBufferContains(
+        "Cancel that, run something else",
+      );
+
+      // Verify the aborted tool output is NOT displayed
+      const bufferContent = await driver.getDisplayBufferText();
+      expect(bufferContent).toContain(
+        "'This should be aborted'` - Exit code: -1",
+      );
+
+      // Check the thread message structure
+      const thread = driver.magenta.chat.getActiveThread();
+      const messages = thread.getMessages();
+      expect(messages).toMatchSnapshot();
+    });
+  });
+});
+
+it("handles @async messages by queueing them and sending on next tool response", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    // First, send a regular message that will use a secret file read
+    await driver.inputMagentaText("Can you read my secret file?");
+    await driver.send();
+
+    const request1 = await driver.mockAnthropic.awaitPendingRequest();
+    const toolRequestId = "secret-file-tool" as ToolRequestId;
+
+    // Respond with get_file tool use - this will block on user approval
+    request1.respond({
+      stopReason: "tool_use",
+      text: "I'll read your secret file.",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: toolRequestId,
+            toolName: "get_file" as ToolName,
+            input: { filePath: ".secret" as UnresolvedFilePath },
+          },
+        },
+      ],
+    });
+
+    // Wait for approval dialog to appear
+    await driver.assertDisplayBufferContains("👀⏳ May I read file `.secret`?");
+
+    // Now send an @async message while the tool is waiting for approval
+    await driver.inputMagentaText("@async This should be queued");
+    await driver.send();
+
+    // Verify the @async message is queued, not immediately sent
+    const thread = driver.magenta.chat.getActiveThread();
+    expect(thread.state.pendingMessages).toHaveLength(1);
+    expect(thread.state.pendingMessages[0].text).toBe("This should be queued");
+
+    // Approve the file read to complete the tool execution
+    const yesPos = await driver.assertDisplayBufferContains("[ YES ]");
+    await driver.triggerDisplayBufferKey(yesPos, "<CR>");
+
+    // Wait for file read to complete
+    await driver.assertDisplayBufferContains("👀✅ `.secret`");
+
+    // Handle the auto-response after tool completion
+    const request2 = await driver.mockAnthropic.awaitPendingRequest();
+
+    // Verify the message structure follows the expected pattern
+    const messagePattern = request2.messages.flatMap((m) =>
+      m.content.map((c) => `${m.role}:${c.type}`),
+    );
+    expect(
+      messagePattern,
+      "tool_use immediately followed by tool_result",
+    ).toEqual([
+      "user:text",
+      "assistant:text",
+      "assistant:tool_use",
+      "user:tool_result",
+      "user:text",
+    ]);
+    expect(request2.messages).toMatchSnapshot();
+  });
+});
+
+it("handles @async messages and sends them on end turn", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    // Send a regular message
+    await driver.inputMagentaText("Tell me about TypeScript");
+    await driver.send();
+
+    const request1 = await driver.mockAnthropic.awaitPendingRequest();
+
+    // Send @async message while first request is in flight
+    await driver.inputMagentaText("@async Also tell me about JavaScript");
+    await driver.send();
+
+    // Verify message is queued
+    const thread = driver.magenta.chat.getActiveThread();
+    expect(thread.state.pendingMessages).toHaveLength(1);
+    expect(thread.state.pendingMessages[0].text).toBe(
+      "Also tell me about JavaScript",
+    );
+
+    // Respond to first request with end_turn - this should trigger sending queued messages
+    request1.respond({
+      stopReason: "end_turn",
+      text: "TypeScript is a typed superset of JavaScript.",
+      toolRequests: [],
+    });
+
+    // Now the queued message should be sent automatically
+    const request2 = await driver.mockAnthropic.awaitPendingRequest();
+    expect(request2.messages).toMatchSnapshot();
+  });
 });

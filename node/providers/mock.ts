@@ -21,7 +21,7 @@ class MockRequest {
     stopReason: StopReason;
     usage: Usage;
   }>;
-  private aborted = false;
+  private _aborted = false;
 
   constructor(
     public messages: Array<ProviderMessage>,
@@ -30,6 +30,10 @@ class MockRequest {
     public model: string,
   ) {
     this.defer = new Defer();
+  }
+
+  get aborted(): boolean {
+    return this._aborted;
   }
 
   streamText(text: string): void {
@@ -136,13 +140,13 @@ class MockRequest {
 
   abort() {
     if (!this.defer.resolved) {
-      this.aborted = true;
+      this._aborted = true;
       this.defer.reject(new Error("request aborted"));
     }
   }
 
   wasAborted(): boolean {
-    return this.aborted;
+    return this._aborted;
   }
 
   finishResponse(stopReason: StopReason) {
@@ -201,6 +205,7 @@ type MockForceToolUseRequest = {
     stopReason: StopReason;
     usage: Usage;
   }>;
+  aborted: boolean;
 };
 
 export class MockProvider implements Provider {
@@ -246,15 +251,18 @@ export class MockProvider implements Provider {
       spec,
       systemPrompt,
       defer: new Defer(),
+      aborted: false,
     };
     this.forceToolUseRequests.push(request);
 
     return {
       abort: () => {
         if (!request.defer.resolved) {
+          request.aborted = true;
           request.defer.reject(new Error("request aborted"));
         }
       },
+      aborted: request.aborted,
       promise: request.defer.promise,
     };
   }
@@ -282,6 +290,9 @@ export class MockProvider implements Provider {
     return {
       promise: request.defer.promise,
       abort: request.abort.bind(request),
+      get aborted() {
+        return request.aborted;
+      },
     };
   }
 

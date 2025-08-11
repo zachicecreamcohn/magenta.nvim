@@ -1,5 +1,199 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`handles @async messages and sends them on end turn 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "Tell me about TypeScript",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "citations": undefined,
+        "text": "TypeScript is a typed superset of JavaScript.",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "text": "Also tell me about JavaScript",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`handles @async messages by queueing them and sending on next tool response 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "Can you read my secret file?",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "citations": undefined,
+        "text": "I'll read your secret file.",
+        "type": "text",
+      },
+      {
+        "id": "secret-file-tool",
+        "name": "get_file",
+        "request": {
+          "status": "ok",
+          "value": {
+            "id": "secret-file-tool",
+            "input": {
+              "filePath": ".secret",
+            },
+            "toolName": "get_file",
+          },
+        },
+        "type": "tool_use",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "id": "secret-file-tool",
+        "result": {
+          "status": "ok",
+          "value": [
+            {
+              "text": "secret secrets are no fun
+",
+              "type": "text",
+            },
+          ],
+        },
+        "type": "tool_result",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "text": "This should be queued",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`node/chat/thread.spec.ts > aborts request when sending new message while waiting for response 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "First message",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "text": "Second message while first is pending",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "citations": undefined,
+        "text": "Second response that should be shown",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+]
+`;
+
+exports[`node/chat/thread.spec.ts > aborts tool use when sending new message while tool is executing 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "Run a slow command",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "citations": undefined,
+        "text": "I'll run a slow bash command for you.",
+        "type": "text",
+      },
+      {
+        "id": "slow-bash-command",
+        "name": "bash_command",
+        "request": {
+          "status": "ok",
+          "value": {
+            "id": "slow-bash-command",
+            "input": {
+              "command": "sleep 5 && echo 'This should be aborted'",
+            },
+            "toolName": "bash_command",
+          },
+        },
+        "type": "tool_use",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "id": "slow-bash-command",
+        "result": {
+          "error": "The user aborted this command.",
+          "status": "error",
+        },
+        "type": "tool_result",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "text": "Cancel that, run something else",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
 exports[`node/chat/thread.spec.ts > forks a thread with multiple messages into a new thread > fork-tool-request-messages 1`] = `
 [
   {

@@ -365,6 +365,7 @@ export class AnthropicProvider implements Provider {
     disableCaching?: boolean;
   }): ProviderToolUseRequest {
     const { model, messages, spec, systemPrompt, disableCaching } = options;
+    let aborted = false;
     const request = this.client.messages.stream({
       ...this.createStreamParameters({
         model,
@@ -489,7 +490,9 @@ export class AnthropicProvider implements Provider {
 
     return {
       promise,
+      aborted,
       abort: () => {
+        aborted = true;
         request.abort();
       },
     };
@@ -511,7 +514,7 @@ export class AnthropicProvider implements Provider {
   }): ProviderStreamRequest {
     const { model, messages, onStreamEvent, tools, systemPrompt, thinking } =
       options;
-    let requestActive = true;
+    let aborted = false;
     const request = this.client.messages
       .stream(
         this.createStreamParameters({
@@ -524,10 +527,9 @@ export class AnthropicProvider implements Provider {
       )
       .on("streamEvent", (e) => {
         if (
-          requestActive &&
-          (e.type == "content_block_start" ||
-            e.type == "content_block_delta" ||
-            e.type == "content_block_stop")
+          e.type == "content_block_start" ||
+          e.type == "content_block_delta" ||
+          e.type == "content_block_stop"
         ) {
           onStreamEvent(e);
         }
@@ -559,9 +561,10 @@ export class AnthropicProvider implements Provider {
 
     return {
       abort: () => {
+        aborted = true;
         request.abort();
-        requestActive = false;
       },
+      aborted,
       promise,
     };
   }

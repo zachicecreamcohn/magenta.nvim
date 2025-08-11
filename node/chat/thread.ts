@@ -143,6 +143,7 @@ export class Thread {
     messages: Message[];
     threadType: ThreadType;
     systemPrompt: SystemPrompt;
+    pendingMessages: InputMessage[];
   };
 
   private myDispatch: Dispatch<Msg>;
@@ -204,6 +205,7 @@ export class Thread {
       messages: [],
       threadType: threadType,
       systemPrompt: systemPrompt,
+      pendingMessages: [],
     };
   }
 
@@ -282,9 +284,34 @@ export class Thread {
       }
 
       case "send-message": {
-        this.sendMessage(msg.messages).catch(
+        // Check if any message starts with @async
+        const isAsync = msg.messages.some(
+          (m) => m.type === "user" && m.text.trim().startsWith("@async"),
+        );
+        const messages = msg.messages.map((m) => ({
+          ...m,
+          text: m.text.replace(/^\s*@async\s*/, ""),
+        }));
+
+        if (
+          this.state.conversation.state == "message-in-flight" ||
+          (this.state.conversation.state == "stopped" &&
+            this.state.conversation.stopReason == "tool_use")
+        ) {
+          if (isAsync) {
+            this.state.pendingMessages.push(...messages);
+
+            // this break should terminate the send-message case
+            break;
+          } else {
+            this.abortInProgressOperations();
+          }
+        }
+
+        this.sendMessage(messages).catch(
           this.handleSendMessageError.bind(this),
         );
+
         if (!this.state.title) {
           this.setThreadTitle(msg.messages.map((m) => m.text).join("\n")).catch(
             (err: Error) =>
@@ -359,6 +386,7 @@ export class Thread {
           messages: [],
           threadType: this.state.threadType,
           systemPrompt: this.state.systemPrompt,
+          pendingMessages: [],
         };
         this.contextManager.reset();
 
@@ -408,16 +436,6 @@ export class Thread {
 
       case "abort": {
         this.abortInProgressOperations();
-
-        this.handleConversationStop({
-          state: "stopped",
-          stopReason: "aborted",
-          usage: {
-            inputTokens: -1,
-            outputTokens: -1,
-          },
-        });
-
         return;
       }
 
@@ -487,6 +505,15 @@ export class Thread {
         }
       }
     }
+
+    this.handleConversationStop({
+      state: "stopped",
+      stopReason: "aborted",
+      usage: {
+        inputTokens: -1,
+        outputTokens: -1,
+      },
+    });
   }
 
   maybeAutoRespond(): void {
@@ -508,8 +535,20 @@ export class Thread {
           }
         }
 
-        this.sendMessage().catch(this.handleSendMessageError.bind(this));
+        const messages = this.state.pendingMessages;
+        this.state.pendingMessages = [];
+        this.sendMessage(messages).catch(
+          this.handleSendMessageError.bind(this),
+        );
       }
+    } else if (
+      this.state.conversation.state == "stopped" &&
+      this.state.conversation.stopReason == "end_turn" &&
+      this.state.pendingMessages.length
+    ) {
+      const messages = this.state.pendingMessages;
+      this.state.pendingMessages = [];
+      this.sendMessage(messages).catch(this.handleSendMessageError.bind(this));
     }
   }
 
@@ -768,10 +807,12 @@ You must use the fork_thread tool immediately, with only the information you alr
       model: this.state.profile.model,
       messages,
       onStreamEvent: (event) => {
-        this.myDispatch({
-          type: "stream-event",
-          event,
-        });
+        if (!request.aborted) {
+          this.myDispatch({
+            type: "stream-event",
+            event,
+          });
+        }
       },
       tools: this.toolManager.getToolSpecs(this.state.threadType),
       systemPrompt: this.state.systemPrompt,
@@ -1016,6 +1057,7 @@ ${thread.context.contextManager.view()}`;
   const conversationStateView = renderConversationState(
     thread.state.conversation,
   );
+
   const contextManagerView = shouldShowContextManager(
     thread.state.conversation,
     thread.context.contextManager,
@@ -1023,11 +1065,17 @@ ${thread.context.contextManager.view()}`;
     ? d`\n${thread.context.contextManager.view()}`
     : d``;
 
+  const pendingMessagesView =
+    thread.state.pendingMessages.length > 0
+      ? d`\n✉️  ${thread.state.pendingMessages.length.toString()} pending message${thread.state.pendingMessages.length === 1 ? "" : "s"}`
+      : d``;
+
   return d`\
 ${titleView}
 ${thread.state.messages.map((m) => d`${m.view()}\n`)}\
-${conversationStateView}\
-${contextManagerView}`;
+${contextManagerView}\
+${pendingMessagesView}\
+${conversationStateView}`;
 };
 
 export const LOGO = readFileSync(

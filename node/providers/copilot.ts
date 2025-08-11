@@ -563,6 +563,7 @@ export class CopilotProvider implements Provider {
       abort: () => {
         aborted = true;
       },
+      aborted,
       promise,
     };
   }
@@ -582,6 +583,7 @@ export class CopilotProvider implements Provider {
     let streamRequest: Stream<OpenAI.Chat.ChatCompletionChunk>;
     let currentContentBlockIndex = 0;
     let blockStarted = false;
+    let aborted = false;
 
     // Track accumulated tool call data across chunks
     const toolCallAccumulator = new Map<
@@ -748,7 +750,11 @@ export class CopilotProvider implements Provider {
     })();
 
     return {
-      abort: () => streamRequest?.controller?.abort(),
+      abort: () => {
+        aborted = true;
+        streamRequest?.controller?.abort();
+      },
+      aborted,
       promise,
     };
   }
