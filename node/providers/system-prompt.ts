@@ -188,6 +188,14 @@ user: how do I find all Python files in subdirectories?
 assistant: find . -name "*.py"
 </example>
 
+Never restate code that you have seen in files, except when using the replace tool. Instead just say "the code above" or "the code in file <file>".
+<example>
+user: How does this feature work?
+assistant: [thinking] The relevant code is in file feature.ts
+assistant: [prose summary of how the feature works]
+You can find the relevant code in the file feature.ts
+</example>
+
 ${CODEBASE_CONVENTIONS}
 ${CODE_CHANGES}`;
 

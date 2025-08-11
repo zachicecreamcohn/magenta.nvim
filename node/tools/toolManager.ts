@@ -10,7 +10,7 @@ import * as BashCommand from "./bashCommand.ts";
 import * as InlineEdit from "./inline-edit-tool.ts";
 import * as ReplaceSelection from "./replace-selection-tool.ts";
 import * as ThreadTitle from "./thread-title.ts";
-import * as CompactThread from "./compact-thread.ts";
+import * as ForkThread from "./fork-thread.ts";
 import * as SpawnSubagent from "./spawn-subagent.ts";
 import * as SpawnForeach from "./spawn-foreach.ts";
 import * as WaitForSubagents from "./wait-for-subagents.ts";
@@ -115,11 +115,11 @@ export type StaticToolMap = {
     msg: ThreadTitle.Msg;
     spec: typeof ThreadTitle.spec;
   };
-  compact_thread: {
-    controller: CompactThread.CompactThreadTool;
-    input: CompactThread.Input;
-    msg: never;
-    spec: typeof CompactThread.spec;
+  fork_thread: {
+    controller: ForkThread.ForkThreadTool;
+    input: ForkThread.Input;
+    msg: ForkThread.Msg;
+    spec: typeof ForkThread.spec;
   };
   spawn_subagent: {
     controller: SpawnSubagent.SpawnSubagentTool;
@@ -223,7 +223,7 @@ export class ToolManager {
     inline_edit: InlineEdit.spec,
     replace_selection: ReplaceSelection.spec,
     thread_title: ThreadTitle.spec,
-    compact_thread: CompactThread.spec,
+    fork_thread: ForkThread.spec,
     spawn_subagent: SpawnSubagent.spec,
     spawn_foreach: SpawnForeach.spec,
     yield_to_parent: YieldToParent.spec,
@@ -521,15 +521,18 @@ export class ToolManager {
             return;
           }
 
-          case "compact_thread": {
-            const compactThreadTool = new CompactThread.CompactThreadTool(
+          case "fork_thread": {
+            const forkThreadTool = new ForkThread.ForkThreadTool(
               staticRequest,
               {
                 nvim: this.context.nvim,
+                chat: this.context.chat,
+                threadId: this.context.threadId,
+                dispatch: this.context.dispatch,
               },
             );
 
-            this.tools[staticRequest.id] = compactThreadTool;
+            this.tools[staticRequest.id] = forkThreadTool;
             return;
           }
 

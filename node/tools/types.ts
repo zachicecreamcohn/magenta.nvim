@@ -46,6 +46,7 @@ export type ToolManagerToolMsg = {
     msg: ToolMsg;
   };
 };
+
 /** Opaque tool message for external consumption
  */
 export type ToolMsg = { __toolMsg: true };

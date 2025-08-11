@@ -3,7 +3,7 @@ import { LOGO } from "./thread.ts";
 import { type ToolRequestId } from "../tools/toolManager.ts";
 import { describe, expect, it } from "vitest";
 import type { UnresolvedFilePath } from "../utils/files.ts";
-import { type Input as CompactThreadInput } from "../tools/compact-thread";
+import { type Input as ForkThreadInput } from "../tools/fork-thread.ts";
 import type { ToolName } from "../tools/types.ts";
 import { pollUntil } from "../utils/async.ts";
 import { getcwd } from "../nvim/nvim.ts";
@@ -184,7 +184,7 @@ describe("node/chat/thread.spec.ts", () => {
     });
   });
 
-  it("compacts a thread with multiple messages into a new thread", async () => {
+  it("forks a thread with multiple messages into a new thread", async () => {
     await withDriver({}, async (driver) => {
       // 1. Open the sidebar
       await driver.showSidebar();
@@ -275,17 +275,11 @@ describe("node/chat/thread.spec.ts", () => {
         toolRequests: [],
       });
 
-      // 3. Initiate thread compaction
-      await driver.inputMagentaText("@compact Tell me about Italy");
+      await driver.inputMagentaText("@fork Tell me about Italy");
       await driver.send();
 
-      // 4. Verify the forceToolUse request for compact_thread was made
-      const request =
-        await driver.mockAnthropic.awaitPendingForceToolUseRequest(
-          "compact request",
-        );
-
-      expect(request.messages).toMatchSnapshot("forced-tool-request-messages");
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      expect(request.messages).toMatchSnapshot("fork-tool-request-messages");
 
       const cwd = await getcwd(driver.nvim);
       const contextFiles = [
@@ -293,23 +287,26 @@ describe("node/chat/thread.spec.ts", () => {
         path.join(cwd, "poem2.txt") as unknown as UnresolvedFilePath,
       ];
 
-      const compactInput: CompactThreadInput = {
+      const forkInput: ForkThreadInput = {
         contextFiles,
         summary:
           "We discussed European capitals (France: Paris, Germany: Berlin) and examined your project structure, which contains TypeScript files.",
       };
 
-      const toolRequestId = "compact-thread-tool" as ToolRequestId;
-      await driver.mockAnthropic.respondToForceToolUse({
+      const toolRequestId = "fork-thread-tool" as ToolRequestId;
+      request.respond({
         stopReason: "end_turn",
-        toolRequest: {
-          status: "ok",
-          value: {
-            id: toolRequestId,
-            toolName: "compact_thread" as ToolName,
-            input: compactInput,
+        text: "",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: toolRequestId,
+              toolName: "fork_thread" as ToolName,
+              input: forkInput,
+            },
           },
-        },
+        ],
       });
 
       // 6. Verify a new thread was created and is active
@@ -334,7 +331,6 @@ describe("node/chat/thread.spec.ts", () => {
       // 9. Get the current thread and check its state
       const thread = driver.magenta.chat.getActiveThread();
 
-      // Check that the first message contains the context from compaction
       expect(thread.state.messages[0].state.content).toBeDefined();
 
       // The original thread should have been replaced
@@ -349,10 +345,9 @@ describe("node/chat/thread.spec.ts", () => {
       const files = contextManager.files;
       expect(Object.keys(files).length).toBe(2);
 
-      // 10. Verify the thread's message structure after compaction
       const messages = thread.getMessages();
 
-      expect(messages).toMatchSnapshot("compacted-thread-messages");
+      expect(messages).toMatchSnapshot("forked-thread-messages");
 
       // First message should be the summary (context), second should be the user's question about Italy
       expect(messages.length).toBe(2);
@@ -362,7 +357,7 @@ describe("node/chat/thread.spec.ts", () => {
         messages.flatMap((m) => m.content.map((b) => m.role + ":" + b.type)),
       ).toEqual([
         "user:text", // Context files added to the new thread
-        "user:text", // The compacted thread summary (system message)
+        "user:text", // The forked thread summary (system message)
         "user:text", // The user question about Italy
         "assistant:text", // The assistant response about Rome
       ]);

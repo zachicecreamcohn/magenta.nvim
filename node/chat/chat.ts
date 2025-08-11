@@ -18,7 +18,7 @@ import {
 } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
 import { wrapStaticToolMsg, type ToolRequestId } from "../tools/toolManager.ts";
-import type { ToolName } from "../tools/types.ts";
+import type { ToolMsg, ToolName } from "../tools/types.ts";
 import { MCPToolManager } from "../tools/mcp/manager.ts";
 import type { WaitForSubagentsTool } from "../tools/wait-for-subagents.ts";
 import type { ThreadId, ThreadType } from "./types.ts";
@@ -27,6 +27,7 @@ import type {
   ForEachElement,
   SpawnForeachTool,
 } from "../tools/spawn-foreach.ts";
+import type { Msg as ForkThreadMsg } from "../tools/fork-thread.ts";
 
 type ThreadWrapper = (
   | {
@@ -68,8 +69,9 @@ export type Msg =
       type: "new-thread";
     }
   | {
-      type: "compact-thread";
+      type: "fork-thread";
       threadId: ThreadId;
+      toolRequestId: ToolRequestId;
       contextFilePaths: UnresolvedFilePath[];
       inputMessages: InputMessage[];
     }
@@ -315,10 +317,10 @@ export class Chat {
         };
         return;
 
-      case "compact-thread": {
-        this.handleCompactThread(msg).catch((e: Error) => {
+      case "fork-thread": {
+        this.handleForkThread(msg).catch((e: Error) => {
           this.context.nvim.logger.error(
-            "Failed to handle thread compaction: " + e.message + "\n" + e.stack,
+            "Failed to handle thread fork: " + e.message + "\n" + e.stack,
           );
         });
         return;
@@ -602,30 +604,53 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     return threadWrapper.thread;
   }
 
-  async handleCompactThread({
+  async handleForkThread({
     threadId,
+    toolRequestId,
     contextFilePaths,
     inputMessages,
   }: {
     threadId: ThreadId;
+    toolRequestId: ToolRequestId;
     contextFilePaths: UnresolvedFilePath[];
     inputMessages: InputMessage[];
   }) {
     const sourceThreadWrapper = this.threadWrappers[threadId];
     if (!sourceThreadWrapper || sourceThreadWrapper.state !== "initialized") {
-      throw new Error(`Thread ${threadId} not available for compaction`);
+      throw new Error(`Thread ${threadId} not available for forking`);
     }
 
     const sourceThread = sourceThreadWrapper.thread;
     const newThreadId = this.threadCounter.get() as ThreadId;
 
-    await this.createThreadWithContext({
+    const thread = await this.createThreadWithContext({
       threadType: "root",
       threadId: newThreadId,
       profile: sourceThread.state.profile,
       contextFiles: contextFilePaths,
       switchToThread: true,
       inputMessages,
+    });
+
+    const msg: ForkThreadMsg = {
+      type: "thread-forked",
+      threadId: thread.id,
+    };
+
+    this.context.dispatch({
+      type: "thread-msg",
+      id: sourceThread.id,
+      msg: {
+        type: "tool-manager-msg",
+        msg: {
+          type: "tool-msg",
+          msg: {
+            id: toolRequestId,
+            toolName: "fork_thread" as ToolName,
+            msg: msg as unknown as ToolMsg,
+          },
+        },
+      },
     });
   }
 
@@ -845,7 +870,6 @@ ${threadViews.map((view) => d`${view}\n`)}`;
             return { status: "pending" };
 
           case "message-in-flight":
-          case "compacting":
             return { status: "pending" };
 
           default:
@@ -919,12 +943,6 @@ ${threadViews.map((view) => d`${view}\n`)}`;
                 return {
                   type: "running" as const,
                   activity: "streaming response",
-                };
-
-              case "compacting":
-                return {
-                  type: "running" as const,
-                  activity: "compacting thread",
                 };
 
               default:

@@ -16,7 +16,7 @@ local KEYWORDS = {
   { label = '@buffers',     kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add all open buffers to context' },
   { label = '@quickfix',    kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add quickfix entries to context' },
   { label = '@diagnostics', kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add diagnostics to context' },
-  { label = '@compact',     kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Use compact context format' },
+  { label = '@fork',        kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Fork the thread' },
   { label = '@file:',       kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add file to context (supports fuzzy path completion)' },
   { label = '@staged:',     kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add staged file to context (supports file completion)' },
   { label = '@diff:',       kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add unstaged/untracked file to context (supports file completion)' },

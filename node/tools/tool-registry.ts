@@ -10,7 +10,7 @@ export const STATIC_TOOL_NAMES = [
   "inline_edit",
   "replace_selection",
   "thread_title",
-  "compact_thread",
+  "fork_thread",
   "spawn_subagent",
   "spawn_foreach",
   "wait_for_subagents",
@@ -32,6 +32,7 @@ export const CHAT_STATIC_TOOL_NAMES: StaticToolName[] = [
   "spawn_subagent",
   "spawn_foreach",
   "wait_for_subagents",
+  "fork_thread",
 ];
 
 export const SUBAGENT_STATIC_TOOL_NAMES: StaticToolName[] = [
