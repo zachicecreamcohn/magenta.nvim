@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import * as Insert from "./insert";
 import { type VDOMNode } from "../tea/view";
+import { withDriver } from "../test/preamble";
+import fs from "node:fs";
+import { getcwd } from "../nvim/nvim";
+import path from "node:path";
 
 describe("node/tools/insert.spec.ts", () => {
   it("validate input", () => {
@@ -99,6 +103,96 @@ let secondLine;`;
     // Should correctly count the 2 actual newlines, not the escaped \n in the string
     expect(resultStr).toContain("Insert [[ +3 ]]");
     expect(resultStr).toContain("test.js");
+  });
+});
+
+it("shows live-updating line counts during streaming", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    // Create a test file to insert content into
+    const cwd = await getcwd(driver.nvim);
+    const testFile = path.join(cwd, "streaming-insert.js");
+    const originalContent = `\
+function existingFunction() {
+  // Insert new code after this line
+  return true;
+}`;
+    fs.writeFileSync(testFile, originalContent);
+
+    await driver.inputMagentaText("Add new code to the function");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+
+    // Create the actual tool input that would be used
+    const toolInput = {
+      filePath: "streaming-insert.js",
+      insertAfter: `\
+  // Insert new code after this line`,
+      content: `\
+  const newVar1 = 'hello';
+  const newVar2 = 'world';
+  const newVar3 = 'test';
+  console.log(newVar1, newVar2, newVar3);
+  console.log('Done!');`,
+    };
+
+    // Stringify it to get the exact JSON that would be streamed
+    const fullJson = JSON.stringify(toolInput);
+
+    // Stream the tool use with gradual JSON building
+    const toolIndex = 0;
+    request.onStreamEvent({
+      type: "content_block_start",
+      index: toolIndex,
+      content_block: {
+        type: "tool_use",
+        id: "streaming-insert-tool",
+        name: "insert",
+        input: {},
+      },
+    });
+
+    // Stream in chunks to test live updating - each chunk is a delta, not accumulated content
+    const chunk1 = fullJson.substring(0, 30); // Partial filePath
+    const chunk2 = fullJson.substring(30, 120); // Complete filePath + insertAfter
+    const chunk3 = fullJson.substring(120); // Rest of content
+
+    request.onStreamEvent({
+      type: "content_block_delta",
+      index: toolIndex,
+      delta: {
+        type: "input_json_delta",
+        partial_json: chunk1,
+      },
+    });
+
+    // At this point we only have partial filePath, should show preparing message
+    await driver.assertDisplayBufferContains("⏳ Insert...");
+
+    request.onStreamEvent({
+      type: "content_block_delta",
+      index: toolIndex,
+      delta: {
+        type: "input_json_delta",
+        partial_json: chunk2,
+      },
+    });
+
+    // Now we should have complete filePath and insertAfter, can show line counts
+    await driver.assertDisplayBufferContains("Insert [[ +1 ]]");
+
+    request.onStreamEvent({
+      type: "content_block_delta",
+      index: toolIndex,
+      delta: {
+        type: "input_json_delta",
+        partial_json: chunk3,
+      },
+    });
+
+    await driver.assertDisplayBufferContains("Insert [[ +5 ]]");
   });
 });
 
