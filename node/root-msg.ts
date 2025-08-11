@@ -1,7 +1,5 @@
-import type { ThreadId } from "./chat/types";
 import type { ThreadMsg } from "./chat/thread";
 import type { ChatMsg } from "./chat/chat";
-import type { Input as CompactThreadInput } from "./tools/fork-thread.ts";
 import type {
   EditPredictionMsg,
   EditPredictionId,
@@ -32,9 +30,4 @@ export type RootMsg =
   | {
       type: "sidebar-msg";
       msg: SidebarMsg;
-    }
-  | {
-      type: "compact-thread";
-      threadId: ThreadId;
-      compactRequest: CompactThreadInput;
     };

@@ -25,11 +25,9 @@ import {
   type ProviderMessageContent,
   type ProviderStreamEvent,
   type ProviderStreamRequest,
-  type ProviderToolUseRequest,
   type StopReason,
   type Usage,
 } from "../providers/provider.ts";
-import { spec as forkThreadSpec } from "../tools/fork-thread.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type MagentaOptions, type Profile } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
@@ -64,12 +62,6 @@ export type ConversationState =
       state: "message-in-flight";
       sendDate: Date;
       request: ProviderStreamRequest;
-    }
-  | {
-      state: "compacting";
-      sendDate: Date;
-      request: ProviderToolUseRequest;
-      userMsgContent: string;
     }
   | StoppedConversationState
   | {
@@ -158,6 +150,7 @@ export class Thread {
   private counter: Counter;
   public fileSnapshots: FileSnapshots;
   public contextManager: ContextManager;
+  public forkNextPrompt: string | undefined;
 
   constructor(
     public id: ThreadId,
@@ -279,7 +272,6 @@ export class Thread {
 
           case "yielded":
           case "message-in-flight":
-          case "compacting":
             break;
 
           default:
@@ -290,27 +282,16 @@ export class Thread {
       }
 
       case "send-message": {
-        if (
-          msg.messages.length == 1 &&
-          msg.messages[0].type == "user" &&
-          msg.messages[0].text.startsWith("@compact")
-        ) {
-          this.compactThread(
-            msg.messages[0].text.slice("@compact".length + 1),
-          ).catch(this.handleSendMessageError.bind(this));
-        } else {
-          this.sendMessage(msg.messages).catch(
-            this.handleSendMessageError.bind(this),
-          );
-          if (!this.state.title) {
-            this.setThreadTitle(
-              msg.messages.map((m) => m.text).join("\n"),
-            ).catch((err: Error) =>
+        this.sendMessage(msg.messages).catch(
+          this.handleSendMessageError.bind(this),
+        );
+        if (!this.state.title) {
+          this.setThreadTitle(msg.messages.map((m) => m.text).join("\n")).catch(
+            (err: Error) =>
               this.context.nvim.logger.error(
                 "Error getting thread title: " + err.message + "\n" + err.stack,
               ),
-            );
-          }
+          );
         }
 
         if (msg.messages.length) {
@@ -491,10 +472,7 @@ export class Thread {
   }
 
   private abortInProgressOperations(): void {
-    if (
-      this.state.conversation.state === "message-in-flight" ||
-      this.state.conversation.state === "compacting"
-    ) {
+    if (this.state.conversation.state === "message-in-flight") {
       this.state.conversation.request.abort();
     }
 
@@ -556,10 +534,34 @@ export class Thread {
     // Process messages first to handle @file commands
     const messageContent: ProviderMessageContent[] = [];
     for (const m of messages || []) {
-      messageContent.push({
-        type: "text",
-        text: m.text,
-      });
+      // Check for @fork command in user messages
+      if (m.type === "user" && m.text.includes("@fork")) {
+        // Extract the text after @fork and remove @fork from the original text
+        const forkText = m.text.replace(/@fork\s*/g, "").trim();
+
+        // Append diagnostics as a separate content block
+        messageContent.push({
+          type: "text",
+          text: `\
+Use the fork_thread tool to analyze my next prompt and extract only the relevant parts of this conversation so far.
+
+- Carefully analyze the next prompt
+- Identify key concepts, patterns, files and decisions that may be relevant
+- Include higly relevant files as contextFiles
+- Name less relevant files that may be useful in the summary, but leave them out of contextFiles.
+- Summarize ONLY information that directly supports addressing the next prompt, especially previous user instructions and observations that cannot be directly observable in the codebase.
+- Prefer including files in contextFiles to copying code from those files into the summary. Do not repeat anything in the summary that can be learned directly from contextFiles.
+
+My next prompt will be:
+${forkText}`,
+        });
+        this.forkNextPrompt = forkText;
+      } else {
+        messageContent.push({
+          type: "text",
+          text: m.text,
+        });
+      }
 
       // Check for diagnostics keywords in user messages
       if (
@@ -801,96 +803,6 @@ export class Thread {
     });
   }
 
-  async compactThread(text: string): Promise<void> {
-    const userMsgContent = `\
-Use the compact_thread tool to analyze my next prompt and extract only the relevant parts of our conversation history.
-
-My next prompt will be:
-${text}`;
-
-    const request = getProvider(
-      this.context.nvim,
-      this.state.profile,
-    ).forceToolUse({
-      model: this.state.profile.model,
-      // In this request we will be using a different set of tools, which will invalidate any cache we may have so far.
-      // Also, since we're compacting, we do not expect this thread to be used in the future.
-      disableCaching: true,
-      messages: [
-        ...this.getMessages(),
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: userMsgContent,
-            },
-          ],
-        },
-      ],
-      spec: forkThreadSpec,
-      systemPrompt: this.state.systemPrompt,
-    });
-
-    this.myDispatch({
-      type: "conversation-state",
-      conversation: {
-        state: "compacting",
-        sendDate: new Date(),
-        request,
-        userMsgContent,
-      },
-    });
-
-    const result = await request.promise;
-
-    if (result.toolRequest.status === "ok") {
-      const forkRequest = result.toolRequest.value as Extract<
-        StaticToolRequest,
-        { toolName: "fork_thread" }
-      >;
-
-      this.context.dispatch({
-        type: "chat-msg",
-        msg: {
-          type: "compact-thread",
-          threadId: this.id,
-          contextFilePaths: forkRequest.input.contextFiles,
-          inputMessages: [
-            {
-              type: "system",
-              text: `# Previous thread summary:
-${forkRequest.input.summary}
-# The user would like you to address this prompt next:
-`,
-            },
-            { type: "user", text: text },
-          ],
-        },
-      });
-
-      // Update the conversation state to show successful compaction
-      this.myDispatch({
-        type: "conversation-state",
-        conversation: {
-          state: "stopped",
-          stopReason: "end_turn",
-          usage: result.usage || { inputTokens: 0, outputTokens: 0 },
-        },
-      });
-    } else {
-      this.myDispatch({
-        type: "conversation-state",
-        conversation: {
-          state: "error",
-          error: new Error(
-            `Failed to fork thread: ${JSON.stringify(result.toolRequest.error)}`,
-          ),
-        },
-      });
-    }
-  }
-
   getMessages(): ProviderMessage[] {
     const messages = this.state.messages.flatMap((message) => {
       let messageContent: ProviderMessageContent[] = [];
@@ -1046,8 +958,6 @@ const renderConversationState = (conversation: ConversationState): VDOMNode => {
   switch (conversation.state) {
     case "message-in-flight":
       return d`Streaming response ${getAnimationFrame(conversation.sendDate)}`;
-    case "compacting":
-      return d`Compacting thread ${getAnimationFrame(conversation.sendDate)}`;
     case "stopped":
       return d``;
     case "yielded":
@@ -1075,7 +985,6 @@ const shouldShowContextManager = (
 ): boolean => {
   return (
     conversation.state !== "message-in-flight" &&
-    conversation.state !== "compacting" &&
     !contextManager.isContextEmpty()
   );
 };
@@ -1112,18 +1021,9 @@ ${thread.context.contextManager.view()}`;
     ? d`\n${thread.context.contextManager.view()}`
     : d``;
 
-  let compactingUserMsg = d``;
-  if (thread.state.conversation.state == "compacting") {
-    const userMsgContent = thread.state.conversation.userMsgContent;
-    compactingUserMsg = d`\
-# user:
-${userMsgContent}\n`;
-  }
-
   return d`\
 ${titleView}
 ${thread.state.messages.map((m) => d`${m.view()}\n`)}\
-${compactingUserMsg}\
 ${conversationStateView}\
 ${contextManagerView}`;
 };

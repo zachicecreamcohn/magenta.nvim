@@ -8,11 +8,26 @@ import type {
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { StaticTool, ToolName } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { Dispatch } from "../tea/tea.ts";
+import type { RootMsg } from "../root-msg.ts";
+import type { ThreadId } from "../chat/types.ts";
+import type { Chat } from "../chat/chat.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
 
-export type State = {
-  state: "done";
-  result: ProviderToolResult;
+export type Msg = {
+  type: "thread-forked";
+  threadId: ThreadId;
 };
+
+export type State =
+  | {
+      state: "pending";
+    }
+  | {
+      state: "done";
+      result: ProviderToolResult;
+      forkedThreadId?: ThreadId;
+    };
 
 export class ForkThreadTool implements StaticTool {
   toolName = "fork_thread" as const;
@@ -20,7 +35,12 @@ export class ForkThreadTool implements StaticTool {
 
   constructor(
     public request: Extract<StaticToolRequest, { toolName: "fork_thread" }>,
-    public context: { nvim: Nvim },
+    public context: {
+      nvim: Nvim;
+      chat: Chat;
+      threadId: ThreadId;
+      dispatch: Dispatch<RootMsg>;
+    },
   ) {
     this.state = {
       state: "done",
@@ -33,6 +53,60 @@ export class ForkThreadTool implements StaticTool {
         },
       },
     };
+
+    try {
+      this.doFork();
+    } catch (error) {
+      this.state = {
+        state: "done",
+        result: {
+          type: "tool_result",
+          id: this.request.id,
+          result: {
+            status: "error",
+            error:
+              error instanceof Error ? error.message : "Fork operation failed",
+          },
+        },
+      };
+    }
+  }
+
+  doFork() {
+    const threadWrapper =
+      this.context.chat.threadWrappers[this.context.threadId];
+    if (threadWrapper.state != "initialized") {
+      throw new Error(
+        `Cannot fork thread ${this.context.threadId}. Thread not initialized.`,
+      );
+    }
+
+    const pendingPrompt = threadWrapper.thread.forkNextPrompt;
+    if (!pendingPrompt) {
+      throw new Error(
+        `No pending prompt found for thread ${this.context.threadId}`,
+      );
+    }
+
+    this.context.dispatch({
+      type: "chat-msg",
+      msg: {
+        type: "fork-thread",
+        threadId: this.context.threadId,
+        toolRequestId: this.request.id,
+        contextFilePaths: this.request.input.contextFiles,
+        inputMessages: [
+          {
+            type: "system",
+            text: `# Previous thread summary:
+${this.request.input.summary}
+# The user would like you to address this prompt next:
+`,
+          },
+          { type: "user", text: pendingPrompt },
+        ],
+      },
+    });
   }
 
   isDone(): boolean {
@@ -41,28 +115,65 @@ export class ForkThreadTool implements StaticTool {
 
   abort() {}
 
-  update(): void {}
+  update(msg: Msg): void {
+    switch (msg.type) {
+      case "thread-forked":
+        this.state = {
+          state: "done",
+          result: {
+            type: "tool_result",
+            id: this.request.id,
+            result: {
+              status: "ok",
+              value: [
+                {
+                  type: "text",
+                  text: `Thread forked successfully.`,
+                },
+              ],
+            },
+          },
+          forkedThreadId: msg.threadId,
+        };
+        break;
+    }
+  }
 
   getToolResult(): ProviderToolResult {
+    if (this.state.state == "pending") {
+      return {
+        type: "tool_result",
+        id: this.request.id,
+        result: {
+          status: "ok",
+          value: [{ type: "text", text: "Fork request is pending." }],
+        },
+      };
+    }
+
     return this.state.result;
   }
 
   renderSummary() {
-    return d``; // this should never need to be rendered
+    switch (this.state.state) {
+      case "pending":
+        return d`Forking thread...`;
+
+      case "done":
+        if (this.state.result.result.status === "error") {
+          return d`Fork failed: ${this.state.result.result.error}`;
+        }
+
+        return d`Forked to thread ${this.state.forkedThreadId?.toString() || "thread-id-not-found"}`;
+      default:
+        assertUnreachable(this.state);
+    }
   }
 }
 
 export const spec: ProviderToolSpec = {
   name: "fork_thread" as ToolName,
-  description: `\
-This tool extracts specific portions of the conversation history that are directly relevant to the user's next prompt.
-
-- Carefully examine what the user is asking for in their next prompt
-- Identify key technical concepts and files they're focusing on
-- Summarize ONLY information that directly supports addressing the next prompt
-- Include files immediately relevant to the task in the context
-- Mention other files that may be useful in the summary, but leave them out of the context. Make sure to mention all of
-the files that were examined in the current conversation that may be relevant.`,
+  description: `Fork this thread. Use this ONLY when directly asked by the user to do so.`,
   input_schema: {
     type: "object",
     properties: {
@@ -76,11 +187,7 @@ the files that were examined in the current conversation that may be relevant.`,
       },
       summary: {
         type: "string",
-        description: `\
-Extract ONLY the specific parts of the thread that are directly relevant to the user's next prompt.
-Focus on technical details, code patterns, and decisions that specifically help with the next task.
-Do not include anything that isn't directly applicable to the next prompt's focus.
-This should not restate anything relating to contextFiles, since those will be retained in full.`,
+        description: `A summary of the previous thread.`,
       },
     },
     required: ["contextFiles", "summary"],

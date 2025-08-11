@@ -118,7 +118,7 @@ export type StaticToolMap = {
   fork_thread: {
     controller: ForkThread.ForkThreadTool;
     input: ForkThread.Input;
-    msg: never;
+    msg: ForkThread.Msg;
     spec: typeof ForkThread.spec;
   };
   spawn_subagent: {
@@ -526,6 +526,9 @@ export class ToolManager {
               staticRequest,
               {
                 nvim: this.context.nvim,
+                chat: this.context.chat,
+                threadId: this.context.threadId,
+                dispatch: this.context.dispatch,
               },
             );
 

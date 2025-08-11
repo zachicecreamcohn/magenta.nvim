@@ -32,6 +32,7 @@ export const CHAT_STATIC_TOOL_NAMES: StaticToolName[] = [
   "spawn_subagent",
   "spawn_foreach",
   "wait_for_subagents",
+  "fork_thread",
 ];
 
 export const SUBAGENT_STATIC_TOOL_NAMES: StaticToolName[] = [
