@@ -612,6 +612,7 @@ export class OpenAIProvider implements Provider {
       abort: () => {
         aborted = true;
       },
+      aborted,
       promise,
     };
   }
@@ -631,6 +632,7 @@ export class OpenAIProvider implements Provider {
     let request: Stream<OpenAI.Responses.ResponseStreamEvent>;
     let stopReason: StopReason | undefined;
     let usage: Usage | undefined;
+    let aborted = false;
 
     const promise = (async (): Promise<{
       usage: Usage;
@@ -886,8 +888,10 @@ export class OpenAIProvider implements Provider {
 
     return {
       abort: () => {
+        aborted = true;
         request?.controller.abort();
       },
+      aborted,
       promise,
     };
   }

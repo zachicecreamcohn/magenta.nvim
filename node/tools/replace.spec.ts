@@ -425,6 +425,106 @@ import { Dispatch } from "../tea";`,
   });
 });
 
+it("shows live-updating line counts during streaming", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    // Create a test file with content to replace
+    const cwd = await getcwd(driver.nvim);
+    const testFile = path.join(cwd, "streaming-replace.js");
+    const originalContent = `\
+function oldFunction() {
+  const line1 = "old";
+  const line2 = "old";
+  const line3 = "old";
+  return false;
+}`;
+    fs.writeFileSync(testFile, originalContent);
+
+    await driver.inputMagentaText("Replace the function content");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+
+    // Create the actual tool input that would be used
+    const toolInput = {
+      filePath: "streaming-replace.js",
+      find: `\
+function oldFunction() {
+  const line1 = "old";
+  const line2 = "old";
+  const line3 = "old";
+  return false;
+}`,
+      replace: `\
+function newFunction() {
+  const line1 = "new";
+  const line2 = "new";
+  const line3 = "new";
+  const line4 = "extra";
+  return true;
+}`,
+    };
+
+    // Stringify it to get the exact JSON that would be streamed
+    const fullJson = JSON.stringify(toolInput);
+
+    // Stream the tool use with gradual JSON building to test line count updates
+    const toolIndex = 0;
+    request.onStreamEvent({
+      type: "content_block_start",
+      index: toolIndex,
+      content_block: {
+        type: "tool_use",
+        id: "streaming-replace-tool",
+        name: "replace",
+        input: {},
+      },
+    });
+
+    // Stream in chunks to test live updating - each chunk is a delta, not accumulated content
+    const chunk1 = fullJson.substring(0, 30); // Partial filePath
+    const chunk2 = fullJson.substring(30, 80); // Complete filePath + start of find
+    const chunk3 = fullJson.substring(80, 250); // More of find content, some of the replace
+
+    request.onStreamEvent({
+      type: "content_block_delta",
+      index: toolIndex,
+      delta: {
+        type: "input_json_delta",
+        partial_json: chunk1,
+      },
+    });
+
+    // At this point we only have partial filePath, should show preparing message
+    await driver.assertDisplayBufferContains(
+      "⏳ Preparing replace operation...",
+    );
+
+    request.onStreamEvent({
+      type: "content_block_delta",
+      index: toolIndex,
+      delta: {
+        type: "input_json_delta",
+        partial_json: chunk2,
+      },
+    });
+
+    // Now we should have complete filePath and partial find/replace, can show line counts
+    await driver.assertDisplayBufferContains("Replace [[ -2 / +1 ]]");
+
+    request.onStreamEvent({
+      type: "content_block_delta",
+      index: toolIndex,
+      delta: {
+        type: "input_json_delta",
+        partial_json: chunk3,
+      },
+    });
+
+    await driver.assertDisplayBufferContains("Replace [[ -6 / +3 ]]");
+  });
+});
 function vdomToString(node: VDOMNode): string {
   if (typeof node === "string") {
     return node;

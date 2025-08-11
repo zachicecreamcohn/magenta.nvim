@@ -143,6 +143,7 @@ export class Thread {
     messages: Message[];
     threadType: ThreadType;
     systemPrompt: SystemPrompt;
+    pendingMessages: InputMessage[];
   };
 
   private myDispatch: Dispatch<Msg>;
@@ -204,6 +205,7 @@ export class Thread {
       messages: [],
       threadType: threadType,
       systemPrompt: systemPrompt,
+      pendingMessages: [],
     };
   }
 
@@ -282,9 +284,34 @@ export class Thread {
       }
 
       case "send-message": {
-        this.sendMessage(msg.messages).catch(
+        // Check if any message starts with @async
+        const isAsync = msg.messages.some(
+          (m) => m.type === "user" && m.text.trim().startsWith("@async"),
+        );
+        const messages = msg.messages.map((m) => ({
+          ...m,
+          text: m.text.replace(/^\s*@async\s*/, ""),
+        }));
+
+        if (
+          this.state.conversation.state == "message-in-flight" ||
+          (this.state.conversation.state == "stopped" &&
+            this.state.conversation.stopReason == "tool_use")
+        ) {
+          if (isAsync) {
+            this.state.pendingMessages.push(...messages);
+
+            // this break should terminate the send-message case
+            break;
+          } else {
+            this.abortInProgressOperations();
+          }
+        }
+
+        this.sendMessage(messages).catch(
           this.handleSendMessageError.bind(this),
         );
+
         if (!this.state.title) {
           this.setThreadTitle(msg.messages.map((m) => m.text).join("\n")).catch(
             (err: Error) =>
@@ -359,6 +386,7 @@ export class Thread {
           messages: [],
           threadType: this.state.threadType,
           systemPrompt: this.state.systemPrompt,
+          pendingMessages: [],
         };
         this.contextManager.reset();
 
@@ -408,16 +436,6 @@ export class Thread {
 
       case "abort": {
         this.abortInProgressOperations();
-
-        this.handleConversationStop({
-          state: "stopped",
-          stopReason: "aborted",
-          usage: {
-            inputTokens: -1,
-            outputTokens: -1,
-          },
-        });
-
         return;
       }
 
@@ -486,7 +504,41 @@ export class Thread {
           }
         }
       }
+
+      // Remove server_tool_use content that doesn't have corresponding results
+      if (lastMessage.state.role === "assistant") {
+        const serverToolUseIds = new Set<string>();
+        const toolResultIds = new Set<string>();
+
+        // Collect server tool use IDs and tool result IDs
+        for (const content of lastMessage.state.content) {
+          if (content.type === "server_tool_use") {
+            serverToolUseIds.add(content.id);
+          } else if (content.type === "web_search_tool_result") {
+            toolResultIds.add(content.tool_use_id);
+          }
+        }
+
+        // Remove server_tool_use content that has no corresponding result
+        lastMessage.state.content = lastMessage.state.content.filter(
+          (content) => {
+            if (content.type === "server_tool_use") {
+              return toolResultIds.has(content.id);
+            }
+            return true;
+          },
+        );
+      }
     }
+
+    this.handleConversationStop({
+      state: "stopped",
+      stopReason: "aborted",
+      usage: {
+        inputTokens: -1,
+        outputTokens: -1,
+      },
+    });
   }
 
   maybeAutoRespond(): void {
@@ -508,14 +560,26 @@ export class Thread {
           }
         }
 
-        this.sendMessage().catch(this.handleSendMessageError.bind(this));
+        const messages = this.state.pendingMessages;
+        this.state.pendingMessages = [];
+        this.sendMessage(messages).catch(
+          this.handleSendMessageError.bind(this),
+        );
       }
+    } else if (
+      this.state.conversation.state == "stopped" &&
+      this.state.conversation.stopReason == "end_turn" &&
+      this.state.pendingMessages.length
+    ) {
+      const messages = this.state.pendingMessages;
+      this.state.pendingMessages = [];
+      this.sendMessage(messages).catch(this.handleSendMessageError.bind(this));
     }
   }
 
   private handleSendMessageError = (error: Error): void => {
-    this.context.nvim.logger.error(error);
     if (this.state.conversation.state == "message-in-flight") {
+      this.context.nvim.logger.error(error);
       this.myDispatch({
         type: "conversation-state",
         conversation: {
@@ -768,10 +832,12 @@ You must use the fork_thread tool immediately, with only the information you alr
       model: this.state.profile.model,
       messages,
       onStreamEvent: (event) => {
-        this.myDispatch({
-          type: "stream-event",
-          event,
-        });
+        if (!request.aborted) {
+          this.myDispatch({
+            type: "stream-event",
+            event,
+          });
+        }
       },
       tools: this.toolManager.getToolSpecs(this.state.threadType),
       systemPrompt: this.state.systemPrompt,
@@ -909,6 +975,23 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
     ) {
       const message = this.state.messages[msgIdx];
 
+      if (
+        message.state.stop &&
+        // aborted requests and errors don't have usage so we should probably skip those
+        message.state.stop.usage.inputTokens +
+          message.state.stop.usage.outputTokens >
+          0
+      ) {
+        const stopInfo = message.state.stop;
+
+        return (
+          stopInfo.usage.inputTokens +
+          stopInfo.usage.outputTokens +
+          (stopInfo.usage.cacheHits || 0) +
+          (stopInfo.usage.cacheMisses || 0)
+        );
+      }
+
       // Find the most recent stop event by iterating content in reverse order
       for (
         let contentIdx = message.state.content.length - 1;
@@ -916,24 +999,19 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
         contentIdx--
       ) {
         const content = message.state.content[contentIdx];
-        let stopInfo: { stopReason: StopReason; usage: Usage } | undefined;
-
         if (content.type === "tool_use" && content.request.status === "ok") {
           // For tool use content, check toolMeta
           const toolMeta = message.state.toolMeta[content.request.value.id];
-          stopInfo = toolMeta?.stop;
-        } else {
-          // For regular content, check stops map
-          stopInfo = message.state.stops[contentIdx];
-        }
+          if (toolMeta?.stop) {
+            const stopInfo = toolMeta.stop;
 
-        if (stopInfo) {
-          return (
-            stopInfo.usage.inputTokens +
-            stopInfo.usage.outputTokens +
-            (stopInfo.usage.cacheHits || 0) +
-            (stopInfo.usage.cacheMisses || 0)
-          );
+            return (
+              stopInfo.usage.inputTokens +
+              stopInfo.usage.outputTokens +
+              (stopInfo.usage.cacheHits || 0) +
+              (stopInfo.usage.cacheMisses || 0)
+            );
+          }
         }
       }
     }
@@ -961,7 +1039,7 @@ const renderConversationState = (conversation: ConversationState): VDOMNode => {
     case "message-in-flight":
       return d`Streaming response ${getAnimationFrame(conversation.sendDate)}`;
     case "stopped":
-      return d``;
+      return d``; // will be rendered by the last message
     case "yielded":
       return d`↗️ yielded to parent: ${conversation.response}`;
     case "error":
@@ -1016,6 +1094,7 @@ ${thread.context.contextManager.view()}`;
   const conversationStateView = renderConversationState(
     thread.state.conversation,
   );
+
   const contextManagerView = shouldShowContextManager(
     thread.state.conversation,
     thread.context.contextManager,
@@ -1023,11 +1102,17 @@ ${thread.context.contextManager.view()}`;
     ? d`\n${thread.context.contextManager.view()}`
     : d``;
 
+  const pendingMessagesView =
+    thread.state.pendingMessages.length > 0
+      ? d`\n✉️  ${thread.state.pendingMessages.length.toString()} pending message${thread.state.pendingMessages.length === 1 ? "" : "s"}`
+      : d``;
+
   return d`\
 ${titleView}
 ${thread.state.messages.map((m) => d`${m.view()}\n`)}\
-${conversationStateView}\
-${contextManagerView}`;
+${contextManagerView}\
+${pendingMessagesView}\
+${conversationStateView}`;
 };
 
 export const LOGO = readFileSync(

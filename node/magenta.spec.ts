@@ -106,7 +106,7 @@ I'm starting to respond`);
     expect(request.defer.resolved).toBe(true);
 
     // Verify the final state shows the aborted message
-    await driver.assertDisplayBufferContains(`Stopped (aborted)`);
+    await driver.assertDisplayBufferContains(`[ABORTED]`);
   });
 });
 

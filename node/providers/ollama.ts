@@ -234,6 +234,7 @@ export class OllamaProvider implements Provider {
       abort: () => {
         aborted = true;
       },
+      aborted,
       promise,
     };
   }
@@ -254,6 +255,7 @@ export class OllamaProvider implements Provider {
     let stopReason: StopReason | undefined;
     let usage: Usage | undefined;
     let currentContentBlockIndex = 0;
+    let aborted = false;
 
     const promise = (async (): Promise<{
       usage: Usage;
@@ -363,8 +365,10 @@ export class OllamaProvider implements Provider {
 
     return {
       abort: () => {
+        aborted = true;
         request?.abort();
       },
+      aborted,
       promise,
     };
   }

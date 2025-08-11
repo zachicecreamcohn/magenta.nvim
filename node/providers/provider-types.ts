@@ -205,6 +205,7 @@ export type ProviderStreamEvent =
 
 export interface ProviderStreamRequest {
   abort(): void;
+  aborted: boolean;
   promise: Promise<{
     stopReason: StopReason;
     usage: Usage;
@@ -219,5 +220,6 @@ export type ProviderToolUseResponse = {
 
 export interface ProviderToolUseRequest {
   abort(): void;
+  aborted: boolean;
   promise: Promise<ProviderToolUseResponse>;
 }
