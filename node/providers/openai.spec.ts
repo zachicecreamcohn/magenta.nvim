@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { getProvider, setClient } from "./provider";
+import { getProvider, setMockProvider } from "./provider";
 import type {
   ProviderMessage,
   ProviderName,
@@ -50,7 +50,7 @@ describe("OpenAIProvider", () => {
     lastOpenAIConfig = undefined;
     mockStreamEvents = [];
     process.env.OPENAI_API_KEY = "test-key";
-    setClient("openai", undefined);
+    setMockProvider(undefined);
   });
 
   afterEach(() => {

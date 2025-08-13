@@ -30,6 +30,10 @@ const DEFAULT_MODELS: Record<
     model: "claude-3.7-sonnet",
     fastModel: "claude-3-5-haiku-latest",
   },
+  mock: {
+    model: "mock",
+    fastModel: "mock",
+  },
 };
 
 export type Profile = {

@@ -43,6 +43,16 @@ end
 
 -- Set default restrictive options for tests
 _G.magenta_test_options = {
+  profiles = {
+    {
+      name = "mock",
+      provider = "mock"
+    },
+    {
+      name = "mock2",
+      provider = "mock"
+    }
+  },
   autoContext = {},
 }
 

@@ -66,7 +66,7 @@ test("uses dedicated profile when editPrediction.profile is configured", async (
         profiles: [
           {
             name: "main-claude",
-            provider: "anthropic",
+            provider: "mock",
             model: "claude-4-sonnet-latest",
             fastModel: "claude-3-5-haiku-latest",
             apiKeyEnvVar: "ANTHROPIC_API_KEY",
@@ -75,7 +75,7 @@ test("uses dedicated profile when editPrediction.profile is configured", async (
         editPrediction: {
           profile: {
             name: "edit-prediction",
-            provider: "anthropic",
+            provider: "mock",
             model: "claude-3-5-haiku-latest",
             apiKeyEnvVar: "ANTHROPIC_API_KEY",
           },
@@ -121,7 +121,7 @@ test("uses different provider for predictions when configured", async () => {
         profiles: [
           {
             name: "main-claude",
-            provider: "anthropic",
+            provider: "mock",
             model: "claude-4-sonnet-latest",
             fastModel: "claude-3-5-haiku-latest",
             apiKeyEnvVar: "ANTHROPIC_API_KEY",
@@ -130,7 +130,7 @@ test("uses different provider for predictions when configured", async () => {
         editPrediction: {
           profile: {
             name: "edit-prediction",
-            provider: "openai",
+            provider: "mock",
             model: "gpt-4o-mini",
             apiKeyEnvVar: "OPENAI_API_KEY",
           },
@@ -162,7 +162,7 @@ test("uses active profile when editPrediction.profile not configured", async () 
         profiles: [
           {
             name: "main-claude",
-            provider: "anthropic",
+            provider: "mock",
             model: "claude-4-sonnet-latest",
             fastModel: "claude-3-5-haiku-latest",
             apiKeyEnvVar: "ANTHROPIC_API_KEY",
