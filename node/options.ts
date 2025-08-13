@@ -32,7 +32,7 @@ const DEFAULT_MODELS: Record<
   },
   mock: {
     model: "mock",
-    fastModel: "mock",
+    fastModel: "mock-fast",
   },
 };
 

@@ -390,7 +390,7 @@ Paint their stories in the night.`,
         await driver.mockAnthropic.awaitPendingForceToolUseRequest();
 
       // Should use fast model
-      expect(request.model).toBe("claude-3-5-haiku-latest");
+      expect(request.model).toBe("mock-fast");
 
       // Should not include @fast in the message content
       const userMessage = request.messages.find((m) => m.role === "user");
@@ -426,7 +426,7 @@ Paint their stories in the night.`,
         await driver.mockAnthropic.awaitPendingForceToolUseRequest();
 
       // Should use fast model
-      expect(request.model).toBe("claude-3-5-haiku-latest");
+      expect(request.model).toBe("mock-fast");
 
       // Should not include @fast or leading whitespace in the message content
       const userMessage = request.messages.find((m) => m.role === "user");

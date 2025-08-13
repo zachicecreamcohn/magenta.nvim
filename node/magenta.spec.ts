@@ -166,7 +166,7 @@ it("can switch profiles", async () => {
         name: "mock",
         provider: "mock",
         model: "mock",
-        fastModel: "mock",
+        fastModel: "mock-fast",
       });
     }
     const displayState = driver.getVisibleState();
@@ -181,7 +181,7 @@ it("can switch profiles", async () => {
         name: "mock2",
         provider: "mock",
         model: "mock",
-        fastModel: "mock",
+        fastModel: "mock-fast",
       });
       const winbar = await displayState.inputWindow.getOption("winbar");
       expect(winbar).toContain(`Magenta Input (mock2)`);
