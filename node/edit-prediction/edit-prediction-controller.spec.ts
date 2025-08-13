@@ -74,6 +74,7 @@ test("uses dedicated profile when editPrediction.profile is configured", async (
         ],
         editPrediction: {
           profile: {
+            name: "edit-prediction",
             provider: "anthropic",
             model: "claude-3-5-haiku-latest",
             apiKeyEnvVar: "ANTHROPIC_API_KEY",
@@ -128,6 +129,7 @@ test("uses different provider for predictions when configured", async () => {
         ],
         editPrediction: {
           profile: {
+            name: "edit-prediction",
             provider: "openai",
             model: "gpt-4o-mini",
             apiKeyEnvVar: "OPENAI_API_KEY",

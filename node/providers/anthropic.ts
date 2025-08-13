@@ -69,7 +69,6 @@ export class AnthropicProvider implements Provider {
     this.authType = options?.authType || "key";
 
     if (this.authType === "max") {
-      // For max auth, we'll use a dummy API key and override fetch
       this.client = new Anthropic({
         apiKey: "dummy-key-for-oauth",
         baseURL: options?.baseUrl,
@@ -95,6 +94,9 @@ export class AnthropicProvider implements Provider {
   private promptCaching = true;
   private disableParallelToolUseFlag = true;
 
+  private static readonly CLAUDE_CODE_SPOOF_PROMPT =
+    "You are Claude Code, Anthropic's official CLI for Claude.";
+
   private createOAuthFetch() {
     return async (
       input: string | URL | Request,
@@ -108,8 +110,9 @@ export class AnthropicProvider implements Provider {
       }
 
       const headers = {
-        ...init?.headers,
+        ...(init?.headers || {}),
         authorization: `Bearer ${accessToken}`,
+        "anthropic-version": "2023-06-01",
         "anthropic-beta":
           "oauth-2025-04-20,claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14",
       };
@@ -146,7 +149,6 @@ export class AnthropicProvider implements Provider {
       this.nvim.logger.info("OAuth authentication successful");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.nvim.logger.error(`OAuth authentication failed: ${message}`);
       throw new Error(`OAuth authentication failed: ${message}`);
     }
   }
@@ -414,22 +416,36 @@ export class AnthropicProvider implements Provider {
       };
     });
 
+    // Build system prompt, prepending Claude Code spoofing for Max auth
+    const baseSystemPrompt = systemPrompt
+      ? systemPrompt
+      : DEFAULT_SYSTEM_PROMPT;
+
+    const systemBlocks: MessageStreamParams["system"] = [
+      {
+        type: "text" as const,
+        text: baseSystemPrompt,
+        // the prompt appears in the following order:
+        // tools
+        // system
+        // messages
+        // This ensures the tools + system prompt (which is approx 1400 tokens) is cached.
+        cache_control: useCaching ? { type: "ephemeral" } : null,
+      },
+    ];
+
+    if (this.authType === "max") {
+      systemBlocks.unshift({
+        type: "text" as const,
+        text: AnthropicProvider.CLAUDE_CODE_SPOOF_PROMPT,
+      });
+    }
+
     const params: MessageStreamParams = {
       messages: anthropicMessages,
       model: model,
       max_tokens: this.getMaxTokensForModel(model),
-      system: [
-        {
-          type: "text",
-          text: systemPrompt ? systemPrompt : DEFAULT_SYSTEM_PROMPT,
-          // the prompt appears in the following order:
-          // tools
-          // system
-          // messages
-          // This ensures the tools + system prompt (which is approx 1400 tokens) is cached.
-          cache_control: useCaching ? { type: "ephemeral" } : null,
-        },
-      ],
+      system: systemBlocks,
       tool_choice: {
         type: "auto",
         disable_parallel_tool_use: this.disableParallelToolUseFlag || undefined,

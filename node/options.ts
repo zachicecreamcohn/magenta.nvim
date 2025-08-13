@@ -80,6 +80,7 @@ export type MCPServerConfig =
     };
 
 export type EditPredictionProfile = {
+  name: string;
   provider: ProviderName;
   model: string;
   baseUrl?: string | undefined;
@@ -169,6 +170,7 @@ function parseEditPredictionProfile(
   const defaults = DEFAULT_MODELS[provider];
 
   const profile: EditPredictionProfile = {
+    name: "edit-prediction",
     provider,
     model: typeof p["model"] === "string" ? p["model"] : defaults.model,
   };

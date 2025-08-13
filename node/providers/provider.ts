@@ -17,13 +17,7 @@ export function getProvider(
   nvim: Nvim,
   profile: Profile | EditPredictionProfile,
 ): Provider {
-  const providerName = profile.provider;
-
-  // use a composite key for the client to allow the openai provider to be used for openai and ollama
-  let clientKey: string = providerName;
-  if (providerName === "openai" && profile.baseUrl) {
-    clientKey = `${providerName}-${profile.baseUrl}`;
-  }
+  const clientKey = profile.name;
 
   if (!clients[clientKey]) {
     switch (profile.provider) {
