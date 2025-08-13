@@ -36,6 +36,8 @@ I sometimes write about AI, neovim and magenta specifically:
 
 ## August 2025
 
+**Claude Max Authentication** - Added full support for Anthropic's Claude Max OAuth2 authentication flow. You can now use your Anthropic account directly without needing an API key. Set `authType = "max"` in your profile configuration and Magenta will automatically handle the OAuth flow, including opening your browser for authentication and securely storing refresh tokens. This enables access to Claude models through your Anthropic account subscription rather than pay-per-token API usage. (h/t [opencode](https://github.com/sst/opencode) who actually reverse engineered the claude code API to make this possible)
+
 I improved the turn-taking behavior. Sending a message to the agent while it's streaming will now automatically abort the current request. You can also prepend your message with `@async` to enqueue the message. The message will be sent to the agent on the next opportunity (either with the next tool autoresponse, or when the agent ends its turn). I also fixed a bunch of edge cases around aborting messages.
 
 I reworked `@compact` into `@fork`. Instead of a forced tool use, fork is now just like any other tool. Using @fork just sends a nice message with some extra instructions to the agent, which then uses fork_thread like any other tool. There are a few advantages of this:
@@ -127,7 +129,8 @@ The plugin uses profiles to configure provider access. Each profile specifies:
 - name: identifier for the profile
 - provider: "anthropic", "openai", "bedrock".
 - model: the specific model to use.
-- apiKeyEnvVar: environment variable containing the API key
+- authType: (optional) authentication type - "key" (default) or "max" for Anthropic OAuth
+- apiKeyEnvVar: environment variable containing the API key (not needed for authType = "max")
 - baseUrl: (optional) custom API endpoint
 
 ## Prerequisites
@@ -205,6 +208,14 @@ require('magenta').setup({
       enabled = true,
       budgetTokens = 1024 -- optional, defaults to 1024, must be >= 1024
     }
+  },
+  {
+    name = "claude-max",
+    provider = "anthropic",
+    model = "claude-3-7-sonnet-latest",
+    fastModel = "claude-3-5-haiku-latest",
+    authType = "max" -- Use Anthropic OAuth instead of API key
+    -- No apiKeyEnvVar needed for max auth
   },
   {
     name = "gpt-5",
@@ -381,6 +392,35 @@ The provider handles token refresh automatically and integrates with GitHub's Co
 **NOTE:**
 
 Copilot does this awkward thing where it gives you access to claude, but only through the openai chat completions api. As such they're really behind the ball on features. So for example, web_search for claude does not work [issue](https://github.com/microsoft/vscode-copilot-release/issues/6755). As such, I would not recommend it, though it is cheaper than paying for claude tokens directly.
+
+## Claude Max Authentication
+
+The Anthropic provider supports two authentication methods:
+
+1. **API Key** (`authType = "key"` or omitted) - Uses your Anthropic API key for pay-per-token usage
+2. **Claude Max** (`authType = "max"`) - Uses OAuth to connect with your Anthropic account subscription
+
+**Claude Max Setup:**
+
+```lua
+{
+  name = "claude-max",
+  provider = "anthropic",
+  model = "claude-3-7-sonnet-latest",
+  authType = "max"
+  -- No apiKeyEnvVar needed
+}
+```
+
+**How Claude Max works:**
+
+- On first use, Magenta automatically opens your browser to Anthropic's OAuth page
+- After granting permission, you'll copy an authorization code back to Magenta
+- Tokens are securely stored in `~/.local/share/magenta/auth.json` with 0600 permissions
+- Refresh tokens are automatically managed - no manual re-authentication needed
+- Access tokens are automatically refreshed when they expire
+
+This allows you to use Claude models through your Anthropic account subscription rather than pay-per-token API usage, potentially offering cost savings for heavy users.
 
 ## Command allowlist
 
