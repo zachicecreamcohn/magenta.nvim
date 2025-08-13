@@ -31,6 +31,7 @@ export function getProvider(
         clients[clientKey] = new AnthropicProvider(nvim, {
           baseUrl: profile.baseUrl,
           apiKeyEnvVar: profile.apiKeyEnvVar,
+          authType: profile.authType,
           promptCaching: true,
         });
         break;

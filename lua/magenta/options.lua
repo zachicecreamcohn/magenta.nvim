@@ -21,6 +21,12 @@ local defaults = {
       apiKeyEnvVar = "ANTHROPIC_API_KEY"
     },
     {
+      name = "claude-max",
+      provider = "anthropic",
+      model = "claude-sonnet-4-latest",
+      authType = "max"
+    },
+    {
       name = "gpt-4o",
       provider = "openai",
       model = "gpt-4o",
