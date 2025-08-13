@@ -163,30 +163,28 @@ it("can switch profiles", async () => {
     {
       const thread = driver.magenta.chat.getActiveThread();
       expect(thread.state.profile).toEqual({
-        name: "claude-sonnet-3.7",
-        provider: "anthropic",
-        model: "claude-3-7-sonnet-latest",
-        fastModel: "claude-3-5-haiku-latest",
-        apiKeyEnvVar: "ANTHROPIC_API_KEY",
+        name: "mock",
+        provider: "mock",
+        model: "mock",
+        fastModel: "mock-fast",
       });
     }
     const displayState = driver.getVisibleState();
     {
       const winbar = await displayState.inputWindow.getOption("winbar");
-      expect(winbar).toContain(`Magenta Input (claude-sonnet-3.7)`);
+      expect(winbar).toContain(`Magenta Input (mock)`);
     }
-    await driver.nvim.call("nvim_command", ["Magenta profile gpt-4o"]);
+    await driver.nvim.call("nvim_command", ["Magenta profile mock2"]);
     {
       const thread = driver.magenta.chat.getActiveThread();
       expect(thread.state.profile).toEqual({
-        name: "gpt-4o",
-        provider: "openai",
-        model: "gpt-4o",
-        fastModel: "gpt-4o-mini",
-        apiKeyEnvVar: "OPENAI_API_KEY",
+        name: "mock2",
+        provider: "mock",
+        model: "mock",
+        fastModel: "mock-fast",
       });
       const winbar = await displayState.inputWindow.getOption("winbar");
-      expect(winbar).toContain(`Magenta Input (gpt-4o)`);
+      expect(winbar).toContain(`Magenta Input (mock2)`);
     }
   });
 });

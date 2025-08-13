@@ -10,6 +10,7 @@ export const PROVIDER_NAMES = [
   "bedrock",
   "ollama",
   "copilot",
+  "mock",
 ] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
 

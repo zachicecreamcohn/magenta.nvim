@@ -11,7 +11,7 @@ import {
   type ProviderStreamEvent,
   type ProviderMessageContent,
 } from "./provider-types.ts";
-import { setClient } from "./provider.ts";
+import { setMockProvider } from "./provider.ts";
 import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { ToolRequest } from "../tools/types.ts";
@@ -613,11 +613,11 @@ export async function withMockClient(
   fn: (mock: MockProvider) => Promise<void>,
 ) {
   const mock = new MockProvider();
-  setClient("anthropic", mock);
-  setClient("openai", mock);
+  // these should match the defaults in the
+  setMockProvider(mock);
   try {
     await fn(mock);
   } finally {
-    setClient("anthropic", undefined);
+    setMockProvider(undefined);
   }
 }

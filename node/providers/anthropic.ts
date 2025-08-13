@@ -16,6 +16,8 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
 import { validateInput } from "../tools/helpers.ts";
 import type { ToolRequest } from "../tools/types.ts";
+import * as AnthropicAuth from "../auth/anthropic.ts";
+import open from "open";
 
 function mapProviderTextToAnthropicText(
   providerText: ProviderTextContent,
@@ -51,34 +53,132 @@ type MessageStreamParams = Omit<
 
 export class AnthropicProvider implements Provider {
   protected client: Anthropic;
+  private authType: "key" | "max";
 
   constructor(
     protected nvim: Nvim,
     options?: {
       baseUrl?: string | undefined;
       apiKeyEnvVar?: string | undefined;
+      authType?: "key" | "max" | undefined;
       awsAPIKey?: boolean | undefined;
       promptCaching?: boolean | undefined;
       disableParallelToolUseFlag?: boolean;
     },
   ) {
-    const apiKeyEnvVar = options?.apiKeyEnvVar || "ANTHROPIC_API_KEY";
-    const apiKey = process.env[apiKeyEnvVar];
+    this.authType = options?.authType || "key";
 
-    if (!options?.awsAPIKey && !apiKey) {
-      throw new Error(
-        `Anthropic API key ${apiKeyEnvVar} not found in environment`,
-      );
+    if (this.authType === "max") {
+      this.client = new Anthropic({
+        apiKey: "dummy-key-for-oauth",
+        baseURL: options?.baseUrl,
+        fetch: this.createOAuthFetch(),
+      });
+    } else {
+      const apiKeyEnvVar = options?.apiKeyEnvVar || "ANTHROPIC_API_KEY";
+      const apiKey = process.env[apiKeyEnvVar];
+
+      if (!options?.awsAPIKey && !apiKey) {
+        throw new Error(
+          `Anthropic API key ${apiKeyEnvVar} not found in environment`,
+        );
+      }
+
+      this.client = new Anthropic({
+        apiKey,
+        baseURL: options?.baseUrl,
+      });
     }
-
-    this.client = new Anthropic({
-      apiKey,
-      baseURL: options?.baseUrl,
-    });
   }
 
   private promptCaching = true;
   private disableParallelToolUseFlag = true;
+
+  private static readonly CLAUDE_CODE_SPOOF_PROMPT =
+    "You are Claude Code, Anthropic's official CLI for Claude.";
+
+  private createOAuthFetch() {
+    return async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      await this.ensureValidToken();
+
+      const accessToken = await AnthropicAuth.getAccessToken();
+      if (!accessToken) {
+        throw new Error("Failed to get valid OAuth access token");
+      }
+
+      const headers = {
+        ...(init?.headers || {}),
+        authorization: `Bearer ${accessToken}`,
+        "anthropic-version": "2023-06-01",
+        "anthropic-beta":
+          "oauth-2025-04-20,claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14",
+      };
+
+      // Remove x-api-key header if present
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+      delete (headers as any)["x-api-key"];
+
+      return fetch(input, {
+        ...init,
+        headers,
+      });
+    };
+  }
+
+  private async ensureValidToken(): Promise<void> {
+    const isAuthenticated = await AnthropicAuth.isAuthenticated();
+    if (!isAuthenticated) {
+      await this.triggerOAuthFlow();
+    }
+  }
+
+  private async triggerOAuthFlow(): Promise<void> {
+    try {
+      const { url, verifier } = await AnthropicAuth.authorize();
+
+      // Show OAuth flow instructions in a floating window and get the auth code
+      const code = await this.showOAuthFlow(url);
+
+      // Exchange code for tokens
+      const tokens = await AnthropicAuth.exchange(code, verifier);
+      await AnthropicAuth.storeTokens(tokens);
+
+      this.nvim.logger.info("OAuth authentication successful");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`OAuth authentication failed: ${message}`);
+    }
+  }
+
+  private async showOAuthFlow(authUrl: string): Promise<string> {
+    try {
+      await open(authUrl);
+    } catch {
+      this.nvim.logger.warn(
+        "Could not automatically open browser, please open URL manually",
+      );
+    }
+
+    // Use nvim_exec_lua to show notification and get input
+    const luaScript = `
+      vim.notify(
+        "Claude Max Authentication Required\\n\\nThe browser should open automatically. If not, open this URL:\\n${authUrl}\\n\\nAfter completing the authorization process, copy the authorization code and paste it below.",
+        vim.log.levels.INFO
+      )
+      return vim.fn.input("Enter authorization code: ")
+    `;
+
+    const code = await this.nvim.call("nvim_exec_lua", [luaScript, []]);
+
+    if (!code || typeof code !== "string" || code.trim() === "") {
+      throw new Error("No authorization code provided");
+    }
+
+    return code.trim();
+  }
 
   private getMaxTokensForModel(model: string): number {
     // Claude 4 models - use high limits
@@ -316,22 +416,36 @@ export class AnthropicProvider implements Provider {
       };
     });
 
+    // Build system prompt, prepending Claude Code spoofing for Max auth
+    const baseSystemPrompt = systemPrompt
+      ? systemPrompt
+      : DEFAULT_SYSTEM_PROMPT;
+
+    const systemBlocks: MessageStreamParams["system"] = [
+      {
+        type: "text" as const,
+        text: baseSystemPrompt,
+        // the prompt appears in the following order:
+        // tools
+        // system
+        // messages
+        // This ensures the tools + system prompt (which is approx 1400 tokens) is cached.
+        cache_control: useCaching ? { type: "ephemeral" } : null,
+      },
+    ];
+
+    if (this.authType === "max") {
+      systemBlocks.unshift({
+        type: "text" as const,
+        text: AnthropicProvider.CLAUDE_CODE_SPOOF_PROMPT,
+      });
+    }
+
     const params: MessageStreamParams = {
       messages: anthropicMessages,
       model: model,
       max_tokens: this.getMaxTokensForModel(model),
-      system: [
-        {
-          type: "text",
-          text: systemPrompt ? systemPrompt : DEFAULT_SYSTEM_PROMPT,
-          // the prompt appears in the following order:
-          // tools
-          // system
-          // messages
-          // This ensures the tools + system prompt (which is approx 1400 tokens) is cached.
-          cache_control: useCaching ? { type: "ephemeral" } : null,
-        },
-      ],
+      system: systemBlocks,
       tool_choice: {
         type: "auto",
         disable_parallel_tool_use: this.disableParallelToolUseFlag || undefined,
@@ -366,6 +480,7 @@ export class AnthropicProvider implements Provider {
   }): ProviderToolUseRequest {
     const { model, messages, spec, systemPrompt, disableCaching } = options;
     let aborted = false;
+
     const request = this.client.messages.stream({
       ...this.createStreamParameters({
         model,
@@ -515,6 +630,7 @@ export class AnthropicProvider implements Provider {
     const { model, messages, onStreamEvent, tools, systemPrompt, thinking } =
       options;
     let aborted = false;
+
     const request = this.client.messages
       .stream(
         this.createStreamParameters({

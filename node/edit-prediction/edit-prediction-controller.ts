@@ -735,6 +735,7 @@ Predict the most likely next edit the user will make.`;
 
       // Convert EditPredictionProfile to Profile by adding required fields
       const profile: EditPredictionProfile = {
+        name: "edit-prediction",
         provider: predictionProfile.provider,
         model: predictionProfile.model,
       };
@@ -753,6 +754,7 @@ Predict the most likely next edit the user will make.`;
     // Fall back to the active profile
     const profile = this.context.options.profiles[0];
     return {
+      name: `edit-prediction-${profile.name}`,
       provider: profile.provider,
       model: profile.model,
       baseUrl: profile.baseUrl,

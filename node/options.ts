@@ -30,6 +30,10 @@ const DEFAULT_MODELS: Record<
     model: "claude-3.7-sonnet",
     fastModel: "claude-3-5-haiku-latest",
   },
+  mock: {
+    model: "mock",
+    fastModel: "mock-fast",
+  },
 };
 
 export type Profile = {
@@ -39,6 +43,7 @@ export type Profile = {
   fastModel: string;
   baseUrl?: string;
   apiKeyEnvVar?: string;
+  authType?: "key" | "max"; // New field for authentication type
   promptCaching?: boolean; // Primarily used by Bedrock provider
   thinking?: {
     enabled: boolean;
@@ -79,10 +84,12 @@ export type MCPServerConfig =
     };
 
 export type EditPredictionProfile = {
+  name: string;
   provider: ProviderName;
   model: string;
   baseUrl?: string | undefined;
   apiKeyEnvVar?: string | undefined;
+  authType?: "key" | "max" | undefined;
 };
 
 export type EditPredictionOptions = {
@@ -167,6 +174,7 @@ function parseEditPredictionProfile(
   const defaults = DEFAULT_MODELS[provider];
 
   const profile: EditPredictionProfile = {
+    name: "edit-prediction",
     provider,
     model: typeof p["model"] === "string" ? p["model"] : defaults.model,
   };
@@ -254,6 +262,19 @@ function parseProfiles(
         } else {
           logger.warn(
             `Invalid apiKeyEnvVar in profile ${p["name"]}, ignoring field`,
+          );
+        }
+      }
+
+      if ("authType" in p) {
+        if (
+          typeof p["authType"] === "string" &&
+          (p["authType"] === "key" || p["authType"] === "max")
+        ) {
+          out.authType = p["authType"];
+        } else {
+          logger.warn(
+            `Invalid authType in profile ${p["name"]}, must be "key" or "max"`,
           );
         }
       }

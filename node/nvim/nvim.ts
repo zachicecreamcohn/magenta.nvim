@@ -126,6 +126,17 @@ export async function quickfixListToString(
   return lines.join("\n");
 }
 
+export async function notify(nvim: Nvim, message: string) {
+  const luaScript = `
+      vim.notify(
+        [[${message}]],
+        vim.log.levels.INFO
+      )
+    `;
+
+  return nvim.call("nvim_exec_lua", [luaScript, []]);
+}
+
 export function notifyErr(nvim: Nvim, err: Error | string, ...rest: unknown[]) {
   return nvim.call("nvim_notify", [
     `Unexpected error:
