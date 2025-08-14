@@ -45,14 +45,18 @@ export type Profile = {
   apiKeyEnvVar?: string;
   authType?: "key" | "max"; // New field for authentication type
   promptCaching?: boolean; // Primarily used by Bedrock provider
-  thinking?: {
-    enabled: boolean;
-    budgetTokens?: number;
-  };
-  reasoning?: {
-    effort?: "low" | "medium" | "high";
-    summary?: "auto" | "concise" | "detailed";
-  };
+  thinking?:
+    | {
+        enabled: boolean;
+        budgetTokens?: number;
+      }
+    | undefined;
+  reasoning?:
+    | {
+        effort?: "low" | "medium" | "high";
+        summary?: "auto" | "concise" | "detailed";
+      }
+    | undefined;
 };
 
 export type CommandAllowlist = string[];

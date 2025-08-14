@@ -678,11 +678,14 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const subagentThreadId = this.threadCounter.get() as ThreadId;
 
     // Create profile for subagent - use fast model if threadType is "subagent_fast"
-    const subagentProfile =
+    const subagentProfile: Profile =
       threadType === "subagent_fast"
         ? {
             ...parentThread.state.profile,
             model: parentThread.state.profile.fastModel,
+            // Disable reasoning/thinking for fast model since it often doesn't support it
+            thinking: undefined,
+            reasoning: undefined,
           }
         : parentThread.state.profile;
 

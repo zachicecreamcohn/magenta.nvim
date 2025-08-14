@@ -1011,9 +1011,16 @@ You must use the fork_thread tool immediately, with only the information you alr
   }
 
   async setThreadTitle(userMessage: string) {
+    // Create a profile with reasoning/thinking disabled for fast model
+    const profileForRequest: Profile = {
+      ...this.context.profile,
+      thinking: undefined,
+      reasoning: undefined,
+    };
+
     const request = getProvider(
       this.context.nvim,
-      this.context.profile,
+      profileForRequest,
     ).forceToolUse({
       model: this.context.profile.fastModel,
       messages: [
