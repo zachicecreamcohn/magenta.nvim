@@ -489,7 +489,7 @@ export class Thread {
 
     const didAutoRespond = this.maybeAutoRespond();
     if (!didAutoRespond) {
-      this.playChimeIfNeeded(stoppedState);
+      this.playChimeIfNeeded();
     }
   }
 
@@ -597,17 +597,20 @@ export class Thread {
     }
   };
 
-  private playChimeIfNeeded(stoppedState: StoppedConversationState): void {
+  private playChimeIfNeeded(): void {
     // Play chime when we need the user to do something:
     // 1. Agent stopped with end_turn (user needs to respond)
     // 2. We're blocked on a tool use that requires user action
-
-    if (stoppedState.stopReason === "end_turn") {
+    if (this.state.conversation.state != "stopped") {
+      return;
+    }
+    const stopReason = this.state.conversation.stopReason;
+    if (stopReason === "end_turn") {
       this.playChimeSound();
       return;
     }
 
-    if (stoppedState.stopReason === "tool_use") {
+    if (stopReason === "tool_use") {
       const lastMessage = this.state.messages[this.state.messages.length - 1];
       if (lastMessage && lastMessage.state.role === "assistant") {
         for (const content of lastMessage.state.content) {
