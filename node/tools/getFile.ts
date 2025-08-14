@@ -102,6 +102,10 @@ export class GetFileTool implements StaticTool {
     return this.state.state === "done";
   }
 
+  isPendingUserAction(): boolean {
+    return this.state.state === "pending-user-action";
+  }
+
   /** this is expected to be invoked as part of a dispatch, so we don't need to dispatch here to update the view
    */
   abort() {

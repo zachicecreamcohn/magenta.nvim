@@ -61,6 +61,10 @@ export class FindReferencesTool implements StaticTool {
     return this.state.state === "done";
   }
 
+  isPendingUserAction(): boolean {
+    return false;
+  }
+
   /** This is expected to be invoked as part of a dispatch so we don't need to dispatch new actions to update the view.
    */
   abort() {

@@ -110,6 +110,10 @@ ${results
     return this.state.state === "done";
   }
 
+  isPendingUserAction(): boolean {
+    return false;
+  }
+
   abort() {
     if (this.state.state === "waiting") {
       this.state = {

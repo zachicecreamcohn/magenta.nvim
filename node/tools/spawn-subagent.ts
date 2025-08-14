@@ -84,6 +84,10 @@ export class SpawnSubagentTool implements StaticTool {
     return this.state.state === "done";
   }
 
+  isPendingUserAction(): boolean {
+    return false; // Spawn subagent never requires user action
+  }
+
   abort() {
     switch (this.state.state) {
       case "preparing":

@@ -401,6 +401,10 @@ export class BashCommandTool implements StaticTool {
     return this.state.state === "done" || this.state.state === "error";
   }
 
+  isPendingUserAction(): boolean {
+    return this.state.state === "pending-user-action";
+  }
+
   /** It is the expectation that this is happening as part of a dispatch, so it should not trigger
    * new dispatches...
    */

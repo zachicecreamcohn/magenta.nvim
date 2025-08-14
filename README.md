@@ -38,6 +38,8 @@ I sometimes write about AI, neovim and magenta specifically:
 
 **Claude Max Authentication** - Added full support for Anthropic's Claude Max OAuth2 authentication flow. You can now use your Anthropic account directly without needing an API key. Set `authType = "max"` in your profile configuration and Magenta will automatically handle the OAuth flow, including opening your browser for authentication and securely storing refresh tokens. This enables access to Claude models through your Anthropic account subscription rather than pay-per-token API usage. (h/t [opencode](https://github.com/sst/opencode) who actually reverse engineered the claude code API to make this possible)
 
+**Configurable Chime Volume** - Added support for controlling the volume of notification chimes that play when the agent needs your attention. You can now set `chimeVolume` in your configuration (range: 0.0 to 1.0) to customize or disable the chime entirely. The chime plays when agents finish work requiring user input or when tool usage needs approval.
+
 I improved the turn-taking behavior. Sending a message to the agent while it's streaming will now automatically abort the current request. You can also prepend your message with `@async` to enqueue the message. The message will be sent to the agent on the next opportunity (either with the next tool autoresponse, or when the agent ends its turn). I also fixed a bunch of edge cases around aborting messages.
 
 I reworked `@compact` into `@fork`. Instead of a forced tool use, fork is now just like any other tool. Using @fork just sends a nice message with some extra instructions to the agent, which then uses fork_thread like any other tool. There are a few advantages of this:
@@ -239,6 +241,9 @@ require('magenta').setup({
   defaultKeymaps = true,
   -- maximum number of sub-agents that can run concurrently (default: 3)
   maxConcurrentSubagents = 3,
+  -- volume for notification chimes (range: 0.0 to 1.0, default: 0.3)
+  -- set to 0.0 to disable chimes entirely
+  chimeVolume = 0.3,
   -- glob patterns for files that should be auto-approved for getFile tool
   -- (bypasses user approval for hidden/gitignored files matching these patterns)
   getFileAutoAllowGlobs = { "node_modules/*" }, -- default includes node_modules
@@ -545,6 +550,33 @@ tradeoff makes sense - especially since we are working with user-triggered compl
 
 I think hooking up a model specifically designed for completion, like supermaven or zeta, would be a lot nicer. If you
 want, try it out and let us know in the discussion area.
+
+## Chime Volume
+
+Magenta plays notification chimes to alert you when the agent needs your attention, such as when it finishes work requiring user input or when tool usage needs approval.
+
+You can configure the chime volume using the `chimeVolume` option:
+
+```lua
+require('magenta').setup({
+  chimeVolume = 0.2, -- 20% volume (range: 0.0 to 1.0)
+  -- ... other options
+})
+```
+
+**Volume settings:**
+
+- `0.0` - Disables chimes entirely (silent)
+- `0.3` - Default volume (30%)
+- `1.0` - Full system volume
+
+**When chimes play:**
+
+- Agent stops with `end_turn` (waiting for your response)
+- Agent is blocked on a tool that requires user approval
+- Any tool execution that needs user interaction
+
+The chime volume can also be set per-project in `.magenta/options.json` files to customize notifications for different workflows.
 
 ## Keymaps
 

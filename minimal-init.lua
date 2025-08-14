@@ -54,6 +54,7 @@ _G.magenta_test_options = {
     }
   },
   autoContext = {},
+  chimeVolume = 0
 }
 
 -- Setup function that tests can call to configure options before bridge is established

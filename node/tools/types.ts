@@ -19,6 +19,7 @@ export type ToolRequest = {
 export interface Tool {
   toolName: ToolName;
   isDone(): boolean;
+  isPendingUserAction(): boolean;
   getToolResult(): ProviderToolResult;
   request: ToolRequest;
   abort(): void;
@@ -30,6 +31,7 @@ export interface Tool {
 export interface StaticTool {
   toolName: StaticToolName;
   isDone(): boolean;
+  isPendingUserAction(): boolean;
   getToolResult(): ProviderToolResult;
   request: StaticToolRequest;
   abort(): void;

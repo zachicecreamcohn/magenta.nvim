@@ -113,6 +113,10 @@ ${this.request.input.summary}
     return this.state.state === "done";
   }
 
+  isPendingUserAction(): boolean {
+    return false;
+  }
+
   abort() {}
 
   update(msg: Msg): void {

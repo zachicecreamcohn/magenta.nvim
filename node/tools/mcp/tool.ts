@@ -75,6 +75,10 @@ export class MCPTool implements Tool {
     return this.state.state == "done" || this.state.state == "error";
   }
 
+  isPendingUserAction(): boolean {
+    return false; // MCP tools never require user action
+  }
+
   update(msg: Msg): Thunk<Msg> | undefined {
     if (this.state.state === "done" || this.state.state === "error") {
       return;

@@ -50,6 +50,7 @@ import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { $, within } from "zx";
+import player from "play-sound";
 
 export type StoppedConversationState = {
   state: "stopped";
@@ -486,7 +487,10 @@ export class Thread {
 
     this.state.conversation = stoppedState;
 
-    this.maybeAutoRespond();
+    const didAutoRespond = this.maybeAutoRespond();
+    if (!didAutoRespond) {
+      this.playChimeIfNeeded();
+    }
   }
 
   private abortInProgressOperations(): void {
@@ -541,7 +545,7 @@ export class Thread {
     });
   }
 
-  maybeAutoRespond(): void {
+  maybeAutoRespond(): boolean {
     if (
       this.state.conversation.state == "stopped" &&
       this.state.conversation.stopReason == "tool_use"
@@ -555,7 +559,7 @@ export class Thread {
 
             if (tool.request.toolName == "yield_to_parent" || !tool.isDone()) {
               // terminate early if we have a blocking tool use. This will not send a reply message
-              return;
+              return false;
             }
           }
         }
@@ -565,6 +569,7 @@ export class Thread {
         this.sendMessage(messages).catch(
           this.handleSendMessageError.bind(this),
         );
+        return true;
       }
     } else if (
       this.state.conversation.state == "stopped" &&
@@ -574,7 +579,9 @@ export class Thread {
       const messages = this.state.pendingMessages;
       this.state.pendingMessages = [];
       this.sendMessage(messages).catch(this.handleSendMessageError.bind(this));
+      return true;
     }
+    return false;
   }
 
   private handleSendMessageError = (error: Error): void => {
@@ -589,6 +596,77 @@ export class Thread {
       });
     }
   };
+
+  private playChimeIfNeeded(): void {
+    // Play chime when we need the user to do something:
+    // 1. Agent stopped with end_turn (user needs to respond)
+    // 2. We're blocked on a tool use that requires user action
+    if (this.state.conversation.state != "stopped") {
+      return;
+    }
+    const stopReason = this.state.conversation.stopReason;
+    if (stopReason === "end_turn") {
+      this.playChimeSound();
+      return;
+    }
+
+    if (stopReason === "tool_use") {
+      const lastMessage = this.state.messages[this.state.messages.length - 1];
+      if (lastMessage && lastMessage.state.role === "assistant") {
+        for (const content of lastMessage.state.content) {
+          if (content.type === "tool_use" && content.request.status === "ok") {
+            const request = content.request.value;
+            const tool = this.toolManager.getTool(request.id);
+
+            if (tool.isPendingUserAction()) {
+              this.playChimeSound();
+              return;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private playChimeSound(): void {
+    const actualVolume = this.context.options.chimeVolume;
+
+    if (!actualVolume) {
+      return;
+    }
+
+    try {
+      const play = player();
+      const chimeFile = join(
+        dirname(fileURLToPath(import.meta.url)),
+        "..",
+        "..",
+        "chime.wav",
+      );
+
+      // Play sound with volume control (platform-specific options)
+      const playOptions = {
+        // For macOS afplay: volume range is 0-1, where 1 is full volume
+        afplay: ["-v", actualVolume.toString()],
+        // For Linux aplay: volume range is 0-100%
+        aplay: ["-v", Math.round(actualVolume * 100).toString() + "%"],
+        // For mpg123: volume range is 0-32768
+        mpg123: ["-f", Math.round(actualVolume * 32768).toString()],
+      };
+
+      play.play(chimeFile, playOptions, (err: Error | null) => {
+        if (err) {
+          this.context.nvim.logger.error(
+            `Failed to play chime sound: ${err.message}`,
+          );
+        }
+      });
+    } catch (error) {
+      this.context.nvim.logger.error(
+        `Error setting up chime sound: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
 
   private async prepareUserMessage(
     messages?: InputMessage[],
