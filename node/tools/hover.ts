@@ -77,6 +77,10 @@ export class HoverTool implements StaticTool {
     return this.state.state === "done";
   }
 
+  isPendingUserAction(): boolean {
+    return false;
+  }
+
   abort() {
     this.state = {
       state: "done",

@@ -144,6 +144,7 @@ export type MagentaOptions = {
   getFileAutoAllowGlobs: string[];
   lspDebounceMs?: number;
   debug?: boolean;
+  chimeVolume?: number; // Volume from 0.0 (silent) to 1.0 (full), defaults to 0.3
   // New structured options
   editPrediction?: EditPredictionOptions;
 };
@@ -782,6 +783,18 @@ export function parseOptions(
       options.debug = inputOptionsObj["debug"];
     }
 
+    // Parse chime volume
+    if (
+      "chimeVolume" in inputOptionsObj &&
+      typeof inputOptionsObj["chimeVolume"] === "number" &&
+      inputOptionsObj["chimeVolume"] >= 0 &&
+      inputOptionsObj["chimeVolume"] <= 1
+    ) {
+      options.chimeVolume = inputOptionsObj["chimeVolume"];
+    } else if ("chimeVolume" in inputOptionsObj) {
+      logger.warn("chimeVolume must be a number between 0.0 and 1.0");
+    }
+
     // Parse MCP servers (throw errors for invalid MCP servers in main config)
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
 
@@ -947,6 +960,17 @@ export function parseProjectOptions(
     options.debug = inputOptionsObj["debug"];
   }
 
+  if (
+    "chimeVolume" in inputOptionsObj &&
+    typeof inputOptionsObj["chimeVolume"] === "number" &&
+    inputOptionsObj["chimeVolume"] >= 0 &&
+    inputOptionsObj["chimeVolume"] <= 1
+  ) {
+    options.chimeVolume = inputOptionsObj["chimeVolume"];
+  } else if ("chimeVolume" in inputOptionsObj) {
+    logger.warn("chimeVolume must be a number between 0.0 and 1.0");
+  }
+
   // Parse MCP servers
   if ("mcpServers" in inputOptionsObj) {
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
@@ -1085,6 +1109,10 @@ export function mergeOptions(
 
   if (projectSettings.debug !== undefined) {
     merged.debug = projectSettings.debug;
+  }
+
+  if (projectSettings.chimeVolume !== undefined) {
+    merged.chimeVolume = projectSettings.chimeVolume;
   }
 
   if (projectSettings.mcpServers) {

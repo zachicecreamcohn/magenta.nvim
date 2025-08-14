@@ -51,6 +51,10 @@ export class YieldToParentTool implements StaticTool {
     return this.state.state === "done";
   }
 
+  isPendingUserAction(): boolean {
+    return false;
+  }
+
   abort() {}
 
   update(msg: Msg): void {

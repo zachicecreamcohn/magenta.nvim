@@ -79,6 +79,10 @@ export class InsertTool implements StaticTool {
     return this.state.state === "done";
   }
 
+  isPendingUserAction(): boolean {
+    return false; // Insert tool never requires user action
+  }
+
   abort() {
     this.state = {
       state: "done",

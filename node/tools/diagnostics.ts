@@ -66,6 +66,10 @@ export class DiagnosticsTool implements StaticTool {
     return this.state.state === "done";
   }
 
+  isPendingUserAction(): boolean {
+    return false;
+  }
+
   /** this is expected to execute as part of a dispatch, so we don't need to dispatch anything to update the view
    */
   abort() {

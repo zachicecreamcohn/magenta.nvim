@@ -79,6 +79,10 @@ export class ReplaceTool implements StaticTool {
     return this.state.state === "done";
   }
 
+  isPendingUserAction(): boolean {
+    return false;
+  }
+
   abort(): void {
     this.state = {
       state: "done",

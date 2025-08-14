@@ -110,6 +110,7 @@ local defaults = {
     "^grep( -[A-Za-z]*)? [^;&|()<>]*$"
   },
   maxConcurrentSubagents = 3,
+  chimeVolume = 0.3,
   getFileAutoAllowGlobs = {
     "node_modules/**/*"
   }

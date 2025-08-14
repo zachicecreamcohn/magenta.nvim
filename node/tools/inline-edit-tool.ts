@@ -57,6 +57,10 @@ export class InlineEditTool implements StaticTool {
     return this.state.state === "done";
   }
 
+  isPendingUserAction(): boolean {
+    return false;
+  }
+
   /** this is expected to be invoked as part of a dispatch, so we don't need to dispatch here to update the view
    */
   abort() {
