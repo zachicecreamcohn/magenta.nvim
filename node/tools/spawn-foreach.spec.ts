@@ -178,12 +178,28 @@ it("respects maxConcurrentSubagents limit and processes elements in batches", as
 it("uses fast model for subagents when agentType is 'fast'", async () => {
   await withDriver(
     {
-      options: { maxConcurrentSubagents: 1 },
+      options: {
+        profiles: [
+          {
+            name: "mock",
+            provider: "mock",
+            model: "mock",
+            fastModel: "mock-fast",
+            thinking: {
+              enabled: true,
+              budgetTokens: 1024,
+            },
+          },
+        ],
+        maxConcurrentSubagents: 1,
+      },
     },
     async (driver) => {
       await driver.showSidebar();
 
-      // Create a foreach request with fast agent type
+      const activeThread = driver.magenta.chat.getActiveThread();
+      const parentProfile = activeThread.state.profile;
+
       await driver.inputMagentaText(
         "Use spawn_foreach with fast agent type to process 1 element.",
       );
@@ -194,9 +210,10 @@ it("uses fast model for subagents when agentType is 'fast'", async () => {
           "Use spawn_foreach",
         );
 
-      // Get the parent thread's profile to know what the fast model should be
-      const activeThread = driver.magenta.chat.getActiveThread();
-      const parentProfile = activeThread.state.profile;
+      expect(request1.thinking, "parent request thinking is enabled").toEqual({
+        enabled: true,
+        budgetTokens: 1024,
+      });
 
       request1.respond({
         stopReason: "tool_use",
@@ -223,6 +240,10 @@ it("uses fast model for subagents when agentType is 'fast'", async () => {
 
       // Verify that the subagent request uses the fast model
       expect(subagentRequest.model).toBe(parentProfile.fastModel);
+
+      // Verify that reasoning is disabled for the fast subagent
+      // even though the parent profile has reasoning enabled
+      expect(subagentRequest.thinking).toBeUndefined();
     },
   );
 });

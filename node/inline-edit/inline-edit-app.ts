@@ -22,7 +22,11 @@ import {
 import { spec as inlineEditSpec } from "../tools/inline-edit-tool";
 import type { Dispatch } from "../tea/tea";
 import { relativePath, resolveFilePath, type NvimCwd } from "../utils/files";
-import { getActiveProfile, type MagentaOptions } from "../options";
+import {
+  getActiveProfile,
+  type MagentaOptions,
+  type Profile,
+} from "../options";
 import { Counter } from "../utils/uniqueId.ts";
 
 export type InlineEditId = number & { __inlineEdit: true };
@@ -260,10 +264,13 @@ export class InlineEditManager {
 
     const activeProfile = this.getActiveProfile();
     const { isFast } = this.processFastModifier(this.lastInput);
-    const request = getProvider(
-      this.nvim,
-      this.getActiveProfile(),
-    ).forceToolUse({
+
+    // Create a profile with reasoning/thinking disabled for fast model
+    const profileForRequest: Profile = isFast
+      ? { ...activeProfile, thinking: undefined, reasoning: undefined }
+      : activeProfile;
+
+    const request = getProvider(this.nvim, profileForRequest).forceToolUse({
       model: isFast ? activeProfile.fastModel : activeProfile.model,
       messages,
       spec: selection ? replaceSelectionSpec : inlineEditSpec,
@@ -464,10 +471,13 @@ ${processedInputText}`,
     this.inlineEdits[targetBufnr].mountedApp = mountedApp;
 
     const { isFast } = this.processFastModifier(inputText);
-    const request = getProvider(
-      this.nvim,
-      this.getActiveProfile(),
-    ).forceToolUse({
+
+    // Create a profile with reasoning/thinking disabled for fast model
+    const profileForRequest: Profile = isFast
+      ? { ...activeProfile, thinking: undefined, reasoning: undefined }
+      : activeProfile;
+
+    const request = getProvider(this.nvim, profileForRequest).forceToolUse({
       model: isFast ? activeProfile.fastModel : activeProfile.model,
       messages,
       spec: selection ? replaceSelectionSpec : inlineEditSpec,
