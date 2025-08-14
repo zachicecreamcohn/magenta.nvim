@@ -379,7 +379,6 @@ export class Message {
         }),
         {
           "<CR>": () => {
-            console.log(`toggle-thinking`);
             this.context.myDispatch({
               type: "toggle-expand-thinking-block",
               contentIdx,

@@ -920,11 +920,13 @@ You must use the fork_thread tool immediately, with only the information you alr
       tools: this.toolManager.getToolSpecs(this.state.threadType),
       systemPrompt: this.state.systemPrompt,
       ...(this.state.profile.thinking &&
-        this.state.profile.provider === "anthropic" && {
+        (this.state.profile.provider === "anthropic" ||
+          this.state.profile.provider == "mock") && {
           thinking: this.state.profile.thinking,
         }),
       ...(this.state.profile.reasoning &&
-        this.state.profile.provider === "openai" && {
+        (this.state.profile.provider === "openai" ||
+          this.state.profile.provider === "mock") && {
           reasoning: this.state.profile.reasoning,
         }),
     });

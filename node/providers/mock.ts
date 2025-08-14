@@ -28,6 +28,12 @@ class MockRequest {
     public onStreamEvent: (event: ProviderStreamEvent) => void,
     private getNextBlockId: () => string,
     public model: string,
+    public tools: Array<ProviderToolSpec>,
+    public systemPrompt?: string | undefined,
+    public thinking?: {
+      enabled: boolean;
+      budgetTokens?: number;
+    },
   ) {
     this.defer = new Defer();
   }
@@ -311,12 +317,16 @@ export class MockProvider implements Provider {
       budgetTokens?: number;
     };
   }): ProviderStreamRequest {
-    const { messages, onStreamEvent, model } = options;
+    const { messages, onStreamEvent, model, tools, systemPrompt, thinking } =
+      options;
     const request = new MockRequest(
       messages,
       onStreamEvent,
       this.getNextBlockId.bind(this),
       model,
+      tools,
+      systemPrompt,
+      thinking,
     );
 
     this.requests.push(request);
