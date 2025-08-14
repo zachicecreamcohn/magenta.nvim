@@ -15,7 +15,7 @@ describe("FileSnapshots", () => {
       const fileContent = "This is a test file content";
       fs.writeFileSync(filePath, fileContent);
 
-      const fileSnapshots = new FileSnapshots(driver.nvim);
+      const fileSnapshots = new FileSnapshots(driver.nvim, cwd);
       const messageId = 1 as MessageId;
 
       const result = await fileSnapshots.willEditFile(
@@ -39,7 +39,7 @@ describe("FileSnapshots", () => {
       const cwd = await getcwd(driver.nvim);
       const nonExistentPath = path.join(cwd, "non-existent.txt");
 
-      const fileSnapshots = new FileSnapshots(driver.nvim);
+      const fileSnapshots = new FileSnapshots(driver.nvim, cwd);
       const messageId = 2 as MessageId;
 
       const result = await fileSnapshots.willEditFile(
@@ -65,7 +65,7 @@ describe("FileSnapshots", () => {
       const fileContent = "Original content";
       fs.writeFileSync(filePath, fileContent);
 
-      const fileSnapshots = new FileSnapshots(driver.nvim);
+      const fileSnapshots = new FileSnapshots(driver.nvim, cwd);
       const messageId = 3 as MessageId;
 
       // First snapshot
@@ -101,7 +101,7 @@ describe("FileSnapshots", () => {
       const initialContent = "Initial content";
       fs.writeFileSync(filePath, initialContent);
 
-      const fileSnapshots = new FileSnapshots(driver.nvim);
+      const fileSnapshots = new FileSnapshots(driver.nvim, cwd);
       const messageId1 = 4 as MessageId;
       await fileSnapshots.willEditFile(
         filePath as UnresolvedFilePath,
@@ -141,7 +141,7 @@ describe("FileSnapshots", () => {
       fs.writeFileSync(file1, "File 1 content");
       fs.writeFileSync(file2, "File 2 content");
 
-      const fileSnapshots = new FileSnapshots(driver.nvim);
+      const fileSnapshots = new FileSnapshots(driver.nvim, cwd);
       const messageId1 = 6 as MessageId;
       const messageId2 = 7 as MessageId;
 
@@ -173,7 +173,7 @@ describe("FileSnapshots", () => {
       fs.writeFileSync(file1, "File 1 content");
       fs.writeFileSync(file2, "File 2 content");
 
-      const fileSnapshots = new FileSnapshots(driver.nvim);
+      const fileSnapshots = new FileSnapshots(driver.nvim, cwd);
       const messageId1 = 8 as MessageId;
       const messageId2 = 9 as MessageId;
 
@@ -208,7 +208,7 @@ describe("FileSnapshots", () => {
       await driver.command("normal! ggdGiBuffer content that is different");
 
       // Create FileSnapshots instance
-      const fileSnapshots = new FileSnapshots(driver.nvim);
+      const fileSnapshots = new FileSnapshots(driver.nvim, cwd);
       const messageId = 10 as MessageId;
 
       // Create snapshot - should use buffer content, not file content

@@ -1,25 +1,31 @@
-import { diffthis, getAllWindows, getcwd } from "../nvim/nvim.ts";
+import { diffthis, getAllWindows } from "../nvim/nvim.ts";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 import { type WindowId, type Row0Indexed } from "../nvim/window.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { MessageId } from "../chat/message.ts";
 import type { FileSnapshots } from "./file-snapshots.ts";
-import { resolveFilePath, type UnresolvedFilePath } from "../utils/files.ts";
+import {
+  resolveFilePath,
+  type NvimCwd,
+  type UnresolvedFilePath,
+} from "../utils/files.ts";
 
 export async function displaySnapshotDiff({
   unresolvedFilePath,
   messageId,
   nvim,
+  cwd,
   fileSnapshots,
   getDisplayWidth,
 }: {
   unresolvedFilePath: UnresolvedFilePath;
   messageId: MessageId;
   nvim: Nvim;
+  cwd: NvimCwd;
   fileSnapshots: FileSnapshots;
   getDisplayWidth: () => number;
 }) {
-  const absFilePath = resolveFilePath(await getcwd(nvim), unresolvedFilePath);
+  const absFilePath = resolveFilePath(cwd, unresolvedFilePath);
 
   const snapshot = fileSnapshots.getSnapshot(absFilePath, messageId);
   if (snapshot == undefined) {

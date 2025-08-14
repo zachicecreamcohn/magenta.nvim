@@ -4,7 +4,6 @@ import { glob } from "glob";
 import path from "node:path";
 import fs from "node:fs";
 import type { MagentaOptions } from "../options";
-import { getcwd } from "../nvim/nvim";
 import type { Dispatch } from "../tea/tea";
 import type { RootMsg } from "../root-msg";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow";
@@ -140,6 +139,7 @@ export class ContextManager {
   ): Promise<ContextManager> {
     const initialFiles = await ContextManager.loadAutoContext(
       context.nvim,
+      context.cwd,
       context.options,
     );
     return new ContextManager(myDispatch, context, initialFiles);
@@ -188,6 +188,7 @@ export class ContextManager {
           // For text files or files not in context, open in neovim
           openFileInNonMagentaWindow(msg.absFilePath, {
             nvim: this.context.nvim,
+            cwd: this.context.cwd,
             options: this.context.options,
           }).catch((e: Error) => this.context.nvim.logger.error(e.message));
         }
@@ -582,6 +583,7 @@ export class ContextManager {
 
   private static async loadAutoContext(
     nvim: Nvim,
+    cwd: NvimCwd,
     options: MagentaOptions,
   ): Promise<Files> {
     const files: Files = {};
@@ -591,9 +593,6 @@ export class ContextManager {
     }
 
     try {
-      const cwd = await getcwd(nvim);
-
-      // Find all files matching the glob patterns
       const matchedFiles = await this.findFilesCrossPlatform(
         options.autoContext,
         cwd,

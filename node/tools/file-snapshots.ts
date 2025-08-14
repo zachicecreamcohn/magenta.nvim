@@ -5,9 +5,9 @@ import type { MessageId } from "../chat/message.ts";
 import {
   resolveFilePath,
   type AbsFilePath,
+  type NvimCwd,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
-import { getcwd } from "../nvim/nvim.ts";
 import type { Row0Indexed } from "../nvim/window.ts";
 
 export interface FileSnapshot {
@@ -17,11 +17,11 @@ export interface FileSnapshot {
 
 export class FileSnapshots {
   private snapshots: Map<string, FileSnapshot> = new Map();
-  private nvim: Nvim;
 
-  constructor(nvim: Nvim) {
-    this.nvim = nvim;
-  }
+  constructor(
+    private nvim: Nvim,
+    private cwd: NvimCwd,
+  ) {}
 
   /**
    * Creates a key for the snapshots map from a messageId and filePath
@@ -40,8 +40,7 @@ export class FileSnapshots {
     unresolvedPath: UnresolvedFilePath,
     messageId: MessageId,
   ): Promise<boolean> {
-    const cwd = await getcwd(this.nvim);
-    const absFilePath = resolveFilePath(cwd, unresolvedPath);
+    const absFilePath = resolveFilePath(this.cwd, unresolvedPath);
     const key = this.createKey(messageId, absFilePath);
     // If we already have a snapshot for this file and message, don't take another one
     if (this.snapshots.has(key)) {
@@ -79,7 +78,7 @@ export class FileSnapshots {
   private async getFileContent(absFilePath: AbsFilePath): Promise<string> {
     const bufferResult = await getBufferIfOpen({
       unresolvedPath: absFilePath,
-      context: { nvim: this.nvim },
+      context: { nvim: this.nvim, cwd: this.cwd },
     });
 
     if (bufferResult.status === "ok") {

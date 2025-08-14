@@ -16,9 +16,9 @@ import type { Nvim } from "../nvim/nvim-node";
 import { spawn } from "child_process";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { CommandAllowlist, MagentaOptions } from "../options.ts";
-import { getcwd } from "../nvim/nvim.ts";
 import { withTimeout } from "../utils/async.ts";
 import type { StaticTool, ToolName } from "./types.ts";
+import type { NvimCwd } from "../utils/files.ts";
 
 const MAX_OUTPUT_TOKENS_FOR_AGENT = 10000;
 const CHARACTERS_PER_TOKEN = 4;
@@ -144,6 +144,7 @@ export class BashCommandTool implements StaticTool {
     public request: Extract<StaticToolRequest, { toolName: "bash_command" }>,
     public context: {
       nvim: Nvim;
+      cwd: NvimCwd;
       options: MagentaOptions;
       myDispatch: Dispatch<Msg>;
       rememberedCommands: Set<string>;
@@ -335,15 +336,12 @@ export class BashCommandTool implements StaticTool {
 
     let childProcess: ReturnType<typeof spawn> | null = null;
 
-    // Get Neovim's current working directory
-    const cwd = await getcwd(this.context.nvim);
-
     try {
       await withTimeout(
         new Promise<void>((resolve, reject) => {
           childProcess = spawn("bash", ["-c", command], {
             stdio: "pipe",
-            cwd,
+            cwd: this.context.cwd,
           });
 
           if (this.state.state === "processing") {

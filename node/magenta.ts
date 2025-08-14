@@ -237,12 +237,11 @@ export class Magenta {
           .map((str) => str.trim());
 
         for (const filePath of paths) {
-          const cwd = await getcwd(this.nvim);
           const absFilePath = resolveFilePath(
-            cwd,
+            this.cwd,
             filePath as UnresolvedFilePath,
           );
-          const relFilePath = relativePath(cwd, absFilePath);
+          const relFilePath = relativePath(this.cwd, absFilePath);
           const fileTypeInfo = await detectFileType(absFilePath);
           if (!fileTypeInfo) {
             this.nvim.logger.error(`File ${filePath} does not exist.`);
@@ -386,10 +385,9 @@ export class Magenta {
       }
 
       case "paste-selection": {
-        const [startPos, endPos, cwd, currentBuffer] = await Promise.all([
+        const [startPos, endPos, currentBuffer] = await Promise.all([
           getpos(this.nvim, "'<"),
           getpos(this.nvim, "'>"),
-          getcwd(this.nvim),
           getCurrentBuffer(this.nvim),
         ]);
 
@@ -398,7 +396,10 @@ export class Magenta {
           endPos: pos1col1to0(endPos),
         });
 
-        const relFileName = relativePath(cwd, await currentBuffer.getName());
+        const relFileName = relativePath(
+          this.cwd,
+          await currentBuffer.getName(),
+        );
         const content = `
 Here is a snippet from the file \`${relFileName}\`
 \`\`\`${getMarkdownExt(relFileName)}

@@ -4,7 +4,6 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, withInlineCode } from "../tea/view.ts";
 import type { Result } from "../utils/result.ts";
 
-import { getcwd } from "../nvim/nvim.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { readGitignore } from "./util.ts";
 import type { StaticToolRequest } from "./toolManager.ts";
@@ -89,7 +88,11 @@ export class ListDirectoryTool implements StaticTool {
 
   constructor(
     public request: Extract<StaticToolRequest, { toolName: "list_directory" }>,
-    public context: { nvim: Nvim; myDispatch: (msg: Msg) => void },
+    public context: {
+      nvim: Nvim;
+      cwd: NvimCwd;
+      myDispatch: (msg: Msg) => void;
+    },
   ) {
     this.state = {
       state: "processing",
@@ -140,22 +143,21 @@ export class ListDirectoryTool implements StaticTool {
 
   async listDirectory() {
     try {
-      const cwd = await getcwd(this.context.nvim);
       const dirPath = (this.request.input.dirPath || ".") as UnresolvedFilePath;
-      const absolutePath = resolveFilePath(cwd, dirPath);
+      const absolutePath = resolveFilePath(this.context.cwd, dirPath);
 
-      if (!absolutePath.startsWith(cwd)) {
+      if (!absolutePath.startsWith(this.context.cwd)) {
         this.context.myDispatch({
           type: "finish",
           result: {
             status: "error",
-            error: `The path \`${absolutePath}\` must be inside of neovim cwd \`${cwd}\``,
+            error: `The path \`${absolutePath}\` must be inside of neovim cwd \`${this.context.cwd}\``,
           },
         });
         return;
       }
 
-      const files = await listDirectoryBFS(absolutePath, cwd);
+      const files = await listDirectoryBFS(absolutePath, this.context.cwd);
       this.context.nvim.logger.debug(`files: ${files.join("\n")}`);
       this.context.myDispatch({
         type: "finish",

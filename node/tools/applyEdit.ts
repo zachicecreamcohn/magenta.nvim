@@ -16,7 +16,6 @@ import {
   type NvimCwd,
   FileCategory,
 } from "../utils/files.ts";
-import { getcwd } from "../nvim/nvim.ts";
 import { applyInsert, applyReplace } from "../utils/contentEdits.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import type { ProviderToolResultContent } from "../providers/provider-types.ts";
@@ -321,7 +320,7 @@ export async function applyEdit(
   context: EditContext,
 ): Promise<void> {
   const { filePath } = request.input;
-  const { nvim, myDispatch, dispatch } = context;
+  const { nvim, cwd, myDispatch, dispatch } = context;
 
   dispatch({
     type: "thread-msg",
@@ -335,7 +334,7 @@ export async function applyEdit(
 
   const bufferOpenResult = await getBufferIfOpen({
     unresolvedPath: filePath,
-    context: { nvim },
+    context: { nvim, cwd },
   });
 
   if (bufferOpenResult.status === "error") {
@@ -349,7 +348,6 @@ export async function applyEdit(
     return;
   }
 
-  const cwd = await getcwd(context.nvim);
   const absFilePath = resolveFilePath(cwd, filePath);
 
   const notifyApplied = () =>

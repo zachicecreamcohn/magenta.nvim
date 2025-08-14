@@ -191,7 +191,7 @@ export class Thread {
       },
     );
 
-    this.fileSnapshots = new FileSnapshots(this.context.nvim);
+    this.fileSnapshots = new FileSnapshots(this.context.nvim, this.context.cwd);
     this.contextManager = this.context.contextManager;
 
     this.state = {

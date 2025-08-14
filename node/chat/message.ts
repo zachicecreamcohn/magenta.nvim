@@ -242,6 +242,7 @@ export class Message {
           unresolvedFilePath: msg.filePath as UnresolvedFilePath,
           messageId: this.state.id,
           nvim: this.context.nvim,
+          cwd: this.context.cwd,
           fileSnapshots: this.context.fileSnapshots,
           getDisplayWidth: this.context.getDisplayWidth,
         }).catch((e: Error) => this.context.nvim.logger.error(e.message));

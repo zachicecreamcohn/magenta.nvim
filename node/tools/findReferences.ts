@@ -5,7 +5,6 @@ import { getOrOpenBuffer } from "../utils/buffers.ts";
 import type { NvimBuffer } from "../nvim/buffer.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp } from "../lsp.ts";
-import { getcwd } from "../nvim/nvim.ts";
 import { calculateStringPosition } from "../tea/util.ts";
 import type { PositionString, Row0Indexed, StringIdx } from "../nvim/window.ts";
 import type { StaticToolRequest } from "./toolManager.ts";
@@ -14,7 +13,11 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import { relativePath, type UnresolvedFilePath } from "../utils/files.ts";
+import {
+  relativePath,
+  type NvimCwd,
+  type UnresolvedFilePath,
+} from "../utils/files.ts";
 import type { StaticTool, ToolName } from "./types.ts";
 
 export type State =
@@ -37,7 +40,12 @@ export class FindReferencesTool implements StaticTool {
 
   constructor(
     public request: Extract<StaticToolRequest, { toolName: "find_references" }>,
-    public context: { nvim: Nvim; lsp: Lsp; myDispatch: (msg: Msg) => void },
+    public context: {
+      nvim: Nvim;
+      cwd: NvimCwd;
+      lsp: Lsp;
+      myDispatch: (msg: Msg) => void;
+    },
   ) {
     this.state = {
       state: "processing",
@@ -89,11 +97,11 @@ export class FindReferencesTool implements StaticTool {
   }
 
   async findReferences() {
-    const { lsp, nvim } = this.context;
+    const { lsp, nvim, cwd } = this.context;
     const filePath = this.request.input.filePath;
     const bufferResult = await getOrOpenBuffer({
       unresolvedPath: filePath,
-      context: { nvim },
+      context: { nvim, cwd },
     });
 
     let buffer: NvimBuffer;
@@ -138,7 +146,6 @@ export class FindReferencesTool implements StaticTool {
     );
 
     try {
-      const cwd = await getcwd(nvim);
       const result = await lsp.requestReferences(buffer, symbolPos);
       let content = "";
       for (const lspResult of result) {
@@ -147,7 +154,10 @@ export class FindReferencesTool implements StaticTool {
             const uri = ref.uri.startsWith("file://")
               ? ref.uri.slice(7)
               : ref.uri;
-            const relFilePath = relativePath(cwd, uri as UnresolvedFilePath);
+            const relFilePath = relativePath(
+              this.context.cwd,
+              uri as UnresolvedFilePath,
+            );
             content += `${relFilePath}:${ref.range.start.line + 1}:${ref.range.start.character}\n`;
           }
         }

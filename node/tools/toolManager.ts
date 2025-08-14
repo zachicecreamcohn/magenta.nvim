@@ -390,6 +390,7 @@ export class ToolManager {
               staticRequest,
               {
                 nvim: this.context.nvim,
+                cwd: this.context.cwd,
                 myDispatch: (msg) =>
                   this.myDispatch({
                     type: "tool-msg",
@@ -431,6 +432,7 @@ export class ToolManager {
               staticRequest,
               {
                 nvim: this.context.nvim,
+                cwd: this.context.cwd,
                 lsp: this.context.lsp,
                 myDispatch: (msg) =>
                   this.myDispatch({
@@ -474,6 +476,7 @@ export class ToolManager {
               staticRequest,
               {
                 nvim: this.context.nvim,
+                cwd: this.context.cwd,
                 myDispatch: (msg) =>
                   this.myDispatch({
                     type: "tool-msg",
