@@ -106,6 +106,8 @@ export type Patch = string & { __patch: true };
 export type WholeFileUpdate = {
   type: "whole-file";
   content: ProviderMessageContent[];
+  pdfPage?: number; // If this update contains a specific PDF page
+  pdfSummary?: boolean; // If this update contains PDF summary
 };
 
 export type DiffUpdate = {
@@ -583,6 +585,7 @@ export class ContextManager {
                       value: {
                         type: "whole-file",
                         content: summaryResult.value,
+                        pdfSummary: true,
                       },
                     },
                   };
@@ -634,6 +637,7 @@ export class ContextManager {
                   value: {
                     type: "whole-file",
                     content: summaryResult.value,
+                    pdfSummary: true,
                   },
                 },
               };
@@ -871,19 +875,32 @@ export class ContextManager {
 
     for (const absFilePath in this.files) {
       const fileInfo = this.files[absFilePath as AbsFilePath];
+
+      // Add PDF information if available
+      const pdfInfo =
+        fileInfo.agentView?.type === "pdf"
+          ? this.formatPdfInfo({
+              summary: fileInfo.agentView.summary,
+              pages: fileInfo.agentView.pages,
+            })
+          : "";
+
       fileContext.push(
-        withBindings(d`- ${withInlineCode(d`\`${fileInfo.relFilePath}\``)}\n`, {
-          dd: () =>
-            this.myDispatch({
-              type: "remove-file-context",
-              absFilePath: absFilePath as AbsFilePath,
-            }),
-          "<CR>": () =>
-            this.myDispatch({
-              type: "open-file",
-              absFilePath: absFilePath as AbsFilePath,
-            }),
-        }),
+        withBindings(
+          d`- ${withInlineCode(d`\`${fileInfo.relFilePath}\`${pdfInfo}`)}\n`,
+          {
+            dd: () =>
+              this.myDispatch({
+                type: "remove-file-context",
+                absFilePath: absFilePath as AbsFilePath,
+              }),
+            "<CR>": () =>
+              this.myDispatch({
+                type: "open-file",
+                absFilePath: absFilePath as AbsFilePath,
+              }),
+          },
+        ),
       );
     }
 
@@ -921,6 +938,30 @@ ${fileContext}`;
     }
 
     return ranges.join(", ");
+  }
+
+  private formatPdfInfo(options: {
+    summary?: boolean | undefined;
+    pages?: number[] | undefined;
+  }): string {
+    const parts: string[] = [];
+
+    if (options.summary) {
+      parts.push("summary");
+    }
+
+    if (options.pages && options.pages.length == 1) {
+      parts.push(`page ${options.pages[0]}`);
+    } else if (options.pages && options.pages.length > 1) {
+      const pageRanges = this.formatPageRanges(options.pages);
+      parts.push(`pages ${pageRanges}`);
+    }
+
+    if (parts.length > 0) {
+      return ` (${parts.join(", ")})`;
+    }
+
+    return "";
   }
 
   renderContextUpdate(contextUpdates: FileUpdates | undefined) {
@@ -964,22 +1005,16 @@ ${fileContext}`;
             assertUnreachable(update.update.value);
         }
 
-        // Add PDF page information if available
-        const fileInfo = this.files[absFilePath];
-        let pdfInfo = "";
-        if (fileInfo?.agentView?.type === "pdf") {
-          const parts: string[] = [];
-          if (fileInfo.agentView.summary) {
-            parts.push("summary");
-          }
-          if (fileInfo.agentView.pages.length > 0) {
-            const pageRanges = this.formatPageRanges(fileInfo.agentView.pages);
-            parts.push(`pages ${pageRanges}`);
-          }
-          if (parts.length > 0) {
-            pdfInfo = ` (${parts.join(", ")})`;
-          }
-        }
+        // Add PDF page information if available from the update
+        const pdfInfo =
+          update.update.value.type === "whole-file"
+            ? this.formatPdfInfo({
+                summary: update.update.value.pdfSummary,
+                pages: update.update.value.pdfPage
+                  ? [update.update.value.pdfPage]
+                  : undefined,
+              })
+            : "";
 
         const filePathLink = withBindings(
           d`- \`${update.relFilePath}\`${pdfInfo}`,

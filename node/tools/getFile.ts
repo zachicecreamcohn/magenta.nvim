@@ -211,7 +211,8 @@ export class GetFileTool implements StaticTool {
 
     if (
       this.context.contextManager.files[absFilePath] &&
-      !this.request.input.force
+      !this.request.input.force &&
+      this.request.input.pdfPage === undefined
     ) {
       this.context.myDispatch({
         type: "finish",
@@ -604,7 +605,7 @@ You already have the most up-to-date information about the contents of this file
       this.request.input.pdfPage !== undefined
         ? ` (page ${this.request.input.pdfPage})`
         : "";
-    return withInlineCode(d`\`${filePath}${pageInfo}\``);
+    return withInlineCode(d`\`${filePath}\`${pageInfo}`);
   }
 
   renderSummary() {

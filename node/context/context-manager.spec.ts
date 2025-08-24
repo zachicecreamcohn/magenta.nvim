@@ -839,3 +839,103 @@ it("autoContext loads on startup and after clear", async () => {
     );
   });
 });
+
+it("includes PDF file in context and sends summary in context updates", async () => {
+  await withDriver(
+    {
+      setupFiles: async (tmpDir) => {
+        // Create a multi-page PDF for testing
+        const { PDFDocument } = await import("pdf-lib");
+        const pdfDoc = await PDFDocument.create();
+
+        pdfDoc.addPage([600, 400]);
+        pdfDoc.addPage([600, 400]);
+        pdfDoc.addPage([600, 400]);
+        const pdfBytes = await pdfDoc.save();
+        const fs = await import("fs/promises");
+        const path = await import("path");
+        const testPdfPath = path.join(tmpDir, "context-test.pdf");
+        await fs.writeFile(testPdfPath, pdfBytes);
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // Add PDF file to context using the helper method
+      await driver.addContextFiles("context-test.pdf");
+
+      await driver.inputMagentaText("read the first page of this file");
+      await driver.send();
+
+      {
+        const request = await driver.mockAnthropic.awaitPendingRequest();
+
+        await driver.assertDisplayBufferContains(
+          "- `context-test.pdf` (summary)",
+        );
+        // assert context updates
+        expect(request.messages).toMatchSnapshot();
+        request.respond({
+          text: "let me read that file",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "tool_request_id" as ToolRequestId,
+                toolName: "get_file" as ToolName,
+                input: {
+                  filePath: "context-test.pdf",
+                  pdfPage: 1,
+                },
+              },
+            },
+          ],
+          stopReason: "tool_use",
+        });
+      }
+
+      // wait for autorespond after get_file finishes
+      {
+        await driver.assertDisplayBufferContains("`context-test.pdf` (page 1)");
+        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const lastMessage = request.messages[request.messages.length - 1];
+
+        // Validate structure while ignoring the changing PDF data
+        expect(lastMessage).toEqual({
+          role: "user",
+          content: [
+            {
+              id: "tool_request_id",
+              type: "tool_result",
+              result: {
+                status: "ok",
+                value: [
+                  {
+                    type: "document",
+                    title: "context-test.pdf - Page 1",
+                    source: {
+                      type: "base64",
+                      media_type: "application/pdf",
+                      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+                      data: expect.any(String), // Ignore the actual PDF data
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        });
+
+        request.respond({
+          text: "ok, done",
+          toolRequests: [],
+          stopReason: "end_turn",
+        });
+      }
+
+      await driver.assertDisplayBufferContains(
+        "`context-test.pdf` (summary, page 1)",
+      );
+    },
+  );
+});

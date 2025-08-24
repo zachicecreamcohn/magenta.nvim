@@ -62,7 +62,7 @@ it("should extract PDF page as binary document when pdfPage parameter is provide
       await driver.showSidebar();
 
       // Request to extract a specific page from PDF
-      await driver.inputMagentaText(`Please read page 1 of multipage.pdf`);
+      await driver.inputMagentaText(`Please read page 2 of multipage.pdf`);
       await driver.send();
 
       const request = await driver.mockAnthropic.awaitPendingRequest();
@@ -116,6 +116,261 @@ it("should extract PDF page as binary document when pdfPage parameter is provide
       expect(documentContent.source.media_type).toBe("application/pdf");
       expect(documentContent.source.data).toBeTruthy();
       expect(documentContent.title).toContain("multipage.pdf - Page 2");
+
+      // Complete the conversation to ensure context is updated
+      toolResultRequest.respond({
+        stopReason: "end_turn",
+        toolRequests: [],
+        text: "I've extracted the PDF page successfully.",
+      });
+
+      // Verify the PDF appears in context with page information
+      await driver.assertDisplayBufferContains("# context:");
+      await driver.assertDisplayBufferContains(
+        "- `multipage.pdf` (summary, page 2)",
+      );
+
+      // Verify the context manager has the correct PDF page information
+      const contextManager =
+        driver.magenta.chat.getActiveThread().context.contextManager;
+      const contextFiles = contextManager.files;
+      expect(Object.keys(contextFiles)).toHaveLength(1);
+
+      const fileEntry = Object.values(contextFiles)[0];
+      expect(fileEntry.relFilePath).toBe("multipage.pdf");
+      expect(fileEntry.fileTypeInfo.category).toBe("pdf");
+      expect(fileEntry.agentView?.type).toBe("pdf");
+      if (fileEntry.agentView?.type === "pdf") {
+        expect(fileEntry.agentView.pages).toEqual([2]);
+        expect(fileEntry.agentView.summary).toBe(true);
+      }
+    },
+  );
+});
+
+it("should handle multiple PDF pages and show correct context summary", async () => {
+  await withDriver(
+    {
+      setupFiles: async (tmpDir) => {
+        // Create a multi-page PDF for testing
+        const { PDFDocument } = await import("pdf-lib");
+        const pdfDoc = await PDFDocument.create();
+
+        // Add 5 pages to test page ranges
+        for (let i = 1; i <= 5; i++) {
+          const page = pdfDoc.addPage([600, 400]);
+          page.drawText(`Page ${i} Content`, { x: 50, y: 350 });
+        }
+
+        const pdfBytes = await pdfDoc.save();
+        const fs = await import("fs/promises");
+        const path = await import("path");
+        const testPdfPath = path.join(tmpDir, "multipage-test.pdf");
+        await fs.writeFile(testPdfPath, pdfBytes);
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // First, get the summary
+      await driver.inputMagentaText(`Please read multipage-test.pdf`);
+      await driver.send();
+
+      const summaryRequest = await driver.mockAnthropic.awaitPendingRequest();
+      summaryRequest.respond({
+        stopReason: "tool_use",
+        text: "I'll read the PDF summary",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "pdf_summary_request" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath: "multipage-test.pdf" as UnresolvedFilePath,
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains(`👀✅ \`multipage-test.pdf\``);
+
+      const summaryToolResult =
+        await driver.mockAnthropic.awaitPendingRequest();
+      summaryToolResult.respond({
+        stopReason: "end_turn",
+        toolRequests: [],
+        text: "I've read the PDF summary. Now let me get specific pages.",
+      });
+
+      // Verify context shows summary
+      await driver.assertDisplayBufferContains(
+        "- `multipage-test.pdf` (summary)",
+      );
+
+      // Now request page 1
+      await driver.inputMagentaText(`Please read page 1 of multipage-test.pdf`);
+      await driver.send();
+
+      const page1Request = await driver.mockAnthropic.awaitPendingRequest();
+      page1Request.respond({
+        stopReason: "tool_use",
+        text: "I'll extract page 1",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "pdf_page1_request" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath: "multipage-test.pdf" as UnresolvedFilePath,
+                pdfPage: 1,
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains(`👀✅ \`multipage-test.pdf`);
+
+      const page1ToolResult = await driver.mockAnthropic.awaitPendingRequest();
+      page1ToolResult.respond({
+        stopReason: "end_turn",
+        toolRequests: [],
+        text: "Got page 1. Now getting page 3.",
+      });
+
+      // Verify context shows summary + page 1
+      await driver.assertDisplayBufferContains(
+        "- `multipage-test.pdf` (summary, page 1)",
+      );
+
+      // Now request page 3 (non-contiguous)
+      await driver.inputMagentaText(`Please read page 3 of multipage-test.pdf`);
+      await driver.send();
+
+      const page3Request = await driver.mockAnthropic.awaitPendingRequest();
+      page3Request.respond({
+        stopReason: "tool_use",
+        text: "I'll extract page 3",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "pdf_page3_request" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath: "multipage-test.pdf" as UnresolvedFilePath,
+                pdfPage: 3,
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains(`👀✅ \`multipage-test.pdf`);
+
+      const page3ToolResult = await driver.mockAnthropic.awaitPendingRequest();
+      page3ToolResult.respond({
+        stopReason: "end_turn",
+        toolRequests: [],
+        text: "Got page 3. Now getting page 2.",
+      });
+
+      // Verify context shows summary + pages 1, 3
+      await driver.assertDisplayBufferContains(
+        "- `multipage-test.pdf` (summary, pages 1, 3)",
+      );
+
+      // Now request page 2 (to create a contiguous range 1-3)
+      await driver.inputMagentaText(`Please read page 2 of multipage-test.pdf`);
+      await driver.send();
+
+      const page2Request = await driver.mockAnthropic.awaitPendingRequest();
+      page2Request.respond({
+        stopReason: "tool_use",
+        text: "I'll extract page 2",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "pdf_page2_request" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath: "multipage-test.pdf" as UnresolvedFilePath,
+                pdfPage: 2,
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains(`👀✅ \`multipage-test.pdf`);
+
+      const page2ToolResult = await driver.mockAnthropic.awaitPendingRequest();
+      page2ToolResult.respond({
+        stopReason: "end_turn",
+        toolRequests: [],
+        text: "Got page 2. Now getting page 5.",
+      });
+
+      // Verify context shows summary + pages 1-3 (as a range)
+      await driver.assertDisplayBufferContains(
+        "- `multipage-test.pdf` (summary, pages 1-3)",
+      );
+
+      // Finally request page 5 (non-contiguous again)
+      await driver.inputMagentaText(`Please read page 5 of multipage-test.pdf`);
+      await driver.send();
+
+      const page5Request = await driver.mockAnthropic.awaitPendingRequest();
+      page5Request.respond({
+        stopReason: "tool_use",
+        text: "I'll extract page 5",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "pdf_page5_request" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath: "multipage-test.pdf" as UnresolvedFilePath,
+                pdfPage: 5,
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains(`👀✅ \`multipage-test.pdf`);
+
+      const page5ToolResult = await driver.mockAnthropic.awaitPendingRequest();
+      page5ToolResult.respond({
+        stopReason: "end_turn",
+        toolRequests: [],
+        text: "Got all the pages I need.",
+      });
+
+      // Verify final context shows summary + pages 1-3, 5
+      await driver.assertDisplayBufferContains(
+        "- `multipage-test.pdf` (summary, pages 1-3, 5)",
+      );
+
+      // Verify the context manager internal state
+      const contextManager =
+        driver.magenta.chat.getActiveThread().context.contextManager;
+      const contextFiles = contextManager.files;
+      expect(Object.keys(contextFiles)).toHaveLength(1);
+
+      const fileEntry = Object.values(contextFiles)[0];
+      expect(fileEntry.relFilePath).toBe("multipage-test.pdf");
+      expect(fileEntry.fileTypeInfo.category).toBe("pdf");
+      expect(fileEntry.agentView?.type).toBe("pdf");
+      if (fileEntry.agentView?.type === "pdf") {
+        expect(fileEntry.agentView.pages).toEqual([1, 2, 3, 5]); // Should be sorted
+        expect(fileEntry.agentView.summary).toBe(true);
+      }
     },
   );
 });
