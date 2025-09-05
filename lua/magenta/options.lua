@@ -85,6 +85,7 @@ local defaults = {
   },
   -- editPredictionSystemPrompt = "Your custom edit prediction system prompt here...",
   -- systemPrompt = "Your custom main chat system prompt here...",
+  -- systemPromptAppend = "Additional instructions to append to the default system prompt...",
   inlineKeymaps = {
     normal = {
       ["<CR>"] = function(target_bufnr)

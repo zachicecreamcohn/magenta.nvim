@@ -153,6 +153,7 @@ export type MagentaOptions = {
   editPrediction?: EditPredictionOptions;
   editPredictionSystemPrompt?: string;
   systemPrompt?: string;
+  systemPromptAppend?: string;
 };
 
 // Reusable parsing helpers
@@ -884,6 +885,15 @@ export function parseOptions(
     ) {
       options.systemPrompt = inputOptionsObj["systemPrompt"];
     }
+
+    // Parse top-level systemPromptAppend
+    if (
+      "systemPromptAppend" in inputOptionsObj &&
+      typeof inputOptionsObj["systemPromptAppend"] === "string" &&
+      inputOptionsObj["systemPromptAppend"].trim() !== ""
+    ) {
+      options.systemPromptAppend = inputOptionsObj["systemPromptAppend"];
+    }
   }
 
   return options;
@@ -1082,6 +1092,15 @@ export function parseProjectOptions(
     options.systemPrompt = inputOptionsObj["systemPrompt"];
   }
 
+  // Parse top-level systemPromptAppend
+  if (
+    "systemPromptAppend" in inputOptionsObj &&
+    typeof inputOptionsObj["systemPromptAppend"] === "string" &&
+    inputOptionsObj["systemPromptAppend"].trim() !== ""
+  ) {
+    options.systemPromptAppend = inputOptionsObj["systemPromptAppend"];
+  }
+
   return options;
 }
 
@@ -1181,6 +1200,10 @@ export function mergeOptions(
 
   if (projectSettings.systemPrompt !== undefined) {
     merged.systemPrompt = projectSettings.systemPrompt;
+  }
+
+  if (projectSettings.systemPromptAppend !== undefined) {
+    merged.systemPromptAppend = projectSettings.systemPromptAppend;
   }
 
   return merged;

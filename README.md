@@ -594,6 +594,9 @@ require('magenta').setup({
   -- Custom system prompt specifically for edit predictions
   editPredictionSystemPrompt = "You are a specialized code completion AI that predicts the next edit based on context.",
 
+  -- Or append to the default system prompt instead of replacing it
+  systemPromptAppend = "Focus on security and performance best practices.",
+
   -- You can also customize edit prediction prompts in the nested configuration
   editPrediction = {
     -- This takes precedence over the top-level editPredictionSystemPrompt

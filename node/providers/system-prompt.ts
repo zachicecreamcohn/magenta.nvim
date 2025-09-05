@@ -399,7 +399,19 @@ export async function createSystemPrompt(
   cwd: NvimCwd,
   options: MagentaOptions,
 ): Promise<SystemPrompt> {
-  const basePrompt = options.systemPrompt || getBaseSystemPrompt(type);
+  let basePrompt: string;
+
+  if (options.systemPrompt) {
+    // Use custom system prompt if provided
+    basePrompt = options.systemPrompt;
+  } else {
+    // Use default system prompt, potentially with append
+    basePrompt = getBaseSystemPrompt(type);
+    if (options.systemPromptAppend) {
+      basePrompt = basePrompt + "\n\n" + options.systemPromptAppend;
+    }
+  }
+
   const systemInfo = await getSystemInfo(nvim, cwd);
 
   const systemInfoText = `
