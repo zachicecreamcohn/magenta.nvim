@@ -151,6 +151,8 @@ export type MagentaOptions = {
   chimeVolume?: number; // Volume from 0.0 (silent) to 1.0 (full), defaults to 0.3
   // New structured options
   editPrediction?: EditPredictionOptions;
+  editPredictionSystemPrompt?: string;
+  systemPrompt?: string;
 };
 
 // Reusable parsing helpers
@@ -863,6 +865,25 @@ export function parseOptions(
         }
       }
     }
+
+    // Parse top-level editPredictionSystemPrompt
+    if (
+      "editPredictionSystemPrompt" in inputOptionsObj &&
+      typeof inputOptionsObj["editPredictionSystemPrompt"] === "string" &&
+      inputOptionsObj["editPredictionSystemPrompt"].trim() !== ""
+    ) {
+      options.editPredictionSystemPrompt =
+        inputOptionsObj["editPredictionSystemPrompt"];
+    }
+
+    // Parse top-level systemPrompt
+    if (
+      "systemPrompt" in inputOptionsObj &&
+      typeof inputOptionsObj["systemPrompt"] === "string" &&
+      inputOptionsObj["systemPrompt"].trim() !== ""
+    ) {
+      options.systemPrompt = inputOptionsObj["systemPrompt"];
+    }
   }
 
   return options;
@@ -1042,6 +1063,25 @@ export function parseProjectOptions(
     }
   }
 
+  // Parse top-level editPredictionSystemPrompt
+  if (
+    "editPredictionSystemPrompt" in inputOptionsObj &&
+    typeof inputOptionsObj["editPredictionSystemPrompt"] === "string" &&
+    inputOptionsObj["editPredictionSystemPrompt"].trim() !== ""
+  ) {
+    options.editPredictionSystemPrompt =
+      inputOptionsObj["editPredictionSystemPrompt"];
+  }
+
+  // Parse top-level systemPrompt
+  if (
+    "systemPrompt" in inputOptionsObj &&
+    typeof inputOptionsObj["systemPrompt"] === "string" &&
+    inputOptionsObj["systemPrompt"].trim() !== ""
+  ) {
+    options.systemPrompt = inputOptionsObj["systemPrompt"];
+  }
+
   return options;
 }
 
@@ -1132,6 +1172,15 @@ export function mergeOptions(
       ...merged.editPrediction,
       ...projectSettings.editPrediction,
     };
+  }
+
+  if (projectSettings.editPredictionSystemPrompt !== undefined) {
+    merged.editPredictionSystemPrompt =
+      projectSettings.editPredictionSystemPrompt;
+  }
+
+  if (projectSettings.systemPrompt !== undefined) {
+    merged.systemPrompt = projectSettings.systemPrompt;
   }
 
   return merged;

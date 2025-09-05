@@ -394,7 +394,12 @@ export class Chat {
           options: this.context.options,
         },
       ),
-      createSystemPrompt(threadType, this.context.nvim, this.context.cwd),
+      createSystemPrompt(
+        threadType,
+        this.context.nvim,
+        this.context.cwd,
+        this.context.options,
+      ),
     ]);
 
     if (contextFiles.length > 0) {

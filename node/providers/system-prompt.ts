@@ -2,6 +2,7 @@ import type { ThreadType } from "../chat/types";
 import { assertUnreachable } from "../utils/assertUnreachable";
 import type { Nvim } from "../nvim/nvim-node";
 import type { NvimCwd } from "../utils/files";
+import type { MagentaOptions } from "../options";
 import { platform } from "os";
 
 export const AGENT_TYPES = ["learn", "plan", "default", "fast"] as const;
@@ -396,8 +397,9 @@ export async function createSystemPrompt(
   type: ThreadType,
   nvim: Nvim,
   cwd: NvimCwd,
+  options: MagentaOptions,
 ): Promise<SystemPrompt> {
-  const basePrompt = getBaseSystemPrompt(type);
+  const basePrompt = options.systemPrompt || getBaseSystemPrompt(type);
   const systemInfo = await getSystemInfo(nvim, cwd);
 
   const systemInfoText = `

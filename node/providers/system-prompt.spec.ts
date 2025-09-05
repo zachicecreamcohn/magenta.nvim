@@ -8,6 +8,7 @@ it("includes system information in the prompt", async () => {
       "root",
       driver.magenta.nvim,
       driver.magenta.cwd,
+      driver.magenta.options,
     );
 
     // Check that system information is included

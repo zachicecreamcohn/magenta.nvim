@@ -115,8 +115,10 @@ export class EditPredictionController {
       DEFAULT_RECENT_CHANGE_TOKEN_BUDGET;
 
     // Get system prompt with priority:
-    // 1. structured replacement, 2. legacy option, 3. default with optional append
-    if (context.options.editPrediction?.systemPrompt) {
+    // 1. top-level editPredictionSystemPrompt, 2. structured editPrediction.systemPrompt, 3. default with optional append
+    if (context.options.editPredictionSystemPrompt) {
+      this.predictionSystemPrompt = context.options.editPredictionSystemPrompt;
+    } else if (context.options.editPrediction?.systemPrompt) {
       this.predictionSystemPrompt = context.options.editPrediction.systemPrompt;
     } else {
       this.predictionSystemPrompt = PREDICTION_SYSTEM_PROMPT;
