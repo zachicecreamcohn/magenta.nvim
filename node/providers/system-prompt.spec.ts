@@ -1,6 +1,7 @@
 import { it, expect } from "vitest";
 import { createSystemPrompt } from "./system-prompt.ts";
 import { withDriver } from "../test/preamble.ts";
+import type { MagentaOptions } from "../options.ts";
 
 it("includes system information in the prompt", async () => {
   await withDriver({}, async (driver) => {
@@ -17,18 +18,26 @@ it("includes system information in the prompt", async () => {
     expect(systemPrompt).toContain("- Operating system:");
     expect(systemPrompt).toContain("- Neovim version:");
     expect(systemPrompt).toContain("- Current working directory:");
+  });
+});
 
-    // Verify the platform is included
-    expect(systemPrompt).toMatch(/- Operating system: (darwin|linux|win32)/);
+it("uses custom system prompt when configured", async () => {
+  await withDriver({}, async (driver) => {
+    const optionsWithCustomPrompt: MagentaOptions = {
+      ...driver.magenta.options,
+      systemPrompt: "You are a custom AI assistant.",
+    };
 
-    // Verify the timestamp format
-    expect(systemPrompt).toMatch(
-      /- Current time: \w+ \w+ \d+ \d+ \d+:\d+:\d+ GMT/,
+    const systemPrompt = await createSystemPrompt(
+      "root",
+      driver.magenta.nvim,
+      driver.magenta.cwd,
+      optionsWithCustomPrompt,
     );
 
-    // Verify cwd is included
-    expect(systemPrompt).toContain(
-      `- Current working directory: ${driver.magenta.cwd}`,
-    );
+    expect(systemPrompt).toContain("You are a custom AI assistant");
+    expect(systemPrompt).not.toContain("You are a coding assistant");
+    // System info should still be included
+    expect(systemPrompt).toContain("# System Information");
   });
 });

@@ -1070,3 +1070,70 @@ database: {
     expect(finalContent).not.toContain("cache: { enabled: true, ttl: 300 }");
   });
 });
+
+test("uses custom editPredictionSystemPrompt when configured", async () => {
+  await withDriver(
+    {
+      options: {
+        profiles: [
+          {
+            name: "main-claude",
+            provider: "mock",
+            model: "claude-4-sonnet-latest",
+            fastModel: "claude-3-5-haiku-latest",
+            apiKeyEnvVar: "ANTHROPIC_API_KEY",
+          },
+        ],
+        editPredictionSystemPrompt: "You are a specialized code completion AI.",
+      },
+    },
+    async (driver) => {
+      await driver.editFile("poem.txt");
+      await driver.command("normal! gg");
+      await driver.magenta.command("predict-edit");
+
+      const request =
+        await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+
+      expect(request.systemPrompt).toContain(
+        "You are a specialized code completion AI",
+      );
+      expect(request.systemPrompt).not.toContain(
+        "Predict the user's next edit based on their recent changes",
+      );
+    },
+  );
+});
+
+test("editPredictionSystemPrompt takes priority over default systemPrompt", async () => {
+  await withDriver(
+    {
+      options: {
+        profiles: [
+          {
+            name: "main-claude",
+            provider: "mock",
+            model: "claude-4-sonnet-latest",
+            fastModel: "claude-3-5-haiku-latest",
+            apiKeyEnvVar: "ANTHROPIC_API_KEY",
+          },
+        ],
+        editPredictionSystemPrompt: "Top-level prompt",
+        editPrediction: {
+          systemPrompt: "Nested prompt",
+        },
+      },
+    },
+    async (driver) => {
+      await driver.editFile("poem.txt");
+      await driver.command("normal! gg");
+      await driver.magenta.command("predict-edit");
+
+      const request =
+        await driver.mockAnthropic.awaitPendingForceToolUseRequest();
+
+      expect(request.systemPrompt).toContain("Top-level prompt");
+      expect(request.systemPrompt).not.toContain("Nested prompt");
+    },
+  );
+});
