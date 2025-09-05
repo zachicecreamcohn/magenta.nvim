@@ -281,6 +281,9 @@ require('magenta').setup({
     -- Add instructions to the default system prompt (optional)
     systemPromptAppend = "Focus on completing function calls and variable declarations."
   },
+  -- Top-level system prompt customization (optional)
+  -- editPredictionSystemPrompt = "Custom system prompt for edit predictions",
+  -- systemPrompt = "Custom system prompt for main chat sessions",
   -- configure MCP servers for external tool integrations
   mcpServers = {
     fetch = {
@@ -578,6 +581,29 @@ require('magenta').setup({
 - Any tool execution that needs user interaction
 
 The chime volume can also be set per-project in `.magenta/options.json` files to customize notifications for different workflows.
+
+## System Prompt Customization
+
+Magenta allows you to customize the system prompts used for different types of interactions. You can override the default prompts at the top level of your configuration:
+
+```lua
+require('magenta').setup({
+  -- Custom system prompt for main chat sessions
+  systemPrompt = "You are an expert software developer focused on clean, maintainable code.",
+
+  -- Custom system prompt specifically for edit predictions
+  editPredictionSystemPrompt = "You are a specialized code completion AI that predicts the next edit based on context.",
+
+  -- You can also customize edit prediction prompts in the nested configuration
+  editPrediction = {
+    -- This takes precedence over the top-level editPredictionSystemPrompt
+    systemPrompt = "Nested prediction prompt",
+
+    -- Or append to the default prompt instead of replacing it
+    systemPromptAppend = "Focus on function completions and imports."
+  }
+})
+```
 
 ## Keymaps
 
