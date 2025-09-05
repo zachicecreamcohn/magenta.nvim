@@ -227,6 +227,7 @@ export class Sidebar {
       await displayBuffer.setOption("bufhidden", "hide");
       await displayBuffer.setOption("buftype", "nofile");
       await displayBuffer.setOption("swapfile", false);
+      await displayBuffer.setOption("filetype", "markdown");
       await displayBuffer.setDisplayKeymaps();
     }
 
