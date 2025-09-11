@@ -118,7 +118,7 @@ local defaults = {
     -- Example custom commands (commented out by default)
     -- {
     --   name = "@nedit",
-    --   text = "DO NOT MAKE ANY EDITS TO CODE. Do not use any tools that allow you to edit code. Do not execute bash commands which edit code. NO EDITING OR ELSE YOU WILL DIE",
+    --   text = "DO NOT MAKE ANY EDITS TO CODE. Do not use any tools that allow you to edit code. Do not execute bash commands which edit code. NO EDITING WHATSOEVER OR ELSE.",
     --   description = "Disable all code editing functionality"
     -- },
     -- {
