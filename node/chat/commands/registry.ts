@@ -84,69 +84,21 @@ export class CommandRegistry {
     additionalContent: ProviderMessageContent[];
   }> {
     const additionalContent: ProviderMessageContent[] = [];
-    let processedText = text;
 
     // Find all command matches in the text
-    const matches: Array<{
-      command: Command;
-      match: RegExpMatchArray;
-      startIndex: number;
-      endIndex: number;
-    }> = [];
-
     for (const command of this.commands.values()) {
       const regex = new RegExp(command.pattern.source, "g");
       let match;
       while ((match = regex.exec(text)) !== null) {
-        matches.push({
-          command,
-          match,
-          startIndex: match.index,
-          endIndex: match.index + match[0].length,
-        });
+        const content = await command.execute(match, context);
+        additionalContent.push(...content);
       }
     }
 
-    // Sort matches by start index in reverse order (process from end to beginning)
-    matches.sort((a, b) => b.startIndex - a.startIndex);
-
-    // Process matches from end to beginning to avoid offset issues
-    const processedRanges: Array<{ start: number; end: number }> = [];
-    for (const { command, match, startIndex, endIndex } of matches) {
-      // Check if this range overlaps with any already processed range
-      const overlaps = processedRanges.some(
-        (range) => !(endIndex <= range.start || startIndex >= range.end),
-      );
-
-      if (!overlaps) {
-        try {
-          const content = await command.execute(match, context);
-          additionalContent.unshift(...content); // Add to beginning to maintain order
-          processedRanges.push({ start: startIndex, end: endIndex });
-
-          // Remove the command from the text (except for @async which needs special handling)
-          if (command.name !== "@async") {
-            processedText =
-              processedText.substring(0, startIndex) +
-              processedText.substring(endIndex);
-          }
-        } catch (error) {
-          additionalContent.unshift({
-            type: "text",
-            text: `Error processing ${command.name}: ${error instanceof Error ? error.message : String(error)}`,
-          });
-          // Still remove the command from text on error
-          processedText =
-            processedText.substring(0, startIndex) +
-            processedText.substring(endIndex);
-        }
-      }
-    }
-
-    // @async requires special handling - strip the prefix after all processing
-    if (processedText.trim().startsWith("@async")) {
-      processedText = processedText.replace(/^\s*@async\s*/, "");
-    }
+    // Special handling for @async - strip it from the beginning
+    const processedText = text.trim().startsWith("@async")
+      ? text.replace(/^\s*@async\s*/, "")
+      : text;
 
     return { processedText, additionalContent };
   }

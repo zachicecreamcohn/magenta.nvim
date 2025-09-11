@@ -22,6 +22,7 @@ export const fileCommand: Command = {
         throw new Error(`File ${filePath} does not exist`);
       }
 
+      // Check for file commands in user messages
       context.contextManager.update({
         type: "add-file-context",
         relFilePath,
@@ -31,9 +32,15 @@ export const fileCommand: Command = {
 
       return []; // File context is handled by contextManager
     } catch (error) {
-      throw new Error(
+      context.nvim.logger.error(
         `Failed to add file to context for ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
       );
+      return [
+        {
+          type: "text",
+          text: `Error adding file to context for ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ];
     }
   },
 };

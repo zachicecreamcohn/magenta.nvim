@@ -7,13 +7,27 @@ export const bufCommand: Command = {
   description: "Add current buffer to context",
   pattern: /@buf\b/,
   async execute(_match, context): Promise<ProviderMessageContent[]> {
-    const buffersList = await getBuffersList(context.nvim);
-    return [
-      {
-        type: "text",
-        text: `Current buffers list:\n${buffersList}`,
-      },
-    ];
+    try {
+      const buffersList = await getBuffersList(context.nvim);
+      // Append buffers list as a separate content block
+      return [
+        {
+          type: "text",
+          text: `Current buffers list:\n${buffersList}`,
+        },
+      ];
+    } catch (error) {
+      context.nvim.logger.error(
+        `Failed to fetch buffers list for message: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      // Append error message as a separate content block
+      return [
+        {
+          type: "text",
+          text: `Error fetching buffers list: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ];
+    }
   },
 };
 
@@ -22,12 +36,26 @@ export const buffersCommand: Command = {
   description: "Add all open buffers to context",
   pattern: /@buffers\b/,
   async execute(_match, context): Promise<ProviderMessageContent[]> {
-    const buffersList = await getBuffersList(context.nvim);
-    return [
-      {
-        type: "text",
-        text: `Current buffers list:\n${buffersList}`,
-      },
-    ];
+    try {
+      const buffersList = await getBuffersList(context.nvim);
+      // Append buffers list as a separate content block
+      return [
+        {
+          type: "text",
+          text: `Current buffers list:\n${buffersList}`,
+        },
+      ];
+    } catch (error) {
+      context.nvim.logger.error(
+        `Failed to fetch buffers list for message: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      // Append error message as a separate content block
+      return [
+        {
+          type: "text",
+          text: `Error fetching buffers list: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ];
+    }
   },
 };

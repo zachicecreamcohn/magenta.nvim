@@ -43,7 +43,11 @@ vi.mock("zx", () => ({
 const createMockContext = (): MessageContext => {
   const updateFn = vi.fn();
   return {
-    nvim: {} as Nvim,
+    nvim: {
+      logger: {
+        error: vi.fn(),
+      },
+    } as unknown as Nvim,
     cwd: "/test" as NvimCwd,
     contextManager: {
       update: updateFn,
@@ -61,8 +65,8 @@ describe("CommandRegistry", () => {
 
     const result = await registry.processMessage("@diag some text", context);
 
-    // @diag should be removed from text
-    expect(result.processedText).toBe(" some text");
+    // Commands should NOT be removed from text (preserves original behavior)
+    expect(result.processedText).toBe("@diag some text");
     // Should have added diagnostic content
     expect(result.additionalContent.length).toBeGreaterThan(0);
   });
@@ -76,8 +80,8 @@ describe("CommandRegistry", () => {
       context,
     );
 
-    // Both commands should be removed
-    expect(result.processedText).toBe("  some text");
+    // Commands should NOT be removed from text
+    expect(result.processedText).toBe("@diag @qf some text");
     // Should have content from both commands
     expect(result.additionalContent.length).toBeGreaterThan(1);
   });
@@ -93,8 +97,8 @@ describe("CommandRegistry", () => {
     const context = createMockContext();
     const result = await registry.processMessage("@custom some text", context);
 
-    // @custom should be removed
-    expect(result.processedText).toBe(" some text");
+    // Commands should NOT be removed from text
+    expect(result.processedText).toBe("@custom some text");
     // Should have custom command content
     expect(result.additionalContent).toEqual([
       {
@@ -113,8 +117,8 @@ describe("CommandRegistry", () => {
       context,
     );
 
-    // @file:test.ts should be removed
-    expect(result.processedText).toBe(" more text");
+    // Commands should NOT be removed from text
+    expect(result.processedText).toBe("@file:test.ts more text");
     // Context manager should have been called
     // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(context.contextManager.update).toHaveBeenCalled();
@@ -146,8 +150,8 @@ describe("CommandRegistry", () => {
 
     const result = await registry.processMessage("@diag test", context);
 
-    // Should match @diag, not @di
-    expect(result.processedText).toBe(" test");
+    // Should match @diag, not @di (commands not removed)
+    expect(result.processedText).toBe("@diag test");
     // Should have diagnostic content, not custom command content
     expect(result.additionalContent.length).toBeGreaterThan(0);
     expect(result.additionalContent[0].type).toBe("text");
@@ -168,7 +172,7 @@ describe("CommandRegistry", () => {
     const context = createMockContext();
     const result = await registry.processMessage("@test[1] text", context);
 
-    expect(result.processedText).toBe(" text");
+    expect(result.processedText).toBe("@test[1] text");
     expect(result.additionalContent).toEqual([
       {
         type: "text",
@@ -192,8 +196,8 @@ describe("CommandRegistry", () => {
       context,
     );
 
-    // Command should be removed even on error
-    expect(result.processedText).toBe(" text");
+    // Commands should NOT be removed from text
+    expect(result.processedText).toBe("@file:nonexistent.ts text");
     // Error should be added as content
     expect(result.additionalContent.length).toBe(1);
     expect(result.additionalContent[0].type).toBe("text");
@@ -201,6 +205,6 @@ describe("CommandRegistry", () => {
       type: string;
       text: string;
     };
-    expect(textContent.text).toContain("Error processing @file:");
+    expect(textContent.text).toContain("Error adding file to context for");
   });
 });

@@ -284,7 +284,7 @@ export class Thread {
 
       case "send-message": {
         // Check if any message starts with @async
-        const _isAsync = msg.messages.some(
+        const isAsync = msg.messages.some(
           (m) => m.type === "user" && m.text.trim().startsWith("@async"),
         );
 
@@ -293,7 +293,7 @@ export class Thread {
           (this.state.conversation.state == "stopped" &&
             this.state.conversation.stopReason == "tool_use")
         ) {
-          if (_isAsync) {
+          if (isAsync) {
             const processedMessages = msg.messages.map((m) => ({
               ...m,
               text:
@@ -674,11 +674,10 @@ export class Thread {
   ): Promise<{ messageId: MessageId; addedMessage: boolean }> {
     const messageId = this.counter.get() as MessageId;
 
+    // Process messages first to handle @file commands
     const messageContent: ProviderMessageContent[] = [];
     for (const m of messages || []) {
       if (m.type === "user") {
-        const _isAsync = m.text.trim().startsWith("@async");
-
         const { processedText, additionalContent } =
           await this.commandRegistry.processMessage(m.text, {
             nvim: this.context.nvim,
@@ -687,12 +686,24 @@ export class Thread {
             options: this.context.options,
           });
 
-        // @fork requires special UI behavior beyond just text replacement
+        // Always add the message text (which may have been processed to remove @async)
+        messageContent.push({
+          type: "text",
+          text: processedText,
+        });
+
+        // Add any additional content from commands
+        messageContent.push(...additionalContent);
+
+        // Check for @fork command in user messages
         if (m.text.includes("@fork")) {
+          // Extract the text after @fork and remove @fork from the original text
           const forkText = m.text.replace(/@fork\s*/g, "").trim();
-          messageContent.push({
-            type: "text",
-            text: `\
+          // Replace the text with the special fork instruction
+          messageContent[messageContent.length - 1 - additionalContent.length] =
+            {
+              type: "text",
+              text: `\
 My next prompt will be:
 ${forkText}
 
@@ -706,16 +717,9 @@ Use the fork_thread tool to start a new thread for this prompt.
 - Prefer including files in contextFiles to copying code from those files into the summary. Do not repeat anything in the summary that can be learned directly from contextFiles.
 
 You must use the fork_thread tool immediately, with only the information you already have. Do not use any other tools.`,
-          });
+            };
           this.forkNextPrompt = forkText;
-        } else if (processedText.trim()) {
-          messageContent.push({
-            type: "text",
-            text: processedText,
-          });
         }
-
-        messageContent.push(...additionalContent);
       } else {
         messageContent.push({
           type: "text",

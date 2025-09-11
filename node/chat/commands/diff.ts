@@ -43,13 +43,25 @@ export const diffCommand: Command = {
   pattern: /@diff:(\S+)/g,
   async execute(match, context): Promise<ProviderMessageContent[]> {
     const filePath = match[1] as UnresolvedFilePath;
-    const diffContent = await getGitDiff(filePath, context.cwd);
-    return [
-      {
-        type: "text",
-        text: `Git diff for \`${filePath}\`:\n\`\`\`diff\n${diffContent}\n\`\`\``,
-      },
-    ];
+    try {
+      const diffContent = await getGitDiff(filePath, context.cwd);
+      return [
+        {
+          type: "text",
+          text: `Git diff for \`${filePath}\`:\n\`\`\`diff\n${diffContent}\n\`\`\``,
+        },
+      ];
+    } catch (error) {
+      context.nvim.logger.error(
+        `Failed to fetch git diff for \`${filePath}\`: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return [
+        {
+          type: "text",
+          text: `Error fetching git diff for \`${filePath}\`: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ];
+    }
   },
 };
 
@@ -59,12 +71,24 @@ export const stagedCommand: Command = {
   pattern: /@staged:(\S+)/g,
   async execute(match, context): Promise<ProviderMessageContent[]> {
     const filePath = match[1] as UnresolvedFilePath;
-    const stagedContent = await getStagedDiff(filePath, context.cwd);
-    return [
-      {
-        type: "text",
-        text: `Staged diff for \`${filePath}\`:\n\`\`\`diff\n${stagedContent}\n\`\`\``,
-      },
-    ];
+    try {
+      const stagedContent = await getStagedDiff(filePath, context.cwd);
+      return [
+        {
+          type: "text",
+          text: `Staged diff for \`${filePath}\`:\n\`\`\`diff\n${stagedContent}\n\`\`\``,
+        },
+      ];
+    } catch (error) {
+      context.nvim.logger.error(
+        `Failed to fetch staged diff for \`${filePath}\`: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return [
+        {
+          type: "text",
+          text: `Error fetching staged diff for \`${filePath}\`: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ];
+    }
   },
 };

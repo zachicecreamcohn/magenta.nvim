@@ -7,14 +7,28 @@ export const qfCommand: Command = {
   description: "Add quickfix entries to context",
   pattern: /@qf\b/,
   async execute(_match, context): Promise<ProviderMessageContent[]> {
-    const qflist = await getQuickfixList(context.nvim);
-    const quickfixStr = await quickfixListToString(qflist, context.nvim);
-    return [
-      {
-        type: "text",
-        text: `Current quickfix list:\n${quickfixStr}`,
-      },
-    ];
+    try {
+      const qflist = await getQuickfixList(context.nvim);
+      const quickfixStr = await quickfixListToString(qflist, context.nvim);
+      // Append quickfix as a separate content block
+      return [
+        {
+          type: "text",
+          text: `Current quickfix list:\n${quickfixStr}`,
+        },
+      ];
+    } catch (error) {
+      context.nvim.logger.error(
+        `Failed to fetch quickfix list for message: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      // Append error message as a separate content block
+      return [
+        {
+          type: "text",
+          text: `Error fetching quickfix list: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ];
+    }
   },
 };
 
@@ -23,13 +37,27 @@ export const quickfixCommand: Command = {
   description: "Add quickfix entries to context",
   pattern: /@quickfix\b/,
   async execute(_match, context): Promise<ProviderMessageContent[]> {
-    const qflist = await getQuickfixList(context.nvim);
-    const quickfixStr = await quickfixListToString(qflist, context.nvim);
-    return [
-      {
-        type: "text",
-        text: `Current quickfix list:\n${quickfixStr}`,
-      },
-    ];
+    try {
+      const qflist = await getQuickfixList(context.nvim);
+      const quickfixStr = await quickfixListToString(qflist, context.nvim);
+      // Append quickfix as a separate content block
+      return [
+        {
+          type: "text",
+          text: `Current quickfix list:\n${quickfixStr}`,
+        },
+      ];
+    } catch (error) {
+      context.nvim.logger.error(
+        `Failed to fetch quickfix list for message: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      // Append error message as a separate content block
+      return [
+        {
+          type: "text",
+          text: `Error fetching quickfix list: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ];
+    }
   },
 };
