@@ -6,7 +6,7 @@ import { diffCommand, stagedCommand } from "./diff.ts";
 import { diagCommand, diagnosticsCommand } from "./diagnostics.ts";
 import { qfCommand, quickfixCommand } from "./quickfix.ts";
 import { bufCommand, buffersCommand } from "./buffers.ts";
-import { asyncCommand } from "./async.ts";
+
 import type { CustomCommand as CustomCommandConfig } from "../../options.ts";
 
 export class CommandRegistry {
@@ -28,7 +28,6 @@ export class CommandRegistry {
       quickfixCommand,
       bufCommand,
       buffersCommand,
-      asyncCommand,
     ];
 
     for (const command of builtinCommands) {
@@ -84,21 +83,22 @@ export class CommandRegistry {
     additionalContent: ProviderMessageContent[];
   }> {
     const additionalContent: ProviderMessageContent[] = [];
+    let processedText = text;
+
+    // Handle @async specially - strip it from the beginning
+    if (processedText.trim().startsWith("@async")) {
+      processedText = processedText.replace(/^\s*@async\s*/, "");
+    }
 
     // Find all command matches in the text
     for (const command of this.commands.values()) {
       const regex = new RegExp(command.pattern.source, "g");
       let match;
-      while ((match = regex.exec(text)) !== null) {
+      while ((match = regex.exec(processedText)) !== null) {
         const content = await command.execute(match, context);
         additionalContent.push(...content);
       }
     }
-
-    // Special handling for @async - strip it from the beginning
-    const processedText = text.trim().startsWith("@async")
-      ? text.replace(/^\s*@async\s*/, "")
-      : text;
 
     return { processedText, additionalContent };
   }

@@ -9,7 +9,6 @@ export const diagCommand: Command = {
   async execute(_match, context): Promise<ProviderMessageContent[]> {
     try {
       const diagnostics = await getDiagnostics(context.nvim);
-      // Append diagnostics as a separate content block
       return [
         {
           type: "text",
@@ -20,7 +19,6 @@ export const diagCommand: Command = {
       context.nvim.logger.error(
         `Failed to fetch diagnostics for message: ${error instanceof Error ? error.message : String(error)}`,
       );
-      // Append error message as a separate content block
       return [
         {
           type: "text",
@@ -38,7 +36,6 @@ export const diagnosticsCommand: Command = {
   async execute(_match, context): Promise<ProviderMessageContent[]> {
     try {
       const diagnostics = await getDiagnostics(context.nvim);
-      // Append diagnostics as a separate content block
       return [
         {
           type: "text",
@@ -49,7 +46,6 @@ export const diagnosticsCommand: Command = {
       context.nvim.logger.error(
         `Failed to fetch diagnostics for message: ${error instanceof Error ? error.message : String(error)}`,
       );
-      // Append error message as a separate content block
       return [
         {
           type: "text",

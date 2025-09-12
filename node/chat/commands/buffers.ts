@@ -9,7 +9,6 @@ export const bufCommand: Command = {
   async execute(_match, context): Promise<ProviderMessageContent[]> {
     try {
       const buffersList = await getBuffersList(context.nvim);
-      // Append buffers list as a separate content block
       return [
         {
           type: "text",
@@ -20,7 +19,6 @@ export const bufCommand: Command = {
       context.nvim.logger.error(
         `Failed to fetch buffers list for message: ${error instanceof Error ? error.message : String(error)}`,
       );
-      // Append error message as a separate content block
       return [
         {
           type: "text",
@@ -38,7 +36,6 @@ export const buffersCommand: Command = {
   async execute(_match, context): Promise<ProviderMessageContent[]> {
     try {
       const buffersList = await getBuffersList(context.nvim);
-      // Append buffers list as a separate content block
       return [
         {
           type: "text",
@@ -49,7 +46,6 @@ export const buffersCommand: Command = {
       context.nvim.logger.error(
         `Failed to fetch buffers list for message: ${error instanceof Error ? error.message : String(error)}`,
       );
-      // Append error message as a separate content block
       return [
         {
           type: "text",

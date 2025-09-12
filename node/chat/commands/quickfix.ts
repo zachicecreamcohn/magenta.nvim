@@ -10,7 +10,6 @@ export const qfCommand: Command = {
     try {
       const qflist = await getQuickfixList(context.nvim);
       const quickfixStr = await quickfixListToString(qflist, context.nvim);
-      // Append quickfix as a separate content block
       return [
         {
           type: "text",
@@ -21,7 +20,6 @@ export const qfCommand: Command = {
       context.nvim.logger.error(
         `Failed to fetch quickfix list for message: ${error instanceof Error ? error.message : String(error)}`,
       );
-      // Append error message as a separate content block
       return [
         {
           type: "text",
@@ -40,7 +38,6 @@ export const quickfixCommand: Command = {
     try {
       const qflist = await getQuickfixList(context.nvim);
       const quickfixStr = await quickfixListToString(qflist, context.nvim);
-      // Append quickfix as a separate content block
       return [
         {
           type: "text",
@@ -51,7 +48,6 @@ export const quickfixCommand: Command = {
       context.nvim.logger.error(
         `Failed to fetch quickfix list for message: ${error instanceof Error ? error.message : String(error)}`,
       );
-      // Append error message as a separate content block
       return [
         {
           type: "text",

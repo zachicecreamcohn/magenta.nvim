@@ -189,8 +189,11 @@ export class Thread {
     this.contextManager = this.context.contextManager;
 
     this.commandRegistry = new CommandRegistry();
-    for (const customCommand of this.context.options.customCommands) {
-      this.commandRegistry.registerCustomCommand(customCommand);
+    // Register custom commands from options
+    if (this.context.options.customCommands) {
+      for (const customCommand of this.context.options.customCommands) {
+        this.commandRegistry.registerCustomCommand(customCommand);
+      }
     }
 
     this.state = {
@@ -686,7 +689,6 @@ export class Thread {
             options: this.context.options,
           });
 
-        // Always add the message text (which may have been processed to remove @async)
         messageContent.push({
           type: "text",
           text: processedText,

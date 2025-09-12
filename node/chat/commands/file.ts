@@ -22,7 +22,6 @@ export const fileCommand: Command = {
         throw new Error(`File ${filePath} does not exist`);
       }
 
-      // Check for file commands in user messages
       context.contextManager.update({
         type: "add-file-context",
         relFilePath,
