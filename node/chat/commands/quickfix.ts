@@ -4,7 +4,6 @@ import { getQuickfixList, quickfixListToString } from "../../nvim/nvim.ts";
 
 const createQuickfixCommand = (name: string, pattern: RegExp): Command => ({
   name,
-  description: "Add quickfix entries to context",
   pattern,
   async execute(_match, context): Promise<ProviderMessageContent[]> {
     try {

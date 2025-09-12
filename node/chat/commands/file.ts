@@ -9,7 +9,6 @@ import {
 
 export const fileCommand: Command = {
   name: "@file:",
-  description: "Add file to context",
   pattern: /@file:(\S+)/g,
   async execute(match, context): Promise<ProviderMessageContent[]> {
     const filePath = match[1] as UnresolvedFilePath;

@@ -39,7 +39,6 @@ async function getStagedDiff(
 
 export const diffCommand: Command = {
   name: "@diff:",
-  description: "Add unstaged/untracked file diff to context",
   pattern: /@diff:(\S+)/g,
   async execute(match, context): Promise<ProviderMessageContent[]> {
     const filePath = match[1] as UnresolvedFilePath;
@@ -67,7 +66,6 @@ export const diffCommand: Command = {
 
 export const stagedCommand: Command = {
   name: "@staged:",
-  description: "Add staged file diff to context",
   pattern: /@staged:(\S+)/g,
   async execute(match, context): Promise<ProviderMessageContent[]> {
     const filePath = match[1] as UnresolvedFilePath;

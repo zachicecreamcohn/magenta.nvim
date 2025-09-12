@@ -4,7 +4,6 @@ import { getBuffersList } from "../../utils/listBuffers.ts";
 
 const createBuffersCommand = (name: string, pattern: RegExp): Command => ({
   name,
-  description: "Add all open buffers to context",
   pattern,
   async execute(_match, context): Promise<ProviderMessageContent[]> {
     try {

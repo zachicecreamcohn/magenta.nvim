@@ -4,7 +4,6 @@ import { getDiagnostics } from "../../utils/diagnostics.ts";
 
 const createDiagnosticsCommand = (name: string, pattern: RegExp): Command => ({
   name,
-  description: "Add diagnostics to context",
   pattern,
   async execute(_match, context): Promise<ProviderMessageContent[]> {
     try {
