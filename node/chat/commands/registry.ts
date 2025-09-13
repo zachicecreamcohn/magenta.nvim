@@ -74,9 +74,9 @@ export class CommandRegistry {
   }
 
   private escapeRegExp(str: string): string {
-    // Custom commands can have special characters like "@test[1]" or "@go!"
+    // Custom commands can have regex metacharacters like "@test[1]"
     // We need to escape these so they match literally in the regex pattern,
-    // not as regex metacharacters (e.g. [1] would match any single character if not escaped)
+    // not as regex metacharacters
     return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
