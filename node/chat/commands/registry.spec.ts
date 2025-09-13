@@ -207,4 +207,32 @@ describe("CommandRegistry", () => {
     };
     expect(textContent.text).toContain("Error adding file to context for");
   });
+
+  it("should not match custom commands ending in punctuation that are followed by non-command word characters", async () => {
+    const registry = new CommandRegistry();
+    registry.registerCustomCommand({
+      name: "@test[1]",
+      text: "Test command",
+    });
+
+    const context = createMockContext();
+    const result = await registry.processMessage("@test[1]foo text", context);
+
+    expect(result.processedText).toBe("@test[1]foo text");
+    expect(result.additionalContent).toEqual([]);
+  });
+
+  it("should not match custom commands ending in word chars that are followed by non-command word characters", async () => {
+    const registry = new CommandRegistry();
+    registry.registerCustomCommand({
+      name: "@test",
+      text: "Test command",
+    });
+
+    const context = createMockContext();
+    const result = await registry.processMessage("@testfoo text", context);
+
+    expect(result.processedText).toBe("@testfoo text");
+    expect(result.additionalContent).toEqual([]);
+  });
 });

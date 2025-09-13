@@ -45,10 +45,16 @@ export class CommandRegistry {
   registerCustomCommand(config: CustomCommandConfig): void {
     const command: Command = {
       name: config.name,
+      // Regex needs to be generated for user-defined commands for ease of configuring
+      // To prevent "@testing" from triggering a command called "@test", we add
+      // a word boundary to the end.
+      //
+      // Word boundaries don't work after non-word chars, so for commands
+      // that end in punctuation (e.g., "@test[1]"), we use a lookahead instead
       pattern: new RegExp(
         config.name.match(/\w$/)
           ? `${this.escapeRegExp(config.name)}\\b`
-          : `${this.escapeRegExp(config.name)}`,
+          : `${this.escapeRegExp(config.name)}(?!\\w)`,
       ),
       execute(): Promise<ProviderMessageContent[]> {
         return Promise.resolve([
@@ -68,6 +74,9 @@ export class CommandRegistry {
   }
 
   private escapeRegExp(str: string): string {
+    // Custom commands can have special characters like "@test[1]" or "@go!"
+    // We need to escape these so they match literally in the regex pattern,
+    // not as regex metacharacters (e.g. [1] would match any single character if not escaped)
     return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
