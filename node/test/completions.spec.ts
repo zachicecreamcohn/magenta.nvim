@@ -16,6 +16,46 @@ it("should have nvim-cmp available", async () => {
   });
 });
 
+it("should show custom command completions", async () => {
+  await withDriver(
+    {
+      options: {
+        customCommands: [
+          {
+            name: "@nedit",
+            text: "DO NOT MAKE ANY EDITS TO CODE",
+            description: "Disable all code editing functionality",
+          },
+          {
+            name: "@careful",
+            text: "Be extra careful",
+            description: "Request extra caution",
+          },
+        ],
+      },
+    },
+    async (driver) => {
+      // Set up sidebar and wait for it to be ready
+      await driver.showSidebar();
+      await driver.waitForChatReady();
+
+      // Switch to input window, enter insert mode and type '@' to trigger completion
+      await driver.sendKeysToInputBuffer("i@");
+
+      // Wait for completion menu to appear with custom commands
+      const entries =
+        await driver.completions.waitForCompletionContaining("@nedit");
+      const entryWords = entries.map((e) => e.word);
+
+      expect(entries.length).toBeGreaterThan(0);
+
+      // Verify we have the custom commands in completion
+      expect(entryWords).toContain("@nedit");
+      expect(entryWords).toContain("@careful");
+    },
+  );
+});
+
 it("should show keyword completions when typing '@' in magenta input buffer", async () => {
   await withDriver({}, async (driver) => {
     // Set up sidebar and wait for it to be ready

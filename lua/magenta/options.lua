@@ -113,6 +113,19 @@ local defaults = {
   chimeVolume = 0.3,
   getFileAutoAllowGlobs = {
     "node_modules/**/*"
+  },
+  customCommands = {
+    -- Example custom commands (commented out by default)
+    -- {
+    --   name = "@nedit",
+    --   text = "DO NOT MAKE ANY EDITS TO CODE. Do not use any tools that allow you to edit code. Do not execute bash commands which edit code. NO EDITING WHATSOEVER OR ELSE.",
+    --   description = "Disable all code editing functionality"
+    -- },
+    -- {
+    --   name = "@careful",
+    --   text = "Be extra careful and double-check your work before making any changes.",
+    --   description = "Request extra caution"
+    -- }
   }
 }
 

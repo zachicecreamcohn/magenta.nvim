@@ -1291,3 +1291,28 @@ it("removes server_tool_use content when aborted before receiving results", asyn
     expect(contentTypesAfterAbort).toEqual(["text"]);
   });
 });
+it("should process custom commands in messages", async () => {
+  await withDriver(
+    {
+      options: {
+        customCommands: [
+          {
+            name: "@nedit",
+            text: "DO NOT MAKE ANY EDITS TO CODE",
+            description: "Disable all code editing functionality",
+          },
+        ],
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+      await driver.waitForChatReady();
+
+      await driver.inputMagentaText("@nedit Please help with this task");
+      await driver.send();
+
+      // Wait for the message to be processed and displayed
+      await driver.assertDisplayBufferContains("DO NOT MAKE ANY EDITS TO CODE");
+    },
+  );
+});

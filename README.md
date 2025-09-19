@@ -934,6 +934,64 @@ Example usage:
 @staged:src/main.ts Review my staged changes
 ```
 
+### Custom Commands
+
+You can define custom `@` commands in your configuration that expand to predefined text when used in messages. This allows you to create shortcuts for frequently used instructions or constraints.
+
+#### Configuration
+
+Define custom commands in your setup configuration:
+
+```lua
+require('magenta').setup({
+  customCommands = {
+    {
+      name = "@nedit",
+      text = "DO NOT MAKE ANY EDITS TO CODE. Do not use any tools that allow you to edit code. Do not execute bash commands which edit code. NO EDITING WHATSOEVER OR ELSE.",
+      description = "Disable all code editing functionality"
+    },
+    {
+      name = "@careful",
+      text = "Be extra careful and double-check your work before making any changes.",
+      description = "Request extra caution"
+    },
+    {
+      name = "@perf",
+      text = "Focus on performance optimization. Profile the code and suggest improvements for speed and memory usage.",
+      description = "Performance optimization focus"
+    }
+  },
+  -- ... other options
+})
+```
+
+#### Usage
+
+Custom commands work like built-in @ commands and appear in completions:
+
+```
+@nedit Can you help me understand this algorithm?
+```
+
+When sent, this expands to:
+
+```
+DO NOT MAKE ANY EDITS TO CODE. Do not use any tools that allow you to edit code. Do not execute bash commands which edit code. NO EDITING WHATSOEVER OR ELSE. Can you help me understand this algorithm?
+```
+
+#### Features
+
+- **Auto-completion**: Custom commands appear in nvim-cmp completions when you type `@`
+- **Descriptions**: Optional descriptions appear in the completion menu
+- **Project-specific**: Custom commands can be defined in `.magenta/options.json` for project-specific shortcuts
+
+#### Command Format
+
+- Command names must start with `@` and contain only letters, numbers, and underscores
+- Names must begin with a letter (e.g., `@nedit`, `@myCommand123`)
+- Text can contain any content and will be substituted exactly where the command appears
+- Descriptions are optional and only used for completion help text
+
 ### Smart Completions
 
 Magenta provides intelligent completions for input commands when using nvim-cmp:

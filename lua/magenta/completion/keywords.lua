@@ -8,8 +8,7 @@ end
 -- Keywords completion source
 local source = {}
 
--- Static keywords for completion
-local KEYWORDS = {
+local BUILTIN_KEYWORDS = {
   { label = '@qf',          kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add quickfix entries to context' },
   { label = '@diag',        kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add diagnostics to context' },
   { label = '@buf',         kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add current buffer to context' },
@@ -17,10 +16,28 @@ local KEYWORDS = {
   { label = '@quickfix',    kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add quickfix entries to context' },
   { label = '@diagnostics', kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add diagnostics to context' },
   { label = '@fork',        kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Fork the thread' },
+  { label = '@async',       kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Process message asynchronously without interrupting current operation' },
   { label = '@file:',       kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add file to context (supports fuzzy path completion)' },
   { label = '@staged:',     kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add staged file to context (supports file completion)' },
   { label = '@diff:',       kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add unstaged/untracked file to context (supports file completion)' },
 }
+
+local function get_all_keywords()
+  local Options = require('magenta.options')
+  local keywords = vim.deepcopy(BUILTIN_KEYWORDS)
+  
+  if Options.options.customCommands then
+    for _, command in ipairs(Options.options.customCommands) do
+      table.insert(keywords, {
+        label = command.name,
+        kind = cmp.lsp.CompletionItemKind.Keyword,
+        documentation = command.description or 'Custom command'
+      })
+    end
+  end
+  
+  return keywords
+end
 
 function source:is_available()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -50,12 +67,13 @@ function source:complete(params, callback)
     return
   end
 
+  local keywords = get_all_keywords()
   callback({
     items = vim.tbl_map(function(item)
       return vim.tbl_extend('force', item, {
         filterText = filter_text
       })
-    end, KEYWORDS),
+    end, keywords),
     isIncomplete = false
   })
 end

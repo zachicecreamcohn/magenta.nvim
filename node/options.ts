@@ -96,6 +96,12 @@ export type EditPredictionProfile = {
   authType?: "key" | "max" | undefined;
 };
 
+export type CustomCommand = {
+  name: string;
+  text: string;
+  description?: string;
+};
+
 export type EditPredictionOptions = {
   changeTrackerMaxChanges?: number;
   recentChangeTokenBudget?: number;
@@ -146,6 +152,7 @@ export type MagentaOptions = {
   maxConcurrentSubagents: number;
   mcpServers: { [serverName: ServerName]: MCPServerConfig };
   getFileAutoAllowGlobs: string[];
+  customCommands: CustomCommand[];
   lspDebounceMs?: number;
   debug?: boolean;
   chimeVolume?: number; // Volume from 0.0 (silent) to 1.0 (full), defaults to 0.3
@@ -566,6 +573,71 @@ function parseMCPServers(
   return servers;
 }
 
+function parseCustomCommands(
+  input: unknown,
+  logger: { warn: (msg: string) => void },
+): CustomCommand[] {
+  if (!Array.isArray(input)) {
+    logger.warn("customCommands must be an array");
+    return [];
+  }
+
+  const customCommands: CustomCommand[] = [];
+
+  for (const commandInput of input) {
+    try {
+      if (typeof commandInput !== "object" || commandInput === null) {
+        logger.warn(
+          `Skipping invalid custom command: ${JSON.stringify(commandInput)}`,
+        );
+        continue;
+      }
+
+      const command = commandInput as { [key: string]: unknown };
+
+      if (
+        typeof command.name !== "string" ||
+        typeof command.text !== "string"
+      ) {
+        logger.warn(
+          "Custom command must have 'name' and 'text' fields as strings",
+        );
+        continue;
+      }
+
+      const commandName = command.name;
+      if (!commandName.startsWith("@")) {
+        logger.warn(`Custom command name must start with @: ${commandName}`);
+        continue;
+      }
+
+      if (!/^@[a-zA-Z][a-zA-Z0-9_]*$/.test(commandName)) {
+        logger.warn(
+          `Custom command name contains invalid characters: ${commandName}`,
+        );
+        continue;
+      }
+
+      const customCommand: CustomCommand = {
+        name: commandName,
+        text: command.text,
+      };
+
+      if (typeof command.description === "string") {
+        customCommand.description = command.description;
+      }
+
+      customCommands.push(customCommand);
+    } catch (error) {
+      logger.warn(
+        `Error parsing custom command: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  return customCommands;
+}
+
 function parseSidebarPosition(
   input: unknown,
   logger?: { warn: (msg: string) => void },
@@ -713,6 +785,7 @@ export function parseOptions(
     autoContext: [],
     mcpServers: {},
     getFileAutoAllowGlobs: [],
+    customCommands: [],
   };
 
   if (typeof inputOptions == "object" && inputOptions != null) {
@@ -801,6 +874,13 @@ export function parseOptions(
 
     // Parse MCP servers (throw errors for invalid MCP servers in main config)
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
+
+    if ("customCommands" in inputOptionsObj) {
+      options.customCommands = parseCustomCommands(
+        inputOptionsObj["customCommands"],
+        logger,
+      );
+    }
 
     if (
       "editPrediction" in inputOptionsObj &&
@@ -980,6 +1060,13 @@ export function parseProjectOptions(
     options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
   }
 
+  if ("customCommands" in inputOptionsObj) {
+    options.customCommands = parseCustomCommands(
+      inputOptionsObj["customCommands"],
+      logger,
+    );
+  }
+
   if (
     "editPrediction" in inputOptionsObj &&
     typeof inputOptionsObj["editPrediction"] === "object" &&
@@ -1124,6 +1211,13 @@ export function mergeOptions(
       ...baseOptions.mcpServers,
       ...projectSettings.mcpServers,
     };
+  }
+
+  if (projectSettings.customCommands) {
+    merged.customCommands = [
+      ...baseOptions.customCommands,
+      ...projectSettings.customCommands,
+    ];
   }
 
   // Merge structured edit prediction options
