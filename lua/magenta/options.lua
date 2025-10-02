@@ -3,27 +3,21 @@ local M = {}
 local defaults = {
   profiles = {
     {
-      name = "claude-sonnet-3.7",
+      name = "claude-sonnet-4-5",
       provider = "anthropic",
-      model = "claude-3-7-sonnet-latest",
+      model = "claude-sonnet-4-5",
       apiKeyEnvVar = "ANTHROPIC_API_KEY"
     },
     {
-      name = "claude-sonnet-4",
+      name = "claude-opus-4-1",
       provider = "anthropic",
-      model = "claude-sonnet-4-20250514",
-      apiKeyEnvVar = "ANTHROPIC_API_KEY"
-    },
-    {
-      name = "claude-opus-4",
-      provider = "anthropic",
-      model = "claude-opus-4-20250514",
+      model = "claude-opus-4-1-20250805",
       apiKeyEnvVar = "ANTHROPIC_API_KEY"
     },
     {
       name = "claude-max",
       provider = "anthropic",
-      model = "claude-sonnet-4-latest",
+      model = "claude-sonnet-4-5",
       authType = "max"
     },
     {

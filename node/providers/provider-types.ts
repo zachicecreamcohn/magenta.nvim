@@ -30,6 +30,7 @@ export type StopReason =
   | "content"
   | "refusal"
   | "aborted"
+  | "model_context_window_exceeded"
   | "stop_sequence";
 
 export type Usage = {
