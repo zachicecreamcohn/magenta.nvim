@@ -784,7 +784,7 @@ export function parseOptions(
     maxConcurrentSubagents: 3,
     commandAllowlist: [],
     autoContext: [],
-    skillsPaths: [],
+    skillsPaths: ["~/.claude/skills", ".claude/skills"],
     mcpServers: {},
     getFileAutoAllowGlobs: [],
     customCommands: [],

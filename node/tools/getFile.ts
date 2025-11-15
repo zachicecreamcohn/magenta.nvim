@@ -21,6 +21,7 @@ import {
   validateFileSize,
   FileCategory,
   type NvimCwd,
+  type AbsFilePath,
 } from "../utils/files.ts";
 import type { StaticTool, ToolName } from "./types.ts";
 import type { Msg as ThreadMsg } from "../chat/thread.ts";
@@ -32,6 +33,14 @@ import {
 } from "../utils/pdf-pages.ts";
 import type { MagentaOptions } from "../options.ts";
 import type { Row0Indexed } from "../nvim/window.ts";
+import * as os from "node:os";
+
+function expandTilde(filepath: string): string {
+  if (filepath.startsWith("~/") || filepath === "~") {
+    return path.join(os.homedir(), filepath.slice(1));
+  }
+  return filepath;
+}
 
 export type State =
   | {
@@ -233,6 +242,14 @@ You already have the most up-to-date information about the contents of this file
     const relFilePath = relativePath(this.context.cwd, absFilePath);
 
     if (this.state.state === "pending") {
+      // Check if file is in skills directory
+      if (this.isFileInSkillsDirectory(absFilePath)) {
+        this.context.myDispatch({
+          type: "automatic-approval",
+        });
+        return;
+      }
+
       // Check if file matches any auto-allow globs first
       if (await this.isFileAutoAllowed(relFilePath)) {
         this.context.myDispatch({
@@ -284,6 +301,30 @@ You already have the most up-to-date information about the contents of this file
         this.context.nvim.logger.error(
           `Error checking getFileAutoAllowGlobs pattern "${pattern}": ${(error as Error).message}`,
         );
+      }
+    }
+
+    return false;
+  }
+
+  private isFileInSkillsDirectory(absFilePath: AbsFilePath): boolean {
+    if (
+      !this.context.options.skillsPaths ||
+      this.context.options.skillsPaths.length === 0
+    ) {
+      return false;
+    }
+
+    for (const skillsDir of this.context.options.skillsPaths) {
+      // Expand tilde, then resolve the skills directory path
+      const expandedDir = expandTilde(skillsDir);
+      const skillsDirPath = path.isAbsolute(expandedDir)
+        ? expandedDir
+        : path.join(this.context.cwd, expandedDir);
+
+      // Check if the file is under this skills directory
+      if (absFilePath.startsWith(skillsDirPath + path.sep)) {
+        return true;
       }
     }
 

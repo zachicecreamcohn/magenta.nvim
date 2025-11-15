@@ -416,7 +416,7 @@ export async function createSystemPrompt(
 - Neovim version: ${systemInfo.neovimVersion}
 - Current working directory: ${systemInfo.cwd}`;
 
-  const skillsText = formatSkillsIntroduction(skills);
+  const skillsText = formatSkillsIntroduction(skills, context.cwd);
 
   return (basePrompt + systemInfoText + skillsText) as SystemPrompt;
 }

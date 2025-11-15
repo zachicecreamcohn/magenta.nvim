@@ -1,12 +1,13 @@
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { Nvim } from "../nvim/nvim-node";
 import type { MagentaOptions } from "../options";
-import type { NvimCwd, RelFilePath } from "../utils/files";
+import type { NvimCwd, AbsFilePath } from "../utils/files";
 
 export type SkillInfo = {
-  skillFile: RelFilePath;
+  skillFile: AbsFilePath;
   name: string;
   description: string;
 };
@@ -35,25 +36,28 @@ export function loadSkills(context: {
   }
 
   try {
-    const skillFiles = findSkillFiles(context);
+    // Process each skills directory in order
+    // Later directories override earlier ones
+    for (const skillsDir of context.options.skillsPaths) {
+      const skillFiles = findSkillFilesInDirectory(skillsDir, context);
 
-    for (const skillFile of skillFiles) {
-      try {
-        const skillInfo = parseSkillFile(skillFile, context);
-        if (skillInfo) {
-          // Check for duplicate skill names
-          if (skillInfo.name in skills) {
-            context.nvim.logger.warn(
-              `Duplicate skill name "${skillInfo.name}" found in ${skillFile}. Using first occurrence from ${skills[skillInfo.name].skillFile}`,
-            );
-          } else {
+      for (const skillFile of skillFiles) {
+        try {
+          const skillInfo = parseSkillFile(skillFile, context);
+          if (skillInfo) {
+            if (skillInfo.name in skills) {
+              context.nvim.logger.info(
+                `Skill "${skillInfo.name}" from ${skillFile} overrides skill from ${skills[skillInfo.name].skillFile}`,
+              );
+            }
+            // Later directories override earlier ones
             skills[skillInfo.name] = skillInfo;
           }
+        } catch (err) {
+          context.nvim.logger.error(
+            `Error parsing skill file ${skillFile}: ${(err as Error).message}`,
+          );
         }
-      } catch (err) {
-        context.nvim.logger.error(
-          `Error parsing skill file ${skillFile}: ${(err as Error).message}`,
-        );
       }
     }
   } catch (err) {
@@ -65,74 +69,83 @@ export function loadSkills(context: {
   return skills;
 }
 
-function findSkillFiles(context: {
-  cwd: NvimCwd;
-  nvim: Nvim;
-  options: MagentaOptions;
-}): RelFilePath[] {
-  const skillFiles: RelFilePath[] = [];
+function expandTilde(filepath: string): string {
+  if (filepath.startsWith("~/") || filepath === "~") {
+    return path.join(os.homedir(), filepath.slice(1));
+  }
+  return filepath;
+}
 
-  for (const skillsDir of context.options.skillsPaths) {
+function findSkillFilesInDirectory(
+  skillsDir: string,
+  context: {
+    cwd: NvimCwd;
+    nvim: Nvim;
+  },
+): AbsFilePath[] {
+  const skillFiles: AbsFilePath[] = [];
+
+  try {
+    // Expand tilde, then resolve the skills directory path
+    // If it's absolute, use it as-is; otherwise resolve relative to cwd
+    const expandedDir = expandTilde(skillsDir);
+    const skillsDirPath = path.isAbsolute(expandedDir)
+      ? expandedDir
+      : path.join(context.cwd, expandedDir);
+
+    // Check if the skills directory exists
     try {
-      const skillsDirPath = path.join(context.cwd, skillsDir);
+      const stats = fs.statSync(skillsDirPath);
+      if (!stats.isDirectory()) {
+        context.nvim.logger.warn(
+          `Skills path "${skillsDir}" is not a directory`,
+        );
+        return skillFiles;
+      }
+    } catch {
+      // Directory doesn't exist, skip silently
+      return skillFiles;
+    }
 
-      // Check if the skills directory exists
+    // Read immediate children of the skills directory
+    const entries = fs.readdirSync(skillsDirPath);
+
+    for (const entry of entries) {
+      const entryPath = path.join(skillsDirPath, entry);
+
+      // Check if it's a directory
       try {
-        const stats = fs.statSync(skillsDirPath);
+        const stats = fs.statSync(entryPath);
         if (!stats.isDirectory()) {
-          context.nvim.logger.warn(
-            `Skills path "${skillsDir}" is not a directory`,
-          );
           continue;
         }
       } catch {
-        // Directory doesn't exist, skip silently
         continue;
       }
 
-      // Read immediate children of the skills directory
-      const entries = fs.readdirSync(skillsDirPath);
+      // Look for skill.md file (case-insensitive)
+      const files = fs.readdirSync(entryPath);
+      const skillFile = files.find((file) => file.toLowerCase() === "skill.md");
 
-      for (const entry of entries) {
-        const entryPath = path.join(skillsDirPath, entry);
-
-        // Check if it's a directory
-        try {
-          const stats = fs.statSync(entryPath);
-          if (!stats.isDirectory()) {
-            continue;
-          }
-        } catch {
-          continue;
-        }
-
-        // Look for skill.md file (case-insensitive)
-        const files = fs.readdirSync(entryPath);
-        const skillFile = files.find(
-          (file) => file.toLowerCase() === "skill.md",
-        );
-
-        if (skillFile) {
-          const fullPath = path.join(skillsDir, entry, skillFile);
-          skillFiles.push(fullPath as RelFilePath);
-        }
+      if (skillFile) {
+        const absPath = path.join(entryPath, skillFile);
+        skillFiles.push(absPath as AbsFilePath);
       }
-    } catch (err) {
-      context.nvim.logger.error(
-        `Error processing skills directory "${skillsDir}": ${(err as Error).message}`,
-      );
     }
+  } catch (err) {
+    context.nvim.logger.error(
+      `Error processing skills directory "${skillsDir}": ${(err as Error).message}`,
+    );
   }
 
   return skillFiles;
 }
 
 function parseSkillFile(
-  skillFile: RelFilePath,
-  context: { cwd: NvimCwd; nvim: Nvim },
+  skillFile: AbsFilePath,
+  context: { nvim: Nvim },
 ): SkillInfo | undefined {
-  const fullPath = path.join(context.cwd, skillFile);
-  const content = fs.readFileSync(fullPath, "utf8");
+  const content = fs.readFileSync(skillFile, "utf8");
 
   const frontmatter = extractYamlFrontmatter(content);
 
@@ -192,21 +205,25 @@ function extractYamlFrontmatter(content: string): YamlFrontmatter | undefined {
   }
 }
 
-export function formatSkillsIntroduction(skills: SkillsMap): string {
+export function formatSkillsIntroduction(
+  skills: SkillsMap,
+  cwd: NvimCwd,
+): string {
   if (Object.keys(skills).length === 0) {
     return "";
   }
 
   const skillsList = Object.values(skills)
-    .map(
-      (skill) =>
-        `- **${skill.name}** (\`${skill.skillFile}\`): ${skill.description}`,
-    )
+    .map((skill) => {
+      // Convert absolute path to relative path for display
+      const relPath = path.relative(cwd, skill.skillFile);
+      return `- **${skill.name}** (\`${relPath}\`): ${skill.description}`;
+    })
     .join("\n");
 
   return `
 
-# Skills
+# Available Skills
 
 Here are skills you have available to you:
 

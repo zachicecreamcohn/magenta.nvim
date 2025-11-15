@@ -406,7 +406,7 @@ From now on, whenever any of these files are updated by the user, you will get a
         "type": "text",
       },
       {
-        "text": "File \`poem2.txt\`",
+        "text": "File \`poem.txt\`",
         "type": "text",
       },
       {
@@ -418,7 +418,7 @@ Paint their stories in the night.
         "type": "text",
       },
       {
-        "text": "File \`poem.txt\`",
+        "text": "File \`poem2.txt\`",
         "type": "text",
       },
       {

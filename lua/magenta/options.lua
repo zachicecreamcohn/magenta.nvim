@@ -95,6 +95,7 @@ local defaults = {
     ".magenta/*.md"
   },
   skillsPaths = {
+    "~/.claude/skills",
     ".claude/skills"
   },
   commandAllowlist = {
