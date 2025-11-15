@@ -206,11 +206,11 @@ export function formatSkillsIntroduction(skills: SkillsMap): string {
 
   return `
 
-# Available Skills
+# Skills
 
 Here are skills you have available to you:
 
 ${skillsList}
 
-When a skill is relevant to a task you are trying to do, first use the get_file tool to read the entire skill markdown file.`;
+When a skill is relevant to a task, use the get_file tool to read the skill file.`;
 }
