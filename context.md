@@ -35,12 +35,7 @@ The main architectural files are:
 
 # View System
 
-For detailed view system documentation and templating patterns, see the dedicated view context file. When working on views, use `get_file` to access `node/tea/context.md` for comprehensive guidelines including:
-
-- Template literal syntax and composition patterns
-- Interactive bindings with `withBindings`
-- Declarative rendering approaches
-- TUI-specific considerations
+For comprehensive view system documentation and templating patterns, use `get_file` to access the `doc-views` skill at `.claude/skills/doc-views/skill.md`.
 
 **Important**: This is NOT React - it's a TUI templating system for neovim buffers.
 
@@ -132,13 +127,7 @@ ${withBindings(d`[Toggle]`, {
 
 # Testing
 
-For detailed testing documentation, patterns, and best practices, see the dedicated testing context file. When working on tests, use `get_file` to access `node/test/context.md` for comprehensive testing guidelines including:
-
-- Test environment setup and fixture handling
-- Mock provider usage patterns
-- Driver interactions and assertions
-- Type-safe testing patterns
-- Common testing anti-patterns to avoid
+For comprehensive testing documentation, patterns, and best practices, use `get_file` to access the `doc-testing` skill at `.claude/skills/doc-testing/skill.md`.
 
 Quick reference:
 

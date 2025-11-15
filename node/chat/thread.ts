@@ -4,7 +4,6 @@ import {
   ContextManager,
   type Msg as ContextManagerMsg,
 } from "../context/context-manager.ts";
-import { SkillsManager } from "../skills/skills-manager.ts";
 import { type Dispatch } from "../tea/tea.ts";
 import { d, type View, type VDOMNode } from "../tea/view.ts";
 import {
@@ -162,7 +161,6 @@ export class Thread {
       cwd: NvimCwd;
       lsp: Lsp;
       contextManager: ContextManager;
-      skillsManager: SkillsManager;
       options: MagentaOptions;
       getDisplayWidth: () => number;
     },
@@ -396,7 +394,6 @@ export class Thread {
           pendingMessages: [],
         };
         this.contextManager.reset();
-        this.context.skillsManager.reset();
 
         // Scroll to bottom after clearing
         setTimeout(() => {
@@ -682,16 +679,6 @@ export class Thread {
 
     // Process messages first to handle @file commands
     const messageContent: ProviderMessageContent[] = [];
-
-    // Inject skills prompt on first user message
-    const skillsIntroduction =
-      this.context.skillsManager.getSkillsIntroduction();
-    if (skillsIntroduction) {
-      messageContent.push({
-        type: "text",
-        text: skillsIntroduction,
-      });
-    }
 
     for (const m of messages || []) {
       if (m.type === "user") {

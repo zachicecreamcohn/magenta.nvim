@@ -176,7 +176,7 @@ Without these tools, Magenta falls back to using `find`, which doesn't respect `
 {
     "dlants/magenta.nvim",
     lazy = false, -- you could also bind to <leader>mt
-    build = "npm install --frozen-lockfile",
+    build = "npm ci --production",
     opts = {},
 },
 ```
@@ -189,7 +189,7 @@ local Plug = vim.fn['plug#']
 
 vim.call('plug#begin')
 Plug('dlants/magenta.nvim', {
-  ['do'] = 'npm install --frozen-lockfile',
+  ['do'] = 'npm ci --production',
 })
 vim.call('plug#end')
 
@@ -251,8 +251,8 @@ require('magenta').setup({
   -- glob patterns for files that should be auto-approved for getFile tool
   -- (bypasses user approval for hidden/gitignored files matching these patterns)
   getFileAutoAllowGlobs = { "node_modules/*" }, -- default includes node_modules,
-  -- glob patterns for discovering skill directories (default: { ".claude/skills/*" })
-  skillsPaths = { ".claude/skills/*", "custom/skills/*" },
+  -- directories containing skill subdirectories (default: { ".claude/skills" })
+  skillsPaths = { ".claude/skills", "custom/skills" },
   -- keymaps for the sidebar input buffer
   sidebarKeymaps = {
     normal = {
@@ -486,7 +486,7 @@ Create `.magenta/options.json` in your project root:
     "^cargo (build|test|run)( [^;&|()<>]*)?$"
   ],
   "autoContext": ["README.md", "docs/*.md"],
-  "skillsPaths": [".claude/skills/*", "team-skills/*"],
+  "skillsPaths": [".claude/skills", "team-skills"],
   "maxConcurrentSubagents": 5,
   "mcpServers": {
     "postgres": {
@@ -612,12 +612,12 @@ Configure skill discovery paths in your setup:
 
 ```lua
 require('magenta').setup({
-  skillsPaths = { ".claude/skills/*" }, -- default
+  skillsPaths = { ".claude/skills" }, -- default
   -- ... other options
 })
 ```
 
-The `skillsPaths` option works similarly to `autoContext`, supporting glob patterns to discover skill directories.
+The `skillsPaths` option specifies parent directories that contain skill subdirectories. Magenta automatically looks one level down in each path to discover individual skills.
 
 ### Skills Introduction
 
@@ -652,7 +652,7 @@ Skills can be configured per-project in `.magenta/options.json`:
 
 ```json
 {
-  "skillsPaths": [".claude/skills/*", "custom-skills/*"]
+  "skillsPaths": [".claude/skills", "custom-skills"]
 }
 ```
 

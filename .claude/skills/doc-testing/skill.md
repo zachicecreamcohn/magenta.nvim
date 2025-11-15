@@ -1,3 +1,8 @@
+---
+name: doc-testing
+description: Comprehensive guide for writing tests in magenta.nvim, including test environment setup, mock providers, driver interactions, and best practices
+---
+
 # Testing in magenta.nvim
 
 To run the full test suite, use `npx vitest run` from the project root. You do not need to cd.

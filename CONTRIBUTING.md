@@ -28,7 +28,7 @@ require("lazy").setup {
   "dlants/magenta.nvim",
   dev = true,
   lazy = false,
-  build = "npm install --frozen-lockfile",
+  build = "npm ci --production",
   config = function()
     require('magenta').setup()
   end

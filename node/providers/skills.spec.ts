@@ -3,7 +3,7 @@ import { withDriver } from "../test/preamble";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-describe("SkillsManager", () => {
+describe("Skills", () => {
   it("loads skills from a directory with skill.md", async () => {
     await withDriver(
       {
@@ -24,20 +24,18 @@ This is the content of the test skill.
           );
         },
         options: {
-          skillsPaths: [".claude/skills/*"],
+          skillsPaths: [".claude/skills"],
         },
       },
       async (driver) => {
         await driver.showSidebar();
 
-        const skillsManager =
-          driver.magenta.chat.getActiveThread().context.skillsManager;
+        const thread = driver.magenta.chat.getActiveThread();
+        const systemPrompt = thread.state.systemPrompt;
 
-        expect(skillsManager.skills).toHaveProperty("test-skill");
-        expect(skillsManager.skills["test-skill"]).toMatchObject({
-          name: "test-skill",
-          description: "A test skill for testing",
-        });
+        expect(systemPrompt).toContain("Available Skills");
+        expect(systemPrompt).toContain("test-skill");
+        expect(systemPrompt).toContain("A test skill for testing");
       },
     );
   });
@@ -59,16 +57,17 @@ Content here
           );
         },
         options: {
-          skillsPaths: [".claude/skills/*"],
+          skillsPaths: [".claude/skills"],
         },
       },
       async (driver) => {
         await driver.showSidebar();
 
-        const skillsManager =
-          driver.magenta.chat.getActiveThread().context.skillsManager;
+        const thread = driver.magenta.chat.getActiveThread();
+        const systemPrompt = thread.state.systemPrompt;
 
-        expect(skillsManager.skills).toHaveProperty("case-test-skill");
+        expect(systemPrompt).toContain("case-test-skill");
+        expect(systemPrompt).toContain("Testing case insensitivity");
       },
     );
   });
@@ -93,16 +92,16 @@ Just regular markdown content without frontmatter.
           );
         },
         options: {
-          skillsPaths: [".claude/skills/*"],
+          skillsPaths: [".claude/skills"],
         },
       },
       async (driver) => {
         await driver.showSidebar();
 
-        const skillsManager =
-          driver.magenta.chat.getActiveThread().context.skillsManager;
+        const thread = driver.magenta.chat.getActiveThread();
+        const systemPrompt = thread.state.systemPrompt;
 
-        expect(Object.keys(skillsManager.skills)).toHaveLength(0);
+        expect(systemPrompt).not.toContain("Available Skills");
       },
     );
   });
@@ -128,16 +127,16 @@ Content
           );
         },
         options: {
-          skillsPaths: [".claude/skills/*"],
+          skillsPaths: [".claude/skills"],
         },
       },
       async (driver) => {
         await driver.showSidebar();
 
-        const skillsManager =
-          driver.magenta.chat.getActiveThread().context.skillsManager;
+        const thread = driver.magenta.chat.getActiveThread();
+        const systemPrompt = thread.state.systemPrompt;
 
-        expect(Object.keys(skillsManager.skills)).toHaveLength(0);
+        expect(systemPrompt).not.toContain("Available Skills");
       },
     );
   });
@@ -173,30 +172,33 @@ Content 2
           );
         },
         options: {
-          skillsPaths: [".claude/skills/*"],
+          skillsPaths: [".claude/skills"],
         },
       },
       async (driver) => {
         await driver.showSidebar();
 
-        const skillsManager =
-          driver.magenta.chat.getActiveThread().context.skillsManager;
+        const thread = driver.magenta.chat.getActiveThread();
+        const systemPrompt = thread.state.systemPrompt;
 
-        // Should only have one skill (glob order is not guaranteed)
-        expect(Object.keys(skillsManager.skills)).toHaveLength(1);
-        expect(skillsManager.skills["duplicate-name"]).toBeDefined();
+        // Should contain the duplicate-name skill
+        expect(systemPrompt).toContain("duplicate-name");
 
-        // The description should be one of the two (whichever glob found first)
-        const description = skillsManager.skills["duplicate-name"].description;
-        expect(
-          description === "First skill with this name" ||
-            description === "Second skill with this name",
-        ).toBe(true);
+        // The description should be one of the two (whichever was found first)
+        const hasFirstSkill = systemPrompt.includes(
+          "First skill with this name",
+        );
+        const hasSecondSkill = systemPrompt.includes(
+          "Second skill with this name",
+        );
+        expect(hasFirstSkill || hasSecondSkill).toBe(true);
+        // Should only have one of them, not both
+        expect(hasFirstSkill && hasSecondSkill).toBe(false);
       },
     );
   });
 
-  it("generates skills introduction only once", async () => {
+  it("includes skills in system prompt", async () => {
     await withDriver(
       {
         setupFiles: async (tmpDir) => {
@@ -213,62 +215,19 @@ Content
           );
         },
         options: {
-          skillsPaths: [".claude/skills/*"],
+          skillsPaths: [".claude/skills"],
         },
       },
       async (driver) => {
         await driver.showSidebar();
 
-        const skillsManager =
-          driver.magenta.chat.getActiveThread().context.skillsManager;
+        const thread = driver.magenta.chat.getActiveThread();
+        const systemPrompt = thread.state.systemPrompt;
 
-        const firstIntro = skillsManager.getSkillsIntroduction();
-        expect(firstIntro).toBeTruthy();
-        expect(firstIntro).toContain("intro-skill");
-        expect(firstIntro).toContain("Testing introduction generation");
-
-        const secondIntro = skillsManager.getSkillsIntroduction();
-        expect(secondIntro).toBeUndefined();
-      },
-    );
-  });
-
-  it("resets and allows showing skills introduction again", async () => {
-    await withDriver(
-      {
-        setupFiles: async (tmpDir) => {
-          const skillDir = path.join(tmpDir, ".claude", "skills", "reset-test");
-          await fs.promises.mkdir(skillDir, { recursive: true });
-          await fs.promises.writeFile(
-            path.join(skillDir, "skill.md"),
-            `---
-name: reset-skill
-description: Testing reset
----
-Content
-`,
-          );
-        },
-        options: {
-          skillsPaths: [".claude/skills/*"],
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-
-        const skillsManager =
-          driver.magenta.chat.getActiveThread().context.skillsManager;
-
-        const firstIntro = skillsManager.getSkillsIntroduction();
-        expect(firstIntro).toBeTruthy();
-
-        const secondIntro = skillsManager.getSkillsIntroduction();
-        expect(secondIntro).toBeUndefined();
-
-        skillsManager.reset();
-
-        const thirdIntro = skillsManager.getSkillsIntroduction();
-        expect(thirdIntro).toBeTruthy();
+        expect(systemPrompt).toContain("Available Skills");
+        expect(systemPrompt).toContain("intro-skill");
+        expect(systemPrompt).toContain("Testing introduction generation");
+        expect(systemPrompt).toContain("get_file tool");
       },
     );
   });
@@ -283,11 +242,10 @@ Content
       async (driver) => {
         await driver.showSidebar();
 
-        const skillsManager =
-          driver.magenta.chat.getActiveThread().context.skillsManager;
+        const thread = driver.magenta.chat.getActiveThread();
+        const systemPrompt = thread.state.systemPrompt;
 
-        expect(skillsManager.isEmpty()).toBe(true);
-        expect(skillsManager.getSkillsIntroduction()).toBeUndefined();
+        expect(systemPrompt).not.toContain("Available Skills");
       },
     );
   });
@@ -323,24 +281,20 @@ Content B
           );
         },
         options: {
-          skillsPaths: [".claude/skills/*"],
+          skillsPaths: [".claude/skills"],
         },
       },
       async (driver) => {
         await driver.showSidebar();
 
-        const skillsManager =
-          driver.magenta.chat.getActiveThread().context.skillsManager;
+        const thread = driver.magenta.chat.getActiveThread();
+        const systemPrompt = thread.state.systemPrompt;
 
-        expect(Object.keys(skillsManager.skills)).toHaveLength(2);
-        expect(skillsManager.skills).toHaveProperty("skill-a");
-        expect(skillsManager.skills).toHaveProperty("skill-b");
-
-        const intro = skillsManager.getSkillsIntroduction();
-        expect(intro).toContain("skill-a");
-        expect(intro).toContain("skill-b");
-        expect(intro).toContain("First skill");
-        expect(intro).toContain("Second skill");
+        expect(systemPrompt).toContain("Available Skills");
+        expect(systemPrompt).toContain("skill-a");
+        expect(systemPrompt).toContain("skill-b");
+        expect(systemPrompt).toContain("First skill");
+        expect(systemPrompt).toContain("Second skill");
       },
     );
   });
@@ -349,22 +303,21 @@ Content B
     await withDriver(
       {
         options: {
-          skillsPaths: [".claude/skills/*"],
+          skillsPaths: [".claude/skills"],
         },
       },
       async (driver) => {
         await driver.showSidebar();
 
-        const skillsManager =
-          driver.magenta.chat.getActiveThread().context.skillsManager;
+        const thread = driver.magenta.chat.getActiveThread();
+        const systemPrompt = thread.state.systemPrompt;
 
-        expect(skillsManager.isEmpty()).toBe(true);
-        expect(Object.keys(skillsManager.skills)).toHaveLength(0);
+        expect(systemPrompt).not.toContain("Available Skills");
       },
     );
   });
 
-  it("includes skills introduction in first user message", async () => {
+  it("includes skills in system prompt not user messages", async () => {
     await withDriver(
       {
         setupFiles: async (tmpDir) => {
@@ -395,7 +348,7 @@ Content B
           );
         },
         options: {
-          skillsPaths: [".claude/skills/*"],
+          skillsPaths: [".claude/skills"],
         },
       },
       async (driver) => {
@@ -407,18 +360,23 @@ Content B
 
         const firstRequest = await driver.mockAnthropic.awaitPendingRequest();
 
-        // Check that skills introduction is in the first message
+        // Check that skills are in the system prompt
+        const systemPrompt = firstRequest.systemPrompt;
+        expect(systemPrompt).toContain("Available Skills");
+        expect(systemPrompt).toContain("skill-a");
+        expect(systemPrompt).toContain("skill-b");
+        expect(systemPrompt).toContain("First skill description");
+        expect(systemPrompt).toContain("Second skill description");
+        expect(systemPrompt).toContain("get_file tool");
+
+        // Check that skills are NOT in the first user message
         const firstMessageContent = firstRequest.messages[0].content;
         const textContent = Array.isArray(firstMessageContent)
           ? firstMessageContent.find((c) => c.type === "text")?.text
           : firstMessageContent;
 
-        expect(textContent).toContain("Here are skills you have available");
-        expect(textContent).toContain("skill-a");
-        expect(textContent).toContain("skill-b");
-        expect(textContent).toContain("First skill description");
-        expect(textContent).toContain("Second skill description");
-        expect(textContent).toContain("get_file tool");
+        expect(textContent).not.toContain("Available Skills");
+        expect(textContent).toContain("hello");
 
         firstRequest.respond({
           stopReason: "end_turn",
@@ -432,16 +390,18 @@ Content B
 
         const secondRequest = await driver.mockAnthropic.awaitPendingRequest();
 
-        // Check that skills introduction is NOT in the second message
+        // Check that skills are still in system prompt
+        const secondSystemPrompt = secondRequest.systemPrompt;
+        expect(secondSystemPrompt).toContain("Available Skills");
+
+        // Check that skills are NOT in the second user message
         const secondMessageContent =
           secondRequest.messages[secondRequest.messages.length - 1].content;
         const secondTextContent = Array.isArray(secondMessageContent)
           ? secondMessageContent.find((c) => c.type === "text")?.text
           : secondMessageContent;
 
-        expect(secondTextContent).not.toContain(
-          "Here are skills you have available",
-        );
+        expect(secondTextContent).not.toContain("Available Skills");
         expect(secondTextContent).toContain("second message");
       },
     );

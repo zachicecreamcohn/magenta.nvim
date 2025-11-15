@@ -3,6 +3,8 @@ import { assertUnreachable } from "../utils/assertUnreachable";
 import type { Nvim } from "../nvim/nvim-node";
 import type { NvimCwd } from "../utils/files";
 import { platform } from "os";
+import type { MagentaOptions } from "../options";
+import { loadSkills, formatSkillsIntroduction } from "./skills";
 
 export const AGENT_TYPES = ["learn", "plan", "default", "fast"] as const;
 export type AgentType = (typeof AGENT_TYPES)[number];
@@ -394,11 +396,17 @@ function getBaseSystemPrompt(type: ThreadType): string {
 
 export async function createSystemPrompt(
   type: ThreadType,
-  nvim: Nvim,
-  cwd: NvimCwd,
+  context: {
+    nvim: Nvim;
+    cwd: NvimCwd;
+    options: MagentaOptions;
+  },
 ): Promise<SystemPrompt> {
   const basePrompt = getBaseSystemPrompt(type);
-  const systemInfo = await getSystemInfo(nvim, cwd);
+  const [systemInfo, skills] = await Promise.all([
+    getSystemInfo(context.nvim, context.cwd),
+    loadSkills(context),
+  ]);
 
   const systemInfoText = `
 
@@ -408,5 +416,7 @@ export async function createSystemPrompt(
 - Neovim version: ${systemInfo.neovimVersion}
 - Current working directory: ${systemInfo.cwd}`;
 
-  return (basePrompt + systemInfoText) as SystemPrompt;
+  const skillsText = formatSkillsIntroduction(skills);
+
+  return (basePrompt + systemInfoText + skillsText) as SystemPrompt;
 }

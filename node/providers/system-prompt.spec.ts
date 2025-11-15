@@ -4,11 +4,11 @@ import { withDriver } from "../test/preamble.ts";
 
 it("includes system information in the prompt", async () => {
   await withDriver({}, async (driver) => {
-    const systemPrompt = await createSystemPrompt(
-      "root",
-      driver.magenta.nvim,
-      driver.magenta.cwd,
-    );
+    const systemPrompt = await createSystemPrompt("root", {
+      nvim: driver.magenta.nvim,
+      cwd: driver.magenta.cwd,
+      options: driver.magenta.options,
+    });
 
     // Check that system information is included
     expect(systemPrompt).toContain("# System Information");

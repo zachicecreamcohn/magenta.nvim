@@ -127,4 +127,5 @@ When a skill is relevant to a task you are trying to do, first use the get_file 
 - [x] Update README with skills feature documentation
 - [x] Add example skill.md files
 - [x] Document configuration options for `skillsPaths`
-- [ ] Add troubleshooting section for common issues
+- [x] Add troubleshooting section for common issues
+- [x] Create doc-testing skill from testing documentation in context.md
