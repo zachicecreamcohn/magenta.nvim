@@ -149,6 +149,7 @@ export type MagentaOptions = {
   sidebarPositionOpts: SidebarPositionOpts;
   commandAllowlist: CommandAllowlist;
   autoContext: string[];
+  skillsPaths: string[];
   maxConcurrentSubagents: number;
   mcpServers: { [serverName: ServerName]: MCPServerConfig };
   getFileAutoAllowGlobs: string[];
@@ -783,6 +784,7 @@ export function parseOptions(
     maxConcurrentSubagents: 3,
     commandAllowlist: [],
     autoContext: [],
+    skillsPaths: [],
     mcpServers: {},
     getFileAutoAllowGlobs: [],
     customCommands: [],
@@ -825,6 +827,12 @@ export function parseOptions(
     options.autoContext = parseStringArray(
       inputOptionsObj["autoContext"],
       "autoContext",
+    );
+
+    // Parse skills paths
+    options.skillsPaths = parseStringArray(
+      inputOptionsObj["skillsPaths"],
+      "skillsPaths",
     );
 
     // Parse getFile auto allow globs
@@ -1009,6 +1017,15 @@ export function parseProjectOptions(
     );
   }
 
+  // Parse skills paths
+  if ("skillsPaths" in inputOptionsObj) {
+    options.skillsPaths = parseStringArray(
+      inputOptionsObj["skillsPaths"],
+      "skillsPaths",
+      logger,
+    );
+  }
+
   // Parse getFile auto allow globs
   if ("getFileAutoAllowGlobs" in inputOptionsObj) {
     options.getFileAutoAllowGlobs = parseStringArray(
@@ -1176,6 +1193,13 @@ export function mergeOptions(
     merged.autoContext = [
       ...baseOptions.autoContext,
       ...projectSettings.autoContext,
+    ];
+  }
+
+  if (projectSettings.skillsPaths) {
+    merged.skillsPaths = [
+      ...baseOptions.skillsPaths,
+      ...projectSettings.skillsPaths,
     ];
   }
 

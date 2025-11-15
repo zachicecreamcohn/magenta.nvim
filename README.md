@@ -28,10 +28,16 @@ I sometimes write about AI, neovim and magenta specifically:
 
 # Roadmap
 
-- gemini 2.5 pro provider
-- local code embedding & indexing via chroma db, to support a semantic code search tool
+- local code embedding & indexing, to support a semantic code search tool
 
 # Updates
+
+## Nov 2025
+
+**Skills** - I added support for skills. By default it will look in the .claude/skills directory of your project.
+
+<details>
+<summary>Previous updates</summary>
 
 ## August 2025
 
@@ -78,9 +84,6 @@ I reworked `@compact` into `@fork`. Instead of a forced tool use, fork is now ju
 **test performance improvements** - Tests now run in parallel, significantly reducing test suite execution time and improving the developer experience.
 
 **cache improvements** - Taking advantage of new anthropic [cache mechanisms](https://www.anthropic.com/news/token-saving-updates) for better performance and lower costs.
-
-<details>
-<summary>Previous updates</summary>
 
 ## June 2025
 
@@ -247,7 +250,9 @@ require('magenta').setup({
   chimeVolume = 0.3,
   -- glob patterns for files that should be auto-approved for getFile tool
   -- (bypasses user approval for hidden/gitignored files matching these patterns)
-  getFileAutoAllowGlobs = { "node_modules/*" }, -- default includes node_modules
+  getFileAutoAllowGlobs = { "node_modules/*" }, -- default includes node_modules,
+  -- glob patterns for discovering skill directories (default: { ".claude/skills/*" })
+  skillsPaths = { ".claude/skills/*", "custom/skills/*" },
   -- keymaps for the sidebar input buffer
   sidebarKeymaps = {
     normal = {
@@ -447,6 +452,7 @@ Common use cases include:
 - Using different AI providers or API keys for work vs personal projects
 - Adding project-specific commands to the allowlist (e.g., `make`, `cargo`, `npm` commands)
 - Automatically including important project files in context (README, docs, config files)
+- Sharing project-specific skills and best practices with your team
 - Customizing sidebar position or other UI preferences per project
 - Configuring MCP servers for project-specific integrations (databases, services, etc.)
 
@@ -457,6 +463,7 @@ The merging works as follows:
 - **Profiles**: Project profiles completely replace global profiles if present
 - **Command allowlist**: Project patterns are added to (not replace) the base allowlist
 - **Auto context**: Project patterns are added to (not replace) the base auto context
+- **Skills paths**: Project skill paths are added to (not replace) the base skills paths
 - **MCP servers**: Project MCP servers are merged with global servers (project servers override global ones with the same name)
 - **Other settings**: Project settings override global settings (like `sidebarPosition`)
 
@@ -479,6 +486,7 @@ Create `.magenta/options.json` in your project root:
     "^cargo (build|test|run)( [^;&|()<>]*)?$"
   ],
   "autoContext": ["README.md", "docs/*.md"],
+  "skillsPaths": [".claude/skills/*", "team-skills/*"],
   "maxConcurrentSubagents": 5,
   "mcpServers": {
     "postgres": {
@@ -578,6 +586,77 @@ require('magenta').setup({
 - Any tool execution that needs user interaction
 
 The chime volume can also be set per-project in `.magenta/options.json` files to customize notifications for different workflows.
+
+## Skills
+
+Magenta supports Claude-style skills that provide reusable context and instructions for specific tasks. Skills are discovered automatically from configured directories and presented to the agent at the start of each conversation.
+
+### How Skills Work
+
+Skills are stored in subdirectories within your configured skills paths. Each skill directory contains a `skill.md` file (case-insensitive) with YAML frontmatter:
+
+```markdown
+---
+name: your-skill-name
+description: Brief description of what this skill does and when to use it
+---
+
+# Detailed Instructions
+
+Your detailed skill instructions, examples, and context go here...
+```
+
+### Configuration
+
+Configure skill discovery paths in your setup:
+
+```lua
+require('magenta').setup({
+  skillsPaths = { ".claude/skills/*" }, -- default
+  -- ... other options
+})
+```
+
+The `skillsPaths` option works similarly to `autoContext`, supporting glob patterns to discover skill directories.
+
+### Skills Introduction
+
+When you start a new conversation, Magenta automatically presents available skills to the agent:
+
+```
+Here are skills you have available to you:
+
+- **skill-name** (`path/to/skill.md`): Brief description
+
+When a skill is relevant to a task you are trying to do, first use the get_file tool to read the entire skill markdown file.
+```
+
+The agent can then use the `get_file` tool to read the full skill content when needed for a specific task.
+
+### Example Skill Structure
+
+```
+.claude/
+└── skills/
+    ├── code-review/
+    │   └── skill.md
+    ├── testing/
+    │   └── skill.md
+    └── documentation/
+        └── skill.md
+```
+
+### Project-Specific Skills
+
+Skills can be configured per-project in `.magenta/options.json`:
+
+```json
+{
+  "skillsPaths": [".claude/skills/*", "custom-skills/*"]
+}
+```
+
+This allows teams to share project-specific skills and best practices through version control.
 
 ## Keymaps
 

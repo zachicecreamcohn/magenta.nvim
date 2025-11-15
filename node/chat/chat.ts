@@ -8,6 +8,7 @@ import { assertUnreachable } from "../utils/assertUnreachable";
 import { d, withBindings, type VDOMNode } from "../tea/view";
 import { Counter } from "../utils/uniqueId.ts";
 import { ContextManager } from "../context/context-manager.ts";
+import { SkillsManager } from "../skills/skills-manager.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import {
   detectFileType,
@@ -375,7 +376,7 @@ export class Chat {
       parentThreadId: parent,
     };
 
-    const [contextManager, systemPrompt] = await Promise.all([
+    const [contextManager, skillsManager, systemPrompt] = await Promise.all([
       ContextManager.create(
         (msg) =>
           this.context.dispatch({
@@ -394,6 +395,11 @@ export class Chat {
           options: this.context.options,
         },
       ),
+      SkillsManager.create({
+        cwd: this.context.cwd,
+        nvim: this.context.nvim,
+        options: this.context.options,
+      }),
       createSystemPrompt(threadType, this.context.nvim, this.context.cwd),
     ]);
 
@@ -420,6 +426,7 @@ export class Chat {
     const thread = new Thread(threadId, threadType, systemPrompt, {
       ...this.context,
       contextManager,
+      skillsManager,
       mcpToolManager: this.mcpToolManager,
       profile,
       chat: this,
