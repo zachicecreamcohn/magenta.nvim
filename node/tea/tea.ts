@@ -14,15 +14,6 @@ import type { Nvim } from "../nvim/nvim-node";
 import { Defer } from "../utils/async.ts";
 
 export type Dispatch<Msg> = (msg: Msg) => void;
-
-export type Update<Msg, Model, Context = undefined> = Context extends undefined
-  ? (msg: Msg, model: Model) => [Model] | [Model, Thunk<Msg> | undefined]
-  : (
-      msg: Msg,
-      model: Model,
-      context: Context,
-    ) => [Model] | [Model, Thunk<Msg> | undefined];
-
 export type View<Model> = ({ model }: { model: Model }) => VDOMNode;
 
 type AppState<Model> =
@@ -36,7 +27,7 @@ type AppState<Model> =
     };
 
 export type MountedApp = {
-  onKey(key: BindingKey): void;
+  onKey(key: BindingKey): Promise<void>;
   render(): void;
   unmount(): void;
   getMountedNode(): MountedVDOM;
@@ -162,7 +153,7 @@ export function createApp<Model>({
           }
         },
 
-        async onKey(key: BindingKey) {
+        async onKey(key: BindingKey): Promise<void> {
           const window = await getCurrentWindow(mount.nvim);
           const buffer = await window.buffer();
           if (buffer.id != mount.buffer.id) {
@@ -202,38 +193,5 @@ export function createApp<Model>({
         error: "destroyed",
       };
     },
-  };
-}
-
-export type Thunk<Msg> = (dispatch: Dispatch<Msg>) => Promise<void>;
-
-export function wrapThunk<MsgType extends string, InnerMsg>(
-  msgType: MsgType,
-  thunk: Thunk<InnerMsg> | undefined,
-): Thunk<{ type: MsgType; msg: InnerMsg }> | undefined {
-  if (!thunk) {
-    return undefined;
-  }
-  return (dispatch: Dispatch<{ type: MsgType; msg: InnerMsg }>) =>
-    thunk((msg: InnerMsg) => dispatch({ type: msgType, msg }));
-}
-
-export function chainThunks<Msg>(
-  ...thunks: (Thunk<Msg> | undefined)[]
-): Thunk<Msg> {
-  return async (dispatch) => {
-    for (const thunk of thunks) {
-      if (thunk) {
-        await thunk(dispatch);
-      }
-    }
-  };
-}
-
-export function parallelThunks<Msg>(
-  ...thunks: (Thunk<Msg> | undefined)[]
-): Thunk<Msg> {
-  return async (dispatch) => {
-    await Promise.all(thunks.map((t) => t && t(dispatch)));
   };
 }

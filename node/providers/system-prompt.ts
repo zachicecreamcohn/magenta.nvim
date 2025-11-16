@@ -403,10 +403,8 @@ export async function createSystemPrompt(
   },
 ): Promise<SystemPrompt> {
   const basePrompt = getBaseSystemPrompt(type);
-  const [systemInfo, skills] = await Promise.all([
-    getSystemInfo(context.nvim, context.cwd),
-    loadSkills(context),
-  ]);
+  const skills = loadSkills(context);
+  const systemInfo = await getSystemInfo(context.nvim, context.cwd);
 
   const systemInfoText = `
 
