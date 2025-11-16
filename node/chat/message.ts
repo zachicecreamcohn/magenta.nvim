@@ -503,9 +503,7 @@ ${this.state.stop ? d`\n${this.renderStopInfo(this.state.stop.stopReason, this.s
             this.context.nvim.logger.error(
               `Unable to find tool with requestId ${content.request.value.id}`,
             );
-            throw new Error(
-              `Unable to find tool with requestId ${content.request.value.id}`,
-            );
+            return d`\n⚠️ tool ${content.request.value.id} not found\n`;
           }
           return this.renderTool(tool);
         }
