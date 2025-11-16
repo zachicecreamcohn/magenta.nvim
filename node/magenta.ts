@@ -552,6 +552,7 @@ ${lines.join("\n")}
     const key = args[0];
     if (this.mountedChatApp) {
       if (BINDING_KEYS.indexOf(key as BindingKey) > -1) {
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         this.mountedChatApp.onKey(key as BindingKey);
       } else {
         this.nvim.logger.error(`Unexpected MagentaKey ${JSON.stringify(key)}`);

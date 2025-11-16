@@ -1,5 +1,5 @@
 import type { Result } from "../../utils/result.ts";
-import type { Dispatch, Thunk } from "../../tea/tea.ts";
+import type { Dispatch } from "../../tea/tea.ts";
 import type { ProviderToolResult } from "../../providers/provider.ts";
 import { d, withInlineCode } from "../../tea/view.ts";
 import type { Nvim } from "../../nvim/nvim-node";
@@ -79,7 +79,7 @@ export class MCPTool implements Tool {
     return false; // MCP tools never require user action
   }
 
-  update(msg: Msg): Thunk<Msg> | undefined {
+  update(msg: Msg): void {
     if (this.state.state === "done" || this.state.state === "error") {
       return;
     }

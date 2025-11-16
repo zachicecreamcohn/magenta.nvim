@@ -691,6 +691,81 @@ it("getFile still requires approval for files not matching getFileAutoAllowGlobs
   );
 });
 
+it("getFile automatically allows files in skills directory", async () => {
+  await withDriver(
+    {
+      options: {
+        skillsPaths: [".claude/skills"],
+      },
+      setupFiles: async (tmpDir) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+
+        // Create skills directory structure
+        await fs.mkdir(path.join(tmpDir, ".claude/skills/my-skill"), {
+          recursive: true,
+        });
+        await fs.writeFile(
+          path.join(tmpDir, ".claude/skills/my-skill/skill.md"),
+          "---\nname: my-skill\ndescription: A test skill\n---\n\n# Skill content",
+        );
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // Test that files in skills directory are automatically allowed
+      await driver.inputMagentaText(
+        `Try reading the file .claude/skills/my-skill/skill.md`,
+      );
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      request.respond({
+        stopReason: "tool_use",
+        text: "ok, here goes",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "request_id" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath:
+                  ".claude/skills/my-skill/skill.md" as UnresolvedFilePath,
+              },
+            },
+          },
+        ],
+      });
+
+      // Should be automatically approved, not show approval dialog
+      await driver.assertDisplayBufferContains(
+        `👀✅ \`.claude/skills/my-skill/skill.md\``,
+      );
+
+      // Verify the file contents are returned
+      const toolResultRequest =
+        await driver.mockAnthropic.awaitPendingRequest();
+      const toolResultMessage =
+        toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+      expect(toolResultMessage.role).toBe("user");
+      expect(Array.isArray(toolResultMessage.content)).toBe(true);
+
+      const toolResult = toolResultMessage.content.find(
+        (item) => item.type === "tool_result",
+      ) as Extract<
+        (typeof toolResultMessage.content)[0],
+        { type: "tool_result" }
+      >;
+      expect(toolResult).toBeDefined();
+
+      assertToolResultContainsText(toolResult, "Skill content");
+    },
+  );
+});
+
 it("getFile rejection", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();

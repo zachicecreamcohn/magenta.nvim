@@ -679,6 +679,7 @@ export class Thread {
 
     // Process messages first to handle @file commands
     const messageContent: ProviderMessageContent[] = [];
+
     for (const m of messages || []) {
       if (m.type === "user") {
         const { processedText, additionalContent } =

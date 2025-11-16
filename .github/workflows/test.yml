@@ -19,7 +19,7 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm install --frozen-lockfile
+        run: npm ci
 
       - name: Setup Neovim
         uses: rhysd/action-setup-vim@v1
@@ -60,7 +60,7 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm install --frozen-lockfile
+        run: npm ci
 
       - name: Run ${{ matrix.command.name }}
         run: ${{ matrix.command.run }}
