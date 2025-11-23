@@ -334,18 +334,14 @@ describe("node/tools/bashCommand.spec.ts", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains(`\
-# user:
-Ok, run it again
-
-# assistant:
-Running that command again.
-⚡✅ \`true && echo 'tada'\`
-\`\`\`
-stdout:
-tada
-
-\`\`\``);
+      // Verify content pieces separately to allow for system reminder
+      await driver.assertDisplayBufferContains("# user:");
+      await driver.assertDisplayBufferContains("Ok, run it again");
+      await driver.assertDisplayBufferContains("# assistant:");
+      await driver.assertDisplayBufferContains("Running that command again.");
+      await driver.assertDisplayBufferContains("⚡✅ `true && echo 'tada'`");
+      await driver.assertDisplayBufferContains("stdout:");
+      await driver.assertDisplayBufferContains("tada");
     });
   });
 

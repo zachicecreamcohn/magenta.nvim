@@ -421,6 +421,13 @@ export class CopilotProvider implements Provider {
             });
             break;
 
+          case "system_reminder":
+            chatMessages.push({
+              role: "system",
+              content: content.text,
+            });
+            break;
+
           default:
             assertUnreachable(content);
         }
@@ -480,11 +487,19 @@ export class CopilotProvider implements Provider {
       // Simple message conversion for forced tool use (text only)
       for (const message of messages) {
         for (const content of message.content) {
-          if (content.type === "text") {
-            chatMessages.push({
-              role: message.role,
-              content: content.text,
-            });
+          switch (content.type) {
+            case "text":
+              chatMessages.push({
+                role: message.role,
+                content: content.text,
+              });
+              break;
+            case "system_reminder":
+              chatMessages.push({
+                role: "system",
+                content: content.text,
+              });
+              break;
           }
         }
       }

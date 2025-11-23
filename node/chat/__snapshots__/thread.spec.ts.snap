@@ -8,6 +8,12 @@ exports[`handles @async messages and sends them on end turn 1`] = `
         "text": "Tell me about TypeScript",
         "type": "text",
       },
+      {
+        "text": "<system-reminder>
+Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+</system-reminder>",
+        "type": "system_reminder",
+      },
     ],
     "role": "user",
   },
@@ -27,6 +33,12 @@ exports[`handles @async messages and sends them on end turn 1`] = `
         "text": "Also tell me about JavaScript",
         "type": "text",
       },
+      {
+        "text": "<system-reminder>
+Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+</system-reminder>",
+        "type": "system_reminder",
+      },
     ],
     "role": "user",
   },
@@ -40,6 +52,12 @@ exports[`handles @async messages by queueing them and sending on next tool respo
       {
         "text": "Can you read my secret file?",
         "type": "text",
+      },
+      {
+        "text": "<system-reminder>
+Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+</system-reminder>",
+        "type": "system_reminder",
       },
     ],
     "role": "user",
@@ -94,6 +112,12 @@ exports[`handles @async messages by queueing them and sending on next tool respo
         "text": "This should be queued",
         "type": "text",
       },
+      {
+        "text": "<system-reminder>
+Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+</system-reminder>",
+        "type": "system_reminder",
+      },
     ],
     "role": "user",
   },
@@ -108,6 +132,12 @@ exports[`node/chat/thread.spec.ts > aborts request when sending new message whil
         "text": "First message",
         "type": "text",
       },
+      {
+        "text": "<system-reminder>
+Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+</system-reminder>",
+        "type": "system_reminder",
+      },
     ],
     "role": "user",
   },
@@ -116,6 +146,12 @@ exports[`node/chat/thread.spec.ts > aborts request when sending new message whil
       {
         "text": "Second message while first is pending",
         "type": "text",
+      },
+      {
+        "text": "<system-reminder>
+Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+</system-reminder>",
+        "type": "system_reminder",
       },
     ],
     "role": "user",
@@ -140,6 +176,12 @@ exports[`node/chat/thread.spec.ts > aborts tool use when sending new message whi
       {
         "text": "Run a slow command",
         "type": "text",
+      },
+      {
+        "text": "<system-reminder>
+Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+</system-reminder>",
+        "type": "system_reminder",
       },
     ],
     "role": "user",
@@ -188,6 +230,12 @@ exports[`node/chat/thread.spec.ts > aborts tool use when sending new message whi
         "text": "Cancel that, run something else",
         "type": "text",
       },
+      {
+        "text": "<system-reminder>
+Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+</system-reminder>",
+        "type": "system_reminder",
+      },
     ],
     "role": "user",
   },
@@ -201,6 +249,12 @@ exports[`node/chat/thread.spec.ts > forks a thread with multiple messages into a
       {
         "text": "What is the capital of France?",
         "type": "text",
+      },
+      {
+        "text": "<system-reminder>
+Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+</system-reminder>",
+        "type": "system_reminder",
       },
     ],
     "role": "user",
@@ -220,6 +274,12 @@ exports[`node/chat/thread.spec.ts > forks a thread with multiple messages into a
       {
         "text": "What about Germany?",
         "type": "text",
+      },
+      {
+        "text": "<system-reminder>
+Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+</system-reminder>",
+        "type": "system_reminder",
       },
     ],
     "role": "user",
@@ -390,6 +450,12 @@ Use the fork_thread tool to start a new thread for this prompt.
 You must use the fork_thread tool immediately, with only the information you already have. Do not use any other tools.",
         "type": "text",
       },
+      {
+        "text": "<system-reminder>
+Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+</system-reminder>",
+        "type": "system_reminder",
+      },
     ],
     "role": "user",
   },
@@ -439,6 +505,12 @@ We discussed European capitals (France: Paris, Germany: Berlin) and examined you
       {
         "text": "Tell me about Italy",
         "type": "text",
+      },
+      {
+        "text": "<system-reminder>
+Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+</system-reminder>",
+        "type": "system_reminder",
       },
     ],
     "role": "user",

@@ -168,6 +168,9 @@ export function stringifyContent(
     case "redacted_thinking":
       return `[Redacted Thinking]`;
 
+    case "system_reminder":
+      return content.text;
+
     default:
       assertUnreachable(content);
   }

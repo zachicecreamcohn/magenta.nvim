@@ -421,6 +421,8 @@ ${this.requests.map((r) => `${r.defer.resolved ? "resolved" : "pending"} - ${JSO
           return block.thinking.includes(text);
         case "redacted_thinking":
           return false;
+        case "system_reminder":
+          return block.text.includes(text);
         default:
           assertUnreachable(block);
       }
@@ -526,6 +528,8 @@ ${this.requests.map((r) => `${r.defer.resolved ? "resolved" : "pending"} - ${JSO
           return block.thinking.includes(text);
         case "redacted_thinking":
           return false;
+        case "system_reminder":
+          return block.text.includes(text);
         default:
           assertUnreachable(block);
       }

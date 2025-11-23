@@ -71,6 +71,11 @@ export type ProviderRedactedThinkingContent = {
   data: string;
 };
 
+export type ProviderSystemReminderContent = {
+  type: "system_reminder";
+  text: string;
+};
+
 export type ProviderImageContent = {
   type: "image";
   source: {
@@ -149,6 +154,9 @@ export type ProviderMessageContent =
       providerMetadata?: ProviderMetadata | undefined;
     })
   | (ProviderRedactedThinkingContent & {
+      providerMetadata?: ProviderMetadata | undefined;
+    })
+  | (ProviderSystemReminderContent & {
       providerMetadata?: ProviderMetadata | undefined;
     });
 

@@ -149,6 +149,7 @@ describe("node/chat/thread.spec.ts", () => {
         messages.flatMap((m) => m.content.map((b) => m.role + ":" + b.type)),
       ).toEqual([
         "user:text",
+        "user:system_reminder",
         "assistant:text",
         "assistant:tool_use",
         "user:tool_result",
@@ -398,8 +399,8 @@ describe("node/chat/thread.spec.ts", () => {
         // Should have user message and assistant response
         expect(messages.length).toBe(2);
 
-        // The user message should have two content blocks: original text + diagnostics
-        expect(messages[0].content.length).toBe(2);
+        // The user message should have three content blocks: original text + diagnostics + system_reminder
+        expect(messages[0].content.length).toBe(3);
         const content0 = messages[0].content[0];
         expect(content0.type).toBe("text");
         expect(
@@ -470,8 +471,8 @@ describe("node/chat/thread.spec.ts", () => {
         // Should have user message and assistant response
         expect(messages.length).toBe(2);
 
-        // The user message should have two content blocks: original text + diagnostics
-        expect(messages[0].content.length).toBe(2);
+        // The user message should have three content blocks: original text + diagnostics + system_reminder
+        expect(messages[0].content.length).toBe(3);
         const content0 = messages[0].content[0];
         expect(content0.type).toBe("text");
         expect(
@@ -530,8 +531,8 @@ describe("node/chat/thread.spec.ts", () => {
         // Should have user message and assistant response
         expect(messages.length).toBe(2);
 
-        // The user message should have two content blocks: original text + quickfix list
-        expect(messages[0].content.length).toBe(2);
+        // The user message should have three content blocks: original text + quickfix list + system_reminder
+        expect(messages[0].content.length).toBe(3);
         const content0 = messages[0].content[0];
         expect(content0.type).toBe("text");
         expect(
@@ -597,8 +598,8 @@ describe("node/chat/thread.spec.ts", () => {
         // Should have user message and assistant response
         expect(messages.length).toBe(2);
 
-        // The user message should have two content blocks: original text + quickfix list
-        expect(messages[0].content.length).toBe(2);
+        // The user message should have three content blocks: original text + quickfix list + system_reminder
+        expect(messages[0].content.length).toBe(3);
         const content0 = messages[0].content[0];
         expect(content0.type).toBe("text");
         expect(
@@ -650,8 +651,8 @@ describe("node/chat/thread.spec.ts", () => {
         // Should have user message and assistant response
         expect(messages.length).toBe(2);
 
-        // The user message should have two content blocks: original text + empty quickfix list
-        expect(messages[0].content.length).toBe(2);
+        // The user message should have three content blocks: original text + empty quickfix list + system_reminder
+        expect(messages[0].content.length).toBe(3);
         const content1 = messages[0].content[1];
         expect(content1.type).toBe("text");
         expect(
@@ -699,8 +700,8 @@ describe("node/chat/thread.spec.ts", () => {
         // Should have user message and assistant response
         expect(messages.length).toBe(2);
 
-        // The user message should have two content blocks: original text + buffers list
-        expect(messages[0].content.length).toBe(2);
+        // The user message should have three content blocks: original text + buffers list + system_reminder
+        expect(messages[0].content.length).toBe(3);
         const content0 = messages[0].content[0];
         expect(content0.type).toBe("text");
         expect(
@@ -757,8 +758,8 @@ describe("node/chat/thread.spec.ts", () => {
         // Should have user message and assistant response
         expect(messages.length).toBe(2);
 
-        // The user message should have two content blocks: original text + buffers list
-        expect(messages[0].content.length).toBe(2);
+        // The user message should have three content blocks: original text + buffers list + system_reminder
+        expect(messages[0].content.length).toBe(3);
         const content0 = messages[0].content[0];
         expect(content0.type).toBe("text");
         expect(
@@ -809,8 +810,8 @@ describe("node/chat/thread.spec.ts", () => {
         // Should have user message and assistant response
         expect(messages.length).toBe(2);
 
-        // The user message should have two content blocks: original text + buffers list
-        expect(messages[0].content.length).toBe(2);
+        // The user message should have three content blocks: original text + buffers list + system_reminder
+        expect(messages[0].content.length).toBe(3);
         const content1 = messages[0].content[1];
         expect(content1.type).toBe("text");
         expect(
@@ -1206,10 +1207,12 @@ it("handles @async messages by queueing them and sending on next tool response",
       "tool_use immediately followed by tool_result",
     ).toEqual([
       "user:text",
+      "user:system_reminder",
       "assistant:text",
       "assistant:tool_use",
       "user:tool_result",
       "user:text",
+      "user:system_reminder",
     ]);
     expect(request2.messages).toMatchSnapshot();
   });
