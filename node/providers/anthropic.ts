@@ -390,6 +390,13 @@ export class AnthropicProvider implements Provider {
               });
               break;
 
+            case "system_reminder":
+              content.push({
+                type: "text",
+                text: c.text,
+              });
+              break;
+
             default:
               assertUnreachable(c);
           }

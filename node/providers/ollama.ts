@@ -127,6 +127,14 @@ export class OllamaProvider implements Provider {
             // Skip thinking content for Ollama as it's not a part of the message
             break;
 
+          case "system_reminder":
+            // Convert system_reminder to text content
+            ollamaMessages.push({
+              role: "user",
+              content: content.text,
+            });
+            break;
+
           default:
             assertUnreachable(content);
         }

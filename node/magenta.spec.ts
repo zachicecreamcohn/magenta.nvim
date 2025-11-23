@@ -21,13 +21,12 @@ it("clear command should work", async () => {
       toolRequests: [],
     });
 
-    await driver.assertDisplayBufferContains(`# user:
-hello
-
-# assistant:
-sup?
-
-Stopped (end_turn) [input: 0, output: 0]`);
+    // Check for content pieces separately to allow for system reminder in between
+    await driver.assertDisplayBufferContains("# user:");
+    await driver.assertDisplayBufferContains("hello");
+    await driver.assertDisplayBufferContains("# assistant:");
+    await driver.assertDisplayBufferContains("sup?");
+    await driver.assertDisplayBufferContains("Stopped (end_turn)");
 
     await driver.clear();
     await driver.assertDisplayBufferContains(LOGO);
@@ -40,13 +39,12 @@ Stopped (end_turn) [input: 0, output: 0]`);
       toolRequests: [],
     });
 
-    await driver.assertDisplayBufferContains(`# user:
-hello again
-
-# assistant:
-huh?
-
-Stopped (end_turn) [input: 0, output: 0]`);
+    // Check for content pieces separately to allow for system reminder in between
+    await driver.assertDisplayBufferContains("# user:");
+    await driver.assertDisplayBufferContains("hello again");
+    await driver.assertDisplayBufferContains("# assistant:");
+    await driver.assertDisplayBufferContains("huh?");
+    await driver.assertDisplayBufferContains("Stopped (end_turn)");
   });
 });
 
@@ -55,11 +53,10 @@ it("abort command should work when waiting for response", async () => {
     await driver.showSidebar();
     await driver.inputMagentaText(`hello`);
     await driver.send();
-    await driver.assertDisplayBufferContains(`\
-# user:
-hello
-
-Streaming response ⠁`);
+    // Check for content pieces separately to allow for system reminder in between
+    await driver.assertDisplayBufferContains("# user:");
+    await driver.assertDisplayBufferContains("hello");
+    await driver.assertDisplayBufferContains("Streaming response ⠁");
 
     await pollUntil(() => {
       if (driver.mockAnthropic.requests.length != 1) {
@@ -92,13 +89,11 @@ it("abort command should work when response is in progress", async () => {
     const request = await driver.mockAnthropic.awaitPendingRequest();
     request.streamText("I'm starting to respond");
 
-    // Verify that response has started appearing
-    await driver.assertDisplayBufferContains(`\
-# user:
-hello
-
-# assistant:
-I'm starting to respond`);
+    // Verify that response has started appearing - check pieces separately
+    await driver.assertDisplayBufferContains("# user:");
+    await driver.assertDisplayBufferContains("hello");
+    await driver.assertDisplayBufferContains("# assistant:");
+    await driver.assertDisplayBufferContains("I'm starting to respond");
 
     expect(request.defer.resolved).toBe(false);
 
@@ -142,14 +137,12 @@ it("abort command should stop pending tool use", async () => {
       ],
     });
 
-    // Verify that response has started appearing
-    await driver.assertDisplayBufferContains(`\
-# user:
-hello
-
-# assistant:
-ok, here goes
-👀⏳ May I read file \`.secret\`?`);
+    // Verify that response has started appearing - check pieces separately
+    await driver.assertDisplayBufferContains("# user:");
+    await driver.assertDisplayBufferContains("hello");
+    await driver.assertDisplayBufferContains("# assistant:");
+    await driver.assertDisplayBufferContains("ok, here goes");
+    await driver.assertDisplayBufferContains("👀⏳ May I read file `.secret`?");
 
     await driver.abort();
 

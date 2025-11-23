@@ -301,6 +301,15 @@ export class OpenAIProvider implements Provider {
             }
             break;
 
+          case "system_reminder":
+            if (m.role === "user") {
+              pushUserContent({
+                type: "input_text",
+                text: content.text,
+              });
+            }
+            break;
+
           case "image":
             if (m.role === "user") {
               pushUserContent({

@@ -43,6 +43,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import player from "play-sound";
 import { CommandRegistry } from "./commands/registry.ts";
+import { getSubsequentReminder } from "../providers/system-reminders.ts";
 
 export type StoppedConversationState = {
   state: "stopped";
@@ -733,6 +734,14 @@ You must use the fork_thread tool immediately, with only the information you alr
 
     // Now get context updates after all @file commands have been processed
     const contextUpdates = await this.contextManager.getContextUpdate();
+
+    // Add system reminder for user-submitted messages (not auto-respond messages)
+    if (messages?.length) {
+      messageContent.push({
+        type: "system_reminder",
+        text: getSubsequentReminder(this.state.threadType),
+      });
+    }
 
     if (messages?.length || Object.keys(contextUpdates).length) {
       const message = new Message(

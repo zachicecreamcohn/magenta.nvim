@@ -229,5 +229,5 @@ Here are skills you have available to you:
 
 ${skillsList}
 
-When a skill is relevant to a task, use the get_file tool to read the skill file.`;
+When a skill is relevant to a task, use the get_file tool to read the skill.md file.`;
 }

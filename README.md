@@ -34,6 +34,8 @@ I sometimes write about AI, neovim and magenta specifically:
 
 ## Nov 2025
 
+**System Reminders** - Implemented automatic system reminders that are injected after each user-submitted message. These reminders help keep certain piece of info (like the fact that the agent should use skills) at the top of the context.
+
 **Skills** - I added support for skills. By default it will look in the .claude/skills directory of your project.
 
 <details>

@@ -266,6 +266,11 @@ it("avoids sending redundant context updates after tool application (no buffer)"
           type: "text",
           text: "testing",
         },
+        {
+          type: "system_reminder",
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          text: expect.stringContaining("Remember to use skills"),
+        },
       ],
       role: "user",
     });
@@ -785,6 +790,7 @@ it("issuing a getFile request adds the file to the context but doesn't send its 
 
     expect(flattenedMessages).toEqual([
       "user;text;Please analyze the image test.jpg",
+      "user;system_reminder;",
       "assistant;text;I'll analyze the image",
       "assistant;tool_use;",
       "user;tool_result;",

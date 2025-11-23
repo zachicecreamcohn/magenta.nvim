@@ -54,7 +54,7 @@ type State = {
   expandedUpdates?: {
     [absFilePath: string]: boolean;
   };
-  expandedThinking?: {
+  expandedContent?: {
     [contentIdx: number]: boolean;
   };
   edits: {
@@ -111,7 +111,7 @@ export type Msg =
       requestId: ToolRequestId;
     }
   | {
-      type: "toggle-expand-thinking-block";
+      type: "toggle-expand-content";
       contentIdx: number;
     }
   | {
@@ -265,10 +265,10 @@ export class Message {
         return;
       }
 
-      case "toggle-expand-thinking-block": {
-        this.state.expandedThinking = this.state.expandedThinking || {};
-        this.state.expandedThinking[msg.contentIdx] =
-          !this.state.expandedThinking[msg.contentIdx];
+      case "toggle-expand-content": {
+        this.state.expandedContent = this.state.expandedContent || {};
+        this.state.expandedContent[msg.contentIdx] =
+          !this.state.expandedContent[msg.contentIdx];
         return;
       }
 
@@ -370,7 +370,7 @@ export class Message {
     content: Extract<ProviderMessageContent, { type: "thinking" }>,
     contentIdx: number,
   ) {
-    const isExpanded = this.state.expandedThinking?.[contentIdx] || false;
+    const isExpanded = this.state.expandedContent?.[contentIdx] || false;
 
     if (isExpanded) {
       return withBindings(
@@ -380,7 +380,7 @@ export class Message {
         {
           "<CR>": () => {
             this.context.myDispatch({
-              type: "toggle-expand-thinking-block",
+              type: "toggle-expand-content",
               contentIdx,
             });
           },
@@ -394,7 +394,43 @@ export class Message {
         {
           "<CR>": () =>
             this.context.myDispatch({
-              type: "toggle-expand-thinking-block",
+              type: "toggle-expand-content",
+              contentIdx,
+            }),
+        },
+      );
+    }
+  }
+
+  renderSystemReminder(
+    content: Extract<ProviderMessageContent, { type: "system_reminder" }>,
+    contentIdx: number,
+  ) {
+    const isExpanded = this.state.expandedContent?.[contentIdx] || false;
+
+    if (isExpanded) {
+      return withBindings(
+        withExtmark(d`📋 [System Reminder]\n${content.text}`, {
+          hl_group: "@comment",
+        }),
+        {
+          "<CR>": () => {
+            this.context.myDispatch({
+              type: "toggle-expand-content",
+              contentIdx,
+            });
+          },
+        },
+      );
+    } else {
+      return withBindings(
+        withExtmark(d`📋 [System Reminder]`, {
+          hl_group: "@comment",
+        }),
+        {
+          "<CR>": () =>
+            this.context.myDispatch({
+              type: "toggle-expand-content",
               contentIdx,
             }),
         },
@@ -519,6 +555,9 @@ ${this.state.stop ? d`\n${this.renderStopInfo(this.state.stop.stopReason, this.s
         return withExtmark(d`💭 [Redacted Thinking]`, {
           hl_group: "@comment",
         });
+
+      case "system_reminder":
+        return this.renderSystemReminder(content, contentIdx);
 
       default:
         assertUnreachable(content);
