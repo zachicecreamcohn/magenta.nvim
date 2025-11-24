@@ -5,6 +5,7 @@ import {
   withInlineCode,
   withCode,
   withExtmark,
+  withBindings,
 } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { Dispatch } from "../tea/tea.ts";
@@ -21,21 +22,42 @@ import type { MessageId } from "../chat/message.ts";
 import type { StaticTool, ToolName } from "./types.ts";
 import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
+import { resolveFilePath } from "../utils/files.ts";
+import type { MagentaOptions } from "../options.ts";
+import { canWriteFile } from "./permissions.ts";
 import type { ThreadId } from "../chat/types.ts";
 
 export type State =
   | {
+      state: "pending";
+    }
+  | {
       state: "processing";
+      approved: boolean;
+    }
+  | {
+      state: "pending-user-action";
     }
   | {
       state: "done";
       result: ProviderToolResult;
     };
 
-export type Msg = {
-  type: "finish";
-  result: Result<ProviderToolResultContent[]>;
-};
+export type Msg =
+  | {
+      type: "finish";
+      result: Result<ProviderToolResultContent[]>;
+    }
+  | {
+      type: "automatic-approval";
+    }
+  | {
+      type: "request-user-approval";
+    }
+  | {
+      type: "user-approval";
+      approved: boolean;
+    };
 
 export class InsertTool implements StaticTool {
   state: State;
@@ -51,28 +73,45 @@ export class InsertTool implements StaticTool {
       nvim: Nvim;
       cwd: NvimCwd;
       dispatch: Dispatch<RootMsg>;
+      options: MagentaOptions;
       getDisplayWidth: () => number;
     },
   ) {
-    this.state = { state: "processing" };
+    this.state = { state: "pending" };
 
     // wrap in setTimeout to force a new eventloop frame, so we don't dispatch-in-dispatch
     setTimeout(() => {
-      applyEdit(
-        this.request,
-        this.threadId,
-        this.messageId,
-        this.context,
-      ).catch((err: Error) =>
+      this.initInsert().catch((error: Error) =>
         this.context.myDispatch({
           type: "finish",
           result: {
             status: "error",
-            error: err.message,
+            error: error.message + "\n" + error.stack,
           },
         }),
       );
     });
+  }
+
+  private async initInsert(): Promise<void> {
+    const filePath = this.request.input.filePath;
+    const absFilePath = resolveFilePath(this.context.cwd, filePath);
+
+    if (this.state.state === "pending") {
+      const allowed = await canWriteFile(absFilePath, this.context);
+
+      if (allowed) {
+        this.context.myDispatch({
+          type: "automatic-approval",
+        });
+      } else {
+        this.context.myDispatch({ type: "request-user-approval" });
+      }
+    }
+  }
+
+  private async doInsert(): Promise<void> {
+    await applyEdit(this.request, this.threadId, this.messageId, this.context);
   }
 
   isDone(): boolean {
@@ -80,10 +119,10 @@ export class InsertTool implements StaticTool {
   }
 
   isPendingUserAction(): boolean {
-    return false; // Insert tool never requires user action
+    return this.state.state === "pending-user-action";
   }
 
-  abort() {
+  abort(): void {
     this.state = {
       state: "done",
       result: {
@@ -100,19 +139,84 @@ export class InsertTool implements StaticTool {
   update(msg: Msg): void {
     switch (msg.type) {
       case "finish":
-        if (this.state.state == "processing") {
+        this.state = {
+          state: "done",
+          result: {
+            type: "tool_result",
+            id: this.request.id,
+            result: msg.result,
+          },
+        };
+        return;
+      case "request-user-approval":
+        if (this.state.state === "pending") {
           this.state = {
-            state: "done",
-            result: {
-              type: "tool_result",
-              id: this.request.id,
-              result: msg.result,
-            },
+            state: "pending-user-action",
           };
         }
         return;
+      case "user-approval": {
+        if (this.state.state === "pending-user-action") {
+          if (msg.approved) {
+            this.state = {
+              state: "processing",
+              approved: true,
+            };
+
+            // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
+            setTimeout(() => {
+              this.doInsert().catch((error: Error) =>
+                this.context.myDispatch({
+                  type: "finish",
+                  result: {
+                    status: "error",
+                    error: error.message + "\n" + error.stack,
+                  },
+                }),
+              );
+            });
+            return;
+          } else {
+            this.state = {
+              state: "done",
+              result: {
+                type: "tool_result",
+                id: this.request.id,
+                result: {
+                  status: "error",
+                  error: `The user did not allow this insertion.`,
+                },
+              },
+            };
+            return;
+          }
+        }
+        return;
+      }
+      case "automatic-approval": {
+        if (this.state.state === "pending") {
+          this.state = {
+            state: "processing",
+            approved: true,
+          };
+
+          // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
+          setTimeout(() => {
+            this.doInsert().catch((error: Error) =>
+              this.context.myDispatch({
+                type: "finish",
+                result: {
+                  status: "error",
+                  error: error.message + "\n" + error.stack,
+                },
+              }),
+            );
+          });
+        }
+        return;
+      }
       default:
-        assertUnreachable(msg.type);
+        assertUnreachable(msg);
     }
   }
 
@@ -121,8 +225,37 @@ export class InsertTool implements StaticTool {
       (this.request.input.content.match(/\n/g) || []).length + 1;
 
     switch (this.state.state) {
+      case "pending":
       case "processing":
         return d`✏️⚙️ Insert [[ +${lineCount.toString()} ]] in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
+      case "pending-user-action":
+        return d`✏️⏳ May I insert in file ${withInlineCode(d`\`${this.request.input.filePath}\``)}?
+
+┌────────────────┐
+│ ${withBindings(
+          withExtmark(d`[ NO ]`, {
+            hl_group: ["ErrorMsg", "@markup.strong.markdown"],
+          }),
+          {
+            "<CR>": () =>
+              this.context.myDispatch({
+                type: "user-approval",
+                approved: false,
+              }),
+          },
+        )} ${withBindings(
+          withExtmark(d`[ YES ]`, {
+            hl_group: ["String", "@markup.strong.markdown"],
+          }),
+          {
+            "<CR>": () =>
+              this.context.myDispatch({
+                type: "user-approval",
+                approved: true,
+              }),
+          },
+        )} │
+└────────────────┘`;
       case "done":
         if (this.state.result.result.status === "error") {
           return d`✏️❌ Insert [[ +${lineCount.toString()} ]] in ${withInlineCode(d`\`${this.request.input.filePath}\``)} - ${this.state.result.result.error}`;
@@ -136,6 +269,8 @@ export class InsertTool implements StaticTool {
 
   renderPreview(): VDOMNode {
     switch (this.state.state) {
+      case "pending":
+      case "pending-user-action":
       case "processing":
         return d``;
       case "done":
@@ -183,6 +318,7 @@ ${withExtmark(d`${this.request.input.content}`, { line_hl_group: "DiffAdd" })}
     switch (this.state.state) {
       case "done":
         return this.state.result;
+      case "pending":
       case "processing":
         return {
           type: "tool_result",
@@ -190,7 +326,24 @@ ${withExtmark(d`${this.request.input.content}`, { line_hl_group: "DiffAdd" })}
           result: {
             status: "ok",
             value: [
-              { type: "text", text: `This tool use is being processed.` },
+              {
+                type: "text",
+                text: `This tool use is being processed. Please proceed with your answer or address other parts of the question.`,
+              },
+            ],
+          },
+        };
+      case "pending-user-action":
+        return {
+          type: "tool_result",
+          id: this.request.id,
+          result: {
+            status: "ok",
+            value: [
+              {
+                type: "text",
+                text: `Waiting for user approval to finish processing this tool use.`,
+              },
             ],
           },
         };

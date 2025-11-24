@@ -5,6 +5,9 @@ import { withDriver } from "../test/preamble";
 import fs from "node:fs";
 import { getcwd } from "../nvim/nvim";
 import path from "node:path";
+import type { ToolRequestId } from "./toolManager";
+import type { ToolName } from "./types";
+import type { UnresolvedFilePath } from "../utils/files";
 
 describe("node/tools/insert.spec.ts", () => {
   it("validate input", () => {
@@ -211,3 +214,318 @@ function vdomToString(node: VDOMNode): string {
 
   return "";
 }
+
+it("insert requires approval for gitignored file", async () => {
+  await withDriver({}, async (driver) => {
+    const { $ } = await import("zx");
+    const cwd = await getcwd(driver.nvim);
+
+    // Create .gitignore and the ignored file
+    await $`cd ${cwd} && echo 'ignored-insert.txt' > .gitignore`;
+    fs.writeFileSync(
+      path.join(cwd, "ignored-insert.txt"),
+      "existing content",
+      "utf-8",
+    );
+
+    await driver.showSidebar();
+    await driver.inputMagentaText("Insert content in file ignored-insert.txt");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "id" as ToolRequestId,
+            toolName: "insert" as ToolName,
+            input: {
+              filePath: "ignored-insert.txt" as UnresolvedFilePath,
+              insertAfter: "existing content",
+              content: "\nnew content",
+            },
+          },
+        },
+      ],
+    });
+
+    await driver.assertDisplayBufferContains(
+      "✏️⏳ May I insert in file `ignored-insert.txt`?",
+    );
+  });
+});
+
+it("insert requires approval for file outside cwd", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText("Insert content in file /tmp/outside.txt");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "id" as ToolRequestId,
+            toolName: "insert" as ToolName,
+            input: {
+              filePath: "/tmp/outside.txt" as UnresolvedFilePath,
+              insertAfter: "",
+              content: "new content",
+            },
+          },
+        },
+      ],
+    });
+
+    await driver.assertDisplayBufferContains(
+      "✏️⏳ May I insert in file `/tmp/outside.txt`?",
+    );
+  });
+});
+
+it("insert requires approval for hidden file", async () => {
+  await withDriver({}, async (driver) => {
+    const cwd = await getcwd(driver.nvim);
+    fs.writeFileSync(
+      path.join(cwd, ".hidden-insert"),
+      "existing content",
+      "utf-8",
+    );
+
+    await driver.showSidebar();
+    await driver.inputMagentaText("Insert content in file .hidden-insert");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "id" as ToolRequestId,
+            toolName: "insert" as ToolName,
+            input: {
+              filePath: ".hidden-insert" as UnresolvedFilePath,
+              insertAfter: "existing content",
+              content: "\nnew content",
+            },
+          },
+        },
+      ],
+    });
+
+    await driver.assertDisplayBufferContains(
+      "✏️⏳ May I insert in file `.hidden-insert`?",
+    );
+  });
+});
+
+it("insert requires approval for skills directory file", async () => {
+  await withDriver(
+    {
+      options: {
+        skillsPaths: [".claude/skills"],
+      },
+      setupFiles: async (tmpDir) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+
+        // Create skills directory structure
+        await fs.mkdir(path.join(tmpDir, ".claude/skills/my-skill"), {
+          recursive: true,
+        });
+        await fs.writeFile(
+          path.join(tmpDir, ".claude/skills/my-skill/skill.md"),
+          "---\nname: my-skill\ndescription: A test skill\n---\n\n# Content",
+        );
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // Test that files in skills directory require confirmation for writes
+      await driver.inputMagentaText(
+        "Insert content in .claude/skills/my-skill/skill.md",
+      );
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      request.respond({
+        stopReason: "tool_use",
+        text: "ok, here goes",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "request_id" as ToolRequestId,
+              toolName: "insert" as ToolName,
+              input: {
+                filePath:
+                  ".claude/skills/my-skill/skill.md" as UnresolvedFilePath,
+                insertAfter: "# Content",
+                content: "\nNew content",
+              },
+            },
+          },
+        ],
+      });
+
+      // Should require approval even though it's a skills file
+      await driver.assertDisplayBufferContains(
+        "✏️⏳ May I insert in file `.claude/skills/my-skill/skill.md`?",
+      );
+    },
+  );
+});
+
+it("insert auto-approves regular files in cwd", async () => {
+  await withDriver({}, async (driver) => {
+    const cwd = await getcwd(driver.nvim);
+    const testFile = path.join(cwd, "regular-insert-file.txt");
+    fs.writeFileSync(testFile, "existing content", "utf-8");
+
+    await driver.showSidebar();
+    await driver.inputMagentaText("Insert content in regular-insert-file.txt");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "request_id" as ToolRequestId,
+            toolName: "insert" as ToolName,
+            input: {
+              filePath: "regular-insert-file.txt" as UnresolvedFilePath,
+              insertAfter: "existing content",
+              content: "\nnew content",
+            },
+          },
+        },
+      ],
+    });
+
+    // Should be automatically approved, not show approval dialog
+    await driver.assertDisplayBufferContains(
+      "✏️✅ Insert [[ +2 ]] in `regular-insert-file.txt`",
+    );
+
+    const fileContent = fs.readFileSync(testFile, "utf-8");
+    expect(fileContent).toBe("existing content\nnew content");
+  });
+});
+
+it("insert approval dialog allows user to approve", async () => {
+  await withDriver({}, async (driver) => {
+    const cwd = await getcwd(driver.nvim);
+    fs.writeFileSync(path.join(cwd, ".secret-insert"), "old secret", "utf-8");
+
+    await driver.showSidebar();
+    await driver.inputMagentaText("Insert content in .secret-insert");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "id" as ToolRequestId,
+            toolName: "insert" as ToolName,
+            input: {
+              filePath: ".secret-insert" as UnresolvedFilePath,
+              insertAfter: "old secret",
+              content: "\nnew secret",
+            },
+          },
+        },
+      ],
+    });
+
+    await driver.assertDisplayBufferContains(
+      "✏️⏳ May I insert in file `.secret-insert`?",
+    );
+
+    // Verify the box formatting is displayed correctly
+    await driver.assertDisplayBufferContains(`\
+┌────────────────┐
+│ [ NO ] [ YES ] │
+└────────────────┘`);
+
+    const yesPos = await driver.assertDisplayBufferContains("[ YES ]");
+    await driver.triggerDisplayBufferKey(yesPos, "<CR>");
+
+    await driver.assertDisplayBufferContains(
+      "✏️✅ Insert [[ +2 ]] in `.secret-insert`",
+    );
+
+    const fileContent = fs.readFileSync(
+      path.join(cwd, ".secret-insert"),
+      "utf-8",
+    );
+    expect(fileContent).toBe("old secret\nnew secret");
+  });
+});
+
+it("insert approval dialog allows user to reject", async () => {
+  await withDriver({}, async (driver) => {
+    const cwd = await getcwd(driver.nvim);
+    fs.writeFileSync(path.join(cwd, ".secret-insert2"), "old secret", "utf-8");
+
+    await driver.showSidebar();
+    await driver.inputMagentaText("Insert content in .secret-insert2");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "id" as ToolRequestId,
+            toolName: "insert" as ToolName,
+            input: {
+              filePath: ".secret-insert2" as UnresolvedFilePath,
+              insertAfter: "old secret",
+              content: "\nnew secret",
+            },
+          },
+        },
+      ],
+    });
+
+    await driver.assertDisplayBufferContains(
+      "✏️⏳ May I insert in file `.secret-insert2`?",
+    );
+
+    const noPos = await driver.assertDisplayBufferContains("[ NO ]");
+    await driver.triggerDisplayBufferKey(noPos, "<CR>");
+
+    await driver.assertDisplayBufferContains(
+      "✏️❌ Insert [[ +2 ]] in `.secret-insert2`",
+    );
+
+    // Verify file was not modified
+    const fileContent = fs.readFileSync(
+      path.join(cwd, ".secret-insert2"),
+      "utf-8",
+    );
+    expect(fileContent).toBe("old secret");
+  });
+});

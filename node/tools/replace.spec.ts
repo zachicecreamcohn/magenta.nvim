@@ -525,6 +525,314 @@ function newFunction() {
     await driver.assertDisplayBufferContains("Replace [[ -6 / +3 ]]");
   });
 });
+
+it("replace requires approval for gitignored file", async () => {
+  await withDriver({}, async (driver) => {
+    const { getcwd } = await import("../nvim/nvim.ts");
+    const { $ } = await import("zx");
+    const cwd = await getcwd(driver.nvim);
+
+    // Create .gitignore and the ignored file
+    await $`cd ${cwd} && echo 'ignored-replace.txt' > .gitignore`;
+    fs.writeFileSync(
+      path.join(cwd, "ignored-replace.txt"),
+      "old content",
+      "utf-8",
+    );
+
+    await driver.showSidebar();
+    await driver.inputMagentaText(
+      "Replace content in file ignored-replace.txt",
+    );
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "id" as ToolRequestId,
+            toolName: "replace" as ToolName,
+            input: {
+              filePath: "ignored-replace.txt" as UnresolvedFilePath,
+              find: "old content",
+              replace: "new content",
+            },
+          },
+        },
+      ],
+    });
+
+    await driver.assertDisplayBufferContains(
+      "✏️⏳ May I replace in file `ignored-replace.txt`?",
+    );
+  });
+});
+
+it("replace requires approval for file outside cwd", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText("Replace content in file /tmp/outside.txt");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "id" as ToolRequestId,
+            toolName: "replace" as ToolName,
+            input: {
+              filePath: "/tmp/outside.txt" as UnresolvedFilePath,
+              find: "old content",
+              replace: "new content",
+            },
+          },
+        },
+      ],
+    });
+
+    await driver.assertDisplayBufferContains(
+      "✏️⏳ May I replace in file `/tmp/outside.txt`?",
+    );
+  });
+});
+
+it("replace requires approval for hidden file", async () => {
+  await withDriver({}, async (driver) => {
+    const cwd = await getcwd(driver.nvim);
+    fs.writeFileSync(path.join(cwd, ".hidden"), "old content", "utf-8");
+
+    await driver.showSidebar();
+    await driver.inputMagentaText("Replace content in file .hidden");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "id" as ToolRequestId,
+            toolName: "replace" as ToolName,
+            input: {
+              filePath: ".hidden" as UnresolvedFilePath,
+              find: "old content",
+              replace: "new content",
+            },
+          },
+        },
+      ],
+    });
+
+    await driver.assertDisplayBufferContains(
+      "✏️⏳ May I replace in file `.hidden`?",
+    );
+  });
+});
+
+it("replace requires approval for skills directory file", async () => {
+  await withDriver(
+    {
+      options: {
+        skillsPaths: [".claude/skills"],
+      },
+      setupFiles: async (tmpDir) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+
+        // Create skills directory structure
+        await fs.mkdir(path.join(tmpDir, ".claude/skills/my-skill"), {
+          recursive: true,
+        });
+        await fs.writeFile(
+          path.join(tmpDir, ".claude/skills/my-skill/skill.md"),
+          "---\nname: my-skill\ndescription: A test skill\n---\n\n# Old content",
+        );
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // Test that files in skills directory require confirmation for writes
+      await driver.inputMagentaText(
+        "Replace content in .claude/skills/my-skill/skill.md",
+      );
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      request.respond({
+        stopReason: "tool_use",
+        text: "ok, here goes",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "request_id" as ToolRequestId,
+              toolName: "replace" as ToolName,
+              input: {
+                filePath:
+                  ".claude/skills/my-skill/skill.md" as UnresolvedFilePath,
+                find: "# Old content",
+                replace: "# New content",
+              },
+            },
+          },
+        ],
+      });
+
+      // Should require approval even though it's a skills file
+      await driver.assertDisplayBufferContains(
+        "✏️⏳ May I replace in file `.claude/skills/my-skill/skill.md`?",
+      );
+    },
+  );
+});
+
+it("replace auto-approves regular files in cwd", async () => {
+  await withDriver({}, async (driver) => {
+    const cwd = await getcwd(driver.nvim);
+    const testFile = path.join(cwd, "regular-file.txt");
+    fs.writeFileSync(testFile, "old content", "utf-8");
+
+    await driver.showSidebar();
+    await driver.inputMagentaText("Replace content in regular-file.txt");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "request_id" as ToolRequestId,
+            toolName: "replace" as ToolName,
+            input: {
+              filePath: "regular-file.txt" as UnresolvedFilePath,
+              find: "old content",
+              replace: "new content",
+            },
+          },
+        },
+      ],
+    });
+
+    // Should be automatically approved, not show approval dialog
+    await driver.assertDisplayBufferContains(
+      "✏️✅ Replace [[ -1 / +1 ]] in `regular-file.txt`",
+    );
+
+    const fileContent = fs.readFileSync(testFile, "utf-8");
+    expect(fileContent).toBe("new content");
+  });
+});
+
+it("replace approval dialog allows user to approve", async () => {
+  await withDriver({}, async (driver) => {
+    const cwd = await getcwd(driver.nvim);
+    fs.writeFileSync(path.join(cwd, ".secret"), "old secret", "utf-8");
+
+    await driver.showSidebar();
+    await driver.inputMagentaText("Replace content in .secret");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "id" as ToolRequestId,
+            toolName: "replace" as ToolName,
+            input: {
+              filePath: ".secret" as UnresolvedFilePath,
+              find: "old secret",
+              replace: "new secret",
+            },
+          },
+        },
+      ],
+    });
+
+    await driver.assertDisplayBufferContains(
+      "✏️⏳ May I replace in file `.secret`?",
+    );
+
+    // Verify the box formatting is displayed correctly
+    await driver.assertDisplayBufferContains(`\
+┌────────────────┐
+│ [ NO ] [ YES ] │
+└────────────────┘`);
+
+    const yesPos = await driver.assertDisplayBufferContains("[ YES ]");
+    await driver.triggerDisplayBufferKey(yesPos, "<CR>");
+
+    await driver.assertDisplayBufferContains(
+      "✏️✅ Replace [[ -1 / +1 ]] in `.secret`",
+    );
+
+    const fileContent = fs.readFileSync(path.join(cwd, ".secret"), "utf-8");
+    expect(fileContent).toBe("new secret");
+  });
+});
+
+it("replace approval dialog allows user to reject", async () => {
+  await withDriver({}, async (driver) => {
+    const cwd = await getcwd(driver.nvim);
+    fs.writeFileSync(path.join(cwd, ".secret"), "old secret", "utf-8");
+
+    await driver.showSidebar();
+    await driver.inputMagentaText("Replace content in .secret");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingRequest();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "id" as ToolRequestId,
+            toolName: "replace" as ToolName,
+            input: {
+              filePath: ".secret" as UnresolvedFilePath,
+              find: "old secret",
+              replace: "new secret",
+            },
+          },
+        },
+      ],
+    });
+
+    await driver.assertDisplayBufferContains(
+      "✏️⏳ May I replace in file `.secret`?",
+    );
+
+    const noPos = await driver.assertDisplayBufferContains("[ NO ]");
+    await driver.triggerDisplayBufferKey(noPos, "<CR>");
+
+    await driver.assertDisplayBufferContains(
+      "✏️❌ Replace [[ -1 / +1 ]] in `.secret`",
+    );
+
+    // Verify file was not modified
+    const fileContent = fs.readFileSync(path.join(cwd, ".secret"), "utf-8");
+    expect(fileContent).toBe("old secret");
+  });
+});
 function vdomToString(node: VDOMNode): string {
   if (typeof node === "string") {
     return node;

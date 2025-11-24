@@ -1,13 +1,10 @@
 import { getBufferIfOpen } from "../utils/buffers.ts";
 import fs from "fs";
-import path from "path";
-import { glob } from "glob";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, withBindings, withInlineCode, withExtmark } from "../tea/view.ts";
 import { type StaticToolRequest } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import { readGitignore } from "./util.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
@@ -21,7 +18,6 @@ import {
   validateFileSize,
   FileCategory,
   type NvimCwd,
-  type AbsFilePath,
 } from "../utils/files.ts";
 import type { StaticTool, ToolName } from "./types.ts";
 import type { Msg as ThreadMsg } from "../chat/thread.ts";
@@ -33,14 +29,7 @@ import {
 } from "../utils/pdf-pages.ts";
 import type { MagentaOptions } from "../options.ts";
 import type { Row0Indexed } from "../nvim/window.ts";
-import * as os from "node:os";
-
-function expandTilde(filepath: string): string {
-  if (filepath.startsWith("~/") || filepath === "~") {
-    return path.join(os.homedir(), filepath.slice(1));
-  }
-  return filepath;
-}
+import { canReadFile } from "./permissions.ts";
 
 export type State =
   | {
@@ -239,96 +228,17 @@ You already have the most up-to-date information about the contents of this file
       return;
     }
 
-    const relFilePath = relativePath(this.context.cwd, absFilePath);
-
     if (this.state.state === "pending") {
-      // Check if file is in skills directory
-      if (this.isFileInSkillsDirectory(absFilePath)) {
+      const allowed = await canReadFile(absFilePath, this.context);
+
+      if (allowed) {
         this.context.myDispatch({
           type: "automatic-approval",
         });
-        return;
-      }
-
-      // Check if file matches any auto-allow globs first
-      if (await this.isFileAutoAllowed(relFilePath)) {
-        this.context.myDispatch({
-          type: "automatic-approval",
-        });
-        return;
-      }
-
-      if (!absFilePath.startsWith(this.context.cwd)) {
+      } else {
         this.context.myDispatch({ type: "request-user-approval" });
-        return;
-      }
-
-      if (relFilePath.split(path.sep).some((part) => part.startsWith("."))) {
-        this.context.myDispatch({ type: "request-user-approval" });
-        return;
-      }
-
-      const ig = await readGitignore(this.context.cwd);
-      if (ig.ignores(relFilePath)) {
-        this.context.myDispatch({ type: "request-user-approval" });
-        return;
       }
     }
-
-    this.context.myDispatch({
-      type: "automatic-approval",
-    });
-  }
-
-  private async isFileAutoAllowed(relFilePath: string): Promise<boolean> {
-    if (this.context.options.getFileAutoAllowGlobs.length === 0) {
-      return false;
-    }
-
-    for (const pattern of this.context.options.getFileAutoAllowGlobs) {
-      try {
-        const matches = await glob(pattern, {
-          cwd: this.context.cwd,
-          nocase: true,
-          nodir: true,
-        });
-
-        if (matches.includes(relFilePath)) {
-          return true;
-        }
-      } catch (error) {
-        // Log error but continue checking other patterns
-        this.context.nvim.logger.error(
-          `Error checking getFileAutoAllowGlobs pattern "${pattern}": ${(error as Error).message}`,
-        );
-      }
-    }
-
-    return false;
-  }
-
-  private isFileInSkillsDirectory(absFilePath: AbsFilePath): boolean {
-    if (
-      !this.context.options.skillsPaths ||
-      this.context.options.skillsPaths.length === 0
-    ) {
-      return false;
-    }
-
-    for (const skillsDir of this.context.options.skillsPaths) {
-      // Expand tilde, then resolve the skills directory path
-      const expandedDir = expandTilde(skillsDir);
-      const skillsDirPath = path.isAbsolute(expandedDir)
-        ? expandedDir
-        : path.join(this.context.cwd, expandedDir);
-
-      // Check if the file is under this skills directory
-      if (absFilePath.startsWith(skillsDirPath + path.sep)) {
-        return true;
-      }
-    }
-
-    return false;
   }
 
   async readFile() {
