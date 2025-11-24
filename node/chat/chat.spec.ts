@@ -31,7 +31,8 @@ describe("node/chat/chat.spec.ts", () => {
       );
 
       await driver.magenta.command("new-thread");
-      await driver.assertDisplayBufferContains("# [ Untitled ]\n" + LOGO);
+      await driver.assertDisplayBufferContains("# [ Untitled ]");
+      await driver.assertDisplayBufferContains(LOGO);
     });
   });
 
@@ -872,7 +873,8 @@ describe("node/chat/chat.spec.ts", () => {
 
       // Create another thread that will spawn a subagent
       await driver.magenta.command("new-thread");
-      await driver.assertDisplayBufferContains("# [ Untitled ]\n" + LOGO);
+      await driver.assertDisplayBufferContains("# [ Untitled ]");
+      await driver.assertDisplayBufferContains(LOGO);
       await driver.inputMagentaText("Spawn a subagent");
       await driver.send();
 

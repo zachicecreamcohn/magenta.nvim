@@ -5,7 +5,13 @@ import {
   type Msg as ContextManagerMsg,
 } from "../context/context-manager.ts";
 import { type Dispatch } from "../tea/tea.ts";
-import { d, type View, type VDOMNode } from "../tea/view.ts";
+import {
+  d,
+  type View,
+  type VDOMNode,
+  withBindings,
+  withExtmark,
+} from "../tea/view.ts";
 import {
   ToolManager,
   type Msg as ToolManagerMsg,
@@ -120,6 +126,9 @@ export type Msg =
   | {
       type: "context-manager-msg";
       msg: ContextManagerMsg;
+    }
+  | {
+      type: "toggle-system-prompt";
     };
 
 export type ThreadMsg = {
@@ -138,6 +147,7 @@ export class Thread {
     threadType: ThreadType;
     systemPrompt: SystemPrompt;
     pendingMessages: InputMessage[];
+    showSystemPrompt: boolean;
   };
 
   private myDispatch: Dispatch<Msg>;
@@ -209,6 +219,7 @@ export class Thread {
       threadType: threadType,
       systemPrompt: systemPrompt,
       pendingMessages: [],
+      showSystemPrompt: false,
     };
   }
 
@@ -393,6 +404,7 @@ export class Thread {
           threadType: this.state.threadType,
           systemPrompt: this.state.systemPrompt,
           pendingMessages: [],
+          showSystemPrompt: false,
         };
         this.contextManager.reset();
 
@@ -447,6 +459,11 @@ export class Thread {
 
       case "set-title": {
         this.state.title = msg.title;
+        return;
+      }
+
+      case "toggle-system-prompt": {
+        this.state.showSystemPrompt = !this.state.showSystemPrompt;
         return;
       }
 
@@ -1035,13 +1052,58 @@ const shouldShowContextManager = (
   );
 };
 
+/**
+ * Helper function to render the system prompt in collapsed/expanded state
+ */
+const renderSystemPrompt = (
+  systemPrompt: SystemPrompt,
+  showSystemPrompt: boolean,
+  dispatch: Dispatch<Msg>,
+): VDOMNode => {
+  if (showSystemPrompt) {
+    return withBindings(
+      withExtmark(d`⚙️ [System Prompt]\n${systemPrompt}`, {
+        hl_group: "@comment",
+      }),
+      {
+        "<CR>": () => {
+          dispatch({ type: "toggle-system-prompt" });
+        },
+      },
+    );
+  } else {
+    const estimatedTokens = Math.round(systemPrompt.length / 4 / 1000) * 1000;
+    const tokenDisplay =
+      estimatedTokens >= 1000
+        ? `~${(estimatedTokens / 1000).toString()}K`
+        : `~${estimatedTokens.toString()}`;
+
+    return withBindings(
+      withExtmark(d`⚙️ [System Prompt ${tokenDisplay}]`, {
+        hl_group: "@comment",
+      }),
+      {
+        "<CR>": () => {
+          dispatch({ type: "toggle-system-prompt" });
+        },
+      },
+    );
+  }
+};
+
 export const view: View<{
   thread: Thread;
   dispatch: Dispatch<Msg>;
-}> = ({ thread }) => {
+}> = ({ thread, dispatch }) => {
   const titleView = thread.state.title
     ? d`# ${thread.state.title}`
     : d`# [ Untitled ]`;
+
+  const systemPromptView = renderSystemPrompt(
+    thread.state.systemPrompt,
+    thread.state.showSystemPrompt,
+    dispatch,
+  );
 
   if (
     thread.state.messages.length == 0 &&
@@ -1050,6 +1112,8 @@ export const view: View<{
   ) {
     return d`\
 ${titleView}
+${systemPromptView}
+
 ${LOGO}
 
 magenta is for agentic flow
@@ -1075,6 +1139,8 @@ ${thread.context.contextManager.view()}`;
 
   return d`\
 ${titleView}
+${systemPromptView}
+
 ${thread.state.messages.map((m) => d`${m.view()}\n`)}\
 ${contextManagerView}\
 ${pendingMessagesView}\
