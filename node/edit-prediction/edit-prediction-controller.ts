@@ -747,6 +747,9 @@ Predict the most likely next edit the user will make.`;
       if (predictionProfile.apiKeyEnvVar) {
         profile.apiKeyEnvVar = predictionProfile.apiKeyEnvVar;
       }
+      if (predictionProfile.authType) {
+        profile.authType = predictionProfile.authType;
+      }
 
       return profile;
     }
@@ -759,6 +762,7 @@ Predict the most likely next edit the user will make.`;
       model: profile.model,
       baseUrl: profile.baseUrl,
       apiKeyEnvVar: profile.apiKeyEnvVar,
+      authType: profile.authType,
     };
   }
 

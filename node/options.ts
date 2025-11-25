@@ -210,6 +210,19 @@ function parseEditPredictionProfile(
     }
   }
 
+  if ("authType" in p) {
+    if (
+      typeof p["authType"] === "string" &&
+      (p["authType"] === "key" || p["authType"] === "max")
+    ) {
+      profile.authType = p["authType"];
+    } else {
+      logger.warn(
+        'Invalid authType in editPrediction.profile, must be "key" or "max"',
+      );
+    }
+  }
+
   return profile;
 }
 
