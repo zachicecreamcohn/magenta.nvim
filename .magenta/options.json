@@ -1,3 +1,5 @@
 {
-  "commandAllowlist": ["^npx tsc --noEmit$", "^npx vitest run( [^;&|()<>]*)?$"]
+  "commandAllowlist": [
+    "^npx tsc --noEmit$",
+    "^npx vitest run( [^;&|()<>]*)?$"]
 }

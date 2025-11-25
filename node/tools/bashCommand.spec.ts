@@ -4,8 +4,11 @@ import { describe, it, expect } from "vitest";
 import type { CommandAllowlist } from "../options";
 import { isCommandAllowed } from "./bashCommand";
 import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 import { getcwd } from "../nvim/nvim";
 import type { ToolName } from "./types";
+import type { NvimCwd } from "../utils/files";
 
 describe("node/tools/bashCommand.spec.ts", () => {
   it("executes a simple echo command without requiring approval (allowlisted)", async () => {
@@ -478,6 +481,52 @@ describe("node/tools/bashCommand.spec.ts", () => {
     );
   });
 
+  it("auto-approves commands with redundant cd <cwd> && prefix", async () => {
+    await withDriver(
+      {
+        options: {
+          commandAllowlist: ["^echo .*$"],
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+
+        const cwd = await getcwd(driver.nvim);
+        const commandWithCd = `cd ${cwd} && echo "Hello from cwd"`;
+
+        await driver.inputMagentaText(`Run this command: ${commandWithCd}`);
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const toolRequestId = "test-cd-prefix" as ToolRequestId;
+
+        request.respond({
+          stopReason: "end_turn",
+          text: "I'll run that command for you.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: toolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command: commandWithCd,
+                },
+              },
+            },
+          ],
+        });
+
+        // Should auto-approve since the stripped command "echo "Hello from cwd"" is in the allowlist
+        await driver.assertDisplayBufferContains("Hello from cwd");
+        await driver.assertDisplayBufferContains(`⚡✅ \`${commandWithCd}\``);
+
+        // Should NOT show the approval dialog
+        await driver.assertDisplayBufferDoesNotContain("[ YES ]");
+      },
+    );
+  });
+
   it("trims output to token limit for agent", async () => {
     await withDriver(
       {
@@ -569,6 +618,79 @@ describe("node/tools/bashCommand.spec.ts", () => {
   });
 
   describe("isCommandAllowed with regex patterns", () => {
+    it("should strip redundant cd <cwd> && prefix before checking allowlist", () => {
+      const allowlist: CommandAllowlist = ["^ls", "^echo", "^git status"];
+      const cwd = "/home/user/project" as NvimCwd;
+
+      // Commands with cd <cwd> && prefix should be stripped
+      expect(
+        isCommandAllowed(
+          `cd ${cwd} && ls -la`,
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          [".magenta/skills"],
+        ),
+      ).toBe(true);
+      expect(
+        isCommandAllowed(
+          `cd ${cwd} &&echo test`,
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          [".magenta/skills"],
+        ),
+      ).toBe(true);
+      expect(
+        isCommandAllowed(
+          `cd ${cwd} && git status`,
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          [".magenta/skills"],
+        ),
+      ).toBe(true);
+
+      // Commands without the prefix should work as before
+      expect(
+        isCommandAllowed("ls -la", allowlist, undefined, undefined, cwd, [
+          ".magenta/skills",
+        ]),
+      ).toBe(true);
+      expect(
+        isCommandAllowed("echo test", allowlist, undefined, undefined, cwd, [
+          ".magenta/skills",
+        ]),
+      ).toBe(true);
+
+      // Commands with cd to a different directory should NOT be stripped
+      expect(
+        isCommandAllowed(
+          "cd /tmp && ls -la",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          [".magenta/skills"],
+        ),
+      ).toBe(false);
+
+      // Commands not in allowlist should still be blocked
+      expect(
+        isCommandAllowed(
+          `cd ${cwd} && rm -rf /`,
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          [".magenta/skills"],
+        ),
+      ).toBe(false);
+    });
+
     it("should allow simple commands with prefix patterns", () => {
       const allowlist: CommandAllowlist = ["^ls", "^echo"];
 
@@ -715,6 +837,464 @@ describe("node/tools/bashCommand.spec.ts", () => {
       expect(
         isCommandAllowed("git clone http://malicious.com/repo.git", allowlist),
       ).toBe(false);
+    });
+  });
+});
+
+describe("isCommandAllowed with skills directories", () => {
+  it("should auto-approve scripts from skills directories", async () => {
+    await withDriver({}, async (driver) => {
+      const cwd = await getcwd(driver.nvim);
+
+      // Create a test script in .magenta/skills/test-skill directory
+      const skillDir = path.join(cwd, ".magenta", "skills", "test-skill");
+      fs.mkdirSync(skillDir, { recursive: true });
+
+      const scriptPath = path.join(skillDir, "test-script.sh");
+      fs.writeFileSync(
+        scriptPath,
+        '#!/bin/bash\necho "Hello from skills script"',
+        { mode: 0o755 },
+      );
+
+      // Create another skill with a script
+      const anotherSkillDir = path.join(
+        cwd,
+        ".magenta",
+        "skills",
+        "sample-skill",
+      );
+      fs.mkdirSync(anotherSkillDir, { recursive: true });
+
+      const subScriptPath = path.join(anotherSkillDir, "script.sh");
+      fs.writeFileSync(
+        subScriptPath,
+        '#!/bin/bash\necho "Hello from subdirectory"',
+        { mode: 0o755 },
+      );
+
+      const allowlist: CommandAllowlist = []; // Empty allowlist
+      const skillsPaths = [".magenta/skills"];
+
+      // Test various ways of executing the script
+      expect(
+        isCommandAllowed(
+          "bash .magenta/skills/test-skill/test-script.sh",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+
+      expect(
+        isCommandAllowed(
+          "sh .magenta/skills/test-skill/test-script.sh",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+
+      expect(
+        isCommandAllowed(
+          "./.magenta/skills/test-skill/test-script.sh",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+
+      // With arguments
+      expect(
+        isCommandAllowed(
+          "bash .magenta/skills/test-skill/test-script.sh arg1 arg2",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+
+      // Test scripts in another skill directory
+      expect(
+        isCommandAllowed(
+          "bash .magenta/skills/sample-skill/script.sh",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+
+      expect(
+        isCommandAllowed(
+          "./.magenta/skills/sample-skill/script.sh",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("should auto-approve scripts from home directory skills path", async () => {
+    await withDriver({}, async (driver) => {
+      const cwd = await getcwd(driver.nvim);
+      const homeDir = os.homedir();
+
+      // Create a test script in ~/.magenta/skills/home-skill directory
+      const skillDir = path.join(homeDir, ".magenta", "skills", "home-skill");
+      fs.mkdirSync(skillDir, { recursive: true });
+
+      const scriptPath = path.join(skillDir, "home-script.sh");
+      fs.writeFileSync(
+        scriptPath,
+        '#!/bin/bash\necho "Hello from home skills"',
+        { mode: 0o755 },
+      );
+
+      const allowlist: CommandAllowlist = [];
+      const skillsPaths = ["~/.magenta/skills"];
+
+      // Test with tilde expansion
+      expect(
+        isCommandAllowed(
+          "bash ~/.magenta/skills/home-skill/home-script.sh",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+
+      // Test with full path
+      expect(
+        isCommandAllowed(
+          `bash ${scriptPath}`,
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("should not auto-approve scripts outside skills directories", async () => {
+    await withDriver({}, async (driver) => {
+      const cwd = await getcwd(driver.nvim);
+
+      // Create a test script outside skills directory
+      const scriptPath = path.join(cwd, "outside-script.sh");
+      fs.writeFileSync(scriptPath, '#!/bin/bash\necho "Outside script"', {
+        mode: 0o755,
+      });
+
+      const allowlist: CommandAllowlist = [];
+      const skillsPaths = [".magenta/skills"];
+
+      // Should not auto-approve scripts outside skills directories
+      expect(
+        isCommandAllowed(
+          "bash outside-script.sh",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(false);
+
+      expect(
+        isCommandAllowed(
+          "./outside-script.sh",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(false);
+    });
+  });
+
+  it("should not auto-approve non-existent scripts even if path is in skills directory", () => {
+    const cwd = "/home/user/project" as NvimCwd;
+    const allowlist: CommandAllowlist = [];
+    const skillsPaths = [".magenta/skills"];
+
+    // Non-existent script should not be approved
+    expect(
+      isCommandAllowed(
+        "bash .magenta/skills/fake-skill/nonexistent.sh",
+        allowlist,
+        undefined,
+        undefined,
+        cwd,
+        skillsPaths,
+      ),
+    ).toBe(false);
+  });
+
+  it("should support Python and Node.js scripts from skills directories", async () => {
+    await withDriver({}, async (driver) => {
+      const cwd = await getcwd(driver.nvim);
+
+      // Create skills directory for python-skill
+      const pythonSkillDir = path.join(
+        cwd,
+        ".magenta",
+        "skills",
+        "python-skill",
+      );
+      fs.mkdirSync(pythonSkillDir, { recursive: true });
+
+      // Create Python script
+      const pythonScript = path.join(pythonSkillDir, "test.py");
+      fs.writeFileSync(pythonScript, 'print("Hello from Python")');
+
+      // Create skills directory for node-skill
+      const nodeSkillDir = path.join(cwd, ".magenta", "skills", "node-skill");
+      fs.mkdirSync(nodeSkillDir, { recursive: true });
+
+      // Create Node.js script
+      const nodeScript = path.join(nodeSkillDir, "test.js");
+      fs.writeFileSync(nodeScript, 'console.log("Hello from Node")');
+
+      const allowlist: CommandAllowlist = [];
+      const skillsPaths = [".magenta/skills"];
+
+      // Python
+      expect(
+        isCommandAllowed(
+          "python .magenta/skills/python-skill/test.py",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+
+      expect(
+        isCommandAllowed(
+          "python3 .magenta/skills/python-skill/test.py",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+
+      // Node.js
+      expect(
+        isCommandAllowed(
+          "node .magenta/skills/node-skill/test.js",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("should support scripts executed via absolute path interpreters", async () => {
+    await withDriver({}, async (driver) => {
+      const cwd = await getcwd(driver.nvim);
+
+      // Create skills directory
+      const skillDir = path.join(cwd, ".magenta", "skills", "bash-skill");
+      fs.mkdirSync(skillDir, { recursive: true });
+
+      // Create bash script
+      const bashScript = path.join(skillDir, "test.sh");
+      fs.writeFileSync(bashScript, '#!/bin/bash\necho "Hello"', {
+        mode: 0o755,
+      });
+
+      const allowlist: CommandAllowlist = [];
+      const skillsPaths = [".magenta/skills"];
+
+      // Test with absolute path to bash
+      expect(
+        isCommandAllowed(
+          "/usr/bin/bash .magenta/skills/bash-skill/test.sh",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+
+      expect(
+        isCommandAllowed(
+          "/bin/sh .magenta/skills/bash-skill/test.sh",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+
+      expect(
+        isCommandAllowed(
+          "/usr/local/bin/zsh .magenta/skills/bash-skill/test.sh",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("should support TypeScript scripts executed via npx tsx", async () => {
+    await withDriver({}, async (driver) => {
+      const cwd = await getcwd(driver.nvim);
+
+      // Create skills directory for ts-skill
+      const tsSkillDir = path.join(cwd, ".magenta", "skills", "ts-skill");
+      fs.mkdirSync(tsSkillDir, { recursive: true });
+
+      // Create TypeScript script
+      const tsScript = path.join(tsSkillDir, "test.ts");
+      fs.writeFileSync(tsScript, 'console.log("Hello from TypeScript")');
+
+      // Create another skill directory with TypeScript script
+      const mySkillDir = path.join(cwd, ".magenta", "skills", "my-skill");
+      fs.mkdirSync(mySkillDir, { recursive: true });
+
+      const subTsScript = path.join(mySkillDir, "main.ts");
+      fs.writeFileSync(subTsScript, 'console.log("Hello from subdirectory")');
+
+      const allowlist: CommandAllowlist = [];
+      const skillsPaths = [".magenta/skills"];
+
+      // Test with npx tsx
+      expect(
+        isCommandAllowed(
+          "npx tsx .magenta/skills/ts-skill/test.ts",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+
+      // With arguments
+      expect(
+        isCommandAllowed(
+          "npx tsx .magenta/skills/ts-skill/test.ts --arg1 --arg2",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+
+      // Test scripts in another skill directory
+      expect(
+        isCommandAllowed(
+          "npx tsx .magenta/skills/my-skill/main.ts",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("should not auto-approve directory paths", async () => {
+    await withDriver({}, async (driver) => {
+      const cwd = await getcwd(driver.nvim);
+
+      // Create skills directory
+      const skillDir = path.join(cwd, ".magenta", "skills", "test-skill");
+      fs.mkdirSync(skillDir, { recursive: true });
+
+      const allowlist: CommandAllowlist = [];
+      const skillsPaths = [".magenta/skills"];
+
+      // Trying to execute a directory should not be approved
+      expect(
+        isCommandAllowed(
+          "bash .magenta/skills/test-skill",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(false);
+    });
+  });
+
+  it("should handle multiple skills paths", async () => {
+    await withDriver({}, async (driver) => {
+      const cwd = await getcwd(driver.nvim);
+
+      // Create two different skills directories
+      const skillDir1 = path.join(cwd, ".magenta", "skills", "skill1");
+      const skillDir2 = path.join(cwd, "custom-skills", "skill2");
+      fs.mkdirSync(skillDir1, { recursive: true });
+      fs.mkdirSync(skillDir2, { recursive: true });
+
+      const script1 = path.join(skillDir1, "script1.sh");
+      const script2 = path.join(skillDir2, "script2.sh");
+      fs.writeFileSync(script1, '#!/bin/bash\necho "Script 1"', {
+        mode: 0o755,
+      });
+      fs.writeFileSync(script2, '#!/bin/bash\necho "Script 2"', {
+        mode: 0o755,
+      });
+
+      const allowlist: CommandAllowlist = [];
+      const skillsPaths = [".magenta/skills", "custom-skills"];
+
+      // Both scripts should be auto-approved
+      expect(
+        isCommandAllowed(
+          "bash .magenta/skills/skill1/script1.sh",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
+
+      expect(
+        isCommandAllowed(
+          "bash custom-skills/skill2/script2.sh",
+          allowlist,
+          undefined,
+          undefined,
+          cwd,
+          skillsPaths,
+        ),
+      ).toBe(true);
     });
   });
 });
