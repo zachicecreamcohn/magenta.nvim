@@ -222,12 +222,13 @@ export function formatSkillsIntroduction(
     .join("\n");
 
   return `
-
 # Available Skills
 
 Here are skills you have available to you:
 
+<available-skills>
 ${skillsList}
+</available-skills>
 
-When a skill is relevant to a task, use the get_file tool to read the skill.md file.`;
+When a skill is relevant to a task, you MUST use the get_file tool to read the skill.md file.`;
 }
