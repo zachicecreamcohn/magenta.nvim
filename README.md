@@ -443,6 +443,26 @@ The `commandAllowlist` option takes an array of regex patterns. When the LLM tri
 
 Regex patterns should be carefully designed to avoid security risks. You can find the default allowlist patterns in [lua/magenta/options.lua](lua/magenta/options.lua).
 
+**⚠️ Security Warning: Prompt Injection & Data Exfiltration**
+
+Be extremely careful when configuring the command allowlist. Malicious actors can use [prompt injection attacks](https://www.promptarmor.com/resources/google-antigravity-exfiltrates-data) to manipulate the LLM into executing commands that exfiltrate sensitive data from your system.
+
+**Key risks:**
+
+- **Credential theft**: Commands that can read files (like `cat`, `grep`, `head`, `tail`) can be exploited to steal API keys, passwords, and tokens from files like `.env`, `~/.ssh/`, `~/.aws/credentials`, etc.
+- **Data exfiltration**: Even seemingly safe commands can be chained or misused to leak sensitive information through command output that the agent can see
+- **Prompt injection**: Untrusted content (from files, web search results, or user input) could contain hidden instructions that trick the agent into running malicious commands
+
+**Best practices:**
+
+- **Be minimal**: Only allowlist commands that are absolutely necessary for your workflow
+- **Avoid file readers**: Commands like `cat`, `grep`, `less`, `more` can read any file the agent shouldn't access
+- **Restrict paths**: If you must allow file operations, restrict them to the current working directory only (use patterns like `\\.` or `\\./`)
+- **Review carefully**: Before adding a command, consider: "Could a malicious prompt trick the agent into using this to read credentials?"
+- **Use approval**: When in doubt, don't add it to the allowlist - require manual approval instead
+
+The default allowlist is conservative by design. Think carefully before expanding it.
+
 ## Project-specific options
 
 You can create project-specific configuration by adding a `.magenta/options.json` file to your project root. This allows you to customize Magenta settings per project while keeping your global configuration unchanged.
