@@ -107,7 +107,6 @@ local defaults = {
     "^git (status|log|diff|show|add|commit|push|reset|restore|branch|checkout|switch|fetch|pull|merge|rebase|tag|stash)( [^;&|()<>]*)?$",
     "^ls [^;&()<>]* | grep [^;&|()<>]*$",
     "^echo [^;&|()<>]* > [a-zA-Z0-9_\\-.]+$",
-    "^grep( -[A-Za-z]*)? [^;&|()<>]*$"
   },
   maxConcurrentSubagents = 3,
   chimeVolume = 0.3,
