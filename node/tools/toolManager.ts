@@ -234,8 +234,6 @@ export class ToolManager {
   getToolSpecs(threadType: ThreadType): ProviderToolSpec[] {
     let staticToolNames: StaticToolName[] = [];
     switch (threadType) {
-      case "subagent_learn":
-      case "subagent_plan":
       case "subagent_default":
       case "subagent_fast":
         staticToolNames = SUBAGENT_STATIC_TOOL_NAMES;

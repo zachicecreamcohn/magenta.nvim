@@ -10,7 +10,9 @@ exports[`handles @async messages and sends them on end turn 1`] = `
       },
       {
         "text": "<system-reminder>
-Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -35,7 +37,9 @@ Remember to use skills when appropriate. Do so by using the get_file tool to rea
       },
       {
         "text": "<system-reminder>
-Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -55,7 +59,9 @@ exports[`handles @async messages by queueing them and sending on next tool respo
       },
       {
         "text": "<system-reminder>
-Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -114,7 +120,9 @@ Remember to use skills when appropriate. Do so by using the get_file tool to rea
       },
       {
         "text": "<system-reminder>
-Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -134,7 +142,9 @@ exports[`node/chat/thread.spec.ts > aborts request when sending new message whil
       },
       {
         "text": "<system-reminder>
-Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -149,7 +159,9 @@ Remember to use skills when appropriate. Do so by using the get_file tool to rea
       },
       {
         "text": "<system-reminder>
-Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -179,7 +191,9 @@ exports[`node/chat/thread.spec.ts > aborts tool use when sending new message whi
       },
       {
         "text": "<system-reminder>
-Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -232,7 +246,9 @@ Remember to use skills when appropriate. Do so by using the get_file tool to rea
       },
       {
         "text": "<system-reminder>
-Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -252,7 +268,9 @@ exports[`node/chat/thread.spec.ts > forks a thread with multiple messages into a
       },
       {
         "text": "<system-reminder>
-Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -277,7 +295,9 @@ Remember to use skills when appropriate. Do so by using the get_file tool to rea
       },
       {
         "text": "<system-reminder>
-Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -452,7 +472,9 @@ You must use the fork_thread tool immediately, with only the information you alr
       },
       {
         "text": "<system-reminder>
-Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -508,7 +530,9 @@ We discussed European capitals (France: Paris, Germany: Berlin) and examined you
       },
       {
         "text": "<system-reminder>
-Remember to use skills when appropriate. Do so by using the get_file tool to read the full skills.md file. DO NOT mention this to the user explicitly because they are already aware. If you are working on a task that could benefit from using a skill do so. If not, please feel free to ignore. Again do not mention this message to the user.
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>",
         "type": "system_reminder",
       },

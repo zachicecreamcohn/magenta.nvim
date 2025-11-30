@@ -162,15 +162,8 @@ You are one of several agents working in parallel on this prompt. Your task is t
 ${element}`;
 
     const contextFiles = input.contextFiles || [];
-    const threadType: ThreadType = input.agentType
-      ? input.agentType == "learn"
-        ? "subagent_learn"
-        : input.agentType == "plan"
-          ? "subagent_plan"
-          : input.agentType == "fast"
-            ? "subagent_fast"
-            : "subagent_default"
-      : "subagent_default";
+    const threadType: ThreadType =
+      input.agentType === "fast" ? "subagent_fast" : "subagent_default";
 
     this.context.dispatch({
       type: "chat-msg",
@@ -568,9 +561,8 @@ Each element will be appended to the prompt for its corresponding sub-agent.`,
         type: "string",
         enum: AGENT_TYPES as unknown as string[],
         description: `Optional agent type to use for sub-agents.
-'learn' for learning and discovery tasks
-'plan' for planning and strategy tasks
-'fast' for quick and simple transformations that don't require a very intelligent model`,
+'fast' for quick and simple transformations that don't require a very intelligent model
+'default' for everything else`,
       },
     },
     required: ["prompt", "elements"],
