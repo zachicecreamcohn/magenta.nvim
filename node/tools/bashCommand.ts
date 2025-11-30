@@ -231,14 +231,21 @@ function isSkillsScript(
   }
 }
 
-export function isCommandAllowed(
-  command: string,
-  allowlist: CommandAllowlist,
-  rememberedCommands?: Set<string>,
-  logger?: Nvim["logger"],
-  cwd?: NvimCwd,
-  skillsPaths?: string[],
-): boolean {
+export function isCommandAllowed({
+  command,
+  allowlist,
+  rememberedCommands,
+  logger,
+  cwd,
+  skillsPaths,
+}: {
+  command: string;
+  allowlist: CommandAllowlist;
+  rememberedCommands?: Set<string>;
+  logger?: Nvim["logger"];
+  cwd: NvimCwd;
+  skillsPaths?: string[];
+}): boolean {
   if (rememberedCommands && rememberedCommands.has(command)) {
     return true;
   }
@@ -302,14 +309,14 @@ export class BashCommandTool implements StaticTool {
     },
   ) {
     const commandAllowlist = this.context.options.commandAllowlist;
-    const isAllowed = isCommandAllowed(
-      request.input.command,
-      commandAllowlist,
-      this.context.rememberedCommands,
-      context.nvim.logger,
-      this.context.cwd,
-      this.context.options.skillsPaths,
-    );
+    const isAllowed = isCommandAllowed({
+      command: request.input.command,
+      allowlist: commandAllowlist,
+      rememberedCommands: this.context.rememberedCommands,
+      logger: context.nvim.logger,
+      cwd: this.context.cwd,
+      skillsPaths: this.context.options.skillsPaths,
+    });
 
     if (isAllowed) {
       this.state = {
