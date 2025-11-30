@@ -101,7 +101,8 @@ Just regular markdown content without frontmatter.
         const thread = driver.magenta.chat.getActiveThread();
         const systemPrompt = thread.state.systemPrompt;
 
-        expect(systemPrompt).not.toContain("Available Skills");
+        // The invalid skill should not appear, but built-in skills will still be present
+        expect(systemPrompt).not.toContain("no-frontmatter");
       },
     );
   });
@@ -136,7 +137,8 @@ Content
         const thread = driver.magenta.chat.getActiveThread();
         const systemPrompt = thread.state.systemPrompt;
 
-        expect(systemPrompt).not.toContain("Available Skills");
+        // The invalid skill should not appear, but built-in skills will still be present
+        expect(systemPrompt).not.toContain("only-name");
       },
     );
   });
@@ -232,7 +234,7 @@ Content
     );
   });
 
-  it("returns empty when no skills are configured", async () => {
+  it("includes built-in skills even when no user skills are configured", async () => {
     await withDriver(
       {
         options: {
@@ -245,7 +247,10 @@ Content
         const thread = driver.magenta.chat.getActiveThread();
         const systemPrompt = thread.state.systemPrompt;
 
-        expect(systemPrompt).not.toContain("Available Skills");
+        // Built-in skills should always be present
+        expect(systemPrompt).toContain("Available Skills");
+        expect(systemPrompt).toContain("learn");
+        expect(systemPrompt).toContain("plan");
       },
     );
   });
@@ -312,7 +317,10 @@ Content B
         const thread = driver.magenta.chat.getActiveThread();
         const systemPrompt = thread.state.systemPrompt;
 
-        expect(systemPrompt).not.toContain("Available Skills");
+        // Built-in skills should still be present even if user skills dir doesn't exist
+        expect(systemPrompt).toContain("Available Skills");
+        expect(systemPrompt).toContain("learn");
+        expect(systemPrompt).toContain("plan");
       },
     );
   });

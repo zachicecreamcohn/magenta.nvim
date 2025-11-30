@@ -1,9 +1,15 @@
 import { PROVIDER_NAMES, type ProviderName } from "./providers/provider";
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
 import type { ServerName } from "./tools/mcp/types";
 import { validateServerName } from "./tools/mcp/types";
 import type { NvimCwd } from "./utils/files";
+
+// Get the path to the built-in skills directory
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+export const BUILTIN_SKILLS_PATH = path.join(__dirname, "skills");
 
 // Default models by provider
 const DEFAULT_MODELS: Record<
@@ -797,7 +803,13 @@ export function parseOptions(
     maxConcurrentSubagents: 3,
     commandAllowlist: [],
     autoContext: [],
-    skillsPaths: ["~/.claude/skills", ".claude/skills"],
+    skillsPaths: [
+      BUILTIN_SKILLS_PATH,
+      "~/.claude/skills",
+      "~/.magenta/skills",
+      ".magenta/skills",
+      ".claude/skills",
+    ],
     mcpServers: {},
     getFileAutoAllowGlobs: [],
     customCommands: [],
@@ -842,11 +854,14 @@ export function parseOptions(
       "autoContext",
     );
 
-    // Parse skills paths
-    options.skillsPaths = parseStringArray(
-      inputOptionsObj["skillsPaths"],
-      "skillsPaths",
-    );
+    // Parse skills paths - always prepend built-in skills
+    if ("skillsPaths" in inputOptionsObj) {
+      const userSkillsPaths = parseStringArray(
+        inputOptionsObj["skillsPaths"],
+        "skillsPaths",
+      );
+      options.skillsPaths = [BUILTIN_SKILLS_PATH, ...userSkillsPaths];
+    }
 
     // Parse getFile auto allow globs
     options.getFileAutoAllowGlobs = parseStringArray(

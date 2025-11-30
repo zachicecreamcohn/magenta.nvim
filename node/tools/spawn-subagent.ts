@@ -57,15 +57,8 @@ export class SpawnSubagentTool implements StaticTool {
     const input = this.request.input;
     const prompt = input.prompt;
     const contextFiles = input.contextFiles || [];
-    const threadType: ThreadType = input.agentType
-      ? input.agentType == "learn"
-        ? "subagent_learn"
-        : input.agentType == "plan"
-          ? "subagent_plan"
-          : input.agentType == "fast"
-            ? "subagent_fast"
-            : "subagent_default"
-      : "subagent_default";
+    const threadType: ThreadType =
+      input.agentType === "fast" ? "subagent_fast" : "subagent_default";
 
     this.context.dispatch({
       type: "chat-msg",
@@ -223,8 +216,6 @@ Don't use sub-agents for:
 - When you already have all the information needed
 - Quick clarifications or basic operations
 
-IMPORTANT: if you use the planning tool, you should request user feedback on the plan before proceeding with the implementation.
-
 ## Effective Sub-agent Usage
 
 The sub agent will run until it finishes the task. You will not be able to communicate with the subagent after spawning it, and it will only respond with a single output message.
@@ -232,12 +223,11 @@ Because of this, it is important that you write **clear, specific prompts**
 - Be explicit about the task scope and expected deliverables
 - Include relevant context about what you're trying to achieve
 - Clearly define what specific information the sub-agent should include in its final response
+- For learning/discovery or planning tasks, remind the subagent to read the relevant skill file first
 
 **Choose appropriate agent types:**
-- Use 'learn' for discovery, research, and understanding tasks
-- Use 'plan' for strategic planning and breaking down complex work
 - Use 'fast' for quick tasks that don't require the full model capabilities
-- Use default for everything else
+- Use 'default' for everything else
 
 **Provide relevant context files:**
 - Include files the sub-agent will need to examine or modify
@@ -248,8 +238,8 @@ Sub-agents have access to all standard tools except spawn_subagent (to prevent r
 
 <example>
 user: refactor this interface
-assistant: [spawns learn subagent to learn about the interface]
-assistant: [wiats for learn subagent]
+assistant: [spawns subagent to learn about the interface]
+assistant: [waits for subagent]
 assistant: [uses find_references tool to find all references of the interface]
 assistant: [uses replace tool to refactor the interface]
 assistant: [spawns one subagent per file to update all references to the interface]
@@ -258,19 +248,19 @@ assistant: [awaits all subagents]
 
 <example>
 user: I want to build a new feature that does X
-assistant: [spawn plan subagent to plan the change]
-assistnat: [wait for plan subagent, plan subagent writes to plans/X.md]
+assistant: [spawn subagent to plan the change]
+assistant: [wait for subagent, subagent writes to plans/X.md]
 assistant: Please review \`plans/X.md\` and confirm before I proceed. (end_turn)
 </example>
 
 <example>
-user: I am thinking about using technolgy X, Y or Z to implement a change.
-assistant: [spawn learn subagent to learn about the task constraints]
-assistant: [wait for learn subagent]
-assistant: [spawns learn subagent to consider the use of X for the task, given the constraints]
-assistant: [spawns learn subagent to consider the use of Y for the task, given the constraints]
-assistant: [spawns learn subagent to consider the use of Z for the task, given the constraints]
-assistant: [wait for learn subagents X, Y and Z]
+user: I am thinking about using technology X, Y or Z to implement a change.
+assistant: [spawn subagent to learn about the task constraints]
+assistant: [wait for subagent]
+assistant: [spawns subagent to consider the use of X for the task, given the constraints]
+assistant: [spawns subagent to consider the use of Y for the task, given the constraints]
+assistant: [spawns subagent to consider the use of Z for the task, given the constraints]
+assistant: [wait for subagents X, Y and Z]
 assistant: Summarizes the results
 </example>`,
   input_schema: {
@@ -293,7 +283,7 @@ assistant: Summarizes the results
         type: "string",
         enum: AGENT_TYPES as unknown as string[],
         description:
-          "Optional agent type to use for the sub-agent. 'learn' is optimized for learning and discovery tasks. 'plan' is optimized for planning and strategy tasks. 'fast' uses the fast model for quick tasks.",
+          "Optional agent type to use for the sub-agent. 'fast' uses the fast model for quick tasks. 'default' uses the standard model.",
       },
     },
 

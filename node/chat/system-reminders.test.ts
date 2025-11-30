@@ -26,7 +26,7 @@ test("user-submitted messages should include system reminder", async () => {
 
     if (systemReminder && systemReminder.type === "system_reminder") {
       expect(systemReminder.text).toContain("<system-reminder>");
-      expect(systemReminder.text).toContain("Remember to use skills");
+      expect(systemReminder.text).toContain("Remember to use the skills");
     }
   });
 });
@@ -92,7 +92,7 @@ test("root thread should get base reminder", async () => {
     >;
 
     expect(systemReminder).toBeDefined();
-    expect(systemReminder.text).toContain("Remember to use skills");
+    expect(systemReminder.text).toContain("Remember to use the skills");
     // Root thread should NOT have yield_to_parent reminder
     expect(systemReminder.text).not.toContain("yield_to_parent");
     expect(systemReminder.text).not.toContain("notes/");

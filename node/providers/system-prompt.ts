@@ -6,7 +6,7 @@ import { platform } from "os";
 import type { MagentaOptions } from "../options";
 import { loadSkills, formatSkillsIntroduction } from "./skills";
 
-export const AGENT_TYPES = ["learn", "plan", "default", "fast"] as const;
+export const AGENT_TYPES = ["default", "fast"] as const;
 export type AgentType = (typeof AGENT_TYPES)[number];
 
 export type SystemPrompt = string & { __systemPrompt: true };
@@ -81,26 +81,6 @@ When working on implementing a plan from a \`plans/\` file:
 - Check off completed items by changing \`- [ ]\` to \`- [x]\` as you complete each step
 - Update the plan file regularly to track your progress
 - This helps both you and the user see what's been accomplished and what remains`;
-
-const LEARNING_PROCESS = `\
-# Learning Process
-- Identify all of the functions, objects and types that you may need to know about in order to complete the task
-- List all of the entities by name
-- Explicitly state: "X, Y and Z seem relevant. I will try and learn about them."
-- Use the hover tool on each entity to see its signature and declaration location
-- If the signature is ambiguous or insufficient, look at the declaration
-- Repeat until you have learned about all of the relevant interfaces
-
-<example>
-user: learn about how to implement feature X in the code
-assistant: myFunction1 and myFunction2 seem relevant. I will try to learn about them.
-[uses hover tool on myFunction1 - shows it's a function in myFile that accepts an opaque MyType argument]
-[uses hover tool on myFunction2]
-[since myFile is not part of the context, uses get_file to look at myFile to see full function implementation and where MyType is imported from]
-MyType seems relevant. I will try to learn about it.
-[uses hover on MyType]
-[... and so on, until all relevant interfaces have been gathered ...]
-</example>`;
 
 const SYTEM_REMINDER = `<system_reminder>
 If the user asks you a general question and doesn't mention their project, answer the question without looking at the code base. You may still do an internet search. Do not mention this to the user as they are already aware.
@@ -209,112 +189,6 @@ ${SUBAGENT_COMMON_INSTRUCTIONS}
 ${CODEBASE_CONVENTIONS}
 ${CODE_CHANGES}`;
 
-export const LEARN_SUBAGENT_SYSTEM_PROMPT = `\
-${SUBAGENT_COMMON_INSTRUCTIONS}
-
-# Goal
-Your goal is to understand and learn a specific part of the codebase, to provide context for the given task.
-
-${LEARNING_PROCESS}
-${CODEBASE_CONVENTIONS}
-
-# Write the notes
-As you conduct your research, continuously write your findings to \`notes/<name>.md\`. Record the following:
-
-## Key Entities
-For each important function, class, interface, or type you discovered:
-- **Name and Location**: Full name and file path
-- **Signature/Interface**: Complete type information
-- **Purpose**: What it does and why it exists
-- **Usage Patterns**: How it's typically used based on references found
-- **Dependencies**: What other entities it relies on
-- **Important Notes**: Any constraints, gotchas, or architectural considerations
-
-## Relationships and Patterns
-- How the different entities work together
-- Common architectural patterns used
-- Data flow between components
-- Important conventions to follow
-
-When you complete your learning task, yield to the parent with just the location of your notes file.
-
-<example>
-user: Learn about how authentication works in this codebase so I can add a new auth provider
-
-assistant:
-
-# Key Entities
-**AuthProvider interface** (src/auth/types.ts:15)
-- Signature: interface AuthProvider { authenticate(credentials: Credentials): Promise<AuthResult>; ... }
-- Purpose: Defines the contract all auth providers must implement
-- Usage: Implemented by GoogleAuth, GitHubAuth classes
-- Dependencies: Credentials type, AuthResult type
-- Important Notes: Must handle async errors gracefully, expected to cache tokens
-
-**AuthManager class** (src/auth/manager.ts:8)
-- Purpose: Coordinates between different auth providers
-- Usage: Singleton accessed via getAuthManager()
-- Key methods: registerProvider(), authenticate()
-- Important Notes: Providers must be registered at startup
-
-# Relationships and Patterns
-- All providers implement AuthProvider interface
-- AuthManager maintains a registry of providers by name
-- Authentication flow: Manager -> Provider -> External Service -> Result
-- Error handling follows Result<T> pattern throughout
-</example>`;
-
-export const PLAN_SUBAGENT_SYSTEM_PROMPT = `\
-${SUBAGENT_COMMON_INSTRUCTIONS}
-
-# Goal
-Your goal is to create a plan for the user's prompt. You should write the plan to \`plans/<planName>.md\`, then yield to the parent. Just yield the parent where to find the plan file you created.
-
-# Architecting the solution
-- Study similar features in the codebase and follow their patterns
-- Prefer simple, minimal data structures over complex ones
-- Avoid premature optimization. In situations where performance isn't critical, prefer an approach that's easier to understand.
-  - For example, when preparing a network request, you're already dealing with something that's on the order of 100ms. You can recompute request arguments rather than creating state to cache them.
-  - When introducing state or a cache, consider whether the performance gained from storing these is worth the complexity of maintaining them.
-- Focus on getting a clear solution of the core problem first, leaving performance and other considerations until later.
-
-# Write the plan
-- start with a #context section
-  - briefly restate the objective
-  - Explicitly define key types and interfaces
-  - List relevant files with brief descriptions
-- then add an #implementation section
-  - Provide concrete, discrete implementation steps
-  - Each step should be minimal, and keep the project functional
-  - Include "Iterate until you get no compilation/type errors" steps between major component implementations
-  - Include "Write tests and iterate until tests pass" steps between major component implementations
-  - add a markdown checkbox in front of each step and sub-step, so we can check things off as we go along
-
-<example>
-# context
-The goal is to implement a new feature [feature description].
-
-The relevant files and entities are:
-[file 1]: [why is this file relevant]
-  [interface]: [why is it relevant]
-  [class]: why is it relevant]
-[file 2]: [why is this file relevant]
-... etc...
-
-# implementation
-- [ ] amend [interface] to include a new field {[fieldname]: [fieldtype]}
-  - [ ] check all references of the interface to accomodate the new field
-  - [ ] check for type errors and iterate until they pass
-- [ ] write a helper class [class] that performs [function] using [algorithm]
-  - [ ] write the class
-  - [ ] write unit tests
-  - [ ] iterate until unit tests pass
-... etc...
-</example>
-
-${CODEBASE_CONVENTIONS}
-${LEARNING_PROCESS}`;
-
 export const PREDICTION_SYSTEM_PROMPT = `\
 Predict the user's next edit based on their recent changes and current cursor position ( marked by │).
 
@@ -382,10 +256,6 @@ prediction:
 
 function getBaseSystemPrompt(type: ThreadType): string {
   switch (type) {
-    case "subagent_learn":
-      return LEARN_SUBAGENT_SYSTEM_PROMPT;
-    case "subagent_plan":
-      return PLAN_SUBAGENT_SYSTEM_PROMPT;
     case "subagent_default":
       return DEFAULT_SUBAGENT_SYSTEM_PROMPT;
     case "subagent_fast":

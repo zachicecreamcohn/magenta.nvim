@@ -269,7 +269,7 @@ it("avoids sending redundant context updates after tool application (no buffer)"
         {
           type: "system_reminder",
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-          text: expect.stringContaining("Remember to use skills"),
+          text: expect.stringContaining("Remember to use the skills"),
         },
       ],
       role: "user",

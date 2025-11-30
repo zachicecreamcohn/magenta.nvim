@@ -9,18 +9,6 @@ const BASE_REMINDER = `<system-reminder>
 ${SKILLS_REMINDER}
 </system-reminder>`;
 
-const LEARNING_SUBAGENT_REMINDER = `<system-reminder>
-${SKILLS_REMINDER}
-
-Remember to record your findings in notes/<name>.md and yield to the parent when done.
-</system-reminder>`;
-
-const PLANNING_SUBAGENT_REMINDER = `<system-reminder>
-${SKILLS_REMINDER}
-
-Remember to write your plan to plans/<name>.md and yield to the parent when done.
-</system-reminder>`;
-
 const SUBAGENT_REMINDER = `<system-reminder>
 ${SKILLS_REMINDER}
 
@@ -31,10 +19,6 @@ export function getSubsequentReminder(threadType: ThreadType): string {
   switch (threadType) {
     case "root":
       return BASE_REMINDER;
-    case "subagent_learn":
-      return LEARNING_SUBAGENT_REMINDER;
-    case "subagent_plan":
-      return PLANNING_SUBAGENT_REMINDER;
     case "subagent_default":
     case "subagent_fast":
       return SUBAGENT_REMINDER;
