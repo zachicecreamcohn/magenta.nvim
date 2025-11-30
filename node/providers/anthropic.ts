@@ -181,6 +181,11 @@ export class AnthropicProvider implements Provider {
   }
 
   private getMaxTokensForModel(model: string): number {
+    // Claude 4.5 models (Opus, Sonnet, Haiku) - use high limits
+    if (model.match(/^claude-(opus-4-5|sonnet-4-5|haiku-4-5)/)) {
+      return 32000;
+    }
+
     // Claude 4 models - use high limits
     if (model.match(/^claude-(opus-4|sonnet-4|4-opus|4-sonnet)/)) {
       return 32000;

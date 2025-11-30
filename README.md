@@ -207,10 +207,10 @@ require('magenta').setup({})
 require('magenta').setup({
   profiles = {
   {
-    name = "claude-4",
+    name = "claude-opus",
     provider = "anthropic",
-    model = "claude-4-sonnet-latest",
-    fastModel = "claude-3-5-haiku-latest", -- optional, defaults provided
+    model = "claude-opus-4-5",
+    fastModel = "claude-haiku-4-5", -- optional, defaults provided
     apiKeyEnvVar = "ANTHROPIC_API_KEY",
     thinking = {
       enabled = true,
@@ -220,8 +220,8 @@ require('magenta').setup({
   {
     name = "claude-max",
     provider = "anthropic",
-    model = "claude-3-7-sonnet-latest",
-    fastModel = "claude-3-5-haiku-latest",
+    model = "claude-opus-4-5",
+    fastModel = "claude-haiku-4-5",
     authType = "max" -- Use Anthropic OAuth instead of API key
     -- No apiKeyEnvVar needed for max auth
   },
@@ -235,8 +235,8 @@ require('magenta').setup({
   {
     name = "copilot-claude",
     provider = "copilot",
-    model = "claude-3.7-sonnet",
-    fastModel = "claude-3-5-haiku-latest", -- optional, defaults provided
+    model = "claude-opus-4-5",
+    fastModel = "claude-haiku-4-5", -- optional, defaults provided
     -- No apiKeyEnvVar needed - uses existing Copilot authentication
   },
   -- open chat sidebar on left or right side
@@ -276,7 +276,7 @@ require('magenta').setup({
     -- If not specified, uses the current active profile's model
     profile = {
       provider = "anthropic",
-      model = "claude-3-5-haiku-latest",
+      model = "claude-haiku-4-5",
       apiKeyEnvVar = "ANTHROPIC_API_KEY"
     },
     -- Maximum number of changes to track for context (default: 10)
@@ -321,47 +321,22 @@ The first profile in your `profiles` list is used as the default when the plugin
 
 Each profile supports both a primary model and a fast model. If not specified, sensible defaults are provided for each provider. The fast model is automatically used for lightweight tasks like generating thread titles and can be explicitly requested for inline edits using the `@fast` modifier.
 
-### Thinking & Reasoning
-
-Profiles can optionally enable thinking/reasoning capabilities for supported models:
-
-**Anthropic thinking models:**
-
-- Claude 3.7 Sonnet (`claude-3-7-sonnet-*`) - returns full thinking content
-- Claude 4 Sonnet (`claude-4-sonnet-*`) - returns summarized thinking (billed for full tokens)
-- Claude 4 Opus (`claude-4-opus-*`) - returns summarized thinking (billed for full tokens)
-
-**OpenAI reasoning models:**
-
-- o1 series models (`o1`, `o1-mini`, `o1-pro`) - show reasoning traces when available
-- o3 series models (`o3`, `o3-mini`, `o3-pro`) - show reasoning traces when available
-- o4 series models (`o4-mini`) - show reasoning traces when available
-- o5 series models (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`) - show reasoning traces when available
-
-When thinking/reasoning is enabled:
-
-- The model shows step-by-step reasoning process before delivering answers
-- Thinking blocks are expandable/collapsible in the display buffer
-- Input buffer title shows "thinking" status when enabled for Anthropic models
-- For Anthropic: `budgetTokens` controls how many tokens the model can use for thinking (minimum 1024)
-- For OpenAI: `effort` controls reasoning depth ("low", "medium", "high") and `summary` controls detail level ("auto", "concise", "detailed")
-
 For example, you can set up multiple profiles for different providers or API endpoints:
 
 ```lua
 profiles = {
   {
-    name = "claude-3-7",
+    name = "claude-opus",
     provider = "anthropic",
-    model = "claude-3-7-sonnet-latest",
-    fastModel = "claude-3-5-haiku-latest", -- optional, defaults provided
+    model = "claude-opus-4-5",
+    fastModel = "claude-haiku-4-5", -- optional, defaults provided
     apiKeyEnvVar = "ANTHROPIC_API_KEY"
   },
   {
     name = "custom",
     provider = "anthropic",
-    model = "claude-3-7-sonnet-latest",
-    fastModel = "claude-3-5-haiku-latest",
+    model = "claude-opus-4-5",
+    fastModel = "claude-haiku-4-5",
     apiKeyEnvVar = "CUSTOM_API_KEY_ENV_VAR",
     baseUrl = "custom anthropic endpoint"
   }
@@ -370,7 +345,7 @@ profiles = {
 
 Currently supported providers are `openai`, `anthropic`, `bedrock`, `ollama`, and `copilot`. The `model` parameter must be compatible with the SDK used for each provider:
 
-- For `anthropic`: [Anthropic Node SDK](https://github.com/anthropics/anthropic-sdk-typescript) - supports models like `claude-3-7-sonnet-latest`, `claude-3-5-sonnet-20240620`
+- For `anthropic`: [Anthropic Node SDK](https://github.com/anthropics/anthropic-sdk-typescript) - supports models like `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-haiku-4-5`
 - For `openai`: [OpenAI Node SDK](https://github.com/openai/openai-node) - supports models like `gpt-5`, `gpt-5-mini`, `o1`
 - For `bedrock`: [AWS SDK for Bedrock Runtime](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-bedrock-runtime/) - supports models like `anthropic.claude-3-5-sonnet-20241022-v2:0`
 - For `ollama`: [Ollama Node SDK](https://github.com/ollama/ollama-js) - supports models like `qwen3:14b` which have been insalled locally. ([Ollama models](https://ollama.com/search))
@@ -499,7 +474,7 @@ Create `.magenta/options.json` in your project root:
     {
       "name": "project-claude",
       "provider": "anthropic",
-      "model": "claude-3-7-sonnet-latest",
+      "model": "claude-opus-4-5",
       "apiKeyEnvVar": "PROJECT_ANTHROPIC_KEY"
     }
   ],
@@ -554,7 +529,7 @@ editPrediction = {
   -- Use a dedicated profile for predictions (independent of main profiles)
   profile = {
     provider = "anthropic",
-    model = "claude-4-sonnet-latest",
+    model = "claude-sonnet-4-5",
     apiKeyEnvVar = "ANTHROPIC_API_KEY",
     -- baseUrl = "custom-endpoint", -- optional
   },

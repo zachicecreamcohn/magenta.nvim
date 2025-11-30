@@ -3,21 +3,21 @@ local M = {}
 local defaults = {
   profiles = {
     {
+      name = "claude-opus-4-5",
+      provider = "anthropic",
+      model = "claude-opus-4-5",
+      apiKeyEnvVar = "ANTHROPIC_API_KEY"
+    },
+    {
       name = "claude-sonnet-4-5",
       provider = "anthropic",
       model = "claude-sonnet-4-5",
       apiKeyEnvVar = "ANTHROPIC_API_KEY"
     },
     {
-      name = "claude-opus-4-1",
-      provider = "anthropic",
-      model = "claude-opus-4-1-20250805",
-      apiKeyEnvVar = "ANTHROPIC_API_KEY"
-    },
-    {
       name = "claude-max",
       provider = "anthropic",
-      model = "claude-sonnet-4-5",
+      model = "claude-opus-4-5",
       authType = "max"
     },
     {
@@ -27,9 +27,9 @@ local defaults = {
       apiKeyEnvVar = "OPENAI_API_KEY"
     },
     {
-      name = "copilot-claude-sonnet",
+      name = "copilot-claude-opus",
       provider = "copilot",
-      model = "claude-3-5-sonnet-20241022"
+      model = "claude-opus-4-5"
     }
   },
   picker = "fzf-lua",
