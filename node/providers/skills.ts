@@ -215,9 +215,10 @@ export function formatSkillsIntroduction(
 
   const skillsList = Object.values(skills)
     .map((skill) => {
-      // Convert absolute path to relative path for display
+      // Use relative path if inside cwd, absolute path otherwise
       const relPath = path.relative(cwd, skill.skillFile);
-      return `- **${skill.name}** (\`${relPath}\`): ${skill.description}`;
+      const displayPath = relPath.startsWith("..") ? skill.skillFile : relPath;
+      return `- **${skill.name}** (\`${displayPath}\`): ${skill.description}`;
     })
     .join("\n");
 
