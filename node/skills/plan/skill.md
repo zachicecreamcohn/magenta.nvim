@@ -37,12 +37,13 @@ The goal is to implement a new feature [feature description].
 
 The relevant files and entities are:
 [file 1]: [why is this file relevant]
-  [interface]: [why is it relevant]
-  [class]: why is it relevant]
+[interface]: [why is it relevant]
+[class]: why is it relevant]
 [file 2]: [why is this file relevant]
 ... etc...
 
 # implementation
+
 - [ ] amend [interface] to include a new field {[fieldname]: [fieldtype]}
   - [ ] check all references of the interface to accomodate the new field
   - [ ] check for type errors and iterate until they pass
@@ -50,8 +51,8 @@ The relevant files and entities are:
   - [ ] write the class
   - [ ] write unit tests
   - [ ] iterate until unit tests pass
-... etc...
-</example>
+        ... etc...
+        </example>
 
 ## Learning Phase
 

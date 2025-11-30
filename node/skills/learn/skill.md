@@ -32,6 +32,7 @@ As you conduct your research, continuously write your findings to `notes/<name>.
 ## Key Entities
 
 For each important function, class, interface, or type you discovered:
+
 - **Name and Location**: Full name and file path
 - **Signature/Interface**: Complete type information
 - **Purpose**: What it does and why it exists
@@ -54,7 +55,9 @@ user: Learn about how authentication works in this codebase so I can add a new a
 A:
 
 # Key Entities
+
 **AuthProvider interface** (src/auth/types.ts:15)
+
 - Signature: interface AuthProvider { authenticate(credentials: Credentials): Promise<AuthResult>; ... }
 - Purpose: Defines the contract all auth providers must implement
 - Usage: Implemented by GoogleAuth, GitHubAuth classes
@@ -62,14 +65,16 @@ A:
 - Important Notes: Must handle async errors gracefully, expected to cache tokens
 
 **AuthManager class** (src/auth/manager.ts:8)
+
 - Purpose: Coordinates between different auth providers
 - Usage: Singleton accessed via getAuthManager()
 - Key methods: registerProvider(), authenticate()
 - Important Notes: Providers must be registered at startup
 
 # Relationships and Patterns
+
 - All providers implement AuthProvider interface
 - AuthManager maintains a registry of providers by name
 - Authentication flow: Manager -> Provider -> External Service -> Result
 - Error handling follows Result<T> pattern throughout
-</example>
+  </example>
