@@ -8,7 +8,7 @@
         "vitest": {
           "subCommands": {
             "run": {
-              "args": [[{"restFiles": true}]]
+              "allowAll": true
             }
           }
         }
