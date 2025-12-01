@@ -15,20 +15,17 @@ import type { StaticToolRequest } from "./toolManager.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { spawn } from "child_process";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { CommandAllowlist, MagentaOptions } from "../options.ts";
+import type { MagentaOptions } from "../options.ts";
 import { withTimeout } from "../utils/async.ts";
 import type { StaticTool, ToolName } from "./types.ts";
+import { type NvimCwd } from "../utils/files.ts";
 import {
-  resolveFilePath,
-  type NvimCwd,
-  type UnresolvedFilePath,
-} from "../utils/files.ts";
+  isCommandAllowedByConfig,
+  type PermissionCheckResult,
+} from "./bash-parser/permissions.ts";
+import type { Gitignore } from "./util.ts";
 
 const MAX_OUTPUT_TOKENS_FOR_AGENT = 10000;
-import * as path from "path";
-import * as os from "os";
-import * as fs from "fs";
-
 const CHARACTERS_PER_TOKEN = 4;
 
 export const spec: ProviderToolSpec = {
@@ -111,187 +108,31 @@ export function validateInput(args: { [key: string]: unknown }): Result<Input> {
 }
 
 /**
- * Expands tilde in a path to the home directory
+ * Check command permissions using the parser-based commandConfig.
  */
-function expandTilde(filePath: string): string {
-  if (filePath.startsWith("~/") || filePath === "~") {
-    return path.join(os.homedir(), filePath.slice(1));
-  }
-  return filePath;
-}
-
-/**
- * Checks if a path is within a skills directory
- */
-function isWithinSkillsDir(
-  scriptPath: string,
-  skillsPaths: string[],
-  cwd: NvimCwd,
-): boolean {
-  const expandedScriptPath = expandTilde(scriptPath);
-  const resolvedScript = resolveFilePath(
-    cwd,
-    expandedScriptPath as UnresolvedFilePath,
-  );
-
-  for (const skillsPath of skillsPaths) {
-    const expandedSkillsPath = expandTilde(skillsPath);
-    const resolvedSkillsPath = resolveFilePath(
-      cwd,
-      expandedSkillsPath as UnresolvedFilePath,
-    );
-
-    // Ensure skills path ends with separator for accurate prefix matching
-    const normalizedSkillsPath = resolvedSkillsPath.endsWith(path.sep)
-      ? resolvedSkillsPath
-      : resolvedSkillsPath + path.sep;
-
-    // Check if the script absolute path starts with the skills directory path
-    if (resolvedScript.startsWith(normalizedSkillsPath)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-/**
- * Parses a command to extract the script path being executed
- * Handles formats like:
- * - bash script.sh
- * - sh script.sh
- * - ./script.sh
- * - /path/to/script.sh
- * - python script.py
- * - node script.js
- */
-function extractScriptPath(command: string): string | undefined {
-  const trimmed = command.trim();
-
-  // Match common script execution patterns
-  const patterns = [
-    // bash/sh/zsh script.sh [args...]
-    /^(?:bash|sh|zsh)\s+([^\s;&|<>]+)/,
-    // /usr/bin/bash script.sh [args...]
-    /^\/[\w/]+\/(?:bash|sh|zsh)\s+([^\s;&|<>]+)/,
-    // python/python3 script.py [args...]
-    /^(?:python|python3)\s+([^\s;&|<>]+)/,
-    // node/nodejs script.js [args...]
-    /^(?:node|nodejs)\s+([^\s;&|<>]+)/,
-    // npx tsx script.ts [args...]
-    /^npx\s+tsx\s+([^\s;&|<>]+)/,
-    // Direct execution: ./script.sh or /path/to/script.sh [args...]
-    /^([.~/][\S]*[^\s;&|<>]+)/,
-    // Absolute path: /path/to/script
-    /^(\/[\S]*[^\s;&|<>]+)/,
-  ];
-
-  for (const pattern of patterns) {
-    const match = trimmed.match(pattern);
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-
-  return undefined;
-}
-
-/**
- * Checks if a command is executing a script from a skills directory
- */
-function isSkillsScript(
-  command: string,
-  skillsPaths: string[],
-  cwd: NvimCwd,
-): boolean {
-  const scriptPath = extractScriptPath(command);
-  if (!scriptPath) {
-    return false;
-  }
-
-  // Check if the script file exists and is within skills directories
-  try {
-    const expandedScriptPath = expandTilde(scriptPath);
-    const resolvedPath = resolveFilePath(
-      cwd,
-      expandedScriptPath as UnresolvedFilePath,
-    );
-    if (!fs.existsSync(resolvedPath)) {
-      return false;
-    }
-
-    // Check if it's a regular file (not a directory)
-    const stats = fs.statSync(resolvedPath);
-    if (!stats.isFile()) {
-      return false;
-    }
-
-    return isWithinSkillsDir(scriptPath, skillsPaths, cwd);
-  } catch {
-    return false;
-  }
-}
-
-export function isCommandAllowed({
+export function checkCommandPermissions({
   command,
-  allowlist,
+  options,
   rememberedCommands,
-  logger,
   cwd,
-  skillsPaths,
+  gitignore,
 }: {
   command: string;
-  allowlist: CommandAllowlist;
-  rememberedCommands?: Set<string>;
-  logger?: Nvim["logger"];
+  options: MagentaOptions;
+  rememberedCommands: Set<string>;
   cwd: NvimCwd;
-  skillsPaths?: string[];
-}): boolean {
-  if (rememberedCommands && rememberedCommands.has(command)) {
-    return true;
+  gitignore: Gitignore;
+}): PermissionCheckResult {
+  // First check remembered commands
+  if (rememberedCommands.has(command)) {
+    return { allowed: true };
   }
 
-  if (!command || !allowlist || !Array.isArray(allowlist)) {
-    return false;
-  }
-
-  // Clean the command string to avoid any tricks
-  let cleanCommand = command.trim();
-  if (!cleanCommand) {
-    return false;
-  }
-
-  // Strip redundant `cd <cwd> &&` prefix since the command already runs in cwd
-  if (cwd) {
-    const cdPrefix = `cd ${cwd} &&`;
-    const cdPrefixWithSpaces = `cd ${cwd} && `;
-    if (cleanCommand.startsWith(cdPrefix)) {
-      cleanCommand = cleanCommand.substring(cdPrefix.length).trim();
-    } else if (cleanCommand.startsWith(cdPrefixWithSpaces)) {
-      cleanCommand = cleanCommand.substring(cdPrefixWithSpaces.length).trim();
-    }
-  }
-
-  // Check if command is executing a script from skills directories
-  if (skillsPaths && skillsPaths.length > 0 && cwd) {
-    if (isSkillsScript(cleanCommand, skillsPaths, cwd)) {
-      return true;
-    }
-  }
-
-  for (const pattern of allowlist) {
-    try {
-      const regex = new RegExp(pattern);
-      if (regex.test(cleanCommand)) {
-        return true;
-      }
-    } catch (error) {
-      logger?.error(`Invalid regex pattern: ${pattern}`, error);
-      continue;
-    }
-  }
-
-  return false;
+  return isCommandAllowedByConfig(command, options.commandConfig, {
+    cwd,
+    skillsPaths: options.skillsPaths,
+    gitignore,
+  });
 }
 
 export class BashCommandTool implements StaticTool {
@@ -308,19 +149,19 @@ export class BashCommandTool implements StaticTool {
       myDispatch: Dispatch<Msg>;
       rememberedCommands: Set<string>;
       getDisplayWidth(): number;
+      gitignore: Gitignore;
     },
   ) {
-    const commandAllowlist = this.context.options.commandAllowlist;
-    const isAllowed = isCommandAllowed({
+    // Check permissions synchronously
+    const permissionResult = checkCommandPermissions({
       command: request.input.command,
-      allowlist: commandAllowlist,
+      options: this.context.options,
       rememberedCommands: this.context.rememberedCommands,
-      logger: context.nvim.logger,
       cwd: this.context.cwd,
-      skillsPaths: this.context.options.skillsPaths,
+      gitignore: this.context.gitignore,
     });
 
-    if (isAllowed) {
+    if (permissionResult.allowed) {
       this.state = {
         state: "processing",
         output: [],
