@@ -91,7 +91,8 @@ export type Msg =
   | { type: "error"; error: string }
   | { type: "request-user-approval" }
   | { type: "user-approval"; approved: boolean; remember?: boolean }
-  | { type: "terminate" };
+  | { type: "terminate" }
+  | { type: "tick" };
 
 export function validateInput(args: { [key: string]: unknown }): Result<Input> {
   if (typeof args.command !== "string") {
@@ -296,6 +297,7 @@ export function isCommandAllowed({
 export class BashCommandTool implements StaticTool {
   state: State;
   toolName = "bash_command" as const;
+  private tickInterval: ReturnType<typeof setInterval> | undefined;
 
   constructor(
     public request: Extract<StaticToolRequest, { toolName: "bash_command" }>,
@@ -475,6 +477,11 @@ export class BashCommandTool implements StaticTool {
         return;
       }
 
+      case "tick": {
+        // Just triggers a re-render to update the timer display
+        return;
+      }
+
       default:
         assertUnreachable(msg);
     }
@@ -490,10 +497,24 @@ export class BashCommandTool implements StaticTool {
     }
   }
 
+  private startTickInterval() {
+    this.tickInterval = setInterval(() => {
+      this.context.myDispatch({ type: "tick" });
+    }, 1000);
+  }
+
+  private stopTickInterval() {
+    if (this.tickInterval) {
+      clearInterval(this.tickInterval);
+      this.tickInterval = undefined;
+    }
+  }
+
   async executeCommand(): Promise<void> {
     const { command } = this.request.input;
 
     let childProcess: ReturnType<typeof spawn> | null = null;
+    this.startTickInterval();
 
     try {
       await withTimeout(
@@ -553,6 +574,8 @@ export class BashCommandTool implements StaticTool {
         text: errorMessage,
       });
       this.context.myDispatch({ type: "exit", code: 1 });
+    } finally {
+      this.stopTickInterval();
     }
   }
 
@@ -568,6 +591,7 @@ export class BashCommandTool implements StaticTool {
    * new dispatches...
    */
   abort(): void {
+    this.stopTickInterval();
     this.terminate();
 
     if (this.state.state == "pending-user-action") {
