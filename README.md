@@ -410,11 +410,140 @@ The Anthropic provider supports two authentication methods:
 
 This allows you to use Claude models through your Anthropic account subscription rather than pay-per-token API usage, potentially offering cost savings for heavy users.
 
-## Command allowlist
+## Command Permissions
 
-Magenta includes a security feature for the bash_command tool that requires user approval before running shell commands. To improve the workflow, you can configure a list of regex patterns that define which commands are pre-approved to run without confirmation.
+Magenta includes a security feature for the bash_command tool that requires user approval before running shell commands. You can configure which commands are pre-approved using either the new structured `commandConfig` or the legacy regex-based `commandAllowlist`.
 
-The `commandAllowlist` option takes an array of regex patterns. When the LLM tries to execute a shell command, it's checked against these patterns. If any pattern matches, the command runs without approval. Otherwise, you'll be prompted to allow or deny it.
+### Structured Command Config (Recommended)
+
+The `commandConfig` option provides a declarative, safe way to specify allowed commands with precise control over arguments:
+
+```lua
+commandConfig = {
+  -- Allow specific npx commands with specific arguments
+  npx = {
+    subCommands = {
+      tsc = {
+        args = {{"--noEmit"}, {"--noEmit", "--watch"}}
+      },
+      vitest = {
+        subCommands = {
+          run = {
+            args = {{{restFiles = true}}}  -- Allow any file arguments
+          }
+        }
+      }
+    }
+  },
+
+  -- Allow cat with a single file argument (must be in project, non-hidden)
+  cat = {
+    args = {{{file = true}}}
+  },
+
+  -- Allow git status with no arguments
+  git = {
+    subCommands = {
+      status = {},  -- No args allowed
+      diff = {
+        allowAll = true  -- Any arguments allowed
+      }
+    }
+  },
+
+  -- Allow ls with any single argument
+  ls = {
+    args = {{{any = true}}}
+  }
+}
+```
+
+#### Argument Specifications
+
+Each command can specify allowed argument patterns using `args` (an array of allowed patterns):
+
+- **String literal**: Exact match required (e.g., `"--noEmit"`)
+- **`{file = true}`**: A single file path that must be within the project directory and not hidden/gitignored
+- **`{restFiles = true}`**: Zero or more file paths (must be last in pattern)
+- **`{any = true}`**: Any single argument (wildcard)
+
+#### SubCommands
+
+Use `subCommands` to define allowed subcommands for tools like `npx`, `git`, `cargo`, etc.:
+
+```lua
+git = {
+  subCommands = {
+    status = {},           -- git status (no additional args)
+    add = {
+      args = {{{file = true}}}  -- git add <file>
+    },
+    commit = {
+      args = {{"-m", {any = true}}}  -- git commit -m "<message>"
+    }
+  }
+}
+```
+
+#### AllowAll
+
+Use `allowAll = true` to permit any arguments for a command or subcommand:
+
+```lua
+echo = {
+  allowAll = true  -- echo with any arguments
+}
+```
+
+#### File Path Validation
+
+When `{file = true}` or `{restFiles = true}` is used, paths are validated:
+
+- Must be within the project working directory
+- Cannot contain hidden directories (starting with `.`)
+- Cannot be gitignored files
+- Paths are resolved relative to the current working directory (including after `cd` commands)
+
+#### CWD Tracking
+
+The permission checker tracks `cd` commands in command chains:
+
+```bash
+# This is properly validated - file.txt is resolved relative to ./subdir
+cd subdir && cat file.txt
+```
+
+#### Skills Scripts Auto-Approval
+
+Scripts within configured `skillsPaths` directories are automatically approved for execution, regardless of `commandConfig`. This includes:
+
+- Direct execution: `./path/to/skill/script.sh`
+- Via runners: `bash script.sh`, `python script.py`, `node script.js`, `npx tsx script.ts`
+- With cd: `cd path/to/skill && ./script.sh`
+
+#### Command Chaining
+
+Commands can be chained with `&&`, `||`, `;`, or `|`. Each command in the chain is validated independently:
+
+```bash
+# Both commands must be allowed
+npx tsc --noEmit && npx vitest run
+
+# File redirections (>, >>, <) are NOT allowed for security
+cat file.txt > output.txt  # Will be rejected
+```
+
+### Legacy Regex Allowlist
+
+The `commandAllowlist` option takes an array of regex patterns. If `commandConfig` is not specified, this is used instead:
+
+```lua
+commandAllowlist = {
+  "^ls( -[alh]+)?$",
+  "^cat [^;&|]+$",
+  "^git status$"
+}
+```
 
 Regex patterns should be carefully designed to avoid security risks. You can find the default allowlist patterns in [lua/magenta/options.lua](lua/magenta/options.lua).
 
@@ -458,6 +587,7 @@ Common use cases include:
 The merging works as follows:
 
 - **Profiles**: Project profiles completely replace global profiles if present
+- **Command config**: Project `commandConfig` completely replaces global config if present
 - **Command allowlist**: Project patterns are added to (not replace) the base allowlist
 - **Auto context**: Project patterns are added to (not replace) the base auto context
 - **Skills paths**: Project skill paths are added to (not replace) the base skills paths
@@ -478,10 +608,21 @@ Create `.magenta/options.json` in your project root:
       "apiKeyEnvVar": "PROJECT_ANTHROPIC_KEY"
     }
   ],
-  "commandAllowlist": [
-    "^make( [^;&|()<>]*)?$",
-    "^cargo (build|test|run)( [^;&|()<>]*)?$"
-  ],
+  "commandConfig": {
+    "make": {
+      "allowAll": true
+    },
+    "cargo": {
+      "subCommands": {
+        "build": { "allowAll": true },
+        "test": { "allowAll": true },
+        "run": { "allowAll": true }
+      }
+    },
+    "cat": {
+      "args": [[{ "file": true }]]
+    }
+  },
   "autoContext": ["README.md", "docs/*.md"],
   "skillsPaths": [".claude/skills", "team-skills"],
   "maxConcurrentSubagents": 5,
