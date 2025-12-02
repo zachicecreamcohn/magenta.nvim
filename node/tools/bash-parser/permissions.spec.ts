@@ -310,6 +310,86 @@ describe("permissions", () => {
     });
   });
 
+  describe("pattern argument matching", () => {
+    it("should allow argument matching regex pattern", () => {
+      const config: CommandPermissions = {
+        head: {
+          args: [[{ pattern: "-[0-9]+" }]],
+        },
+      };
+
+      const result = isCommandAllowedByConfig("head -50", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result.allowed).toBe(true);
+    });
+
+    it("should reject argument not matching pattern", () => {
+      const config: CommandPermissions = {
+        head: {
+          args: [[{ pattern: "-[0-9]+" }]],
+        },
+      };
+
+      const result = isCommandAllowedByConfig("head -abc", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toContain("does not match pattern");
+    });
+
+    it("should match full argument with pattern (anchored)", () => {
+      const config: CommandPermissions = {
+        head: {
+          args: [[{ pattern: "-[0-9]+" }]],
+        },
+      };
+
+      // -50abc should not match because pattern is anchored
+      const result = isCommandAllowedByConfig("head -50abc", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result.allowed).toBe(false);
+    });
+
+    it("should work with pattern followed by file", () => {
+      const config: CommandPermissions = {
+        head: {
+          args: [[{ pattern: "-[0-9]+" }, { file: true }]],
+        },
+      };
+
+      const result = isCommandAllowedByConfig("head -10 file.txt", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result.allowed).toBe(true);
+    });
+
+    it("should support multiple arg patterns including pattern", () => {
+      const config: CommandPermissions = {
+        tail: {
+          args: [["-n", { any: true }], [{ pattern: "-[0-9]+" }]],
+        },
+      };
+
+      const result1 = isCommandAllowedByConfig("tail -n 5", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result1.allowed).toBe(true);
+
+      const result2 = isCommandAllowedByConfig("tail -5", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result2.allowed).toBe(true);
+    });
+  });
+
   describe("restFiles argument matching", () => {
     it("should allow multiple file arguments with restFiles", () => {
       const config: CommandPermissions = {

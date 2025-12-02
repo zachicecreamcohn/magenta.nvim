@@ -16,7 +16,8 @@ export type ArgSpec =
   | string // Exact literal argument
   | { file: true } // Single file path argument
   | { restFiles: true } // Zero or more file paths (must be last)
-  | { any: true }; // Any single argument (wildcard)
+  | { any: true } // Any single argument (wildcard)
+  | { pattern: string }; // Argument matching a regex pattern
 
 /** Configuration for a single command */
 export type CommandSpec = {
@@ -254,6 +255,20 @@ function matchArgsPattern(
       // Any single argument (wildcard)
       if (argIndex >= args.length) {
         return { matches: false, reason: "expected argument" };
+      }
+      argIndex++;
+      patternIndex++;
+    } else if ("pattern" in spec) {
+      // Argument matching a regex pattern
+      if (argIndex >= args.length) {
+        return { matches: false, reason: "expected argument matching pattern" };
+      }
+      const regex = new RegExp(`^${spec.pattern}$`);
+      if (!regex.test(args[argIndex])) {
+        return {
+          matches: false,
+          reason: `argument "${args[argIndex]}" does not match pattern "${spec.pattern}"`,
+        };
       }
       argIndex++;
       patternIndex++;

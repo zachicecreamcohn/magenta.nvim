@@ -105,8 +105,8 @@ local defaults = {
     pwd = { args = { {} } },
     echo = { allowAll = true },
     cat = { args = { { { file = true } } } },
-    head = { args = { { "-n", { any = true } } } },
-    tail = { args = { { "-n", { any = true } } } },
+    head = { args = { { "-n", { any = true } }, { { pattern = "-[0-9]+" } } } },
+    tail = { args = { { "-n", { any = true } }, { { pattern = "-[0-9]+" } } } },
     wc = { args = { { { file = true } }, { "-l", { file = true } } } },
     git = {
       subCommands = {
