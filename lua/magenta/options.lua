@@ -131,12 +131,34 @@ local defaults = {
       }
     },
     -- ripgrep for searching file contents
-    -- allows: rg "pattern", rg "pattern" <file/dir>, and piped input
     rg = {
       args = {
-        { { any = true } },                       -- rg "pattern" (search current dir)
-        { { any = true }, { file = true } },      -- rg "pattern" <file/dir>
-        { { any = true }, { restFiles = true } }, -- rg "pattern" <file1> <file2> ...
+        { { any = true } },                                                  -- rg "pattern"
+        { { any = true }, { file = true } },                                 -- rg "pattern" <dir>
+        { { any = true }, { restFiles = true } },                            -- rg "pattern" <file1> <file2> ...
+        { "-l",           { any = true } },                                  -- rg -l "pattern"
+        { "-l",           { any = true },      { file = true } },            -- rg -l "pattern" <dir>
+        { { any = true }, { file = true },     "--type",        { any = true } }, -- rg "pattern" <dir> --type <ext>
+        { "-l",           { any = true },      { file = true }, "--type",      { any = true } }, -- rg -l "pattern" <dir> --type <ext>
+        { { any = true }, "--type",            { any = true } },             -- rg "pattern" --type <ext>
+        { "-l",           { any = true },      "--type",        { any = true } }, -- rg -l "pattern" --type <ext>
+        { "-l",           { any = true },      { file = true }, "--type",      { any = true } }, -- rg -l "pattern" <dir> --type <ext>
+      }
+    },
+    -- fd for finding files by name (skips hidden/gitignored by default)
+    fd = {
+      args = {
+        {},                                                                  -- fd (list all files)
+        { { any = true } },                                                  -- fd "pattern"
+        { { any = true }, { file = true } },                                 -- fd "pattern" <dir>
+        { "-e",           { any = true } },                                  -- fd -e <ext>
+        { "-e",           { any = true }, { file = true } },                 -- fd -e <ext> <dir>
+        { "-t",           "f" },                                             -- fd -t f (files only)
+        { "-t",           "d" },                                             -- fd -t d (dirs only)
+        { "-t",           "f",            { any = true } },                  -- fd -t f "pattern"
+        { "-t",           "d",            { any = true } },                  -- fd -t d "pattern"
+        { "-t",           "f",            { any = true }, { file = true } }, -- fd -t f "pattern" <dir>
+        { "-t",           "d",            { any = true }, { file = true } }, -- fd -t d "pattern" <dir>
       }
     },
   },

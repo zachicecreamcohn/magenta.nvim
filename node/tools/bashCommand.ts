@@ -29,6 +29,7 @@ const MAX_OUTPUT_TOKENS_FOR_AGENT = 10000;
 const CHARACTERS_PER_TOKEN = 4;
 
 let rgAvailable: boolean | undefined;
+let fdAvailable: boolean | undefined;
 
 export function isRgAvailable(): boolean {
   if (rgAvailable === undefined) {
@@ -36,6 +37,14 @@ export function isRgAvailable(): boolean {
     rgAvailable = result.status === 0;
   }
   return rgAvailable;
+}
+
+export function isFdAvailable(): boolean {
+  if (fdAvailable === undefined) {
+    const result = spawnSync("which", ["fd"], { stdio: "pipe" });
+    fdAvailable = result.status === 0;
+  }
+  return fdAvailable;
 }
 
 const BASE_DESCRIPTION = `Run a command in a bash shell.
@@ -54,10 +63,23 @@ For searching file contents, prefer \`rg\` (ripgrep) which is available on this 
 - \`echo "text" | rg "pattern"\` - search in piped input
 `;
 
+const FD_DESCRIPTION = `
+For finding files by name, prefer \`fd\` which is available on this system. Note: fd skips hidden files and gitignored files by default. Examples:
+- \`fd "pattern"\` - find files matching pattern recursively
+- \`fd "pattern" path/to/dir\` - find in specific directory
+- \`fd -e ts\` - find files with specific extension
+- \`fd -t f "pattern"\` - find only files (not directories)
+- \`fd -t d "pattern"\` - find only directories
+`;
+
 export function getSpec(): ProviderToolSpec {
-  const description = isRgAvailable()
-    ? BASE_DESCRIPTION + RG_DESCRIPTION
-    : BASE_DESCRIPTION;
+  let description = BASE_DESCRIPTION;
+  if (isRgAvailable()) {
+    description += RG_DESCRIPTION;
+  }
+  if (isFdAvailable()) {
+    description += FD_DESCRIPTION;
+  }
 
   return {
     name: "bash_command" as ToolName,

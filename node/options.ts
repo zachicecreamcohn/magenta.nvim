@@ -1371,6 +1371,63 @@ export function loadProjectSettings(
   return undefined;
 }
 
+/** Deep merge two CommandSpec objects so that a command is allowed if it matches either */
+function mergeCommandSpec(
+  base: CommandSpec,
+  project: CommandSpec,
+): CommandSpec {
+  const merged: CommandSpec = {};
+
+  // Merge subCommands recursively
+  if (base.subCommands || project.subCommands) {
+    merged.subCommands = {};
+    const allSubCommands = new Set([
+      ...Object.keys(base.subCommands ?? {}),
+      ...Object.keys(project.subCommands ?? {}),
+    ]);
+    for (const subCmd of allSubCommands) {
+      const baseSpec = base.subCommands?.[subCmd];
+      const projectSpec = project.subCommands?.[subCmd];
+      if (baseSpec && projectSpec) {
+        merged.subCommands[subCmd] = mergeCommandSpec(baseSpec, projectSpec);
+      } else {
+        merged.subCommands[subCmd] = (baseSpec ?? projectSpec)!;
+      }
+    }
+  }
+
+  // Combine args arrays - both sets of patterns should be allowed
+  if (base.args || project.args) {
+    merged.args = [...(base.args ?? []), ...(project.args ?? [])];
+  }
+
+  // allowAll: if either has it, the merged should have it
+  if (base.allowAll || project.allowAll) {
+    merged.allowAll = true;
+  }
+
+  return merged;
+}
+
+/** Deep merge two CommandPermissions objects */
+function mergeCommandConfig(
+  base: CommandPermissions,
+  project: CommandPermissions,
+): CommandPermissions {
+  const merged: CommandPermissions = { ...base };
+
+  for (const [command, projectSpec] of Object.entries(project)) {
+    const baseSpec = base[command];
+    if (baseSpec) {
+      merged[command] = mergeCommandSpec(baseSpec, projectSpec);
+    } else {
+      merged[command] = projectSpec;
+    }
+  }
+
+  return merged;
+}
+
 export function mergeOptions(
   baseOptions: MagentaOptions,
   projectSettings: Partial<MagentaOptions>,
@@ -1382,12 +1439,12 @@ export function mergeOptions(
     merged.activeProfile = projectSettings.profiles[0].name;
   }
 
-  // Merge commandConfig - project settings override base
+  // Deep merge commandConfig - command is allowed if it matches either config
   if (projectSettings.commandConfig) {
-    merged.commandConfig = {
-      ...baseOptions.commandConfig,
-      ...projectSettings.commandConfig,
-    };
+    merged.commandConfig = mergeCommandConfig(
+      baseOptions.commandConfig,
+      projectSettings.commandConfig,
+    );
   }
 
   if (projectSettings.autoContext) {
