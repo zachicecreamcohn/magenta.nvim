@@ -13,7 +13,7 @@ import {
 } from "../tea/view.ts";
 import type { StaticToolRequest } from "./toolManager.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import { spawn } from "child_process";
+import { spawn, spawnSync } from "child_process";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { MagentaOptions } from "../options.ts";
 import { withTimeout } from "../utils/async.ts";
@@ -28,27 +28,54 @@ import type { Gitignore } from "./util.ts";
 const MAX_OUTPUT_TOKENS_FOR_AGENT = 10000;
 const CHARACTERS_PER_TOKEN = 4;
 
-export const spec: ProviderToolSpec = {
-  name: "bash_command" as ToolName,
-  description: `Run a command in a bash shell.
+let rgAvailable: boolean | undefined;
+
+export function isRgAvailable(): boolean {
+  if (rgAvailable === undefined) {
+    const result = spawnSync("which", ["rg"], { stdio: "pipe" });
+    rgAvailable = result.status === 0;
+  }
+  return rgAvailable;
+}
+
+const BASE_DESCRIPTION = `Run a command in a bash shell.
 You will get the stdout and stderr of the command, as well as the exit code.
 For example, you can run \`ls\`, \`echo 'Hello, World!'\`, or \`git status\`.
 The command will time out after 1 min.
 You should not run commands that require user input, such as \`git commit\` without \`-m\` or \`ssh\`.
 You should not run commands that do not halt, such as \`docker compose up\` without \`-d\`, \`tail -f\` or \`watch\`.
-`,
+`;
 
-  input_schema: {
-    type: "object",
-    properties: {
-      command: {
-        type: "string",
-        description: "The command to run in the terminal",
+const RG_DESCRIPTION = `
+For searching file contents, prefer \`rg\` (ripgrep) which is available on this system. Examples:
+- \`rg "pattern"\` - search recursively in current directory
+- \`rg "pattern" path/to/dir\` - search in specific directory
+- \`rg "pattern" path/to/file\` - search in specific file
+- \`echo "text" | rg "pattern"\` - search in piped input
+`;
+
+export function getSpec(): ProviderToolSpec {
+  const description = isRgAvailable()
+    ? BASE_DESCRIPTION + RG_DESCRIPTION
+    : BASE_DESCRIPTION;
+
+  return {
+    name: "bash_command" as ToolName,
+    description,
+    input_schema: {
+      type: "object",
+      properties: {
+        command: {
+          type: "string",
+          description: "The command to run in the terminal",
+        },
       },
+      required: ["command"],
     },
-    required: ["command"],
-  },
-};
+  };
+}
+
+export const spec: ProviderToolSpec = getSpec();
 
 export type Input = {
   command: string;

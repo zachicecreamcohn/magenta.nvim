@@ -130,6 +130,15 @@ local defaults = {
         stash = { allowAll = true },
       }
     },
+    -- ripgrep for searching file contents
+    -- allows: rg "pattern", rg "pattern" <file/dir>, and piped input
+    rg = {
+      args = {
+        { { any = true } },                       -- rg "pattern" (search current dir)
+        { { any = true }, { file = true } },      -- rg "pattern" <file/dir>
+        { { any = true }, { restFiles = true } }, -- rg "pattern" <file1> <file2> ...
+      }
+    },
   },
   maxConcurrentSubagents = 3,
   chimeVolume = 0.3,
