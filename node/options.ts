@@ -14,7 +14,7 @@ export const BUILTIN_SKILLS_PATH = path.join(__dirname, "skills");
 // Default models by provider
 const DEFAULT_MODELS: Record<
   ProviderName,
-  { model: string; fastModel: string }
+  { model: string; fastModel?: string }
 > = {
   anthropic: {
     model: "claude-opus-4-5",
@@ -30,7 +30,6 @@ const DEFAULT_MODELS: Record<
   },
   ollama: {
     model: "llama3.1:8b",
-    fastModel: "llama3.1:8b",
   },
   copilot: {
     model: "claude-opus-4-5",
@@ -268,14 +267,17 @@ function parseProfiles(
       const provider = p["provider"] as ProviderName;
       const defaults = DEFAULT_MODELS[provider];
 
+      const model =
+        typeof p["model"] === "string" ? p["model"] : defaults.model;
+
       const out: Profile = {
         name: p["name"],
         provider,
-        model: typeof p["model"] === "string" ? p["model"] : defaults.model,
+        model,
         fastModel:
           typeof p["fastModel"] === "string"
             ? p["fastModel"]
-            : defaults.fastModel,
+            : (defaults.fastModel ?? model),
       };
 
       if ("baseUrl" in p) {
