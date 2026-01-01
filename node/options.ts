@@ -347,9 +347,7 @@ function parseProfiles(
             out.env = env;
           }
         } else {
-          logger.warn(
-            `Invalid env in profile ${p["name"]}, must be an object`,
-          );
+          logger.warn(`Invalid env in profile ${p["name"]}, must be an object`);
         }
       }
 
