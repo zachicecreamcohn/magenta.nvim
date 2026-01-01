@@ -381,6 +381,52 @@ The provider handles token refresh automatically and integrates with GitHub's Co
 
 Copilot does this awkward thing where it gives you access to claude, but only through the openai chat completions api. As such they're really behind the ball on features. So for example, web_search for claude does not work [issue](https://github.com/microsoft/vscode-copilot-release/issues/6755). As such, I would not recommend it, though it is cheaper than paying for claude tokens directly.
 
+## AWS Bedrock Provider
+
+The Bedrock provider allows you to use Claude models through AWS Bedrock. It supports custom environment variables and an optional authentication refresh command.
+
+**Basic Setup:**
+
+```lua
+{
+  name = "bedrock",
+  provider = "bedrock",
+  model = "anthropic.claude-3-5-sonnet-20241022-v2:0",
+  fastModel = "anthropic.claude-3-5-haiku-20241022-v1:0"
+}
+```
+
+**With AWS Profile:**
+
+```lua
+{
+  name = "bedrock",
+  provider = "bedrock",
+  model = "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+  fastModel = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+  env = {
+    AWS_PROFILE = "dev.ai-inference",
+    AWS_REGION = "us-west-2"
+  }
+}
+```
+
+**Configuration options:**
+
+- `env`: Environment variables to set before initializing the provider. Common variables include:
+  - `AWS_PROFILE`: The AWS profile to use from your credentials file
+  - `AWS_REGION`: The AWS region for Bedrock API calls
+  - `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`: Direct credential configuration
+- `promptCaching`: Enable/disable prompt caching (default: true)
+
+**Prerequisites:**
+
+- AWS credentials configured (via environment, credentials file, or SSO)
+- Bedrock model access enabled in your AWS account
+- Appropriate IAM permissions for `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream`
+
+The provider uses the [@anthropic-ai/bedrock-sdk](https://github.com/anthropics/anthropic-sdk-typescript/tree/main/packages/bedrock-sdk) which automatically discovers credentials from standard AWS locations.
+
 ## Claude Max Authentication
 
 The Anthropic provider supports two authentication methods:
@@ -476,6 +522,14 @@ Create `.magenta/options.json` in your project root:
       "provider": "anthropic",
       "model": "claude-opus-4-5",
       "apiKeyEnvVar": "PROJECT_ANTHROPIC_KEY"
+    },
+    {
+      "name": "bedrock",
+      "provider": "bedrock",
+      "model": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      "env": {
+        "AWS_PROFILE": "dev.ai-inference"
+      }
     }
   ],
   "commandAllowlist": [

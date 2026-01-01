@@ -61,7 +61,6 @@ export class AnthropicProvider implements Provider {
       baseUrl?: string | undefined;
       apiKeyEnvVar?: string | undefined;
       authType?: "key" | "max" | undefined;
-      awsAPIKey?: boolean | undefined;
       promptCaching?: boolean | undefined;
       disableParallelToolUseFlag?: boolean;
     },
@@ -77,12 +76,6 @@ export class AnthropicProvider implements Provider {
     } else {
       const apiKeyEnvVar = options?.apiKeyEnvVar || "ANTHROPIC_API_KEY";
       const apiKey = process.env[apiKeyEnvVar];
-
-      if (!options?.awsAPIKey && !apiKey) {
-        throw new Error(
-          `Anthropic API key ${apiKeyEnvVar} not found in environment`,
-        );
-      }
 
       this.client = new Anthropic({
         apiKey,

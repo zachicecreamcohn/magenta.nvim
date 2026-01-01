@@ -3,9 +3,25 @@ import type { Nvim } from "../nvim/nvim-node";
 import { AnthropicProvider } from "./anthropic.ts";
 import type Anthropic from "@anthropic-ai/sdk";
 
+export type BedrockProviderOptions = {
+  promptCaching?: boolean | undefined;
+  env?: Record<string, string> | undefined;
+};
+
 export class BedrockProvider extends AnthropicProvider {
-  constructor(nvim: Nvim, promptCaching: boolean) {
-    super(nvim, { promptCaching, awsAPIKey: true });
+  constructor(nvim: Nvim, options?: BedrockProviderOptions) {
+    // Apply environment variables before initializing
+    // Supports AWS_PROFILE, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+    if (options?.env) {
+      for (const [key, value] of Object.entries(options.env)) {
+        process.env[key] = value;
+      }
+    }
+
+    super(nvim, {
+      promptCaching: options?.promptCaching ?? true,
+    });
+
     this.client = new AnthropicBedrock() as unknown as Anthropic;
   }
 }
