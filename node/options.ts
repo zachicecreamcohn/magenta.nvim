@@ -50,6 +50,7 @@ export type Profile = {
   apiKeyEnvVar?: string;
   authType?: "key" | "max"; // New field for authentication type
   promptCaching?: boolean; // Primarily used by Bedrock provider
+  env?: Record<string, string>; // Environment variables to set before provider initialization (e.g., AWS_PROFILE, AWS_REGION)
   thinking?:
     | {
         enabled: boolean;
@@ -320,6 +321,33 @@ function parseProfiles(
           logger.warn(
             `Invalid promptCaching in profile ${p["name"]}, ignoring field`,
           );
+        }
+      }
+
+      if ("env" in p) {
+        if (
+          typeof p["env"] === "object" &&
+          p["env"] !== null &&
+          !Array.isArray(p["env"])
+        ) {
+          const env: Record<string, string> = {};
+          const envObj = p["env"] as Record<string, unknown>;
+
+          for (const [envKey, envValue] of Object.entries(envObj)) {
+            if (typeof envValue === "string") {
+              env[envKey] = envValue;
+            } else {
+              logger.warn(
+                `Skipping non-string env value in profile ${p["name"]}: ${envKey}=${JSON.stringify(envValue)}`,
+              );
+            }
+          }
+
+          if (Object.keys(env).length > 0) {
+            out.env = env;
+          }
+        } else {
+          logger.warn(`Invalid env in profile ${p["name"]}, must be an object`);
         }
       }
 
