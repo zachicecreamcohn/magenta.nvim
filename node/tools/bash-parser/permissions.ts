@@ -14,11 +14,11 @@ import type { Gitignore } from "../util.ts";
 /** A single argument specification */
 export type ArgSpec =
   | string // Exact literal argument
-  | { file: true } // Single file path argument
-  | { restFiles: true } // Zero or more file paths (must be last)
-  | { any: true } // Any single argument (wildcard)
-  | { pattern: string } // Argument matching a regex pattern
-  | { optional: ArgSpec[] }; // Optional group of args (all or nothing)
+  | { type: "file" } // Single file path argument
+  | { type: "restFiles" } // Zero or more file paths (must be last)
+  | { type: "any" } // Any single argument (wildcard)
+  | { type: "pattern"; pattern: string } // Argument matching a regex pattern
+  | { type: "group"; args: ArgSpec[]; optional?: boolean; anyOrder?: boolean };
 
 /** Configuration for a single command */
 export type CommandSpec = {
@@ -240,11 +240,16 @@ type MatchContext = {
   gitignore: Gitignore;
 };
 
-/** Try to match a single non-optional spec at the current position. Returns number of args consumed or error. */
+type NonGroupArgSpec = Exclude<
+  ArgSpec,
+  { type: "group"; args: ArgSpec[]; optional?: boolean; anyOrder?: boolean }
+>;
+
+/** Try to match a single non-group spec at the current position. Returns number of args consumed or error. */
 function matchSingleSpec(
   args: string[],
   argIndex: number,
-  spec: Exclude<ArgSpec, { optional: ArgSpec[] }>,
+  spec: NonGroupArgSpec,
   ctx: MatchContext,
 ): { consumed: number } | { error: string } {
   if (typeof spec === "string") {
@@ -254,47 +259,13 @@ function matchSingleSpec(
     return { consumed: 1 };
   }
 
-  if ("file" in spec) {
-    if (argIndex >= args.length) {
-      return { error: "expected file argument" };
-    }
-    const pathCheck = isPathSafe(
-      args[argIndex],
-      ctx.currentCwd,
-      ctx.projectCwd,
-      ctx.gitignore,
-    );
-    if (!pathCheck.safe) {
-      return { error: pathCheck.reason ?? "invalid file path" };
-    }
-    return { consumed: 1 };
-  }
-
-  if ("any" in spec) {
-    if (argIndex >= args.length) {
-      return { error: "expected argument" };
-    }
-    return { consumed: 1 };
-  }
-
-  if ("pattern" in spec) {
-    if (argIndex >= args.length) {
-      return { error: "expected argument matching pattern" };
-    }
-    const regex = new RegExp(`^${spec.pattern}$`);
-    if (!regex.test(args[argIndex])) {
-      return {
-        error: `argument "${args[argIndex]}" does not match pattern "${spec.pattern}"`,
-      };
-    }
-    return { consumed: 1 };
-  }
-
-  if ("restFiles" in spec) {
-    let consumed = 0;
-    while (argIndex + consumed < args.length) {
+  switch (spec.type) {
+    case "file": {
+      if (argIndex >= args.length) {
+        return { error: "expected file argument" };
+      }
       const pathCheck = isPathSafe(
-        args[argIndex + consumed],
+        args[argIndex],
         ctx.currentCwd,
         ctx.projectCwd,
         ctx.gitignore,
@@ -302,17 +273,50 @@ function matchSingleSpec(
       if (!pathCheck.safe) {
         return { error: pathCheck.reason ?? "invalid file path" };
       }
-      consumed++;
+      return { consumed: 1 };
     }
-    return { consumed };
-  }
 
-  // Should never reach here if types are correct
-  return { error: "unknown spec type" };
+    case "any": {
+      if (argIndex >= args.length) {
+        return { error: "expected argument" };
+      }
+      return { consumed: 1 };
+    }
+
+    case "pattern": {
+      if (argIndex >= args.length) {
+        return { error: "expected argument matching pattern" };
+      }
+      const regex = new RegExp(`^${spec.pattern}$`);
+      if (!regex.test(args[argIndex])) {
+        return {
+          error: `argument "${args[argIndex]}" does not match pattern "${spec.pattern}"`,
+        };
+      }
+      return { consumed: 1 };
+    }
+
+    case "restFiles": {
+      let consumed = 0;
+      while (argIndex + consumed < args.length) {
+        const pathCheck = isPathSafe(
+          args[argIndex + consumed],
+          ctx.currentCwd,
+          ctx.projectCwd,
+          ctx.gitignore,
+        );
+        if (!pathCheck.safe) {
+          return { error: pathCheck.reason ?? "invalid file path" };
+        }
+        consumed++;
+      }
+      return { consumed };
+    }
+  }
 }
 
-/** Try to match an optional group. Returns number of args consumed (0 if group not present). */
-function matchOptionalGroup(
+/** Try to match a group's args sequentially. Returns number of args consumed or error. */
+function matchGroupSequential(
   args: string[],
   argIndex: number,
   specs: ArgSpec[],
@@ -321,34 +325,119 @@ function matchOptionalGroup(
   let tempIndex = argIndex;
 
   for (const spec of specs) {
-    if (typeof spec === "object" && "optional" in spec) {
-      // Nested optional - try to match it
-      const result = matchOptionalGroup(args, tempIndex, spec.optional, ctx);
+    if (typeof spec === "object" && "type" in spec && spec.type === "group") {
+      const result = matchGroup(args, tempIndex, spec, ctx);
       if ("error" in result) {
-        // Optional group failed completely - that's fine, return what we matched so far
-        // Actually no - if we're inside an optional group, the whole group must match or nothing
-        return { consumed: 0 };
+        return result;
       }
       tempIndex += result.consumed;
-    } else if (typeof spec === "object" && "restFiles" in spec) {
-      // restFiles not allowed inside optional groups
-      return { error: "restFiles not allowed inside optional group" };
+    } else if (
+      typeof spec === "object" &&
+      "type" in spec &&
+      spec.type === "restFiles"
+    ) {
+      return { error: "restFiles not allowed inside group" };
     } else {
       const result = matchSingleSpec(
         args,
         tempIndex,
-        spec as Exclude<ArgSpec, { optional: ArgSpec[] }>,
+        spec as NonGroupArgSpec,
         ctx,
       );
       if ("error" in result) {
-        // Group doesn't match - return 0 consumed (group is optional)
-        return { consumed: 0 };
+        return result;
       }
       tempIndex += result.consumed;
     }
   }
 
   return { consumed: tempIndex - argIndex };
+}
+
+/** Try to match a group's args in any order. Returns number of args consumed or error. */
+function matchGroupAnyOrder(
+  args: string[],
+  argIndex: number,
+  specs: ArgSpec[],
+  ctx: MatchContext,
+): { consumed: number } | { error: string } {
+  const remaining = [...specs];
+  let tempIndex = argIndex;
+
+  while (remaining.length > 0 && tempIndex < args.length) {
+    let matched = false;
+
+    for (let i = 0; i < remaining.length; i++) {
+      const spec = remaining[i];
+      let result: { consumed: number } | { error: string };
+
+      if (typeof spec === "object" && "type" in spec && spec.type === "group") {
+        result = matchGroup(args, tempIndex, spec, ctx);
+      } else if (
+        typeof spec === "object" &&
+        "type" in spec &&
+        spec.type === "restFiles"
+      ) {
+        return { error: "restFiles not allowed inside group" };
+      } else {
+        result = matchSingleSpec(args, tempIndex, spec as NonGroupArgSpec, ctx);
+      }
+
+      if (!("error" in result) && result.consumed > 0) {
+        tempIndex += result.consumed;
+        remaining.splice(i, 1);
+        matched = true;
+        break;
+      }
+    }
+
+    if (!matched) {
+      break;
+    }
+  }
+
+  // Check if all non-optional specs were matched
+  for (const spec of remaining) {
+    if (typeof spec === "object" && "type" in spec && spec.type === "group") {
+      if (!spec.optional) {
+        return { error: "required group not matched" };
+      }
+    } else {
+      return { error: "required argument not matched" };
+    }
+  }
+
+  return { consumed: tempIndex - argIndex };
+}
+
+/** Try to match a group. Returns number of args consumed or error. */
+function matchGroup(
+  args: string[],
+  argIndex: number,
+  spec: {
+    type: "group";
+    args: ArgSpec[];
+    optional?: boolean;
+    anyOrder?: boolean;
+  },
+  ctx: MatchContext,
+): { consumed: number } | { error: string } {
+  const result = spec.anyOrder
+    ? matchGroupAnyOrder(args, argIndex, spec.args, ctx)
+    : matchGroupSequential(args, argIndex, spec.args, ctx);
+
+  if ("error" in result) {
+    // Structural errors should always propagate
+    if (result.error.includes("restFiles not allowed inside group")) {
+      return result;
+    }
+    if (spec.optional) {
+      return { consumed: 0 };
+    }
+    return result;
+  }
+
+  return result;
 }
 
 /** Match arguments against an arg pattern */
@@ -366,24 +455,23 @@ function matchArgsPattern(
   while (patternIndex < pattern.length) {
     const spec = pattern[patternIndex];
 
-    if (typeof spec === "object" && "optional" in spec) {
-      const result = matchOptionalGroup(args, argIndex, spec.optional, ctx);
+    if (typeof spec === "object" && "type" in spec && spec.type === "group") {
+      const result = matchGroup(args, argIndex, spec, ctx);
       if ("error" in result) {
         return { matches: false, reason: result.error };
       }
       argIndex += result.consumed;
       patternIndex++;
-    } else if (typeof spec === "object" && "restFiles" in spec) {
+    } else if (
+      typeof spec === "object" &&
+      "type" in spec &&
+      spec.type === "restFiles"
+    ) {
       // Rest files - must be last in pattern
       if (patternIndex !== pattern.length - 1) {
         return { matches: false, reason: "restFiles must be last in pattern" };
       }
-      const result = matchSingleSpec(
-        args,
-        argIndex,
-        spec as Exclude<ArgSpec, { optional: ArgSpec[] }>,
-        ctx,
-      );
+      const result = matchSingleSpec(args, argIndex, spec, ctx);
       if ("error" in result) {
         return { matches: false, reason: result.error };
       }
@@ -393,7 +481,7 @@ function matchArgsPattern(
       const result = matchSingleSpec(
         args,
         argIndex,
-        spec as Exclude<ArgSpec, { optional: ArgSpec[] }>,
+        spec as NonGroupArgSpec,
         ctx,
       );
       if ("error" in result) {

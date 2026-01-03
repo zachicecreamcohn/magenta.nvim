@@ -104,20 +104,20 @@ local defaults = {
     ls = { allowAll = true },
     pwd = { args = { {} } },
     echo = { allowAll = true },
-    cat = { args = { { { file = true } } } },
+    cat = { args = { { { type = "file" } } } },
     head = {
       args = {
-        { { optional = { "-n", { any = true } } }, { file = true } },
-        { { pattern = "-[0-9]+" },                 { file = true } },
+        { { type = "group", args = { "-n", { type = "any" } }, optional = true }, { type = "file" } },
+        { { type = "pattern", pattern = "-[0-9]+" },                              { type = "file" } },
       }
     },
     tail = {
       args = {
-        { { optional = { "-n", { any = true } } }, { file = true } },
-        { { pattern = "-[0-9]+" },                 { file = true } },
+        { { type = "group", args = { "-n", { type = "any" } }, optional = true }, { type = "file" } },
+        { { type = "pattern", pattern = "-[0-9]+" },                              { type = "file" } },
       }
     },
-    wc = { args = { { { optional = { "-l" } }, { file = true } } } },
+    wc = { args = { { { type = "group", args = { "-l" }, optional = true }, { type = "file" } } } },
     git = {
       subCommands = {
         status = { allowAll = true },
@@ -143,13 +143,13 @@ local defaults = {
     -- ripgrep: [optional -l] pattern [optional --type ext] [files...]
     rg = {
       args = {
-        { { optional = { "-l" } }, { any = true }, { optional = { "--type", { any = true } } }, { restFiles = true } },
+        { { type = "group", args = { "-l" }, optional = true }, { type = "any" }, { type = "group", args = { "--type", { type = "any" } }, optional = true }, { type = "restFiles" } },
       }
     },
     -- fd: [optional -t f|d] [optional -e ext] [optional pattern] [optional dir]
     fd = {
       args = {
-        { { optional = { "-t", { any = true } } }, { optional = { "-e", { any = true } } }, { optional = { { any = true } } }, { optional = { { file = true } } } },
+        { { type = "group", args = { "-t", { type = "any" } }, optional = true }, { type = "group", args = { "-e", { type = "any" } }, optional = true }, { type = "group", args = { { type = "any" } }, optional = true }, { type = "group", args = { { type = "file" } }, optional = true } },
       }
     },
   },
@@ -159,12 +159,12 @@ local defaults = {
     "node_modules/**/*"
   },
   customCommands = {
-    -- Example custom commands (commented out by default)
-    -- {
-    --   name = "@nedit",
-    --   text = "DO NOT MAKE ANY EDITS TO CODE. Do not use any tools that allow you to edit code. Do not execute bash commands which edit code. NO EDITING WHATSOEVER OR ELSE.",
-    --   description = "Disable all code editing functionality"
-    -- },
+    {
+      name = "@nedit",
+      text =
+      "DO NOT MAKE ANY EDITS TO CODE. Do not use any tools that allow you to edit code. Do not execute bash commands which edit code. NO EDITING WHATSOEVER.",
+      description = "Disable all code editing functionality"
+    },
     -- {
     --   name = "@careful",
     --   text = "Be extra careful and double-check your work before making any changes.",

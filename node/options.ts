@@ -68,10 +68,11 @@ export type Profile = {
 /** A single argument specification for the parser-based command config */
 export type ArgSpec =
   | string // Exact literal argument
-  | { file: true } // Single file path argument
-  | { restFiles: true } // Zero or more file paths (must be last)
-  | { any: true } // Any single argument (wildcard)
-  | { optional: ArgSpec[] }; // Optional group of args (all or nothing)
+  | { type: "file" } // Single file path argument
+  | { type: "restFiles" } // Zero or more file paths (must be last)
+  | { type: "any" } // Any single argument (wildcard)
+  | { type: "pattern"; pattern: string } // Argument matching a regex pattern
+  | { type: "group"; args: ArgSpec[]; optional?: boolean; anyOrder?: boolean };
 
 /** Configuration for a single command in the new parser-based config */
 export type CommandSpec = {
@@ -827,16 +828,74 @@ function parseArgSpec(
   }
   if (typeof argSpec === "object" && argSpec !== null) {
     const spec = argSpec as Record<string, unknown>;
+
+    // Check for type-based discriminated union
+    if (typeof spec["type"] === "string") {
+      switch (spec["type"]) {
+        case "file":
+          return { type: "file" };
+        case "restFiles":
+          return { type: "restFiles" };
+        case "any":
+          return { type: "any" };
+        case "pattern":
+          if (typeof spec["pattern"] === "string") {
+            return { type: "pattern", pattern: spec["pattern"] };
+          }
+          logger.warn(
+            `Invalid pattern ArgSpec at ${path}: missing pattern string`,
+          );
+          return undefined;
+        case "group":
+          if (Array.isArray(spec["args"])) {
+            const groupArgs: ArgSpec[] = [];
+            const argsArray = spec["args"] as Array<unknown>;
+            for (let i = 0; i < argsArray.length; i++) {
+              const parsed = parseArgSpec(
+                argsArray[i],
+                logger,
+                `${path}.args[${i}]`,
+              );
+              if (parsed === undefined) {
+                return undefined;
+              }
+              groupArgs.push(parsed);
+            }
+            const result: ArgSpec = { type: "group", args: groupArgs };
+            if (spec["optional"] === true) {
+              result.optional = true;
+            }
+            if (spec["anyOrder"] === true) {
+              result.anyOrder = true;
+            }
+            return result;
+          }
+          logger.warn(`Invalid group ArgSpec at ${path}: missing args array`);
+          return undefined;
+        default:
+          logger.warn(`Invalid ArgSpec type at ${path}: "${spec["type"]}"`);
+          return undefined;
+      }
+    }
+
+    // Legacy support for old format
     if (spec["file"] === true && Object.keys(spec).length === 1) {
-      return { file: true };
+      return { type: "file" };
     }
     if (spec["restFiles"] === true && Object.keys(spec).length === 1) {
-      return { restFiles: true };
+      return { type: "restFiles" };
     }
     if (spec["any"] === true && Object.keys(spec).length === 1) {
-      return { any: true };
+      return { type: "any" };
     }
-    if (Array.isArray(spec["optional"]) && Object.keys(spec).length === 1) {
+    if (
+      "pattern" in spec &&
+      typeof spec["pattern"] === "string" &&
+      Object.keys(spec).length === 1
+    ) {
+      return { type: "pattern", pattern: spec["pattern"] };
+    }
+    if (Array.isArray(spec["optional"])) {
       const optionalSpecs: ArgSpec[] = [];
       const optionalArray = spec["optional"] as Array<unknown>;
       for (let i = 0; i < optionalArray.length; i++) {
@@ -850,10 +909,11 @@ function parseArgSpec(
         }
         optionalSpecs.push(parsed);
       }
-      return { optional: optionalSpecs };
+      return { type: "group", args: optionalSpecs, optional: true };
     }
+
     logger.warn(
-      `Invalid ArgSpec at ${path}: must be string, {file: true}, {restFiles: true}, {any: true}, or {optional: [...]}`,
+      `Invalid ArgSpec at ${path}: must be string or object with type field`,
     );
     return undefined;
   }

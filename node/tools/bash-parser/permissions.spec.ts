@@ -153,7 +153,7 @@ describe("permissions", () => {
     it("should allow command with safe file path", () => {
       const config: CommandPermissions = {
         cat: {
-          args: [[{ file: true }]],
+          args: [[{ type: "file" }]],
         },
       };
 
@@ -167,7 +167,7 @@ describe("permissions", () => {
     it("should allow command with nested file path", () => {
       const config: CommandPermissions = {
         cat: {
-          args: [[{ file: true }]],
+          args: [[{ type: "file" }]],
         },
       };
 
@@ -181,7 +181,7 @@ describe("permissions", () => {
     it("should reject file outside cwd", () => {
       const config: CommandPermissions = {
         cat: {
-          args: [[{ file: true }]],
+          args: [[{ type: "file" }]],
         },
       };
 
@@ -196,7 +196,7 @@ describe("permissions", () => {
     it("should reject file in hidden directory", () => {
       const config: CommandPermissions = {
         cat: {
-          args: [[{ file: true }]],
+          args: [[{ type: "file" }]],
         },
       };
 
@@ -215,7 +215,7 @@ describe("permissions", () => {
     it("should reject file traversing outside cwd", () => {
       const config: CommandPermissions = {
         cat: {
-          args: [[{ file: true }]],
+          args: [[{ type: "file" }]],
         },
       };
 
@@ -233,7 +233,7 @@ describe("permissions", () => {
     it("should allow command with any single argument", () => {
       const config: CommandPermissions = {
         head: {
-          args: [["-n", { any: true }, { file: true }]],
+          args: [["-n", { type: "any" }, { type: "file" }]],
         },
       };
 
@@ -247,7 +247,7 @@ describe("permissions", () => {
     it("should allow any value for wildcard argument", () => {
       const config: CommandPermissions = {
         head: {
-          args: [["-n", { any: true }, { file: true }]],
+          args: [["-n", { type: "any" }, { type: "file" }]],
         },
       };
 
@@ -267,7 +267,7 @@ describe("permissions", () => {
     it("should reject when wildcard argument is missing", () => {
       const config: CommandPermissions = {
         head: {
-          args: [["-n", { any: true }, { file: true }]],
+          args: [["-n", { type: "any" }, { type: "file" }]],
         },
       };
 
@@ -283,7 +283,7 @@ describe("permissions", () => {
     it("should work with just flag and wildcard (no file)", () => {
       const config: CommandPermissions = {
         test: {
-          args: [["-n", { any: true }]],
+          args: [["-n", { type: "any" }]],
         },
       };
 
@@ -297,7 +297,7 @@ describe("permissions", () => {
     it("should reject extra arguments after wildcard", () => {
       const config: CommandPermissions = {
         test: {
-          args: [["-n", { any: true }]],
+          args: [["-n", { type: "any" }]],
         },
       };
 
@@ -314,7 +314,7 @@ describe("permissions", () => {
     it("should allow argument matching regex pattern", () => {
       const config: CommandPermissions = {
         head: {
-          args: [[{ pattern: "-[0-9]+" }]],
+          args: [[{ type: "pattern", pattern: "-[0-9]+" }]],
         },
       };
 
@@ -328,7 +328,7 @@ describe("permissions", () => {
     it("should reject argument not matching pattern", () => {
       const config: CommandPermissions = {
         head: {
-          args: [[{ pattern: "-[0-9]+" }]],
+          args: [[{ type: "pattern", pattern: "-[0-9]+" }]],
         },
       };
 
@@ -343,7 +343,7 @@ describe("permissions", () => {
     it("should match full argument with pattern (anchored)", () => {
       const config: CommandPermissions = {
         head: {
-          args: [[{ pattern: "-[0-9]+" }]],
+          args: [[{ type: "pattern", pattern: "-[0-9]+" }]],
         },
       };
 
@@ -358,7 +358,7 @@ describe("permissions", () => {
     it("should work with pattern followed by file", () => {
       const config: CommandPermissions = {
         head: {
-          args: [[{ pattern: "-[0-9]+" }, { file: true }]],
+          args: [[{ type: "pattern", pattern: "-[0-9]+" }, { type: "file" }]],
         },
       };
 
@@ -372,7 +372,10 @@ describe("permissions", () => {
     it("should support multiple arg patterns including pattern", () => {
       const config: CommandPermissions = {
         tail: {
-          args: [["-n", { any: true }], [{ pattern: "-[0-9]+" }]],
+          args: [
+            ["-n", { type: "any" }],
+            [{ type: "pattern", pattern: "-[0-9]+" }],
+          ],
         },
       };
 
@@ -398,7 +401,7 @@ describe("permissions", () => {
             vitest: {
               subCommands: {
                 run: {
-                  args: [[{ restFiles: true }]],
+                  args: [[{ type: "restFiles" }]],
                 },
               },
             },
@@ -421,7 +424,7 @@ describe("permissions", () => {
             vitest: {
               subCommands: {
                 run: {
-                  args: [[{ restFiles: true }]],
+                  args: [[{ type: "restFiles" }]],
                 },
               },
             },
@@ -439,7 +442,7 @@ describe("permissions", () => {
     it("should reject if any file in restFiles is unsafe", () => {
       const config: CommandPermissions = {
         cat: {
-          args: [[{ restFiles: true }]],
+          args: [[{ type: "restFiles" }]],
         },
       };
 
@@ -457,7 +460,7 @@ describe("permissions", () => {
     it("should track cwd through cd commands", () => {
       const config: CommandPermissions = {
         cat: {
-          args: [[{ file: true }]],
+          args: [[{ type: "file" }]],
         },
       };
 
@@ -473,7 +476,7 @@ describe("permissions", () => {
     it("should reject when cd goes outside project", () => {
       const config: CommandPermissions = {
         cat: {
-          args: [[{ file: true }]],
+          args: [[{ type: "file" }]],
         },
       };
 
@@ -488,10 +491,10 @@ describe("permissions", () => {
     it("should handle multiple commands in sequence", () => {
       const config: CommandPermissions = {
         echo: {
-          args: [[{ restFiles: true }]],
+          args: [[{ type: "restFiles" }]],
         },
         cat: {
-          args: [[{ file: true }]],
+          args: [[{ type: "file" }]],
         },
       };
 
@@ -602,7 +605,7 @@ describe("permissions", () => {
   describe("parse errors", () => {
     it("should reject commands with unsupported features", () => {
       const config: CommandPermissions = {
-        echo: { args: [[{ restFiles: true }]] },
+        echo: { args: [[{ type: "restFiles" }]] },
       };
 
       const result = isCommandAllowedByConfig("echo $(whoami)", config, {
@@ -615,7 +618,7 @@ describe("permissions", () => {
 
     it("should reject commands with variable expansion", () => {
       const config: CommandPermissions = {
-        echo: { args: [[{ restFiles: true }]] },
+        echo: { args: [[{ type: "restFiles" }]] },
       };
 
       const result = isCommandAllowedByConfig("echo $HOME", config, {
@@ -793,11 +796,16 @@ describe("permissions", () => {
     });
   });
 
-  describe("optional argument groups", () => {
+  describe("group argument matching", () => {
     it("should allow command when optional group is present", () => {
       const config: CommandPermissions = {
         grep: {
-          args: [[{ optional: ["-v", { any: true }] }, { file: true }]],
+          args: [
+            [
+              { type: "group", optional: true, args: ["-v", { type: "any" }] },
+              { type: "file" },
+            ],
+          ],
         },
       };
 
@@ -812,7 +820,12 @@ describe("permissions", () => {
     it("should allow command when optional group is absent", () => {
       const config: CommandPermissions = {
         grep: {
-          args: [[{ optional: ["-v", { any: true }] }, { file: true }]],
+          args: [
+            [
+              { type: "group", optional: true, args: ["-v", { type: "any" }] },
+              { type: "file" },
+            ],
+          ],
         },
       };
 
@@ -826,7 +839,12 @@ describe("permissions", () => {
     it("should reject when optional group is partially present", () => {
       const config: CommandPermissions = {
         grep: {
-          args: [[{ optional: ["-v", { any: true }] }, { file: true }]],
+          args: [
+            [
+              { type: "group", optional: true, args: ["-v", { type: "any" }] },
+              { type: "file" },
+            ],
+          ],
         },
       };
 
@@ -845,9 +863,9 @@ describe("permissions", () => {
         cmd: {
           args: [
             [
-              { optional: ["-a", { any: true }] },
-              { optional: ["-b", { any: true }] },
-              { file: true },
+              { type: "group", optional: true, args: ["-a", { type: "any" }] },
+              { type: "group", optional: true, args: ["-b", { type: "any" }] },
+              { type: "file" },
             ],
           ],
         },
@@ -879,10 +897,12 @@ describe("permissions", () => {
       expect(result4.allowed).toBe(true);
     });
 
-    it("should validate file paths inside optional groups", () => {
+    it("should validate file paths inside groups", () => {
       const config: CommandPermissions = {
         cmd: {
-          args: [[{ optional: ["-f", { file: true }] }]],
+          args: [
+            [{ type: "group", optional: true, args: ["-f", { type: "file" }] }],
+          ],
         },
       };
 
@@ -904,7 +924,12 @@ describe("permissions", () => {
     it("should handle optional group with single literal arg", () => {
       const config: CommandPermissions = {
         test: {
-          args: [[{ optional: ["--verbose"] }, { file: true }]],
+          args: [
+            [
+              { type: "group", optional: true, args: ["--verbose"] },
+              { type: "file" },
+            ],
+          ],
         },
       };
 
@@ -922,10 +947,18 @@ describe("permissions", () => {
       expect(result2.allowed).toBe(true);
     });
 
-    it("should reject restFiles inside optional group", () => {
+    it("should reject restFiles inside group", () => {
       const config: CommandPermissions = {
         cmd: {
-          args: [[{ optional: ["-f", { restFiles: true }] }]],
+          args: [
+            [
+              {
+                type: "group",
+                optional: true,
+                args: ["-f", { type: "restFiles" }],
+              },
+            ],
+          ],
         },
       };
 
@@ -934,13 +967,18 @@ describe("permissions", () => {
         gitignore: createEmptyGitignore(),
       });
       expect(result.allowed).toBe(false);
-      expect(result.reason).toContain("restFiles not allowed inside optional");
+      expect(result.reason).toContain("restFiles not allowed inside group");
     });
 
-    it("should work with optional followed by restFiles", () => {
+    it("should work with optional group followed by restFiles", () => {
       const config: CommandPermissions = {
         rg: {
-          args: [[{ optional: ["-v", { any: true }] }, { restFiles: true }]],
+          args: [
+            [
+              { type: "group", optional: true, args: ["-v", { type: "any" }] },
+              { type: "restFiles" },
+            ],
+          ],
         },
       };
 
@@ -963,6 +1001,73 @@ describe("permissions", () => {
       });
       expect(result3.allowed).toBe(true);
     });
+
+    it("should handle anyOrder groups", () => {
+      const config: CommandPermissions = {
+        cmd: {
+          args: [
+            [
+              {
+                type: "group",
+                anyOrder: true,
+                args: [
+                  { type: "group", optional: true, args: ["-l"] },
+                  {
+                    type: "group",
+                    optional: true,
+                    args: ["-v", { type: "any" }],
+                  },
+                ],
+              },
+              { type: "file" },
+            ],
+          ],
+        },
+      };
+
+      // Just -l
+      const result1 = isCommandAllowedByConfig("cmd -l file.txt", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result1.allowed).toBe(true);
+
+      // Just -v pattern
+      const result2 = isCommandAllowedByConfig("cmd -v foo file.txt", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result2.allowed).toBe(true);
+
+      // -l then -v pattern
+      const result3 = isCommandAllowedByConfig(
+        "cmd -l -v foo file.txt",
+        config,
+        {
+          cwd,
+          gitignore: createEmptyGitignore(),
+        },
+      );
+      expect(result3.allowed).toBe(true);
+
+      // -v pattern then -l (reversed order)
+      const result4 = isCommandAllowedByConfig(
+        "cmd -v foo -l file.txt",
+        config,
+        {
+          cwd,
+          gitignore: createEmptyGitignore(),
+        },
+      );
+      expect(result4.allowed).toBe(true);
+
+      // Neither optional
+      const result5 = isCommandAllowedByConfig("cmd file.txt", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result5.allowed).toBe(true);
+    });
   });
 
   describe("complex configurations", () => {
@@ -971,7 +1076,7 @@ describe("permissions", () => {
         git: {
           subCommands: {
             add: {
-              args: [[{ restFiles: true }]],
+              args: [[{ type: "restFiles" }]],
             },
           },
         },
@@ -1019,7 +1124,7 @@ describe("permissions", () => {
     it("should match first valid pattern", () => {
       const config: CommandPermissions = {
         test: {
-          args: [["--flag"], [{ file: true }], ["--flag", { file: true }]],
+          args: [["--flag"], [{ type: "file" }], ["--flag", { type: "file" }]],
         },
       };
 

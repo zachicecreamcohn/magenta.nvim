@@ -57,14 +57,14 @@ describe("mergeOptions", () => {
 
       const merged = mergeOptions(base, {
         commandConfig: {
-          git: { subCommands: { commit: { args: [["-m", { any: true }]] } } },
+          git: { subCommands: { commit: { args: [["-m", { type: "any" }]] } } },
         },
       });
 
       expect(merged.commandConfig.git).toEqual({
         subCommands: {
           status: { allowAll: true },
-          commit: { args: [["-m", { any: true }]] },
+          commit: { args: [["-m", { type: "any" }]] },
         },
       });
     });
@@ -73,18 +73,18 @@ describe("mergeOptions", () => {
       const base: MagentaOptions = {
         ...baseOptions,
         commandConfig: {
-          cat: { args: [[{ file: true }]] },
+          cat: { args: [[{ type: "file" }]] },
         },
       };
 
       const merged = mergeOptions(base, {
         commandConfig: {
-          cat: { args: [["-n", { file: true }]] },
+          cat: { args: [["-n", { type: "file" }]] },
         },
       });
 
       expect(merged.commandConfig.cat).toEqual({
-        args: [[{ file: true }], ["-n", { file: true }]],
+        args: [[{ type: "file" }], ["-n", { type: "file" }]],
       });
     });
 
@@ -116,7 +116,7 @@ describe("mergeOptions", () => {
             subCommands: {
               remote: {
                 subCommands: {
-                  add: { args: [[{ any: true }, { any: true }]] },
+                  add: { args: [[{ type: "any" }, { type: "any" }]] },
                 },
               },
             },
@@ -130,7 +130,7 @@ describe("mergeOptions", () => {
             subCommands: {
               remote: {
                 subCommands: {
-                  remove: { args: [[{ any: true }]] },
+                  remove: { args: [[{ type: "any" }]] },
                 },
               },
             },
@@ -142,8 +142,8 @@ describe("mergeOptions", () => {
         subCommands: {
           remote: {
             subCommands: {
-              add: { args: [[{ any: true }, { any: true }]] },
-              remove: { args: [[{ any: true }]] },
+              add: { args: [[{ type: "any" }, { type: "any" }]] },
+              remove: { args: [[{ type: "any" }]] },
             },
           },
         },

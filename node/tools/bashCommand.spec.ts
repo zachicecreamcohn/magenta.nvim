@@ -769,7 +769,7 @@ describe("commandConfig integration tests", () => {
         options: {
           commandConfig: {
             cat: {
-              args: [[{ file: true }]],
+              args: [[{ type: "file" }]],
             },
           },
         },
@@ -823,7 +823,7 @@ describe("commandConfig integration tests", () => {
         options: {
           commandConfig: {
             cat: {
-              args: [[{ file: true }]],
+              args: [[{ type: "file" }]],
             },
           },
         },
@@ -869,7 +869,7 @@ describe("commandConfig integration tests", () => {
         options: {
           commandConfig: {
             cat: {
-              args: [[{ restFiles: true }]],
+              args: [[{ type: "restFiles" }]],
             },
           },
         },
@@ -926,7 +926,7 @@ describe("commandConfig integration tests", () => {
         options: {
           commandConfig: {
             cat: {
-              args: [[{ restFiles: true }]],
+              args: [[{ type: "restFiles" }]],
             },
           },
         },
@@ -977,7 +977,7 @@ describe("commandConfig integration tests", () => {
         options: {
           commandConfig: {
             cat: {
-              args: [[{ file: true }]],
+              args: [[{ type: "file" }]],
             },
           },
         },
@@ -1033,7 +1033,7 @@ describe("commandConfig integration tests", () => {
         options: {
           commandConfig: {
             cat: {
-              args: [[{ file: true }]],
+              args: [[{ type: "file" }]],
             },
           },
         },
@@ -1123,7 +1123,7 @@ describe("commandConfig integration tests", () => {
         options: {
           commandConfig: {
             cat: {
-              args: [[{ file: true }]],
+              args: [[{ type: "file" }]],
             },
           },
         },
