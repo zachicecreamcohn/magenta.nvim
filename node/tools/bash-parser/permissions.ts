@@ -135,6 +135,7 @@ const SCRIPT_RUNNERS: Record<string, RegExp> = {
   python: /^python[23]?$/,
   node: /^(?:node|nodejs)$/,
   npx: /^npx$/,
+  pkgx: /^pkgx$/,
 };
 
 /** Check if a command is executing a skills script */
@@ -203,6 +204,27 @@ function isSkillsScriptExecution(
       const scriptPath = args[1];
       if (isExecutableScript(scriptPath, cwd)) {
         return isWithinSkillsDir(scriptPath, skillsPaths, cwd);
+      }
+    }
+    return false;
+  }
+
+  // pkgx <interpreter> script.ext (e.g., pkgx tsx script.ts, pkgx python script.py)
+  if (SCRIPT_RUNNERS.pkgx.test(executable)) {
+    if (args.length >= 2) {
+      const interpreter = args[0];
+      // Check if the interpreter is a known script runner
+      if (
+        interpreter === "tsx" ||
+        SCRIPT_RUNNERS.python.test(interpreter) ||
+        SCRIPT_RUNNERS.node.test(interpreter) ||
+        SCRIPT_RUNNERS.bash.test(interpreter) ||
+        SCRIPT_RUNNERS.zsh.test(interpreter)
+      ) {
+        const scriptPath = args[1];
+        if (isExecutableScript(scriptPath, cwd)) {
+          return isWithinSkillsDir(scriptPath, skillsPaths, cwd);
+        }
       }
     }
     return false;

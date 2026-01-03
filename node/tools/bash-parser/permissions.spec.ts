@@ -541,6 +541,36 @@ describe("permissions", () => {
       expect(result.allowed).toBe(true);
     });
 
+    it("should allow pkgx tsx script.ts from skills directory", () => {
+      const config: CommandPermissions = {};
+      const skillsPaths = [path.join(testDir, ".magenta", "skills")];
+
+      const result = isCommandAllowedByConfig(
+        "pkgx tsx .magenta/skills/test-skill/script.ts",
+        config,
+        { cwd, skillsPaths, gitignore: createEmptyGitignore() },
+      );
+      expect(result.allowed).toBe(true);
+    });
+
+    it("should allow pkgx python script.py from skills directory", () => {
+      const config: CommandPermissions = {};
+      const skillsPaths = [path.join(testDir, ".magenta", "skills")];
+
+      // Create a python script in skills directory
+      fs.writeFileSync(
+        path.join(skillsDir, "script.py"),
+        "print('hello')",
+      );
+
+      const result = isCommandAllowedByConfig(
+        "pkgx python .magenta/skills/test-skill/script.py",
+        config,
+        { cwd, skillsPaths, gitignore: createEmptyGitignore() },
+      );
+      expect(result.allowed).toBe(true);
+    });
+
     it("should allow cd to skills dir && ./script.sh", () => {
       const config: CommandPermissions = {};
       const skillsPaths = [path.join(testDir, ".magenta", "skills")];
