@@ -558,10 +558,7 @@ describe("permissions", () => {
       const skillsPaths = [path.join(testDir, ".magenta", "skills")];
 
       // Create a python script in skills directory
-      fs.writeFileSync(
-        path.join(skillsDir, "script.py"),
-        "print('hello')",
-      );
+      fs.writeFileSync(path.join(skillsDir, "script.py"), "print('hello')");
 
       const result = isCommandAllowedByConfig(
         "pkgx python .magenta/skills/test-skill/script.py",
