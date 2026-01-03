@@ -793,6 +793,178 @@ describe("permissions", () => {
     });
   });
 
+  describe("optional argument groups", () => {
+    it("should allow command when optional group is present", () => {
+      const config: CommandPermissions = {
+        grep: {
+          args: [[{ optional: ["-v", { any: true }] }, { file: true }]],
+        },
+      };
+
+      const result = isCommandAllowedByConfig(
+        "grep -v 'pattern' file.txt",
+        config,
+        { cwd, gitignore: createEmptyGitignore() },
+      );
+      expect(result.allowed).toBe(true);
+    });
+
+    it("should allow command when optional group is absent", () => {
+      const config: CommandPermissions = {
+        grep: {
+          args: [[{ optional: ["-v", { any: true }] }, { file: true }]],
+        },
+      };
+
+      const result = isCommandAllowedByConfig("grep file.txt", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result.allowed).toBe(true);
+    });
+
+    it("should reject when optional group is partially present", () => {
+      const config: CommandPermissions = {
+        grep: {
+          args: [[{ optional: ["-v", { any: true }] }, { file: true }]],
+        },
+      };
+
+      // -v without a pattern - this will actually match -v as the file, which will fail path check
+      const result = isCommandAllowedByConfig("grep -v file.txt", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      // This should fail because -v doesn't look like a file path initially,
+      // but the optional group requires both -v and a pattern
+      expect(result.allowed).toBe(false);
+    });
+
+    it("should handle multiple optional groups", () => {
+      const config: CommandPermissions = {
+        cmd: {
+          args: [
+            [
+              { optional: ["-a", { any: true }] },
+              { optional: ["-b", { any: true }] },
+              { file: true },
+            ],
+          ],
+        },
+      };
+
+      const result1 = isCommandAllowedByConfig("cmd file.txt", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result1.allowed).toBe(true);
+
+      const result2 = isCommandAllowedByConfig("cmd -a foo file.txt", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result2.allowed).toBe(true);
+
+      const result3 = isCommandAllowedByConfig("cmd -b bar file.txt", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result3.allowed).toBe(true);
+
+      const result4 = isCommandAllowedByConfig(
+        "cmd -a foo -b bar file.txt",
+        config,
+        { cwd, gitignore: createEmptyGitignore() },
+      );
+      expect(result4.allowed).toBe(true);
+    });
+
+    it("should validate file paths inside optional groups", () => {
+      const config: CommandPermissions = {
+        cmd: {
+          args: [[{ optional: ["-f", { file: true }] }]],
+        },
+      };
+
+      const result1 = isCommandAllowedByConfig("cmd -f file.txt", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result1.allowed).toBe(true);
+
+      const result2 = isCommandAllowedByConfig("cmd -f /etc/passwd", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      // Optional group should not match because file path is unsafe,
+      // but since there's no other args pattern, it fails
+      expect(result2.allowed).toBe(false);
+    });
+
+    it("should handle optional group with single literal arg", () => {
+      const config: CommandPermissions = {
+        test: {
+          args: [[{ optional: ["--verbose"] }, { file: true }]],
+        },
+      };
+
+      const result1 = isCommandAllowedByConfig("test file.txt", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result1.allowed).toBe(true);
+
+      const result2 = isCommandAllowedByConfig(
+        "test --verbose file.txt",
+        config,
+        { cwd, gitignore: createEmptyGitignore() },
+      );
+      expect(result2.allowed).toBe(true);
+    });
+
+    it("should reject restFiles inside optional group", () => {
+      const config: CommandPermissions = {
+        cmd: {
+          args: [[{ optional: ["-f", { restFiles: true }] }]],
+        },
+      };
+
+      const result = isCommandAllowedByConfig("cmd -f file.txt", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toContain("restFiles not allowed inside optional");
+    });
+
+    it("should work with optional followed by restFiles", () => {
+      const config: CommandPermissions = {
+        rg: {
+          args: [[{ optional: ["-v", { any: true }] }, { restFiles: true }]],
+        },
+      };
+
+      const result1 = isCommandAllowedByConfig("rg file.txt", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result1.allowed).toBe(true);
+
+      const result2 = isCommandAllowedByConfig(
+        "rg -v 'pattern' file.txt other.txt",
+        config,
+        { cwd, gitignore: createEmptyGitignore() },
+      );
+      expect(result2.allowed).toBe(true);
+
+      const result3 = isCommandAllowedByConfig("rg", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result3.allowed).toBe(true);
+    });
+  });
+
   describe("complex configurations", () => {
     it("should handle nested subcommands with file args", () => {
       const config: CommandPermissions = {

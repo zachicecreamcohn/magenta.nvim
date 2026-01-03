@@ -70,7 +70,8 @@ export type ArgSpec =
   | string // Exact literal argument
   | { file: true } // Single file path argument
   | { restFiles: true } // Zero or more file paths (must be last)
-  | { any: true }; // Any single argument (wildcard)
+  | { any: true } // Any single argument (wildcard)
+  | { optional: ArgSpec[] }; // Optional group of args (all or nothing)
 
 /** Configuration for a single command in the new parser-based config */
 export type CommandSpec = {
@@ -835,8 +836,24 @@ function parseArgSpec(
     if (spec["any"] === true && Object.keys(spec).length === 1) {
       return { any: true };
     }
+    if (Array.isArray(spec["optional"]) && Object.keys(spec).length === 1) {
+      const optionalSpecs: ArgSpec[] = [];
+      const optionalArray = spec["optional"] as Array<unknown>;
+      for (let i = 0; i < optionalArray.length; i++) {
+        const parsed = parseArgSpec(
+          optionalArray[i],
+          logger,
+          `${path}.optional[${i}]`,
+        );
+        if (parsed === undefined) {
+          return undefined;
+        }
+        optionalSpecs.push(parsed);
+      }
+      return { optional: optionalSpecs };
+    }
     logger.warn(
-      `Invalid ArgSpec at ${path}: must be string, {file: true}, {restFiles: true}, or {any: true}`,
+      `Invalid ArgSpec at ${path}: must be string, {file: true}, {restFiles: true}, {any: true}, or {optional: [...]}`,
     );
     return undefined;
   }
