@@ -34,7 +34,10 @@ export function getProvider(
           apiKeyEnvVar: profile.apiKeyEnvVar,
         });
       case "bedrock":
-        return new BedrockProvider(nvim, !!(profile as Profile).promptCaching);
+        return new BedrockProvider(nvim, {
+          promptCaching: (profile as Profile).promptCaching,
+          env: (profile as Profile).env,
+        });
       case "ollama":
         return new OllamaProvider(nvim);
       case "copilot":

@@ -61,7 +61,6 @@ export class AnthropicProvider implements Provider {
       baseUrl?: string | undefined;
       apiKeyEnvVar?: string | undefined;
       authType?: "key" | "max" | undefined;
-      awsAPIKey?: boolean | undefined;
       promptCaching?: boolean | undefined;
       disableParallelToolUseFlag?: boolean;
     },
@@ -78,12 +77,6 @@ export class AnthropicProvider implements Provider {
       const apiKeyEnvVar = options?.apiKeyEnvVar || "ANTHROPIC_API_KEY";
       const apiKey = process.env[apiKeyEnvVar];
 
-      if (!options?.awsAPIKey && !apiKey) {
-        throw new Error(
-          `Anthropic API key ${apiKeyEnvVar} not found in environment`,
-        );
-      }
-
       this.client = new Anthropic({
         apiKey,
         baseURL: options?.baseUrl,
@@ -93,6 +86,7 @@ export class AnthropicProvider implements Provider {
 
   private promptCaching = true;
   private disableParallelToolUseFlag = true;
+  protected includeWebSearch = true;
 
   private static readonly CLAUDE_CODE_SPOOF_PROMPT =
     "You are Claude Code, Anthropic's official CLI for Claude.";
@@ -453,6 +447,15 @@ export class AnthropicProvider implements Provider {
       });
     }
 
+    const builtInTools: Anthropic.Messages.Tool[] = [];
+    if (this.includeWebSearch) {
+      builtInTools.push({
+        type: "web_search_20250305",
+        name: "web_search",
+        max_uses: 5,
+      } as unknown as Anthropic.Messages.Tool);
+    }
+
     const params: MessageStreamParams = {
       messages: anthropicMessages,
       model: model,
@@ -462,14 +465,7 @@ export class AnthropicProvider implements Provider {
         type: "auto",
         disable_parallel_tool_use: this.disableParallelToolUseFlag || undefined,
       },
-      tools: [
-        ...anthropicTools,
-        {
-          type: "web_search_20250305",
-          name: "web_search",
-          max_uses: 5,
-        } as unknown as Anthropic.Messages.Tool,
-      ],
+      tools: [...anthropicTools, ...builtInTools],
     };
 
     // Add thinking configuration if enabled

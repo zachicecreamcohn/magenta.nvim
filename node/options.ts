@@ -14,7 +14,7 @@ export const BUILTIN_SKILLS_PATH = path.join(__dirname, "skills");
 // Default models by provider
 const DEFAULT_MODELS: Record<
   ProviderName,
-  { model: string; fastModel: string }
+  { model: string; fastModel?: string }
 > = {
   anthropic: {
     model: "claude-opus-4-5",
@@ -30,7 +30,6 @@ const DEFAULT_MODELS: Record<
   },
   ollama: {
     model: "llama3.1:8b",
-    fastModel: "llama3.1:8b",
   },
   copilot: {
     model: "claude-opus-4-5",
@@ -51,6 +50,7 @@ export type Profile = {
   apiKeyEnvVar?: string;
   authType?: "key" | "max"; // New field for authentication type
   promptCaching?: boolean; // Primarily used by Bedrock provider
+  env?: Record<string, string>; // Environment variables to set before provider initialization (e.g., AWS_PROFILE, AWS_REGION)
   thinking?:
     | {
         enabled: boolean;
@@ -283,14 +283,17 @@ function parseProfiles(
       const provider = p["provider"] as ProviderName;
       const defaults = DEFAULT_MODELS[provider];
 
+      const model =
+        typeof p["model"] === "string" ? p["model"] : defaults.model;
+
       const out: Profile = {
         name: p["name"],
         provider,
-        model: typeof p["model"] === "string" ? p["model"] : defaults.model,
+        model,
         fastModel:
           typeof p["fastModel"] === "string"
             ? p["fastModel"]
-            : defaults.fastModel,
+            : (defaults.fastModel ?? model),
       };
 
       if ("baseUrl" in p) {
@@ -333,6 +336,33 @@ function parseProfiles(
           logger.warn(
             `Invalid promptCaching in profile ${p["name"]}, ignoring field`,
           );
+        }
+      }
+
+      if ("env" in p) {
+        if (
+          typeof p["env"] === "object" &&
+          p["env"] !== null &&
+          !Array.isArray(p["env"])
+        ) {
+          const env: Record<string, string> = {};
+          const envObj = p["env"] as Record<string, unknown>;
+
+          for (const [envKey, envValue] of Object.entries(envObj)) {
+            if (typeof envValue === "string") {
+              env[envKey] = envValue;
+            } else {
+              logger.warn(
+                `Skipping non-string env value in profile ${p["name"]}: ${envKey}=${JSON.stringify(envValue)}`,
+              );
+            }
+          }
+
+          if (Object.keys(env).length > 0) {
+            out.env = env;
+          }
+        } else {
+          logger.warn(`Invalid env in profile ${p["name"]}, must be an object`);
         }
       }
 
