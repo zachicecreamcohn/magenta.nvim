@@ -65,24 +65,20 @@ This can include:
 
 ## TypeScript Scripts in Skills
 
-Skills can include executable TypeScript scripts using `tsx` for execution.
+Skills can include executable TypeScript scripts using `pkgx` for zero-setup execution.
 
-### Setup
+### What is pkgx?
 
-Install TypeScript and tsx in your skill directory:
-
-```bash
-cd ~/.magenta/skills/your-skill-name  # or .magenta/skills/your-skill-name
-npm init -y
-npm install --save-dev typescript tsx
-```
+[pkgx](https://pkgx.sh) is a package runner that automatically installs and runs packages on-demand without needing a full npm project setup. It's perfect for skill scripts since it eliminates boilerplate.
 
 ### Creating a Script
 
 1. Create a `scripts/` directory in your skill folder
-2. Add a `.ts` file:
+2. Add a `.ts` file with a pkgx shebang:
 
 ```typescript
+#!/usr/bin/env -S pkgx +typescript +npx tsx
+
 // Your TypeScript code here
 console.log("Hello from a skill script!");
 
@@ -100,22 +96,33 @@ const config: Config = {
 console.log(config);
 ```
 
-4. Run it with tsx:
+3. Make it executable and run:
 
 ```bash
-cd ~/.magenta/skills/your-skill-name && npx tsx scripts/your-script.ts
+chmod +x ~/.magenta/skills/your-skill-name/scripts/your-script.ts
+./scripts/your-script.ts
+```
+
+Or run directly with pkgx:
+
+```bash
+pkgx +typescript npx tsx scripts/your-script.ts
 ```
 
 ### Running Shell Commands with zx
 
 For scripts that need to run shell commands, use Google's `zx` library:
 
-```bash
-npm install --save-dev zx
+```typescript
+#!/usr/bin/env -S pkgx +typescript +npx +zx tsx
+
+import { $ } from "zx";
+
+const result = await $`ls -la`;
+console.log(result.stdout);
 ```
 
 ### Script Requirements
 
-- **TypeScript**: Install via npm in the skill directory
-- **tsx**: Install via npm for TypeScript execution
-- **zx** (optional): Install for shell command execution
+- **pkgx**: Install from https://pkgx.sh (`curl -Ssf https://pkgx.sh | sh`)
+- No npm setup required - pkgx handles all dependencies automatically

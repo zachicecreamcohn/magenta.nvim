@@ -180,6 +180,10 @@ function extractScriptPath(command: string): string | undefined {
     /^(?:node|nodejs)\s+([^\s;&|<>]+)/,
     // npx tsx script.ts [args...]
     /^npx\s+tsx\s+([^\s;&|<>]+)/,
+    // pkgx +deps... npx tsx script.ts [args...]
+    /^pkgx\s+(?:\+\S+\s+)*npx\s+tsx\s+([^\s;&|<>]+)/,
+    // pkgx +deps... script.ts [args...] (direct execution with pkgx)
+    /^pkgx\s+(?:\+\S+\s+)*([.~/][^\s;&|<>]+)/,
     // Direct execution: ./script.sh or /path/to/script.sh [args...]
     /^([.~/][\S]*[^\s;&|<>]+)/,
     // Absolute path: /path/to/script
