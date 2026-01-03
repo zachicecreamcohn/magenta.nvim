@@ -23,5 +23,7 @@ export class BedrockProvider extends AnthropicProvider {
     });
 
     this.client = new AnthropicBedrock() as unknown as Anthropic;
+    // Bedrock does not support web_search tool
+    this.includeWebSearch = false;
   }
 }
