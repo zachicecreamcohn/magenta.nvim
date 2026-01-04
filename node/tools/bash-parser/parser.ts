@@ -4,6 +4,7 @@ import { tokenize } from "./lexer.ts";
 export type ParsedCommand = {
   executable: string;
   args: string[];
+  receivingPipe: boolean;
 };
 
 export type ParsedCommandList = {
@@ -27,29 +28,33 @@ export class Parser {
 
   parse(): ParsedCommandList {
     const commands: ParsedCommand[] = [];
+    let lastOperator: string | undefined;
 
     while (!this.isAtEnd()) {
       // Skip any leading operators (e.g., from empty command after ;)
       if (this.peek().type === "operator") {
-        this.advance();
+        lastOperator = this.advance().value;
         continue;
       }
 
-      const command = this.parseCommand();
+      const receivingPipe = lastOperator === "|";
+      const command = this.parseCommand(receivingPipe);
       if (command) {
         commands.push(command);
       }
 
       // After a command, we expect either an operator or end
       if (!this.isAtEnd() && this.peek().type === "operator") {
-        this.advance(); // consume the operator
+        lastOperator = this.advance().value;
+      } else {
+        lastOperator = undefined;
       }
     }
 
     return { commands };
   }
 
-  private parseCommand(): ParsedCommand | undefined {
+  private parseCommand(receivingPipe: boolean): ParsedCommand | undefined {
     // Skip any redirections at the start
     this.skipRedirects();
 
@@ -92,7 +97,7 @@ export class Parser {
       break;
     }
 
-    return { executable, args };
+    return { executable, args, receivingPipe };
   }
 
   private skipRedirects(): void {

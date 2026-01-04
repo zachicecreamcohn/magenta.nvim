@@ -412,7 +412,8 @@ describe("node/tools/bashCommand.spec.ts", () => {
       {
         options: {
           commandConfig: {
-            echo: { allowAll: true },
+            commands: [["echo", { type: "restAny" }]],
+            pipeCommands: [],
           },
         },
       },
@@ -484,7 +485,8 @@ describe("node/tools/bashCommand.spec.ts", () => {
       {
         options: {
           commandConfig: {
-            echo: { allowAll: true },
+            commands: [["echo", { type: "restAny" }]],
+            pipeCommands: [],
           },
         },
       },
@@ -532,8 +534,11 @@ describe("node/tools/bashCommand.spec.ts", () => {
       {
         options: {
           commandConfig: {
-            yes: { allowAll: true },
-            head: { allowAll: true },
+            commands: [
+              ["yes", { type: "restAny" }],
+              ["head", { type: "restAny" }],
+            ],
+            pipeCommands: [["head", { type: "restAny" }]],
           },
         },
       },
@@ -622,12 +627,13 @@ describe("node/tools/bashCommand.spec.ts", () => {
 });
 
 describe("commandConfig integration tests", () => {
-  it("auto-approves commands with allowAll option", async () => {
+  it("auto-approves commands with restAny option", async () => {
     await withDriver(
       {
         options: {
           commandConfig: {
-            echo: { allowAll: true },
+            commands: [["echo", { type: "restAny" }]],
+            pipeCommands: [],
           },
         },
       },
@@ -637,7 +643,7 @@ describe("commandConfig integration tests", () => {
         await driver.send();
 
         const request = await driver.mockAnthropic.awaitPendingRequest();
-        const toolRequestId = "test-allowAll" as ToolRequestId;
+        const toolRequestId = "test-restAny" as ToolRequestId;
 
         request.respond({
           stopReason: "end_turn",
@@ -669,19 +675,14 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            npx: {
-              subCommands: {
-                tsc: {
-                  args: [["--version"]],
-                },
-              },
-            },
+            commands: [["ls", "-la"]],
+            pipeCommands: [],
           },
         },
       },
       async (driver) => {
         await driver.showSidebar();
-        await driver.inputMagentaText(`Run this command: npx tsc --version`);
+        await driver.inputMagentaText(`Run this command: ls -la`);
         await driver.send();
 
         const request = await driver.mockAnthropic.awaitPendingRequest();
@@ -689,7 +690,7 @@ describe("commandConfig integration tests", () => {
 
         request.respond({
           stopReason: "end_turn",
-          text: "Running tsc.",
+          text: "Listing files.",
           toolRequests: [
             {
               status: "ok",
@@ -697,7 +698,7 @@ describe("commandConfig integration tests", () => {
                 id: toolRequestId,
                 toolName: "bash_command" as ToolName,
                 input: {
-                  command: "npx tsc --version",
+                  command: "ls -la",
                 },
               },
             },
@@ -705,7 +706,7 @@ describe("commandConfig integration tests", () => {
         });
 
         // Should auto-approve since args match exactly
-        await driver.assertDisplayBufferContains("⚡✅ `npx tsc --version`");
+        await driver.assertDisplayBufferContains("⚡✅ `ls -la`");
         await driver.assertDisplayBufferDoesNotContain("[ YES ]");
       },
     );
@@ -716,13 +717,8 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            npx: {
-              subCommands: {
-                tsc: {
-                  args: [["--noEmit"]],
-                },
-              },
-            },
+            commands: [["npx", "tsc", "--noEmit"]],
+            pipeCommands: [],
           },
         },
       },
@@ -768,9 +764,8 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            cat: {
-              args: [[{ file: true }]],
-            },
+            commands: [["cat", { type: "file" }]],
+            pipeCommands: [],
           },
         },
       },
@@ -822,9 +817,8 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            cat: {
-              args: [[{ file: true }]],
-            },
+            commands: [["cat", { type: "file" }]],
+            pipeCommands: [],
           },
         },
       },
@@ -868,9 +862,8 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            cat: {
-              args: [[{ restFiles: true }]],
-            },
+            commands: [["cat", { type: "restFiles" }]],
+            pipeCommands: [],
           },
         },
       },
@@ -925,9 +918,8 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            cat: {
-              args: [[{ restFiles: true }]],
-            },
+            commands: [["cat", { type: "restFiles" }]],
+            pipeCommands: [],
           },
         },
       },
@@ -976,9 +968,8 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            cat: {
-              args: [[{ file: true }]],
-            },
+            commands: [["cat", { type: "file" }]],
+            pipeCommands: [],
           },
         },
       },
@@ -1032,9 +1023,8 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            cat: {
-              args: [[{ file: true }]],
-            },
+            commands: [["cat", { type: "file" }]],
+            pipeCommands: [],
           },
         },
       },
@@ -1074,47 +1064,38 @@ describe("commandConfig integration tests", () => {
   });
 
   it("requires approval for command not in config", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            echo: { allowAll: true },
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
 
-        await driver.inputMagentaText(`Run this command: ls -la`);
-        await driver.send();
+      await driver.inputMagentaText(`Run this command: rm -rf /tmp/test`);
+      await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingRequest();
-        const toolRequestId = "test-not-in-config" as ToolRequestId;
+      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const toolRequestId = "test-not-in-config" as ToolRequestId;
 
-        request.respond({
-          stopReason: "end_turn",
-          text: "Listing files.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: "ls -la",
-                },
+      request.respond({
+        stopReason: "end_turn",
+        text: "Removing files.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: toolRequestId,
+              toolName: "bash_command" as ToolName,
+              input: {
+                command: "rm -rf /tmp/test",
               },
             },
-          ],
-        });
+          },
+        ],
+      });
 
-        // Should require approval since ls is not in config
-        await driver.assertDisplayBufferContains(
-          "⚡⏳ May I run command `ls -la`?",
-        );
-        await driver.assertDisplayBufferContains("[ YES ]");
-      },
-    );
+      // Should require approval since rm is not in builtin config
+      await driver.assertDisplayBufferContains(
+        "⚡⏳ May I run command `rm -rf /tmp/test`?",
+      );
+      await driver.assertDisplayBufferContains("[ YES ]");
+    });
   });
 
   it("requires approval for hidden files", async () => {
@@ -1122,9 +1103,8 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            cat: {
-              args: [[{ file: true }]],
-            },
+            commands: [["cat", { type: "file" }]],
+            pipeCommands: [],
           },
         },
       },
@@ -1166,17 +1146,16 @@ describe("commandConfig integration tests", () => {
     );
   });
 
-  it("allows specific subcommand with allowAll while restricting parent", async () => {
+  it("allows specific subcommand with restAny while restricting other patterns", async () => {
     await withDriver(
       {
         options: {
           commandConfig: {
-            git: {
-              subCommands: {
-                status: { allowAll: true },
-                log: { args: [["--oneline"]] },
-              },
-            },
+            commands: [
+              ["git", "status", { type: "restAny" }],
+              ["git", "log", "--oneline"],
+            ],
+            pipeCommands: [],
           },
         },
       },

@@ -14,20 +14,111 @@ import type { Gitignore } from "../util.ts";
 /** A single argument specification */
 export type ArgSpec =
   | string // Exact literal argument
-  | { file: true } // Single file path argument
-  | { restFiles: true } // Zero or more file paths (must be last)
-  | { any: true } // Any single argument (wildcard)
-  | { pattern: string }; // Argument matching a regex pattern
-
-/** Configuration for a single command */
-export type CommandSpec = {
-  subCommands?: Record<string, CommandSpec>;
-  args?: ArgSpec[][]; // Array of allowed arg patterns
-  allowAll?: true; // Allow any arguments (useful for safe commands)
-};
+  | { type: "file" } // Single file path argument
+  | { type: "restFiles" } // Zero or more file paths (must be last)
+  | { type: "restAny" } // Zero or more arguments of any type (must be last)
+  | { type: "any" } // Any single argument (wildcard)
+  | { type: "pattern"; pattern: string } // Argument matching a regex pattern
+  | { type: "group"; args: ArgSpec[]; optional?: boolean; anyOrder?: boolean };
 
 /** Top-level command permissions configuration */
-export type CommandPermissions = Record<string, CommandSpec>;
+export type CommandPermissions = {
+  commands: ArgSpec[][]; // Array of allowed command patterns (e.g. ['git', 'status', {type: 'restAny'}])
+  pipeCommands: ArgSpec[][]; // Array of allowed patterns when receiving pipe input
+};
+
+/** Builtin command permissions - always allowed */
+export const BUILTIN_COMMAND_PERMISSIONS: CommandPermissions = {
+  commands: [
+    // Basic commands
+    ["ls", { type: "restAny" }],
+    ["pwd"],
+    ["echo", { type: "restAny" }],
+    ["cat", { type: "file" }],
+    // head: with optional -n flag or pattern like -10, plus file
+    [
+      "head",
+      { type: "group", args: ["-n", { type: "any" }], optional: true },
+      { type: "file" },
+    ],
+    ["head", { type: "pattern", pattern: "-[0-9]+" }, { type: "file" }],
+    // tail: with optional -n flag or pattern like -10, plus file
+    [
+      "tail",
+      { type: "group", args: ["-n", { type: "any" }], optional: true },
+      { type: "file" },
+    ],
+    ["tail", { type: "pattern", pattern: "-[0-9]+" }, { type: "file" }],
+    // wc: optional -l flag plus file
+    ["wc", { type: "group", args: ["-l"], optional: true }, { type: "file" }],
+    // grep: optional -i, pattern, restFiles
+    [
+      "grep",
+      { type: "group", args: ["-i"], optional: true },
+      { type: "any" },
+      { type: "restFiles" },
+    ],
+    // sort: file
+    ["sort", { type: "file" }],
+    // uniq: file
+    ["uniq", { type: "file" }],
+    // cut: with delim, field, file
+    ["cut", "-d", { type: "any" }, "-f", { type: "any" }, { type: "file" }],
+    // awk: pattern, file
+    ["awk", { type: "any" }, { type: "file" }],
+    // sed: pattern, file
+    ["sed", { type: "any" }, { type: "file" }],
+    // git subcommands
+    ["git", "status", { type: "restAny" }],
+    ["git", "log", { type: "restAny" }],
+    ["git", "diff", { type: "restAny" }],
+    ["git", "show", { type: "restAny" }],
+    ["git", "add", { type: "restAny" }],
+    ["git", "commit", { type: "restAny" }],
+    ["git", "push", { type: "restAny" }],
+    ["git", "reset", { type: "restAny" }],
+    ["git", "restore", { type: "restAny" }],
+    ["git", "branch", { type: "restAny" }],
+    ["git", "checkout", { type: "restAny" }],
+    ["git", "switch", { type: "restAny" }],
+    ["git", "fetch", { type: "restAny" }],
+    ["git", "pull", { type: "restAny" }],
+    ["git", "merge", { type: "restAny" }],
+    ["git", "rebase", { type: "restAny" }],
+    ["git", "tag", { type: "restAny" }],
+    ["git", "stash", { type: "restAny" }],
+    // ripgrep: [optional -l] pattern [optional --type ext] [files...]
+    [
+      "rg",
+      { type: "group", args: ["-l"], optional: true },
+      { type: "any" },
+      { type: "group", args: ["--type", { type: "any" }], optional: true },
+      { type: "restFiles" },
+    ],
+    // fd: [optional -t f|d] [optional -e ext] [optional pattern] [optional dir]
+    [
+      "fd",
+      { type: "group", args: ["-t", { type: "any" }], optional: true },
+      { type: "group", args: ["-e", { type: "any" }], optional: true },
+      { type: "group", args: [{ type: "any" }], optional: true },
+      { type: "group", args: [{ type: "file" }], optional: true },
+    ],
+  ],
+  pipeCommands: [
+    ["awk", { type: "restAny" }],
+    ["cut", { type: "restAny" }],
+    ["grep", { type: "restAny" }],
+    ["head", { type: "restAny" }],
+    ["rg", { type: "restAny" }],
+    ["sed", { type: "restAny" }],
+    ["sort", { type: "restAny" }],
+    ["tail", { type: "restAny" }],
+    ["tr", { type: "restAny" }],
+    ["uniq", { type: "restAny" }],
+    ["wc", { type: "restAny" }],
+    ["xargs", { type: "restAny" }],
+  ],
+};
 
 export class PermissionError extends Error {
   constructor(message: string) {
@@ -233,6 +324,229 @@ function isSkillsScriptExecution(
   return false;
 }
 
+type MatchContext = {
+  currentCwd: NvimCwd;
+  projectCwd: NvimCwd;
+  gitignore: Gitignore;
+};
+
+type NonGroupArgSpec = Exclude<
+  ArgSpec,
+  { type: "group"; args: ArgSpec[]; optional?: boolean; anyOrder?: boolean }
+>;
+
+/** Try to match a single non-group spec at the current position. Returns number of args consumed or error. */
+function matchSingleSpec(
+  args: string[],
+  argIndex: number,
+  spec: NonGroupArgSpec,
+  ctx: MatchContext,
+): { consumed: number } | { error: string } {
+  if (typeof spec === "string") {
+    if (argIndex >= args.length || args[argIndex] !== spec) {
+      return { error: `expected argument "${spec}"` };
+    }
+    return { consumed: 1 };
+  }
+
+  switch (spec.type) {
+    case "file": {
+      if (argIndex >= args.length) {
+        return { error: "expected file argument" };
+      }
+      const pathCheck = isPathSafe(
+        args[argIndex],
+        ctx.currentCwd,
+        ctx.projectCwd,
+        ctx.gitignore,
+      );
+      if (!pathCheck.safe) {
+        return { error: pathCheck.reason ?? "invalid file path" };
+      }
+      return { consumed: 1 };
+    }
+
+    case "any": {
+      if (argIndex >= args.length) {
+        return { error: "expected argument" };
+      }
+      return { consumed: 1 };
+    }
+
+    case "pattern": {
+      if (argIndex >= args.length) {
+        return { error: "expected argument matching pattern" };
+      }
+      const regex = new RegExp(`^${spec.pattern}$`);
+      if (!regex.test(args[argIndex])) {
+        return {
+          error: `argument "${args[argIndex]}" does not match pattern "${spec.pattern}"`,
+        };
+      }
+      return { consumed: 1 };
+    }
+
+    case "restFiles": {
+      let consumed = 0;
+      while (argIndex + consumed < args.length) {
+        const pathCheck = isPathSafe(
+          args[argIndex + consumed],
+          ctx.currentCwd,
+          ctx.projectCwd,
+          ctx.gitignore,
+        );
+        if (!pathCheck.safe) {
+          return { error: pathCheck.reason ?? "invalid file path" };
+        }
+        consumed++;
+      }
+      return { consumed };
+    }
+
+    case "restAny": {
+      // Consume all remaining arguments
+      return { consumed: args.length - argIndex };
+    }
+  }
+}
+
+/** Try to match a group's args sequentially. Returns number of args consumed or error. */
+function matchGroupSequential(
+  args: string[],
+  argIndex: number,
+  specs: ArgSpec[],
+  ctx: MatchContext,
+): { consumed: number } | { error: string } {
+  let tempIndex = argIndex;
+
+  for (const spec of specs) {
+    if (typeof spec === "object" && "type" in spec && spec.type === "group") {
+      const result = matchGroup(args, tempIndex, spec, ctx);
+      if ("error" in result) {
+        return result;
+      }
+      tempIndex += result.consumed;
+    } else if (
+      typeof spec === "object" &&
+      "type" in spec &&
+      spec.type === "restFiles"
+    ) {
+      return { error: "restFiles not allowed inside group" };
+    } else if (
+      typeof spec === "object" &&
+      "type" in spec &&
+      spec.type === "restAny"
+    ) {
+      return { error: "restAny not allowed inside group" };
+    } else {
+      const result = matchSingleSpec(
+        args,
+        tempIndex,
+        spec as NonGroupArgSpec,
+        ctx,
+      );
+      if ("error" in result) {
+        return result;
+      }
+      tempIndex += result.consumed;
+    }
+  }
+
+  return { consumed: tempIndex - argIndex };
+}
+
+/** Try to match a group's args in any order. Returns number of args consumed or error. */
+function matchGroupAnyOrder(
+  args: string[],
+  argIndex: number,
+  specs: ArgSpec[],
+  ctx: MatchContext,
+): { consumed: number } | { error: string } {
+  const remaining = [...specs];
+  let tempIndex = argIndex;
+
+  while (remaining.length > 0 && tempIndex < args.length) {
+    let matched = false;
+
+    for (let i = 0; i < remaining.length; i++) {
+      const spec = remaining[i];
+      let result: { consumed: number } | { error: string };
+
+      if (typeof spec === "object" && "type" in spec && spec.type === "group") {
+        result = matchGroup(args, tempIndex, spec, ctx);
+      } else if (
+        typeof spec === "object" &&
+        "type" in spec &&
+        spec.type === "restFiles"
+      ) {
+        return { error: "restFiles not allowed inside group" };
+      } else if (
+        typeof spec === "object" &&
+        "type" in spec &&
+        spec.type === "restAny"
+      ) {
+        return { error: "restAny not allowed inside group" };
+      } else {
+        result = matchSingleSpec(args, tempIndex, spec as NonGroupArgSpec, ctx);
+      }
+
+      if (!("error" in result) && result.consumed > 0) {
+        tempIndex += result.consumed;
+        remaining.splice(i, 1);
+        matched = true;
+        break;
+      }
+    }
+
+    if (!matched) {
+      break;
+    }
+  }
+
+  // Check if all non-optional specs were matched
+  for (const spec of remaining) {
+    if (typeof spec === "object" && "type" in spec && spec.type === "group") {
+      if (!spec.optional) {
+        return { error: "required group not matched" };
+      }
+    } else {
+      return { error: "required argument not matched" };
+    }
+  }
+
+  return { consumed: tempIndex - argIndex };
+}
+
+/** Try to match a group. Returns number of args consumed or error. */
+function matchGroup(
+  args: string[],
+  argIndex: number,
+  spec: {
+    type: "group";
+    args: ArgSpec[];
+    optional?: boolean;
+    anyOrder?: boolean;
+  },
+  ctx: MatchContext,
+): { consumed: number } | { error: string } {
+  const result = spec.anyOrder
+    ? matchGroupAnyOrder(args, argIndex, spec.args, ctx)
+    : matchGroupSequential(args, argIndex, spec.args, ctx);
+
+  if ("error" in result) {
+    // Structural errors should always propagate
+    if (result.error.includes("restFiles not allowed inside group")) {
+      return result;
+    }
+    if (spec.optional) {
+      return { consumed: 0 };
+    }
+    return result;
+  }
+
+  return result;
+}
+
 /** Match arguments against an arg pattern */
 function matchArgsPattern(
   args: string[],
@@ -243,78 +557,59 @@ function matchArgsPattern(
 ): { matches: boolean; reason?: string } {
   let argIndex = 0;
   let patternIndex = 0;
+  const ctx: MatchContext = { currentCwd, projectCwd, gitignore };
 
   while (patternIndex < pattern.length) {
     const spec = pattern[patternIndex];
 
-    if (typeof spec === "string") {
-      // Exact literal match
-      if (argIndex >= args.length || args[argIndex] !== spec) {
-        return { matches: false, reason: `expected argument "${spec}"` };
+    if (typeof spec === "object" && "type" in spec && spec.type === "group") {
+      const result = matchGroup(args, argIndex, spec, ctx);
+      if ("error" in result) {
+        return { matches: false, reason: result.error };
       }
-      argIndex++;
+      argIndex += result.consumed;
       patternIndex++;
-    } else if ("file" in spec) {
-      // Single file argument
-      if (argIndex >= args.length) {
-        return { matches: false, reason: "expected file argument" };
-      }
-      const pathCheck = isPathSafe(
-        args[argIndex],
-        currentCwd,
-        projectCwd,
-        gitignore,
-      );
-      if (!pathCheck.safe) {
-        return {
-          matches: false,
-          reason: pathCheck.reason ?? "invalid file path",
-        };
-      }
-      argIndex++;
-      patternIndex++;
-    } else if ("any" in spec) {
-      // Any single argument (wildcard)
-      if (argIndex >= args.length) {
-        return { matches: false, reason: "expected argument" };
-      }
-      argIndex++;
-      patternIndex++;
-    } else if ("pattern" in spec) {
-      // Argument matching a regex pattern
-      if (argIndex >= args.length) {
-        return { matches: false, reason: "expected argument matching pattern" };
-      }
-      const regex = new RegExp(`^${spec.pattern}$`);
-      if (!regex.test(args[argIndex])) {
-        return {
-          matches: false,
-          reason: `argument "${args[argIndex]}" does not match pattern "${spec.pattern}"`,
-        };
-      }
-      argIndex++;
-      patternIndex++;
-    } else if ("restFiles" in spec) {
+    } else if (
+      typeof spec === "object" &&
+      "type" in spec &&
+      spec.type === "restFiles"
+    ) {
       // Rest files - must be last in pattern
       if (patternIndex !== pattern.length - 1) {
         return { matches: false, reason: "restFiles must be last in pattern" };
       }
-      // Check all remaining args are safe file paths
-      while (argIndex < args.length) {
-        const pathCheck = isPathSafe(
-          args[argIndex],
-          currentCwd,
-          projectCwd,
-          gitignore,
-        );
-        if (!pathCheck.safe) {
-          return {
-            matches: false,
-            reason: pathCheck.reason ?? "invalid file path",
-          };
-        }
-        argIndex++;
+      const result = matchSingleSpec(args, argIndex, spec, ctx);
+      if ("error" in result) {
+        return { matches: false, reason: result.error };
       }
+      argIndex += result.consumed;
+      patternIndex++;
+    } else if (
+      typeof spec === "object" &&
+      "type" in spec &&
+      spec.type === "restAny"
+    ) {
+      // Rest any - must be last in pattern
+      if (patternIndex !== pattern.length - 1) {
+        return { matches: false, reason: "restAny must be last in pattern" };
+      }
+      const result = matchSingleSpec(args, argIndex, spec, ctx);
+      if ("error" in result) {
+        return { matches: false, reason: result.error };
+      }
+      argIndex += result.consumed;
+      patternIndex++;
+    } else {
+      const result = matchSingleSpec(
+        args,
+        argIndex,
+        spec as NonGroupArgSpec,
+        ctx,
+      );
+      if ("error" in result) {
+        return { matches: false, reason: result.error };
+      }
+      argIndex += result.consumed;
       patternIndex++;
     }
   }
@@ -330,62 +625,44 @@ function matchArgsPattern(
   return { matches: true };
 }
 
-/** Check a single command against a command spec */
-function checkCommandSpec(
+/** Check a single command against the command permissions */
+function checkCommand(
+  executable: string,
   args: string[],
-  spec: CommandSpec,
+  config: CommandPermissions,
   currentCwd: NvimCwd,
   projectCwd: NvimCwd,
   gitignore: Gitignore,
+  receivingPipe: boolean,
 ): { allowed: boolean; reason?: string } {
-  // Check subcommands first
-  if (spec.subCommands && args.length > 0) {
-    const subCommand = args[0];
-    const subSpec = spec.subCommands[subCommand];
-    if (subSpec) {
-      return checkCommandSpec(
-        args.slice(1),
-        subSpec,
-        currentCwd,
-        projectCwd,
-        gitignore,
-      );
+  // Build full command array: [executable, ...args]
+  const fullCommand = [executable, ...args];
+
+  // Choose which patterns to use based on pipe status
+  const patterns = receivingPipe ? config.pipeCommands : config.commands;
+
+  // Try each pattern
+  let lastReason: string | undefined;
+  for (const pattern of patterns) {
+    const result = matchArgsPattern(
+      fullCommand,
+      pattern,
+      currentCwd,
+      projectCwd,
+      gitignore,
+    );
+    if (result.matches) {
+      return { allowed: true };
     }
+    lastReason = result.reason;
   }
 
-  // allowAll permits any arguments
-  if (spec.allowAll) {
-    return { allowed: true };
-  }
-
-  // Check arg patterns
-  if (spec.args) {
-    let lastReason: string | undefined;
-    for (const pattern of spec.args) {
-      const result = matchArgsPattern(
-        args,
-        pattern,
-        currentCwd,
-        projectCwd,
-        gitignore,
-      );
-      if (result.matches) {
-        return { allowed: true };
-      }
-      lastReason = result.reason;
-    }
-    return {
-      allowed: false,
-      reason: lastReason ?? "arguments do not match any allowed pattern",
-    };
-  }
-
-  // No args specified means no additional args allowed
-  if (args.length > 0) {
-    return { allowed: false, reason: "no arguments allowed" };
-  }
-
-  return { allowed: true };
+  return {
+    allowed: false,
+    reason:
+      lastReason ??
+      `command "${executable}" does not match any allowed pattern`,
+  };
 }
 
 /** Process cd command and return new cwd */
@@ -442,21 +719,14 @@ export function checkCommandListPermissions(
       continue;
     }
 
-    // Look up command in config
-    const commandSpec = config[command.executable];
-    if (!commandSpec) {
-      return {
-        allowed: false,
-        reason: `command "${command.executable}" is not in the allowlist`,
-      };
-    }
-
-    const result = checkCommandSpec(
+    const result = checkCommand(
+      command.executable,
       command.args,
-      commandSpec,
+      config,
       currentCwd,
       projectCwd,
       gitignore,
+      command.receivingPipe,
     );
     if (!result.allowed) {
       return {
