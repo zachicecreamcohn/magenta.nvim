@@ -16,20 +16,138 @@ export type ArgSpec =
   | string // Exact literal argument
   | { type: "file" } // Single file path argument
   | { type: "restFiles" } // Zero or more file paths (must be last)
+  | { type: "restAny" } // Zero or more arguments of any type (must be last)
   | { type: "any" } // Any single argument (wildcard)
   | { type: "pattern"; pattern: string } // Argument matching a regex pattern
   | { type: "group"; args: ArgSpec[]; optional?: boolean; anyOrder?: boolean };
 
-/** Configuration for a single command */
-export type CommandSpec = {
-  subCommands?: Record<string, CommandSpec>;
-  args?: ArgSpec[][]; // Array of allowed arg patterns
-  pipeArgs?: ArgSpec[][]; // Array of allowed arg patterns when receiving pipe input
-  allowAll?: true; // Allow any arguments (useful for safe commands)
+/** Top-level command permissions configuration */
+export type CommandPermissions = {
+  commands: ArgSpec[][]; // Array of allowed command patterns (e.g. ['git', 'status', {type: 'restAny'}])
+  pipeCommands: ArgSpec[][]; // Array of allowed patterns when receiving pipe input
 };
 
-/** Top-level command permissions configuration */
-export type CommandPermissions = Record<string, CommandSpec>;
+/** Builtin command permissions - always allowed */
+export const BUILTIN_COMMAND_PERMISSIONS: CommandPermissions = {
+  commands: [
+    // Basic commands
+    ["ls", { type: "restAny" }],
+    ["pwd"],
+    ["echo", { type: "restAny" }],
+    ["cat", { type: "file" }],
+    // head: with optional -n flag or pattern like -10, plus file
+    [
+      "head",
+      { type: "group", args: ["-n", { type: "any" }], optional: true },
+      { type: "file" },
+    ],
+    ["head", { type: "pattern", pattern: "-[0-9]+" }, { type: "file" }],
+    // tail: with optional -n flag or pattern like -10, plus file
+    [
+      "tail",
+      { type: "group", args: ["-n", { type: "any" }], optional: true },
+      { type: "file" },
+    ],
+    ["tail", { type: "pattern", pattern: "-[0-9]+" }, { type: "file" }],
+    // wc: optional -l flag plus file
+    ["wc", { type: "group", args: ["-l"], optional: true }, { type: "file" }],
+    // grep: optional -i, pattern, restFiles
+    [
+      "grep",
+      { type: "group", args: ["-i"], optional: true },
+      { type: "any" },
+      { type: "restFiles" },
+    ],
+    // sort: file
+    ["sort", { type: "file" }],
+    // uniq: file
+    ["uniq", { type: "file" }],
+    // cut: with delim, field, file
+    ["cut", "-d", { type: "any" }, "-f", { type: "any" }, { type: "file" }],
+    // awk: pattern, file
+    ["awk", { type: "any" }, { type: "file" }],
+    // sed: pattern, file
+    ["sed", { type: "any" }, { type: "file" }],
+    // git subcommands
+    ["git", "status", { type: "restAny" }],
+    ["git", "log", { type: "restAny" }],
+    ["git", "diff", { type: "restAny" }],
+    ["git", "show", { type: "restAny" }],
+    ["git", "add", { type: "restAny" }],
+    ["git", "commit", { type: "restAny" }],
+    ["git", "push", { type: "restAny" }],
+    ["git", "reset", { type: "restAny" }],
+    ["git", "restore", { type: "restAny" }],
+    ["git", "branch", { type: "restAny" }],
+    ["git", "checkout", { type: "restAny" }],
+    ["git", "switch", { type: "restAny" }],
+    ["git", "fetch", { type: "restAny" }],
+    ["git", "pull", { type: "restAny" }],
+    ["git", "merge", { type: "restAny" }],
+    ["git", "rebase", { type: "restAny" }],
+    ["git", "tag", { type: "restAny" }],
+    ["git", "stash", { type: "restAny" }],
+    // ripgrep: [optional -l] pattern [optional --type ext] [files...]
+    [
+      "rg",
+      { type: "group", args: ["-l"], optional: true },
+      { type: "any" },
+      { type: "group", args: ["--type", { type: "any" }], optional: true },
+      { type: "restFiles" },
+    ],
+    // fd: [optional -t f|d] [optional -e ext] [optional pattern] [optional dir]
+    [
+      "fd",
+      { type: "group", args: ["-t", { type: "any" }], optional: true },
+      { type: "group", args: ["-e", { type: "any" }], optional: true },
+      { type: "group", args: [{ type: "any" }], optional: true },
+      { type: "group", args: [{ type: "file" }], optional: true },
+    ],
+  ],
+  pipeCommands: [
+    // head piped: no args, or -n flag, or pattern like -10
+    ["head"],
+    ["head", "-n", { type: "any" }],
+    ["head", { type: "pattern", pattern: "-[0-9]+" }],
+    // tail piped
+    ["tail"],
+    ["tail", "-n", { type: "any" }],
+    ["tail", { type: "pattern", pattern: "-[0-9]+" }],
+    // wc piped
+    ["wc"],
+    ["wc", "-l"],
+    ["wc", "-c"],
+    ["wc", "-w"],
+    // grep piped: optional -i, pattern
+    ["grep", { type: "group", args: ["-i"], optional: true }, { type: "any" }],
+    // sort piped
+    ["sort"],
+    ["sort", "-r"],
+    ["sort", "-n"],
+    ["sort", "-u"],
+    ["sort", "-r", "-n"],
+    ["sort", "-n", "-r"],
+    // uniq piped
+    ["uniq"],
+    ["uniq", "-c"],
+    ["uniq", "-d"],
+    ["uniq", "-u"],
+    // tr piped
+    ["tr", { type: "any" }, { type: "any" }],
+    ["tr", "-d", { type: "any" }],
+    ["tr", "-s", { type: "any" }],
+    // cut piped
+    ["cut", "-d", { type: "any" }, "-f", { type: "any" }],
+    ["cut", "-f", { type: "any" }],
+    ["cut", "-c", { type: "any" }],
+    // awk piped
+    ["awk", { type: "any" }],
+    // sed piped
+    ["sed", { type: "any" }],
+    // xargs piped
+    ["xargs", { type: "any" }],
+  ],
+};
 
 export class PermissionError extends Error {
   constructor(message: string) {
@@ -313,6 +431,11 @@ function matchSingleSpec(
       }
       return { consumed };
     }
+
+    case "restAny": {
+      // Consume all remaining arguments
+      return { consumed: args.length - argIndex };
+    }
   }
 }
 
@@ -338,6 +461,12 @@ function matchGroupSequential(
       spec.type === "restFiles"
     ) {
       return { error: "restFiles not allowed inside group" };
+    } else if (
+      typeof spec === "object" &&
+      "type" in spec &&
+      spec.type === "restAny"
+    ) {
+      return { error: "restAny not allowed inside group" };
     } else {
       const result = matchSingleSpec(
         args,
@@ -380,6 +509,12 @@ function matchGroupAnyOrder(
         spec.type === "restFiles"
       ) {
         return { error: "restFiles not allowed inside group" };
+      } else if (
+        typeof spec === "object" &&
+        "type" in spec &&
+        spec.type === "restAny"
+      ) {
+        return { error: "restAny not allowed inside group" };
       } else {
         result = matchSingleSpec(args, tempIndex, spec as NonGroupArgSpec, ctx);
       }
@@ -478,6 +613,21 @@ function matchArgsPattern(
       }
       argIndex += result.consumed;
       patternIndex++;
+    } else if (
+      typeof spec === "object" &&
+      "type" in spec &&
+      spec.type === "restAny"
+    ) {
+      // Rest any - must be last in pattern
+      if (patternIndex !== pattern.length - 1) {
+        return { matches: false, reason: "restAny must be last in pattern" };
+      }
+      const result = matchSingleSpec(args, argIndex, spec, ctx);
+      if ("error" in result) {
+        return { matches: false, reason: result.error };
+      }
+      argIndex += result.consumed;
+      patternIndex++;
     } else {
       const result = matchSingleSpec(
         args,
@@ -504,69 +654,44 @@ function matchArgsPattern(
   return { matches: true };
 }
 
-/** Check a single command against a command spec */
-function checkCommandSpec(
+/** Check a single command against the command permissions */
+function checkCommand(
+  executable: string,
   args: string[],
-  spec: CommandSpec,
+  config: CommandPermissions,
   currentCwd: NvimCwd,
   projectCwd: NvimCwd,
   gitignore: Gitignore,
   receivingPipe: boolean,
 ): { allowed: boolean; reason?: string } {
-  // Check subcommands first
-  if (spec.subCommands && args.length > 0) {
-    const subCommand = args[0];
-    const subSpec = spec.subCommands[subCommand];
-    if (subSpec) {
-      return checkCommandSpec(
-        args.slice(1),
-        subSpec,
-        currentCwd,
-        projectCwd,
-        gitignore,
-        receivingPipe,
-      );
+  // Build full command array: [executable, ...args]
+  const fullCommand = [executable, ...args];
+
+  // Choose which patterns to use based on pipe status
+  const patterns = receivingPipe ? config.pipeCommands : config.commands;
+
+  // Try each pattern
+  let lastReason: string | undefined;
+  for (const pattern of patterns) {
+    const result = matchArgsPattern(
+      fullCommand,
+      pattern,
+      currentCwd,
+      projectCwd,
+      gitignore,
+    );
+    if (result.matches) {
+      return { allowed: true };
     }
+    lastReason = result.reason;
   }
 
-  // allowAll permits any arguments
-  if (spec.allowAll) {
-    return { allowed: true };
-  }
-
-  // Choose which arg patterns to use based on pipe status
-  // When receiving pipe input, prefer pipeArgs if defined, otherwise fall back to args
-  const argPatterns =
-    receivingPipe && spec.pipeArgs ? spec.pipeArgs : spec.args;
-
-  // Check arg patterns
-  if (argPatterns) {
-    let lastReason: string | undefined;
-    for (const pattern of argPatterns) {
-      const result = matchArgsPattern(
-        args,
-        pattern,
-        currentCwd,
-        projectCwd,
-        gitignore,
-      );
-      if (result.matches) {
-        return { allowed: true };
-      }
-      lastReason = result.reason;
-    }
-    return {
-      allowed: false,
-      reason: lastReason ?? "arguments do not match any allowed pattern",
-    };
-  }
-
-  // No args specified means no additional args allowed
-  if (args.length > 0) {
-    return { allowed: false, reason: "no arguments allowed" };
-  }
-
-  return { allowed: true };
+  return {
+    allowed: false,
+    reason:
+      lastReason ??
+      `command "${executable}" does not match any allowed pattern`,
+  };
 }
 
 /** Process cd command and return new cwd */
@@ -623,18 +748,10 @@ export function checkCommandListPermissions(
       continue;
     }
 
-    // Look up command in config
-    const commandSpec = config[command.executable];
-    if (!commandSpec) {
-      return {
-        allowed: false,
-        reason: `command "${command.executable}" is not in the allowlist`,
-      };
-    }
-
-    const result = checkCommandSpec(
+    const result = checkCommand(
+      command.executable,
       command.args,
-      commandSpec,
+      config,
       currentCwd,
       projectCwd,
       gitignore,

@@ -5,6 +5,11 @@ import { fileURLToPath } from "url";
 import type { ServerName } from "./tools/mcp/types";
 import { validateServerName } from "./tools/mcp/types";
 import type { NvimCwd } from "./utils/files";
+import {
+  BUILTIN_COMMAND_PERMISSIONS,
+  type ArgSpec,
+  type CommandPermissions,
+} from "./tools/bash-parser/permissions";
 
 // Get the path to the built-in skills directory
 const __filename = fileURLToPath(import.meta.url);
@@ -65,25 +70,8 @@ export type Profile = {
     | undefined;
 };
 
-/** A single argument specification for the parser-based command config */
-export type ArgSpec =
-  | string // Exact literal argument
-  | { type: "file" } // Single file path argument
-  | { type: "restFiles" } // Zero or more file paths (must be last)
-  | { type: "any" } // Any single argument (wildcard)
-  | { type: "pattern"; pattern: string } // Argument matching a regex pattern
-  | { type: "group"; args: ArgSpec[]; optional?: boolean; anyOrder?: boolean };
-
-/** Configuration for a single command in the new parser-based config */
-export type CommandSpec = {
-  subCommands?: Record<string, CommandSpec>;
-  args?: ArgSpec[][]; // Array of allowed arg patterns
-  pipeArgs?: ArgSpec[][]; // Array of allowed arg patterns when receiving pipe input
-  allowAll?: true; // Allow any arguments (useful for safe commands)
-};
-
-/** Top-level command permissions configuration */
-export type CommandPermissions = Record<string, CommandSpec>;
+// Re-export permission types for convenience
+export type { ArgSpec, CommandPermissions };
 
 export type MCPMockToolSchemaType = "string" | "number" | "boolean";
 
@@ -837,6 +825,8 @@ function parseArgSpec(
           return { type: "file" };
         case "restFiles":
           return { type: "restFiles" };
+        case "restAny":
+          return { type: "restAny" };
         case "any":
           return { type: "any" };
         case "pattern":
@@ -924,133 +914,39 @@ function parseArgSpec(
   return undefined;
 }
 
-function parseCommandSpec(
+function parseCommandPatterns(
   input: unknown,
   logger: { warn: (msg: string) => void },
   path: string,
-): CommandSpec | undefined {
-  if (typeof input !== "object" || input === null) {
-    logger.warn(`Invalid CommandSpec at ${path}: must be an object`);
-    return undefined;
+): ArgSpec[][] {
+  if (!Array.isArray(input)) {
+    logger.warn(`${path} must be an array`);
+    return [];
   }
 
-  const inputObj = input as Record<string, unknown>;
-  const result: CommandSpec = {};
-
-  // Parse subCommands
-  if ("subCommands" in inputObj) {
-    if (
-      typeof inputObj["subCommands"] === "object" &&
-      inputObj["subCommands"] !== null
-    ) {
-      const subCommands: Record<string, CommandSpec> = {};
-      const subCommandsObj = inputObj["subCommands"] as Record<string, unknown>;
-      for (const [name, spec] of Object.entries(subCommandsObj)) {
-        const parsed = parseCommandSpec(
-          spec,
-          logger,
-          `${path}.subCommands.${name}`,
-        );
+  const patterns: ArgSpec[][] = [];
+  for (let i = 0; i < input.length; i++) {
+    const pattern: unknown = input[i];
+    if (Array.isArray(pattern)) {
+      const parsedPattern: ArgSpec[] = [];
+      let valid = true;
+      for (let j = 0; j < pattern.length; j++) {
+        const parsed = parseArgSpec(pattern[j], logger, `${path}[${i}][${j}]`);
         if (parsed) {
-          subCommands[name] = parsed;
-        }
-      }
-      if (Object.keys(subCommands).length > 0) {
-        result.subCommands = subCommands;
-      }
-    } else {
-      logger.warn(`Invalid subCommands at ${path}: must be an object`);
-    }
-  }
-
-  // Parse args
-  if ("args" in inputObj) {
-    if (Array.isArray(inputObj["args"])) {
-      const args: ArgSpec[][] = [];
-      const inputArgs = inputObj["args"] as Array<unknown>;
-      for (let i = 0; i < inputArgs.length; i++) {
-        const pattern = inputArgs[i];
-        if (Array.isArray(pattern)) {
-          const parsedPattern: ArgSpec[] = [];
-          let valid = true;
-          for (let j = 0; j < pattern.length; j++) {
-            const parsed = parseArgSpec(
-              pattern[j],
-              logger,
-              `${path}.args[${i}][${j}]`,
-            );
-            if (parsed) {
-              parsedPattern.push(parsed);
-            } else {
-              valid = false;
-            }
-          }
-          if (valid) {
-            args.push(parsedPattern);
-          }
+          parsedPattern.push(parsed);
         } else {
-          logger.warn(
-            `Invalid args pattern at ${path}.args[${i}]: must be an array`,
-          );
+          valid = false;
         }
       }
-      if (args.length > 0) {
-        result.args = args;
+      if (valid && parsedPattern.length > 0) {
+        patterns.push(parsedPattern);
       }
     } else {
-      logger.warn(`Invalid args at ${path}: must be an array of arrays`);
+      logger.warn(`${path}[${i}] must be an array`);
     }
   }
 
-  // Parse pipeArgs (same format as args)
-  if ("pipeArgs" in inputObj) {
-    if (Array.isArray(inputObj["pipeArgs"])) {
-      const pipeArgs: ArgSpec[][] = [];
-      const inputPipeArgs = inputObj["pipeArgs"] as Array<unknown>;
-      for (let i = 0; i < inputPipeArgs.length; i++) {
-        const pattern = inputPipeArgs[i];
-        if (Array.isArray(pattern)) {
-          const parsedPattern: ArgSpec[] = [];
-          let valid = true;
-          for (let j = 0; j < pattern.length; j++) {
-            const parsed = parseArgSpec(
-              pattern[j],
-              logger,
-              `${path}.pipeArgs[${i}][${j}]`,
-            );
-            if (parsed) {
-              parsedPattern.push(parsed);
-            } else {
-              valid = false;
-            }
-          }
-          if (valid) {
-            pipeArgs.push(parsedPattern);
-          }
-        } else {
-          logger.warn(
-            `Invalid pipeArgs pattern at ${path}.pipeArgs[${i}]: must be an array`,
-          );
-        }
-      }
-      if (pipeArgs.length > 0) {
-        result.pipeArgs = pipeArgs;
-      }
-    } else {
-      logger.warn(`Invalid pipeArgs at ${path}: must be an array of arrays`);
-    }
-  }
-
-  // Parse allowAll
-  if ("allowAll" in inputObj) {
-    if (inputObj["allowAll"] === true) {
-      result.allowAll = true;
-    } else {
-      logger.warn(`Invalid allowAll at ${path}: must be true`);
-    }
-  }
-
-  return result;
+  return patterns;
 }
 
 function parseCommandConfig(
@@ -1066,17 +962,29 @@ function parseCommandConfig(
     return undefined;
   }
 
-  const result: CommandPermissions = {};
   const inputObj = input as Record<string, unknown>;
+  const result: CommandPermissions = {
+    commands: [],
+    pipeCommands: [],
+  };
 
-  for (const [command, spec] of Object.entries(inputObj)) {
-    const parsed = parseCommandSpec(spec, logger, `commandConfig.${command}`);
-    if (parsed) {
-      result[command] = parsed;
-    }
+  if ("commands" in inputObj) {
+    result.commands = parseCommandPatterns(
+      inputObj["commands"],
+      logger,
+      "commandConfig.commands",
+    );
   }
 
-  if (Object.keys(result).length === 0) {
+  if ("pipeCommands" in inputObj) {
+    result.pipeCommands = parseCommandPatterns(
+      inputObj["pipeCommands"],
+      logger,
+      "commandConfig.pipeCommands",
+    );
+  }
+
+  if (result.commands.length === 0 && result.pipeCommands.length === 0) {
     return undefined;
   }
 
@@ -1113,7 +1021,7 @@ export function parseOptions(
       },
     },
     maxConcurrentSubagents: 3,
-    commandConfig: {},
+    commandConfig: BUILTIN_COMMAND_PERMISSIONS,
     autoContext: [],
     skillsPaths: [
       BUILTIN_SKILLS_PATH,
@@ -1146,14 +1054,17 @@ export function parseOptions(
       options.sidebarPositionOpts = sidebarPositionOpts;
     }
 
-    // Parse command config
+    // Parse command config - merge with builtins
     if ("commandConfig" in inputOptionsObj) {
       const commandConfig = parseCommandConfig(
         inputOptionsObj["commandConfig"],
         logger,
       );
       if (commandConfig) {
-        options.commandConfig = commandConfig;
+        options.commandConfig = mergeCommandConfig(
+          BUILTIN_COMMAND_PERMISSIONS,
+          commandConfig,
+        );
       }
     }
 
@@ -1518,66 +1429,15 @@ export function loadProjectSettings(
   return undefined;
 }
 
-/** Deep merge two CommandSpec objects so that a command is allowed if it matches either */
-function mergeCommandSpec(
-  base: CommandSpec,
-  project: CommandSpec,
-): CommandSpec {
-  const merged: CommandSpec = {};
-
-  // Merge subCommands recursively
-  if (base.subCommands || project.subCommands) {
-    merged.subCommands = {};
-    const allSubCommands = new Set([
-      ...Object.keys(base.subCommands ?? {}),
-      ...Object.keys(project.subCommands ?? {}),
-    ]);
-    for (const subCmd of allSubCommands) {
-      const baseSpec = base.subCommands?.[subCmd];
-      const projectSpec = project.subCommands?.[subCmd];
-      if (baseSpec && projectSpec) {
-        merged.subCommands[subCmd] = mergeCommandSpec(baseSpec, projectSpec);
-      } else {
-        merged.subCommands[subCmd] = (baseSpec ?? projectSpec)!;
-      }
-    }
-  }
-
-  // Combine args arrays - both sets of patterns should be allowed
-  if (base.args || project.args) {
-    merged.args = [...(base.args ?? []), ...(project.args ?? [])];
-  }
-
-  // Combine pipeArgs arrays - both sets of patterns should be allowed
-  if (base.pipeArgs || project.pipeArgs) {
-    merged.pipeArgs = [...(base.pipeArgs ?? []), ...(project.pipeArgs ?? [])];
-  }
-
-  // allowAll: if either has it, the merged should have it
-  if (base.allowAll || project.allowAll) {
-    merged.allowAll = true;
-  }
-
-  return merged;
-}
-
-/** Deep merge two CommandPermissions objects */
+/** Merge two CommandPermissions objects - combines both command lists */
 function mergeCommandConfig(
   base: CommandPermissions,
   project: CommandPermissions,
 ): CommandPermissions {
-  const merged: CommandPermissions = { ...base };
-
-  for (const [command, projectSpec] of Object.entries(project)) {
-    const baseSpec = base[command];
-    if (baseSpec) {
-      merged[command] = mergeCommandSpec(baseSpec, projectSpec);
-    } else {
-      merged[command] = projectSpec;
-    }
-  }
-
-  return merged;
+  return {
+    commands: [...base.commands, ...project.commands],
+    pipeCommands: [...base.pipeCommands, ...project.pipeCommands],
+  };
 }
 
 export function mergeOptions(

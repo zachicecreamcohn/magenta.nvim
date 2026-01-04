@@ -213,7 +213,8 @@ it("should use project settings to allow bash commands without permission", asyn
         // Create project settings file that allows echo commands
         const projectSettings = {
           commandConfig: {
-            echo: { allowAll: true },
+            commands: [["echo", { type: "restAny" }]],
+            pipeCommands: [],
           },
         };
 
@@ -247,7 +248,7 @@ it("should use project settings to allow bash commands without permission", asyn
       });
 
       // The bash command should execute without requiring user permission
-      // because echo is in the project's commandConfig with allowAll
+      // because echo is in the project's commandConfig with restAny
 
       // First verify the command output appears (meaning it executed)
       await driver.assertDisplayBufferContains(`⚡✅ \`echo 'hello world'\``);
