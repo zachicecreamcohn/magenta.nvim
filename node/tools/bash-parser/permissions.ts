@@ -105,47 +105,18 @@ export const BUILTIN_COMMAND_PERMISSIONS: CommandPermissions = {
     ],
   ],
   pipeCommands: [
-    // head piped: no args, or -n flag, or pattern like -10
-    ["head"],
-    ["head", "-n", { type: "any" }],
-    ["head", { type: "pattern", pattern: "-[0-9]+" }],
-    // tail piped
-    ["tail"],
-    ["tail", "-n", { type: "any" }],
-    ["tail", { type: "pattern", pattern: "-[0-9]+" }],
-    // wc piped
-    ["wc"],
-    ["wc", "-l"],
-    ["wc", "-c"],
-    ["wc", "-w"],
-    // grep piped: optional -i, pattern
-    ["grep", { type: "group", args: ["-i"], optional: true }, { type: "any" }],
-    // sort piped
-    ["sort"],
-    ["sort", "-r"],
-    ["sort", "-n"],
-    ["sort", "-u"],
-    ["sort", "-r", "-n"],
-    ["sort", "-n", "-r"],
-    // uniq piped
-    ["uniq"],
-    ["uniq", "-c"],
-    ["uniq", "-d"],
-    ["uniq", "-u"],
-    // tr piped
-    ["tr", { type: "any" }, { type: "any" }],
-    ["tr", "-d", { type: "any" }],
-    ["tr", "-s", { type: "any" }],
-    // cut piped
-    ["cut", "-d", { type: "any" }, "-f", { type: "any" }],
-    ["cut", "-f", { type: "any" }],
-    ["cut", "-c", { type: "any" }],
-    // awk piped
-    ["awk", { type: "any" }],
-    // sed piped
-    ["sed", { type: "any" }],
-    // xargs piped
-    ["xargs", { type: "any" }],
+    ["awk", { type: "restAny" }],
+    ["cut", { type: "restAny" }],
+    ["grep", { type: "restAny" }],
+    ["head", { type: "restAny" }],
+    ["rg", { type: "restAny" }],
+    ["sed", { type: "restAny" }],
+    ["sort", { type: "restAny" }],
+    ["tail", { type: "restAny" }],
+    ["tr", { type: "restAny" }],
+    ["uniq", { type: "restAny" }],
+    ["wc", { type: "restAny" }],
+    ["xargs", { type: "restAny" }],
   ],
 };
 
