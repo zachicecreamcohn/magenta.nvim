@@ -464,179 +464,11 @@ This allows you to use Claude models through your Anthropic account subscription
 
 ## Command Permissions
 
-Magenta includes a security feature for the bash_command tool that requires user approval before running shell commands. You can configure which commands are pre-approved using either the new structured `commandConfig` or the legacy regex-based `commandAllowlist`.
+Magenta includes a security feature for the bash_command tool that requires user approval before running shell commands. Many common commands are pre-approved by default (see `BUILTIN_COMMAND_PERMISSIONS` in `node/tools/bash-parser/permissions.ts`).
 
-### Structured Command Config (Recommended)
+You can configure additional allowed commands in your project's `.magenta/options.json` or user-level `~/.magenta/options.json`. See the `update-permissions` skill at `node/skills/update-permissions/skill.md` for the full configuration format.
 
-The `commandConfig` option provides a declarative, safe way to specify allowed commands with precise control over arguments:
-
-```lua
-commandConfig = {
-  -- Allow specific npx commands with specific arguments
-  npx = {
-    subCommands = {
-      tsc = {
-        args = {{"--noEmit"}, {"--noEmit", "--watch"}}
-      },
-      vitest = {
-        subCommands = {
-          run = {
-            args = {{{restFiles = true}}}  -- Allow any file arguments
-          }
-        }
-      }
-    }
-  },
-
-  -- Allow cat with a single file argument (must be in project, non-hidden)
-  cat = {
-    args = {{{file = true}}}
-  },
-
-  -- Allow git status with no arguments
-  git = {
-    subCommands = {
-      status = {},  -- No args allowed
-      diff = {
-        allowAll = true  -- Any arguments allowed
-      }
-    }
-  },
-
-  -- Allow ls with any single argument
-  ls = {
-    args = {{{any = true}}}
-  }
-}
-```
-
-#### Argument Specifications
-
-Each command can specify allowed argument patterns using `args` (an array of allowed patterns):
-
-- **String literal**: Exact match required (e.g., `"--noEmit"`)
-- **`{file = true}`**: A single file path that must be within the project directory and not hidden/gitignored
-- **`{restFiles = true}`**: Zero or more file paths (must be last in pattern)
-- **`{any = true}`**: Any single argument (wildcard)
-- **`{pattern = "regex"}`**: Match against a regex pattern (e.g., `{pattern = "-[0-9]+"}` for numeric flags like `-10`)
-
-#### SubCommands
-
-Use `subCommands` to define allowed subcommands for tools like `npx`, `git`, `cargo`, etc.:
-
-```lua
-git = {
-  subCommands = {
-    status = {},           -- git status (no additional args)
-    add = {
-      args = {{{file = true}}}  -- git add <file>
-    },
-    commit = {
-      args = {{"-m", {any = true}}}  -- git commit -m "<message>"
-    }
-  }
-}
-```
-
-#### AllowAll
-
-Use `allowAll = true` to permit any arguments for a command or subcommand:
-
-```lua
-echo = {
-  allowAll = true  -- echo with any arguments
-}
-```
-
-#### File Path Validation
-
-When `{file = true}` or `{restFiles = true}` is used, paths are validated:
-
-- Must be within the project working directory
-- Cannot contain hidden directories (starting with `.`)
-- Cannot be gitignored files
-- Paths are resolved relative to the current working directory (including after `cd` commands)
-
-#### CWD Tracking
-
-The permission checker tracks `cd` commands in command chains:
-
-```bash
-# This is properly validated - file.txt is resolved relative to ./subdir
-cd subdir && cat file.txt
-```
-
-#### Skills Scripts Auto-Approval
-
-Scripts within configured `skillsPaths` directories are automatically approved for execution, regardless of `commandConfig`. This includes:
-
-- Direct execution: `./path/to/skill/script.sh`
-- Via runners: `bash script.sh`, `python script.py`, `node script.js`, `npx tsx script.ts`
-- With cd: `cd path/to/skill && ./script.sh`
-
-#### Command Chaining
-
-Commands can be chained with `&&`, `||`, `;`, or `|`. Each command in the chain is validated independently:
-
-```bash
-# Both commands must be allowed
-npx tsc --noEmit && npx vitest run
-
-# File redirections (>, >>, <) are NOT allowed for security
-cat file.txt > output.txt  # Will be rejected
-```
-
-#### Preferred Search Tools (rg and fd)
-
-Magenta's default `commandConfig` includes pre-approved patterns for `rg` (ripgrep) and `fd` because these tools are safer for codebase exploration:
-
-- **They skip hidden files by default** - Won't accidentally expose `.env`, `.git/`, or other sensitive hidden files
-- **They respect `.gitignore`** - Won't search through `node_modules/`, build artifacts, or other ignored directories
-- **They're fast** - Optimized for searching large codebases
-
-The bash tool automatically detects if these tools are available and includes them in the tool description presented to the agent.
-
-Example default configurations:
-
-```lua
--- ripgrep for searching file contents
-rg = {
-  args = {
-    { { any = true } },                       -- rg "pattern"
-    { { any = true }, { file = true } },      -- rg "pattern" <file/dir>
-    { { any = true }, { restFiles = true } }, -- rg "pattern" <file1> <file2> ...
-  }
-},
-
--- fd for finding files by name
-fd = {
-  args = {
-    {},                                       -- fd (list all files)
-    { { any = true } },                       -- fd "pattern"
-    { "-e", { any = true } },                 -- fd -e <ext>
-    { "-t", "f", { any = true } },            -- fd -t f "pattern" (files only)
-    { "-t", "d", { any = true } },            -- fd -t d "pattern" (dirs only)
-  }
-}
-```
-
-**⚠️ Security Warning: Prompt Injection & Data Exfiltration**
-
-Be extremely careful when configuring the command allowlist. Malicious actors can use [prompt injection attacks](https://www.promptarmor.com/resources/google-antigravity-exfiltrates-data) to manipulate the LLM into executing commands that exfiltrate sensitive data from your system.
-
-**Key risks:**
-
-- **Credential theft**: Commands that can read files (like `cat`, `grep`, `head`, `tail`) can be exploited to steal API keys, passwords, and tokens from files like `.env`, `~/.ssh/`, `~/.aws/credentials`, etc.
-- **Data exfiltration**: Even seemingly safe commands can be chained or misused to leak sensitive information through command output that the agent can see
-- **Prompt injection**: Untrusted content (from files, web search results, or user input) could contain hidden instructions that trick the agent into running malicious commands
-
-**Best practices:**
-
-- **Be minimal**: Only allowlist commands that are absolutely necessary for your workflow
-- **Be careful with file readers**: Commands like `cat`, `grep`, `less`, `more` can read any file the agent shouldn't access
-- **Use approval**: When in doubt, don't add it to the allowlist - require manual approval instead
-
-The default allowlist is conservative by design. Think carefully before expanding it.
+**⚠️ Security Warning**: Be careful when expanding command permissions. Malicious actors can use prompt injection attacks to manipulate the LLM into executing commands that exfiltrate sensitive data. The default allowlist is conservative by design.
 
 ## Project-specific options
 
@@ -647,7 +479,7 @@ The plugin will automatically discover and load project settings by searching fo
 Common use cases include:
 
 - Using different AI providers or API keys for work vs personal projects
-- Adding project-specific commands to the allowlist (e.g., `make`, `cargo`, `npm` commands)
+- Adding project-specific commands to the allowlist (see `update-permissions` skill)
 - Automatically including important project files in context (README, docs, config files)
 - Sharing project-specific skills and best practices with your team
 - Customizing sidebar position or other UI preferences per project
@@ -658,7 +490,7 @@ Common use cases include:
 The merging works as follows:
 
 - **Profiles**: Project profiles completely replace global profiles if present
-- **Command config**: Project `commandConfig` combines with global config if present
+- **Command config**: Project `commandConfig` patterns are appended to global patterns
 - **Auto context**: Project patterns are added to (not replace) the base auto context
 - **Skills paths**: Project skill paths are added to (not replace) the base skills paths
 - **MCP servers**: Project MCP servers are merged with global servers (project servers override global ones with the same name)
@@ -686,21 +518,6 @@ Create `.magenta/options.json` in your project root:
       }
     }
   ],
-  "commandConfig": {
-    "make": {
-      "allowAll": true
-    },
-    "cargo": {
-      "subCommands": {
-        "build": { "allowAll": true },
-        "test": { "allowAll": true },
-        "run": { "allowAll": true }
-      }
-    },
-    "cat": {
-      "args": [[{ "file": true }]]
-    }
-  },
   "autoContext": ["README.md", "docs/*.md"],
   "skillsPaths": [".claude/skills", "team-skills"],
   "maxConcurrentSubagents": 5,

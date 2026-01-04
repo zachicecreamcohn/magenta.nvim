@@ -24,59 +24,54 @@ If the file doesn't exist, create it with just the `commandConfig` key.
 
 ## Permission Structure
 
-The `commandConfig` option defines which commands can run automatically without user confirmation:
+The `commandConfig` option defines which commands can run automatically without user confirmation. It has two arrays:
+
+- **`commands`**: Patterns for standalone commands
+- **`pipeCommands`**: Patterns for commands receiving pipe input (more permissive)
 
 ```json
 {
   "commandConfig": {
-    "npx": {
-      "subCommands": {
-        "tsc": {
-          "args": [["--noEmit"], ["--noEmit", "--watch"]]
-        },
-        "vitest": {
-          "subCommands": {
-            "run": {
-              "args": [[{ "restFiles": true }]]
-            }
-          }
-        }
-      }
-    },
-    "cat": {
-      "args": [[{ "file": true }]]
-    },
-    "echo": {
-      "allowAll": true
-    }
+    "commands": [
+      ["npx", "tsc", "--noEmit"],
+      ["npx", "vitest", "run", { "type": "restFiles" }],
+      ["cat", { "type": "file" }],
+      ["echo", { "type": "restAny" }]
+    ],
+    "pipeCommands": [
+      ["grep", { "type": "restAny" }],
+      ["wc", { "type": "restAny" }]
+    ]
   }
 }
 ```
 
+Each pattern is an array where the first element is the executable and subsequent elements are the expected arguments.
+
 ## ArgSpec Types
 
-Each argument in an `args` pattern can be:
+Each element in a pattern can be:
 
 - **String literal**: `"--noEmit"` - exact match required
-- **`{ "file": true }`**: A single file path that must be within the project, non-hidden, and not gitignored
-- **`{ "restFiles": true }`**: Zero or more file paths (must be the last element in the pattern)
-- **`{ "any": true }`**: Any single argument (wildcard)
-- **`{ "pattern": "regex" }`**: Argument matching a regex pattern
-
-## CommandSpec Options
-
-- **`subCommands`**: Nested commands (e.g., `npx vitest run`)
-- **`args`**: Array of allowed argument patterns. Command is allowed if ANY pattern matches.
-- **`allowAll`**: If true, any arguments are allowed (use for safe commands like `echo`)
+- **`{ "type": "file" }`**: A single file path that must be within the project, non-hidden, and not gitignored
+- **`{ "type": "restFiles" }`**: Zero or more file paths (must be last in pattern)
+- **`{ "type": "restAny" }`**: Zero or more arguments of any type (must be last in pattern)
+- **`{ "type": "any" }`**: Any single argument (wildcard)
+- **`{ "type": "pattern", "pattern": "regex" }`**: Argument matching a regex pattern
+- **`{ "type": "group", "args": [...], "optional": true }`**: Optional group of arguments
+- **`{ "type": "group", "args": [...], "anyOrder": true }`**: Group where args can appear in any order
 
 ## Examples
 
-### Allow `rg` (ripgrep) with any pattern argument
+### Allow `rg` (ripgrep) with pattern and optional files
 
 ```json
 {
-  "rg": {
-    "args": [[{ "any": true }], [{ "any": true }, { "restFiles": true }]]
+  "commandConfig": {
+    "commands": [
+      ["rg", { "type": "any" }],
+      ["rg", { "type": "any" }, { "type": "restFiles" }]
+    ]
   }
 }
 ```
@@ -85,35 +80,51 @@ Each argument in an `args` pattern can be:
 
 ```json
 {
-  "npm": {
-    "subCommands": {
-      "install": { "allowAll": true },
-      "run": { "allowAll": true },
-      "test": { "args": [[]] }
-    }
+  "commandConfig": {
+    "commands": [
+      ["npm", "install", { "type": "restAny" }],
+      ["npm", "run", { "type": "restAny" }],
+      ["npm", "test"]
+    ]
   }
 }
 ```
 
-### Allow `fd` with file pattern
+### Allow `fd` with pattern and optional directory
 
 ```json
 {
-  "fd": {
-    "args": [[{ "any": true }], [{ "any": true }, { "restFiles": true }]]
+  "commandConfig": {
+    "commands": [
+      ["fd", { "type": "any" }],
+      ["fd", { "type": "any" }, { "type": "file" }]
+    ]
   }
 }
 ```
 
-### Allow `git` status and diff
+### Allow commands with optional flags using groups
 
 ```json
 {
-  "git": {
-    "subCommands": {
-      "status": { "args": [[]] },
-      "diff": { "args": [[], [{ "restFiles": true }]] }
-    }
+  "commandConfig": {
+    "commands": [
+      [
+        "head",
+        {
+          "type": "group",
+          "args": ["-n", { "type": "any" }],
+          "optional": true
+        },
+        { "type": "file" }
+      ],
+      [
+        "grep",
+        { "type": "group", "args": ["-i"], "optional": true },
+        { "type": "any" },
+        { "type": "restFiles" }
+      ]
+    ]
   }
 }
 ```
@@ -122,15 +133,25 @@ Each argument in an `args` pattern can be:
 
 When adding new permissions to an existing config:
 
-1. If a command doesn't exist, add it directly
-2. If a command exists:
-   - Merge `subCommands` recursively
-   - Concatenate `args` arrays (both patterns become valid)
-   - If either has `allowAll`, keep it
+1. Append new patterns to the `commands` array
+2. Append new patterns to the `pipeCommands` array
+3. Avoid duplicate patterns
 
 ## Notes
 
-- Arguments are order-specific: `["--watch", "--noEmit"]` won't match a pattern `["--noEmit", "--watch"]`
+- Patterns are order-specific unless using `{ "type": "group", "anyOrder": true }`
 - File paths are validated to be within the project directory and non-hidden
-- Gitignored files require confirmation
+- Gitignored files are blocked
 - Skills directory scripts are always allowed regardless of permissions
+- `restFiles` and `restAny` must be the last element in a pattern
+- Groups cannot contain `restFiles` or `restAny`
+
+## Builtin Permissions
+
+Many common commands are already allowed by default (see `BUILTIN_COMMAND_PERMISSIONS` in `node/tools/bash-parser/permissions.ts`), including:
+
+- Basic commands: `ls`, `pwd`, `echo`, `cat`, `head`, `tail`, `wc`, `grep`, `sort`, `uniq`, `cut`, `awk`, `sed`
+- Git commands: `status`, `log`, `diff`, `show`, `add`, `commit`, `push`, etc.
+- Search tools: `rg`, `fd`
+
+Pipe commands like `grep`, `sed`, `awk`, `sort`, `head`, `tail`, etc. are also allowed when receiving pipe input.
