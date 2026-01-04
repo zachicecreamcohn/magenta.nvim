@@ -1148,6 +1148,191 @@ describe("permissions", () => {
     });
   });
 
+  describe("pipeArgs argument matching", () => {
+    it("should use pipeArgs when command is receiving pipe input", () => {
+      const config: CommandPermissions = {
+        cat: {
+          args: [[{ type: "file" }]],
+        },
+        head: {
+          args: [[{ type: "file" }]], // Standalone: requires file
+          pipeArgs: [[]], // Piped: no args required
+        },
+      };
+
+      // Piped command should use pipeArgs (no file required)
+      const result = isCommandAllowedByConfig("cat file.txt | head", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result.allowed).toBe(true);
+    });
+
+    it("should use args when command is not receiving pipe input", () => {
+      const config: CommandPermissions = {
+        head: {
+          args: [[{ type: "file" }]], // Standalone: requires file
+          pipeArgs: [[]], // Piped: no args required
+        },
+      };
+
+      // Standalone command should use args (file required)
+      const result1 = isCommandAllowedByConfig("head file.txt", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result1.allowed).toBe(true);
+
+      // Without file should fail
+      const result2 = isCommandAllowedByConfig("head", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result2.allowed).toBe(false);
+    });
+
+    it("should allow pipeArgs with flags", () => {
+      const config: CommandPermissions = {
+        cat: {
+          args: [[{ type: "file" }]],
+        },
+        head: {
+          args: [[{ type: "file" }]],
+          pipeArgs: [
+            [], // No args
+            ["-n", { type: "any" }], // Optional -n flag
+          ],
+        },
+      };
+
+      const result1 = isCommandAllowedByConfig("cat file.txt | head", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result1.allowed).toBe(true);
+
+      const result2 = isCommandAllowedByConfig(
+        "cat file.txt | head -n 10",
+        config,
+        { cwd, gitignore: createEmptyGitignore() },
+      );
+      expect(result2.allowed).toBe(true);
+    });
+
+    it("should reject when piped command args don't match pipeArgs patterns", () => {
+      const config: CommandPermissions = {
+        cat: {
+          args: [[{ type: "file" }]],
+        },
+        head: {
+          args: [[{ type: "file" }]],
+          pipeArgs: [["-n", { type: "any" }]], // Only -n flag allowed when piped
+        },
+      };
+
+      // Empty args when piped should fail since pipeArgs requires -n
+      const result = isCommandAllowedByConfig("cat file.txt | head", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result.allowed).toBe(false);
+    });
+
+    it("should handle multi-stage pipelines", () => {
+      const config: CommandPermissions = {
+        cat: {
+          args: [[{ type: "file" }]],
+        },
+        grep: {
+          args: [[{ type: "any" }, { type: "file" }]], // Standalone: pattern + file
+          pipeArgs: [[{ type: "any" }]], // Piped: just pattern
+        },
+        head: {
+          args: [[{ type: "file" }]], // Standalone: file required
+          pipeArgs: [[], ["-n", { type: "any" }]], // Piped: no args or -n flag
+        },
+      };
+
+      const result = isCommandAllowedByConfig(
+        "cat file.txt | grep pattern | head -n 5",
+        config,
+        { cwd, gitignore: createEmptyGitignore() },
+      );
+      expect(result.allowed).toBe(true);
+    });
+
+    it("should fall back to args when pipeArgs is not defined", () => {
+      const config: CommandPermissions = {
+        cat: {
+          args: [[{ type: "file" }]],
+        },
+        wc: {
+          args: [["-l"]], // Same pattern for both piped and standalone
+        },
+      };
+
+      // Should work both standalone and piped using args
+      const result1 = isCommandAllowedByConfig("wc -l", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result1.allowed).toBe(true);
+
+      const result2 = isCommandAllowedByConfig("cat file.txt | wc -l", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result2.allowed).toBe(true);
+    });
+
+    it("should work with optional groups in pipeArgs", () => {
+      const config: CommandPermissions = {
+        cat: {
+          args: [[{ type: "file" }]],
+        },
+        grep: {
+          args: [[{ type: "any" }, { type: "file" }]],
+          pipeArgs: [
+            [{ type: "group", optional: true, args: ["-i"] }, { type: "any" }],
+          ],
+        },
+      };
+
+      const result1 = isCommandAllowedByConfig(
+        "cat file.txt | grep pattern",
+        config,
+        { cwd, gitignore: createEmptyGitignore() },
+      );
+      expect(result1.allowed).toBe(true);
+
+      const result2 = isCommandAllowedByConfig(
+        "cat file.txt | grep -i pattern",
+        config,
+        { cwd, gitignore: createEmptyGitignore() },
+      );
+      expect(result2.allowed).toBe(true);
+    });
+
+    it("should not treat && chained commands as receiving pipe", () => {
+      const config: CommandPermissions = {
+        cat: {
+          args: [[{ type: "file" }]],
+        },
+        head: {
+          args: [[{ type: "file" }]], // Standalone: requires file
+          pipeArgs: [[]], // Piped: no args required
+        },
+      };
+
+      // && should not count as pipe, so head needs a file arg
+      const result = isCommandAllowedByConfig("cat file.txt && head", config, {
+        cwd,
+        gitignore: createEmptyGitignore(),
+      });
+      expect(result.allowed).toBe(false);
+    });
+  });
+
   describe("checkCommandListPermissions", () => {
     it("should work with pre-parsed commands", () => {
       const config: CommandPermissions = {

@@ -109,15 +109,93 @@ local defaults = {
       args = {
         { { type = "group", args = { "-n", { type = "any" } }, optional = true }, { type = "file" } },
         { { type = "pattern", pattern = "-[0-9]+" },                              { type = "file" } },
+      },
+      pipeArgs = {
+        {},
+        { "-n",                                     { type = "any" } },
+        { { type = "pattern", pattern = "-[0-9]+" } },
       }
     },
     tail = {
       args = {
         { { type = "group", args = { "-n", { type = "any" } }, optional = true }, { type = "file" } },
         { { type = "pattern", pattern = "-[0-9]+" },                              { type = "file" } },
+      },
+      pipeArgs = {
+        {},
+        { "-n",                                     { type = "any" } },
+        { { type = "pattern", pattern = "-[0-9]+" } },
       }
     },
-    wc = { args = { { { type = "group", args = { "-l" }, optional = true }, { type = "file" } } } },
+    wc = {
+      args = { { { type = "group", args = { "-l" }, optional = true }, { type = "file" } } },
+      pipeArgs = {
+        {},
+        { "-l" },
+        { "-c" },
+        { "-w" },
+      }
+    },
+    grep = {
+      args = {
+        { { type = "group", args = { "-i" }, optional = true }, { type = "any" }, { type = "restFiles" } },
+      },
+      pipeArgs = {
+        { { type = "group", args = { "-i" }, optional = true }, { type = "any" } },
+      }
+    },
+    sort = {
+      args = { { { type = "file" } } },
+      pipeArgs = {
+        {},
+        { "-r" },
+        { "-n" },
+        { "-u" },
+        { "-r", "-n" },
+        { "-n", "-r" },
+      }
+    },
+    uniq = {
+      args = { { { type = "file" } } },
+      pipeArgs = {
+        {},
+        { "-c" },
+        { "-d" },
+        { "-u" },
+      }
+    },
+    tr = {
+      pipeArgs = {
+        { { type = "any" }, { type = "any" } },
+        { "-d",             { type = "any" } },
+        { "-s",             { type = "any" } },
+      }
+    },
+    cut = {
+      args = { { "-d", { type = "any" }, "-f", { type = "any" }, { type = "file" } } },
+      pipeArgs = {
+        { "-d", { type = "any" }, "-f", { type = "any" } },
+        { "-f", { type = "any" } },
+        { "-c", { type = "any" } },
+      }
+    },
+    awk = {
+      args = { { { type = "any" }, { type = "file" } } },
+      pipeArgs = {
+        { { type = "any" } },
+      }
+    },
+    sed = {
+      args = { { { type = "any" }, { type = "file" } } },
+      pipeArgs = {
+        { { type = "any" } },
+      }
+    },
+    xargs = {
+      pipeArgs = {
+        { { type = "any" } },
+      }
+    },
     git = {
       subCommands = {
         status = { allowAll = true },

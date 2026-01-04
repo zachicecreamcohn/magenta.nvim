@@ -78,6 +78,7 @@ export type ArgSpec =
 export type CommandSpec = {
   subCommands?: Record<string, CommandSpec>;
   args?: ArgSpec[][]; // Array of allowed arg patterns
+  pipeArgs?: ArgSpec[][]; // Array of allowed arg patterns when receiving pipe input
   allowAll?: true; // Allow any arguments (useful for safe commands)
 };
 
@@ -1001,6 +1002,45 @@ function parseCommandSpec(
     }
   }
 
+  // Parse pipeArgs (same format as args)
+  if ("pipeArgs" in inputObj) {
+    if (Array.isArray(inputObj["pipeArgs"])) {
+      const pipeArgs: ArgSpec[][] = [];
+      const inputPipeArgs = inputObj["pipeArgs"] as Array<unknown>;
+      for (let i = 0; i < inputPipeArgs.length; i++) {
+        const pattern = inputPipeArgs[i];
+        if (Array.isArray(pattern)) {
+          const parsedPattern: ArgSpec[] = [];
+          let valid = true;
+          for (let j = 0; j < pattern.length; j++) {
+            const parsed = parseArgSpec(
+              pattern[j],
+              logger,
+              `${path}.pipeArgs[${i}][${j}]`,
+            );
+            if (parsed) {
+              parsedPattern.push(parsed);
+            } else {
+              valid = false;
+            }
+          }
+          if (valid) {
+            pipeArgs.push(parsedPattern);
+          }
+        } else {
+          logger.warn(
+            `Invalid pipeArgs pattern at ${path}.pipeArgs[${i}]: must be an array`,
+          );
+        }
+      }
+      if (pipeArgs.length > 0) {
+        result.pipeArgs = pipeArgs;
+      }
+    } else {
+      logger.warn(`Invalid pipeArgs at ${path}: must be an array of arrays`);
+    }
+  }
+
   // Parse allowAll
   if ("allowAll" in inputObj) {
     if (inputObj["allowAll"] === true) {
@@ -1506,6 +1546,11 @@ function mergeCommandSpec(
   // Combine args arrays - both sets of patterns should be allowed
   if (base.args || project.args) {
     merged.args = [...(base.args ?? []), ...(project.args ?? [])];
+  }
+
+  // Combine pipeArgs arrays - both sets of patterns should be allowed
+  if (base.pipeArgs || project.pipeArgs) {
+    merged.pipeArgs = [...(base.pipeArgs ?? []), ...(project.pipeArgs ?? [])];
   }
 
   // allowAll: if either has it, the merged should have it

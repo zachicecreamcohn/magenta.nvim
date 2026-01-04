@@ -24,6 +24,7 @@ export type ArgSpec =
 export type CommandSpec = {
   subCommands?: Record<string, CommandSpec>;
   args?: ArgSpec[][]; // Array of allowed arg patterns
+  pipeArgs?: ArgSpec[][]; // Array of allowed arg patterns when receiving pipe input
   allowAll?: true; // Allow any arguments (useful for safe commands)
 };
 
@@ -510,6 +511,7 @@ function checkCommandSpec(
   currentCwd: NvimCwd,
   projectCwd: NvimCwd,
   gitignore: Gitignore,
+  receivingPipe: boolean,
 ): { allowed: boolean; reason?: string } {
   // Check subcommands first
   if (spec.subCommands && args.length > 0) {
@@ -522,6 +524,7 @@ function checkCommandSpec(
         currentCwd,
         projectCwd,
         gitignore,
+        receivingPipe,
       );
     }
   }
@@ -531,10 +534,15 @@ function checkCommandSpec(
     return { allowed: true };
   }
 
+  // Choose which arg patterns to use based on pipe status
+  // When receiving pipe input, prefer pipeArgs if defined, otherwise fall back to args
+  const argPatterns =
+    receivingPipe && spec.pipeArgs ? spec.pipeArgs : spec.args;
+
   // Check arg patterns
-  if (spec.args) {
+  if (argPatterns) {
     let lastReason: string | undefined;
-    for (const pattern of spec.args) {
+    for (const pattern of argPatterns) {
       const result = matchArgsPattern(
         args,
         pattern,
@@ -630,6 +638,7 @@ export function checkCommandListPermissions(
       currentCwd,
       projectCwd,
       gitignore,
+      command.receivingPipe,
     );
     if (!result.allowed) {
       return {
