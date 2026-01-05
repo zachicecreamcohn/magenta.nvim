@@ -412,6 +412,7 @@ export class BashCommandTool implements StaticTool {
           childProcess = spawn("bash", ["-c", command], {
             stdio: "pipe",
             cwd: this.context.cwd,
+            env: process.env,
           });
 
           if (this.state.state === "processing") {

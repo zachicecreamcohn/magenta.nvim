@@ -30,7 +30,10 @@ M.start = function(silent)
 
   local env = {
     IS_DEV = false,
-    LOG_LEVEL = "info"
+    LOG_LEVEL = "info",
+    -- Forward X11 display for GUI applications (e.g., browser automation)
+    DISPLAY = vim.env.DISPLAY,
+    XAUTHORITY = vim.env.XAUTHORITY,
   }
 
   local job_id =
