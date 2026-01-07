@@ -165,8 +165,8 @@ function isPathSafe(
     };
   }
 
-  // Check if gitignored
-  if (gitignore.ignores(relPath)) {
+  // Check if gitignored (skip if relPath is empty, which means it's the project root)
+  if (relPath !== "" && gitignore.ignores(relPath)) {
     return { safe: false, reason: `path "${filePath}" is gitignored` };
   }
 
