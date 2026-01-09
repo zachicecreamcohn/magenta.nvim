@@ -6,12 +6,19 @@ import {
   type Provider,
   type ProviderMessage,
   type Usage,
-  type ProviderStreamRequest,
   type ProviderToolSpec,
   type ProviderToolUseRequest,
-  type ProviderStreamEvent,
   type ProviderTextContent,
+  type ProviderThread,
+  type ProviderThreadOptions,
+  type ProviderThreadAction,
 } from "./provider-types.ts";
+import {
+  AnthropicProviderThread,
+  CLAUDE_CODE_SPOOF_PROMPT,
+  getMaxTokensForModel,
+  withCacheBreakpoint,
+} from "./anthropic-thread.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
 import { validateInput } from "../tools/helpers.ts";
@@ -32,10 +39,6 @@ function mapProviderTextToAnthropicText(
       : null,
   };
 }
-
-export type MessageParam = Omit<Anthropic.MessageParam, "content"> & {
-  content: Array<Anthropic.Messages.ContentBlockParam>;
-};
 
 // Bedrock does not support the disable_parallel_tool_use flag
 // Force accept undefined as the value to be able to unset it when using it
@@ -61,7 +64,6 @@ export class AnthropicProvider implements Provider {
       baseUrl?: string | undefined;
       apiKeyEnvVar?: string | undefined;
       authType?: "key" | "max" | undefined;
-      promptCaching?: boolean | undefined;
       disableParallelToolUseFlag?: boolean;
     },
   ) {
@@ -84,12 +86,8 @@ export class AnthropicProvider implements Provider {
     }
   }
 
-  private promptCaching = true;
   private disableParallelToolUseFlag = true;
   protected includeWebSearch = true;
-
-  private static readonly CLAUDE_CODE_SPOOF_PROMPT =
-    "You are Claude Code, Anthropic's official CLI for Claude.";
 
   private createOAuthFetch() {
     return async (
@@ -174,46 +172,6 @@ export class AnthropicProvider implements Provider {
     return code.trim();
   }
 
-  private getMaxTokensForModel(model: string): number {
-    // Claude 4.5 models (Opus, Sonnet, Haiku) - use high limits
-    if (model.match(/^claude-(opus-4-5|sonnet-4-5|haiku-4-5)/)) {
-      return 32000;
-    }
-
-    // Claude 4 models - use high limits
-    if (model.match(/^claude-(opus-4|sonnet-4|4-opus|4-sonnet)/)) {
-      return 32000;
-    }
-
-    // Claude 3.7 Sonnet - supports up to 128k with beta header
-    if (model.match(/^claude-3-7-sonnet/)) {
-      return 32000; // Conservative default, can be increased to 128k with beta header
-    }
-
-    // Claude 3.5 Sonnet - 8k limit
-    if (model.match(/^claude-3-5-sonnet/)) {
-      return 8192;
-    }
-
-    // Claude 3.5 Haiku - 8k limit (same as Sonnet)
-    if (model.match(/^claude-3-5-haiku/)) {
-      return 8192;
-    }
-
-    // Legacy Claude 3 models (Opus, Sonnet, Haiku) - 4k limit
-    if (model.match(/^claude-3-(opus|sonnet|haiku)/)) {
-      return 4096;
-    }
-
-    // Legacy Claude 2.x models - 4k limit
-    if (model.match(/^claude-2\./)) {
-      return 4096;
-    }
-
-    // Default for unknown models - conservative 4k limit
-    return 4096;
-  }
-
   createStreamParameters({
     model,
     messages,
@@ -232,7 +190,7 @@ export class AnthropicProvider implements Provider {
       budgetTokens?: number;
     };
   }): MessageStreamParams {
-    const anthropicMessages = messages.map((m): MessageParam => {
+    let anthropicMessages = messages.map((m): Anthropic.MessageParam => {
       let content: Anthropic.Messages.ContentBlockParam[];
       if (typeof m.content == "string") {
         content = [
@@ -408,11 +366,8 @@ export class AnthropicProvider implements Provider {
       };
     });
 
-    // Use the promptCaching class property but allow it to be overridden by options parameter
-    const useCaching = disableCaching !== true && this.promptCaching;
-
-    if (useCaching) {
-      placeCacheBreakpoints(anthropicMessages);
+    if (!disableCaching) {
+      anthropicMessages = withCacheBreakpoint(anthropicMessages);
     }
 
     const anthropicTools: Anthropic.Tool[] = tools.map((t): Anthropic.Tool => {
@@ -436,14 +391,14 @@ export class AnthropicProvider implements Provider {
         // system
         // messages
         // This ensures the tools + system prompt (which is approx 1400 tokens) is cached.
-        cache_control: useCaching ? { type: "ephemeral" } : null,
+        cache_control: disableCaching ? null : { type: "ephemeral" },
       },
     ];
 
     if (this.authType === "max") {
       systemBlocks.unshift({
         type: "text" as const,
-        text: AnthropicProvider.CLAUDE_CODE_SPOOF_PROMPT,
+        text: CLAUDE_CODE_SPOOF_PROMPT,
       });
     }
 
@@ -459,7 +414,7 @@ export class AnthropicProvider implements Provider {
     const params: MessageStreamParams = {
       messages: anthropicMessages,
       model: model,
-      max_tokens: this.getMaxTokensForModel(model),
+      max_tokens: getMaxTokensForModel(model),
       system: systemBlocks,
       tool_choice: {
         type: "auto",
@@ -621,112 +576,14 @@ export class AnthropicProvider implements Provider {
     };
   }
 
-  /**
-   * Example of stream events from anthropic https://docs.anthropic.com/en/api/messages-streaming
-   */
-  sendMessage(options: {
-    model: string;
-    messages: Array<ProviderMessage>;
-    onStreamEvent: (event: ProviderStreamEvent) => void;
-    tools: Array<ProviderToolSpec>;
-    systemPrompt?: string;
-    thinking?: {
-      enabled: boolean;
-      budgetTokens?: number;
-    };
-  }): ProviderStreamRequest {
-    const { model, messages, onStreamEvent, tools, systemPrompt, thinking } =
-      options;
-    let aborted = false;
-
-    const request = this.client.messages
-      .stream(
-        this.createStreamParameters({
-          model,
-          messages,
-          tools,
-          systemPrompt,
-          ...(thinking && { thinking }),
-        }) as Anthropic.Messages.MessageStreamParams,
-      )
-      .on("streamEvent", (e) => {
-        if (
-          e.type == "content_block_start" ||
-          e.type == "content_block_delta" ||
-          e.type == "content_block_stop"
-        ) {
-          onStreamEvent(e);
-        }
-      });
-
-    const promise = (async () => {
-      const response: Anthropic.Message = await request.finalMessage();
-
-      if (response.stop_reason === "max_tokens") {
-        throw new Error("Response exceeded max_tokens limit");
-      }
-
-      const usage: Usage = {
-        inputTokens: response.usage.input_tokens,
-        outputTokens: response.usage.output_tokens,
-      };
-      if (response.usage.cache_read_input_tokens != undefined) {
-        usage.cacheHits = response.usage.cache_read_input_tokens;
-      }
-      if (response.usage.cache_creation_input_tokens != undefined) {
-        usage.cacheMisses = response.usage.cache_creation_input_tokens;
-      }
-
-      return {
-        stopReason: response.stop_reason || "end_turn",
-        usage,
-      };
-    })();
-
-    return {
-      abort: () => {
-        aborted = true;
-        request.abort();
-      },
-      aborted,
-      promise,
-    };
-  }
-}
-
-/** We only ever need to place a cache header on the last block, since anthropic now can compute the longest reusable
- * prefix.
- * https://www.anthropic.com/news/token-saving-updates
- */
-export function placeCacheBreakpoints(messages: MessageParam[]): void {
-  if (messages.length === 0) {
-    return;
-  }
-
-  // Find the last eligible block by searching backwards through messages
-  for (
-    let messageIndex = messages.length - 1;
-    messageIndex >= 0;
-    messageIndex--
-  ) {
-    const message = messages[messageIndex];
-
-    for (
-      let blockIndex = message.content.length - 1;
-      blockIndex >= 0;
-      blockIndex--
-    ) {
-      const block = message.content[blockIndex];
-
-      // Check if this block is eligible for caching
-      if (
-        block &&
-        block.type !== "thinking" &&
-        block.type !== "redacted_thinking"
-      ) {
-        block.cache_control = { type: "ephemeral" };
-        return;
-      }
-    }
+  createThread(
+    options: ProviderThreadOptions,
+    dispatch: (action: ProviderThreadAction) => void,
+  ): ProviderThread {
+    return new AnthropicProviderThread(options, dispatch, this.client, {
+      authType: this.authType,
+      includeWebSearch: this.includeWebSearch,
+      disableParallelToolUseFlag: this.disableParallelToolUseFlag,
+    });
   }
 }

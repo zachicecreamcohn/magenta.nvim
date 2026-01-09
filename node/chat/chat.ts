@@ -173,20 +173,20 @@ export class Chat {
 
         // it's ok to do this on every dispatch. After the initial yielded/error message, the thread should be dormant
         // and should not generate any more thread messages. As such, this won't be terribly inefficient.
+        const conversation = thread.getConversationState();
         if (
           threadState.parentThreadId &&
-          (thread.state.conversation.state == "yielded" ||
-            thread.state.conversation.state == "error")
+          (conversation.state == "yielded" || conversation.state == "error")
         ) {
           this.notifyParent({
             threadId: thread.id,
             parentThreadId: threadState.parentThreadId,
             result:
-              thread.state.conversation.state == "yielded"
-                ? { status: "ok", value: thread.state.conversation.response }
+              conversation.state == "yielded"
+                ? { status: "ok", value: conversation.response }
                 : {
                     status: "error",
-                    error: thread.state.conversation.error.message,
+                    error: conversation.error.message,
                   },
           });
         }
@@ -841,7 +841,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
 
       case "initialized": {
         const thread = threadWrapper.thread;
-        const conversation = thread.state.conversation;
+        const conversation = thread.getConversationState();
 
         switch (conversation.state) {
           case "yielded":
@@ -922,7 +922,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
 
       case "initialized": {
         const thread = threadWrapper.thread;
-        const conversation = thread.state.conversation;
+        const conversation = thread.getConversationState();
 
         const summary = {
           title: thread.state.title,
@@ -978,14 +978,13 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const parentThreadWrapper = this.threadWrappers[parentThreadId];
     if (parentThreadWrapper && parentThreadWrapper.state === "initialized") {
       const parentThread = parentThreadWrapper.thread;
-
-      const lastMessage =
-        parentThread.state.messages[parentThread.state.messages.length - 1];
-      if (!lastMessage || lastMessage.state.role !== "assistant") {
+      const messages = parentThread.getProviderMessages();
+      const lastMessage = messages[messages.length - 1];
+      if (!lastMessage || lastMessage.role !== "assistant") {
         return;
       }
 
-      for (const content of lastMessage.state.content) {
+      for (const content of lastMessage.content) {
         if (content.type === "tool_use" && content.request.status === "ok") {
           const request = content.request.value;
           if (request.toolName === "wait_for_subagents") {

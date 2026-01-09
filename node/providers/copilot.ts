@@ -12,6 +12,8 @@ import type {
   ProviderStreamEvent,
   ProviderToolUseRequest,
   ProviderToolUseResponse,
+  ProviderThread,
+  ProviderThreadOptions,
 } from "./provider-types.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
@@ -772,5 +774,10 @@ export class CopilotProvider implements Provider {
       aborted,
       promise,
     };
+  }
+
+  createThread(_options: ProviderThreadOptions): ProviderThread {
+    // TODO: Implement in future phase
+    throw new Error("createThread not yet implemented for CopilotProvider");
   }
 }

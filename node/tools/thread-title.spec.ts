@@ -58,7 +58,7 @@ describe("node/tools/thread-title.spec.ts", () => {
       await driver.assertDisplayBufferContains(`# ${title}`);
 
       // Respond to the original user message
-      const messageRequest = await driver.mockAnthropic.awaitPendingRequest();
+      const messageRequest = await driver.mockAnthropic.awaitPendingStream();
       messageRequest.streamText(
         "The solar system consists of the Sun and everything that orbits around it.",
       );

@@ -23,7 +23,6 @@ import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp } from "../lsp.ts";
 import type { MagentaOptions } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
-import type { MessageId } from "../chat/message.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import type { Chat } from "../chat/chat.ts";
 import type {
@@ -182,7 +181,6 @@ export type Msg =
   | {
       type: "init-tool-use";
       threadId: ThreadId;
-      messageId: MessageId;
       request: ToolRequest;
     }
   | ToolManagerToolMsg;
@@ -259,6 +257,13 @@ export class ToolManager {
     }
 
     return this.tools[id] as unknown as Tool;
+  }
+
+  hasTool(id: ToolRequestId): boolean {
+    return (
+      this.context.mcpToolManager.getTool(id) !== undefined ||
+      this.tools[id] !== undefined
+    );
   }
 
   renderToolResult(id: ToolRequestId) {
@@ -345,7 +350,6 @@ export class ToolManager {
             const insertTool = new Insert.InsertTool(
               staticRequest,
               msg.threadId,
-              msg.messageId,
               {
                 ...this.context,
                 myDispatch: (msg) =>
@@ -368,7 +372,6 @@ export class ToolManager {
             const replaceTool = new Replace.ReplaceTool(
               staticRequest,
               msg.threadId,
-              msg.messageId,
               {
                 ...this.context,
                 myDispatch: (msg) =>
@@ -641,7 +644,6 @@ export class ToolManager {
             const predictEditTool = new PredictEdit.PredictEditTool(
               staticRequest,
               msg.threadId,
-              msg.messageId,
               {
                 myDispatch: (msg) =>
                   this.myDispatch({

@@ -15,7 +15,7 @@ it("render the getFile tool.", async () => {
     await driver.inputMagentaText(`Try reading the file poem.txt`);
     await driver.send();
 
-    const request1 = await driver.mockAnthropic.awaitPendingRequest();
+    const request1 = await driver.mockAnthropic.awaitPendingStream();
     request1.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
@@ -65,7 +65,7 @@ it("should extract PDF page as binary document when pdfPage parameter is provide
       await driver.inputMagentaText(`Please read page 2 of multipage.pdf`);
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "tool_use",
         text: "I'll extract the specific page from the PDF",
@@ -87,8 +87,7 @@ it("should extract PDF page as binary document when pdfPage parameter is provide
       await driver.assertDisplayBufferContains(`👀✅ \`multipage.pdf`);
 
       // Verify the tool result contains document content
-      const toolResultRequest =
-        await driver.mockAnthropic.awaitPendingRequest();
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
       const toolResultMessage =
         toolResultRequest.messages[toolResultRequest.messages.length - 2];
 
@@ -176,7 +175,7 @@ it("should handle multiple PDF pages and show correct context summary", async ()
       await driver.inputMagentaText(`Please read multipage-test.pdf`);
       await driver.send();
 
-      const summaryRequest = await driver.mockAnthropic.awaitPendingRequest();
+      const summaryRequest = await driver.mockAnthropic.awaitPendingStream();
       summaryRequest.respond({
         stopReason: "tool_use",
         text: "I'll read the PDF summary",
@@ -196,8 +195,7 @@ it("should handle multiple PDF pages and show correct context summary", async ()
 
       await driver.assertDisplayBufferContains(`👀✅ \`multipage-test.pdf\``);
 
-      const summaryToolResult =
-        await driver.mockAnthropic.awaitPendingRequest();
+      const summaryToolResult = await driver.mockAnthropic.awaitPendingStream();
       summaryToolResult.respond({
         stopReason: "end_turn",
         toolRequests: [],
@@ -213,7 +211,7 @@ it("should handle multiple PDF pages and show correct context summary", async ()
       await driver.inputMagentaText(`Please read page 1 of multipage-test.pdf`);
       await driver.send();
 
-      const page1Request = await driver.mockAnthropic.awaitPendingRequest();
+      const page1Request = await driver.mockAnthropic.awaitPendingStream();
       page1Request.respond({
         stopReason: "tool_use",
         text: "I'll extract page 1",
@@ -234,7 +232,7 @@ it("should handle multiple PDF pages and show correct context summary", async ()
 
       await driver.assertDisplayBufferContains(`👀✅ \`multipage-test.pdf`);
 
-      const page1ToolResult = await driver.mockAnthropic.awaitPendingRequest();
+      const page1ToolResult = await driver.mockAnthropic.awaitPendingStream();
       page1ToolResult.respond({
         stopReason: "end_turn",
         toolRequests: [],
@@ -250,7 +248,7 @@ it("should handle multiple PDF pages and show correct context summary", async ()
       await driver.inputMagentaText(`Please read page 3 of multipage-test.pdf`);
       await driver.send();
 
-      const page3Request = await driver.mockAnthropic.awaitPendingRequest();
+      const page3Request = await driver.mockAnthropic.awaitPendingStream();
       page3Request.respond({
         stopReason: "tool_use",
         text: "I'll extract page 3",
@@ -271,7 +269,7 @@ it("should handle multiple PDF pages and show correct context summary", async ()
 
       await driver.assertDisplayBufferContains(`👀✅ \`multipage-test.pdf`);
 
-      const page3ToolResult = await driver.mockAnthropic.awaitPendingRequest();
+      const page3ToolResult = await driver.mockAnthropic.awaitPendingStream();
       page3ToolResult.respond({
         stopReason: "end_turn",
         toolRequests: [],
@@ -287,7 +285,7 @@ it("should handle multiple PDF pages and show correct context summary", async ()
       await driver.inputMagentaText(`Please read page 2 of multipage-test.pdf`);
       await driver.send();
 
-      const page2Request = await driver.mockAnthropic.awaitPendingRequest();
+      const page2Request = await driver.mockAnthropic.awaitPendingStream();
       page2Request.respond({
         stopReason: "tool_use",
         text: "I'll extract page 2",
@@ -308,7 +306,7 @@ it("should handle multiple PDF pages and show correct context summary", async ()
 
       await driver.assertDisplayBufferContains(`👀✅ \`multipage-test.pdf`);
 
-      const page2ToolResult = await driver.mockAnthropic.awaitPendingRequest();
+      const page2ToolResult = await driver.mockAnthropic.awaitPendingStream();
       page2ToolResult.respond({
         stopReason: "end_turn",
         toolRequests: [],
@@ -324,7 +322,7 @@ it("should handle multiple PDF pages and show correct context summary", async ()
       await driver.inputMagentaText(`Please read page 5 of multipage-test.pdf`);
       await driver.send();
 
-      const page5Request = await driver.mockAnthropic.awaitPendingRequest();
+      const page5Request = await driver.mockAnthropic.awaitPendingStream();
       page5Request.respond({
         stopReason: "tool_use",
         text: "I'll extract page 5",
@@ -345,7 +343,7 @@ it("should handle multiple PDF pages and show correct context summary", async ()
 
       await driver.assertDisplayBufferContains(`👀✅ \`multipage-test.pdf`);
 
-      const page5ToolResult = await driver.mockAnthropic.awaitPendingRequest();
+      const page5ToolResult = await driver.mockAnthropic.awaitPendingStream();
       page5ToolResult.respond({
         stopReason: "end_turn",
         toolRequests: [],
@@ -406,7 +404,7 @@ it("should return PDF basic info when pdfPage parameter is not provided", async 
       await driver.inputMagentaText(`Please read multipage.pdf`);
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "tool_use",
         text: "I'll read the PDF document",
@@ -427,8 +425,7 @@ it("should return PDF basic info when pdfPage parameter is not provided", async 
       await driver.assertDisplayBufferContains(`👀✅ \`multipage.pdf`);
 
       // Verify the tool result contains basic PDF info
-      const toolResultRequest =
-        await driver.mockAnthropic.awaitPendingRequest();
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
       const toolResultMessage =
         toolResultRequest.messages[toolResultRequest.messages.length - 1];
 
@@ -485,7 +482,7 @@ it("should handle invalid PDF page index", async () => {
       await driver.inputMagentaText(`Please read page 5 of singlepage.pdf`);
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "tool_use",
         text: "I'll try to extract page 5 from the PDF",
@@ -507,8 +504,7 @@ it("should handle invalid PDF page index", async () => {
       await driver.assertDisplayBufferContains(`👀❌ \`singlepage.pdf`);
 
       // Verify the tool result contains error
-      const toolResultRequest =
-        await driver.mockAnthropic.awaitPendingRequest();
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
       const toolResultMessage =
         toolResultRequest.messages[toolResultRequest.messages.length - 1];
 
@@ -546,7 +542,7 @@ it("getFile automatically allows files matching getFileAutoAllowGlobs", async ()
       await driver.inputMagentaText(`Try reading the file .secret`);
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "tool_use",
         text: "ok, here goes",
@@ -593,7 +589,7 @@ it("getFile automatically allows files matching glob patterns", async () => {
       await driver.inputMagentaText(`Try reading the file test.log`);
       await driver.send();
 
-      const request1 = await driver.mockAnthropic.awaitPendingRequest();
+      const request1 = await driver.mockAnthropic.awaitPendingStream();
       request1.respond({
         stopReason: "tool_use",
         text: "ok, here goes",
@@ -615,7 +611,7 @@ it("getFile automatically allows files matching glob patterns", async () => {
 
       // Handle the first request response
       const toolResultRequest1 =
-        await driver.mockAnthropic.awaitPendingRequest();
+        await driver.mockAnthropic.awaitPendingStream();
       toolResultRequest1.respond({
         stopReason: "end_turn",
         toolRequests: [],
@@ -628,7 +624,7 @@ it("getFile automatically allows files matching glob patterns", async () => {
       );
       await driver.send();
 
-      const request2 = await driver.mockAnthropic.awaitPendingRequest();
+      const request2 = await driver.mockAnthropic.awaitPendingStream();
       request2.respond({
         stopReason: "tool_use",
         text: "ok, here goes",
@@ -665,7 +661,7 @@ it("getFile still requires approval for files not matching getFileAutoAllowGlobs
       await driver.inputMagentaText(`Try reading the file .secret`);
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "tool_use",
         text: "ok, here goes",
@@ -720,7 +716,7 @@ it("getFile automatically allows files in skills directory", async () => {
       );
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "tool_use",
         text: "ok, here goes",
@@ -745,8 +741,7 @@ it("getFile automatically allows files in skills directory", async () => {
       );
 
       // Verify the file contents are returned
-      const toolResultRequest =
-        await driver.mockAnthropic.awaitPendingRequest();
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
       const toolResultMessage =
         toolResultRequest.messages[toolResultRequest.messages.length - 1];
 
@@ -772,7 +767,7 @@ it("getFile rejection", async () => {
     await driver.inputMagentaText(`Try reading the file .secret`);
     await driver.send();
 
-    const request2 = await driver.mockAnthropic.awaitPendingRequest();
+    const request2 = await driver.mockAnthropic.awaitPendingStream();
     request2.respond({
       stopReason: "end_turn",
       text: "ok, here goes",
@@ -805,7 +800,7 @@ it("displays approval dialog with proper box formatting", async () => {
     await driver.inputMagentaText(`Try reading the file .secret`);
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "end_turn",
       text: "ok, here goes",
@@ -847,7 +842,7 @@ it("getFile approval", async () => {
     await driver.inputMagentaText(`Try reading the file .secret`);
     await driver.send();
 
-    const request3 = await driver.mockAnthropic.awaitPendingRequest();
+    const request3 = await driver.mockAnthropic.awaitPendingStream();
     request3.respond({
       stopReason: "end_turn",
       text: "ok, here goes",
@@ -892,7 +887,7 @@ it("getFile requests approval for gitignored file", async () => {
       await driver.inputMagentaText(`Try reading the file ignored-file.txt`);
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "end_turn",
         text: "ok, here goes",
@@ -922,7 +917,7 @@ it("getFile requests approval for file outside cwd", async () => {
     await driver.inputMagentaText(`Try reading the file /tmp/file`);
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "end_turn",
       text: "ok, here goes",
@@ -956,7 +951,7 @@ it("getFile returns early when file is already in context", async () => {
     await driver.inputMagentaText(`Try reading the file ./poem.txt`);
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
@@ -978,7 +973,7 @@ it("getFile returns early when file is already in context", async () => {
     await driver.assertDisplayBufferContains(`👀✅ \`./poem.txt\``);
 
     // Check the actual response content in the next request
-    const toolResultRequest = await driver.mockAnthropic.awaitPendingRequest();
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
     const toolResultMessage =
       toolResultRequest.messages[toolResultRequest.messages.length - 1];
 
@@ -1009,7 +1004,7 @@ it("getFile reads file when force is true even if already in context", async () 
     await driver.inputMagentaText(`Try reading the file ./poem.txt with force`);
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
@@ -1030,7 +1025,7 @@ it("getFile reads file when force is true even if already in context", async () 
 
     await driver.assertDisplayBufferContains(`👀✅ \`./poem.txt\``);
 
-    const toolResultRequest = await driver.mockAnthropic.awaitPendingRequest();
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
     const toolResultMessage =
       toolResultRequest.messages[toolResultRequest.messages.length - 1];
 
@@ -1078,7 +1073,7 @@ it("getFile adds file to context after reading", async () => {
     await driver.inputMagentaText(`Try reading the file ./poem.txt`);
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
@@ -1099,7 +1094,7 @@ it("getFile adds file to context after reading", async () => {
     await driver.assertDisplayBufferContains(`👀✅ \`./poem.txt\``);
 
     // Handle the auto-respond message
-    const toolResultRequest = await driver.mockAnthropic.awaitPendingRequest();
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
     toolResultRequest.respond({
       stopReason: "end_turn",
       toolRequests: [],
@@ -1149,7 +1144,7 @@ it("getFile reads unloaded buffer", async () => {
     await driver.inputMagentaText(`Try reading the file ./poem.txt`);
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
@@ -1170,7 +1165,7 @@ it("getFile reads unloaded buffer", async () => {
     await driver.assertDisplayBufferContains(`👀✅ \`./poem.txt\``);
 
     // Check that the file contents are properly returned
-    const toolResultRequest = await driver.mockAnthropic.awaitPendingRequest();
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
     const toolResultMessage =
       toolResultRequest.messages[toolResultRequest.messages.length - 1];
 
@@ -1225,7 +1220,7 @@ it("should process image files end-to-end", async () => {
     await driver.inputMagentaText(`Please analyze the image in test.jpg`);
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "I'll analyze the image for you",
@@ -1247,7 +1242,7 @@ it("should process image files end-to-end", async () => {
     await driver.assertDisplayBufferContains(`👀✅ \`test.jpg\``);
 
     // Verify the tool result contains image content
-    const toolResultRequest = await driver.mockAnthropic.awaitPendingRequest();
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
     const toolResultMessage =
       toolResultRequest.messages[toolResultRequest.messages.length - 1];
 
@@ -1279,7 +1274,7 @@ it("getFile provides PDF summary info when no pdfPage parameter is given", async
     await driver.inputMagentaText(`Try reading the PDF file sample2.pdf`);
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
@@ -1300,7 +1295,7 @@ it("getFile provides PDF summary info when no pdfPage parameter is given", async
     await driver.assertDisplayBufferContains(`👀✅ \`sample2.pdf\``);
 
     // Check that the PDF summary is returned
-    const toolResultRequest = await driver.mockAnthropic.awaitPendingRequest();
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
     const toolResultMessage =
       toolResultRequest.messages[toolResultRequest.messages.length - 1];
 
@@ -1350,7 +1345,7 @@ it("should reject binary files that are not supported", async () => {
     await driver.inputMagentaText(`Please read the file test.bin`);
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "I'll try to read the binary file",
@@ -1372,7 +1367,7 @@ it("should reject binary files that are not supported", async () => {
     await driver.assertDisplayBufferContains(`👀❌ \`test.bin\``);
 
     // Verify the tool result contains error
-    const toolResultRequest = await driver.mockAnthropic.awaitPendingRequest();
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
     const toolResultMessage =
       toolResultRequest.messages[toolResultRequest.messages.length - 1];
 
@@ -1407,7 +1402,7 @@ it("should add images to context manager", async () => {
     await driver.inputMagentaText(`Please analyze test.jpg`);
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "I'll analyze the image",
@@ -1428,7 +1423,7 @@ it("should add images to context manager", async () => {
     await driver.assertDisplayBufferContains(`👀✅ \`test.jpg\``);
 
     // Handle the auto-respond message
-    const toolResultRequest = await driver.mockAnthropic.awaitPendingRequest();
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
     toolResultRequest.respond({
       stopReason: "end_turn",
       toolRequests: [],
@@ -1465,7 +1460,7 @@ it("should add PDFs to context manager", async () => {
     await driver.inputMagentaText(`Please read sample2.pdf`);
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "I'll read the PDF",
@@ -1486,7 +1481,7 @@ it("should add PDFs to context manager", async () => {
     await driver.assertDisplayBufferContains(`👀✅ \`sample2.pdf\``);
 
     // Handle the auto-respond message
-    const toolResultRequest = await driver.mockAnthropic.awaitPendingRequest();
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
     toolResultRequest.respond({
       stopReason: "end_turn",
       toolRequests: [],
@@ -1518,7 +1513,7 @@ it("should continue to add text files to context normally", async () => {
     await driver.inputMagentaText(`Please read poem.txt`);
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "I'll read the text file",
@@ -1539,7 +1534,7 @@ it("should continue to add text files to context normally", async () => {
     await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\``);
 
     // Handle the auto-respond message
-    const toolResultRequest = await driver.mockAnthropic.awaitPendingRequest();
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
     toolResultRequest.respond({
       stopReason: "end_turn",
       toolRequests: [],
@@ -1565,7 +1560,7 @@ it("should handle mixed content types in a single conversation", async () => {
     await driver.inputMagentaText(`Please read the poem.txt file`);
     await driver.send();
 
-    const request1 = await driver.mockAnthropic.awaitPendingRequest();
+    const request1 = await driver.mockAnthropic.awaitPendingStream();
     request1.respond({
       stopReason: "tool_use",
       text: "I'll read the text file",
@@ -1586,7 +1581,7 @@ it("should handle mixed content types in a single conversation", async () => {
     await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\``);
 
     // Handle first auto-respond message
-    const toolResultRequest1 = await driver.mockAnthropic.awaitPendingRequest();
+    const toolResultRequest1 = await driver.mockAnthropic.awaitPendingStream();
     toolResultRequest1.respond({
       stopReason: "end_turn",
       toolRequests: [],
@@ -1597,7 +1592,7 @@ it("should handle mixed content types in a single conversation", async () => {
     await driver.inputMagentaText(`Now please analyze the test.jpg image`);
     await driver.send();
 
-    const request2 = await driver.mockAnthropic.awaitPendingRequest();
+    const request2 = await driver.mockAnthropic.awaitPendingStream();
     request2.respond({
       stopReason: "tool_use",
       text: "I'll analyze the image",
@@ -1618,7 +1613,7 @@ it("should handle mixed content types in a single conversation", async () => {
     await driver.assertDisplayBufferContains(`👀✅ \`test.jpg\``);
 
     // Handle second auto-respond message
-    const toolResultRequest2 = await driver.mockAnthropic.awaitPendingRequest();
+    const toolResultRequest2 = await driver.mockAnthropic.awaitPendingStream();
     toolResultRequest2.respond({
       stopReason: "end_turn",
       toolRequests: [],
@@ -1631,7 +1626,7 @@ it("should handle mixed content types in a single conversation", async () => {
     );
     await driver.send();
 
-    const request3 = await driver.mockAnthropic.awaitPendingRequest();
+    const request3 = await driver.mockAnthropic.awaitPendingStream();
     request3.respond({
       stopReason: "tool_use",
       text: "I'll read the PDF",
@@ -1652,7 +1647,7 @@ it("should handle mixed content types in a single conversation", async () => {
     await driver.assertDisplayBufferContains(`👀✅ \`sample2.pdf\``);
 
     // Handle final auto-respond message
-    const toolResultRequest3 = await driver.mockAnthropic.awaitPendingRequest();
+    const toolResultRequest3 = await driver.mockAnthropic.awaitPendingStream();
     toolResultRequest3.respond({
       stopReason: "end_turn",
       toolRequests: [],
@@ -1693,7 +1688,7 @@ it("should handle file size limits appropriately", async () => {
       );
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "tool_use",
         text: "I'll try to analyze the large image",
@@ -1715,8 +1710,7 @@ it("should handle file size limits appropriately", async () => {
       await driver.assertDisplayBufferContains(`👀❌ \`large-image.jpg\``);
 
       // Verify the tool result contains error
-      const toolResultRequest =
-        await driver.mockAnthropic.awaitPendingRequest();
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
       const toolResultMessage =
         toolResultRequest.messages[toolResultRequest.messages.length - 1];
 

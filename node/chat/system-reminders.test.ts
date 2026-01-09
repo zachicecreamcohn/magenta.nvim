@@ -11,7 +11,7 @@ test("user-submitted messages should include system reminder", async () => {
     await driver.send();
 
     // Get the request
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
 
     // Check the last message (user message) has system reminder
     const userMessage = request.messages[request.messages.length - 1];
@@ -40,7 +40,7 @@ test("auto-respond messages should NOT include system reminder", async () => {
     await driver.send();
 
     // Get the request
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
 
     // Respond with a tool use
     request.respond({
@@ -59,7 +59,7 @@ test("auto-respond messages should NOT include system reminder", async () => {
     });
 
     // Wait for the auto-respond (tool result message)
-    const autoRespondRequest = await driver.mockAnthropic.awaitPendingRequest();
+    const autoRespondRequest = await driver.mockAnthropic.awaitPendingStream();
 
     // The last message should be a user message with tool result
     const userMessage =
@@ -81,7 +81,7 @@ test("root thread should get base reminder", async () => {
     await driver.inputMagentaText("Hello");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     const userMessage = request.messages[request.messages.length - 1];
 
     const systemReminder = userMessage.content.find(
@@ -107,7 +107,7 @@ test("system reminder should be collapsed by default in UI", async () => {
     await driver.inputMagentaText("Hello");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "end_turn",
       text: "Response",
@@ -130,7 +130,7 @@ test("system reminder is rendered in UI", async () => {
     await driver.inputMagentaText("Hello");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "end_turn",
       text: "Response",
@@ -153,7 +153,7 @@ test("system reminder content appears after context updates", async () => {
     await driver.inputMagentaText("Hello");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     const userMessage = request.messages[request.messages.length - 1];
 
     expect(userMessage.role).toBe("user");
@@ -182,7 +182,7 @@ test("multiple user messages each get their own system reminder", async () => {
     await driver.inputMagentaText("First message");
     await driver.send();
 
-    const request1 = await driver.mockAnthropic.awaitPendingRequest();
+    const request1 = await driver.mockAnthropic.awaitPendingStream();
     const userMessage1 = request1.messages[request1.messages.length - 1];
     const reminder1 = userMessage1.content.find(
       (c) => c.type === "system_reminder",
@@ -199,7 +199,7 @@ test("multiple user messages each get their own system reminder", async () => {
     await driver.inputMagentaText("Second message");
     await driver.send();
 
-    const request2 = await driver.mockAnthropic.awaitPendingRequest();
+    const request2 = await driver.mockAnthropic.awaitPendingStream();
     const userMessage2 = request2.messages[request2.messages.length - 1];
     const reminder2 = userMessage2.content.find(
       (c) => c.type === "system_reminder",

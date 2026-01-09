@@ -18,7 +18,7 @@ it("hover end-to-end", async () => {
 
     // wait for ts_ls to start/attach
     const toolRequestId = "id" as ToolRequestId;
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
@@ -102,7 +102,7 @@ it("hover with word boundaries", async () => {
     await driver.send();
 
     const toolRequestId = "id2" as ToolRequestId;
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
@@ -185,7 +185,7 @@ it("hover with context disambiguation", async () => {
     await driver.send();
 
     const toolRequestId = "id3" as ToolRequestId;
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
@@ -258,7 +258,7 @@ it("hover with context not found", async () => {
     await driver.send();
 
     const toolRequestId = "id4" as ToolRequestId;
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",

@@ -8,8 +8,7 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { MessageId } from "../chat/message.ts";
-import type { ThreadId } from "../chat/types";
+import type { ThreadId } from "../chat/types.ts";
 import type { StaticTool, ToolName } from "./types.ts";
 
 export type State =
@@ -33,7 +32,6 @@ export class PredictEditTool implements StaticTool {
   constructor(
     public request: Extract<StaticToolRequest, { toolName: "predict_edit" }>,
     public threadId: ThreadId,
-    public messageId: MessageId,
     private context: {
       myDispatch: Dispatch<Msg>;
     },

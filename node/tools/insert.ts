@@ -18,14 +18,13 @@ import type {
 import { applyEdit } from "./applyEdit.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { RootMsg } from "../root-msg.ts";
-import type { MessageId } from "../chat/message.ts";
+import type { ThreadId } from "../chat/types.ts";
 import type { StaticTool, ToolName } from "./types.ts";
 import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import { resolveFilePath } from "../utils/files.ts";
 import type { MagentaOptions } from "../options.ts";
 import { canWriteFile } from "./permissions.ts";
-import type { ThreadId } from "../chat/types.ts";
 import type { Gitignore } from "./util.ts";
 
 export type State =
@@ -67,7 +66,6 @@ export class InsertTool implements StaticTool {
   constructor(
     public request: Extract<StaticToolRequest, { toolName: "insert" }>,
     public threadId: ThreadId,
-    public messageId: MessageId,
     private context: {
       myDispatch: Dispatch<Msg>;
       bufferTracker: BufferTracker;
@@ -115,7 +113,7 @@ export class InsertTool implements StaticTool {
   }
 
   private async doInsert(): Promise<void> {
-    await applyEdit(this.request, this.threadId, this.messageId, this.context);
+    await applyEdit(this.request, this.threadId, this.context);
   }
 
   isDone(): boolean {

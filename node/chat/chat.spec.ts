@@ -22,7 +22,7 @@ describe("node/chat/chat.spec.ts", () => {
         "Hello, this is a test message in thread 1",
       );
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.streamText("I'm the assistant's response to the first thread");
       request.finishResponse("end_turn");
 
@@ -75,7 +75,7 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.send();
 
       const request1 =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Use spawn_subagent",
         );
       request1.respond({
@@ -98,7 +98,7 @@ describe("node/chat/chat.spec.ts", () => {
 
       await driver.assertDisplayBufferContains("🤖✅ Spawning subagent");
 
-      const request = await driver.mockAnthropic.awaitPendingRequestWithText(
+      const request = await driver.mockAnthropic.awaitPendingStreamWithText(
         "Sub-agent started with threadId: 2",
       );
 
@@ -135,7 +135,7 @@ describe("node/chat/chat.spec.ts", () => {
       );
 
       const request3 =
-        await driver.mockAnthropic.awaitPendingRequestWithText("Echo the text");
+        await driver.mockAnthropic.awaitPendingStreamWithText("Echo the text");
       request3.respond({
         stopReason: "tool_use",
         text: "I'll echo that text for you.",
@@ -154,7 +154,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       const request4 =
-        await driver.mockAnthropic.awaitPendingRequestWithText("exit code 0");
+        await driver.mockAnthropic.awaitPendingStreamWithText("exit code 0");
       request4.respond({
         stopReason: "tool_use",
         text: "I'll now yield this result back to the parent.",
@@ -194,7 +194,7 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.send();
 
       const request =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Wait for a thread",
         );
       request.respond({
@@ -232,7 +232,7 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.send();
 
       const request1 =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Use spawn_subagent",
         );
       request1.respond({
@@ -254,7 +254,7 @@ describe("node/chat/chat.spec.ts", () => {
 
       await driver.assertDisplayBufferContains("🤖✅ Spawning subagent");
 
-      const request2 = await driver.mockAnthropic.awaitPendingRequestWithText(
+      const request2 = await driver.mockAnthropic.awaitPendingStreamWithText(
         "Sub-agent started with threadId: 2",
       );
       request2.respond({
@@ -277,7 +277,7 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.assertDisplayBufferContains("🤖✅ Spawning subagent");
 
       // Start waiting for both subagents
-      const request3 = await driver.mockAnthropic.awaitPendingRequestWithText(
+      const request3 = await driver.mockAnthropic.awaitPendingStreamWithText(
         "Sub-agent started with threadId: 3",
       );
       request3.respond({
@@ -308,7 +308,7 @@ describe("node/chat/chat.spec.ts", () => {
 
       // First subagent yields successfully
       const subagent1Request =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Echo 'Hello from subagent 1'",
         );
       subagent1Request.respond({
@@ -339,7 +339,7 @@ describe("node/chat/chat.spec.ts", () => {
 
       // Second subagent yields successfully
       const subagent2Request =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Echo 'Hello from subagent 2'",
         );
       subagent2Request.respond({
@@ -375,7 +375,7 @@ describe("node/chat/chat.spec.ts", () => {
       );
       await driver.send();
 
-      const request1 = await driver.mockAnthropic.awaitPendingRequestWithText(
+      const request1 = await driver.mockAnthropic.awaitPendingStreamWithText(
         "Create two subagents",
       );
       request1.respond({
@@ -397,7 +397,7 @@ describe("node/chat/chat.spec.ts", () => {
 
       await driver.assertDisplayBufferContains("🤖✅ Spawning subagent");
 
-      const request2 = await driver.mockAnthropic.awaitPendingRequestWithText(
+      const request2 = await driver.mockAnthropic.awaitPendingStreamWithText(
         "Sub-agent started with threadId: 2",
       );
       request2.respond({
@@ -420,7 +420,7 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.assertDisplayBufferContains("🤖✅ Spawning subagent");
 
       // Start waiting for both subagents
-      const request3 = await driver.mockAnthropic.awaitPendingRequestWithText(
+      const request3 = await driver.mockAnthropic.awaitPendingStreamWithText(
         "Sub-agent started with threadId: 3",
       );
       request3.respond({
@@ -445,7 +445,7 @@ describe("node/chat/chat.spec.ts", () => {
 
       // First subagent stops without yielding
       const subagent1Request =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Just say something and stop",
         );
       subagent1Request.respond({
@@ -461,7 +461,7 @@ describe("node/chat/chat.spec.ts", () => {
 
       // Second subagent succeeds and yields
       const subagent2Request =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Echo 'Success!'",
         );
       subagent2Request.respond({
@@ -482,7 +482,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       const subagent2Request2 =
-        await driver.mockAnthropic.awaitPendingRequestWithText("exit code 0");
+        await driver.mockAnthropic.awaitPendingStreamWithText("exit code 0");
       subagent2Request2.respond({
         stopReason: "tool_use",
         text: "I'll yield this successful result.",
@@ -527,7 +527,7 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.send();
 
       const request1 =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Use spawn_subagent",
         );
       request1.respond({
@@ -550,7 +550,7 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.assertDisplayBufferContains("🤖✅ Spawning subagent");
 
       // Start waiting for the subagent
-      const request2 = await driver.mockAnthropic.awaitPendingRequestWithText(
+      const request2 = await driver.mockAnthropic.awaitPendingStreamWithText(
         "Sub-agent started with threadId: 2",
       );
       request2.respond({
@@ -617,7 +617,7 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.send();
 
       const parentRequest =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "This is the parent thread",
         );
       parentRequest.respond({
@@ -650,7 +650,7 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.send();
 
       const parent2Request =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "This is another parent thread",
         );
       parent2Request.respond({
@@ -699,7 +699,7 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.send();
 
       const parentRequest =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Parent with yielding child",
         );
       parentRequest.respond({
@@ -721,7 +721,7 @@ describe("node/chat/chat.spec.ts", () => {
 
       // Child thread yields a result
       const childRequest =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Yield a result back to parent",
         );
       childRequest.respond({
@@ -748,7 +748,7 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.send();
 
       const parent2Request =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Parent with stopping child",
         );
       parent2Request.respond({
@@ -770,7 +770,7 @@ describe("node/chat/chat.spec.ts", () => {
 
       // Child thread stops without yielding
       const child2Request =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Just stop without yielding",
         );
       child2Request.respond({
@@ -807,7 +807,7 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.send();
 
       const parentRequest =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Parent thread message",
         );
       parentRequest.respond({
@@ -867,7 +867,7 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.send();
 
       const request =
-        await driver.mockAnthropic.awaitPendingRequestWithText("Test message");
+        await driver.mockAnthropic.awaitPendingStreamWithText("Test message");
       request.streamText("Assistant response");
       request.finishResponse("end_turn");
 
@@ -879,7 +879,7 @@ describe("node/chat/chat.spec.ts", () => {
       await driver.send();
 
       const request2 =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Spawn a subagent",
         );
       request2.respond({

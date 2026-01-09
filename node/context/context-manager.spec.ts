@@ -174,7 +174,7 @@ it("avoids sending redundant context updates after tool application (no buffer)"
     await driver.send();
 
     // Respond with a tool call that will modify the file
-    const request1 = await driver.mockAnthropic.awaitPendingRequest();
+    const request1 = await driver.mockAnthropic.awaitPendingStream();
     request1.respond({
       stopReason: "tool_use",
       text: "I'll add a new line to the poem",
@@ -197,7 +197,7 @@ it("avoids sending redundant context updates after tool application (no buffer)"
     await driver.assertDisplayBufferContains("✅ Insert [[ +2 ]]");
 
     {
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       expect(
         request.messages[request.messages.length - 1],
         "auto-respond request goes out",
@@ -221,7 +221,7 @@ it("avoids sending redundant context updates after tool application (no buffer)"
       });
     }
     {
-      const request2 = await driver.mockAnthropic.awaitPendingRequest();
+      const request2 = await driver.mockAnthropic.awaitPendingStream();
       request2.respond({
         stopReason: "end_turn",
         text: "I did it!",
@@ -295,7 +295,7 @@ it("sends update if the file was edited pre-insert", async () => {
     await driver.inputMagentaText(`Add a new line to the poem.txt file`);
     await driver.send();
 
-    const request3 = await driver.mockAnthropic.awaitPendingRequest();
+    const request3 = await driver.mockAnthropic.awaitPendingStream();
     request3.respond({
       stopReason: "tool_use",
       text: "I'll add a new line to the poem",
@@ -334,7 +334,7 @@ it("sends update if the file was edited pre-insert", async () => {
     autoRespondCatcher.execute(...args);
 
     {
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       expect(
         request.messages[request.messages.length - 2],
         "auto-respond request goes out",
@@ -651,13 +651,7 @@ it("context-files multiple, weird path names", async () => {
 
     await driver.inputMagentaText("check out this file");
     await driver.send();
-    await pollUntil(() => {
-      if (driver.mockAnthropic.requests.length != 1) {
-        throw new Error(`Expected a message to be pending.`);
-      }
-    });
-    const request =
-      driver.mockAnthropic.requests[driver.mockAnthropic.requests.length - 1];
+    const request = await driver.mockAnthropic.awaitPendingStream();
     expect(request.messages).toMatchSnapshot();
   });
 });
@@ -754,7 +748,7 @@ it("issuing a getFile request adds the file to the context but doesn't send its 
     await driver.inputMagentaText(`Please analyze the image test.jpg`);
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "I'll analyze the image",
@@ -775,7 +769,7 @@ it("issuing a getFile request adds the file to the context but doesn't send its 
     await driver.assertDisplayBufferContains(`👀✅ \`test.jpg\``);
 
     // Handle the auto-respond message
-    const toolResultRequest = await driver.mockAnthropic.awaitPendingRequest();
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
 
     const flattenedMessages = toolResultRequest.messages.flatMap((msg) =>
       Array.isArray(msg.content)
@@ -807,7 +801,7 @@ it("issuing a getFile request adds the file to the context but doesn't send its 
   });
 });
 
-it("autoContext loads on startup and after clear", async () => {
+it("autoContext loads on startup and after new-thread", async () => {
   const testOptions = {
     autoContext: [`test-auto-context.md`],
   };
@@ -819,8 +813,8 @@ it("autoContext loads on startup and after clear", async () => {
       `# context:\n- \`test-auto-context.md\``,
     );
 
-    // Clear thread and verify autoContext is reloaded
-    await driver.clear();
+    // Create new thread and verify autoContext is loaded
+    await driver.magenta.command("new-thread");
     await driver.assertDisplayBufferContains(
       `# context:\n- \`test-auto-context.md\``,
     );
@@ -829,7 +823,7 @@ it("autoContext loads on startup and after clear", async () => {
     await driver.inputMagentaText("hello");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     expect(request.messages).toContainEqual(
       expect.objectContaining<ProviderMessage>({
         role: "user",
@@ -874,7 +868,7 @@ it("includes PDF file in context and sends summary in context updates", async ()
       await driver.send();
 
       {
-        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const request = await driver.mockAnthropic.awaitPendingStream();
 
         await driver.assertDisplayBufferContains(
           "- `context-test.pdf` (summary)",
@@ -903,7 +897,7 @@ it("includes PDF file in context and sends summary in context updates", async ()
       // wait for autorespond after get_file finishes
       {
         await driver.assertDisplayBufferContains("`context-test.pdf` (page 1)");
-        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const request = await driver.mockAnthropic.awaitPendingStream();
         const lastMessage = request.messages[request.messages.length - 1];
 
         // Validate structure while ignoring the changing PDF data

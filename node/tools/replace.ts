@@ -18,9 +18,8 @@ import type {
 import { applyEdit } from "./applyEdit.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { RootMsg } from "../root-msg.ts";
-import type { MessageId } from "../chat/message.ts";
+import type { ThreadId } from "../chat/types.ts";
 import * as diff from "diff";
-import type { ThreadId } from "../chat/types";
 import type { StaticTool, ToolName } from "./types.ts";
 import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
@@ -68,7 +67,6 @@ export class ReplaceTool implements StaticTool {
   constructor(
     public request: Extract<StaticToolRequest, { toolName: "replace" }>,
     public threadId: ThreadId,
-    public messageId: MessageId,
     private context: {
       myDispatch: Dispatch<Msg>;
       dispatch: Dispatch<RootMsg>;
@@ -116,7 +114,7 @@ export class ReplaceTool implements StaticTool {
   }
 
   private async doReplace(): Promise<void> {
-    await applyEdit(this.request, this.threadId, this.messageId, this.context);
+    await applyEdit(this.request, this.threadId, this.context);
   }
 
   isDone(): boolean {

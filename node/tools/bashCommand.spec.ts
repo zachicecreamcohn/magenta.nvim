@@ -15,7 +15,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       );
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       const toolRequestId = "test-echo-command" as ToolRequestId;
 
       request.respond({
@@ -56,7 +56,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       await driver.inputMagentaText(`Run this command: nonexistentcommand`);
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       const toolRequestId = "test-error-command" as ToolRequestId;
 
       request.respond({
@@ -97,7 +97,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       );
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       const toolRequestId = "test-curl-command" as ToolRequestId;
 
       request.respond({
@@ -146,7 +146,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       await driver.inputMagentaText(`Run this command: true && ls -la`);
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       const toolRequestId = "test-rejected-command" as ToolRequestId;
 
       request.respond({
@@ -186,7 +186,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       await driver.inputMagentaText(`Run this command: dangerous-command`);
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       const toolRequestId = "test-box-formatting" as ToolRequestId;
 
       request.respond({
@@ -233,7 +233,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       await driver.inputMagentaText(`Run this command: sleep 30`);
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       const toolRequestId = "test-terminate-command" as ToolRequestId;
 
       request.respond({
@@ -283,7 +283,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       await driver.inputMagentaText(`Run this command: "true && echo 'tada'`);
       await driver.send();
 
-      const request1 = await driver.mockAnthropic.awaitPendingRequest();
+      const request1 = await driver.mockAnthropic.awaitPendingStream();
       const toolRequestId1 = "test-remembered-command-1" as ToolRequestId;
 
       request1.respond({
@@ -313,7 +313,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       await driver.inputMagentaText(`Ok, run it again`);
       await driver.send();
 
-      const request2 = await driver.mockAnthropic.awaitPendingRequest();
+      const request2 = await driver.mockAnthropic.awaitPendingStream();
       const toolRequestId2 = "test-remembered-command-2" as ToolRequestId;
 
       request2.respond({
@@ -362,7 +362,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       await driver.inputMagentaText(`Run this command: ${appendCmd}`);
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       const toolRequestId = "test-single-execution" as ToolRequestId;
 
       request.respond({
@@ -424,7 +424,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
         await driver.inputMagentaText(`Run this command: echo "${longText}"`);
         await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const request = await driver.mockAnthropic.awaitPendingStream();
         const toolRequestId = "test-truncation" as ToolRequestId;
 
         request.respond({
@@ -452,7 +452,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
 
         // Verify the full output is preserved for the agent
         const toolResultRequest =
-          await driver.mockAnthropic.awaitPendingRequest();
+          await driver.mockAnthropic.awaitPendingStream();
         const toolResultMessage =
           toolResultRequest.messages[toolResultRequest.messages.length - 1];
 
@@ -499,7 +499,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
         await driver.inputMagentaText(`Run this command: ${commandWithCd}`);
         await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const request = await driver.mockAnthropic.awaitPendingStream();
         const toolRequestId = "test-cd-prefix" as ToolRequestId;
 
         request.respond({
@@ -553,7 +553,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
         );
         await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const request = await driver.mockAnthropic.awaitPendingStream();
         const toolRequestId = "test-token-limit" as ToolRequestId;
 
         request.respond({
@@ -576,7 +576,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
         await driver.assertDisplayBufferContains("⚡✅");
 
         const toolResultRequest =
-          await driver.mockAnthropic.awaitPendingRequest();
+          await driver.mockAnthropic.awaitPendingStream();
         const toolResultMessage =
           toolResultRequest.messages[toolResultRequest.messages.length - 1];
 
@@ -642,7 +642,7 @@ describe("commandConfig integration tests", () => {
         await driver.inputMagentaText(`Run this command: echo "hello world"`);
         await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const request = await driver.mockAnthropic.awaitPendingStream();
         const toolRequestId = "test-restAny" as ToolRequestId;
 
         request.respond({
@@ -685,7 +685,7 @@ describe("commandConfig integration tests", () => {
         await driver.inputMagentaText(`Run this command: ls -la`);
         await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const request = await driver.mockAnthropic.awaitPendingStream();
         const toolRequestId = "test-subcommand" as ToolRequestId;
 
         request.respond({
@@ -730,7 +730,7 @@ describe("commandConfig integration tests", () => {
         );
         await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const request = await driver.mockAnthropic.awaitPendingStream();
         const toolRequestId = "test-wrong-args" as ToolRequestId;
 
         request.respond({
@@ -782,7 +782,7 @@ describe("commandConfig integration tests", () => {
         );
         await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const request = await driver.mockAnthropic.awaitPendingStream();
         const toolRequestId = "test-cat-file" as ToolRequestId;
 
         request.respond({
@@ -828,7 +828,7 @@ describe("commandConfig integration tests", () => {
         await driver.inputMagentaText(`Run this command: cat /etc/passwd`);
         await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const request = await driver.mockAnthropic.awaitPendingStream();
         const toolRequestId = "test-cat-outside" as ToolRequestId;
 
         request.respond({
@@ -882,7 +882,7 @@ describe("commandConfig integration tests", () => {
         );
         await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const request = await driver.mockAnthropic.awaitPendingStream();
         const toolRequestId = "test-restfiles" as ToolRequestId;
 
         request.respond({
@@ -936,7 +936,7 @@ describe("commandConfig integration tests", () => {
         );
         await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const request = await driver.mockAnthropic.awaitPendingStream();
         const toolRequestId = "test-restfiles-outside" as ToolRequestId;
 
         request.respond({
@@ -988,7 +988,7 @@ describe("commandConfig integration tests", () => {
         );
         await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const request = await driver.mockAnthropic.awaitPendingStream();
         const toolRequestId = "test-cd-chain" as ToolRequestId;
 
         request.respond({
@@ -1036,7 +1036,7 @@ describe("commandConfig integration tests", () => {
         );
         await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const request = await driver.mockAnthropic.awaitPendingStream();
         const toolRequestId = "test-cd-outside" as ToolRequestId;
 
         request.respond({
@@ -1070,7 +1070,7 @@ describe("commandConfig integration tests", () => {
       await driver.inputMagentaText(`Run this command: rm -rf /tmp/test`);
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       const toolRequestId = "test-not-in-config" as ToolRequestId;
 
       request.respond({
@@ -1119,7 +1119,7 @@ describe("commandConfig integration tests", () => {
         await driver.inputMagentaText(`Run this command: cat .hidden-file.txt`);
         await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const request = await driver.mockAnthropic.awaitPendingStream();
         const toolRequestId = "test-hidden-file" as ToolRequestId;
 
         request.respond({
@@ -1168,7 +1168,7 @@ describe("commandConfig integration tests", () => {
         );
         await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingRequest();
+        const request = await driver.mockAnthropic.awaitPendingStream();
         const toolRequestId = "test-git-status" as ToolRequestId;
 
         request.respond({

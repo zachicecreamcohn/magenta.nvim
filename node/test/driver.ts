@@ -150,10 +150,6 @@ export class NvimDriver {
     return this.magenta.command("send");
   }
 
-  clear() {
-    return this.magenta.command("clear");
-  }
-
   abort() {
     return this.magenta.command("abort");
   }

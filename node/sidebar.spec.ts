@@ -8,7 +8,7 @@ describe("node/sidebar.spec.ts", () => {
       await driver.showSidebar();
       await driver.inputMagentaText(`\n`.repeat(100));
       await driver.send();
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "end_turn",
         text: "sup?",
@@ -231,7 +231,7 @@ describe("node/sidebar.spec.ts", () => {
       const largeMessage = "Hello, this is a test message. ".repeat(500);
       await driver.inputMagentaText(largeMessage);
       await driver.send();
-      const request1 = await driver.mockAnthropic.awaitPendingRequest();
+      const request1 = await driver.mockAnthropic.awaitPendingStream();
       request1.respond({
         stopReason: "tool_use",
         text: "ok, here goes",

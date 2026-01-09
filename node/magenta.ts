@@ -305,17 +305,6 @@ export class Magenta {
         break;
       }
 
-      case "clear":
-        this.dispatch({
-          type: "thread-msg",
-          id: this.chat.getActiveThread().id,
-          msg: {
-            type: "clear",
-            profile: this.getActiveProfile(),
-          },
-        });
-        break;
-
       case "abort": {
         this.dispatch({
           type: "thread-msg",

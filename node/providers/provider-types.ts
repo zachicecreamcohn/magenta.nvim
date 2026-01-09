@@ -43,7 +43,6 @@ export type Usage = {
 export type ProviderMessage = {
   role: "user" | "assistant";
   content: Array<ProviderMessageContent>;
-  providerMetadata?: ProviderMetadata | undefined;
 };
 
 export type ProviderWebSearchCitation = {
@@ -135,40 +134,18 @@ export type ProviderToolSpec = {
 };
 
 export type ProviderMessageContent =
-  | (ProviderTextContent & { providerMetadata?: ProviderMetadata | undefined })
-  | (ProviderImageContent & { providerMetadata?: ProviderMetadata | undefined })
-  | (ProviderDocumentContent & {
-      providerMetadata?: ProviderMetadata | undefined;
-    })
-  | (ProviderToolUseContent & {
-      providerMetadata?: ProviderMetadata | undefined;
-    })
-  | (ProviderServerToolUseContent & {
-      providerMetadata?: ProviderMetadata | undefined;
-    })
-  | (ProviderWebSearchToolResult & {
-      providerMetadata?: ProviderMetadata | undefined;
-    })
-  | (ProviderToolResult & { providerMetadata?: ProviderMetadata | undefined })
-  | (ProviderThinkingContent & {
-      providerMetadata?: ProviderMetadata | undefined;
-    })
-  | (ProviderRedactedThinkingContent & {
-      providerMetadata?: ProviderMetadata | undefined;
-    })
-  | (ProviderSystemReminderContent & {
-      providerMetadata?: ProviderMetadata | undefined;
-    });
+  | ProviderTextContent
+  | ProviderImageContent
+  | ProviderDocumentContent
+  | ProviderToolUseContent
+  | ProviderServerToolUseContent
+  | ProviderWebSearchToolResult
+  | ProviderToolResult
+  | ProviderThinkingContent
+  | ProviderRedactedThinkingContent
+  | ProviderSystemReminderContent;
 
 export interface Provider {
-  createStreamParameters(options: {
-    model: string;
-    messages: Array<ProviderMessage>;
-    tools: Array<ProviderToolSpec>;
-    disableCaching?: boolean;
-    systemPrompt?: string;
-  }): unknown;
-
   forceToolUse(options: {
     model: string;
     messages: Array<ProviderMessage>;
@@ -177,21 +154,10 @@ export interface Provider {
     disableCaching?: boolean;
   }): ProviderToolUseRequest;
 
-  sendMessage(options: {
-    model: string;
-    messages: Array<ProviderMessage>;
-    onStreamEvent: (event: ProviderStreamEvent) => void;
-    tools: Array<ProviderToolSpec>;
-    systemPrompt?: string;
-    thinking?: {
-      enabled: boolean;
-      budgetTokens?: number;
-    };
-    reasoning?: {
-      effort?: "low" | "medium" | "high";
-      summary?: "auto" | "concise" | "detailed";
-    };
-  }): ProviderStreamRequest;
+  createThread(
+    options: ProviderThreadOptions,
+    dispatch: (action: ProviderThreadAction) => void,
+  ): ProviderThread;
 }
 
 export type ProviderMetadata = {
@@ -232,4 +198,64 @@ export interface ProviderToolUseRequest {
   abort(): void;
   aborted: boolean;
   promise: Promise<ProviderToolUseResponse>;
+}
+
+// ============================================================================
+// ProviderThread - Stateful conversation thread interface
+// ============================================================================
+
+export type ProviderThreadStatus =
+  | { type: "idle" }
+  | { type: "streaming"; startTime: Date }
+  | { type: "stopped"; stopReason: StopReason; usage: Usage }
+  | { type: "error"; error: Error };
+
+export type ProviderStreamingBlock =
+  | { type: "text"; text: string }
+  | { type: "thinking"; thinking: string }
+  | {
+      type: "tool_use";
+      id: ToolManager.ToolRequestId;
+      name: ToolName;
+      inputJson: string;
+    };
+
+export interface ProviderThreadState {
+  status: ProviderThreadStatus;
+  messages: ReadonlyArray<ProviderMessage>;
+  streamingBlock?: ProviderStreamingBlock | undefined;
+}
+
+export type ProviderThreadAction =
+  | { type: "messages-updated" }
+  | { type: "streaming-block-updated" }
+  | { type: "status-changed"; status: ProviderThreadStatus };
+
+export type ProviderThreadInput =
+  | ProviderTextContent
+  | ProviderImageContent
+  | ProviderDocumentContent;
+
+export interface ProviderThread {
+  getState(): ProviderThreadState;
+
+  getProviderStreamingBlock(): ProviderStreamingBlock | undefined;
+
+  appendUserMessage(content: ProviderThreadInput[], respond: boolean): void;
+
+  toolResult(
+    toolUseId: ToolManager.ToolRequestId,
+    result: ProviderToolResult,
+    respond: boolean,
+  ): void;
+
+  abort(): void;
+}
+
+export interface ProviderThreadOptions {
+  model: string;
+  systemPrompt: string;
+  tools: ProviderToolSpec[];
+  thinking?: { enabled: boolean; budgetTokens?: number };
+  reasoning?: { effort?: "low" | "medium" | "high"; summary?: string };
 }

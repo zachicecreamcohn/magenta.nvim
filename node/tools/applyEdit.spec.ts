@@ -8,7 +8,6 @@ import * as fs from "node:fs";
 import { type Line } from "../nvim/buffer";
 import type { AbsFilePath, UnresolvedFilePath } from "../utils/files";
 import { applyEdit } from "./applyEdit";
-import type { MessageId } from "../chat/message";
 import type { Row0Indexed } from "../nvim/window";
 
 describe("node/tools/applyEdit.spec.ts", () => {
@@ -26,7 +25,7 @@ describe("node/tools/applyEdit.spec.ts", () => {
       );
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "end_turn",
         text: "ok, here is a new poem",
@@ -63,7 +62,7 @@ describe("node/tools/applyEdit.spec.ts", () => {
       );
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "end_turn",
         text: "ok, here is a poem",
@@ -104,7 +103,7 @@ describe("node/tools/applyEdit.spec.ts", () => {
       await driver.inputMagentaText(`Update the poem in the file poem.txt`);
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "end_turn",
         text: "ok, I will try to rewrite the poem in that file",
@@ -154,7 +153,7 @@ Paints its colors stories in the night.
       );
       await driver.send();
 
-      const request1 = await driver.mockAnthropic.awaitPendingRequest();
+      const request1 = await driver.mockAnthropic.awaitPendingStream();
       request1.respond({
         stopReason: "end_turn",
         text: "ok, here is a poem",
@@ -185,7 +184,7 @@ Paints its colors stories in the night.
       await driver.inputMagentaText(`Another one!`);
       await driver.send();
 
-      const request2 = await driver.mockAnthropic.awaitPendingRequest();
+      const request2 = await driver.mockAnthropic.awaitPendingStream();
       request2.respond({
         stopReason: "end_turn",
         text: "ok, here is another poem",
@@ -217,7 +216,7 @@ Paints its colors stories in the night.
       await driver.inputMagentaText(`Update line 2 in poem.txt`);
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "end_turn",
         text: "I'll update that line",
@@ -260,7 +259,7 @@ Paint their stories in the night.
       );
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "end_turn",
         text: "I'll replace the entire file content",
@@ -306,7 +305,7 @@ Paint their stories in the night.
       await driver.inputMagentaText(`Update the poem in the file poem.txt`);
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "end_turn",
         text: "ok, I will try to rewrite the poem in that file",
@@ -410,7 +409,7 @@ Paint their stories in the night.
       await driver.inputMagentaText(`Add to the end of poem_to_change.txt`);
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "end_turn",
         text: "I'll append to that file",
@@ -462,7 +461,6 @@ Paint their stories in the night.
           },
         },
         driver.magenta.chat.getActiveThread().id,
-        0 as MessageId,
         {
           cwd,
           nvim: driver.nvim,
@@ -547,7 +545,6 @@ Paint their stories in the night.
           },
         },
         driver.magenta.chat.getActiveThread().id,
-        0 as MessageId,
         {
           nvim: driver.nvim,
           cwd,
@@ -590,7 +587,7 @@ Paint their stories in the night.
       );
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "end_turn",
         text: "I'll try to add content",
@@ -656,7 +653,7 @@ Paint their stories in the night.
       );
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "end_turn",
         text: "I'll add text to that file",

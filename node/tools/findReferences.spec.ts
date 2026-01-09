@@ -16,7 +16,7 @@ describe("node/tools/findReferences.spec.ts", () => {
       await driver.send();
 
       const toolRequestId = "id" as ToolRequestId;
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "tool_use",
         text: "ok, here goes",

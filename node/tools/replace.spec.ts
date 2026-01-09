@@ -154,7 +154,7 @@ export type Model = immer.Immutable<
       );
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "end_turn",
         text: "I'll update the imports",
@@ -233,7 +233,7 @@ export type Model = immer.Immutable<
       );
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "end_turn",
         text: "I'll update the imports",
@@ -305,7 +305,7 @@ export const Component = () => {
       );
       await driver.send();
 
-      const getFileRequest = await driver.mockAnthropic.awaitPendingRequest();
+      const getFileRequest = await driver.mockAnthropic.awaitPendingStream();
       getFileRequest.respond({
         stopReason: "tool_use",
         text: "I'll read the file first to see the current imports",
@@ -351,7 +351,7 @@ export const Component = () => {
       await driver.showSidebar();
 
       // Now the agent can make the replace request on the unloaded buffer
-      const replaceRequest = await driver.mockAnthropic.awaitPendingRequest();
+      const replaceRequest = await driver.mockAnthropic.awaitPendingStream();
       replaceRequest.respond({
         stopReason: "tool_use",
         text: "Now I'll update the imports",
@@ -377,8 +377,7 @@ import { Dispatch } from "../tea";`,
       await driver.assertDisplayBufferContains("✏️✅ Replace [[ -3 / +2 ]]");
 
       // Check that the tool result is properly returned
-      const toolResultRequest =
-        await driver.mockAnthropic.awaitPendingRequest();
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
       const toolResultMessage =
         toolResultRequest.messages[toolResultRequest.messages.length - 1];
 
@@ -444,7 +443,7 @@ function oldFunction() {
     await driver.inputMagentaText("Replace the function content");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
 
     // Create the actual tool input that would be used
     const toolInput = {
@@ -549,7 +548,7 @@ it("replace requires approval for gitignored file", async () => {
       );
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "tool_use",
         text: "ok, here goes",
@@ -582,7 +581,7 @@ it("replace requires approval for file outside cwd", async () => {
     await driver.inputMagentaText("Replace content in file /tmp/outside.txt");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
@@ -617,7 +616,7 @@ it("replace requires approval for hidden file", async () => {
     await driver.inputMagentaText("Replace content in file .hidden");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
@@ -672,7 +671,7 @@ it("replace requires approval for skills directory file", async () => {
       );
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "tool_use",
         text: "ok, here goes",
@@ -711,7 +710,7 @@ it("replace auto-approves regular files in cwd", async () => {
     await driver.inputMagentaText("Replace content in regular-file.txt");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
@@ -750,7 +749,7 @@ it("replace approval dialog allows user to approve", async () => {
     await driver.inputMagentaText("Replace content in .secret");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
@@ -801,7 +800,7 @@ it("replace approval dialog allows user to reject", async () => {
     await driver.inputMagentaText("Replace content in .secret");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",

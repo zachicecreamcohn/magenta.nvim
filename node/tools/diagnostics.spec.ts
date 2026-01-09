@@ -34,7 +34,7 @@ describe("node/tools/diagnostics.spec.ts", () => {
         { timeout: 5000 },
       );
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "tool_use",
         text: "ok, here goes",

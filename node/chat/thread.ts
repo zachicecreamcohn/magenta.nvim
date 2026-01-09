@@ -1,9 +1,10 @@
-import { Message, type MessageId, type Msg as MessageMsg } from "./message.ts";
-
 import {
   ContextManager,
   type Msg as ContextManagerMsg,
+  type FileUpdates,
 } from "../context/context-manager.ts";
+import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
+import { displaySnapshotDiff } from "../tools/display-snapshot-diff.ts";
 import { type Dispatch } from "../tea/tea.ts";
 import {
   d,
@@ -16,9 +17,9 @@ import {
   ToolManager,
   type Msg as ToolManagerMsg,
   type StaticToolRequest,
+  type ToolRequestId,
 } from "../tools/toolManager.ts";
 import { MCPToolManager } from "../tools/mcp/manager.ts";
-import { Counter } from "../utils/uniqueId.ts";
 import { FileSnapshots } from "../tools/file-snapshots.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp } from "../lsp.ts";
@@ -26,15 +27,21 @@ import {
   getProvider as getProvider,
   type ProviderMessage,
   type ProviderMessageContent,
-  type ProviderStreamEvent,
-  type ProviderStreamRequest,
+  type ProviderThread,
+  type ProviderThreadAction,
+  type ProviderThreadInput,
+  type ProviderToolResult,
   type StopReason,
   type Usage,
 } from "../providers/provider.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type MagentaOptions, type Profile } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
-import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
+import {
+  relativePath,
+  type NvimCwd,
+  type UnresolvedFilePath,
+} from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import {
   type Input as ThreadTitleInput,
@@ -62,13 +69,11 @@ export type ConversationState =
   | {
       state: "message-in-flight";
       sendDate: Date;
-      request: ProviderStreamRequest;
     }
   | StoppedConversationState
   | {
       state: "error";
       error: Error;
-      lastAssistantMessage?: Message;
     }
   | {
       state: "yielded";
@@ -89,36 +94,15 @@ export type Msg =
   | { type: "set-title"; title: string }
   | { type: "update-profile"; profile: Profile }
   | {
-      type: "stream-event";
-      event: ProviderStreamEvent;
-    }
-  | {
       type: "send-message";
       messages: InputMessage[];
     }
   | {
-      type: "conversation-state";
-      conversation: ConversationState;
-    }
-  | {
-      type: "clear";
-      profile: Profile;
-    }
-  | {
       type: "abort";
-    }
-  // | {
-  //     type: "show-message-debug-info";
-  //   }
-  | {
-      type: "message-msg";
-      msg: MessageMsg;
-      id: MessageId;
     }
   | {
       type: "take-file-snapshot";
       unresolvedFilePath: UnresolvedFilePath;
-      messageId: MessageId;
     }
   | {
       type: "tool-manager-msg";
@@ -130,6 +114,33 @@ export type Msg =
     }
   | {
       type: "toggle-system-prompt";
+    }
+  // View state messages
+  | {
+      type: "toggle-expand-content";
+      messageIdx: number;
+      contentIdx: number;
+    }
+  | {
+      type: "toggle-expand-update";
+      messageIdx: number;
+      filePath: string;
+    }
+  | {
+      type: "toggle-tool-details";
+      toolRequestId: ToolRequestId;
+    }
+  | {
+      type: "open-edit-file";
+      filePath: UnresolvedFilePath;
+    }
+  | {
+      type: "diff-snapshot";
+      filePath: string;
+    }
+  | {
+      type: "provider-thread-action";
+      action: ProviderThreadAction;
     };
 
 export type ThreadMsg = {
@@ -138,27 +149,56 @@ export type ThreadMsg = {
   msg: Msg;
 };
 
+/** View state for a single message, stored separately from provider thread content */
+export type MessageViewState = {
+  /** For user messages: context updates that were sent with this message */
+  contextUpdates?: FileUpdates;
+  /** Expansion state for context update entries */
+  expandedUpdates?: { [absFilePath: string]: boolean };
+  /** Expansion state for content blocks (e.g., thinking blocks) */
+  expandedContent?: { [contentIdx: number]: boolean };
+};
+
+/** View state for tools, keyed by tool request ID */
+export type ToolViewState = {
+  details: boolean;
+  stop?: { stopReason: StopReason; usage: Usage };
+};
+
+/** Edit tracking for files modified in this thread */
+export type FileEditState = {
+  requestIds: ToolRequestId[];
+  status: { status: "pending" } | { status: "error"; message: string };
+};
+
 export class Thread {
   public state: {
     title?: string | undefined;
-    lastUserMessageId: MessageId;
     profile: Profile;
-    conversation: ConversationState;
-    messages: Message[];
+    /** If the thread yielded to parent, stores the response */
+    yieldedResponse?: string | undefined;
     threadType: ThreadType;
     systemPrompt: SystemPrompt;
     pendingMessages: InputMessage[];
     showSystemPrompt: boolean;
+    /** View state per message, keyed by message index in providerThread */
+    messageViewState: { [messageIdx: number]: MessageViewState };
+    /** View state per tool, keyed by tool request ID */
+    toolViewState: { [toolRequestId: ToolRequestId]: ToolViewState };
+    /** File edit tracking, keyed by relative file path */
+    edits: { [filePath: string]: FileEditState };
+    /** Stop info for the last message (when not associated with a specific tool) */
+    lastStop?: { stopReason: StopReason; usage: Usage };
   };
 
   private myDispatch: Dispatch<Msg>;
   public toolManager: ToolManager;
-  private counter: Counter;
   public fileSnapshots: FileSnapshots;
   public contextManager: ContextManager;
   public forkNextPrompt: string | undefined;
   private commandRegistry: CommandRegistry;
   public gitignore: Gitignore;
+  public providerThread: ProviderThread;
 
   constructor(
     public id: ThreadId,
@@ -185,7 +225,6 @@ export class Thread {
         msg,
       });
 
-    this.counter = new Counter();
     this.gitignore = readGitignoreSync(this.context.cwd);
     this.toolManager = new ToolManager(
       (msg) =>
@@ -212,19 +251,79 @@ export class Thread {
     }
 
     this.state = {
-      lastUserMessageId: this.counter.last() as MessageId,
       profile: this.context.profile,
-      conversation: {
-        state: "stopped",
-        stopReason: "end_turn",
-        usage: { inputTokens: 0, outputTokens: 0 },
-      },
-      messages: [],
       threadType: threadType,
       systemPrompt: systemPrompt,
       pendingMessages: [],
       showSystemPrompt: false,
+      messageViewState: {},
+      toolViewState: {},
+      edits: {},
     };
+
+    const provider = getProvider(this.context.nvim, this.state.profile);
+    this.providerThread = provider.createThread(
+      {
+        model: this.state.profile.model,
+        systemPrompt: this.state.systemPrompt,
+        tools: this.toolManager.getToolSpecs(this.state.threadType),
+        ...(this.state.profile.thinking &&
+          (this.state.profile.provider === "anthropic" ||
+            this.state.profile.provider === "mock") && {
+            thinking: this.state.profile.thinking,
+          }),
+        ...(this.state.profile.reasoning &&
+          (this.state.profile.provider === "openai" ||
+            this.state.profile.provider === "mock") && {
+            reasoning: this.state.profile.reasoning,
+          }),
+      },
+      (action) => {
+        this.myDispatch({ type: "provider-thread-action", action });
+      },
+    );
+  }
+
+  /** Get conversation state derived from provider thread */
+  getConversationState(): ConversationState {
+    // Check for yielded state first
+    if (this.state.yieldedResponse !== undefined) {
+      return {
+        state: "yielded",
+        response: this.state.yieldedResponse,
+      };
+    }
+
+    const status = this.providerThread.getState().status;
+    switch (status.type) {
+      case "idle":
+        return {
+          state: "stopped",
+          stopReason: "end_turn",
+          usage: { inputTokens: 0, outputTokens: 0 },
+        };
+      case "streaming":
+        return {
+          state: "message-in-flight",
+          sendDate: status.startTime,
+        };
+      case "stopped":
+        return {
+          state: "stopped",
+          stopReason: status.stopReason,
+          usage: status.usage,
+        };
+      case "error":
+        return {
+          state: "error",
+          error: status.error,
+        };
+    }
+  }
+
+  /** Get messages from provider thread */
+  getProviderMessages(): ReadonlyArray<ProviderMessage> {
+    return this.providerThread?.getState().messages ?? [];
   }
 
   update(msg: RootMsg): void {
@@ -239,78 +338,17 @@ export class Thread {
         this.state.profile = msg.profile;
         break;
 
-      case "conversation-state": {
-        this.state.conversation = msg.conversation;
-
-        switch (msg.conversation.state) {
-          case "stopped": {
-            this.handleConversationStop(msg.conversation);
-            break;
-          }
-
-          case "error": {
-            if (
-              this.state.conversation.state == "stopped" &&
-              this.state.conversation.stopReason == "aborted"
-            ) {
-              break;
-            }
-            const lastAssistantMessage =
-              this.state.messages[this.state.messages.length - 1];
-            if (lastAssistantMessage?.state.role == "assistant") {
-              this.state.messages.pop();
-
-              (
-                this.state.conversation as Extract<
-                  ConversationState,
-                  { state: "error" }
-                >
-              ).lastAssistantMessage = lastAssistantMessage;
-            }
-
-            const lastUserMessage =
-              this.state.messages[this.state.messages.length - 1];
-            if (lastUserMessage?.state.role == "user") {
-              this.state.messages.pop();
-
-              setTimeout(
-                () =>
-                  this.context.dispatch({
-                    type: "sidebar-msg",
-                    msg: {
-                      type: "setup-resubmit",
-                      lastUserMessage: lastUserMessage.state.content
-                        .map((p) => (p.type == "text" ? p.text : ""))
-                        .join(""),
-                    },
-                  }),
-                1,
-              );
-            }
-            break;
-          }
-
-          case "yielded":
-          case "message-in-flight":
-            break;
-
-          default:
-            assertUnreachable(msg.conversation);
-        }
-
-        break;
-      }
-
       case "send-message": {
+        const conversation = this.getConversationState();
         // Check if any message starts with @async
         const isAsync = msg.messages.some(
           (m) => m.type === "user" && m.text.trim().startsWith("@async"),
         );
 
         if (
-          this.state.conversation.state == "message-in-flight" ||
-          (this.state.conversation.state == "stopped" &&
-            this.state.conversation.stopReason == "tool_use")
+          conversation.state == "message-in-flight" ||
+          (conversation.state == "stopped" &&
+            conversation.stopReason == "tool_use")
         ) {
           if (isAsync) {
             const processedMessages = msg.messages.map((m) => ({
@@ -321,8 +359,6 @@ export class Thread {
                   : m.text,
             }));
             this.state.pendingMessages.push(...processedMessages);
-
-            // this break should terminate the send-message case
             break;
           } else {
             this.abortInProgressOperations();
@@ -343,8 +379,6 @@ export class Thread {
         }
 
         if (msg.messages.length) {
-          // NOTE: this is a bit hacky. We want to scroll after the user message has been populated in the display
-          // buffer. the 100ms timeout is not the most precise way to do that, but it works for now
           setTimeout(() => {
             this.context.dispatch({
               type: "sidebar-msg",
@@ -357,86 +391,9 @@ export class Thread {
         break;
       }
 
-      case "stream-event": {
-        const lastMessage = this.state.messages[this.state.messages.length - 1];
-        if (lastMessage?.state.role !== "assistant") {
-          const messageId = this.counter.get() as MessageId;
-          const message = new Message(
-            {
-              id: messageId,
-              role: "assistant",
-            },
-            {
-              ...this.context,
-              threadId: this.id,
-              myDispatch: (msg) =>
-                this.myDispatch({
-                  type: "message-msg",
-                  id: messageId,
-                  msg,
-                }),
-              toolManager: this.toolManager,
-              fileSnapshots: this.fileSnapshots,
-              contextManager: this.contextManager,
-            },
-          );
-
-          this.state.messages.push(message);
-        }
-
-        const message = this.state.messages[this.state.messages.length - 1];
-        message.update({
-          type: "stream-event",
-          event: msg.event,
-        });
-
-        return;
-      }
-
-      case "clear": {
-        this.abortInProgressOperations();
-
-        this.state = {
-          lastUserMessageId: this.counter.last() as MessageId,
-          profile: msg.profile,
-          conversation: {
-            state: "stopped",
-            stopReason: "end_turn",
-            usage: { inputTokens: 0, outputTokens: 0 },
-          },
-          messages: [],
-          threadType: this.state.threadType,
-          systemPrompt: this.state.systemPrompt,
-          pendingMessages: [],
-          showSystemPrompt: false,
-        };
-        this.contextManager.reset();
-
-        // Scroll to bottom after clearing
-        setTimeout(() => {
-          this.context.dispatch({
-            type: "sidebar-msg",
-            msg: {
-              type: "scroll-to-bottom",
-            },
-          });
-        }, 100);
-
-        return undefined;
-      }
-
-      case "message-msg": {
-        const message = this.state.messages.find((m) => m.state.id == msg.id);
-        if (!message) {
-          throw new Error(`Unable to find message with id ${msg.id}`);
-        }
-        message.update(msg.msg);
-        return;
-      }
-
       case "take-file-snapshot": {
         this.fileSnapshots
-          .willEditFile(msg.unresolvedFilePath, msg.messageId)
+          .willEditFile(msg.unresolvedFilePath)
           .catch((e: Error) => {
             this.context.nvim.logger.error(
               `Failed to take file snapshot: ${e.message}`,
@@ -471,47 +428,105 @@ export class Thread {
         return;
       }
 
+      // View state messages
+      case "toggle-expand-content": {
+        const viewState = this.state.messageViewState[msg.messageIdx] || {};
+        viewState.expandedContent = viewState.expandedContent || {};
+        viewState.expandedContent[msg.contentIdx] =
+          !viewState.expandedContent[msg.contentIdx];
+        this.state.messageViewState[msg.messageIdx] = viewState;
+        return;
+      }
+
+      case "toggle-expand-update": {
+        const viewState = this.state.messageViewState[msg.messageIdx] || {};
+        viewState.expandedUpdates = viewState.expandedUpdates || {};
+        viewState.expandedUpdates[msg.filePath] =
+          !viewState.expandedUpdates[msg.filePath];
+        this.state.messageViewState[msg.messageIdx] = viewState;
+        return;
+      }
+
+      case "toggle-tool-details": {
+        const toolState = this.state.toolViewState[msg.toolRequestId] || {
+          details: false,
+        };
+        toolState.details = !toolState.details;
+        this.state.toolViewState[msg.toolRequestId] = toolState;
+        return;
+      }
+
+      case "open-edit-file": {
+        openFileInNonMagentaWindow(msg.filePath, this.context).catch(
+          (e: Error) => this.context.nvim.logger.error(e.message),
+        );
+        return;
+      }
+
+      case "diff-snapshot": {
+        displaySnapshotDiff({
+          unresolvedFilePath: msg.filePath as UnresolvedFilePath,
+          nvim: this.context.nvim,
+          cwd: this.context.cwd,
+          fileSnapshots: this.fileSnapshots,
+          getDisplayWidth: this.context.getDisplayWidth,
+        }).catch((e: Error) => this.context.nvim.logger.error(e.message));
+        return;
+      }
+
+      case "provider-thread-action": {
+        this.handleProviderThreadAction(msg.action);
+        return;
+      }
+
       default:
         assertUnreachable(msg);
     }
   }
 
   private handleConversationStop(stoppedState: StoppedConversationState) {
-    const lastMessage = this.state.messages[this.state.messages.length - 1];
-    if (lastMessage) {
-      lastMessage.update({
-        type: "stop",
-        stopReason: stoppedState.stopReason,
-        usage: stoppedState.usage,
-      });
-    }
+    const messages = this.getProviderMessages();
+    const lastMessage = messages[messages.length - 1];
 
-    if (lastMessage && lastMessage.state.role == "assistant") {
+    // Record stop info
+    if (lastMessage?.role === "assistant") {
       const lastContentBlock =
-        lastMessage.state.content[lastMessage.state.content.length - 1];
+        lastMessage.content[lastMessage.content.length - 1];
+
+      // Check if last content is a tool use - record stop info on tool
       if (
-        lastContentBlock.type == "tool_use" &&
-        lastContentBlock.request.status == "ok"
+        lastContentBlock?.type === "tool_use" &&
+        lastContentBlock.request.status === "ok"
       ) {
+        const toolRequestId = lastContentBlock.request.value.id;
+        // Directly mutate state since we're already in a dispatch context
+        const toolState = this.state.toolViewState[toolRequestId] || {
+          details: false,
+        };
+        toolState.stop = {
+          stopReason: stoppedState.stopReason,
+          usage: stoppedState.usage,
+        };
+        this.state.toolViewState[toolRequestId] = toolState;
+
+        // Check for yield_to_parent
         const request = lastContentBlock.request.value;
-        if (request.toolName == "yield_to_parent") {
+        if (request.toolName === "yield_to_parent") {
           const yieldRequest = request as Extract<
             StaticToolRequest,
             { toolName: "yield_to_parent" }
           >;
-          this.myUpdate({
-            type: "conversation-state",
-            conversation: {
-              state: "yielded",
-              response: yieldRequest.input.result,
-            },
-          });
+          this.state.yieldedResponse = yieldRequest.input.result;
           return;
         }
+      } else {
+        // Record stop info on the message itself
+        this.state.lastStop = {
+          stopReason: stoppedState.stopReason,
+          usage: stoppedState.usage,
+        };
       }
     }
-
-    this.state.conversation = stoppedState;
 
     const didAutoRespond = this.maybeAutoRespond();
     if (!didAutoRespond) {
@@ -519,45 +534,126 @@ export class Thread {
     }
   }
 
-  private abortInProgressOperations(): void {
-    if (this.state.conversation.state === "message-in-flight") {
-      this.state.conversation.request.abort();
-    }
+  private handleProviderThreadAction(action: ProviderThreadAction): void {
+    switch (action.type) {
+      case "status-changed": {
+        const status = action.status;
+        switch (status.type) {
+          case "idle":
+          case "streaming":
+            // Nothing to do - view reads from getConversationState()
+            break;
+          case "stopped":
+            this.handleConversationStop({
+              state: "stopped",
+              stopReason: status.stopReason,
+              usage: status.usage,
+            });
+            break;
+          case "error":
+            this.handleErrorState(status.error);
+            break;
+        }
+        break;
+      }
 
-    const lastMessage = this.state.messages[this.state.messages.length - 1];
-    if (lastMessage) {
-      for (const content of lastMessage.state.content) {
-        if (content.type === "tool_use") {
-          const tool = this.toolManager.getTool(content.id);
-          if (!tool.isDone()) {
-            tool.abort();
+      case "streaming-block-updated":
+        // View reads streaming block directly from provider thread
+        // No action needed here
+        break;
+
+      case "messages-updated": {
+        // Initialize tools for new tool_use content blocks
+        this.initializeNewTools();
+        break;
+      }
+    }
+  }
+
+  private handleErrorState(error: Error): void {
+    // On error, set up resubmit if we have a last user message
+    const messages = this.getProviderMessages();
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.role === "user") {
+      const textContent = lastMessage.content
+        .filter(
+          (c): c is Extract<typeof c, { type: "text" }> => c.type === "text",
+        )
+        .map((c) => c.text)
+        .join("");
+      if (textContent) {
+        setTimeout(
+          () =>
+            this.context.dispatch({
+              type: "sidebar-msg",
+              msg: {
+                type: "setup-resubmit",
+                lastUserMessage: textContent,
+              },
+            }),
+          1,
+        );
+      }
+    }
+    this.context.nvim.logger.error(error);
+  }
+
+  /** Initialize tools for any new tool_use blocks in provider thread messages */
+  private initializeNewTools(): void {
+    const messages = this.providerThread.getState().messages;
+    const lastMessage = messages[messages.length - 1];
+
+    if (lastMessage?.role === "assistant") {
+      for (const content of lastMessage.content) {
+        if (content.type === "tool_use" && content.request.status === "ok") {
+          const request = content.request.value;
+          if (!this.toolManager.hasTool(request.id)) {
+            this.toolManager.update({
+              type: "init-tool-use",
+              request,
+              threadId: this.id,
+            });
+
+            // Track edits for insert/replace tools
+            if (
+              request.toolName === "insert" ||
+              request.toolName === "replace"
+            ) {
+              const input = request.input as { filePath: string };
+              const filePath = relativePath(
+                this.context.cwd,
+                input.filePath as UnresolvedFilePath,
+              );
+
+              if (!this.state.edits[filePath]) {
+                this.state.edits[filePath] = {
+                  status: { status: "pending" },
+                  requestIds: [],
+                };
+              }
+              this.state.edits[filePath].requestIds.push(request.id);
+            }
           }
         }
       }
+    }
+  }
 
-      // Remove server_tool_use content that doesn't have corresponding results
-      if (lastMessage.state.role === "assistant") {
-        const serverToolUseIds = new Set<string>();
-        const toolResultIds = new Set<string>();
+  private abortInProgressOperations(): void {
+    // Abort provider thread if streaming
+    this.providerThread.abort();
 
-        // Collect server tool use IDs and tool result IDs
-        for (const content of lastMessage.state.content) {
-          if (content.type === "server_tool_use") {
-            serverToolUseIds.add(content.id);
-          } else if (content.type === "web_search_tool_result") {
-            toolResultIds.add(content.tool_use_id);
+    // Abort any in-progress tools
+    const messages = this.getProviderMessages();
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.role === "assistant") {
+      for (const content of lastMessage.content) {
+        if (content.type === "tool_use" && content.request.status === "ok") {
+          const tool = this.toolManager.getTool(content.request.value.id);
+          if (tool && !tool.isDone()) {
+            tool.abort();
           }
         }
-
-        // Remove server_tool_use content that has no corresponding result
-        lastMessage.state.content = lastMessage.state.content.filter(
-          (content) => {
-            if (content.type === "server_tool_use") {
-              return toolResultIds.has(content.id);
-            }
-            return true;
-          },
-        );
       }
     }
 
@@ -572,74 +668,115 @@ export class Thread {
   }
 
   maybeAutoRespond(): boolean {
+    const conversation = this.getConversationState();
     if (
-      this.state.conversation.state == "stopped" &&
-      this.state.conversation.stopReason == "tool_use"
+      conversation.state == "stopped" &&
+      conversation.stopReason == "tool_use"
     ) {
-      const lastMessage = this.state.messages[this.state.messages.length - 1];
-      if (lastMessage && lastMessage.state.role == "assistant") {
-        for (const content of lastMessage.state.content) {
-          if (content.type == "tool_use" && content.request.status == "ok") {
+      const messages = this.getProviderMessages();
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage?.role === "assistant") {
+        // Collect completed tools and check for blocking ones
+        const completedTools: Array<{
+          id: ToolRequestId;
+          result: ProviderToolResult;
+        }> = [];
+
+        for (const content of lastMessage.content) {
+          if (content.type === "tool_use" && content.request.status === "ok") {
             const request = content.request.value;
             const tool = this.toolManager.getTool(request.id);
 
-            if (tool.request.toolName == "yield_to_parent" || !tool.isDone()) {
-              // terminate early if we have a blocking tool use. This will not send a reply message
+            if (tool.request.toolName === "yield_to_parent" || !tool.isDone()) {
+              // terminate early if we have a blocking tool use
               return false;
             }
+
+            // Collect completed tool result
+            completedTools.push({
+              id: request.id,
+              result: {
+                type: "tool_result",
+                id: request.id,
+                result: tool.getToolResult().result,
+              },
+            });
           }
         }
 
-        const messages = this.state.pendingMessages;
+        // Send all tool results to the provider thread
+        const pendingMessages = this.state.pendingMessages;
         this.state.pendingMessages = [];
-        this.sendMessage(messages).catch(
+
+        // Send tool results, then continue the conversation
+        this.sendToolResultsAndContinue(completedTools, pendingMessages).catch(
           this.handleSendMessageError.bind(this),
         );
         return true;
       }
     } else if (
-      this.state.conversation.state == "stopped" &&
-      this.state.conversation.stopReason == "end_turn" &&
+      conversation.state == "stopped" &&
+      conversation.stopReason == "end_turn" &&
       this.state.pendingMessages.length
     ) {
-      const messages = this.state.pendingMessages;
+      const pendingMessages = this.state.pendingMessages;
       this.state.pendingMessages = [];
-      this.sendMessage(messages).catch(this.handleSendMessageError.bind(this));
+      this.sendMessage(pendingMessages).catch(
+        this.handleSendMessageError.bind(this),
+      );
       return true;
     }
     return false;
   }
 
-  private handleSendMessageError = (error: Error): void => {
-    if (this.state.conversation.state == "message-in-flight") {
-      this.context.nvim.logger.error(error);
-      this.myDispatch({
-        type: "conversation-state",
-        conversation: {
-          state: "error",
-          error,
-        },
-      });
+  private async sendToolResultsAndContinue(
+    toolResults: Array<{ id: ToolRequestId; result: ProviderToolResult }>,
+    pendingMessages: InputMessage[],
+  ): Promise<void> {
+    // Send all tool results to the provider thread (without triggering response yet)
+    for (let i = 0; i < toolResults.length; i++) {
+      const { id, result } = toolResults[i];
+      const isLast = i === toolResults.length - 1;
+
+      if (isLast && pendingMessages.length === 0) {
+        // Last tool result with no pending messages - trigger response
+        this.providerThread.toolResult(id, result, true);
+      } else {
+        // More results or pending messages to come
+        this.providerThread.toolResult(id, result, false);
+      }
     }
+
+    // If there are pending messages, send them after tool results
+    if (pendingMessages.length > 0) {
+      await this.sendMessage(pendingMessages);
+    }
+  }
+
+  private handleSendMessageError = (error: Error): void => {
+    // Log the error - the provider thread will emit the error state
+    this.context.nvim.logger.error(error);
   };
 
   private playChimeIfNeeded(): void {
     // Play chime when we need the user to do something:
     // 1. Agent stopped with end_turn (user needs to respond)
     // 2. We're blocked on a tool use that requires user action
-    if (this.state.conversation.state != "stopped") {
+    const conversation = this.getConversationState();
+    if (conversation.state != "stopped") {
       return;
     }
-    const stopReason = this.state.conversation.stopReason;
+    const stopReason = conversation.stopReason;
     if (stopReason === "end_turn") {
       this.playChimeSound();
       return;
     }
 
     if (stopReason === "tool_use") {
-      const lastMessage = this.state.messages[this.state.messages.length - 1];
-      if (lastMessage && lastMessage.state.role === "assistant") {
-        for (const content of lastMessage.state.content) {
+      const messages = this.getProviderMessages();
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage?.role === "assistant") {
+        for (const content of lastMessage.content) {
           if (content.type === "tool_use" && content.request.status === "ok") {
             const request = content.request.value;
             const tool = this.toolManager.getTool(request.id);
@@ -694,15 +831,16 @@ export class Thread {
     }
   }
 
-  private async prepareUserMessage(
-    messages?: InputMessage[],
-  ): Promise<{ messageId: MessageId; addedMessage: boolean }> {
-    const messageId = this.counter.get() as MessageId;
-
-    // Process messages first to handle @file commands
+  /** Prepare user message content for sending to provider thread */
+  private async prepareUserContent(inputMessages?: InputMessage[]): Promise<{
+    content: ProviderMessageContent[];
+    contextUpdates: FileUpdates | undefined;
+    hasContent: boolean;
+  }> {
+    // Process messages to handle @file commands
     const messageContent: ProviderMessageContent[] = [];
 
-    for (const m of messages || []) {
+    for (const m of inputMessages || []) {
       if (m.type === "user") {
         const { processedText, additionalContent } =
           await this.commandRegistry.processMessage(m.text, {
@@ -722,9 +860,7 @@ export class Thread {
 
         // Check for @fork command in user messages
         if (m.text.includes("@fork")) {
-          // Extract the text after @fork and remove @fork from the original text
           const forkText = m.text.replace(/@fork\s*/g, "").trim();
-          // Replace the text with the special fork instruction
           messageContent[messageContent.length - 1 - additionalContent.length] =
             {
               type: "text",
@@ -753,163 +889,91 @@ You must use the fork_thread tool immediately, with only the information you alr
       }
     }
 
-    // Now get context updates after all @file commands have been processed
+    // Get context updates after all @file commands have been processed
     const contextUpdates = await this.contextManager.getContextUpdate();
 
-    // Add system reminder for user-submitted messages (not auto-respond messages)
-    if (messages?.length) {
+    // Add system reminder for user-submitted messages
+    if (inputMessages?.length) {
       messageContent.push({
         type: "system_reminder",
         text: getSubsequentReminder(this.state.threadType),
       });
     }
 
-    if (messages?.length || Object.keys(contextUpdates).length) {
-      const message = new Message(
-        {
-          id: messageId,
-          role: "user",
-          content: messageContent,
-          contextUpdates: Object.keys(contextUpdates).length
-            ? contextUpdates
-            : undefined,
-        },
-        {
-          dispatch: this.context.dispatch,
-          threadId: this.id,
-          myDispatch: (msg) =>
-            this.myDispatch({
-              type: "message-msg",
-              id: messageId,
-              msg,
-            }),
-          nvim: this.context.nvim,
-          cwd: this.context.cwd,
-          toolManager: this.toolManager,
-          fileSnapshots: this.fileSnapshots,
-          options: this.context.options,
-          contextManager: this.contextManager,
-          getDisplayWidth: this.context.getDisplayWidth,
-        },
-      );
+    const hasContent =
+      (inputMessages?.length ?? 0) > 0 ||
+      Object.keys(contextUpdates).length > 0;
 
-      this.state.messages.push(message);
-      this.state.lastUserMessageId = message.state.id;
-      return { messageId, addedMessage: true };
-    }
-
-    return { messageId, addedMessage: false };
+    return {
+      content: messageContent,
+      contextUpdates: Object.keys(contextUpdates).length
+        ? contextUpdates
+        : undefined,
+      hasContent,
+    };
   }
 
   async sendMessage(inputMessages?: InputMessage[]): Promise<void> {
-    await this.prepareUserMessage(inputMessages);
-    const messages = this.getMessages();
+    // Prepare user content
+    const { content, contextUpdates, hasContent } =
+      await this.prepareUserContent(inputMessages);
 
-    const provider = getProvider(this.context.nvim, this.state.profile);
-    const request = provider.sendMessage({
-      model: this.state.profile.model,
-      messages,
-      onStreamEvent: (event) => {
-        if (!request.aborted) {
-          this.myDispatch({
-            type: "stream-event",
-            event,
-          });
+    if (!hasContent) {
+      // No content to send - this shouldn't normally happen
+      return;
+    }
+
+    // Start a new turn for file snapshots - all edits after this user message
+    // will be grouped together
+    this.fileSnapshots.startNewTurn();
+
+    // Clear edits from previous turn
+    this.state.edits = {};
+
+    // Store context updates in view state for the new user message
+    const currentMessageCount = this.getProviderMessages().length;
+    if (contextUpdates) {
+      this.state.messageViewState[currentMessageCount] = {
+        contextUpdates,
+      };
+    }
+
+    // Build content to send to provider thread
+    // Include context as text content, then user content
+    const contentToSend: ProviderThreadInput[] = [];
+
+    // Add context updates as text
+    if (contextUpdates) {
+      const contextContent =
+        this.contextManager.contextUpdatesToContent(contextUpdates);
+      for (const c of contextContent) {
+        if (c.type === "text") {
+          contentToSend.push({ type: "text", text: c.text });
         }
-      },
-      tools: this.toolManager.getToolSpecs(this.state.threadType),
-      systemPrompt: this.state.systemPrompt,
-      ...(this.state.profile.thinking &&
-        (this.state.profile.provider === "anthropic" ||
-          this.state.profile.provider == "mock") && {
-          thinking: this.state.profile.thinking,
-        }),
-      ...(this.state.profile.reasoning &&
-        (this.state.profile.provider === "openai" ||
-          this.state.profile.provider === "mock") && {
-          reasoning: this.state.profile.reasoning,
-        }),
-    });
+      }
+    }
 
-    this.myDispatch({
-      type: "conversation-state",
-      conversation: {
-        state: "message-in-flight",
-        sendDate: new Date(),
-        request,
-      },
-    });
+    // Add user content (filter to input types only)
+    for (const c of content) {
+      if (c.type === "text") {
+        contentToSend.push({ type: "text", text: c.text });
+      } else if (c.type === "image") {
+        contentToSend.push(c);
+      } else if (c.type === "document") {
+        contentToSend.push(c);
+      } else if (c.type === "system_reminder") {
+        // Convert system_reminder to text for the provider
+        contentToSend.push({ type: "text", text: c.text });
+      }
+    }
 
-    const res = await request.promise;
-    this.myDispatch({
-      type: "conversation-state",
-      conversation: {
-        state: "stopped",
-        stopReason: res?.stopReason || "end_turn",
-        usage: res?.usage || { inputTokens: 0, outputTokens: 0 },
-      },
-    });
+    // Send to provider thread
+    this.providerThread.appendUserMessage(contentToSend, true);
   }
 
+  /** Get messages in provider format - delegates to provider thread */
   getMessages(): ProviderMessage[] {
-    const messages = this.state.messages.flatMap((message) => {
-      let messageContent: ProviderMessageContent[] = [];
-      const out: ProviderMessage[] = [];
-
-      function commitMessages() {
-        if (messageContent.length) {
-          out.push({
-            role: message.state.role,
-            content: messageContent,
-          });
-          messageContent = [];
-        }
-      }
-
-      /** result blocks must go into user messages
-       */
-      function pushResponseMessage(content: ProviderMessageContent) {
-        commitMessages();
-        out.push({
-          role: "user",
-          content: [content],
-        });
-      }
-
-      if (message.state.contextUpdates) {
-        const contextContent = this.contextManager.contextUpdatesToContent(
-          message.state.contextUpdates,
-        );
-        messageContent.push(...contextContent);
-      }
-
-      for (const contentBlock of message.state.content) {
-        messageContent.push(contentBlock);
-
-        if (contentBlock.type == "tool_use") {
-          if (contentBlock.request.status == "ok") {
-            const request = contentBlock.request.value;
-            const tool = this.toolManager.getTool(request.id);
-            pushResponseMessage(tool.getToolResult());
-          } else {
-            pushResponseMessage({
-              type: "tool_result",
-              id: contentBlock.id,
-              result: contentBlock.request,
-            });
-          }
-        }
-      }
-
-      commitMessages();
-
-      return out.map((m) => ({
-        message: m,
-        messageId: message.state.id,
-      }));
-    });
-
-    return messages.map((m) => m.message);
+    return [...this.getProviderMessages()];
   }
 
   async setThreadTitle(userMessage: string) {
@@ -955,22 +1019,10 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
   }
 
   getLastStopTokenCount(): number {
-    for (
-      let msgIdx = this.state.messages.length - 1;
-      msgIdx >= 0;
-      msgIdx -= 1
-    ) {
-      const message = this.state.messages[msgIdx];
-
-      if (
-        message.state.stop &&
-        // aborted requests and errors don't have usage so we should probably skip those
-        message.state.stop.usage.inputTokens +
-          message.state.stop.usage.outputTokens >
-          0
-      ) {
-        const stopInfo = message.state.stop;
-
+    // Check message-level stop info first
+    if (this.state.lastStop) {
+      const stopInfo = this.state.lastStop;
+      if (stopInfo.usage.inputTokens + stopInfo.usage.outputTokens > 0) {
         return (
           stopInfo.usage.inputTokens +
           stopInfo.usage.outputTokens +
@@ -978,26 +1030,33 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
           (stopInfo.usage.cacheMisses || 0)
         );
       }
+    }
 
-      // Find the most recent stop event by iterating content in reverse order
+    // Check tool-level stop info
+    const messages = this.getProviderMessages();
+    for (let msgIdx = messages.length - 1; msgIdx >= 0; msgIdx--) {
+      const message = messages[msgIdx];
+      if (message.role !== "assistant") continue;
+
       for (
-        let contentIdx = message.state.content.length - 1;
+        let contentIdx = message.content.length - 1;
         contentIdx >= 0;
         contentIdx--
       ) {
-        const content = message.state.content[contentIdx];
+        const content = message.content[contentIdx];
         if (content.type === "tool_use" && content.request.status === "ok") {
-          // For tool use content, check toolMeta
-          const toolMeta = message.state.toolMeta[content.request.value.id];
-          if (toolMeta?.stop) {
-            const stopInfo = toolMeta.stop;
-
-            return (
-              stopInfo.usage.inputTokens +
-              stopInfo.usage.outputTokens +
-              (stopInfo.usage.cacheHits || 0) +
-              (stopInfo.usage.cacheMisses || 0)
-            );
+          const toolViewState =
+            this.state.toolViewState[content.request.value.id];
+          if (toolViewState?.stop) {
+            const stopInfo = toolViewState.stop;
+            if (stopInfo.usage.inputTokens + stopInfo.usage.outputTokens > 0) {
+              return (
+                stopInfo.usage.inputTokens +
+                stopInfo.usage.outputTokens +
+                (stopInfo.usage.cacheHits || 0) +
+                (stopInfo.usage.cacheMisses || 0)
+              );
+            }
           }
         }
       }
@@ -1026,17 +1085,12 @@ const renderConversationState = (conversation: ConversationState): VDOMNode => {
     case "message-in-flight":
       return d`Streaming response ${getAnimationFrame(conversation.sendDate)}`;
     case "stopped":
-      return d``; // will be rendered by the last message
+      return renderStopInfo(conversation.stopReason, conversation.usage);
     case "yielded":
       return d`↗️ yielded to parent: ${conversation.response}`;
     case "error":
       return d`Error ${conversation.error.message}${
         conversation.error.stack ? "\n" + conversation.error.stack : ""
-      }${
-        conversation.lastAssistantMessage
-          ? "\n\nLast assistant message:\n" +
-            conversation.lastAssistantMessage.toString()
-          : ""
       }`;
     default:
       assertUnreachable(conversation);
@@ -1109,10 +1163,13 @@ export const view: View<{
     dispatch,
   );
 
+  const messages = thread.getProviderMessages();
+  const conversation = thread.getConversationState();
+
   if (
-    thread.state.messages.length == 0 &&
-    thread.state.conversation.state == "stopped" &&
-    thread.state.conversation.stopReason == "end_turn"
+    messages.length === 0 &&
+    conversation.state === "stopped" &&
+    conversation.stopReason === "end_turn"
   ) {
     return d`\
 ${titleView}
@@ -1125,12 +1182,10 @@ magenta is for agentic flow
 ${thread.context.contextManager.view()}`;
   }
 
-  const conversationStateView = renderConversationState(
-    thread.state.conversation,
-  );
+  const conversationStateView = renderConversationState(conversation);
 
   const contextManagerView = shouldShowContextManager(
-    thread.state.conversation,
+    conversation,
     thread.context.contextManager,
   )
     ? d`\n${thread.context.contextManager.view()}`
@@ -1141,15 +1196,295 @@ ${thread.context.contextManager.view()}`;
       ? d`\n✉️  ${thread.state.pendingMessages.length.toString()} pending message${thread.state.pendingMessages.length === 1 ? "" : "s"}`
       : d``;
 
+  // Render edit summary
+  const editSummaryView = renderEditSummary(thread, dispatch);
+
+  // Render messages from provider thread
+  const messagesView = messages.map((message, messageIdx) => {
+    const roleHeader = withExtmark(d`# ${message.role}:`, {
+      hl_group: "@markup.heading.1.markdown",
+    });
+
+    // Get view state for this message
+    const viewState = thread.state.messageViewState[messageIdx];
+
+    // Render context updates for user messages
+    const contextUpdateView = viewState?.contextUpdates
+      ? thread.contextManager.renderContextUpdate(viewState.contextUpdates)
+      : d``;
+
+    // Render content blocks
+    const contentView = message.content.map((content, contentIdx) => {
+      return renderMessageContent(
+        content,
+        messageIdx,
+        contentIdx,
+        thread,
+        dispatch,
+      );
+    });
+
+    // Render streaming block if this is the last message and we're streaming
+    const streamingBlockView =
+      messageIdx === messages.length - 1 &&
+      conversation.state === "message-in-flight"
+        ? renderStreamingBlock(thread)
+        : d``;
+
+    return d`\
+${roleHeader}
+${contextUpdateView}${contentView}${streamingBlockView}
+`;
+  });
+
   return d`\
 ${titleView}
 ${systemPromptView}
 
-${thread.state.messages.map((m) => d`${m.view()}\n`)}\
+${messagesView}\
+${editSummaryView}\
 ${contextManagerView}\
 ${pendingMessagesView}\
 ${conversationStateView}`;
 };
+
+/** Render the edit summary for files modified in the current assistant turn */
+function renderEditSummary(thread: Thread, dispatch: Dispatch<Msg>): VDOMNode {
+  const edits = thread.state.edits;
+  const filePaths = Object.keys(edits);
+
+  if (filePaths.length === 0) {
+    return d``;
+  }
+
+  const editLines = filePaths.map((filePath) => {
+    const editState = edits[filePath];
+    const editCount = editState.requestIds.length;
+
+    return withBindings(
+      d`  \`${filePath}\` (${editCount.toString()} edits). [± diff snapshot]`,
+      {
+        "<CR>": () =>
+          dispatch({
+            type: "diff-snapshot",
+            filePath,
+          }),
+      },
+    );
+  });
+
+  return d`\nEdits:\n${editLines}\n`;
+}
+
+/** Render a single content block from a message */
+function renderMessageContent(
+  content: ProviderMessageContent,
+  messageIdx: number,
+  contentIdx: number,
+  thread: Thread,
+  dispatch: Dispatch<Msg>,
+): VDOMNode {
+  switch (content.type) {
+    case "text":
+      return d`${content.text}\n`;
+
+    case "thinking": {
+      const viewState = thread.state.messageViewState[messageIdx];
+      const isExpanded = viewState?.expandedContent?.[contentIdx] || false;
+
+      if (isExpanded) {
+        return withBindings(
+          withExtmark(d`💭 [Thinking]\n${content.thinking}`, {
+            hl_group: "@comment",
+          }),
+          {
+            "<CR>": () => {
+              dispatch({
+                type: "toggle-expand-content",
+                messageIdx,
+                contentIdx,
+              });
+            },
+          },
+        );
+      } else {
+        return withBindings(
+          withExtmark(d`💭 [Thinking]`, { hl_group: "@comment" }),
+          {
+            "<CR>": () =>
+              dispatch({
+                type: "toggle-expand-content",
+                messageIdx,
+                contentIdx,
+              }),
+          },
+        );
+      }
+    }
+
+    case "redacted_thinking":
+      return withExtmark(d`💭 [Redacted Thinking]\n`, { hl_group: "@comment" });
+
+    case "system_reminder": {
+      const viewState = thread.state.messageViewState[messageIdx];
+      const isExpanded = viewState?.expandedContent?.[contentIdx] || false;
+
+      if (isExpanded) {
+        return withBindings(
+          withExtmark(d`📋 [System Reminder]\n${content.text}`, {
+            hl_group: "@comment",
+          }),
+          {
+            "<CR>": () => {
+              dispatch({
+                type: "toggle-expand-content",
+                messageIdx,
+                contentIdx,
+              });
+            },
+          },
+        );
+      } else {
+        return withBindings(
+          withExtmark(d`📋 [System Reminder]`, { hl_group: "@comment" }),
+          {
+            "<CR>": () =>
+              dispatch({
+                type: "toggle-expand-content",
+                messageIdx,
+                contentIdx,
+              }),
+          },
+        );
+      }
+    }
+
+    case "tool_use": {
+      if (content.request.status === "error") {
+        return d`Malformed request: ${content.request.error}\n`;
+      }
+
+      const request = content.request.value;
+      const tool = thread.toolManager.getTool(request.id);
+      if (!tool) {
+        return d`⚠️ tool ${request.id} not found\n`;
+      }
+
+      const toolViewState = thread.state.toolViewState[request.id];
+      const showDetails = toolViewState?.details || false;
+
+      return withBindings(
+        d`${tool.renderSummary()}${
+          showDetails
+            ? d`\n${tool.toolName}: ${tool.renderDetail ? tool.renderDetail() : JSON.stringify(tool.request.input, null, 2)}${
+                toolViewState?.stop
+                  ? d`\n${renderStopInfo(toolViewState.stop.stopReason, toolViewState.stop.usage)}`
+                  : ""
+              }\n${tool.isDone() ? renderToolResult(tool) : ""}`
+            : tool.renderPreview
+              ? d`\n${tool.renderPreview()}`
+              : ""
+        }\n`,
+        {
+          "<CR>": () =>
+            dispatch({
+              type: "toggle-tool-details",
+              toolRequestId: request.id,
+            }),
+        },
+      );
+    }
+
+    case "tool_result":
+      // Tool results are rendered with their corresponding tool_use
+      return d``;
+
+    case "image":
+      return d`[Image]\n`;
+
+    case "document":
+      return d`[Document${content.title ? `: ${content.title}` : ""}]\n`;
+
+    case "server_tool_use":
+      return d`🔍 Searching ${withExtmark(d`${content.input.query}`, { hl_group: "@string" })}...\n`;
+
+    case "web_search_tool_result":
+      if (
+        "type" in content.content &&
+        content.content.type === "web_search_tool_result_error"
+      ) {
+        return d`🌐 Search error: ${withExtmark(d`${content.content.error_code}`, { hl_group: "ErrorMsg" })}\n`;
+      }
+      // content.content is an array of web search results
+      if (Array.isArray(content.content)) {
+        const results = content.content
+          .filter(
+            (
+              r,
+            ): r is Extract<
+              (typeof content.content)[number],
+              { type: "web_search_result" }
+            > => r.type === "web_search_result",
+          )
+          .map(
+            (r) =>
+              d`  [${r.title}](${r.url})${r.page_age ? ` (${r.page_age})` : ""}`,
+          );
+        return d`🌐 Search results\n${results}\n`;
+      }
+      return d`🌐 Search results\n`;
+
+    default:
+      return d`[Unknown content type]\n`;
+  }
+}
+
+function renderToolResult(tool: ReturnType<ToolManager["getTool"]>): VDOMNode {
+  if (!tool.isDone()) {
+    return d``;
+  }
+  const result = tool.getToolResult();
+  if (result.result.status === "error") {
+    return d`error: ${result.result.error}`;
+  }
+  return d`result: ${result.result.value.map((v) => (v.type === "text" ? v.text : `[${v.type}]`)).join("\n")}`;
+}
+
+function renderStopInfo(stopReason: StopReason, usage: Usage): VDOMNode {
+  if (stopReason === "aborted") {
+    return d`[ABORTED]`;
+  }
+  return d`Stopped (${stopReason}) [input: ${usage.inputTokens.toString()}, output: ${usage.outputTokens.toString()}${
+    usage.cacheHits !== undefined
+      ? d`, cache hits: ${usage.cacheHits.toString()}`
+      : ""
+  }${
+    usage.cacheMisses !== undefined
+      ? d`, cache misses: ${usage.cacheMisses.toString()}`
+      : ""
+  }]`;
+}
+
+function renderStreamingBlock(thread: Thread): VDOMNode {
+  const state = thread.providerThread.getState();
+  const block = state.streamingBlock;
+  if (!block) return d``;
+
+  switch (block.type) {
+    case "text":
+      return d`${block.text}`;
+    case "thinking": {
+      const lastLine = block.thinking.slice(
+        block.thinking.lastIndexOf("\n") + 1,
+      );
+      return withExtmark(d`💭 [Thinking] ${lastLine}`, {
+        hl_group: "@comment",
+      });
+    }
+    case "tool_use":
+      return d`🔧 ${block.name}...`;
+  }
+}
 
 export const LOGO = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "logo.txt"),

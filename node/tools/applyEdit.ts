@@ -7,8 +7,7 @@ import fs from "node:fs";
 import { getBufferIfOpen } from "../utils/buffers.ts";
 import type { Result } from "../utils/result.ts";
 import type { RootMsg } from "../root-msg.ts";
-import type { MessageId } from "../chat/message.ts";
-import type { ThreadId } from "../chat/types";
+import type { ThreadId } from "../chat/types.ts";
 import {
   relativePath,
   resolveFilePath,
@@ -316,7 +315,6 @@ async function handleFileEdit(
 export async function applyEdit(
   request: EditRequest,
   threadId: ThreadId,
-  messageId: MessageId,
   context: EditContext,
 ): Promise<void> {
   const { filePath } = request.input;
@@ -328,7 +326,6 @@ export async function applyEdit(
     msg: {
       type: "take-file-snapshot",
       unresolvedFilePath: filePath,
-      messageId,
     },
   });
 

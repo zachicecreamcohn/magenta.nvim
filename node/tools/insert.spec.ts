@@ -126,7 +126,7 @@ function existingFunction() {
     await driver.inputMagentaText("Add new code to the function");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
 
     // Create the actual tool input that would be used
     const toolInput = {
@@ -238,7 +238,7 @@ it("insert requires approval for gitignored file", async () => {
       );
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "tool_use",
         text: "ok, here goes",
@@ -271,7 +271,7 @@ it("insert requires approval for file outside cwd", async () => {
     await driver.inputMagentaText("Insert content in file /tmp/outside.txt");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
@@ -310,7 +310,7 @@ it("insert requires approval for hidden file", async () => {
     await driver.inputMagentaText("Insert content in file .hidden-insert");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
@@ -365,7 +365,7 @@ it("insert requires approval for skills directory file", async () => {
       );
       await driver.send();
 
-      const request = await driver.mockAnthropic.awaitPendingRequest();
+      const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
         stopReason: "tool_use",
         text: "ok, here goes",
@@ -404,7 +404,7 @@ it("insert auto-approves regular files in cwd", async () => {
     await driver.inputMagentaText("Insert content in regular-insert-file.txt");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
@@ -443,7 +443,7 @@ it("insert approval dialog allows user to approve", async () => {
     await driver.inputMagentaText("Insert content in .secret-insert");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
@@ -497,7 +497,7 @@ it("insert approval dialog allows user to reject", async () => {
     await driver.inputMagentaText("Insert content in .secret-insert2");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingRequest();
+    const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
       stopReason: "tool_use",
       text: "ok, here goes",
