@@ -38,12 +38,22 @@ type AnthropicStreamingBlock =
       content: Anthropic.WebSearchToolResultBlockContent;
     };
 
+import type { StopReason, Usage } from "./provider-types.ts";
+
+type MessageStopInfo = {
+  stopReason: StopReason;
+  usage: Usage;
+};
+
 export class AnthropicProviderThread implements ProviderThread {
   private messages: Anthropic.MessageParam[] = [];
   private currentRequest: ReturnType<Anthropic.Messages["stream"]> | undefined;
   private params: Omit<Anthropic.Messages.MessageStreamParams, "messages">;
   private currentAnthropicBlock: AnthropicStreamingBlock | undefined;
   private status: ProviderThreadStatus = { type: "idle" };
+  private latestUsage: Usage | undefined;
+  /** Stop info for each assistant message, keyed by message index */
+  private messageStopInfo: Map<number, MessageStopInfo> = new Map();
 
   constructor(
     private options: ProviderThreadOptions,
@@ -59,6 +69,7 @@ export class AnthropicProviderThread implements ProviderThread {
       status: this.status,
       messages: this.convertToProviderMessages(),
       streamingBlock: this.getProviderStreamingBlock(),
+      latestUsage: this.latestUsage,
     };
   }
 
@@ -347,7 +358,6 @@ export class AnthropicProviderThread implements ProviderThread {
     this.currentRequest
       .finalMessage()
       .then((response) => {
-        console.log(`finished request`);
         this.currentRequest = undefined;
 
         // Create assistant message if it doesn't exist yet (e.g., empty response)
@@ -370,12 +380,7 @@ export class AnthropicProviderThread implements ProviderThread {
         }
         this.dispatch({ type: "messages-updated" });
 
-        const usage: {
-          inputTokens: number;
-          outputTokens: number;
-          cacheHits?: number;
-          cacheMisses?: number;
-        } = {
+        const usage: Usage = {
           inputTokens: response.usage.input_tokens,
           outputTokens: response.usage.output_tokens,
         };
@@ -386,9 +391,15 @@ export class AnthropicProviderThread implements ProviderThread {
           usage.cacheMisses = response.usage.cache_creation_input_tokens;
         }
 
+        // Track latest usage and message stop info
+        this.latestUsage = usage;
+        const stopReason: StopReason = response.stop_reason || "end_turn";
+        const messageIndex = this.messages.indexOf(assistantMessage);
+        this.messageStopInfo.set(messageIndex, { stopReason, usage });
+
         this.status = {
           type: "stopped",
-          stopReason: response.stop_reason || "end_turn",
+          stopReason,
           usage,
         };
         this.dispatch({ type: "status-changed", status: this.status });
@@ -655,19 +666,46 @@ export class AnthropicProviderThread implements ProviderThread {
   }
 
   private convertToProviderMessages(): ProviderMessage[] {
-    return this.messages.map((msg): ProviderMessage => {
-      return {
+    return this.messages.map((msg, msgIndex): ProviderMessage => {
+      const stopInfo = this.messageStopInfo.get(msgIndex);
+      const content =
+        typeof msg.content == "string"
+          ? [{ type: "text" as const, text: msg.content }]
+          : msg.content.map((block, blockIndex) =>
+              this.convertBlockToProvider(
+                block,
+                msgIndex,
+                blockIndex,
+                stopInfo,
+              ),
+            );
+
+      const result: ProviderMessage = {
         role: msg.role,
-        content:
-          typeof msg.content == "string"
-            ? [{ type: "text", text: msg.content }]
-            : msg.content.map((block) => this.convertBlockToProvider(block)),
+        content,
       };
+
+      // Attach stop info to message if not ending with tool_use
+      if (stopInfo && msg.role === "assistant") {
+        const lastBlock =
+          typeof msg.content === "string"
+            ? null
+            : msg.content[msg.content.length - 1];
+        if (!lastBlock || lastBlock.type !== "tool_use") {
+          result.stopReason = stopInfo.stopReason;
+          result.usage = stopInfo.usage;
+        }
+      }
+
+      return result;
     });
   }
 
   private convertBlockToProvider(
     block: Anthropic.Messages.ContentBlockParam,
+    msgIndex: number,
+    blockIndex: number,
+    stopInfo: MessageStopInfo | undefined,
   ): ProviderMessage["content"][number] {
     switch (block.type) {
       case "text":

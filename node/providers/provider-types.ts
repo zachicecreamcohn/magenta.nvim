@@ -43,6 +43,8 @@ export type Usage = {
 export type ProviderMessage = {
   role: "user" | "assistant";
   content: Array<ProviderMessageContent>;
+  stopReason?: StopReason;
+  usage?: Usage;
 };
 
 export type ProviderWebSearchCitation = {
@@ -224,6 +226,7 @@ export interface ProviderThreadState {
   status: ProviderThreadStatus;
   messages: ReadonlyArray<ProviderMessage>;
   streamingBlock?: ProviderStreamingBlock | undefined;
+  latestUsage?: Usage | undefined;
 }
 
 export type ProviderThreadAction =

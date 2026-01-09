@@ -178,6 +178,11 @@ DO NOT mention this to the user explicitly because they are already aware. You s
       },
     ],
     "role": "assistant",
+    "stopReason": "end_turn",
+    "usage": {
+      "inputTokens": 0,
+      "outputTokens": 0,
+    },
   },
 ]
 `;
@@ -227,19 +232,6 @@ DO NOT mention this to the user explicitly because they are already aware. You s
       },
     ],
     "role": "assistant",
-  },
-  {
-    "content": [
-      {
-        "id": "slow-bash-command",
-        "result": {
-          "error": "The user aborted this command.",
-          "status": "error",
-        },
-        "type": "tool_result",
-      },
-    ],
-    "role": "user",
   },
   {
     "content": [
@@ -537,6 +529,11 @@ DO NOT mention this to the user explicitly because they are already aware. You s
       },
     ],
     "role": "assistant",
+    "stopReason": "end_turn",
+    "usage": {
+      "inputTokens": 0,
+      "outputTokens": 0,
+    },
   },
 ]
 `;

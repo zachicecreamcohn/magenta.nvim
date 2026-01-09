@@ -62,7 +62,6 @@ import { readGitignoreSync, type Gitignore } from "../tools/util.ts";
 export type StoppedConversationState = {
   state: "stopped";
   stopReason: StopReason;
-  usage: Usage;
 };
 
 export type ConversationState =
@@ -162,7 +161,6 @@ export type MessageViewState = {
 /** View state for tools, keyed by tool request ID */
 export type ToolViewState = {
   details: boolean;
-  stop?: { stopReason: StopReason; usage: Usage };
 };
 
 /** Edit tracking for files modified in this thread */
@@ -187,8 +185,6 @@ export class Thread {
     toolViewState: { [toolRequestId: ToolRequestId]: ToolViewState };
     /** File edit tracking, keyed by relative file path */
     edits: { [filePath: string]: FileEditState };
-    /** Stop info for the last message (when not associated with a specific tool) */
-    lastStop?: { stopReason: StopReason; usage: Usage };
   };
 
   private myDispatch: Dispatch<Msg>;
@@ -300,7 +296,6 @@ export class Thread {
         return {
           state: "stopped",
           stopReason: "end_turn",
-          usage: { inputTokens: 0, outputTokens: 0 },
         };
       case "streaming":
         return {
@@ -311,7 +306,6 @@ export class Thread {
         return {
           state: "stopped",
           stopReason: status.stopReason,
-          usage: status.usage,
         };
       case "error":
         return {
@@ -484,56 +478,6 @@ export class Thread {
     }
   }
 
-  private handleConversationStop(stoppedState: StoppedConversationState) {
-    const messages = this.getProviderMessages();
-    const lastMessage = messages[messages.length - 1];
-
-    // Record stop info
-    if (lastMessage?.role === "assistant") {
-      const lastContentBlock =
-        lastMessage.content[lastMessage.content.length - 1];
-
-      // Check if last content is a tool use - record stop info on tool
-      if (
-        lastContentBlock?.type === "tool_use" &&
-        lastContentBlock.request.status === "ok"
-      ) {
-        const toolRequestId = lastContentBlock.request.value.id;
-        // Directly mutate state since we're already in a dispatch context
-        const toolState = this.state.toolViewState[toolRequestId] || {
-          details: false,
-        };
-        toolState.stop = {
-          stopReason: stoppedState.stopReason,
-          usage: stoppedState.usage,
-        };
-        this.state.toolViewState[toolRequestId] = toolState;
-
-        // Check for yield_to_parent
-        const request = lastContentBlock.request.value;
-        if (request.toolName === "yield_to_parent") {
-          const yieldRequest = request as Extract<
-            StaticToolRequest,
-            { toolName: "yield_to_parent" }
-          >;
-          this.state.yieldedResponse = yieldRequest.input.result;
-          return;
-        }
-      } else {
-        // Record stop info on the message itself
-        this.state.lastStop = {
-          stopReason: stoppedState.stopReason,
-          usage: stoppedState.usage,
-        };
-      }
-    }
-
-    const didAutoRespond = this.maybeAutoRespond();
-    if (!didAutoRespond) {
-      this.playChimeIfNeeded();
-    }
-  }
-
   private handleProviderThreadAction(action: ProviderThreadAction): void {
     switch (action.type) {
       case "status-changed": {
@@ -544,11 +488,35 @@ export class Thread {
             // Nothing to do - view reads from getConversationState()
             break;
           case "stopped":
-            this.handleConversationStop({
-              state: "stopped",
-              stopReason: status.stopReason,
-              usage: status.usage,
-            });
+            {
+              const messages = this.getProviderMessages();
+              const lastMessage = messages[messages.length - 1];
+
+              // Check for yield_to_parent
+              if (lastMessage?.role === "assistant") {
+                const lastContentBlock =
+                  lastMessage.content[lastMessage.content.length - 1];
+
+                if (
+                  lastContentBlock?.type === "tool_use" &&
+                  lastContentBlock.request.status === "ok"
+                ) {
+                  const request = lastContentBlock.request.value;
+                  if (request.toolName === "yield_to_parent") {
+                    const yieldRequest = request as Extract<
+                      StaticToolRequest,
+                      { toolName: "yield_to_parent" }
+                    >;
+                    this.state.yieldedResponse = yieldRequest.input.result;
+                  }
+                }
+              }
+
+              const didAutoRespond = this.maybeAutoRespond();
+              if (!didAutoRespond) {
+                this.playChimeIfNeeded();
+              }
+            }
             break;
           case "error":
             this.handleErrorState(status.error);
@@ -657,14 +625,7 @@ export class Thread {
       }
     }
 
-    this.handleConversationStop({
-      state: "stopped",
-      stopReason: "aborted",
-      usage: {
-        inputTokens: -1,
-        outputTokens: -1,
-      },
-    });
+    // no need to handle conversation stop, since ProviderThread.abort() will handle it for us.
   }
 
   maybeAutoRespond(): boolean {
@@ -1019,50 +980,16 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
   }
 
   getLastStopTokenCount(): number {
-    // Check message-level stop info first
-    if (this.state.lastStop) {
-      const stopInfo = this.state.lastStop;
-      if (stopInfo.usage.inputTokens + stopInfo.usage.outputTokens > 0) {
-        return (
-          stopInfo.usage.inputTokens +
-          stopInfo.usage.outputTokens +
-          (stopInfo.usage.cacheHits || 0) +
-          (stopInfo.usage.cacheMisses || 0)
-        );
-      }
+    const latestUsage = this.providerThread.getState().latestUsage;
+    if (!latestUsage) {
+      return 0;
     }
-
-    // Check tool-level stop info
-    const messages = this.getProviderMessages();
-    for (let msgIdx = messages.length - 1; msgIdx >= 0; msgIdx--) {
-      const message = messages[msgIdx];
-      if (message.role !== "assistant") continue;
-
-      for (
-        let contentIdx = message.content.length - 1;
-        contentIdx >= 0;
-        contentIdx--
-      ) {
-        const content = message.content[contentIdx];
-        if (content.type === "tool_use" && content.request.status === "ok") {
-          const toolViewState =
-            this.state.toolViewState[content.request.value.id];
-          if (toolViewState?.stop) {
-            const stopInfo = toolViewState.stop;
-            if (stopInfo.usage.inputTokens + stopInfo.usage.outputTokens > 0) {
-              return (
-                stopInfo.usage.inputTokens +
-                stopInfo.usage.outputTokens +
-                (stopInfo.usage.cacheHits || 0) +
-                (stopInfo.usage.cacheMisses || 0)
-              );
-            }
-          }
-        }
-      }
-    }
-
-    return 0;
+    return (
+      latestUsage.inputTokens +
+      latestUsage.outputTokens +
+      (latestUsage.cacheHits || 0) +
+      (latestUsage.cacheMisses || 0)
+    );
   }
 }
 
@@ -1085,7 +1012,7 @@ const renderConversationState = (conversation: ConversationState): VDOMNode => {
     case "message-in-flight":
       return d`Streaming response ${getAnimationFrame(conversation.sendDate)}`;
     case "stopped":
-      return renderStopInfo(conversation.stopReason, conversation.usage);
+      return renderStopReason(conversation.stopReason);
     case "yielded":
       return d`↗️ yielded to parent: ${conversation.response}`;
     case "error":
@@ -1096,6 +1023,25 @@ const renderConversationState = (conversation: ConversationState): VDOMNode => {
       assertUnreachable(conversation);
   }
 };
+
+function renderStopReason(stopReason: StopReason): VDOMNode {
+  if (stopReason === "aborted") {
+    return d`[ABORTED]`;
+  }
+  return d`Stopped (${stopReason})`;
+}
+
+function renderUsage(usage: Usage): VDOMNode {
+  return d`[input: ${usage.inputTokens.toString()}, output: ${usage.outputTokens.toString()}${
+    usage.cacheHits !== undefined
+      ? d`, cache hits: ${usage.cacheHits.toString()}`
+      : ""
+  }${
+    usage.cacheMisses !== undefined
+      ? d`, cache misses: ${usage.cacheMisses.toString()}`
+      : ""
+  }]`;
+}
 
 /**
  * Helper function to determine if context manager view should be shown
@@ -1215,12 +1161,15 @@ ${thread.context.contextManager.view()}`;
 
     // Render content blocks
     const contentView = message.content.map((content, contentIdx) => {
+      const isLastBlock = contentIdx === message.content.length - 1;
       return renderMessageContent(
         content,
         messageIdx,
         contentIdx,
         thread,
         dispatch,
+        message.usage,
+        isLastBlock,
       );
     });
 
@@ -1231,9 +1180,15 @@ ${thread.context.contextManager.view()}`;
         ? renderStreamingBlock(thread)
         : d``;
 
+    // Render usage at end of assistant messages
+    const usageView =
+      message.role === "assistant" && message.usage
+        ? d`${renderUsage(message.usage)}\n`
+        : d``;
+
     return d`\
 ${roleHeader}
-${contextUpdateView}${contentView}${streamingBlockView}
+${contextUpdateView}${contentView}${streamingBlockView}${usageView}
 `;
   });
 
@@ -1283,6 +1238,8 @@ function renderMessageContent(
   contentIdx: number,
   thread: Thread,
   dispatch: Dispatch<Msg>,
+  messageUsage: Usage | undefined,
+  isLastBlock: boolean,
 ): VDOMNode {
   switch (content.type) {
     case "text":
@@ -1373,14 +1330,16 @@ function renderMessageContent(
       const toolViewState = thread.state.toolViewState[request.id];
       const showDetails = toolViewState?.details || false;
 
+      // Show usage in details if this is the last block in the message
+      const usageInDetails =
+        showDetails && isLastBlock && messageUsage
+          ? d`\n${renderUsage(messageUsage)}`
+          : d``;
+
       return withBindings(
         d`${tool.renderSummary()}${
           showDetails
-            ? d`\n${tool.toolName}: ${tool.renderDetail ? tool.renderDetail() : JSON.stringify(tool.request.input, null, 2)}${
-                toolViewState?.stop
-                  ? d`\n${renderStopInfo(toolViewState.stop.stopReason, toolViewState.stop.usage)}`
-                  : ""
-              }\n${tool.isDone() ? renderToolResult(tool) : ""}`
+            ? d`\n${tool.toolName}: ${tool.renderDetail ? tool.renderDetail() : JSON.stringify(tool.request.input, null, 2)}\n${tool.isDone() ? renderToolResult(tool) : ""}${usageInDetails}`
             : tool.renderPreview
               ? d`\n${tool.renderPreview()}`
               : ""
@@ -1448,21 +1407,6 @@ function renderToolResult(tool: ReturnType<ToolManager["getTool"]>): VDOMNode {
     return d`error: ${result.result.error}`;
   }
   return d`result: ${result.result.value.map((v) => (v.type === "text" ? v.text : `[${v.type}]`)).join("\n")}`;
-}
-
-function renderStopInfo(stopReason: StopReason, usage: Usage): VDOMNode {
-  if (stopReason === "aborted") {
-    return d`[ABORTED]`;
-  }
-  return d`Stopped (${stopReason}) [input: ${usage.inputTokens.toString()}, output: ${usage.outputTokens.toString()}${
-    usage.cacheHits !== undefined
-      ? d`, cache hits: ${usage.cacheHits.toString()}`
-      : ""
-  }${
-    usage.cacheMisses !== undefined
-      ? d`, cache misses: ${usage.cacheMisses.toString()}`
-      : ""
-  }]`;
 }
 
 function renderStreamingBlock(thread: Thread): VDOMNode {
