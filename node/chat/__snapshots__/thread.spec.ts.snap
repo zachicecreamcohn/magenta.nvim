@@ -95,6 +95,11 @@ DO NOT mention this to the user explicitly because they are already aware. You s
       },
     ],
     "role": "assistant",
+    "stopReason": "tool_use",
+    "usage": {
+      "inputTokens": 0,
+      "outputTokens": 0,
+    },
   },
   {
     "content": [
