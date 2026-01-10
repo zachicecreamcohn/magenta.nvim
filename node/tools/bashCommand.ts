@@ -18,12 +18,15 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { MagentaOptions } from "../options.ts";
 import { withTimeout } from "../utils/async.ts";
 import type { StaticTool, ToolName } from "./types.ts";
-import { type NvimCwd } from "../utils/files.ts";
+import { type NvimCwd, MAGENTA_TEMP_DIR } from "../utils/files.ts";
 import {
   isCommandAllowedByConfig,
   type PermissionCheckResult,
 } from "./bash-parser/permissions.ts";
 import type { Gitignore } from "./util.ts";
+import type { ThreadId } from "../chat/types.ts";
+import * as fs from "fs";
+import * as path from "path";
 
 const MAX_OUTPUT_TOKENS_FOR_AGENT = 10000;
 const CHARACTERS_PER_TOKEN = 4;
@@ -48,11 +51,13 @@ export function isFdAvailable(): boolean {
 }
 
 const BASE_DESCRIPTION = `Run a command in a bash shell.
-You will get the stdout and stderr of the command, as well as the exit code.
 For example, you can run \`ls\`, \`echo 'Hello, World!'\`, or \`git status\`.
 The command will time out after 1 min.
 You should not run commands that require user input, such as \`git commit\` without \`-m\` or \`ssh\`.
 You should not run commands that do not halt, such as \`docker compose up\` without \`-d\`, \`tail -f\` or \`watch\`.
+
+Long output will be abbreviated (first 10 + last 20 lines). Full output is saved to a log file that can be read with get_file. You do not need to use head/tail/grep to limit output - just run the command directly.
+You will get the stdout and stderr of the command, as well as the exit code, so you do not need to do stream redirects like "2>&1".
 `;
 
 const RG_DESCRIPTION = `
@@ -188,6 +193,9 @@ export class BashCommandTool implements StaticTool {
   state: State;
   toolName = "bash_command" as const;
   private tickInterval: ReturnType<typeof setInterval> | undefined;
+  private logStream: fs.WriteStream | undefined;
+  private logFilePath: string | undefined;
+  private logCurrentStream: "stdout" | "stderr" | undefined;
 
   constructor(
     public request: Extract<StaticToolRequest, { toolName: "bash_command" }>,
@@ -199,6 +207,7 @@ export class BashCommandTool implements StaticTool {
       rememberedCommands: Set<string>;
       getDisplayWidth(): number;
       gitignore: Gitignore;
+      threadId: ThreadId;
     },
   ) {
     // Check permissions synchronously
@@ -218,6 +227,7 @@ export class BashCommandTool implements StaticTool {
         approved: true,
         childProcess: null,
       };
+      this.initLogFile();
       // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
       setTimeout(() => {
         this.executeCommand().catch((err: Error) =>
@@ -232,6 +242,97 @@ export class BashCommandTool implements StaticTool {
         state: "pending-user-action",
       };
     }
+  }
+
+  private initLogFile(): void {
+    const logDir = path.join(
+      MAGENTA_TEMP_DIR,
+      "threads",
+      this.context.threadId,
+      "tools",
+      this.request.id,
+    );
+    fs.mkdirSync(logDir, { recursive: true });
+    this.logFilePath = path.join(logDir, "bashCommand.log");
+    this.logStream = fs.createWriteStream(this.logFilePath, { flags: "w" });
+    this.logStream.write(`$ ${this.request.input.command}\n`);
+  }
+
+  private closeLogStream(): void {
+    if (this.logStream) {
+      this.logStream.end();
+      this.logStream = undefined;
+    }
+  }
+
+  private writeToLog(stream: "stdout" | "stderr", text: string): void {
+    if (!this.logStream) return;
+    if (this.logCurrentStream !== stream) {
+      this.logStream.write(`${stream}:\n`);
+      this.logCurrentStream = stream;
+    }
+    this.logStream.write(`${text}\n`);
+  }
+
+  private formatOutputForToolResult(
+    output: OutputLine[],
+    exitCode: number | null,
+  ): string {
+    const totalLines = output.length;
+    let linesToFormat: OutputLine[];
+    let omittedByLineCount = 0;
+
+    // First, apply line-based abbreviation
+    if (totalLines <= 30) {
+      linesToFormat = output;
+    } else {
+      const firstLines = output.slice(0, 10);
+      const lastLines = output.slice(-20);
+      omittedByLineCount = totalLines - 30;
+      linesToFormat = [...firstLines, ...lastLines];
+    }
+
+    // Then, apply token-based trimming if lines are very long
+    const trimmedLines = this.trimOutputByTokens(linesToFormat);
+    const omittedByTokens = linesToFormat.length - trimmedLines.length;
+
+    let formattedOutput = "";
+    let currentStream: "stdout" | "stderr" | null = null;
+    let lineIndex = 0;
+
+    // If we trimmed by tokens, we only have tail lines, so don't show "first N lines"
+    const showFirstLinesMarker =
+      omittedByLineCount > 0 && omittedByTokens === 0;
+
+    for (const line of trimmedLines) {
+      // Insert omission marker after the first 10 lines (only if we haven't trimmed by tokens)
+      if (showFirstLinesMarker && lineIndex === 10) {
+        formattedOutput += `\n... (${omittedByLineCount} lines omitted) ...\n\n`;
+      }
+
+      if (currentStream !== line.stream) {
+        formattedOutput += line.stream === "stdout" ? "stdout:\n" : "stderr:\n";
+        currentStream = line.stream;
+      }
+      formattedOutput += line.text + "\n";
+      lineIndex++;
+    }
+
+    // If we trimmed by tokens, add a note about it
+    if (omittedByTokens > 0) {
+      const totalOmitted = omittedByLineCount + omittedByTokens;
+      formattedOutput =
+        `... (${totalOmitted} lines omitted due to length) ...\n\n` +
+        formattedOutput;
+    }
+
+    formattedOutput += `exit code ${exitCode}\n`;
+
+    if (this.logFilePath) {
+      formattedOutput += `\nFull output (${totalLines} lines): ${this.logFilePath}`;
+    }
+
+    return formattedOutput;
   }
 
   update(msg: Msg) {
@@ -260,6 +361,7 @@ export class BashCommandTool implements StaticTool {
             approved: true,
             childProcess: null,
           };
+          this.initLogFile();
 
           // wrap in setTimeout to force a new eventloop frame to avoid dispatch-in-dispatch
           setTimeout(() => {
@@ -299,6 +401,7 @@ export class BashCommandTool implements StaticTool {
             stream: "stdout",
             text: msg.text,
           });
+          this.writeToLog("stdout", msg.text);
         }
         return;
       }
@@ -313,6 +416,7 @@ export class BashCommandTool implements StaticTool {
             stream: "stderr",
             text: msg.text,
           });
+          this.writeToLog("stderr", msg.text);
         }
         return;
       }
@@ -322,21 +426,13 @@ export class BashCommandTool implements StaticTool {
           return;
         }
 
-        // Process the output array to format with stream markers
-        // trim to last N tokens to avoid over-filling the context
-        const outputTail = this.trimOutputByTokens(this.state.output);
-        let formattedOutput = "";
-        let currentStream: "stdout" | "stderr" | null = null;
+        this.logStream?.write(`exit code ${msg.code}\n`);
+        this.closeLogStream();
 
-        for (const line of outputTail) {
-          if (currentStream !== line.stream) {
-            formattedOutput +=
-              line.stream === "stdout" ? "stdout:\n" : "stderr:\n";
-            currentStream = line.stream;
-          }
-          formattedOutput += line.text + "\n";
-        }
-        formattedOutput += "exit code " + msg.code + "\n";
+        const formattedOutput = this.formatOutputForToolResult(
+          this.state.output,
+          msg.code,
+        );
 
         this.state = {
           state: "done",
@@ -355,6 +451,7 @@ export class BashCommandTool implements StaticTool {
       }
 
       case "error": {
+        this.closeLogStream();
         this.state = {
           state: "error",
           error: msg.error,
@@ -384,6 +481,7 @@ export class BashCommandTool implements StaticTool {
         stream: "stderr",
         text: "Process terminated by user with SIGTERM",
       });
+      this.writeToLog("stderr", "Process terminated by user with SIGTERM");
     }
   }
 
@@ -484,6 +582,7 @@ export class BashCommandTool implements StaticTool {
   abort(): void {
     this.stopTickInterval();
     this.terminate();
+    this.closeLogStream();
 
     if (this.state.state == "pending-user-action") {
       this.state = {

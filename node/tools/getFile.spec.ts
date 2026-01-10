@@ -1713,3 +1713,511 @@ it("should handle file size limits appropriately", async () => {
     },
   );
 });
+
+it("large text files are truncated and skip context manager", async () => {
+  await withDriver(
+    {
+      setupFiles: async (tmpDir) => {
+        const { writeFile } = await import("node:fs/promises");
+        // Create a file with many lines (more than would fit in token limit)
+        // MAX_FILE_TOKENS = 10000, CHARACTERS_PER_TOKEN = 4, so max chars = 40000
+        // Create a file with 1000 lines of 100 chars each = 100000 chars
+        const lines = Array.from(
+          { length: 1000 },
+          (_, i) => `Line ${String(i + 1).padStart(4, "0")}: ${"x".repeat(90)}`,
+        );
+        await writeFile(`${tmpDir}/large-file.txt`, lines.join("\n"));
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      await driver.inputMagentaText(`Please read large-file.txt`);
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll read the file",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "large_file_request" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath: "large-file.txt" as UnresolvedFilePath,
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains(`👀✅ \`large-file.txt\``);
+
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+      const toolResultMessage =
+        toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+      expect(toolResultMessage.role).toBe("user");
+      const contentArray = toolResultMessage.content as ContentBlockParam[];
+      const toolResult = contentArray.find(
+        (item: ContentBlockParam) => item.type === "tool_result",
+      ) as ToolResultBlockParam;
+      expect(toolResult.is_error).toBeFalsy();
+
+      const toolResultContent = toolResult.content as ContentBlockParam[];
+      const textContent = toolResultContent.find(
+        (item: ContentBlockParam) => item.type === "text",
+      ) as TextBlockParam;
+
+      // Should have truncation header
+      expect(textContent.text).toContain("[Lines 1-");
+      expect(textContent.text).toContain("of 1000]");
+      // Should have continuation hint
+      expect(textContent.text).toContain("more lines not shown");
+      expect(textContent.text).toContain("Use startLine=");
+
+      toolResultRequest.respond({
+        stopReason: "end_turn",
+        toolRequests: [],
+        text: "I've read the truncated file.",
+      });
+
+      // File should NOT be added to context manager since it was truncated
+      const contextFiles =
+        driver.magenta.chat.getActiveThread().contextManager.files;
+      expect(Object.keys(contextFiles)).toHaveLength(0);
+    },
+  );
+});
+
+it("lines that are too long are abridged and skip context manager", async () => {
+  await withDriver(
+    {
+      setupFiles: async (tmpDir) => {
+        const { writeFile } = await import("node:fs/promises");
+        // Create a file with one very long line (> MAX_LINE_TOKENS * CHARACTERS_PER_TOKEN = 2000 chars)
+        const longLine = "x".repeat(3000);
+        const content = `Line 1: normal\nLine 2: ${longLine}\nLine 3: normal`;
+        await writeFile(`${tmpDir}/long-line-file.txt`, content);
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      await driver.inputMagentaText(`Please read long-line-file.txt`);
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll read the file",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "long_line_request" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath: "long-line-file.txt" as UnresolvedFilePath,
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains(`👀✅ \`long-line-file.txt\``);
+
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+      const toolResultMessage =
+        toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+      const contentArray = toolResultMessage.content as ContentBlockParam[];
+      const toolResult = contentArray.find(
+        (item: ContentBlockParam) => item.type === "tool_result",
+      ) as ToolResultBlockParam;
+      expect(toolResult.is_error).toBeFalsy();
+
+      const toolResultContent = toolResult.content as ContentBlockParam[];
+      const textContent = toolResultContent.find(
+        (item: ContentBlockParam) => item.type === "text",
+      ) as TextBlockParam;
+
+      // Should indicate lines were abridged
+      expect(textContent.text).toContain("(some lines abridged)");
+      // Should have the abridging marker in the content
+      expect(textContent.text).toContain("chars omitted");
+
+      toolResultRequest.respond({
+        stopReason: "end_turn",
+        toolRequests: [],
+        text: "I've read the file with abridged lines.",
+      });
+
+      // File should NOT be added to context manager since lines were abridged
+      const contextFiles =
+        driver.magenta.chat.getActiveThread().contextManager.files;
+      expect(Object.keys(contextFiles)).toHaveLength(0);
+    },
+  );
+});
+
+it("startLine and numLines parameters work and skip context manager", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    await driver.inputMagentaText(`Please read lines 2-3 of poem.txt`);
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingStream();
+    request.respond({
+      stopReason: "tool_use",
+      text: "I'll read those specific lines",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "partial_request" as ToolRequestId,
+            toolName: "get_file" as ToolName,
+            input: {
+              filePath: "poem.txt" as UnresolvedFilePath,
+              startLine: 2,
+              numLines: 2,
+            },
+          },
+        },
+      ],
+    });
+
+    // Should show the line range in the display
+    await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\` (lines 2-3)`);
+
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+    const toolResultMessage =
+      toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+    const contentArray = toolResultMessage.content as ContentBlockParam[];
+    const toolResult = contentArray.find(
+      (item: ContentBlockParam) => item.type === "tool_result",
+    ) as ToolResultBlockParam;
+    expect(toolResult.is_error).toBeFalsy();
+
+    const toolResultContent = toolResult.content as ContentBlockParam[];
+    const textContent = toolResultContent.find(
+      (item: ContentBlockParam) => item.type === "text",
+    ) as TextBlockParam;
+
+    // Should have line range header
+    expect(textContent.text).toContain("[Lines 2-3 of");
+    // Should contain line 2 content
+    expect(textContent.text).toContain("Silver shadows dance with ease");
+    // Should NOT contain line 1
+    expect(textContent.text).not.toContain("Moonlight whispers");
+
+    toolResultRequest.respond({
+      stopReason: "end_turn",
+      toolRequests: [],
+      text: "I've read the specific lines.",
+    });
+
+    // File should NOT be added to context manager since we only read partial content
+    const contextFiles =
+      driver.magenta.chat.getActiveThread().contextManager.files;
+    expect(Object.keys(contextFiles)).toHaveLength(0);
+  });
+});
+
+it("startLine parameter alone works and skips context manager", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    await driver.inputMagentaText(`Please read poem.txt from line 3`);
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingStream();
+    request.respond({
+      stopReason: "tool_use",
+      text: "I'll read from that line",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "partial_request" as ToolRequestId,
+            toolName: "get_file" as ToolName,
+            input: {
+              filePath: "poem.txt" as UnresolvedFilePath,
+              startLine: 3,
+            },
+          },
+        },
+      ],
+    });
+
+    // Should show the starting line in the display
+    await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\` (from line 3)`);
+
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+    const toolResultMessage =
+      toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+    const contentArray = toolResultMessage.content as ContentBlockParam[];
+    const toolResult = contentArray.find(
+      (item: ContentBlockParam) => item.type === "tool_result",
+    ) as ToolResultBlockParam;
+    expect(toolResult.is_error).toBeFalsy();
+
+    const toolResultContent = toolResult.content as ContentBlockParam[];
+    const textContent = toolResultContent.find(
+      (item: ContentBlockParam) => item.type === "text",
+    ) as TextBlockParam;
+
+    // Should have line range header starting at line 3
+    expect(textContent.text).toContain("[Lines 3-");
+    // Should contain lines 3 and 4
+    expect(textContent.text).toContain("Stars above like diamonds bright");
+    expect(textContent.text).toContain("Paint their stories in the night");
+    // Should NOT contain lines 1-2
+    expect(textContent.text).not.toContain("Moonlight whispers");
+    expect(textContent.text).not.toContain("Silver shadows");
+
+    toolResultRequest.respond({
+      stopReason: "end_turn",
+      toolRequests: [],
+      text: "I've read from the specified line.",
+    });
+
+    // File should NOT be added to context manager since we started from a non-zero line
+    const contextFiles =
+      driver.magenta.chat.getActiveThread().contextManager.files;
+    expect(Object.keys(contextFiles)).toHaveLength(0);
+  });
+});
+
+it("requesting line range from file already in context returns early without force", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    // Add the file to context first
+    await driver.addContextFiles("./poem.txt");
+
+    // Now try to read a specific range without force
+    await driver.inputMagentaText(`Please read lines 2-3 of poem.txt`);
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingStream();
+    request.respond({
+      stopReason: "tool_use",
+      text: "I'll read those lines",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "range_request" as ToolRequestId,
+            toolName: "get_file" as ToolName,
+            input: {
+              filePath: "poem.txt" as UnresolvedFilePath,
+              startLine: 2,
+              numLines: 2,
+            },
+          },
+        },
+      ],
+    });
+
+    // Should still show the line range (not early return)
+    await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\` (lines 2-3)`);
+
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+    const toolResultMessage =
+      toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+    const contentArray = toolResultMessage.content as ContentBlockParam[];
+    const toolResult = contentArray.find(
+      (item: ContentBlockParam) => item.type === "tool_result",
+    ) as ToolResultBlockParam;
+
+    const toolResultContent = toolResult.content as ContentBlockParam[];
+    const textContent = toolResultContent.find(
+      (item: ContentBlockParam) => item.type === "text",
+    ) as TextBlockParam;
+
+    // With line params, should return the actual content (not early return)
+    expect(textContent.text).toContain("[Lines 2-3 of");
+    expect(textContent.text).toContain("Silver shadows dance with ease");
+  });
+});
+
+it("force parameter with line range returns just those lines", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    // Add the file to context first
+    await driver.addContextFiles("./poem.txt");
+
+    // Now try to read a specific range with force
+    await driver.inputMagentaText(
+      `Please read lines 2-3 of poem.txt with force`,
+    );
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingStream();
+    request.respond({
+      stopReason: "tool_use",
+      text: "I'll read those lines with force",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "force_range_request" as ToolRequestId,
+            toolName: "get_file" as ToolName,
+            input: {
+              filePath: "poem.txt" as UnresolvedFilePath,
+              startLine: 2,
+              numLines: 2,
+              force: true,
+            },
+          },
+        },
+      ],
+    });
+
+    await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\` (lines 2-3)`);
+
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+    const toolResultMessage =
+      toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+    const contentArray = toolResultMessage.content as ContentBlockParam[];
+    const toolResult = contentArray.find(
+      (item: ContentBlockParam) => item.type === "tool_result",
+    ) as ToolResultBlockParam;
+    expect(toolResult.is_error).toBeFalsy();
+
+    const toolResultContent = toolResult.content as ContentBlockParam[];
+    const textContent = toolResultContent.find(
+      (item: ContentBlockParam) => item.type === "text",
+    ) as TextBlockParam;
+
+    // Should return actual content with line range header
+    expect(textContent.text).toContain("[Lines 2-3 of");
+    expect(textContent.text).toContain("Silver shadows dance with ease");
+    // Should NOT contain the "already in context" message
+    expect(textContent.text).not.toContain(
+      "already part of the thread context",
+    );
+  });
+});
+
+it("invalid startLine beyond file length returns error", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    await driver.inputMagentaText(`Please read poem.txt from line 100`);
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingStream();
+    request.respond({
+      stopReason: "tool_use",
+      text: "I'll try to read from that line",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "invalid_start_request" as ToolRequestId,
+            toolName: "get_file" as ToolName,
+            input: {
+              filePath: "poem.txt" as UnresolvedFilePath,
+              startLine: 100,
+            },
+          },
+        },
+      ],
+    });
+
+    await driver.assertDisplayBufferContains(`👀❌ \`poem.txt\``);
+
+    const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+    const toolResultMessage =
+      toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+    const contentArray = toolResultMessage.content as ContentBlockParam[];
+    const toolResult = contentArray[0] as ToolResultBlockParam;
+    expect(toolResult.is_error).toBe(true);
+
+    const errorContent =
+      typeof toolResult.content === "string"
+        ? toolResult.content
+        : JSON.stringify(toolResult.content);
+    expect(errorContent).toContain("startLine 100 is beyond end of file");
+  });
+});
+
+it("line ranges with long lines still get abridged", async () => {
+  await withDriver(
+    {
+      setupFiles: async (tmpDir) => {
+        const { writeFile } = await import("node:fs/promises");
+        // Create a file with a very long line in the middle
+        const longLine = "x".repeat(3000);
+        const content = `Line 1: normal\nLine 2: ${longLine}\nLine 3: normal\nLine 4: also normal`;
+        await writeFile(`${tmpDir}/long-line-range.txt`, content);
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // Request a specific range that includes the long line
+      await driver.inputMagentaText(
+        `Please read lines 2-3 of long-line-range.txt`,
+      );
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll read those lines",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "range_long_line_request" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath: "long-line-range.txt" as UnresolvedFilePath,
+                startLine: 2,
+                numLines: 2,
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains(
+        `👀✅ \`long-line-range.txt\` (lines 2-3)`,
+      );
+
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+      const toolResultMessage =
+        toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+      const contentArray = toolResultMessage.content as ContentBlockParam[];
+      const toolResult = contentArray.find(
+        (item: ContentBlockParam) => item.type === "tool_result",
+      ) as ToolResultBlockParam;
+      expect(toolResult.is_error).toBeFalsy();
+
+      const toolResultContent = toolResult.content as ContentBlockParam[];
+      const textContent = toolResultContent.find(
+        (item: ContentBlockParam) => item.type === "text",
+      ) as TextBlockParam;
+
+      // Should indicate lines were abridged
+      expect(textContent.text).toContain("(some lines abridged)");
+      // Should have the abridging marker in the content
+      expect(textContent.text).toContain("chars omitted");
+      // Should still show line 3 content
+      expect(textContent.text).toContain("Line 3: normal");
+    },
+  );
+});

@@ -6,7 +6,7 @@ import { Thread, view as threadView, type InputMessage } from "./thread";
 import type { Lsp } from "../lsp";
 import { assertUnreachable } from "../utils/assertUnreachable";
 import { d, withBindings, type VDOMNode } from "../tea/view";
-import { Counter } from "../utils/uniqueId.ts";
+import { v7 as uuidv7 } from "uuid";
 import { ContextManager } from "../context/context-manager.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import {
@@ -101,7 +101,6 @@ export type ChatMsg = {
 };
 
 export class Chat {
-  private threadCounter = new Counter();
   state: ChatState;
   public threadWrappers: { [id: ThreadId]: ThreadWrapper };
   public rememberedCommands: Set<string>;
@@ -162,7 +161,7 @@ export class Chat {
             ) {
               threadWrapper.thread.update({
                 type: "thread-msg",
-                id: Number(threadId) as ThreadId,
+                id: threadId as ThreadId,
                 msg: {
                   type: "abort",
                 },
@@ -466,7 +465,7 @@ export class Chat {
   }
 
   async createNewThread() {
-    const id = this.threadCounter.get() as ThreadId;
+    const id = uuidv7() as ThreadId;
 
     await this.createThreadWithContext({
       threadId: id,
@@ -488,7 +487,7 @@ export class Chat {
 
     // Iterate through all threads to build hierarchy
     for (const [idStr, threadWrapper] of Object.entries(this.threadWrappers)) {
-      const threadId = Number(idStr) as ThreadId;
+      const threadId = idStr as ThreadId;
       const parentId = threadWrapper.parentThreadId;
 
       if (parentId === undefined) {
@@ -629,7 +628,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     }
 
     const sourceThread = sourceThreadWrapper.thread;
-    const newThreadId = this.threadCounter.get() as ThreadId;
+    const newThreadId = uuidv7() as ThreadId;
 
     const thread = await this.createThreadWithContext({
       threadType: "root",
@@ -683,7 +682,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     }
 
     const parentThread = parentThreadWrapper.thread;
-    const subagentThreadId = this.threadCounter.get() as ThreadId;
+    const subagentThreadId = uuidv7() as ThreadId;
 
     // Create profile for subagent - use fast model if threadType is "subagent_fast"
     const subagentProfile: Profile =

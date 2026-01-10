@@ -496,6 +496,7 @@ export class ToolManager {
                 rememberedCommands: this.context.chat.rememberedCommands,
                 getDisplayWidth: this.context.getDisplayWidth,
                 gitignore: this.context.gitignore,
+                threadId: this.context.threadId,
               },
             );
 

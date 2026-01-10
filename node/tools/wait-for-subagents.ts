@@ -249,7 +249,7 @@ export const spec: ProviderToolSpec = {
       threadIds: {
         type: "array",
         items: {
-          type: "number",
+          type: "string",
         },
         description: "Array of thread IDs to wait for completion",
         minItems: 1,
@@ -280,10 +280,10 @@ export function validateInput(input: {
     };
   }
 
-  if (!input.threadIds.every((item) => typeof item === "number")) {
+  if (!input.threadIds.every((item) => typeof item === "string")) {
     return {
       status: "error",
-      error: `expected all items in req.input.threadIds to be numbers but they were ${JSON.stringify(input.threadIds)}`,
+      error: `expected all items in req.input.threadIds to be strings but they were ${JSON.stringify(input.threadIds)}`,
     };
   }
 

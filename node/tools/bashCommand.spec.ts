@@ -535,7 +535,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
     );
   });
 
-  it("trims output to token limit for agent", async () => {
+  it("trims output to token limit for agent when lines are very long", async () => {
     await withDriver(
       {
         options: {
@@ -551,11 +551,11 @@ describe("node/tools/bashCommand.spec.ts", () => {
       async (driver) => {
         await driver.showSidebar();
 
-        // Generate output that will exceed the 10,000 token limit (40,000 characters)
-        // Use 'yes' command with a long string to create repetitive output
-        const longString = "A".repeat(100); // 100 characters per line
+        // Generate output with very long lines that will exceed the token limit
+        // Each line is 5000 chars, so 30 lines would be 150,000 chars (exceeds 40,000 limit)
+        const longString = "A".repeat(5000);
         await driver.inputMagentaText(
-          `Run this command: yes "${longString}" | head -500`,
+          `Run this command: yes "${longString}" | head -50`,
         );
         await driver.send();
 
@@ -572,7 +572,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
                 id: toolRequestId,
                 toolName: "bash_command" as ToolName,
                 input: {
-                  command: `yes "${longString}" | head -500`,
+                  command: `yes "${longString}" | head -50`,
                 },
               },
             },
@@ -586,53 +586,23 @@ describe("node/tools/bashCommand.spec.ts", () => {
         const toolResultMessage =
           toolResultRequest.messages[toolResultRequest.messages.length - 1];
 
-        if (
-          toolResultMessage.role === "user" &&
-          Array.isArray(toolResultMessage.content)
-        ) {
-          const toolResult = toolResultMessage.content[0];
-          if (toolResult.type === "tool_result") {
-            expect(toolResult.is_error).toBeFalsy();
-            const content = toolResult.content;
-            const resultText =
-              typeof content === "string"
-                ? content
-                : Array.isArray(content)
-                  ? content
-                      .filter(
-                        (item): item is { type: "text"; text: string } =>
-                          item.type === "text",
-                      )
-                      .map((item) => item.text)
-                      .join("")
-                  : "";
+        const content = extractToolResultText(toolResultMessage);
 
-            // Verify the output is limited by token count (40,000 characters max)
-            // Account for "stdout:\n" and "exit code 0\n" overhead
-            expect(resultText.length).toBeLessThan(40100); // Small buffer for overhead
+        // Verify the output is limited by token count (40,000 characters max)
+        expect(content.length).toBeLessThan(41000);
 
-            // Should contain the exit code at the end
-            expect(resultText).toContain("exit code 0");
+        // Should contain exit code
+        expect(content).toContain("exit code 0");
 
-            // Should contain the repeated string pattern
-            expect(resultText).toContain(longString);
+        // Should contain the repeated string pattern
+        expect(content).toContain(longString);
 
-            // Should not contain the very beginning of the output since we're trimming from the start
-            // The output starts with many repetitions, so early lines should be trimmed
-            const lines = resultText
-              .split("\n")
-              .filter((line: string) => line.trim() !== "");
-            const contentLines = lines.filter(
-              (line: string) =>
-                !line.startsWith("stdout:") && !line.startsWith("exit code"),
-            );
+        // Should contain omission marker due to token trimming
+        expect(content).toContain("lines omitted");
 
-            // With 100 chars per line + newline, we should have roughly 40,000 / 101 ≈ 396 lines max
-            // But the actual limit depends on the overhead from "stdout:" markers
-            expect(contentLines.length).toBeLessThan(500); // Should be less than the full 500 lines
-            expect(contentLines.length).toBeGreaterThan(300); // Should have a substantial portion
-          }
-        }
+        // Should have log file reference (exact line count may vary slightly)
+        expect(content).toMatch(/Full output \(\d+ lines\):/);
+        expect(content).toContain("bashCommand.log");
       },
     );
   });
@@ -1204,6 +1174,223 @@ describe("commandConfig integration tests", () => {
           "⚡✅ `git status --porcelain`",
         );
         await driver.assertDisplayBufferDoesNotContain("[ YES ]");
+      },
+    );
+  });
+});
+
+function extractToolResultText(toolResultMessage: {
+  role: string;
+  content: unknown;
+}): string {
+  const content = toolResultMessage.content as {
+    type: string;
+    content?: string | { type: string; text?: string }[];
+  }[];
+  const toolResult = content[0];
+  const toolContent = toolResult.content;
+  if (typeof toolContent === "string") {
+    return toolContent;
+  }
+  if (Array.isArray(toolContent)) {
+    return toolContent
+      .filter(
+        (item): item is { type: "text"; text: string } => item.type === "text",
+      )
+      .map((item) => item.text)
+      .join("");
+  }
+  return "";
+}
+
+describe("bash command output logging", () => {
+  it("creates log file with command and output", async () => {
+    await withDriver(
+      {
+        options: {
+          commandConfig: {
+            commands: [["echo", { type: "restAny" }]],
+            pipeCommands: [],
+          },
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText(`Run: echo "line1" && echo "line2"`);
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingStream();
+        const toolRequestId = "test-log-file" as ToolRequestId;
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "Running command.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: toolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command: 'echo "line1" && echo "line2"',
+                },
+              },
+            },
+          ],
+        });
+
+        // Command is auto-approved since both echo commands are allowed
+        await driver.assertDisplayBufferContains("⚡✅");
+
+        // Get the tool result to find the log file path
+        const toolResultRequest =
+          await driver.mockAnthropic.awaitPendingStream();
+        const toolResultMessage =
+          toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+        expect(toolResultMessage.role).toBe("user");
+        expect(Array.isArray(toolResultMessage.content)).toBe(true);
+
+        const content = extractToolResultText(toolResultMessage);
+        const logPathMatch = content.match(/Full output \(\d+ lines\): (.+)$/m);
+        expect(logPathMatch).toBeTruthy();
+
+        const logPath = logPathMatch![1];
+        expect(fs.existsSync(logPath)).toBe(true);
+
+        const logContent = fs.readFileSync(logPath, "utf8");
+        expect(logContent).toContain('$ echo "line1" && echo "line2"');
+        expect(logContent).toContain("stdout:");
+        expect(logContent).toContain("line1");
+        expect(logContent).toContain("line2");
+        expect(logContent).toContain("exit code 0");
+      },
+    );
+  });
+
+  it("abbreviates output when more than 30 lines", async () => {
+    await withDriver(
+      {
+        options: {
+          commandConfig: {
+            commands: [["seq", { type: "restAny" }]],
+            pipeCommands: [],
+          },
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        // Generate 50 lines of output
+        await driver.inputMagentaText(`Run: seq 1 50`);
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingStream();
+        const toolRequestId = "test-abbreviated" as ToolRequestId;
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "Running seq.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: toolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command: "seq 1 50",
+                },
+              },
+            },
+          ],
+        });
+
+        await driver.assertDisplayBufferContains("⚡✅");
+
+        const toolResultRequest =
+          await driver.mockAnthropic.awaitPendingStream();
+        const toolResultMessage =
+          toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+        const content = extractToolResultText(toolResultMessage);
+
+        // Should contain first 10 lines (1-10)
+        expect(content).toContain("1\n");
+        expect(content).toContain("10\n");
+
+        // Should contain omission marker (50 lines - 30 shown = 20 omitted)
+        expect(content).toContain("... (20 lines omitted) ...");
+
+        // Should contain last 20 lines (31-50)
+        expect(content).toContain("31\n");
+        expect(content).toContain("50\n");
+
+        // Should NOT contain lines 11-30 (those are omitted)
+        expect(content).not.toContain("\n11\n");
+        expect(content).not.toContain("\n30\n");
+
+        // Should contain log file reference
+        expect(content).toContain("Full output (50 lines):");
+        expect(content).toContain("/tmp/magenta/threads/");
+        expect(content).toContain("bashCommand.log");
+      },
+    );
+  });
+
+  it("includes full output when 30 lines or fewer", async () => {
+    await withDriver(
+      {
+        options: {
+          commandConfig: {
+            commands: [["seq", { type: "restAny" }]],
+            pipeCommands: [],
+          },
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        // Generate exactly 30 lines
+        await driver.inputMagentaText(`Run: seq 1 30`);
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingStream();
+        const toolRequestId = "test-full-output" as ToolRequestId;
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "Running seq.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: toolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command: "seq 1 30",
+                },
+              },
+            },
+          ],
+        });
+
+        await driver.assertDisplayBufferContains("⚡✅");
+
+        const toolResultRequest =
+          await driver.mockAnthropic.awaitPendingStream();
+        const toolResultMessage =
+          toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+        const content = extractToolResultText(toolResultMessage);
+
+        // Should contain all lines 1-30
+        for (let i = 1; i <= 30; i++) {
+          expect(content).toContain(`${i}\n`);
+        }
+
+        // Should NOT contain omission marker
+        expect(content).not.toContain("lines omitted");
+
+        // Should still have log file reference
+        expect(content).toContain("Full output (30 lines):");
       },
     );
   });
