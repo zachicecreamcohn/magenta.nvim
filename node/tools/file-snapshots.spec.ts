@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { withDriver } from "../test/preamble";
-import { FileSnapshots, type Turn } from "./file-snapshots";
+import { FileSnapshots } from "./file-snapshots";
 import * as path from "path";
 import * as fs from "node:fs";
 import { getcwd } from "../nvim/nvim";

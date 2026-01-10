@@ -88,23 +88,15 @@ export class AnthropicProviderThread implements ProviderThread {
     }
   }
 
-  appendUserMessage(content: ProviderThreadInput[], respond: boolean): void {
+  appendUserMessage(content: ProviderThreadInput[]): void {
     const nativeContent = this.convertInputToNative(content);
     this.messages.push({
       role: "user",
       content: nativeContent,
     });
-
-    if (respond) {
-      this.continueConversation();
-    }
   }
 
-  toolResult(
-    toolUseId: ToolRequestId,
-    result: ProviderToolResult,
-    respond: boolean,
-  ): void {
+  toolResult(toolUseId: ToolRequestId, result: ProviderToolResult): void {
     // Validate that we're in the correct state to receive a tool result
     if (
       this.status.type !== "stopped" ||
@@ -145,10 +137,6 @@ export class AnthropicProviderThread implements ProviderThread {
       role: "user",
       content: nativeContent,
     });
-
-    if (respond) {
-      this.continueConversation();
-    }
   }
 
   abort(): void {
@@ -156,6 +144,17 @@ export class AnthropicProviderThread implements ProviderThread {
       this.currentRequest.abort();
       // The catch block in continueConversation will handle the status update
     }
+  }
+
+  continueConversation(): void {
+    const lastMessage = this.messages[this.messages.length - 1];
+    if (lastMessage?.role === "assistant") {
+      throw new Error(
+        `Cannot continue conversation: last message is from assistant. Add a user message or tool result first.`,
+      );
+    }
+
+    this.startStreaming();
   }
 
   private cleanup(
@@ -203,72 +202,7 @@ export class AnthropicProviderThread implements ProviderThread {
     }
   }
 
-  /** Build stream parameters directly from native Anthropic messages (no conversion needed) */
-  private createNativeStreamParameters({
-    authType,
-    includeWebSearch,
-    disableParallelToolUseFlag,
-  }: {
-    authType: "key" | "max";
-    includeWebSearch: boolean;
-    disableParallelToolUseFlag: boolean;
-  }): Omit<Anthropic.Messages.MessageStreamParams, "messages"> {
-    const { model, tools, systemPrompt, thinking } = this.options;
-
-    const anthropicTools: Anthropic.Tool[] = tools.map((t): Anthropic.Tool => {
-      return {
-        ...t,
-        input_schema: t.input_schema as Anthropic.Messages.Tool.InputSchema,
-      };
-    });
-
-    const systemBlocks: Anthropic.Messages.MessageStreamParams["system"] = [
-      {
-        type: "text" as const,
-        text: systemPrompt,
-        cache_control: { type: "ephemeral" },
-      },
-    ];
-
-    if (authType === "max") {
-      systemBlocks.unshift({
-        type: "text" as const,
-        text: CLAUDE_CODE_SPOOF_PROMPT,
-      });
-    }
-
-    const builtInTools: Anthropic.Messages.Tool[] = [];
-    if (includeWebSearch) {
-      builtInTools.push({
-        type: "web_search_20250305",
-        name: "web_search",
-        max_uses: 5,
-      } as unknown as Anthropic.Messages.Tool);
-    }
-
-    const toolChoice: Anthropic.Messages.ToolChoice = disableParallelToolUseFlag
-      ? { type: "auto", disable_parallel_tool_use: true }
-      : { type: "auto" };
-
-    const params: Omit<Anthropic.Messages.MessageStreamParams, "messages"> = {
-      model: model,
-      max_tokens: getMaxTokensForModel(model),
-      system: systemBlocks,
-      tool_choice: toolChoice,
-      tools: [...anthropicTools, ...builtInTools],
-    };
-
-    if (thinking?.enabled) {
-      params.thinking = {
-        type: "enabled",
-        budget_tokens: thinking.budgetTokens || 1024,
-      };
-    }
-
-    return params;
-  }
-
-  private continueConversation(): void {
+  private startStreaming(): void {
     this.status = { type: "streaming", startTime: new Date() };
     this.dispatch({ type: "status-changed", status: this.status });
 
@@ -400,7 +334,6 @@ export class AnthropicProviderThread implements ProviderThread {
         this.status = {
           type: "stopped",
           stopReason,
-          usage,
         };
         this.dispatch({ type: "status-changed", status: this.status });
       })
@@ -413,10 +346,6 @@ export class AnthropicProviderThread implements ProviderThread {
           this.status = {
             type: "stopped",
             stopReason: "aborted",
-            usage: {
-              inputTokens: 0,
-              outputTokens: 0,
-            },
           };
         } else {
           this.cleanup({ type: "error", error });
@@ -426,6 +355,71 @@ export class AnthropicProviderThread implements ProviderThread {
         this.dispatch({ type: "messages-updated" });
         this.dispatch({ type: "status-changed", status: this.status });
       });
+  }
+
+  /** Build stream parameters directly from native Anthropic messages (no conversion needed) */
+  private createNativeStreamParameters({
+    authType,
+    includeWebSearch,
+    disableParallelToolUseFlag,
+  }: {
+    authType: "key" | "max";
+    includeWebSearch: boolean;
+    disableParallelToolUseFlag: boolean;
+  }): Omit<Anthropic.Messages.MessageStreamParams, "messages"> {
+    const { model, tools, systemPrompt, thinking } = this.options;
+
+    const anthropicTools: Anthropic.Tool[] = tools.map((t): Anthropic.Tool => {
+      return {
+        ...t,
+        input_schema: t.input_schema as Anthropic.Messages.Tool.InputSchema,
+      };
+    });
+
+    const systemBlocks: Anthropic.Messages.MessageStreamParams["system"] = [
+      {
+        type: "text" as const,
+        text: systemPrompt,
+        cache_control: { type: "ephemeral" },
+      },
+    ];
+
+    if (authType === "max") {
+      systemBlocks.unshift({
+        type: "text" as const,
+        text: CLAUDE_CODE_SPOOF_PROMPT,
+      });
+    }
+
+    const builtInTools: Anthropic.Messages.Tool[] = [];
+    if (includeWebSearch) {
+      builtInTools.push({
+        type: "web_search_20250305",
+        name: "web_search",
+        max_uses: 5,
+      } as unknown as Anthropic.Messages.Tool);
+    }
+
+    const toolChoice: Anthropic.Messages.ToolChoice = disableParallelToolUseFlag
+      ? { type: "auto", disable_parallel_tool_use: true }
+      : { type: "auto" };
+
+    const params: Omit<Anthropic.Messages.MessageStreamParams, "messages"> = {
+      model: model,
+      max_tokens: getMaxTokensForModel(model),
+      system: systemBlocks,
+      tool_choice: toolChoice,
+      tools: [...anthropicTools, ...builtInTools],
+    };
+
+    if (thinking?.enabled) {
+      params.thinking = {
+        type: "enabled",
+        budget_tokens: thinking.budgetTokens || 1024,
+      };
+    }
+
+    return params;
   }
 
   private initAnthropicStreamingBlock(
@@ -666,219 +660,227 @@ export class AnthropicProviderThread implements ProviderThread {
   }
 
   private convertToProviderMessages(): ProviderMessage[] {
-    return this.messages.map((msg, msgIndex): ProviderMessage => {
-      const stopInfo = this.messageStopInfo.get(msgIndex);
-      const content =
-        typeof msg.content == "string"
-          ? [{ type: "text" as const, text: msg.content }]
-          : msg.content.map((block, blockIndex) =>
-              this.convertBlockToProvider(
-                block,
-                msgIndex,
-                blockIndex,
-                stopInfo,
-              ),
-            );
-
-      const result: ProviderMessage = {
-        role: msg.role,
-        content,
-      };
-
-      // Attach stop info to message if not ending with tool_use
-      if (stopInfo && msg.role === "assistant") {
-        const lastBlock =
-          typeof msg.content === "string"
-            ? null
-            : msg.content[msg.content.length - 1];
-        if (!lastBlock || lastBlock.type !== "tool_use") {
-          result.stopReason = stopInfo.stopReason;
-          result.usage = stopInfo.usage;
-        }
-      }
-
-      return result;
-    });
+    return convertAnthropicMessagesToProvider(
+      this.messages,
+      this.messageStopInfo,
+    );
   }
+}
 
-  private convertBlockToProvider(
-    block: Anthropic.Messages.ContentBlockParam,
-    msgIndex: number,
-    blockIndex: number,
-    stopInfo: MessageStopInfo | undefined,
-  ): ProviderMessage["content"][number] {
-    switch (block.type) {
-      case "text":
+/** Convert Anthropic messages to ProviderMessages. Exported for use in tests. */
+export function convertAnthropicMessagesToProvider(
+  messages: Anthropic.MessageParam[],
+  messageStopInfo?: Map<number, MessageStopInfo>,
+): ProviderMessage[] {
+  return messages.map((msg, msgIndex): ProviderMessage => {
+    const stopInfo = messageStopInfo?.get(msgIndex);
+    const content =
+      typeof msg.content == "string"
+        ? [{ type: "text" as const, text: msg.content }]
+        : msg.content.map((block) => convertBlockToProvider(block));
+
+    const result: ProviderMessage = {
+      role: msg.role,
+      content,
+    };
+
+    // Attach stop info to message if not ending with tool_use
+    if (stopInfo && msg.role === "assistant") {
+      const lastBlock =
+        typeof msg.content === "string"
+          ? null
+          : msg.content[msg.content.length - 1];
+      if (!lastBlock || lastBlock.type !== "tool_use") {
+        result.stopReason = stopInfo.stopReason;
+        result.usage = stopInfo.usage;
+      }
+    }
+
+    return result;
+  });
+}
+
+function convertBlockToProvider(
+  block: Anthropic.Messages.ContentBlockParam,
+): ProviderMessage["content"][number] {
+  switch (block.type) {
+    case "text":
+      // Detect system_reminder blocks (converted to text with <system-reminder> tags)
+      if (block.text.includes("<system-reminder>")) {
         return {
-          type: "text",
+          type: "system_reminder",
           text: block.text,
-          citations: block.citations
-            ? block.citations
-                .filter(
-                  (
-                    c,
-                  ): c is Extract<
-                    (typeof block.citations)[number],
-                    { url: string }
-                  > => "url" in c,
-                )
-                .map((c) => ({
-                  type: "web_search_citation" as const,
-                  cited_text: c.cited_text,
-                  encrypted_index: c.encrypted_index,
-                  title: c.title || "",
-                  url: c.url,
-                }))
-            : undefined,
-        };
-
-      case "image":
-        return {
-          type: "image",
-          source: block.source as {
-            type: "base64";
-            media_type: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-            data: string;
-          },
-        };
-
-      case "document":
-        return {
-          type: "document",
-          source: block.source as {
-            type: "base64";
-            media_type: "application/pdf";
-            data: string;
-          },
-          title: block.title ?? null,
-        };
-
-      case "tool_use": {
-        const inputResult = validateInput(
-          block.name as ToolName,
-          block.input as Record<string, unknown>,
-        );
-        return {
-          type: "tool_use",
-          id: block.id as ToolRequestId,
-          name: block.name as ToolName,
-          request:
-            inputResult.status === "ok"
-              ? {
-                  status: "ok" as const,
-                  value: {
-                    id: block.id as ToolRequestId,
-                    toolName: block.name as ToolName,
-                    input: inputResult.value,
-                  },
-                }
-              : { ...inputResult, rawRequest: block.input },
         };
       }
-
-      case "tool_result": {
-        let contents: ProviderToolResult["result"];
-
-        if (typeof block.content === "string") {
-          contents = block.is_error
-            ? { status: "error", error: block.content }
-            : { status: "ok", value: [{ type: "text", text: block.content }] };
-        } else if (block.is_error) {
-          const textBlock = block.content?.find((c) => c.type === "text") as
-            | { type: "text"; text: string }
-            | undefined;
-          contents = {
-            status: "error",
-            error: textBlock?.text || "Unknown error",
-          };
-        } else {
-          const blockContent = block.content || [];
-          contents = {
-            status: "ok",
-            value: blockContent
+      return {
+        type: "text",
+        text: block.text,
+        citations: block.citations
+          ? block.citations
               .filter(
                 (
                   c,
-                ): c is
-                  | Anthropic.Messages.TextBlockParam
-                  | Anthropic.Messages.ImageBlockParam =>
-                  c.type === "text" || c.type === "image",
+                ): c is Extract<
+                  (typeof block.citations)[number],
+                  { url: string }
+                > => "url" in c,
               )
-              .map((c) => {
-                if (c.type === "text") {
-                  return { type: "text" as const, text: c.text };
-                } else {
-                  return {
-                    type: "image" as const,
-                    source: c.source as {
-                      type: "base64";
-                      media_type:
-                        | "image/jpeg"
-                        | "image/png"
-                        | "image/gif"
-                        | "image/webp";
-                      data: string;
-                    },
-                  };
-                }
-              }),
-          };
-        }
+              .map((c) => ({
+                type: "web_search_citation" as const,
+                cited_text: c.cited_text,
+                encrypted_index: c.encrypted_index,
+                title: c.title || "",
+                url: c.url,
+              }))
+          : undefined,
+      };
 
-        return {
-          type: "tool_result",
-          id: block.tool_use_id as ToolRequestId,
-          result: contents,
+    case "image":
+      return {
+        type: "image",
+        source: block.source as {
+          type: "base64";
+          media_type: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+          data: string;
+        },
+      };
+
+    case "document":
+      return {
+        type: "document",
+        source: block.source as {
+          type: "base64";
+          media_type: "application/pdf";
+          data: string;
+        },
+        title: block.title ?? null,
+      };
+
+    case "tool_use": {
+      const inputResult = validateInput(
+        block.name as ToolName,
+        block.input as Record<string, unknown>,
+      );
+      return {
+        type: "tool_use",
+        id: block.id as ToolRequestId,
+        name: block.name as ToolName,
+        request:
+          inputResult.status === "ok"
+            ? {
+                status: "ok" as const,
+                value: {
+                  id: block.id as ToolRequestId,
+                  toolName: block.name as ToolName,
+                  input: inputResult.value,
+                },
+              }
+            : { ...inputResult, rawRequest: block.input },
+      };
+    }
+
+    case "tool_result": {
+      let contents: ProviderToolResult["result"];
+
+      if (typeof block.content === "string") {
+        contents = block.is_error
+          ? { status: "error", error: block.content }
+          : { status: "ok", value: [{ type: "text", text: block.content }] };
+      } else if (block.is_error) {
+        const textBlock = block.content?.find((c) => c.type === "text") as
+          | { type: "text"; text: string }
+          | undefined;
+        contents = {
+          status: "error",
+          error: textBlock?.text || "Unknown error",
+        };
+      } else {
+        const blockContent = block.content || [];
+        contents = {
+          status: "ok",
+          value: blockContent
+            .filter(
+              (
+                c,
+              ): c is
+                | Anthropic.Messages.TextBlockParam
+                | Anthropic.Messages.ImageBlockParam =>
+                c.type === "text" || c.type === "image",
+            )
+            .map((c) => {
+              if (c.type === "text") {
+                return { type: "text" as const, text: c.text };
+              } else {
+                return {
+                  type: "image" as const,
+                  source: c.source as {
+                    type: "base64";
+                    media_type:
+                      | "image/jpeg"
+                      | "image/png"
+                      | "image/gif"
+                      | "image/webp";
+                    data: string;
+                  },
+                };
+              }
+            }),
         };
       }
 
-      case "thinking":
-        return {
-          type: "thinking",
-          thinking: block.thinking,
-          signature: block.signature,
-        };
-
-      case "redacted_thinking":
-        return {
-          type: "redacted_thinking",
-          data: block.data,
-        };
-
-      default:
-        // Handle server_tool_use, web_search_tool_result etc.
-        if ((block as { type: string }).type === "server_tool_use") {
-          const serverBlock = block as {
-            type: "server_tool_use";
-            id: string;
-            name: string;
-            input: { query: string };
-          };
-          return {
-            type: "server_tool_use",
-            id: serverBlock.id,
-            name: "web_search",
-            input: serverBlock.input,
-          };
-        }
-        if ((block as { type: string }).type === "web_search_tool_result") {
-          const resultBlock = block as {
-            type: "web_search_tool_result";
-            tool_use_id: string;
-            content: Anthropic.WebSearchToolResultBlockContent;
-          };
-          return {
-            type: "web_search_tool_result",
-            tool_use_id: resultBlock.tool_use_id,
-            content: resultBlock.content,
-          };
-        }
-        // Fallback for unknown types
-        return {
-          type: "text",
-          text: `[Unknown block type: ${(block as { type: string }).type}]`,
-        };
+      return {
+        type: "tool_result",
+        id: block.tool_use_id as ToolRequestId,
+        result: contents,
+      };
     }
+
+    case "thinking":
+      return {
+        type: "thinking",
+        thinking: block.thinking,
+        signature: block.signature,
+      };
+
+    case "redacted_thinking":
+      return {
+        type: "redacted_thinking",
+        data: block.data,
+      };
+
+    default:
+      // Handle server_tool_use, web_search_tool_result etc.
+      if ((block as { type: string }).type === "server_tool_use") {
+        const serverBlock = block as {
+          type: "server_tool_use";
+          id: string;
+          name: string;
+          input: { query: string };
+        };
+        return {
+          type: "server_tool_use",
+          id: serverBlock.id,
+          name: "web_search",
+          input: serverBlock.input,
+        };
+      }
+      if ((block as { type: string }).type === "web_search_tool_result") {
+        const resultBlock = block as {
+          type: "web_search_tool_result";
+          tool_use_id: string;
+          content: Anthropic.WebSearchToolResultBlockContent;
+        };
+        return {
+          type: "web_search_tool_result",
+          tool_use_id: resultBlock.tool_use_id,
+          content: resultBlock.content,
+        };
+      }
+      // Fallback for unknown types
+      return {
+        type: "text",
+        text: `[Unknown block type: ${(block as { type: string }).type}]`,
+      };
   }
 }
 

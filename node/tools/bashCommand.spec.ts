@@ -462,18 +462,24 @@ describe("node/tools/bashCommand.spec.ts", () => {
         ) {
           const toolResult = toolResultMessage.content[0];
           if (toolResult.type === "tool_result") {
-            expect(toolResult.result.status).toBe("ok");
-            if (toolResult.result.status === "ok") {
-              const resultItem = toolResult.result.value[0];
-              if (resultItem.type !== "text") {
-                throw new Error("Expected text result from bash command");
-              }
-              const resultText = resultItem.text;
+            expect(toolResult.is_error).toBeFalsy();
+            const content = toolResult.content;
+            const resultText =
+              typeof content === "string"
+                ? content
+                : Array.isArray(content)
+                  ? content
+                      .filter(
+                        (item): item is { type: "text"; text: string } =>
+                          item.type === "text",
+                      )
+                      .map((item) => item.text)
+                      .join("")
+                  : "";
 
-              // Verify the full 200-character string is preserved for the agent
-              expect(resultText).toContain(longText);
-              expect(resultText).toContain("exit code 0");
-            }
+            // Verify the full 200-character string is preserved for the agent
+            expect(resultText).toContain(longText);
+            expect(resultText).toContain("exit code 0");
           }
         }
       },
@@ -586,39 +592,45 @@ describe("node/tools/bashCommand.spec.ts", () => {
         ) {
           const toolResult = toolResultMessage.content[0];
           if (toolResult.type === "tool_result") {
-            expect(toolResult.result.status).toBe("ok");
-            if (toolResult.result.status === "ok") {
-              const resultItem = toolResult.result.value[0];
-              if (resultItem.type !== "text") {
-                throw new Error("Expected text result from bash command");
-              }
-              const resultText = resultItem.text;
+            expect(toolResult.is_error).toBeFalsy();
+            const content = toolResult.content;
+            const resultText =
+              typeof content === "string"
+                ? content
+                : Array.isArray(content)
+                  ? content
+                      .filter(
+                        (item): item is { type: "text"; text: string } =>
+                          item.type === "text",
+                      )
+                      .map((item) => item.text)
+                      .join("")
+                  : "";
 
-              // Verify the output is limited by token count (40,000 characters max)
-              // Account for "stdout:\n" and "exit code 0\n" overhead
-              expect(resultText.length).toBeLessThan(40100); // Small buffer for overhead
+            // Verify the output is limited by token count (40,000 characters max)
+            // Account for "stdout:\n" and "exit code 0\n" overhead
+            expect(resultText.length).toBeLessThan(40100); // Small buffer for overhead
 
-              // Should contain the exit code at the end
-              expect(resultText).toContain("exit code 0");
+            // Should contain the exit code at the end
+            expect(resultText).toContain("exit code 0");
 
-              // Should contain the repeated string pattern
-              expect(resultText).toContain(longString);
+            // Should contain the repeated string pattern
+            expect(resultText).toContain(longString);
 
-              // Should not contain the very beginning of the output since we're trimming from the start
-              // The output starts with many repetitions, so early lines should be trimmed
-              const lines = resultText
-                .split("\n")
-                .filter((line) => line.trim() !== "");
-              const contentLines = lines.filter(
-                (line) =>
-                  !line.startsWith("stdout:") && !line.startsWith("exit code"),
-              );
+            // Should not contain the very beginning of the output since we're trimming from the start
+            // The output starts with many repetitions, so early lines should be trimmed
+            const lines = resultText
+              .split("\n")
+              .filter((line: string) => line.trim() !== "");
+            const contentLines = lines.filter(
+              (line: string) =>
+                !line.startsWith("stdout:") && !line.startsWith("exit code"),
+            );
 
-              // With 100 chars per line + newline, we should have roughly 40,000 / 101 ≈ 396 lines max
-              // But the actual limit depends on the overhead from "stdout:" markers
-              expect(contentLines.length).toBeLessThan(500); // Should be less than the full 500 lines
-              expect(contentLines.length).toBeGreaterThan(300); // Should have a substantial portion
-            }
+            // With 100 chars per line + newline, we should have roughly 40,000 / 101 ≈ 396 lines max
+            // But the actual limit depends on the overhead from "stdout:" markers
+            expect(contentLines.length).toBeLessThan(500); // Should be less than the full 500 lines
+            expect(contentLines.length).toBeGreaterThan(300); // Should have a substantial portion
           }
         }
       },

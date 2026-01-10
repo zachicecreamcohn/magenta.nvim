@@ -26,11 +26,9 @@ export function getProvider(
           baseUrl: profile.baseUrl,
           apiKeyEnvVar: profile.apiKeyEnvVar,
           authType: profile.authType,
-          promptCaching: true,
         });
       case "bedrock":
         return new BedrockProvider(nvim, {
-          promptCaching: (profile as Profile).promptCaching,
           env: (profile as Profile).env,
         });
       case "openai":

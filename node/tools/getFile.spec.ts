@@ -8,6 +8,12 @@ import {
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { ToolName } from "./types.ts";
 import type { BufNr } from "../nvim/buffer.ts";
+import type Anthropic from "@anthropic-ai/sdk";
+
+type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
+type ContentBlockParam = Anthropic.Messages.ContentBlockParam;
+type TextBlockParam = Anthropic.Messages.TextBlockParam;
+type DocumentBlockParam = Anthropic.Messages.DocumentBlockParam;
 
 it("render the getFile tool.", async () => {
   await withDriver({}, async (driver) => {
@@ -88,30 +94,38 @@ it("should extract PDF page as binary document when pdfPage parameter is provide
 
       // Verify the tool result contains document content
       const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-      const toolResultMessage =
-        toolResultRequest.messages[toolResultRequest.messages.length - 2];
+      // Find the user message with the tool result - documents are sibling blocks, not nested
+      let userMessageContent: ContentBlockParam[] | undefined;
+      for (const msg of toolResultRequest.messages) {
+        if (msg.role === "user" && Array.isArray(msg.content)) {
+          const content = msg.content;
+          const hasToolResult = content.some(
+            (block: ContentBlockParam) =>
+              block.type === "tool_result" &&
+              block.tool_use_id === "pdf_page_request",
+          );
+          if (hasToolResult) userMessageContent = content;
+        }
+      }
+      expect(userMessageContent).toBeDefined();
+      if (!userMessageContent)
+        throw new Error("No user message with tool result found");
 
-      expect(toolResultMessage.role).toBe("user");
-      expect(Array.isArray(toolResultMessage.content)).toBe(true);
+      // Tool result should not have error
+      const toolResult = userMessageContent.find(
+        (block: ContentBlockParam) => block.type === "tool_result",
+      ) as ToolResultBlockParam;
+      expect(toolResult.is_error).toBeFalsy();
 
-      const toolResult = toolResultMessage.content[0] as Extract<
-        (typeof toolResultMessage.content)[0],
-        { type: "tool_result" }
-      >;
-      expect(toolResult.type).toBe("tool_result");
-      expect(toolResult.result.status).toBe("ok");
-
-      const toolResultResult = toolResult.result as Extract<
-        typeof toolResult.result,
-        { status: "ok" }
-      >;
-
-      const documentContent = toolResultResult.value.find(
-        (item) => item.type === "document",
-      ) as Extract<(typeof toolResultResult.value)[0], { type: "document" }>;
+      // Document is a sibling block in the user message, not nested in tool_result.content
+      const documentContent = userMessageContent.find(
+        (item: ContentBlockParam) => item.type === "document",
+      ) as DocumentBlockParam;
       expect(documentContent).toBeDefined();
 
       expect(documentContent.source.type).toBe("base64");
+      if (documentContent.source.type !== "base64")
+        throw new Error("Expected base64 source");
       expect(documentContent.source.media_type).toBe("application/pdf");
       expect(documentContent.source.data).toBeTruthy();
       expect(documentContent.title).toContain("multipage.pdf - Page 2");
@@ -431,22 +445,16 @@ it("should return PDF basic info when pdfPage parameter is not provided", async 
 
       expect(toolResultMessage.role).toBe("user");
       expect(Array.isArray(toolResultMessage.content)).toBe(true);
+      const contentArray = toolResultMessage.content as ContentBlockParam[];
 
-      const toolResult = toolResultMessage.content[0] as Extract<
-        (typeof toolResultMessage.content)[0],
-        { type: "tool_result" }
-      >;
+      const toolResult = contentArray[0] as ToolResultBlockParam;
       expect(toolResult.type).toBe("tool_result");
-      expect(toolResult.result.status).toBe("ok");
+      expect(toolResult.is_error).toBeFalsy();
 
-      const toolResultResult = toolResult.result as Extract<
-        typeof toolResult.result,
-        { status: "ok" }
-      >;
-
-      const textContent = toolResultResult.value.find(
-        (item) => item.type === "text",
-      ) as Extract<(typeof toolResultResult.value)[0], { type: "text" }>;
+      const toolResultContent = toolResult.content as ContentBlockParam[];
+      const textContent = toolResultContent.find(
+        (item: ContentBlockParam) => item.type === "text",
+      ) as TextBlockParam;
       expect(textContent).toBeDefined();
       expect(textContent.text).toContain("PDF Document: multipage.pdf");
       expect(textContent.text).toContain("Pages: 3");
@@ -510,20 +518,18 @@ it("should handle invalid PDF page index", async () => {
 
       expect(toolResultMessage.role).toBe("user");
       expect(Array.isArray(toolResultMessage.content)).toBe(true);
+      const contentArray = toolResultMessage.content as ContentBlockParam[];
 
-      const toolResult = toolResultMessage.content[0] as Extract<
-        (typeof toolResultMessage.content)[0],
-        { type: "tool_result" }
-      >;
+      const toolResult = contentArray[0] as ToolResultBlockParam;
       expect(toolResult.type).toBe("tool_result");
-      expect(toolResult.result.status).toBe("error");
+      expect(toolResult.is_error).toBe(true);
 
-      const toolResultError = toolResult.result as Extract<
-        typeof toolResult.result,
-        { status: "error" }
-      >;
-      expect(toolResultError.error).toContain("Page index 5 is out of range");
-      expect(toolResultError.error).toContain("Document has 1 pages");
+      const errorContent =
+        typeof toolResult.content === "string"
+          ? toolResult.content
+          : JSON.stringify(toolResult.content);
+      expect(errorContent).toContain("Page index 5 is out of range");
+      expect(errorContent).toContain("Document has 1 pages");
     },
   );
 });
@@ -747,13 +753,11 @@ it("getFile automatically allows files in skills directory", async () => {
 
       expect(toolResultMessage.role).toBe("user");
       expect(Array.isArray(toolResultMessage.content)).toBe(true);
+      const contentArray = toolResultMessage.content as ContentBlockParam[];
 
-      const toolResult = toolResultMessage.content.find(
-        (item) => item.type === "tool_result",
-      ) as Extract<
-        (typeof toolResultMessage.content)[0],
-        { type: "tool_result" }
-      >;
+      const toolResult = contentArray.find(
+        (item: ContentBlockParam) => item.type === "tool_result",
+      ) as ToolResultBlockParam;
       expect(toolResult).toBeDefined();
 
       assertToolResultContainsText(toolResult, "Skill content");
@@ -979,13 +983,11 @@ it("getFile returns early when file is already in context", async () => {
 
     expect(toolResultMessage.role).toBe("user");
     expect(Array.isArray(toolResultMessage.content)).toBe(true);
+    const contentArray = toolResultMessage.content as ContentBlockParam[];
 
-    const toolResult = toolResultMessage.content.find(
-      (item) => item.type === "tool_result",
-    ) as Extract<
-      (typeof toolResultMessage.content)[0],
-      { type: "tool_result" }
-    >;
+    const toolResult = contentArray.find(
+      (item: ContentBlockParam) => item.type === "tool_result",
+    ) as ToolResultBlockParam;
     expect(toolResult).toBeDefined();
     assertToolResultContainsText(
       toolResult,
@@ -1031,13 +1033,11 @@ it("getFile reads file when force is true even if already in context", async () 
 
     expect(toolResultMessage.role).toBe("user");
     expect(Array.isArray(toolResultMessage.content)).toBe(true);
+    const contentArray = toolResultMessage.content as ContentBlockParam[];
 
-    const toolResult = toolResultMessage.content.find(
-      (item) => item.type === "tool_result",
-    ) as Extract<
-      (typeof toolResultMessage.content)[0],
-      { type: "tool_result" }
-    >;
+    const toolResult = contentArray.find(
+      (item: ContentBlockParam) => item.type === "tool_result",
+    ) as ToolResultBlockParam;
     expect(toolResult).toBeDefined();
     assertToolResultContainsText(
       toolResult,
@@ -1045,13 +1045,10 @@ it("getFile reads file when force is true even if already in context", async () 
     );
 
     // Verify that the "already part of the thread context" message is NOT present
-    const result = toolResult.result as Extract<
-      typeof toolResult.result,
-      { status: "ok" }
-    >;
-    expect(result.status).toBe("ok");
-    const hasContextText = result.value.some((item) => {
-      if (typeof item === "object" && item.type === "text") {
+    expect(toolResult.is_error).toBeFalsy();
+    const toolResultContent = toolResult.content as ContentBlockParam[];
+    const hasContextText = toolResultContent.some((item: ContentBlockParam) => {
+      if (item.type === "text") {
         return item.text.includes("already part of the thread context");
       }
       return false;
@@ -1171,13 +1168,11 @@ it("getFile reads unloaded buffer", async () => {
 
     expect(toolResultMessage.role).toBe("user");
     expect(Array.isArray(toolResultMessage.content)).toBe(true);
+    const contentArray = toolResultMessage.content as ContentBlockParam[];
 
-    const toolResult = toolResultMessage.content.find(
-      (item) => item.type === "tool_result",
-    ) as Extract<
-      (typeof toolResultMessage.content)[0],
-      { type: "tool_result" }
-    >;
+    const toolResult = contentArray.find(
+      (item: ContentBlockParam) => item.type === "tool_result",
+    ) as ToolResultBlockParam;
     expect(toolResult).toBeDefined();
 
     assertToolResultContainsText(
@@ -1186,22 +1181,18 @@ it("getFile reads unloaded buffer", async () => {
     );
 
     // Verify the full content is returned, not empty content
-    expect(toolResult.result.status).toBe("ok");
+    expect(toolResult.is_error).toBeFalsy();
 
-    const result = toolResult.result as Extract<
-      typeof toolResult.result,
-      { status: "ok" }
-    >;
-
-    const content = result.value.find(
-      (item) => item.type === "text",
-    ) as Extract<(typeof result.value)[0], { type: "text" }>;
-    expect(content).toBeDefined();
+    const toolResultContent = toolResult.content as ContentBlockParam[];
+    const textContent = toolResultContent.find(
+      (item: ContentBlockParam) => item.type === "text",
+    ) as TextBlockParam;
+    expect(textContent).toBeDefined();
 
     // Should contain the full poem, not be empty
-    expect(content.text.trim()).not.toBe("");
-    expect(content.text).toContain("Moonlight whispers through the trees");
-    expect(content.text).toContain("Silver shadows dance with ease");
+    expect(textContent.text.trim()).not.toBe("");
+    expect(textContent.text).toContain("Moonlight whispers through the trees");
+    expect(textContent.text).toContain("Silver shadows dance with ease");
 
     // Respond to complete the conversation
     toolResultRequest.respond({
@@ -1248,13 +1239,11 @@ it("should process image files end-to-end", async () => {
 
     expect(toolResultMessage.role).toBe("user");
     expect(Array.isArray(toolResultMessage.content)).toBe(true);
+    const contentArray = toolResultMessage.content as ContentBlockParam[];
 
-    const toolResult = toolResultMessage.content[0] as Extract<
-      (typeof toolResultMessage.content)[0],
-      { type: "tool_result" }
-    >;
+    const toolResult = contentArray[0] as ToolResultBlockParam;
     expect(toolResult.type).toBe("tool_result");
-    expect(toolResult.result.status).toBe("ok");
+    expect(toolResult.is_error).toBeFalsy();
 
     // The result should be image content, not text
     assertToolResultHasImageSource(toolResult, "image/jpeg");
@@ -1301,24 +1290,18 @@ it("getFile provides PDF summary info when no pdfPage parameter is given", async
 
     expect(toolResultMessage.role).toBe("user");
     expect(Array.isArray(toolResultMessage.content)).toBe(true);
+    const contentArray = toolResultMessage.content as ContentBlockParam[];
 
-    const toolResult = toolResultMessage.content.find(
-      (item) => item.type === "tool_result",
-    ) as Extract<
-      (typeof toolResultMessage.content)[0],
-      { type: "tool_result" }
-    >;
+    const toolResult = contentArray.find(
+      (item: ContentBlockParam) => item.type === "tool_result",
+    ) as ToolResultBlockParam;
     expect(toolResult).toBeDefined();
-    expect(toolResult.result.status).toBe("ok");
+    expect(toolResult.is_error).toBeFalsy();
 
-    const result = toolResult.result as Extract<
-      typeof toolResult.result,
-      { status: "ok" }
-    >;
-
-    const textContent = result.value.find(
-      (item) => item.type === "text",
-    ) as Extract<(typeof result.value)[0], { type: "text" }>;
+    const toolResultContent = toolResult.content as ContentBlockParam[];
+    const textContent = toolResultContent.find(
+      (item: ContentBlockParam) => item.type === "text",
+    ) as TextBlockParam;
     expect(textContent).toBeDefined();
 
     // Should contain PDF summary information
@@ -1373,19 +1356,17 @@ it("should reject binary files that are not supported", async () => {
 
     expect(toolResultMessage.role).toBe("user");
     expect(Array.isArray(toolResultMessage.content)).toBe(true);
+    const contentArray = toolResultMessage.content as ContentBlockParam[];
 
-    const toolResult = toolResultMessage.content[0] as Extract<
-      (typeof toolResultMessage.content)[0],
-      { type: "tool_result" }
-    >;
+    const toolResult = contentArray[0] as ToolResultBlockParam;
     expect(toolResult.type).toBe("tool_result");
-    expect(toolResult.result.status).toBe("error");
+    expect(toolResult.is_error).toBe(true);
 
-    const toolResultError = toolResult.result as Extract<
-      typeof toolResult.result,
-      { status: "error" }
-    >;
-    expect(toolResultError.error).toContain("Unsupported file type");
+    const errorContent =
+      typeof toolResult.content === "string"
+        ? toolResult.content
+        : JSON.stringify(toolResult.content);
+    expect(errorContent).toContain("Unsupported file type");
   });
 });
 
@@ -1716,19 +1697,17 @@ it("should handle file size limits appropriately", async () => {
 
       expect(toolResultMessage.role).toBe("user");
       expect(Array.isArray(toolResultMessage.content)).toBe(true);
+      const contentArray = toolResultMessage.content as ContentBlockParam[];
 
-      const toolResult = toolResultMessage.content[0] as Extract<
-        (typeof toolResultMessage.content)[0],
-        { type: "tool_result" }
-      >;
+      const toolResult = contentArray[0] as ToolResultBlockParam;
       expect(toolResult.type).toBe("tool_result");
-      expect(toolResult.result.status).toBe("error");
+      expect(toolResult.is_error).toBe(true);
 
-      const toolResultError = toolResult.result as Extract<
-        typeof toolResult.result,
-        { status: "error" }
-      >;
-      expect(toolResultError.error).toContain("File too large");
+      const errorContent =
+        typeof toolResult.content === "string"
+          ? toolResult.content
+          : JSON.stringify(toolResult.content);
+      expect(errorContent).toContain("File too large");
 
       // No cleanup needed since the file is in the temporary test directory
     },

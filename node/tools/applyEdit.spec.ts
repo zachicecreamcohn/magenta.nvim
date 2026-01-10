@@ -161,7 +161,7 @@ Paints its colors stories in the night.
           {
             status: "ok",
             value: {
-              id: "id" as ToolRequestId,
+              id: "id1" as ToolRequestId,
               toolName: "insert" as ToolName,
               input: {
                 filePath: "multiple.txt" as UnresolvedFilePath,
@@ -192,7 +192,7 @@ Paints its colors stories in the night.
           {
             status: "ok",
             value: {
-              id: "id" as ToolRequestId,
+              id: "id2" as ToolRequestId,
               toolName: "insert" as ToolName,
               input: {
                 filePath: "multiple.txt" as UnresolvedFilePath,

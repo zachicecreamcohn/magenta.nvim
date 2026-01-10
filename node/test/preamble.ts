@@ -9,118 +9,159 @@ import { Magenta } from "../magenta.ts";
 import { withMockClient } from "../providers/mock.ts";
 import { NvimDriver } from "./driver.ts";
 import { type MagentaOptions } from "../options.ts";
-import type { ProviderToolResult } from "../providers/provider-types.ts";
 import { type MockMCPServer, mockServers } from "../tools/mcp/mock-server.ts";
 import type { ServerName } from "../tools/mcp/types.ts";
+import type Anthropic from "@anthropic-ai/sdk";
+
+type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
 
 /**
- * Helper functions for asserting properties of tool result arrays
+ * Helper functions for asserting properties of tool result arrays.
+ * These work with Anthropic's ToolResultBlockParam format.
  */
 export function assertToolResultContainsText(
-  toolResult: ProviderToolResult,
+  toolResult: ToolResultBlockParam,
   expectedText: string,
 ): void {
-  const result = toolResult.result;
-  if (result.status === "ok") {
-    const hasText = result.value.some((item) => {
-      if (typeof item === "object" && item.type === "text") {
+  const content = toolResult.content;
+  if (toolResult.is_error) {
+    throw new Error(
+      `Expected tool result to have ok status, but got error: ${JSON.stringify(content)}`,
+    );
+  }
+  if (typeof content === "string") {
+    if (!content.includes(expectedText)) {
+      throw new Error(
+        `Expected tool result to contain text "${expectedText}" but it didn't. Result: ${content}`,
+      );
+    }
+    return;
+  }
+  if (Array.isArray(content)) {
+    const hasText = content.some((item) => {
+      if (item.type === "text") {
         return item.text.includes(expectedText);
       }
       return false;
     });
     if (!hasText) {
       throw new Error(
-        `Expected tool result to contain text "${expectedText}" but it didn't. Result: ${JSON.stringify(result.value)}`,
+        `Expected tool result to contain text "${expectedText}" but it didn't. Result: ${JSON.stringify(content)}`,
       );
     }
-  } else {
-    throw new Error(
-      `Expected tool result to have ok status with array value, but got: ${JSON.stringify(result)}`,
-    );
+    return;
   }
+  throw new Error(
+    `Expected tool result to have content, but got: ${JSON.stringify(toolResult)}`,
+  );
 }
 
 export function assertToolResultHasType(
-  toolResult: ProviderToolResult,
+  toolResult: ToolResultBlockParam,
   expectedType: "text" | "image" | "document",
 ): void {
-  const result = toolResult.result;
-  if (result.status === "ok") {
-    const hasType = result.value.some((item) => {
-      return item && typeof item === "object" && item.type === expectedType;
-    });
-    if (!hasType) {
-      throw new Error(
-        `Expected tool result to contain item with type "${expectedType}" but it didn't. Result: ${JSON.stringify(result.value)}`,
-      );
-    }
-  } else {
+  const content = toolResult.content;
+  if (toolResult.is_error) {
     throw new Error(
-      `Expected tool result to have ok status with array value, but got: ${JSON.stringify(result)}`,
+      `Expected tool result to have ok status, but got error: ${JSON.stringify(content)}`,
     );
   }
+  if (typeof content === "string") {
+    if (expectedType !== "text") {
+      throw new Error(
+        `Expected tool result to contain item with type "${expectedType}" but got string content`,
+      );
+    }
+    return;
+  }
+  if (Array.isArray(content)) {
+    const hasType = content.some((item) => item.type === expectedType);
+    if (!hasType) {
+      throw new Error(
+        `Expected tool result to contain item with type "${expectedType}" but it didn't. Result: ${JSON.stringify(content)}`,
+      );
+    }
+    return;
+  }
+  throw new Error(
+    `Expected tool result to have content, but got: ${JSON.stringify(toolResult)}`,
+  );
 }
 
 export function assertToolResultHasImageSource(
-  toolResult: ProviderToolResult,
+  toolResult: ToolResultBlockParam,
   expectedMediaType: string,
 ): void {
-  const result = toolResult.result;
-  if (result.status === "ok") {
-    const imageItem = result.value.find((item) => {
-      return item && typeof item === "object" && item.type === "image";
-    });
-    if (!imageItem) {
-      throw new Error(
-        `Expected tool result to contain image item but it didn't. Result: ${JSON.stringify(result.value)}`,
-      );
-    }
-    if (
-      !imageItem.source ||
-      imageItem.source.type !== "base64" ||
-      imageItem.source.media_type !== expectedMediaType ||
-      typeof imageItem.source.data !== "string" ||
-      imageItem.source.data.length === 0
-    ) {
-      throw new Error(
-        `Expected image item to have valid source with media_type "${expectedMediaType}" but got: ${JSON.stringify(imageItem.source)}`,
-      );
-    }
-  } else {
+  const content = toolResult.content;
+  if (toolResult.is_error) {
     throw new Error(
-      `Expected tool result to have ok status with array value, but got: ${JSON.stringify(result)}`,
+      `Expected tool result to have ok status, but got error: ${JSON.stringify(content)}`,
+    );
+  }
+  if (typeof content === "string") {
+    throw new Error(
+      `Expected tool result to contain image item but got string content`,
+    );
+  }
+  if (!Array.isArray(content)) {
+    throw new Error(
+      `Expected tool result to have array content, but got: ${JSON.stringify(toolResult)}`,
+    );
+  }
+  const imageItem = content.find((item) => item.type === "image");
+  if (!imageItem) {
+    throw new Error(
+      `Expected tool result to contain image item but it didn't. Result: ${JSON.stringify(content)}`,
+    );
+  }
+  if (
+    !imageItem.source ||
+    imageItem.source.type !== "base64" ||
+    imageItem.source.media_type !== expectedMediaType ||
+    typeof imageItem.source.data !== "string" ||
+    imageItem.source.data.length === 0
+  ) {
+    throw new Error(
+      `Expected image item to have valid source with media_type "${expectedMediaType}" but got: ${JSON.stringify(imageItem.source)}`,
     );
   }
 }
 
 export function assertToolResultHasDocumentSource(
-  toolResult: ProviderToolResult,
+  toolResult: ToolResultBlockParam,
   expectedMediaType: string,
 ): void {
-  const result = toolResult.result;
-  if (result.status === "ok") {
-    const documentItem = result.value.find((item) => {
-      return item && typeof item === "object" && item.type === "document";
-    });
-    if (!documentItem) {
-      throw new Error(
-        `Expected tool result to contain document item but it didn't. Result: ${JSON.stringify(result.value)}`,
-      );
-    }
-    if (
-      !documentItem.source ||
-      documentItem.source.type !== "base64" ||
-      documentItem.source.media_type !== expectedMediaType ||
-      typeof documentItem.source.data !== "string" ||
-      documentItem.source.data.length === 0
-    ) {
-      throw new Error(
-        `Expected document item to have valid source with media_type "${expectedMediaType}" but got: ${JSON.stringify(documentItem.source)}`,
-      );
-    }
-  } else {
+  const content = toolResult.content;
+  if (toolResult.is_error) {
     throw new Error(
-      `Expected tool result to have ok status with array value, but got: ${JSON.stringify(result)}`,
+      `Expected tool result to have ok status, but got error: ${JSON.stringify(content)}`,
+    );
+  }
+  if (typeof content === "string") {
+    throw new Error(
+      `Expected tool result to contain document item but got string content`,
+    );
+  }
+  if (!Array.isArray(content)) {
+    throw new Error(
+      `Expected tool result to have array content, but got: ${JSON.stringify(toolResult)}`,
+    );
+  }
+  const documentItem = content.find((item) => item.type === "document");
+  if (!documentItem) {
+    throw new Error(
+      `Expected tool result to contain document item but it didn't. Result: ${JSON.stringify(content)}`,
+    );
+  }
+  if (
+    !documentItem.source ||
+    documentItem.source.type !== "base64" ||
+    documentItem.source.media_type !== expectedMediaType ||
+    typeof documentItem.source.data !== "string" ||
+    documentItem.source.data.length === 0
+  ) {
+    throw new Error(
+      `Expected document item to have valid source with media_type "${expectedMediaType}" but got: ${JSON.stringify(documentItem.source)}`,
     );
   }
 }

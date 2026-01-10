@@ -1,6 +1,22 @@
 import { test, expect } from "vitest";
 import { withDriver } from "../test/preamble.ts";
 import type { ToolName, ToolRequestId } from "../tools/types.ts";
+import type Anthropic from "@anthropic-ai/sdk";
+
+type ContentBlockParam = Anthropic.Messages.ContentBlockParam;
+type TextBlockParam = Anthropic.Messages.TextBlockParam;
+
+// System reminders are converted to text blocks with <system-reminder> tags
+// when sent to Anthropic, so we search for text blocks containing that tag
+function findSystemReminderText(
+  content: string | ContentBlockParam[],
+): TextBlockParam | undefined {
+  if (typeof content === "string") return undefined;
+  return content.find(
+    (c): c is TextBlockParam =>
+      c.type === "text" && c.text.includes("<system-reminder>"),
+  );
+}
 
 test("user-submitted messages should include system reminder", async () => {
   await withDriver({}, async (driver) => {
@@ -17,14 +33,11 @@ test("user-submitted messages should include system reminder", async () => {
     const userMessage = request.messages[request.messages.length - 1];
     expect(userMessage.role).toBe("user");
 
-    // Find system reminder in content
-    const systemReminder = userMessage.content.find(
-      (c) => c.type === "system_reminder",
-    );
+    // Find system reminder in content (converted to text block with <system-reminder> tag)
+    const systemReminder = findSystemReminderText(userMessage.content);
     expect(systemReminder).toBeDefined();
-    expect(systemReminder?.type).toBe("system_reminder");
 
-    if (systemReminder && systemReminder.type === "system_reminder") {
+    if (systemReminder) {
       expect(systemReminder.text).toContain("<system-reminder>");
       expect(systemReminder.text).toContain("Remember to use the skills");
     }
@@ -67,9 +80,7 @@ test("auto-respond messages should NOT include system reminder", async () => {
     expect(userMessage.role).toBe("user");
 
     // This auto-respond message should NOT have a system reminder
-    const systemReminder = userMessage.content.find(
-      (c) => c.type === "system_reminder",
-    );
+    const systemReminder = findSystemReminderText(userMessage.content);
     expect(systemReminder).toBeUndefined();
   });
 });
@@ -84,19 +95,14 @@ test("root thread should get base reminder", async () => {
     const request = await driver.mockAnthropic.awaitPendingStream();
     const userMessage = request.messages[request.messages.length - 1];
 
-    const systemReminder = userMessage.content.find(
-      (c) => c.type === "system_reminder",
-    ) as Extract<
-      (typeof userMessage.content)[number],
-      { type: "system_reminder" }
-    >;
+    const systemReminder = findSystemReminderText(userMessage.content);
 
     expect(systemReminder).toBeDefined();
-    expect(systemReminder.text).toContain("Remember to use the skills");
+    expect(systemReminder!.text).toContain("Remember to use the skills");
     // Root thread should NOT have yield_to_parent reminder
-    expect(systemReminder.text).not.toContain("yield_to_parent");
-    expect(systemReminder.text).not.toContain("notes/");
-    expect(systemReminder.text).not.toContain("plans/");
+    expect(systemReminder!.text).not.toContain("yield_to_parent");
+    expect(systemReminder!.text).not.toContain("notes/");
+    expect(systemReminder!.text).not.toContain("plans/");
   });
 });
 
@@ -158,18 +164,24 @@ test("system reminder content appears after context updates", async () => {
 
     expect(userMessage.role).toBe("user");
 
-    // Find context update and system reminder
-    const contextUpdate = userMessage.content.find((c) => c.type === "text");
-    const systemReminder = userMessage.content.find(
-      (c) => c.type === "system_reminder",
+    const content = userMessage.content;
+    if (typeof content === "string") {
+      throw new Error("Expected array content");
+    }
+
+    // Find context update (first text block) and system reminder
+    const contextUpdate = content.find(
+      (c): c is TextBlockParam =>
+        c.type === "text" && !c.text.includes("<system-reminder>"),
     );
+    const systemReminder = findSystemReminderText(content);
 
     expect(contextUpdate).toBeDefined();
     expect(systemReminder).toBeDefined();
 
     // System reminder should come after context update
-    const contextIdx = userMessage.content.indexOf(contextUpdate!);
-    const reminderIdx = userMessage.content.indexOf(systemReminder!);
+    const contextIdx = content.indexOf(contextUpdate!);
+    const reminderIdx = content.indexOf(systemReminder!);
     expect(reminderIdx).toBeGreaterThan(contextIdx);
   });
 });
@@ -184,9 +196,7 @@ test("multiple user messages each get their own system reminder", async () => {
 
     const request1 = await driver.mockAnthropic.awaitPendingStream();
     const userMessage1 = request1.messages[request1.messages.length - 1];
-    const reminder1 = userMessage1.content.find(
-      (c) => c.type === "system_reminder",
-    );
+    const reminder1 = findSystemReminderText(userMessage1.content);
     expect(reminder1).toBeDefined();
 
     request1.respond({
@@ -201,9 +211,7 @@ test("multiple user messages each get their own system reminder", async () => {
 
     const request2 = await driver.mockAnthropic.awaitPendingStream();
     const userMessage2 = request2.messages[request2.messages.length - 1];
-    const reminder2 = userMessage2.content.find(
-      (c) => c.type === "system_reminder",
-    );
+    const reminder2 = findSystemReminderText(userMessage2.content);
     expect(reminder2).toBeDefined();
   });
 });

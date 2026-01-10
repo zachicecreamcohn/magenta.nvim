@@ -37,7 +37,8 @@ describe("appendUserMessage", () => {
       defaultAnthropicOptions,
     );
 
-    thread.appendUserMessage([{ type: "text", text: "Hello" }], true);
+    thread.appendUserMessage([{ type: "text", text: "Hello" }]);
+    thread.continueConversation();
 
     const stream = await mockClient.awaitStream();
 
@@ -94,7 +95,7 @@ describe("appendUserMessage", () => {
     const content: ProviderThreadInput[] = [
       { type: "text", text: "Hello, world!" },
     ];
-    thread.appendUserMessage(content, false);
+    thread.appendUserMessage(content);
 
     const state = thread.getState();
     expect(state.messages).toHaveLength(1);
@@ -105,7 +106,7 @@ describe("appendUserMessage", () => {
       text: "Hello, world!",
     });
 
-    // No dispatch when respond=false
+    // No dispatch when continueConversation not called
     expect(actions).toHaveLength(0);
   });
 
@@ -128,7 +129,7 @@ describe("appendUserMessage", () => {
         },
       },
     ];
-    thread.appendUserMessage(content, false);
+    thread.appendUserMessage(content);
 
     const state = thread.getState();
     expect(state.messages[0].content[0]).toEqual({
@@ -161,7 +162,7 @@ describe("appendUserMessage", () => {
         title: "My Document",
       },
     ];
-    thread.appendUserMessage(content, false);
+    thread.appendUserMessage(content);
 
     const state = thread.getState();
     expect(state.messages[0].content[0]).toEqual({
@@ -196,7 +197,7 @@ describe("toolResult", () => {
       },
     };
 
-    expect(() => thread.toolResult(toolUseId, result, false)).toThrow(
+    expect(() => thread.toolResult(toolUseId, result)).toThrow(
       "Cannot provide tool result: expected status stopped with stopReason tool_use",
     );
   });
@@ -213,7 +214,8 @@ describe("toolResult", () => {
     const toolUseId = "tool-123" as ToolRequestId;
 
     // Send a message to trigger streaming, then respond with tool_use
-    thread.appendUserMessage([{ type: "text", text: "Hello" }], true);
+    thread.appendUserMessage([{ type: "text", text: "Hello" }]);
+    thread.continueConversation();
 
     const stream = await mockClient.awaitStream();
     stream.streamToolUse(toolUseId, "get_file" as ToolName, {
@@ -235,7 +237,7 @@ describe("toolResult", () => {
       },
     };
 
-    thread.toolResult(toolUseId, result, false);
+    thread.toolResult(toolUseId, result);
 
     const state = thread.getState();
     expect(state.messages).toHaveLength(3);
@@ -243,6 +245,49 @@ describe("toolResult", () => {
 
     const toolResult = state.messages[2].content[0];
     expect(toolResult.type).toBe("tool_result");
+  });
+});
+
+describe("continueConversation", () => {
+  it("throws when last message is from assistant", async () => {
+    const mockClient = new MockAnthropicClient();
+    const thread = new AnthropicProviderThread(
+      defaultOptions,
+      () => {},
+      mockClient as unknown as Anthropic,
+      defaultAnthropicOptions,
+    );
+
+    // Send a message and get a response
+    thread.appendUserMessage([{ type: "text", text: "Hello" }]);
+    thread.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+    stream.streamText("Hello there!");
+    stream.finishResponse("end_turn");
+
+    await stream.finalMessage();
+    await delay(0);
+
+    // Now trying to continue should throw because last message is assistant
+    expect(() => thread.continueConversation()).toThrow(
+      "Cannot continue conversation: last message is from assistant",
+    );
+  });
+
+  it("succeeds when last message is from user", () => {
+    const mockClient = new MockAnthropicClient();
+    const thread = new AnthropicProviderThread(
+      defaultOptions,
+      () => {},
+      mockClient as unknown as Anthropic,
+      defaultAnthropicOptions,
+    );
+
+    thread.appendUserMessage([{ type: "text", text: "Hello" }]);
+
+    // Should not throw
+    expect(() => thread.continueConversation()).not.toThrow();
   });
 });
 
@@ -257,12 +302,12 @@ describe("dispatch", () => {
       defaultAnthropicOptions,
     );
 
-    // appendUserMessage with respond=false should not dispatch
-    thread.appendUserMessage([{ type: "text", text: "Test" }], false);
+    // appendUserMessage without continueConversation should not dispatch
+    thread.appendUserMessage([{ type: "text", text: "Test" }]);
     expect(actions).toHaveLength(0);
 
-    // appendUserMessage with respond=true triggers streaming which dispatches
-    thread.appendUserMessage([{ type: "text", text: "Test 2" }], true);
+    // continueConversation triggers streaming which dispatches
+    thread.continueConversation();
 
     const stream = await mockClient.awaitStream();
     stream.streamText("Hello");
@@ -307,7 +352,8 @@ describe("abort", () => {
       defaultAnthropicOptions,
     );
 
-    thread.appendUserMessage([{ type: "text", text: "Hello" }], true);
+    thread.appendUserMessage([{ type: "text", text: "Hello" }]);
+    thread.continueConversation();
 
     const stream = await mockClient.awaitStream();
 
@@ -324,7 +370,6 @@ describe("abort", () => {
     expect(state.status).toEqual({
       type: "stopped",
       stopReason: "aborted",
-      usage: { inputTokens: 0, outputTokens: 0 },
     });
 
     expect(
@@ -346,7 +391,8 @@ describe("abort", () => {
       defaultAnthropicOptions,
     );
 
-    thread.appendUserMessage([{ type: "text", text: "Hello" }], true);
+    thread.appendUserMessage([{ type: "text", text: "Hello" }]);
+    thread.continueConversation();
 
     const stream = await mockClient.awaitStream();
 
@@ -387,7 +433,8 @@ describe("abort", () => {
       defaultAnthropicOptions,
     );
 
-    thread.appendUserMessage([{ type: "text", text: "Search for info" }], true);
+    thread.appendUserMessage([{ type: "text", text: "Search for info" }]);
+    thread.continueConversation();
 
     const stream = await mockClient.awaitStream();
 
@@ -424,7 +471,8 @@ describe("streaming block", () => {
       defaultAnthropicOptions,
     );
 
-    thread.appendUserMessage([{ type: "text", text: "Hello" }], true);
+    thread.appendUserMessage([{ type: "text", text: "Hello" }]);
+    thread.continueConversation();
 
     const stream = await mockClient.awaitStream();
 
@@ -477,7 +525,8 @@ describe("streaming block", () => {
       defaultAnthropicOptions,
     );
 
-    thread.appendUserMessage([{ type: "text", text: "Hello" }], true);
+    thread.appendUserMessage([{ type: "text", text: "Hello" }]);
+    thread.continueConversation();
 
     const stream = await mockClient.awaitStream();
 
@@ -538,7 +587,8 @@ describe("streaming block", () => {
       defaultAnthropicOptions,
     );
 
-    thread.appendUserMessage([{ type: "text", text: "Search" }], true);
+    thread.appendUserMessage([{ type: "text", text: "Search" }]);
+    thread.continueConversation();
 
     const stream = await mockClient.awaitStream();
 
@@ -578,7 +628,8 @@ describe("streaming block", () => {
       defaultAnthropicOptions,
     );
 
-    thread.appendUserMessage([{ type: "text", text: "Hello" }], true);
+    thread.appendUserMessage([{ type: "text", text: "Hello" }]);
+    thread.continueConversation();
 
     const stream = await mockClient.awaitStream();
 
@@ -608,7 +659,8 @@ describe("error handling with cleanup", () => {
       defaultAnthropicOptions,
     );
 
-    thread.appendUserMessage([{ type: "text", text: "Hello" }], true);
+    thread.appendUserMessage([{ type: "text", text: "Hello" }]);
+    thread.continueConversation();
 
     const stream = await mockClient.awaitStream();
 
@@ -651,7 +703,8 @@ describe("error handling with cleanup", () => {
       defaultAnthropicOptions,
     );
 
-    thread.appendUserMessage([{ type: "text", text: "Search for info" }], true);
+    thread.appendUserMessage([{ type: "text", text: "Search for info" }]);
+    thread.continueConversation();
 
     const stream = await mockClient.awaitStream();
 
@@ -677,5 +730,182 @@ describe("error handling with cleanup", () => {
     expect(state.messages[1].content[0].type).toBe("text");
 
     expect(state.status.type).toBe("error");
+  });
+});
+
+describe("latestUsage", () => {
+  it("tracks usage from successful responses", async () => {
+    const mockClient = new MockAnthropicClient();
+    const thread = new AnthropicProviderThread(
+      defaultOptions,
+      () => {},
+      mockClient as unknown as Anthropic,
+      defaultAnthropicOptions,
+    );
+
+    thread.appendUserMessage([{ type: "text", text: "Hello" }]);
+    thread.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+    stream.streamText("Hello there!");
+    stream.finishResponse("end_turn", {
+      inputTokens: 100,
+      outputTokens: 50,
+      cacheHits: 10,
+      cacheMisses: 5,
+    });
+
+    await stream.finalMessage();
+    await delay(0);
+
+    const state = thread.getState();
+    expect(state.latestUsage).toEqual({
+      inputTokens: 100,
+      outputTokens: 50,
+      cacheHits: 10,
+      cacheMisses: 5,
+    });
+  });
+
+  it("preserves latestUsage when subsequent request is aborted", async () => {
+    const mockClient = new MockAnthropicClient();
+    const thread = new AnthropicProviderThread(
+      defaultOptions,
+      () => {},
+      mockClient as unknown as Anthropic,
+      defaultAnthropicOptions,
+    );
+
+    // First request - successful
+    thread.appendUserMessage([{ type: "text", text: "Hello" }]);
+    thread.continueConversation();
+
+    const stream1 = await mockClient.awaitStream();
+    stream1.streamText("Hello there!");
+    stream1.finishResponse("end_turn", {
+      inputTokens: 100,
+      outputTokens: 50,
+    });
+
+    await stream1.finalMessage();
+    await delay(0);
+
+    // Verify initial usage
+    expect(thread.getState().latestUsage).toEqual({
+      inputTokens: 100,
+      outputTokens: 50,
+    });
+
+    // Second request - will be aborted
+    thread.appendUserMessage([{ type: "text", text: "Follow up" }]);
+    thread.continueConversation();
+
+    const stream2 = await mockClient.awaitStream();
+    stream2.streamText("Starting to respond...");
+
+    // Abort the second request
+    thread.abort();
+    await delay(0);
+
+    // latestUsage should still reflect the first successful request
+    const state = thread.getState();
+    expect(state.status).toEqual({ type: "stopped", stopReason: "aborted" });
+    expect(state.latestUsage).toEqual({
+      inputTokens: 100,
+      outputTokens: 50,
+    });
+  });
+
+  it("preserves latestUsage when subsequent request errors", async () => {
+    const mockClient = new MockAnthropicClient();
+    const thread = new AnthropicProviderThread(
+      defaultOptions,
+      () => {},
+      mockClient as unknown as Anthropic,
+      defaultAnthropicOptions,
+    );
+
+    // First request - successful
+    thread.appendUserMessage([{ type: "text", text: "Hello" }]);
+    thread.continueConversation();
+
+    const stream1 = await mockClient.awaitStream();
+    stream1.streamText("Hello there!");
+    stream1.finishResponse("end_turn", {
+      inputTokens: 200,
+      outputTokens: 75,
+      cacheHits: 20,
+    });
+
+    await stream1.finalMessage();
+    await delay(0);
+
+    // Verify initial usage
+    expect(thread.getState().latestUsage).toEqual({
+      inputTokens: 200,
+      outputTokens: 75,
+      cacheHits: 20,
+    });
+
+    // Second request - will error
+    thread.appendUserMessage([{ type: "text", text: "Follow up" }]);
+    thread.continueConversation();
+
+    const stream2 = await mockClient.awaitStream();
+    stream2.streamText("Starting to respond...");
+
+    // Simulate an error
+    stream2.respondWithError(new Error("Connection lost"));
+    await delay(0);
+
+    // latestUsage should still reflect the first successful request
+    const state = thread.getState();
+    expect(state.status.type).toBe("error");
+    expect(state.latestUsage).toEqual({
+      inputTokens: 200,
+      outputTokens: 75,
+      cacheHits: 20,
+    });
+  });
+
+  it("updates latestUsage only on successful responses", async () => {
+    const mockClient = new MockAnthropicClient();
+    const thread = new AnthropicProviderThread(
+      defaultOptions,
+      () => {},
+      mockClient as unknown as Anthropic,
+      defaultAnthropicOptions,
+    );
+
+    // Initially undefined
+    expect(thread.getState().latestUsage).toBeUndefined();
+
+    // First request - abort (should not set latestUsage)
+    thread.appendUserMessage([{ type: "text", text: "First" }]);
+    thread.continueConversation();
+    const stream1 = await mockClient.awaitStream();
+    stream1.streamText("Partial...");
+    thread.abort();
+    await delay(0);
+
+    expect(thread.getState().latestUsage).toBeUndefined();
+
+    // Second request - successful (should set latestUsage)
+    thread.appendUserMessage([{ type: "text", text: "Second" }]);
+    thread.continueConversation();
+    const stream2 = await mockClient.awaitStream();
+    stream2.streamText("Complete response");
+    stream2.finishResponse("end_turn", {
+      inputTokens: 150,
+      outputTokens: 60,
+    });
+
+    await stream2.finalMessage();
+    await delay(0);
+
+    expect(thread.getState().latestUsage).toEqual({
+      inputTokens: 150,
+      outputTokens: 60,
+    });
   });
 });

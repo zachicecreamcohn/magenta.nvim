@@ -2,6 +2,25 @@ import { withDriver } from "../test/preamble.ts";
 import { it, expect } from "vitest";
 import type { ToolRequestId } from "./toolManager.ts";
 import type { ToolName } from "./types.ts";
+import type Anthropic from "@anthropic-ai/sdk";
+
+type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
+
+function findToolResult(
+  messages: Anthropic.MessageParam[],
+  toolUseId: string,
+): ToolResultBlockParam | undefined {
+  for (const msg of messages) {
+    if (msg.role === "user" && Array.isArray(msg.content)) {
+      const result = msg.content.find(
+        (block): block is ToolResultBlockParam =>
+          block.type === "tool_result" && block.tool_use_id === toolUseId,
+      );
+      if (result) return result;
+    }
+  }
+  return undefined;
+}
 
 it("respects maxConcurrentSubagents limit and processes elements in batches", async () => {
   await withDriver(
@@ -17,11 +36,11 @@ it("respects maxConcurrentSubagents limit and processes elements in batches", as
       );
       await driver.send();
 
-      const request1 =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+      const stream1 =
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Use spawn_foreach",
         );
-      request1.respond({
+      stream1.respond({
         stopReason: "tool_use",
         text: "I'll use spawn_foreach to process 4 elements in parallel.",
         toolRequests: [
@@ -40,12 +59,12 @@ it("respects maxConcurrentSubagents limit and processes elements in batches", as
       });
 
       // The first 3 subagents should start running
-      const subagent1Request =
-        await driver.mockAnthropic.awaitPendingRequestWithText("element1");
-      const subagent2Request =
-        await driver.mockAnthropic.awaitPendingRequestWithText("element2");
-      const subagent3Request =
-        await driver.mockAnthropic.awaitPendingRequestWithText("element3");
+      const subagent1Stream =
+        await driver.mockAnthropic.awaitPendingStreamWithText("element1");
+      const subagent2Stream =
+        await driver.mockAnthropic.awaitPendingStreamWithText("element2");
+      const subagent3Stream =
+        await driver.mockAnthropic.awaitPendingStreamWithText("element3");
 
       // Now we should see 3 running and 1 pending
       await driver.assertDisplayBufferContains("🤖⏳ Foreach subagents (0/4):");
@@ -55,7 +74,7 @@ it("respects maxConcurrentSubagents limit and processes elements in batches", as
       await driver.assertDisplayBufferContains("- element4: ⏸️");
 
       // Complete the first subagent
-      subagent1Request.respond({
+      subagent1Stream.respond({
         stopReason: "tool_use",
         text: "I'll yield the result for element1.",
         toolRequests: [
@@ -77,14 +96,14 @@ it("respects maxConcurrentSubagents limit and processes elements in batches", as
       await driver.assertDisplayBufferContains("- element1: ✅");
 
       // The 4th subagent should now start
-      const subagent4Request =
-        await driver.mockAnthropic.awaitPendingRequestWithText("element4");
+      const subagent4Stream =
+        await driver.mockAnthropic.awaitPendingStreamWithText("element4");
 
       // Verify element4 is now running
       await driver.assertDisplayBufferContains("- element4: ⏳");
 
       // Complete the remaining 3 subagents
-      subagent2Request.respond({
+      subagent2Stream.respond({
         stopReason: "tool_use",
         text: "I'll yield the result for element2.",
         toolRequests: [
@@ -101,7 +120,7 @@ it("respects maxConcurrentSubagents limit and processes elements in batches", as
         ],
       });
 
-      subagent3Request.respond({
+      subagent3Stream.respond({
         stopReason: "tool_use",
         text: "I'll yield the result for element3.",
         toolRequests: [
@@ -118,7 +137,7 @@ it("respects maxConcurrentSubagents limit and processes elements in batches", as
         ],
       });
 
-      subagent4Request.respond({
+      subagent4Stream.respond({
         stopReason: "tool_use",
         text: "I'll yield the result for element4.",
         toolRequests: [
@@ -139,38 +158,34 @@ it("respects maxConcurrentSubagents limit and processes elements in batches", as
       await driver.assertDisplayBufferContains("🤖✅ Foreach subagents (4/4)");
 
       // The parent thread should receive the foreach tool result
-      const parentRequest =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+      const parentStream =
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Foreach subagent execution completed",
         );
 
       // Verify the tool response contains all subagent results
-      const toolResponses = parentRequest.getToolResponses();
-      const foreachResponse = toolResponses.find(
-        (response) => response.tool_use_id === "test-foreach",
+      const foreachResponse = findToolResult(
+        parentStream.messages,
+        "test-foreach",
       );
 
       expect(foreachResponse).toBeDefined();
-      expect(foreachResponse!.content).toContain("Total elements: 4");
-      expect(foreachResponse!.content).toContain("Successful: 4");
-      expect(foreachResponse!.content).toContain("Failed: 0");
-      expect(foreachResponse!.content).toContain(
-        "- element1: Processed element1 successfully",
-      );
-      expect(foreachResponse!.content).toContain(
-        "- element2: Processed element2 successfully",
-      );
-      expect(foreachResponse!.content).toContain(
-        "- element3: Processed element3 successfully",
-      );
-      expect(foreachResponse!.content).toContain(
-        "- element4: Processed element4 successfully",
-      );
+      const content =
+        typeof foreachResponse!.content === "string"
+          ? foreachResponse!.content
+          : JSON.stringify(foreachResponse!.content);
+      expect(content).toContain("Total elements: 4");
+      expect(content).toContain("Successful: 4");
+      expect(content).toContain("Failed: 0");
+      expect(content).toContain("- element1: Processed element1 successfully");
+      expect(content).toContain("- element2: Processed element2 successfully");
+      expect(content).toContain("- element3: Processed element3 successfully");
+      expect(content).toContain("- element4: Processed element4 successfully");
 
-      parentRequest.streamText(
+      parentStream.streamText(
         "All foreach subagents have completed successfully.",
       );
-      parentRequest.finishResponse("end_turn");
+      parentStream.finishResponse("end_turn");
     },
   );
 });
@@ -205,17 +220,20 @@ it("uses fast model for subagents when agentType is 'fast'", async () => {
       );
       await driver.send();
 
-      const request1 =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+      const stream1 =
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Use spawn_foreach",
         );
 
-      expect(request1.thinking, "parent request thinking is enabled").toEqual({
-        enabled: true,
-        budgetTokens: 1024,
+      expect(
+        stream1.params.thinking,
+        "parent request thinking is enabled",
+      ).toEqual({
+        type: "enabled",
+        budget_tokens: 1024,
       });
 
-      request1.respond({
+      stream1.respond({
         stopReason: "tool_use",
         text: "I'll use spawn_foreach with fast agent type.",
         toolRequests: [
@@ -235,15 +253,15 @@ it("uses fast model for subagents when agentType is 'fast'", async () => {
       });
 
       // The subagent should start running
-      const subagentRequest =
-        await driver.mockAnthropic.awaitPendingRequestWithText("test_element");
+      const subagentStream =
+        await driver.mockAnthropic.awaitPendingStreamWithText("test_element");
 
       // Verify that the subagent request uses the fast model
-      expect(subagentRequest.model).toBe(parentProfile.fastModel);
+      expect(subagentStream.params.model).toBe(parentProfile.fastModel);
 
       // Verify that reasoning is disabled for the fast subagent
       // even though the parent profile has reasoning enabled
-      expect(subagentRequest.thinking).toBeUndefined();
+      expect(subagentStream.params.thinking).toBeUndefined();
     },
   );
 });
@@ -262,11 +280,11 @@ it("handles subagent errors gracefully and continues processing remaining elemen
       );
       await driver.send();
 
-      const request1 =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+      const stream1 =
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Use spawn_foreach",
         );
-      request1.respond({
+      stream1.respond({
         stopReason: "tool_use",
         text: "I'll use spawn_foreach to process 2 elements.",
         toolRequests: [
@@ -285,8 +303,8 @@ it("handles subagent errors gracefully and continues processing remaining elemen
       });
 
       // First subagent should start (error_element)
-      const subagent1Request =
-        await driver.mockAnthropic.awaitPendingRequestWithText("error_element");
+      const subagent1Stream =
+        await driver.mockAnthropic.awaitPendingStreamWithText("error_element");
 
       // Verify initial state: 1 running, 1 pending
       await driver.assertDisplayBufferContains("🤖⏳ Foreach subagents (0/2):");
@@ -294,19 +312,19 @@ it("handles subagent errors gracefully and continues processing remaining elemen
       await driver.assertDisplayBufferContains("- success_element: ⏸️");
 
       // First subagent encounters an error
-      subagent1Request.respondWithError(new Error("Simulated subagent error"));
+      subagent1Stream.respondWithError(new Error("Simulated subagent error"));
 
       // Verify error_element shows as error state
       await driver.assertDisplayBufferContains("- error_element: ❌");
 
       // After error_element fails, success_element should start
-      const subagent2Request =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+      const subagent2Stream =
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "success_element",
         );
 
       // Second subagent succeeds
-      subagent2Request.respond({
+      subagent2Stream.respond({
         stopReason: "tool_use",
         text: "I'll yield a successful result.",
         toolRequests: [
@@ -327,31 +345,35 @@ it("handles subagent errors gracefully and continues processing remaining elemen
       await driver.assertDisplayBufferContains("🤖✅ Foreach subagents (2/2)");
 
       // The parent thread should receive the foreach tool result
-      const parentRequest =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+      const parentStream =
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Foreach subagent execution completed",
         );
 
       // Verify the tool response contains results from both subagents
-      const toolResponses = parentRequest.getToolResponses();
-      const foreachResponse = toolResponses.find(
-        (response) => response.tool_use_id === "test-foreach-error",
+      const foreachResponse = findToolResult(
+        parentStream.messages,
+        "test-foreach-error",
       );
 
       expect(foreachResponse).toBeDefined();
 
-      expect(foreachResponse!.content).toContain("Total elements: 2");
-      expect(foreachResponse!.content).toContain("Successful: 1");
-      expect(foreachResponse!.content).toContain("Failed: 1");
-      expect(foreachResponse!.content).toContain(
+      const content =
+        typeof foreachResponse!.content === "string"
+          ? foreachResponse!.content
+          : JSON.stringify(foreachResponse!.content);
+      expect(content).toContain("Total elements: 2");
+      expect(content).toContain("Successful: 1");
+      expect(content).toContain("Failed: 1");
+      expect(content).toContain(
         "- success_element: Successfully processed success_element",
       );
-      expect(foreachResponse!.content).toContain("- error_element:");
+      expect(content).toContain("- error_element:");
 
-      parentRequest.streamText(
+      parentStream.streamText(
         "Foreach subagents completed with mixed results.",
       );
-      parentRequest.finishResponse("end_turn");
+      parentStream.finishResponse("end_turn");
     },
   );
 });
@@ -368,11 +390,11 @@ it("aborts all child threads when the foreach request is aborted", async () => {
       await driver.inputMagentaText("Use spawn_foreach to process 3 elements.");
       await driver.send();
 
-      const request1 =
-        await driver.mockAnthropic.awaitPendingRequestWithText(
+      const stream1 =
+        await driver.mockAnthropic.awaitPendingStreamWithText(
           "Use spawn_foreach",
         );
-      request1.respond({
+      stream1.respond({
         stopReason: "tool_use",
         text: "I'll use spawn_foreach to process 3 elements.",
         toolRequests: [
@@ -391,10 +413,10 @@ it("aborts all child threads when the foreach request is aborted", async () => {
       });
 
       // First 2 subagents should start running (due to maxConcurrentSubagents: 2)
-      const subagent1Request =
-        await driver.mockAnthropic.awaitPendingRequestWithText("element1");
-      const subagent2Request =
-        await driver.mockAnthropic.awaitPendingRequestWithText("element2");
+      const subagent1Stream =
+        await driver.mockAnthropic.awaitPendingStreamWithText("element1");
+      const subagent2Stream =
+        await driver.mockAnthropic.awaitPendingStreamWithText("element2");
 
       // Verify initial state: 2 running, 1 pending
       await driver.assertDisplayBufferContains("🤖⏳ Foreach subagents (0/3):");
@@ -406,15 +428,15 @@ it("aborts all child threads when the foreach request is aborted", async () => {
       await driver.abort();
 
       // Verify that both running subagent requests were aborted
-      expect(subagent1Request.wasAborted()).toBe(true);
-      expect(subagent2Request.wasAborted()).toBe(true);
+      expect(subagent1Stream.aborted).toBe(true);
+      expect(subagent2Stream.aborted).toBe(true);
 
       // Verify that the foreach tool shows as aborted/error state
       await driver.assertDisplayBufferContains("🤖❌ Foreach subagents");
 
       // Verify no third subagent was started for element3
       // (since the foreach was aborted before element3 could start)
-      expect(driver.mockAnthropic.hasPendingRequestWithText("element3")).toBe(
+      expect(driver.mockAnthropic.hasPendingStreamWithText("element3")).toBe(
         false,
       );
     },

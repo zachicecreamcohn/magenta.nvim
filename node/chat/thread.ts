@@ -58,6 +58,7 @@ import player from "play-sound";
 import { CommandRegistry } from "./commands/registry.ts";
 import { getSubsequentReminder } from "../providers/system-reminders.ts";
 import { readGitignoreSync, type Gitignore } from "../tools/util.ts";
+import { renderStreamdedTool } from "../tools/helpers.ts";
 
 export type StoppedConversationState = {
   state: "stopped";
@@ -169,6 +170,14 @@ export type FileEditState = {
   status: { status: "pending" } | { status: "error"; message: string };
 };
 
+/** Edits for a single turn, keyed by file path */
+export type TurnEdits = { [filePath: string]: FileEditState };
+
+/** Edit tracking per turn, keyed by the message index when the agent yielded */
+export type EditsByYield = {
+  [yieldMessageIdx: number]: TurnEdits;
+};
+
 export class Thread {
   public state: {
     title?: string | undefined;
@@ -183,8 +192,10 @@ export class Thread {
     messageViewState: { [messageIdx: number]: MessageViewState };
     /** View state per tool, keyed by tool request ID */
     toolViewState: { [toolRequestId: ToolRequestId]: ToolViewState };
-    /** File edit tracking, keyed by relative file path */
-    edits: { [filePath: string]: FileEditState };
+    /** Edits accumulating for the current turn (before yield) */
+    currentEdits: TurnEdits;
+    /** Edit turns keyed by the assistant message index when the agent yielded */
+    editsByYield: EditsByYield;
   };
 
   private myDispatch: Dispatch<Msg>;
@@ -254,7 +265,8 @@ export class Thread {
       showSystemPrompt: false,
       messageViewState: {},
       toolViewState: {},
-      edits: {},
+      currentEdits: {},
+      editsByYield: {},
     };
 
     const provider = getProvider(this.context.nvim, this.state.profile);
@@ -398,7 +410,11 @@ export class Thread {
 
       case "tool-manager-msg": {
         this.toolManager.update(msg.msg);
-        this.maybeAutoRespond();
+        const autoRespondResult = this.maybeAutoRespond();
+        // Play chime if tool completed but we didn't autorespond
+        if (autoRespondResult.type !== "did-autorespond") {
+          this.playChimeIfNeeded();
+        }
         return;
       }
 
@@ -512,8 +528,22 @@ export class Thread {
                 }
               }
 
-              const didAutoRespond = this.maybeAutoRespond();
-              if (!didAutoRespond) {
+              const autoRespondResult = this.maybeAutoRespond();
+
+              // Record a yield if we're not auto-responding and not waiting for tool input
+              if (
+                autoRespondResult.type !== "did-autorespond" &&
+                autoRespondResult.type !== "waiting-for-tool-input"
+              ) {
+                this.fileSnapshots.startNewTurn();
+                // Save current edits under the assistant message index where we yielded
+                const yieldMessageIdx = this.getProviderMessages().length - 1;
+                this.state.editsByYield[yieldMessageIdx] =
+                  this.state.currentEdits;
+                this.state.currentEdits = {};
+              }
+
+              if (autoRespondResult.type !== "did-autorespond") {
                 this.playChimeIfNeeded();
               }
             }
@@ -593,13 +623,13 @@ export class Thread {
                 input.filePath as UnresolvedFilePath,
               );
 
-              if (!this.state.edits[filePath]) {
-                this.state.edits[filePath] = {
+              if (!this.state.currentEdits[filePath]) {
+                this.state.currentEdits[filePath] = {
                   status: { status: "pending" },
                   requestIds: [],
                 };
               }
-              this.state.edits[filePath].requestIds.push(request.id);
+              this.state.currentEdits[filePath].requestIds.push(request.id);
             }
           }
         }
@@ -628,7 +658,11 @@ export class Thread {
     // no need to handle conversation stop, since ProviderThread.abort() will handle it for us.
   }
 
-  maybeAutoRespond(): boolean {
+  maybeAutoRespond():
+    | { type: "did-autorespond" }
+    | { type: "waiting-for-tool-input" }
+    | { type: "yielded-to-parent" }
+    | { type: "no-action-needed" } {
     const conversation = this.getConversationState();
     if (
       conversation.state == "stopped" &&
@@ -648,9 +682,13 @@ export class Thread {
             const request = content.request.value;
             const tool = this.toolManager.getTool(request.id);
 
-            if (tool.request.toolName === "yield_to_parent" || !tool.isDone()) {
+            if (tool.request.toolName === "yield_to_parent") {
+              return { type: "yielded-to-parent" };
+            }
+
+            if (!tool.isDone()) {
               // terminate early if we have a blocking tool use
-              return false;
+              return { type: "waiting-for-tool-input" };
             }
 
             // Collect completed tool result
@@ -673,7 +711,7 @@ export class Thread {
         this.sendToolResultsAndContinue(completedTools, pendingMessages).catch(
           this.handleSendMessageError.bind(this),
         );
-        return true;
+        return { type: "did-autorespond" };
       }
     } else if (
       conversation.state == "stopped" &&
@@ -685,33 +723,61 @@ export class Thread {
       this.sendMessage(pendingMessages).catch(
         this.handleSendMessageError.bind(this),
       );
-      return true;
+      return { type: "did-autorespond" };
     }
-    return false;
+    return { type: "no-action-needed" };
+  }
+
+  /** Get context updates and convert to provider input format */
+  private async getAndPrepareContextUpdates(): Promise<{
+    content: ProviderThreadInput[];
+    updates: FileUpdates | undefined;
+  }> {
+    const contextUpdates = await this.contextManager.getContextUpdate();
+    if (Object.keys(contextUpdates).length === 0) {
+      return { content: [], updates: undefined };
+    }
+
+    const contextContent =
+      this.contextManager.contextUpdatesToContent(contextUpdates);
+    const content: ProviderThreadInput[] = [];
+    for (const c of contextContent) {
+      if (c.type === "text") {
+        content.push({ type: "text", text: c.text });
+      }
+    }
+
+    return { content, updates: contextUpdates };
   }
 
   private async sendToolResultsAndContinue(
     toolResults: Array<{ id: ToolRequestId; result: ProviderToolResult }>,
     pendingMessages: InputMessage[],
   ): Promise<void> {
-    // Send all tool results to the provider thread (without triggering response yet)
-    for (let i = 0; i < toolResults.length; i++) {
-      const { id, result } = toolResults[i];
-      const isLast = i === toolResults.length - 1;
-
-      if (isLast && pendingMessages.length === 0) {
-        // Last tool result with no pending messages - trigger response
-        this.providerThread.toolResult(id, result, true);
-      } else {
-        // More results or pending messages to come
-        this.providerThread.toolResult(id, result, false);
-      }
+    // Send all tool results to the provider thread
+    for (const { id, result } of toolResults) {
+      this.providerThread.toolResult(id, result);
     }
 
-    // If there are pending messages, send them after tool results
+    // If we have pending messages, send them via sendMessage
     if (pendingMessages.length > 0) {
       await this.sendMessage(pendingMessages);
+      return;
     }
+
+    // No pending messages - check for context updates
+    const { content: contextContent, updates: contextUpdates } =
+      await this.getAndPrepareContextUpdates();
+
+    if (contextUpdates) {
+      const newMessageIdx = this.getProviderMessages().length;
+      this.state.messageViewState[newMessageIdx] = {
+        contextUpdates,
+      };
+      this.providerThread.appendUserMessage(contextContent);
+    }
+
+    this.providerThread.continueConversation();
   }
 
   private handleSendMessageError = (error: Error): void => {
@@ -795,7 +861,6 @@ export class Thread {
   /** Prepare user message content for sending to provider thread */
   private async prepareUserContent(inputMessages?: InputMessage[]): Promise<{
     content: ProviderMessageContent[];
-    contextUpdates: FileUpdates | undefined;
     hasContent: boolean;
   }> {
     // Process messages to handle @file commands
@@ -850,9 +915,6 @@ You must use the fork_thread tool immediately, with only the information you alr
       }
     }
 
-    // Get context updates after all @file commands have been processed
-    const contextUpdates = await this.contextManager.getContextUpdate();
-
     // Add system reminder for user-submitted messages
     if (inputMessages?.length) {
       messageContent.push({
@@ -861,35 +923,25 @@ You must use the fork_thread tool immediately, with only the information you alr
       });
     }
 
-    const hasContent =
-      (inputMessages?.length ?? 0) > 0 ||
-      Object.keys(contextUpdates).length > 0;
-
     return {
       content: messageContent,
-      contextUpdates: Object.keys(contextUpdates).length
-        ? contextUpdates
-        : undefined,
-      hasContent,
+      hasContent: (inputMessages?.length ?? 0) > 0,
     };
   }
 
   async sendMessage(inputMessages?: InputMessage[]): Promise<void> {
     // Prepare user content
-    const { content, contextUpdates, hasContent } =
+    const { content, hasContent } =
       await this.prepareUserContent(inputMessages);
 
-    if (!hasContent) {
+    // Get context updates
+    const { content: contextContent, updates: contextUpdates } =
+      await this.getAndPrepareContextUpdates();
+
+    if (!hasContent && contextContent.length === 0) {
       // No content to send - this shouldn't normally happen
       return;
     }
-
-    // Start a new turn for file snapshots - all edits after this user message
-    // will be grouped together
-    this.fileSnapshots.startNewTurn();
-
-    // Clear edits from previous turn
-    this.state.edits = {};
 
     // Store context updates in view state for the new user message
     const currentMessageCount = this.getProviderMessages().length;
@@ -901,18 +953,7 @@ You must use the fork_thread tool immediately, with only the information you alr
 
     // Build content to send to provider thread
     // Include context as text content, then user content
-    const contentToSend: ProviderThreadInput[] = [];
-
-    // Add context updates as text
-    if (contextUpdates) {
-      const contextContent =
-        this.contextManager.contextUpdatesToContent(contextUpdates);
-      for (const c of contextContent) {
-        if (c.type === "text") {
-          contentToSend.push({ type: "text", text: c.text });
-        }
-      }
-    }
+    const contentToSend: ProviderThreadInput[] = [...contextContent];
 
     // Add user content (filter to input types only)
     for (const c of content) {
@@ -928,8 +969,9 @@ You must use the fork_thread tool immediately, with only the information you alr
       }
     }
 
-    // Send to provider thread
-    this.providerThread.appendUserMessage(contentToSend, true);
+    // Send to provider thread and start response
+    this.providerThread.appendUserMessage(contentToSend);
+    this.providerThread.continueConversation();
   }
 
   /** Get messages in provider format - delegates to provider thread */
@@ -1173,13 +1215,6 @@ ${thread.context.contextManager.view()}`;
       );
     });
 
-    // Render streaming block if this is the last message and we're streaming
-    const streamingBlockView =
-      messageIdx === messages.length - 1 &&
-      conversation.state === "message-in-flight"
-        ? renderStreamingBlock(thread)
-        : d``;
-
     // Render usage at end of assistant messages
     const usageView =
       message.role === "assistant" && message.usage
@@ -1188,30 +1223,52 @@ ${thread.context.contextManager.view()}`;
 
     return d`\
 ${roleHeader}
-${contextUpdateView}${contentView}${streamingBlockView}${usageView}
+${contextUpdateView}${contentView}${usageView}
 `;
   });
+
+  const streamingBlockView =
+    conversation.state === "message-in-flight"
+      ? renderStreamingBlock(thread)
+      : d``;
 
   return d`\
 ${titleView}
 ${systemPromptView}
 
 ${messagesView}\
+${streamingBlockView}\
 ${editSummaryView}\
 ${contextManagerView}\
 ${pendingMessagesView}\
 ${conversationStateView}`;
 };
 
-/** Render the edit summary for files modified in the current assistant turn */
+/** Render the edit summary for files modified in the current/last turn */
 function renderEditSummary(thread: Thread, dispatch: Dispatch<Msg>): VDOMNode {
-  const edits = thread.state.edits;
-  const filePaths = Object.keys(edits);
+  const messages = thread.getProviderMessages();
+  const lastMessage = messages[messages.length - 1];
+  const lastMessageIdx = messages.length - 1;
 
-  if (filePaths.length === 0) {
+  let edits: TurnEdits;
+
+  // If the last message is an assistant message and it's in the yield map,
+  // we're stopped and should show those edits
+  if (
+    lastMessage?.role === "assistant" &&
+    thread.state.editsByYield[lastMessageIdx]
+  ) {
+    edits = thread.state.editsByYield[lastMessageIdx];
+  } else {
+    // Otherwise we're streaming or have pending user input, show currentEdits
+    edits = thread.state.currentEdits;
+  }
+
+  if (Object.keys(edits).length === 0) {
     return d``;
   }
 
+  const filePaths = Object.keys(edits);
   const editLines = filePaths.map((filePath) => {
     const editState = edits[filePath];
     const editCount = editState.requestIds.length;
@@ -1409,7 +1466,7 @@ function renderToolResult(tool: ReturnType<ToolManager["getTool"]>): VDOMNode {
   return d`result: ${result.result.value.map((v) => (v.type === "text" ? v.text : `[${v.type}]`)).join("\n")}`;
 }
 
-function renderStreamingBlock(thread: Thread): VDOMNode {
+function renderStreamingBlock(thread: Thread): string | VDOMNode {
   const state = thread.providerThread.getState();
   const block = state.streamingBlock;
   if (!block) return d``;
@@ -1425,8 +1482,9 @@ function renderStreamingBlock(thread: Thread): VDOMNode {
         hl_group: "@comment",
       });
     }
-    case "tool_use":
-      return d`🔧 ${block.name}...`;
+    case "tool_use": {
+      return renderStreamdedTool(block);
+    }
   }
 }
 

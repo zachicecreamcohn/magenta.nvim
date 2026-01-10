@@ -402,23 +402,27 @@ export class Chat {
     ]);
 
     if (contextFiles.length > 0) {
-      await Promise.all(
+      const fileTypeResults = await Promise.all(
         contextFiles.map(async (filePath) => {
           const absFilePath = resolveFilePath(this.context.cwd, filePath);
-          const relFilePath = relativePath(this.context.cwd, absFilePath);
           const fileTypeInfo = await detectFileType(absFilePath);
-          if (!fileTypeInfo) {
-            this.context.nvim.logger.error(`File ${filePath} does not exist.`);
-            return;
-          }
-          contextManager.update({
-            type: "add-file-context",
-            absFilePath,
-            relFilePath,
-            fileTypeInfo,
-          });
+          return { filePath, absFilePath, fileTypeInfo };
         }),
       );
+
+      for (const { filePath, absFilePath, fileTypeInfo } of fileTypeResults) {
+        if (!fileTypeInfo) {
+          this.context.nvim.logger.error(`File ${filePath} does not exist.`);
+          continue;
+        }
+        const relFilePath = relativePath(this.context.cwd, absFilePath);
+        contextManager.update({
+          type: "add-file-context",
+          absFilePath,
+          relFilePath,
+          fileTypeInfo,
+        });
+      }
     }
 
     const thread = new Thread(threadId, threadType, systemPrompt, {

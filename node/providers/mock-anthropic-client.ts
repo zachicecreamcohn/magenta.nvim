@@ -2,8 +2,9 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { Defer, pollUntil } from "../utils/async.ts";
 import type { ToolRequestId } from "../tools/toolManager.ts";
 import type { ToolName, ToolRequest } from "../tools/types.ts";
-import type { StopReason, Usage } from "./provider-types.ts";
+import type { ProviderMessage, StopReason, Usage } from "./provider-types.ts";
 import type { Result } from "../utils/result.ts";
+import { convertAnthropicMessagesToProvider } from "./anthropic-thread.ts";
 
 type StreamEventCallback = (
   event: Anthropic.Messages.MessageStreamEvent,
@@ -26,9 +27,25 @@ export class MockStream implements MockMessageStream {
 
   constructor(public params: Anthropic.Messages.MessageStreamParams) {}
 
-  /** Access messages that were sent in the request */
+  /** Access messages that were sent in the request (raw Anthropic format) */
   get messages(): Anthropic.MessageParam[] {
     return this.params.messages;
+  }
+
+  /** Access messages converted to ProviderMessage format (for easier test assertions) */
+  getProviderMessages(): ProviderMessage[] {
+    return convertAnthropicMessagesToProvider(this.params.messages);
+  }
+
+  /** Access the system prompt that was sent in the request */
+  get systemPrompt(): string | undefined {
+    const system = this.params.system;
+    if (!system) return undefined;
+    if (typeof system === "string") return system;
+    // Array of text blocks - concatenate them
+    return system
+      .map((block) => ("text" in block ? block.text : ""))
+      .join("\n");
   }
 
   on(event: "streamEvent", callback: StreamEventCallback): this {

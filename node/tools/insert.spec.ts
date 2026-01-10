@@ -146,7 +146,7 @@ function existingFunction() {
 
     // Stream the tool use with gradual JSON building
     const toolIndex = 0;
-    request.onStreamEvent({
+    request.emitEvent({
       type: "content_block_start",
       index: toolIndex,
       content_block: {
@@ -162,7 +162,7 @@ function existingFunction() {
     const chunk2 = fullJson.substring(30, 120); // Complete filePath + insertAfter
     const chunk3 = fullJson.substring(120); // Rest of content
 
-    request.onStreamEvent({
+    request.emitEvent({
       type: "content_block_delta",
       index: toolIndex,
       delta: {
@@ -174,7 +174,7 @@ function existingFunction() {
     // At this point we only have partial filePath, should show preparing message
     await driver.assertDisplayBufferContains("⏳ Insert...");
 
-    request.onStreamEvent({
+    request.emitEvent({
       type: "content_block_delta",
       index: toolIndex,
       delta: {
@@ -186,7 +186,7 @@ function existingFunction() {
     // Now we should have complete filePath and insertAfter, can show line counts
     await driver.assertDisplayBufferContains("Insert [[ +1 ]]");
 
-    request.onStreamEvent({
+    request.emitEvent({
       type: "content_block_delta",
       index: toolIndex,
       delta: {

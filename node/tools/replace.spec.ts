@@ -384,22 +384,20 @@ import { Dispatch } from "../tea";`,
       expect(toolResultMessage.role).toBe("user");
       expect(Array.isArray(toolResultMessage.content)).toBe(true);
 
-      const toolResult = toolResultMessage.content.find(
-        (item) => item.type === "tool_result",
-      );
+      const content = toolResultMessage.content;
+      if (typeof content === "string") {
+        throw new Error("Expected array content");
+      }
+
+      const toolResult = content.find((item) => item.type === "tool_result");
 
       expect(toolResult).toBeDefined();
       if (!toolResult || toolResult.type !== "tool_result") {
         throw new Error("Expected tool result");
       }
 
-      // Verify the tool result indicates success
-      const result = toolResult.result;
-      expect(result.status).toBe("ok");
-
-      if (result.status !== "ok") {
-        throw new Error("Expected ok status");
-      }
+      // Verify the tool result indicates success (Anthropic format uses is_error)
+      expect(toolResult.is_error).toBeFalsy();
 
       // Check that the file contents are properly updated
       const fileContent = fs.readFileSync(testFile, "utf-8");
@@ -443,7 +441,7 @@ function oldFunction() {
     await driver.inputMagentaText("Replace the function content");
     await driver.send();
 
-    const request = await driver.mockAnthropic.awaitPendingStream();
+    const stream = await driver.mockAnthropic.awaitPendingStream();
 
     // Create the actual tool input that would be used
     const toolInput = {
@@ -470,7 +468,7 @@ function newFunction() {
 
     // Stream the tool use with gradual JSON building to test line count updates
     const toolIndex = 0;
-    request.onStreamEvent({
+    stream.emitEvent({
       type: "content_block_start",
       index: toolIndex,
       content_block: {
@@ -486,7 +484,7 @@ function newFunction() {
     const chunk2 = fullJson.substring(30, 80); // Complete filePath + start of find
     const chunk3 = fullJson.substring(80, 250); // More of find content, some of the replace
 
-    request.onStreamEvent({
+    stream.emitEvent({
       type: "content_block_delta",
       index: toolIndex,
       delta: {
@@ -500,7 +498,7 @@ function newFunction() {
       "⏳ Preparing replace operation...",
     );
 
-    request.onStreamEvent({
+    stream.emitEvent({
       type: "content_block_delta",
       index: toolIndex,
       delta: {
@@ -512,7 +510,7 @@ function newFunction() {
     // Now we should have complete filePath and partial find/replace, can show line counts
     await driver.assertDisplayBufferContains("Replace [[ -2 / +1 ]]");
 
-    request.onStreamEvent({
+    stream.emitEvent({
       type: "content_block_delta",
       index: toolIndex,
       delta: {

@@ -209,7 +209,7 @@ export interface ProviderToolUseRequest {
 export type ProviderThreadStatus =
   | { type: "idle" }
   | { type: "streaming"; startTime: Date }
-  | { type: "stopped"; stopReason: StopReason; usage: Usage }
+  | { type: "stopped"; stopReason: StopReason }
   | { type: "error"; error: Error };
 
 export type ProviderStreamingBlock =
@@ -244,13 +244,15 @@ export interface ProviderThread {
 
   getProviderStreamingBlock(): ProviderStreamingBlock | undefined;
 
-  appendUserMessage(content: ProviderThreadInput[], respond: boolean): void;
+  appendUserMessage(content: ProviderThreadInput[]): void;
 
   toolResult(
     toolUseId: ToolManager.ToolRequestId,
     result: ProviderToolResult,
-    respond: boolean,
   ): void;
+
+  /** Start streaming a response. Throws if the last message is from the assistant. */
+  continueConversation(): void;
 
   abort(): void;
 }

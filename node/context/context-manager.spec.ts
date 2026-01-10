@@ -198,8 +198,9 @@ it("avoids sending redundant context updates after tool application (no buffer)"
 
     {
       const request = await driver.mockAnthropic.awaitPendingStream();
+      const providerMessages = request.getProviderMessages();
       expect(
-        request.messages[request.messages.length - 1],
+        providerMessages[providerMessages.length - 1],
         "auto-respond request goes out",
       ).toEqual({
         content: [
@@ -229,8 +230,9 @@ it("avoids sending redundant context updates after tool application (no buffer)"
       });
 
       const request = await driver.mockAnthropic.awaitStopped();
+      const providerMessages = request.getProviderMessages();
       expect(
-        request.messages[request.messages.length - 1],
+        providerMessages[providerMessages.length - 1],
         "end_turn request stopped agent",
       ).toEqual({
         content: [
@@ -256,9 +258,10 @@ it("avoids sending redundant context updates after tool application (no buffer)"
     await driver.send();
 
     const userRequest = await driver.mockAnthropic.awaitPendingUserRequest();
+    const providerMessages = userRequest.getProviderMessages();
 
     expect(
-      userRequest.messages[userRequest.messages.length - 1],
+      providerMessages[providerMessages.length - 1],
       "next user message does not have context update",
     ).toEqual({
       content: [
@@ -296,6 +299,10 @@ it("sends update if the file was edited pre-insert", async () => {
     await driver.send();
 
     const request3 = await driver.mockAnthropic.awaitPendingStream();
+
+    // Set up intercept BEFORE responding, so we catch the auto-respond
+    const autoRespondCatcher = driver.interceptAutoRespond();
+
     request3.respond({
       stopReason: "tool_use",
       text: "I'll add a new line to the poem",
@@ -314,29 +321,29 @@ it("sends update if the file was edited pre-insert", async () => {
         },
       ],
     });
-    const autoRespondCatcher = driver.interceptSendMessage();
 
     await driver.assertDisplayBufferContains(
       "✏️✅ Insert [[ +2 ]] in `poem.txt`",
     );
 
-    const args = await autoRespondCatcher.promise;
+    // Wait for maybeAutoRespond to be called
+    await autoRespondCatcher.promise;
 
-    // edit the input buffer before the end turn response
+    // edit the buffer before the auto-respond fires
     await poemBuffer.setLines({
       start: 0 as Row0Indexed,
       end: 1 as Row0Indexed,
       lines: ["changed first line" as Line],
     });
 
-    // this promise will not resolve until we respond via mockAnthropic
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    autoRespondCatcher.execute(...args);
+    // Now execute the auto-respond
+    autoRespondCatcher.execute();
 
     {
-      const request = await driver.mockAnthropic.awaitPendingStream();
+      const stream = await driver.mockAnthropic.awaitPendingStream();
+      const providerMessages = stream.getProviderMessages();
       expect(
-        request.messages[request.messages.length - 2],
+        providerMessages[providerMessages.length - 2],
         "auto-respond request goes out",
       ).toEqual({
         content: [
@@ -358,7 +365,7 @@ it("sends update if the file was edited pre-insert", async () => {
       });
 
       expect(
-        request.messages[request.messages.length - 1],
+        providerMessages[providerMessages.length - 1],
         "auto-respond request goes out",
       ).toMatchSnapshot();
     }
@@ -770,16 +777,13 @@ it("issuing a getFile request adds the file to the context but doesn't send its 
 
     // Handle the auto-respond message
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+    const providerMessages = toolResultRequest.getProviderMessages();
 
-    const flattenedMessages = toolResultRequest.messages.flatMap((msg) =>
-      Array.isArray(msg.content)
-        ? msg.content.map(
-            (content) =>
-              `${msg.role};${content.type};${content.type === "text" ? content.text : ""}`,
-          )
-        : [
-            `${msg.role};text;${typeof msg.content === "string" ? msg.content : ""}`,
-          ],
+    const flattenedMessages = providerMessages.flatMap((msg) =>
+      msg.content.map(
+        (content) =>
+          `${msg.role};${content.type};${content.type === "text" ? content.text : ""}`,
+      ),
     );
 
     expect(flattenedMessages).toEqual([
@@ -898,9 +902,10 @@ it("includes PDF file in context and sends summary in context updates", async ()
       {
         await driver.assertDisplayBufferContains("`context-test.pdf` (page 1)");
         const request = await driver.mockAnthropic.awaitPendingStream();
-        const lastMessage = request.messages[request.messages.length - 1];
+        const providerMessages = request.getProviderMessages();
+        const lastMessage = providerMessages[providerMessages.length - 1];
 
-        // Validate structure while ignoring the changing PDF data
+        // Validate structure - document blocks are siblings to tool_result, not nested
         expect(lastMessage).toEqual({
           role: "user",
           content: [
@@ -909,18 +914,17 @@ it("includes PDF file in context and sends summary in context updates", async ()
               type: "tool_result",
               result: {
                 status: "ok",
-                value: [
-                  {
-                    type: "document",
-                    title: "context-test.pdf - Page 1",
-                    source: {
-                      type: "base64",
-                      media_type: "application/pdf",
-                      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                      data: expect.any(String), // Ignore the actual PDF data
-                    },
-                  },
-                ],
+                value: [], // Documents are extracted as siblings
+              },
+            },
+            {
+              type: "document",
+              title: "context-test.pdf - Page 1",
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+                data: expect.any(String), // Ignore the actual PDF data
               },
             },
           ],

@@ -26,12 +26,15 @@ Paint their stories in the night.
         "type": "text",
       },
       {
+        "cache_control": {
+          "type": "ephemeral",
+        },
         "text": "<system-reminder>
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>",
-        "type": "system_reminder",
+        "type": "text",
       },
     ],
     "role": "user",
@@ -74,12 +77,15 @@ Paint their stories in the night.
         "type": "text",
       },
       {
+        "cache_control": {
+          "type": "ephemeral",
+        },
         "text": "<system-reminder>
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>",
-        "type": "system_reminder",
+        "type": "text",
       },
     ],
     "role": "user",
@@ -108,12 +114,15 @@ Use get-file tool with a pdfPage parameter to access specific pages.",
         "type": "text",
       },
       {
+        "cache_control": {
+          "type": "ephemeral",
+        },
         "text": "<system-reminder>
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>",
-        "type": "system_reminder",
+        "type": "text",
       },
     ],
     "role": "user",
@@ -125,11 +134,13 @@ exports[`sends update if the file was edited pre-insert 1`] = `
 {
   "content": [
     {
+      "citations": undefined,
       "text": "These files are part of your context. This is the latest information about the content of each file.
 From now on, whenever any of these files are updated by the user, you will get a message letting you know.",
       "type": "text",
     },
     {
+      "citations": undefined,
       "text": "- \`poem.txt\`
 \`\`\`diff
 Index: poem.txt
