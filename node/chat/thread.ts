@@ -645,11 +645,30 @@ export class Thread {
     const messages = this.getProviderMessages();
     const lastMessage = messages[messages.length - 1];
     if (lastMessage?.role === "assistant") {
+      // Check if we're stopped waiting for tool use
+      const conversation = this.getConversationState();
+      const isWaitingForToolUse =
+        conversation.state === "stopped" &&
+        conversation.stopReason === "tool_use";
+
       for (const content of lastMessage.content) {
         if (content.type === "tool_use" && content.request.status === "ok") {
           const tool = this.toolManager.getTool(content.request.value.id);
           if (tool && !tool.isDone()) {
             tool.abort();
+
+            // If we're stopped waiting for tool use, insert error tool results
+            // so the conversation can continue properly
+            if (isWaitingForToolUse) {
+              this.providerThread.toolResult(content.request.value.id, {
+                type: "tool_result",
+                id: content.request.value.id,
+                result: {
+                  status: "error",
+                  error: "Request was aborted by the user.",
+                },
+              });
+            }
           }
         }
       }
@@ -1209,6 +1228,14 @@ ${thread.context.contextManager.view()}`;
 
   // Render messages from provider thread
   const messagesView = messages.map((message, messageIdx) => {
+    // Skip user messages that only contain tool results
+    if (
+      message.role === "user" &&
+      message.content.every((c) => c.type === "tool_result")
+    ) {
+      return d``;
+    }
+
     const roleHeader = withExtmark(d`# ${message.role}:`, {
       hl_group: "@markup.heading.1.markdown",
     });

@@ -1485,6 +1485,81 @@ it("aborts tool use when sending new message while tool is executing", async () 
     expect(messages).toMatchSnapshot();
   });
 });
+
+it("inserts error tool results when aborting while stopped waiting for tool use", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText("Read my secret file");
+    await driver.send();
+
+    const request1 = await driver.mockAnthropic.awaitPendingStream();
+    const toolRequestId = "get-file-tool" as ToolRequestId;
+
+    // Respond with get_file tool use - this will block on user approval
+    request1.respond({
+      stopReason: "tool_use",
+      text: "I'll read your secret file.",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: toolRequestId,
+            toolName: "get_file" as ToolName,
+            input: { filePath: ".secret" as UnresolvedFilePath },
+          },
+        },
+      ],
+    });
+
+    // Wait for approval dialog to appear - we're now stopped waiting for tool use
+    await driver.assertDisplayBufferContains("👀⏳ May I read file `.secret`?");
+
+    // Send a new message to abort - this should insert error tool result
+    await driver.inputMagentaText("Never mind, do something else");
+    await driver.send();
+
+    // Handle the second request
+    const request2 = await driver.mockAnthropic.awaitPendingStream();
+
+    // Verify the message structure includes an error tool_result for the aborted tool
+    const messagePattern = request2.messages.flatMap((m) =>
+      typeof m.content == "string"
+        ? "stringmessage"
+        : m.content.map((c) => `${m.role}:${c.type}`),
+    );
+
+    expect(messagePattern).toEqual([
+      "user:text",
+      "user:text", // system_reminder
+      "assistant:text",
+      "assistant:tool_use",
+      "user:tool_result", // error tool result from abort
+      "user:text",
+      "user:text", // system_reminder
+    ]);
+
+    // Verify the tool result contains the abort error message
+    const userMessages = request2.messages.filter((m) => m.role === "user");
+    const toolResultMessage = userMessages.find(
+      (m) =>
+        Array.isArray(m.content) &&
+        m.content.some((c) => c.type === "tool_result"),
+    );
+    expect(toolResultMessage).toBeDefined();
+
+    const toolResultContent = (
+      toolResultMessage!.content as Array<{ type: string }>
+    ).find((c) => c.type === "tool_result") as {
+      type: "tool_result";
+      tool_use_id: string;
+      content: string;
+      is_error: boolean;
+    };
+    expect(toolResultContent.tool_use_id).toBe(toolRequestId);
+    expect(toolResultContent.is_error).toBe(true);
+    expect(toolResultContent.content).toContain("aborted by the user");
+  });
+});
 it("handles @async messages by queueing them and sending on next tool response", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
