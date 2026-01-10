@@ -17,7 +17,7 @@ import {
   AnthropicProviderThread,
   CLAUDE_CODE_SPOOF_PROMPT,
   getMaxTokensForModel,
-  withCacheBreakpoint,
+  withCacheControl,
 } from "./anthropic-thread.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
@@ -367,7 +367,7 @@ export class AnthropicProvider implements Provider {
     });
 
     if (!disableCaching) {
-      anthropicMessages = withCacheBreakpoint(anthropicMessages);
+      anthropicMessages = withCacheControl(anthropicMessages);
     }
 
     const anthropicTools: Anthropic.Tool[] = tools.map((t): Anthropic.Tool => {

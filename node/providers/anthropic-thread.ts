@@ -54,6 +54,8 @@ export class AnthropicProviderThread implements ProviderThread {
   private latestUsage: Usage | undefined;
   /** Stop info for each assistant message, keyed by message index */
   private messageStopInfo: Map<number, MessageStopInfo> = new Map();
+  /** Cached provider messages to avoid expensive conversion on every getState() */
+  private cachedProviderMessages: ProviderMessage[] = [];
 
   constructor(
     private options: ProviderThreadOptions,
@@ -67,7 +69,7 @@ export class AnthropicProviderThread implements ProviderThread {
   getState(): ProviderThreadState {
     return {
       status: this.status,
-      messages: this.convertToProviderMessages(),
+      messages: this.cachedProviderMessages,
       streamingBlock: this.getProviderStreamingBlock(),
       latestUsage: this.latestUsage,
     };
@@ -94,6 +96,7 @@ export class AnthropicProviderThread implements ProviderThread {
       role: "user",
       content: nativeContent,
     });
+    this.updateCachedProviderMessages();
   }
 
   toolResult(toolUseId: ToolRequestId, result: ProviderToolResult): void {
@@ -137,6 +140,7 @@ export class AnthropicProviderThread implements ProviderThread {
       role: "user",
       content: nativeContent,
     });
+    this.updateCachedProviderMessages();
   }
 
   abort(): void {
@@ -179,6 +183,7 @@ export class AnthropicProviderThread implements ProviderThread {
       if (content.length === 0) {
         this.messages.pop();
       }
+      this.updateCachedProviderMessages();
       return;
     }
 
@@ -199,6 +204,7 @@ export class AnthropicProviderThread implements ProviderThread {
           },
         ],
       });
+      this.updateCachedProviderMessages();
     }
   }
 
@@ -206,7 +212,7 @@ export class AnthropicProviderThread implements ProviderThread {
     this.status = { type: "streaming", startTime: new Date() };
     this.dispatch({ type: "status-changed", status: this.status });
 
-    const messagesWithCache = withCacheBreakpoint(this.messages);
+    const messagesWithCache = withCacheControl(this.messages);
     this.currentRequest = this.client.messages.stream({
       ...this.params,
       messages: messagesWithCache,
@@ -282,6 +288,7 @@ export class AnthropicProviderThread implements ProviderThread {
             );
           }
           this.currentAnthropicBlock = undefined;
+          this.updateCachedProviderMessages();
           this.dispatch({ type: "messages-updated" });
           currentBlockIndex = -1;
           break;
@@ -312,6 +319,7 @@ export class AnthropicProviderThread implements ProviderThread {
             assistantMessage.content as Anthropic.Messages.ContentBlockParam[]
           ).push(this.responseBlockToParam(block));
         }
+        this.updateCachedProviderMessages();
         this.dispatch({ type: "messages-updated" });
 
         const usage: Usage = {
@@ -659,8 +667,8 @@ export class AnthropicProviderThread implements ProviderThread {
     }
   }
 
-  private convertToProviderMessages(): ProviderMessage[] {
-    return convertAnthropicMessagesToProvider(
+  private updateCachedProviderMessages(): void {
+    this.cachedProviderMessages = convertAnthropicMessagesToProvider(
       this.messages,
       this.messageStopInfo,
     );
@@ -888,7 +896,7 @@ function convertBlockToProvider(
  * prefix.
  * https://www.anthropic.com/news/token-saving-updates
  */
-export function withCacheBreakpoint(
+export function withCacheControl(
   messages: Anthropic.MessageParam[],
 ): Anthropic.MessageParam[] {
   // Find the last eligible block by searching backwards through messages
