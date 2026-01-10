@@ -461,6 +461,193 @@ describe("abort", () => {
   });
 });
 
+describe("thinking blocks", () => {
+  it("captures thinking content and signature during streaming", async () => {
+    const mockClient = new MockAnthropicClient();
+    const thread = new AnthropicProviderThread(
+      defaultOptions,
+      () => {},
+      mockClient as unknown as Anthropic,
+      defaultAnthropicOptions,
+    );
+
+    thread.appendUserMessage([{ type: "text", text: "Hello" }]);
+    thread.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+
+    const blockIndex = stream.nextBlockIndex();
+
+    // Start thinking block
+    stream.emitEvent({
+      type: "content_block_start",
+      index: blockIndex,
+      content_block: { type: "thinking", thinking: "", signature: "" },
+    });
+
+    // Check streaming block is exposed
+    let streamingBlock = thread.getProviderStreamingBlock();
+    expect(streamingBlock).toBeDefined();
+    expect(streamingBlock?.type).toBe("thinking");
+
+    // Add thinking content
+    stream.emitEvent({
+      type: "content_block_delta",
+      index: blockIndex,
+      delta: { type: "thinking_delta", thinking: "Let me think about this..." },
+    });
+
+    streamingBlock = thread.getProviderStreamingBlock();
+    expect(streamingBlock?.type).toBe("thinking");
+    if (streamingBlock?.type === "thinking") {
+      expect(streamingBlock.thinking).toBe("Let me think about this...");
+      expect(streamingBlock.signature).toBe("");
+    }
+
+    // Add signature
+    stream.emitEvent({
+      type: "content_block_delta",
+      index: blockIndex,
+      delta: {
+        type: "signature_delta",
+        signature: "EqQBCgIYAhIM1gbcDa9GJwZA2b3h",
+      } as Anthropic.Messages.ContentBlockDeltaEvent["delta"],
+    });
+
+    streamingBlock = thread.getProviderStreamingBlock();
+    if (streamingBlock?.type === "thinking") {
+      expect(streamingBlock.thinking).toBe("Let me think about this...");
+      expect(streamingBlock.signature).toBe("EqQBCgIYAhIM1gbcDa9GJwZA2b3h");
+    }
+
+    // Stop the block
+    stream.emitEvent({
+      type: "content_block_stop",
+      index: blockIndex,
+    });
+
+    expect(thread.getProviderStreamingBlock()).toBeUndefined();
+
+    // Check that the streamed content was captured in the message
+    const state = thread.getState();
+    expect(state.messages).toHaveLength(2);
+    const assistantContent = state.messages[1].content;
+    expect(assistantContent[0].type).toBe("thinking");
+    if (assistantContent[0].type === "thinking") {
+      expect(assistantContent[0].thinking).toBe("Let me think about this...");
+      expect(assistantContent[0].signature).toBe(
+        "EqQBCgIYAhIM1gbcDa9GJwZA2b3h",
+      );
+    }
+
+    // Abort to clean up (since we manually streamed, finishResponse would replace content)
+    thread.abort();
+  });
+
+  it("accumulates signature across multiple deltas", async () => {
+    const mockClient = new MockAnthropicClient();
+    const thread = new AnthropicProviderThread(
+      defaultOptions,
+      () => {},
+      mockClient as unknown as Anthropic,
+      defaultAnthropicOptions,
+    );
+
+    thread.appendUserMessage([{ type: "text", text: "Hello" }]);
+    thread.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+
+    const blockIndex = stream.nextBlockIndex();
+
+    stream.emitEvent({
+      type: "content_block_start",
+      index: blockIndex,
+      content_block: { type: "thinking", thinking: "", signature: "" },
+    });
+
+    stream.emitEvent({
+      type: "content_block_delta",
+      index: blockIndex,
+      delta: { type: "thinking_delta", thinking: "Part 1" },
+    });
+
+    stream.emitEvent({
+      type: "content_block_delta",
+      index: blockIndex,
+      delta: { type: "thinking_delta", thinking: " Part 2" },
+    });
+
+    // Signature in multiple chunks
+    stream.emitEvent({
+      type: "content_block_delta",
+      index: blockIndex,
+      delta: {
+        type: "signature_delta",
+        signature: "ABC",
+      } as Anthropic.Messages.ContentBlockDeltaEvent["delta"],
+    });
+
+    stream.emitEvent({
+      type: "content_block_delta",
+      index: blockIndex,
+      delta: {
+        type: "signature_delta",
+        signature: "DEF",
+      } as Anthropic.Messages.ContentBlockDeltaEvent["delta"],
+    });
+
+    const streamingBlock = thread.getProviderStreamingBlock();
+    if (streamingBlock?.type === "thinking") {
+      expect(streamingBlock.thinking).toBe("Part 1 Part 2");
+      expect(streamingBlock.signature).toBe("ABCDEF");
+    }
+
+    stream.emitEvent({
+      type: "content_block_stop",
+      index: blockIndex,
+    });
+
+    stream.finishResponse("end_turn");
+    await stream.finalMessage();
+  });
+
+  it("uses streamThinking helper with signature", async () => {
+    const mockClient = new MockAnthropicClient();
+    const thread = new AnthropicProviderThread(
+      defaultOptions,
+      () => {},
+      mockClient as unknown as Anthropic,
+      defaultAnthropicOptions,
+    );
+
+    thread.appendUserMessage([{ type: "text", text: "Hello" }]);
+    thread.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+    stream.streamThinking("Deep thoughts here", "signature123");
+    stream.streamText("Here is my answer");
+    stream.finishResponse("end_turn");
+
+    await stream.finalMessage();
+    await delay(0);
+
+    const state = thread.getState();
+    expect(state.messages).toHaveLength(2);
+
+    const assistantContent = state.messages[1].content;
+    expect(assistantContent).toHaveLength(2);
+
+    expect(assistantContent[0].type).toBe("thinking");
+    if (assistantContent[0].type === "thinking") {
+      expect(assistantContent[0].thinking).toBe("Deep thoughts here");
+      expect(assistantContent[0].signature).toBe("signature123");
+    }
+
+    expect(assistantContent[1].type).toBe("text");
+  });
+});
+
 describe("streaming block", () => {
   it("exposes text streaming block during streaming", async () => {
     const mockClient = new MockAnthropicClient();
@@ -907,5 +1094,74 @@ describe("latestUsage", () => {
       inputTokens: 150,
       outputTokens: 60,
     });
+  });
+});
+
+describe("context_update detection", () => {
+  it("converts text blocks with <context_update> tags to context_update type", () => {
+    const mockClient = new MockAnthropicClient();
+    const thread = new AnthropicProviderThread(
+      defaultOptions,
+      () => {},
+      mockClient as unknown as Anthropic,
+      defaultAnthropicOptions,
+    );
+
+    const contextUpdateText = `<context_update>
+These files are part of your context.
+File \`test.ts\`
+const x = 1;
+</context_update>`;
+
+    thread.appendUserMessage([{ type: "text", text: contextUpdateText }]);
+
+    const state = thread.getState();
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0].content[0].type).toBe("context_update");
+    if (state.messages[0].content[0].type === "context_update") {
+      expect(state.messages[0].content[0].text).toBe(contextUpdateText);
+    }
+  });
+
+  it("does not convert regular text to context_update type", () => {
+    const mockClient = {} as Anthropic;
+    const thread = new AnthropicProviderThread(
+      defaultOptions,
+      () => {},
+      mockClient,
+      defaultAnthropicOptions,
+    );
+
+    thread.appendUserMessage([
+      { type: "text", text: "Hello, this is regular text" },
+    ]);
+
+    const state = thread.getState();
+    expect(state.messages[0].content[0].type).toBe("text");
+  });
+
+  it("converts context_update in multi-content messages correctly", () => {
+    const mockClient = new MockAnthropicClient();
+    const thread = new AnthropicProviderThread(
+      defaultOptions,
+      () => {},
+      mockClient as unknown as Anthropic,
+      defaultAnthropicOptions,
+    );
+
+    const contextUpdateText = `<context_update>
+File context here
+</context_update>`;
+
+    thread.appendUserMessage([
+      { type: "text", text: contextUpdateText },
+      { type: "text", text: "Now here is my question" },
+    ]);
+
+    const state = thread.getState();
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0].content).toHaveLength(2);
+    expect(state.messages[0].content[0].type).toBe("context_update");
+    expect(state.messages[0].content[1].type).toBe("text");
   });
 });

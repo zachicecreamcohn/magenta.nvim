@@ -77,6 +77,11 @@ export type ProviderSystemReminderContent = {
   text: string;
 };
 
+export type ProviderContextUpdateContent = {
+  type: "context_update";
+  text: string;
+};
+
 export type ProviderImageContent = {
   type: "image";
   source: {
@@ -145,7 +150,8 @@ export type ProviderMessageContent =
   | ProviderToolResult
   | ProviderThinkingContent
   | ProviderRedactedThinkingContent
-  | ProviderSystemReminderContent;
+  | ProviderSystemReminderContent
+  | ProviderContextUpdateContent;
 
 export interface Provider {
   forceToolUse(options: {
@@ -214,7 +220,7 @@ export type ProviderThreadStatus =
 
 export type ProviderStreamingBlock =
   | { type: "text"; text: string }
-  | { type: "thinking"; thinking: string }
+  | { type: "thinking"; thinking: string; signature: string }
   | {
       type: "tool_use";
       id: ToolManager.ToolRequestId;

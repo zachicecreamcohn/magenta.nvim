@@ -150,6 +150,17 @@ export class MockStream implements MockMessageStream {
       delta: { type: "thinking_delta", thinking },
     });
 
+    if (signature) {
+      this.emit({
+        type: "content_block_delta",
+        index,
+        delta: {
+          type: "signature_delta",
+          signature,
+        } as Anthropic.Messages.ContentBlockDeltaEvent["delta"],
+      });
+    }
+
     this.emit({
       type: "content_block_stop",
       index,

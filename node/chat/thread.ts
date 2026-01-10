@@ -664,6 +664,15 @@ export class Thread {
     | { type: "yielded-to-parent" }
     | { type: "no-action-needed" } {
     const conversation = this.getConversationState();
+
+    // Don't auto-respond if the conversation was aborted
+    if (
+      conversation.state == "stopped" &&
+      conversation.stopReason == "aborted"
+    ) {
+      return { type: "no-action-needed" };
+    }
+
     if (
       conversation.state == "stopped" &&
       conversation.stopReason == "tool_use"
@@ -1049,12 +1058,15 @@ const getAnimationFrame = (sendDate: Date): string => {
 /**
  * Helper function to render the conversation state message
  */
-const renderConversationState = (conversation: ConversationState): VDOMNode => {
+const renderConversationState = (
+  conversation: ConversationState,
+  latestUsage: Usage | undefined,
+): VDOMNode => {
   switch (conversation.state) {
     case "message-in-flight":
       return d`Streaming response ${getAnimationFrame(conversation.sendDate)}`;
     case "stopped":
-      return renderStopReason(conversation.stopReason);
+      return renderStopReason(conversation.stopReason, latestUsage);
     case "yielded":
       return d`↗️ yielded to parent: ${conversation.response}`;
     case "error":
@@ -1066,11 +1078,15 @@ const renderConversationState = (conversation: ConversationState): VDOMNode => {
   }
 };
 
-function renderStopReason(stopReason: StopReason): VDOMNode {
+function renderStopReason(
+  stopReason: StopReason,
+  usage: Usage | undefined,
+): VDOMNode {
+  const usageView = usage ? d` ${renderUsage(usage)}` : d``;
   if (stopReason === "aborted") {
-    return d`[ABORTED]`;
+    return d`[ABORTED]${usageView}`;
   }
-  return d`Stopped (${stopReason})`;
+  return d`Stopped (${stopReason})${usageView}`;
 }
 
 function renderUsage(usage: Usage): VDOMNode {
@@ -1170,7 +1186,11 @@ magenta is for agentic flow
 ${thread.context.contextManager.view()}`;
   }
 
-  const conversationStateView = renderConversationState(conversation);
+  const latestUsage = thread.providerThread.getState().latestUsage;
+  const conversationStateView = renderConversationState(
+    conversation,
+    latestUsage,
+  );
 
   const contextManagerView = shouldShowContextManager(
     conversation,
@@ -1215,15 +1235,9 @@ ${thread.context.contextManager.view()}`;
       );
     });
 
-    // Render usage at end of assistant messages
-    const usageView =
-      message.role === "assistant" && message.usage
-        ? d`${renderUsage(message.usage)}\n`
-        : d``;
-
     return d`\
 ${roleHeader}
-${contextUpdateView}${contentView}${usageView}
+${contextUpdateView}${contentView}
 `;
   });
 
@@ -1308,7 +1322,7 @@ function renderMessageContent(
 
       if (isExpanded) {
         return withBindings(
-          withExtmark(d`💭 [Thinking]\n${content.thinking}`, {
+          withExtmark(d`💭 [Thinking]\n${content.thinking}\n`, {
             hl_group: "@comment",
           }),
           {
@@ -1323,7 +1337,7 @@ function renderMessageContent(
         );
       } else {
         return withBindings(
-          withExtmark(d`💭 [Thinking]`, { hl_group: "@comment" }),
+          withExtmark(d`💭 [Thinking]\n`, { hl_group: "@comment" }),
           {
             "<CR>": () =>
               dispatch({
@@ -1449,6 +1463,10 @@ function renderMessageContent(
         return d`🌐 Search results\n${results}\n`;
       }
       return d`🌐 Search results\n`;
+
+    case "context_update":
+      // Context updates are rendered via thread.state.messageViewState
+      return d``;
 
     default:
       return d`[Unknown content type]\n`;

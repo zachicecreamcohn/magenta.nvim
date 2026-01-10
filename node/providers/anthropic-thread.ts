@@ -24,7 +24,7 @@ export type AnthropicThreadOptions = {
 // Internal streaming block type for all Anthropic block types
 type AnthropicStreamingBlock =
   | { type: "text"; text: string }
-  | { type: "thinking"; thinking: string }
+  | { type: "thinking"; thinking: string; signature: string }
   | { type: "tool_use"; id: ToolRequestId; name: ToolName; inputJson: string }
   | {
       type: "server_tool_use";
@@ -437,7 +437,11 @@ export class AnthropicProviderThread implements ProviderThread {
       case "text":
         return { type: "text", text: contentBlock.text };
       case "thinking":
-        return { type: "thinking", thinking: contentBlock.thinking };
+        return {
+          type: "thinking",
+          thinking: contentBlock.thinking,
+          signature: "",
+        };
       case "tool_use":
         return {
           type: "tool_use",
@@ -488,6 +492,11 @@ export class AnthropicProviderThread implements ProviderThread {
           return { ...block, thinking: block.thinking + delta.thinking };
         }
         break;
+      case "signature_delta":
+        if (block.type === "thinking") {
+          return { ...block, signature: block.signature + delta.signature };
+        }
+        break;
       case "input_json_delta":
         if (block.type === "tool_use" || block.type === "server_tool_use") {
           return {
@@ -510,7 +519,7 @@ export class AnthropicProviderThread implements ProviderThread {
         return {
           type: "thinking",
           thinking: block.thinking,
-          signature: "",
+          signature: block.signature,
         };
       case "tool_use": {
         let input: Record<string, unknown> = {};
@@ -692,16 +701,10 @@ export function convertAnthropicMessagesToProvider(
       content,
     };
 
-    // Attach stop info to message if not ending with tool_use
+    // Attach stop info to assistant messages
     if (stopInfo && msg.role === "assistant") {
-      const lastBlock =
-        typeof msg.content === "string"
-          ? null
-          : msg.content[msg.content.length - 1];
-      if (!lastBlock || lastBlock.type !== "tool_use") {
-        result.stopReason = stopInfo.stopReason;
-        result.usage = stopInfo.usage;
-      }
+      result.stopReason = stopInfo.stopReason;
+      result.usage = stopInfo.usage;
     }
 
     return result;
@@ -717,6 +720,13 @@ function convertBlockToProvider(
       if (block.text.includes("<system-reminder>")) {
         return {
           type: "system_reminder",
+          text: block.text,
+        };
+      }
+      // Detect context_update blocks (converted to text with <context_update> tags)
+      if (block.text.includes("<context_update>")) {
+        return {
+          type: "context_update",
           text: block.text,
         };
       }
