@@ -13,6 +13,17 @@ import fs from "node:fs";
 import { resolveFilePath } from "../utils/files.ts";
 import lodash from "lodash";
 
+/** Replace dynamic thread IDs in messages with a placeholder for stable snapshots */
+function sanitizeMessagesForSnapshot<T>(messages: T): T {
+  const json = JSON.stringify(messages);
+  // Replace thread IDs like 019bab33-8c7c-76a9-bc7c-9f94103502c8 with placeholder
+  const sanitized = json.replace(
+    /\/tmp\/magenta\/threads\/[a-f0-9-]+\//g,
+    "/tmp/magenta/threads/<thread-id>/",
+  );
+  return JSON.parse(sanitized) as T;
+}
+
 it("chat render and a few updates", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
@@ -282,7 +293,9 @@ it("forks a thread with multiple messages into a new thread", async () => {
     await driver.send();
 
     const stream = await driver.mockAnthropic.awaitPendingStream();
-    expect(stream.messages).toMatchSnapshot("fork-tool-request-messages");
+    expect(sanitizeMessagesForSnapshot(stream.messages)).toMatchSnapshot(
+      "fork-tool-request-messages",
+    );
 
     const forkInput: ForkThreadInput = {
       contextFiles: ["poem.txt", "poem2.txt"] as UnresolvedFilePath[],
@@ -1097,7 +1110,7 @@ ok, I will try to rewrite the poem in that file
 
     await driver.assertDisplayBufferContains(`\
 Edits:
-  \`poem.txt\` (1 edits). [± diff snapshot]`);
+- \`poem.txt\` (1 edits). [± diff snapshot]`);
 
     const reviewPos = await driver.assertDisplayBufferContains("diff snapshot");
     await driver.triggerDisplayBufferKey(reviewPos, "<CR>");

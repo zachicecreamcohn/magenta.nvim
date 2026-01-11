@@ -282,6 +282,7 @@ describe("node/chat/chat.spec.ts", () => {
       });
 
       await driver.assertDisplayBufferContains("🤖✅ Spawning subagent");
+      await driver.awaitThreadCount(3);
       const thread3 = driver.getThreadId(2);
 
       // Start waiting for both subagents

@@ -1315,7 +1315,7 @@ function renderEditSummary(thread: Thread, dispatch: Dispatch<Msg>): VDOMNode {
     const editCount = editState.requestIds.length;
 
     return withBindings(
-      d`  \`${filePath}\` (${editCount.toString()} edits). [± diff snapshot]`,
+      d`- \`${filePath}\` (${editCount.toString()} edits). [± diff snapshot]\n`,
       {
         "<CR>": () =>
           dispatch({

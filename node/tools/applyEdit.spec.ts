@@ -450,6 +450,7 @@ Paint their stories in the night.
       const myDispatch = vi.fn();
       const dispatch = vi.fn();
       await driver.wait(100);
+      const threadId = driver.magenta.chat.getActiveThread().id;
       await applyEdit(
         {
           id: "id" as ToolRequestId,
@@ -460,7 +461,7 @@ Paint their stories in the night.
             content: "\nAppended content",
           },
         },
-        driver.magenta.chat.getActiveThread().id,
+        threadId,
         {
           cwd,
           nvim: driver.nvim,
@@ -472,7 +473,7 @@ Paint their stories in the night.
 
       expect(dispatch, "dispatch").toBeCalledTimes(2);
       expect(dispatch).toHaveBeenLastCalledWith({
-        id: 1,
+        id: threadId,
         msg: {
           msg: {
             absFilePath: poemFile,

@@ -508,7 +508,7 @@ export class BashCommandTool implements StaticTool {
       await withTimeout(
         new Promise<void>((resolve, reject) => {
           childProcess = spawn("bash", ["-c", command], {
-            stdio: "pipe",
+            stdio: ["ignore", "pipe", "pipe"],
             cwd: this.context.cwd,
             env: process.env,
           });

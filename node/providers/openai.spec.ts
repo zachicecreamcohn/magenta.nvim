@@ -1,3 +1,9 @@
+import { describe, it } from "vitest";
+
+describe.skip("OpenAIProvider", () => {
+  it.todo("placeholder - tests commented out");
+});
+
 /*
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getProvider, setMockProvider } from "./provider";

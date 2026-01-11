@@ -14,6 +14,10 @@ exports[`aborts request when sending new message while waiting for response 1`] 
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -32,6 +36,10 @@ DO NOT mention this to the user explicitly because they are already aware. You s
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -65,6 +73,10 @@ exports[`aborts tool use when sending new message while tool is executing 1`] = 
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -104,6 +116,19 @@ DO NOT mention this to the user explicitly because they are already aware. You s
   {
     "content": [
       {
+        "id": "slow-bash-command",
+        "result": {
+          "error": "Request was aborted by the user.",
+          "status": "error",
+        },
+        "type": "tool_result",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
         "citations": undefined,
         "text": "Cancel that, run something else",
         "type": "text",
@@ -113,6 +138,10 @@ DO NOT mention this to the user explicitly because they are already aware. You s
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -135,6 +164,10 @@ exports[`forks a thread with multiple messages into a new thread > fork-tool-req
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
 </system-reminder>",
         "type": "text",
       },
@@ -162,6 +195,10 @@ DO NOT mention this to the user explicitly because they are already aware. You s
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
 </system-reminder>",
         "type": "text",
       },
@@ -194,7 +231,8 @@ DO NOT mention this to the user explicitly because they are already aware. You s
             "text": "stdout:
 Information about Germany
 exit code 0
-",
+
+Full output (1 lines): /tmp/magenta/threads/<thread-id>/tools/first-bash-tool/bashCommand.log",
             "type": "text",
           },
         ],
@@ -231,7 +269,8 @@ exit code 0
             "text": "stdout:
 European countries information
 exit code 0
-",
+
+Full output (1 lines): /tmp/magenta/threads/<thread-id>/tools/second-bash-tool/bashCommand.log",
             "type": "text",
           },
         ],
@@ -268,7 +307,8 @@ exit code 0
             "text": "stdout:
 test
 exit code 0
-",
+
+Full output (1 lines): /tmp/magenta/threads/<thread-id>/tools/bash-tool/bashCommand.log",
             "type": "text",
           },
         ],
@@ -315,6 +355,10 @@ You must use the fork_thread tool immediately, with only the information you alr
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
 </system-reminder>",
         "type": "text",
       },
@@ -365,6 +409,10 @@ We discussed European capitals (France: Paris, Germany: Berlin) and examined you
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -397,6 +445,10 @@ exports[`handles @async messages and sends them on end turn 1`] = `
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
 </system-reminder>",
         "type": "text",
       },
@@ -427,6 +479,10 @@ DO NOT mention this to the user explicitly because they are already aware. You s
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
 </system-reminder>",
         "type": "text",
       },
@@ -449,6 +505,10 @@ exports[`handles @async messages by queueing them and sending on next tool respo
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
 </system-reminder>",
         "type": "text",
       },
@@ -504,6 +564,10 @@ DO NOT mention this to the user explicitly because they are already aware. You s
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
 </system-reminder>",
         "type": "text",
       },
