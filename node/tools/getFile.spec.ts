@@ -2221,3 +2221,151 @@ it("line ranges with long lines still get abridged", async () => {
     },
   );
 });
+
+it("should show treesitter minimap for large TypeScript file", async () => {
+  await withDriver(
+    {
+      setupFiles: async (tmpDir) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+
+        // Create a large TypeScript file (>40K chars)
+        const lines: string[] = [];
+        lines.push("interface User {");
+        lines.push("  name: string;");
+        lines.push("  age: number;");
+        lines.push("}");
+        lines.push("");
+
+        // Add many function declarations to make file large
+        for (let i = 0; i < 500; i++) {
+          lines.push(`function processItem${i}(data: User): string {`);
+          lines.push(
+            `  const result = data.name + " is " + data.age + " years old";`,
+          );
+          lines.push(`  console.log("Processing item ${i}:", result);`);
+          lines.push(`  return result;`);
+          lines.push(`}`);
+          lines.push("");
+        }
+
+        lines.push("class DataProcessor {");
+        lines.push("  private items: User[] = [];");
+        lines.push("");
+        lines.push("  addItem(item: User): void {");
+        lines.push("    this.items.push(item);");
+        lines.push("  }");
+        lines.push("}");
+
+        await fs.writeFile(path.join(tmpDir, "large.ts"), lines.join("\n"));
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText("Read the large.ts file");
+      await driver.send();
+
+      const stream = await driver.mockAnthropic.awaitPendingStream();
+      stream.respond({
+        stopReason: "tool_use",
+        text: "I'll read that file",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "tool1" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: { filePath: "./large.ts" as UnresolvedFilePath },
+            },
+          },
+        ],
+      });
+
+      // Wait for tool result
+      const resultStream = await driver.mockAnthropic.awaitPendingStream();
+      const toolResultMessage =
+        resultStream.messages[resultStream.messages.length - 1];
+
+      const contentArray = toolResultMessage.content as ContentBlockParam[];
+      const toolResult = contentArray.find(
+        (item: ContentBlockParam) => item.type === "tool_result",
+      ) as ToolResultBlockParam;
+      expect(toolResult).toBeDefined();
+      expect(toolResult.is_error).toBeFalsy();
+
+      const toolResultContent = toolResult.content as ContentBlockParam[];
+      const textContent = toolResultContent.find(
+        (item: ContentBlockParam) => item.type === "text",
+      ) as TextBlockParam;
+
+      // Check that the result contains the minimap header
+      expect(textContent.text).toContain("[Tree-sitter minimap (typescript)]");
+      expect(textContent.text).toContain("interface User");
+      expect(textContent.text).toContain("class DataProcessor");
+    },
+  );
+});
+
+it("should fallback to line-based truncation for unknown file type", async () => {
+  await withDriver(
+    {
+      setupFiles: async (tmpDir) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+
+        // Create a large file with unknown extension
+        const lines: string[] = [];
+        for (let i = 0; i < 1000; i++) {
+          lines.push(`Line ${i}: ${"x".repeat(50)}`);
+        }
+        await fs.writeFile(
+          path.join(tmpDir, "large.unknown123"),
+          lines.join("\n"),
+        );
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText("Read the large.unknown123 file");
+      await driver.send();
+
+      const stream = await driver.mockAnthropic.awaitPendingStream();
+      stream.respond({
+        stopReason: "tool_use",
+        text: "I'll read that file",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "tool1" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: { filePath: "./large.unknown123" as UnresolvedFilePath },
+            },
+          },
+        ],
+      });
+
+      // Wait for tool result
+      const resultStream = await driver.mockAnthropic.awaitPendingStream();
+      const toolResultMessage =
+        resultStream.messages[resultStream.messages.length - 1];
+
+      const contentArray = toolResultMessage.content as ContentBlockParam[];
+      const toolResult = contentArray.find(
+        (item: ContentBlockParam) => item.type === "tool_result",
+      ) as ToolResultBlockParam;
+      expect(toolResult).toBeDefined();
+      expect(toolResult.is_error).toBeFalsy();
+
+      const toolResultContent = toolResult.content as ContentBlockParam[];
+      const textContent = toolResultContent.find(
+        (item: ContentBlockParam) => item.type === "text",
+      ) as TextBlockParam;
+
+      // Should NOT contain minimap header since no parser available
+      expect(textContent.text).not.toContain("[Tree-sitter minimap");
+      // Should still have the line count header
+      expect(textContent.text).toContain("[Lines 1-100 of 1000]");
+    },
+  );
+});

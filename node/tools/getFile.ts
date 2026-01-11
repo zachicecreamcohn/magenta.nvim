@@ -31,6 +31,7 @@ import type { MagentaOptions } from "../options.ts";
 import type { Row0Indexed } from "../nvim/window.ts";
 import { canReadFile } from "./permissions.ts";
 import type { Gitignore } from "./util.ts";
+import { getTreeSitterMinimap, formatMinimap } from "../utils/treesitter.ts";
 
 const MAX_FILE_CHARACTERS = 40000;
 const MAX_LINE_CHARACTERS = 2000;
@@ -340,10 +341,26 @@ You already have the most up-to-date information about the contents of this file
         return;
       }
 
+      // For large files, try to generate a tree-sitter minimap
+      const totalChars = lines.reduce((sum, line) => sum + line.length + 1, 0);
+      const isLargeFile =
+        this.request.input.numLines === undefined &&
+        totalChars > MAX_FILE_CHARACTERS;
+
+      let minimapText: string | undefined;
+      if (isLargeFile && startIndex === 0) {
+        const minimapResult = await getTreeSitterMinimap(absFilePath);
+        if (minimapResult.status === "ok") {
+          minimapText = formatMinimap(minimapResult.value);
+        }
+        // If minimap fails, we just proceed without it (graceful fallback)
+      }
+
       const processedResult = this.processTextContent(
         lines,
         startIndex,
         this.request.input.numLines,
+        minimapText,
       );
 
       // Only add to context manager if returning full, unabridged content
@@ -592,6 +609,7 @@ You already have the most up-to-date information about the contents of this file
     lines: string[],
     startIndex: number,
     requestedNumLines: number | undefined,
+    minimapText?: string,
   ): { text: string; isComplete: boolean; hasAbridgedLines: boolean } {
     const totalLines = lines.length;
     const totalChars = lines.reduce((sum, line) => sum + line.length + 1, 0);
@@ -599,12 +617,24 @@ You already have the most up-to-date information about the contents of this file
     const isLargeFile =
       requestedNumLines === undefined && totalChars > MAX_FILE_CHARACTERS;
 
+    // If we have a minimap for a large file, just return the minimap
+    if (isLargeFile && minimapText) {
+      return {
+        text: minimapText,
+        isComplete: false,
+        hasAbridgedLines: false,
+      };
+    }
+
     let hasAbridgedLines = false;
     const outputLines: string[] = [];
 
-    const effectiveNumLines = isLargeFile
-      ? DEFAULT_LINES_FOR_LARGE_FILE
-      : requestedNumLines;
+    let effectiveNumLines: number | undefined;
+    if (isLargeFile) {
+      effectiveNumLines = DEFAULT_LINES_FOR_LARGE_FILE;
+    } else {
+      effectiveNumLines = requestedNumLines;
+    }
 
     const maxLinesToProcess =
       effectiveNumLines !== undefined
