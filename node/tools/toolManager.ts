@@ -190,6 +190,28 @@ export class ToolManager {
     [id: ToolRequestId]: StaticTool;
   };
 
+  private static readonly TOOL_SPEC_MAP: {
+    [K in StaticToolName]: ProviderToolSpec;
+  } = {
+    get_file: GetFile.spec,
+    insert: Insert.spec,
+    replace: Replace.spec,
+    list_directory: ListDirectory.spec,
+    hover: Hover.spec,
+    find_references: FindReferences.spec,
+    diagnostics: Diagnostics.spec,
+    bash_command: BashCommand.spec,
+    inline_edit: InlineEdit.spec,
+    replace_selection: ReplaceSelection.spec,
+    thread_title: ThreadTitle.spec,
+    fork_thread: ForkThread.spec,
+    spawn_subagent: SpawnSubagent.spec,
+    spawn_foreach: SpawnForeach.spec,
+    yield_to_parent: YieldToParent.spec,
+    wait_for_subagents: WaitForSubagents.spec,
+    predict_edit: PredictEdit.spec,
+  };
+
   constructor(
     public myDispatch: (msg: Msg) => void,
     private context: {
@@ -208,28 +230,6 @@ export class ToolManager {
   ) {
     this.tools = {};
   }
-  private static readonly TOOL_SPEC_MAP: {
-    [K in StaticToolName]: ProviderToolSpec;
-  } = {
-    get_file: GetFile.spec,
-    insert: Insert.spec,
-    replace: Replace.spec,
-
-    list_directory: ListDirectory.spec,
-    hover: Hover.spec,
-    find_references: FindReferences.spec,
-    diagnostics: Diagnostics.spec,
-    bash_command: BashCommand.spec,
-    inline_edit: InlineEdit.spec,
-    replace_selection: ReplaceSelection.spec,
-    thread_title: ThreadTitle.spec,
-    fork_thread: ForkThread.spec,
-    spawn_subagent: SpawnSubagent.spec,
-    spawn_foreach: SpawnForeach.spec,
-    yield_to_parent: YieldToParent.spec,
-    wait_for_subagents: WaitForSubagents.spec,
-    predict_edit: PredictEdit.spec,
-  };
 
   getToolSpecs(threadType: ThreadType): ProviderToolSpec[] {
     let staticToolNames: StaticToolName[] = [];

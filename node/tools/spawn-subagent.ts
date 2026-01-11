@@ -1,18 +1,19 @@
 import { d, withBindings } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
-import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { StaticTool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
 import { AGENT_TYPES, type AgentType } from "../providers/system-prompt.ts";
 import type { ThreadId, ThreadType } from "../chat/types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+
+export type ToolRequest = GenericToolRequest<"spawn_subagent", Input>;
 
 export type Msg = {
   type: "subagent-created";
@@ -34,7 +35,7 @@ export class SpawnSubagentTool implements StaticTool {
   public state: State;
 
   constructor(
-    public request: Extract<StaticToolRequest, { toolName: "spawn_subagent" }>,
+    public request: ToolRequest,
     public context: {
       nvim: Nvim;
       dispatch: Dispatch<RootMsg>;

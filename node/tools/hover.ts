@@ -7,15 +7,16 @@ import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp, LspDefinitionResponse, LspRange } from "../lsp.ts";
 import { calculateStringPosition } from "../tea/util.ts";
 import type { PositionString, Row0Indexed, StringIdx } from "../nvim/window.ts";
-import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
-import type { StaticTool, ToolName } from "./types.ts";
+import type { GenericToolRequest, StaticTool, ToolName } from "./types.ts";
 import path from "path";
+
+export type ToolRequest = GenericToolRequest<"hover", Input>;
 
 export type State =
   | {
@@ -36,7 +37,7 @@ export class HoverTool implements StaticTool {
   toolName = "hover" as const;
 
   constructor(
-    public request: Extract<StaticToolRequest, { toolName: "hover" }>,
+    public request: ToolRequest,
     public context: {
       nvim: Nvim;
       cwd: NvimCwd;

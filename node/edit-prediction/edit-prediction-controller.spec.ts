@@ -43,15 +43,13 @@ test("prediction after making edits", async () => {
     // Verify the system prompt contains general instructions
     expect(request.systemPrompt).toBeDefined();
 
-    // Verify the user message contains the specific context
-    expect(request.messages).toHaveLength(1);
-    expect(request.messages[0].role).toBe("user");
-    expect(request.messages[0].content).toHaveLength(1);
+    // Verify the input contains the specific context
+    expect(request.input).toHaveLength(1);
 
-    const userMessage = request.messages[0].content[0];
-    expect(userMessage.type).toBe("text");
+    const userInput = request.input[0];
+    expect(userInput.type).toBe("text");
 
-    const text = userMessage.type === "text" ? userMessage.text : "";
+    const text = userInput.type === "text" ? userInput.text : "";
 
     // Should contain buffer content around cursor with cursor marker
     expect(text).toMatchSnapshot();

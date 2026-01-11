@@ -1,7 +1,6 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
-import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
@@ -9,7 +8,7 @@ import type {
 } from "../providers/provider.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { StaticTool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
 import { NvimBuffer, type BufNr, type Line } from "../nvim/buffer.ts";
 import type {
   ByteIdx,
@@ -17,6 +16,12 @@ import type {
   Position1IndexedCol1Indexed,
   Row0Indexed,
 } from "../nvim/window.ts";
+
+export type Input = {
+  replace: string;
+};
+
+export type ToolRequest = GenericToolRequest<"replace_selection", Input>;
 
 export type State =
   | {
@@ -43,10 +48,7 @@ export class ReplaceSelectionTool implements StaticTool {
   toolName = "replace_selection" as const;
 
   constructor(
-    public request: Extract<
-      StaticToolRequest,
-      { toolName: "replace_selection" }
-    >,
+    public request: ToolRequest,
     public selection: NvimSelection,
     public context: { bufnr: BufNr; nvim: Nvim; myDispatch: Dispatch<Msg> },
   ) {
@@ -202,10 +204,6 @@ export const spec: ProviderToolSpec = {
     },
     required: ["replace"],
   },
-};
-
-export type Input = {
-  replace: string;
 };
 
 export function validateInput(input: {

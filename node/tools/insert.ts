@@ -9,7 +9,6 @@ import {
 } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { Dispatch } from "../tea/tea.ts";
-import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
@@ -19,13 +18,15 @@ import { applyEdit } from "./applyEdit.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/types.ts";
-import type { StaticTool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
 import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import { resolveFilePath } from "../utils/files.ts";
 import type { MagentaOptions } from "../options.ts";
 import { canWriteFile } from "./permissions.ts";
 import type { Gitignore } from "./util.ts";
+
+export type ToolRequest = GenericToolRequest<"insert", Input>;
 
 export type State =
   | {
@@ -64,7 +65,7 @@ export class InsertTool implements StaticTool {
   toolName = "insert" as const;
 
   constructor(
-    public request: Extract<StaticToolRequest, { toolName: "insert" }>,
+    public request: ToolRequest,
     public threadId: ThreadId,
     private context: {
       myDispatch: Dispatch<Msg>;

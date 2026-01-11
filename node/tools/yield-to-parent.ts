@@ -1,15 +1,20 @@
 import { d } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
-import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { StaticTool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/types";
+
+export type Input = {
+  result: string;
+};
+
+export type ToolRequest = GenericToolRequest<"yield_to_parent", Input>;
 
 export type Msg = {
   type: "finish";
@@ -26,7 +31,7 @@ export class YieldToParentTool implements StaticTool {
   public state: State;
 
   constructor(
-    public request: Extract<StaticToolRequest, { toolName: "yield_to_parent" }>,
+    public request: ToolRequest,
     public context: {
       nvim: Nvim;
       dispatch: Dispatch<RootMsg>;
@@ -120,10 +125,6 @@ After using this tool, the sub-agent thread will be terminated.`,
     },
     required: ["result"],
   },
-};
-
-export type Input = {
-  result: string;
 };
 
 export function validateInput(input: {

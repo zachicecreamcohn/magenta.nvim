@@ -24,17 +24,12 @@ describe("node/tools/thread-title.spec.ts", () => {
       // Verify the request uses the fast model
       expect(request.model).toBe("mock-fast");
 
-      // Verify the request contains the user message
-      expect(request.messages).toMatchObject([
+      // Verify the request input contains the user message
+      expect(request.input).toMatchObject([
         {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-              text: expect.stringContaining(userMessage),
-            },
-          ],
+          type: "text",
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          text: expect.stringContaining(userMessage),
         },
       ]);
 

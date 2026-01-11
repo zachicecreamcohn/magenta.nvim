@@ -11,13 +11,12 @@ import {
   withInlineCode,
   withExtmark,
 } from "../tea/view.ts";
-import type { StaticToolRequest } from "./toolManager.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { spawn, spawnSync } from "child_process";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { MagentaOptions } from "../options.ts";
 import { withTimeout } from "../utils/async.ts";
-import type { StaticTool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
 import { type NvimCwd, MAGENTA_TEMP_DIR } from "../utils/files.ts";
 import {
   isCommandAllowedByConfig,
@@ -107,6 +106,8 @@ export const spec: ProviderToolSpec = getSpec();
 export type Input = {
   command: string;
 };
+
+export type ToolRequest = GenericToolRequest<"bash_command", Input>;
 
 type OutputLine = {
   stream: "stdout" | "stderr";
@@ -198,7 +199,7 @@ export class BashCommandTool implements StaticTool {
   private logCurrentStream: "stdout" | "stderr" | undefined;
 
   constructor(
-    public request: Extract<StaticToolRequest, { toolName: "bash_command" }>,
+    public request: ToolRequest,
     public context: {
       nvim: Nvim;
       cwd: NvimCwd;

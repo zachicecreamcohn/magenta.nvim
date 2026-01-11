@@ -1,12 +1,11 @@
 import { d } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
-import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
-import type { StaticTool, ToolName } from "./types.ts";
+import type { GenericToolRequest, StaticTool, ToolName } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
@@ -34,7 +33,7 @@ export class ForkThreadTool implements StaticTool {
   public state: State;
 
   constructor(
-    public request: Extract<StaticToolRequest, { toolName: "fork_thread" }>,
+    public request: ToolRequest,
     public context: {
       nvim: Nvim;
       chat: Chat;
@@ -202,6 +201,8 @@ export type Input = {
   contextFiles: UnresolvedFilePath[];
   summary: string;
 };
+
+export type ToolRequest = GenericToolRequest<"fork_thread", Input>;
 
 export function validateInput(input: {
   [key: string]: unknown;

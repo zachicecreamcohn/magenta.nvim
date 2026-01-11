@@ -1,7 +1,6 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
-import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
@@ -9,9 +8,16 @@ import type {
 } from "../providers/provider.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { StaticTool, ToolName } from "./types.ts";
+import type { GenericToolRequest, StaticTool, ToolName } from "./types.ts";
 import { NvimBuffer, type BufNr, type Line } from "../nvim/buffer.ts";
 import type { ByteIdx, Position0Indexed, Row0Indexed } from "../nvim/window.ts";
+
+export type Input = {
+  find: string;
+  replace: string;
+};
+
+export type ToolRequest = GenericToolRequest<"inline_edit", Input>;
 
 export type State =
   | {
@@ -32,7 +38,7 @@ export class InlineEditTool implements StaticTool {
   toolName = "inline_edit" as const;
 
   constructor(
-    public request: Extract<StaticToolRequest, { toolName: "inline_edit" }>,
+    public request: ToolRequest,
     public context: { bufnr: BufNr; nvim: Nvim; myDispatch: Dispatch<Msg> },
   ) {
     this.state = {
@@ -211,11 +217,6 @@ If the text appears multiple times, only the first match will be replaced.`,
     },
     required: ["find", "replace"],
   },
-};
-
-export type Input = {
-  find: string;
-  replace: string;
 };
 
 export function validateInput(input: {

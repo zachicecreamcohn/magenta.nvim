@@ -1,17 +1,18 @@
 import { type Result } from "../utils/result.ts";
 import { Defer, pollUntil } from "../utils/async.ts";
-import {
-  type Provider,
-  type ProviderMessage,
-  type ProviderStreamRequest,
-  type StopReason,
-  type Usage,
-  type ProviderToolSpec,
-  type ProviderToolUseRequest,
-  type ProviderStreamEvent,
-  type ProviderThread,
-  type ProviderThreadOptions,
-  type ProviderThreadAction,
+import type {
+  Provider,
+  ProviderMessage,
+  ProviderStreamRequest,
+  StopReason,
+  Usage,
+  ProviderToolSpec,
+  ProviderToolUseRequest,
+  ProviderStreamEvent,
+  ProviderThread,
+  ProviderThreadOptions,
+  ProviderThreadAction,
+  ProviderThreadInput,
 } from "./provider-types.ts";
 import { setMockProvider } from "./provider.ts";
 import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
@@ -48,9 +49,10 @@ function anthropicBlockIncludesText(
 
 type MockForceToolUseRequest = {
   model: string;
-  messages: Array<ProviderMessage>;
+  input: ProviderThreadInput[];
   spec: ProviderToolSpec;
   systemPrompt?: string | undefined;
+  contextThread?: ProviderThread | undefined;
   defer: Defer<{
     toolRequest: Result<ToolRequest, { rawRequest: unknown }>;
     stopReason: StopReason;
@@ -95,16 +97,19 @@ export class MockProvider implements Provider {
 
   forceToolUse(options: {
     model: string;
-    messages: Array<ProviderMessage>;
+    input: ProviderThreadInput[];
     spec: ProviderToolSpec;
-    systemPrompt?: string | undefined;
+    systemPrompt?: string;
+    disableCaching?: boolean;
+    contextThread?: ProviderThread;
   }): ProviderToolUseRequest {
-    const { model, messages, spec, systemPrompt } = options;
+    const { model, input, spec, systemPrompt, contextThread } = options;
     const request: MockForceToolUseRequest = {
       model,
-      messages,
+      input,
       spec,
       systemPrompt,
+      contextThread,
       defer: new Defer(),
       aborted: false,
     };

@@ -1,12 +1,11 @@
 import { d, withBindings } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
-import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { StaticTool, ToolName } from "./types.ts";
+import type { GenericToolRequest, StaticTool, ToolName } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
@@ -64,7 +63,7 @@ export class SpawnForeachTool implements StaticTool {
   public state: State;
 
   constructor(
-    public request: Extract<StaticToolRequest, { toolName: "spawn_foreach" }>,
+    public request: ToolRequest,
     public context: {
       nvim: Nvim;
       dispatch: Dispatch<RootMsg>;
@@ -575,6 +574,8 @@ export type Input = {
   contextFiles?: UnresolvedFilePath[] | undefined;
   agentType?: AgentType | undefined;
 };
+
+export type ToolRequest = GenericToolRequest<"spawn_foreach", Input>;
 
 export function validateInput(input: {
   [key: string]: unknown;

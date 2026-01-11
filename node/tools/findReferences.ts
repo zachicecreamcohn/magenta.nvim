@@ -7,7 +7,6 @@ import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp } from "../lsp.ts";
 import { calculateStringPosition } from "../tea/util.ts";
 import type { PositionString, Row0Indexed, StringIdx } from "../nvim/window.ts";
-import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
@@ -18,7 +17,7 @@ import {
   type NvimCwd,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
-import type { StaticTool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
 
 export type State =
   | {
@@ -39,7 +38,7 @@ export class FindReferencesTool implements StaticTool {
   toolName = "find_references" as const;
 
   constructor(
-    public request: Extract<StaticToolRequest, { toolName: "find_references" }>,
+    public request: ToolRequest,
     public context: {
       nvim: Nvim;
       cwd: NvimCwd;
@@ -246,6 +245,8 @@ export type Input = {
   filePath: UnresolvedFilePath;
   symbol: string;
 };
+
+export type ToolRequest = GenericToolRequest<"find_references", Input>;
 
 export function validateInput(input: {
   [key: string]: unknown;

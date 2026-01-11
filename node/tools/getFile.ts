@@ -2,7 +2,6 @@ import { getBufferIfOpen } from "../utils/buffers.ts";
 import fs from "fs";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, withBindings, withInlineCode, withExtmark } from "../tea/view.ts";
-import { type StaticToolRequest } from "./toolManager.ts";
 import { type Result } from "../utils/result.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type {
@@ -19,7 +18,7 @@ import {
   FileCategory,
   type NvimCwd,
 } from "../utils/files.ts";
-import type { StaticTool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
 import type { Msg as ThreadMsg } from "../chat/thread.ts";
 import type { ContextManager } from "../context/context-manager.ts";
 import type { ProviderToolResultContent } from "../providers/provider-types.ts";
@@ -32,6 +31,8 @@ import type { Row0Indexed } from "../nvim/window.ts";
 import { canReadFile } from "./permissions.ts";
 import type { Gitignore } from "./util.ts";
 import { getTreeSitterMinimap, formatMinimap } from "../utils/treesitter.ts";
+
+export type ToolRequest = GenericToolRequest<"get_file", Input>;
 
 const MAX_FILE_CHARACTERS = 40000;
 const MAX_LINE_CHARACTERS = 2000;
@@ -74,7 +75,7 @@ export class GetFileTool implements StaticTool {
   toolName = "get_file" as const;
 
   constructor(
-    public request: Extract<StaticToolRequest, { toolName: "get_file" }>,
+    public request: ToolRequest,
     public context: {
       nvim: Nvim;
       cwd: NvimCwd;

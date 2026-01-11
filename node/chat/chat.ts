@@ -352,6 +352,20 @@ export class Chat {
     return [];
   }
 
+  /** Get the active provider thread for use as context in forceToolUse calls */
+  getContextThread() {
+    if (
+      this.state.state === "thread-selected" &&
+      this.state.activeThreadId in this.threadWrappers
+    ) {
+      const threadState = this.threadWrappers[this.state.activeThreadId];
+      if (threadState.state === "initialized") {
+        return threadState.thread.providerThread;
+      }
+    }
+    return undefined;
+  }
+
   private async createThreadWithContext({
     threadId,
     profile,

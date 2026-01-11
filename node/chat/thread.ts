@@ -1020,20 +1020,15 @@ You must use the fork_thread tool immediately, with only the information you alr
       profileForRequest,
     ).forceToolUse({
       model: this.context.profile.fastModel,
-      messages: [
+      input: [
         {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `\
+          type: "text",
+          text: `\
 The user has provided the following prompt:
 ${userMessage}
 
 Come up with a succinct thread title for this prompt. It should be less than 80 characters long.
 `,
-            },
-          ],
         },
       ],
       spec: threadTitleToolSpec,

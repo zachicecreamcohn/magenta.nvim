@@ -90,6 +90,11 @@ export class AnthropicProviderThread implements ProviderThread {
     }
   }
 
+  /** Get a copy of the native Anthropic messages for use in context piping */
+  getNativeMessages(): Anthropic.MessageParam[] {
+    return [...this.messages];
+  }
+
   appendUserMessage(content: ProviderThreadInput[]): void {
     const nativeContent = this.convertInputToNative(content);
     this.messages.push({

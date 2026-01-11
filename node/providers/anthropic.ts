@@ -2,16 +2,17 @@ import Anthropic from "@anthropic-ai/sdk";
 import { extendError, type Result } from "../utils/result.ts";
 import type { ToolRequestId } from "../tools/toolManager.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import {
-  type Provider,
-  type ProviderMessage,
-  type Usage,
-  type ProviderToolSpec,
-  type ProviderToolUseRequest,
-  type ProviderTextContent,
-  type ProviderThread,
-  type ProviderThreadOptions,
-  type ProviderThreadAction,
+import type {
+  Provider,
+  ProviderMessage,
+  Usage,
+  ProviderToolSpec,
+  ProviderToolUseRequest,
+  ProviderTextContent,
+  ProviderThread,
+  ProviderThreadOptions,
+  ProviderThreadAction,
+  ProviderThreadInput,
 } from "./provider-types.ts";
 import {
   AnthropicProviderThread,
@@ -443,22 +444,70 @@ export class AnthropicProvider implements Provider {
 
   forceToolUse(options: {
     model: string;
-    messages: Array<ProviderMessage>;
+    input: ProviderThreadInput[];
     spec: ProviderToolSpec;
     systemPrompt?: string;
     disableCaching?: boolean;
+    contextThread?: ProviderThread;
   }): ProviderToolUseRequest {
-    const { model, messages, spec, systemPrompt, disableCaching } = options;
+    const { model, input, spec, systemPrompt, disableCaching, contextThread } =
+      options;
     let aborted = false;
 
+    // Convert input to native Anthropic content blocks
+    const userContent: Anthropic.Messages.ContentBlockParam[] = input.map(
+      (c): Anthropic.Messages.ContentBlockParam => {
+        switch (c.type) {
+          case "text":
+            return { type: "text", text: c.text, citations: null };
+          case "image":
+            return { type: "image", source: c.source };
+          case "document":
+            return {
+              type: "document",
+              source: c.source,
+              title: c.title || null,
+            };
+          default:
+            assertUnreachable(c);
+        }
+      },
+    );
+
+    // Extract native messages from context thread if provided
+    let contextMessages: Anthropic.MessageParam[] = [];
+    if (contextThread && contextThread instanceof AnthropicProviderThread) {
+      contextMessages = contextThread.getNativeMessages();
+    }
+
+    // Build messages: optional context + new user message
+    const messages: Anthropic.MessageParam[] = [
+      ...contextMessages,
+      { role: "user", content: userContent },
+    ];
+
+    // Build system prompt
+    const baseSystemPrompt = systemPrompt || DEFAULT_SYSTEM_PROMPT;
+    const systemBlocks: Anthropic.Messages.MessageStreamParams["system"] = [
+      {
+        type: "text" as const,
+        text: baseSystemPrompt,
+        cache_control: disableCaching ? null : { type: "ephemeral" },
+      },
+    ];
+
+    if (this.authType === "max") {
+      systemBlocks.unshift({
+        type: "text" as const,
+        text: CLAUDE_CODE_SPOOF_PROMPT,
+      });
+    }
+
     const request = this.client.messages.stream({
-      ...this.createStreamParameters({
-        model,
-        messages,
-        tools: [],
-        disableCaching,
-        systemPrompt,
-      }),
+      model,
+      max_tokens: getMaxTokensForModel(model),
+      system: systemBlocks,
+      messages: disableCaching ? messages : withCacheControl(messages),
       tools: [
         {
           ...spec,

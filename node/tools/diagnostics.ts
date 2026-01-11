@@ -3,13 +3,17 @@ import { d } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { getDiagnostics } from "../utils/diagnostics.ts";
-import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { StaticTool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
+
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export type Input = {};
+
+export type ToolRequest = GenericToolRequest<"diagnostics", Input>;
 
 export type State =
   | {
@@ -30,7 +34,7 @@ export class DiagnosticsTool implements StaticTool {
   toolName = "diagnostics" as const;
 
   constructor(
-    public request: Extract<StaticToolRequest, { toolName: "diagnostics" }>,
+    public request: ToolRequest,
     public context: { nvim: Nvim; myDispatch: (msg: Msg) => void },
   ) {
     this.state = {
@@ -155,9 +159,6 @@ export const spec: ProviderToolSpec = {
     required: [],
   },
 };
-
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export type Input = {};
 
 export function validateInput(): Result<Input> {
   return {

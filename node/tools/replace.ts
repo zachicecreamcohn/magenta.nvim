@@ -9,7 +9,6 @@ import {
 } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { Dispatch } from "../tea/tea.ts";
-import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
@@ -20,13 +19,21 @@ import type { Nvim } from "../nvim/nvim-node";
 import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/types.ts";
 import * as diff from "diff";
-import type { StaticTool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
 import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import { resolveFilePath } from "../utils/files.ts";
 import type { MagentaOptions } from "../options.ts";
 import { canWriteFile } from "./permissions.ts";
 import type { Gitignore } from "./util.ts";
+
+export type Input = {
+  filePath: UnresolvedFilePath;
+  find: string;
+  replace: string;
+};
+
+export type ToolRequest = GenericToolRequest<"replace", Input>;
 
 export type State =
   | {
@@ -65,7 +72,7 @@ export class ReplaceTool implements StaticTool {
   toolName = "replace" as const;
 
   constructor(
-    public request: Extract<StaticToolRequest, { toolName: "replace" }>,
+    public request: ToolRequest,
     public threadId: ThreadId,
     private context: {
       myDispatch: Dispatch<Msg>;
@@ -503,12 +510,6 @@ This MUST be the complete and exact replacement text. Make sure to match braces 
     },
     required: ["filePath", "find", "replace"],
   },
-};
-
-export type Input = {
-  filePath: UnresolvedFilePath;
-  find: string;
-  replace: string;
 };
 
 export function validateInput(input: {

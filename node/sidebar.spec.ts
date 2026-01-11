@@ -10,10 +10,7 @@ describe("node/sidebar.spec.ts", () => {
 
       // Close the initial window that was created when nvim started
       // This leaves only magenta windows
-      const windows = (await driver.nvim.call(
-        "nvim_list_wins",
-        [],
-      ));
+      const windows = await driver.nvim.call("nvim_list_wins", []);
       for (const winId of windows) {
         const isMagenta = await driver.nvim
           .call("nvim_win_get_var", [winId, "magenta"])
@@ -24,20 +21,14 @@ describe("node/sidebar.spec.ts", () => {
       }
 
       // Verify only magenta windows remain
-      const windowsBeforeHide = (await driver.nvim.call(
-        "nvim_list_wins",
-        [],
-      ));
+      const windowsBeforeHide = await driver.nvim.call("nvim_list_wins", []);
       expect(windowsBeforeHide.length).toBe(2); // display + input
 
       // Toggle sidebar off
       await driver.sidebar.hide();
 
       // Verify a new window was created
-      const windowsAfterHide = (await driver.nvim.call(
-        "nvim_list_wins",
-        [],
-      ));
+      const windowsAfterHide = await driver.nvim.call("nvim_list_wins", []);
       expect(windowsAfterHide.length).toBe(1);
 
       // Verify the new window has an empty buffer

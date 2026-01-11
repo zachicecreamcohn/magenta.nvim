@@ -6,13 +6,12 @@ import type { Result } from "../utils/result.ts";
 
 import type { Nvim } from "../nvim/nvim-node";
 import { readGitignoreSync } from "./util.ts";
-import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { StaticTool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
 import {
   relativePath,
   resolveFilePath,
@@ -20,6 +19,8 @@ import {
   type NvimCwd,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
+
+export type ToolRequest = GenericToolRequest<"list_directory", Input>;
 
 export type State =
   | {
@@ -87,7 +88,7 @@ export class ListDirectoryTool implements StaticTool {
   autoRespond = true;
 
   constructor(
-    public request: Extract<StaticToolRequest, { toolName: "list_directory" }>,
+    public request: ToolRequest,
     public context: {
       nvim: Nvim;
       cwd: NvimCwd;

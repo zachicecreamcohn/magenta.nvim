@@ -1,7 +1,6 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
-import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
@@ -9,7 +8,7 @@ import type {
 } from "../providers/provider.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { StaticTool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
 
 export type State =
   | {
@@ -30,7 +29,7 @@ export class ThreadTitleTool implements StaticTool {
   toolName = "thread_title" as const;
 
   constructor(
-    public request: Extract<StaticToolRequest, { toolName: "thread_title" }>,
+    public request: ToolRequest,
     public context: { nvim: Nvim; myDispatch: Dispatch<Msg> },
   ) {
     this.state = {
@@ -155,6 +154,8 @@ export const spec: ProviderToolSpec = {
 export type Input = {
   title: string;
 };
+
+export type ToolRequest = GenericToolRequest<"thread_title", Input>;
 
 export function validateInput(input: {
   [key: string]: unknown;

@@ -156,10 +156,11 @@ export type ProviderMessageContent =
 export interface Provider {
   forceToolUse(options: {
     model: string;
-    messages: Array<ProviderMessage>;
+    input: ProviderThreadInput[];
     spec: ProviderToolSpec;
     systemPrompt?: string;
     disableCaching?: boolean;
+    contextThread?: ProviderThread;
   }): ProviderToolUseRequest;
 
   createThread(

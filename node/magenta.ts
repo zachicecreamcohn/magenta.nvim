@@ -119,7 +119,18 @@ export class Magenta {
     this.sidebar = new Sidebar(
       this.nvim,
       () => this.getActiveProfile(),
-      () => this.chat.getActiveThread().getLastStopTokenCount(),
+      () => {
+        // Thread may not be initialized yet during first sidebar show
+        if (!this.chat.state.activeThreadId) {
+          return 0;
+        }
+        const wrapper =
+          this.chat.threadWrappers[this.chat.state.activeThreadId];
+        if (!wrapper || wrapper.state !== "initialized") {
+          return 0;
+        }
+        return wrapper.thread.getLastStopTokenCount();
+      },
     );
 
     this.chatApp = TEA.createApp<Chat>({
@@ -132,7 +143,7 @@ export class Magenta {
       nvim,
       cwd: this.cwd,
       options,
-      getMessages: () => this.chat.getMessages(),
+      getContextThread: () => this.chat.getContextThread(),
     });
   }
 

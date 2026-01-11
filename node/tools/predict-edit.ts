@@ -2,14 +2,15 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { Dispatch } from "../tea/tea.ts";
-import type { StaticToolRequest } from "./toolManager.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { ThreadId } from "../chat/types.ts";
-import type { StaticTool, ToolName } from "./types.ts";
+import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
+
+export type ToolRequest = GenericToolRequest<"predict_edit", Input>;
 
 export type State =
   | {
@@ -30,7 +31,7 @@ export class PredictEditTool implements StaticTool {
   toolName = "predict_edit" as const;
 
   constructor(
-    public request: Extract<StaticToolRequest, { toolName: "predict_edit" }>,
+    public request: ToolRequest,
     public threadId: ThreadId,
     private context: {
       myDispatch: Dispatch<Msg>;

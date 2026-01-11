@@ -1,7 +1,6 @@
 import type { ProviderToolResult } from "../providers/provider-types";
 import type { VDOMNode } from "../tea/view";
 import type { StaticToolName } from "./tool-registry";
-import type { StaticToolRequest } from "./toolManager";
 
 export type ToolRequestId = string & { __toolRequestId: true };
 
@@ -9,6 +8,12 @@ export type ToolRequestId = string & { __toolRequestId: true };
  * manager, we'll use opaque types.
  */
 export type ToolName = string & { __toolName: true };
+
+export type GenericToolRequest<K extends StaticToolName, I> = {
+  id: ToolRequestId;
+  toolName: K;
+  input: I;
+};
 
 export type ToolRequest = {
   id: ToolRequestId;
@@ -33,7 +38,7 @@ export interface StaticTool {
   isDone(): boolean;
   isPendingUserAction(): boolean;
   getToolResult(): ProviderToolResult;
-  request: StaticToolRequest;
+  request: GenericToolRequest<StaticToolName, unknown>;
   abort(): void;
   renderSummary(): VDOMNode;
   renderPreview?(): VDOMNode;
