@@ -9,6 +9,7 @@ import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { ToolName } from "./types.ts";
 import type { BufNr } from "../nvim/buffer.ts";
 import type Anthropic from "@anthropic-ai/sdk";
+import { MockProvider } from "../providers/mock.ts";
 
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
 type ContentBlockParam = Anthropic.Messages.ContentBlockParam;
@@ -440,12 +441,14 @@ it("should return PDF basic info when pdfPage parameter is not provided", async 
 
       // Verify the tool result contains basic PDF info
       const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-      const toolResultMessage =
-        toolResultRequest.messages[toolResultRequest.messages.length - 1];
+      const toolResultMessage = MockProvider.findLastToolResultMessage(
+        toolResultRequest.messages,
+      );
 
-      expect(toolResultMessage.role).toBe("user");
-      expect(Array.isArray(toolResultMessage.content)).toBe(true);
-      const contentArray = toolResultMessage.content as ContentBlockParam[];
+      expect(toolResultMessage).toBeDefined();
+      expect(toolResultMessage!.role).toBe("user");
+      expect(Array.isArray(toolResultMessage!.content)).toBe(true);
+      const contentArray = toolResultMessage!.content as ContentBlockParam[];
 
       const toolResult = contentArray[0] as ToolResultBlockParam;
       expect(toolResult.type).toBe("tool_result");
@@ -513,12 +516,14 @@ it("should handle invalid PDF page index", async () => {
 
       // Verify the tool result contains error
       const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-      const toolResultMessage =
-        toolResultRequest.messages[toolResultRequest.messages.length - 1];
+      const toolResultMessage = MockProvider.findLastToolResultMessage(
+        toolResultRequest.messages,
+      );
 
-      expect(toolResultMessage.role).toBe("user");
-      expect(Array.isArray(toolResultMessage.content)).toBe(true);
-      const contentArray = toolResultMessage.content as ContentBlockParam[];
+      expect(toolResultMessage).toBeDefined();
+      expect(toolResultMessage!.role).toBe("user");
+      expect(Array.isArray(toolResultMessage!.content)).toBe(true);
+      const contentArray = toolResultMessage!.content as ContentBlockParam[];
 
       const toolResult = contentArray[0] as ToolResultBlockParam;
       expect(toolResult.type).toBe("tool_result");
@@ -748,12 +753,14 @@ it("getFile automatically allows files in skills directory", async () => {
 
       // Verify the file contents are returned
       const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-      const toolResultMessage =
-        toolResultRequest.messages[toolResultRequest.messages.length - 1];
+      const toolResultMessage = MockProvider.findLastToolResultMessage(
+        toolResultRequest.messages,
+      );
 
-      expect(toolResultMessage.role).toBe("user");
-      expect(Array.isArray(toolResultMessage.content)).toBe(true);
-      const contentArray = toolResultMessage.content as ContentBlockParam[];
+      expect(toolResultMessage).toBeDefined();
+      expect(toolResultMessage!.role).toBe("user");
+      expect(Array.isArray(toolResultMessage!.content)).toBe(true);
+      const contentArray = toolResultMessage!.content as ContentBlockParam[];
 
       const toolResult = contentArray.find(
         (item: ContentBlockParam) => item.type === "tool_result",
@@ -978,12 +985,14 @@ it("getFile returns early when file is already in context", async () => {
 
     // Check the actual response content in the next request
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-    const toolResultMessage =
-      toolResultRequest.messages[toolResultRequest.messages.length - 1];
+    const toolResultMessage = MockProvider.findLastToolResultMessage(
+      toolResultRequest.messages,
+    );
 
-    expect(toolResultMessage.role).toBe("user");
-    expect(Array.isArray(toolResultMessage.content)).toBe(true);
-    const contentArray = toolResultMessage.content as ContentBlockParam[];
+    expect(toolResultMessage).toBeDefined();
+    expect(toolResultMessage!.role).toBe("user");
+    expect(Array.isArray(toolResultMessage!.content)).toBe(true);
+    const contentArray = toolResultMessage!.content as ContentBlockParam[];
 
     const toolResult = contentArray.find(
       (item: ContentBlockParam) => item.type === "tool_result",
@@ -1028,12 +1037,14 @@ it("getFile reads file when force is true even if already in context", async () 
     await driver.assertDisplayBufferContains(`👀✅ \`./poem.txt\``);
 
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-    const toolResultMessage =
-      toolResultRequest.messages[toolResultRequest.messages.length - 1];
+    const toolResultMessage = MockProvider.findLastToolResultMessage(
+      toolResultRequest.messages,
+    );
 
-    expect(toolResultMessage.role).toBe("user");
-    expect(Array.isArray(toolResultMessage.content)).toBe(true);
-    const contentArray = toolResultMessage.content as ContentBlockParam[];
+    expect(toolResultMessage).toBeDefined();
+    expect(toolResultMessage!.role).toBe("user");
+    expect(Array.isArray(toolResultMessage!.content)).toBe(true);
+    const contentArray = toolResultMessage!.content as ContentBlockParam[];
 
     const toolResult = contentArray.find(
       (item: ContentBlockParam) => item.type === "tool_result",
@@ -1163,12 +1174,14 @@ it("getFile reads unloaded buffer", async () => {
 
     // Check that the file contents are properly returned
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-    const toolResultMessage =
-      toolResultRequest.messages[toolResultRequest.messages.length - 1];
+    const toolResultMessage = MockProvider.findLastToolResultMessage(
+      toolResultRequest.messages,
+    );
 
-    expect(toolResultMessage.role).toBe("user");
-    expect(Array.isArray(toolResultMessage.content)).toBe(true);
-    const contentArray = toolResultMessage.content as ContentBlockParam[];
+    expect(toolResultMessage).toBeDefined();
+    expect(toolResultMessage!.role).toBe("user");
+    expect(Array.isArray(toolResultMessage!.content)).toBe(true);
+    const contentArray = toolResultMessage!.content as ContentBlockParam[];
 
     const toolResult = contentArray.find(
       (item: ContentBlockParam) => item.type === "tool_result",
@@ -1234,12 +1247,14 @@ it("should process image files end-to-end", async () => {
 
     // Verify the tool result contains image content
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-    const toolResultMessage =
-      toolResultRequest.messages[toolResultRequest.messages.length - 1];
+    const toolResultMessage = MockProvider.findLastToolResultMessage(
+      toolResultRequest.messages,
+    );
 
-    expect(toolResultMessage.role).toBe("user");
-    expect(Array.isArray(toolResultMessage.content)).toBe(true);
-    const contentArray = toolResultMessage.content as ContentBlockParam[];
+    expect(toolResultMessage).toBeDefined();
+    expect(toolResultMessage!.role).toBe("user");
+    expect(Array.isArray(toolResultMessage!.content)).toBe(true);
+    const contentArray = toolResultMessage!.content as ContentBlockParam[];
 
     const toolResult = contentArray[0] as ToolResultBlockParam;
     expect(toolResult.type).toBe("tool_result");
@@ -1285,12 +1300,14 @@ it("getFile provides PDF summary info when no pdfPage parameter is given", async
 
     // Check that the PDF summary is returned
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-    const toolResultMessage =
-      toolResultRequest.messages[toolResultRequest.messages.length - 1];
+    const toolResultMessage = MockProvider.findLastToolResultMessage(
+      toolResultRequest.messages,
+    );
 
-    expect(toolResultMessage.role).toBe("user");
-    expect(Array.isArray(toolResultMessage.content)).toBe(true);
-    const contentArray = toolResultMessage.content as ContentBlockParam[];
+    expect(toolResultMessage).toBeDefined();
+    expect(toolResultMessage!.role).toBe("user");
+    expect(Array.isArray(toolResultMessage!.content)).toBe(true);
+    const contentArray = toolResultMessage!.content as ContentBlockParam[];
 
     const toolResult = contentArray.find(
       (item: ContentBlockParam) => item.type === "tool_result",
@@ -1351,12 +1368,14 @@ it("should reject binary files that are not supported", async () => {
 
     // Verify the tool result contains error
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-    const toolResultMessage =
-      toolResultRequest.messages[toolResultRequest.messages.length - 1];
+    const toolResultMessage = MockProvider.findLastToolResultMessage(
+      toolResultRequest.messages,
+    );
 
-    expect(toolResultMessage.role).toBe("user");
-    expect(Array.isArray(toolResultMessage.content)).toBe(true);
-    const contentArray = toolResultMessage.content as ContentBlockParam[];
+    expect(toolResultMessage).toBeDefined();
+    expect(toolResultMessage!.role).toBe("user");
+    expect(Array.isArray(toolResultMessage!.content)).toBe(true);
+    const contentArray = toolResultMessage!.content as ContentBlockParam[];
 
     const toolResult = contentArray[0] as ToolResultBlockParam;
     expect(toolResult.type).toBe("tool_result");
@@ -1692,12 +1711,14 @@ it("should handle file size limits appropriately", async () => {
 
       // Verify the tool result contains error
       const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-      const toolResultMessage =
-        toolResultRequest.messages[toolResultRequest.messages.length - 1];
+      const toolResultMessage = MockProvider.findLastToolResultMessage(
+        toolResultRequest.messages,
+      );
 
-      expect(toolResultMessage.role).toBe("user");
-      expect(Array.isArray(toolResultMessage.content)).toBe(true);
-      const contentArray = toolResultMessage.content as ContentBlockParam[];
+      expect(toolResultMessage).toBeDefined();
+      expect(toolResultMessage!.role).toBe("user");
+      expect(Array.isArray(toolResultMessage!.content)).toBe(true);
+      const contentArray = toolResultMessage!.content as ContentBlockParam[];
 
       const toolResult = contentArray[0] as ToolResultBlockParam;
       expect(toolResult.type).toBe("tool_result");
@@ -1756,11 +1777,13 @@ it("large text files are truncated and skip context manager", async () => {
       await driver.assertDisplayBufferContains(`👀✅ \`large-file.txt\``);
 
       const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-      const toolResultMessage =
-        toolResultRequest.messages[toolResultRequest.messages.length - 1];
+      const toolResultMessage = MockProvider.findLastToolResultMessage(
+        toolResultRequest.messages,
+      );
 
-      expect(toolResultMessage.role).toBe("user");
-      const contentArray = toolResultMessage.content as ContentBlockParam[];
+      expect(toolResultMessage).toBeDefined();
+      expect(toolResultMessage!.role).toBe("user");
+      const contentArray = toolResultMessage!.content as ContentBlockParam[];
       const toolResult = contentArray.find(
         (item: ContentBlockParam) => item.type === "tool_result",
       ) as ToolResultBlockParam;
@@ -1830,10 +1853,12 @@ it("lines that are too long are abridged and skip context manager", async () => 
       await driver.assertDisplayBufferContains(`👀✅ \`long-line-file.txt\``);
 
       const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-      const toolResultMessage =
-        toolResultRequest.messages[toolResultRequest.messages.length - 1];
+      const toolResultMessage = MockProvider.findLastToolResultMessage(
+        toolResultRequest.messages,
+      );
 
-      const contentArray = toolResultMessage.content as ContentBlockParam[];
+      expect(toolResultMessage).toBeDefined();
+      const contentArray = toolResultMessage!.content as ContentBlockParam[];
       const toolResult = contentArray.find(
         (item: ContentBlockParam) => item.type === "tool_result",
       ) as ToolResultBlockParam;
@@ -1894,10 +1919,12 @@ it("startLine and numLines parameters work and skip context manager", async () =
     await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\` (lines 2-3)`);
 
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-    const toolResultMessage =
-      toolResultRequest.messages[toolResultRequest.messages.length - 1];
+    const toolResultMessage = MockProvider.findLastToolResultMessage(
+      toolResultRequest.messages,
+    );
 
-    const contentArray = toolResultMessage.content as ContentBlockParam[];
+    expect(toolResultMessage).toBeDefined();
+    const contentArray = toolResultMessage!.content as ContentBlockParam[];
     const toolResult = contentArray.find(
       (item: ContentBlockParam) => item.type === "tool_result",
     ) as ToolResultBlockParam;
@@ -1958,10 +1985,12 @@ it("startLine parameter alone works and skips context manager", async () => {
     await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\` (from line 3)`);
 
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-    const toolResultMessage =
-      toolResultRequest.messages[toolResultRequest.messages.length - 1];
+    const toolResultMessage = MockProvider.findLastToolResultMessage(
+      toolResultRequest.messages,
+    );
 
-    const contentArray = toolResultMessage.content as ContentBlockParam[];
+    expect(toolResultMessage).toBeDefined();
+    const contentArray = toolResultMessage!.content as ContentBlockParam[];
     const toolResult = contentArray.find(
       (item: ContentBlockParam) => item.type === "tool_result",
     ) as ToolResultBlockParam;
@@ -2029,10 +2058,12 @@ it("requesting line range from file already in context returns early without for
     await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\` (lines 2-3)`);
 
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-    const toolResultMessage =
-      toolResultRequest.messages[toolResultRequest.messages.length - 1];
+    const toolResultMessage = MockProvider.findLastToolResultMessage(
+      toolResultRequest.messages,
+    );
 
-    const contentArray = toolResultMessage.content as ContentBlockParam[];
+    expect(toolResultMessage).toBeDefined();
+    const contentArray = toolResultMessage!.content as ContentBlockParam[];
     const toolResult = contentArray.find(
       (item: ContentBlockParam) => item.type === "tool_result",
     ) as ToolResultBlockParam;
@@ -2085,10 +2116,12 @@ it("force parameter with line range returns just those lines", async () => {
     await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\` (lines 2-3)`);
 
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-    const toolResultMessage =
-      toolResultRequest.messages[toolResultRequest.messages.length - 1];
+    const toolResultMessage = MockProvider.findLastToolResultMessage(
+      toolResultRequest.messages,
+    );
 
-    const contentArray = toolResultMessage.content as ContentBlockParam[];
+    expect(toolResultMessage).toBeDefined();
+    const contentArray = toolResultMessage!.content as ContentBlockParam[];
     const toolResult = contentArray.find(
       (item: ContentBlockParam) => item.type === "tool_result",
     ) as ToolResultBlockParam;
@@ -2098,7 +2131,6 @@ it("force parameter with line range returns just those lines", async () => {
     const textContent = toolResultContent.find(
       (item: ContentBlockParam) => item.type === "text",
     ) as TextBlockParam;
-
     // Should return actual content with line range header
     expect(textContent.text).toContain("[Lines 2-3 of");
     expect(textContent.text).toContain("Silver shadows dance with ease");
@@ -2138,10 +2170,12 @@ it("invalid startLine beyond file length returns error", async () => {
     await driver.assertDisplayBufferContains(`👀❌ \`poem.txt\``);
 
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-    const toolResultMessage =
-      toolResultRequest.messages[toolResultRequest.messages.length - 1];
+    const toolResultMessage = MockProvider.findLastToolResultMessage(
+      toolResultRequest.messages,
+    );
 
-    const contentArray = toolResultMessage.content as ContentBlockParam[];
+    expect(toolResultMessage).toBeDefined();
+    const contentArray = toolResultMessage!.content as ContentBlockParam[];
     const toolResult = contentArray[0] as ToolResultBlockParam;
     expect(toolResult.is_error).toBe(true);
 
@@ -2198,10 +2232,12 @@ it("line ranges with long lines still get abridged", async () => {
       );
 
       const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-      const toolResultMessage =
-        toolResultRequest.messages[toolResultRequest.messages.length - 1];
+      const toolResultMessage = MockProvider.findLastToolResultMessage(
+        toolResultRequest.messages,
+      );
 
-      const contentArray = toolResultMessage.content as ContentBlockParam[];
+      expect(toolResultMessage).toBeDefined();
+      const contentArray = toolResultMessage!.content as ContentBlockParam[];
       const toolResult = contentArray.find(
         (item: ContentBlockParam) => item.type === "tool_result",
       ) as ToolResultBlockParam;
@@ -2283,10 +2319,12 @@ it("should show treesitter minimap for large TypeScript file", async () => {
 
       // Wait for tool result
       const resultStream = await driver.mockAnthropic.awaitPendingStream();
-      const toolResultMessage =
-        resultStream.messages[resultStream.messages.length - 1];
+      const toolResultMessage = MockProvider.findLastToolResultMessage(
+        resultStream.messages,
+      );
 
-      const contentArray = toolResultMessage.content as ContentBlockParam[];
+      expect(toolResultMessage).toBeDefined();
+      const contentArray = toolResultMessage!.content as ContentBlockParam[];
       const toolResult = contentArray.find(
         (item: ContentBlockParam) => item.type === "tool_result",
       ) as ToolResultBlockParam;
@@ -2347,10 +2385,12 @@ it("should fallback to line-based truncation for unknown file type", async () =>
 
       // Wait for tool result
       const resultStream = await driver.mockAnthropic.awaitPendingStream();
-      const toolResultMessage =
-        resultStream.messages[resultStream.messages.length - 1];
+      const toolResultMessage = MockProvider.findLastToolResultMessage(
+        resultStream.messages,
+      );
 
-      const contentArray = toolResultMessage.content as ContentBlockParam[];
+      expect(toolResultMessage).toBeDefined();
+      const contentArray = toolResultMessage!.content as ContentBlockParam[];
       const toolResult = contentArray.find(
         (item: ContentBlockParam) => item.type === "tool_result",
       ) as ToolResultBlockParam;

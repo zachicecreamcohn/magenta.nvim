@@ -199,9 +199,10 @@ it("avoids sending redundant context updates after tool application (no buffer)"
     {
       const request = await driver.mockAnthropic.awaitPendingStream();
       const providerMessages = request.getProviderMessages();
+      // Tool result is in second-to-last message, system reminder is last
       expect(
-        providerMessages[providerMessages.length - 1],
-        "auto-respond request goes out",
+        providerMessages[providerMessages.length - 2],
+        "auto-respond request has tool result",
       ).toEqual({
         content: [
           {
@@ -220,6 +221,20 @@ it("avoids sending redundant context updates after tool application (no buffer)"
         ],
         role: "user",
       });
+      // System reminder is in the last message
+      expect(
+        providerMessages[providerMessages.length - 1],
+        "auto-respond request has system reminder",
+      ).toEqual({
+        content: [
+          {
+            type: "system_reminder",
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            text: expect.stringContaining("Remember to use the skills"),
+          },
+        ],
+        role: "user",
+      });
     }
     {
       const request2 = await driver.mockAnthropic.awaitPendingStream();
@@ -231,23 +246,16 @@ it("avoids sending redundant context updates after tool application (no buffer)"
 
       const request = await driver.mockAnthropic.awaitStopped();
       const providerMessages = request.getProviderMessages();
+      // After end_turn, the system reminder is still the last message
       expect(
         providerMessages[providerMessages.length - 1],
         "end_turn request stopped agent",
       ).toEqual({
         content: [
           {
-            id: "tool1",
-            result: {
-              status: "ok",
-              value: [
-                {
-                  type: "text",
-                  text: "Successfully applied edits.",
-                },
-              ],
-            },
-            type: "tool_result",
+            type: "system_reminder",
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            text: expect.stringContaining("Remember to use the skills"),
           },
         ],
         role: "user",
@@ -792,6 +800,7 @@ it("issuing a getFile request adds the file to the context but doesn't send its 
       "assistant;text;I'll analyze the image",
       "assistant;tool_use;",
       "user;tool_result;",
+      "user;system_reminder;",
     ]);
 
     // Verify the tool result contains the file content exactly once
@@ -903,10 +912,11 @@ it("includes PDF file in context and sends summary in context updates", async ()
         await driver.assertDisplayBufferContains("`context-test.pdf` (page 1)");
         const request = await driver.mockAnthropic.awaitPendingStream();
         const providerMessages = request.getProviderMessages();
-        const lastMessage = providerMessages[providerMessages.length - 1];
+        // Tool result with document is second-to-last, system reminder is last
+        const toolResultMessage = providerMessages[providerMessages.length - 2];
 
         // Validate structure - document blocks are siblings to tool_result, not nested
-        expect(lastMessage).toEqual({
+        expect(toolResultMessage).toEqual({
           role: "user",
           content: [
             {
@@ -926,6 +936,18 @@ it("includes PDF file in context and sends summary in context updates", async ()
                 // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                 data: expect.any(String), // Ignore the actual PDF data
               },
+            },
+          ],
+        });
+
+        // Verify system reminder is in last message
+        expect(providerMessages[providerMessages.length - 1]).toEqual({
+          role: "user",
+          content: [
+            {
+              type: "system_reminder",
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+              text: expect.stringContaining("Remember to use the skills"),
             },
           ],
         });

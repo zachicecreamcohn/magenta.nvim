@@ -158,7 +158,7 @@ it("getMessages correctly interleaves tool requests and responses", async () => 
     const thread = driver.magenta.chat.getActiveThread();
     const messages = thread.getMessages();
 
-    expect(messages.length).toBe(6);
+    expect(messages.length).toBe(8);
     expect(
       messages.flatMap((m) => m.content.map((b) => m.role + ":" + b.type)),
     ).toEqual([
@@ -167,9 +167,11 @@ it("getMessages correctly interleaves tool requests and responses", async () => 
       "assistant:text",
       "assistant:tool_use",
       "user:tool_result",
+      "user:system_reminder", // system reminder after first tool response
       "assistant:text",
       "assistant:tool_use",
       "user:tool_result",
+      "user:system_reminder", // system reminder after second tool response
       "assistant:text",
     ]);
   });

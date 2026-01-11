@@ -109,5 +109,5 @@ export function renderStreamdedTool(
       assertUnreachable(name);
   }
 
-  return d`Invoking tool ${streamingBlock.name}`;
+  return d`Invoking tool ${streamingBlock.name}\n`;
 }

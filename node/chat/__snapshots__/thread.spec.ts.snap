@@ -246,6 +246,23 @@ Full output (1 lines): /tmp/magenta/threads/<thread-id>/tools/first-bash-tool/ba
   {
     "content": [
       {
+        "text": "<system-reminder>
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
+</system-reminder>",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
         "citations": null,
         "text": "Let me check for more details about European countries.",
         "type": "text",
@@ -284,6 +301,23 @@ Full output (1 lines): /tmp/magenta/threads/<thread-id>/tools/second-bash-tool/b
   {
     "content": [
       {
+        "text": "<system-reminder>
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
+</system-reminder>",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
         "citations": null,
         "text": "test bash tool",
         "type": "text",
@@ -315,6 +349,23 @@ Full output (1 lines): /tmp/magenta/threads/<thread-id>/tools/bash-tool/bashComm
         "is_error": false,
         "tool_use_id": "bash-tool",
         "type": "tool_result",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "text": "<system-reminder>
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
+</system-reminder>",
+        "type": "text",
       },
     ],
     "role": "user",

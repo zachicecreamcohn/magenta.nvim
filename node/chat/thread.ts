@@ -797,14 +797,23 @@ export class Thread {
     const { content: contextContent, updates: contextUpdates } =
       await this.getAndPrepareContextUpdates();
 
+    // Build content for the follow-up user message with system reminder
+    const contentToSend: ProviderThreadInput[] = [...contextContent];
+
+    // Always add system reminder when auto-responding
+    contentToSend.push({
+      type: "text",
+      text: getSubsequentReminder(this.state.threadType),
+    });
+
     if (contextUpdates) {
       const newMessageIdx = this.getProviderMessages().length;
       this.state.messageViewState[newMessageIdx] = {
         contextUpdates,
       };
-      this.providerThread.appendUserMessage(contextContent);
     }
 
+    this.providerThread.appendUserMessage(contentToSend);
     this.providerThread.continueConversation();
   }
 
@@ -1231,9 +1240,20 @@ ${thread.context.contextManager.view()}`;
       return d``;
     }
 
-    const roleHeader = withExtmark(d`# ${message.role}:`, {
-      hl_group: "@markup.heading.1.markdown",
-    });
+    // For user messages with only tool_result and system_reminder,
+    // skip the header and just show the system reminder
+    const isToolResultWithReminder =
+      message.role === "user" &&
+      message.content.every(
+        (c) => c.type === "tool_result" || c.type === "system_reminder",
+      ) &&
+      message.content.some((c) => c.type === "system_reminder");
+
+    const roleHeader = isToolResultWithReminder
+      ? d``
+      : withExtmark(d`# ${message.role}:`, {
+          hl_group: "@markup.heading.1.markdown",
+        });
 
     // Get view state for this message
     const viewState = thread.state.messageViewState[messageIdx];

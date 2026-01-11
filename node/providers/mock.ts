@@ -169,19 +169,30 @@ Streams: ${this.mockClient.streams.length}`);
   ): Promise<MockStream> {
     return this.awaitPendingStream({
       predicate: (stream) => {
-        const lastMessage = stream.messages[stream.messages.length - 1];
-        const content = lastMessage.content;
-        if (typeof content === "string") {
-          return content.includes(text);
-        }
-        for (const block of content) {
-          if (anthropicBlockIncludesText(block, text)) {
-            return true;
+        // Check all recent user messages (last 3) since system reminders may follow tool results
+        const messagesToCheck = Math.min(3, stream.messages.length);
+        for (
+          let i = stream.messages.length - 1;
+          i >= stream.messages.length - messagesToCheck;
+          i--
+        ) {
+          const msg = stream.messages[i];
+          if (msg.role !== "user") continue;
+
+          const content = msg.content;
+          if (typeof content === "string") {
+            if (content.includes(text)) return true;
+          } else {
+            for (const block of content) {
+              if (anthropicBlockIncludesText(block, text)) {
+                return true;
+              }
+            }
           }
         }
         return false;
       },
-      message: message ?? `last message contains "${text}"`,
+      message: message ?? `recent messages contain "${text}"`,
     });
   }
 
@@ -192,6 +203,27 @@ Streams: ${this.mockClient.streams.length}`);
       },
       message: message ?? "there is a pending request with a user message",
     });
+  }
+
+  /**
+   * Find the last user message containing a tool_result in the stream's messages.
+   * Returns the message and its content array.
+   */
+  static findLastToolResultMessage(
+    messages: Anthropic.Messages.MessageParam[],
+  ): Anthropic.Messages.MessageParam | undefined {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === "user" && Array.isArray(msg.content)) {
+        const hasToolResult = msg.content.some(
+          (block) => block.type === "tool_result",
+        );
+        if (hasToolResult) {
+          return msg;
+        }
+      }
+    }
+    return undefined;
   }
 
   async awaitStopped(): Promise<MockStream> {
@@ -219,16 +251,26 @@ Streams: ${this.mockClient.streams.length}`);
   hasPendingStreamWithText(text: string): boolean {
     for (const stream of this.mockClient.streams) {
       if (stream && !stream.resolved) {
-        const lastMessage = stream.messages[stream.messages.length - 1];
-        const content = lastMessage.content;
-        if (typeof content === "string") {
-          if (content.includes(text)) {
-            return true;
-          }
-        } else {
-          for (const block of content) {
-            if (anthropicBlockIncludesText(block, text)) {
+        // Check all recent user messages (last 3) since system reminders may follow tool results
+        const messagesToCheck = Math.min(3, stream.messages.length);
+        for (
+          let i = stream.messages.length - 1;
+          i >= stream.messages.length - messagesToCheck;
+          i--
+        ) {
+          const msg = stream.messages[i];
+          if (msg.role !== "user") continue;
+
+          const content = msg.content;
+          if (typeof content === "string") {
+            if (content.includes(text)) {
               return true;
+            }
+          } else {
+            for (const block of content) {
+              if (anthropicBlockIncludesText(block, text)) {
+                return true;
+              }
             }
           }
         }

@@ -8,6 +8,7 @@ import * as path from "path";
 import { getcwd } from "../nvim/nvim";
 import * as fs from "node:fs";
 import type { UnresolvedFilePath } from "../utils/files";
+import { MockProvider } from "../providers/mock";
 
 describe("node/tools/replace.spec.ts", () => {
   it("validate input", () => {
@@ -378,9 +379,14 @@ import { Dispatch } from "../tea";`,
 
       // Check that the tool result is properly returned
       const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
-      const toolResultMessage =
-        toolResultRequest.messages[toolResultRequest.messages.length - 1];
+      const toolResultMessage = MockProvider.findLastToolResultMessage(
+        toolResultRequest.messages,
+      );
 
+      expect(toolResultMessage).toBeDefined();
+      if (!toolResultMessage) {
+        throw new Error("Expected tool result message");
+      }
       expect(toolResultMessage.role).toBe("user");
       expect(Array.isArray(toolResultMessage.content)).toBe(true);
 

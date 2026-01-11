@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { getcwd } from "../nvim/nvim";
 import type { ToolName } from "./types";
+import { MockProvider } from "../providers/mock";
 
 describe("node/tools/bashCommand.spec.ts", () => {
   it("executes a simple echo command without requiring approval (allowlisted)", async () => {
@@ -583,8 +584,9 @@ describe("node/tools/bashCommand.spec.ts", () => {
 
         const toolResultRequest =
           await driver.mockAnthropic.awaitPendingStream();
-        const toolResultMessage =
-          toolResultRequest.messages[toolResultRequest.messages.length - 1];
+        const toolResultMessage = MockProvider.findLastToolResultMessage(
+          toolResultRequest.messages,
+        )!;
 
         const content = extractToolResultText(toolResultMessage);
 
@@ -1245,8 +1247,9 @@ describe("bash command output logging", () => {
         // Get the tool result to find the log file path
         const toolResultRequest =
           await driver.mockAnthropic.awaitPendingStream();
-        const toolResultMessage =
-          toolResultRequest.messages[toolResultRequest.messages.length - 1];
+        const toolResultMessage = MockProvider.findLastToolResultMessage(
+          toolResultRequest.messages,
+        )!;
 
         expect(toolResultMessage.role).toBe("user");
         expect(Array.isArray(toolResultMessage.content)).toBe(true);
@@ -1308,8 +1311,9 @@ describe("bash command output logging", () => {
 
         const toolResultRequest =
           await driver.mockAnthropic.awaitPendingStream();
-        const toolResultMessage =
-          toolResultRequest.messages[toolResultRequest.messages.length - 1];
+        const toolResultMessage = MockProvider.findLastToolResultMessage(
+          toolResultRequest.messages,
+        )!;
 
         const content = extractToolResultText(toolResultMessage);
 
@@ -1376,8 +1380,9 @@ describe("bash command output logging", () => {
 
         const toolResultRequest =
           await driver.mockAnthropic.awaitPendingStream();
-        const toolResultMessage =
-          toolResultRequest.messages[toolResultRequest.messages.length - 1];
+        const toolResultMessage = MockProvider.findLastToolResultMessage(
+          toolResultRequest.messages,
+        )!;
 
         const content = extractToolResultText(toolResultMessage);
 

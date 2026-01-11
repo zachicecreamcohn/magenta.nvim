@@ -2,6 +2,7 @@ import { test, expect } from "vitest";
 import { withDriver } from "../test/preamble.ts";
 import type { ToolName, ToolRequestId } from "../tools/types.ts";
 import type Anthropic from "@anthropic-ai/sdk";
+import { MockProvider } from "../providers/mock.ts";
 
 type ContentBlockParam = Anthropic.Messages.ContentBlockParam;
 type TextBlockParam = Anthropic.Messages.TextBlockParam;
@@ -44,7 +45,7 @@ test("user-submitted messages should include system reminder", async () => {
   });
 });
 
-test("auto-respond messages should NOT include system reminder", async () => {
+test("auto-respond messages should include system reminder after tool result", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
 
@@ -74,14 +75,27 @@ test("auto-respond messages should NOT include system reminder", async () => {
     // Wait for the auto-respond (tool result message)
     const autoRespondRequest = await driver.mockAnthropic.awaitPendingStream();
 
-    // The last message should be a user message with tool result
-    const userMessage =
-      autoRespondRequest.messages[autoRespondRequest.messages.length - 1];
-    expect(userMessage.role).toBe("user");
+    // Find the tool result message (may not be the last message now)
+    const toolResultMessage = MockProvider.findLastToolResultMessage(
+      autoRespondRequest.messages,
+    );
+    expect(toolResultMessage).toBeDefined();
+    expect(toolResultMessage!.role).toBe("user");
 
-    // This auto-respond message should NOT have a system reminder
-    const systemReminder = findSystemReminderText(userMessage.content);
-    expect(systemReminder).toBeUndefined();
+    // Tool result message should NOT have a system reminder
+    const toolResultReminder = findSystemReminderText(
+      toolResultMessage!.content,
+    );
+    expect(toolResultReminder).toBeUndefined();
+
+    // The last message should be a separate user message with the system reminder
+    const lastMessage =
+      autoRespondRequest.messages[autoRespondRequest.messages.length - 1];
+    expect(lastMessage.role).toBe("user");
+
+    const systemReminder = findSystemReminderText(lastMessage.content);
+    expect(systemReminder).toBeDefined();
+    expect(systemReminder!.text).toContain("<system-reminder>");
   });
 });
 
