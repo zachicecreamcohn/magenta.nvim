@@ -2,6 +2,11 @@ import type { ProviderToolResult } from "../providers/provider-types";
 import type { VDOMNode } from "../tea/view";
 import type { StaticToolName } from "./tool-registry";
 
+export type CompletedToolInfo = {
+  request: ToolRequest;
+  result: ProviderToolResult;
+};
+
 export type ToolRequestId = string & { __toolRequestId: true };
 
 /** Opaque toolName type. Internally we'll differentiate between static tools and mcp tools, but external to the tool

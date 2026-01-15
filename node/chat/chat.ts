@@ -18,7 +18,7 @@ import {
 } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
 import { wrapStaticToolMsg, type ToolRequestId } from "../tools/toolManager.ts";
-import type { ToolMsg, ToolName } from "../tools/types.ts";
+import type { ToolName } from "../tools/types.ts";
 import { MCPToolManager } from "../tools/mcp/manager.ts";
 import type { WaitForSubagentsTool } from "../tools/wait-for-subagents.ts";
 import type { ThreadId, ThreadType } from "./types.ts";
@@ -27,7 +27,6 @@ import type {
   ForEachElement,
   SpawnForeachTool,
 } from "../tools/spawn-foreach.ts";
-import type { Msg as ForkThreadMsg } from "../tools/fork-thread.ts";
 
 type ThreadWrapper = (
   | {
@@ -172,20 +171,21 @@ export class Chat {
 
         // it's ok to do this on every dispatch. After the initial yielded/error message, the thread should be dormant
         // and should not generate any more thread messages. As such, this won't be terribly inefficient.
-        const conversation = thread.getConversationState();
+        const conversationState = thread.state.conversationState;
         if (
           threadState.parentThreadId &&
-          (conversation.state == "yielded" || conversation.state == "error")
+          (conversationState.type === "yielded" ||
+            conversationState.type === "error")
         ) {
           this.notifyParent({
             threadId: thread.id,
             parentThreadId: threadState.parentThreadId,
             result:
-              conversation.state == "yielded"
-                ? { status: "ok", value: conversation.response }
+              conversationState.type === "yielded"
+                ? { status: "ok", value: conversationState.response }
                 : {
                     status: "error",
-                    error: conversation.error.message,
+                    error: conversationState.error.message,
                   },
           });
         }
@@ -627,7 +627,6 @@ ${threadViews.map((view) => d`${view}\n`)}`;
 
   async handleForkThread({
     threadId,
-    toolRequestId,
     contextFilePaths,
     inputMessages,
   }: {
@@ -642,36 +641,20 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     }
 
     const sourceThread = sourceThreadWrapper.thread;
+
+    // Note: We don't send a thread-forked message back to the source thread.
+    // truncateAndReset() will discards the tool, so there's no tool to receive the message anyway.
+    sourceThread.truncateAndReset();
+
     const newThreadId = uuidv7() as ThreadId;
 
-    const thread = await this.createThreadWithContext({
+    await this.createThreadWithContext({
       threadType: "root",
       threadId: newThreadId,
       profile: sourceThread.state.profile,
       contextFiles: contextFilePaths,
       switchToThread: true,
       inputMessages,
-    });
-
-    const msg: ForkThreadMsg = {
-      type: "thread-forked",
-      threadId: thread.id,
-    };
-
-    this.context.dispatch({
-      type: "thread-msg",
-      id: sourceThread.id,
-      msg: {
-        type: "tool-manager-msg",
-        msg: {
-          type: "tool-msg",
-          msg: {
-            id: toolRequestId,
-            toolName: "fork_thread" as ToolName,
-            msg: msg as unknown as ToolMsg,
-          },
-        },
-      },
     });
   }
 
@@ -726,22 +709,17 @@ ${threadViews.map((view) => d`${view}\n`)}`;
           type: "thread-msg",
           id: parentThreadId,
           msg: {
-            type: "tool-manager-msg",
-            msg: {
-              type: "tool-msg",
-              msg: {
-                id: spawnToolRequestId,
-                toolName: "spawn_foreach" as ToolName,
-                msg: wrapStaticToolMsg({
-                  type: "foreach-subagent-created",
-                  result: {
-                    status: "ok" as const,
-                    value: thread.id,
-                  },
-                  element: foreachElement,
-                }),
+            type: "tool-msg",
+            id: spawnToolRequestId,
+            toolName: "spawn_foreach" as ToolName,
+            msg: wrapStaticToolMsg({
+              type: "foreach-subagent-created",
+              result: {
+                status: "ok" as const,
+                value: thread.id,
               },
-            },
+              element: foreachElement,
+            }),
           },
         });
       } catch (e) {
@@ -749,25 +727,18 @@ ${threadViews.map((view) => d`${view}\n`)}`;
           type: "thread-msg",
           id: parentThreadId,
           msg: {
-            type: "tool-manager-msg",
-            msg: {
-              type: "tool-msg",
-              msg: {
-                id: spawnToolRequestId,
-                toolName: "spawn_foreach" as ToolName,
-                msg: wrapStaticToolMsg({
-                  type: "foreach-subagent-created",
-                  result: {
-                    status: "error" as const,
-                    error:
-                      e instanceof Error
-                        ? e.message + "\n" + e.stack
-                        : String(e),
-                  },
-                  element: foreachElement,
-                }),
+            type: "tool-msg",
+            id: spawnToolRequestId,
+            toolName: "spawn_foreach" as ToolName,
+            msg: wrapStaticToolMsg({
+              type: "foreach-subagent-created",
+              result: {
+                status: "error" as const,
+                error:
+                  e instanceof Error ? e.message + "\n" + e.stack : String(e),
               },
-            },
+              element: foreachElement,
+            }),
           },
         });
       }
@@ -787,21 +758,16 @@ ${threadViews.map((view) => d`${view}\n`)}`;
           type: "thread-msg",
           id: parentThreadId,
           msg: {
-            type: "tool-manager-msg",
-            msg: {
-              type: "tool-msg",
-              msg: {
-                id: spawnToolRequestId,
-                toolName: "spawn_subagent" as ToolName,
-                msg: wrapStaticToolMsg({
-                  type: "subagent-created",
-                  result: {
-                    status: "ok" as const,
-                    value: thread.id,
-                  },
-                }),
+            type: "tool-msg",
+            id: spawnToolRequestId,
+            toolName: "spawn_subagent" as ToolName,
+            msg: wrapStaticToolMsg({
+              type: "subagent-created",
+              result: {
+                status: "ok" as const,
+                value: thread.id,
               },
-            },
+            }),
           },
         });
       } catch (e) {
@@ -809,24 +775,17 @@ ${threadViews.map((view) => d`${view}\n`)}`;
           type: "thread-msg",
           id: parentThreadId,
           msg: {
-            type: "tool-manager-msg",
-            msg: {
-              type: "tool-msg",
-              msg: {
-                id: spawnToolRequestId,
-                toolName: "spawn_subagent" as ToolName,
-                msg: wrapStaticToolMsg({
-                  type: "subagent-created",
-                  result: {
-                    status: "error" as const,
-                    error:
-                      e instanceof Error
-                        ? e.message + "\n" + e.stack
-                        : String(e),
-                  },
-                }),
+            type: "tool-msg",
+            id: spawnToolRequestId,
+            toolName: "spawn_subagent" as ToolName,
+            msg: wrapStaticToolMsg({
+              type: "subagent-created",
+              result: {
+                status: "error" as const,
+                error:
+                  e instanceof Error ? e.message + "\n" + e.stack : String(e),
               },
-            },
+            }),
           },
         });
       }
@@ -858,15 +817,15 @@ ${threadViews.map((view) => d`${view}\n`)}`;
 
       case "initialized": {
         const thread = threadWrapper.thread;
-        const conversation = thread.getConversationState();
+        const conversationState = thread.state.conversationState;
 
-        switch (conversation.state) {
+        switch (conversationState.type) {
           case "yielded":
             return {
               status: "done",
               result: {
                 status: "ok",
-                value: conversation.response,
+                value: conversationState.response,
               },
             };
 
@@ -875,12 +834,12 @@ ${threadViews.map((view) => d`${view}\n`)}`;
               status: "done",
               result: {
                 status: "error",
-                error: conversation.error.message,
+                error: conversationState.error.message,
               },
             };
 
           case "stopped":
-            if (conversation.stopReason === "aborted") {
+            if (conversationState.stopReason === "aborted") {
               return {
                 status: "done",
                 result: {
@@ -893,11 +852,13 @@ ${threadViews.map((view) => d`${view}\n`)}`;
             // If stopped normally but not yielded, consider it pending
             return { status: "pending" };
 
-          case "message-in-flight":
+          case "idle":
+          case "tool_use":
+          case "streaming":
             return { status: "pending" };
 
           default:
-            return assertUnreachable(conversation);
+            return assertUnreachable(conversationState);
         }
       }
 
@@ -939,38 +900,50 @@ ${threadViews.map((view) => d`${view}\n`)}`;
 
       case "initialized": {
         const thread = threadWrapper.thread;
-        const conversation = thread.getConversationState();
+        const conversationState = thread.state.conversationState;
 
         const summary = {
           title: thread.state.title,
           status: (() => {
-            switch (conversation.state) {
+            switch (conversationState.type) {
               case "yielded":
                 return {
                   type: "yielded" as const,
-                  response: conversation.response,
+                  response: conversationState.response,
                 };
 
               case "error":
                 return {
                   type: "error" as const,
-                  message: conversation.error.message,
+                  message: conversationState.error.message,
                 };
 
               case "stopped":
                 return {
                   type: "stopped" as const,
-                  reason: conversation.stopReason,
+                  reason: conversationState.stopReason,
                 };
 
-              case "message-in-flight":
+              case "idle":
+                return {
+                  type: "stopped" as const,
+                  reason: "end_turn" as const,
+                };
+
+              case "tool_use":
+                return {
+                  type: "running" as const,
+                  activity: "executing tools",
+                };
+
+              case "streaming":
                 return {
                   type: "running" as const,
                   activity: "streaming response",
                 };
 
               default:
-                return assertUnreachable(conversation);
+                return assertUnreachable(conversationState);
             }
           })(),
         };
@@ -995,69 +968,51 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const parentThreadWrapper = this.threadWrappers[parentThreadId];
     if (parentThreadWrapper && parentThreadWrapper.state === "initialized") {
       const parentThread = parentThreadWrapper.thread;
-      const messages = parentThread.getProviderMessages();
-      const lastMessage = messages[messages.length - 1];
-      if (!lastMessage || lastMessage.role !== "assistant") {
+      const conversationState = parentThread.state.conversationState;
+
+      if (conversationState.type !== "tool_use") {
         return;
       }
 
-      for (const content of lastMessage.content) {
-        if (content.type === "tool_use" && content.request.status === "ok") {
-          const request = content.request.value;
-          if (request.toolName === "wait_for_subagents") {
-            const tool = parentThread.toolManager.getTool(
-              request.id,
-            ) as unknown as WaitForSubagentsTool;
-            if (tool && tool.state.state === "waiting") {
-              setTimeout(() => {
-                this.context.dispatch({
-                  type: "thread-msg",
-                  id: parentThread.id,
-                  msg: {
-                    type: "tool-manager-msg",
-                    msg: {
-                      type: "tool-msg",
-                      msg: {
-                        id: tool.request.id,
-                        toolName: "wait_for_subagents" as ToolName,
-                        msg: wrapStaticToolMsg({
-                          type: "check-threads",
-                        }),
-                      },
-                    },
-                  },
-                });
-              });
-            }
-          } else if (request.toolName === "spawn_foreach") {
-            // Handle foreach completion - notify parent that this thread has completed
-            const tool = parentThread.toolManager.getTool(
-              request.id,
-            ) as unknown as SpawnForeachTool;
-            if (tool && tool.state.state == "running") {
-              setTimeout(() => {
-                this.context.dispatch({
-                  type: "thread-msg",
-                  id: parentThread.id,
-                  msg: {
-                    type: "tool-manager-msg",
-                    msg: {
-                      type: "tool-msg",
-                      msg: {
-                        id: tool.request.id,
-                        toolName: "spawn_foreach" as ToolName,
-                        msg: wrapStaticToolMsg({
-                          type: "subagent-completed",
-                          threadId,
-                          result,
-                        }),
-                      },
-                    },
-                  },
-                });
-              });
-            }
-          }
+      for (const [, tool] of conversationState.activeTools) {
+        if (
+          tool.toolName === "wait_for_subagents" &&
+          (tool as WaitForSubagentsTool).state.state === "waiting"
+        ) {
+          setTimeout(() => {
+            this.context.dispatch({
+              type: "thread-msg",
+              id: parentThread.id,
+              msg: {
+                type: "tool-msg",
+                id: tool.request.id,
+                toolName: "wait_for_subagents" as ToolName,
+                msg: wrapStaticToolMsg({
+                  type: "check-threads",
+                }),
+              },
+            });
+          });
+        } else if (
+          tool.toolName === "spawn_foreach" &&
+          (tool as SpawnForeachTool).state.state === "running"
+        ) {
+          setTimeout(() => {
+            this.context.dispatch({
+              type: "thread-msg",
+              id: parentThread.id,
+              msg: {
+                type: "tool-msg",
+                id: tool.request.id,
+                toolName: "spawn_foreach" as ToolName,
+                msg: wrapStaticToolMsg({
+                  type: "subagent-completed",
+                  threadId,
+                  result,
+                }),
+              },
+            });
+          });
         }
       }
     }

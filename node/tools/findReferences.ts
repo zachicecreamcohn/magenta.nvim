@@ -1,5 +1,6 @@
-import { d, withInlineCode } from "../tea/view.ts";
+import { d, withInlineCode, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
+import type { CompletedToolInfo } from "./types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { getOrOpenBuffer } from "../utils/buffers.ts";
 import type { NvimBuffer } from "../nvim/buffer.ts";
@@ -209,15 +210,20 @@ export class FindReferencesTool implements StaticTool {
       case "processing":
         return d`🔍⚙️ ${withInlineCode(d`\`${this.request.input.symbol}\``)} in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
       case "done":
-        if (this.state.result.result.status === "error") {
-          return d`🔍❌ ${withInlineCode(d`\`${this.request.input.symbol}\``)} in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
-        } else {
-          return d`🔍✅ ${withInlineCode(d`\`${this.request.input.symbol}\``)} in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
-        }
+        return renderCompletedSummary({
+          request: this.request as CompletedToolInfo["request"],
+          result: this.state.result,
+        });
       default:
         assertUnreachable(this.state);
     }
   }
+}
+
+export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+  const input = info.request.input as Input;
+  const status = info.result.result.status === "error" ? "❌" : "✅";
+  return d`🔍${status} ${withInlineCode(d`\`${input.symbol}\``)} in ${withInlineCode(d`\`${input.filePath}\``)}`;
 }
 
 export const spec: ProviderToolSpec = {

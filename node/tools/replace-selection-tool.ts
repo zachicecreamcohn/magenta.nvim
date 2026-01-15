@@ -1,6 +1,7 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { d } from "../tea/view.ts";
+import { d, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
+import type { CompletedToolInfo } from "./types.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
@@ -169,7 +170,17 @@ export class ReplaceSelectionTool implements StaticTool {
   }
 
   renderSummary() {
-    return d`✏️ Replacing selected text`;
+    switch (this.state.state) {
+      case "processing":
+        return d`🔄⚙️ replace_selection`;
+      case "done":
+        return renderCompletedSummary({
+          request: this.request as CompletedToolInfo["request"],
+          result: this.state.result,
+        });
+      default:
+        assertUnreachable(this.state);
+    }
   }
 
   renderPreview() {
@@ -188,6 +199,12 @@ export class ReplaceSelectionTool implements StaticTool {
         assertUnreachable(this.state);
     }
   }
+}
+
+export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+  const result = info.result.result;
+  const status = result.status === "error" ? "❌" : "✅";
+  return d`🔄${status} replace_selection`;
 }
 
 export const spec: ProviderToolSpec = {

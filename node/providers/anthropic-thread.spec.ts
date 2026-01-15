@@ -5,8 +5,8 @@ import {
   type AnthropicThreadOptions,
 } from "./anthropic-thread.ts";
 import type {
-  ProviderThreadAction,
   ProviderThreadInput,
+  ProviderThreadStatus,
   ProviderToolResult,
   ProviderToolSpec,
 } from "./provider-types.ts";
@@ -14,6 +14,37 @@ import type { ToolRequestId } from "../tools/toolManager.ts";
 import { MockAnthropicClient } from "./mock-anthropic-client.ts";
 import type { ToolName } from "../tools/types.ts";
 import { delay } from "../utils/async.ts";
+
+function createThread(
+  mockClient: MockAnthropicClient | Anthropic,
+  options?: Partial<typeof defaultOptions>,
+): AnthropicProviderThread {
+  return new AnthropicProviderThread(
+    { ...defaultOptions, ...options },
+    mockClient as unknown as Anthropic,
+    defaultAnthropicOptions,
+  );
+}
+
+type TrackedEvents = {
+  statusChanges: ProviderThreadStatus[];
+  messagesUpdated: number;
+  streamingBlockUpdated: number;
+};
+
+function trackEvents(thread: AnthropicProviderThread): TrackedEvents {
+  const events: TrackedEvents = {
+    statusChanges: [],
+    messagesUpdated: 0,
+    streamingBlockUpdated: 0,
+  };
+  thread.on("status-changed", () =>
+    events.statusChanges.push(thread.getState().status),
+  );
+  thread.on("messages-updated", () => events.messagesUpdated++);
+  thread.on("streaming-block-updated", () => events.streamingBlockUpdated++);
+  return events;
+}
 
 const defaultOptions = {
   model: "claude-sonnet-4-20250514",
@@ -30,12 +61,7 @@ const defaultAnthropicOptions: AnthropicThreadOptions = {
 describe("appendUserMessage", () => {
   it("does not add assistant message until first content block completes", async () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     thread.appendUserMessage([{ type: "text", text: "Hello" }]);
     thread.continueConversation();
@@ -82,20 +108,18 @@ describe("appendUserMessage", () => {
     await stream.finalMessage();
   });
 
-  it("appends text message without dispatching", () => {
+  it("appends text message and emits messages-updated async", async () => {
     const mockClient = {} as Anthropic;
-    const actions: ProviderThreadAction[] = [];
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      (action) => actions.push(action),
-      mockClient,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
+    const events = trackEvents(thread);
 
     const content: ProviderThreadInput[] = [
       { type: "text", text: "Hello, world!" },
     ];
     thread.appendUserMessage(content);
+
+    // Event should not have fired synchronously
+    expect(events.messagesUpdated).toBe(0);
 
     const state = thread.getState();
     expect(state.messages).toHaveLength(1);
@@ -106,18 +130,14 @@ describe("appendUserMessage", () => {
       text: "Hello, world!",
     });
 
-    // No dispatch when continueConversation not called
-    expect(actions).toHaveLength(0);
+    // Event fires asynchronously
+    await delay(0);
+    expect(events.messagesUpdated).toBe(1);
   });
 
   it("appends image message correctly", () => {
     const mockClient = {} as Anthropic;
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     const content: ProviderThreadInput[] = [
       {
@@ -144,12 +164,7 @@ describe("appendUserMessage", () => {
 
   it("appends document message correctly", () => {
     const mockClient = {} as Anthropic;
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     const content: ProviderThreadInput[] = [
       {
@@ -180,12 +195,7 @@ describe("appendUserMessage", () => {
 describe("toolResult", () => {
   it("throws when not in stopped state with tool_use reason", () => {
     const mockClient = {} as Anthropic;
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     const toolUseId = "tool-123" as ToolRequestId;
     const result: ProviderToolResult = {
@@ -198,18 +208,13 @@ describe("toolResult", () => {
     };
 
     expect(() => thread.toolResult(toolUseId, result)).toThrow(
-      "Cannot provide tool result: expected status stopped with stopReason tool_use",
+      "Cannot provide tool result: expected status stopped",
     );
   });
 
   it("appends tool result when in correct state", async () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     const toolUseId = "tool-123" as ToolRequestId;
 
@@ -251,12 +256,7 @@ describe("toolResult", () => {
 describe("continueConversation", () => {
   it("throws when last message is from assistant", async () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     // Send a message and get a response
     thread.appendUserMessage([{ type: "text", text: "Hello" }]);
@@ -277,12 +277,7 @@ describe("continueConversation", () => {
 
   it("succeeds when last message is from user", () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     thread.appendUserMessage([{ type: "text", text: "Hello" }]);
 
@@ -291,66 +286,55 @@ describe("continueConversation", () => {
   });
 });
 
-describe("dispatch", () => {
-  it("dispatches when stream updates state", async () => {
+describe("events", () => {
+  it("emits events when stream updates state", async () => {
     const mockClient = new MockAnthropicClient();
-    const actions: ProviderThreadAction[] = [];
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      (action) => actions.push(action),
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
+    const events = trackEvents(thread);
 
-    // appendUserMessage without continueConversation should not dispatch
+    // appendUserMessage emits messages-updated async
     thread.appendUserMessage([{ type: "text", text: "Test" }]);
-    expect(actions).toHaveLength(0);
+    expect(events.messagesUpdated).toBe(0);
+    await delay(0);
+    expect(events.messagesUpdated).toBe(1);
 
-    // continueConversation triggers streaming which dispatches
+    // continueConversation triggers streaming which emits events
     thread.continueConversation();
+    await delay(0);
 
     const stream = await mockClient.awaitStream();
     stream.streamText("Hello");
-    expect(actions.length).toBeGreaterThan(0);
-    expect(actions.some((a) => a.type === "status-changed")).toBe(true);
+    await delay(0);
+    expect(events.statusChanges.length).toBeGreaterThan(0);
+    expect(events.statusChanges.some((s) => s.type === "streaming")).toBe(true);
     stream.finishResponse("end_turn");
 
     await stream.finalMessage();
     await delay(0);
 
-    // Should have dispatched status-changed, streaming-block-updated, etc.
-    expect(actions.length).toBeGreaterThan(0);
-    expect(actions.some((a) => a.type === "status-changed")).toBe(true);
-    expect(actions.some((a) => a.type === "messages-updated")).toBe(true);
+    // Should have emitted status-changed, streaming-block-updated, messages-updated
+    expect(events.statusChanges.length).toBeGreaterThan(0);
+    expect(events.messagesUpdated).toBeGreaterThan(1);
   });
 });
 
 describe("abort", () => {
-  it("does nothing when no active request", () => {
+  it("does nothing when no active request", async () => {
     const mockClient = {} as Anthropic;
-    const actions: ProviderThreadAction[] = [];
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      (action) => actions.push(action),
-      mockClient,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
+    const events = trackEvents(thread);
 
     thread.abort();
+    await delay(0);
 
-    expect(actions).toHaveLength(0);
+    expect(events.statusChanges).toHaveLength(0);
     expect(thread.getState().status).toEqual({ type: "idle" });
   });
 
   it("sets stopped status with aborted reason when stream is active", async () => {
     const mockClient = new MockAnthropicClient();
-    const actions: ProviderThreadAction[] = [];
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      (action) => actions.push(action),
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
+    const events = trackEvents(thread);
 
     thread.appendUserMessage([{ type: "text", text: "Hello" }]);
     thread.continueConversation();
@@ -373,23 +357,15 @@ describe("abort", () => {
     });
 
     expect(
-      actions.some(
-        (a) =>
-          a.type === "status-changed" &&
-          a.status.type === "stopped" &&
-          a.status.stopReason === "aborted",
+      events.statusChanges.some(
+        (s) => s.type === "stopped" && s.stopReason === "aborted",
       ),
     ).toBe(true);
   });
 
   it("adds tool_result with abort message when aborting during tool_use", async () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     thread.appendUserMessage([{ type: "text", text: "Hello" }]);
     thread.continueConversation();
@@ -426,12 +402,7 @@ describe("abort", () => {
 
   it("removes server_tool_use block when aborting during web search", async () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     thread.appendUserMessage([{ type: "text", text: "Search for info" }]);
     thread.continueConversation();
@@ -464,12 +435,7 @@ describe("abort", () => {
 describe("thinking blocks", () => {
   it("captures thinking content and signature during streaming", async () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     thread.appendUserMessage([{ type: "text", text: "Hello" }]);
     thread.continueConversation();
@@ -546,12 +512,7 @@ describe("thinking blocks", () => {
 
   it("accumulates signature across multiple deltas", async () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     thread.appendUserMessage([{ type: "text", text: "Hello" }]);
     thread.continueConversation();
@@ -614,12 +575,7 @@ describe("thinking blocks", () => {
 
   it("uses streamThinking helper with signature", async () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     thread.appendUserMessage([{ type: "text", text: "Hello" }]);
     thread.continueConversation();
@@ -651,12 +607,7 @@ describe("thinking blocks", () => {
 describe("streaming block", () => {
   it("exposes text streaming block during streaming", async () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     thread.appendUserMessage([{ type: "text", text: "Hello" }]);
     thread.continueConversation();
@@ -705,12 +656,7 @@ describe("streaming block", () => {
 
   it("exposes tool_use streaming block during streaming", async () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     thread.appendUserMessage([{ type: "text", text: "Hello" }]);
     thread.continueConversation();
@@ -767,12 +713,7 @@ describe("streaming block", () => {
 
   it("returns undefined for server_tool_use blocks", async () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     thread.appendUserMessage([{ type: "text", text: "Search" }]);
     thread.continueConversation();
@@ -805,31 +746,25 @@ describe("streaming block", () => {
     await stream.finalMessage();
   });
 
-  it("dispatches streaming-block-updated events during streaming", async () => {
+  it("emits streaming-block-updated events during streaming", async () => {
     const mockClient = new MockAnthropicClient();
-    const actions: ProviderThreadAction[] = [];
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      (action) => actions.push(action),
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
+    const events = trackEvents(thread);
 
     thread.appendUserMessage([{ type: "text", text: "Hello" }]);
     thread.continueConversation();
 
     const stream = await mockClient.awaitStream();
 
-    // Clear actions from the initial status change
-    actions.length = 0;
+    // Reset counter after initial events
+    await delay(0);
+    events.streamingBlockUpdated = 0;
 
     stream.streamText("Hello world");
+    await delay(0);
 
-    // Should have dispatched streaming-block-updated events
-    const streamingUpdates = actions.filter(
-      (a) => a.type === "streaming-block-updated",
-    );
-    expect(streamingUpdates.length).toBeGreaterThan(0);
+    // Should have emitted streaming-block-updated events
+    expect(events.streamingBlockUpdated).toBeGreaterThan(0);
 
     stream.finishResponse("end_turn");
     await stream.finalMessage();
@@ -839,12 +774,7 @@ describe("streaming block", () => {
 describe("error handling with cleanup", () => {
   it("adds tool_result with error message when stream errors during tool_use", async () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     thread.appendUserMessage([{ type: "text", text: "Hello" }]);
     thread.continueConversation();
@@ -883,12 +813,7 @@ describe("error handling with cleanup", () => {
 
   it("removes server_tool_use block when stream errors during web search", async () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     thread.appendUserMessage([{ type: "text", text: "Search for info" }]);
     thread.continueConversation();
@@ -923,12 +848,7 @@ describe("error handling with cleanup", () => {
 describe("latestUsage", () => {
   it("tracks usage from successful responses", async () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     thread.appendUserMessage([{ type: "text", text: "Hello" }]);
     thread.continueConversation();
@@ -956,12 +876,7 @@ describe("latestUsage", () => {
 
   it("preserves latestUsage when subsequent request is aborted", async () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     // First request - successful
     thread.appendUserMessage([{ type: "text", text: "Hello" }]);
@@ -1005,12 +920,7 @@ describe("latestUsage", () => {
 
   it("preserves latestUsage when subsequent request errors", async () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     // First request - successful
     thread.appendUserMessage([{ type: "text", text: "Hello" }]);
@@ -1057,12 +967,7 @@ describe("latestUsage", () => {
 
   it("updates latestUsage only on successful responses", async () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     // Initially undefined
     expect(thread.getState().latestUsage).toBeUndefined();
@@ -1100,12 +1005,7 @@ describe("latestUsage", () => {
 describe("context_update detection", () => {
   it("converts text blocks with <context_update> tags to context_update type", () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     const contextUpdateText = `<context_update>
 These files are part of your context.
@@ -1125,12 +1025,7 @@ const x = 1;
 
   it("does not convert regular text to context_update type", () => {
     const mockClient = {} as Anthropic;
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     thread.appendUserMessage([
       { type: "text", text: "Hello, this is regular text" },
@@ -1142,12 +1037,7 @@ const x = 1;
 
   it("converts context_update in multi-content messages correctly", () => {
     const mockClient = new MockAnthropicClient();
-    const thread = new AnthropicProviderThread(
-      defaultOptions,
-      () => {},
-      mockClient as unknown as Anthropic,
-      defaultAnthropicOptions,
-    );
+    const thread = createThread(mockClient);
 
     const contextUpdateText = `<context_update>
 File context here

@@ -1,6 +1,7 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { d } from "../tea/view.ts";
+import { d, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
+import type { CompletedToolInfo } from "./types.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
@@ -104,14 +105,11 @@ export class ThreadTitleTool implements StaticTool {
     switch (this.state.state) {
       case "processing":
         return d`📝⚙️ Setting thread title: "${this.request.input.title}"`;
-      case "done": {
-        const result = this.state.result.result;
-        if (result.status === "error") {
-          return d`📝❌ Setting thread title: "${this.request.input.title}"`;
-        } else {
-          return d`📝✅ Setting thread title: "${this.request.input.title}"`;
-        }
-      }
+      case "done":
+        return renderCompletedSummary({
+          request: this.request as CompletedToolInfo["request"],
+          result: this.state.result,
+        });
       default:
         assertUnreachable(this.state);
     }
@@ -132,6 +130,16 @@ export class ThreadTitleTool implements StaticTool {
       },
     });
   }
+}
+
+function getStatusEmoji(result: ProviderToolResult): string {
+  return result.result.status === "error" ? "❌" : "✅";
+}
+
+export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+  const input = info.request.input as Input;
+  const status = getStatusEmoji(info.result);
+  return d`📝${status} thread_title: ${input.title ?? ""}`;
 }
 
 export const spec: ProviderToolSpec = {

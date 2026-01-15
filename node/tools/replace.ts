@@ -26,6 +26,7 @@ import { resolveFilePath } from "../utils/files.ts";
 import type { MagentaOptions } from "../options.ts";
 import { canWriteFile } from "./permissions.ts";
 import type { Gitignore } from "./util.ts";
+import type { CompletedToolInfo } from "./types.ts";
 
 export type Input = {
   filePath: UnresolvedFilePath;
@@ -231,8 +232,8 @@ export class ReplaceTool implements StaticTool {
   }
 
   renderSummary(): VDOMNode {
-    const findLines = this.countLines(this.request.input.find);
-    const replaceLines = this.countLines(this.request.input.replace);
+    const findLines = countLines(this.request.input.find);
+    const replaceLines = countLines(this.request.input.replace);
 
     switch (this.state.state) {
       case "pending":
@@ -267,11 +268,10 @@ export class ReplaceTool implements StaticTool {
         )} │
 └────────────────┘`;
       case "done":
-        if (this.state.result.result.status === "error") {
-          return d`✏️❌ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${this.request.input.filePath}\``)} - ${this.state.result.result.error}`;
-        } else {
-          return d`✏️✅ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
-        }
+        return renderCompletedSummary({
+          request: this.request as CompletedToolInfo["request"],
+          result: this.state.result,
+        });
       default:
         assertUnreachable(this.state);
     }
@@ -292,10 +292,6 @@ export class ReplaceTool implements StaticTool {
       default:
         assertUnreachable(this.state);
     }
-  }
-
-  countLines(str: string) {
-    return (str.match(/\n/g) || []).length + 1;
   }
 
   getReplacePreview(): string {
@@ -471,6 +467,22 @@ ${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`
         assertUnreachable(this.state);
     }
   }
+}
+
+function countLines(str: string): number {
+  return (str.match(/\n/g) || []).length + 1;
+}
+
+export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+  const input = info.request.input as Input;
+  const result = info.result.result;
+  const findLines = countLines(input.find);
+  const replaceLines = countLines(input.replace);
+
+  if (result.status === "error") {
+    return d`✏️❌ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${input.filePath}\``)} - ${result.error}`;
+  }
+  return d`✏️✅ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${input.filePath}\``)}`;
 }
 
 export const spec: ProviderToolSpec = {

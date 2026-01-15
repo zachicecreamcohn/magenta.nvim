@@ -1,9 +1,10 @@
-import { d, withBindings } from "../tea/view.ts";
+import { d, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
+import type { CompletedToolInfo } from "./types.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
@@ -169,36 +170,36 @@ export class SpawnSubagentTool implements StaticTool {
   }
 
   renderSummary() {
-    const agentTypeText = this.request.input.agentType
-      ? ` (${this.request.input.agentType})`
-      : "";
+    const promptPreview =
+      this.request.input.prompt.length > 50
+        ? this.request.input.prompt.substring(0, 50) + "..."
+        : this.request.input.prompt;
 
     switch (this.state.state) {
       case "preparing":
-        return d`🤖⚙️ Spawning subagent${agentTypeText}`;
-      case "done": {
-        const threadId = this.state.threadId;
-        const result = this.state.result.result;
-        if (result.status === "error") {
-          return d`🤖❌ Spawning subagent${agentTypeText}`;
-        } else {
-          return withBindings(d`🤖✅ Spawning subagent${agentTypeText}`, {
-            "<CR>": () => {
-              if (threadId) {
-                this.context.dispatch({
-                  type: "chat-msg",
-                  msg: {
-                    type: "select-thread",
-                    id: threadId,
-                  },
-                });
-              }
-            },
-          });
-        }
-      }
+        return d`🚀⚙️ spawn_subagent: ${promptPreview}`;
+      case "done":
+        return renderCompletedSummary({
+          request: this.request as CompletedToolInfo["request"],
+          result: this.state.result,
+        });
     }
   }
+}
+
+export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+  const input = info.request.input as Input;
+  const result = info.result.result;
+  const promptPreview =
+    input.prompt.length > 50
+      ? input.prompt.substring(0, 50) + "..."
+      : input.prompt;
+
+  if (result.status === "error") {
+    return d`🚀❌ spawn_subagent: ${promptPreview}`;
+  }
+
+  return d`🚀✅ spawn_subagent: ${promptPreview}`;
 }
 
 export const spec: ProviderToolSpec = {

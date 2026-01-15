@@ -8,6 +8,7 @@ import {
   withBindings,
 } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
+import type { CompletedToolInfo } from "./types.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type {
   ProviderToolResult,
@@ -260,11 +261,10 @@ export class InsertTool implements StaticTool {
         )} │
 └────────────────┘`;
       case "done":
-        if (this.state.result.result.status === "error") {
-          return d`✏️❌ Insert [[ +${lineCount.toString()} ]] in ${withInlineCode(d`\`${this.request.input.filePath}\``)} - ${this.state.result.result.error}`;
-        } else {
-          return d`✏️✅ Insert [[ +${lineCount.toString()} ]] in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
-        }
+        return renderCompletedSummary({
+          request: this.request as CompletedToolInfo["request"],
+          result: this.state.result,
+        });
       default:
         assertUnreachable(this.state);
     }
@@ -354,6 +354,18 @@ ${withExtmark(d`${this.request.input.content}`, { line_hl_group: "DiffAdd" })}
         assertUnreachable(this.state);
     }
   }
+}
+
+export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+  const input = info.request.input as Input;
+  const lineCount = (input.content.match(/\n/g) || []).length + 1;
+  const result = info.result.result;
+  const status = result.status === "error" ? "❌" : "✅";
+
+  if (result.status === "error") {
+    return d`✏️${status} Insert [[ +${lineCount.toString()} ]] in ${withInlineCode(d`\`${input.filePath}\``)} - ${result.error}`;
+  }
+  return d`✏️${status} Insert [[ +${lineCount.toString()} ]] in ${withInlineCode(d`\`${input.filePath}\``)}`;
 }
 
 export const spec: ProviderToolSpec = {

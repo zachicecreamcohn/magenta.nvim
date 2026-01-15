@@ -1,9 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { EventEmitter } from "events";
 import type {
   ProviderMessage,
   ProviderStreamingBlock,
   ProviderThread,
-  ProviderThreadAction,
+  ProviderThreadEvents,
   ProviderThreadInput,
   ProviderThreadOptions,
   ProviderThreadState,
@@ -45,7 +46,10 @@ type MessageStopInfo = {
   usage: Usage;
 };
 
-export class AnthropicProviderThread implements ProviderThread {
+export class AnthropicProviderThread
+  extends EventEmitter<ProviderThreadEvents>
+  implements ProviderThread
+{
   private messages: Anthropic.MessageParam[] = [];
   private currentRequest: ReturnType<Anthropic.Messages["stream"]> | undefined;
   private params: Omit<Anthropic.Messages.MessageStreamParams, "messages">;
@@ -59,11 +63,17 @@ export class AnthropicProviderThread implements ProviderThread {
 
   constructor(
     private options: ProviderThreadOptions,
-    private dispatch: (action: ProviderThreadAction) => void,
     private client: Anthropic,
     anthropicOptions: AnthropicThreadOptions,
   ) {
+    super();
     this.params = this.createNativeStreamParameters(anthropicOptions);
+  }
+
+  private emitAsync(event: keyof ProviderThreadEvents): void {
+    queueMicrotask(() => {
+      this.emit(event);
+    });
   }
 
   getState(): ProviderThreadState {
@@ -166,6 +176,22 @@ export class AnthropicProviderThread implements ProviderThread {
     this.startStreaming();
   }
 
+  truncateMessages(messageIdx: number): void {
+    // Keep messages 0..messageIdx (inclusive), remove everything after
+    this.messages.length = messageIdx + 1;
+
+    // Clean up messageStopInfo for removed messages
+    for (const idx of this.messageStopInfo.keys()) {
+      if (idx > messageIdx) {
+        this.messageStopInfo.delete(idx);
+      }
+    }
+
+    this.status = { type: "stopped", stopReason: "end_turn" };
+    this.updateCachedProviderMessages();
+    this.emitAsync("status-changed");
+  }
+
   private cleanup(
     reason: { type: "aborted" } | { type: "error"; error: Error },
   ): void {
@@ -215,7 +241,7 @@ export class AnthropicProviderThread implements ProviderThread {
 
   private startStreaming(): void {
     this.status = { type: "streaming", startTime: new Date() };
-    this.dispatch({ type: "status-changed", status: this.status });
+    this.emitAsync("status-changed");
 
     const messagesWithCache = withCacheControl(this.messages);
     this.currentRequest = this.client.messages.stream({
@@ -240,9 +266,7 @@ export class AnthropicProviderThread implements ProviderThread {
           this.currentAnthropicBlock = this.initAnthropicStreamingBlock(
             event.content_block,
           );
-          this.dispatch({
-            type: "streaming-block-updated",
-          });
+          this.emitAsync("streaming-block-updated");
           break;
         }
 
@@ -259,9 +283,7 @@ export class AnthropicProviderThread implements ProviderThread {
             );
             const providerBlock = this.getProviderStreamingBlock();
             if (providerBlock) {
-              this.dispatch({
-                type: "streaming-block-updated",
-              });
+              this.emitAsync("streaming-block-updated");
             }
           }
           break;
@@ -294,7 +316,6 @@ export class AnthropicProviderThread implements ProviderThread {
           }
           this.currentAnthropicBlock = undefined;
           this.updateCachedProviderMessages();
-          this.dispatch({ type: "messages-updated" });
           currentBlockIndex = -1;
           break;
         }
@@ -325,7 +346,6 @@ export class AnthropicProviderThread implements ProviderThread {
           ).push(this.responseBlockToParam(block));
         }
         this.updateCachedProviderMessages();
-        this.dispatch({ type: "messages-updated" });
 
         const usage: Usage = {
           inputTokens: response.usage.input_tokens,
@@ -340,7 +360,7 @@ export class AnthropicProviderThread implements ProviderThread {
 
         // Track latest usage and message stop info
         this.latestUsage = usage;
-        const stopReason: StopReason = response.stop_reason || "end_turn";
+        const stopReason = response.stop_reason || "end_turn";
         const messageIndex = this.messages.indexOf(assistantMessage);
         this.messageStopInfo.set(messageIndex, { stopReason, usage });
 
@@ -348,7 +368,7 @@ export class AnthropicProviderThread implements ProviderThread {
           type: "stopped",
           stopReason,
         };
-        this.dispatch({ type: "status-changed", status: this.status });
+        this.emitAsync("status-changed");
       })
       .catch((error: Error) => {
         const aborted = this.currentRequest?.controller.signal.aborted;
@@ -365,12 +385,11 @@ export class AnthropicProviderThread implements ProviderThread {
           this.status = { type: "error", error };
         }
 
-        this.dispatch({ type: "messages-updated" });
-        this.dispatch({ type: "status-changed", status: this.status });
+        this.emitAsync("messages-updated");
+        this.emitAsync("status-changed");
       });
   }
 
-  /** Build stream parameters directly from native Anthropic messages (no conversion needed) */
   private createNativeStreamParameters({
     authType,
     includeWebSearch,
@@ -686,6 +705,7 @@ export class AnthropicProviderThread implements ProviderThread {
       this.messages,
       this.messageStopInfo,
     );
+    this.emitAsync("messages-updated");
   }
 }
 

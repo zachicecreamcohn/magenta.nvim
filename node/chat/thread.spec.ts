@@ -34,7 +34,7 @@ it("chat render and a few updates", async () => {
     const toolRequestId = "test-bash-command" as ToolRequestId;
 
     stream.respond({
-      stopReason: "end_turn",
+      stopReason: "tool_use",
       text: "Sure, let me run a simple bash command for you.",
       toolRequests: [
         {
@@ -307,7 +307,7 @@ it("forks a thread with multiple messages into a new thread", async () => {
 
     const toolRequestId = "fork-thread-tool" as ToolRequestId;
     stream.respond({
-      stopReason: "end_turn",
+      stopReason: "tool_use",
       text: "",
       toolRequests: [
         {
@@ -1069,7 +1069,7 @@ it("display multiple edits to the same file, and edit details", async () => {
 
     const stream = await driver.mockAnthropic.awaitPendingStream();
     stream.respond({
-      stopReason: "end_turn",
+      stopReason: "tool_use",
       text: "ok, I will try to rewrite the poem in that file",
       toolRequests: [
         {
@@ -1491,7 +1491,7 @@ it("aborts tool use when sending new message while tool is executing", async () 
     // Verify the aborted tool output is NOT displayed
     const bufferContent = await driver.getDisplayBufferText();
     expect(bufferContent).toContain(
-      "'This should be aborted'` - Exit code: -1",
+      "'This should be aborted'` - Request was aborted",
     );
 
     // Check the thread message structure

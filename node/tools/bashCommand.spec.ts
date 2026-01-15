@@ -20,7 +20,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       const toolRequestId = "test-echo-command" as ToolRequestId;
 
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "I'll run that command for you.",
         toolRequests: [
           {
@@ -61,7 +61,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       const toolRequestId = "test-error-command" as ToolRequestId;
 
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "I'll run that command for you.",
         toolRequests: [
           {
@@ -102,7 +102,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       const toolRequestId = "test-curl-command" as ToolRequestId;
 
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "I'll run that curl command for you.",
         toolRequests: [
           {
@@ -151,7 +151,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       const toolRequestId = "test-rejected-command" as ToolRequestId;
 
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "I'll run that command for you.",
         toolRequests: [
           {
@@ -177,7 +177,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       await driver.triggerDisplayBufferKey(pos, "<CR>");
 
       // Verify the rejection message in the result
-      await driver.assertDisplayBufferContains("Exit code: 1");
+      await driver.assertDisplayBufferContains("The user did not allow");
     });
   });
 
@@ -191,7 +191,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       const toolRequestId = "test-box-formatting" as ToolRequestId;
 
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "I'll run that command for you.",
         toolRequests: [
           {
@@ -238,7 +238,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       const toolRequestId = "test-terminate-command" as ToolRequestId;
 
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "I'll run that command for you.",
         toolRequests: [
           {
@@ -266,12 +266,12 @@ describe("node/tools/bashCommand.spec.ts", () => {
       await driver.triggerDisplayBufferKey(pos, "t");
 
       // Verify that the command was terminated
-      await driver.assertDisplayBufferContains(
-        "Process terminated by user with SIGTERM",
-      );
+      await driver.assertDisplayBufferContains("terminated by signal SIGTERM");
 
       // Ensure the command prompt is updated to show completion
-      await driver.assertDisplayBufferContains("⚡❌ `sleep 30`");
+      await driver.assertDisplayBufferContains(
+        "⚡❌ `sleep 30` - Terminated by SIGTERM",
+      );
       await driver.assertDisplayBufferContains("```");
     });
   });
@@ -288,7 +288,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       const toolRequestId1 = "test-remembered-command-1" as ToolRequestId;
 
       request1.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "I'll run that command for you.",
         toolRequests: [
           {
@@ -318,7 +318,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       const toolRequestId2 = "test-remembered-command-2" as ToolRequestId;
 
       request2.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "Running that command again.",
         toolRequests: [
           {
@@ -367,7 +367,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
       const toolRequestId = "test-single-execution" as ToolRequestId;
 
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "I'll run the append command for you.",
         toolRequests: [
           {
@@ -510,7 +510,7 @@ describe("node/tools/bashCommand.spec.ts", () => {
         const toolRequestId = "test-cd-prefix" as ToolRequestId;
 
         request.respond({
-          stopReason: "end_turn",
+          stopReason: "tool_use",
           text: "I'll run that command for you.",
           toolRequests: [
             {
@@ -630,7 +630,7 @@ describe("commandConfig integration tests", () => {
         const toolRequestId = "test-restAny" as ToolRequestId;
 
         request.respond({
-          stopReason: "end_turn",
+          stopReason: "tool_use",
           text: "Running echo command.",
           toolRequests: [
             {
@@ -673,7 +673,7 @@ describe("commandConfig integration tests", () => {
         const toolRequestId = "test-subcommand" as ToolRequestId;
 
         request.respond({
-          stopReason: "end_turn",
+          stopReason: "tool_use",
           text: "Listing files.",
           toolRequests: [
             {
@@ -718,7 +718,7 @@ describe("commandConfig integration tests", () => {
         const toolRequestId = "test-wrong-args" as ToolRequestId;
 
         request.respond({
-          stopReason: "end_turn",
+          stopReason: "tool_use",
           text: "Running tsc.",
           toolRequests: [
             {
@@ -770,7 +770,7 @@ describe("commandConfig integration tests", () => {
         const toolRequestId = "test-cat-file" as ToolRequestId;
 
         request.respond({
-          stopReason: "end_turn",
+          stopReason: "tool_use",
           text: "Reading file.",
           toolRequests: [
             {
@@ -816,7 +816,7 @@ describe("commandConfig integration tests", () => {
         const toolRequestId = "test-cat-outside" as ToolRequestId;
 
         request.respond({
-          stopReason: "end_turn",
+          stopReason: "tool_use",
           text: "Reading file.",
           toolRequests: [
             {
@@ -870,7 +870,7 @@ describe("commandConfig integration tests", () => {
         const toolRequestId = "test-restfiles" as ToolRequestId;
 
         request.respond({
-          stopReason: "end_turn",
+          stopReason: "tool_use",
           text: "Reading files.",
           toolRequests: [
             {
@@ -924,7 +924,7 @@ describe("commandConfig integration tests", () => {
         const toolRequestId = "test-restfiles-outside" as ToolRequestId;
 
         request.respond({
-          stopReason: "end_turn",
+          stopReason: "tool_use",
           text: "Reading files.",
           toolRequests: [
             {
@@ -976,7 +976,7 @@ describe("commandConfig integration tests", () => {
         const toolRequestId = "test-cd-chain" as ToolRequestId;
 
         request.respond({
-          stopReason: "end_turn",
+          stopReason: "tool_use",
           text: "Reading nested file.",
           toolRequests: [
             {
@@ -1024,7 +1024,7 @@ describe("commandConfig integration tests", () => {
         const toolRequestId = "test-cd-outside" as ToolRequestId;
 
         request.respond({
-          stopReason: "end_turn",
+          stopReason: "tool_use",
           text: "Reading file.",
           toolRequests: [
             {
@@ -1058,7 +1058,7 @@ describe("commandConfig integration tests", () => {
       const toolRequestId = "test-not-in-config" as ToolRequestId;
 
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "Removing files.",
         toolRequests: [
           {
@@ -1107,7 +1107,7 @@ describe("commandConfig integration tests", () => {
         const toolRequestId = "test-hidden-file" as ToolRequestId;
 
         request.respond({
-          stopReason: "end_turn",
+          stopReason: "tool_use",
           text: "Reading hidden file.",
           toolRequests: [
             {
@@ -1156,7 +1156,7 @@ describe("commandConfig integration tests", () => {
         const toolRequestId = "test-git-status" as ToolRequestId;
 
         request.respond({
-          stopReason: "end_turn",
+          stopReason: "tool_use",
           text: "Checking status.",
           toolRequests: [
             {

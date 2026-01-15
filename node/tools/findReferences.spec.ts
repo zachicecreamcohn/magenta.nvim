@@ -42,7 +42,12 @@ describe("node/tools/findReferences.spec.ts", () => {
             throw new Error("Thread state is not valid");
           }
 
-          const tool = thread.toolManager.getTool(toolRequestId);
+          const conversationState = thread.state.conversationState;
+          if (conversationState.type !== "tool_use") {
+            throw new Error(`Thread not in tool_use state`);
+          }
+
+          const tool = conversationState.activeTools.get(toolRequestId);
           if (!(tool && tool.toolName == "find_references")) {
             throw new Error(`could not find tool with id ${toolRequestId}`);
           }

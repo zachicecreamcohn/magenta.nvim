@@ -1,9 +1,10 @@
-import { d } from "../tea/view.ts";
+import { d, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
+import type { CompletedToolInfo } from "./types.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
 import type { Dispatch } from "../tea/tea.ts";
@@ -96,13 +97,29 @@ export class YieldToParentTool implements StaticTool {
   }
 
   renderSummary() {
-    const result = this.state.result.result;
-    if (result.status === "error") {
-      return d`↗️❌ Yielding to parent: ${this.request.input.result}`;
-    } else {
-      return d`↗️✅ Yielding to parent: ${this.request.input.result}`;
-    }
+    return renderCompletedSummary({
+      request: this.request as CompletedToolInfo["request"],
+      result: this.state.result,
+    });
   }
+}
+
+function isError(result: ProviderToolResult): boolean {
+  return result.result.status === "error";
+}
+
+function getStatusEmoji(result: ProviderToolResult): string {
+  return isError(result) ? "❌" : "✅";
+}
+
+export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+  const input = info.request.input as Input;
+  const status = getStatusEmoji(info.result);
+  const resultPreview =
+    input.result?.length > 50
+      ? input.result.substring(0, 50) + "..."
+      : (input.result ?? "");
+  return d`↩️${status} yield_to_parent: ${resultPreview}`;
 }
 
 export const spec: ProviderToolSpec = {

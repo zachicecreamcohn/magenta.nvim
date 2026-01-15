@@ -1,6 +1,7 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { d } from "../tea/view.ts";
+import { d, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
+import type { CompletedToolInfo } from "./types.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { getDiagnostics } from "../utils/diagnostics.ts";
 import type {
@@ -139,15 +140,24 @@ export class DiagnosticsTool implements StaticTool {
       case "processing":
         return d`🔍⚙️ diagnostics`;
       case "done":
-        if (this.state.result.result.status === "error") {
-          return d`🔍❌ diagnostics - ${this.state.result.result.error}`;
-        } else {
-          return d`🔍✅ diagnostics - Diagnostics retrieved`;
-        }
+        return renderCompletedSummary({
+          request: this.request as CompletedToolInfo["request"],
+          result: this.state.result,
+        });
       default:
         assertUnreachable(this.state);
     }
   }
+}
+
+export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+  const result = info.result.result;
+
+  if (result.status === "error") {
+    return d`🔍❌ diagnostics - ${result.error}`;
+  }
+
+  return d`🔍✅ diagnostics - Diagnostics retrieved`;
 }
 
 export const spec: ProviderToolSpec = {

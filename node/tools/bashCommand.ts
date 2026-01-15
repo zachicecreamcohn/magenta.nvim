@@ -10,7 +10,9 @@ import {
   withCode,
   withInlineCode,
   withExtmark,
+  type VDOMNode,
 } from "../tea/view.ts";
+import type { CompletedToolInfo } from "./types.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import { spawn, spawnSync } from "child_process";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
@@ -139,7 +141,7 @@ type State =
 export type Msg =
   | { type: "stdout"; text: string }
   | { type: "stderr"; text: string }
-  | { type: "exit"; code: number | null }
+  | { type: "exit"; code: number | null; signal: NodeJS.Signals | null }
   | { type: "error"; error: string }
   | { type: "request-user-approval" }
   | { type: "user-approval"; approved: boolean; remember?: boolean }
@@ -278,6 +280,7 @@ export class BashCommandTool implements StaticTool {
   private formatOutputForToolResult(
     output: OutputLine[],
     exitCode: number | null,
+    signal: NodeJS.Signals | null,
   ): string {
     const totalLines = output.length;
     let linesToFormat: OutputLine[];
@@ -327,7 +330,11 @@ export class BashCommandTool implements StaticTool {
         formattedOutput;
     }
 
-    formattedOutput += `exit code ${exitCode}\n`;
+    if (signal) {
+      formattedOutput += `terminated by signal ${signal}\n`;
+    } else {
+      formattedOutput += `exit code ${exitCode}\n`;
+    }
 
     if (this.logFilePath) {
       formattedOutput += `\nFull output (${totalLines} lines): ${this.logFilePath}`;
@@ -427,12 +434,17 @@ export class BashCommandTool implements StaticTool {
           return;
         }
 
-        this.logStream?.write(`exit code ${msg.code}\n`);
+        if (msg.signal) {
+          this.logStream?.write(`terminated by signal ${msg.signal}\n`);
+        } else {
+          this.logStream?.write(`exit code ${msg.code}\n`);
+        }
         this.closeLogStream();
 
         const formattedOutput = this.formatOutputForToolResult(
           this.state.output,
           msg.code,
+          msg.signal,
         );
 
         this.state = {
@@ -538,10 +550,13 @@ export class BashCommandTool implements StaticTool {
             }
           });
 
-          childProcess.on("close", (code: number | null) => {
-            this.context.myDispatch({ type: "exit", code });
-            resolve();
-          });
+          childProcess.on(
+            "close",
+            (code: number | null, signal: NodeJS.Signals | null) => {
+              this.context.myDispatch({ type: "exit", code, signal });
+              resolve();
+            },
+          );
 
           childProcess.on("error", (error: Error) => {
             reject(error);
@@ -563,7 +578,7 @@ export class BashCommandTool implements StaticTool {
         type: "stderr",
         text: errorMessage,
       });
-      this.context.myDispatch({ type: "exit", code: 1 });
+      this.context.myDispatch({ type: "exit", code: 1, signal: null });
     } finally {
       this.stopTickInterval();
     }
@@ -746,13 +761,11 @@ export class BashCommandTool implements StaticTool {
           t: () => this.context.myDispatch({ type: "terminate" }),
         });
       }
-      case "done": {
-        if (this.state.exitCode === 0) {
-          return d`⚡✅ ${withInlineCode(d`\`${this.request.input.command}\``)}`;
-        } else {
-          return d`⚡❌ ${withInlineCode(d`\`${this.request.input.command}\``)} - Exit code: ${this.state.exitCode !== undefined ? this.state.exitCode.toString() : "undefined"} `;
-        }
-      }
+      case "done":
+        return renderCompletedSummary({
+          request: this.request as CompletedToolInfo["request"],
+          result: this.state.result,
+        });
       case "error":
         return d`⚡❌ ${withInlineCode(d`\`${this.request.input.command}\``)} - ${this.state.error}`;
       default:
@@ -774,19 +787,13 @@ ${formattedOutput}
           : d``;
       }
       case "done": {
-        const formattedOutput = this.formatOutputPreview(this.state.output);
-        if (this.state.exitCode === 0) {
-          return withCode(
-            d`\`\`\`
-${formattedOutput}
-\`\`\``,
-          );
-        } else {
-          return d`❌ Exit code: ${this.state.exitCode !== undefined ? this.state.exitCode.toString() : "undefined"}
-${withCode(d`\`\`\`
-${formattedOutput}
-\`\`\``)}`;
-        }
+        return renderCompletedPreview(
+          {
+            request: this.request as CompletedToolInfo["request"],
+            result: this.state.result,
+          },
+          this.context,
+        );
       }
       case "error":
         return d`❌ ${this.state.error}`;
@@ -794,4 +801,85 @@ ${formattedOutput}
         assertUnreachable(this.state);
     }
   }
+}
+
+export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+  const input = info.request.input as Input;
+  const result = info.result.result;
+
+  if (result.status === "error") {
+    return d`⚡❌ ${withInlineCode(d`\`${input.command}\``)} - ${result.error}`;
+  }
+
+  // Try to extract exit code and signal from result text
+  let exitCode: number | undefined;
+  let signal: string | undefined;
+  if (result.value.length > 0) {
+    const firstValue = result.value[0];
+    if (firstValue.type === "text") {
+      const exitCodeMatch = firstValue.text.match(/exit code (\d+)/);
+      if (exitCodeMatch) {
+        exitCode = parseInt(exitCodeMatch[1], 10);
+      }
+      const signalMatch = firstValue.text.match(/terminated by signal (\w+)/);
+      if (signalMatch) {
+        signal = signalMatch[1];
+      }
+    }
+  }
+
+  // Show failure if terminated by signal
+  if (signal) {
+    return d`⚡❌ ${withInlineCode(d`\`${input.command}\``)} - Terminated by ${signal}`;
+  }
+
+  // Show failure if non-zero exit code
+  if (exitCode !== undefined && exitCode !== 0) {
+    return d`⚡❌ ${withInlineCode(d`\`${input.command}\``)} - Exit code: ${exitCode.toString()}`;
+  }
+
+  return d`⚡✅ ${withInlineCode(d`\`${input.command}\``)}`;
+}
+
+export function renderCompletedPreview(
+  info: CompletedToolInfo,
+  context: { getDisplayWidth: () => number },
+): VDOMNode {
+  const result = info.result.result;
+
+  if (result.status !== "ok" || result.value.length === 0) {
+    return d``;
+  }
+
+  const firstValue = result.value[0];
+  if (firstValue.type !== "text") {
+    return d``;
+  }
+
+  const text = firstValue.text;
+  const lines = text.split("\n");
+  const maxLines = 10;
+  const maxLength = context.getDisplayWidth() - 5;
+
+  let previewLines = lines.length > maxLines ? lines.slice(-maxLines) : lines;
+  previewLines = previewLines.map((line) =>
+    line.length > maxLength ? line.substring(0, maxLength) + "..." : line,
+  );
+
+  const previewText = previewLines.join("\n");
+
+  // Extract exit code to check for errors
+  const exitCodeMatch = text.match(/exit code (\d+)/);
+  const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : undefined;
+
+  if (exitCode !== undefined && exitCode !== 0) {
+    return d`❌ Exit code: ${exitCode.toString()}
+${withCode(d`\`\`\`
+${previewText}
+\`\`\``)}`;
+  }
+
+  return withCode(d`\`\`\`
+${previewText}
+\`\`\``);
 }

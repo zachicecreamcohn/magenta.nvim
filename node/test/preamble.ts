@@ -12,6 +12,8 @@ import { type MagentaOptions } from "../options.ts";
 import { type MockMCPServer, mockServers } from "../tools/mcp/mock-server.ts";
 import type { ServerName } from "../tools/mcp/types.ts";
 import type Anthropic from "@anthropic-ai/sdk";
+import type { ProviderToolResult } from "../providers/provider-types.ts";
+import type { ToolRequestId } from "../tools/types.ts";
 
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
 
@@ -177,6 +179,34 @@ export async function assertHasMcpServer(
       throw new Error(`Mock server with name ${serverName} was not found.`);
     },
     { timeout: 1000 },
+  );
+}
+
+/** Poll until a tool result appears in the thread messages for the given toolRequestId */
+export async function pollForToolResult(
+  driver: NvimDriver,
+  toolRequestId: ToolRequestId,
+): Promise<ProviderToolResult> {
+  return pollUntil(
+    () => {
+      const thread = driver.magenta.chat.getActiveThread();
+      if (!thread) {
+        throw new Error("No active thread");
+      }
+
+      const messages = thread.getProviderMessages();
+      for (const message of messages) {
+        if (message.role !== "user") continue;
+        for (const content of message.content) {
+          if (content.type === "tool_result" && content.id === toolRequestId) {
+            return content;
+          }
+        }
+      }
+
+      throw new Error(`Tool result for ${toolRequestId} not found yet`);
+    },
+    { timeout: 5000 },
   );
 }
 

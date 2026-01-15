@@ -1,6 +1,7 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { d } from "../tea/view.ts";
+import { d, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
+import type { CompletedToolInfo } from "./types.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
@@ -117,11 +118,10 @@ export class InlineEditTool implements StaticTool {
       case "processing":
         return d`✏️⚙️ Applying edit`;
       case "done":
-        if (this.state.result.result.status === "error") {
-          return d`✏️❌ Applying edit`;
-        } else {
-          return d`✏️✅ Applying edit`;
-        }
+        return renderCompletedSummary({
+          request: this.request as CompletedToolInfo["request"],
+          result: this.state.result,
+        });
       default:
         assertUnreachable(this.state);
     }
@@ -195,6 +195,16 @@ ${input.find}
       },
     });
   }
+}
+
+export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+  const result = info.result.result;
+
+  if (result.status === "error") {
+    return d`✏️❌ Applying edit`;
+  }
+
+  return d`✏️✅ Applying edit`;
 }
 
 export const spec: ProviderToolSpec = {

@@ -14,12 +14,18 @@ import {
   withExtmark,
 } from "../tea/view.ts";
 import {
-  ToolManager,
-  type Msg as ToolManagerMsg,
-  type StaticToolRequest,
   type ToolRequestId,
+  type Tool,
+  type CompletedToolInfo,
+  getToolSpecs,
+  renderCompletedToolSummary,
+  renderCompletedToolPreview,
+  renderCompletedToolDetail,
 } from "../tools/toolManager.ts";
+import { createTool, type CreateToolContext } from "../tools/create-tool.ts";
+import type { StaticTool, ToolMsg, ToolName } from "../tools/types.ts";
 import { MCPToolManager } from "../tools/mcp/manager.ts";
+import * as BashCommand from "../tools/bashCommand.ts";
 import { FileSnapshots } from "../tools/file-snapshots.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp } from "../lsp.ts";
@@ -28,8 +34,8 @@ import {
   type ProviderMessage,
   type ProviderMessageContent,
   type ProviderThread,
-  type ProviderThreadAction,
   type ProviderThreadInput,
+  type ProviderThreadStatus,
   type ProviderToolResult,
   type StopReason,
   type Usage,
@@ -60,26 +66,6 @@ import { getSubsequentReminder } from "../providers/system-reminders.ts";
 import { readGitignoreSync, type Gitignore } from "../tools/util.ts";
 import { renderStreamdedTool } from "../tools/helpers.ts";
 
-export type StoppedConversationState = {
-  state: "stopped";
-  stopReason: StopReason;
-};
-
-export type ConversationState =
-  | {
-      state: "message-in-flight";
-      sendDate: Date;
-    }
-  | StoppedConversationState
-  | {
-      state: "error";
-      error: Error;
-    }
-  | {
-      state: "yielded";
-      response: string;
-    };
-
 export type InputMessage =
   | {
       type: "user";
@@ -105,8 +91,10 @@ export type Msg =
       unresolvedFilePath: UnresolvedFilePath;
     }
   | {
-      type: "tool-manager-msg";
-      msg: ToolManagerMsg;
+      type: "tool-msg";
+      id: ToolRequestId;
+      toolName: ToolName;
+      msg: ToolMsg;
     }
   | {
       type: "context-manager-msg";
@@ -139,8 +127,7 @@ export type Msg =
       filePath: string;
     }
   | {
-      type: "provider-thread-action";
-      action: ProviderThreadAction;
+      type: "provider-thread-updated";
     };
 
 export type ThreadMsg = {
@@ -178,12 +165,30 @@ export type EditsByYield = {
   [yieldMessageIdx: number]: TurnEdits;
 };
 
+/** Map of active tool instances, keyed by tool request ID */
+export type ActiveTools = Map<ToolRequestId, Tool>;
+
+/** Cached lookup maps for tool results */
+export type ToolCache = {
+  results: Map<ToolRequestId, ProviderToolResult>;
+};
+
+/** Conversation state derived from provider status plus magenta-specific states */
+export type ConversationState =
+  | { type: "idle" }
+  | { type: "streaming"; startTime: Date }
+  | { type: "stopped"; stopReason: StopReason }
+  | {
+      type: "tool_use";
+      activeTools: Map<ToolRequestId, Tool | StaticTool>;
+    }
+  | { type: "yielded"; response: string }
+  | { type: "error"; error: Error };
+
 export class Thread {
   public state: {
     title?: string | undefined;
     profile: Profile;
-    /** If the thread yielded to parent, stores the response */
-    yieldedResponse?: string | undefined;
     threadType: ThreadType;
     systemPrompt: SystemPrompt;
     pendingMessages: InputMessage[];
@@ -196,13 +201,17 @@ export class Thread {
     currentEdits: TurnEdits;
     /** Edit turns keyed by the assistant message index when the agent yielded */
     editsByYield: EditsByYield;
+    /** Conversation state derived from provider status plus magenta-specific states */
+    conversationState: ConversationState;
+    /** Cached lookup maps for tool requests and results */
+    toolCache: ToolCache;
   };
 
   private myDispatch: Dispatch<Msg>;
-  public toolManager: ToolManager;
   public fileSnapshots: FileSnapshots;
   public contextManager: ContextManager;
   public forkNextPrompt: string | undefined;
+  public forkMessageIdx: number | undefined;
   private commandRegistry: CommandRegistry;
   public gitignore: Gitignore;
   public providerThread: ProviderThread;
@@ -233,19 +242,6 @@ export class Thread {
       });
 
     this.gitignore = readGitignoreSync(this.context.cwd);
-    this.toolManager = new ToolManager(
-      (msg) =>
-        this.myDispatch({
-          type: "tool-manager-msg",
-          msg,
-        }),
-      {
-        ...this.context,
-        threadId: this.id,
-        gitignore: this.gitignore,
-      },
-    );
-
     this.fileSnapshots = new FileSnapshots(this.context.nvim, this.context.cwd);
     this.contextManager = this.context.contextManager;
 
@@ -267,69 +263,96 @@ export class Thread {
       toolViewState: {},
       currentEdits: {},
       editsByYield: {},
+      conversationState: { type: "idle" },
+      toolCache: { results: new Map() },
     };
 
     const provider = getProvider(this.context.nvim, this.state.profile);
-    this.providerThread = provider.createThread(
-      {
-        model: this.state.profile.model,
-        systemPrompt: this.state.systemPrompt,
-        tools: this.toolManager.getToolSpecs(this.state.threadType),
-        ...(this.state.profile.thinking &&
-          (this.state.profile.provider === "anthropic" ||
-            this.state.profile.provider === "mock") && {
-            thinking: this.state.profile.thinking,
-          }),
-        ...(this.state.profile.reasoning &&
-          (this.state.profile.provider === "openai" ||
-            this.state.profile.provider === "mock") && {
-            reasoning: this.state.profile.reasoning,
-          }),
-      },
-      (action) => {
-        this.myDispatch({ type: "provider-thread-action", action });
-      },
-    );
+    this.providerThread = provider.createThread({
+      model: this.state.profile.model,
+      systemPrompt: this.state.systemPrompt,
+      tools: getToolSpecs(this.state.threadType, this.context.mcpToolManager),
+      ...(this.state.profile.thinking &&
+        (this.state.profile.provider === "anthropic" ||
+          this.state.profile.provider === "mock") && {
+          thinking: this.state.profile.thinking,
+        }),
+      ...(this.state.profile.reasoning &&
+        (this.state.profile.provider === "openai" ||
+          this.state.profile.provider === "mock") && {
+          reasoning: this.state.profile.reasoning,
+        }),
+    });
+
+    this.providerThread.on("status-changed", () => {
+      const status = this.providerThread.getState().status;
+      switch (status.type) {
+        case "idle":
+          this.state.conversationState = { type: "idle" };
+          break;
+        case "streaming":
+          this.state.conversationState = {
+            type: "streaming",
+            startTime: status.startTime,
+          };
+          break;
+        case "stopped":
+          this.handleProviderStopped(status.stopReason);
+          break;
+        case "error":
+          this.state.conversationState = {
+            type: "error",
+            error: status.error,
+          };
+          this.handleErrorState(status.error);
+          break;
+      }
+
+      this.myDispatch({ type: "provider-thread-updated" });
+    });
+    this.providerThread.on("messages-updated", () => {
+      this.rebuildToolCache();
+      this.myDispatch({ type: "provider-thread-updated" });
+    });
+    this.providerThread.on("streaming-block-updated", () => {
+      this.myDispatch({ type: "provider-thread-updated" });
+    });
   }
 
-  /** Get conversation state derived from provider thread */
-  getConversationState(): ConversationState {
-    // Check for yielded state first
-    if (this.state.yieldedResponse !== undefined) {
-      return {
-        state: "yielded",
-        response: this.state.yieldedResponse,
-      };
-    }
-
-    const status = this.providerThread.getState().status;
-    switch (status.type) {
-      case "idle":
-        return {
-          state: "stopped",
-          stopReason: "end_turn",
-        };
-      case "streaming":
-        return {
-          state: "message-in-flight",
-          sendDate: status.startTime,
-        };
-      case "stopped":
-        return {
-          state: "stopped",
-          stopReason: status.stopReason,
-        };
-      case "error":
-        return {
-          state: "error",
-          error: status.error,
-        };
-    }
+  getProviderStatus(): ProviderThreadStatus {
+    return this.providerThread.getState().status;
   }
 
-  /** Get messages from provider thread */
   getProviderMessages(): ReadonlyArray<ProviderMessage> {
     return this.providerThread?.getState().messages ?? [];
+  }
+
+  truncateAndReset(): void {
+    if (this.forkMessageIdx === undefined) {
+      return;
+    }
+
+    const messageIdxToTruncateTo = this.forkMessageIdx - 1;
+
+    // Reset conversation state BEFORE truncating since truncateMessages dispatches
+    // events that are processed synchronously
+    this.state.conversationState = { type: "idle" };
+
+    // Clear view state for removed messages
+    for (const idx of Object.keys(this.state.messageViewState)) {
+      const messageIdx = parseInt(idx, 10);
+      if (messageIdx >= this.forkMessageIdx) {
+        delete this.state.messageViewState[messageIdx];
+      }
+    }
+
+    // Clear fork state
+    this.forkNextPrompt = undefined;
+    this.forkMessageIdx = undefined;
+
+    // Truncate messages back to pre-fork state
+    // This dispatches status-changed which triggers maybeAutoRespond
+    this.providerThread.truncateMessages(messageIdxToTruncateTo);
   }
 
   update(msg: RootMsg): void {
@@ -345,16 +368,14 @@ export class Thread {
         break;
 
       case "send-message": {
-        const conversation = this.getConversationState();
         // Check if any message starts with @async
         const isAsync = msg.messages.some(
           (m) => m.type === "user" && m.text.trim().startsWith("@async"),
         );
 
         if (
-          conversation.state == "message-in-flight" ||
-          (conversation.state == "stopped" &&
-            conversation.stopReason == "tool_use")
+          this.state.conversationState.type === "streaming" ||
+          this.state.conversationState.type === "tool_use"
         ) {
           if (isAsync) {
             const processedMessages = msg.messages.map((m) => ({
@@ -408,8 +429,8 @@ export class Thread {
         return;
       }
 
-      case "tool-manager-msg": {
-        this.toolManager.update(msg.msg);
+      case "tool-msg": {
+        this.handleToolMsg(msg.id, msg.toolName, msg.msg);
         const autoRespondResult = this.maybeAutoRespond();
         // Play chime if tool completed but we didn't autorespond
         if (autoRespondResult.type !== "did-autorespond") {
@@ -484,87 +505,168 @@ export class Thread {
         return;
       }
 
-      case "provider-thread-action": {
-        this.handleProviderThreadAction(msg.action);
+      case "provider-thread-updated":
+        // No-op: this message just triggers a re-render
         return;
-      }
 
       default:
         assertUnreachable(msg);
     }
   }
 
-  private handleProviderThreadAction(action: ProviderThreadAction): void {
-    switch (action.type) {
-      case "status-changed": {
-        const status = action.status;
-        switch (status.type) {
-          case "idle":
-          case "streaming":
-            // Nothing to do - view reads from getConversationState()
-            break;
-          case "stopped":
-            {
-              const messages = this.getProviderMessages();
-              const lastMessage = messages[messages.length - 1];
+  private rebuildToolCache(): void {
+    const results = new Map<ToolRequestId, ProviderToolResult>();
 
-              // Check for yield_to_parent
-              if (lastMessage?.role === "assistant") {
-                const lastContentBlock =
-                  lastMessage.content[lastMessage.content.length - 1];
+    for (const message of this.getProviderMessages()) {
+      if (message.role !== "user") continue;
 
-                if (
-                  lastContentBlock?.type === "tool_use" &&
-                  lastContentBlock.request.status === "ok"
-                ) {
-                  const request = lastContentBlock.request.value;
-                  if (request.toolName === "yield_to_parent") {
-                    const yieldRequest = request as Extract<
-                      StaticToolRequest,
-                      { toolName: "yield_to_parent" }
-                    >;
-                    this.state.yieldedResponse = yieldRequest.input.result;
-                  }
-                }
-              }
-
-              const autoRespondResult = this.maybeAutoRespond();
-
-              // Record a yield if we're not auto-responding and not waiting for tool input
-              if (
-                autoRespondResult.type !== "did-autorespond" &&
-                autoRespondResult.type !== "waiting-for-tool-input"
-              ) {
-                this.fileSnapshots.startNewTurn();
-                // Save current edits under the assistant message index where we yielded
-                const yieldMessageIdx = this.getProviderMessages().length - 1;
-                this.state.editsByYield[yieldMessageIdx] =
-                  this.state.currentEdits;
-                this.state.currentEdits = {};
-              }
-
-              if (autoRespondResult.type !== "did-autorespond") {
-                this.playChimeIfNeeded();
-              }
-            }
-            break;
-          case "error":
-            this.handleErrorState(status.error);
-            break;
+      for (const content of message.content) {
+        if (content.type === "tool_result") {
+          results.set(content.id, content);
         }
-        break;
+      }
+    }
+
+    this.state.toolCache = { results };
+  }
+
+  private handleProviderStoppedWithToolUse(): void {
+    // Extract tool_use blocks from last assistant message
+    const messages = this.getProviderMessages();
+    const lastMessage = messages[messages.length - 1];
+
+    if (!lastMessage || lastMessage.role !== "assistant") {
+      // Shouldn't happen, but fall back to stopped state
+      this.state.conversationState = {
+        type: "stopped",
+        stopReason: "tool_use",
+      };
+      return;
+    }
+
+    const activeTools = new Map<ToolRequestId, Tool | StaticTool>();
+    let yieldResponse: string | undefined;
+
+    for (const block of lastMessage.content) {
+      if (block.type !== "tool_use") {
+        continue;
       }
 
-      case "streaming-block-updated":
-        // View reads streaming block directly from provider thread
-        // No action needed here
-        break;
-
-      case "messages-updated": {
-        // Initialize tools for new tool_use content blocks
-        this.initializeNewTools();
-        break;
+      if (block.request.status !== "ok") {
+        continue;
       }
+
+      const request = block.request.value;
+
+      // Check for yield_to_parent
+      if (request.toolName === "yield_to_parent") {
+        yieldResponse = (request.input as { result: string }).result;
+        // Still create the tool so we can track it
+      }
+
+      // Create tool context for createTool
+      const toolContext: CreateToolContext = {
+        dispatch: this.context.dispatch,
+        mcpToolManager: this.context.mcpToolManager,
+        bufferTracker: this.context.bufferTracker,
+        getDisplayWidth: this.context.getDisplayWidth,
+        threadId: this.id,
+        nvim: this.context.nvim,
+        lsp: this.context.lsp,
+        cwd: this.context.cwd,
+        options: this.context.options,
+        chat: this.context.chat,
+        gitignore: this.gitignore,
+        contextManager: this.contextManager,
+        threadDispatch: this.myDispatch,
+      };
+
+      // Create the dispatch function for this tool
+      const toolDispatch = ({
+        id,
+        toolName,
+        msg,
+      }: {
+        id: ToolRequestId;
+        toolName: ToolName;
+        msg: ToolMsg;
+      }) =>
+        this.myDispatch({
+          type: "tool-msg",
+          id,
+          toolName,
+          msg,
+        });
+
+      // Create static tool
+      const tool = createTool(request, toolContext, toolDispatch);
+      activeTools.set(request.id, tool);
+
+      // Track edits for insert/replace tools
+      if (request.toolName === "insert" || request.toolName === "replace") {
+        const input = request.input as { filePath: string };
+        const filePath = relativePath(
+          this.context.cwd,
+          input.filePath as UnresolvedFilePath,
+        );
+
+        if (!this.state.currentEdits[filePath]) {
+          this.state.currentEdits[filePath] = {
+            status: { status: "pending" },
+            requestIds: [],
+          };
+        }
+        this.state.currentEdits[filePath].requestIds.push(request.id);
+      }
+    }
+
+    // Set conversation state based on whether we found yield_to_parent
+    if (yieldResponse !== undefined) {
+      this.state.conversationState = {
+        type: "yielded",
+        response: yieldResponse,
+      };
+    } else {
+      this.state.conversationState = {
+        type: "tool_use",
+        activeTools,
+      };
+    }
+
+    const autoRespondResult = this.maybeAutoRespond();
+
+    if (autoRespondResult.type !== "did-autorespond") {
+      this.playChimeIfNeeded();
+    }
+  }
+
+  private handleProviderStopped(stopReason: StopReason): void {
+    // Handle tool_use stop reason specially
+    if (stopReason === "tool_use") {
+      this.handleProviderStoppedWithToolUse();
+      return;
+    }
+
+    // For all other stop reasons, set conversation state to stopped
+    this.state.conversationState = { type: "stopped", stopReason };
+
+    // Handle stopped state - check for pending messages
+    const autoRespondResult = this.maybeAutoRespond();
+
+    // Record a yield if we're not auto-responding and not waiting for tool input
+    if (
+      autoRespondResult.type !== "did-autorespond" &&
+      autoRespondResult.type !== "waiting-for-tool-input"
+    ) {
+      this.fileSnapshots.startNewTurn();
+      // Save current edits under the assistant message index where we yielded
+      const yieldMessageIdx = this.getProviderMessages().length - 1;
+      this.state.editsByYield[yieldMessageIdx] = this.state.currentEdits;
+      this.state.currentEdits = {};
+    }
+
+    if (autoRespondResult.type !== "did-autorespond") {
+      this.playChimeIfNeeded();
     }
   }
 
@@ -596,85 +698,69 @@ export class Thread {
     this.context.nvim.logger.error(error);
   }
 
-  /** Initialize tools for any new tool_use blocks in provider thread messages */
-  private initializeNewTools(): void {
-    const messages = this.providerThread.getState().messages;
-    const lastMessage = messages[messages.length - 1];
+  /** Handle a tool message by routing it to the appropriate tool */
+  private handleToolMsg(
+    id: ToolRequestId,
+    toolName: ToolName,
+    msg: ToolMsg,
+  ): void {
+    const conversationState = this.state.conversationState;
 
-    if (lastMessage?.role === "assistant") {
-      for (const content of lastMessage.content) {
-        if (content.type === "tool_use" && content.request.status === "ok") {
-          const request = content.request.value;
-          if (!this.toolManager.hasTool(request.id)) {
-            this.toolManager.update({
-              type: "init-tool-use",
-              request,
-              threadId: this.id,
-            });
+    if (conversationState.type != "tool_use") {
+      throw new Error(`to handleToolMsg we have to be in tool_use state`);
+    }
+    const tool = conversationState.activeTools.get(id);
+    if (!tool) {
+      throw new Error(`Could not find tool with request id ${id}`);
+    }
 
-            // Track edits for insert/replace tools
-            if (
-              request.toolName === "insert" ||
-              request.toolName === "replace"
-            ) {
-              const input = request.input as { filePath: string };
-              const filePath = relativePath(
-                this.context.cwd,
-                input.filePath as UnresolvedFilePath,
-              );
+    // we know that the tool id <-> and msg type match
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+    (tool as any).update(msg);
 
-              if (!this.state.currentEdits[filePath]) {
-                this.state.currentEdits[filePath] = {
-                  status: { status: "pending" },
-                  requestIds: [],
-                };
-              }
-              this.state.currentEdits[filePath].requestIds.push(request.id);
-            }
-          }
-        }
+    // Handle bash_command remember logic
+    if (toolName === ("bash_command" as ToolName)) {
+      const bashMsg = msg as unknown as BashCommand.Msg;
+      if (
+        bashMsg.type === "user-approval" &&
+        bashMsg.approved &&
+        bashMsg.remember
+      ) {
+        this.context.chat.rememberedCommands.add(
+          (tool as unknown as BashCommand.BashCommandTool).request.input
+            .command,
+        );
       }
     }
   }
 
   private abortInProgressOperations(): void {
-    // Abort provider thread if streaming
+    // this will be async probably... so we will later get a dispatch about the thread having a state change to abort
     this.providerThread.abort();
 
-    // Abort any in-progress tools
-    const messages = this.getProviderMessages();
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage?.role === "assistant") {
-      // Check if we're stopped waiting for tool use
-      const conversation = this.getConversationState();
-      const isWaitingForToolUse =
-        conversation.state === "stopped" &&
-        conversation.stopReason === "tool_use";
+    if (this.state.conversationState.type == "tool_use") {
+      for (const [toolId, tool] of this.state.conversationState.activeTools) {
+        if (!tool.isDone()) {
+          // in some cases, like for bash, this sends a sigterm, which also resolves async...
+          // That may dispatch! Which may cause an error later, when the thread tries to handle a message from a
+          // tool that is no longer active.
+          tool.abort();
 
-      for (const content of lastMessage.content) {
-        if (content.type === "tool_use" && content.request.status === "ok") {
-          const tool = this.toolManager.getTool(content.request.value.id);
-          if (tool && !tool.isDone()) {
-            tool.abort();
-
-            // If we're stopped waiting for tool use, insert error tool results
-            // so the conversation can continue properly
-            if (isWaitingForToolUse) {
-              this.providerThread.toolResult(content.request.value.id, {
-                type: "tool_result",
-                id: content.request.value.id,
-                result: {
-                  status: "error",
-                  error: "Request was aborted by the user.",
-                },
-              });
-            }
-          }
+          // Insert error tool results so the conversation can continue properly
+          this.providerThread.toolResult(toolId, {
+            type: "tool_result",
+            id: toolId,
+            result: {
+              status: "error",
+              error: "Request was aborted by the user.",
+            },
+          });
         }
       }
     }
 
-    // no need to handle conversation stop, since ProviderThread.abort() will handle it for us.
+    // Reset conversation state - ProviderThread.abort() will handle status transition
+    this.state.conversationState = { type: "idle" };
   }
 
   maybeAutoRespond():
@@ -682,68 +768,60 @@ export class Thread {
     | { type: "waiting-for-tool-input" }
     | { type: "yielded-to-parent" }
     | { type: "no-action-needed" } {
-    const conversation = this.getConversationState();
+    const conversationState = this.state.conversationState;
 
-    // Don't auto-respond if the conversation was aborted
+    // Don't auto-respond if yielded or aborted
+    if (conversationState.type === "yielded") {
+      return { type: "yielded-to-parent" };
+    }
     if (
-      conversation.state == "stopped" &&
-      conversation.stopReason == "aborted"
+      conversationState.type === "stopped" &&
+      conversationState.stopReason === "aborted"
     ) {
       return { type: "no-action-needed" };
     }
 
-    if (
-      conversation.state == "stopped" &&
-      conversation.stopReason == "tool_use"
-    ) {
-      const messages = this.getProviderMessages();
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage?.role === "assistant") {
-        // Collect completed tools and check for blocking ones
-        const completedTools: Array<{
-          id: ToolRequestId;
-          result: ProviderToolResult;
-        }> = [];
+    if (conversationState.type === "tool_use") {
+      // Collect completed tools and check for blocking ones
+      const completedTools: Array<{
+        id: ToolRequestId;
+        result: ProviderToolResult;
+      }> = [];
 
-        for (const content of lastMessage.content) {
-          if (content.type === "tool_use" && content.request.status === "ok") {
-            const request = content.request.value;
-            const tool = this.toolManager.getTool(request.id);
-
-            if (tool.request.toolName === "yield_to_parent") {
-              return { type: "yielded-to-parent" };
-            }
-
-            if (!tool.isDone()) {
-              // terminate early if we have a blocking tool use
-              return { type: "waiting-for-tool-input" };
-            }
-
-            // Collect completed tool result
-            completedTools.push({
-              id: request.id,
-              result: {
-                type: "tool_result",
-                id: request.id,
-                result: tool.getToolResult().result,
-              },
-            });
-          }
+      for (const [toolId, tool] of conversationState.activeTools) {
+        if (tool.request.toolName === "yield_to_parent") {
+          return { type: "yielded-to-parent" };
         }
 
-        // Send all tool results to the provider thread
-        const pendingMessages = this.state.pendingMessages;
-        this.state.pendingMessages = [];
+        if (!tool.isDone()) {
+          // terminate early if we have a blocking tool use
+          return { type: "waiting-for-tool-input" };
+        }
 
-        // Send tool results, then continue the conversation
-        this.sendToolResultsAndContinue(completedTools, pendingMessages).catch(
-          this.handleSendMessageError.bind(this),
-        );
-        return { type: "did-autorespond" };
+        // Collect completed tool result
+        completedTools.push({
+          id: toolId,
+          result: {
+            type: "tool_result",
+            id: toolId,
+            result: tool.getToolResult().result,
+          },
+        });
       }
+
+      // Send all tool results to the provider thread
+      const pendingMessages = this.state.pendingMessages;
+      this.state.pendingMessages = [];
+
+      // Send tool results, then continue the conversation
+      this.sendToolResultsAndContinue(completedTools, pendingMessages).catch(
+        this.handleSendMessageError.bind(this),
+      );
+      this.rebuildToolCache();
+      return { type: "did-autorespond" };
     } else if (
-      conversation.state == "stopped" &&
-      conversation.stopReason == "end_turn" &&
+      conversationState.type === "stopped" &&
+      conversationState.stopReason === "end_turn" &&
       this.state.pendingMessages.length
     ) {
       const pendingMessages = this.state.pendingMessages;
@@ -787,6 +865,9 @@ export class Thread {
       this.providerThread.toolResult(id, result);
     }
 
+    // Reset conversation state as we transition away from tool-use state
+    this.state.conversationState = { type: "idle" };
+
     // If we have pending messages, send them via sendMessage
     if (pendingMessages.length > 0) {
       await this.sendMessage(pendingMessages);
@@ -826,30 +907,21 @@ export class Thread {
     // Play chime when we need the user to do something:
     // 1. Agent stopped with end_turn (user needs to respond)
     // 2. We're blocked on a tool use that requires user action
-    const conversation = this.getConversationState();
-    if (conversation.state != "stopped") {
-      return;
-    }
-    const stopReason = conversation.stopReason;
-    if (stopReason === "end_turn") {
+    const conversationState = this.state.conversationState;
+
+    if (
+      conversationState.type === "stopped" &&
+      conversationState.stopReason === "end_turn"
+    ) {
       this.playChimeSound();
       return;
     }
 
-    if (stopReason === "tool_use") {
-      const messages = this.getProviderMessages();
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage?.role === "assistant") {
-        for (const content of lastMessage.content) {
-          if (content.type === "tool_use" && content.request.status === "ok") {
-            const request = content.request.value;
-            const tool = this.toolManager.getTool(request.id);
-
-            if (tool.isPendingUserAction()) {
-              this.playChimeSound();
-              return;
-            }
-          }
+    if (conversationState.type === "tool_use") {
+      for (const [, tool] of conversationState.activeTools) {
+        if (tool.isPendingUserAction()) {
+          this.playChimeSound();
+          return;
         }
       }
     }
@@ -943,6 +1015,7 @@ Use the fork_thread tool to start a new thread for this prompt.
 You must use the fork_thread tool immediately, with only the information you already have. Do not use any other tools.`,
             };
           this.forkNextPrompt = forkText;
+          this.forkMessageIdx = this.providerThread.getState().messages.length;
         }
       } else {
         messageContent.push({
@@ -1079,25 +1152,31 @@ const getAnimationFrame = (sendDate: Date): string => {
 };
 
 /**
- * Helper function to render the conversation state message
+ * Helper function to render the status message
  */
-const renderConversationState = (
-  conversation: ConversationState,
+const renderStatus = (
+  conversationState: ConversationState,
   latestUsage: Usage | undefined,
 ): VDOMNode => {
-  switch (conversation.state) {
-    case "message-in-flight":
-      return d`Streaming response ${getAnimationFrame(conversation.sendDate)}`;
+  switch (conversationState.type) {
+    case "idle":
+      return renderStopReason("end_turn", latestUsage);
+    case "streaming":
+      return d`Streaming response ${getAnimationFrame(conversationState.startTime)}`;
     case "stopped":
-      return renderStopReason(conversation.stopReason, latestUsage);
+      return renderStopReason(conversationState.stopReason, latestUsage);
+    case "tool_use":
+      return d`Executing tools...`;
     case "yielded":
-      return d`↗️ yielded to parent: ${conversation.response}`;
+      return d`↗️ yielded to parent: ${conversationState.response}`;
     case "error":
-      return d`Error ${conversation.error.message}${
-        conversation.error.stack ? "\n" + conversation.error.stack : ""
+      return d`Error ${conversationState.error.message}${
+        conversationState.error.stack
+          ? "\n" + conversationState.error.stack
+          : ""
       }`;
     default:
-      assertUnreachable(conversation);
+      assertUnreachable(conversationState);
   }
 };
 
@@ -1107,9 +1186,9 @@ function renderStopReason(
 ): VDOMNode {
   const usageView = usage ? d` ${renderUsage(usage)}` : d``;
   if (stopReason === "aborted") {
-    return d`[ABORTED]${usageView}`;
+    return d`[ABORTED] ${usageView} `;
   }
-  return d`Stopped (${stopReason})${usageView}`;
+  return d`Stopped (${stopReason}) ${usageView} `;
 }
 
 function renderUsage(usage: Usage): VDOMNode {
@@ -1128,12 +1207,11 @@ function renderUsage(usage: Usage): VDOMNode {
  * Helper function to determine if context manager view should be shown
  */
 const shouldShowContextManager = (
-  conversation: ConversationState,
+  conversationState: ConversationState,
   contextManager: ContextManager,
 ): boolean => {
   return (
-    conversation.state !== "message-in-flight" &&
-    !contextManager.isContextEmpty()
+    conversationState.type !== "streaming" && !contextManager.isContextEmpty()
   );
 };
 
@@ -1191,12 +1269,13 @@ export const view: View<{
   );
 
   const messages = thread.getProviderMessages();
-  const conversation = thread.getConversationState();
+  const conversationState = thread.state.conversationState;
 
   if (
     messages.length === 0 &&
-    conversation.state === "stopped" &&
-    conversation.stopReason === "end_turn"
+    (conversationState.type === "idle" ||
+      (conversationState.type === "stopped" &&
+        conversationState.stopReason === "end_turn"))
   ) {
     return d`\
 ${titleView}
@@ -1210,13 +1289,10 @@ ${thread.context.contextManager.view()}`;
   }
 
   const latestUsage = thread.providerThread.getState().latestUsage;
-  const conversationStateView = renderConversationState(
-    conversation,
-    latestUsage,
-  );
+  const statusView = renderStatus(conversationState, latestUsage);
 
   const contextManagerView = shouldShowContextManager(
-    conversation,
+    conversationState,
     thread.context.contextManager,
   )
     ? d`\n${thread.context.contextManager.view()}`
@@ -1284,9 +1360,7 @@ ${contextUpdateView}${contentView}
   });
 
   const streamingBlockView =
-    conversation.state === "message-in-flight"
-      ? renderStreamingBlock(thread)
-      : d``;
+    conversationState.type === "streaming" ? renderStreamingBlock(thread) : d``;
 
   return d`\
 ${titleView}
@@ -1297,7 +1371,7 @@ ${streamingBlockView}\
 ${editSummaryView}\
 ${contextManagerView}\
 ${pendingMessagesView}\
-${conversationStateView}`;
+${statusView}`;
 };
 
 /** Render the edit summary for files modified in the current/last turn */
@@ -1435,11 +1509,6 @@ function renderMessageContent(
       }
 
       const request = content.request.value;
-      const tool = thread.toolManager.getTool(request.id);
-      if (!tool) {
-        return d`⚠️ tool ${request.id} not found\n`;
-      }
-
       const toolViewState = thread.state.toolViewState[request.id];
       const showDetails = toolViewState?.details || false;
 
@@ -1449,13 +1518,51 @@ function renderMessageContent(
           ? d`\n${renderUsage(messageUsage)}`
           : d``;
 
+      // Check if tool is active (still running)
+      const activeTool =
+        thread.state.conversationState.type == "tool_use" &&
+        thread.state.conversationState.activeTools.get(request.id);
+
+      if (activeTool) {
+        // Active tool - use the tool controller's render methods
+        return withBindings(
+          d`${activeTool.renderSummary()}${
+            showDetails
+              ? d`\n${activeTool.toolName}: ${activeTool.renderDetail ? activeTool.renderDetail() : JSON.stringify(activeTool.request.input, null, 2)}${usageInDetails}`
+              : activeTool.renderPreview
+                ? d`\n${activeTool.renderPreview()}`
+                : ""
+          }\n`,
+          {
+            "<CR>": () =>
+              dispatch({
+                type: "toggle-tool-details",
+                toolRequestId: request.id,
+              }),
+          },
+        );
+      }
+
+      // Completed tool - find the result and use tool-renderers
+      const toolResult = findToolResult(thread, request.id);
+      if (!toolResult) {
+        return d`⚠️ tool result for ${request.id} not found\n`;
+      }
+
+      const completedInfo: CompletedToolInfo = {
+        request: request,
+        result: toolResult,
+      };
+
+      const renderContext = {
+        getDisplayWidth: thread.context.getDisplayWidth,
+      };
+
       return withBindings(
-        d`${tool.renderSummary()}${
+        d`${renderCompletedToolSummary(completedInfo)}${
           showDetails
-            ? d`\n${tool.toolName}: ${tool.renderDetail ? tool.renderDetail() : JSON.stringify(tool.request.input, null, 2)}\n${tool.isDone() ? renderToolResult(tool) : ""}${usageInDetails}`
-            : tool.renderPreview
-              ? d`\n${tool.renderPreview()}`
-              : ""
+            ? d`\n${renderCompletedToolDetail(completedInfo, renderContext)}${usageInDetails}`
+            : d`\n${renderCompletedToolPreview(completedInfo, renderContext)}`
         }\n`,
         {
           "<CR>": () =>
@@ -1515,15 +1622,12 @@ function renderMessageContent(
   }
 }
 
-function renderToolResult(tool: ReturnType<ToolManager["getTool"]>): VDOMNode {
-  if (!tool.isDone()) {
-    return d``;
-  }
-  const result = tool.getToolResult();
-  if (result.result.status === "error") {
-    return d`error: ${result.result.error}`;
-  }
-  return d`result: ${result.result.value.map((v) => (v.type === "text" ? v.text : `[${v.type}]`)).join("\n")}`;
+/** Find the tool result for a given tool request ID using the cached map */
+function findToolResult(
+  thread: Thread,
+  toolRequestId: ToolRequestId,
+): ProviderToolResult | undefined {
+  return thread.state.toolCache.results.get(toolRequestId);
 }
 
 function renderStreamingBlock(thread: Thread): string | VDOMNode {

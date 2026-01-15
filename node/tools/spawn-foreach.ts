@@ -1,4 +1,4 @@
-import { d, withBindings } from "../tea/view.ts";
+import { d, withBindings, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type {
   ProviderToolResult,
@@ -13,6 +13,7 @@ import { AGENT_TYPES, type AgentType } from "../providers/system-prompt.ts";
 import type { ThreadId, ThreadType } from "../chat/types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Chat } from "../chat/chat.ts";
+import type { CompletedToolInfo } from "./types.ts";
 
 export type ForEachElement = string & { __forEachElement: true };
 
@@ -490,26 +491,24 @@ ${element}`;
 ${elementViews}`;
       }
 
-      case "done": {
-        const result = this.state.result.result;
-
-        // Re-validate input to get element count for display
-        const validationResult = validateInput(
-          this.request.input as Record<string, unknown>,
-        );
-        const totalElements =
-          validationResult.status === "ok"
-            ? validationResult.value.elements.length
-            : 0;
-
-        if (result.status === "error") {
-          return d`🤖❌ Foreach subagents${agentTypeText} (${totalElements.toString()}/${totalElements.toString()})`;
-        } else {
-          return d`🤖✅ Foreach subagents${agentTypeText} (${totalElements.toString()}/${totalElements.toString()})`;
-        }
-      }
+      case "done":
+        return renderCompletedSummary({
+          request: this.request as CompletedToolInfo["request"],
+          result: this.state.result,
+        });
     }
   }
+}
+
+export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+  const input = info.request.input as Input;
+  const result = info.result.result;
+
+  const agentTypeText = input.agentType ? ` (${input.agentType})` : "";
+  const totalElements = input.elements?.length ?? 0;
+  const status = result.status === "error" ? "❌" : "✅";
+
+  return d`🤖${status} Foreach subagents${agentTypeText} (${totalElements.toString()}/${totalElements.toString()})`;
 }
 
 export const spec: ProviderToolSpec = {

@@ -11,7 +11,6 @@ import type {
   ProviderStreamEvent,
   ProviderThread,
   ProviderThreadOptions,
-  ProviderThreadAction,
   ProviderThreadInput,
 } from "./provider-types.ts";
 import { setMockProvider } from "./provider.ts";
@@ -349,13 +348,9 @@ Streams: ${this.mockClient.streams.length}`);
     });
   }
 
-  createThread(
-    options: ProviderThreadOptions,
-    dispatch: (action: ProviderThreadAction) => void,
-  ): ProviderThread {
+  createThread(options: ProviderThreadOptions): ProviderThread {
     return new AnthropicProviderThread(
       options,
-      dispatch,
       this.mockClient as unknown as Anthropic,
       {
         authType: "max",

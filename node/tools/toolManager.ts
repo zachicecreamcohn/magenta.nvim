@@ -1,7 +1,6 @@
 import * as GetFile from "./getFile.ts";
 import * as Insert from "./insert.ts";
 import * as Replace from "./replace.ts";
-
 import * as ListDirectory from "./listDirectory.ts";
 import * as Hover from "./hover.ts";
 import * as FindReferences from "./findReferences.ts";
@@ -16,36 +15,35 @@ import * as SpawnForeach from "./spawn-foreach.ts";
 import * as WaitForSubagents from "./wait-for-subagents.ts";
 import * as YieldToParent from "./yield-to-parent.ts";
 import * as PredictEdit from "./predict-edit.ts";
+import * as diff from "diff";
 
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { type Dispatch } from "../tea/tea.ts";
-import type { Nvim } from "../nvim/nvim-node";
-import type { Lsp } from "../lsp.ts";
-import type { MagentaOptions } from "../options.ts";
-import type { RootMsg } from "../root-msg.ts";
-import type { BufferTracker } from "../buffer-tracker.ts";
-import type { Chat } from "../chat/chat.ts";
+import {
+  d,
+  type VDOMNode,
+  withInlineCode,
+  withCode,
+  withExtmark,
+} from "../tea/view.ts";
 import type {
   ToolMsg,
-  ToolName,
   ToolRequestId,
   ToolRequest,
   ToolManagerToolMsg,
-  Tool,
+  CompletedToolInfo,
 } from "./types.ts";
-import type { ProviderToolSpec } from "../providers/provider-types.ts";
+import type {
+  ProviderToolSpec,
+  ProviderToolResult,
+} from "../providers/provider-types.ts";
 import {
   CHAT_STATIC_TOOL_NAMES,
   SUBAGENT_STATIC_TOOL_NAMES,
   type StaticToolName,
 } from "./tool-registry.ts";
-import { MCPToolManager } from "./mcp/manager.ts";
-import type { MCPTool } from "./mcp/tool.ts";
-import { unwrapMcpToolMsg } from "./mcp/types.ts";
 import type { ThreadId, ThreadType } from "../chat/types.ts";
-import type { NvimCwd } from "../utils/files.ts";
-import type { Gitignore } from "./util.ts";
-export type { Tool, ToolRequestId } from "./types.ts";
+import { isMCPTool, type MCPToolManager } from "./mcp/manager.ts";
+export type { Tool, ToolRequestId, CompletedToolInfo } from "./types.ts";
 
 export type StaticToolMap = {
   get_file: {
@@ -161,10 +159,6 @@ export type StaticToolRequest = {
   };
 }[keyof StaticToolMap];
 
-type StaticTool = {
-  [K in keyof StaticToolMap]: StaticToolMap[K]["controller"];
-}[keyof StaticToolMap];
-
 export function wrapStaticToolMsg(
   msg: StaticToolMap[keyof StaticToolMap]["msg"],
 ): ToolMsg {
@@ -185,523 +179,306 @@ export type Msg =
     }
   | ToolManagerToolMsg;
 
-export class ToolManager {
-  private tools: {
-    [id: ToolRequestId]: StaticTool;
-  };
+const TOOL_SPEC_MAP: {
+  [K in StaticToolName]: ProviderToolSpec;
+} = {
+  get_file: GetFile.spec,
+  insert: Insert.spec,
+  replace: Replace.spec,
+  list_directory: ListDirectory.spec,
+  hover: Hover.spec,
+  find_references: FindReferences.spec,
+  diagnostics: Diagnostics.spec,
+  bash_command: BashCommand.spec,
+  inline_edit: InlineEdit.spec,
+  replace_selection: ReplaceSelection.spec,
+  thread_title: ThreadTitle.spec,
+  fork_thread: ForkThread.spec,
+  spawn_subagent: SpawnSubagent.spec,
+  spawn_foreach: SpawnForeach.spec,
+  yield_to_parent: YieldToParent.spec,
+  wait_for_subagents: WaitForSubagents.spec,
+  predict_edit: PredictEdit.spec,
+};
 
-  private static readonly TOOL_SPEC_MAP: {
-    [K in StaticToolName]: ProviderToolSpec;
-  } = {
-    get_file: GetFile.spec,
-    insert: Insert.spec,
-    replace: Replace.spec,
-    list_directory: ListDirectory.spec,
-    hover: Hover.spec,
-    find_references: FindReferences.spec,
-    diagnostics: Diagnostics.spec,
-    bash_command: BashCommand.spec,
-    inline_edit: InlineEdit.spec,
-    replace_selection: ReplaceSelection.spec,
-    thread_title: ThreadTitle.spec,
-    fork_thread: ForkThread.spec,
-    spawn_subagent: SpawnSubagent.spec,
-    spawn_foreach: SpawnForeach.spec,
-    yield_to_parent: YieldToParent.spec,
-    wait_for_subagents: WaitForSubagents.spec,
-    predict_edit: PredictEdit.spec,
-  };
+export function getToolSpecs(
+  threadType: ThreadType,
+  mcpToolManager: MCPToolManager,
+): ProviderToolSpec[] {
+  let staticToolNames: StaticToolName[] = [];
+  switch (threadType) {
+    case "subagent_default":
+    case "subagent_fast":
+      staticToolNames = SUBAGENT_STATIC_TOOL_NAMES;
+      break;
+    case "root":
+      staticToolNames = CHAT_STATIC_TOOL_NAMES;
+      break;
+    default:
+      assertUnreachable(threadType);
+  }
+  return [
+    ...staticToolNames.map((toolName) => TOOL_SPEC_MAP[toolName]),
+    ...mcpToolManager.getToolSpecs(),
+  ];
+}
 
-  constructor(
-    public myDispatch: (msg: Msg) => void,
-    private context: {
-      dispatch: Dispatch<RootMsg>;
-      mcpToolManager: MCPToolManager;
-      bufferTracker: BufferTracker;
-      getDisplayWidth: () => number;
-      threadId: ThreadId;
-      nvim: Nvim;
-      lsp: Lsp;
-      cwd: NvimCwd;
-      options: MagentaOptions;
-      chat: Chat;
-      gitignore: Gitignore;
+// ============================================================================
+// Tool Renderers
+// ============================================================================
+
+type RenderContext = {
+  getDisplayWidth: () => number;
+};
+
+function isError(result: ProviderToolResult): boolean {
+  return result.result.status === "error";
+}
+
+function getStatusEmoji(result: ProviderToolResult): string {
+  return isError(result) ? "❌" : "✅";
+}
+
+export function renderCompletedToolSummary(info: CompletedToolInfo): VDOMNode {
+  const toolName = info.request.toolName as StaticToolName;
+
+  if (isMCPTool(toolName)) {
+    return d`🔨${getStatusEmoji(info.result)} MCP tool \`${info.request.toolName}\``;
+  }
+
+  switch (toolName) {
+    case "get_file":
+      return GetFile.renderCompletedSummary(info);
+    case "insert":
+      return Insert.renderCompletedSummary(info);
+    case "replace":
+      return Replace.renderCompletedSummary(info);
+    case "list_directory":
+      return ListDirectory.renderCompletedSummary(info);
+    case "bash_command":
+      return BashCommand.renderCompletedSummary(info);
+    case "hover":
+      return Hover.renderCompletedSummary(info);
+    case "find_references":
+      return FindReferences.renderCompletedSummary(info);
+    case "diagnostics":
+      return Diagnostics.renderCompletedSummary(info);
+    case "spawn_subagent":
+      return SpawnSubagent.renderCompletedSummary(info);
+    case "spawn_foreach":
+      return SpawnForeach.renderCompletedSummary(info);
+    case "wait_for_subagents":
+      return WaitForSubagents.renderCompletedSummary(info);
+    case "yield_to_parent":
+      return YieldToParent.renderCompletedSummary(info);
+    case "fork_thread":
+      return ForkThread.renderCompletedSummary(info);
+    case "thread_title":
+      return ThreadTitle.renderCompletedSummary(info);
+    case "inline_edit":
+      return InlineEdit.renderCompletedSummary(info);
+    case "replace_selection":
+      return ReplaceSelection.renderCompletedSummary(info);
+    case "predict_edit":
+      return PredictEdit.renderCompletedSummary(info);
+    default:
+      assertUnreachable(toolName);
+  }
+}
+
+export function renderCompletedToolPreview(
+  info: CompletedToolInfo,
+  context: RenderContext,
+): VDOMNode {
+  const toolName = info.request.toolName as StaticToolName;
+
+  switch (toolName) {
+    case "insert":
+      return renderInsertPreview(info, context);
+    case "replace":
+      return renderReplacePreview(info, context);
+    case "bash_command":
+      return BashCommand.renderCompletedPreview(info, context);
+    default:
+      return d``;
+  }
+}
+
+export function renderCompletedToolDetail(
+  info: CompletedToolInfo,
+  _context: RenderContext,
+): VDOMNode {
+  const toolName = info.request.toolName as StaticToolName;
+
+  switch (toolName) {
+    case "insert":
+      return renderInsertDetail(info);
+    case "replace":
+      return renderReplaceDetail(info);
+    default:
+      return d`${JSON.stringify(info.request.input, null, 2)}`;
+  }
+}
+
+// ============================================================================
+// Insert preview/detail renderers
+// ============================================================================
+
+type InsertInput = {
+  filePath: string;
+  insertAfter: string;
+  content: string;
+};
+
+function renderInsertPreview(
+  info: CompletedToolInfo,
+  context: RenderContext,
+): VDOMNode {
+  if (isError(info.result)) {
+    return d``;
+  }
+
+  const input = info.request.input as InsertInput;
+  const content = input.content;
+  const lines = content.split("\n");
+  const maxLines = 5;
+  const maxLength = context.getDisplayWidth() - 5;
+
+  let previewLines = lines.length > maxLines ? lines.slice(-maxLines) : lines;
+  previewLines = previewLines.map((line) =>
+    line.length > maxLength ? line.substring(0, maxLength) + "..." : line,
+  );
+
+  let result = previewLines.join("\n");
+  if (lines.length > maxLines) {
+    result = "...\n" + result;
+  }
+
+  return withCode(d`\`\`\`
+${withExtmark(d`${result}`, { line_hl_group: "DiffAdd" })}
+\`\`\``);
+}
+
+function renderInsertDetail(info: CompletedToolInfo): VDOMNode {
+  const input = info.request.input as InsertInput;
+  return d`\
+filePath: ${withInlineCode(d`\`${input.filePath}\``)}
+insertAfter: ${withInlineCode(d`\`${input.insertAfter}\``)}
+content:
+${withCode(d`\`\`\`
+${withExtmark(d`${input.content}`, { line_hl_group: "DiffAdd" })}
+\`\`\``)}`;
+}
+
+// ============================================================================
+// Replace preview/detail renderers
+// ============================================================================
+
+type ReplaceInput = {
+  filePath: string;
+  find: string;
+  replace: string;
+};
+
+function renderReplacePreview(
+  info: CompletedToolInfo,
+  context: RenderContext,
+): VDOMNode {
+  if (isError(info.result)) {
+    return d``;
+  }
+
+  const input = info.request.input as ReplaceInput;
+  return renderDiffPreview(
+    input.filePath,
+    input.find,
+    input.replace,
+    context.getDisplayWidth(),
+  );
+}
+
+function renderDiffPreview(
+  filePath: string,
+  find: string,
+  replace: string,
+  displayWidth: number,
+): VDOMNode {
+  const diffResult = diff.createPatch(
+    filePath,
+    find,
+    replace,
+    "before",
+    "after",
+    {
+      context: 2,
+      ignoreNewlineAtEof: true,
     },
-  ) {
-    this.tools = {};
-  }
+  );
 
-  getToolSpecs(threadType: ThreadType): ProviderToolSpec[] {
-    let staticToolNames: StaticToolName[] = [];
-    switch (threadType) {
-      case "subagent_default":
-      case "subagent_fast":
-        staticToolNames = SUBAGENT_STATIC_TOOL_NAMES;
-        break;
-      case "root":
-        staticToolNames = CHAT_STATIC_TOOL_NAMES;
-        break;
-      default:
-        assertUnreachable(threadType);
+  const diffLines = diffResult.split("\n").slice(5);
+  const maxLines = 10;
+  const maxLength = displayWidth - 5;
+
+  let previewLines =
+    diffLines.length > maxLines
+      ? diffLines.slice(diffLines.length - maxLines)
+      : diffLines;
+
+  previewLines = previewLines.map((line) => {
+    if (line.length > maxLength) {
+      return line.substring(0, maxLength) + "...";
     }
-    return [
-      ...staticToolNames.map((toolName) => ToolManager.TOOL_SPEC_MAP[toolName]),
-      ...this.context.mcpToolManager.getToolSpecs(),
-    ];
-  }
+    return line;
+  });
 
-  getTool(id: ToolRequestId): Tool {
-    const mcpTool = this.context.mcpToolManager.getTool(id);
-    if (mcpTool) {
-      return mcpTool;
-    }
+  const allLines =
+    diffLines.length > maxLines ? ["...", ...previewLines] : previewLines;
 
-    return this.tools[id] as unknown as Tool;
-  }
-
-  hasTool(id: ToolRequestId): boolean {
-    return (
-      this.context.mcpToolManager.getTool(id) !== undefined ||
-      this.tools[id] !== undefined
-    );
-  }
-
-  renderToolResult(id: ToolRequestId) {
-    const tool: MCPTool | StaticTool =
-      this.context.mcpToolManager.getTool(id) || this.tools[id];
-
-    if (tool.state.state === "done") {
-      const result = tool.state.result;
-      if (result.result.status === "error") {
-        return `\nError: ${result.result.error}`;
-      } else {
-        return `\nResult:\n${JSON.stringify(result.result.value, null, 2)}\n`;
-      }
+  const diffContent = allLines.map((line) => {
+    if (line.startsWith("+")) {
+      return withExtmark(d`${line}`, { line_hl_group: "DiffAdd" });
+    } else if (line.startsWith("-")) {
+      return withExtmark(d`${line}`, { line_hl_group: "DiffDelete" });
     } else {
-      return "";
+      return d`${line}`;
     }
-  }
+  });
 
-  update(msg: Msg): void {
-    switch (msg.type) {
-      case "init-tool-use": {
-        const request = msg.request;
+  return withCode(d`\`\`\`diff
+${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`${line}\n`))}
+\`\`\``);
+}
 
-        // Check if this is an MCP tool
-        if (this.context.mcpToolManager.isMCPTool(request.toolName)) {
-          const mcpRequest: ToolRequest = {
-            id: request.id,
-            toolName: request.toolName,
-            input: request.input,
-          };
+function renderReplaceDetail(info: CompletedToolInfo): VDOMNode {
+  const input = info.request.input as ReplaceInput;
 
-          this.context.mcpToolManager.initMCPTool(
-            mcpRequest,
-            (msg) => this.myDispatch(msg),
-            {
-              nvim: this.context.nvim,
-            },
-          );
+  const diffResult = diff.createPatch(
+    input.filePath,
+    input.find,
+    input.replace,
+    "before",
+    "after",
+    {
+      context: 5,
+      ignoreNewlineAtEof: true,
+    },
+  );
 
-          return;
-        }
+  const diffLines = diffResult.split("\n").slice(5);
 
-        // Handle static tools
-        const staticRequest = request as StaticToolRequest;
-        switch (staticRequest.toolName) {
-          case "get_file": {
-            const threadWrapper =
-              this.context.chat.threadWrappers[msg.threadId];
-            if (threadWrapper.state != "initialized") {
-              throw new Error(
-                `Expected thread ${msg.threadId} to be initialized for get_file tool.`,
-              );
-            }
-
-            const getFileTool = new GetFile.GetFileTool(staticRequest, {
-              nvim: this.context.nvim,
-              cwd: this.context.cwd,
-              options: this.context.options,
-              gitignore: this.context.gitignore,
-              contextManager: threadWrapper.thread.contextManager,
-              threadDispatch: (msg) =>
-                this.context.dispatch({
-                  type: "thread-msg",
-                  id: this.context.threadId,
-                  msg,
-                }),
-              myDispatch: (msg) =>
-                this.myDispatch({
-                  type: "tool-msg",
-                  msg: {
-                    id: staticRequest.id,
-                    toolName: staticRequest.toolName as ToolName,
-                    msg: msg as unknown as ToolMsg,
-                  },
-                }),
-            });
-
-            this.tools[staticRequest.id] = getFileTool;
-
-            return;
-          }
-
-          case "insert": {
-            const insertTool = new Insert.InsertTool(
-              staticRequest,
-              msg.threadId,
-              {
-                ...this.context,
-                myDispatch: (msg) =>
-                  this.myDispatch({
-                    type: "tool-msg",
-                    msg: {
-                      id: staticRequest.id,
-                      toolName: staticRequest.toolName as ToolName,
-                      msg: msg as unknown as ToolMsg,
-                    },
-                  }),
-              },
-            );
-
-            this.tools[staticRequest.id] = insertTool;
-            return;
-          }
-
-          case "replace": {
-            const replaceTool = new Replace.ReplaceTool(
-              staticRequest,
-              msg.threadId,
-              {
-                ...this.context,
-                myDispatch: (msg) =>
-                  this.myDispatch({
-                    type: "tool-msg",
-                    msg: {
-                      id: staticRequest.id,
-                      toolName: staticRequest.toolName as ToolName,
-                      msg: msg as unknown as ToolMsg,
-                    },
-                  }),
-              },
-            );
-
-            this.tools[staticRequest.id] = replaceTool;
-
-            return;
-          }
-
-          case "list_directory": {
-            const listDirTool = new ListDirectory.ListDirectoryTool(
-              staticRequest,
-              {
-                nvim: this.context.nvim,
-                cwd: this.context.cwd,
-                myDispatch: (msg) =>
-                  this.myDispatch({
-                    type: "tool-msg",
-                    msg: {
-                      id: staticRequest.id,
-                      toolName: staticRequest.toolName as ToolName,
-                      msg: msg as unknown as ToolMsg,
-                    },
-                  }),
-              },
-            );
-
-            this.tools[staticRequest.id] = listDirTool;
-            return;
-          }
-
-          case "hover": {
-            const hoverTool = new Hover.HoverTool(staticRequest, {
-              nvim: this.context.nvim,
-              lsp: this.context.lsp,
-              cwd: this.context.cwd,
-              myDispatch: (msg) =>
-                this.myDispatch({
-                  type: "tool-msg",
-                  msg: {
-                    id: staticRequest.id,
-                    toolName: staticRequest.toolName as ToolName,
-                    msg: msg as unknown as ToolMsg,
-                  },
-                }),
-            });
-
-            this.tools[staticRequest.id] = hoverTool;
-            return;
-          }
-
-          case "find_references": {
-            const findReferencesTool = new FindReferences.FindReferencesTool(
-              staticRequest,
-              {
-                nvim: this.context.nvim,
-                cwd: this.context.cwd,
-                lsp: this.context.lsp,
-                myDispatch: (msg) =>
-                  this.myDispatch({
-                    type: "tool-msg",
-                    msg: {
-                      id: staticRequest.id,
-                      toolName: staticRequest.toolName as ToolName,
-                      msg: msg as unknown as ToolMsg,
-                    },
-                  }),
-              },
-            );
-
-            this.tools[staticRequest.id] = findReferencesTool;
-            return;
-          }
-
-          case "diagnostics": {
-            const diagnosticsTool = new Diagnostics.DiagnosticsTool(
-              staticRequest,
-              {
-                nvim: this.context.nvim,
-                myDispatch: (msg) =>
-                  this.myDispatch({
-                    type: "tool-msg",
-                    msg: {
-                      id: staticRequest.id,
-                      toolName: staticRequest.toolName as ToolName,
-                      msg: msg as unknown as ToolMsg,
-                    },
-                  }),
-              },
-            );
-
-            this.tools[staticRequest.id] = diagnosticsTool;
-            return;
-          }
-
-          case "bash_command": {
-            const bashCommandTool = new BashCommand.BashCommandTool(
-              staticRequest,
-              {
-                nvim: this.context.nvim,
-                cwd: this.context.cwd,
-                myDispatch: (msg) =>
-                  this.myDispatch({
-                    type: "tool-msg",
-                    msg: {
-                      id: staticRequest.id,
-                      toolName: "bash_command" as ToolName,
-                      msg: msg as unknown as ToolMsg,
-                    },
-                  }),
-                options: this.context.options,
-                rememberedCommands: this.context.chat.rememberedCommands,
-                getDisplayWidth: this.context.getDisplayWidth,
-                gitignore: this.context.gitignore,
-                threadId: this.context.threadId,
-              },
-            );
-
-            this.tools[staticRequest.id] = bashCommandTool;
-            return;
-          }
-
-          case "inline_edit": {
-            throw new Error(`Not supported.`);
-          }
-          case "replace_selection": {
-            throw new Error(`Not supported.`);
-          }
-
-          case "thread_title": {
-            const threadTitleTool = new ThreadTitle.ThreadTitleTool(
-              staticRequest,
-              {
-                nvim: this.context.nvim,
-                myDispatch: (msg) =>
-                  this.myDispatch({
-                    type: "tool-msg",
-                    msg: {
-                      id: staticRequest.id,
-                      toolName: "thread_title" as ToolName,
-                      msg: msg as unknown as ToolMsg,
-                    },
-                  }),
-              },
-            );
-
-            this.tools[staticRequest.id] = threadTitleTool;
-            return;
-          }
-
-          case "fork_thread": {
-            const forkThreadTool = new ForkThread.ForkThreadTool(
-              staticRequest,
-              {
-                nvim: this.context.nvim,
-                chat: this.context.chat,
-                threadId: this.context.threadId,
-                dispatch: this.context.dispatch,
-              },
-            );
-
-            this.tools[staticRequest.id] = forkThreadTool;
-            return;
-          }
-
-          case "spawn_subagent": {
-            const spawnSubagentTool = new SpawnSubagent.SpawnSubagentTool(
-              staticRequest,
-              {
-                nvim: this.context.nvim,
-                dispatch: this.context.dispatch,
-                threadId: this.context.threadId,
-                myDispatch: (msg) =>
-                  this.myDispatch({
-                    type: "tool-msg",
-                    msg: {
-                      id: staticRequest.id,
-                      toolName: "spawn_subagent" as ToolName,
-                      msg: msg as unknown as ToolMsg,
-                    },
-                  }),
-              },
-            );
-
-            this.tools[staticRequest.id] = spawnSubagentTool;
-            return;
-          }
-
-          case "spawn_foreach": {
-            const spawnForeachTool = new SpawnForeach.SpawnForeachTool(
-              staticRequest,
-              {
-                nvim: this.context.nvim,
-                chat: this.context.chat,
-                dispatch: this.context.dispatch,
-                threadId: this.context.threadId,
-                myDispatch: (msg) =>
-                  this.myDispatch({
-                    type: "tool-msg",
-                    msg: {
-                      id: staticRequest.id,
-                      toolName: "spawn_foreach" as ToolName,
-                      msg: msg as unknown as ToolMsg,
-                    },
-                  }),
-                maxConcurrentSubagents:
-                  this.context.options.maxConcurrentSubagents || 3,
-              },
-            );
-
-            this.tools[staticRequest.id] = spawnForeachTool;
-            return;
-          }
-
-          case "wait_for_subagents": {
-            const waitForSubagentsTool =
-              new WaitForSubagents.WaitForSubagentsTool(staticRequest, {
-                nvim: this.context.nvim,
-                dispatch: this.context.dispatch,
-                threadId: this.context.threadId,
-                chat: this.context.chat,
-                myDispatch: (msg) =>
-                  this.myDispatch({
-                    type: "tool-msg",
-                    msg: {
-                      id: staticRequest.id,
-                      toolName: "wait_for_subagents" as ToolName,
-                      msg: msg as unknown as ToolMsg,
-                    },
-                  }),
-              });
-
-            this.tools[staticRequest.id] = waitForSubagentsTool;
-            return;
-          }
-
-          case "yield_to_parent": {
-            const yieldToParentTool = new YieldToParent.YieldToParentTool(
-              staticRequest,
-              {
-                nvim: this.context.nvim,
-                dispatch: this.context.dispatch,
-                threadId: this.context.threadId,
-                myDispatch: (msg) =>
-                  this.myDispatch({
-                    type: "tool-msg",
-                    msg: {
-                      id: staticRequest.id,
-                      toolName: "yield_to_parent" as ToolName,
-                      msg: msg as unknown as ToolMsg,
-                    },
-                  }),
-              },
-            );
-
-            this.tools[staticRequest.id] = yieldToParentTool;
-            return;
-          }
-
-          case "predict_edit": {
-            const predictEditTool = new PredictEdit.PredictEditTool(
-              staticRequest,
-              msg.threadId,
-              {
-                myDispatch: (msg) =>
-                  this.myDispatch({
-                    type: "tool-msg",
-                    msg: {
-                      id: staticRequest.id,
-                      toolName: "predict_edit" as ToolName,
-                      msg: msg as unknown as ToolMsg,
-                    },
-                  }),
-              },
-            );
-
-            this.tools[staticRequest.id] = predictEditTool;
-            return;
-          }
-
-          default:
-            return assertUnreachable(staticRequest);
-        }
-      }
-
-      case "tool-msg": {
-        if (this.context.mcpToolManager.isMCPTool(msg.msg.toolName)) {
-          this.context.mcpToolManager.updateTool(
-            msg.msg.id,
-            unwrapMcpToolMsg(msg.msg.msg),
-          );
-          return;
-        }
-
-        // Handle static tool messages
-        const tool = this.tools[msg.msg.id];
-        if (!tool) {
-          throw new Error(`Could not find tool with request id ${msg.msg.id}`);
-        }
-
-        const staticToolMsg = unwrapStaticToolMsg(msg.msg.msg);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
-        tool.update(staticToolMsg as any);
-
-        if (msg.msg.toolName == "bash_command") {
-          const bashMsg = staticToolMsg as BashCommand.Msg;
-          if (
-            bashMsg.type == "user-approval" &&
-            bashMsg.approved &&
-            bashMsg.remember
-          ) {
-            this.context.chat.rememberedCommands.add(
-              (tool as BashCommand.BashCommandTool).request.input.command,
-            );
-          }
-        }
-        return;
-      }
-      default:
-        return assertUnreachable(msg);
+  const diffContent = diffLines.map((line) => {
+    if (line.startsWith("+")) {
+      return withExtmark(d`${line}`, { line_hl_group: "DiffAdd" });
+    } else if (line.startsWith("-")) {
+      return withExtmark(d`${line}`, { line_hl_group: "DiffDelete" });
+    } else {
+      return d`${line}`;
     }
-  }
+  });
+
+  return d`\
+filePath: ${withInlineCode(d`\`${input.filePath}\``)}
+${withCode(d`\`\`\`diff
+${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`${line}\n`))}
+\`\`\``)}`;
 }

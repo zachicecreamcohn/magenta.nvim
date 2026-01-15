@@ -5,7 +5,12 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
+import type {
+  StaticTool,
+  ToolName,
+  GenericToolRequest,
+  CompletedToolInfo,
+} from "./types.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/types";
@@ -174,14 +179,11 @@ ${results
         return d`⏸️⏳ Waiting for ${threadIds.length.toString()} subagent(s):
 ${threadStatusLines}`;
       }
-      case "done": {
-        const result = this.state.result.result;
-        if (result.status === "error") {
-          return d`⏸️❌ Waiting for ${this.request.input.threadIds.length.toString()} subagent(s)`;
-        } else {
-          return d`⏸️✅ Waiting for ${this.request.input.threadIds.length.toString()} subagent(s)`;
-        }
-      }
+      case "done":
+        return renderCompletedSummary({
+          request: this.request as CompletedToolInfo["request"],
+          result: this.state.result,
+        });
     }
   }
 
@@ -240,6 +242,21 @@ ${threadStatusLines}`;
         }),
     });
   }
+}
+
+function isError(info: CompletedToolInfo): boolean {
+  return info.result.result.status === "error";
+}
+
+function getStatusEmoji(info: CompletedToolInfo): string {
+  return isError(info) ? "❌" : "✅";
+}
+
+export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+  const input = info.request.input as Input;
+  const status = getStatusEmoji(info);
+  const count = input.threadIds?.length ?? 0;
+  return d`⏳${status} wait_for_subagents (${count.toString()} threads)`;
 }
 
 export const spec: ProviderToolSpec = {

@@ -1,7 +1,13 @@
 import { getBufferIfOpen } from "../utils/buffers.ts";
 import fs from "fs";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { d, withBindings, withInlineCode, withExtmark } from "../tea/view.ts";
+import {
+  d,
+  withBindings,
+  withInlineCode,
+  withExtmark,
+  type VDOMNode,
+} from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type {
@@ -31,6 +37,7 @@ import type { Row0Indexed } from "../nvim/window.ts";
 import { canReadFile } from "./permissions.ts";
 import type { Gitignore } from "./util.ts";
 import { getTreeSitterMinimap, formatMinimap } from "../utils/treesitter.ts";
+import type { CompletedToolInfo } from "./types.ts";
 
 export type ToolRequest = GenericToolRequest<"get_file", Input>;
 
@@ -673,22 +680,7 @@ You already have the most up-to-date information about the contents of this file
   }
 
   private formatFileDisplay() {
-    const filePath = this.request.input.filePath;
-    let extraInfo = "";
-    if (this.request.input.pdfPage !== undefined) {
-      extraInfo = ` (page ${this.request.input.pdfPage})`;
-    } else if (
-      this.request.input.startLine !== undefined ||
-      this.request.input.numLines !== undefined
-    ) {
-      const start = this.request.input.startLine ?? 1;
-      const num = this.request.input.numLines;
-      extraInfo =
-        num !== undefined
-          ? ` (lines ${start}-${start + num - 1})`
-          : ` (from line ${start})`;
-    }
-    return withInlineCode(d`\`${filePath}\`${extraInfo}`);
+    return formatGetFileDisplay(this.request.input);
   }
 
   renderSummary() {
@@ -725,27 +717,49 @@ You already have the most up-to-date information about the contents of this file
         )} │
 └────────────────┘`;
       case "done":
-        if (this.state.result.result.status == "error") {
-          return d`👀❌ ${this.formatFileDisplay()}`;
-        } else {
-          // Count lines in the result
-          let lineCount = 0;
-          if (
-            this.state.result.result.value &&
-            this.state.result.result.value.length > 0
-          ) {
-            const firstValue = this.state.result.result.value[0];
-            if (firstValue.type === "text") {
-              lineCount = firstValue.text.split("\n").length;
-            }
-          }
-          const lineCountStr = lineCount > 0 ? ` [+ ${lineCount}]` : "";
-          return d`👀✅ ${this.formatFileDisplay()}${lineCountStr}`;
-        }
+        return renderCompletedSummary({
+          request: this.request as CompletedToolInfo["request"],
+          result: this.state.result,
+        });
       default:
         assertUnreachable(this.state);
     }
   }
+}
+
+function formatGetFileDisplay(input: Input): VDOMNode {
+  const filePath = input.filePath;
+  let extraInfo = "";
+  if (input.pdfPage !== undefined) {
+    extraInfo = ` (page ${input.pdfPage})`;
+  } else if (input.startLine !== undefined || input.numLines !== undefined) {
+    const start = input.startLine ?? 1;
+    const num = input.numLines;
+    extraInfo =
+      num !== undefined
+        ? ` (lines ${start}-${start + num - 1})`
+        : ` (from line ${start})`;
+  }
+  return withInlineCode(d`\`${filePath}\`${extraInfo}`);
+}
+
+export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+  const input = info.request.input as Input;
+  const result = info.result.result;
+
+  if (result.status === "error") {
+    return d`👀❌ ${formatGetFileDisplay(input)}`;
+  }
+
+  let lineCount = 0;
+  if (result.value.length > 0) {
+    const firstValue = result.value[0];
+    if (firstValue.type === "text") {
+      lineCount = firstValue.text.split("\n").length;
+    }
+  }
+  const lineCountStr = lineCount > 0 ? ` [+ ${lineCount}]` : "";
+  return d`👀✅ ${formatGetFileDisplay(input)}${lineCountStr}`;
 }
 
 export const spec: ProviderToolSpec = {

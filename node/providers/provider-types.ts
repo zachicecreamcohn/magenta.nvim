@@ -163,10 +163,7 @@ export interface Provider {
     contextThread?: ProviderThread;
   }): ProviderToolUseRequest;
 
-  createThread(
-    options: ProviderThreadOptions,
-    dispatch: (action: ProviderThreadAction) => void,
-  ): ProviderThread;
+  createThread(options: ProviderThreadOptions): ProviderThread;
 }
 
 export type ProviderMetadata = {
@@ -236,15 +233,16 @@ export interface ProviderThreadState {
   latestUsage?: Usage | undefined;
 }
 
-export type ProviderThreadAction =
-  | { type: "messages-updated" }
-  | { type: "streaming-block-updated" }
-  | { type: "status-changed"; status: ProviderThreadStatus };
-
 export type ProviderThreadInput =
   | ProviderTextContent
   | ProviderImageContent
   | ProviderDocumentContent;
+
+export type ProviderThreadEvents = {
+  "messages-updated": [];
+  "streaming-block-updated": [];
+  "status-changed": [];
+};
 
 export interface ProviderThread {
   getState(): ProviderThreadState;
@@ -262,6 +260,21 @@ export interface ProviderThread {
   continueConversation(): void;
 
   abort(): void;
+
+  /** Truncate messages to keep only messages 0..messageIdx (inclusive).
+   * Sets status to stopped with end_turn.
+   */
+  truncateMessages(messageIdx: number): void;
+
+  on<E extends keyof ProviderThreadEvents>(
+    event: E,
+    listener: (...args: ProviderThreadEvents[E]) => void,
+  ): void;
+
+  off<E extends keyof ProviderThreadEvents>(
+    event: E,
+    listener: (...args: ProviderThreadEvents[E]) => void,
+  ): void;
 }
 
 export interface ProviderThreadOptions {

@@ -11,7 +11,6 @@ import type {
   ProviderTextContent,
   ProviderThread,
   ProviderThreadOptions,
-  ProviderThreadAction,
   ProviderThreadInput,
 } from "./provider-types.ts";
 import {
@@ -632,11 +631,8 @@ export class AnthropicProvider implements Provider {
     };
   }
 
-  createThread(
-    options: ProviderThreadOptions,
-    dispatch: (action: ProviderThreadAction) => void,
-  ): ProviderThread {
-    return new AnthropicProviderThread(options, dispatch, this.client, {
+  createThread(options: ProviderThreadOptions): ProviderThread {
+    return new AnthropicProviderThread(options, this.client, {
       authType: this.authType,
       includeWebSearch: this.includeWebSearch,
       disableParallelToolUseFlag: this.disableParallelToolUseFlag,

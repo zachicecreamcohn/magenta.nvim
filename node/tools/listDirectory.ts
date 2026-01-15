@@ -1,8 +1,9 @@
 import fs from "fs";
 import path from "path";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { d, withInlineCode } from "../tea/view.ts";
+import { d, withInlineCode, type VDOMNode } from "../tea/view.ts";
 import type { Result } from "../utils/result.ts";
+import type { CompletedToolInfo } from "./types.ts";
 
 import type { Nvim } from "../nvim/nvim-node";
 import { readGitignoreSync } from "./util.ts";
@@ -209,14 +210,11 @@ export class ListDirectoryTool implements StaticTool {
     switch (this.state.state) {
       case "processing":
         return d`📁⚙️ list_directory ${withInlineCode(d`\`${this.request.input.dirPath || "."}\``)}`;
-      case "done": {
-        const result = this.state.result.result;
-        if (result.status === "error") {
-          return d`📁❌ list_directory ${withInlineCode(d`\`${this.request.input.dirPath || "."}\``)}`;
-        } else {
-          return d`📁✅ list_directory ${withInlineCode(d`\`${this.request.input.dirPath || "."}\``)}`;
-        }
-      }
+      case "done":
+        return renderCompletedSummary({
+          request: this.request as CompletedToolInfo["request"],
+          result: this.state.result,
+        });
       default:
         assertUnreachable(this.state);
     }
@@ -227,6 +225,20 @@ export class ListDirectoryTool implements StaticTool {
     dirPath: ${this.request.input.dirPath || "."}
 }`;
   }
+}
+
+function isError(result: CompletedToolInfo["result"]): boolean {
+  return result.result.status === "error";
+}
+
+function getStatusEmoji(result: CompletedToolInfo["result"]): string {
+  return isError(result) ? "❌" : "✅";
+}
+
+export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+  const input = info.request.input as Input;
+  const status = getStatusEmoji(info.result);
+  return d`📁${status} list_directory ${withInlineCode(d`\`${input.dirPath || "."}\``)}`;
 }
 
 export const spec: ProviderToolSpec = {

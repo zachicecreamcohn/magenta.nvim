@@ -8,7 +8,12 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { ThreadId } from "../chat/types.ts";
-import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
+import type {
+  StaticTool,
+  ToolName,
+  GenericToolRequest,
+  CompletedToolInfo,
+} from "./types.ts";
 
 export type ToolRequest = GenericToolRequest<"predict_edit", Input>;
 
@@ -97,11 +102,10 @@ export class PredictEditTool implements StaticTool {
       case "processing":
         return d`🔮⚙️ Predicting next edit...`;
       case "done":
-        if (this.state.result.result.status === "error") {
-          return d`🔮❌ Edit prediction failed - ${this.state.result.result.error}`;
-        } else {
-          return d`🔮✅ Edit prediction completed`;
-        }
+        return renderCompletedSummary({
+          request: this.request as CompletedToolInfo["request"],
+          result: this.state.result,
+        });
       default:
         assertUnreachable(this.state);
     }
@@ -134,6 +138,16 @@ export class PredictEditTool implements StaticTool {
         assertUnreachable(this.state);
     }
   }
+}
+
+export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+  const result = info.result.result;
+
+  if (result.status === "error") {
+    return d`🔮❌ Edit prediction failed - ${result.error}`;
+  }
+
+  return d`🔮✅ Edit prediction completed`;
 }
 
 export const spec: ProviderToolSpec = {
