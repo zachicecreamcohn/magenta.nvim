@@ -1623,7 +1623,7 @@ function renderMessageContent(
 }
 
 /** Find the tool result for a given tool request ID using the cached map */
-function findToolResult(
+export function findToolResult(
   thread: Thread,
   toolRequestId: ToolRequestId,
 ): ProviderToolResult | undefined {

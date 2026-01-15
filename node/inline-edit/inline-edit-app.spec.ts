@@ -42,7 +42,7 @@ describe("node/inline-edit/inline-edit-app.spec.ts", () => {
       expect(inputLines.join("\n")).toEqual("Input sent, awaiting response...");
 
       await driver.mockAnthropic.respondToForceToolUse({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         toolRequest: {
           status: "ok",
           value: {
@@ -212,7 +212,7 @@ Golden shadows dance with ease.`,
         await driver.mockAnthropic.awaitPendingForceToolUseRequest();
       expect(request.input).toMatchSnapshot();
       await driver.mockAnthropic.respondToForceToolUse({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         toolRequest: {
           status: "ok",
           value: {
@@ -267,7 +267,7 @@ Paint their stories in the night.`,
         await driver.mockAnthropic.awaitPendingForceToolUseRequest();
       expect(request.input).toMatchSnapshot();
       await driver.mockAnthropic.respondToForceToolUse({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         toolRequest: {
           status: "ok",
           value: {
@@ -315,7 +315,7 @@ Paint their stories in the night.`,
 
       // Respond with a failed tool request
       await driver.mockAnthropic.respondToForceToolUse({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         toolRequest: {
           status: "error",
           error: "Unable to find the specified text to replace",
@@ -459,7 +459,7 @@ Paint their stories in the night.`,
       const firstRequest =
         await driver.mockAnthropic.awaitPendingForceToolUseRequest();
       await driver.mockAnthropic.respondToForceToolUse({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         toolRequest: {
           status: "ok",
           value: {
@@ -541,7 +541,7 @@ Paint their stories in the night.`,
       driver.submitInlineEdit(targetBuffer.id);
       await driver.mockAnthropic.awaitPendingForceToolUseRequest();
       await driver.mockAnthropic.respondToForceToolUse({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         toolRequest: {
           status: "ok",
           value: {
@@ -600,7 +600,7 @@ Paint their stories in the night.`,
 
       // Respond to the title generation request
       await driver.mockAnthropic.respondToForceToolUse({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         toolRequest: {
           status: "ok",
           value: {

@@ -3,8 +3,8 @@ import { describe, it, expect } from "vitest";
 import { withDriver } from "../test/preamble";
 import { pollUntil } from "../utils/async.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
-import type { FindReferencesTool } from "./findReferences.ts";
 import type { ToolName } from "./types.ts";
+import { findToolResult } from "../chat/thread.ts";
 
 describe("node/tools/findReferences.spec.ts", () => {
   it("findReferences end-to-end", async () => {
@@ -42,22 +42,12 @@ describe("node/tools/findReferences.spec.ts", () => {
             throw new Error("Thread state is not valid");
           }
 
-          const conversationState = thread.state.conversationState;
-          if (conversationState.type !== "tool_use") {
-            throw new Error(`Thread not in tool_use state`);
+          const result = findToolResult(thread, toolRequestId);
+          if (!result) {
+            throw new Error(`no result for ${toolRequestId} found.`);
           }
 
-          const tool = conversationState.activeTools.get(toolRequestId);
-          if (!(tool && tool.toolName == "find_references")) {
-            throw new Error(`could not find tool with id ${toolRequestId}`);
-          }
-
-          const findReferencesTool = tool as unknown as FindReferencesTool;
-          if (findReferencesTool.state.state != "done") {
-            throw new Error(`Request not done`);
-          }
-
-          return findReferencesTool.state.result;
+          return result;
         },
         { timeout: 3000 },
       );

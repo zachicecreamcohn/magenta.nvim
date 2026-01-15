@@ -27,7 +27,7 @@ describe("node/tools/applyEdit.spec.ts", () => {
 
       const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "ok, here is a new poem",
         toolRequests: [
           {
@@ -64,7 +64,7 @@ describe("node/tools/applyEdit.spec.ts", () => {
 
       const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "ok, here is a poem",
         toolRequests: [
           {
@@ -105,7 +105,7 @@ describe("node/tools/applyEdit.spec.ts", () => {
 
       const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "ok, I will try to rewrite the poem in that file",
         toolRequests: [
           {
@@ -155,7 +155,7 @@ Paints its colors stories in the night.
 
       const request1 = await driver.mockAnthropic.awaitPendingStream();
       request1.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "ok, here is a poem",
         toolRequests: [
           {
@@ -186,7 +186,7 @@ Paints its colors stories in the night.
 
       const request2 = await driver.mockAnthropic.awaitPendingStream();
       request2.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "ok, here is another poem",
         toolRequests: [
           {
@@ -218,7 +218,7 @@ Paints its colors stories in the night.
 
       const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "I'll update that line",
         toolRequests: [
           {
@@ -261,7 +261,7 @@ Paint their stories in the night.
 
       const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "I'll replace the entire file content",
         toolRequests: [
           {
@@ -307,7 +307,7 @@ Paint their stories in the night.
 
       const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "ok, I will try to rewrite the poem in that file",
         toolRequests: [
           {
@@ -411,7 +411,7 @@ Paint their stories in the night.
 
       const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "I'll append to that file",
         toolRequests: [
           {
@@ -590,7 +590,7 @@ Paint their stories in the night.
 
       const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "I'll try to add content",
         toolRequests: [
           {
@@ -656,7 +656,7 @@ Paint their stories in the night.
 
       const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "I'll add text to that file",
         toolRequests: [
           {

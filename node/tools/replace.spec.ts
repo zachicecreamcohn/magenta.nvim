@@ -157,7 +157,7 @@ export type Model = immer.Immutable<
 
       const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "I'll update the imports",
         toolRequests: [
           {
@@ -236,7 +236,7 @@ export type Model = immer.Immutable<
 
       const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "I'll update the imports",
         toolRequests: [
           {

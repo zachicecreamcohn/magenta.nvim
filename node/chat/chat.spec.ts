@@ -187,7 +187,7 @@ describe("node/chat/chat.spec.ts", () => {
       );
 
       await driver.assertDisplayBufferContains(
-        `⏸️✅ Waiting for 1 subagent(s)`,
+        `⏳✅ wait_for_subagents (1 threads)`,
       );
     });
   });
@@ -370,7 +370,7 @@ describe("node/chat/chat.spec.ts", () => {
 
       // Verify both threads have completed and the wait tool shows final results
       await driver.assertDisplayBufferContains(
-        `⏸️✅ Waiting for 2 subagent(s)`,
+        `⏳✅ wait_for_subagents (2 threads)`,
       );
     });
   });

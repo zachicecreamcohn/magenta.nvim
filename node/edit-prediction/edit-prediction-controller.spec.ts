@@ -242,7 +242,7 @@ test("state management through prediction lifecycle", async () => {
 
     // Mock a successful response
     await driver.mockAnthropic.respondToForceToolUse({
-      stopReason: "end_turn",
+      stopReason: "tool_use",
       toolRequest: {
         status: "ok",
         value: {
@@ -295,7 +295,7 @@ test("error handling during prediction", async () => {
 
     // Mock an error response
     await driver.mockAnthropic.respondToForceToolUse({
-      stopReason: "end_turn",
+      stopReason: "tool_use",
       toolRequest: {
         status: "error",
         error: "Network timeout",
@@ -496,7 +496,7 @@ test("virtual text preview shows predicted edits", async () => {
     // Mock a response with a simple replacement
     await driver.mockAnthropic.awaitPendingForceToolUseRequest();
     await driver.mockAnthropic.respondToForceToolUse({
-      stopReason: "end_turn",
+      stopReason: "tool_use",
       toolRequest: {
         status: "ok",
         value: {
@@ -547,7 +547,7 @@ test("prediction accepted applies edits", async () => {
     // Mock response with a replacement
     await driver.mockAnthropic.awaitPendingForceToolUseRequest();
     await driver.mockAnthropic.respondToForceToolUse({
-      stopReason: "end_turn",
+      stopReason: "tool_use",
       toolRequest: {
         status: "ok",
         value: {
@@ -610,7 +610,7 @@ test("prediction dismissed clears virtual text", async () => {
     // Mock response
     await driver.mockAnthropic.awaitPendingForceToolUseRequest();
     await driver.mockAnthropic.respondToForceToolUse({
-      stopReason: "end_turn",
+      stopReason: "tool_use",
       toolRequest: {
         status: "ok",
         value: {
@@ -659,7 +659,7 @@ test("prediction dismissed by ESC key in normal mode", async () => {
     // Mock response
     await driver.mockAnthropic.awaitPendingForceToolUseRequest();
     await driver.mockAnthropic.respondToForceToolUse({
-      stopReason: "end_turn",
+      stopReason: "tool_use",
       toolRequest: {
         status: "ok",
         value: {
@@ -694,7 +694,7 @@ test("buffer changes auto-dismiss predictions", async () => {
     // Mock response
     await driver.mockAnthropic.awaitPendingForceToolUseRequest();
     await driver.mockAnthropic.respondToForceToolUse({
-      stopReason: "end_turn",
+      stopReason: "tool_use",
       toolRequest: {
         status: "ok",
         value: {
@@ -779,7 +779,7 @@ function processConfig() {
     // - Replaces with a flattened structure spanning different number of lines
     await driver.mockAnthropic.awaitPendingForceToolUseRequest();
     await driver.mockAnthropic.respondToForceToolUse({
-      stopReason: "end_turn",
+      stopReason: "tool_use",
       toolRequest: {
         status: "ok",
         value: {
@@ -995,7 +995,7 @@ function processConfig() {
     // - Replaces with a flattened structure spanning different number of lines
     await driver.mockAnthropic.awaitPendingForceToolUseRequest();
     await driver.mockAnthropic.respondToForceToolUse({
-      stopReason: "end_turn",
+      stopReason: "tool_use",
       toolRequest: {
         status: "ok",
         value: {

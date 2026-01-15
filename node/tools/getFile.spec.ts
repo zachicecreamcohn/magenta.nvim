@@ -780,7 +780,7 @@ it("getFile rejection", async () => {
 
     const request2 = await driver.mockAnthropic.awaitPendingStream();
     request2.respond({
-      stopReason: "end_turn",
+      stopReason: "tool_use",
       text: "ok, here goes",
       toolRequests: [
         {
@@ -813,7 +813,7 @@ it("displays approval dialog with proper box formatting", async () => {
 
     const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
-      stopReason: "end_turn",
+      stopReason: "tool_use",
       text: "ok, here goes",
       toolRequests: [
         {
@@ -855,7 +855,7 @@ it("getFile approval", async () => {
 
     const request3 = await driver.mockAnthropic.awaitPendingStream();
     request3.respond({
-      stopReason: "end_turn",
+      stopReason: "tool_use",
       text: "ok, here goes",
       toolRequests: [
         {
@@ -900,7 +900,7 @@ it("getFile requests approval for gitignored file", async () => {
 
       const request = await driver.mockAnthropic.awaitPendingStream();
       request.respond({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         text: "ok, here goes",
         toolRequests: [
           {
@@ -930,7 +930,7 @@ it("getFile requests approval for file outside cwd", async () => {
 
     const request = await driver.mockAnthropic.awaitPendingStream();
     request.respond({
-      stopReason: "end_turn",
+      stopReason: "tool_use",
       text: "ok, here goes",
       toolRequests: [
         {

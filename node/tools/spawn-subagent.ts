@@ -188,18 +188,17 @@ export class SpawnSubagentTool implements StaticTool {
 }
 
 export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
-  const input = info.request.input as Input;
   const result = info.result.result;
-  const promptPreview =
-    input.prompt.length > 50
-      ? input.prompt.substring(0, 50) + "..."
-      : input.prompt;
-
   if (result.status === "error") {
-    return d`🚀❌ spawn_subagent: ${promptPreview}`;
+    const errorPreview =
+      result.error.length > 50
+        ? result.error.substring(0, 50) + "..."
+        : result.error;
+
+    return d`🤖❌ spawn_subagent: ${errorPreview}`;
   }
 
-  return d`🚀✅ spawn_subagent: ${promptPreview}`;
+  return d`🤖✅ Spawning subagent`;
 }
 
 export const spec: ProviderToolSpec = {

@@ -36,7 +36,7 @@ describe("node/tools/thread-title.spec.ts", () => {
       // 4. Respond to the tool use request with a title
       const title = "Exploring the Solar System";
       await driver.mockAnthropic.respondToForceToolUse({
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         toolRequest: {
           status: "ok",
           value: {
