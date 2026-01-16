@@ -180,10 +180,13 @@ ${results
 ${threadStatusLines}`;
       }
       case "done":
-        return renderCompletedSummary({
-          request: this.request as CompletedToolInfo["request"],
-          result: this.state.result,
-        });
+        return renderCompletedSummary(
+          {
+            request: this.request as CompletedToolInfo["request"],
+            result: this.state.result,
+          },
+          this.context.dispatch,
+        );
     }
   }
 
@@ -252,10 +255,31 @@ function getStatusEmoji(info: CompletedToolInfo): string {
   return isError(info) ? "❌" : "✅";
 }
 
-export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+export function renderCompletedSummary(
+  info: CompletedToolInfo,
+  dispatch: Dispatch<RootMsg>,
+): VDOMNode {
   const input = info.request.input as Input;
   const status = getStatusEmoji(info);
   const count = input.threadIds?.length ?? 0;
+
+  const threadLinks = input.threadIds?.map((threadId) =>
+    withBindings(d`${threadId}`, {
+      "<CR>": () =>
+        dispatch({
+          type: "chat-msg",
+          msg: {
+            type: "select-thread",
+            id: threadId,
+          },
+        }),
+    }),
+  );
+
+  if (threadLinks && threadLinks.length > 0) {
+    return d`⏳${status} wait_for_subagents (${count.toString()} threads): ${threadLinks.map((link, i) => (i === threadLinks.length - 1 ? link : d`${link}, `))}`;
+  }
+
   return d`⏳${status} wait_for_subagents (${count.toString()} threads)`;
 }
 

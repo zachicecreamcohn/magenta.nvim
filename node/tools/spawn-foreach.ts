@@ -320,6 +320,17 @@ ${element}`;
     resultText += `Successful: ${successful.length}\n`;
     resultText += `Failed: ${failed.length}\n\n`;
 
+    // Collect threadIds for completed summary navigation
+    const threadIds: string[] = [];
+    for (const item of completedElements) {
+      if (item.state.status === "completed" && item.state.threadId) {
+        threadIds.push(item.state.threadId);
+      }
+    }
+    if (threadIds.length > 0) {
+      resultText += `ThreadIds: ${threadIds.join(",")}\n\n`;
+    }
+
     if (successful.length > 0) {
       resultText += `Successful results:\n`;
       for (const item of successful) {
@@ -492,21 +503,53 @@ ${elementViews}`;
       }
 
       case "done":
-        return renderCompletedSummary({
-          request: this.request as CompletedToolInfo["request"],
-          result: this.state.result,
-        });
+        return renderCompletedSummary(
+          {
+            request: this.request as CompletedToolInfo["request"],
+            result: this.state.result,
+          },
+          this.context.dispatch,
+        );
     }
   }
 }
 
-export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+export function renderCompletedSummary(
+  info: CompletedToolInfo,
+  dispatch: Dispatch<RootMsg>,
+): VDOMNode {
   const input = info.request.input as Input;
   const result = info.result.result;
 
   const agentTypeText = input.agentType ? ` (${input.agentType})` : "";
   const totalElements = input.elements?.length ?? 0;
   const status = result.status === "error" ? "❌" : "✅";
+
+  // Parse threadIds from result text
+  let threadIds: ThreadId[] = [];
+  if (result.status === "ok" && result.value[0]?.type === "text") {
+    const match = result.value[0].text.match(/ThreadIds: ([a-f0-9,-]+)/);
+    if (match) {
+      threadIds = match[1].split(",") as ThreadId[];
+    }
+  }
+
+  const threadLinks = threadIds.map((threadId) =>
+    withBindings(d`${threadId}`, {
+      "<CR>": () =>
+        dispatch({
+          type: "chat-msg",
+          msg: {
+            type: "select-thread",
+            id: threadId,
+          },
+        }),
+    }),
+  );
+
+  if (threadLinks.length > 0) {
+    return d`🤖${status} Foreach subagents${agentTypeText} (${totalElements.toString()}/${totalElements.toString()}): ${threadLinks.map((link, i) => (i === threadLinks.length - 1 ? link : d`${link}, `))}`;
+  }
 
   return d`🤖${status} Foreach subagents${agentTypeText} (${totalElements.toString()}/${totalElements.toString()})`;
 }

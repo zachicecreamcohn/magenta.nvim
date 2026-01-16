@@ -3,6 +3,7 @@ import { it, expect } from "vitest";
 import type { ToolRequestId } from "./toolManager.ts";
 import type { ToolName } from "./types.ts";
 import type Anthropic from "@anthropic-ai/sdk";
+import { pollUntil } from "../utils/async.ts";
 
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
 
@@ -438,6 +439,90 @@ it("aborts all child threads when the foreach request is aborted", async () => {
       // (since the foreach was aborted before element3 could start)
       expect(driver.mockAnthropic.hasPendingStreamWithText("element3")).toBe(
         false,
+      );
+    },
+  );
+});
+
+it("navigates to spawned subagent thread when pressing Enter on completed summary thread link", async () => {
+  await withDriver(
+    {
+      options: { maxConcurrentSubagents: 1 },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      await driver.inputMagentaText("Use spawn_foreach to process 1 element.");
+      await driver.send();
+
+      const stream1 =
+        await driver.mockAnthropic.awaitPendingStreamWithText(
+          "Use spawn_foreach",
+        );
+
+      // Get the parent thread id
+      const parentThread = driver.magenta.chat.getActiveThread();
+      const parentThreadId = parentThread.id;
+
+      stream1.respond({
+        stopReason: "tool_use",
+        text: "I'll use spawn_foreach to process 1 element.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "test-foreach-nav" as ToolRequestId,
+              toolName: "spawn_foreach" as ToolName,
+              input: {
+                prompt: "Process this element and yield the result",
+                elements: ["test_element"],
+              },
+            },
+          },
+        ],
+      });
+
+      // The subagent should start running
+      const subagentStream =
+        await driver.mockAnthropic.awaitPendingStreamWithText("test_element");
+
+      // Complete the subagent
+      subagentStream.respond({
+        stopReason: "tool_use",
+        text: "I'll yield the result.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "yield-test" as ToolRequestId,
+              toolName: "yield_to_parent" as ToolName,
+              input: {
+                result: "Processed test_element successfully",
+              },
+            },
+          },
+        ],
+      });
+
+      // Wait for the completed summary to appear (with thread link)
+      await driver.assertDisplayBufferContains("🤖✅ Foreach subagents (1/1):");
+
+      // Find the thread link in the completed summary
+      // The format is "🤖✅ Foreach subagents (1/1): <threadId>"
+      const displayContent = await driver.getDisplayBufferText();
+      const threadIdMatch = displayContent.match(
+        /🤖✅ Foreach subagents \(1\/1\): ([a-f0-9-]+)/,
+      );
+      expect(threadIdMatch).toBeTruthy();
+      const threadId = threadIdMatch![1];
+
+      // Find the position of the thread link and press Enter
+      const threadLinkPos = await driver.assertDisplayBufferContains(threadId);
+      await driver.triggerDisplayBufferKey(threadLinkPos, "<CR>");
+
+      // Verify we navigated to the subagent thread
+      await pollUntil(
+        () => driver.magenta.chat.getActiveThread().id !== parentThreadId,
       );
     },
   );

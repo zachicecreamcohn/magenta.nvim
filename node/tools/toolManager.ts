@@ -271,9 +271,9 @@ export function renderCompletedToolSummary(
     case "spawn_subagent":
       return SpawnSubagent.renderCompletedSummary(info, dispatch);
     case "spawn_foreach":
-      return SpawnForeach.renderCompletedSummary(info);
+      return SpawnForeach.renderCompletedSummary(info, dispatch);
     case "wait_for_subagents":
-      return WaitForSubagents.renderCompletedSummary(info);
+      return WaitForSubagents.renderCompletedSummary(info, dispatch);
     case "yield_to_parent":
       return YieldToParent.renderCompletedSummary(info);
     case "fork_thread":
