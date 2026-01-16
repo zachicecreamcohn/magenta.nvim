@@ -434,6 +434,13 @@ export class Thread {
       }
 
       case "tool-msg": {
+        if (
+          this.state.conversationState.type == "stopped" &&
+          this.state.conversationState.stopReason == "aborted"
+        ) {
+          // we aborted. Any further tool-msg stuff can be ignored
+          return;
+        }
         this.handleToolMsg(msg.id, msg.toolName, msg.msg);
         const autoRespondResult = this.maybeAutoRespond();
         // Play chime if tool completed but we didn't autorespond
@@ -739,18 +746,22 @@ export class Thread {
   }
 
   private abortInProgressOperations(): void {
+    const lastState = this.state.conversationState;
+    // preemptively set the conversation state to aborted. This will allow us to ginore any future duplicate/async
+    // messages that fail or otherwise update the aborted state.
+    this.state.conversationState = { type: "stopped", stopReason: "aborted" };
+
     // this will be async probably... so we will later get a dispatch about the thread having a state change to abort
     this.providerThread.abort();
 
-    if (this.state.conversationState.type == "tool_use") {
-      for (const [toolId, tool] of this.state.conversationState.activeTools) {
+    if (lastState.type == "tool_use") {
+      for (const [toolId, tool] of lastState.activeTools) {
         if (!tool.isDone()) {
           // in some cases, like for bash, this sends a sigterm, which also resolves async...
-          // That may dispatch! Which may cause an error later, when the thread tries to handle a message from a
-          // tool that is no longer active.
+          // That may dispatch! However, when the tool-msg arrives, we should be in aborted state and can ignore it
           tool.abort();
 
-          // Insert error tool results so the conversation can continue properly
+          // Insert error tool results since we will ignore the tool-msg
           this.providerThread.toolResult(toolId, {
             type: "tool_result",
             id: toolId,
@@ -762,9 +773,6 @@ export class Thread {
         }
       }
     }
-
-    // Reset conversation state - ProviderThread.abort() will handle status transition
-    this.state.conversationState = { type: "idle" };
   }
 
   maybeAutoRespond():
