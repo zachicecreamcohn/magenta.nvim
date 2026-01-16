@@ -1372,7 +1372,9 @@ ${contextUpdateView}${contentView}
   });
 
   const streamingBlockView =
-    conversationState.type === "streaming" ? renderStreamingBlock(thread) : d``;
+    conversationState.type === "streaming"
+      ? d`\n${renderStreamingBlock(thread)}\n`
+      : d``;
 
   return d`\
 ${titleView}
@@ -1382,7 +1384,7 @@ ${messagesView}\
 ${streamingBlockView}\
 ${editSummaryView}\
 ${contextManagerView}\
-${pendingMessagesView}\
+${pendingMessagesView}
 ${statusView}`;
 };
 
@@ -1427,7 +1429,7 @@ function renderEditSummary(thread: Thread, dispatch: Dispatch<Msg>): VDOMNode {
     );
   });
 
-  return d`\nEdits:\n${editLines}\n`;
+  return d`\nEdits:\n${editLines}`;
 }
 
 /** Render a single content block from a message */
@@ -1655,7 +1657,7 @@ function renderStreamingBlock(thread: Thread): string | VDOMNode {
       const lastLine = block.thinking.slice(
         block.thinking.lastIndexOf("\n") + 1,
       );
-      return withExtmark(d`💭 [Thinking] ${lastLine}`, {
+      return withExtmark(d`\n💭 [Thinking] ${lastLine}`, {
         hl_group: "@comment",
       });
     }

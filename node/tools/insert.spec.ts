@@ -536,3 +536,104 @@ it("insert approval dialog allows user to reject", async () => {
     expect(fileContent).toBe("old secret");
   });
 });
+
+it("insert approval dialog shows content preview", async () => {
+  await withDriver({}, async (driver) => {
+    const cwd = await getcwd(driver.nvim);
+    fs.writeFileSync(
+      path.join(cwd, ".config-insert"),
+      "existing content",
+      "utf-8",
+    );
+
+    await driver.showSidebar();
+    await driver.inputMagentaText("Insert content in .config-insert");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingStream();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "insert-preview-test" as ToolRequestId,
+            toolName: "insert" as ToolName,
+            input: {
+              filePath: ".config-insert" as UnresolvedFilePath,
+              insertAfter: "existing content",
+              content: "\nnew line 1\nnew line 2",
+            },
+          },
+        },
+      ],
+    });
+
+    // Verify the approval dialog is shown
+    await driver.assertDisplayBufferContains(
+      "✏️⏳ May I insert in file `.config-insert`?",
+    );
+
+    // Verify preview is shown with the content to be inserted
+    await driver.assertDisplayBufferContains("new line 1");
+    await driver.assertDisplayBufferContains("new line 2");
+  });
+});
+
+it("insert approval dialog can toggle to show full detail", async () => {
+  await withDriver({}, async (driver) => {
+    const cwd = await getcwd(driver.nvim);
+    fs.writeFileSync(
+      path.join(cwd, ".detailed-insert"),
+      "marker text here",
+      "utf-8",
+    );
+
+    await driver.showSidebar();
+    await driver.inputMagentaText("Insert content in .detailed-insert");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingStream();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "insert-detail-test" as ToolRequestId,
+            toolName: "insert" as ToolName,
+            input: {
+              filePath: ".detailed-insert" as UnresolvedFilePath,
+              insertAfter: "marker text here",
+              content: `\
+\nfirst inserted line
+second inserted line
+third inserted line`,
+            },
+          },
+        },
+      ],
+    });
+
+    // Verify the approval dialog is shown
+    await driver.assertDisplayBufferContains(
+      "✏️⏳ May I insert in file `.detailed-insert`?",
+    );
+
+    // Verify preview is shown initially
+    await driver.assertDisplayBufferContains("first inserted line");
+
+    // Toggle to show detail view by pressing Enter on the preview
+    const previewPos = await driver.assertDisplayBufferContains(
+      "first inserted line",
+    );
+    await driver.triggerDisplayBufferKey(previewPos, "<CR>");
+
+    // After toggling, should show the full detail with filePath and insertAfter
+    await driver.assertDisplayBufferContains("filePath: `.detailed-insert`");
+    await driver.assertDisplayBufferContains("insertAfter: `marker text here`");
+    await driver.assertDisplayBufferContains("third inserted line");
+  });
+});

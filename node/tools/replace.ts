@@ -280,14 +280,21 @@ export class ReplaceTool implements StaticTool {
   renderPreview(): VDOMNode {
     switch (this.state.state) {
       case "pending":
-      case "pending-user-action":
       case "processing":
         return d``;
+      case "pending-user-action":
+        return renderReplacePreview(
+          this.request.input,
+          this.context.getDisplayWidth(),
+        );
       case "done":
         if (this.state.result.result.status === "error") {
           return d``;
         } else {
-          return this.renderDiffPreview();
+          return renderReplacePreview(
+            this.request.input,
+            this.context.getDisplayWidth(),
+          );
         }
       default:
         assertUnreachable(this.state);
@@ -339,95 +346,8 @@ export class ReplaceTool implements StaticTool {
     return result;
   }
 
-  private renderDiffPreview(): VDOMNode {
-    const find = this.request.input.find;
-    const replace = this.request.input.replace;
-
-    const diffResult = diff.createPatch(
-      this.request.input.filePath,
-      find,
-      replace,
-      "before",
-      "after",
-      {
-        context: 2,
-        ignoreNewlineAtEof: true,
-      },
-    );
-
-    // slice off the diff header
-    const diffLines = diffResult.split("\n").slice(5);
-
-    const maxLines = 10;
-    const maxLength = this.context.getDisplayWidth() - 5;
-
-    let previewLines =
-      diffLines.length > maxLines
-        ? diffLines.slice(diffLines.length - maxLines)
-        : diffLines;
-
-    previewLines = previewLines.map((line) => {
-      if (line.length > maxLength) {
-        return line.substring(0, maxLength) + "...";
-      }
-      return line;
-    });
-
-    // Add ellipsis if we truncated
-    const allLines =
-      diffLines.length > maxLines ? ["...", ...previewLines] : previewLines;
-
-    // Create diff content with individual line highlighting
-    const diffContent = allLines.map((line) => {
-      if (line.startsWith("+")) {
-        return withExtmark(d`${line}`, { line_hl_group: "DiffAdd" });
-      } else if (line.startsWith("-")) {
-        return withExtmark(d`${line}`, { line_hl_group: "DiffDelete" });
-      } else {
-        return d`${line}`;
-      }
-    });
-
-    return withCode(d`\`\`\`diff
-${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`${line}\n`))}
-\`\`\``);
-  }
-
   renderDetail(): VDOMNode {
-    const find = this.request.input.find;
-    const replace = this.request.input.replace;
-
-    const diffResult = diff.createPatch(
-      this.request.input.filePath,
-      find,
-      replace,
-      "before",
-      "after",
-      {
-        context: 5,
-        ignoreNewlineAtEof: true,
-      },
-    );
-
-    // slice off the diff header
-    const diffLines = diffResult.split("\n").slice(5);
-
-    // Create diff content with individual line highlighting
-    const diffContent = diffLines.map((line) => {
-      if (line.startsWith("+")) {
-        return withExtmark(d`${line}`, { line_hl_group: "DiffAdd" });
-      } else if (line.startsWith("-")) {
-        return withExtmark(d`${line}`, { line_hl_group: "DiffDelete" });
-      } else {
-        return d`${line}`;
-      }
-    });
-
-    return d`\
-filePath: ${withInlineCode(d`\`${this.request.input.filePath}\``)}
-${withCode(d`\`\`\`diff
-${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`${line}\n`))}
-\`\`\``)}`;
+    return renderReplaceDetail(this.request.input);
   }
 
   getToolResult(): ProviderToolResult {
@@ -483,6 +403,88 @@ export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
     return d`✏️❌ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${input.filePath}\``)} - ${result.error}`;
   }
   return d`✏️✅ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${input.filePath}\``)}`;
+}
+
+export function renderReplacePreview(
+  input: Input,
+  displayWidth: number,
+): VDOMNode {
+  const diffResult = diff.createPatch(
+    input.filePath,
+    input.find,
+    input.replace,
+    "before",
+    "after",
+    {
+      context: 2,
+      ignoreNewlineAtEof: true,
+    },
+  );
+
+  const diffLines = diffResult.split("\n").slice(5);
+  const maxLines = 10;
+  const maxLength = displayWidth - 5;
+
+  let previewLines =
+    diffLines.length > maxLines
+      ? diffLines.slice(diffLines.length - maxLines)
+      : diffLines;
+
+  previewLines = previewLines.map((line) => {
+    if (line.length > maxLength) {
+      return line.substring(0, maxLength) + "...";
+    }
+    return line;
+  });
+
+  const allLines =
+    diffLines.length > maxLines ? ["...", ...previewLines] : previewLines;
+
+  const diffContent = allLines.map((line) => {
+    if (line.startsWith("+")) {
+      return withExtmark(d`${line}`, { line_hl_group: "DiffAdd" });
+    } else if (line.startsWith("-")) {
+      return withExtmark(d`${line}`, { line_hl_group: "DiffDelete" });
+    } else {
+      return d`${line}`;
+    }
+  });
+
+  return withCode(d`\`\`\`diff
+${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`${line}\n`))}
+\`\`\``);
+}
+
+export function renderReplaceDetail(input: Input): VDOMNode {
+  const diffResult = diff.createPatch(
+    input.filePath,
+    input.find,
+    input.replace,
+    "before",
+    "after",
+    {
+      context: 5,
+      ignoreNewlineAtEof: true,
+    },
+  );
+
+  const diffLines = diffResult.split("\n").slice(5);
+
+  const diffContent = diffLines.map((line) => {
+    if (line.startsWith("+")) {
+      return withExtmark(d`${line}`, { line_hl_group: "DiffAdd" });
+    } else if (line.startsWith("-")) {
+      return withExtmark(d`${line}`, { line_hl_group: "DiffDelete" });
+    } else {
+      return d`${line}`;
+    }
+  });
+
+  return d`\
+filePath: ${withInlineCode(d`\`${input.filePath}\``)}
+${withCode(d`\`\`\`diff
+${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`${line}\n`))}
+\`\`\``)}`;
 }
 
 export const spec: ProviderToolSpec = {

@@ -840,6 +840,115 @@ it("replace approval dialog allows user to reject", async () => {
     expect(fileContent).toBe("old secret");
   });
 });
+
+it("replace approval dialog shows diff preview", async () => {
+  await withDriver({}, async (driver) => {
+    const cwd = await getcwd(driver.nvim);
+    fs.writeFileSync(
+      path.join(cwd, ".config-file"),
+      `\
+line1
+old line
+line3`,
+      "utf-8",
+    );
+
+    await driver.showSidebar();
+    await driver.inputMagentaText("Replace content in .config-file");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingStream();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "replace-preview-test" as ToolRequestId,
+            toolName: "replace" as ToolName,
+            input: {
+              filePath: ".config-file" as UnresolvedFilePath,
+              find: "old line",
+              replace: "new line",
+            },
+          },
+        },
+      ],
+    });
+
+    // Verify the approval dialog is shown
+    await driver.assertDisplayBufferContains(
+      "✏️⏳ May I replace in file `.config-file`?",
+    );
+
+    // Verify diff preview is shown with the change
+    await driver.assertDisplayBufferContains("-old line");
+    await driver.assertDisplayBufferContains("+new line");
+  });
+});
+
+it("replace approval dialog can toggle to show full detail", async () => {
+  await withDriver({}, async (driver) => {
+    const cwd = await getcwd(driver.nvim);
+    fs.writeFileSync(
+      path.join(cwd, ".detailed-file"),
+      `\
+first line
+second line
+third line
+fourth line
+fifth line`,
+      "utf-8",
+    );
+
+    await driver.showSidebar();
+    await driver.inputMagentaText("Replace content in .detailed-file");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingStream();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "replace-detail-test" as ToolRequestId,
+            toolName: "replace" as ToolName,
+            input: {
+              filePath: ".detailed-file" as UnresolvedFilePath,
+              find: `\
+second line
+third line`,
+              replace: `\
+SECOND LINE
+THIRD LINE
+EXTRA LINE`,
+            },
+          },
+        },
+      ],
+    });
+
+    // Verify the approval dialog is shown
+    await driver.assertDisplayBufferContains(
+      "✏️⏳ May I replace in file `.detailed-file`?",
+    );
+
+    // Verify preview is shown initially
+    await driver.assertDisplayBufferContains("-second line");
+    await driver.assertDisplayBufferContains("+SECOND LINE");
+
+    // Toggle to show detail view by pressing Enter on the diff preview
+    const previewPos = await driver.assertDisplayBufferContains("-second line");
+    await driver.triggerDisplayBufferKey(previewPos, "<CR>");
+
+    // After toggling, should show the full detail with filePath header
+    await driver.assertDisplayBufferContains("filePath: `.detailed-file`");
+    await driver.assertDisplayBufferContains("+EXTRA LINE");
+  });
+});
 function vdomToString(node: VDOMNode): string {
   if (typeof node === "string") {
     return node;

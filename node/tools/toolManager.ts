@@ -15,16 +15,9 @@ import * as SpawnForeach from "./spawn-foreach.ts";
 import * as WaitForSubagents from "./wait-for-subagents.ts";
 import * as YieldToParent from "./yield-to-parent.ts";
 import * as PredictEdit from "./predict-edit.ts";
-import * as diff from "diff";
 
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import {
-  d,
-  type VDOMNode,
-  withInlineCode,
-  withCode,
-  withExtmark,
-} from "../tea/view.ts";
+import { d, type VDOMNode } from "../tea/view.ts";
 import type {
   ToolMsg,
   ToolRequestId,
@@ -297,11 +290,21 @@ export function renderCompletedToolPreview(
 ): VDOMNode {
   const toolName = info.request.toolName as StaticToolName;
 
+  if (isError(info.result)) {
+    return d``;
+  }
+
   switch (toolName) {
     case "insert":
-      return renderInsertPreview(info, context);
+      return Insert.renderInsertPreview(
+        info.request.input as Insert.Input,
+        context.getDisplayWidth(),
+      );
     case "replace":
-      return renderReplacePreview(info, context);
+      return Replace.renderReplacePreview(
+        info.request.input as Replace.Input,
+        context.getDisplayWidth(),
+      );
     case "bash_command":
       return BashCommand.renderCompletedPreview(info, context);
     default:
@@ -317,173 +320,10 @@ export function renderCompletedToolDetail(
 
   switch (toolName) {
     case "insert":
-      return renderInsertDetail(info);
+      return Insert.renderInsertDetail(info.request.input as Insert.Input);
     case "replace":
-      return renderReplaceDetail(info);
+      return Replace.renderReplaceDetail(info.request.input as Replace.Input);
     default:
       return d`${JSON.stringify(info.request.input, null, 2)}`;
   }
-}
-
-// ============================================================================
-// Insert preview/detail renderers
-// ============================================================================
-
-type InsertInput = {
-  filePath: string;
-  insertAfter: string;
-  content: string;
-};
-
-function renderInsertPreview(
-  info: CompletedToolInfo,
-  context: RenderContext,
-): VDOMNode {
-  if (isError(info.result)) {
-    return d``;
-  }
-
-  const input = info.request.input as InsertInput;
-  const content = input.content;
-  const lines = content.split("\n");
-  const maxLines = 5;
-  const maxLength = context.getDisplayWidth() - 5;
-
-  let previewLines = lines.length > maxLines ? lines.slice(-maxLines) : lines;
-  previewLines = previewLines.map((line) =>
-    line.length > maxLength ? line.substring(0, maxLength) + "..." : line,
-  );
-
-  let result = previewLines.join("\n");
-  if (lines.length > maxLines) {
-    result = "...\n" + result;
-  }
-
-  return withCode(d`\`\`\`
-${withExtmark(d`${result}`, { line_hl_group: "DiffAdd" })}
-\`\`\``);
-}
-
-function renderInsertDetail(info: CompletedToolInfo): VDOMNode {
-  const input = info.request.input as InsertInput;
-  return d`\
-filePath: ${withInlineCode(d`\`${input.filePath}\``)}
-insertAfter: ${withInlineCode(d`\`${input.insertAfter}\``)}
-content:
-${withCode(d`\`\`\`
-${withExtmark(d`${input.content}`, { line_hl_group: "DiffAdd" })}
-\`\`\``)}`;
-}
-
-// ============================================================================
-// Replace preview/detail renderers
-// ============================================================================
-
-type ReplaceInput = {
-  filePath: string;
-  find: string;
-  replace: string;
-};
-
-function renderReplacePreview(
-  info: CompletedToolInfo,
-  context: RenderContext,
-): VDOMNode {
-  if (isError(info.result)) {
-    return d``;
-  }
-
-  const input = info.request.input as ReplaceInput;
-  return renderDiffPreview(
-    input.filePath,
-    input.find,
-    input.replace,
-    context.getDisplayWidth(),
-  );
-}
-
-function renderDiffPreview(
-  filePath: string,
-  find: string,
-  replace: string,
-  displayWidth: number,
-): VDOMNode {
-  const diffResult = diff.createPatch(
-    filePath,
-    find,
-    replace,
-    "before",
-    "after",
-    {
-      context: 2,
-      ignoreNewlineAtEof: true,
-    },
-  );
-
-  const diffLines = diffResult.split("\n").slice(5);
-  const maxLines = 10;
-  const maxLength = displayWidth - 5;
-
-  let previewLines =
-    diffLines.length > maxLines
-      ? diffLines.slice(diffLines.length - maxLines)
-      : diffLines;
-
-  previewLines = previewLines.map((line) => {
-    if (line.length > maxLength) {
-      return line.substring(0, maxLength) + "...";
-    }
-    return line;
-  });
-
-  const allLines =
-    diffLines.length > maxLines ? ["...", ...previewLines] : previewLines;
-
-  const diffContent = allLines.map((line) => {
-    if (line.startsWith("+")) {
-      return withExtmark(d`${line}`, { line_hl_group: "DiffAdd" });
-    } else if (line.startsWith("-")) {
-      return withExtmark(d`${line}`, { line_hl_group: "DiffDelete" });
-    } else {
-      return d`${line}`;
-    }
-  });
-
-  return withCode(d`\`\`\`diff
-${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`${line}\n`))}
-\`\`\``);
-}
-
-function renderReplaceDetail(info: CompletedToolInfo): VDOMNode {
-  const input = info.request.input as ReplaceInput;
-
-  const diffResult = diff.createPatch(
-    input.filePath,
-    input.find,
-    input.replace,
-    "before",
-    "after",
-    {
-      context: 5,
-      ignoreNewlineAtEof: true,
-    },
-  );
-
-  const diffLines = diffResult.split("\n").slice(5);
-
-  const diffContent = diffLines.map((line) => {
-    if (line.startsWith("+")) {
-      return withExtmark(d`${line}`, { line_hl_group: "DiffAdd" });
-    } else if (line.startsWith("-")) {
-      return withExtmark(d`${line}`, { line_hl_group: "DiffDelete" });
-    } else {
-      return d`${line}`;
-    }
-  });
-
-  return d`\
-filePath: ${withInlineCode(d`\`${input.filePath}\``)}
-${withCode(d`\`\`\`diff
-${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`${line}\n`))}
-\`\`\``)}`;
 }
