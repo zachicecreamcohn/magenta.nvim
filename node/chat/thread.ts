@@ -31,6 +31,7 @@ import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp } from "../lsp.ts";
 import {
   getProvider as getProvider,
+  type NativeMessageIdx,
   type ProviderMessage,
   type ProviderMessageContent,
   type ProviderThread,
@@ -211,7 +212,7 @@ export class Thread {
   public fileSnapshots: FileSnapshots;
   public contextManager: ContextManager;
   public forkNextPrompt: string | undefined;
-  public forkMessageIdx: number | undefined;
+  public forkMessageIdx: NativeMessageIdx | undefined;
   private commandRegistry: CommandRegistry;
   public gitignore: Gitignore;
   public providerThread: ProviderThread;
@@ -332,19 +333,22 @@ export class Thread {
       return;
     }
 
-    const messageIdxToTruncateTo = this.forkMessageIdx - 1;
-
     // Reset conversation state BEFORE truncating since truncateMessages dispatches
     // events that are processed synchronously
     this.state.conversationState = { type: "idle" };
 
     // Clear view state for removed messages
+    // Note: messageViewState is keyed by provider message indices which happen to
+    // match native indices for Anthropic (1:1 mapping)
+    const forkIdx = this.forkMessageIdx as number;
     for (const idx of Object.keys(this.state.messageViewState)) {
       const messageIdx = parseInt(idx, 10);
-      if (messageIdx >= this.forkMessageIdx) {
+      if (messageIdx > forkIdx) {
         delete this.state.messageViewState[messageIdx];
       }
     }
+
+    const nativeIdxToTruncateTo = this.forkMessageIdx;
 
     // Clear fork state
     this.forkNextPrompt = undefined;
@@ -352,7 +356,7 @@ export class Thread {
 
     // Truncate messages back to pre-fork state
     // This dispatches status-changed which triggers maybeAutoRespond
-    this.providerThread.truncateMessages(messageIdxToTruncateTo);
+    this.providerThread.truncateMessages(nativeIdxToTruncateTo);
   }
 
   update(msg: RootMsg): void {
@@ -1015,7 +1019,7 @@ Use the fork_thread tool to start a new thread for this prompt.
 You must use the fork_thread tool immediately, with only the information you already have. Do not use any other tools.`,
             };
           this.forkNextPrompt = forkText;
-          this.forkMessageIdx = this.providerThread.getState().messages.length;
+          this.forkMessageIdx = this.providerThread.getNativeMessageIdx();
         }
       } else {
         messageContent.push({

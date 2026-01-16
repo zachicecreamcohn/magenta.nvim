@@ -216,6 +216,11 @@ export type ProviderThreadStatus =
   | { type: "stopped"; stopReason: StopReason }
   | { type: "error"; error: Error };
 
+/** Branded type for native message index within a ProviderThread.
+ * This is opaque to external code - only the ProviderThread knows how to use it.
+ */
+export type NativeMessageIdx = number & { __nativeMessageIdx: true };
+
 export type ProviderStreamingBlock =
   | { type: "text"; text: string }
   | { type: "thinking"; thinking: string; signature: string }
@@ -249,6 +254,11 @@ export interface ProviderThread {
 
   getProviderStreamingBlock(): ProviderStreamingBlock | undefined;
 
+  /** Get the current native message index. Use this to capture a position
+   * that can later be passed to truncateMessages.
+   */
+  getNativeMessageIdx(): NativeMessageIdx;
+
   appendUserMessage(content: ProviderThreadInput[]): void;
 
   toolResult(
@@ -264,7 +274,7 @@ export interface ProviderThread {
   /** Truncate messages to keep only messages 0..messageIdx (inclusive).
    * Sets status to stopped with end_turn.
    */
-  truncateMessages(messageIdx: number): void;
+  truncateMessages(messageIdx: NativeMessageIdx): void;
 
   on<E extends keyof ProviderThreadEvents>(
     event: E,

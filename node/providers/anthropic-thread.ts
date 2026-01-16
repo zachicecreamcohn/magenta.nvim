@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { EventEmitter } from "events";
 import type {
+  NativeMessageIdx,
   ProviderMessage,
   ProviderStreamingBlock,
   ProviderThread,
@@ -105,6 +106,10 @@ export class AnthropicProviderThread
     return [...this.messages];
   }
 
+  getNativeMessageIdx(): NativeMessageIdx {
+    return (this.messages.length - 1) as NativeMessageIdx;
+  }
+
   appendUserMessage(content: ProviderThreadInput[]): void {
     const nativeContent = this.convertInputToNative(content);
     this.messages.push({
@@ -176,7 +181,7 @@ export class AnthropicProviderThread
     this.startStreaming();
   }
 
-  truncateMessages(messageIdx: number): void {
+  truncateMessages(messageIdx: NativeMessageIdx): void {
     // Keep messages 0..messageIdx (inclusive), remove everything after
     this.messages.length = messageIdx + 1;
 
