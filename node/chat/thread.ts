@@ -1558,20 +1558,21 @@ function renderMessageContent(
         getDisplayWidth: thread.context.getDisplayWidth,
       };
 
-      return withBindings(
-        d`${renderCompletedToolSummary(completedInfo)}${
+      return d`${renderCompletedToolSummary(completedInfo, thread.context.dispatch)}${withBindings(
+        d`${
           showDetails
             ? d`\n${renderCompletedToolDetail(completedInfo, renderContext)}${usageInDetails}`
             : d`\n${renderCompletedToolPreview(completedInfo, renderContext)}`
-        }\n`,
+        }`,
         {
-          "<CR>": () =>
+          "<CR>": () => {
             dispatch({
               type: "toggle-tool-details",
               toolRequestId: request.id,
-            }),
+            });
+          },
         },
-      );
+      )}\n`;
     }
 
     case "tool_result":

@@ -43,6 +43,8 @@ import {
 } from "./tool-registry.ts";
 import type { ThreadId, ThreadType } from "../chat/types.ts";
 import { isMCPTool, type MCPToolManager } from "./mcp/manager.ts";
+import type { Dispatch } from "../tea/tea.ts";
+import type { RootMsg } from "../root-msg.ts";
 export type { Tool, ToolRequestId, CompletedToolInfo } from "./types.ts";
 
 export type StaticToolMap = {
@@ -239,7 +241,10 @@ function getStatusEmoji(result: ProviderToolResult): string {
   return isError(result) ? "❌" : "✅";
 }
 
-export function renderCompletedToolSummary(info: CompletedToolInfo): VDOMNode {
+export function renderCompletedToolSummary(
+  info: CompletedToolInfo,
+  dispatch: Dispatch<RootMsg>,
+): VDOMNode {
   const toolName = info.request.toolName as StaticToolName;
 
   if (isMCPTool(toolName)) {
@@ -264,7 +269,7 @@ export function renderCompletedToolSummary(info: CompletedToolInfo): VDOMNode {
     case "diagnostics":
       return Diagnostics.renderCompletedSummary(info);
     case "spawn_subagent":
-      return SpawnSubagent.renderCompletedSummary(info);
+      return SpawnSubagent.renderCompletedSummary(info, dispatch);
     case "spawn_foreach":
       return SpawnForeach.renderCompletedSummary(info);
     case "wait_for_subagents":

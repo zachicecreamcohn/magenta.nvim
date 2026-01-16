@@ -1,4 +1,4 @@
-import { d, type VDOMNode } from "../tea/view.ts";
+import { d, withBindings, type VDOMNode } from "../tea/view.ts";
 import { type Result } from "../utils/result.ts";
 import type {
   ProviderToolResult,
@@ -27,7 +27,6 @@ export type State =
     }
   | {
       state: "done";
-      threadId?: ThreadId;
       result: ProviderToolResult;
     };
 
@@ -179,15 +178,21 @@ export class SpawnSubagentTool implements StaticTool {
       case "preparing":
         return d`🚀⚙️ spawn_subagent: ${promptPreview}`;
       case "done":
-        return renderCompletedSummary({
-          request: this.request as CompletedToolInfo["request"],
-          result: this.state.result,
-        });
+        return renderCompletedSummary(
+          {
+            request: this.request as CompletedToolInfo["request"],
+            result: this.state.result,
+          },
+          this.context.dispatch,
+        );
     }
   }
 }
 
-export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+export function renderCompletedSummary(
+  info: CompletedToolInfo,
+  dispatch: Dispatch<RootMsg>,
+): VDOMNode {
   const result = info.result.result;
   if (result.status === "error") {
     const errorPreview =
@@ -198,7 +203,25 @@ export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
     return d`🤖❌ spawn_subagent: ${errorPreview}`;
   }
 
-  return d`🤖✅ Spawning subagent`;
+  // Parse threadId from result text: "Sub-agent started with threadId: <id>"
+  const resultText =
+    result.value[0]?.type === "text" ? result.value[0].text : "";
+  const match = resultText.match(/threadId: ([a-f0-9-]+)/);
+  const threadId = match ? (match[1] as ThreadId) : undefined;
+
+  return withBindings(d`🤖✅ spawn_subagent ${threadId || "undefined"}`, {
+    "<CR>": () => {
+      if (threadId) {
+        dispatch({
+          type: "chat-msg",
+          msg: {
+            type: "select-thread",
+            id: threadId,
+          },
+        });
+      }
+    },
+  });
 }
 
 export const spec: ProviderToolSpec = {
