@@ -521,12 +521,52 @@ export class BashCommandTool implements StaticTool {
 
   private terminate() {
     if (this.state.state === "processing" && this.state.childProcess) {
-      this.state.childProcess.kill("SIGTERM");
+      const childProcess = this.state.childProcess;
+      const pid = childProcess.pid;
+
+      // Kill the entire process group (negative PID) since we spawn with detached: true
+      // This ensures all child processes are also terminated
+      if (pid) {
+        try {
+          process.kill(-pid, "SIGTERM");
+        } catch {
+          // Process group may already be dead
+          childProcess.kill("SIGTERM");
+        }
+      } else {
+        childProcess.kill("SIGTERM");
+      }
+
       this.state.output.push({
         stream: "stderr",
         text: "Process terminated by user with SIGTERM",
       });
       this.writeToLog("stderr", "Process terminated by user with SIGTERM");
+
+      // Escalate to SIGKILL after 1 second if process hasn't exited yet
+      setTimeout(() => {
+        // If still in processing state, the process hasn't exited from SIGTERM
+        if (this.state.state === "processing") {
+          if (pid) {
+            try {
+              process.kill(-pid, "SIGKILL");
+            } catch {
+              // Process group may already be dead
+              childProcess.kill("SIGKILL");
+            }
+          } else {
+            childProcess.kill("SIGKILL");
+          }
+          this.state.output.push({
+            stream: "stderr",
+            text: "Process killed with SIGKILL after 1s timeout",
+          });
+          this.writeToLog(
+            "stderr",
+            "Process killed with SIGKILL after 1s timeout",
+          );
+        }
+      }, 1000);
     }
   }
 
@@ -556,6 +596,7 @@ export class BashCommandTool implements StaticTool {
             stdio: ["ignore", "pipe", "pipe"],
             cwd: this.context.cwd,
             env: process.env,
+            detached: true,
           });
 
           if (this.state.state === "processing") {

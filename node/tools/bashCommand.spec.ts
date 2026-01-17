@@ -7,6 +7,9 @@ import { getcwd } from "../nvim/nvim";
 import type { ToolName } from "./types";
 import { MockProvider } from "../providers/mock";
 import type { Row0Indexed } from "../nvim/window";
+import { pollUntil } from "../utils/async.ts";
+import { BashCommandTool } from "./bashCommand.ts";
+import { spawnSync } from "child_process";
 
 describe("node/tools/bashCommand.spec.ts", () => {
   it("executes a simple echo command without requiring approval (allowlisted)", async () => {
@@ -1659,5 +1662,315 @@ describe("bash command output logging", () => {
         }
       }
     });
+  });
+
+  it("terminates process with SIGTERM", async () => {
+    await withDriver(
+      {
+        options: {
+          commandConfig: {
+            commands: [
+              ["echo", { type: "restAny" }],
+              ["sleep", { type: "restAny" }],
+            ],
+            pipeCommands: [],
+          },
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+
+        await driver.inputMagentaText("Run a bash command that sleeps");
+        await driver.send();
+
+        const request =
+          await driver.mockAnthropic.awaitPendingStreamWithText(
+            "Run a bash command",
+          );
+
+        // Command that outputs its PID then sleeps
+        const command = `echo "pid: $$" && sleep 60`;
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "I'll run that command for you.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "test-bash-sigterm" as ToolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command,
+                },
+              },
+            },
+          ],
+        });
+
+        // Wait for PID to appear in output
+        await driver.assertDisplayBufferContains("pid:");
+
+        // Extract PID from the display buffer
+        const displayText = await driver.getDisplayBufferText();
+        const pidMatch = displayText.match(/pid: (\d+)/);
+        expect(pidMatch).not.toBeNull();
+        const pid = parseInt(pidMatch![1], 10);
+
+        // Verify process is running
+        const isRunning = (p: number) => {
+          const result = spawnSync("kill", ["-0", p.toString()], {
+            stdio: "pipe",
+          });
+          return result.status === 0;
+        };
+        expect(isRunning(pid)).toBe(true);
+
+        // Get the tool instance and trigger termination
+        const thread = driver.magenta.chat.getActiveThread();
+        const { conversationState } = thread.state;
+        if (conversationState.type !== "tool_use") {
+          throw new Error(
+            `Expected tool_use state, got ${conversationState.type}`,
+          );
+        }
+        const tool = conversationState.activeTools.get(
+          "test-bash-sigterm" as ToolRequestId,
+        ) as BashCommandTool;
+        expect(tool).toBeDefined();
+
+        // Dispatch terminate message
+        tool.update({ type: "terminate" });
+
+        // Wait for process to be gone
+        await pollUntil(
+          () => {
+            if (isRunning(pid)) {
+              throw new Error(`Process ${pid} still running`);
+            }
+          },
+          { timeout: 3000 },
+        );
+
+        // Verify the tool shows SIGTERM message
+        await driver.assertDisplayBufferContains("SIGTERM");
+      },
+    );
+  });
+
+  it("escalates to SIGKILL when process ignores SIGTERM", async () => {
+    await withDriver(
+      {
+        options: {
+          commandConfig: {
+            commands: [["bash", { type: "restAny" }]],
+            pipeCommands: [],
+          },
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+
+        await driver.inputMagentaText(
+          "Run a bash command that ignores SIGTERM",
+        );
+        await driver.send();
+
+        const request =
+          await driver.mockAnthropic.awaitPendingStreamWithText(
+            "Run a bash command",
+          );
+
+        // Command that traps SIGTERM and ignores it, only SIGKILL can kill it
+        const command = `bash -c 'trap "" TERM; echo "pid: $$"; while true; do sleep 1; done'`;
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "I'll run that command for you.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "test-bash-sigkill" as ToolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command,
+                },
+              },
+            },
+          ],
+        });
+
+        // Wait for PID to appear in output
+        await driver.assertDisplayBufferContains("pid:");
+
+        // Extract PID from the display buffer
+        const displayText = await driver.getDisplayBufferText();
+        const pidMatch = displayText.match(/pid: (\d+)/);
+        expect(pidMatch).not.toBeNull();
+        const pid = parseInt(pidMatch![1], 10);
+
+        // Verify process is running
+        const isRunning = (p: number) => {
+          const result = spawnSync("kill", ["-0", p.toString()], {
+            stdio: "pipe",
+          });
+          return result.status === 0;
+        };
+        expect(isRunning(pid)).toBe(true);
+
+        // Get the tool instance and trigger termination
+        const thread = driver.magenta.chat.getActiveThread();
+        const { conversationState } = thread.state;
+        if (conversationState.type !== "tool_use") {
+          throw new Error(
+            `Expected tool_use state, got ${conversationState.type}`,
+          );
+        }
+        const tool = conversationState.activeTools.get(
+          "test-bash-sigkill" as ToolRequestId,
+        ) as BashCommandTool;
+        expect(tool).toBeDefined();
+
+        // Dispatch terminate message
+        tool.update({ type: "terminate" });
+
+        // Process should survive SIGTERM (for ~1 second) then die from SIGKILL
+        // Wait a bit and verify process is still running (SIGTERM ignored)
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        // Process might still be running at this point since it ignores SIGTERM
+
+        // Wait for process to be gone after SIGKILL (after 1s timeout + some buffer)
+        await pollUntil(
+          () => {
+            if (isRunning(pid)) {
+              throw new Error(`Process ${pid} still running`);
+            }
+          },
+          { timeout: 5000 },
+        );
+
+        // Verify the tool shows SIGKILL message
+        await driver.assertDisplayBufferContains("SIGKILL");
+      },
+    );
+  });
+
+  it("kills entire process tree including child processes", async () => {
+    await withDriver(
+      {
+        options: {
+          commandConfig: {
+            commands: [["bash", { type: "restAny" }]],
+            pipeCommands: [],
+          },
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+
+        await driver.inputMagentaText(
+          "Run a bash command that spawns child processes",
+        );
+        await driver.send();
+
+        const request =
+          await driver.mockAnthropic.awaitPendingStreamWithText(
+            "Run a bash command",
+          );
+
+        // Command that spawns child processes that output their PIDs
+        // The parent spawns two children, each outputs its PID and sleeps
+        const command = `bash -c '
+echo "parent: $$"
+bash -c "echo child1: \\$\\$; sleep 60" &
+bash -c "echo child2: \\$\\$; sleep 60" &
+wait
+'`;
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "I'll run that command for you.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "test-bash-tree" as ToolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command,
+                },
+              },
+            },
+          ],
+        });
+
+        // Wait for all PIDs to appear in output
+        await driver.assertDisplayBufferContains("parent:");
+        await driver.assertDisplayBufferContains("child1:");
+        await driver.assertDisplayBufferContains("child2:");
+
+        // Extract PIDs from the display buffer
+        const displayText = await driver.getDisplayBufferText();
+        const parentMatch = displayText.match(/parent: (\d+)/);
+        const child1Match = displayText.match(/child1: (\d+)/);
+        const child2Match = displayText.match(/child2: (\d+)/);
+
+        expect(parentMatch).not.toBeNull();
+        expect(child1Match).not.toBeNull();
+        expect(child2Match).not.toBeNull();
+
+        const parentPid = parseInt(parentMatch![1], 10);
+        const child1Pid = parseInt(child1Match![1], 10);
+        const child2Pid = parseInt(child2Match![1], 10);
+
+        // Verify all processes are running
+        const isRunning = (p: number) => {
+          const result = spawnSync("kill", ["-0", p.toString()], {
+            stdio: "pipe",
+          });
+          return result.status === 0;
+        };
+
+        expect(isRunning(parentPid)).toBe(true);
+        expect(isRunning(child1Pid)).toBe(true);
+        expect(isRunning(child2Pid)).toBe(true);
+
+        // Get the tool instance and trigger termination
+        const thread = driver.magenta.chat.getActiveThread();
+        const { conversationState } = thread.state;
+        if (conversationState.type !== "tool_use") {
+          throw new Error(
+            `Expected tool_use state, got ${conversationState.type}`,
+          );
+        }
+        const tool = conversationState.activeTools.get(
+          "test-bash-tree" as ToolRequestId,
+        ) as BashCommandTool;
+        expect(tool).toBeDefined();
+
+        // Dispatch terminate message
+        tool.update({ type: "terminate" });
+
+        // Wait for ALL processes to be gone
+        await pollUntil(
+          () => {
+            const parentRunning = isRunning(parentPid);
+            const child1Running = isRunning(child1Pid);
+            const child2Running = isRunning(child2Pid);
+
+            if (parentRunning || child1Running || child2Running) {
+              throw new Error(
+                `Processes still running: parent=${parentRunning}, child1=${child1Running}, child2=${child2Running}`,
+              );
+            }
+          },
+          { timeout: 5000 },
+        );
+
+        // Verify the tool shows termination message
+        await driver.assertDisplayBufferContains("SIGTERM");
+      },
+    );
   });
 });
