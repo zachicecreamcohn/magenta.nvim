@@ -19,18 +19,31 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { MagentaOptions } from "../options.ts";
 import { withTimeout } from "../utils/async.ts";
 import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
-import { type NvimCwd, MAGENTA_TEMP_DIR } from "../utils/files.ts";
+import {
+  type NvimCwd,
+  type UnresolvedFilePath,
+  MAGENTA_TEMP_DIR,
+} from "../utils/files.ts";
 import {
   isCommandAllowedByConfig,
   type PermissionCheckResult,
 } from "./bash-parser/permissions.ts";
 import type { Gitignore } from "./util.ts";
 import type { ThreadId } from "../chat/types.ts";
+import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
 import * as fs from "fs";
 import * as path from "path";
 
 const MAX_OUTPUT_TOKENS_FOR_AGENT = 10000;
 const CHARACTERS_PER_TOKEN = 4;
+
+// Regex to match ANSI escape codes (colors, cursor movement, etc.)
+// eslint-disable-next-line no-control-regex
+const ANSI_ESCAPE_REGEX = /\x1B\[[0-9;]*[a-zA-Z]/g;
+
+function stripAnsiCodes(text: string): string {
+  return text.replace(ANSI_ESCAPE_REGEX, "");
+}
 
 let rgAvailable: boolean | undefined;
 let fdAvailable: boolean | undefined;
@@ -131,11 +144,13 @@ type State =
       state: "done";
       output: OutputLine[];
       exitCode: number | undefined;
+      durationMs: number;
       result: ProviderToolResult;
     }
   | {
       state: "error";
       error: string;
+      durationMs?: number;
     };
 
 export type Msg =
@@ -281,6 +296,7 @@ export class BashCommandTool implements StaticTool {
     output: OutputLine[],
     exitCode: number | null,
     signal: NodeJS.Signals | null,
+    durationMs: number,
   ): string {
     const totalLines = output.length;
     let linesToFormat: OutputLine[];
@@ -331,9 +347,9 @@ export class BashCommandTool implements StaticTool {
     }
 
     if (signal) {
-      formattedOutput += `terminated by signal ${signal}\n`;
+      formattedOutput += `terminated by signal ${signal} (${durationMs}ms)\n`;
     } else {
-      formattedOutput += `exit code ${exitCode}\n`;
+      formattedOutput += `exit code ${exitCode} (${durationMs}ms)\n`;
     }
 
     if (this.logFilePath) {
@@ -385,6 +401,7 @@ export class BashCommandTool implements StaticTool {
           this.state = {
             state: "done",
             exitCode: 1,
+            durationMs: 0,
             output: [],
             result: {
               type: "tool_result",
@@ -434,6 +451,8 @@ export class BashCommandTool implements StaticTool {
           return;
         }
 
+        const durationMs = Date.now() - this.state.startTime;
+
         if (msg.signal) {
           this.logStream?.write(`terminated by signal ${msg.signal}\n`);
         } else {
@@ -445,11 +464,13 @@ export class BashCommandTool implements StaticTool {
           this.state.output,
           msg.code,
           msg.signal,
+          durationMs,
         );
 
         this.state = {
           state: "done",
           exitCode: msg.code != undefined ? msg.code : -1,
+          durationMs,
           output: this.state.output,
           result: {
             type: "tool_result",
@@ -464,11 +485,22 @@ export class BashCommandTool implements StaticTool {
       }
 
       case "error": {
+        const durationMs =
+          this.state.state === "processing"
+            ? Date.now() - this.state.startTime
+            : undefined;
         this.closeLogStream();
-        this.state = {
-          state: "error",
-          error: msg.error,
-        };
+        this.state =
+          durationMs !== undefined
+            ? {
+                state: "error",
+                error: msg.error,
+                durationMs,
+              }
+            : {
+                state: "error",
+                error: msg.error,
+              };
         return;
       }
 
@@ -531,7 +563,7 @@ export class BashCommandTool implements StaticTool {
           }
 
           childProcess.stdout?.on("data", (data: Buffer) => {
-            const text = data.toString();
+            const text = stripAnsiCodes(data.toString());
             const lines = text.split("\n");
             for (const line of lines) {
               if (line.trim()) {
@@ -541,7 +573,7 @@ export class BashCommandTool implements StaticTool {
           });
 
           childProcess.stderr?.on("data", (data: Buffer) => {
-            const text = data.toString();
+            const text = stripAnsiCodes(data.toString());
             const lines = text.split("\n");
             for (const line of lines) {
               if (line.trim()) {
@@ -604,6 +636,7 @@ export class BashCommandTool implements StaticTool {
       this.state = {
         state: "done",
         exitCode: -1,
+        durationMs: 0,
         output: [],
         result: {
           type: "tool_result",
@@ -670,15 +703,18 @@ export class BashCommandTool implements StaticTool {
         return state.result;
       }
 
-      case "error":
+      case "error": {
+        const durationStr =
+          state.durationMs !== undefined ? ` (${state.durationMs}ms)` : "";
         return {
           type: "tool_result",
           id: this.request.id,
           result: {
             status: "error",
-            error: `Error: ${state.error}`,
+            error: `Error: ${state.error}${durationStr}`,
           },
         };
+      }
 
       case "pending-user-action":
         return {
@@ -801,6 +837,40 @@ ${formattedOutput}
         assertUnreachable(this.state);
     }
   }
+
+  renderDetail(): VDOMNode {
+    const renderContext: RenderContext = {
+      getDisplayWidth: this.context.getDisplayWidth.bind(this.context),
+      nvim: this.context.nvim,
+      cwd: this.context.cwd,
+      options: this.context.options,
+    };
+
+    switch (this.state.state) {
+      case "pending-user-action":
+        return d`command: ${withInlineCode(d`\`${this.request.input.command}\``)}`;
+      case "processing": {
+        return renderOutputDetail(
+          this.state.output,
+          this.logFilePath,
+          renderContext,
+        );
+      }
+      case "done": {
+        return renderCompletedDetail(
+          {
+            request: this.request as CompletedToolInfo["request"],
+            result: this.state.result,
+          },
+          renderContext,
+        );
+      }
+      case "error":
+        return d`command: ${withInlineCode(d`\`${this.request.input.command}\``)}\n❌ ${this.state.error}`;
+      default:
+        assertUnreachable(this.state);
+    }
+  }
 }
 
 export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
@@ -841,9 +911,16 @@ export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
   return d`⚡✅ ${withInlineCode(d`\`${input.command}\``)}`;
 }
 
+export type RenderContext = {
+  getDisplayWidth: () => number;
+  nvim: Nvim;
+  cwd: NvimCwd;
+  options: MagentaOptions;
+};
+
 export function renderCompletedPreview(
   info: CompletedToolInfo,
-  context: { getDisplayWidth: () => number },
+  context: RenderContext,
 ): VDOMNode {
   const result = info.result.result;
 
@@ -857,7 +934,12 @@ export function renderCompletedPreview(
   }
 
   const text = firstValue.text;
-  const lines = text.split("\n");
+  // Remove the "Full output" line since we render it separately with bindings
+  const textWithoutLogLine = text.replace(
+    /\n?Full output \(\d+ lines\): .+$/m,
+    "",
+  );
+  const lines = textWithoutLogLine.split("\n");
   const maxLines = 10;
   const maxLength = context.getDisplayWidth() - 5;
 
@@ -872,14 +954,112 @@ export function renderCompletedPreview(
   const exitCodeMatch = text.match(/exit code (\d+)/);
   const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : undefined;
 
+  // Extract log file path and render with binding
+  const logFileView = renderLogFileLink(text, context);
+
   if (exitCode !== undefined && exitCode !== 0) {
     return d`❌ Exit code: ${exitCode.toString()}
 ${withCode(d`\`\`\`
 ${previewText}
-\`\`\``)}`;
+\`\`\``)}${logFileView}`;
   }
 
-  return withCode(d`\`\`\`
+  return d`${withCode(d`\`\`\`
 ${previewText}
-\`\`\``);
+\`\`\``)}${logFileView}`;
+}
+
+function renderOutputDetail(
+  output: OutputLine[],
+  logFilePath: string | undefined,
+  context: RenderContext,
+): VDOMNode {
+  let formattedOutput = "";
+  let currentStream: "stdout" | "stderr" | null = null;
+
+  for (const line of output) {
+    if (currentStream !== line.stream) {
+      formattedOutput += line.stream === "stdout" ? "stdout:\n" : "stderr:\n";
+      currentStream = line.stream;
+    }
+    formattedOutput += line.text + "\n";
+  }
+
+  const logFileView = logFilePath
+    ? renderLogFileLinkDirect(logFilePath, output.length, context)
+    : d``;
+
+  return d`${withCode(d`\`\`\`
+${formattedOutput}
+\`\`\``)}${logFileView}`;
+}
+
+function renderLogFileLinkDirect(
+  logFilePath: string,
+  lineCount: number,
+  context: RenderContext,
+): VDOMNode {
+  return withBindings(
+    d`\nFull output (${lineCount.toString()} lines): ${withInlineCode(d`\`${logFilePath}\``)}`,
+    {
+      "<CR>": () => {
+        openFileInNonMagentaWindow(
+          logFilePath as UnresolvedFilePath,
+          context,
+        ).catch((e: Error) => context.nvim.logger.error(e.message));
+      },
+    },
+  );
+}
+
+function renderLogFileLink(text: string, context: RenderContext): VDOMNode {
+  // Parse "Full output (N lines): /path/to/file" from the text
+  const match = text.match(/Full output \((\d+) lines\): (.+)$/m);
+  if (!match) {
+    return d``;
+  }
+
+  const lineCount = match[1];
+  const filePath = match[2];
+
+  return withBindings(
+    d`\nFull output (${lineCount} lines): ${withInlineCode(d`\`${filePath}\``)}`,
+    {
+      "<CR>": () => {
+        openFileInNonMagentaWindow(
+          filePath as UnresolvedFilePath,
+          context,
+        ).catch((e: Error) => context.nvim.logger.error(e.message));
+      },
+    },
+  );
+}
+
+export function renderCompletedDetail(
+  info: CompletedToolInfo,
+  context: RenderContext,
+): VDOMNode {
+  const input = info.request.input as Input;
+  const result = info.result.result;
+
+  if (result.status !== "ok" || result.value.length === 0) {
+    return d`command: ${withInlineCode(d`\`${input.command}\``)}\n${result.status === "error" ? d`❌ ${result.error}` : d``}`;
+  }
+
+  const firstValue = result.value[0];
+  if (firstValue.type !== "text") {
+    return d`command: ${withInlineCode(d`\`${input.command}\``)}`;
+  }
+
+  // Remove the "Full output" line from the code block since we render it separately with bindings
+  const textWithoutLogLine = firstValue.text.replace(
+    /\n?Full output \(\d+ lines\): .+$/m,
+    "",
+  );
+  const logFileView = renderLogFileLink(firstValue.text, context);
+
+  return d`command: ${withInlineCode(d`\`${input.command}\``)}
+${withCode(d`\`\`\`
+${textWithoutLogLine}
+\`\`\``)}${logFileView}`;
 }

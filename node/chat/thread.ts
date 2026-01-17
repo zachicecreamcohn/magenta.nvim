@@ -1570,6 +1570,9 @@ function renderMessageContent(
 
       const renderContext = {
         getDisplayWidth: thread.context.getDisplayWidth,
+        nvim: thread.context.nvim,
+        cwd: thread.context.cwd,
+        options: thread.context.options,
       };
 
       return d`${renderCompletedToolSummary(completedInfo, thread.context.dispatch)}${withBindings(

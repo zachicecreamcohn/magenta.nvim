@@ -224,6 +224,9 @@ export function getToolSpecs(
 
 type RenderContext = {
   getDisplayWidth: () => number;
+  nvim: import("../nvim/nvim-node").Nvim;
+  cwd: import("../utils/files.ts").NvimCwd;
+  options: import("../options.ts").MagentaOptions;
 };
 
 function isError(result: ProviderToolResult): boolean {
@@ -314,7 +317,7 @@ export function renderCompletedToolPreview(
 
 export function renderCompletedToolDetail(
   info: CompletedToolInfo,
-  _context: RenderContext,
+  context: RenderContext,
 ): VDOMNode {
   const toolName = info.request.toolName as StaticToolName;
 
@@ -323,6 +326,8 @@ export function renderCompletedToolDetail(
       return Insert.renderInsertDetail(info.request.input as Insert.Input);
     case "replace":
       return Replace.renderReplaceDetail(info.request.input as Replace.Input);
+    case "bash_command":
+      return BashCommand.renderCompletedDetail(info, context);
     default:
       return d`${JSON.stringify(info.request.input, null, 2)}`;
   }

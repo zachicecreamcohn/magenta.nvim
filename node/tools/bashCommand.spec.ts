@@ -6,6 +6,7 @@ import path from "node:path";
 import { getcwd } from "../nvim/nvim";
 import type { ToolName } from "./types";
 import { MockProvider } from "../providers/mock";
+import type { Row0Indexed } from "../nvim/window";
 
 describe("node/tools/bashCommand.spec.ts", () => {
   it("executes a simple echo command without requiring approval (allowlisted)", async () => {
@@ -1398,5 +1399,265 @@ describe("bash command output logging", () => {
         expect(content).toContain("Full output (30 lines):");
       },
     );
+  });
+
+  it("toggles between preview and detail view with Enter key", async () => {
+    await withDriver(
+      {
+        options: {
+          commandConfig: {
+            commands: [["echo", { type: "restAny" }]],
+            pipeCommands: [],
+          },
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText(`Run: echo "test output"`);
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingStream();
+        const toolRequestId = "test-toggle-detail" as ToolRequestId;
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "Running echo.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: toolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command: 'echo "test output"',
+                },
+              },
+            },
+          ],
+        });
+
+        // Wait for command to complete
+        await driver.assertDisplayBufferContains('⚡✅ `echo "test output"`');
+
+        // Initially in preview mode - should show output in code block
+        await driver.assertDisplayBufferContains("stdout:");
+        await driver.assertDisplayBufferContains("test output");
+
+        // Detail view should NOT be shown yet (no command: header)
+        await driver.assertDisplayBufferDoesNotContain("command:");
+
+        // Toggle to detail view by pressing Enter on the output preview
+        const previewPos = await driver.assertDisplayBufferContains("stdout:");
+        await driver.triggerDisplayBufferKey(previewPos, "<CR>");
+
+        // After toggling, should show full detail with command header
+        await driver.assertDisplayBufferContains("command:");
+
+        // Toggle back to preview view
+        const detailPos = await driver.assertDisplayBufferContains("command:");
+        await driver.triggerDisplayBufferKey(detailPos, "<CR>");
+
+        // Should be back in preview mode (no command header)
+        await driver.assertDisplayBufferDoesNotContain("command:");
+        await driver.assertDisplayBufferContains("stdout:");
+      },
+    );
+  });
+
+  it("opens log file in non-magenta window when clicking Full output link", async () => {
+    await withDriver(
+      {
+        options: {
+          commandConfig: {
+            commands: [["seq", { type: "restAny" }]],
+            pipeCommands: [],
+          },
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        // Generate output that will be abbreviated
+        await driver.inputMagentaText(`Run: seq 1 50`);
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingStream();
+        const toolRequestId = "test-open-log" as ToolRequestId;
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "Running seq.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: toolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command: "seq 1 50",
+                },
+              },
+            },
+          ],
+        });
+
+        await driver.assertDisplayBufferContains("⚡✅");
+
+        // Find and click the "Full output" link
+        const fullOutputPos = await driver.assertDisplayBufferContains(
+          "Full output (50 lines):",
+        );
+        await driver.triggerDisplayBufferKey(fullOutputPos, "<CR>");
+
+        // Verify a new window was opened with the log file
+        const logWindow = await driver.findWindow(async (w) => {
+          const buf = await w.buffer();
+          const name = await buf.getName();
+          return name.includes("bashCommand.log");
+        });
+
+        expect(logWindow).toBeDefined();
+
+        // Verify the window is not a magenta window
+        const isMagenta = await logWindow.getVar("magenta");
+        expect(isMagenta).toBeFalsy();
+
+        // Verify the log file contains the expected content
+        const logBuffer = await logWindow.buffer();
+        const lines = await logBuffer.getLines({
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
+        });
+        const content = lines.join("\n");
+        expect(content).toContain("$ seq 1 50");
+        expect(content).toContain("stdout:");
+        expect(content).toContain("1");
+        expect(content).toContain("50");
+      },
+    );
+  });
+
+  it("includes duration in the tool result for successful commands", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(`Run this command: echo 'test'`);
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      const toolRequestId = "test-duration" as ToolRequestId;
+
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll run that command for you.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: toolRequestId,
+              toolName: "bash_command" as ToolName,
+              input: {
+                command: "echo 'test'",
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains("⚡✅ `echo 'test'`");
+
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+      const toolResultMessage =
+        toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+      if (
+        toolResultMessage.role === "user" &&
+        Array.isArray(toolResultMessage.content)
+      ) {
+        const toolResult = toolResultMessage.content[0];
+        if (toolResult.type === "tool_result") {
+          expect(toolResult.is_error).toBeFalsy();
+          const content = toolResult.content;
+          const resultText =
+            typeof content === "string"
+              ? content
+              : Array.isArray(content)
+                ? content
+                    .filter(
+                      (item): item is { type: "text"; text: string } =>
+                        item.type === "text",
+                    )
+                    .map((item) => item.text)
+                    .join("")
+                : "";
+
+          // Verify the result contains duration in milliseconds
+          expect(resultText).toMatch(/exit code 0 \(\d+ms\)/);
+        }
+      }
+    });
+  });
+
+  it("includes duration in the tool result for failed commands", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(`Run this command: exit 1`);
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      const toolRequestId = "test-duration-error" as ToolRequestId;
+
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll run that command for you.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: toolRequestId,
+              toolName: "bash_command" as ToolName,
+              input: {
+                command: "exit 1",
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains(
+        "⚡⏳ May I run command `exit 1`?",
+      );
+      const pos = await driver.assertDisplayBufferContains("[ YES ]");
+      await driver.triggerDisplayBufferKey(pos, "<CR>");
+
+      await driver.assertDisplayBufferContains("Exit code: 1");
+
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+      const toolResultMessage =
+        toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+      if (
+        toolResultMessage.role === "user" &&
+        Array.isArray(toolResultMessage.content)
+      ) {
+        const toolResult = toolResultMessage.content[0];
+        if (toolResult.type === "tool_result") {
+          const content = toolResult.content;
+          const resultText =
+            typeof content === "string"
+              ? content
+              : Array.isArray(content)
+                ? content
+                    .filter(
+                      (item): item is { type: "text"; text: string } =>
+                        item.type === "text",
+                    )
+                    .map((item) => item.text)
+                    .join("")
+                : "";
+
+          // Verify the result contains duration in milliseconds
+          expect(resultText).toMatch(/exit code 1 \(\d+ms\)/);
+        }
+      }
+    });
   });
 });
