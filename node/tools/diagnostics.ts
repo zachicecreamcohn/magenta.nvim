@@ -33,6 +33,7 @@ export type Msg = {
 export class DiagnosticsTool implements StaticTool {
   state: State;
   toolName = "diagnostics" as const;
+  aborted: boolean = false;
 
   constructor(
     public request: ToolRequest,
@@ -75,25 +76,34 @@ export class DiagnosticsTool implements StaticTool {
     return false;
   }
 
-  /** this is expected to execute as part of a dispatch, so we don't need to dispatch anything to update the view
-   */
-  abort() {
-    this.state = {
-      state: "done",
+  abort(): ProviderToolResult {
+    if (this.state.state === "done") {
+      return this.getToolResult();
+    }
+
+    this.aborted = true;
+
+    const result: ProviderToolResult = {
+      type: "tool_result",
+      id: this.request.id,
       result: {
-        type: "tool_result",
-        id: this.request.id,
-        result: {
-          status: "error",
-          error: `The user aborted this request.`,
-        },
+        status: "error",
+        error: "Request was aborted by the user.",
       },
     };
+
+    this.state = {
+      state: "done",
+      result,
+    };
+
+    return result;
   }
 
   async getDiagnostics() {
     try {
       const content = await getDiagnostics(this.context.nvim);
+      if (this.aborted) return;
       this.context.myDispatch({
         type: "finish",
         result: {
@@ -102,6 +112,7 @@ export class DiagnosticsTool implements StaticTool {
         },
       });
     } catch (error) {
+      if (this.aborted) return;
       this.context.myDispatch({
         type: "finish",
         result: {

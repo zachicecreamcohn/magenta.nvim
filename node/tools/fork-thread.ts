@@ -17,7 +17,9 @@ import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/types.ts";
 import type { Chat } from "../chat/chat.ts";
 
-export type Msg = Record<string, never>;
+export type Msg = {
+  type: "finish";
+};
 
 export type State =
   | {
@@ -31,6 +33,7 @@ export type State =
 export class ForkThreadTool implements StaticTool {
   toolName = "fork_thread" as const;
   public state: State;
+  public aborted: boolean = false;
 
   constructor(
     public request: ToolRequest,
@@ -39,6 +42,7 @@ export class ForkThreadTool implements StaticTool {
       chat: Chat;
       threadId: ThreadId;
       dispatch: Dispatch<RootMsg>;
+      myDispatch: Dispatch<Msg>;
     },
   ) {
     this.state = { state: "pending" };
@@ -107,10 +111,51 @@ ${this.request.input.summary}
     return false;
   }
 
-  abort() {}
+  abort(): ProviderToolResult {
+    if (this.state.state === "done") {
+      return this.getToolResult();
+    }
 
-  update(_msg: Msg): void {
-    // No-op: fork tool is discarded when fork-thread runs
+    this.aborted = true;
+
+    const result: ProviderToolResult = {
+      type: "tool_result",
+      id: this.request.id,
+      result: {
+        status: "error",
+        error: "Request was aborted by the user.",
+      },
+    };
+
+    this.state = {
+      state: "done",
+      result,
+    };
+
+    return result;
+  }
+
+  update(msg: Msg): void {
+    switch (msg.type) {
+      case "finish":
+        this.state = {
+          state: "done",
+          result: {
+            type: "tool_result",
+            id: this.request.id,
+            result: this.aborted
+              ? {
+                  status: "error",
+                  error: "Fork operation was aborted.",
+                }
+              : {
+                  status: "ok",
+                  value: [{ type: "text", text: "Fork completed." }],
+                },
+          },
+        };
+        return;
+    }
   }
 
   getToolResult(): ProviderToolResult {

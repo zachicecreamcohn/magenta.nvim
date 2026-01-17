@@ -28,6 +28,7 @@ export type Msg = {
 export class ThreadTitleTool implements StaticTool {
   state: State;
   toolName = "thread_title" as const;
+  aborted: boolean = false;
 
   constructor(
     public request: ToolRequest,
@@ -58,15 +59,28 @@ export class ThreadTitleTool implements StaticTool {
     return false;
   }
 
-  abort() {
-    this.state = {
-      state: "done",
+  abort(): ProviderToolResult {
+    if (this.state.state === "done") {
+      return this.getToolResult();
+    }
+
+    this.aborted = true;
+
+    const result: ProviderToolResult = {
+      type: "tool_result",
+      id: this.request.id,
       result: {
-        type: "tool_result",
-        id: this.request.id,
-        result: { status: "error", error: `The user aborted this request.` },
+        status: "error",
+        error: "Request was aborted by the user.",
       },
     };
+
+    this.state = {
+      state: "done",
+      result,
+    };
+
+    return result;
   }
 
   update(msg: Msg): void {

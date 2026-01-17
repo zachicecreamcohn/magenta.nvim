@@ -23,9 +23,14 @@ export type Input = {
 
 export type ToolRequest = GenericToolRequest<"wait_for_subagents", Input>;
 
-export type Msg = {
-  type: "check-threads";
-};
+export type Msg =
+  | {
+      type: "check-threads";
+    }
+  | {
+      type: "finish";
+      result: ProviderToolResult;
+    };
 
 export type State =
   | {
@@ -39,6 +44,7 @@ export type State =
 export class WaitForSubagentsTool implements StaticTool {
   toolName = "wait_for_subagents" as const;
   public state: State;
+  public aborted: boolean = false;
 
   constructor(
     public request: ToolRequest,
@@ -55,12 +61,13 @@ export class WaitForSubagentsTool implements StaticTool {
     };
 
     setTimeout(() => {
+      if (this.aborted) return;
       this.checkThreads();
     });
   }
 
   private checkThreads() {
-    if (this.state.state !== "waiting") {
+    if (this.state.state !== "waiting" || this.aborted) {
       return;
     }
 
@@ -121,20 +128,28 @@ ${results
     return false;
   }
 
-  abort() {
-    if (this.state.state === "waiting") {
-      this.state = {
-        state: "done",
-        result: {
-          type: "tool_result",
-          id: this.request.id,
-          result: {
-            status: "error",
-            error: "Wait for subagents was aborted",
-          },
-        },
-      };
+  abort(): ProviderToolResult {
+    if (this.state.state === "done") {
+      return this.getToolResult();
     }
+
+    this.aborted = true;
+
+    const result: ProviderToolResult = {
+      type: "tool_result",
+      id: this.request.id,
+      result: {
+        status: "error",
+        error: "Request was aborted by the user.",
+      },
+    };
+
+    this.state = {
+      state: "done",
+      result,
+    };
+
+    return result;
   }
 
   update(msg: Msg): void {
@@ -143,8 +158,18 @@ ${results
         this.checkThreads();
         return;
 
+      case "finish":
+        if (this.state.state === "done") {
+          return;
+        }
+        this.state = {
+          state: "done",
+          result: msg.result,
+        };
+        return;
+
       default:
-        assertUnreachable(msg.type);
+        assertUnreachable(msg);
     }
   }
 

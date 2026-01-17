@@ -80,6 +80,7 @@ export type Msg =
 export class GetFileTool implements StaticTool {
   state: State;
   toolName = "get_file" as const;
+  aborted: boolean = false;
 
   constructor(
     public request: ToolRequest,
@@ -119,17 +120,28 @@ export class GetFileTool implements StaticTool {
     return this.state.state === "pending-user-action";
   }
 
-  /** this is expected to be invoked as part of a dispatch, so we don't need to dispatch here to update the view
-   */
-  abort() {
-    this.state = {
-      state: "done",
+  abort(): ProviderToolResult {
+    if (this.state.state === "done") {
+      return this.state.result;
+    }
+
+    this.aborted = true;
+
+    const result: ProviderToolResult = {
+      type: "tool_result",
+      id: this.request.id,
       result: {
-        type: "tool_result",
-        id: this.request.id,
-        result: { status: "error", error: `The user aborted this request.` },
+        status: "error",
+        error: "Request was aborted by the user.",
       },
     };
+
+    this.state = {
+      state: "done",
+      result,
+    };
+
+    return result;
   }
 
   update(msg: Msg) {
@@ -219,6 +231,8 @@ export class GetFileTool implements StaticTool {
   }
 
   async initReadFile(): Promise<void> {
+    if (this.aborted) return;
+
     const filePath = this.request.input.filePath;
     const absFilePath = resolveFilePath(this.context.cwd, filePath);
 
@@ -262,6 +276,8 @@ You already have the most up-to-date information about the contents of this file
   }
 
   async readFile() {
+    if (this.aborted) return;
+
     const filePath = this.request.input.filePath;
     const absFilePath = resolveFilePath(this.context.cwd, filePath);
     const relFilePath = relativePath(this.context.cwd, absFilePath);

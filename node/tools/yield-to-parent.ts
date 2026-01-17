@@ -30,6 +30,7 @@ export type State = {
 export class YieldToParentTool implements StaticTool {
   toolName = "yield_to_parent" as const;
   public state: State;
+  public aborted: boolean = false;
 
   constructor(
     public request: ToolRequest,
@@ -61,7 +62,29 @@ export class YieldToParentTool implements StaticTool {
     return false;
   }
 
-  abort() {}
+  abort(): ProviderToolResult {
+    if (this.state.state === "done") {
+      return this.getToolResult();
+    }
+
+    this.aborted = true;
+
+    const result: ProviderToolResult = {
+      type: "tool_result",
+      id: this.request.id,
+      result: {
+        status: "error",
+        error: "Request was aborted by the user.",
+      },
+    };
+
+    this.state = {
+      state: "done",
+      result,
+    };
+
+    return result;
+  }
 
   update(msg: Msg): void {
     switch (msg.type) {

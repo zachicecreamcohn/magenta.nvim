@@ -37,6 +37,7 @@ export type Msg = {
 export class FindReferencesTool implements StaticTool {
   state: State;
   toolName = "find_references" as const;
+  aborted: boolean = false;
 
   constructor(
     public request: ToolRequest,
@@ -65,20 +66,28 @@ export class FindReferencesTool implements StaticTool {
     return false;
   }
 
-  /** This is expected to be invoked as part of a dispatch so we don't need to dispatch new actions to update the view.
-   */
-  abort() {
-    this.state = {
-      state: "done",
+  abort(): ProviderToolResult {
+    if (this.state.state === "done") {
+      return this.getToolResult();
+    }
+
+    this.aborted = true;
+
+    const result: ProviderToolResult = {
+      type: "tool_result",
+      id: this.request.id,
       result: {
-        type: "tool_result",
-        id: this.request.id,
-        result: {
-          status: "error",
-          error: `The user aborted this request.`,
-        },
+        status: "error",
+        error: "Request was aborted by the user.",
       },
     };
+
+    this.state = {
+      state: "done",
+      result,
+    };
+
+    return result;
   }
 
   update(msg: Msg) {
@@ -108,6 +117,8 @@ export class FindReferencesTool implements StaticTool {
       context: { nvim, cwd },
     });
 
+    if (this.aborted) return;
+
     let buffer: NvimBuffer;
     let bufferContent: string;
     if (bufferResult.status == "ok") {
@@ -128,6 +139,8 @@ export class FindReferencesTool implements StaticTool {
       });
       return;
     }
+
+    if (this.aborted) return;
     const symbolStart = bufferContent.indexOf(
       this.request.input.symbol,
     ) as StringIdx;
@@ -151,6 +164,9 @@ export class FindReferencesTool implements StaticTool {
 
     try {
       const result = await lsp.requestReferences(buffer, symbolPos);
+
+      if (this.aborted) return;
+
       let content = "";
       for (const lspResult of result) {
         if (lspResult != null && lspResult.result) {
@@ -175,6 +191,8 @@ export class FindReferencesTool implements StaticTool {
         },
       });
     } catch (error) {
+      if (this.aborted) return;
+
       this.context.myDispatch({
         type: "finish",
         result: {

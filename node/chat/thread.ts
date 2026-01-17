@@ -746,33 +746,27 @@ export class Thread {
   }
 
   private abortInProgressOperations(): void {
-    const lastState = this.state.conversationState;
-    // preemptively set the conversation state to aborted. This will allow us to ginore any future duplicate/async
-    // messages that fail or otherwise update the aborted state.
-    this.state.conversationState = { type: "stopped", stopReason: "aborted" };
-
-    // this will be async probably... so we will later get a dispatch about the thread having a state change to abort
+    // Abort the provider thread if streaming
     this.providerThread.abort();
 
-    if (lastState.type == "tool_use") {
-      for (const [toolId, tool] of lastState.activeTools) {
+    // If we're in tool_use state, abort all active tools and insert their results
+    if (this.state.conversationState.type == "tool_use") {
+      for (const [toolId, tool] of this.state.conversationState.activeTools) {
         if (!tool.isDone()) {
-          // in some cases, like for bash, this sends a sigterm, which also resolves async...
-          // That may dispatch! However, when the tool-msg arrives, we should be in aborted state and can ignore it
-          tool.abort();
-
-          // Insert error tool results since we will ignore the tool-msg
-          this.providerThread.toolResult(toolId, {
-            type: "tool_result",
-            id: toolId,
-            result: {
-              status: "error",
-              error: "Request was aborted by the user.",
-            },
-          });
+          // abort() returns the tool result synchronously
+          const result = tool.abort();
+          this.providerThread.toolResult(toolId, result);
         }
       }
+
+      this.rebuildToolCache();
     }
+
+    // Transition to aborted state
+    this.state.conversationState = {
+      type: "stopped",
+      stopReason: "aborted",
+    };
   }
 
   maybeAutoRespond():
@@ -799,6 +793,7 @@ export class Thread {
         id: ToolRequestId;
         result: ProviderToolResult;
       }> = [];
+      let hasAbortedTool = false;
 
       for (const [toolId, tool] of conversationState.activeTools) {
         if (tool.request.toolName === "yield_to_parent") {
@@ -808,6 +803,11 @@ export class Thread {
         if (!tool.isDone()) {
           // terminate early if we have a blocking tool use
           return { type: "waiting-for-tool-input" };
+        }
+
+        // Check if this tool was aborted
+        if (tool.aborted) {
+          hasAbortedTool = true;
         }
 
         // Collect completed tool result
@@ -821,7 +821,19 @@ export class Thread {
         });
       }
 
-      // Send all tool results to the provider thread
+      // If any tool was aborted, send tool results but don't auto-respond
+      if (hasAbortedTool) {
+        for (const { id, result } of completedTools) {
+          this.providerThread.toolResult(id, result);
+        }
+        this.state.conversationState = {
+          type: "stopped",
+          stopReason: "aborted",
+        };
+        this.rebuildToolCache();
+        return { type: "no-action-needed" };
+      }
+
       const pendingMessages = this.state.pendingMessages;
       this.state.pendingMessages = [];
 

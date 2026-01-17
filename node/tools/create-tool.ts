@@ -188,6 +188,7 @@ export function createTool(
         chat: context.chat,
         threadId: context.threadId,
         dispatch: context.dispatch,
+        myDispatch: wrapDispatch,
       });
     }
 

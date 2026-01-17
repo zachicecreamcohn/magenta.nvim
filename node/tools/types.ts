@@ -28,11 +28,13 @@ export type ToolRequest = {
 
 export interface Tool {
   toolName: ToolName;
+  aborted: boolean;
   isDone(): boolean;
   isPendingUserAction(): boolean;
   getToolResult(): ProviderToolResult;
   request: ToolRequest;
-  abort(): void;
+  /** Abort the tool and return its result synchronously */
+  abort(): ProviderToolResult;
   renderSummary(): VDOMNode;
   renderPreview?(): VDOMNode;
   renderDetail?(): VDOMNode;
@@ -40,11 +42,13 @@ export interface Tool {
 
 export interface StaticTool {
   toolName: StaticToolName;
+  aborted: boolean;
   isDone(): boolean;
   isPendingUserAction(): boolean;
   getToolResult(): ProviderToolResult;
   request: GenericToolRequest<StaticToolName, unknown>;
-  abort(): void;
+  /** Abort the tool and return its result synchronously */
+  abort(): ProviderToolResult;
   renderSummary(): VDOMNode;
   renderPreview?(): VDOMNode;
   renderDetail?(): VDOMNode;

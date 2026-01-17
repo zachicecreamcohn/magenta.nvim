@@ -230,7 +230,7 @@ RIGHT: \`command\`
           {
             "text": "stdout:
 Information about Germany
-exit code 0 (14ms)
+exit code 0 (<timing>ms)
 
 Full output (1 lines): /tmp/magenta/threads/<thread-id>/tools/first-bash-tool/bashCommand.log",
             "type": "text",
@@ -285,7 +285,7 @@ RIGHT: \`command\`
           {
             "text": "stdout:
 European countries information
-exit code 0 (10ms)
+exit code 0 (<timing>ms)
 
 Full output (1 lines): /tmp/magenta/threads/<thread-id>/tools/second-bash-tool/bashCommand.log",
             "type": "text",
@@ -340,7 +340,7 @@ RIGHT: \`command\`
           {
             "text": "stdout:
 test
-exit code 0 (12ms)
+exit code 0 (<timing>ms)
 
 Full output (1 lines): /tmp/magenta/threads/<thread-id>/tools/bash-tool/bashCommand.log",
             "type": "text",

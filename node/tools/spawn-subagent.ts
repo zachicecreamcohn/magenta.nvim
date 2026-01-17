@@ -33,6 +33,7 @@ export type State =
 export class SpawnSubagentTool implements StaticTool {
   toolName = "spawn_subagent" as const;
   public state: State;
+  public aborted: boolean = false;
 
   constructor(
     public request: ToolRequest,
@@ -50,6 +51,7 @@ export class SpawnSubagentTool implements StaticTool {
     // Start the process of spawning a sub-agent
     // Wrap in setTimeout to force new eventloop frame, to avoid dispatch-in-dispatch
     setTimeout(() => {
+      if (this.aborted) return;
       this.spawnSubagent();
     });
   }
@@ -82,31 +84,33 @@ export class SpawnSubagentTool implements StaticTool {
     return false; // Spawn subagent never requires user action
   }
 
-  abort() {
-    switch (this.state.state) {
-      case "preparing":
-        this.state = {
-          state: "done",
-          result: {
-            type: "tool_result",
-            id: this.request.id,
-            result: {
-              status: "error",
-              error: "Sub-agent execution was aborted",
-            },
-          },
-        };
-        break;
-
-      case "done":
-        // Already done, nothing to abort
-        break;
-      default:
-        assertUnreachable(this.state);
+  abort(): ProviderToolResult {
+    if (this.state.state === "done") {
+      return this.getToolResult();
     }
+
+    this.aborted = true;
+
+    const result: ProviderToolResult = {
+      type: "tool_result",
+      id: this.request.id,
+      result: {
+        status: "error",
+        error: "Request was aborted by the user.",
+      },
+    };
+
+    this.state = {
+      state: "done",
+      result,
+    };
+
+    return result;
   }
 
   update(msg: Msg): void {
+    if (this.aborted) return;
+
     switch (msg.type) {
       case "subagent-created":
         switch (msg.result.status) {

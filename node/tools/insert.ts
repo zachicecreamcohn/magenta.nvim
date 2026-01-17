@@ -64,6 +64,7 @@ export type Msg =
 export class InsertTool implements StaticTool {
   state: State;
   toolName = "insert" as const;
+  aborted: boolean = false;
 
   constructor(
     public request: ToolRequest,
@@ -83,9 +84,11 @@ export class InsertTool implements StaticTool {
 
     // wrap in setTimeout to force a new eventloop frame, so we don't dispatch-in-dispatch
     setTimeout(() => {
+      if (this.aborted) return;
       try {
         this.initInsert();
       } catch (error) {
+        if (this.aborted) return;
         this.context.myDispatch({
           type: "finish",
           result: {
@@ -98,6 +101,8 @@ export class InsertTool implements StaticTool {
   }
 
   private initInsert(): void {
+    if (this.aborted) return;
+
     const filePath = this.request.input.filePath;
     const absFilePath = resolveFilePath(this.context.cwd, filePath);
 
@@ -126,18 +131,28 @@ export class InsertTool implements StaticTool {
     return this.state.state === "pending-user-action";
   }
 
-  abort(): void {
-    this.state = {
-      state: "done",
+  abort(): ProviderToolResult {
+    if (this.state.state === "done") {
+      return this.getToolResult();
+    }
+
+    this.aborted = true;
+
+    const result: ProviderToolResult = {
+      type: "tool_result",
+      id: this.request.id,
       result: {
-        type: "tool_result",
-        id: this.request.id,
-        result: {
-          status: "error",
-          error: "The user aborted this tool request.",
-        },
+        status: "error",
+        error: "Request was aborted by the user.",
       },
     };
+
+    this.state = {
+      state: "done",
+      result,
+    };
+
+    return result;
   }
 
   update(msg: Msg): void {
@@ -169,15 +184,17 @@ export class InsertTool implements StaticTool {
 
             // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
             setTimeout(() => {
-              this.doInsert().catch((error: Error) =>
+              if (this.aborted) return;
+              this.doInsert().catch((error: Error) => {
+                if (this.aborted) return;
                 this.context.myDispatch({
                   type: "finish",
                   result: {
                     status: "error",
                     error: error.message + "\n" + error.stack,
                   },
-                }),
-              );
+                });
+              });
             });
             return;
           } else {
@@ -206,15 +223,17 @@ export class InsertTool implements StaticTool {
 
           // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
           setTimeout(() => {
-            this.doInsert().catch((error: Error) =>
+            if (this.aborted) return;
+            this.doInsert().catch((error: Error) => {
+              if (this.aborted) return;
               this.context.myDispatch({
                 type: "finish",
                 result: {
                   status: "error",
                   error: error.message + "\n" + error.stack,
                 },
-              }),
-            );
+              });
+            });
           });
         }
         return;

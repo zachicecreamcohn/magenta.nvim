@@ -210,6 +210,7 @@ export function checkCommandPermissions({
 export class BashCommandTool implements StaticTool {
   state: State;
   toolName = "bash_command" as const;
+  aborted: boolean = false;
   private tickInterval: ReturnType<typeof setInterval> | undefined;
   private logStream: fs.WriteStream | undefined;
   private logFilePath: string | undefined;
@@ -248,12 +249,14 @@ export class BashCommandTool implements StaticTool {
       this.initLogFile();
       // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
       setTimeout(() => {
-        this.executeCommand().catch((err: Error) =>
+        if (this.aborted) return;
+        this.executeCommand().catch((err: Error) => {
+          if (this.aborted) return;
           this.context.myDispatch({
             type: "error",
             error: err.message + "\n" + err.stack,
-          }),
-        );
+          });
+        });
       });
     } else {
       this.state = {
@@ -363,6 +366,9 @@ export class BashCommandTool implements StaticTool {
     if (this.state.state === "done" || this.state.state === "error") {
       return;
     }
+    if (this.aborted) {
+      return;
+    }
 
     switch (msg.type) {
       case "request-user-approval": {
@@ -389,15 +395,20 @@ export class BashCommandTool implements StaticTool {
 
           // wrap in setTimeout to force a new eventloop frame to avoid dispatch-in-dispatch
           setTimeout(() => {
-            this.executeCommand().catch((err: Error) =>
+            if (this.aborted) return;
+            this.executeCommand().catch((err: Error) => {
+              if (this.aborted) return;
               this.context.myDispatch({
                 type: "error",
                 error: err.message + "\n" + err.stack,
-              }),
-            );
+              });
+            });
           });
           return;
         } else {
+          const errorMessage = this.aborted
+            ? `Request was aborted by user.`
+            : `The user did not allow running this command.`;
           this.state = {
             state: "done",
             exitCode: 1,
@@ -408,7 +419,7 @@ export class BashCommandTool implements StaticTool {
               id: this.request.id,
               result: {
                 status: "error",
-                error: `The user did not allow running this command.`,
+                error: errorMessage,
               },
             },
           };
@@ -467,6 +478,11 @@ export class BashCommandTool implements StaticTool {
           durationMs,
         );
 
+        // If aborted, include that context in the result
+        const resultText = this.aborted
+          ? `Request was aborted by user.\n${formattedOutput}`
+          : formattedOutput;
+
         this.state = {
           state: "done",
           exitCode: msg.code != undefined ? msg.code : -1,
@@ -477,7 +493,7 @@ export class BashCommandTool implements StaticTool {
             id: this.request.id,
             result: {
               status: "ok",
-              value: [{ type: "text", text: formattedOutput }],
+              value: [{ type: "text", text: resultText }],
             },
           },
         };
@@ -665,30 +681,39 @@ export class BashCommandTool implements StaticTool {
     return this.state.state === "pending-user-action";
   }
 
-  /** It is the expectation that this is happening as part of a dispatch, so it should not trigger
-   * new dispatches...
-   */
-  abort(): void {
+  abort(): ProviderToolResult {
+    if (this.state.state === "done" || this.state.state === "error") {
+      return this.getToolResult();
+    }
+
+    this.aborted = true;
     this.stopTickInterval();
-    this.terminate();
+
+    if (this.state.state === "processing" && this.state.childProcess) {
+      // Kill the process but don't wait for exit handler
+      this.terminate();
+    }
+
     this.closeLogStream();
 
-    if (this.state.state == "pending-user-action") {
-      this.state = {
-        state: "done",
-        exitCode: -1,
-        durationMs: 0,
-        output: [],
-        result: {
-          type: "tool_result",
-          id: this.request.id,
-          result: {
-            status: "error",
-            error: `The user aborted this command.`,
-          },
-        },
-      };
-    }
+    const result: ProviderToolResult = {
+      type: "tool_result",
+      id: this.request.id,
+      result: {
+        status: "error",
+        error: "Request was aborted by the user.",
+      },
+    };
+
+    this.state = {
+      state: "done",
+      exitCode: -1,
+      durationMs: 0,
+      output: [],
+      result,
+    };
+
+    return result;
   }
 
   private trimOutputByTokens(output: OutputLine[]): OutputLine[] {

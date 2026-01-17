@@ -87,6 +87,7 @@ export class ListDirectoryTool implements StaticTool {
   state: State;
   toolName = "list_directory" as const;
   autoRespond = true;
+  aborted: boolean = false;
 
   constructor(
     public request: ToolRequest,
@@ -114,18 +115,28 @@ export class ListDirectoryTool implements StaticTool {
     return false;
   }
 
-  abort() {
-    this.state = {
-      state: "done",
+  abort(): ProviderToolResult {
+    if (this.state.state === "done") {
+      return this.getToolResult();
+    }
+
+    this.aborted = true;
+
+    const result: ProviderToolResult = {
+      type: "tool_result",
+      id: this.request.id,
       result: {
-        type: "tool_result",
-        id: this.request.id,
-        result: {
-          status: "error",
-          error: "The user aborted this tool request.",
-        },
+        status: "error",
+        error: "Request was aborted by the user.",
       },
     };
+
+    this.state = {
+      state: "done",
+      result,
+    };
+
+    return result;
   }
 
   update(msg: Msg) {
@@ -153,6 +164,7 @@ export class ListDirectoryTool implements StaticTool {
       const absolutePath = resolveFilePath(this.context.cwd, dirPath);
 
       if (!absolutePath.startsWith(this.context.cwd)) {
+        if (this.aborted) return;
         this.context.myDispatch({
           type: "finish",
           result: {
@@ -164,6 +176,7 @@ export class ListDirectoryTool implements StaticTool {
       }
 
       const files = await listDirectoryBFS(absolutePath, this.context.cwd);
+      if (this.aborted) return;
       this.context.nvim.logger.debug(`files: ${files.join("\n")}`);
       this.context.myDispatch({
         type: "finish",
@@ -173,6 +186,7 @@ export class ListDirectoryTool implements StaticTool {
         },
       });
     } catch (error) {
+      if (this.aborted) return;
       this.context.myDispatch({
         type: "finish",
         result: {

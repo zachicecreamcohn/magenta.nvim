@@ -36,6 +36,7 @@ export type Msg = {
 export class HoverTool implements StaticTool {
   state: State;
   toolName = "hover" as const;
+  aborted: boolean = false;
 
   constructor(
     public request: ToolRequest,
@@ -83,18 +84,28 @@ export class HoverTool implements StaticTool {
     return false;
   }
 
-  abort() {
-    this.state = {
-      state: "done",
+  abort(): ProviderToolResult {
+    if (this.state.state === "done") {
+      return this.getToolResult();
+    }
+
+    this.aborted = true;
+
+    const result: ProviderToolResult = {
+      type: "tool_result",
+      id: this.request.id,
       result: {
-        type: "tool_result",
-        id: this.request.id,
-        result: {
-          status: "error",
-          error: `The user aborted this request.`,
-        },
+        status: "error",
+        error: "Request was aborted by the user.",
       },
     };
+
+    this.state = {
+      state: "done",
+      result,
+    };
+
+    return result;
   }
 
   async requestHover() {
@@ -116,6 +127,7 @@ export class HoverTool implements StaticTool {
       ).join("\n");
       buffer = bufferResult.buffer;
     } else {
+      if (this.aborted) return;
       this.context.myDispatch({
         type: "finish",
         result: {
@@ -133,6 +145,7 @@ export class HoverTool implements StaticTool {
       // If context is provided, find the context first
       const contextIndex = bufferContent.indexOf(this.request.input.context);
       if (contextIndex === -1) {
+        if (this.aborted) return;
         this.context.myDispatch({
           type: "finish",
           result: {
@@ -153,6 +166,7 @@ export class HoverTool implements StaticTool {
       );
       const match = contextContent.match(symbolRegex);
       if (!match || match.index === undefined) {
+        if (this.aborted) return;
         this.context.myDispatch({
           type: "finish",
           result: {
@@ -170,6 +184,7 @@ export class HoverTool implements StaticTool {
       );
       const match = bufferContent.match(symbolRegex);
       if (!match || match.index === undefined) {
+        if (this.aborted) return;
         this.context.myDispatch({
           type: "finish",
           result: {
@@ -284,6 +299,7 @@ export class HoverTool implements StaticTool {
         }
       }
 
+      if (this.aborted) return;
       this.context.myDispatch({
         type: "finish",
         result: {
@@ -292,6 +308,7 @@ export class HoverTool implements StaticTool {
         },
       });
     } catch (error) {
+      if (this.aborted) return;
       this.context.myDispatch({
         type: "finish",
         result: {

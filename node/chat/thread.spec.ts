@@ -13,15 +13,17 @@ import fs from "node:fs";
 import { resolveFilePath } from "../utils/files.ts";
 import lodash from "lodash";
 
-/** Replace dynamic thread IDs in messages with a placeholder for stable snapshots */
+/** Replace dynamic thread IDs and timing info in messages with a placeholder for stable snapshots */
 function sanitizeMessagesForSnapshot<T>(messages: T): T {
-  const json = JSON.stringify(messages);
+  let json = JSON.stringify(messages);
   // Replace thread IDs like 019bab33-8c7c-76a9-bc7c-9f94103502c8 with placeholder
-  const sanitized = json.replace(
+  json = json.replace(
     /\/tmp\/magenta\/threads\/[a-f0-9-]+\//g,
     "/tmp/magenta/threads/<thread-id>/",
   );
-  return JSON.parse(sanitized) as T;
+  // Replace timing info like "exit code 0 (16ms)" with stable placeholder
+  json = json.replace(/\((\d+)ms\)/g, "(<timing>ms)");
+  return JSON.parse(json) as T;
 }
 
 it("chat render and a few updates", async () => {

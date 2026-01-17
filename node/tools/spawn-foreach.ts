@@ -27,6 +27,9 @@ export type Msg =
       type: "subagent-completed";
       threadId: ThreadId;
       result: Result<string>;
+    }
+  | {
+      type: "abort";
     };
 
 type ElementState =
@@ -62,6 +65,7 @@ export type State =
 export class SpawnForeachTool implements StaticTool {
   toolName = "spawn_foreach" as const;
   public state: State;
+  public aborted: boolean = false;
 
   constructor(
     public request: ToolRequest,
@@ -110,6 +114,7 @@ export class SpawnForeachTool implements StaticTool {
   }
 
   private startNextBatch(): void {
+    if (this.aborted) return;
     if (this.state.state !== "running") {
       return;
     }
@@ -187,18 +192,28 @@ ${element}`;
     return false;
   }
 
-  abort() {
-    this.state = {
-      state: "done",
+  abort(): ProviderToolResult {
+    if (this.state.state === "done") {
+      return this.getToolResult();
+    }
+
+    this.aborted = true;
+
+    const result: ProviderToolResult = {
+      type: "tool_result",
+      id: this.request.id,
       result: {
-        type: "tool_result",
-        id: this.request.id,
-        result: {
-          status: "error",
-          error: "Foreach sub-agent execution was aborted",
-        },
+        status: "error",
+        error: "Request was aborted by the user.",
       },
     };
+
+    this.state = {
+      state: "done",
+      result,
+    };
+
+    return result;
   }
 
   update(msg: Msg): void {
@@ -209,6 +224,23 @@ ${element}`;
 
       case "subagent-completed":
         this.handleSubagentCompleted(msg);
+        return;
+
+      case "abort":
+        if (this.state.state === "done") {
+          return;
+        }
+        this.state = {
+          state: "done",
+          result: {
+            type: "tool_result",
+            id: this.request.id,
+            result: {
+              status: "error",
+              error: "Foreach sub-agent execution was aborted",
+            },
+          },
+        };
         return;
 
       default:

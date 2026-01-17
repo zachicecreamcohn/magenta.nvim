@@ -71,6 +71,7 @@ export type Msg =
 export class ReplaceTool implements StaticTool {
   state: State;
   toolName = "replace" as const;
+  aborted: boolean = false;
 
   constructor(
     public request: ToolRequest,
@@ -90,6 +91,7 @@ export class ReplaceTool implements StaticTool {
 
     // wrap in setTimeout to force a new eventloop frame, so we don't dispatch-in-dispatch
     setTimeout(() => {
+      if (this.aborted) return;
       try {
         this.initReplace();
       } catch (error) {
@@ -133,18 +135,28 @@ export class ReplaceTool implements StaticTool {
     return this.state.state === "pending-user-action";
   }
 
-  abort(): void {
-    this.state = {
-      state: "done",
+  abort(): ProviderToolResult {
+    if (this.state.state === "done") {
+      return this.getToolResult();
+    }
+
+    this.aborted = true;
+
+    const result: ProviderToolResult = {
+      type: "tool_result",
+      id: this.request.id,
       result: {
-        type: "tool_result",
-        id: this.request.id,
-        result: {
-          status: "error",
-          error: "The user aborted this tool request.",
-        },
+        status: "error",
+        error: "Request was aborted by the user.",
       },
     };
+
+    this.state = {
+      state: "done",
+      result,
+    };
+
+    return result;
   }
 
   update(msg: Msg): void {
@@ -176,15 +188,17 @@ export class ReplaceTool implements StaticTool {
 
             // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
             setTimeout(() => {
-              this.doReplace().catch((error: Error) =>
+              if (this.aborted) return;
+              this.doReplace().catch((error: Error) => {
+                if (this.aborted) return;
                 this.context.myDispatch({
                   type: "finish",
                   result: {
                     status: "error",
                     error: error.message + "\n" + error.stack,
                   },
-                }),
-              );
+                });
+              });
             });
             return;
           } else {
@@ -213,15 +227,17 @@ export class ReplaceTool implements StaticTool {
 
           // wrap in setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
           setTimeout(() => {
-            this.doReplace().catch((error: Error) =>
+            if (this.aborted) return;
+            this.doReplace().catch((error: Error) => {
+              if (this.aborted) return;
               this.context.myDispatch({
                 type: "finish",
                 result: {
                   status: "error",
                   error: error.message + "\n" + error.stack,
                 },
-              }),
-            );
+              });
+            });
           });
         }
         return;

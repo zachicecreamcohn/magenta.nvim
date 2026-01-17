@@ -47,6 +47,7 @@ export type NvimSelection = {
 export class ReplaceSelectionTool implements StaticTool {
   state: State;
   toolName = "replace_selection" as const;
+  aborted: boolean = false;
 
   constructor(
     public request: ToolRequest,
@@ -59,15 +60,17 @@ export class ReplaceSelectionTool implements StaticTool {
 
     // setTimeout to force a new eventloop frame, to avoid dispatch-in-dispatch
     setTimeout(() => {
-      this.apply().catch((err: Error) =>
+      if (this.aborted) return;
+      this.apply().catch((err: Error) => {
+        if (this.aborted) return;
         this.context.myDispatch({
           type: "finish",
           result: {
             status: "error",
             error: err.message + "\n" + err.stack,
           },
-        }),
-      );
+        });
+      });
     });
   }
 
@@ -79,17 +82,28 @@ export class ReplaceSelectionTool implements StaticTool {
     return false;
   }
 
-  /** this is expected to be invoked as part of a dispatch, so we don't need to dispatch here to update the view
-   */
-  abort() {
-    this.state = {
-      state: "done",
+  abort(): ProviderToolResult {
+    if (this.state.state === "done") {
+      return this.getToolResult();
+    }
+
+    this.aborted = true;
+
+    const result: ProviderToolResult = {
+      type: "tool_result",
+      id: this.request.id,
       result: {
-        type: "tool_result",
-        id: this.request.id,
-        result: { status: "error", error: `The user aborted this request.` },
+        status: "error",
+        error: "Request was aborted by the user.",
       },
     };
+
+    this.state = {
+      state: "done",
+      result,
+    };
+
+    return result;
   }
 
   update(msg: Msg): void {
@@ -159,6 +173,8 @@ export class ReplaceSelectionTool implements StaticTool {
       endPos: clamp(pos1col1to0(this.selection.endPos)),
       lines: input.replace.split("\n") as Line[],
     });
+
+    if (this.aborted) return;
 
     this.context.myDispatch({
       type: "finish",

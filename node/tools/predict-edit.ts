@@ -34,6 +34,7 @@ export type Msg = {
 export class PredictEditTool implements StaticTool {
   state: State;
   toolName = "predict_edit" as const;
+  aborted: boolean = false;
 
   constructor(
     public request: ToolRequest,
@@ -46,6 +47,7 @@ export class PredictEditTool implements StaticTool {
 
     // For now, just mark as done immediately
     setTimeout(() => {
+      if (this.aborted) return;
       this.context.myDispatch({
         type: "finish",
         result: {
@@ -64,18 +66,28 @@ export class PredictEditTool implements StaticTool {
     return false;
   }
 
-  abort(): void {
-    this.state = {
-      state: "done",
+  abort(): ProviderToolResult {
+    if (this.state.state === "done") {
+      return this.getToolResult();
+    }
+
+    this.aborted = true;
+
+    const result: ProviderToolResult = {
+      type: "tool_result",
+      id: this.request.id,
       result: {
-        type: "tool_result",
-        id: this.request.id,
-        result: {
-          status: "error",
-          error: "The user aborted this tool request.",
-        },
+        status: "error",
+        error: "Request was aborted by the user.",
       },
     };
+
+    this.state = {
+      state: "done",
+      result,
+    };
+
+    return result;
   }
 
   update(msg: Msg): void {
