@@ -180,7 +180,6 @@ export type ToolCache = {
 /** Control flow operations that intercept normal tool processing */
 export type ControlFlowOp =
   | { type: "compact"; nextPrompt?: string; truncateIdx?: NativeMessageIdx }
-  | { type: "fork"; nextPrompt: string; truncateIdx: NativeMessageIdx }
   | { type: "yield"; response: string };
 
 /** Thread-specific conversation mode (agent status is read directly from agent) */
@@ -190,7 +189,7 @@ export type ConversationMode =
   | { type: "control_flow"; operation: ControlFlowOp }
   | {
       type: "awaiting_control_flow";
-      pendingOp: "fork" | "compact";
+      pendingOp: "compact";
       nextPrompt: string;
       truncateIdx: NativeMessageIdx;
     };
@@ -241,6 +240,7 @@ export class Thread {
       options: MagentaOptions;
       getDisplayWidth: () => number;
     },
+    clonedAgent?: Agent,
   ) {
     this.myDispatch = (msg) =>
       this.context.dispatch({
@@ -275,26 +275,33 @@ export class Thread {
       toolCache: { results: new Map() },
     };
 
-    const provider = getProvider(this.context.nvim, this.state.profile);
+    if (clonedAgent) {
+      this.agent = clonedAgent;
+    } else {
+      const provider = getProvider(this.context.nvim, this.state.profile);
 
-    this.agent = provider.createAgent(
-      {
-        model: this.state.profile.model,
-        systemPrompt: this.state.systemPrompt,
-        tools: getToolSpecs(this.state.threadType, this.context.mcpToolManager),
-        ...(this.state.profile.thinking &&
-          (this.state.profile.provider === "anthropic" ||
-            this.state.profile.provider === "mock") && {
-            thinking: this.state.profile.thinking,
-          }),
-        ...(this.state.profile.reasoning &&
-          (this.state.profile.provider === "openai" ||
-            this.state.profile.provider === "mock") && {
-            reasoning: this.state.profile.reasoning,
-          }),
-      },
-      (msg) => this.myDispatch({ type: "agent-msg", msg }),
-    );
+      this.agent = provider.createAgent(
+        {
+          model: this.state.profile.model,
+          systemPrompt: this.state.systemPrompt,
+          tools: getToolSpecs(
+            this.state.threadType,
+            this.context.mcpToolManager,
+          ),
+          ...(this.state.profile.thinking &&
+            (this.state.profile.provider === "anthropic" ||
+              this.state.profile.provider === "mock") && {
+              thinking: this.state.profile.thinking,
+            }),
+          ...(this.state.profile.reasoning &&
+            (this.state.profile.provider === "openai" ||
+              this.state.profile.provider === "mock") && {
+              reasoning: this.state.profile.reasoning,
+            }),
+        },
+        (msg) => this.myDispatch({ type: "agent-msg", msg }),
+      );
+    }
   }
 
   getProviderStatus(): AgentStatus {
@@ -303,34 +310,6 @@ export class Thread {
 
   getProviderMessages(): ReadonlyArray<ProviderMessage> {
     return this.agent.getState().messages ?? [];
-  }
-
-  truncateAndReset(): void {
-    // Only valid when we're in control_flow with fork operation
-    if (
-      this.state.mode.type !== "control_flow" ||
-      this.state.mode.operation.type !== "fork"
-    ) {
-      return;
-    }
-
-    const truncateIdx = this.state.mode.operation.truncateIdx;
-
-    // Reset mode BEFORE truncating since truncateMessages dispatches
-    // events that are processed synchronously
-    this.state.mode = { type: "normal" };
-
-    // Clear view state for removed messages
-    for (const idx of Object.keys(this.state.messageViewState)) {
-      const messageIdx = parseInt(idx, 10);
-      if (messageIdx > truncateIdx) {
-        delete this.state.messageViewState[messageIdx];
-      }
-    }
-
-    // Truncate messages back to pre-fork state
-    // This dispatches status-changed which triggers maybeAutoRespond
-    this.agent.truncateMessages(truncateIdx);
   }
 
   update(msg: RootMsg): void {
@@ -346,6 +325,27 @@ export class Thread {
         break;
 
       case "send-message": {
+        // Check if the first user message starts with @fork
+        const firstUserMessage = msg.messages.find((m) => m.type === "user");
+        if (firstUserMessage?.text.trim().startsWith("@fork")) {
+          // Strip @fork from the message and dispatch to Chat
+          const strippedMessages = msg.messages.map((m) => ({
+            ...m,
+            text:
+              m.type === "user" ? m.text.replace(/^\s*@fork\s*/, "") : m.text,
+          }));
+
+          this.context.dispatch({
+            type: "chat-msg",
+            msg: {
+              type: "fork-thread",
+              sourceThreadId: this.id,
+              strippedMessages,
+            },
+          });
+          break;
+        }
+
         // Check if any message starts with @async
         const isAsync = msg.messages.some(
           (m) => m.type === "user" && m.text.trim().startsWith("@async"),
@@ -540,30 +540,6 @@ export class Thread {
       throw new Error(
         `Cannot handleProviderStoppedWithToolUse when the last message is not of type assistant`,
       );
-    }
-
-    // Transition from awaiting_control_flow to control_flow for fork
-    if (
-      this.state.mode.type === "awaiting_control_flow" &&
-      this.state.mode.pendingOp === "fork"
-    ) {
-      // Check if the agent responded with fork_thread
-      const hasForkTool = lastMessage.content.some(
-        (block) =>
-          block.type === "tool_use" &&
-          block.request.status === "ok" &&
-          block.request.value.toolName === "fork_thread",
-      );
-      if (hasForkTool) {
-        this.state.mode = {
-          type: "control_flow",
-          operation: {
-            type: "fork",
-            nextPrompt: this.state.mode.nextPrompt,
-            truncateIdx: this.state.mode.truncateIdx,
-          },
-        };
-      }
     }
 
     const activeTools = new Map<ToolRequestId, Tool | StaticTool>();
@@ -1160,35 +1136,6 @@ export class Thread {
         // Add any additional content from commands
         messageContent.push(...additionalContent);
 
-        // Check for @fork command in user messages
-        if (m.text.includes("@fork")) {
-          const forkText = m.text.replace(/@fork\s*/g, "").trim();
-          messageContent[messageContent.length - 1 - additionalContent.length] =
-            {
-              type: "text",
-              text: `\
-My next prompt will be:
-${forkText}
-
-Use the fork_thread tool to start a new thread for this prompt.
-
-- Carefully analyze the prompt
-- Identify key concepts, patterns, files and decisions that may be relevant
-- Include higly relevant files as contextFiles
-- Name less relevant files that may be useful in the summary, but leave them out of contextFiles.
-- Summarize ONLY information that directly supports addressing the next prompt, especially previous user instructions and observations that cannot be directly observable in the codebase.
-- Prefer including files in contextFiles to copying code from those files into the summary. Do not repeat anything in the summary that can be learned directly from contextFiles.
-
-You must use the fork_thread tool immediately, with only the information you already have. Do not use any other tools.`,
-            };
-          this.state.mode = {
-            type: "awaiting_control_flow",
-            pendingOp: "fork",
-            nextPrompt: forkText,
-            truncateIdx: this.agent.getNativeMessageIdx(),
-          };
-        }
-
         // Check for @compact command in user messages
         if (m.text.includes("@compact")) {
           const compactText = m.text.replace(/@compact\s*/g, "").trim();
@@ -1376,8 +1323,6 @@ const renderStatus = (
         return d`📦 Compacting thread...`;
       case "yield":
         return d`↗️ yielded to parent: ${mode.operation.response}`;
-      case "fork":
-        return d`🔀 Forking thread...`;
     }
   }
 

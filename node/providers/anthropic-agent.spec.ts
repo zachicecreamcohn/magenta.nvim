@@ -1509,4 +1509,415 @@ describe("compact", () => {
     );
     expect(hasAnotherMessage).toBe(true);
   });
+
+  it("handles checkpoint truncated past truncateIdx", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+
+    // First exchange with checkpoint
+    agent.appendUserMessage([
+      { type: "text", text: "First" },
+      { type: "text", text: "<checkpoint:aaaaaa>" },
+    ]);
+    await delay(0);
+    agent.continueConversation();
+    const stream1 = await mockClient.awaitStream();
+    stream1.streamText("Response 1");
+    stream1.finishResponse("end_turn");
+    await stream1.finalMessage();
+    await delay(0);
+
+    // Capture truncate point after first exchange
+    const truncateIdx = agent.getNativeMessageIdx();
+
+    // Second exchange with checkpoint (will be truncated)
+    agent.appendUserMessage([
+      { type: "text", text: "Second" },
+      { type: "text", text: "<checkpoint:bbbbbb>" },
+    ]);
+    await delay(0);
+    agent.continueConversation();
+    const stream2 = await mockClient.awaitStream();
+    stream2.streamText("Response 2");
+    stream2.finishResponse("end_turn");
+    await stream2.finalMessage();
+    await delay(0);
+
+    // Third exchange (simulating @compact request)
+    agent.appendUserMessage([{ type: "text", text: "@compact" }]);
+    await delay(0);
+    agent.continueConversation();
+    const stream3 = await mockClient.awaitStream();
+    stream3.streamText("Compacting...");
+    stream3.finishResponse("end_turn");
+    await stream3.finalMessage();
+    await delay(0);
+
+    // Compact referencing bbbbbb which is past truncateIdx
+    // bbbbbb checkpoint is after truncateIdx, so it will be truncated
+    agent.compact(
+      [{ from: "aaaaaa", to: "bbbbbb", summary: "Summary" }],
+      truncateIdx,
+    );
+    await delay(0);
+
+    // bbbbbb was truncated, so "to: bbbbbb" should be treated as "to: end"
+    // Result should be: User(First + checkpoint aaaaaa), Assistant(Summary)
+    expect(agent.getNativeMessages()).toMatchSnapshot();
+  });
+
+  it("handles overlapping checkpoint ranges", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+
+    // Build conversation with multiple checkpoints
+    agent.appendUserMessage([
+      { type: "text", text: "First" },
+      { type: "text", text: "<checkpoint:aaaaaa>" },
+    ]);
+    await delay(0);
+    agent.continueConversation();
+    const stream1 = await mockClient.awaitStream();
+    stream1.streamText("Response 1");
+    stream1.finishResponse("end_turn");
+    await stream1.finalMessage();
+    await delay(0);
+
+    agent.appendUserMessage([
+      { type: "text", text: "Second" },
+      { type: "text", text: "<checkpoint:bbbbbb>" },
+    ]);
+    await delay(0);
+    agent.continueConversation();
+    const stream2 = await mockClient.awaitStream();
+    stream2.streamText("Response 2");
+    stream2.finishResponse("end_turn");
+    await stream2.finalMessage();
+    await delay(0);
+
+    agent.appendUserMessage([
+      { type: "text", text: "Third" },
+      { type: "text", text: "<checkpoint:cccccc>" },
+    ]);
+    await delay(0);
+    agent.continueConversation();
+    const stream3 = await mockClient.awaitStream();
+    stream3.streamText("Response 3");
+    stream3.finishResponse("end_turn");
+    await stream3.finalMessage();
+    await delay(0);
+
+    // Two overlapping ranges: aaaaaa->cccccc and bbbbbb->cccccc
+    // Processed in reverse order by 'to' position, so both have same 'to'
+    // The second replacement's 'to' (cccccc) will be consumed by first replacement
+    agent.compact([
+      { from: "aaaaaa", to: "cccccc", summary: "Summary A to C" },
+      { from: "bbbbbb", to: "cccccc", summary: "Summary B to C" },
+    ]);
+    await delay(0);
+
+    // After first replacement (aaaaaa->cccccc), cccccc is marked as summarized
+    // Second replacement (bbbbbb->cccccc) should reference the summary location
+    // bbbbbb is also consumed by first replacement, so it points to summary
+    expect(agent.getNativeMessages()).toMatchSnapshot();
+  });
+
+  it("handles checkpoint consumed by previous summary", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+
+    // Build conversation with checkpoints
+    agent.appendUserMessage([
+      { type: "text", text: "First" },
+      { type: "text", text: "<checkpoint:aaaaaa>" },
+    ]);
+    await delay(0);
+    agent.continueConversation();
+    const stream1 = await mockClient.awaitStream();
+    stream1.streamText("Response 1");
+    stream1.finishResponse("end_turn");
+    await stream1.finalMessage();
+    await delay(0);
+
+    agent.appendUserMessage([
+      { type: "text", text: "Second" },
+      { type: "text", text: "<checkpoint:bbbbbb>" },
+    ]);
+    await delay(0);
+    agent.continueConversation();
+    const stream2 = await mockClient.awaitStream();
+    stream2.streamText("Response 2");
+    stream2.finishResponse("end_turn");
+    await stream2.finalMessage();
+    await delay(0);
+
+    agent.appendUserMessage([
+      { type: "text", text: "Third" },
+      { type: "text", text: "<checkpoint:cccccc>" },
+    ]);
+    await delay(0);
+    agent.continueConversation();
+    const stream3 = await mockClient.awaitStream();
+    stream3.streamText("Response 3");
+    stream3.finishResponse("end_turn");
+    await stream3.finalMessage();
+    await delay(0);
+
+    agent.appendUserMessage([
+      { type: "text", text: "Fourth" },
+      { type: "text", text: "<checkpoint:dddddd>" },
+    ]);
+    await delay(0);
+    agent.continueConversation();
+    const stream4 = await mockClient.awaitStream();
+    stream4.streamText("Response 4");
+    stream4.finishResponse("end_turn");
+    await stream4.finalMessage();
+    await delay(0);
+
+    // Two non-overlapping ranges processed in reverse order:
+    // bbbbbb->cccccc (later in thread, processed first)
+    // aaaaaa->bbbbbb (earlier, processed second - but bbbbbb is now summarized)
+    agent.compact([
+      { from: "bbbbbb", to: "cccccc", summary: "Summary B to C" },
+      { from: "aaaaaa", to: "bbbbbb", summary: "Summary A to B" },
+    ]);
+    await delay(0);
+
+    // First: bbbbbb->cccccc creates summary, marks bbbbbb and cccccc as summarized
+    // Second: aaaaaa->bbbbbb - bbbbbb is now summarized, so 'to' points to that summary start
+    expect(agent.getNativeMessages()).toMatchSnapshot();
+  });
+
+  it("handles 'from' checkpoint that was truncated", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+
+    agent.appendUserMessage([
+      { type: "text", text: "First" },
+      { type: "text", text: "<checkpoint:aaaaaa>" },
+    ]);
+    await delay(0);
+    agent.continueConversation();
+    const stream1 = await mockClient.awaitStream();
+    stream1.streamText("Response 1");
+    stream1.finishResponse("end_turn");
+    await stream1.finalMessage();
+    await delay(0);
+
+    // Capture truncate point after first exchange
+    const truncateIdx = agent.getNativeMessageIdx();
+
+    agent.appendUserMessage([
+      { type: "text", text: "Second" },
+      { type: "text", text: "<checkpoint:bbbbbb>" },
+    ]);
+    await delay(0);
+    agent.continueConversation();
+    const stream2 = await mockClient.awaitStream();
+    stream2.streamText("Response 2");
+    stream2.finishResponse("end_turn");
+    await stream2.finalMessage();
+    await delay(0);
+
+    // @compact request
+    agent.appendUserMessage([{ type: "text", text: "@compact" }]);
+    await delay(0);
+    agent.continueConversation();
+    const stream3 = await mockClient.awaitStream();
+    stream3.streamText("Compacting");
+    stream3.finishResponse("end_turn");
+    await stream3.finalMessage();
+    await delay(0);
+
+    // Truncate to keep only First + Response 1
+    // Then compact from bbbbbb (truncated) to end
+    // Since bbbbbb is truncated, 'from' should be treated as start of thread
+    agent.compact(
+      [{ from: "bbbbbb", summary: "Summary from truncated" }],
+      truncateIdx,
+    );
+    await delay(0);
+
+    // bbbbbb was truncated, so "from: bbbbbb" becomes "from: start"
+    // This replaces everything with the summary
+    expect(agent.getNativeMessages()).toMatchSnapshot();
+  });
+
+  it("handles checkpoint not in map gracefully", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+
+    agent.appendUserMessage([
+      { type: "text", text: "Hello" },
+      { type: "text", text: "<checkpoint:aaaaaa>" },
+    ]);
+    await delay(0);
+    agent.continueConversation();
+    const stream1 = await mockClient.awaitStream();
+    stream1.streamText("Response");
+    stream1.finishResponse("end_turn");
+    await stream1.finalMessage();
+    await delay(0);
+
+    // Compact with a checkpoint that doesn't exist (typo or never existed)
+    // Should not throw, should treat as end of thread
+    agent.compact([{ from: "aaaaaa", to: "zzzzzz", summary: "Summary" }]);
+    await delay(0);
+
+    // zzzzzz doesn't exist, so 'to' is treated as end of thread
+    // Result: User(Hello + aaaaaa), Assistant(Summary)
+    expect(agent.getNativeMessages()).toMatchSnapshot();
+  });
+});
+
+describe("clone", () => {
+  it("creates a deep copy of the agent with all messages", async () => {
+    const mockClient = new MockAnthropicClient();
+    const tracked = trackMessages();
+    const agent = createAgent(mockClient, undefined, tracked);
+
+    // Build up some conversation history
+    agent.appendUserMessage([{ type: "text", text: "Hello" }]);
+    agent.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+    stream.streamText("Hi there!");
+    stream.finishResponse("end_turn");
+    await stream.finalMessage();
+    await delay(0);
+
+    agent.appendUserMessage([{ type: "text", text: "How are you?" }]);
+    agent.continueConversation();
+
+    const stream2 = await mockClient.awaitStream();
+    stream2.streamText("I'm doing well!");
+    stream2.finishResponse("end_turn");
+    await stream2.finalMessage();
+    await delay(0);
+
+    // Clone the agent
+    const clonedTracked = trackMessages();
+    const cloned = agent.clone((msg) => clonedTracked.messages.push(msg));
+
+    // Verify cloned agent has same messages
+    expect(cloned.getState().messages).toHaveLength(4);
+    expect(cloned.getState().messages[0].role).toBe("user");
+    expect(cloned.getState().messages[1].role).toBe("assistant");
+    expect(cloned.getState().messages[2].role).toBe("user");
+    expect(cloned.getState().messages[3].role).toBe("assistant");
+
+    // Verify content is copied
+    const clonedState = cloned.getState();
+    expect(clonedState.messages[0].content[0]).toEqual({
+      type: "text",
+      text: "Hello",
+    });
+    expect(clonedState.messages[1].content[0]).toEqual({
+      type: "text",
+      text: "Hi there!",
+    });
+  });
+
+  it("creates independent copy - changes to original don't affect clone", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+
+    agent.appendUserMessage([{ type: "text", text: "Hello" }]);
+    agent.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+    stream.streamText("Hi!");
+    stream.finishResponse("end_turn");
+    await stream.finalMessage();
+    await delay(0);
+
+    // Clone the agent
+    const cloned = agent.clone(() => {});
+
+    // Add more messages to original
+    agent.appendUserMessage([{ type: "text", text: "Another message" }]);
+    await delay(0);
+
+    // Clone should not be affected
+    expect(agent.getState().messages).toHaveLength(3);
+    expect(cloned.getState().messages).toHaveLength(2);
+  });
+
+  it("throws when trying to clone while streaming", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+
+    agent.appendUserMessage([{ type: "text", text: "Hello" }]);
+    agent.continueConversation();
+
+    // Agent is now streaming
+    expect(agent.getState().status.type).toBe("streaming");
+
+    expect(() => agent.clone(() => {})).toThrow(
+      "Cannot clone agent while streaming",
+    );
+
+    // Clean up
+    const stream = await mockClient.awaitStream();
+    stream.streamText("Response");
+    stream.finishResponse("end_turn");
+    await stream.finalMessage();
+  });
+
+  it("preserves stop info for messages", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+
+    agent.appendUserMessage([{ type: "text", text: "Hello" }]);
+    agent.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+    stream.streamText("Hi!");
+    stream.finishResponse("end_turn");
+    await stream.finalMessage();
+    await delay(0);
+
+    // Clone the agent
+    const cloned = agent.clone(() => {});
+
+    // Verify stop reason is preserved
+    const clonedState = cloned.getState();
+    expect(clonedState.messages[1].stopReason).toBe("end_turn");
+    expect(clonedState.status).toEqual({
+      type: "stopped",
+      stopReason: "end_turn",
+    });
+  });
+
+  it("cloned agent can append messages independently", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+
+    agent.appendUserMessage([{ type: "text", text: "Hello" }]);
+    agent.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+    stream.streamText("Hi!");
+    stream.finishResponse("end_turn");
+    await stream.finalMessage();
+    await delay(0);
+
+    // Clone the agent
+    const cloned = agent.clone(() => {});
+
+    // Append message to cloned agent (without streaming)
+    cloned.appendUserMessage([{ type: "text", text: "From clone" }]);
+    await delay(0);
+
+    // Cloned agent has the new message
+    expect(cloned.getState().messages).toHaveLength(3);
+    expect(cloned.getState().messages[2].content[0]).toEqual({
+      type: "text",
+      text: "From clone",
+    });
+
+    // Original is unchanged
+    expect(agent.getState().messages).toHaveLength(2);
+  });
 });

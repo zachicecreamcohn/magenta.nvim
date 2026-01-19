@@ -7,7 +7,6 @@ import * as FindReferences from "./findReferences.ts";
 import * as Diagnostics from "./diagnostics.ts";
 import * as BashCommand from "./bashCommand.ts";
 import * as ThreadTitle from "./thread-title.ts";
-import * as ForkThread from "./fork-thread.ts";
 import * as SpawnSubagent from "./spawn-subagent.ts";
 import * as SpawnForeach from "./spawn-foreach.ts";
 import * as WaitForSubagents from "./wait-for-subagents.ts";
@@ -179,16 +178,6 @@ export function createTool(
     case "thread_title": {
       return new ThreadTitle.ThreadTitleTool(staticRequest, {
         nvim: context.nvim,
-        myDispatch: wrapDispatch,
-      });
-    }
-
-    case "fork_thread": {
-      return new ForkThread.ForkThreadTool(staticRequest, {
-        nvim: context.nvim,
-        chat: context.chat,
-        threadId: context.threadId,
-        dispatch: context.dispatch,
         myDispatch: wrapDispatch,
       });
     }

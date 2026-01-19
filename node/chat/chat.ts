@@ -13,6 +13,7 @@ import {
   detectFileType,
   relativePath,
   resolveFilePath,
+  type AbsFilePath,
   type NvimCwd,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
@@ -69,10 +70,8 @@ export type Msg =
     }
   | {
       type: "fork-thread";
-      threadId: ThreadId;
-      toolRequestId: ToolRequestId;
-      contextFilePaths: UnresolvedFilePath[];
-      inputMessages: InputMessage[];
+      sourceThreadId: ThreadId;
+      strippedMessages: InputMessage[];
     }
   | {
       type: "spawn-subagent-thread";
@@ -626,36 +625,122 @@ ${threadViews.map((view) => d`${view}\n`)}`;
   }
 
   async handleForkThread({
-    threadId,
-    contextFilePaths,
-    inputMessages,
+    sourceThreadId,
+    strippedMessages,
   }: {
-    threadId: ThreadId;
-    toolRequestId: ToolRequestId;
-    contextFilePaths: UnresolvedFilePath[];
-    inputMessages: InputMessage[];
+    sourceThreadId: ThreadId;
+    strippedMessages: InputMessage[];
   }) {
-    const sourceThreadWrapper = this.threadWrappers[threadId];
+    const sourceThreadWrapper = this.threadWrappers[sourceThreadId];
     if (!sourceThreadWrapper || sourceThreadWrapper.state !== "initialized") {
-      throw new Error(`Thread ${threadId} not available for forking`);
+      throw new Error(`Thread ${sourceThreadId} not available for forking`);
     }
 
     const sourceThread = sourceThreadWrapper.thread;
+    const sourceAgent = sourceThread.agent;
 
-    // Note: We don't send a thread-forked message back to the source thread.
-    // truncateAndReset() will discards the tool, so there's no tool to receive the message anyway.
-    sourceThread.truncateAndReset();
+    // Agent must be stopped to clone
+    const agentStatus = sourceAgent.getState().status;
+    if (agentStatus.type === "streaming") {
+      throw new Error("Cannot fork thread while agent is streaming");
+    }
 
     const newThreadId = uuidv7() as ThreadId;
 
-    await this.createThreadWithContext({
-      threadType: "root",
-      threadId: newThreadId,
-      profile: sourceThread.state.profile,
-      contextFiles: contextFilePaths,
-      switchToThread: true,
-      inputMessages,
+    // Clone the agent with dispatch pointing to the new thread
+    const clonedAgent = sourceAgent.clone((msg) =>
+      this.context.dispatch({
+        type: "thread-msg",
+        id: newThreadId,
+        msg: { type: "agent-msg", msg },
+      }),
+    );
+
+    // Create the new thread with the cloned agent
+    this.threadWrappers[newThreadId] = {
+      state: "pending",
+      parentThreadId: undefined,
+    };
+
+    const [contextManager, systemPrompt] = await Promise.all([
+      ContextManager.create(
+        (msg) =>
+          this.context.dispatch({
+            type: "thread-msg",
+            id: newThreadId,
+            msg: {
+              type: "context-manager-msg",
+              msg,
+            },
+          }),
+        {
+          dispatch: this.context.dispatch,
+          bufferTracker: this.context.bufferTracker,
+          cwd: this.context.cwd,
+          nvim: this.context.nvim,
+          options: this.context.options,
+        },
+      ),
+      createSystemPrompt("root", {
+        nvim: this.context.nvim,
+        cwd: this.context.cwd,
+        options: this.context.options,
+      }),
+    ]);
+
+    // Copy context files from source thread
+    for (const [absFilePath, fileContext] of Object.entries(
+      sourceThread.contextManager.files,
+    )) {
+      contextManager.update({
+        type: "add-file-context",
+        absFilePath: absFilePath as AbsFilePath,
+        relFilePath: fileContext.relFilePath,
+        fileTypeInfo: fileContext.fileTypeInfo,
+      });
+    }
+
+    const thread = new Thread(
+      newThreadId,
+      "root",
+      systemPrompt,
+      {
+        ...this.context,
+        contextManager,
+        mcpToolManager: this.mcpToolManager,
+        profile: sourceThread.state.profile,
+        chat: this,
+      },
+      clonedAgent,
+    );
+
+    this.context.dispatch({
+      type: "chat-msg",
+      msg: {
+        type: "thread-initialized",
+        thread,
+      },
     });
+
+    this.context.dispatch({
+      type: "chat-msg",
+      msg: {
+        type: "select-thread",
+        id: newThreadId,
+      },
+    });
+
+    // Send the stripped messages to the new thread
+    if (strippedMessages.length > 0) {
+      this.context.dispatch({
+        type: "thread-msg",
+        id: newThreadId,
+        msg: {
+          type: "send-message",
+          messages: strippedMessages,
+        },
+      });
+    }
   }
 
   async handleSpawnSubagentThread({

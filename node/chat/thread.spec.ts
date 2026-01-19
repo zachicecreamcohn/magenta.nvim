@@ -3,7 +3,6 @@ import { LOGO } from "./thread.ts";
 import { type ToolRequestId } from "../tools/toolManager.ts";
 import { expect, it } from "vitest";
 import type { UnresolvedFilePath } from "../utils/files.ts";
-import { type Input as ForkThreadInput } from "../tools/fork-thread.ts";
 import type { ToolName } from "../tools/types.ts";
 import { delay, pollUntil } from "../utils/async.ts";
 import { getcwd } from "../nvim/nvim.ts";
@@ -210,7 +209,7 @@ it("forks a thread with multiple messages into a new thread", async () => {
     // 1. Open the sidebar
     await driver.showSidebar();
 
-    // 2. Create a thread with multiple messages and tool uses
+    // 2. Create a thread with multiple messages
     await driver.inputMagentaText("What is the capital of France?");
     await driver.send();
 
@@ -224,150 +223,141 @@ it("forks a thread with multiple messages into a new thread", async () => {
       toolRequests: [],
     });
 
-    // Add a second message with a tool use
+    // Add a second message
     await driver.inputMagentaText("What about Germany?");
     await driver.send();
-    // Wait for the request and respond with a tool use (bash_command)
+
     const request2 = await driver.mockAnthropic.awaitPendingStream({
       message: "followup request",
     });
-    const firstBashToolId = "first-bash-tool" as ToolRequestId;
     request2.respond({
-      stopReason: "tool_use",
-      text: "Let me check if I can find some information about Germany in your system.",
-      toolRequests: [
-        {
-          status: "ok",
-          value: {
-            id: firstBashToolId,
-            toolName: "bash_command" as ToolName,
-            input: { command: "echo 'Information about Germany'" },
-          },
-        },
-      ],
-    });
-
-    const request3 = await driver.mockAnthropic.awaitPendingStream({
-      message: "first-bash auto-response",
-    });
-    const secondBashToolId = "second-bash-tool" as ToolRequestId;
-    request3.respond({
-      stopReason: "tool_use",
-      text: "Let me check for more details about European countries.",
-      toolRequests: [
-        {
-          status: "ok",
-          value: {
-            id: secondBashToolId,
-            toolName: "bash_command" as ToolName,
-            input: { command: "echo 'European countries information'" },
-          },
-        },
-      ],
-    });
-
-    const request4 = await driver.mockAnthropic.awaitPendingStream({
-      message: "second-bash auto-response",
-    });
-    const bashToolId = "bash-tool" as ToolRequestId;
-    request4.respond({
-      stopReason: "tool_use",
-      text: "test bash tool",
-      toolRequests: [
-        {
-          status: "ok",
-          value: {
-            id: bashToolId,
-            toolName: "bash_command" as ToolName,
-            input: {
-              command: "echo test",
-            },
-          },
-        },
-      ],
-    });
-
-    const request5 = await driver.mockAnthropic.awaitPendingStream({
-      message: "bash auto-response",
-    });
-    request5.respond({
       stopReason: "end_turn",
       text: "The capital of Germany is Berlin.",
       toolRequests: [],
     });
 
+    // Get the original thread ID before forking
+    const originalThreadId = driver.magenta.chat.state.activeThreadId;
+
+    // 3. Fork the thread with @fork
     await driver.inputMagentaText("@fork Tell me about Italy");
     await driver.send();
 
-    const stream = await driver.mockAnthropic.awaitPendingStream();
+    // 4. The fork should immediately clone and create a new thread
+    // The new thread should receive the message without @fork
+    const stream = await driver.mockAnthropic.awaitPendingStream({
+      message: "forked thread request",
+    });
+
+    // Verify the cloned messages are present (from the original thread)
+    // Plus the new user message "Tell me about Italy"
     expect(sanitizeMessagesForSnapshot(stream.messages)).toMatchSnapshot(
-      "fork-tool-request-messages",
+      "fork-cloned-messages",
     );
 
-    const forkInput: ForkThreadInput = {
-      contextFiles: ["poem.txt", "poem2.txt"] as UnresolvedFilePath[],
-      summary:
-        "We discussed European capitals (France: Paris, Germany: Berlin) and examined your project structure, which contains TypeScript files.",
-    };
-
-    const toolRequestId = "fork-thread-tool" as ToolRequestId;
+    // 5. Respond to the forked thread
     stream.respond({
+      stopReason: "end_turn",
+      text: "Italy's capital is Rome. It's known for its rich history, art, and cuisine.",
+      toolRequests: [],
+    });
+
+    // 6. Verify the new thread is now active
+    const newThread = driver.magenta.chat.getActiveThread();
+    expect(newThread.id).not.toBe(originalThreadId);
+
+    // 7. Verify the display shows the forked conversation
+    await driver.assertDisplayBufferContains("Tell me about Italy");
+    await driver.assertDisplayBufferContains("Italy's capital is Rome");
+
+    // 8. Verify the forked thread has the full conversation history
+    const messages = newThread.getMessages();
+    expect(messages).toMatchSnapshot("forked-thread-messages");
+  });
+});
+
+it("forks a thread with @compact to clone and compact in one step", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    // Build up some conversation history
+    await driver.inputMagentaText("What is 2+2?");
+    await driver.send();
+
+    const request1 = await driver.mockAnthropic.awaitPendingStream({
+      message: "initial request",
+    });
+    request1.respond({
+      stopReason: "end_turn",
+      text: "2+2 equals 4.",
+      toolRequests: [],
+    });
+
+    await driver.inputMagentaText("What about 3+3?");
+    await driver.send();
+
+    const request2 = await driver.mockAnthropic.awaitPendingStream({
+      message: "followup request",
+    });
+    request2.respond({
+      stopReason: "end_turn",
+      text: "3+3 equals 6.",
+      toolRequests: [],
+    });
+
+    const originalThreadId = driver.magenta.chat.state.activeThreadId;
+
+    // Fork with compact - should clone the thread, then process @compact
+    await driver.inputMagentaText(
+      "@fork @compact Now help me with multiplication",
+    );
+    await driver.send();
+
+    // After fork, the new thread should receive "@compact Now help me with multiplication"
+    // which triggers the compact flow
+    const compactStream = await driver.mockAnthropic.awaitPendingStream({
+      message: "compact request in forked thread",
+    });
+
+    // The compact request should include a summary request
+    expect(compactStream.messages.some((m) => m.role === "user")).toBe(true);
+
+    // Respond with compact summary
+    compactStream.respond({
       stopReason: "tool_use",
       text: "",
       toolRequests: [
         {
           status: "ok",
           value: {
-            id: toolRequestId,
-            toolName: "fork_thread" as ToolName,
-            input: forkInput,
+            id: "compact-tool" as ToolRequestId,
+            toolName: "compact" as ToolName,
+            input: {
+              summary: "User asked basic arithmetic: 2+2=4, 3+3=6",
+            },
           },
         },
       ],
     });
 
-    // 6. Verify a new thread was created and is active
-    // Check that the new thread contains the summary and the latest message
-    await driver.assertDisplayBufferContains("We discussed European capitals");
-    await driver.assertDisplayBufferContains("Tell me about Italy");
+    // After compact tool, the new prompt should be sent
+    const afterCompactStream = await driver.mockAnthropic.awaitPendingStream({
+      message: "after compact request",
+    });
 
-    // 7. Respond to the new thread's initial message
-    const request6 = await driver.mockAnthropic.awaitPendingStream();
-    request6.respond({
+    afterCompactStream.respond({
       stopReason: "end_turn",
-      text: "Italy's capital is Rome. It's known for its rich history, art, and cuisine.",
+      text: "Sure! What multiplication would you like help with?",
       toolRequests: [],
     });
 
-    // 8. Verify the complete conversation flow
-    await driver.assertDisplayBufferContains("Tell me about Italy");
-    await driver.assertDisplayBufferContains("Italy's capital is Rome");
+    // Verify we're on the new thread
+    const newThread = driver.magenta.chat.getActiveThread();
+    expect(newThread.id).not.toBe(originalThreadId);
 
-    // 9. Get the current thread and check its state
-    const thread = driver.magenta.chat.getActiveThread();
-    {
-      const messages = thread.getProviderMessages();
-
-      expect(messages[0].content).toBeDefined();
-    }
-
-    // The original thread should have been replaced
-    // Since we can't directly check the buffer doesn't contain text, assert it does contain
-    // text we expect, which would replace the text from the old thread
-    await driver.assertDisplayBufferContains("Tell me about Italy");
-
-    // Get the context manager from the thread directly
-    const contextManager = thread.contextManager;
-
-    // Verify that contextManager.files contains the two poem files we added
-    const files = contextManager.files;
-    expect(Object.keys(files).length).toBe(2);
-
-    {
-      const messages = thread.getMessages();
-
-      expect(messages).toMatchSnapshot("forked-thread-messages");
-    }
+    await driver.assertDisplayBufferContains(
+      "What multiplication would you like help with?",
+    );
   });
 });
 

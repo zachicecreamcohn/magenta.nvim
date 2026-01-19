@@ -10,7 +10,6 @@ import * as BashCommand from "./bashCommand";
 import * as ReplaceSelection from "./replace-selection-tool";
 import * as InlineEdit from "./inline-edit-tool";
 import * as ThreadTitle from "./thread-title";
-import * as ForkThread from "./fork-thread";
 import * as SpawnSubagent from "./spawn-subagent";
 import * as SpawnForeach from "./spawn-foreach";
 import * as WaitForSubagents from "./wait-for-subagents";
@@ -59,8 +58,6 @@ export function validateInput(
       return ReplaceSelection.validateInput(input);
     case "thread_title":
       return ThreadTitle.validateInput(input);
-    case "fork_thread":
-      return ForkThread.validateInput(input);
     case "spawn_foreach":
       return SpawnForeach.validateInput(input);
     case "spawn_subagent":
@@ -101,7 +98,6 @@ export function renderStreamdedTool(
     case "inline_edit":
     case "replace_selection":
     case "thread_title":
-    case "fork_thread":
     case "spawn_subagent":
     case "wait_for_subagents":
     case "yield_to_parent":

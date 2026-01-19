@@ -1,124 +1,102 @@
-# Context
+I want to change the way @fork works. Instead of being done with a tool call, and summarizing the thread so far, I want it to instead just do a straight-up clone of the thread.
 
-The goal is to make `@fork` operations non-destructive to the source thread.
+So we need to add a "clone" method to the agent. This should assert we are in stopped mode (not streaming). It should make a deep copy of all of the native messages.
 
-## Current Flow
+When it detects "@fork" at the start of the message (must be the first thing), chat should immediately clone the agent from the active thread, create a new thread using this cloned agent, switch focus to the new thread, then trim the @fork from the user's message, and submit the user message to the new thread.
 
-1. User types `@fork <prompt>` in input
-2. `thread.prepareUserContent` transforms this into a prompt asking agent to use `fork_thread` tool, stores `forkNextPrompt` on the thread
-3. Message is sent, agent responds with `fork_thread` tool call
-4. `ForkThreadTool.doFork()` dispatches `fork-thread` chat message
-5. `Chat.handleForkThread` creates new thread, dispatches `thread-forked` tool message back
-6. `ForkThreadTool.update` receives `thread-forked`, sets state to done
-7. `Thread.maybeAutoRespond()` sees tool is done, sends tool result, continues conversation
+# interaction with @compact
 
-## Problem
+@fork should be stackable with @compact, so:
 
-After step 7, the original thread continues with the fork result, making the fork operation destructive.
+@fork @compact next prompt should:
 
-## Desired Behavior
+1. clone the thread
+2. insert the user message with "@fork" removed, so "@compact next prompt"
+3. then the new thread should process the "@compact next prompt" as needed
 
-After fork completes:
+# context
 
-- Delete messages added for the fork request (user message with @fork instruction + assistant message with fork_thread tool call)
-- Reset provider thread status to `stopped` with `end_turn`
-- Original thread remains in pre-fork state, allowing further interaction or additional forks
+The relevant files and entities are:
 
-## Relevant Files
+- `node/providers/provider-types.ts`: Defines the `Agent` interface - need to add a `clone()` method
+- `node/providers/anthropic-agent.ts`: `AnthropicAgent` implementation - already has `getNativeMessages()` which returns a copy of the native Anthropic messages. Need to implement `clone()`.
+- `node/chat/thread.ts`:
+  - `Thread` class handles messages and the agent lifecycle
+  - `prepareUserContent()` (line ~1140) currently detects `@fork` and sets up `awaiting_control_flow` mode, then modifies the message to ask the model to use the `fork_thread` tool
+  - `Mode` type (line ~183) has `{ type: "fork"; nextPrompt: string; truncateIdx: NativeMessageIdx }`
+  - `truncateAndReset()` resets the source thread after fork tool completes
+- `node/chat/chat.ts`:
+  - `Chat` class manages threads
+  - `handleForkThread()` (line ~582) creates a new thread from fork tool results
+  - `Msg` type includes `fork-thread` message with `contextFilePaths` and `inputMessages`
+- `node/tools/fork-thread.ts`: The current `ForkThreadTool` implementation - will be deleted
+- `node/tools/index.ts`: Tool registration - need to remove `fork_thread`
 
-- `node/tools/fork-thread.ts`: ForkThreadTool implementation
-- `node/chat/chat.ts`: Chat.handleForkThread, dispatches tool messages
-- `node/chat/thread.ts`: Thread class, maybeAutoRespond, tool handling
-- `node/providers/anthropic-thread.ts`: AnthropicProviderThread, manages message state
-- `node/providers/provider-types.ts`: ProviderThread interface
+# implementation
 
-## Key Interfaces
+- [x] Add `clone()` method to `Agent` interface in `node/providers/provider-types.ts`
+  - Signature: `clone(dispatch: Dispatch<AgentMsg>): Agent`
+  - Must only be called when agent is in stopped state (not streaming)
 
-- `ProviderThread`: Interface for provider threads, currently has no method to remove messages
-- `ForkThreadTool.state`: `"pending"` | `"done"` with result
-- `ProviderThreadStatus`: `idle` | `streaming` | `stopped` | `tool_use` | `yielded` | `error`
+- [x] Implement `clone()` in `AnthropicAgent`
+  - Deep copy all native messages using `getNativeMessages()`
+  - Deep copy `messageStopInfo` map
+  - Copy `cachedProviderMessages`
+  - Create new `AnthropicAgent` with same options/params
+  - Assert `this.status.type === "stopped"` or throw error
 
-## Tool Result Flow (Normal)
+- [x] Check for type errors and iterate until they pass
+- [x] Add unit tests for clone in anthropic-agent.spec.ts, and iterate until they pass
 
-When a tool completes, results flow through the system as follows:
+- [x] Update `Thread` to support initialization with a cloned agent
+  - Add optional `clonedAgent` parameter to constructor
+  - If provided, use the cloned agent instead of creating a new one
 
-1. **Provider thread enters `tool_use` status** after streaming completes with `stop_reason: "tool_use"`
-2. **`handleProviderToolUse()` is called** in response to status change
-3. **`maybeAutoRespond()` iterates through `state.activeTools`**:
-   ```typescript
-   for (const [toolId, tool] of this.state.activeTools) {
-     if (!tool.isDone()) {
-       return { type: "waiting-for-tool-input" };
-     }
-     // Collect completed tool result
-     completedTools.push({
-       id: toolId,
-       result: {
-         type: "tool_result",
-         id: toolId,
-         result: tool.getToolResult().result,
-       },
-     });
-   }
-   ```
-4. **`sendToolResultsAndContinue(completedTools, pendingMessages)` is called**:
-   - Calls `providerThread.toolResult(id, result)` for each tool - this adds tool_result blocks to provider messages
-   - Clears `state.activeTools`
-   - Appends a user message with context/system reminder
-   - Calls `providerThread.continueConversation()` to start next response
+- [x] Refactor `@fork` detection in `Thread.prepareUserContent()`
+  - Only trigger fork if message starts with `@fork` (use regex like `/^\s*@fork\s*/`)
+  - Remove the fork-specific message transformation that prompts for tool use
+  - Instead, strip `@fork` from the message and return a signal that fork is requested
+  - Remove the `awaiting_control_flow` mode setting for fork
 
-## Fork Interception Strategy
+- [x] Update `Chat.Msg` type
+  - Modify `fork-thread` message to include `sourceThreadId` and `strippedMessages` (messages with @fork removed)
+  - Remove `contextFilePaths` and `inputMessages` with system summary since we're cloning
 
-The fork tool should never complete in the traditional sense. Instead:
+- [x] Update `Chat.handleForkThread()`
+  - Get source thread and its agent
+  - Assert agent is stopped, abort if streaming
+  - Call `agent.clone()` to get cloned agent
+  - Create new thread with cloned agent
+  - Switch focus to new thread
+  - Send the stripped user message to new thread
 
-1. **Capture message index when `@fork` is detected** - In `Thread.prepareUserContent()`, when we detect `@fork` and set `forkNextPrompt`, also store the current message count as `forkMessageIdx`. This is the index we'll truncate back to after fork completes.
+- [x] Handle fork in `Thread.sendMessage()` or `Thread.myUpdate()` for `send-message`
+  - Check if message contains `@fork`
+  - If so, dispatch `fork-thread` to Chat instead of processing locally
+  - Chat handles the clone and thread creation
 
-2. **ForkThreadTool stays in `pending` state** - Remove the `done` state initialization, keep it `pending`
+- [x] Check for type errors and iterate until they pass
 
-3. **In `doFork()`**, after dispatching the fork-thread message:
-   - Call `thread.truncateAndReset()` which uses the stored `forkMessageIdx`
-   - This removes all messages added after the @fork request (user message, assistant message with tool_use, any thinking/other tool calls)
-   - Clears `forkNextPrompt` and `forkMessageIdx`
-   - Clears `activeTools` as part of truncation
+- [x] Delete `node/tools/fork-thread.ts`
 
-4. **`maybeAutoRespond()` sees no active tools** - Thread is back to pre-fork state
+- [x] Remove `fork_thread` from tool registration in `node/tools/index.ts`
+  - Remove import
+  - Remove from `TOOL_SPECS`
+  - Remove from `initTool()` switch statement
 
-This way the fork is handled synchronously in `doFork()`, the tool never reports as done, and the thread returns to its pre-fork state immediately. The approach is robust to any agent behavior between the @fork request and the fork tool call.
+- [x] Clean up `Mode` type in `Thread`
+  - Remove `fork` from `ControlFlowOp` type
+  - Remove fork-related branches in `awaiting_control_flow` handling
+  - Remove `truncateAndReset()` method or simplify it
 
-# Implementation
+- [x] Check for type errors and iterate until they pass
 
-- [x] Add `truncateMessages(messageIdx: number)` method to `ProviderThread` interface
-  - [x] Semantics: `truncateMessages(N)` keeps messages 0..N (inclusive), removes everything after
-  - [x] Add method signature to `ProviderThread` interface in `provider-types.ts`
-  - [x] Implement in `AnthropicProviderThread`:
-    - `this.messages.length = messageIdx + 1` to truncate the array
-    - Update cached provider messages
-    - Set status to `{ type: "stopped", stopReason: "end_turn" }`
-    - Dispatch `messages-updated` and `status-changed` actions
-  - [x] Check for type errors and iterate until they pass
+- [x] Update system prompt in `node/providers/system-prompt.ts`
+  - Remove `fork_thread` tool description if present
 
-- [x] Store `forkMessageIdx` when `@fork` is detected
-  - [x] In `Thread`, add `forkMessageIdx?: number` as class property alongside `forkNextPrompt`
-  - [x] In `Thread.prepareUserContent()`, when setting `forkNextPrompt`, also store current message count:
-    - `this.forkMessageIdx = this.providerThread.getState().messages.length`
-    - This captures the index BEFORE we add the @fork user message
+- [x] Write tests for the new fork behavior
+  - Test that @fork clones the thread
+  - Test that @fork @compact works (clone then compact)
+  - Test that @fork with additional text sends that text to the new thread
 
-- [x] Update `Thread` to expose method to truncate and reset
-  - [x] Add `truncateAndReset()` method to `Thread` class (no args, uses stored `forkMessageIdx`)
-    - Reads `forkMessageIdx` from class property
-    - Calls `providerThread.truncateMessages(forkMessageIdx - 1)` to truncate back to pre-fork state
-    - Clears `activeTools` map
-    - Clears relevant view state for removed messages (indices >= forkMessageIdx)
-    - Clears `forkNextPrompt` and `forkMessageIdx`
-
-- [x] Update `ForkThreadTool` to truncate in `doFork()`
-  - [x] Change constructor to initialize state as `pending` (remove the `done` initialization)
-  - [x] In `doFork()`, after dispatching `fork-thread` message:
-    - Get the thread from `this.context.chat.threadWrappers[this.context.threadId]`
-    - Call `thread.truncateAndReset()`
-  - [x] The tool stays `pending` forever - it will be garbage collected when activeTools is cleared by truncation
-
-- [ ] Test the changes
-  - [ ] Manual test: fork a thread, verify source thread returns to pre-fork state
-  - [ ] Manual test: fork same thread multiple times
-  - [x] Verify type checks pass with `npx tsc --noEmit`
+- [x] Run tests and iterate until they pass

@@ -18,7 +18,6 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { ToolName } from "../tools/types.ts";
 import { validateInput } from "../tools/helpers.ts";
 import {
-  checkpointToText,
   isCheckpointText,
   parseCheckpointFromText,
 } from "../chat/checkpoint.ts";
@@ -86,6 +85,8 @@ export class AnthropicAgent implements Agent {
   private currentBlockIndex: number = -1;
   /** Assistant message being built during streaming */
   private currentAssistantMessage: Anthropic.MessageParam | undefined;
+  /** Stored for cloning */
+  private anthropicOptions: AnthropicAgentOptions;
 
   constructor(
     private options: AgentOptions,
@@ -93,6 +94,7 @@ export class AnthropicAgent implements Agent {
     private dispatch: Dispatch<AgentMsg>,
     anthropicOptions: AnthropicAgentOptions,
   ) {
+    this.anthropicOptions = anthropicOptions;
     this.params = this.createNativeStreamParameters(anthropicOptions);
   }
 
@@ -397,6 +399,47 @@ export class AnthropicAgent implements Agent {
     this.dispatchAsync({ type: "agent-stopped", stopReason: "end_turn" });
   }
 
+  clone(dispatch: Dispatch<AgentMsg>): AnthropicAgent {
+    if (this.status.type === "streaming") {
+      throw new Error("Cannot clone agent while streaming");
+    }
+
+    const cloned = new AnthropicAgent(
+      this.options,
+      this.client,
+      dispatch,
+      this.anthropicOptions,
+    );
+
+    // Deep copy messages
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    cloned.messages = JSON.parse(JSON.stringify(this.messages));
+
+    // Deep copy messageStopInfo
+    cloned.messageStopInfo = new Map(
+      Array.from(this.messageStopInfo.entries()).map(([k, v]) => [
+        k,
+        { ...v, usage: { ...v.usage } },
+      ]),
+    );
+
+    // Copy status (it's stopped since we checked above)
+    cloned.status = { ...this.status };
+
+    // Copy latestUsage if present
+    if (this.latestUsage) {
+      cloned.latestUsage = { ...this.latestUsage };
+    }
+
+    // Rebuild cached provider messages from the cloned data
+    cloned.cachedProviderMessages = convertAnthropicMessagesToProvider(
+      cloned.messages,
+      cloned.messageStopInfo,
+    );
+
+    return cloned;
+  }
+
   compact(
     replacements: CompactReplacement[],
     truncateIdx?: NativeMessageIdx,
@@ -411,9 +454,19 @@ export class AnthropicAgent implements Agent {
     replacements: CompactReplacement[],
     truncateIdx?: NativeMessageIdx,
   ): void {
+    // Build checkpoint map BEFORE any truncation so we can track all checkpoints
+    const checkpointMap = this.buildCheckpointMap();
+
     // If truncateIdx is provided (user-initiated @compact), first truncate to that point
     // This removes the @compact user message and the agent's compact response
     if (truncateIdx !== undefined) {
+      // Mark checkpoints past truncateIdx as truncated (they now point to end of thread)
+      for (const [id, pos] of checkpointMap.entries()) {
+        if (pos.type === "position" && pos.msgIdx > truncateIdx) {
+          checkpointMap.set(id, { type: "end" });
+        }
+      }
+
       this.messages.length = truncateIdx + 1;
       // Clean up messageStopInfo for removed messages
       for (const idx of this.messageStopInfo.keys()) {
@@ -426,20 +479,17 @@ export class AnthropicAgent implements Agent {
       this.trimCompactToolUse();
     }
 
-    // Process replacements in reverse order (by 'to' position) to avoid index shifting issues
+    // Sort replacements by 'to' position in reverse order to avoid index shifting issues
+    // Use the checkpoint map for lookups (handles truncated checkpoints)
     const sortedReplacements = [...replacements].sort((a, b) => {
-      const aTo = a.to
-        ? this.findCheckpointPosition(a.to)
-        : { msgIdx: this.messages.length - 1, blockIdx: Infinity };
-      const bTo = b.to
-        ? this.findCheckpointPosition(b.to)
-        : { msgIdx: this.messages.length - 1, blockIdx: Infinity };
+      const aTo = this.resolveCheckpointPosition(a.to, checkpointMap);
+      const bTo = this.resolveCheckpointPosition(b.to, checkpointMap);
       if (aTo.msgIdx !== bTo.msgIdx) return bTo.msgIdx - aTo.msgIdx;
       return bTo.blockIdx - aTo.blockIdx;
     });
 
     for (const replacement of sortedReplacements) {
-      this.applyReplacement(replacement);
+      this.applyReplacementWithMap(replacement, checkpointMap);
     }
 
     // Clean up messageStopInfo for any affected messages
@@ -451,6 +501,225 @@ export class AnthropicAgent implements Agent {
     // Set status to stopped/end_turn and dispatch
     this.status = { type: "stopped", stopReason: "end_turn" };
     this.dispatchAsync({ type: "agent-stopped", stopReason: "end_turn" });
+  }
+
+  /** Checkpoint position can be a concrete position, "end" (truncated), or point to a summary location */
+  private buildCheckpointMap(): Map<
+    string,
+    | { type: "position"; msgIdx: number; blockIdx: number }
+    | { type: "end" }
+    | { type: "summarized"; msgIdx: number }
+  > {
+    const map = new Map<
+      string,
+      | { type: "position"; msgIdx: number; blockIdx: number }
+      | { type: "end" }
+      | { type: "summarized"; msgIdx: number }
+    >();
+
+    for (let msgIdx = 0; msgIdx < this.messages.length; msgIdx++) {
+      const msg = this.messages[msgIdx];
+      if (typeof msg.content === "string") continue;
+
+      for (let blockIdx = 0; blockIdx < msg.content.length; blockIdx++) {
+        const block = msg.content[blockIdx];
+        if (block.type === "text" && isCheckpointText(block.text)) {
+          const checkpointId = parseCheckpointFromText(block.text);
+          if (checkpointId) {
+            map.set(checkpointId, { type: "position", msgIdx, blockIdx });
+          }
+        }
+      }
+    }
+
+    return map;
+  }
+
+  /** Resolve a checkpoint ID to a position, handling truncated and summarized checkpoints */
+  private resolveCheckpointPosition(
+    checkpointId: string | undefined,
+    checkpointMap: Map<
+      string,
+      | { type: "position"; msgIdx: number; blockIdx: number }
+      | { type: "end" }
+      | { type: "summarized"; msgIdx: number }
+    >,
+  ): { msgIdx: number; blockIdx: number } {
+    if (!checkpointId) {
+      // No checkpoint means end of thread
+      return { msgIdx: this.messages.length - 1, blockIdx: Infinity };
+    }
+
+    const pos = checkpointMap.get(checkpointId);
+    if (!pos) {
+      // Checkpoint not found in map - treat as end of thread
+      return { msgIdx: this.messages.length - 1, blockIdx: Infinity };
+    }
+
+    switch (pos.type) {
+      case "position":
+        return { msgIdx: pos.msgIdx, blockIdx: pos.blockIdx };
+      case "end":
+        // Truncated checkpoint - treat as end of thread
+        return { msgIdx: this.messages.length - 1, blockIdx: Infinity };
+      case "summarized":
+        // Checkpoint was consumed by a previous summary - point to start of that summary
+        return { msgIdx: pos.msgIdx, blockIdx: -1 };
+    }
+  }
+
+  /** Apply a single replacement using the checkpoint map */
+  private applyReplacementWithMap(
+    replacement: CompactReplacement,
+    checkpointMap: Map<
+      string,
+      | { type: "position"; msgIdx: number; blockIdx: number }
+      | { type: "end" }
+      | { type: "summarized"; msgIdx: number }
+    >,
+  ): void {
+    const { from, to, summary } = replacement;
+
+    // Resolve positions using the map
+    const fromPos = from
+      ? this.resolveFromCheckpoint(from, checkpointMap)
+      : { msgIdx: 0, blockIdx: -1 }; // Start of thread
+
+    const toPos = this.resolveCheckpointPosition(to, checkpointMap);
+
+    // Build new messages array
+    const newMessages: Anthropic.MessageParam[] = [];
+
+    // 1. Keep messages before fromPos.msgIdx
+    for (let i = 0; i < fromPos.msgIdx; i++) {
+      newMessages.push(this.messages[i]);
+    }
+
+    // 2. Handle the 'from' message - keep content up to and including the checkpoint
+    if (
+      from &&
+      fromPos.msgIdx < this.messages.length &&
+      fromPos.blockIdx >= 0
+    ) {
+      const fromMsg = this.messages[fromPos.msgIdx];
+      if (typeof fromMsg.content !== "string") {
+        const keptBlocks = fromMsg.content.slice(0, fromPos.blockIdx + 1);
+        // Strip system_reminder blocks
+        const filteredBlocks = this.stripSystemReminders(keptBlocks);
+        if (filteredBlocks.length > 0) {
+          newMessages.push({
+            role: fromMsg.role,
+            content: filteredBlocks,
+          });
+        }
+      }
+    }
+
+    // Track where the summary will be inserted (for updating checkpoint map)
+    const summaryMsgIdx = newMessages.length;
+
+    // 3. Insert summary as assistant message if non-empty
+    if (summary.trim()) {
+      newMessages.push({
+        role: "assistant",
+        content: [{ type: "text", text: summary }],
+      });
+    }
+
+    // 4. Handle the 'to' message - keep content after the checkpoint (stripped)
+    if (
+      to &&
+      toPos.msgIdx < this.messages.length &&
+      toPos.blockIdx !== Infinity
+    ) {
+      const toMsg = this.messages[toPos.msgIdx];
+      if (typeof toMsg.content !== "string") {
+        const keptBlocks = toMsg.content.slice(toPos.blockIdx + 1);
+        // Strip system_reminder and thinking blocks
+        const filteredBlocks =
+          toMsg.role === "assistant"
+            ? this.stripThinkingBlocks(keptBlocks)
+            : this.stripSystemReminders(keptBlocks);
+        if (filteredBlocks.length > 0) {
+          newMessages.push({
+            role: toMsg.role,
+            content: filteredBlocks,
+          });
+        }
+      }
+    }
+
+    // 5. Keep messages after toPos.msgIdx (with thinking/system_reminder stripped)
+    const startAfterTo =
+      toPos.blockIdx === Infinity ? this.messages.length : toPos.msgIdx + 1;
+    for (let i = startAfterTo; i < this.messages.length; i++) {
+      const msg = this.messages[i];
+      if (typeof msg.content === "string") {
+        newMessages.push(msg);
+      } else {
+        const filteredBlocks =
+          msg.role === "assistant"
+            ? this.stripThinkingBlocks(msg.content)
+            : this.stripSystemReminders(msg.content);
+        if (filteredBlocks.length > 0) {
+          newMessages.push({
+            role: msg.role,
+            content: filteredBlocks,
+          });
+        }
+      }
+    }
+
+    // Update checkpoint map: mark checkpoints in the replaced range as "summarized"
+    // They now point to the beginning of the summary
+    for (const [id, pos] of checkpointMap.entries()) {
+      if (pos.type !== "position") continue;
+
+      const isAfterFrom =
+        pos.msgIdx > fromPos.msgIdx ||
+        (pos.msgIdx === fromPos.msgIdx && pos.blockIdx > fromPos.blockIdx);
+
+      const isBeforeOrAtTo =
+        toPos.blockIdx === Infinity
+          ? pos.msgIdx <= toPos.msgIdx
+          : pos.msgIdx < toPos.msgIdx ||
+            (pos.msgIdx === toPos.msgIdx && pos.blockIdx <= toPos.blockIdx);
+
+      if (isAfterFrom && isBeforeOrAtTo) {
+        checkpointMap.set(id, { type: "summarized", msgIdx: summaryMsgIdx });
+      }
+    }
+
+    // Ensure conversation alternates properly and ends ready for assistant
+    this.messages = this.ensureValidMessageSequence(newMessages);
+  }
+
+  /** Resolve a 'from' checkpoint, handling the summarized case specially */
+  private resolveFromCheckpoint(
+    checkpointId: string,
+    checkpointMap: Map<
+      string,
+      | { type: "position"; msgIdx: number; blockIdx: number }
+      | { type: "end" }
+      | { type: "summarized"; msgIdx: number }
+    >,
+  ): { msgIdx: number; blockIdx: number } {
+    const pos = checkpointMap.get(checkpointId);
+    if (!pos) {
+      // Checkpoint not found - treat as start of thread
+      return { msgIdx: 0, blockIdx: -1 };
+    }
+
+    switch (pos.type) {
+      case "position":
+        return { msgIdx: pos.msgIdx, blockIdx: pos.blockIdx };
+      case "end":
+        // Truncated 'from' checkpoint - treat as start of thread (nothing to keep before it)
+        return { msgIdx: 0, blockIdx: -1 };
+      case "summarized":
+        // The 'from' checkpoint was already summarized - start from that summary
+        return { msgIdx: pos.msgIdx, blockIdx: -1 };
+    }
   }
 
   /** Remove the compact tool_use block from the last assistant message */
@@ -479,112 +748,6 @@ export class AnthropicAgent implements Agent {
     } else {
       lastMessage.content = filteredContent;
     }
-  }
-
-  private findCheckpointPosition(checkpointId: string): {
-    msgIdx: number;
-    blockIdx: number;
-  } {
-    const checkpointText = checkpointToText(checkpointId);
-    for (let msgIdx = 0; msgIdx < this.messages.length; msgIdx++) {
-      const msg = this.messages[msgIdx];
-      if (typeof msg.content === "string") continue;
-
-      for (let blockIdx = 0; blockIdx < msg.content.length; blockIdx++) {
-        const block = msg.content[blockIdx];
-        if (block.type === "text" && block.text === checkpointText) {
-          return { msgIdx, blockIdx };
-        }
-      }
-    }
-    throw new Error(`Checkpoint ${checkpointId} not found`);
-  }
-
-  private applyReplacement(replacement: CompactReplacement): void {
-    const { from, to, summary } = replacement;
-
-    // Find positions
-    const fromPos = from
-      ? this.findCheckpointPosition(from)
-      : { msgIdx: 0, blockIdx: -1 }; // Start of thread
-
-    const toPos = to
-      ? this.findCheckpointPosition(to)
-      : { msgIdx: this.messages.length - 1, blockIdx: Infinity }; // End of thread
-
-    // Build new messages array
-    const newMessages: Anthropic.MessageParam[] = [];
-
-    // 1. Keep messages before fromPos.msgIdx
-    for (let i = 0; i < fromPos.msgIdx; i++) {
-      newMessages.push(this.messages[i]);
-    }
-
-    // 2. Handle the 'from' message - keep content up to and including the checkpoint
-    if (from && fromPos.msgIdx < this.messages.length) {
-      const fromMsg = this.messages[fromPos.msgIdx];
-      if (typeof fromMsg.content !== "string") {
-        const keptBlocks = fromMsg.content.slice(0, fromPos.blockIdx + 1);
-        // Strip system_reminder blocks
-        const filteredBlocks = this.stripSystemReminders(keptBlocks);
-        if (filteredBlocks.length > 0) {
-          newMessages.push({
-            role: fromMsg.role,
-            content: filteredBlocks,
-          });
-        }
-      }
-    }
-
-    // 3. Insert summary as assistant message if non-empty
-    if (summary.trim()) {
-      newMessages.push({
-        role: "assistant",
-        content: [{ type: "text", text: summary }],
-      });
-    }
-
-    // 4. Handle the 'to' message - keep content after the checkpoint (stripped)
-    if (to && toPos.msgIdx < this.messages.length) {
-      const toMsg = this.messages[toPos.msgIdx];
-      if (typeof toMsg.content !== "string") {
-        const keptBlocks = toMsg.content.slice(toPos.blockIdx + 1);
-        // Strip system_reminder and thinking blocks
-        const filteredBlocks =
-          toMsg.role === "assistant"
-            ? this.stripThinkingBlocks(keptBlocks)
-            : this.stripSystemReminders(keptBlocks);
-        if (filteredBlocks.length > 0) {
-          newMessages.push({
-            role: toMsg.role,
-            content: filteredBlocks,
-          });
-        }
-      }
-    }
-
-    // 5. Keep messages after toPos.msgIdx (with thinking/system_reminder stripped)
-    const startAfterTo = to ? toPos.msgIdx + 1 : this.messages.length;
-    for (let i = startAfterTo; i < this.messages.length; i++) {
-      const msg = this.messages[i];
-      if (typeof msg.content === "string") {
-        newMessages.push(msg);
-      } else {
-        const filteredBlocks =
-          msg.role === "assistant"
-            ? this.stripThinkingBlocks(msg.content)
-            : this.stripSystemReminders(msg.content);
-        if (filteredBlocks.length > 0) {
-          newMessages.push({
-            role: msg.role,
-            content: filteredBlocks,
-          });
-        }
-      }
-    }
-
-    // Ensure conversation alternates properly and ends ready for assistant
-    this.messages = this.ensureValidMessageSequence(newMessages);
   }
 
   private stripSystemReminders(

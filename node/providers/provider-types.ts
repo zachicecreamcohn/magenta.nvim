@@ -298,6 +298,12 @@ export interface Agent {
     replacements: CompactReplacement[],
     truncateIdx?: NativeMessageIdx,
   ): void;
+
+  /** Create a deep copy of this agent with a new dispatch function.
+   * Must only be called when agent is in stopped state (not streaming).
+   * @throws Error if agent is currently streaming
+   */
+  clone(dispatch: Dispatch<AgentMsg>): Agent;
 }
 
 export interface AgentOptions {
