@@ -4,7 +4,7 @@ import type { ToolRequestId } from "../tools/toolManager.ts";
 import type { ToolName, ToolRequest } from "../tools/types.ts";
 import type { ProviderMessage, StopReason, Usage } from "./provider-types.ts";
 import type { Result } from "../utils/result.ts";
-import { convertAnthropicMessagesToProvider } from "./anthropic-thread.ts";
+import { convertAnthropicMessagesToProvider } from "./anthropic-agent.ts";
 
 type StreamEventCallback = (
   event: Anthropic.Messages.MessageStreamEvent,

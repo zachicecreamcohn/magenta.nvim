@@ -143,7 +143,7 @@ export class Magenta {
       nvim,
       cwd: this.cwd,
       options,
-      getContextThread: () => this.chat.getContextThread(),
+      getContextAgent: () => this.chat.getContextAgent(),
     });
   }
 

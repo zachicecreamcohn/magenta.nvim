@@ -1,23 +1,29 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { EventEmitter } from "events";
 import type {
+  Agent,
+  AgentInput,
+  AgentMsg,
+  AgentOptions,
+  AgentState,
+  AgentStatus,
+  AgentStreamingBlock,
+  CompactReplacement,
   NativeMessageIdx,
   ProviderMessage,
-  ProviderStreamingBlock,
-  ProviderThread,
-  ProviderThreadEvents,
-  ProviderThreadInput,
-  ProviderThreadOptions,
-  ProviderThreadState,
-  ProviderThreadStatus,
   ProviderToolResult,
 } from "./provider-types.ts";
+import type { Dispatch } from "../tea/tea.ts";
 import type { ToolRequestId } from "../tools/toolManager.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { ToolName } from "../tools/types.ts";
 import { validateInput } from "../tools/helpers.ts";
+import {
+  checkpointToText,
+  isCheckpointText,
+  parseCheckpointFromText,
+} from "../chat/checkpoint.ts";
 
-export type AnthropicThreadOptions = {
+export type AnthropicAgentOptions = {
   authType: "key" | "max";
   includeWebSearch: boolean;
   disableParallelToolUseFlag: boolean;
@@ -47,50 +53,207 @@ type MessageStopInfo = {
   usage: Usage;
 };
 
-export class AnthropicProviderThread
-  extends EventEmitter<ProviderThreadEvents>
-  implements ProviderThread
-{
+/** Actions that trigger state transitions in the agent */
+type Action =
+  | { type: "start-streaming" }
+  | {
+      type: "block-started";
+      index: number;
+      block: Anthropic.Messages.ContentBlock;
+    }
+  | {
+      type: "block-delta";
+      index: number;
+      delta: Anthropic.Messages.ContentBlockDeltaEvent["delta"];
+    }
+  | { type: "block-finished"; index: number }
+  | { type: "stream-completed"; response: Anthropic.Message }
+  | { type: "stream-error"; error: Error }
+  | { type: "stream-aborted" };
+
+export class AnthropicAgent implements Agent {
   private messages: Anthropic.MessageParam[] = [];
   private currentRequest: ReturnType<Anthropic.Messages["stream"]> | undefined;
   private params: Omit<Anthropic.Messages.MessageStreamParams, "messages">;
   private currentAnthropicBlock: AnthropicStreamingBlock | undefined;
-  private status: ProviderThreadStatus = { type: "idle" };
+  private status: AgentStatus = { type: "stopped", stopReason: "end_turn" };
   private latestUsage: Usage | undefined;
   /** Stop info for each assistant message, keyed by message index */
   private messageStopInfo: Map<number, MessageStopInfo> = new Map();
   /** Cached provider messages to avoid expensive conversion on every getState() */
   private cachedProviderMessages: ProviderMessage[] = [];
+  /** Current block index during streaming, -1 when not streaming a block */
+  private currentBlockIndex: number = -1;
+  /** Assistant message being built during streaming */
+  private currentAssistantMessage: Anthropic.MessageParam | undefined;
 
   constructor(
-    private options: ProviderThreadOptions,
+    private options: AgentOptions,
     private client: Anthropic,
-    anthropicOptions: AnthropicThreadOptions,
+    private dispatch: Dispatch<AgentMsg>,
+    anthropicOptions: AnthropicAgentOptions,
   ) {
-    super();
     this.params = this.createNativeStreamParameters(anthropicOptions);
   }
 
-  private emitAsync(event: keyof ProviderThreadEvents): void {
+  private dispatchAsync(msg: AgentMsg): void {
     queueMicrotask(() => {
-      this.emit(event);
+      this.dispatch(msg);
     });
   }
 
-  getState(): ProviderThreadState {
+  private update(action: Action): void {
+    switch (action.type) {
+      case "start-streaming":
+        this.status = { type: "streaming", startTime: new Date() };
+        this.currentBlockIndex = -1;
+        this.currentAssistantMessage = undefined;
+        this.dispatchAsync({ type: "agent-content-updated" });
+        break;
+
+      case "block-started":
+        if (this.currentBlockIndex !== -1) {
+          throw new Error(
+            `Received content_block_start at index ${action.index} while block ${this.currentBlockIndex} is still open`,
+          );
+        }
+        this.currentBlockIndex = action.index;
+        this.currentAnthropicBlock = this.initAnthropicStreamingBlock(
+          action.block,
+        );
+        this.dispatchAsync({ type: "agent-content-updated" });
+        break;
+
+      case "block-delta":
+        if (action.index !== this.currentBlockIndex) {
+          throw new Error(
+            `Received content_block_delta for index ${action.index} but current block is ${this.currentBlockIndex}`,
+          );
+        }
+        if (this.currentAnthropicBlock) {
+          this.currentAnthropicBlock = this.applyAnthropicDelta(
+            this.currentAnthropicBlock,
+            action.delta,
+          );
+          const streamingBlock = this.getStreamingBlock();
+          if (streamingBlock) {
+            this.dispatchAsync({ type: "agent-content-updated" });
+          }
+        }
+        break;
+
+      case "block-finished": {
+        if (action.index !== this.currentBlockIndex) {
+          throw new Error(
+            `Received content_block_stop for index ${action.index} but current block is ${this.currentBlockIndex}`,
+          );
+        }
+
+        if (!this.currentAssistantMessage) {
+          this.currentAssistantMessage = {
+            role: "assistant",
+            content: [],
+          };
+          this.messages.push(this.currentAssistantMessage);
+        }
+
+        const content = this.currentAssistantMessage
+          .content as Anthropic.Messages.ContentBlockParam[];
+        if (this.currentAnthropicBlock) {
+          content.push(
+            this.anthropicStreamingBlockToParam(this.currentAnthropicBlock),
+          );
+        }
+        this.currentAnthropicBlock = undefined;
+        this.updateCachedProviderMessages();
+        this.currentBlockIndex = -1;
+        break;
+      }
+
+      case "stream-completed": {
+        this.currentRequest = undefined;
+        const response = action.response;
+
+        if (!this.currentAssistantMessage) {
+          this.currentAssistantMessage = {
+            role: "assistant",
+            content: [],
+          };
+          this.messages.push(this.currentAssistantMessage);
+        }
+
+        (
+          this.currentAssistantMessage
+            .content as Anthropic.Messages.ContentBlockParam[]
+        ).length = 0;
+        for (const block of response.content) {
+          (
+            this.currentAssistantMessage
+              .content as Anthropic.Messages.ContentBlockParam[]
+          ).push(this.responseBlockToParam(block));
+        }
+        this.updateCachedProviderMessages();
+
+        const usage: Usage = {
+          inputTokens: response.usage.input_tokens,
+          outputTokens: response.usage.output_tokens,
+        };
+        if (response.usage.cache_read_input_tokens != null) {
+          usage.cacheHits = response.usage.cache_read_input_tokens;
+        }
+        if (response.usage.cache_creation_input_tokens != null) {
+          usage.cacheMisses = response.usage.cache_creation_input_tokens;
+        }
+
+        this.latestUsage = usage;
+        const stopReason = response.stop_reason || "end_turn";
+        const messageIndex = this.messages.indexOf(
+          this.currentAssistantMessage,
+        );
+        this.messageStopInfo.set(messageIndex, { stopReason, usage });
+
+        this.currentAssistantMessage = undefined;
+        this.status = { type: "stopped", stopReason };
+        this.dispatchAsync({ type: "agent-stopped", stopReason, usage });
+        break;
+      }
+
+      case "stream-error": {
+        this.currentRequest = undefined;
+        this.cleanup({ type: "error", error: action.error });
+        this.currentAssistantMessage = undefined;
+        this.status = { type: "error", error: action.error };
+        this.dispatchAsync({ type: "agent-error", error: action.error });
+        break;
+      }
+
+      case "stream-aborted":
+        this.currentRequest = undefined;
+        this.cleanup({ type: "aborted" });
+        this.currentAssistantMessage = undefined;
+        this.status = { type: "stopped", stopReason: "aborted" };
+        this.dispatchAsync({ type: "agent-stopped", stopReason: "aborted" });
+        break;
+
+      default:
+        assertUnreachable(action);
+    }
+  }
+
+  getState(): AgentState {
     return {
       status: this.status,
       messages: this.cachedProviderMessages,
-      streamingBlock: this.getProviderStreamingBlock(),
+      streamingBlock: this.getStreamingBlock(),
       latestUsage: this.latestUsage,
     };
   }
 
-  getProviderStreamingBlock(): ProviderStreamingBlock | undefined {
+  getStreamingBlock(): AgentStreamingBlock | undefined {
     if (!this.currentAnthropicBlock) {
       return undefined;
     }
-    // Only expose types that ProviderStreamingBlock supports
+    // Only expose types that AgentStreamingBlock supports
     switch (this.currentAnthropicBlock.type) {
       case "text":
       case "thinking":
@@ -110,7 +273,7 @@ export class AnthropicProviderThread
     return (this.messages.length - 1) as NativeMessageIdx;
   }
 
-  appendUserMessage(content: ProviderThreadInput[]): void {
+  appendUserMessage(content: AgentInput[]): void {
     const nativeContent = this.convertInputToNative(content);
     this.messages.push({
       role: "user",
@@ -171,14 +334,51 @@ export class AnthropicProviderThread
   }
 
   continueConversation(): void {
-    const lastMessage = this.messages[this.messages.length - 1];
-    if (lastMessage?.role === "assistant") {
-      throw new Error(
-        `Cannot continue conversation: last message is from assistant. Add a user message or tool result first.`,
-      );
-    }
+    this.update({ type: "start-streaming" });
 
-    this.startStreaming();
+    const messagesWithCache = withCacheControl(this.messages);
+    this.currentRequest = this.client.messages.stream({
+      ...this.params,
+      messages: messagesWithCache,
+    });
+
+    this.currentRequest.on("streamEvent", (event) => {
+      switch (event.type) {
+        case "content_block_start":
+          this.update({
+            type: "block-started",
+            index: event.index,
+            block: event.content_block,
+          });
+          break;
+
+        case "content_block_delta":
+          this.update({
+            type: "block-delta",
+            index: event.index,
+            delta: event.delta,
+          });
+          break;
+
+        case "content_block_stop":
+          this.update({ type: "block-finished", index: event.index });
+          break;
+      }
+    });
+
+    this.currentRequest
+      .finalMessage()
+      .then((response) => {
+        this.update({ type: "stream-completed", response });
+      })
+      .catch((error: Error) => {
+        const aborted = this.currentRequest?.controller.signal.aborted;
+        if (aborted) {
+          this.update({ type: "stream-aborted" });
+        } else {
+          this.update({ type: "stream-error", error });
+        }
+      });
   }
 
   truncateMessages(messageIdx: NativeMessageIdx): void {
@@ -194,7 +394,253 @@ export class AnthropicProviderThread
 
     this.status = { type: "stopped", stopReason: "end_turn" };
     this.updateCachedProviderMessages();
-    this.emitAsync("status-changed");
+    this.dispatchAsync({ type: "agent-stopped", stopReason: "end_turn" });
+  }
+
+  compact(
+    replacements: CompactReplacement[],
+    truncateIdx?: NativeMessageIdx,
+  ): void {
+    // Run compaction async so Thread can set state before we dispatch events
+    queueMicrotask(() => {
+      this.executeCompact(replacements, truncateIdx);
+    });
+  }
+
+  private executeCompact(
+    replacements: CompactReplacement[],
+    truncateIdx?: NativeMessageIdx,
+  ): void {
+    // If truncateIdx is provided (user-initiated @compact), first truncate to that point
+    // This removes the @compact user message and the agent's compact response
+    if (truncateIdx !== undefined) {
+      this.messages.length = truncateIdx + 1;
+      // Clean up messageStopInfo for removed messages
+      for (const idx of this.messageStopInfo.keys()) {
+        if (idx > truncateIdx) {
+          this.messageStopInfo.delete(idx);
+        }
+      }
+    } else {
+      // Agent-initiated: just trim the compact tool_use from the last assistant message
+      this.trimCompactToolUse();
+    }
+
+    // Process replacements in reverse order (by 'to' position) to avoid index shifting issues
+    const sortedReplacements = [...replacements].sort((a, b) => {
+      const aTo = a.to
+        ? this.findCheckpointPosition(a.to)
+        : { msgIdx: this.messages.length - 1, blockIdx: Infinity };
+      const bTo = b.to
+        ? this.findCheckpointPosition(b.to)
+        : { msgIdx: this.messages.length - 1, blockIdx: Infinity };
+      if (aTo.msgIdx !== bTo.msgIdx) return bTo.msgIdx - aTo.msgIdx;
+      return bTo.blockIdx - aTo.blockIdx;
+    });
+
+    for (const replacement of sortedReplacements) {
+      this.applyReplacement(replacement);
+    }
+
+    // Clean up messageStopInfo for any affected messages
+    this.messageStopInfo.clear();
+
+    // Update cached messages
+    this.updateCachedProviderMessages();
+
+    // Set status to stopped/end_turn and dispatch
+    this.status = { type: "stopped", stopReason: "end_turn" };
+    this.dispatchAsync({ type: "agent-stopped", stopReason: "end_turn" });
+  }
+
+  /** Remove the compact tool_use block from the last assistant message */
+  private trimCompactToolUse(): void {
+    const lastMessage = this.messages[this.messages.length - 1];
+    if (!lastMessage || lastMessage.role !== "assistant") {
+      return;
+    }
+
+    if (typeof lastMessage.content === "string") {
+      return;
+    }
+
+    // Filter out compact tool_use blocks
+    const filteredContent = lastMessage.content.filter((block) => {
+      if (block.type !== "tool_use") {
+        return true;
+      }
+      return block.name !== "compact";
+    });
+
+    // Update the message content
+    if (filteredContent.length === 0) {
+      // Remove the entire message if no content remains
+      this.messages.pop();
+    } else {
+      lastMessage.content = filteredContent;
+    }
+  }
+
+  private findCheckpointPosition(checkpointId: string): {
+    msgIdx: number;
+    blockIdx: number;
+  } {
+    const checkpointText = checkpointToText(checkpointId);
+    for (let msgIdx = 0; msgIdx < this.messages.length; msgIdx++) {
+      const msg = this.messages[msgIdx];
+      if (typeof msg.content === "string") continue;
+
+      for (let blockIdx = 0; blockIdx < msg.content.length; blockIdx++) {
+        const block = msg.content[blockIdx];
+        if (block.type === "text" && block.text === checkpointText) {
+          return { msgIdx, blockIdx };
+        }
+      }
+    }
+    throw new Error(`Checkpoint ${checkpointId} not found`);
+  }
+
+  private applyReplacement(replacement: CompactReplacement): void {
+    const { from, to, summary } = replacement;
+
+    // Find positions
+    const fromPos = from
+      ? this.findCheckpointPosition(from)
+      : { msgIdx: 0, blockIdx: -1 }; // Start of thread
+
+    const toPos = to
+      ? this.findCheckpointPosition(to)
+      : { msgIdx: this.messages.length - 1, blockIdx: Infinity }; // End of thread
+
+    // Build new messages array
+    const newMessages: Anthropic.MessageParam[] = [];
+
+    // 1. Keep messages before fromPos.msgIdx
+    for (let i = 0; i < fromPos.msgIdx; i++) {
+      newMessages.push(this.messages[i]);
+    }
+
+    // 2. Handle the 'from' message - keep content up to and including the checkpoint
+    if (from && fromPos.msgIdx < this.messages.length) {
+      const fromMsg = this.messages[fromPos.msgIdx];
+      if (typeof fromMsg.content !== "string") {
+        const keptBlocks = fromMsg.content.slice(0, fromPos.blockIdx + 1);
+        // Strip system_reminder blocks
+        const filteredBlocks = this.stripSystemReminders(keptBlocks);
+        if (filteredBlocks.length > 0) {
+          newMessages.push({
+            role: fromMsg.role,
+            content: filteredBlocks,
+          });
+        }
+      }
+    }
+
+    // 3. Insert summary as assistant message if non-empty
+    if (summary.trim()) {
+      newMessages.push({
+        role: "assistant",
+        content: [{ type: "text", text: summary }],
+      });
+    }
+
+    // 4. Handle the 'to' message - keep content after the checkpoint (stripped)
+    if (to && toPos.msgIdx < this.messages.length) {
+      const toMsg = this.messages[toPos.msgIdx];
+      if (typeof toMsg.content !== "string") {
+        const keptBlocks = toMsg.content.slice(toPos.blockIdx + 1);
+        // Strip system_reminder and thinking blocks
+        const filteredBlocks =
+          toMsg.role === "assistant"
+            ? this.stripThinkingBlocks(keptBlocks)
+            : this.stripSystemReminders(keptBlocks);
+        if (filteredBlocks.length > 0) {
+          newMessages.push({
+            role: toMsg.role,
+            content: filteredBlocks,
+          });
+        }
+      }
+    }
+
+    // 5. Keep messages after toPos.msgIdx (with thinking/system_reminder stripped)
+    const startAfterTo = to ? toPos.msgIdx + 1 : this.messages.length;
+    for (let i = startAfterTo; i < this.messages.length; i++) {
+      const msg = this.messages[i];
+      if (typeof msg.content === "string") {
+        newMessages.push(msg);
+      } else {
+        const filteredBlocks =
+          msg.role === "assistant"
+            ? this.stripThinkingBlocks(msg.content)
+            : this.stripSystemReminders(msg.content);
+        if (filteredBlocks.length > 0) {
+          newMessages.push({
+            role: msg.role,
+            content: filteredBlocks,
+          });
+        }
+      }
+    }
+
+    // Ensure conversation alternates properly and ends ready for assistant
+    this.messages = this.ensureValidMessageSequence(newMessages);
+  }
+
+  private stripSystemReminders(
+    blocks: Anthropic.Messages.ContentBlockParam[],
+  ): Anthropic.Messages.ContentBlockParam[] {
+    return blocks.filter((block) => {
+      if (block.type === "text" && block.text.includes("<system-reminder>")) {
+        return false;
+      }
+      return true;
+    });
+  }
+
+  private stripThinkingBlocks(
+    blocks: Anthropic.Messages.ContentBlockParam[],
+  ): Anthropic.Messages.ContentBlockParam[] {
+    return blocks.filter((block) => {
+      return block.type !== "thinking" && block.type !== "redacted_thinking";
+    });
+  }
+
+  private ensureValidMessageSequence(
+    messages: Anthropic.MessageParam[],
+  ): Anthropic.MessageParam[] {
+    if (messages.length === 0) return messages;
+
+    const result: Anthropic.MessageParam[] = [];
+
+    for (const msg of messages) {
+      const lastMsg = result[result.length - 1];
+
+      // If same role as last message, merge content
+      if (lastMsg && lastMsg.role === msg.role) {
+        if (typeof lastMsg.content === "string") {
+          lastMsg.content = [{ type: "text", text: lastMsg.content }];
+        }
+        if (typeof msg.content === "string") {
+          lastMsg.content.push({
+            type: "text",
+            text: msg.content,
+          });
+        } else {
+          lastMsg.content.push(...msg.content);
+        }
+      } else {
+        result.push({
+          role: msg.role,
+          content:
+            typeof msg.content === "string"
+              ? [{ type: "text", text: msg.content }]
+              : [...msg.content],
+        });
+      }
+    }
+
+    return result;
   }
 
   private cleanup(
@@ -244,166 +690,11 @@ export class AnthropicProviderThread
     }
   }
 
-  private startStreaming(): void {
-    this.status = { type: "streaming", startTime: new Date() };
-    this.emitAsync("status-changed");
-
-    const messagesWithCache = withCacheControl(this.messages);
-    this.currentRequest = this.client.messages.stream({
-      ...this.params,
-      messages: messagesWithCache,
-    });
-
-    // Assistant message will be added once we have at least one finished content block
-    let assistantMessage: Anthropic.MessageParam | undefined;
-
-    let currentBlockIndex = -1;
-
-    this.currentRequest.on("streamEvent", (event) => {
-      switch (event.type) {
-        case "content_block_start": {
-          if (currentBlockIndex !== -1) {
-            throw new Error(
-              `Received content_block_start at index ${event.index} while block ${currentBlockIndex} is still open`,
-            );
-          }
-          currentBlockIndex = event.index;
-          this.currentAnthropicBlock = this.initAnthropicStreamingBlock(
-            event.content_block,
-          );
-          this.emitAsync("streaming-block-updated");
-          break;
-        }
-
-        case "content_block_delta": {
-          if (event.index !== currentBlockIndex) {
-            throw new Error(
-              `Received content_block_delta for index ${event.index} but current block is ${currentBlockIndex}`,
-            );
-          }
-          if (this.currentAnthropicBlock) {
-            this.currentAnthropicBlock = this.applyAnthropicDelta(
-              this.currentAnthropicBlock,
-              event.delta,
-            );
-            const providerBlock = this.getProviderStreamingBlock();
-            if (providerBlock) {
-              this.emitAsync("streaming-block-updated");
-            }
-          }
-          break;
-        }
-
-        case "content_block_stop": {
-          if (event.index !== currentBlockIndex) {
-            throw new Error(
-              `Received content_block_stop for index ${event.index} but current block is ${currentBlockIndex}`,
-            );
-          }
-
-          // Create and push assistant message on first completed block
-          if (!assistantMessage) {
-            assistantMessage = {
-              role: "assistant",
-              content: [],
-            };
-            this.messages.push(assistantMessage);
-          }
-
-          // Add the completed block to the assistant message
-          const content =
-            assistantMessage.content as Anthropic.Messages.ContentBlockParam[];
-
-          if (this.currentAnthropicBlock) {
-            content.push(
-              this.anthropicStreamingBlockToParam(this.currentAnthropicBlock),
-            );
-          }
-          this.currentAnthropicBlock = undefined;
-          this.updateCachedProviderMessages();
-          currentBlockIndex = -1;
-          break;
-        }
-      }
-    });
-
-    this.currentRequest
-      .finalMessage()
-      .then((response) => {
-        this.currentRequest = undefined;
-
-        // Create assistant message if it doesn't exist yet (e.g., empty response)
-        if (!assistantMessage) {
-          assistantMessage = {
-            role: "assistant",
-            content: [],
-          };
-          this.messages.push(assistantMessage);
-        }
-
-        // Replace with the final content from the response (authoritative)
-        (
-          assistantMessage.content as Anthropic.Messages.ContentBlockParam[]
-        ).length = 0;
-        for (const block of response.content) {
-          (
-            assistantMessage.content as Anthropic.Messages.ContentBlockParam[]
-          ).push(this.responseBlockToParam(block));
-        }
-        this.updateCachedProviderMessages();
-
-        const usage: Usage = {
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
-        };
-        if (response.usage.cache_read_input_tokens != null) {
-          usage.cacheHits = response.usage.cache_read_input_tokens;
-        }
-        if (response.usage.cache_creation_input_tokens != null) {
-          usage.cacheMisses = response.usage.cache_creation_input_tokens;
-        }
-
-        // Track latest usage and message stop info
-        this.latestUsage = usage;
-        const stopReason = response.stop_reason || "end_turn";
-        const messageIndex = this.messages.indexOf(assistantMessage);
-        this.messageStopInfo.set(messageIndex, { stopReason, usage });
-
-        this.status = {
-          type: "stopped",
-          stopReason,
-        };
-        this.emitAsync("status-changed");
-      })
-      .catch((error: Error) => {
-        const aborted = this.currentRequest?.controller.signal.aborted;
-        this.currentRequest = undefined;
-
-        if (aborted) {
-          this.cleanup({ type: "aborted" });
-          this.status = {
-            type: "stopped",
-            stopReason: "aborted",
-          };
-        } else {
-          this.cleanup({ type: "error", error });
-          this.status = { type: "error", error };
-        }
-
-        this.emitAsync("messages-updated");
-        this.emitAsync("status-changed");
-      });
-  }
-
-  private createNativeStreamParameters({
-    authType,
-    includeWebSearch,
-    disableParallelToolUseFlag,
-  }: {
-    authType: "key" | "max";
-    includeWebSearch: boolean;
-    disableParallelToolUseFlag: boolean;
-  }): Omit<Anthropic.Messages.MessageStreamParams, "messages"> {
+  private createNativeStreamParameters(
+    anthropicOptions: AnthropicAgentOptions,
+  ): Omit<Anthropic.Messages.MessageStreamParams, "messages"> {
+    const { authType, includeWebSearch, disableParallelToolUseFlag } =
+      anthropicOptions;
     const { model, tools, systemPrompt, thinking } = this.options;
 
     const anthropicTools: Anthropic.Tool[] = tools.map((t): Anthropic.Tool => {
@@ -626,7 +917,7 @@ export class AnthropicProviderThread
   }
 
   private convertInputToNative(
-    content: ProviderThreadInput[],
+    content: AgentInput[],
   ): Anthropic.MessageParam["content"] {
     return content.map((c): Anthropic.Messages.ContentBlockParam => {
       switch (c.type) {
@@ -710,7 +1001,7 @@ export class AnthropicProviderThread
       this.messages,
       this.messageStopInfo,
     );
-    this.emitAsync("messages-updated");
+    this.dispatchAsync({ type: "agent-content-updated" });
   }
 }
 
@@ -745,7 +1036,7 @@ function convertBlockToProvider(
   block: Anthropic.Messages.ContentBlockParam,
 ): ProviderMessage["content"][number] {
   switch (block.type) {
-    case "text":
+    case "text": {
       // Detect system_reminder blocks (converted to text with <system-reminder> tags)
       if (block.text.includes("<system-reminder>")) {
         return {
@@ -759,6 +1050,16 @@ function convertBlockToProvider(
           type: "context_update",
           text: block.text,
         };
+      }
+      // Detect checkpoint blocks (converted to text with <checkpoint:id> format)
+      if (isCheckpointText(block.text)) {
+        const checkpointId = parseCheckpointFromText(block.text);
+        if (checkpointId) {
+          return {
+            type: "checkpoint",
+            id: checkpointId,
+          };
+        }
       }
       return {
         type: "text",
@@ -782,6 +1083,7 @@ function convertBlockToProvider(
               }))
           : undefined,
       };
+    }
 
     case "image":
       return {

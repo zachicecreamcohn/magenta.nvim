@@ -13,6 +13,7 @@ import * as SpawnForeach from "./spawn-foreach.ts";
 import * as WaitForSubagents from "./wait-for-subagents.ts";
 import * as YieldToParent from "./yield-to-parent.ts";
 import * as PredictEdit from "./predict-edit.ts";
+import * as Compact from "./compact.ts";
 
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Nvim } from "../nvim/nvim-node";
@@ -233,6 +234,20 @@ export function createTool(
 
     case "predict_edit": {
       return new PredictEdit.PredictEditTool(staticRequest, context.threadId, {
+        myDispatch: wrapDispatch,
+      });
+    }
+
+    case "compact": {
+      const threadWrapper = context.chat.threadWrappers[context.threadId];
+      if (threadWrapper.state !== "initialized") {
+        throw new Error(
+          `Cannot compact thread ${context.threadId}. Thread not initialized.`,
+        );
+      }
+      return new Compact.CompactTool(staticRequest, {
+        nvim: context.nvim,
+        thread: threadWrapper.thread,
         myDispatch: wrapDispatch,
       });
     }

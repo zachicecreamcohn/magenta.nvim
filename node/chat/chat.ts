@@ -171,23 +171,23 @@ export class Chat {
 
         // it's ok to do this on every dispatch. After the initial yielded/error message, the thread should be dormant
         // and should not generate any more thread messages. As such, this won't be terribly inefficient.
-        const conversationState = thread.state.conversationState;
-        if (
-          threadState.parentThreadId &&
-          (conversationState.type === "yielded" ||
-            conversationState.type === "error")
-        ) {
-          this.notifyParent({
-            threadId: thread.id,
-            parentThreadId: threadState.parentThreadId,
-            result:
-              conversationState.type === "yielded"
-                ? { status: "ok", value: conversationState.response }
-                : {
-                    status: "error",
-                    error: conversationState.error.message,
-                  },
-          });
+        const mode = thread.state.mode;
+        const agentStatus = thread.agent.getState().status;
+
+        if (threadState.parentThreadId) {
+          if (mode.type === "control_flow" && mode.operation.type === "yield") {
+            this.notifyParent({
+              threadId: thread.id,
+              parentThreadId: threadState.parentThreadId,
+              result: { status: "ok", value: mode.operation.response },
+            });
+          } else if (agentStatus.type === "error") {
+            this.notifyParent({
+              threadId: thread.id,
+              parentThreadId: threadState.parentThreadId,
+              result: { status: "error", error: agentStatus.error.message },
+            });
+          }
         }
       }
     }
@@ -352,15 +352,15 @@ export class Chat {
     return [];
   }
 
-  /** Get the active provider thread for use as context in forceToolUse calls */
-  getContextThread() {
+  /** Get the active agent for use as context in forceToolUse calls */
+  getContextAgent() {
     if (
       this.state.state === "thread-selected" &&
       this.state.activeThreadId in this.threadWrappers
     ) {
       const threadState = this.threadWrappers[this.state.activeThreadId];
       if (threadState.state === "initialized") {
-        return threadState.thread.providerThread;
+        return threadState.thread.agent;
       }
     }
     return undefined;
@@ -817,49 +817,47 @@ ${threadViews.map((view) => d`${view}\n`)}`;
 
       case "initialized": {
         const thread = threadWrapper.thread;
-        const conversationState = thread.state.conversationState;
+        const mode = thread.state.mode;
+        const agentStatus = thread.agent.getState().status;
 
-        switch (conversationState.type) {
-          case "yielded":
-            return {
-              status: "done",
-              result: {
-                status: "ok",
-                value: conversationState.response,
-              },
-            };
-
-          case "error":
-            return {
-              status: "done",
-              result: {
-                status: "error",
-                error: conversationState.error.message,
-              },
-            };
-
-          case "stopped":
-            if (conversationState.stopReason === "aborted") {
-              return {
-                status: "done",
-                result: {
-                  status: "error",
-                  error: "Thread was aborted",
-                },
-              };
-            }
-
-            // If stopped normally but not yielded, consider it pending
-            return { status: "pending" };
-
-          case "idle":
-          case "tool_use":
-          case "streaming":
-            return { status: "pending" };
-
-          default:
-            return assertUnreachable(conversationState);
+        // Check for yielded state first
+        if (mode.type === "control_flow" && mode.operation.type === "yield") {
+          return {
+            status: "done",
+            result: {
+              status: "ok",
+              value: mode.operation.response,
+            },
+          };
         }
+
+        // Check for error state
+        if (agentStatus.type === "error") {
+          return {
+            status: "done",
+            result: {
+              status: "error",
+              error: agentStatus.error.message,
+            },
+          };
+        }
+
+        // Check for aborted state
+        if (
+          agentStatus.type === "stopped" &&
+          agentStatus.stopReason === "aborted"
+        ) {
+          return {
+            status: "done",
+            result: {
+              status: "error",
+              error: "Thread was aborted",
+            },
+          };
+        }
+
+        // All other states are considered pending
+        return { status: "pending" };
       }
 
       default:
@@ -900,40 +898,52 @@ ${threadViews.map((view) => d`${view}\n`)}`;
 
       case "initialized": {
         const thread = threadWrapper.thread;
-        const conversationState = thread.state.conversationState;
+        const mode = thread.state.mode;
+        const agentStatus = thread.agent.getState().status;
 
         const summary = {
           title: thread.state.title,
           status: (() => {
-            switch (conversationState.type) {
-              case "yielded":
-                return {
-                  type: "yielded" as const,
-                  response: conversationState.response,
-                };
+            // Check mode for thread-specific states first
+            if (
+              mode.type === "control_flow" &&
+              mode.operation.type === "yield"
+            ) {
+              return {
+                type: "yielded" as const,
+                response: mode.operation.response,
+              };
+            }
 
+            if (mode.type === "tool_use") {
+              return {
+                type: "running" as const,
+                activity: "executing tools",
+              };
+            }
+
+            if (
+              mode.type === "control_flow" &&
+              mode.operation.type === "compact"
+            ) {
+              return {
+                type: "running" as const,
+                activity: "compacting thread",
+              };
+            }
+
+            // Then check agent status
+            switch (agentStatus.type) {
               case "error":
                 return {
                   type: "error" as const,
-                  message: conversationState.error.message,
+                  message: agentStatus.error.message,
                 };
 
               case "stopped":
                 return {
                   type: "stopped" as const,
-                  reason: conversationState.stopReason,
-                };
-
-              case "idle":
-                return {
-                  type: "stopped" as const,
-                  reason: "end_turn" as const,
-                };
-
-              case "tool_use":
-                return {
-                  type: "running" as const,
-                  activity: "executing tools",
+                  reason: agentStatus.stopReason,
                 };
 
               case "streaming":
@@ -943,7 +953,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
                 };
 
               default:
-                return assertUnreachable(conversationState);
+                return assertUnreachable(agentStatus);
             }
           })(),
         };
@@ -968,13 +978,13 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const parentThreadWrapper = this.threadWrappers[parentThreadId];
     if (parentThreadWrapper && parentThreadWrapper.state === "initialized") {
       const parentThread = parentThreadWrapper.thread;
-      const conversationState = parentThread.state.conversationState;
+      const mode = parentThread.state.mode;
 
-      if (conversationState.type !== "tool_use") {
+      if (mode.type !== "tool_use") {
         return;
       }
 
-      for (const [, tool] of conversationState.activeTools) {
+      for (const [, tool] of mode.activeTools) {
         if (
           tool.toolName === "wait_for_subagents" &&
           (tool as WaitForSubagentsTool).state.state === "waiting"

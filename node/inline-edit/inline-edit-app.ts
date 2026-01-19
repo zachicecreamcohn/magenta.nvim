@@ -14,8 +14,8 @@ import * as TEA from "../tea/tea";
 import * as InlineEdit from "./inline-edit-controller";
 import {
   getProvider,
-  type ProviderThread,
-  type ProviderThreadInput,
+  type Agent,
+  type AgentInput,
 } from "../providers/provider";
 import path from "node:path";
 import { getMarkdownExt } from "../utils/markdown";
@@ -62,21 +62,21 @@ export class InlineEditManager {
     nvim,
     cwd,
     options,
-    getContextThread,
+    getContextAgent,
   }: {
     nvim: Nvim;
     cwd: NvimCwd;
     options: MagentaOptions;
-    getContextThread: () => ProviderThread | undefined;
+    getContextAgent: () => Agent | undefined;
   }) {
     this.nvim = nvim;
     this.cwd = cwd;
     this.options = options;
-    this.getContextThread = getContextThread;
+    this.getContextAgent = getContextAgent;
   }
 
   private options: MagentaOptions;
-  private getContextThread: () => ProviderThread | undefined;
+  private getContextAgent: () => Agent | undefined;
 
   onWinClosed() {
     return Promise.all(
@@ -252,7 +252,7 @@ export class InlineEditManager {
       selectionWithText,
     );
 
-    const contextThread = this.getContextThread();
+    const contextAgent = this.getContextAgent();
     const input = await this.prepareInput(targetBuffer.id, this.lastInput);
 
     await inputBuffer.setOption("modifiable", false);
@@ -278,7 +278,7 @@ export class InlineEditManager {
       model: isFast ? activeProfile.fastModel : activeProfile.model,
       input,
       spec: selection ? replaceSelectionSpec : inlineEditSpec,
-      ...(contextThread ? { contextThread } : {}),
+      ...(contextAgent ? { contextAgent } : {}),
     });
     dispatch({
       type: "request-sent",
@@ -392,7 +392,7 @@ export class InlineEditManager {
   async prepareInput(
     targetBufnr: BufNr,
     inputText: string,
-  ): Promise<ProviderThreadInput[]> {
+  ): Promise<AgentInput[]> {
     const { selection, cursor } = this.inlineEdits[targetBufnr];
     const { text: processedInputText } = this.processFastModifier(inputText);
 
@@ -457,7 +457,7 @@ ${processedInputText}`,
     this.lastInput = inputText;
     const activeProfile = this.getActiveProfile();
 
-    const contextThread = this.getContextThread();
+    const contextAgent = this.getContextAgent();
     const input = await this.prepareInput(targetBufnr, inputText);
 
     await inputBuffer.setOption("modifiable", false);
@@ -480,7 +480,7 @@ ${processedInputText}`,
       model: isFast ? activeProfile.fastModel : activeProfile.model,
       input,
       spec: selection ? replaceSelectionSpec : inlineEditSpec,
-      ...(contextThread ? { contextThread } : {}),
+      ...(contextAgent ? { contextAgent } : {}),
     });
     dispatch({
       type: "request-sent",

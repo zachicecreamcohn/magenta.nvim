@@ -9,14 +9,16 @@ import type {
   ProviderToolSpec,
   ProviderToolUseRequest,
   ProviderStreamEvent,
-  ProviderThread,
-  ProviderThreadOptions,
-  ProviderThreadInput,
+  Agent,
+  AgentOptions,
+  AgentInput,
+  AgentMsg,
 } from "./provider-types.ts";
+import type { Dispatch } from "../tea/tea.ts";
 import { setMockProvider } from "./provider.ts";
 import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
 import type { ToolRequest } from "../tools/types.ts";
-import { AnthropicProviderThread } from "./anthropic-thread.ts";
+import { AnthropicAgent } from "./anthropic-agent.ts";
 import { MockAnthropicClient, MockStream } from "./mock-anthropic-client.ts";
 import type Anthropic from "@anthropic-ai/sdk";
 
@@ -48,10 +50,10 @@ function anthropicBlockIncludesText(
 
 type MockForceToolUseRequest = {
   model: string;
-  input: ProviderThreadInput[];
+  input: AgentInput[];
   spec: ProviderToolSpec;
   systemPrompt?: string | undefined;
-  contextThread?: ProviderThread | undefined;
+  contextAgent?: Agent | undefined;
   defer: Defer<{
     toolRequest: Result<ToolRequest, { rawRequest: unknown }>;
     stopReason: StopReason;
@@ -96,19 +98,19 @@ export class MockProvider implements Provider {
 
   forceToolUse(options: {
     model: string;
-    input: ProviderThreadInput[];
+    input: AgentInput[];
     spec: ProviderToolSpec;
     systemPrompt?: string;
     disableCaching?: boolean;
-    contextThread?: ProviderThread;
+    contextAgent?: Agent;
   }): ProviderToolUseRequest {
-    const { model, input, spec, systemPrompt, contextThread } = options;
+    const { model, input, spec, systemPrompt, contextAgent } = options;
     const request: MockForceToolUseRequest = {
       model,
       input,
       spec,
       systemPrompt,
-      contextThread,
+      contextAgent,
       defer: new Defer(),
       aborted: false,
     };
@@ -138,7 +140,7 @@ export class MockProvider implements Provider {
     };
   }): ProviderStreamRequest {
     throw new Error(
-      "sendMessage is deprecated - use createThread instead. Tests should use mockAnthropic.awaitPendingStream()",
+      "sendMessage is deprecated - use createAgent instead. Tests should use mockAnthropic.awaitPendingStream()",
     );
   }
 
@@ -348,10 +350,11 @@ Streams: ${this.mockClient.streams.length}`);
     });
   }
 
-  createThread(options: ProviderThreadOptions): ProviderThread {
-    return new AnthropicProviderThread(
+  createAgent(options: AgentOptions, dispatch: Dispatch<AgentMsg>): Agent {
+    return new AnthropicAgent(
       options,
       this.mockClient as unknown as Anthropic,
+      dispatch,
       {
         authType: "max",
         includeWebSearch: true,

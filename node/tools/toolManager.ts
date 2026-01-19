@@ -15,6 +15,7 @@ import * as SpawnForeach from "./spawn-foreach.ts";
 import * as WaitForSubagents from "./wait-for-subagents.ts";
 import * as YieldToParent from "./yield-to-parent.ts";
 import * as PredictEdit from "./predict-edit.ts";
+import * as Compact from "./compact.ts";
 
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
@@ -144,6 +145,12 @@ export type StaticToolMap = {
     msg: PredictEdit.Msg;
     spec: typeof PredictEdit.spec;
   };
+  compact: {
+    controller: Compact.CompactTool;
+    input: Compact.Input;
+    msg: Compact.Msg;
+    spec: typeof Compact.spec;
+  };
 };
 
 export type StaticToolRequest = {
@@ -194,6 +201,7 @@ const TOOL_SPEC_MAP: {
   yield_to_parent: YieldToParent.spec,
   wait_for_subagents: WaitForSubagents.spec,
   predict_edit: PredictEdit.spec,
+  compact: Compact.spec,
 };
 
 export function getToolSpecs(
@@ -282,6 +290,8 @@ export function renderCompletedToolSummary(
       return ReplaceSelection.renderCompletedSummary(info);
     case "predict_edit":
       return PredictEdit.renderCompletedSummary(info);
+    case "compact":
+      return Compact.renderCompletedSummary(info);
     default:
       assertUnreachable(toolName);
   }

@@ -9,22 +9,25 @@ import type {
   ProviderToolSpec,
   ProviderToolUseRequest,
   ProviderTextContent,
-  ProviderThread,
-  ProviderThreadOptions,
-  ProviderThreadInput,
+  Agent,
+  AgentOptions,
+  AgentInput,
+  AgentMsg,
 } from "./provider-types.ts";
+import type { Dispatch } from "../tea/tea.ts";
 import {
-  AnthropicProviderThread,
+  AnthropicAgent,
   CLAUDE_CODE_SPOOF_PROMPT,
   getMaxTokensForModel,
   withCacheControl,
-} from "./anthropic-thread.ts";
+} from "./anthropic-agent.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
 import { validateInput } from "../tools/helpers.ts";
 import type { ToolRequest } from "../tools/types.ts";
 import * as AnthropicAuth from "../auth/anthropic.ts";
 import open from "open";
+import { checkpointToText } from "../chat/checkpoint.ts";
 
 function mapProviderTextToAnthropicText(
   providerText: ProviderTextContent,
@@ -361,6 +364,13 @@ export class AnthropicProvider implements Provider {
               });
               break;
 
+            case "checkpoint":
+              content.push({
+                type: "text",
+                text: checkpointToText(c.id),
+              });
+              break;
+
             default:
               assertUnreachable(c);
           }
@@ -443,13 +453,13 @@ export class AnthropicProvider implements Provider {
 
   forceToolUse(options: {
     model: string;
-    input: ProviderThreadInput[];
+    input: AgentInput[];
     spec: ProviderToolSpec;
     systemPrompt?: string;
     disableCaching?: boolean;
-    contextThread?: ProviderThread;
+    contextAgent?: Agent;
   }): ProviderToolUseRequest {
-    const { model, input, spec, systemPrompt, disableCaching, contextThread } =
+    const { model, input, spec, systemPrompt, disableCaching, contextAgent } =
       options;
     let aborted = false;
 
@@ -473,10 +483,10 @@ export class AnthropicProvider implements Provider {
       },
     );
 
-    // Extract native messages from context thread if provided
+    // Extract native messages from context agent if provided
     let contextMessages: Anthropic.MessageParam[] = [];
-    if (contextThread && contextThread instanceof AnthropicProviderThread) {
-      contextMessages = contextThread.getNativeMessages();
+    if (contextAgent && contextAgent instanceof AnthropicAgent) {
+      contextMessages = contextAgent.getNativeMessages();
     }
 
     // Build messages: optional context + new user message
@@ -631,8 +641,8 @@ export class AnthropicProvider implements Provider {
     };
   }
 
-  createThread(options: ProviderThreadOptions): ProviderThread {
-    return new AnthropicProviderThread(options, this.client, {
+  createAgent(options: AgentOptions, dispatch: Dispatch<AgentMsg>): Agent {
+    return new AnthropicAgent(options, this.client, dispatch, {
       authType: this.authType,
       includeWebSearch: this.includeWebSearch,
       disableParallelToolUseFlag: this.disableParallelToolUseFlag,

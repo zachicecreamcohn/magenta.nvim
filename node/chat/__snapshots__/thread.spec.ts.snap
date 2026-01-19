@@ -21,6 +21,10 @@ RIGHT: \`command\`
 </system-reminder>",
         "type": "system_reminder",
       },
+      {
+        "id": "000000",
+        "type": "checkpoint",
+      },
     ],
     "role": "user",
   },
@@ -42,6 +46,10 @@ WRONG: \`command | head -100\`
 RIGHT: \`command\`
 </system-reminder>",
         "type": "system_reminder",
+      },
+      {
+        "id": "000001",
+        "type": "checkpoint",
       },
     ],
     "role": "user",
@@ -79,6 +87,10 @@ WRONG: \`command | head -100\`
 RIGHT: \`command\`
 </system-reminder>",
         "type": "system_reminder",
+      },
+      {
+        "id": "000000",
+        "type": "checkpoint",
       },
     ],
     "role": "user",
@@ -145,6 +157,10 @@ RIGHT: \`command\`
 </system-reminder>",
         "type": "system_reminder",
       },
+      {
+        "id": "000001",
+        "type": "checkpoint",
+      },
     ],
     "role": "user",
   },
@@ -169,6 +185,10 @@ WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
 </system-reminder>",
+        "type": "text",
+      },
+      {
+        "text": "<checkpoint:000000>",
         "type": "text",
       },
     ],
@@ -200,6 +220,10 @@ WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
 </system-reminder>",
+        "type": "text",
+      },
+      {
+        "text": "<checkpoint:000001>",
         "type": "text",
       },
     ],
@@ -257,6 +281,10 @@ RIGHT: \`command\`
 </system-reminder>",
         "type": "text",
       },
+      {
+        "text": "<checkpoint:000002>",
+        "type": "text",
+      },
     ],
     "role": "user",
   },
@@ -310,6 +338,10 @@ WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
 </system-reminder>",
+        "type": "text",
+      },
+      {
+        "text": "<checkpoint:000003>",
         "type": "text",
       },
     ],
@@ -367,6 +399,10 @@ RIGHT: \`command\`
 </system-reminder>",
         "type": "text",
       },
+      {
+        "text": "<checkpoint:000004>",
+        "type": "text",
+      },
     ],
     "role": "user",
   },
@@ -399,9 +435,6 @@ You must use the fork_thread tool immediately, with only the information you alr
         "type": "text",
       },
       {
-        "cache_control": {
-          "type": "ephemeral",
-        },
         "text": "<system-reminder>
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
@@ -411,6 +444,13 @@ WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
 </system-reminder>",
+        "type": "text",
+      },
+      {
+        "cache_control": {
+          "type": "ephemeral",
+        },
+        "text": "<checkpoint:000005>",
         "type": "text",
       },
     ],
@@ -467,6 +507,10 @@ RIGHT: \`command\`
 </system-reminder>",
         "type": "system_reminder",
       },
+      {
+        "id": "000006",
+        "type": "checkpoint",
+      },
     ],
     "role": "user",
   },
@@ -503,6 +547,10 @@ RIGHT: \`command\`
 </system-reminder>",
         "type": "text",
       },
+      {
+        "text": "<checkpoint:000000>",
+        "type": "text",
+      },
     ],
     "role": "user",
   },
@@ -523,9 +571,6 @@ RIGHT: \`command\`
         "type": "text",
       },
       {
-        "cache_control": {
-          "type": "ephemeral",
-        },
         "text": "<system-reminder>
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
@@ -535,6 +580,13 @@ WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
 </system-reminder>",
+        "type": "text",
+      },
+      {
+        "cache_control": {
+          "type": "ephemeral",
+        },
+        "text": "<checkpoint:000001>",
         "type": "text",
       },
     ],
@@ -561,6 +613,10 @@ WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
 </system-reminder>",
+        "type": "text",
+      },
+      {
+        "text": "<checkpoint:000000>",
         "type": "text",
       },
     ],
@@ -608,9 +664,6 @@ RIGHT: \`command\`
         "type": "text",
       },
       {
-        "cache_control": {
-          "type": "ephemeral",
-        },
         "text": "<system-reminder>
 Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
@@ -620,6 +673,13 @@ WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
 </system-reminder>",
+        "type": "text",
+      },
+      {
+        "cache_control": {
+          "type": "ephemeral",
+        },
+        "text": "<checkpoint:000001>",
         "type": "text",
       },
     ],

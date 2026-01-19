@@ -16,10 +16,11 @@ import * as SpawnForeach from "./spawn-foreach";
 import * as WaitForSubagents from "./wait-for-subagents";
 import * as YieldToParent from "./yield-to-parent";
 import * as PredictEdit from "./predict-edit";
+import * as Compact from "./compact";
 import { d, type VDOMNode } from "../tea/view";
 import type { StaticToolName } from "./tool-registry";
 import { assertUnreachable } from "../utils/assertUnreachable";
-import type { ProviderStreamingBlock } from "../providers/provider-types";
+import type { AgentStreamingBlock } from "../providers/provider-types";
 
 export function validateInput(
   toolName: unknown,
@@ -70,13 +71,15 @@ export function validateInput(
       return YieldToParent.validateInput(input);
     case "predict_edit":
       return PredictEdit.validateInput(input);
+    case "compact":
+      return Compact.validateInput(input);
     default:
       throw new Error(`Unexpected toolName: ${toolName as string}`);
   }
 }
 
 export function renderStreamdedTool(
-  streamingBlock: Extract<ProviderStreamingBlock, { type: "tool_use" }>,
+  streamingBlock: Extract<AgentStreamingBlock, { type: "tool_use" }>,
 ): string | VDOMNode {
   if (streamingBlock.name.startsWith("mcp_")) {
     return d`Invoking mcp tool ${streamingBlock.name}`;
@@ -104,6 +107,7 @@ export function renderStreamdedTool(
     case "yield_to_parent":
     case "spawn_foreach":
     case "predict_edit":
+    case "compact":
       break;
     default:
       assertUnreachable(name);

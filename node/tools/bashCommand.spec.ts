@@ -1728,13 +1728,11 @@ describe("bash command output logging", () => {
 
         // Get the tool instance and trigger termination
         const thread = driver.magenta.chat.getActiveThread();
-        const { conversationState } = thread.state;
-        if (conversationState.type !== "tool_use") {
-          throw new Error(
-            `Expected tool_use state, got ${conversationState.type}`,
-          );
+        const { mode } = thread.state;
+        if (mode.type !== "tool_use") {
+          throw new Error(`Expected tool_use mode, got ${mode.type}`);
         }
-        const tool = conversationState.activeTools.get(
+        const tool = mode.activeTools.get(
           "test-bash-sigterm" as ToolRequestId,
         ) as BashCommandTool;
         expect(tool).toBeDefined();
@@ -1821,13 +1819,11 @@ describe("bash command output logging", () => {
 
         // Get the tool instance and trigger termination
         const thread = driver.magenta.chat.getActiveThread();
-        const { conversationState } = thread.state;
-        if (conversationState.type !== "tool_use") {
-          throw new Error(
-            `Expected tool_use state, got ${conversationState.type}`,
-          );
+        const { mode } = thread.state;
+        if (mode.type !== "tool_use") {
+          throw new Error(`Expected tool_use mode, got ${mode.type}`);
         }
-        const tool = conversationState.activeTools.get(
+        const tool = mode.activeTools.get(
           "test-bash-sigkill" as ToolRequestId,
         ) as BashCommandTool;
         expect(tool).toBeDefined();
@@ -1938,13 +1934,11 @@ wait
 
         // Get the tool instance and trigger termination
         const thread = driver.magenta.chat.getActiveThread();
-        const { conversationState } = thread.state;
-        if (conversationState.type !== "tool_use") {
-          throw new Error(
-            `Expected tool_use state, got ${conversationState.type}`,
-          );
+        const { mode } = thread.state;
+        if (mode.type !== "tool_use") {
+          throw new Error(`Expected tool_use mode, got ${mode.type}`);
         }
-        const tool = conversationState.activeTools.get(
+        const tool = mode.activeTools.get(
           "test-bash-tree" as ToolRequestId,
         ) as BashCommandTool;
         expect(tool).toBeDefined();

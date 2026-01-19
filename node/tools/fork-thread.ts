@@ -75,12 +75,14 @@ export class ForkThreadTool implements StaticTool {
     }
 
     const thread = threadWrapper.thread;
-    const pendingPrompt = thread.forkNextPrompt;
-    if (!pendingPrompt) {
+    const mode = thread.state.mode;
+    if (mode.type !== "control_flow" || mode.operation.type !== "fork") {
       throw new Error(
-        `No pending prompt found for thread ${this.context.threadId}`,
+        `Cannot fork thread ${this.context.threadId}. Thread not in fork control flow mode.`,
       );
     }
+
+    const pendingPrompt = mode.operation.nextPrompt;
 
     this.context.dispatch({
       type: "chat-msg",

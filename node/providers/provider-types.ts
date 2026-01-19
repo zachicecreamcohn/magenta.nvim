@@ -3,6 +3,7 @@ import * as ToolManager from "../tools/toolManager.ts";
 import type { Result } from "../utils/result";
 import Anthropic from "@anthropic-ai/sdk";
 import type { ToolName, ToolRequest } from "../tools/types.ts";
+import type { Dispatch } from "../tea/tea.ts";
 
 export const PROVIDER_NAMES = [
   "anthropic",
@@ -82,6 +83,11 @@ export type ProviderContextUpdateContent = {
   text: string;
 };
 
+export type ProviderCheckpointContent = {
+  type: "checkpoint";
+  id: string;
+};
+
 export type ProviderImageContent = {
   type: "image";
   source: {
@@ -151,19 +157,20 @@ export type ProviderMessageContent =
   | ProviderThinkingContent
   | ProviderRedactedThinkingContent
   | ProviderSystemReminderContent
-  | ProviderContextUpdateContent;
+  | ProviderContextUpdateContent
+  | ProviderCheckpointContent;
 
 export interface Provider {
   forceToolUse(options: {
     model: string;
-    input: ProviderThreadInput[];
+    input: AgentInput[];
     spec: ProviderToolSpec;
     systemPrompt?: string;
     disableCaching?: boolean;
-    contextThread?: ProviderThread;
+    contextAgent?: Agent;
   }): ProviderToolUseRequest;
 
-  createThread(options: ProviderThreadOptions): ProviderThread;
+  createAgent(options: AgentOptions, dispatch: Dispatch<AgentMsg>): Agent;
 }
 
 export type ProviderMetadata = {
@@ -207,21 +214,20 @@ export interface ProviderToolUseRequest {
 }
 
 // ============================================================================
-// ProviderThread - Stateful conversation thread interface
+// Agent - Stateful conversation agent interface
 // ============================================================================
 
-export type ProviderThreadStatus =
-  | { type: "idle" }
+export type AgentStatus =
   | { type: "streaming"; startTime: Date }
   | { type: "stopped"; stopReason: StopReason }
   | { type: "error"; error: Error };
 
-/** Branded type for native message index within a ProviderThread.
- * This is opaque to external code - only the ProviderThread knows how to use it.
+/** Branded type for native message index within an Agent.
+ * This is opaque to external code - only the Agent knows how to use it.
  */
 export type NativeMessageIdx = number & { __nativeMessageIdx: true };
 
-export type ProviderStreamingBlock =
+export type AgentStreamingBlock =
   | { type: "text"; text: string }
   | { type: "thinking"; thinking: string; signature: string }
   | {
@@ -231,42 +237,47 @@ export type ProviderStreamingBlock =
       inputJson: string;
     };
 
-export interface ProviderThreadState {
-  status: ProviderThreadStatus;
+export interface AgentState {
+  status: AgentStatus;
   messages: ReadonlyArray<ProviderMessage>;
-  streamingBlock?: ProviderStreamingBlock | undefined;
+  streamingBlock?: AgentStreamingBlock | undefined;
   latestUsage?: Usage | undefined;
 }
 
-export type ProviderThreadInput =
+export type AgentInput =
   | ProviderTextContent
   | ProviderImageContent
   | ProviderDocumentContent;
 
-export type ProviderThreadEvents = {
-  "messages-updated": [];
-  "streaming-block-updated": [];
-  "status-changed": [];
+/** Messages dispatched from Agent to Thread */
+export type AgentMsg =
+  | { type: "agent-content-updated" }
+  | { type: "agent-stopped"; stopReason: StopReason; usage?: Usage }
+  | { type: "agent-error"; error: Error };
+
+export type CompactReplacement = {
+  from?: string; // checkpoint id, undefined = start of thread
+  to?: string; // checkpoint id, undefined = end of thread
+  summary: string; // replacement content (empty = delete)
 };
 
-export interface ProviderThread {
-  getState(): ProviderThreadState;
+export interface Agent {
+  getState(): AgentState;
 
-  getProviderStreamingBlock(): ProviderStreamingBlock | undefined;
+  getStreamingBlock(): AgentStreamingBlock | undefined;
 
   /** Get the current native message index. Use this to capture a position
    * that can later be passed to truncateMessages.
    */
   getNativeMessageIdx(): NativeMessageIdx;
 
-  appendUserMessage(content: ProviderThreadInput[]): void;
+  appendUserMessage(content: AgentInput[]): void;
 
   toolResult(
     toolUseId: ToolManager.ToolRequestId,
     result: ProviderToolResult,
   ): void;
 
-  /** Start streaming a response. Throws if the last message is from the assistant. */
   continueConversation(): void;
 
   abort(): void;
@@ -276,18 +287,20 @@ export interface ProviderThread {
    */
   truncateMessages(messageIdx: NativeMessageIdx): void;
 
-  on<E extends keyof ProviderThreadEvents>(
-    event: E,
-    listener: (...args: ProviderThreadEvents[E]) => void,
-  ): void;
-
-  off<E extends keyof ProviderThreadEvents>(
-    event: E,
-    listener: (...args: ProviderThreadEvents[E]) => void,
+  /** Compact the thread by replacing message ranges with summaries.
+   * - Strips system_reminder blocks from user messages in replaced ranges
+   * - Strips thinking blocks from assistant messages in replaced ranges
+   * - Keeps checkpoint markers
+   * @param truncateIdx - If provided, truncate messages to this index before applying compaction
+   *                      (used for user-initiated @compact to remove the compact request itself)
+   */
+  compact(
+    replacements: CompactReplacement[],
+    truncateIdx?: NativeMessageIdx,
   ): void;
 }
 
-export interface ProviderThreadOptions {
+export interface AgentOptions {
   model: string;
   systemPrompt: string;
   tools: ProviderToolSpec[];

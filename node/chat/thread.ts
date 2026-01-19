@@ -34,9 +34,10 @@ import {
   type NativeMessageIdx,
   type ProviderMessage,
   type ProviderMessageContent,
-  type ProviderThread,
-  type ProviderThreadInput,
-  type ProviderThreadStatus,
+  type Agent,
+  type AgentInput,
+  type AgentStatus,
+  type AgentMsg,
   type ProviderToolResult,
   type StopReason,
   type Usage,
@@ -58,6 +59,7 @@ import {
 import type { Chat } from "./chat.ts";
 import type { ThreadId, ThreadType } from "./types.ts";
 import type { SystemPrompt } from "../providers/system-prompt.ts";
+import { generateCheckpointId, checkpointToText } from "./checkpoint.ts";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -128,7 +130,8 @@ export type Msg =
       filePath: string;
     }
   | {
-      type: "provider-thread-updated";
+      type: "agent-msg";
+      msg: AgentMsg;
     };
 
 export type ThreadMsg = {
@@ -174,17 +177,23 @@ export type ToolCache = {
   results: Map<ToolRequestId, ProviderToolResult>;
 };
 
-/** Conversation state derived from provider status plus magenta-specific states */
-export type ConversationState =
-  | { type: "idle" }
-  | { type: "streaming"; startTime: Date }
-  | { type: "stopped"; stopReason: StopReason }
+/** Control flow operations that intercept normal tool processing */
+export type ControlFlowOp =
+  | { type: "compact"; nextPrompt?: string; truncateIdx?: NativeMessageIdx }
+  | { type: "fork"; nextPrompt: string; truncateIdx: NativeMessageIdx }
+  | { type: "yield"; response: string };
+
+/** Thread-specific conversation mode (agent status is read directly from agent) */
+export type ConversationMode =
+  | { type: "normal" }
+  | { type: "tool_use"; activeTools: Map<ToolRequestId, Tool | StaticTool> }
+  | { type: "control_flow"; operation: ControlFlowOp }
   | {
-      type: "tool_use";
-      activeTools: Map<ToolRequestId, Tool | StaticTool>;
-    }
-  | { type: "yielded"; response: string }
-  | { type: "error"; error: Error };
+      type: "awaiting_control_flow";
+      pendingOp: "fork" | "compact";
+      nextPrompt: string;
+      truncateIdx: NativeMessageIdx;
+    };
 
 export class Thread {
   public state: {
@@ -194,7 +203,7 @@ export class Thread {
     systemPrompt: SystemPrompt;
     pendingMessages: InputMessage[];
     showSystemPrompt: boolean;
-    /** View state per message, keyed by message index in providerThread */
+    /** View state per message, keyed by message index in agent */
     messageViewState: { [messageIdx: number]: MessageViewState };
     /** View state per tool, keyed by tool request ID */
     toolViewState: { [toolRequestId: ToolRequestId]: ToolViewState };
@@ -202,8 +211,8 @@ export class Thread {
     currentEdits: TurnEdits;
     /** Edit turns keyed by the assistant message index when the agent yielded */
     editsByYield: EditsByYield;
-    /** Conversation state derived from provider status plus magenta-specific states */
-    conversationState: ConversationState;
+    /** Thread-specific mode (agent status is read directly from agent.getState().status) */
+    mode: ConversationMode;
     /** Cached lookup maps for tool requests and results */
     toolCache: ToolCache;
   };
@@ -211,11 +220,9 @@ export class Thread {
   private myDispatch: Dispatch<Msg>;
   public fileSnapshots: FileSnapshots;
   public contextManager: ContextManager;
-  public forkNextPrompt: string | undefined;
-  public forkMessageIdx: NativeMessageIdx | undefined;
   private commandRegistry: CommandRegistry;
   public gitignore: Gitignore;
-  public providerThread: ProviderThread;
+  public agent: Agent;
 
   constructor(
     public id: ThreadId,
@@ -264,99 +271,66 @@ export class Thread {
       toolViewState: {},
       currentEdits: {},
       editsByYield: {},
-      conversationState: { type: "idle" },
+      mode: { type: "normal" },
       toolCache: { results: new Map() },
     };
 
     const provider = getProvider(this.context.nvim, this.state.profile);
-    this.providerThread = provider.createThread({
-      model: this.state.profile.model,
-      systemPrompt: this.state.systemPrompt,
-      tools: getToolSpecs(this.state.threadType, this.context.mcpToolManager),
-      ...(this.state.profile.thinking &&
-        (this.state.profile.provider === "anthropic" ||
-          this.state.profile.provider === "mock") && {
-          thinking: this.state.profile.thinking,
-        }),
-      ...(this.state.profile.reasoning &&
-        (this.state.profile.provider === "openai" ||
-          this.state.profile.provider === "mock") && {
-          reasoning: this.state.profile.reasoning,
-        }),
-    });
 
-    this.providerThread.on("status-changed", () => {
-      const status = this.providerThread.getState().status;
-      switch (status.type) {
-        case "idle":
-          this.state.conversationState = { type: "idle" };
-          break;
-        case "streaming":
-          this.state.conversationState = {
-            type: "streaming",
-            startTime: status.startTime,
-          };
-          break;
-        case "stopped":
-          this.handleProviderStopped(status.stopReason);
-          break;
-        case "error":
-          this.state.conversationState = {
-            type: "error",
-            error: status.error,
-          };
-          this.handleErrorState(status.error);
-          break;
-      }
-
-      this.myDispatch({ type: "provider-thread-updated" });
-    });
-    this.providerThread.on("messages-updated", () => {
-      this.rebuildToolCache();
-      this.myDispatch({ type: "provider-thread-updated" });
-    });
-    this.providerThread.on("streaming-block-updated", () => {
-      this.myDispatch({ type: "provider-thread-updated" });
-    });
+    this.agent = provider.createAgent(
+      {
+        model: this.state.profile.model,
+        systemPrompt: this.state.systemPrompt,
+        tools: getToolSpecs(this.state.threadType, this.context.mcpToolManager),
+        ...(this.state.profile.thinking &&
+          (this.state.profile.provider === "anthropic" ||
+            this.state.profile.provider === "mock") && {
+            thinking: this.state.profile.thinking,
+          }),
+        ...(this.state.profile.reasoning &&
+          (this.state.profile.provider === "openai" ||
+            this.state.profile.provider === "mock") && {
+            reasoning: this.state.profile.reasoning,
+          }),
+      },
+      (msg) => this.myDispatch({ type: "agent-msg", msg }),
+    );
   }
 
-  getProviderStatus(): ProviderThreadStatus {
-    return this.providerThread.getState().status;
+  getProviderStatus(): AgentStatus {
+    return this.agent.getState().status;
   }
 
   getProviderMessages(): ReadonlyArray<ProviderMessage> {
-    return this.providerThread?.getState().messages ?? [];
+    return this.agent.getState().messages ?? [];
   }
 
   truncateAndReset(): void {
-    if (this.forkMessageIdx === undefined) {
+    // Only valid when we're in control_flow with fork operation
+    if (
+      this.state.mode.type !== "control_flow" ||
+      this.state.mode.operation.type !== "fork"
+    ) {
       return;
     }
 
-    // Reset conversation state BEFORE truncating since truncateMessages dispatches
+    const truncateIdx = this.state.mode.operation.truncateIdx;
+
+    // Reset mode BEFORE truncating since truncateMessages dispatches
     // events that are processed synchronously
-    this.state.conversationState = { type: "idle" };
+    this.state.mode = { type: "normal" };
 
     // Clear view state for removed messages
-    // Note: messageViewState is keyed by provider message indices which happen to
-    // match native indices for Anthropic (1:1 mapping)
-    const forkIdx = this.forkMessageIdx as number;
     for (const idx of Object.keys(this.state.messageViewState)) {
       const messageIdx = parseInt(idx, 10);
-      if (messageIdx > forkIdx) {
+      if (messageIdx > truncateIdx) {
         delete this.state.messageViewState[messageIdx];
       }
     }
 
-    const nativeIdxToTruncateTo = this.forkMessageIdx;
-
-    // Clear fork state
-    this.forkNextPrompt = undefined;
-    this.forkMessageIdx = undefined;
-
     // Truncate messages back to pre-fork state
     // This dispatches status-changed which triggers maybeAutoRespond
-    this.providerThread.truncateMessages(nativeIdxToTruncateTo);
+    this.agent.truncateMessages(truncateIdx);
   }
 
   update(msg: RootMsg): void {
@@ -377,10 +351,12 @@ export class Thread {
           (m) => m.type === "user" && m.text.trim().startsWith("@async"),
         );
 
-        if (
-          this.state.conversationState.type === "streaming" ||
-          this.state.conversationState.type === "tool_use"
-        ) {
+        const agentStatus = this.agent.getState().status;
+        const isBusy =
+          agentStatus.type === "streaming" ||
+          this.state.mode.type === "tool_use";
+
+        if (isBusy) {
           if (isAsync) {
             const processedMessages = msg.messages.map((m) => ({
               ...m,
@@ -434,9 +410,10 @@ export class Thread {
       }
 
       case "tool-msg": {
+        const agentStatus = this.agent.getState().status;
         if (
-          this.state.conversationState.type == "stopped" &&
-          this.state.conversationState.stopReason == "aborted"
+          agentStatus.type === "stopped" &&
+          agentStatus.stopReason === "aborted"
         ) {
           // we aborted. Any further tool-msg stuff can be ignored
           return;
@@ -516,9 +493,21 @@ export class Thread {
         return;
       }
 
-      case "provider-thread-updated":
-        // No-op: this message just triggers a re-render
-        return;
+      case "agent-msg": {
+        switch (msg.msg.type) {
+          case "agent-content-updated":
+            this.rebuildToolCache();
+            return;
+          case "agent-stopped":
+            this.handleProviderStopped(msg.msg.stopReason);
+            return;
+          case "agent-error":
+            this.handleErrorState(msg.msg.error);
+            return;
+          default:
+            return assertUnreachable(msg.msg);
+        }
+      }
 
       default:
         assertUnreachable(msg);
@@ -548,11 +537,33 @@ export class Thread {
 
     if (!lastMessage || lastMessage.role !== "assistant") {
       // Shouldn't happen, but fall back to stopped state
-      this.state.conversationState = {
-        type: "stopped",
-        stopReason: "tool_use",
-      };
-      return;
+      throw new Error(
+        `Cannot handleProviderStoppedWithToolUse when the last message is not of type assistant`,
+      );
+    }
+
+    // Transition from awaiting_control_flow to control_flow for fork
+    if (
+      this.state.mode.type === "awaiting_control_flow" &&
+      this.state.mode.pendingOp === "fork"
+    ) {
+      // Check if the agent responded with fork_thread
+      const hasForkTool = lastMessage.content.some(
+        (block) =>
+          block.type === "tool_use" &&
+          block.request.status === "ok" &&
+          block.request.value.toolName === "fork_thread",
+      );
+      if (hasForkTool) {
+        this.state.mode = {
+          type: "control_flow",
+          operation: {
+            type: "fork",
+            nextPrompt: this.state.mode.nextPrompt,
+            truncateIdx: this.state.mode.truncateIdx,
+          },
+        };
+      }
     }
 
     const activeTools = new Map<ToolRequestId, Tool | StaticTool>();
@@ -631,14 +642,14 @@ export class Thread {
       }
     }
 
-    // Set conversation state based on whether we found yield_to_parent
+    // Set mode based on whether we found yield_to_parent
     if (yieldResponse !== undefined) {
-      this.state.conversationState = {
-        type: "yielded",
-        response: yieldResponse,
+      this.state.mode = {
+        type: "control_flow",
+        operation: { type: "yield", response: yieldResponse },
       };
     } else {
-      this.state.conversationState = {
+      this.state.mode = {
         type: "tool_use",
         activeTools,
       };
@@ -651,15 +662,120 @@ export class Thread {
     }
   }
 
+  /** Check if the last assistant message contains only a compact tool_use request */
+  private isCompactToolUseRequest(): boolean {
+    const messages = this.getProviderMessages();
+    const lastMessage = messages[messages.length - 1];
+
+    if (!lastMessage || lastMessage.role !== "assistant") {
+      return false;
+    }
+
+    // Check if the last content block is a tool_use for compact
+    const toolUseBlocks = lastMessage.content.filter(
+      (block) => block.type === "tool_use",
+    );
+
+    // Only intercept if there's exactly one tool_use and it's compact
+    if (toolUseBlocks.length !== 1) {
+      return false;
+    }
+
+    const toolUse = toolUseBlocks[0];
+    if (toolUse.type !== "tool_use") {
+      return false;
+    }
+
+    if (toolUse.request.status !== "ok") {
+      return false;
+    }
+
+    return toolUse.request.value.toolName === "compact";
+  }
+
+  /** Handle compact tool request by calling agent.compact() directly */
+  private handleCompactRequest(): void {
+    const messages = this.getProviderMessages();
+    const lastMessage = messages[messages.length - 1];
+
+    if (!lastMessage || lastMessage.role !== "assistant") {
+      return;
+    }
+
+    // Find the compact tool_use block
+    const toolUseBlock = lastMessage.content.find(
+      (block) =>
+        block.type === "tool_use" &&
+        block.request.status === "ok" &&
+        block.request.value.toolName === "compact",
+    );
+
+    if (
+      !toolUseBlock ||
+      toolUseBlock.type !== "tool_use" ||
+      toolUseBlock.request.status !== "ok"
+    ) {
+      return;
+    }
+
+    const input = toolUseBlock.request.value.input as {
+      replacements: Array<{ from?: string; to?: string; summary: string }>;
+      continuation?: string;
+    };
+
+    // Extract data from awaiting_control_flow mode if user-initiated
+    // Otherwise use agent's continuation hint for agent-initiated compaction
+    let truncateIdx: NativeMessageIdx | undefined;
+    let nextPrompt: string | undefined;
+
+    if (
+      this.state.mode.type === "awaiting_control_flow" &&
+      this.state.mode.pendingOp === "compact"
+    ) {
+      // User-initiated: use stored values
+      truncateIdx = this.state.mode.truncateIdx;
+      nextPrompt = this.state.mode.nextPrompt;
+    } else {
+      // Agent-initiated: use continuation hint
+      nextPrompt = input.continuation;
+    }
+
+    // Transition to control_flow mode with data stored for maybeAutoRespond
+    const operation: ControlFlowOp = { type: "compact" };
+    if (nextPrompt !== undefined) operation.nextPrompt = nextPrompt;
+    if (truncateIdx !== undefined) operation.truncateIdx = truncateIdx;
+    this.state.mode = {
+      type: "control_flow",
+      operation,
+    };
+
+    // Call compact on agent - it will handle the async execution
+    // and emit status-changed when done
+    this.agent.compact(input.replacements, truncateIdx);
+  }
+
   private handleProviderStopped(stopReason: StopReason): void {
     // Handle tool_use stop reason specially
     if (stopReason === "tool_use") {
+      // Check if the last tool_use is a compact request - intercept before normal tool handling
+      if (this.isCompactToolUseRequest()) {
+        this.handleCompactRequest();
+        return;
+      }
       this.handleProviderStoppedWithToolUse();
       return;
     }
 
-    // For all other stop reasons, set conversation state to stopped
-    this.state.conversationState = { type: "stopped", stopReason };
+    const wasCompacting =
+      this.state.mode.type === "control_flow" &&
+      this.state.mode.operation.type === "compact";
+
+    // For all other stop reasons, reset mode to normal
+    // EXCEPT when wasCompacting - let maybeAutoRespond handle the mode transition
+    // so it can read the operation data
+    if (!wasCompacting) {
+      this.state.mode = { type: "normal" };
+    }
 
     // Handle stopped state - check for pending messages
     const autoRespondResult = this.maybeAutoRespond();
@@ -715,12 +831,12 @@ export class Thread {
     toolName: ToolName,
     msg: ToolMsg,
   ): void {
-    const conversationState = this.state.conversationState;
+    const mode = this.state.mode;
 
-    if (conversationState.type != "tool_use") {
-      throw new Error(`to handleToolMsg we have to be in tool_use state`);
+    if (mode.type !== "tool_use") {
+      throw new Error(`to handleToolMsg we have to be in tool_use mode`);
     }
-    const tool = conversationState.activeTools.get(id);
+    const tool = mode.activeTools.get(id);
     if (!tool) {
       throw new Error(`Could not find tool with request id ${id}`);
     }
@@ -747,26 +863,23 @@ export class Thread {
 
   private abortInProgressOperations(): void {
     // Abort the provider thread if streaming
-    this.providerThread.abort();
+    this.agent.abort();
 
-    // If we're in tool_use state, abort all active tools and insert their results
-    if (this.state.conversationState.type == "tool_use") {
-      for (const [toolId, tool] of this.state.conversationState.activeTools) {
+    // If we're in tool_use mode, abort all active tools and insert their results
+    if (this.state.mode.type === "tool_use") {
+      for (const [toolId, tool] of this.state.mode.activeTools) {
         if (!tool.isDone()) {
           // abort() returns the tool result synchronously
           const result = tool.abort();
-          this.providerThread.toolResult(toolId, result);
+          this.agent.toolResult(toolId, result);
         }
       }
 
       this.rebuildToolCache();
     }
 
-    // Transition to aborted state
-    this.state.conversationState = {
-      type: "stopped",
-      stopReason: "aborted",
-    };
+    // Transition to normal mode (agent status already reflects aborted)
+    this.state.mode = { type: "normal" };
   }
 
   maybeAutoRespond():
@@ -774,20 +887,21 @@ export class Thread {
     | { type: "waiting-for-tool-input" }
     | { type: "yielded-to-parent" }
     | { type: "no-action-needed" } {
-    const conversationState = this.state.conversationState;
+    const mode = this.state.mode;
+    const agentStatus = this.agent.getState().status;
 
     // Don't auto-respond if yielded or aborted
-    if (conversationState.type === "yielded") {
+    if (mode.type === "control_flow" && mode.operation.type === "yield") {
       return { type: "yielded-to-parent" };
     }
     if (
-      conversationState.type === "stopped" &&
-      conversationState.stopReason === "aborted"
+      agentStatus.type === "stopped" &&
+      agentStatus.stopReason === "aborted"
     ) {
       return { type: "no-action-needed" };
     }
 
-    if (conversationState.type === "tool_use") {
+    if (mode.type === "tool_use") {
       // Collect completed tools and check for blocking ones
       const completedTools: Array<{
         id: ToolRequestId;
@@ -795,7 +909,7 @@ export class Thread {
       }> = [];
       let hasAbortedTool = false;
 
-      for (const [toolId, tool] of conversationState.activeTools) {
+      for (const [toolId, tool] of mode.activeTools) {
         if (tool.request.toolName === "yield_to_parent") {
           return { type: "yielded-to-parent" };
         }
@@ -824,12 +938,10 @@ export class Thread {
       // If any tool was aborted, send tool results but don't auto-respond
       if (hasAbortedTool) {
         for (const { id, result } of completedTools) {
-          this.providerThread.toolResult(id, result);
+          this.agent.toolResult(id, result);
         }
-        this.state.conversationState = {
-          type: "stopped",
-          stopReason: "aborted",
-        };
+        // Reset to normal mode (agent status already reflects aborted)
+        this.state.mode = { type: "normal" };
         this.rebuildToolCache();
         return { type: "no-action-needed" };
       }
@@ -844,8 +956,32 @@ export class Thread {
       this.rebuildToolCache();
       return { type: "did-autorespond" };
     } else if (
-      conversationState.type === "stopped" &&
-      conversationState.stopReason === "end_turn" &&
+      agentStatus.type === "stopped" &&
+      agentStatus.stopReason === "end_turn" &&
+      mode.type === "control_flow" &&
+      mode.operation.type === "compact"
+    ) {
+      // Handle continuation after compaction - read from operation
+      const operation = mode.operation;
+
+      // Reset mode to normal now that we've extracted the data
+      this.state.mode = { type: "normal" };
+
+      // User-initiated @compact: append next prompt as user message
+      if (operation.nextPrompt !== undefined) {
+        this.agent.appendUserMessage([
+          { type: "text", text: operation.nextPrompt },
+        ]);
+        // Agent-initiated continuation is just a hint, not text to append
+        // Continue the conversation
+        this.agent.continueConversation();
+        return { type: "did-autorespond" };
+      } else {
+        return { type: "no-action-needed" };
+      }
+    } else if (
+      agentStatus.type === "stopped" &&
+      agentStatus.stopReason === "end_turn" &&
       this.state.pendingMessages.length
     ) {
       const pendingMessages = this.state.pendingMessages;
@@ -860,7 +996,7 @@ export class Thread {
 
   /** Get context updates and convert to provider input format */
   private async getAndPrepareContextUpdates(): Promise<{
-    content: ProviderThreadInput[];
+    content: AgentInput[];
     updates: FileUpdates | undefined;
   }> {
     const contextUpdates = await this.contextManager.getContextUpdate();
@@ -870,7 +1006,7 @@ export class Thread {
 
     const contextContent =
       this.contextManager.contextUpdatesToContent(contextUpdates);
-    const content: ProviderThreadInput[] = [];
+    const content: AgentInput[] = [];
     for (const c of contextContent) {
       if (c.type === "text") {
         content.push({ type: "text", text: c.text });
@@ -886,11 +1022,11 @@ export class Thread {
   ): Promise<void> {
     // Send all tool results to the provider thread
     for (const { id, result } of toolResults) {
-      this.providerThread.toolResult(id, result);
+      this.agent.toolResult(id, result);
     }
 
-    // Reset conversation state as we transition away from tool-use state
-    this.state.conversationState = { type: "idle" };
+    // Reset mode as we transition away from tool_use
+    this.state.mode = { type: "normal" };
 
     // If we have pending messages, send them via sendMessage
     if (pendingMessages.length > 0) {
@@ -903,12 +1039,18 @@ export class Thread {
       await this.getAndPrepareContextUpdates();
 
     // Build content for the follow-up user message with system reminder
-    const contentToSend: ProviderThreadInput[] = [...contextContent];
+    const contentToSend: AgentInput[] = [...contextContent];
 
     // Always add system reminder when auto-responding
     contentToSend.push({
       type: "text",
       text: getSubsequentReminder(this.state.threadType),
+    });
+
+    // Add checkpoint after system reminder
+    contentToSend.push({
+      type: "text",
+      text: checkpointToText(generateCheckpointId()),
     });
 
     if (contextUpdates) {
@@ -918,8 +1060,8 @@ export class Thread {
       };
     }
 
-    this.providerThread.appendUserMessage(contentToSend);
-    this.providerThread.continueConversation();
+    this.agent.appendUserMessage(contentToSend);
+    this.agent.continueConversation();
   }
 
   private handleSendMessageError = (error: Error): void => {
@@ -931,18 +1073,19 @@ export class Thread {
     // Play chime when we need the user to do something:
     // 1. Agent stopped with end_turn (user needs to respond)
     // 2. We're blocked on a tool use that requires user action
-    const conversationState = this.state.conversationState;
+    const agentStatus = this.agent.getState().status;
+    const mode = this.state.mode;
 
     if (
-      conversationState.type === "stopped" &&
-      conversationState.stopReason === "end_turn"
+      agentStatus.type === "stopped" &&
+      agentStatus.stopReason === "end_turn"
     ) {
       this.playChimeSound();
       return;
     }
 
-    if (conversationState.type === "tool_use") {
-      for (const [, tool] of conversationState.activeTools) {
+    if (mode.type === "tool_use") {
+      for (const [, tool] of mode.activeTools) {
         if (tool.isPendingUserAction()) {
           this.playChimeSound();
           return;
@@ -1038,8 +1181,38 @@ Use the fork_thread tool to start a new thread for this prompt.
 
 You must use the fork_thread tool immediately, with only the information you already have. Do not use any other tools.`,
             };
-          this.forkNextPrompt = forkText;
-          this.forkMessageIdx = this.providerThread.getNativeMessageIdx();
+          this.state.mode = {
+            type: "awaiting_control_flow",
+            pendingOp: "fork",
+            nextPrompt: forkText,
+            truncateIdx: this.agent.getNativeMessageIdx(),
+          };
+        }
+
+        // Check for @compact command in user messages
+        if (m.text.includes("@compact")) {
+          const compactText = m.text.replace(/@compact\s*/g, "").trim();
+          messageContent[messageContent.length - 1 - additionalContent.length] =
+            {
+              type: "text",
+              text: `\
+The user's next prompt will be:
+${compactText}
+
+Use the compact tool to reduce the thread size. You should:
+- Identify which parts of the conversation can be summarized
+- Use checkpoint markers to specify ranges to compact
+- Preserve important context needed for the user's next prompt
+- Strip redundant details, verbose tool outputs, and resolved discussions
+
+You must use the compact tool immediately. Do not use any other tools.`,
+            };
+          this.state.mode = {
+            type: "awaiting_control_flow",
+            pendingOp: "compact",
+            nextPrompt: compactText,
+            truncateIdx: this.agent.getNativeMessageIdx(),
+          };
         }
       } else {
         messageContent.push({
@@ -1054,6 +1227,12 @@ You must use the fork_thread tool immediately, with only the information you alr
       messageContent.push({
         type: "system_reminder",
         text: getSubsequentReminder(this.state.threadType),
+      });
+
+      // Add checkpoint after system reminder
+      messageContent.push({
+        type: "checkpoint",
+        id: generateCheckpointId(),
       });
     }
 
@@ -1087,7 +1266,7 @@ You must use the fork_thread tool immediately, with only the information you alr
 
     // Build content to send to provider thread
     // Include context as text content, then user content
-    const contentToSend: ProviderThreadInput[] = [...contextContent];
+    const contentToSend: AgentInput[] = [...contextContent];
 
     // Add user content (filter to input types only)
     for (const c of content) {
@@ -1100,12 +1279,15 @@ You must use the fork_thread tool immediately, with only the information you alr
       } else if (c.type === "system_reminder") {
         // Convert system_reminder to text for the provider
         contentToSend.push({ type: "text", text: c.text });
+      } else if (c.type === "checkpoint") {
+        // Convert checkpoint to text for the provider
+        contentToSend.push({ type: "text", text: checkpointToText(c.id) });
       }
     }
 
     // Send to provider thread and start response
-    this.providerThread.appendUserMessage(contentToSend);
-    this.providerThread.continueConversation();
+    this.agent.appendUserMessage(contentToSend);
+    this.agent.continueConversation();
   }
 
   /** Get messages in provider format - delegates to provider thread */
@@ -1151,7 +1333,7 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
   }
 
   getLastStopTokenCount(): number {
-    const latestUsage = this.providerThread.getState().latestUsage;
+    const latestUsage = this.agent.getState().latestUsage;
     if (!latestUsage) {
       return 0;
     }
@@ -1177,30 +1359,40 @@ const getAnimationFrame = (sendDate: Date): string => {
 
 /**
  * Helper function to render the status message
+ * Composes agent status with thread mode for complete display
  */
 const renderStatus = (
-  conversationState: ConversationState,
+  agentStatus: AgentStatus,
+  mode: ConversationMode,
   latestUsage: Usage | undefined,
 ): VDOMNode => {
-  switch (conversationState.type) {
-    case "idle":
-      return renderStopReason("end_turn", latestUsage);
+  // First check mode for thread-specific states
+  if (mode.type === "tool_use") {
+    return d`Executing tools...`;
+  }
+  if (mode.type === "control_flow") {
+    switch (mode.operation.type) {
+      case "compact":
+        return d`📦 Compacting thread...`;
+      case "yield":
+        return d`↗️ yielded to parent: ${mode.operation.response}`;
+      case "fork":
+        return d`🔀 Forking thread...`;
+    }
+  }
+
+  // Then render based on agent status
+  switch (agentStatus.type) {
     case "streaming":
-      return d`Streaming response ${getAnimationFrame(conversationState.startTime)}`;
+      return d`Streaming response ${getAnimationFrame(agentStatus.startTime)}`;
     case "stopped":
-      return renderStopReason(conversationState.stopReason, latestUsage);
-    case "tool_use":
-      return d`Executing tools...`;
-    case "yielded":
-      return d`↗️ yielded to parent: ${conversationState.response}`;
+      return renderStopReason(agentStatus.stopReason, latestUsage);
     case "error":
-      return d`Error ${conversationState.error.message}${
-        conversationState.error.stack
-          ? "\n" + conversationState.error.stack
-          : ""
+      return d`Error ${agentStatus.error.message}${
+        agentStatus.error.stack ? "\n" + agentStatus.error.stack : ""
       }`;
     default:
-      assertUnreachable(conversationState);
+      assertUnreachable(agentStatus);
   }
 };
 
@@ -1231,12 +1423,10 @@ function renderUsage(usage: Usage): VDOMNode {
  * Helper function to determine if context manager view should be shown
  */
 const shouldShowContextManager = (
-  conversationState: ConversationState,
+  agentStatus: AgentStatus,
   contextManager: ContextManager,
 ): boolean => {
-  return (
-    conversationState.type !== "streaming" && !contextManager.isContextEmpty()
-  );
+  return agentStatus.type !== "streaming" && !contextManager.isContextEmpty();
 };
 
 /**
@@ -1293,14 +1483,13 @@ export const view: View<{
   );
 
   const messages = thread.getProviderMessages();
-  const conversationState = thread.state.conversationState;
+  const agentStatus = thread.agent.getState().status;
+  const mode = thread.state.mode;
 
-  if (
-    messages.length === 0 &&
-    (conversationState.type === "idle" ||
-      (conversationState.type === "stopped" &&
-        conversationState.stopReason === "end_turn"))
-  ) {
+  // Show logo when empty and not busy
+  const isIdle =
+    agentStatus.type === "stopped" && agentStatus.stopReason === "end_turn";
+  if (messages.length === 0 && isIdle && mode.type === "normal") {
     return d`\
 ${titleView}
 ${systemPromptView}
@@ -1312,11 +1501,11 @@ magenta is for agentic flow
 ${thread.context.contextManager.view()}`;
   }
 
-  const latestUsage = thread.providerThread.getState().latestUsage;
-  const statusView = renderStatus(conversationState, latestUsage);
+  const latestUsage = thread.agent.getState().latestUsage;
+  const statusView = renderStatus(agentStatus, mode, latestUsage);
 
   const contextManagerView = shouldShowContextManager(
-    conversationState,
+    agentStatus,
     thread.context.contextManager,
   )
     ? d`\n${thread.context.contextManager.view()}`
@@ -1340,18 +1529,23 @@ ${thread.context.contextManager.view()}`;
       return d``;
     }
 
-    // For user messages with only tool_result and system_reminder,
-    // skip the header and just show the system reminder
+    // For user messages with only tool_result, system_reminder, and checkpoint,
+    // skip the header but show the system reminder and checkpoint
     const isToolResultWithReminder =
       message.role === "user" &&
       message.content.every(
-        (c) => c.type === "tool_result" || c.type === "system_reminder",
+        (c) =>
+          c.type === "tool_result" ||
+          c.type === "system_reminder" ||
+          c.type === "checkpoint",
       ) &&
-      message.content.some((c) => c.type === "system_reminder");
+      message.content.some(
+        (c) => c.type === "system_reminder" || c.type === "checkpoint",
+      );
 
     const roleHeader = isToolResultWithReminder
       ? d``
-      : withExtmark(d`# ${message.role}:`, {
+      : withExtmark(d`# ${message.role}:\n`, {
           hl_group: "@markup.heading.1.markdown",
         });
 
@@ -1378,13 +1572,14 @@ ${thread.context.contextManager.view()}`;
     });
 
     return d`\
-${roleHeader}
-${contextUpdateView}${contentView}
+${roleHeader}\
+${contextUpdateView}\
+${contentView}
 `;
   });
 
   const streamingBlockView =
-    conversationState.type === "streaming"
+    agentStatus.type === "streaming"
       ? d`\n${renderStreamingBlock(thread)}\n`
       : d``;
 
@@ -1546,8 +1741,8 @@ function renderMessageContent(
 
       // Check if tool is active (still running)
       const activeTool =
-        thread.state.conversationState.type == "tool_use" &&
-        thread.state.conversationState.activeTools.get(request.id);
+        thread.state.mode.type === "tool_use" &&
+        thread.state.mode.activeTools.get(request.id);
 
       if (activeTool) {
         // Active tool - use the tool controller's render methods
@@ -1647,6 +1842,40 @@ function renderMessageContent(
       // Context updates are rendered via thread.state.messageViewState
       return d``;
 
+    case "checkpoint": {
+      const viewState = thread.state.messageViewState[messageIdx];
+      const isExpanded = viewState?.expandedContent?.[contentIdx] || false;
+
+      if (isExpanded) {
+        return withBindings(
+          withExtmark(d`🏁 [Checkpoint: ${content.id}]\n`, {
+            hl_group: "@comment",
+          }),
+          {
+            "<CR>": () => {
+              dispatch({
+                type: "toggle-expand-content",
+                messageIdx,
+                contentIdx,
+              });
+            },
+          },
+        );
+      } else {
+        return withBindings(
+          withExtmark(d`🏁 [Checkpoint]`, { hl_group: "@comment" }),
+          {
+            "<CR>": () =>
+              dispatch({
+                type: "toggle-expand-content",
+                messageIdx,
+                contentIdx,
+              }),
+          },
+        );
+      }
+    }
+
     default:
       return d`[Unknown content type]\n`;
   }
@@ -1661,7 +1890,7 @@ export function findToolResult(
 }
 
 function renderStreamingBlock(thread: Thread): string | VDOMNode {
-  const state = thread.providerThread.getState();
+  const state = thread.agent.getState();
   const block = state.streamingBlock;
   if (!block) return d``;
 

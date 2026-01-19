@@ -43,7 +43,6 @@ export function relativePath(
 }
 // File size limits in bytes
 export const FILE_SIZE_LIMITS = {
-  TEXT: 1024 * 1024, // 1MB
   IMAGE: 10 * 1024 * 1024, // 10MB
   PDF: 32 * 1024 * 1024, // 32MB
 } as const;
@@ -266,8 +265,8 @@ export async function validateFileSize(
   let maxSize: number;
   switch (category) {
     case FileCategory.TEXT:
-      maxSize = FILE_SIZE_LIMITS.TEXT;
-      break;
+      // No size limit for text files - tree-sitter minimap handles large files
+      return { isValid: true, actualSize, maxSize: Infinity };
     case FileCategory.IMAGE:
       maxSize = FILE_SIZE_LIMITS.IMAGE;
       break;

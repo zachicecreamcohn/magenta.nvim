@@ -5,7 +5,7 @@ import type { ToolName } from "../tools/types";
 import { getCurrentBuffer, getCurrentWindow } from "../nvim/nvim";
 import type { Line } from "../nvim/buffer";
 import type { Position0Indexed, Row0Indexed } from "../nvim/window";
-import { AnthropicProviderThread } from "../providers/anthropic-thread";
+import { AnthropicAgent } from "../providers/anthropic-agent";
 
 describe("node/inline-edit/inline-edit-app.spec.ts", () => {
   it("performs inline edit on file", async () => {
@@ -641,14 +641,12 @@ Paint their stories in the night.`,
       const forceRequest =
         await driver.mockAnthropic.awaitPendingForceToolUseRequest();
 
-      // Verify that the contextThread is present and contains the sidebar messages
-      expect(forceRequest.contextThread).toBeDefined();
-      expect(forceRequest.contextThread).toBeInstanceOf(
-        AnthropicProviderThread,
-      );
+      // Verify that the contextAgent is present and contains the sidebar messages
+      expect(forceRequest.contextAgent).toBeDefined();
+      expect(forceRequest.contextAgent).toBeInstanceOf(AnthropicAgent);
 
       const contextMessages = (
-        forceRequest.contextThread as AnthropicProviderThread
+        forceRequest.contextAgent as AnthropicAgent
       ).getNativeMessages();
 
       // Should have at least 2 messages: user message and assistant response
