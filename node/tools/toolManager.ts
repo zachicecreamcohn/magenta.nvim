@@ -332,6 +332,8 @@ export function renderCompletedToolDetail(
   const toolName = info.request.toolName as StaticToolName;
 
   switch (toolName) {
+    case "get_file":
+      return GetFile.renderCompletedDetail(info);
     case "insert":
       return Insert.renderInsertDetail(info.request.input as Insert.Input);
     case "replace":

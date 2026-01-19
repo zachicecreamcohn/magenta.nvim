@@ -44,6 +44,44 @@ it("render the getFile tool.", async () => {
   });
 });
 
+it("should expand get_file tool detail on <CR>", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText(`Try reading the file poem.txt`);
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingStream();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok, here goes",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "request_id" as ToolRequestId,
+            toolName: "get_file" as ToolName,
+            input: {
+              filePath: "./poem.txt" as UnresolvedFilePath,
+            },
+          },
+        },
+      ],
+    });
+
+    // Verify summary is shown
+    const summaryPos =
+      await driver.assertDisplayBufferContains(`👀✅ \`./poem.txt\``);
+
+    // Press <CR> on the summary to expand details
+    await driver.triggerDisplayBufferKey(summaryPos, "<CR>");
+
+    // Verify the file content is now visible (poem.txt content from fixtures)
+    await driver.assertDisplayBufferContains(
+      "Moonlight whispers through the trees",
+    );
+  });
+});
+
 it("should extract PDF page as binary document when pdfPage parameter is provided", async () => {
   await withDriver(
     {

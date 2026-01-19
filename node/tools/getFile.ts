@@ -778,6 +778,27 @@ export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
   return d`👀✅ ${formatGetFileDisplay(input)}${lineCountStr}`;
 }
 
+export function renderCompletedDetail(info: CompletedToolInfo): VDOMNode {
+  const result = info.result.result;
+
+  if (result.status === "error") {
+    return d`Error: ${result.error}`;
+  }
+
+  const parts: VDOMNode[] = [];
+  for (const content of result.value) {
+    if (content.type === "text") {
+      parts.push(d`${content.text}`);
+    } else if (content.type === "image") {
+      parts.push(d`[Image: ${content.source.media_type}]`);
+    } else if (content.type === "document") {
+      parts.push(d`[Document${content.title ? `: ${content.title}` : ""}]`);
+    }
+  }
+
+  return d`${parts}`;
+}
+
 export const spec: ProviderToolSpec = {
   name: "get_file" as ToolName,
   description: `Get the full contents of a given file. The file will be added to the thread context.

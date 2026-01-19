@@ -1782,12 +1782,12 @@ function renderMessageContent(
         options: thread.context.options,
       };
 
-      return d`${renderCompletedToolSummary(completedInfo, thread.context.dispatch)}${withBindings(
-        d`${
+      return withBindings(
+        d`${renderCompletedToolSummary(completedInfo, thread.context.dispatch)}${
           showDetails
             ? d`\n${renderCompletedToolDetail(completedInfo, renderContext)}${usageInDetails}`
             : d`\n${renderCompletedToolPreview(completedInfo, renderContext)}`
-        }`,
+        }\n`,
         {
           "<CR>": () => {
             dispatch({
@@ -1796,7 +1796,7 @@ function renderMessageContent(
             });
           },
         },
-      )}\n`;
+      );
     }
 
     case "tool_result":
