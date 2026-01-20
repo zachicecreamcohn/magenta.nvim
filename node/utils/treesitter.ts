@@ -6,9 +6,13 @@ export type MinimapLine = {
   text: string; // truncated line content
 };
 
+export type MinimapSummary = {
+  summary: Record<string, number>; // node_type -> count
+};
+
 export type TreeSitterMinimap = {
   language: string;
-  lines: MinimapLine[];
+  lines: (MinimapLine | MinimapSummary)[];
 };
 
 const MINIMAP_TIMEOUT_MS = 5000;
@@ -74,70 +78,194 @@ local trivial_types = {
   ["comment"] = true,
 }
 
--- BFS traversal with budget
+-- Helper to get line info for a node
+local function get_node_line(node)
+  local node_type = node:type()
+  if trivial_types[node_type] then
+    return nil
+  end
+  local start_row = node:start()
+  local line_num = start_row + 1
+  if line_num > #content_lines then
+    return nil
+  end
+  local line_text = content_lines[line_num] or ""
+  if #line_text > ${MAX_LINE_LENGTH} then
+    line_text = string.sub(line_text, 1, ${MAX_LINE_LENGTH}) .. "..."
+  end
+  return { line = line_num, text = line_text, node = node }
+end
+
+-- Helper to count node types in a range
+local function count_types(nodes, start_idx, end_idx)
+  local counts = {}
+  for i = start_idx, end_idx do
+    local node = nodes[i]
+    local node_type = node:type()
+    if not trivial_types[node_type] then
+      counts[node_type] = (counts[node_type] or 0) + 1
+    end
+  end
+  return counts
+end
+
+-- Level-based BFS with budget
 local result_lines = {}
 local budget = ${MAX_MINIMAP_LINES}
 local seen_lines = {}
 
-local queue = { root }
-local queue_start = 1
+-- Current level nodes (each item has: node, parent_idx for grouping)
+local current_level = { { node = root, parent_idx = 0 } }
 
-while queue_start <= #queue and #result_lines < budget do
-  local node = queue[queue_start]
-  queue_start = queue_start + 1
-
-  local node_type = node:type()
-
-  -- Skip trivial nodes
-  if not trivial_types[node_type] then
-    local start_row = node:start()
-    local line_num = start_row + 1 -- 1-indexed
-
-    -- Only add if we haven't seen this line
-    if not seen_lines[line_num] and line_num <= #content_lines then
-      seen_lines[line_num] = true
-      local line_text = content_lines[line_num] or ""
-
-      -- Truncate long lines
-      if #line_text > ${MAX_LINE_LENGTH} then
-        line_text = string.sub(line_text, 1, ${MAX_LINE_LENGTH}) .. "..."
-      end
-
-      table.insert(result_lines, { line = line_num, text = line_text })
+while #current_level > 0 and budget > 0 do
+  -- Collect all non-trivial nodes at this level with their line info
+  local level_nodes = {}
+  for _, item in ipairs(current_level) do
+    local info = get_node_line(item.node)
+    if info and not seen_lines[info.line] then
+      info.parent_idx = item.parent_idx
+      table.insert(level_nodes, info)
     end
   end
 
-  -- Add children to queue with quintile selection for large child counts
-  local child_count = node:child_count()
-  if child_count > 0 then
-    if child_count <= 5 then
-      -- Add all children
+  if #level_nodes == 0 then
+    -- All nodes at this level are trivial, collect children and continue
+    local next_level = {}
+    for _, item in ipairs(current_level) do
+      local child_count = item.node:child_count()
       for i = 0, child_count - 1 do
-        table.insert(queue, node:child(i))
+        table.insert(next_level, { node = item.node:child(i), parent_idx = item.parent_idx })
       end
-    else
-      -- Select quintiles: first, 1/4, 1/2, 3/4, last
-      local indices = {
-        0,
-        math.floor(child_count / 4),
-        math.floor(child_count / 2),
-        math.floor(3 * child_count / 4),
-        child_count - 1
-      }
-      -- Remove duplicates
-      local seen_indices = {}
-      for _, idx in ipairs(indices) do
-        if not seen_indices[idx] then
-          seen_indices[idx] = true
-          table.insert(queue, node:child(idx))
+    end
+    current_level = next_level
+  elseif #level_nodes <= budget then
+    -- All nodes fit in budget, add them all
+    for _, info in ipairs(level_nodes) do
+      if not seen_lines[info.line] then
+        seen_lines[info.line] = true
+        table.insert(result_lines, { line = info.line, text = info.text })
+        budget = budget - 1
+      end
+    end
+
+    -- Collect children for next level
+    local next_level = {}
+    for idx, info in ipairs(level_nodes) do
+      local child_count = info.node:child_count()
+      for i = 0, child_count - 1 do
+        table.insert(next_level, { node = info.node:child(i), parent_idx = idx })
+      end
+    end
+    current_level = next_level
+  else
+    -- Need to sample: use bookends + evenly distributed samples
+    -- Group nodes by parent
+    local parent_groups = {}
+    for idx, info in ipairs(level_nodes) do
+      local pid = info.parent_idx
+      if not parent_groups[pid] then
+        parent_groups[pid] = {}
+      end
+      table.insert(parent_groups[pid], idx)
+    end
+
+    -- Count parents and reserve bookends (first + last of each parent)
+    local num_parents = 0
+    local bookend_indices = {}
+    for pid, indices in pairs(parent_groups) do
+      num_parents = num_parents + 1
+      bookend_indices[indices[1]] = true
+      if #indices > 1 then
+        bookend_indices[indices[#indices]] = true
+      end
+    end
+
+    local num_bookends = 0
+    for _ in pairs(bookend_indices) do
+      num_bookends = num_bookends + 1
+    end
+
+    -- Remaining budget for evenly distributed samples
+    local remaining_budget = math.max(0, budget - num_bookends)
+
+    -- Select additional sample indices evenly distributed
+    local sample_indices = {}
+    for idx in pairs(bookend_indices) do
+      sample_indices[idx] = true
+    end
+
+    if remaining_budget > 0 and #level_nodes > num_bookends then
+      -- Evenly distribute remaining samples across non-bookend nodes
+      local non_bookend_indices = {}
+      for idx = 1, #level_nodes do
+        if not bookend_indices[idx] then
+          table.insert(non_bookend_indices, idx)
         end
       end
+
+      local step = math.max(1, math.floor(#non_bookend_indices / remaining_budget))
+      local count = 0
+      for i = 1, #non_bookend_indices, step do
+        if count >= remaining_budget then break end
+        sample_indices[non_bookend_indices[i]] = true
+        count = count + 1
+      end
     end
+
+    -- Convert to sorted list
+    local sorted_samples = {}
+    for idx in pairs(sample_indices) do
+      table.insert(sorted_samples, idx)
+    end
+    table.sort(sorted_samples)
+
+    -- Output sampled nodes with summaries between them
+    for i, idx in ipairs(sorted_samples) do
+      -- Add summary for skipped nodes before this sample
+      local prev_idx = i == 1 and 0 or sorted_samples[i - 1]
+      if idx - prev_idx > 1 then
+        local type_counts = {}
+        for skip_idx = prev_idx + 1, idx - 1 do
+          local skip_node = level_nodes[skip_idx].node
+          local skip_type = skip_node:type()
+          if not trivial_types[skip_type] then
+            type_counts[skip_type] = (type_counts[skip_type] or 0) + 1
+          end
+        end
+        if next(type_counts) then
+          table.insert(result_lines, { summary = type_counts })
+        end
+      end
+
+      -- Add the sampled node
+      local info = level_nodes[idx]
+      if not seen_lines[info.line] then
+        seen_lines[info.line] = true
+        table.insert(result_lines, { line = info.line, text = info.text })
+        budget = budget - 1
+      end
+    end
+
+    -- Add summary for any skipped nodes after the last sample
+    local last_sample = sorted_samples[#sorted_samples]
+    if last_sample < #level_nodes then
+      local type_counts = {}
+      for skip_idx = last_sample + 1, #level_nodes do
+        local skip_node = level_nodes[skip_idx].node
+        local skip_type = skip_node:type()
+        if not trivial_types[skip_type] then
+          type_counts[skip_type] = (type_counts[skip_type] or 0) + 1
+        end
+      end
+      if next(type_counts) then
+        table.insert(result_lines, { summary = type_counts })
+      end
+    end
+
+    -- Don't traverse into children when we've had to sample
+    current_level = {}
   end
 end
-
--- Sort by line number
-table.sort(result_lines, function(a, b) return a.line < b.line end)
 
 print(vim.json.encode({ language = lang, lines = result_lines }))
 os.exit(0)
@@ -228,10 +356,32 @@ export async function getTreeSitterMinimap(
   });
 }
 
+function isMinimapLine(
+  item: MinimapLine | MinimapSummary,
+): item is MinimapLine {
+  return "line" in item;
+}
+
+function formatSummary(summary: Record<string, number>): string {
+  const parts = Object.entries(summary)
+    .sort(([, a], [, b]) => b - a)
+    .map(([type, count]) => {
+      const readableType = type.replace(/_/g, " ");
+      return `${count} ${readableType}${count > 1 ? "s" : ""}`;
+    });
+  return `  ... ${parts.join(", ")} ...`;
+}
+
 export function formatMinimap(minimap: TreeSitterMinimap): string {
   const header = `[Tree-sitter minimap (${minimap.language})]\n`;
   const lines = minimap.lines
-    .map((l) => `${String(l.line).padStart(4)}: ${l.text}`)
+    .map((item) => {
+      if (isMinimapLine(item)) {
+        return `${String(item.line).padStart(5)}: ${item.text}`;
+      } else {
+        return formatSummary(item.summary);
+      }
+    })
     .join("\n");
   return header + lines;
 }

@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { getTreeSitterMinimap, formatMinimap } from "./treesitter.ts";
+import {
+  getTreeSitterMinimap,
+  formatMinimap,
+  type MinimapLine,
+} from "./treesitter.ts";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -46,7 +50,9 @@ export { User, greet, UserManager };
         expect(result.value.lines.length).toBeGreaterThan(0);
 
         // Should include key structural lines
-        const lineTexts = result.value.lines.map((l) => l.text);
+        const lineTexts = result.value.lines
+          .filter((l): l is MinimapLine => "line" in l)
+          .map((l) => l.text);
         expect(lineTexts.some((t) => t.includes("interface User"))).toBe(true);
         expect(lineTexts.some((t) => t.includes("function greet"))).toBe(true);
         expect(lineTexts.some((t) => t.includes("class UserManager"))).toBe(
