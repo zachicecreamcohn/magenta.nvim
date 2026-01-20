@@ -1464,9 +1464,19 @@ ${thread.context.contextManager.view()}`;
   // Render edit summary
   const editSummaryView = renderEditSummary(thread, dispatch);
 
+  // Helper to check if a message is a tool-result-only user message
+  const isToolResultOnlyMessage = (msg: ProviderMessage): boolean =>
+    msg.role === "user" &&
+    msg.content.every(
+      (c) =>
+        c.type === "tool_result" ||
+        c.type === "system_reminder" ||
+        c.type === "checkpoint",
+    );
+
   // Render messages from provider thread
   const messagesView = messages.map((message, messageIdx) => {
-    // Skip user messages that only contain tool results
+    // Skip user messages that only contain tool results (no system_reminder/checkpoint)
     if (
       message.role === "user" &&
       message.content.every((c) => c.type === "tool_result")
@@ -1475,7 +1485,7 @@ ${thread.context.contextManager.view()}`;
     }
 
     // For user messages with only tool_result, system_reminder, and checkpoint,
-    // skip the header but show the system reminder and checkpoint
+    // skip the header but show the system reminder and checkpoint inline
     const isToolResultWithReminder =
       message.role === "user" &&
       message.content.every(
@@ -1488,11 +1498,20 @@ ${thread.context.contextManager.view()}`;
         (c) => c.type === "system_reminder" || c.type === "checkpoint",
       );
 
-    const roleHeader = isToolResultWithReminder
-      ? d``
-      : withExtmark(d`# ${message.role}:\n`, {
-          hl_group: "@markup.heading.1.markdown",
-        });
+    // Skip "# assistant:" header if this is a continuation of a tool-use turn
+    // (i.e., previous message was a tool-result-only user message)
+    const prevMessage = messageIdx > 0 ? messages[messageIdx - 1] : undefined;
+    const isAssistantContinuation =
+      message.role === "assistant" &&
+      prevMessage &&
+      isToolResultOnlyMessage(prevMessage);
+
+    const roleHeader =
+      isToolResultWithReminder || isAssistantContinuation
+        ? d``
+        : withExtmark(d`# ${message.role}:\n`, {
+            hl_group: "@markup.heading.1.markdown",
+          });
 
     // Get view state for this message
     const viewState = thread.state.messageViewState[messageIdx];
@@ -1516,11 +1535,14 @@ ${thread.context.contextManager.view()}`;
       );
     });
 
+    // Don't add trailing newline for tool-result-with-reminder messages
+    // since they flow directly into the next assistant content
+    const trailingNewline = isToolResultWithReminder ? d`` : d`\n`;
+
     return d`\
 ${roleHeader}\
 ${contextUpdateView}\
-${contentView}
-`;
+${contentView}${trailingNewline}`;
   });
 
   const streamingBlockView =
@@ -1641,7 +1663,7 @@ function renderMessageContent(
 
       if (isExpanded) {
         return withBindings(
-          withExtmark(d`📋 [System Reminder]\n${content.text}`, {
+          withExtmark(d`📋 [System Reminder]\n${content.text}\n`, {
             hl_group: "@comment",
           }),
           {
@@ -1655,6 +1677,7 @@ function renderMessageContent(
           },
         );
       } else {
+        // Render inline (no newline) so checkpoint can follow on same line
         return withBindings(
           withExtmark(d`📋 [System Reminder]`, { hl_group: "@comment" }),
           {
@@ -1691,6 +1714,7 @@ function renderMessageContent(
 
       if (activeTool) {
         // Active tool - use the tool controller's render methods
+        // Don't add trailing newline - let the message template handle it
         return withBindings(
           d`${activeTool.renderSummary()}${
             showDetails
@@ -1698,7 +1722,7 @@ function renderMessageContent(
               : activeTool.renderPreview
                 ? d`\n${activeTool.renderPreview()}`
                 : ""
-          }\n`,
+          }`,
           {
             "<CR>": () =>
               dispatch({
@@ -1727,12 +1751,21 @@ function renderMessageContent(
         options: thread.context.options,
       };
 
+      // Get preview content to check if it's empty
+      const previewContent = renderCompletedToolPreview(
+        completedInfo,
+        renderContext,
+      );
+
+      // Don't add trailing newline - let the message template handle it
       return withBindings(
         d`${renderCompletedToolSummary(completedInfo, thread.context.dispatch)}${
           showDetails
             ? d`\n${renderCompletedToolDetail(completedInfo, renderContext)}${usageInDetails}`
-            : d`\n${renderCompletedToolPreview(completedInfo, renderContext)}`
-        }\n`,
+            : previewContent
+              ? d`\n${previewContent}`
+              : d``
+        }`,
         {
           "<CR>": () => {
             dispatch({
@@ -1807,8 +1840,10 @@ function renderMessageContent(
           },
         );
       } else {
+        // Render inline (no newline) to follow system_reminder on same line
+        // Add newline at end since this is typically the last item
         return withBindings(
-          withExtmark(d`🏁 [Checkpoint]`, { hl_group: "@comment" }),
+          withExtmark(d`🏁 [Checkpoint]\n`, { hl_group: "@comment" }),
           {
             "<CR>": () =>
               dispatch({

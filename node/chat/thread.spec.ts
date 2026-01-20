@@ -12,6 +12,12 @@ import fs from "node:fs";
 import { resolveFilePath } from "../utils/files.ts";
 import lodash from "lodash";
 
+/** Sanitize display buffer text for stable snapshots by removing dynamic content */
+function sanitizeDisplayForSnapshot(text: string): string {
+  // Replace timing info like "exit code 0 (16ms)" with stable placeholder
+  return text.replace(/\((\d+)ms\)/g, "(<timing>ms)");
+}
+
 /** Replace dynamic thread IDs and timing info in messages with a placeholder for stable snapshots */
 function sanitizeMessagesForSnapshot<T>(messages: T): T {
   let json = JSON.stringify(messages);
@@ -1748,4 +1754,75 @@ it("should process custom commands in messages", async () => {
       await driver.assertDisplayBufferContains("DO NOT MAKE ANY EDITS TO CODE");
     },
   );
+});
+
+it("renders successive tool uses with single assistant header and inline metadata", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText("Read two files for me");
+    await driver.send();
+
+    const stream1 = await driver.mockAnthropic.awaitPendingStream();
+
+    // First tool use
+    stream1.respond({
+      stopReason: "tool_use",
+      text: "I'll read the first file.",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "tool-1" as ToolRequestId,
+            toolName: "get_file" as ToolName,
+            input: { filePath: "poem.txt" as UnresolvedFilePath },
+          },
+        },
+      ],
+    });
+
+    // Wait for first tool to complete (auto-approved for poem.txt)
+    await driver.assertDisplayBufferContains("👀✅ `poem.txt`");
+
+    // Second request - thinking then another tool use
+    const stream2 = await driver.mockAnthropic.awaitPendingStream();
+    stream2.streamThinking("Let me read the second file now.");
+    stream2.respond({
+      stopReason: "tool_use",
+      text: "",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "tool-2" as ToolRequestId,
+            toolName: "get_file" as ToolName,
+            input: { filePath: "poem2.txt" as UnresolvedFilePath },
+          },
+        },
+      ],
+    });
+
+    // Wait for second tool to complete
+    await driver.assertDisplayBufferContains("👀✅ `poem2.txt`");
+
+    // Third request - final response
+    const stream3 = await driver.mockAnthropic.awaitPendingStream();
+    stream3.respond({
+      stopReason: "end_turn",
+      text: "I've read both files for you.",
+      toolRequests: [],
+    });
+
+    await driver.assertDisplayBufferContains("I've read both files for you.");
+
+    // Get the display buffer and verify the format via snapshot
+    const displayText = sanitizeDisplayForSnapshot(
+      await driver.getDisplayBufferText(),
+    );
+
+    // Snapshot the full display to verify:
+    // 1. Only ONE "# assistant:" header for the entire turn
+    // 2. System reminders and checkpoints are inline (📋 [System Reminder]🏁 [Checkpoint])
+    // 3. No blank lines between tool results and metadata
+    expect(displayText).toMatchSnapshot("successive-tool-uses-display");
+  });
 });

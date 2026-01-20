@@ -553,3 +553,30 @@ RIGHT: \`command\`
   },
 ]
 `;
+
+exports[`renders successive tool uses with single assistant header and inline metadata > successive-tool-uses-display 1`] = `
+"# [ Untitled ]
+⚙️ [System Prompt ~2K]
+
+# user:
+Read two files for me
+📋 [System Reminder]🏁 [Checkpoint]
+
+# assistant:
+I'll read the first file.
+👀✅ \`poem.txt\` [+ 5]
+
+📋 [System Reminder]🏁 [Checkpoint]
+💭 [Thinking]
+👀✅ \`poem2.txt\` [+ 5]
+
+📋 [System Reminder]🏁 [Checkpoint]
+I've read both files for you.
+
+
+# context:
+- \`poem.txt\`
+- \`poem2.txt\`
+
+Stopped (end_turn)  [input: 0, output: 0] "
+`;
