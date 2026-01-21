@@ -34,7 +34,8 @@ import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.t
 import * as fs from "fs";
 import * as path from "path";
 
-const MAX_OUTPUT_TOKENS_FOR_AGENT = 10000;
+const MAX_OUTPUT_TOKENS_FOR_AGENT = 2000;
+const MAX_OUTPUT_TOKENS_FOR_ONE_LINE = 200;
 const CHARACTERS_PER_TOKEN = 4;
 
 // Regex to match ANSI escape codes (colors, cursor movement, etc.)
@@ -295,6 +296,22 @@ export class BashCommandTool implements StaticTool {
     this.logStream.write(`${text}\n`);
   }
 
+  private abbreviateLine(text: string): { text: string; abbreviated: boolean } {
+    const maxLineChars = MAX_OUTPUT_TOKENS_FOR_ONE_LINE * CHARACTERS_PER_TOKEN;
+    if (text.length <= maxLineChars) {
+      return { text, abbreviated: false };
+    }
+    // Show first half and last portion with ellipsis in middle
+    const halfLength = Math.floor(maxLineChars / 2) - 3; // -3 for "..."
+    return {
+      text:
+        text.substring(0, halfLength) +
+        "..." +
+        text.substring(text.length - halfLength),
+      abbreviated: true,
+    };
+  }
+
   private formatOutputForToolResult(
     output: OutputLine[],
     exitCode: number | null,
@@ -302,51 +319,67 @@ export class BashCommandTool implements StaticTool {
     durationMs: number,
   ): string {
     const totalLines = output.length;
-    let linesToFormat: OutputLine[];
-    let omittedByLineCount = 0;
+    const totalBudgetChars = MAX_OUTPUT_TOKENS_FOR_AGENT * CHARACTERS_PER_TOKEN;
+    const headBudgetChars = Math.floor(totalBudgetChars * 0.3);
+    const tailBudgetChars = Math.floor(totalBudgetChars * 0.7);
 
-    // First, apply line-based abbreviation
-    if (totalLines <= 30) {
-      linesToFormat = output;
-    } else {
-      const firstLines = output.slice(0, 10);
-      const lastLines = output.slice(-20);
-      omittedByLineCount = totalLines - 30;
-      linesToFormat = [...firstLines, ...lastLines];
+    // Collect lines from the beginning (30% budget)
+    const headLines: { line: OutputLine; text: string }[] = [];
+    let headChars = 0;
+    for (let i = 0; i < output.length; i++) {
+      const { text } = this.abbreviateLine(output[i].text);
+      const lineLength = text.length + 1; // +1 for newline
+      if (headChars + lineLength > headBudgetChars && headLines.length > 0) {
+        break;
+      }
+      headLines.push({ line: output[i], text });
+      headChars += lineLength;
     }
 
-    // Then, apply token-based trimming if lines are very long
-    const trimmedLines = this.trimOutputByTokens(linesToFormat);
-    const omittedByTokens = linesToFormat.length - trimmedLines.length;
+    // Collect lines from the end (70% budget), starting after head lines
+    const tailLines: { line: OutputLine; text: string }[] = [];
+    let tailChars = 0;
+    const tailStartIndex = headLines.length;
+    for (let i = output.length - 1; i >= tailStartIndex; i--) {
+      const { text } = this.abbreviateLine(output[i].text);
+      const lineLength = text.length + 1;
+      if (tailChars + lineLength > tailBudgetChars && tailLines.length > 0) {
+        break;
+      }
+      tailLines.unshift({ line: output[i], text });
+      tailChars += lineLength;
+    }
 
+    // Calculate omitted lines
+    const firstTailIndex =
+      tailLines.length > 0 ? output.indexOf(tailLines[0].line) : output.length;
+    const omittedCount = firstTailIndex - headLines.length;
+
+    // Build formatted output
     let formattedOutput = "";
     let currentStream: "stdout" | "stderr" | null = null;
-    let lineIndex = 0;
 
-    // If we trimmed by tokens, we only have tail lines, so don't show "first N lines"
-    const showFirstLinesMarker =
-      omittedByLineCount > 0 && omittedByTokens === 0;
-
-    for (const line of trimmedLines) {
-      // Insert omission marker after the first 10 lines (only if we haven't trimmed by tokens)
-      if (showFirstLinesMarker && lineIndex === 10) {
-        formattedOutput += `\n... (${omittedByLineCount} lines omitted) ...\n\n`;
-      }
-
+    // Add head lines
+    for (const { line, text } of headLines) {
       if (currentStream !== line.stream) {
         formattedOutput += line.stream === "stdout" ? "stdout:\n" : "stderr:\n";
         currentStream = line.stream;
       }
-      formattedOutput += line.text + "\n";
-      lineIndex++;
+      formattedOutput += text + "\n";
     }
 
-    // If we trimmed by tokens, add a note about it
-    if (omittedByTokens > 0) {
-      const totalOmitted = omittedByLineCount + omittedByTokens;
-      formattedOutput =
-        `... (${totalOmitted} lines omitted due to length) ...\n\n` +
-        formattedOutput;
+    // Add omission marker if needed
+    if (omittedCount > 0) {
+      formattedOutput += `\n... (${omittedCount} lines omitted) ...\n\n`;
+    }
+
+    // Add tail lines
+    for (const { line, text } of tailLines) {
+      if (currentStream !== line.stream) {
+        formattedOutput += line.stream === "stdout" ? "stdout:\n" : "stderr:\n";
+        currentStream = line.stream;
+      }
+      formattedOutput += text + "\n";
     }
 
     if (signal) {
@@ -355,7 +388,8 @@ export class BashCommandTool implements StaticTool {
       formattedOutput += `exit code ${exitCode} (${durationMs}ms)\n`;
     }
 
-    if (this.logFilePath) {
+    // Only include log file reference if output was abbreviated
+    if (this.logFilePath && omittedCount > 0) {
       formattedOutput += `\nFull output (${totalLines} lines): ${this.logFilePath}`;
     }
 
@@ -712,28 +746,6 @@ export class BashCommandTool implements StaticTool {
       output: [],
       result,
     };
-
-    return result;
-  }
-
-  private trimOutputByTokens(output: OutputLine[]): OutputLine[] {
-    const maxCharacters = MAX_OUTPUT_TOKENS_FOR_AGENT * CHARACTERS_PER_TOKEN;
-    let totalCharacters = 0;
-    const result: OutputLine[] = [];
-
-    // Work backwards through the output to find the tail that fits within token limit
-    for (let i = output.length - 1; i >= 0; i--) {
-      const line = output[i];
-      const lineLength = line.text.length + 1; // +1 for newline
-
-      if (totalCharacters + lineLength > maxCharacters && result.length > 0) {
-        // We've hit the limit, stop here
-        break;
-      }
-
-      result.unshift(line);
-      totalCharacters += lineLength;
-    }
 
     return result;
   }
