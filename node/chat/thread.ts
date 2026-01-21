@@ -325,76 +325,9 @@ export class Thread {
         break;
 
       case "send-message": {
-        // Check if the first user message starts with @fork
-        const firstUserMessage = msg.messages.find((m) => m.type === "user");
-        if (firstUserMessage?.text.trim().startsWith("@fork")) {
-          // Strip @fork from the message and dispatch to Chat
-          const strippedMessages = msg.messages.map((m) => ({
-            ...m,
-            text:
-              m.type === "user" ? m.text.replace(/^\s*@fork\s*/, "") : m.text,
-          }));
-
-          this.context.dispatch({
-            type: "chat-msg",
-            msg: {
-              type: "fork-thread",
-              sourceThreadId: this.id,
-              strippedMessages,
-            },
-          });
-          break;
-        }
-
-        // Check if any message starts with @async
-        const isAsync = msg.messages.some(
-          (m) => m.type === "user" && m.text.trim().startsWith("@async"),
-        );
-
-        const agentStatus = this.agent.getState().status;
-        const isBusy =
-          agentStatus.type === "streaming" ||
-          this.state.mode.type === "tool_use";
-
-        if (isBusy) {
-          if (isAsync) {
-            const processedMessages = msg.messages.map((m) => ({
-              ...m,
-              text:
-                m.type === "user"
-                  ? m.text.replace(/^\s*@async\s*/, "")
-                  : m.text,
-            }));
-            this.state.pendingMessages.push(...processedMessages);
-            break;
-          } else {
-            this.abortInProgressOperations();
-          }
-        }
-
-        this.sendMessage(msg.messages).catch(
+        this.handleSendMessageMsg(msg.messages).catch(
           this.handleSendMessageError.bind(this),
         );
-
-        if (!this.state.title) {
-          this.setThreadTitle(msg.messages.map((m) => m.text).join("\n")).catch(
-            (err: Error) =>
-              this.context.nvim.logger.error(
-                "Error getting thread title: " + err.message + "\n" + err.stack,
-              ),
-          );
-        }
-
-        if (msg.messages.length) {
-          setTimeout(() => {
-            this.context.dispatch({
-              type: "sidebar-msg",
-              msg: {
-                type: "scroll-to-last-user-message",
-              },
-            });
-          }, 100);
-        }
         break;
       }
 
@@ -433,7 +366,9 @@ export class Thread {
       }
 
       case "abort": {
-        this.abortInProgressOperations();
+        this.abortAndWait().catch((e: Error) => {
+          this.context.nvim.logger.error(`Error during abort: ${e.message}`);
+        });
         return;
       }
 
@@ -837,9 +772,12 @@ export class Thread {
     }
   }
 
-  private abortInProgressOperations(): void {
-    // Abort the provider thread if streaming
-    this.agent.abort();
+  /** Abort in-progress operations and wait for completion.
+   * Returns a promise that resolves when the agent is in a stable state.
+   */
+  async abortAndWait(): Promise<void> {
+    // Abort the provider thread if streaming and wait for it to complete
+    await this.agent.abort();
 
     // If we're in tool_use mode, abort all active tools and insert their results
     if (this.state.mode.type === "tool_use") {
@@ -851,11 +789,81 @@ export class Thread {
         }
       }
 
+      // Mark agent as aborted after inserting all error tool results
+      this.agent.abortToolUse();
       this.rebuildToolCache();
     }
 
     // Transition to normal mode (agent status already reflects aborted)
     this.state.mode = { type: "normal" };
+  }
+
+  /** Handle send-message action - async handler for the entire flow */
+  private async handleSendMessageMsg(messages: InputMessage[]): Promise<void> {
+    // Check if the first user message starts with @fork
+    const firstUserMessage = messages.find((m) => m.type === "user");
+    if (firstUserMessage?.text.trim().startsWith("@fork")) {
+      // Strip @fork from the message and dispatch to Chat
+      const strippedMessages = messages.map((m) => ({
+        ...m,
+        text: m.type === "user" ? m.text.replace(/^\s*@fork\s*/, "") : m.text,
+      }));
+
+      this.context.dispatch({
+        type: "chat-msg",
+        msg: {
+          type: "fork-thread",
+          sourceThreadId: this.id,
+          strippedMessages,
+        },
+      });
+      return;
+    }
+
+    // Check if any message starts with @async
+    const isAsync = messages.some(
+      (m) => m.type === "user" && m.text.trim().startsWith("@async"),
+    );
+
+    const agentStatus = this.agent.getState().status;
+    const isBusy =
+      agentStatus.type === "streaming" || this.state.mode.type === "tool_use";
+
+    if (isBusy) {
+      if (isAsync) {
+        const processedMessages = messages.map((m) => ({
+          ...m,
+          text:
+            m.type === "user" ? m.text.replace(/^\s*@async\s*/, "") : m.text,
+        }));
+        this.state.pendingMessages.push(...processedMessages);
+        return;
+      } else {
+        await this.abortAndWait();
+      }
+    }
+
+    await this.sendMessage(messages);
+
+    if (!this.state.title) {
+      this.setThreadTitle(messages.map((m) => m.text).join("\n")).catch(
+        (err: Error) =>
+          this.context.nvim.logger.error(
+            "Error getting thread title: " + err.message + "\n" + err.stack,
+          ),
+      );
+    }
+
+    if (messages.length) {
+      setTimeout(() => {
+        this.context.dispatch({
+          type: "sidebar-msg",
+          msg: {
+            type: "scroll-to-last-user-message",
+          },
+        });
+      }, 100);
+    }
   }
 
   maybeAutoRespond():

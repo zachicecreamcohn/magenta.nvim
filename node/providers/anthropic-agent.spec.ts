@@ -301,7 +301,7 @@ describe("abort", () => {
     const tracked = trackMessages();
     const agent = createAgent(mockClient, undefined, tracked);
 
-    agent.abort();
+    await agent.abort();
     await delay(0);
 
     expect(tracked.messages).toHaveLength(0);
@@ -326,7 +326,7 @@ describe("abort", () => {
     stream.streamText("Partial response");
 
     // Abort the request
-    agent.abort();
+    await agent.abort();
 
     // Wait for the catch block to execute
     await delay(0);
@@ -361,7 +361,7 @@ describe("abort", () => {
     });
 
     // Abort while tool_use is the last block
-    agent.abort();
+    await agent.abort();
 
     await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -401,7 +401,7 @@ describe("abort", () => {
     });
 
     // Abort while waiting for web search results
-    agent.abort();
+    await agent.abort();
 
     await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -491,7 +491,7 @@ describe("thinking blocks", () => {
     }
 
     // Abort to clean up (since we manually streamed, finishResponse would replace content)
-    agent.abort();
+    await agent.abort();
   });
 
   it("accumulates signature across multiple deltas", async () => {
@@ -906,7 +906,7 @@ describe("latestUsage", () => {
     stream2.streamText("Starting to respond...");
 
     // Abort the second request
-    agent.abort();
+    await agent.abort();
     await delay(0);
 
     // latestUsage should still reflect the first successful request
@@ -980,7 +980,7 @@ describe("latestUsage", () => {
     agent.continueConversation();
     const stream1 = await mockClient.awaitStream();
     stream1.streamText("Partial...");
-    agent.abort();
+    await agent.abort();
     await delay(0);
 
     expect(agent.getState().latestUsage).toBeUndefined();

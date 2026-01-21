@@ -282,6 +282,119 @@ it("forks a thread with multiple messages into a new thread", async () => {
   });
 });
 
+it("forks a thread while streaming by aborting the stream first", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    // Start a conversation with one completed exchange
+    await driver.inputMagentaText("What is 2+2?");
+    await driver.send();
+
+    const request1 = await driver.mockAnthropic.awaitPendingStream();
+    request1.respond({
+      stopReason: "end_turn",
+      text: "2+2 equals 4.",
+      toolRequests: [],
+    });
+
+    // Start a second request that will be streaming when we fork
+    await driver.inputMagentaText("What about 3+3?");
+    await driver.send();
+
+    const streamingRequest = await driver.mockAnthropic.awaitPendingStream();
+    const originalThreadId = driver.magenta.chat.state.activeThreadId;
+    const originalThread = driver.magenta.chat.getActiveThread();
+
+    // Fork while the request is still streaming
+    await driver.inputMagentaText("@fork Actually, tell me about 5+5");
+    await driver.send();
+
+    // The streaming request should be aborted
+    expect(streamingRequest.aborted).toBe(true);
+
+    // The original thread should now be stopped/aborted
+    await pollUntil(
+      () => originalThread.agent.getState().status.type === "stopped",
+      { timeout: 1000, message: "waiting for agent to be stopped" },
+    );
+    expect(originalThread.agent.getState().status).toEqual({
+      type: "stopped",
+      stopReason: "aborted",
+    });
+
+    // A new thread should be created and receive the forked message
+    const forkedStream = await driver.mockAnthropic.awaitPendingStream({
+      message: "forked thread request",
+    });
+
+    expect(forkedStream.messages).toMatchSnapshot();
+
+    // Verify the new thread is active
+    const newThread = driver.magenta.chat.getActiveThread();
+    expect(newThread.id).not.toBe(originalThreadId);
+  });
+});
+
+it("forks a thread while waiting for tool use by aborting pending tools first", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    // Start a conversation
+    await driver.inputMagentaText("Read my secret file");
+    await driver.send();
+
+    const request1 = await driver.mockAnthropic.awaitPendingStream();
+
+    // Respond with get_file tool use - this will block on user approval
+    request1.respond({
+      stopReason: "tool_use",
+      text: "I'll read your secret file.",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "get-file-tool" as ToolRequestId,
+            toolName: "get_file" as ToolName,
+            input: { filePath: ".secret" as UnresolvedFilePath },
+          },
+        },
+      ],
+    });
+
+    // Wait for approval dialog - we're now stopped waiting for tool use
+    await driver.assertDisplayBufferContains("👀⏳ May I read file `.secret`?");
+
+    const originalThread = driver.magenta.chat.getActiveThread();
+    const originalThreadId = originalThread.id;
+
+    // Verify we're in tool_use mode
+    expect(originalThread.state.mode.type).toBe("tool_use");
+
+    // Fork the thread while waiting for tool use
+    await driver.inputMagentaText("@fork Do something else instead");
+    await driver.send();
+
+    // The fork should abort the pending tool use, then clone
+    const forkedStream = await driver.mockAnthropic.awaitPendingStream({
+      message: "forked thread request",
+    });
+
+    // Verify the cloned messages include the error tool result from the abort
+    expect(forkedStream.messages).toMatchSnapshot();
+
+    // Verify the new thread is active
+    const newThread = driver.magenta.chat.getActiveThread();
+    expect(newThread.id).not.toBe(originalThreadId);
+
+    // Verify original thread was aborted
+    expect(originalThread.state.mode.type).toBe("normal");
+    expect(originalThread.agent.getState().status).toEqual({
+      type: "stopped",
+      stopReason: "aborted",
+    });
+  });
+});
+
 it("forks a thread with @compact to clone and compact in one step", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();

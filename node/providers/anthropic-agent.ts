@@ -87,6 +87,9 @@ export class AnthropicAgent implements Agent {
   private currentAssistantMessage: Anthropic.MessageParam | undefined;
   /** Stored for cloning */
   private anthropicOptions: AnthropicAgentOptions;
+  /** Promise that resolves when streaming stops, and its resolver */
+  private streamingEndPromise: Promise<void> | undefined;
+  private streamingEndResolver: (() => void) | undefined;
 
   constructor(
     private options: AgentOptions,
@@ -110,6 +113,9 @@ export class AnthropicAgent implements Agent {
         this.status = { type: "streaming", startTime: new Date() };
         this.currentBlockIndex = -1;
         this.currentAssistantMessage = undefined;
+        this.streamingEndPromise = new Promise((resolve) => {
+          this.streamingEndResolver = resolve;
+        });
         this.dispatchAsync({ type: "agent-content-updated" });
         break;
 
@@ -216,6 +222,7 @@ export class AnthropicAgent implements Agent {
 
         this.currentAssistantMessage = undefined;
         this.status = { type: "stopped", stopReason };
+        this.resolveStreamingEnd();
         this.dispatchAsync({ type: "agent-stopped", stopReason, usage });
         break;
       }
@@ -225,6 +232,7 @@ export class AnthropicAgent implements Agent {
         this.cleanup({ type: "error", error: action.error });
         this.currentAssistantMessage = undefined;
         this.status = { type: "error", error: action.error };
+        this.resolveStreamingEnd();
         this.dispatchAsync({ type: "agent-error", error: action.error });
         break;
       }
@@ -234,6 +242,7 @@ export class AnthropicAgent implements Agent {
         this.cleanup({ type: "aborted" });
         this.currentAssistantMessage = undefined;
         this.status = { type: "stopped", stopReason: "aborted" };
+        this.resolveStreamingEnd();
         this.dispatchAsync({ type: "agent-stopped", stopReason: "aborted" });
         break;
 
@@ -328,10 +337,34 @@ export class AnthropicAgent implements Agent {
     this.updateCachedProviderMessages();
   }
 
-  abort(): void {
+  abort(): Promise<void> {
     if (this.currentRequest) {
       this.currentRequest.abort();
       // The catch block in continueConversation will handle the status update
+      // Return the promise that will resolve when streaming ends
+      return this.streamingEndPromise || Promise.resolve();
+    }
+    return Promise.resolve();
+  }
+
+  abortToolUse(): void {
+    if (
+      this.status.type !== "stopped" ||
+      this.status.stopReason !== "tool_use"
+    ) {
+      throw new Error(
+        `Cannot abortToolUse: expected status stopped with stopReason tool_use, but got ${JSON.stringify(this.status)}`,
+      );
+    }
+    this.status = { type: "stopped", stopReason: "aborted" };
+    this.dispatchAsync({ type: "agent-stopped", stopReason: "aborted" });
+  }
+
+  private resolveStreamingEnd(): void {
+    if (this.streamingEndResolver) {
+      this.streamingEndResolver();
+      this.streamingEndResolver = undefined;
+      this.streamingEndPromise = undefined;
     }
   }
 
@@ -402,6 +435,14 @@ export class AnthropicAgent implements Agent {
   clone(dispatch: Dispatch<AgentMsg>): AnthropicAgent {
     if (this.status.type === "streaming") {
       throw new Error("Cannot clone agent while streaming");
+    }
+
+    // Cannot clone if we're waiting for tool results - the cloned agent would
+    // have an assistant message with tool_use but no corresponding tool_result
+    if (this.status.type == "stopped" && this.status.stopReason == "tool_use") {
+      throw new Error(
+        "Cannot clone agent while waiting for tool results. Abort the pending tool use first.",
+      );
     }
 
     const cloned = new AnthropicAgent(

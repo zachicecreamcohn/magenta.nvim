@@ -280,7 +280,18 @@ export interface Agent {
 
   continueConversation(): void;
 
-  abort(): void;
+  /** Abort the current operation.
+   * Returns a promise that resolves when the abort is complete.
+   * - If streaming: resolves when the stream is terminated
+   * - If not streaming: resolves immediately
+   */
+  abort(): Promise<void>;
+
+  /** Transition from stopped/tool_use to stopped/aborted.
+   * Call this after providing all tool results during an abort.
+   * @throws Error if not in stopped/tool_use state
+   */
+  abortToolUse(): void;
 
   /** Truncate messages to keep only messages 0..messageIdx (inclusive).
    * Sets status to stopped with end_turn.

@@ -639,10 +639,14 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const sourceThread = sourceThreadWrapper.thread;
     const sourceAgent = sourceThread.agent;
 
-    // Agent must be stopped to clone
+    // Abort any in-progress operations and wait for completion
+    // This handles both streaming and tool_use states
     const agentStatus = sourceAgent.getState().status;
-    if (agentStatus.type === "streaming") {
-      throw new Error("Cannot fork thread while agent is streaming");
+    if (
+      agentStatus.type === "streaming" ||
+      (agentStatus.type === "stopped" && agentStatus.stopReason === "tool_use")
+    ) {
+      await sourceThread.abortAndWait();
     }
 
     const newThreadId = uuidv7() as ThreadId;

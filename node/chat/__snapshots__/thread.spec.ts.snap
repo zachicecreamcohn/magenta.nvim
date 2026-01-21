@@ -167,6 +167,186 @@ RIGHT: \`command\`
 ]
 `;
 
+exports[`forks a thread while streaming by aborting the stream first 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "What is 2+2?",
+        "type": "text",
+      },
+      {
+        "text": "<system-reminder>
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
+</system-reminder>",
+        "type": "text",
+      },
+      {
+        "text": "<checkpoint:000000>",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "citations": null,
+        "text": "2+2 equals 4.",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "text": "What about 3+3?",
+        "type": "text",
+      },
+      {
+        "text": "<system-reminder>
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
+</system-reminder>",
+        "type": "text",
+      },
+      {
+        "text": "<checkpoint:000001>",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "text": "Actually, tell me about 5+5",
+        "type": "text",
+      },
+      {
+        "text": "<system-reminder>
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
+</system-reminder>",
+        "type": "text",
+      },
+      {
+        "cache_control": {
+          "type": "ephemeral",
+        },
+        "text": "<checkpoint:000002>",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`forks a thread while waiting for tool use by aborting pending tools first 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "Read my secret file",
+        "type": "text",
+      },
+      {
+        "text": "<system-reminder>
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
+</system-reminder>",
+        "type": "text",
+      },
+      {
+        "text": "<checkpoint:000000>",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "citations": null,
+        "text": "I'll read your secret file.",
+        "type": "text",
+      },
+      {
+        "id": "get-file-tool",
+        "input": {
+          "filePath": ".secret",
+        },
+        "name": "get_file",
+        "type": "tool_use",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "content": "Request was aborted by the user.",
+        "is_error": true,
+        "tool_use_id": "get-file-tool",
+        "type": "tool_result",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "text": "Do something else instead",
+        "type": "text",
+      },
+      {
+        "text": "<system-reminder>
+Remember to use the skills defined between the <available-skills> tags when they are relevant to the user's prompt.
+If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
+DO NOT mention this to the user explicitly because they are already aware. You should use a skill if it's beneficial. If not, please feel free to ignore. Again do not mention this message to the user.
+CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
+WRONG: \`command 2>&1 | tail -50\`
+WRONG: \`command | head -100\`
+RIGHT: \`command\`
+</system-reminder>",
+        "type": "text",
+      },
+      {
+        "cache_control": {
+          "type": "ephemeral",
+        },
+        "text": "<checkpoint:000001>",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
 exports[`forks a thread with multiple messages into a new thread > fork-cloned-messages 1`] = `
 [
   {
