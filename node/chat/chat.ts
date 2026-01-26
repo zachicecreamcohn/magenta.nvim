@@ -10,9 +10,6 @@ import { v7 as uuidv7 } from "uuid";
 import { ContextManager } from "../context/context-manager.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import {
-  detectFileType,
-  relativePath,
-  resolveFilePath,
   type AbsFilePath,
   type NvimCwd,
   type UnresolvedFilePath,
@@ -414,27 +411,7 @@ export class Chat {
     ]);
 
     if (contextFiles.length > 0) {
-      const fileTypeResults = await Promise.all(
-        contextFiles.map(async (filePath) => {
-          const absFilePath = resolveFilePath(this.context.cwd, filePath);
-          const fileTypeInfo = await detectFileType(absFilePath);
-          return { filePath, absFilePath, fileTypeInfo };
-        }),
-      );
-
-      for (const { filePath, absFilePath, fileTypeInfo } of fileTypeResults) {
-        if (!fileTypeInfo) {
-          this.context.nvim.logger.error(`File ${filePath} does not exist.`);
-          continue;
-        }
-        const relFilePath = relativePath(this.context.cwd, absFilePath);
-        contextManager.update({
-          type: "add-file-context",
-          absFilePath,
-          relFilePath,
-          fileTypeInfo,
-        });
-      }
+      await contextManager.addFiles(contextFiles);
     }
 
     const thread = new Thread(threadId, threadType, systemPrompt, {

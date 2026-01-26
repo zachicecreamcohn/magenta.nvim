@@ -3,7 +3,6 @@ import { type Result } from "../utils/result.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
-  CompactReplacement,
 } from "../providers/provider-types.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type {
@@ -19,14 +18,10 @@ export type Msg = {
   type: "finish";
 };
 
-export type State =
-  | {
-      state: "pending";
-    }
-  | {
-      state: "done";
-      result: ProviderToolResult;
-    };
+export type State = {
+  state: "done";
+  result: ProviderToolResult;
+};
 
 export class CompactTool implements StaticTool {
   toolName = "compact" as const;
@@ -41,40 +36,17 @@ export class CompactTool implements StaticTool {
       myDispatch: Dispatch<Msg>;
     },
   ) {
-    this.state = { state: "pending" };
-
-    try {
-      this.doCompact();
-    } catch (error) {
-      this.state = {
-        state: "done",
+    this.state = {
+      state: "done",
+      result: {
+        type: "tool_result",
+        id: this.request.id,
         result: {
-          type: "tool_result",
-          id: this.request.id,
-          result: {
-            status: "error",
-            error:
-              error instanceof Error
-                ? error.message
-                : "Compact operation failed",
-          },
+          status: "ok",
+          value: [],
         },
-      };
-    }
-  }
-
-  doCompact() {
-    const replacements: CompactReplacement[] = this.request.input.replacements;
-
-    // Apply the compaction to the agent
-    this.context.thread.agent.compact(replacements);
-
-    // Dispatch finish message after the current task completes
-    // This ensures the conversation state has been set to tool_use
-    // before we try to handle the tool message
-    queueMicrotask(() => {
-      this.context.myDispatch({ type: "finish" });
-    });
+      },
+    };
   }
 
   isDone(): boolean {
@@ -135,25 +107,11 @@ export class CompactTool implements StaticTool {
   }
 
   getToolResult(): ProviderToolResult {
-    if (this.state.state == "pending") {
-      return {
-        type: "tool_result",
-        id: this.request.id,
-        result: {
-          status: "ok",
-          value: [{ type: "text", text: "Compact request is pending." }],
-        },
-      };
-    }
-
     return this.state.result;
   }
 
   renderSummary() {
     switch (this.state.state) {
-      case "pending":
-        return d`Compacting thread...`;
-
       case "done":
         return renderCompletedSummary({
           request: this.request as CompletedToolInfo["request"],
@@ -185,47 +143,27 @@ Use this tool when:
 - There are repetitive tool calls or content that can be summarized
 - You want to preserve important information while removing verbose details
 
-Checkpoints are markers in the conversation (format: <checkpoint:xxxxxx>) that appear at the end of user messages.
-
-Each replacement specifies:
-- from: checkpoint id to start from (omit to start from beginning of thread)
-- to: checkpoint id to end at (omit to go to end of thread)
-- summary: text to replace the range with (empty string deletes the range)
-
 The tool will:
 - Replace content between checkpoints with your summary
 - Strip system reminders from user messages in the affected range
 - Strip thinking blocks from assistant messages in the affected range
-- Preserve checkpoint markers for future compactions
 
 If you want to continue with a specific action after compaction, use the continuation parameter.`,
   input_schema: {
     type: "object",
     properties: {
-      replacements: {
+      summary: {
+        type: "string",
+        description:
+          "Text to replace the range with. Use empty string to delete the range.",
+      },
+      contextFiles: {
         type: "array",
         items: {
-          type: "object",
-          properties: {
-            from: {
-              type: "string",
-              description:
-                "Checkpoint ID to start replacement from. Omit to start from beginning of thread.",
-            },
-            to: {
-              type: "string",
-              description:
-                "Checkpoint ID to end replacement at. Omit to replace to end of thread.",
-            },
-            summary: {
-              type: "string",
-              description:
-                "Text to replace the range with. Use empty string to delete the range.",
-            },
-          },
-          required: ["summary"],
+          type: "string",
         },
-        description: "Array of replacements to apply to the thread.",
+        description:
+          "Optional list of file paths to provide as context to the sub-agent.",
       },
       continuation: {
         type: "string",
@@ -233,12 +171,13 @@ If you want to continue with a specific action after compaction, use the continu
           "Optional message to append after compaction. The agent will continue streaming after this message is added.",
       },
     },
-    required: ["replacements"],
+    required: ["summary"],
   },
 };
 
 export type Input = {
-  replacements: CompactReplacement[];
+  summary: string;
+  contextFiles?: string[];
   continuation?: string;
 };
 
@@ -247,41 +186,27 @@ export type ToolRequest = GenericToolRequest<"compact", Input>;
 export function validateInput(input: {
   [key: string]: unknown;
 }): Result<Input> {
-  if (!Array.isArray(input.replacements)) {
+  if (typeof input.summary !== "string") {
     return {
       status: "error",
-      error: `expected req.input.replacements to be an array but it was ${JSON.stringify(input.replacements)}`,
+      error: `expected req.input.summary to be a string but it was ${JSON.stringify(input.summary)}`,
     };
   }
 
-  for (let i = 0; i < input.replacements.length; i++) {
-    const r = input.replacements[i] as Record<string, unknown>;
-    if (typeof r !== "object" || r === null) {
+  if (input.contextFiles !== undefined) {
+    if (!Array.isArray(input.contextFiles)) {
       return {
         status: "error",
-        error: `expected req.input.replacements[${i}] to be an object`,
+        error: `expected req.input.contextFiles to be an array or undefined`,
       };
     }
-
-    if (r.from !== undefined && typeof r.from !== "string") {
-      return {
-        status: "error",
-        error: `expected req.input.replacements[${i}].from to be a string or undefined`,
-      };
-    }
-
-    if (r.to !== undefined && typeof r.to !== "string") {
-      return {
-        status: "error",
-        error: `expected req.input.replacements[${i}].to to be a string or undefined`,
-      };
-    }
-
-    if (typeof r.summary !== "string") {
-      return {
-        status: "error",
-        error: `expected req.input.replacements[${i}].summary to be a string`,
-      };
+    for (let i = 0; i < input.contextFiles.length; i++) {
+      if (typeof input.contextFiles[i] !== "string") {
+        return {
+          status: "error",
+          error: `expected req.input.contextFiles[${i}] to be a string`,
+        };
+      }
     }
   }
 

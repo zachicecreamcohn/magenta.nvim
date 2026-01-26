@@ -171,17 +171,14 @@ it("getMessages correctly interleaves tool requests and responses", async () => 
     ).toEqual([
       "user:text",
       "user:system_reminder",
-      "user:checkpoint",
       "assistant:text",
       "assistant:tool_use",
       "user:tool_result",
       "user:system_reminder", // system reminder after first tool response
-      "user:checkpoint",
       "assistant:text",
       "assistant:tool_use",
       "user:tool_result",
       "user:system_reminder", // system reminder after second tool response
-      "user:checkpoint",
       "assistant:text",
     ]);
   });
@@ -533,7 +530,7 @@ it(
       expect(messages.length).toBe(2);
 
       // The user message should have four content blocks: original text + diagnostics + system_reminder + checkpoint
-      expect(messages[0].content.length).toBe(4);
+      expect(messages[0].content.length).toBe(3);
       const content0 = messages[0].content[0];
       expect(content0.type).toBe("text");
       expect(
@@ -548,7 +545,6 @@ it(
         (content1 as Extract<typeof content1, { type: "text" }>).text,
       ).toContain("Property 'd' does not exist on type");
       expect(messages[0].content[2].type).toBe("system_reminder");
-      expect(messages[0].content[3].type).toBe("checkpoint");
     });
   },
 );
@@ -607,7 +603,7 @@ it(
       expect(messages.length).toBe(2);
 
       // The user message should have three content blocks: original text + diagnostics + system_reminder
-      expect(messages[0].content.length).toBe(4);
+      expect(messages[0].content.length).toBe(3);
       const content0 = messages[0].content[0];
       expect(content0.type).toBe("text");
       expect(
@@ -665,7 +661,7 @@ it(
       expect(messages.length).toBe(2);
 
       // The user message should have three content blocks: original text + quickfix list + system_reminder
-      expect(messages[0].content.length).toBe(4);
+      expect(messages[0].content.length).toBe(3);
       const content0 = messages[0].content[0];
       expect(content0.type).toBe("text");
       expect(
@@ -730,7 +726,7 @@ it(
       expect(messages.length).toBe(2);
 
       // The user message should have three content blocks: original text + quickfix list + system_reminder
-      expect(messages[0].content.length).toBe(4);
+      expect(messages[0].content.length).toBe(3);
       const content0 = messages[0].content[0];
       expect(content0.type).toBe("text");
       expect(
@@ -783,7 +779,7 @@ it(
       expect(messages.length).toBe(2);
 
       // The user message should have three content blocks: original text + empty quickfix list + system_reminder
-      expect(messages[0].content.length).toBe(4);
+      expect(messages[0].content.length).toBe(3);
       const content1 = messages[0].content[1];
       expect(content1.type).toBe("text");
       expect(
@@ -832,7 +828,7 @@ it(
       expect(messages.length).toBe(2);
 
       // The user message should have three content blocks: original text + buffers list + system_reminder
-      expect(messages[0].content.length).toBe(4);
+      expect(messages[0].content.length).toBe(3);
       const content0 = messages[0].content[0];
       expect(content0.type).toBe("text");
       expect(
@@ -890,7 +886,7 @@ it(
       expect(messages.length).toBe(2);
 
       // The user message should have three content blocks: original text + buffers list + system_reminder
-      expect(messages[0].content.length).toBe(4);
+      expect(messages[0].content.length).toBe(3);
       const content0 = messages[0].content[0];
       expect(content0.type).toBe("text");
       expect(
@@ -942,7 +938,7 @@ it(
       expect(messages.length).toBe(2);
 
       // The user message should have three content blocks: original text + buffers list + system_reminder
-      expect(messages[0].content.length).toBe(4);
+      expect(messages[0].content.length).toBe(3);
       const content1 = messages[0].content[1];
       expect(content1.type).toBe("text");
       expect(
@@ -1662,13 +1658,11 @@ it("inserts error tool results when aborting while stopped waiting for tool use"
     expect(messagePattern).toEqual([
       "user:text",
       "user:text", // system_reminder
-      "user:text", // checkpoint
       "assistant:text",
       "assistant:tool_use",
       "user:tool_result", // error tool result from abort
       "user:text",
       "user:text", // system_reminder
-      "user:text", // checkpoint
     ]);
 
     // Verify the tool result contains the abort error message
@@ -1755,13 +1749,11 @@ it("handles @async messages by queueing them and sending on next tool response",
     ).toEqual([
       "user:text",
       "user:text", // system_reminder converted to text
-      "user:text", // checkpoint
       "assistant:text",
       "assistant:tool_use",
       "user:tool_result",
       "user:text",
       "user:text", // system_reminder converted to text
-      "user:text", // checkpoint
     ]);
     expect(stream2.messages).toMatchSnapshot();
   });

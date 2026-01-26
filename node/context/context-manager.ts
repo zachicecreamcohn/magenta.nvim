@@ -164,6 +164,37 @@ export class ContextManager {
     return new ContextManager(myDispatch, context, initialFiles);
   }
 
+  /** Add files to the context manager.
+   * Used when creating threads with context files or after compaction.
+   */
+  async addFiles(filePaths: UnresolvedFilePath[]): Promise<void> {
+    for (const filePath of filePaths) {
+      const absFilePath = resolveFilePath(this.context.cwd, filePath);
+      const relFilePath = relativePath(this.context.cwd, absFilePath);
+
+      const fileTypeInfo = await detectFileType(absFilePath);
+      if (!fileTypeInfo) {
+        this.context.nvim.logger.warn(
+          `File ${filePath} does not exist, skipping in context`,
+        );
+        continue;
+      }
+
+      if (fileTypeInfo.category === FileCategory.UNSUPPORTED) {
+        this.context.nvim.logger.warn(
+          `Skipping ${filePath}: unsupported file type`,
+        );
+        continue;
+      }
+
+      this.files[absFilePath] = {
+        relFilePath,
+        fileTypeInfo,
+        agentView: undefined,
+      };
+    }
+  }
+
   reset() {
     // Reset agent view for all files
     for (const absFilePath in this.files) {

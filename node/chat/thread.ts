@@ -31,7 +31,6 @@ import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp } from "../lsp.ts";
 import {
   getProvider as getProvider,
-  type NativeMessageIdx,
   type ProviderMessage,
   type ProviderMessageContent,
   type Agent,
@@ -59,7 +58,6 @@ import {
 import type { Chat } from "./chat.ts";
 import type { ThreadId, ThreadType } from "./types.ts";
 import type { SystemPrompt } from "../providers/system-prompt.ts";
-import { generateCheckpointId, checkpointToText } from "./checkpoint.ts";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -179,7 +177,10 @@ export type ToolCache = {
 
 /** Control flow operations that intercept normal tool processing */
 export type ControlFlowOp =
-  | { type: "compact"; nextPrompt?: string; truncateIdx?: NativeMessageIdx }
+  | {
+      type: "compact";
+      nextPrompt?: string;
+    }
   | { type: "yield"; response: string };
 
 /** Thread-specific conversation mode (agent status is read directly from agent) */
@@ -191,7 +192,6 @@ export type ConversationMode =
       type: "awaiting_control_flow";
       pendingOp: "compact";
       nextPrompt: string;
-      truncateIdx: NativeMessageIdx;
     };
 
 export class Thread {
@@ -630,39 +630,64 @@ export class Thread {
     }
 
     const input = toolUseBlock.request.value.input as {
-      replacements: Array<{ from?: string; to?: string; summary: string }>;
+      summary: string;
+      contextFiles?: string[];
       continuation?: string;
     };
 
-    // Extract data from awaiting_control_flow mode if user-initiated
+    // Extract nextPrompt from awaiting_control_flow mode if user-initiated
     // Otherwise use agent's continuation hint for agent-initiated compaction
-    let truncateIdx: NativeMessageIdx | undefined;
-    let nextPrompt: string | undefined;
-
-    if (
+    const nextPrompt =
       this.state.mode.type === "awaiting_control_flow" &&
       this.state.mode.pendingOp === "compact"
-    ) {
-      // User-initiated: use stored values
-      truncateIdx = this.state.mode.truncateIdx;
-      nextPrompt = this.state.mode.nextPrompt;
-    } else {
-      // Agent-initiated: use continuation hint
-      nextPrompt = input.continuation;
-    }
+        ? this.state.mode.nextPrompt
+        : input.continuation;
 
     // Transition to control_flow mode with data stored for maybeAutoRespond
     const operation: ControlFlowOp = { type: "compact" };
     if (nextPrompt !== undefined) operation.nextPrompt = nextPrompt;
-    if (truncateIdx !== undefined) operation.truncateIdx = truncateIdx;
     this.state.mode = {
       type: "control_flow",
       operation,
     };
 
-    // Call compact on agent - it will handle the async execution
-    // and emit status-changed when done
-    this.agent.compact(input.replacements, truncateIdx);
+    // Create new context manager and add specified files before compacting
+    this.resetContextManager(input.contextFiles)
+      .then(() => {
+        // Call compact on agent - it will handle the async execution
+        // and emit status-changed when done
+        this.agent.compact({ summary: input.summary });
+      })
+      .catch((e: Error) => {
+        this.context.nvim.logger.error(
+          `Failed to reset context manager during compact: ${e.message}`,
+        );
+      });
+  }
+
+  /** Reset the context manager, optionally adding specified files */
+  private async resetContextManager(contextFiles?: string[]): Promise<void> {
+    this.contextManager = await ContextManager.create(
+      (msg) =>
+        this.context.dispatch({
+          type: "thread-msg",
+          id: this.id,
+          msg: { type: "context-manager-msg", msg },
+        }),
+      {
+        dispatch: this.context.dispatch,
+        cwd: this.context.cwd,
+        nvim: this.context.nvim,
+        options: this.context.options,
+        bufferTracker: this.context.bufferTracker,
+      },
+    );
+
+    if (contextFiles && contextFiles.length > 0) {
+      await this.contextManager.addFiles(contextFiles as UnresolvedFilePath[]);
+    }
+
+    this.context.contextManager = this.contextManager;
   }
 
   private handleProviderStopped(stopReason: StopReason): void {
@@ -951,18 +976,13 @@ export class Thread {
       // Reset mode to normal now that we've extracted the data
       this.state.mode = { type: "normal" };
 
-      // User-initiated @compact: append next prompt as user message
+      // Continue with next prompt if any
       if (operation.nextPrompt !== undefined) {
-        this.agent.appendUserMessage([
-          { type: "text", text: operation.nextPrompt },
-        ]);
-        // Agent-initiated continuation is just a hint, not text to append
-        // Continue the conversation
-        this.agent.continueConversation();
-        return { type: "did-autorespond" };
-      } else {
-        return { type: "no-action-needed" };
+        this.sendMessage([{ type: "user", text: operation.nextPrompt }]).catch(
+          this.handleSendMessageError.bind(this),
+        );
       }
+      return { type: "did-autorespond" };
     } else if (
       agentStatus.type === "stopped" &&
       agentStatus.stopReason === "end_turn" &&
@@ -1029,12 +1049,6 @@ export class Thread {
     contentToSend.push({
       type: "text",
       text: getSubsequentReminder(this.state.threadType),
-    });
-
-    // Add checkpoint after system reminder
-    contentToSend.push({
-      type: "text",
-      text: checkpointToText(generateCheckpointId()),
     });
 
     if (contextUpdates) {
@@ -1155,8 +1169,8 @@ The user's next prompt will be:
 ${compactText}
 
 Use the compact tool to reduce the thread size. You should:
-- Identify which parts of the conversation can be summarized
-- Use checkpoint markers to specify ranges to compact
+- Summarize the entire conversation up to this point
+- Include a list of important context files that should be preserved
 - Preserve important context needed for the user's next prompt
 - Strip redundant details, verbose tool outputs, and resolved discussions
 
@@ -1166,7 +1180,6 @@ You must use the compact tool immediately. Do not use any other tools.`,
             type: "awaiting_control_flow",
             pendingOp: "compact",
             nextPrompt: compactText,
-            truncateIdx: this.agent.getNativeMessageIdx(),
           };
         }
       } else {
@@ -1182,12 +1195,6 @@ You must use the compact tool immediately. Do not use any other tools.`,
       messageContent.push({
         type: "system_reminder",
         text: getSubsequentReminder(this.state.threadType),
-      });
-
-      // Add checkpoint after system reminder
-      messageContent.push({
-        type: "checkpoint",
-        id: generateCheckpointId(),
       });
     }
 
@@ -1234,9 +1241,6 @@ You must use the compact tool immediately. Do not use any other tools.`,
       } else if (c.type === "system_reminder") {
         // Convert system_reminder to text for the provider
         contentToSend.push({ type: "text", text: c.text });
-      } else if (c.type === "checkpoint") {
-        // Convert checkpoint to text for the provider
-        contentToSend.push({ type: "text", text: checkpointToText(c.id) });
       }
     }
 
@@ -1476,15 +1480,12 @@ ${thread.context.contextManager.view()}`;
   const isToolResultOnlyMessage = (msg: ProviderMessage): boolean =>
     msg.role === "user" &&
     msg.content.every(
-      (c) =>
-        c.type === "tool_result" ||
-        c.type === "system_reminder" ||
-        c.type === "checkpoint",
+      (c) => c.type === "tool_result" || c.type === "system_reminder",
     );
 
   // Render messages from provider thread
   const messagesView = messages.map((message, messageIdx) => {
-    // Skip user messages that only contain tool results (no system_reminder/checkpoint)
+    // Skip user messages that only contain tool results (no system_reminder)
     if (
       message.role === "user" &&
       message.content.every((c) => c.type === "tool_result")
@@ -1492,19 +1493,14 @@ ${thread.context.contextManager.view()}`;
       return d``;
     }
 
-    // For user messages with only tool_result, system_reminder, and checkpoint,
-    // skip the header but show the system reminder and checkpoint inline
+    // For user messages with only tool_result and system_reminder,
+    // skip the header but show the system reminder inline
     const isToolResultWithReminder =
       message.role === "user" &&
       message.content.every(
-        (c) =>
-          c.type === "tool_result" ||
-          c.type === "system_reminder" ||
-          c.type === "checkpoint",
+        (c) => c.type === "tool_result" || c.type === "system_reminder",
       ) &&
-      message.content.some(
-        (c) => c.type === "system_reminder" || c.type === "checkpoint",
-      );
+      message.content.some((c) => c.type === "system_reminder");
 
     // Skip "# assistant:" header if this is a continuation of a tool-use turn
     // (i.e., previous message was a tool-result-only user message)
@@ -1827,42 +1823,6 @@ function renderMessageContent(
     case "context_update":
       // Context updates are rendered via thread.state.messageViewState
       return d``;
-
-    case "checkpoint": {
-      const viewState = thread.state.messageViewState[messageIdx];
-      const isExpanded = viewState?.expandedContent?.[contentIdx] || false;
-
-      if (isExpanded) {
-        return withBindings(
-          withExtmark(d`🏁 [Checkpoint: ${content.id}]\n`, {
-            hl_group: "@comment",
-          }),
-          {
-            "<CR>": () => {
-              dispatch({
-                type: "toggle-expand-content",
-                messageIdx,
-                contentIdx,
-              });
-            },
-          },
-        );
-      } else {
-        // Render inline (no newline) to follow system_reminder on same line
-        // Add newline at end since this is typically the last item
-        return withBindings(
-          withExtmark(d`🏁 [Checkpoint]\n`, { hl_group: "@comment" }),
-          {
-            "<CR>": () =>
-              dispatch({
-                type: "toggle-expand-content",
-                messageIdx,
-                contentIdx,
-              }),
-          },
-        );
-      }
-    }
 
     default:
       return d`[Unknown content type]\n`;

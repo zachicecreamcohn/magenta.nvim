@@ -7,7 +7,6 @@ import {
 import type {
   AgentInput,
   AgentMsg,
-  NativeMessageIdx,
   ProviderToolResult,
   ProviderToolSpec,
 } from "./provider-types.ts";
@@ -1061,15 +1060,12 @@ File context here
 });
 
 describe("compact", () => {
-  it("compacts from checkpoint to checkpoint", async () => {
+  it("replaces entire thread with summary", async () => {
     const mockClient = new MockAnthropicClient();
     const agent = createAgent(mockClient);
 
-    // Build a conversation with checkpoints
-    agent.appendUserMessage([
-      { type: "text", text: "Hello" },
-      { type: "text", text: "<checkpoint:aaaaaa>" },
-    ]);
+    // Build a conversation
+    agent.appendUserMessage([{ type: "text", text: "Hello" }]);
     await delay(0);
     agent.continueConversation();
     const stream1 = await mockClient.awaitStream();
@@ -1078,10 +1074,7 @@ describe("compact", () => {
     await stream1.finalMessage();
     await delay(0);
 
-    agent.appendUserMessage([
-      { type: "text", text: "Follow up" },
-      { type: "text", text: "<checkpoint:bbbbbb>" },
-    ]);
+    agent.appendUserMessage([{ type: "text", text: "Follow up" }]);
     await delay(0);
     agent.continueConversation();
     const stream2 = await mockClient.awaitStream();
@@ -1090,296 +1083,21 @@ describe("compact", () => {
     await stream2.finalMessage();
     await delay(0);
 
-    agent.appendUserMessage([
-      { type: "text", text: "Final question" },
-      { type: "text", text: "<checkpoint:cccccc>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream3 = await mockClient.awaitStream();
-    stream3.streamText("Final response");
-    stream3.finishResponse("end_turn");
-    await stream3.finalMessage();
-    await delay(0);
+    // Before compaction: 4 messages
+    expect(agent.getState().messages).toHaveLength(4);
 
-    // Compact from aaaaaa to bbbbbb
-    agent.compact([
-      { from: "aaaaaa", to: "bbbbbb", summary: "Summary of middle section" },
-    ]);
+    // Compact the entire thread
+    agent.compact({ summary: "Summary of the conversation" });
     await delay(0);
 
     const state = agent.getState();
-    // Should have:
-    // 1. User: Hello + checkpoint aaaaaa
-    // 2. Assistant: Summary
-    // 3. User: Final question + checkpoint cccccc
-    // 4. Assistant: Final response
-    expect(state.messages.length).toBe(4);
-    expect(state.messages[0].role).toBe("user");
-    expect(state.messages[1].role).toBe("assistant");
-    expect(state.messages[1].content[0]).toEqual({
-      type: "text",
-      text: "Summary of middle section",
-    });
-    expect(state.messages[2].role).toBe("user");
-    expect(state.messages[3].role).toBe("assistant");
-  });
-
-  it("compacts from start to checkpoint", async () => {
-    const mockClient = new MockAnthropicClient();
-    const agent = createAgent(mockClient);
-
-    agent.appendUserMessage([
-      { type: "text", text: "Hello" },
-      { type: "text", text: "<checkpoint:aaaaaa>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream1 = await mockClient.awaitStream();
-    stream1.streamText("Response 1");
-    stream1.finishResponse("end_turn");
-    await stream1.finalMessage();
-    await delay(0);
-
-    agent.appendUserMessage([
-      { type: "text", text: "Follow up" },
-      { type: "text", text: "<checkpoint:bbbbbb>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream2 = await mockClient.awaitStream();
-    stream2.streamText("Response 2");
-    stream2.finishResponse("end_turn");
-    await stream2.finalMessage();
-    await delay(0);
-
-    // Compact from start to aaaaaa
-    agent.compact([{ to: "aaaaaa", summary: "Summary of beginning" }]);
-    await delay(0);
-
-    const state = agent.getState();
-    // Should have:
-    // 1. Assistant: Summary
-    // 2. User: Follow up + checkpoint bbbbbb
-    // 3. Assistant: Response 2
-    expect(state.messages.length).toBe(3);
+    // Should have just the summary as an assistant message
+    expect(state.messages.length).toBe(1);
     expect(state.messages[0].role).toBe("assistant");
     expect(state.messages[0].content[0]).toEqual({
       type: "text",
-      text: "Summary of beginning",
+      text: "Summary of the conversation",
     });
-  });
-
-  it("compacts from checkpoint to end", async () => {
-    const mockClient = new MockAnthropicClient();
-    const agent = createAgent(mockClient);
-
-    agent.appendUserMessage([
-      { type: "text", text: "Hello" },
-      { type: "text", text: "<checkpoint:aaaaaa>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream1 = await mockClient.awaitStream();
-    stream1.streamText("Response 1");
-    stream1.finishResponse("end_turn");
-    await stream1.finalMessage();
-    await delay(0);
-
-    agent.appendUserMessage([
-      { type: "text", text: "Follow up" },
-      { type: "text", text: "<checkpoint:bbbbbb>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream2 = await mockClient.awaitStream();
-    stream2.streamText("Response 2");
-    stream2.finishResponse("end_turn");
-    await stream2.finalMessage();
-    await delay(0);
-
-    // Compact from aaaaaa to end
-    agent.compact([{ from: "aaaaaa", summary: "Summary of rest" }]);
-    await delay(0);
-
-    const state = agent.getState();
-    // Should have:
-    // 1. User: Hello + checkpoint aaaaaa
-    // 2. Assistant: Summary
-    expect(state.messages.length).toBe(2);
-    expect(state.messages[0].role).toBe("user");
-    expect(state.messages[1].role).toBe("assistant");
-    expect(state.messages[1].content[0]).toEqual({
-      type: "text",
-      text: "Summary of rest",
-    });
-  });
-
-  it("deletes range with empty summary", async () => {
-    const mockClient = new MockAnthropicClient();
-    const agent = createAgent(mockClient);
-
-    agent.appendUserMessage([
-      { type: "text", text: "Hello" },
-      { type: "text", text: "<checkpoint:aaaaaa>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream1 = await mockClient.awaitStream();
-    stream1.streamText("Response 1");
-    stream1.finishResponse("end_turn");
-    await stream1.finalMessage();
-    await delay(0);
-
-    agent.appendUserMessage([
-      { type: "text", text: "Follow up" },
-      { type: "text", text: "<checkpoint:bbbbbb>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream2 = await mockClient.awaitStream();
-    stream2.streamText("Response 2");
-    stream2.finishResponse("end_turn");
-    await stream2.finalMessage();
-    await delay(0);
-
-    // Delete from aaaaaa to bbbbbb (empty summary)
-    agent.compact([{ from: "aaaaaa", to: "bbbbbb", summary: "" }]);
-    await delay(0);
-
-    const state = agent.getState();
-    // Should have:
-    // 1. User: Hello + checkpoint aaaaaa (no summary added)
-    // 2. Assistant: Response 2 (content after bbbbbb checkpoint)
-    expect(state.messages.length).toBe(2);
-    expect(state.messages[0].role).toBe("user");
-    expect(state.messages[1].role).toBe("assistant");
-    expect(state.messages[1].content[0]).toEqual({
-      type: "text",
-      text: "Response 2",
-    });
-  });
-
-  it("strips system_reminder blocks from user messages", async () => {
-    const mockClient = new MockAnthropicClient();
-    const agent = createAgent(mockClient);
-
-    agent.appendUserMessage([
-      { type: "text", text: "Hello" },
-      {
-        type: "text",
-        text: "<system-reminder>Remember this</system-reminder>",
-      },
-      { type: "text", text: "<checkpoint:aaaaaa>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream1 = await mockClient.awaitStream();
-    stream1.streamText("Response 1");
-    stream1.finishResponse("end_turn");
-    await stream1.finalMessage();
-    await delay(0);
-
-    agent.appendUserMessage([
-      { type: "text", text: "Follow up" },
-      {
-        type: "text",
-        text: "<system-reminder>Another reminder</system-reminder>",
-      },
-      { type: "text", text: "<checkpoint:bbbbbb>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream2 = await mockClient.awaitStream();
-    stream2.streamText("Response 2");
-    stream2.finishResponse("end_turn");
-    await stream2.finalMessage();
-    await delay(0);
-
-    // Compact from aaaaaa to end
-    agent.compact([{ from: "aaaaaa", summary: "Summary" }]);
-    await delay(0);
-
-    const state = agent.getState();
-    // User message should not have system_reminder
-    const userContent = state.messages[0].content;
-    expect(userContent.every((c) => c.type !== "system_reminder")).toBe(true);
-  });
-
-  it("strips thinking blocks from assistant messages", async () => {
-    const mockClient = new MockAnthropicClient();
-    const agent = createAgent(mockClient);
-
-    agent.appendUserMessage([
-      { type: "text", text: "Hello" },
-      { type: "text", text: "<checkpoint:aaaaaa>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream1 = await mockClient.awaitStream();
-    stream1.streamThinking("Let me think...", "sig123");
-    stream1.streamText("Response 1");
-    stream1.finishResponse("end_turn");
-    await stream1.finalMessage();
-    await delay(0);
-
-    agent.appendUserMessage([
-      { type: "text", text: "Follow up" },
-      { type: "text", text: "<checkpoint:bbbbbb>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream2 = await mockClient.awaitStream();
-    stream2.streamThinking("More thinking...", "sig456");
-    stream2.streamText("Response 2");
-    stream2.finishResponse("end_turn");
-    await stream2.finalMessage();
-    await delay(0);
-
-    // Compact from start to aaaaaa (this will strip thinking from messages after aaaaaa)
-    agent.compact([{ to: "aaaaaa", summary: "Summary" }]);
-    await delay(0);
-
-    const state = agent.getState();
-    // Messages after the compacted region should have thinking stripped
-    const assistantMessages = state.messages.filter(
-      (m) => m.role === "assistant",
-    );
-    for (const msg of assistantMessages) {
-      expect(msg.content.every((c) => c.type !== "thinking")).toBe(true);
-    }
-  });
-
-  // Note: The "throws when checkpoint not found" test was removed because
-  // compact() now runs asynchronously via queueMicrotask and the error
-  // is thrown asynchronously, making it an unhandled rejection.
-
-  it("merges consecutive same-role messages", async () => {
-    const mockClient = new MockAnthropicClient();
-    const agent = createAgent(mockClient);
-
-    agent.appendUserMessage([
-      { type: "text", text: "Hello" },
-      { type: "text", text: "<checkpoint:aaaaaa>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream1 = await mockClient.awaitStream();
-    stream1.streamText("Response 1");
-    stream1.finishResponse("end_turn");
-    await stream1.finalMessage();
-    await delay(0);
-
-    // Compact to end with summary - this creates assistant message
-    // which might need to merge with following assistant content
-    agent.compact([{ from: "aaaaaa", summary: "Summary" }]);
-    await delay(0);
-
-    const state = agent.getState();
-    // All messages should alternate user/assistant
-    for (let i = 1; i < state.messages.length; i++) {
-      expect(state.messages[i].role).not.toBe(state.messages[i - 1].role);
-    }
   });
 
   it("truncates to truncateIdx before compacting when provided", async () => {
@@ -1387,10 +1105,7 @@ describe("compact", () => {
     const agent = createAgent(mockClient);
 
     // First exchange
-    agent.appendUserMessage([
-      { type: "text", text: "First message" },
-      { type: "text", text: "<checkpoint:aaaaaa>" },
-    ]);
+    agent.appendUserMessage([{ type: "text", text: "First message" }]);
     await delay(0);
     agent.continueConversation();
     const stream1 = await mockClient.awaitStream();
@@ -1399,11 +1114,8 @@ describe("compact", () => {
     await stream1.finalMessage();
     await delay(0);
 
-    // Second exchange (this will be at index 2-3)
-    agent.appendUserMessage([
-      { type: "text", text: "Second message" },
-      { type: "text", text: "<checkpoint:bbbbbb>" },
-    ]);
+    // Second exchange
+    agent.appendUserMessage([{ type: "text", text: "Second message" }]);
     await delay(0);
     agent.continueConversation();
     const stream2 = await mockClient.awaitStream();
@@ -1412,7 +1124,10 @@ describe("compact", () => {
     await stream2.finalMessage();
     await delay(0);
 
-    // Third exchange (simulating @compact request at index 4)
+    // Capture truncate point
+    const truncateIdx = agent.getNativeMessageIdx();
+
+    // Third exchange (simulating @compact request)
     agent.appendUserMessage([{ type: "text", text: "Compact request" }]);
     await delay(0);
     agent.continueConversation();
@@ -1422,21 +1137,16 @@ describe("compact", () => {
     await stream3.finalMessage();
     await delay(0);
 
-    // Before compaction: 6 messages (3 user + 3 assistant)
+    // Before compaction: 6 messages
     expect(agent.getState().messages).toHaveLength(6);
 
-    // Compact with truncateIdx = 3 (keeps messages 0-3, removes 4-5)
-    // This simulates user-initiated @compact where we truncate back to before the @compact request
-    agent.compact(
-      [{ to: "aaaaaa", summary: "Summary of first exchange" }],
-      3 as NativeMessageIdx,
-    );
+    // Compact with truncateIdx to remove the @compact request
+    agent.compact({ summary: "Summary of conversation" }, truncateIdx);
     await delay(0);
 
     const state = agent.getState();
 
-    // The @compact request (index 4) and response (index 5) should be removed
-    // Should NOT have "Compact request" or "I will compact" in messages
+    // The @compact request and response should be removed
     const hasCompactRequest = state.messages.some(
       (m) =>
         m.role === "user" &&
@@ -1446,312 +1156,22 @@ describe("compact", () => {
     );
     expect(hasCompactRequest).toBe(false);
 
-    const hasCompactResponse = state.messages.some(
-      (m) =>
-        m.role === "assistant" &&
-        m.content.some((c) => c.type === "text" && c.text === "I will compact"),
-    );
-    expect(hasCompactResponse).toBe(false);
-
-    // Should have the summary from compaction
+    // Should have the summary
     const hasSummary = state.messages.some(
       (m) =>
         m.role === "assistant" &&
         m.content.some(
-          (c) => c.type === "text" && c.text === "Summary of first exchange",
+          (c) => c.type === "text" && c.text === "Summary of conversation",
         ),
     );
     expect(hasSummary).toBe(true);
   });
 
-  it("does not truncate when truncateIdx not provided", async () => {
+  it("handles empty summary", async () => {
     const mockClient = new MockAnthropicClient();
     const agent = createAgent(mockClient);
 
-    agent.appendUserMessage([
-      { type: "text", text: "Hello" },
-      { type: "text", text: "<checkpoint:aaaaaa>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream1 = await mockClient.awaitStream();
-    stream1.streamText("Hi there");
-    stream1.finishResponse("end_turn");
-    await stream1.finalMessage();
-    await delay(0);
-
-    // Second exchange
-    agent.appendUserMessage([{ type: "text", text: "Another message" }]);
-    await delay(0);
-    agent.continueConversation();
-    const stream2 = await mockClient.awaitStream();
-    stream2.streamText("Response");
-    stream2.finishResponse("end_turn");
-    await stream2.finalMessage();
-    await delay(0);
-
-    // Before compaction: 4 messages
-    expect(agent.getState().messages).toHaveLength(4);
-
-    // Agent-initiated compact: no truncateIdx, just trims compact tool_use
-    agent.compact([{ to: "aaaaaa", summary: "Greeting" }]);
-    await delay(0);
-
-    const state = agent.getState();
-
-    // "Another message" should still be present (not truncated)
-    const hasAnotherMessage = state.messages.some(
-      (m) =>
-        m.role === "user" &&
-        m.content.some(
-          (c) => c.type === "text" && c.text === "Another message",
-        ),
-    );
-    expect(hasAnotherMessage).toBe(true);
-  });
-
-  it("handles checkpoint truncated past truncateIdx", async () => {
-    const mockClient = new MockAnthropicClient();
-    const agent = createAgent(mockClient);
-
-    // First exchange with checkpoint
-    agent.appendUserMessage([
-      { type: "text", text: "First" },
-      { type: "text", text: "<checkpoint:aaaaaa>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream1 = await mockClient.awaitStream();
-    stream1.streamText("Response 1");
-    stream1.finishResponse("end_turn");
-    await stream1.finalMessage();
-    await delay(0);
-
-    // Capture truncate point after first exchange
-    const truncateIdx = agent.getNativeMessageIdx();
-
-    // Second exchange with checkpoint (will be truncated)
-    agent.appendUserMessage([
-      { type: "text", text: "Second" },
-      { type: "text", text: "<checkpoint:bbbbbb>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream2 = await mockClient.awaitStream();
-    stream2.streamText("Response 2");
-    stream2.finishResponse("end_turn");
-    await stream2.finalMessage();
-    await delay(0);
-
-    // Third exchange (simulating @compact request)
-    agent.appendUserMessage([{ type: "text", text: "@compact" }]);
-    await delay(0);
-    agent.continueConversation();
-    const stream3 = await mockClient.awaitStream();
-    stream3.streamText("Compacting...");
-    stream3.finishResponse("end_turn");
-    await stream3.finalMessage();
-    await delay(0);
-
-    // Compact referencing bbbbbb which is past truncateIdx
-    // bbbbbb checkpoint is after truncateIdx, so it will be truncated
-    agent.compact(
-      [{ from: "aaaaaa", to: "bbbbbb", summary: "Summary" }],
-      truncateIdx,
-    );
-    await delay(0);
-
-    // bbbbbb was truncated, so "to: bbbbbb" should be treated as "to: end"
-    // Result should be: User(First + checkpoint aaaaaa), Assistant(Summary)
-    expect(agent.getNativeMessages()).toMatchSnapshot();
-  });
-
-  it("handles overlapping checkpoint ranges", async () => {
-    const mockClient = new MockAnthropicClient();
-    const agent = createAgent(mockClient);
-
-    // Build conversation with multiple checkpoints
-    agent.appendUserMessage([
-      { type: "text", text: "First" },
-      { type: "text", text: "<checkpoint:aaaaaa>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream1 = await mockClient.awaitStream();
-    stream1.streamText("Response 1");
-    stream1.finishResponse("end_turn");
-    await stream1.finalMessage();
-    await delay(0);
-
-    agent.appendUserMessage([
-      { type: "text", text: "Second" },
-      { type: "text", text: "<checkpoint:bbbbbb>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream2 = await mockClient.awaitStream();
-    stream2.streamText("Response 2");
-    stream2.finishResponse("end_turn");
-    await stream2.finalMessage();
-    await delay(0);
-
-    agent.appendUserMessage([
-      { type: "text", text: "Third" },
-      { type: "text", text: "<checkpoint:cccccc>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream3 = await mockClient.awaitStream();
-    stream3.streamText("Response 3");
-    stream3.finishResponse("end_turn");
-    await stream3.finalMessage();
-    await delay(0);
-
-    // Two overlapping ranges: aaaaaa->cccccc and bbbbbb->cccccc
-    // Processed in reverse order by 'to' position, so both have same 'to'
-    // The second replacement's 'to' (cccccc) will be consumed by first replacement
-    agent.compact([
-      { from: "aaaaaa", to: "cccccc", summary: "Summary A to C" },
-      { from: "bbbbbb", to: "cccccc", summary: "Summary B to C" },
-    ]);
-    await delay(0);
-
-    // After first replacement (aaaaaa->cccccc), cccccc is marked as summarized
-    // Second replacement (bbbbbb->cccccc) should reference the summary location
-    // bbbbbb is also consumed by first replacement, so it points to summary
-    expect(agent.getNativeMessages()).toMatchSnapshot();
-  });
-
-  it("handles checkpoint consumed by previous summary", async () => {
-    const mockClient = new MockAnthropicClient();
-    const agent = createAgent(mockClient);
-
-    // Build conversation with checkpoints
-    agent.appendUserMessage([
-      { type: "text", text: "First" },
-      { type: "text", text: "<checkpoint:aaaaaa>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream1 = await mockClient.awaitStream();
-    stream1.streamText("Response 1");
-    stream1.finishResponse("end_turn");
-    await stream1.finalMessage();
-    await delay(0);
-
-    agent.appendUserMessage([
-      { type: "text", text: "Second" },
-      { type: "text", text: "<checkpoint:bbbbbb>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream2 = await mockClient.awaitStream();
-    stream2.streamText("Response 2");
-    stream2.finishResponse("end_turn");
-    await stream2.finalMessage();
-    await delay(0);
-
-    agent.appendUserMessage([
-      { type: "text", text: "Third" },
-      { type: "text", text: "<checkpoint:cccccc>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream3 = await mockClient.awaitStream();
-    stream3.streamText("Response 3");
-    stream3.finishResponse("end_turn");
-    await stream3.finalMessage();
-    await delay(0);
-
-    agent.appendUserMessage([
-      { type: "text", text: "Fourth" },
-      { type: "text", text: "<checkpoint:dddddd>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream4 = await mockClient.awaitStream();
-    stream4.streamText("Response 4");
-    stream4.finishResponse("end_turn");
-    await stream4.finalMessage();
-    await delay(0);
-
-    // Two non-overlapping ranges processed in reverse order:
-    // bbbbbb->cccccc (later in thread, processed first)
-    // aaaaaa->bbbbbb (earlier, processed second - but bbbbbb is now summarized)
-    agent.compact([
-      { from: "bbbbbb", to: "cccccc", summary: "Summary B to C" },
-      { from: "aaaaaa", to: "bbbbbb", summary: "Summary A to B" },
-    ]);
-    await delay(0);
-
-    // First: bbbbbb->cccccc creates summary, marks bbbbbb and cccccc as summarized
-    // Second: aaaaaa->bbbbbb - bbbbbb is now summarized, so 'to' points to that summary start
-    expect(agent.getNativeMessages()).toMatchSnapshot();
-  });
-
-  it("handles 'from' checkpoint that was truncated", async () => {
-    const mockClient = new MockAnthropicClient();
-    const agent = createAgent(mockClient);
-
-    agent.appendUserMessage([
-      { type: "text", text: "First" },
-      { type: "text", text: "<checkpoint:aaaaaa>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream1 = await mockClient.awaitStream();
-    stream1.streamText("Response 1");
-    stream1.finishResponse("end_turn");
-    await stream1.finalMessage();
-    await delay(0);
-
-    // Capture truncate point after first exchange
-    const truncateIdx = agent.getNativeMessageIdx();
-
-    agent.appendUserMessage([
-      { type: "text", text: "Second" },
-      { type: "text", text: "<checkpoint:bbbbbb>" },
-    ]);
-    await delay(0);
-    agent.continueConversation();
-    const stream2 = await mockClient.awaitStream();
-    stream2.streamText("Response 2");
-    stream2.finishResponse("end_turn");
-    await stream2.finalMessage();
-    await delay(0);
-
-    // @compact request
-    agent.appendUserMessage([{ type: "text", text: "@compact" }]);
-    await delay(0);
-    agent.continueConversation();
-    const stream3 = await mockClient.awaitStream();
-    stream3.streamText("Compacting");
-    stream3.finishResponse("end_turn");
-    await stream3.finalMessage();
-    await delay(0);
-
-    // Truncate to keep only First + Response 1
-    // Then compact from bbbbbb (truncated) to end
-    // Since bbbbbb is truncated, 'from' should be treated as start of thread
-    agent.compact(
-      [{ from: "bbbbbb", summary: "Summary from truncated" }],
-      truncateIdx,
-    );
-    await delay(0);
-
-    // bbbbbb was truncated, so "from: bbbbbb" becomes "from: start"
-    // This replaces everything with the summary
-    expect(agent.getNativeMessages()).toMatchSnapshot();
-  });
-
-  it("handles checkpoint not in map gracefully", async () => {
-    const mockClient = new MockAnthropicClient();
-    const agent = createAgent(mockClient);
-
-    agent.appendUserMessage([
-      { type: "text", text: "Hello" },
-      { type: "text", text: "<checkpoint:aaaaaa>" },
-    ]);
+    agent.appendUserMessage([{ type: "text", text: "Hello" }]);
     await delay(0);
     agent.continueConversation();
     const stream1 = await mockClient.awaitStream();
@@ -1760,14 +1180,63 @@ describe("compact", () => {
     await stream1.finalMessage();
     await delay(0);
 
-    // Compact with a checkpoint that doesn't exist (typo or never existed)
-    // Should not throw, should treat as end of thread
-    agent.compact([{ from: "aaaaaa", to: "zzzzzz", summary: "Summary" }]);
+    // Compact with empty summary
+    agent.compact({ summary: "" });
     await delay(0);
 
-    // zzzzzz doesn't exist, so 'to' is treated as end of thread
-    // Result: User(Hello + aaaaaa), Assistant(Summary)
-    expect(agent.getNativeMessages()).toMatchSnapshot();
+    const state = agent.getState();
+    // Should have no messages (empty summary means empty message array)
+    expect(state.messages.length).toBe(0);
+  });
+
+  it("trims compact tool_use when no truncateIdx provided", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+
+    agent.appendUserMessage([{ type: "text", text: "Hello" }]);
+    await delay(0);
+    agent.continueConversation();
+    const stream1 = await mockClient.awaitStream();
+    stream1.streamText("Let me compact");
+    stream1.streamToolUse("tool_1" as ToolRequestId, "compact" as ToolName, {
+      summary: "test",
+    });
+    stream1.finishResponse("tool_use");
+    await stream1.finalMessage();
+    await delay(0);
+
+    // Agent-initiated compact (no truncateIdx)
+    agent.compact({ summary: "Summary" });
+    await delay(0);
+
+    const state = agent.getState();
+    // The compact tool_use should be trimmed from the last message
+    const hasCompactTool = state.messages.some(
+      (m) =>
+        m.role === "assistant" &&
+        m.content.some((c) => c.type === "tool_use" && c.name === "compact"),
+    );
+    expect(hasCompactTool).toBe(false);
+  });
+
+  it("sets status to stopped/end_turn after compact", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+
+    agent.appendUserMessage([{ type: "text", text: "Hello" }]);
+    await delay(0);
+    agent.continueConversation();
+    const stream1 = await mockClient.awaitStream();
+    stream1.streamText("Response");
+    stream1.finishResponse("end_turn");
+    await stream1.finalMessage();
+    await delay(0);
+
+    agent.compact({ summary: "Summary" });
+    await delay(0);
+
+    const state = agent.getState();
+    expect(state.status).toEqual({ type: "stopped", stopReason: "end_turn" });
   });
 });
 

@@ -2,14 +2,12 @@ import { expect, it } from "vitest";
 import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "./toolManager";
 import type { ToolName } from "./types";
-import type { CompactReplacement } from "../providers/provider-types";
 import { pollUntil } from "../utils/async";
 
 it("agent-initiated compact without continuation", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
 
-    // First message - creates checkpoint 000000
     await driver.inputMagentaText("Hello");
     await driver.send();
 
@@ -20,15 +18,10 @@ it("agent-initiated compact without continuation", async () => {
       toolRequests: [],
     });
 
-    // Second message - creates checkpoint 000001
     await driver.inputMagentaText("Compact please");
     await driver.send();
 
     const stream2 = await driver.mockAnthropic.awaitPendingStream();
-
-    const replacements: CompactReplacement[] = [
-      { to: "000000", summary: "Greeting exchange" },
-    ];
 
     stream2.respond({
       stopReason: "tool_use",
@@ -39,7 +32,7 @@ it("agent-initiated compact without continuation", async () => {
           value: {
             id: "compact_no_cont" as ToolRequestId,
             toolName: "compact" as ToolName,
-            input: { replacements },
+            input: { summary: "Greeting exchange" },
           },
         },
       ],
@@ -68,7 +61,6 @@ it("agent-initiated compact with continuation", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
 
-    // First message - creates checkpoint 000000
     await driver.inputMagentaText("Hello");
     await driver.send();
 
@@ -79,15 +71,10 @@ it("agent-initiated compact with continuation", async () => {
       toolRequests: [],
     });
 
-    // Second message - creates checkpoint 000001
     await driver.inputMagentaText("Compact and continue");
     await driver.send();
 
     const stream2 = await driver.mockAnthropic.awaitPendingStream();
-
-    const replacements: CompactReplacement[] = [
-      { to: "000000", summary: "Greeting exchange" },
-    ];
 
     stream2.respond({
       stopReason: "tool_use",
@@ -99,7 +86,7 @@ it("agent-initiated compact with continuation", async () => {
             id: "compact_cont" as ToolRequestId,
             toolName: "compact" as ToolName,
             input: {
-              replacements,
+              summary: "Greeting exchange",
               continuation: "Now let me continue with the next task.",
             },
           },
@@ -114,11 +101,88 @@ it("agent-initiated compact with continuation", async () => {
   });
 });
 
+it("agent-initiated compact with context files creates new context manager", async () => {
+  await withDriver(
+    {
+      setupFiles: async (tmpDir) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+        await fs.mkdir(path.join(tmpDir, "src"), { recursive: true });
+        await fs.writeFile(
+          path.join(tmpDir, "src/main.ts"),
+          "export const main = () => {};\n",
+        );
+        await fs.writeFile(
+          path.join(tmpDir, "src/utils.ts"),
+          "export const util = () => {};\n",
+        );
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      await driver.inputMagentaText("Hello");
+      await driver.send();
+
+      const stream1 = await driver.mockAnthropic.awaitPendingStream();
+      stream1.respond({
+        stopReason: "end_turn",
+        text: "Hi there",
+        toolRequests: [],
+      });
+
+      await driver.inputMagentaText("Compact please");
+      await driver.send();
+
+      const stream2 = await driver.mockAnthropic.awaitPendingStream();
+
+      stream2.respond({
+        stopReason: "tool_use",
+        text: "Compacting with context",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "compact_ctx" as ToolRequestId,
+              toolName: "compact" as ToolName,
+              input: {
+                summary: "Greeting exchange",
+                contextFiles: ["src/main.ts", "src/utils.ts"],
+              },
+            },
+          },
+        ],
+      });
+
+      await pollUntil(() => {
+        const state = driver.magenta.chat.getActiveThread().agent.getState();
+        if (state.status.type != "stopped")
+          throw new Error(
+            `expected agent to be stopped but it was ${JSON.stringify(state.status)}`,
+          );
+      });
+
+      // After compact, messages should just have the summary (no context_update)
+      const messages = driver.magenta.chat.getActiveThread().getMessages();
+      expect(messages).toMatchSnapshot();
+
+      // Context manager should have the specified files
+      const contextManager =
+        driver.magenta.chat.getActiveThread().contextManager;
+      const files = Object.values(contextManager.files);
+      expect(files.length).toBe(2);
+      expect(files.map((f) => f.relFilePath).sort()).toEqual([
+        "src/main.ts",
+        "src/utils.ts",
+      ]);
+    },
+  );
+});
+
 it("user-initiated @compact removes compact request and appends next prompt", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
 
-    // First message - creates checkpoint 000000
     await driver.inputMagentaText("Hello, let's have a conversation");
     await driver.send();
 
@@ -131,7 +195,6 @@ it("user-initiated @compact removes compact request and appends next prompt", as
 
     await driver.assertDisplayBufferContains("Hello! I'm ready to chat.");
 
-    // Second message - creates checkpoint 000001
     await driver.inputMagentaText("Tell me about TypeScript");
     await driver.send();
 
@@ -168,10 +231,6 @@ it("user-initiated @compact removes compact request and appends next prompt", as
     expect(hasCompactInstruction).toBe(true);
 
     // Agent responds with compact tool
-    const replacements: CompactReplacement[] = [
-      { to: "000001", summary: "User greeted and asked about TypeScript" },
-    ];
-
     stream3.respond({
       stopReason: "tool_use",
       text: "I'll compact the thread",
@@ -181,7 +240,7 @@ it("user-initiated @compact removes compact request and appends next prompt", as
           value: {
             id: "compact_user" as ToolRequestId,
             toolName: "compact" as ToolName,
-            input: { replacements },
+            input: { summary: "User greeted and asked about TypeScript" },
           },
         },
       ],

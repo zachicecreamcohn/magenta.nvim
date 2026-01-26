@@ -83,11 +83,6 @@ export type ProviderContextUpdateContent = {
   text: string;
 };
 
-export type ProviderCheckpointContent = {
-  type: "checkpoint";
-  id: string;
-};
-
 export type ProviderImageContent = {
   type: "image";
   source: {
@@ -157,8 +152,7 @@ export type ProviderMessageContent =
   | ProviderThinkingContent
   | ProviderRedactedThinkingContent
   | ProviderSystemReminderContent
-  | ProviderContextUpdateContent
-  | ProviderCheckpointContent;
+  | ProviderContextUpdateContent;
 
 export interface Provider {
   forceToolUse(options: {
@@ -255,10 +249,8 @@ export type AgentMsg =
   | { type: "agent-stopped"; stopReason: StopReason; usage?: Usage }
   | { type: "agent-error"; error: Error };
 
-export type CompactReplacement = {
-  from?: string; // checkpoint id, undefined = start of thread
-  to?: string; // checkpoint id, undefined = end of thread
-  summary: string; // replacement content (empty = delete)
+export type CompactRequest = {
+  summary: string;
 };
 
 export interface Agent {
@@ -298,17 +290,14 @@ export interface Agent {
    */
   truncateMessages(messageIdx: NativeMessageIdx): void;
 
-  /** Compact the thread by replacing message ranges with summaries.
-   * - Strips system_reminder blocks from user messages in replaced ranges
-   * - Strips thinking blocks from assistant messages in replaced ranges
-   * - Keeps checkpoint markers
+  /** Compact the thread by replacing the entire thread with a summary.
+   * The compacted thread will have:
+   * 1. A single user message with context files (if any)
+   * 2. A single assistant message with the summary
    * @param truncateIdx - If provided, truncate messages to this index before applying compaction
    *                      (used for user-initiated @compact to remove the compact request itself)
    */
-  compact(
-    replacements: CompactReplacement[],
-    truncateIdx?: NativeMessageIdx,
-  ): void;
+  compact(request: CompactRequest, truncateIdx?: NativeMessageIdx): void;
 
   /** Create a deep copy of this agent with a new dispatch function.
    * Must only be called when agent is in stopped state (not streaming).

@@ -221,7 +221,7 @@ it("avoids sending redundant context updates after tool application (no buffer)"
         ],
         role: "user",
       });
-      // System reminder is in the last message (followed by checkpoint)
+      // System reminder is in the last message
       expect(
         providerMessages[providerMessages.length - 1],
         "auto-respond request has system reminder",
@@ -231,11 +231,6 @@ it("avoids sending redundant context updates after tool application (no buffer)"
             type: "system_reminder",
             // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             text: expect.stringContaining("Remember to use the skills"),
-          },
-          {
-            type: "checkpoint",
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-            id: expect.any(String),
           },
         ],
         role: "user",
@@ -251,7 +246,7 @@ it("avoids sending redundant context updates after tool application (no buffer)"
 
       const request = await driver.mockAnthropic.awaitStopped();
       const providerMessages = request.getProviderMessages();
-      // After end_turn, the system reminder is still the last message (followed by checkpoint)
+      // After end_turn, the system reminder is still the last message
       expect(
         providerMessages[providerMessages.length - 1],
         "end_turn request stopped agent",
@@ -261,11 +256,6 @@ it("avoids sending redundant context updates after tool application (no buffer)"
             type: "system_reminder",
             // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             text: expect.stringContaining("Remember to use the skills"),
-          },
-          {
-            type: "checkpoint",
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-            id: expect.any(String),
           },
         ],
         role: "user",
@@ -285,17 +275,13 @@ it("avoids sending redundant context updates after tool application (no buffer)"
       content: [
         {
           type: "text",
+          citations: undefined,
           text: "testing",
         },
         {
           type: "system_reminder",
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           text: expect.stringContaining("Remember to use the skills"),
-        },
-        {
-          type: "checkpoint",
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-          id: expect.any(String),
         },
       ],
       role: "user",
@@ -812,12 +798,10 @@ it("issuing a getFile request adds the file to the context but doesn't send its 
     expect(flattenedMessages).toEqual([
       "user;text;Please analyze the image test.jpg",
       "user;system_reminder;",
-      "user;checkpoint;",
       "assistant;text;I'll analyze the image",
       "assistant;tool_use;",
       "user;tool_result;",
       "user;system_reminder;",
-      "user;checkpoint;",
     ]);
 
     // Verify the tool result contains the file content exactly once
@@ -957,7 +941,7 @@ it("includes PDF file in context and sends summary in context updates", async ()
           ],
         });
 
-        // Verify system reminder is in last message (followed by checkpoint)
+        // Verify system reminder is in last message
         expect(providerMessages[providerMessages.length - 1]).toEqual({
           role: "user",
           content: [
@@ -965,11 +949,6 @@ it("includes PDF file in context and sends summary in context updates", async ()
               type: "system_reminder",
               // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
               text: expect.stringContaining("Remember to use the skills"),
-            },
-            {
-              type: "checkpoint",
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-              id: expect.any(String),
             },
           ],
         });

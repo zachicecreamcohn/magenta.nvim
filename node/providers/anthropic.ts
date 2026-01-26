@@ -27,7 +27,6 @@ import { validateInput } from "../tools/helpers.ts";
 import type { ToolRequest } from "../tools/types.ts";
 import * as AnthropicAuth from "../auth/anthropic.ts";
 import open from "open";
-import { checkpointToText } from "../chat/checkpoint.ts";
 
 function mapProviderTextToAnthropicText(
   providerText: ProviderTextContent,
@@ -361,13 +360,6 @@ export class AnthropicProvider implements Provider {
               content.push({
                 type: "text",
                 text: c.text,
-              });
-              break;
-
-            case "checkpoint":
-              content.push({
-                type: "text",
-                text: checkpointToText(c.id),
               });
               break;
 
