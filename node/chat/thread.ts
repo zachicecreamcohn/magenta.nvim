@@ -1539,14 +1539,10 @@ ${thread.context.contextManager.view()}`;
       );
     });
 
-    // Don't add trailing newline for tool-result-with-reminder messages
-    // since they flow directly into the next assistant content
-    const trailingNewline = isToolResultWithReminder ? d`` : d`\n`;
-
     return d`\
 ${roleHeader}\
 ${contextUpdateView}\
-${contentView}${trailingNewline}`;
+${contentView}`;
   });
 
   const streamingBlockView =
@@ -1683,7 +1679,7 @@ function renderMessageContent(
       } else {
         // Render inline (no newline) so checkpoint can follow on same line
         return withBindings(
-          withExtmark(d`📋 [System Reminder]`, { hl_group: "@comment" }),
+          withExtmark(d`📋 [System Reminder]\n`, { hl_group: "@comment" }),
           {
             "<CR>": () =>
               dispatch({
@@ -1726,7 +1722,7 @@ function renderMessageContent(
               : activeTool.renderPreview
                 ? d`\n${activeTool.renderPreview()}`
                 : ""
-          }`,
+          }\n`,
           {
             "<CR>": () =>
               dispatch({
@@ -1769,7 +1765,7 @@ function renderMessageContent(
             : previewContent
               ? d`\n${previewContent}`
               : d``
-        }`,
+        }\n`,
         {
           "<CR>": () => {
             dispatch({
