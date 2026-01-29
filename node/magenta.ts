@@ -75,7 +75,7 @@ export class Magenta {
           this.handleSidebarMsg(msg.msg);
         }
         if (this.mountedChatApp) {
-          this.mountedChatApp.render();
+          this.mountedChatApp.render(msg);
         }
 
         this.sidebar.renderInputHeader().catch((e) => {

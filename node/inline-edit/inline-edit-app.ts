@@ -175,7 +175,7 @@ export class InlineEditManager {
       } else {
         const mountedApp = currentEdit.mountedApp;
         if (mountedApp) {
-          mountedApp.render();
+          mountedApp.render(msg);
         }
       }
     };
