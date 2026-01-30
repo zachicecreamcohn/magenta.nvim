@@ -21,6 +21,7 @@ describe("mergeOptions", () => {
     skillsPaths: [],
     mcpServers: {},
     getFileAutoAllowGlobs: [],
+    filePermissions: [],
     customCommands: [],
   };
 

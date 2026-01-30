@@ -31,7 +31,6 @@ import type {
 } from "./types.ts";
 import type { ThreadId } from "../chat/types.ts";
 import type { NvimCwd } from "../utils/files.ts";
-import type { Gitignore } from "./util.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { ContextManager } from "../context/context-manager.ts";
 import type { Msg as ThreadMsg } from "../chat/thread.ts";
@@ -51,7 +50,6 @@ export type CreateToolContext = {
   cwd: NvimCwd;
   options: MagentaOptions;
   chat: Chat;
-  gitignore: Gitignore;
   contextManager: ContextManager;
   threadDispatch: Dispatch<ThreadMsg>;
 };
@@ -110,7 +108,6 @@ export function createTool(
         nvim: context.nvim,
         cwd: context.cwd,
         options: context.options,
-        gitignore: context.gitignore,
         contextManager: context.contextManager,
         threadDispatch: context.threadDispatch,
         myDispatch: wrapDispatch,

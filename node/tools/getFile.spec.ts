@@ -919,47 +919,6 @@ it("getFile approval", async () => {
   });
 });
 
-it("getFile requests approval for gitignored file", async () => {
-  await withDriver(
-    {
-      setupFiles: async (tmpDir) => {
-        const fs = await import("fs/promises");
-        const path = await import("path");
-        await fs.writeFile(
-          path.join(tmpDir, ".gitignore"),
-          "ignored-file.txt\n",
-        );
-      },
-    },
-    async (driver) => {
-      await driver.showSidebar();
-      await driver.inputMagentaText(`Try reading the file ignored-file.txt`);
-      await driver.send();
-
-      const request = await driver.mockAnthropic.awaitPendingStream();
-      request.respond({
-        stopReason: "tool_use",
-        text: "ok, here goes",
-        toolRequests: [
-          {
-            status: "ok",
-            value: {
-              id: "id" as ToolRequestId,
-              toolName: "get_file" as ToolName,
-              input: {
-                filePath: "ignored-file.txt" as UnresolvedFilePath,
-              },
-            },
-          },
-        ],
-      });
-
-      await driver.assertDisplayBufferContains(`\
-👀⏳ May I read file \`ignored-file.txt\`?`);
-    },
-  );
-});
-
 it("getFile requests approval for file outside cwd", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();

@@ -242,7 +242,8 @@ That said, I've spent a lot of time building magenta's abstractions around agent
 
 **Permissions system**
 
-- Fine-grained bash command permissions with argument validation, subcommand support, and path checking (ensuring files are within project and not hidden/gitignored)
+- Configurable file permissions via `filePermissions` option—control which directories can be read/written without confirmation, including support for hidden/secret files
+- Fine-grained bash command permissions with argument validation, subcommand support, and path checking
 - Per-command configuration rather than just approve/deny-all
 
 **Provider features**

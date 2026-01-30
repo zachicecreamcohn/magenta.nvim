@@ -1,6 +1,6 @@
 ---
 name: update-permissions
-description: Add bash command permissions to project-level or user-level magenta options. Use when a command needs to be permanently allowlisted.
+description: Configure bash command permissions and file access permissions in magenta options. Use when commands or file paths need to be permanently allowlisted.
 ---
 
 # Updating Bash Command Permissions
@@ -53,7 +53,9 @@ Each pattern is an array where the first element is the executable and subsequen
 Each element in a pattern can be:
 
 - **String literal**: `"--noEmit"` - exact match required
-- **`{ "type": "file" }`**: A single file path that must be within the project, non-hidden, and not gitignored
+- **`{ "type": "readFile" }`**: A single file path that will be read (validated against `filePermissions`)
+- **`{ "type": "writeFile" }`**: A single file path that will be written (validated against `filePermissions`)
+- **`{ "type": "file" }`**: A single file path (checks both read and write permissions)
 - **`{ "type": "restFiles" }`**: Zero or more file paths (must be last in pattern)
 - **`{ "type": "restAny" }`**: Zero or more arguments of any type (must be last in pattern)
 - **`{ "type": "any" }`**: Any single argument (wildcard)
@@ -145,6 +147,38 @@ When adding new permissions to an existing config:
 - Skills directory scripts are always allowed regardless of permissions
 - `restFiles` and `restAny` must be the last element in a pattern
 - Groups cannot contain `restFiles` or `restAny`
+
+## File Permissions
+
+In addition to command permissions, you can configure which directories allow file operations without confirmation using `filePermissions`:
+
+```json
+{
+  "filePermissions": [
+    { "path": "/tmp", "read": true, "write": true },
+    { "path": "~/src", "read": true },
+    {
+      "path": "~/.config",
+      "read": true,
+      "write": true,
+      "readSecret": true,
+      "writeSecret": true
+    }
+  ]
+}
+```
+
+Properties:
+
+- **`path`**: Path prefix (supports `~` for home directory)
+- **`read`**: Allow reading files without confirmation
+- **`write`**: Allow writing files without confirmation
+- **`readSecret`**: Allow reading hidden files (e.g., `.env`, `.secret`)
+- **`writeSecret`**: Allow writing hidden files
+
+By default, the current working directory has `read` and `write` permissions. Hidden files (segments starting with `.` after the permission path) require the `readSecret`/`writeSecret` permissions.
+
+Permissions inherit down the directory tree: if `~/src` has `read: true`, then `~/src/project/file.ts` also has read permission.
 
 ## Builtin Permissions
 

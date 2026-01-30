@@ -35,7 +35,6 @@ import {
 import type { MagentaOptions } from "../options.ts";
 import type { Row0Indexed } from "../nvim/window.ts";
 import { canReadFile } from "./permissions.ts";
-import type { Gitignore } from "./util.ts";
 import { getTreeSitterMinimap, formatMinimap } from "../utils/treesitter.ts";
 import type { CompletedToolInfo } from "./types.ts";
 
@@ -91,7 +90,6 @@ export class GetFileTool implements StaticTool {
       threadDispatch: Dispatch<ThreadMsg>;
       myDispatch: Dispatch<Msg>;
       options: MagentaOptions;
-      gitignore: Gitignore;
     },
   ) {
     this.state = {

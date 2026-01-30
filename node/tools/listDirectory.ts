@@ -20,6 +20,8 @@ import {
   type NvimCwd,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
+import { canReadFile } from "./permissions.ts";
+import type { MagentaOptions } from "../options.ts";
 
 export type ToolRequest = GenericToolRequest<"list_directory", Input>;
 
@@ -39,9 +41,13 @@ export type Msg = {
 
 async function listDirectoryBFS(
   startPath: AbsFilePath,
-  cwd: NvimCwd,
+  context: {
+    cwd: NvimCwd;
+    nvim: Nvim;
+    options: MagentaOptions;
+  },
 ): Promise<string[]> {
-  const ig = readGitignoreSync(cwd);
+  const ig = readGitignoreSync(context.cwd);
   const queue: string[] = [startPath];
   const results: string[] = [];
   const seen = new Set<string>();
@@ -54,16 +60,16 @@ async function listDirectoryBFS(
     });
 
     for (const entry of entries) {
-      const fullPath = path.join(currentPath, entry.name) as UnresolvedFilePath;
-      const relFilePath = relativePath(cwd, fullPath);
+      const fullPath = path.join(currentPath, entry.name) as AbsFilePath;
+      const relFilePath = relativePath(context.cwd, fullPath);
 
-      // Skip hidden files and respected gitignored files
-      if (entry.name.startsWith(".") || ig.ignores(relFilePath)) {
+      // Skip gitignored files (but allow hidden files if they have permissions)
+      if (ig.ignores(relFilePath)) {
         continue;
       }
 
-      // Skip files outside of cwd
-      if (!fullPath.startsWith(cwd)) {
+      // Check if we have read permissions for this path
+      if (!(await canReadFile(fullPath, context))) {
         continue;
       }
 
@@ -94,6 +100,7 @@ export class ListDirectoryTool implements StaticTool {
     public context: {
       nvim: Nvim;
       cwd: NvimCwd;
+      options: MagentaOptions;
       myDispatch: (msg: Msg) => void;
     },
   ) {
@@ -163,19 +170,20 @@ export class ListDirectoryTool implements StaticTool {
       const dirPath = (this.request.input.dirPath || ".") as UnresolvedFilePath;
       const absolutePath = resolveFilePath(this.context.cwd, dirPath);
 
-      if (!absolutePath.startsWith(this.context.cwd)) {
+      // Check if we have read permissions for the starting directory
+      if (!(await canReadFile(absolutePath, this.context))) {
         if (this.aborted) return;
         this.context.myDispatch({
           type: "finish",
           result: {
             status: "error",
-            error: `The path \`${absolutePath}\` must be inside of neovim cwd \`${this.context.cwd}\``,
+            error: `No read permission for directory \`${absolutePath}\``,
           },
         });
         return;
       }
 
-      const files = await listDirectoryBFS(absolutePath, this.context.cwd);
+      const files = await listDirectoryBFS(absolutePath, this.context);
       if (this.aborted) return;
       this.context.nvim.logger.debug(`files: ${files.join("\n")}`);
       this.context.myDispatch({

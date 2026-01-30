@@ -28,7 +28,6 @@ import {
   isCommandAllowedByConfig,
   type PermissionCheckResult,
 } from "./bash-parser/permissions.ts";
-import type { Gitignore } from "./util.ts";
 import type { ThreadId } from "../chat/types.ts";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
 import * as fs from "fs";
@@ -188,13 +187,11 @@ export function checkCommandPermissions({
   options,
   rememberedCommands,
   cwd,
-  gitignore,
 }: {
   command: string;
   options: MagentaOptions;
   rememberedCommands: Set<string>;
   cwd: NvimCwd;
-  gitignore: Gitignore;
 }): PermissionCheckResult {
   // First check remembered commands
   if (rememberedCommands.has(command)) {
@@ -204,7 +201,7 @@ export function checkCommandPermissions({
   return isCommandAllowedByConfig(command, options.commandConfig, {
     cwd,
     skillsPaths: options.skillsPaths,
-    gitignore,
+    filePermissions: options.filePermissions,
   });
 }
 
@@ -226,7 +223,6 @@ export class BashCommandTool implements StaticTool {
       myDispatch: Dispatch<Msg>;
       rememberedCommands: Set<string>;
       getDisplayWidth(): number;
-      gitignore: Gitignore;
       threadId: ThreadId;
     },
   ) {
@@ -236,7 +232,6 @@ export class BashCommandTool implements StaticTool {
       options: this.context.options,
       rememberedCommands: this.context.rememberedCommands,
       cwd: this.context.cwd,
-      gitignore: this.context.gitignore,
     });
 
     if (permissionResult.allowed) {

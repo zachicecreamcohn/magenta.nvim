@@ -529,56 +529,6 @@ function newFunction() {
   });
 });
 
-it("replace requires approval for gitignored file", async () => {
-  await withDriver(
-    {
-      setupFiles: async (tmpDir) => {
-        const fsPromises = await import("fs/promises");
-        const pathModule = await import("path");
-        await fsPromises.writeFile(
-          pathModule.join(tmpDir, ".gitignore"),
-          "ignored-replace.txt\n",
-        );
-        await fsPromises.writeFile(
-          pathModule.join(tmpDir, "ignored-replace.txt"),
-          "old content",
-        );
-      },
-    },
-    async (driver) => {
-      await driver.showSidebar();
-      await driver.inputMagentaText(
-        "Replace content in file ignored-replace.txt",
-      );
-      await driver.send();
-
-      const request = await driver.mockAnthropic.awaitPendingStream();
-      request.respond({
-        stopReason: "tool_use",
-        text: "ok, here goes",
-        toolRequests: [
-          {
-            status: "ok",
-            value: {
-              id: "id" as ToolRequestId,
-              toolName: "replace" as ToolName,
-              input: {
-                filePath: "ignored-replace.txt" as UnresolvedFilePath,
-                find: "old content",
-                replace: "new content",
-              },
-            },
-          },
-        ],
-      });
-
-      await driver.assertDisplayBufferContains(
-        "✏️⏳ May I replace in file `ignored-replace.txt`?",
-      );
-    },
-  );
-});
-
 it("replace requires approval for file outside cwd", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();

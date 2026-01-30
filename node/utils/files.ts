@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
+import * as os from "node:os";
 import { fileTypeFromFile } from "file-type";
 import { lookup } from "mime-types";
 
@@ -31,7 +32,13 @@ export function resolveFilePath(
   cwd: NvimCwd,
   filePath: UnresolvedFilePath | AbsFilePath | RelFilePath,
 ) {
-  return path.resolve(cwd, filePath) as AbsFilePath;
+  let expandedPath = filePath as string;
+  if (expandedPath.startsWith("~/")) {
+    expandedPath = path.join(os.homedir(), expandedPath.slice(2));
+  } else if (expandedPath === "~") {
+    expandedPath = os.homedir();
+  }
+  return path.resolve(cwd, expandedPath) as AbsFilePath;
 }
 
 export function relativePath(

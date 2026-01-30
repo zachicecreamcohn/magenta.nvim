@@ -25,7 +25,6 @@ import type { BufferTracker } from "../buffer-tracker.ts";
 import { resolveFilePath } from "../utils/files.ts";
 import type { MagentaOptions } from "../options.ts";
 import { canWriteFile } from "./permissions.ts";
-import type { Gitignore } from "./util.ts";
 
 export type ToolRequest = GenericToolRequest<"insert", Input>;
 
@@ -77,7 +76,6 @@ export class InsertTool implements StaticTool {
       dispatch: Dispatch<RootMsg>;
       options: MagentaOptions;
       getDisplayWidth: () => number;
-      gitignore: Gitignore;
     },
   ) {
     this.state = { state: "pending" };

@@ -42,6 +42,7 @@ magenta-defaultKeymaps	magenta-config.txt	/*magenta-defaultKeymaps*
 magenta-display-buffer	magenta-commands.txt	/*magenta-display-buffer*
 magenta-edit-prediction	magenta-config.txt	/*magenta-edit-prediction*
 magenta-ex-commands	magenta-commands.txt	/*magenta-ex-commands*
+magenta-filePermissions	magenta-config.txt	/*magenta-filePermissions*
 magenta-getFileAutoAllowGlobs	magenta-config.txt	/*magenta-getFileAutoAllowGlobs*
 magenta-inlineKeymaps	magenta-config.txt	/*magenta-inlineKeymaps*
 magenta-input-commands	magenta-commands.txt	/*magenta-input-commands*

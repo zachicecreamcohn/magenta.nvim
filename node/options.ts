@@ -1,4 +1,5 @@
 import { PROVIDER_NAMES, type ProviderName } from "./providers/provider";
+import * as os from "os";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
@@ -154,6 +155,14 @@ export type SidebarPositionOpts = {
   tab: TabWindowDimensions;
 };
 
+export type FilePermission = {
+  path: string; // e.g. "~/src", "/tmp", "."
+  read?: true;
+  write?: true;
+  readSecret?: true; // Superset of read - allows reading hidden files
+  writeSecret?: true; // Superset of write - allows writing hidden files
+};
+
 export type MagentaOptions = {
   profiles: Profile[];
   activeProfile: string;
@@ -165,6 +174,7 @@ export type MagentaOptions = {
   maxConcurrentSubagents: number;
   mcpServers: { [serverName: ServerName]: MCPServerConfig };
   getFileAutoAllowGlobs: string[];
+  filePermissions: FilePermission[];
   customCommands: CustomCommand[];
   lspDebounceMs?: number;
   debug?: boolean;
@@ -629,6 +639,95 @@ function parseMCPServers(
   return servers;
 }
 
+function parseFilePermissions(
+  input: unknown,
+  logger: { warn: (msg: string) => void },
+): FilePermission[] {
+  if (!Array.isArray(input)) {
+    logger.warn("filePermissions must be an array");
+    return [];
+  }
+
+  const permissions: FilePermission[] = [];
+
+  for (const item of input) {
+    try {
+      if (typeof item !== "object" || item === null) {
+        logger.warn(
+          `Skipping invalid file permission: ${JSON.stringify(item)}`,
+        );
+        continue;
+      }
+
+      const p = item as { [key: string]: unknown };
+
+      if (typeof p["path"] !== "string" || p["path"].trim() === "") {
+        logger.warn(
+          `File permission must have a non-empty 'path' field: ${JSON.stringify(p)}`,
+        );
+        continue;
+      }
+
+      const permission: FilePermission = {
+        path: p["path"],
+      };
+
+      // Parse boolean permission flags - they must be `true` if present
+      if (p["read"] === true) {
+        permission.read = true;
+      } else if ("read" in p && p["read"] !== undefined) {
+        logger.warn(
+          `Invalid 'read' value in file permission for path "${p["path"]}", must be true or omitted`,
+        );
+      }
+
+      if (p["write"] === true) {
+        permission.write = true;
+      } else if ("write" in p && p["write"] !== undefined) {
+        logger.warn(
+          `Invalid 'write' value in file permission for path "${p["path"]}", must be true or omitted`,
+        );
+      }
+
+      if (p["readSecret"] === true) {
+        permission.readSecret = true;
+      } else if ("readSecret" in p && p["readSecret"] !== undefined) {
+        logger.warn(
+          `Invalid 'readSecret' value in file permission for path "${p["path"]}", must be true or omitted`,
+        );
+      }
+
+      if (p["writeSecret"] === true) {
+        permission.writeSecret = true;
+      } else if ("writeSecret" in p && p["writeSecret"] !== undefined) {
+        logger.warn(
+          `Invalid 'writeSecret' value in file permission for path "${p["path"]}", must be true or omitted`,
+        );
+      }
+
+      // Only add if at least one permission is set
+      if (
+        permission.read ||
+        permission.write ||
+        permission.readSecret ||
+        permission.writeSecret
+      ) {
+        permissions.push(permission);
+      } else {
+        logger.warn(
+          `File permission for path "${p["path"]}" has no permissions set, skipping`,
+        );
+      }
+    } catch (error) {
+      logger.warn(
+        `Error parsing file permission: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  return permissions;
+}
+
 function parseCustomCommands(
   input: unknown,
   logger: { warn: (msg: string) => void },
@@ -1032,6 +1131,7 @@ export function parseOptions(
     ],
     mcpServers: {},
     getFileAutoAllowGlobs: [],
+    filePermissions: [],
     customCommands: [],
   };
 
@@ -1096,6 +1196,14 @@ export function parseOptions(
       inputOptionsObj["getFileAutoAllowGlobs"],
       "getFileAutoAllowGlobs",
     );
+
+    // Parse file permissions
+    if ("filePermissions" in inputOptionsObj) {
+      options.filePermissions = parseFilePermissions(
+        inputOptionsObj["filePermissions"],
+        logger,
+      );
+    }
 
     // Parse max concurrent subagents
     if (
@@ -1293,6 +1401,14 @@ export function parseProjectOptions(
     );
   }
 
+  // Parse file permissions
+  if ("filePermissions" in inputOptionsObj) {
+    options.filePermissions = parseFilePermissions(
+      inputOptionsObj["filePermissions"],
+      logger,
+    );
+  }
+
   // Parse max concurrent subagents
   if (
     "maxConcurrentSubagents" in inputOptionsObj &&
@@ -1407,6 +1523,28 @@ export function parseProjectOptions(
   return options;
 }
 
+export function loadUserSettings(logger: {
+  warn: (msg: string) => void;
+}): Partial<MagentaOptions> | undefined {
+  const homedir = os.homedir();
+  const settingsPath = path.join(homedir, ".magenta", "options.json");
+
+  try {
+    if (fs.existsSync(settingsPath)) {
+      const fileContent = fs.readFileSync(settingsPath, "utf8");
+      const rawSettings = JSON.parse(fileContent) as unknown;
+
+      return parseProjectOptions(rawSettings, logger);
+    }
+  } catch (error) {
+    logger.warn(
+      `Failed to parse user settings at ${settingsPath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  return undefined;
+}
+
 export function loadProjectSettings(
   cwd: NvimCwd,
   logger: { warn: (msg: string) => void },
@@ -1477,6 +1615,13 @@ export function mergeOptions(
     merged.getFileAutoAllowGlobs = [
       ...baseOptions.getFileAutoAllowGlobs,
       ...projectSettings.getFileAutoAllowGlobs,
+    ];
+  }
+
+  if (projectSettings.filePermissions) {
+    merged.filePermissions = [
+      ...baseOptions.filePermissions,
+      ...projectSettings.filePermissions,
     ];
   }
 

@@ -669,11 +669,12 @@ Read two files for me
 I'll read the first file.
 👀✅ \`poem.txt\` [+ 5]
 
-📋 [System Reminder]💭 [Thinking]
+📋 [System Reminder]
+💭 [Thinking]
 👀✅ \`poem2.txt\` [+ 5]
 
-📋 [System Reminder]I've read both files for you.
-
+📋 [System Reminder]
+I've read both files for you.
 
 # context:
 - \`poem.txt\`

@@ -64,7 +64,6 @@ import { fileURLToPath } from "url";
 import player from "play-sound";
 import { CommandRegistry } from "./commands/registry.ts";
 import { getSubsequentReminder } from "../providers/system-reminders.ts";
-import { readGitignoreSync, type Gitignore } from "../tools/util.ts";
 import { renderStreamdedTool } from "../tools/helpers.ts";
 
 export type InputMessage =
@@ -220,7 +219,6 @@ export class Thread {
   public fileSnapshots: FileSnapshots;
   public contextManager: ContextManager;
   private commandRegistry: CommandRegistry;
-  public gitignore: Gitignore;
   public agent: Agent;
 
   constructor(
@@ -249,7 +247,6 @@ export class Thread {
         msg,
       });
 
-    this.gitignore = readGitignoreSync(this.context.cwd);
     this.fileSnapshots = new FileSnapshots(this.context.nvim, this.context.cwd);
     this.contextManager = this.context.contextManager;
 
@@ -509,7 +506,6 @@ export class Thread {
         cwd: this.context.cwd,
         options: this.context.options,
         chat: this.context.chat,
-        gitignore: this.gitignore,
         contextManager: this.contextManager,
         threadDispatch: this.myDispatch,
       };

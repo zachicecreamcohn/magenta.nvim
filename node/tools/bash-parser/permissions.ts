@@ -8,15 +8,23 @@ import {
   resolveFilePath,
   type NvimCwd,
   type UnresolvedFilePath,
+  type AbsFilePath,
   MAGENTA_TEMP_DIR,
 } from "../../utils/files.ts";
-import type { Gitignore } from "../util.ts";
+import type { FilePermission } from "../../options.ts";
+import {
+  expandTilde,
+  getEffectivePermissions,
+  hasNewSecretSegment,
+} from "../permissions.ts";
 
 /** A single argument specification */
 export type ArgSpec =
   | string // Exact literal argument
-  | { type: "file" } // Single file path argument
-  | { type: "restFiles" } // Zero or more file paths (must be last)
+  | { type: "file" } // Single file path argument (checks both read and write - for backwards compat)
+  | { type: "readFile" } // Single file path that will be read
+  | { type: "writeFile" } // Single file path that will be written
+  | { type: "restFiles" } // Zero or more file paths (must be last, checks read)
   | { type: "restAny" } // Zero or more arguments of any type (must be last)
   | { type: "any" } // Any single argument (wildcard)
   | { type: "pattern"; pattern: string } // Argument matching a regex pattern
@@ -35,23 +43,27 @@ export const BUILTIN_COMMAND_PERMISSIONS: CommandPermissions = {
     ["ls", { type: "restAny" }],
     ["pwd"],
     ["echo", { type: "restAny" }],
-    ["cat", { type: "file" }],
+    ["cat", { type: "readFile" }],
     // head: with optional -n flag or pattern like -10, plus file
     [
       "head",
       { type: "group", args: ["-n", { type: "any" }], optional: true },
-      { type: "file" },
+      { type: "readFile" },
     ],
-    ["head", { type: "pattern", pattern: "-[0-9]+" }, { type: "file" }],
+    ["head", { type: "pattern", pattern: "-[0-9]+" }, { type: "readFile" }],
     // tail: with optional -n flag or pattern like -10, plus file
     [
       "tail",
       { type: "group", args: ["-n", { type: "any" }], optional: true },
-      { type: "file" },
+      { type: "readFile" },
     ],
-    ["tail", { type: "pattern", pattern: "-[0-9]+" }, { type: "file" }],
+    ["tail", { type: "pattern", pattern: "-[0-9]+" }, { type: "readFile" }],
     // wc: optional -l flag plus file
-    ["wc", { type: "group", args: ["-l"], optional: true }, { type: "file" }],
+    [
+      "wc",
+      { type: "group", args: ["-l"], optional: true },
+      { type: "readFile" },
+    ],
     // grep: optional -i, pattern, restFiles
     [
       "grep",
@@ -59,16 +71,16 @@ export const BUILTIN_COMMAND_PERMISSIONS: CommandPermissions = {
       { type: "any" },
       { type: "restFiles" },
     ],
-    // sort: file
-    ["sort", { type: "file" }],
-    // uniq: file
-    ["uniq", { type: "file" }],
-    // cut: with delim, field, file
-    ["cut", "-d", { type: "any" }, "-f", { type: "any" }, { type: "file" }],
-    // awk: pattern, file
-    ["awk", { type: "any" }, { type: "file" }],
-    // sed: pattern, file
-    ["sed", { type: "any" }, { type: "file" }],
+    // sort: file (read-only)
+    ["sort", { type: "readFile" }],
+    // uniq: file (read-only)
+    ["uniq", { type: "readFile" }],
+    // cut: with delim, field, file (read-only)
+    ["cut", "-d", { type: "any" }, "-f", { type: "any" }, { type: "readFile" }],
+    // awk: pattern, file (read-only)
+    ["awk", { type: "any" }, { type: "readFile" }],
+    // sed: pattern, file (read-only, no -i flag)
+    ["sed", { type: "any" }, { type: "readFile" }],
     // git subcommands
     ["git", "status", { type: "restAny" }],
     ["git", "log", { type: "restAny" }],
@@ -102,7 +114,7 @@ export const BUILTIN_COMMAND_PERMISSIONS: CommandPermissions = {
       { type: "group", args: ["-t", { type: "any" }], optional: true },
       { type: "group", args: ["-e", { type: "any" }], optional: true },
       { type: "group", args: [{ type: "any" }], optional: true },
-      { type: "group", args: [{ type: "file" }], optional: true },
+      { type: "group", args: [{ type: "readFile" }], optional: true },
     ],
   ],
   pipeCommands: [
@@ -128,19 +140,55 @@ export class PermissionError extends Error {
   }
 }
 
-function expandTilde(filePath: string): string {
-  if (filePath.startsWith("~/") || filePath === "~") {
-    return path.join(os.homedir(), filePath.slice(1));
+/**
+ * Check if a file requires secret permissions (has hidden segments after all applicable permission paths).
+ * This is a local version for the bash parser to avoid circular dependency issues.
+ */
+function fileRequiresSecretPermission(
+  absFilePath: AbsFilePath,
+  filePermissions: FilePermission[],
+  cwd: NvimCwd,
+): boolean {
+  // Check the absolute path segments for hidden segments
+  const pathSegments = absFilePath.split(path.sep).filter((s) => s.length > 0);
+  if (!pathSegments.some((segment) => segment.startsWith("."))) {
+    return false;
   }
-  return filePath;
+
+  // Check all permission paths that cover this file
+  // If any permission path covers the hidden segments, then it doesn't need secret permission
+  const cwdPermission: FilePermission = { path: cwd, read: true, write: true };
+  const allPermissions = [cwdPermission, ...filePermissions];
+
+  for (const perm of allPermissions) {
+    const permPath = expandTilde(perm.path);
+    const normalizedPermPath = path.isAbsolute(permPath)
+      ? permPath
+      : path.join(cwd, permPath);
+
+    // Check if this permission path covers the file
+    if (
+      absFilePath === normalizedPermPath ||
+      absFilePath.startsWith(normalizedPermPath + path.sep)
+    ) {
+      // If there are no new secret segments after this permission path, then the file
+      // can be accessed without secret permission via this rule
+      if (!hasNewSecretSegment(absFilePath, perm.path, cwd)) {
+        return false;
+      }
+    }
+  }
+
+  // All covering permission paths have new secret segments after them
+  return true;
 }
 
-/** Check if a path is safe (within project cwd and not hidden) */
-function isPathSafe(
+/** Check if a path can be read (using the filePermissions system) */
+function canReadPath(
   filePath: string,
   currentCwd: NvimCwd,
   projectCwd: NvimCwd,
-  gitignore: Gitignore,
+  filePermissions: FilePermission[],
 ): { safe: boolean; reason?: string } {
   const expandedPath = expandTilde(filePath);
   // Resolve the path relative to current working directory
@@ -154,26 +202,112 @@ function isPathSafe(
     return { safe: true };
   }
 
-  // Check if within project cwd (the original project root)
-  if (!absPath.startsWith(projectCwd + path.sep) && absPath !== projectCwd) {
-    return {
-      safe: false,
-      reason: `path "${filePath}" is outside project directory`,
-    };
+  // Get effective permissions from filePermissions config
+  const effectivePerms = getEffectivePermissions(
+    absPath,
+    filePermissions,
+    projectCwd,
+  );
+
+  // Check if this file requires secret permissions
+  const needsSecret = fileRequiresSecretPermission(
+    absPath,
+    filePermissions,
+    projectCwd,
+  );
+
+  if (needsSecret) {
+    if (!effectivePerms.readSecret) {
+      return {
+        safe: false,
+        reason: `path "${filePath}" is a secret file (requires readSecret permission)`,
+      };
+    }
+  } else {
+    if (!effectivePerms.read && !effectivePerms.readSecret) {
+      return {
+        safe: false,
+        reason: `path "${filePath}" is not readable (no read permission)`,
+      };
+    }
   }
 
-  // Check for hidden directories/files relative to project cwd
-  const relPath = path.relative(projectCwd, absPath);
-  if (relPath.split(path.sep).some((part) => part.startsWith("."))) {
-    return {
-      safe: false,
-      reason: `path "${filePath}" contains hidden directory or file`,
-    };
+  return { safe: true };
+}
+
+/** Check if a path can be written (using the filePermissions system) */
+function canWritePath(
+  filePath: string,
+  currentCwd: NvimCwd,
+  projectCwd: NvimCwd,
+  filePermissions: FilePermission[],
+): { safe: boolean; reason?: string } {
+  const expandedPath = expandTilde(filePath);
+  // Resolve the path relative to current working directory
+  const absPath = resolveFilePath(
+    currentCwd,
+    expandedPath as UnresolvedFilePath,
+  );
+
+  // Get effective permissions from filePermissions config
+  const effectivePerms = getEffectivePermissions(
+    absPath,
+    filePermissions,
+    projectCwd,
+  );
+
+  // Check if this file requires secret permissions
+  const needsSecret = fileRequiresSecretPermission(
+    absPath,
+    filePermissions,
+    projectCwd,
+  );
+
+  if (needsSecret) {
+    if (!effectivePerms.writeSecret) {
+      return {
+        safe: false,
+        reason: `path "${filePath}" is a secret file (requires writeSecret permission)`,
+      };
+    }
+  } else {
+    if (!effectivePerms.write && !effectivePerms.writeSecret) {
+      return {
+        safe: false,
+        reason: `path "${filePath}" is not writable (no write permission)`,
+      };
+    }
   }
 
-  // Check if gitignored (skip if relPath is empty, which means it's the project root)
-  if (relPath !== "" && gitignore.ignores(relPath)) {
-    return { safe: false, reason: `path "${filePath}" is gitignored` };
+  return { safe: true };
+}
+
+/** Legacy: Check if a path is safe for both read and write (for backwards compatibility with { type: "file" }) */
+function isPathSafe(
+  filePath: string,
+  currentCwd: NvimCwd,
+  projectCwd: NvimCwd,
+  filePermissions: FilePermission[],
+): { safe: boolean; reason?: string } {
+  // For legacy { type: "file" }, we check both read and write permissions
+  const readResult = canReadPath(
+    filePath,
+    currentCwd,
+    projectCwd,
+    filePermissions,
+  );
+  if (!readResult.safe) {
+    return readResult;
+  }
+
+  const writeResult = canWritePath(
+    filePath,
+    currentCwd,
+    projectCwd,
+    filePermissions,
+  );
+  if (!writeResult.safe) {
+    return writeResult;
   }
 
   return { safe: true };
@@ -333,7 +467,7 @@ function isSkillsScriptExecution(
 type MatchContext = {
   currentCwd: NvimCwd;
   projectCwd: NvimCwd;
-  gitignore: Gitignore;
+  filePermissions: FilePermission[];
 };
 
 type NonGroupArgSpec = Exclude<
@@ -357,6 +491,7 @@ function matchSingleSpec(
 
   switch (spec.type) {
     case "file": {
+      // Legacy: checks both read and write for backwards compatibility
       if (argIndex >= args.length) {
         return { error: "expected file argument" };
       }
@@ -364,7 +499,39 @@ function matchSingleSpec(
         args[argIndex],
         ctx.currentCwd,
         ctx.projectCwd,
-        ctx.gitignore,
+        ctx.filePermissions,
+      );
+      if (!pathCheck.safe) {
+        return { error: pathCheck.reason ?? "invalid file path" };
+      }
+      return { consumed: 1 };
+    }
+
+    case "readFile": {
+      if (argIndex >= args.length) {
+        return { error: "expected file argument" };
+      }
+      const pathCheck = canReadPath(
+        args[argIndex],
+        ctx.currentCwd,
+        ctx.projectCwd,
+        ctx.filePermissions,
+      );
+      if (!pathCheck.safe) {
+        return { error: pathCheck.reason ?? "invalid file path" };
+      }
+      return { consumed: 1 };
+    }
+
+    case "writeFile": {
+      if (argIndex >= args.length) {
+        return { error: "expected file argument" };
+      }
+      const pathCheck = canWritePath(
+        args[argIndex],
+        ctx.currentCwd,
+        ctx.projectCwd,
+        ctx.filePermissions,
       );
       if (!pathCheck.safe) {
         return { error: pathCheck.reason ?? "invalid file path" };
@@ -393,13 +560,14 @@ function matchSingleSpec(
     }
 
     case "restFiles": {
+      // Check read permission for all remaining files
       let consumed = 0;
       while (argIndex + consumed < args.length) {
-        const pathCheck = isPathSafe(
+        const pathCheck = canReadPath(
           args[argIndex + consumed],
           ctx.currentCwd,
           ctx.projectCwd,
-          ctx.gitignore,
+          ctx.filePermissions,
         );
         if (!pathCheck.safe) {
           return { error: pathCheck.reason ?? "invalid file path" };
@@ -559,11 +727,11 @@ function matchArgsPattern(
   pattern: ArgSpec[],
   currentCwd: NvimCwd,
   projectCwd: NvimCwd,
-  gitignore: Gitignore,
+  filePermissions: FilePermission[],
 ): { matches: boolean; reason?: string } {
   let argIndex = 0;
   let patternIndex = 0;
-  const ctx: MatchContext = { currentCwd, projectCwd, gitignore };
+  const ctx: MatchContext = { currentCwd, projectCwd, filePermissions };
 
   while (patternIndex < pattern.length) {
     const spec = pattern[patternIndex];
@@ -638,7 +806,7 @@ function checkCommand(
   config: CommandPermissions,
   currentCwd: NvimCwd,
   projectCwd: NvimCwd,
-  gitignore: Gitignore,
+  filePermissions: FilePermission[],
   receivingPipe: boolean,
 ): { allowed: boolean; reason?: string } {
   // Build full command array: [executable, ...args]
@@ -655,7 +823,7 @@ function checkCommand(
       pattern,
       currentCwd,
       projectCwd,
-      gitignore,
+      filePermissions,
     );
     if (result.matches) {
       return { allowed: true };
@@ -704,13 +872,13 @@ export function checkCommandListPermissions(
   options: {
     cwd: NvimCwd;
     skillsPaths?: string[];
-    gitignore: Gitignore;
+    filePermissions?: FilePermission[];
   },
 ): PermissionCheckResult {
   const projectCwd = options.cwd;
   let currentCwd = options.cwd;
   const skillsPaths = options.skillsPaths ?? [];
-  const gitignore = options.gitignore;
+  const filePermissions = options.filePermissions ?? [];
 
   for (const command of commandList.commands) {
     // Handle cd command - update cwd for subsequent commands
@@ -731,7 +899,7 @@ export function checkCommandListPermissions(
       config,
       currentCwd,
       projectCwd,
-      gitignore,
+      filePermissions,
       command.receivingPipe,
     );
     if (!result.allowed) {
@@ -752,7 +920,7 @@ export function isCommandAllowedByConfig(
   options: {
     cwd: NvimCwd;
     skillsPaths?: string[];
-    gitignore: Gitignore;
+    filePermissions?: FilePermission[];
   },
 ): PermissionCheckResult {
   try {

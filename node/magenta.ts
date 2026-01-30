@@ -10,6 +10,7 @@ import { pos1col1to0, type Row0Indexed } from "./nvim/window.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
 import {
   parseOptions,
+  loadUserSettings,
   loadProjectSettings,
   mergeOptions,
   type MagentaOptions,
@@ -801,16 +802,24 @@ ${lines.join("\n")}
     // Parse base options from Lua
     const baseOptions = parseOptions(opts, nvim.logger);
 
-    // Load and parse project settings
+    // Load and merge user settings (~/.magenta/options.json)
+    const userSettings = loadUserSettings({
+      warn: (msg) => nvim.logger.warn(`User settings: ${msg}`),
+    });
+    const optionsWithUser = userSettings
+      ? mergeOptions(baseOptions, userSettings)
+      : baseOptions;
+
+    // Load and parse project settings (cwd/.magenta/options.json)
     const cwd = await getcwd(nvim);
     const projectSettings = loadProjectSettings(cwd, {
       warn: (msg) => nvim.logger.warn(`Project settings: ${msg}`),
     });
 
-    // Merge project settings with base options
+    // Merge project settings with user+base options
     const parsedOptions = projectSettings
-      ? mergeOptions(baseOptions, projectSettings)
-      : baseOptions;
+      ? mergeOptions(optionsWithUser, projectSettings)
+      : optionsWithUser;
     const magenta = new Magenta(nvim, lsp, cwd, parsedOptions);
 
     // Initialize highlight groups in the magenta namespace
