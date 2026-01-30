@@ -46,6 +46,7 @@ import { type MagentaOptions, type Profile } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
 import {
   relativePath,
+  type HomeDir,
   type NvimCwd,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
@@ -233,6 +234,7 @@ export class Thread {
       profile: Profile;
       nvim: Nvim;
       cwd: NvimCwd;
+      homeDir: HomeDir;
       lsp: Lsp;
       contextManager: ContextManager;
       options: MagentaOptions;
@@ -504,6 +506,7 @@ export class Thread {
         nvim: this.context.nvim,
         lsp: this.context.lsp,
         cwd: this.context.cwd,
+        homeDir: this.context.homeDir,
         options: this.context.options,
         chat: this.context.chat,
         contextManager: this.contextManager,

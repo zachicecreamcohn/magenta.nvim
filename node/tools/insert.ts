@@ -20,7 +20,7 @@ import type { Nvim } from "../nvim/nvim-node";
 import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/types.ts";
 import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
-import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
+import type { NvimCwd, UnresolvedFilePath, HomeDir } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import { resolveFilePath } from "../utils/files.ts";
 import type { MagentaOptions } from "../options.ts";
@@ -73,6 +73,7 @@ export class InsertTool implements StaticTool {
       bufferTracker: BufferTracker;
       nvim: Nvim;
       cwd: NvimCwd;
+      homeDir: HomeDir;
       dispatch: Dispatch<RootMsg>;
       options: MagentaOptions;
       getDisplayWidth: () => number;

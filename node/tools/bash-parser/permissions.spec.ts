@@ -2,13 +2,15 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import type { NvimCwd } from "../../utils/files.ts";
+import type { NvimCwd, HomeDir } from "../../utils/files.ts";
 import {
   isCommandAllowedByConfig,
   checkCommandListPermissions,
   type CommandPermissions,
 } from "./permissions.ts";
 import { parse } from "./parser.ts";
+
+const homeDir = "/home/user" as HomeDir;
 
 describe("permissions", () => {
   let testDir: string;
@@ -53,6 +55,7 @@ describe("permissions", () => {
 
       const result = isCommandAllowedByConfig("ls", config, {
         cwd,
+        homeDir,
       });
       expect(result.allowed).toBe(true);
     });
@@ -65,6 +68,7 @@ describe("permissions", () => {
 
       const result = isCommandAllowedByConfig("rm -rf /", config, {
         cwd,
+        homeDir,
       });
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain("rm");
@@ -80,6 +84,7 @@ describe("permissions", () => {
       };
 
       const result1 = isCommandAllowedByConfig("npx tsc --noEmit", config, {
+        homeDir,
         cwd,
       });
       expect(result1.allowed).toBe(true);
@@ -87,7 +92,7 @@ describe("permissions", () => {
       const result2 = isCommandAllowedByConfig(
         "npx tsc --noEmit --watch",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result2.allowed).toBe(true);
     });
@@ -102,6 +107,7 @@ describe("permissions", () => {
         "npx tsc --watch --noEmit",
         config,
         {
+          homeDir,
           cwd,
         },
       );
@@ -118,6 +124,7 @@ describe("permissions", () => {
         "npx tsc --noEmit --extra",
         config,
         {
+          homeDir,
           cwd,
         },
       );
@@ -134,6 +141,7 @@ describe("permissions", () => {
       };
 
       const result = isCommandAllowedByConfig("cat file.txt", config, {
+        homeDir,
         cwd,
       });
       expect(result.allowed).toBe(true);
@@ -147,6 +155,7 @@ describe("permissions", () => {
 
       const result = isCommandAllowedByConfig("cat subdir/nested.txt", config, {
         cwd,
+        homeDir,
       });
       expect(result.allowed).toBe(true);
     });
@@ -158,6 +167,7 @@ describe("permissions", () => {
       };
 
       const result = isCommandAllowedByConfig("cat /etc/passwd", config, {
+        homeDir,
         cwd,
       });
       expect(result.allowed).toBe(false);
@@ -174,6 +184,7 @@ describe("permissions", () => {
         "cat .hidden/secret.txt",
         config,
         {
+          homeDir,
           cwd,
         },
       );
@@ -190,7 +201,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "cat ../../../etc/passwd",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain("no read permission");
@@ -205,6 +216,7 @@ describe("permissions", () => {
       };
 
       const result = isCommandAllowedByConfig("head -n 10 file.txt", config, {
+        homeDir,
         cwd,
       });
       expect(result.allowed).toBe(true);
@@ -217,11 +229,13 @@ describe("permissions", () => {
       };
 
       const result1 = isCommandAllowedByConfig("head -n 100 file.txt", config, {
+        homeDir,
         cwd,
       });
       expect(result1.allowed).toBe(true);
 
       const result2 = isCommandAllowedByConfig("head -n abc file.txt", config, {
+        homeDir,
         cwd,
       });
       expect(result2.allowed).toBe(true);
@@ -234,6 +248,7 @@ describe("permissions", () => {
       };
 
       const result = isCommandAllowedByConfig("head -n file.txt", config, {
+        homeDir,
         cwd,
       });
       // This should fail because -n expects a value, so file.txt would be the value
@@ -249,6 +264,7 @@ describe("permissions", () => {
 
       const result = isCommandAllowedByConfig("test -n 42", config, {
         cwd,
+        homeDir,
       });
       expect(result.allowed).toBe(true);
     });
@@ -260,6 +276,7 @@ describe("permissions", () => {
       };
 
       const result = isCommandAllowedByConfig("test -n 42 extra", config, {
+        homeDir,
         cwd,
       });
       expect(result.allowed).toBe(false);
@@ -275,6 +292,7 @@ describe("permissions", () => {
       };
 
       const result = isCommandAllowedByConfig("head -50", config, {
+        homeDir,
         cwd,
       });
       expect(result.allowed).toBe(true);
@@ -287,6 +305,7 @@ describe("permissions", () => {
       };
 
       const result = isCommandAllowedByConfig("head -abc", config, {
+        homeDir,
         cwd,
       });
       expect(result.allowed).toBe(false);
@@ -301,6 +320,7 @@ describe("permissions", () => {
 
       // -50abc should not match because pattern is anchored
       const result = isCommandAllowedByConfig("head -50abc", config, {
+        homeDir,
         cwd,
       });
       expect(result.allowed).toBe(false);
@@ -315,6 +335,7 @@ describe("permissions", () => {
       };
 
       const result = isCommandAllowedByConfig("head -10 file.txt", config, {
+        homeDir,
         cwd,
       });
       expect(result.allowed).toBe(true);
@@ -330,11 +351,13 @@ describe("permissions", () => {
       };
 
       const result1 = isCommandAllowedByConfig("tail -n 5", config, {
+        homeDir,
         cwd,
       });
       expect(result1.allowed).toBe(true);
 
       const result2 = isCommandAllowedByConfig("tail -5", config, {
+        homeDir,
         cwd,
       });
       expect(result2.allowed).toBe(true);
@@ -351,7 +374,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "npx vitest run file.txt subdir/nested.txt",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result.allowed).toBe(true);
     });
@@ -363,6 +386,7 @@ describe("permissions", () => {
       };
 
       const result = isCommandAllowedByConfig("npx vitest run", config, {
+        homeDir,
         cwd,
       });
       expect(result.allowed).toBe(true);
@@ -377,7 +401,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "cat file.txt /etc/passwd",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain("no read permission");
@@ -395,7 +419,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "cd subdir && cat nested.txt",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result.allowed).toBe(true);
     });
@@ -407,6 +431,7 @@ describe("permissions", () => {
       };
 
       const result = isCommandAllowedByConfig("cd .. && cat file.txt", config, {
+        homeDir,
         cwd,
       });
       expect(result.allowed).toBe(false);
@@ -425,7 +450,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "echo hello && cat file.txt",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result.allowed).toBe(true);
     });
@@ -439,7 +464,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "./.magenta/skills/test-skill/script.sh",
         config,
-        { cwd, skillsPaths },
+        { cwd, homeDir, skillsPaths },
       );
       expect(result.allowed).toBe(true);
     });
@@ -451,7 +476,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "bash .magenta/skills/test-skill/script.sh",
         config,
-        { cwd, skillsPaths },
+        { cwd, homeDir, skillsPaths },
       );
       expect(result.allowed).toBe(true);
     });
@@ -463,7 +488,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "npx tsx .magenta/skills/test-skill/script.ts",
         config,
-        { cwd, skillsPaths },
+        { cwd, homeDir, skillsPaths },
       );
       expect(result.allowed).toBe(true);
     });
@@ -475,7 +500,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "pkgx tsx .magenta/skills/test-skill/script.ts",
         config,
-        { cwd, skillsPaths },
+        { cwd, homeDir, skillsPaths },
       );
       expect(result.allowed).toBe(true);
     });
@@ -490,7 +515,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "pkgx python .magenta/skills/test-skill/script.py",
         config,
-        { cwd, skillsPaths },
+        { cwd, homeDir, skillsPaths },
       );
       expect(result.allowed).toBe(true);
     });
@@ -502,7 +527,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "cd .magenta/skills/test-skill && ./script.sh",
         config,
-        { cwd, skillsPaths },
+        { cwd, homeDir, skillsPaths },
       );
       expect(result.allowed).toBe(true);
     });
@@ -518,6 +543,7 @@ describe("permissions", () => {
       );
 
       const result = isCommandAllowedByConfig("./malicious.sh", config, {
+        homeDir,
         cwd,
         skillsPaths,
       });
@@ -533,6 +559,7 @@ describe("permissions", () => {
       };
 
       const result = isCommandAllowedByConfig("echo $(whoami)", config, {
+        homeDir,
         cwd,
       });
       expect(result.allowed).toBe(false);
@@ -546,6 +573,7 @@ describe("permissions", () => {
       };
 
       const result = isCommandAllowedByConfig("echo $HOME", config, {
+        homeDir,
         cwd,
       });
       expect(result.allowed).toBe(false);
@@ -561,6 +589,7 @@ describe("permissions", () => {
       };
 
       const result1 = isCommandAllowedByConfig("echo hello world", config, {
+        homeDir,
         cwd,
       });
       expect(result1.allowed).toBe(true);
@@ -568,11 +597,12 @@ describe("permissions", () => {
       const result2 = isCommandAllowedByConfig(
         "echo --flag -x arg1 arg2",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result2.allowed).toBe(true);
 
       const result3 = isCommandAllowedByConfig("echo", config, {
+        homeDir,
         cwd,
       });
       expect(result3.allowed).toBe(true);
@@ -587,7 +617,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "npm run test --coverage --watch",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result.allowed).toBe(true);
     });
@@ -599,6 +629,7 @@ describe("permissions", () => {
       };
 
       const result = isCommandAllowedByConfig("npm install lodash", config, {
+        homeDir,
         cwd,
       });
       expect(result.allowed).toBe(false);
@@ -616,6 +647,7 @@ describe("permissions", () => {
         "echo hello && rm -rf /",
         config,
         {
+          homeDir,
           cwd,
         },
       );
@@ -630,7 +662,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "./.magenta/skills/test-skill/script.sh && rm -rf /",
         config,
-        { cwd, skillsPaths },
+        { cwd, homeDir, skillsPaths },
       );
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain("rm");
@@ -643,6 +675,7 @@ describe("permissions", () => {
       };
 
       const result = isCommandAllowedByConfig("echo hello | xargs rm", config, {
+        homeDir,
         cwd,
       });
       expect(result.allowed).toBe(false);
@@ -658,7 +691,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "echo hello || malicious_cmd",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain("malicious_cmd");
@@ -672,6 +705,7 @@ describe("permissions", () => {
 
       const result = isCommandAllowedByConfig("echo hello && ls", config, {
         cwd,
+        homeDir,
       });
       expect(result.allowed).toBe(true);
     });
@@ -686,7 +720,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "./.magenta/skills/test-skill/script.sh && echo done",
         config,
-        { cwd, skillsPaths },
+        { cwd, homeDir, skillsPaths },
       );
       expect(result.allowed).toBe(true);
     });
@@ -704,7 +738,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "./.magenta/skills/test-skill/script.sh && ./.magenta/skills/test-skill/script2.sh",
         config,
-        { cwd, skillsPaths },
+        { cwd, homeDir, skillsPaths },
       );
       expect(result.allowed).toBe(true);
     });
@@ -726,7 +760,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "grep -v 'pattern' file.txt",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result.allowed).toBe(true);
     });
@@ -745,6 +779,7 @@ describe("permissions", () => {
 
       const result = isCommandAllowedByConfig("grep file.txt", config, {
         cwd,
+        homeDir,
       });
       expect(result.allowed).toBe(true);
     });
@@ -763,6 +798,7 @@ describe("permissions", () => {
 
       // -v without a pattern - this will actually match -v as the file, which will fail path check
       const result = isCommandAllowedByConfig("grep -v file.txt", config, {
+        homeDir,
         cwd,
       });
       // This should fail because -v doesn't look like a file path initially,
@@ -785,23 +821,26 @@ describe("permissions", () => {
 
       const result1 = isCommandAllowedByConfig("cmd file.txt", config, {
         cwd,
+        homeDir,
       });
       expect(result1.allowed).toBe(true);
 
       const result2 = isCommandAllowedByConfig("cmd -a foo file.txt", config, {
         cwd,
+        homeDir,
       });
       expect(result2.allowed).toBe(true);
 
       const result3 = isCommandAllowedByConfig("cmd -b bar file.txt", config, {
         cwd,
+        homeDir,
       });
       expect(result3.allowed).toBe(true);
 
       const result4 = isCommandAllowedByConfig(
         "cmd -a foo -b bar file.txt",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result4.allowed).toBe(true);
     });
@@ -819,11 +858,13 @@ describe("permissions", () => {
 
       const result1 = isCommandAllowedByConfig("cmd -f file.txt", config, {
         cwd,
+        homeDir,
       });
       expect(result1.allowed).toBe(true);
 
       const result2 = isCommandAllowedByConfig("cmd -f /etc/passwd", config, {
         cwd,
+        homeDir,
       });
       // Optional group should not match because file path is unsafe,
       // but since there's no other args pattern, it fails
@@ -844,13 +885,14 @@ describe("permissions", () => {
 
       const result1 = isCommandAllowedByConfig("test file.txt", config, {
         cwd,
+        homeDir,
       });
       expect(result1.allowed).toBe(true);
 
       const result2 = isCommandAllowedByConfig(
         "test --verbose file.txt",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result2.allowed).toBe(true);
     });
@@ -872,6 +914,7 @@ describe("permissions", () => {
 
       const result = isCommandAllowedByConfig("cmd -f file.txt", config, {
         cwd,
+        homeDir,
       });
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain("restFiles not allowed inside group");
@@ -891,18 +934,20 @@ describe("permissions", () => {
 
       const result1 = isCommandAllowedByConfig("rg file.txt", config, {
         cwd,
+        homeDir,
       });
       expect(result1.allowed).toBe(true);
 
       const result2 = isCommandAllowedByConfig(
         "rg -v 'pattern' file.txt other.txt",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result2.allowed).toBe(true);
 
       const result3 = isCommandAllowedByConfig("rg", config, {
         cwd,
+        homeDir,
       });
       expect(result3.allowed).toBe(true);
     });
@@ -933,12 +978,14 @@ describe("permissions", () => {
       // Just -l
       const result1 = isCommandAllowedByConfig("cmd -l file.txt", config, {
         cwd,
+        homeDir,
       });
       expect(result1.allowed).toBe(true);
 
       // Just -v pattern
       const result2 = isCommandAllowedByConfig("cmd -v foo file.txt", config, {
         cwd,
+        homeDir,
       });
       expect(result2.allowed).toBe(true);
 
@@ -948,6 +995,7 @@ describe("permissions", () => {
         config,
         {
           cwd,
+          homeDir,
         },
       );
       expect(result3.allowed).toBe(true);
@@ -958,6 +1006,7 @@ describe("permissions", () => {
         config,
         {
           cwd,
+          homeDir,
         },
       );
       expect(result4.allowed).toBe(true);
@@ -965,6 +1014,7 @@ describe("permissions", () => {
       // Neither optional
       const result5 = isCommandAllowedByConfig("cmd file.txt", config, {
         cwd,
+        homeDir,
       });
       expect(result5.allowed).toBe(true);
     });
@@ -980,12 +1030,14 @@ describe("permissions", () => {
       // Should allow adding files in the project
       const result1 = isCommandAllowedByConfig("git add file.txt", config, {
         cwd,
+        homeDir,
       });
       expect(result1.allowed).toBe(true);
 
       // Should reject adding files outside the project
       const result2 = isCommandAllowedByConfig("git add /etc/passwd", config, {
         cwd,
+        homeDir,
       });
       expect(result2.allowed).toBe(false);
       expect(result2.reason).toContain("no read permission");
@@ -1000,7 +1052,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "git remote add origin url",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result.allowed).toBe(true);
     });
@@ -1017,16 +1069,19 @@ describe("permissions", () => {
 
       const result1 = isCommandAllowedByConfig("test --flag", config, {
         cwd,
+        homeDir,
       });
       expect(result1.allowed).toBe(true);
 
       const result2 = isCommandAllowedByConfig("test file.txt", config, {
         cwd,
+        homeDir,
       });
       expect(result2.allowed).toBe(true);
 
       const result3 = isCommandAllowedByConfig("test --flag file.txt", config, {
         cwd,
+        homeDir,
       });
       expect(result3.allowed).toBe(true);
     });
@@ -1047,6 +1102,7 @@ describe("permissions", () => {
       // Piped command should use pipeCommands (no file required)
       const result = isCommandAllowedByConfig("cat file.txt | head", config, {
         cwd,
+        homeDir,
       });
       expect(result.allowed).toBe(true);
     });
@@ -1064,12 +1120,14 @@ describe("permissions", () => {
       // Standalone command should use commands (file required)
       const result1 = isCommandAllowedByConfig("head file.txt", config, {
         cwd,
+        homeDir,
       });
       expect(result1.allowed).toBe(true);
 
       // Without file should fail
       const result2 = isCommandAllowedByConfig("head", config, {
         cwd,
+        homeDir,
       });
       expect(result2.allowed).toBe(false);
     });
@@ -1088,13 +1146,14 @@ describe("permissions", () => {
 
       const result1 = isCommandAllowedByConfig("cat file.txt | head", config, {
         cwd,
+        homeDir,
       });
       expect(result1.allowed).toBe(true);
 
       const result2 = isCommandAllowedByConfig(
         "cat file.txt | head -n 10",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result2.allowed).toBe(true);
     });
@@ -1113,6 +1172,7 @@ describe("permissions", () => {
       // Empty args when piped should fail since pipeCommands requires -n
       const result = isCommandAllowedByConfig("cat file.txt | head", config, {
         cwd,
+        homeDir,
       });
       expect(result.allowed).toBe(false);
     });
@@ -1134,7 +1194,7 @@ describe("permissions", () => {
       const result = isCommandAllowedByConfig(
         "cat file.txt | grep pattern | head -n 5",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result.allowed).toBe(true);
     });
@@ -1151,12 +1211,14 @@ describe("permissions", () => {
       // Should work standalone using commands
       const result1 = isCommandAllowedByConfig("wc -l", config, {
         cwd,
+        homeDir,
       });
       expect(result1.allowed).toBe(true);
 
       // When piped, falls back to commands (which matches)
       const result2 = isCommandAllowedByConfig("cat file.txt | wc -l", config, {
         cwd,
+        homeDir,
       });
       expect(result2.allowed).toBe(false); // pipeCommands is empty, so piped wc fails
     });
@@ -1179,14 +1241,14 @@ describe("permissions", () => {
       const result1 = isCommandAllowedByConfig(
         "cat file.txt | grep pattern",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result1.allowed).toBe(true);
 
       const result2 = isCommandAllowedByConfig(
         "cat file.txt | grep -i pattern",
         config,
-        { cwd },
+        { cwd, homeDir },
       );
       expect(result2.allowed).toBe(true);
     });
@@ -1205,6 +1267,7 @@ describe("permissions", () => {
       // && should not count as pipe, so head needs a file arg
       const result = isCommandAllowedByConfig("cat file.txt && head", config, {
         cwd,
+        homeDir,
       });
       expect(result.allowed).toBe(false);
     });
@@ -1220,6 +1283,7 @@ describe("permissions", () => {
       const parsed = parse("ls");
       const result = checkCommandListPermissions(parsed, config, {
         cwd,
+        homeDir,
       });
       expect(result.allowed).toBe(true);
     });

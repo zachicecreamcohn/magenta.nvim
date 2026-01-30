@@ -22,6 +22,7 @@ import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
 import {
   type NvimCwd,
   type UnresolvedFilePath,
+  type HomeDir,
   MAGENTA_TEMP_DIR,
 } from "../utils/files.ts";
 import {
@@ -187,11 +188,13 @@ export function checkCommandPermissions({
   options,
   rememberedCommands,
   cwd,
+  homeDir,
 }: {
   command: string;
   options: MagentaOptions;
   rememberedCommands: Set<string>;
   cwd: NvimCwd;
+  homeDir: HomeDir;
 }): PermissionCheckResult {
   // First check remembered commands
   if (rememberedCommands.has(command)) {
@@ -200,6 +203,7 @@ export function checkCommandPermissions({
 
   return isCommandAllowedByConfig(command, options.commandConfig, {
     cwd,
+    homeDir,
     skillsPaths: options.skillsPaths,
     filePermissions: options.filePermissions,
   });
@@ -219,6 +223,7 @@ export class BashCommandTool implements StaticTool {
     public context: {
       nvim: Nvim;
       cwd: NvimCwd;
+      homeDir: HomeDir;
       options: MagentaOptions;
       myDispatch: Dispatch<Msg>;
       rememberedCommands: Set<string>;
@@ -232,6 +237,7 @@ export class BashCommandTool implements StaticTool {
       options: this.context.options,
       rememberedCommands: this.context.rememberedCommands,
       cwd: this.context.cwd,
+      homeDir: this.context.homeDir,
     });
 
     if (permissionResult.allowed) {

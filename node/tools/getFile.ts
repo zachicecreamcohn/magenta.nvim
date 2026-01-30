@@ -23,6 +23,7 @@ import {
   validateFileSize,
   FileCategory,
   type NvimCwd,
+  type HomeDir,
 } from "../utils/files.ts";
 import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
 import type { Msg as ThreadMsg } from "../chat/thread.ts";
@@ -86,6 +87,7 @@ export class GetFileTool implements StaticTool {
     public context: {
       nvim: Nvim;
       cwd: NvimCwd;
+      homeDir: HomeDir;
       contextManager: ContextManager;
       threadDispatch: Dispatch<ThreadMsg>;
       myDispatch: Dispatch<Msg>;

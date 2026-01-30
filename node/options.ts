@@ -1,5 +1,4 @@
 import { PROVIDER_NAMES, type ProviderName } from "./providers/provider";
-import * as os from "os";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
@@ -1523,11 +1522,13 @@ export function parseProjectOptions(
   return options;
 }
 
-export function loadUserSettings(logger: {
-  warn: (msg: string) => void;
-}): Partial<MagentaOptions> | undefined {
-  const homedir = os.homedir();
-  const settingsPath = path.join(homedir, ".magenta", "options.json");
+export function loadUserSettings(
+  homeDir: string,
+  logger: {
+    warn: (msg: string) => void;
+  },
+): Partial<MagentaOptions> | undefined {
+  const settingsPath = path.join(homeDir, ".magenta", "options.json");
 
   try {
     if (fs.existsSync(settingsPath)) {

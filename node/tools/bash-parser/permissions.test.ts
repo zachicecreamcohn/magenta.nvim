@@ -3,14 +3,17 @@ import {
   isCommandAllowedByConfig,
   BUILTIN_COMMAND_PERMISSIONS,
 } from "./permissions.ts";
-import type { NvimCwd } from "../../utils/files.ts";
+import type { NvimCwd, HomeDir } from "../../utils/files.ts";
 
 describe("isCommandAllowedByConfig with magenta temp files", () => {
   test("allows cat on magenta temp files", () => {
     const result = isCommandAllowedByConfig(
       "cat /tmp/magenta/threads/abc123/tools/tool_1/bashCommand.log",
       BUILTIN_COMMAND_PERMISSIONS,
-      { cwd: "/home/user/project" as NvimCwd },
+      {
+        cwd: "/home/user/project" as NvimCwd,
+        homeDir: "/home/user" as HomeDir,
+      },
     );
     expect(result.allowed).toBe(true);
   });
@@ -19,7 +22,10 @@ describe("isCommandAllowedByConfig with magenta temp files", () => {
     const result = isCommandAllowedByConfig(
       "head -20 /tmp/magenta/threads/abc123/tools/tool_1/bashCommand.log",
       BUILTIN_COMMAND_PERMISSIONS,
-      { cwd: "/home/user/project" as NvimCwd },
+      {
+        cwd: "/home/user/project" as NvimCwd,
+        homeDir: "/home/user" as HomeDir,
+      },
     );
     expect(result.allowed).toBe(true);
   });
@@ -28,7 +34,10 @@ describe("isCommandAllowedByConfig with magenta temp files", () => {
     const result = isCommandAllowedByConfig(
       "tail -50 /tmp/magenta/threads/abc123/tools/tool_1/bashCommand.log",
       BUILTIN_COMMAND_PERMISSIONS,
-      { cwd: "/home/user/project" as NvimCwd },
+      {
+        cwd: "/home/user/project" as NvimCwd,
+        homeDir: "/home/user" as HomeDir,
+      },
     );
     expect(result.allowed).toBe(true);
   });
@@ -37,7 +46,10 @@ describe("isCommandAllowedByConfig with magenta temp files", () => {
     const result = isCommandAllowedByConfig(
       "cat /tmp/other/file.txt",
       BUILTIN_COMMAND_PERMISSIONS,
-      { cwd: "/home/user/project" as NvimCwd },
+      {
+        cwd: "/home/user/project" as NvimCwd,
+        homeDir: "/home/user" as HomeDir,
+      },
     );
     expect(result.allowed).toBe(false);
   });
@@ -46,7 +58,10 @@ describe("isCommandAllowedByConfig with magenta temp files", () => {
     const result = isCommandAllowedByConfig(
       "grep error /tmp/magenta/threads/abc123/tools/tool_1/bashCommand.log",
       BUILTIN_COMMAND_PERMISSIONS,
-      { cwd: "/home/user/project" as NvimCwd },
+      {
+        cwd: "/home/user/project" as NvimCwd,
+        homeDir: "/home/user" as HomeDir,
+      },
     );
     expect(result.allowed).toBe(true);
   });

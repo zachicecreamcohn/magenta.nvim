@@ -20,9 +20,13 @@ import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/types.ts";
 import * as diff from "diff";
 import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
-import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
-import { resolveFilePath } from "../utils/files.ts";
+import {
+  resolveFilePath,
+  type NvimCwd,
+  type UnresolvedFilePath,
+  type HomeDir,
+} from "../utils/files.ts";
 import type { MagentaOptions } from "../options.ts";
 import { canWriteFile } from "./permissions.ts";
 import type { CompletedToolInfo } from "./types.ts";
@@ -80,6 +84,7 @@ export class ReplaceTool implements StaticTool {
       dispatch: Dispatch<RootMsg>;
       bufferTracker: BufferTracker;
       cwd: NvimCwd;
+      homeDir: HomeDir;
       nvim: Nvim;
       options: MagentaOptions;
       getDisplayWidth(): number;

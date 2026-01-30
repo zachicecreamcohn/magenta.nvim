@@ -11,6 +11,7 @@ import { ContextManager } from "../context/context-manager.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import {
   type AbsFilePath,
+  type HomeDir,
   type NvimCwd,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
@@ -108,6 +109,7 @@ export class Chat {
       bufferTracker: BufferTracker;
       options: MagentaOptions;
       cwd: NvimCwd;
+      homeDir: HomeDir;
       nvim: Nvim;
       lsp: Lsp;
     },

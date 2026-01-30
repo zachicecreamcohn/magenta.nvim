@@ -7,6 +7,7 @@ import { lookup } from "mime-types";
 export type AbsFilePath = string & { __abs_file_path: true };
 export type RelFilePath = string & { __rel_file_path: true };
 export type UnresolvedFilePath = string & { __unresolved_file_path: true };
+export type HomeDir = AbsFilePath & { __home_dir: true };
 
 export const MAGENTA_TEMP_DIR = "/tmp/magenta" as AbsFilePath;
 
@@ -28,15 +29,22 @@ export interface FileTypeInfo {
   extension: string;
 }
 
+export function expandTilde(filepath: string, homeDir: HomeDir): string {
+  if (filepath.startsWith("~/") || filepath === "~") {
+    return path.join(homeDir, filepath.slice(1));
+  }
+  return filepath;
+}
+
 export function resolveFilePath(
   cwd: NvimCwd,
   filePath: UnresolvedFilePath | AbsFilePath | RelFilePath,
+  homeDir?: HomeDir,
 ) {
   let expandedPath = filePath as string;
-  if (expandedPath.startsWith("~/")) {
-    expandedPath = path.join(os.homedir(), expandedPath.slice(2));
-  } else if (expandedPath === "~") {
-    expandedPath = os.homedir();
+  if (expandedPath.startsWith("~/") || expandedPath === "~") {
+    const home = homeDir ?? (os.homedir() as HomeDir);
+    expandedPath = path.join(home, expandedPath.slice(1));
   }
   return path.resolve(cwd, expandedPath) as AbsFilePath;
 }

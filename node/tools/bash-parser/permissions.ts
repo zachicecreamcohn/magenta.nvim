@@ -1,19 +1,19 @@
 import * as path from "node:path";
-import * as os from "node:os";
 import * as fs from "node:fs";
 import type { ParsedCommand, ParsedCommandList } from "./parser.ts";
 import { parse, ParserError } from "./parser.ts";
 import { LexerError } from "./lexer.ts";
 import {
   resolveFilePath,
+  expandTilde,
   type NvimCwd,
   type UnresolvedFilePath,
   type AbsFilePath,
+  type HomeDir,
   MAGENTA_TEMP_DIR,
 } from "../../utils/files.ts";
 import type { FilePermission } from "../../options.ts";
 import {
-  expandTilde,
   getEffectivePermissions,
   hasNewSecretSegment,
 } from "../permissions.ts";
@@ -148,6 +148,7 @@ function fileRequiresSecretPermission(
   absFilePath: AbsFilePath,
   filePermissions: FilePermission[],
   cwd: NvimCwd,
+  homeDir: HomeDir,
 ): boolean {
   // Check the absolute path segments for hidden segments
   const pathSegments = absFilePath.split(path.sep).filter((s) => s.length > 0);
@@ -161,7 +162,7 @@ function fileRequiresSecretPermission(
   const allPermissions = [cwdPermission, ...filePermissions];
 
   for (const perm of allPermissions) {
-    const permPath = expandTilde(perm.path);
+    const permPath = expandTilde(perm.path, homeDir);
     const normalizedPermPath = path.isAbsolute(permPath)
       ? permPath
       : path.join(cwd, permPath);
@@ -173,7 +174,7 @@ function fileRequiresSecretPermission(
     ) {
       // If there are no new secret segments after this permission path, then the file
       // can be accessed without secret permission via this rule
-      if (!hasNewSecretSegment(absFilePath, perm.path, cwd)) {
+      if (!hasNewSecretSegment(absFilePath, perm.path, cwd, homeDir)) {
         return false;
       }
     }
@@ -189,8 +190,9 @@ function canReadPath(
   currentCwd: NvimCwd,
   projectCwd: NvimCwd,
   filePermissions: FilePermission[],
+  homeDir: HomeDir,
 ): { safe: boolean; reason?: string } {
-  const expandedPath = expandTilde(filePath);
+  const expandedPath = expandTilde(filePath, homeDir);
   // Resolve the path relative to current working directory
   const absPath = resolveFilePath(
     currentCwd,
@@ -207,6 +209,7 @@ function canReadPath(
     absPath,
     filePermissions,
     projectCwd,
+    homeDir,
   );
 
   // Check if this file requires secret permissions
@@ -214,6 +217,7 @@ function canReadPath(
     absPath,
     filePermissions,
     projectCwd,
+    homeDir,
   );
 
   if (needsSecret) {
@@ -241,8 +245,9 @@ function canWritePath(
   currentCwd: NvimCwd,
   projectCwd: NvimCwd,
   filePermissions: FilePermission[],
+  homeDir: HomeDir,
 ): { safe: boolean; reason?: string } {
-  const expandedPath = expandTilde(filePath);
+  const expandedPath = expandTilde(filePath, homeDir);
   // Resolve the path relative to current working directory
   const absPath = resolveFilePath(
     currentCwd,
@@ -254,6 +259,7 @@ function canWritePath(
     absPath,
     filePermissions,
     projectCwd,
+    homeDir,
   );
 
   // Check if this file requires secret permissions
@@ -261,6 +267,7 @@ function canWritePath(
     absPath,
     filePermissions,
     projectCwd,
+    homeDir,
   );
 
   if (needsSecret) {
@@ -288,6 +295,7 @@ function isPathSafe(
   currentCwd: NvimCwd,
   projectCwd: NvimCwd,
   filePermissions: FilePermission[],
+  homeDir: HomeDir,
 ): { safe: boolean; reason?: string } {
   // For legacy { type: "file" }, we check both read and write permissions
   const readResult = canReadPath(
@@ -295,6 +303,7 @@ function isPathSafe(
     currentCwd,
     projectCwd,
     filePermissions,
+    homeDir,
   );
   if (!readResult.safe) {
     return readResult;
@@ -305,6 +314,7 @@ function isPathSafe(
     currentCwd,
     projectCwd,
     filePermissions,
+    homeDir,
   );
   if (!writeResult.safe) {
     return writeResult;
@@ -318,15 +328,16 @@ function isWithinSkillsDir(
   scriptPath: string,
   skillsPaths: string[],
   cwd: NvimCwd,
+  homeDir: HomeDir,
 ): boolean {
-  const expandedScriptPath = expandTilde(scriptPath);
+  const expandedScriptPath = expandTilde(scriptPath, homeDir);
   const resolvedScript = resolveFilePath(
     cwd,
     expandedScriptPath as UnresolvedFilePath,
   );
 
   for (const skillsPath of skillsPaths) {
-    const expandedSkillsPath = expandTilde(skillsPath);
+    const expandedSkillsPath = expandTilde(skillsPath, homeDir);
     const resolvedSkillsPath = resolveFilePath(
       cwd,
       expandedSkillsPath as UnresolvedFilePath,
@@ -345,9 +356,13 @@ function isWithinSkillsDir(
 }
 
 /** Check if script file exists and is a regular file */
-function isExecutableScript(scriptPath: string, cwd: NvimCwd): boolean {
+function isExecutableScript(
+  scriptPath: string,
+  cwd: NvimCwd,
+  homeDir: HomeDir,
+): boolean {
   try {
-    const expandedPath = expandTilde(scriptPath);
+    const expandedPath = expandTilde(scriptPath, homeDir);
     const resolvedPath = resolveFilePath(
       cwd,
       expandedPath as UnresolvedFilePath,
@@ -374,6 +389,7 @@ function isSkillsScriptExecution(
   command: ParsedCommand,
   skillsPaths: string[],
   cwd: NvimCwd,
+  homeDir: HomeDir,
 ): boolean {
   if (skillsPaths.length === 0) {
     return false;
@@ -387,8 +403,8 @@ function isSkillsScriptExecution(
     executable.startsWith("/") ||
     executable.startsWith("~/")
   ) {
-    if (isExecutableScript(executable, cwd)) {
-      return isWithinSkillsDir(executable, skillsPaths, cwd);
+    if (isExecutableScript(executable, cwd, homeDir)) {
+      return isWithinSkillsDir(executable, skillsPaths, cwd, homeDir);
     }
     return false;
   }
@@ -400,8 +416,8 @@ function isSkillsScriptExecution(
   ) {
     if (args.length > 0) {
       const scriptPath = args[0];
-      if (isExecutableScript(scriptPath, cwd)) {
-        return isWithinSkillsDir(scriptPath, skillsPaths, cwd);
+      if (isExecutableScript(scriptPath, cwd, homeDir)) {
+        return isWithinSkillsDir(scriptPath, skillsPaths, cwd, homeDir);
       }
     }
     return false;
@@ -411,8 +427,8 @@ function isSkillsScriptExecution(
   if (SCRIPT_RUNNERS.python.test(executable)) {
     if (args.length > 0) {
       const scriptPath = args[0];
-      if (isExecutableScript(scriptPath, cwd)) {
-        return isWithinSkillsDir(scriptPath, skillsPaths, cwd);
+      if (isExecutableScript(scriptPath, cwd, homeDir)) {
+        return isWithinSkillsDir(scriptPath, skillsPaths, cwd, homeDir);
       }
     }
     return false;
@@ -422,8 +438,8 @@ function isSkillsScriptExecution(
   if (SCRIPT_RUNNERS.node.test(executable)) {
     if (args.length > 0) {
       const scriptPath = args[0];
-      if (isExecutableScript(scriptPath, cwd)) {
-        return isWithinSkillsDir(scriptPath, skillsPaths, cwd);
+      if (isExecutableScript(scriptPath, cwd, homeDir)) {
+        return isWithinSkillsDir(scriptPath, skillsPaths, cwd, homeDir);
       }
     }
     return false;
@@ -433,8 +449,8 @@ function isSkillsScriptExecution(
   if (SCRIPT_RUNNERS.npx.test(executable)) {
     if (args.length >= 2 && args[0] === "tsx") {
       const scriptPath = args[1];
-      if (isExecutableScript(scriptPath, cwd)) {
-        return isWithinSkillsDir(scriptPath, skillsPaths, cwd);
+      if (isExecutableScript(scriptPath, cwd, homeDir)) {
+        return isWithinSkillsDir(scriptPath, skillsPaths, cwd, homeDir);
       }
     }
     return false;
@@ -453,8 +469,8 @@ function isSkillsScriptExecution(
         SCRIPT_RUNNERS.zsh.test(interpreter)
       ) {
         const scriptPath = args[1];
-        if (isExecutableScript(scriptPath, cwd)) {
-          return isWithinSkillsDir(scriptPath, skillsPaths, cwd);
+        if (isExecutableScript(scriptPath, cwd, homeDir)) {
+          return isWithinSkillsDir(scriptPath, skillsPaths, cwd, homeDir);
         }
       }
     }
@@ -468,6 +484,7 @@ type MatchContext = {
   currentCwd: NvimCwd;
   projectCwd: NvimCwd;
   filePermissions: FilePermission[];
+  homeDir: HomeDir;
 };
 
 type NonGroupArgSpec = Exclude<
@@ -500,6 +517,7 @@ function matchSingleSpec(
         ctx.currentCwd,
         ctx.projectCwd,
         ctx.filePermissions,
+        ctx.homeDir,
       );
       if (!pathCheck.safe) {
         return { error: pathCheck.reason ?? "invalid file path" };
@@ -516,6 +534,7 @@ function matchSingleSpec(
         ctx.currentCwd,
         ctx.projectCwd,
         ctx.filePermissions,
+        ctx.homeDir,
       );
       if (!pathCheck.safe) {
         return { error: pathCheck.reason ?? "invalid file path" };
@@ -532,6 +551,7 @@ function matchSingleSpec(
         ctx.currentCwd,
         ctx.projectCwd,
         ctx.filePermissions,
+        ctx.homeDir,
       );
       if (!pathCheck.safe) {
         return { error: pathCheck.reason ?? "invalid file path" };
@@ -568,6 +588,7 @@ function matchSingleSpec(
           ctx.currentCwd,
           ctx.projectCwd,
           ctx.filePermissions,
+          ctx.homeDir,
         );
         if (!pathCheck.safe) {
           return { error: pathCheck.reason ?? "invalid file path" };
@@ -728,10 +749,16 @@ function matchArgsPattern(
   currentCwd: NvimCwd,
   projectCwd: NvimCwd,
   filePermissions: FilePermission[],
+  homeDir: HomeDir,
 ): { matches: boolean; reason?: string } {
   let argIndex = 0;
   let patternIndex = 0;
-  const ctx: MatchContext = { currentCwd, projectCwd, filePermissions };
+  const ctx: MatchContext = {
+    currentCwd,
+    projectCwd,
+    filePermissions,
+    homeDir,
+  };
 
   while (patternIndex < pattern.length) {
     const spec = pattern[patternIndex];
@@ -808,6 +835,7 @@ function checkCommand(
   projectCwd: NvimCwd,
   filePermissions: FilePermission[],
   receivingPipe: boolean,
+  homeDir: HomeDir,
 ): { allowed: boolean; reason?: string } {
   // Build full command array: [executable, ...args]
   const fullCommand = [executable, ...args];
@@ -824,6 +852,7 @@ function checkCommand(
       currentCwd,
       projectCwd,
       filePermissions,
+      homeDir,
     );
     if (result.matches) {
       return { allowed: true };
@@ -843,6 +872,7 @@ function checkCommand(
 function processCdCommand(
   command: ParsedCommand,
   currentCwd: NvimCwd,
+  homeDir: HomeDir,
 ): NvimCwd | undefined {
   if (command.executable !== "cd") {
     return undefined;
@@ -850,11 +880,11 @@ function processCdCommand(
 
   if (command.args.length === 0) {
     // cd with no args goes to home
-    return os.homedir() as NvimCwd;
+    return homeDir as unknown as NvimCwd;
   }
 
   const targetDir = command.args[0];
-  const expandedDir = expandTilde(targetDir);
+  const expandedDir = expandTilde(targetDir, homeDir);
   const newCwd = resolveFilePath(currentCwd, expandedDir as UnresolvedFilePath);
 
   return newCwd as NvimCwd;
@@ -871,25 +901,27 @@ export function checkCommandListPermissions(
   config: CommandPermissions,
   options: {
     cwd: NvimCwd;
+    homeDir: HomeDir;
     skillsPaths?: string[];
     filePermissions?: FilePermission[];
   },
 ): PermissionCheckResult {
   const projectCwd = options.cwd;
   let currentCwd = options.cwd;
+  const homeDir = options.homeDir;
   const skillsPaths = options.skillsPaths ?? [];
   const filePermissions = options.filePermissions ?? [];
 
   for (const command of commandList.commands) {
     // Handle cd command - update cwd for subsequent commands
-    const newCwd = processCdCommand(command, currentCwd);
+    const newCwd = processCdCommand(command, currentCwd, homeDir);
     if (newCwd !== undefined) {
       currentCwd = newCwd;
       continue;
     }
 
     // Check if this is a skills script execution
-    if (isSkillsScriptExecution(command, skillsPaths, currentCwd)) {
+    if (isSkillsScriptExecution(command, skillsPaths, currentCwd, homeDir)) {
       continue;
     }
 
@@ -901,6 +933,7 @@ export function checkCommandListPermissions(
       projectCwd,
       filePermissions,
       command.receivingPipe,
+      homeDir,
     );
     if (!result.allowed) {
       return {
@@ -919,6 +952,7 @@ export function isCommandAllowedByConfig(
   config: CommandPermissions,
   options: {
     cwd: NvimCwd;
+    homeDir: HomeDir;
     skillsPaths?: string[];
     filePermissions?: FilePermission[];
   },

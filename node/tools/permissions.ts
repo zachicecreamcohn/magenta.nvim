@@ -1,17 +1,9 @@
 import path from "path";
-import * as os from "node:os";
 import { glob } from "glob";
-import type { AbsFilePath, NvimCwd } from "../utils/files.ts";
+import type { AbsFilePath, HomeDir, NvimCwd } from "../utils/files.ts";
 import type { FilePermission, MagentaOptions } from "../options.ts";
 import type { Nvim } from "../nvim/nvim-node";
-import { relativePath, MAGENTA_TEMP_DIR } from "../utils/files.ts";
-
-export function expandTilde(filepath: string): string {
-  if (filepath.startsWith("~/") || filepath === "~") {
-    return path.join(os.homedir(), filepath.slice(1));
-  }
-  return filepath;
-}
+import { relativePath, MAGENTA_TEMP_DIR, expandTilde } from "../utils/files.ts";
 
 export type EffectivePermissions = {
   read: boolean;
@@ -30,6 +22,7 @@ export function getEffectivePermissions(
   absFilePath: AbsFilePath,
   filePermissions: FilePermission[],
   cwd: NvimCwd,
+  homeDir: HomeDir,
 ): EffectivePermissions {
   const permissions: EffectivePermissions = {
     read: false,
@@ -48,7 +41,7 @@ export function getEffectivePermissions(
   const allPermissions = [cwdPermission, ...filePermissions];
 
   for (const perm of allPermissions) {
-    const permPath = expandTilde(perm.path);
+    const permPath = expandTilde(perm.path, homeDir);
     const normalizedPermPath = path.isAbsolute(permPath)
       ? permPath
       : path.join(cwd, permPath);
@@ -82,8 +75,9 @@ export function hasNewSecretSegment(
   absFilePath: AbsFilePath,
   permissionPath: string,
   cwd: NvimCwd,
+  homeDir: HomeDir,
 ): boolean {
-  const expandedPermPath = expandTilde(permissionPath);
+  const expandedPermPath = expandTilde(permissionPath, homeDir);
   const normalizedPermPath = path.isAbsolute(expandedPermPath)
     ? expandedPermPath
     : path.join(cwd, expandedPermPath);
@@ -111,6 +105,7 @@ function isFileInSkillsDirectory(
   absFilePath: AbsFilePath,
   context: {
     cwd: NvimCwd;
+    homeDir: HomeDir;
     options: MagentaOptions;
   },
 ): boolean {
@@ -122,7 +117,7 @@ function isFileInSkillsDirectory(
   }
 
   for (const skillsDir of context.options.skillsPaths) {
-    const expandedDir = expandTilde(skillsDir);
+    const expandedDir = expandTilde(skillsDir, context.homeDir);
     const skillsDirPath = path.isAbsolute(expandedDir)
       ? expandedDir
       : path.join(context.cwd, expandedDir);
@@ -186,6 +181,7 @@ function fileRequiresSecretPermission(
   absFilePath: AbsFilePath,
   filePermissions: FilePermission[],
   cwd: NvimCwd,
+  homeDir: HomeDir,
 ): boolean {
   // Check the absolute path segments for hidden segments
   const pathSegments = absFilePath.split(path.sep).filter((s) => s.length > 0);
@@ -199,7 +195,7 @@ function fileRequiresSecretPermission(
   const allPermissions = [cwdPermission, ...filePermissions];
 
   for (const perm of allPermissions) {
-    const permPath = expandTilde(perm.path);
+    const permPath = expandTilde(perm.path, homeDir);
     const normalizedPermPath = path.isAbsolute(permPath)
       ? permPath
       : path.join(cwd, permPath);
@@ -212,7 +208,7 @@ function fileRequiresSecretPermission(
       // If there are no new secret segments after this permission path, and
       // this permission has read or write (not just secret), then the file
       // can be accessed without secret permission via this rule
-      if (!hasNewSecretSegment(absFilePath, perm.path, cwd)) {
+      if (!hasNewSecretSegment(absFilePath, perm.path, cwd, homeDir)) {
         return false;
       }
     }
@@ -226,6 +222,7 @@ export async function canReadFile(
   absFilePath: AbsFilePath,
   context: {
     cwd: NvimCwd;
+    homeDir: HomeDir;
     nvim: Nvim;
     options: MagentaOptions;
   },
@@ -252,6 +249,7 @@ export async function canReadFile(
     absFilePath,
     context.options.filePermissions,
     context.cwd,
+    context.homeDir,
   );
 
   // Check if this file requires secret permissions
@@ -259,6 +257,7 @@ export async function canReadFile(
     absFilePath,
     context.options.filePermissions,
     context.cwd,
+    context.homeDir,
   );
 
   if (needsSecret) {
@@ -274,6 +273,7 @@ export function canWriteFile(
   absFilePath: AbsFilePath,
   context: {
     cwd: NvimCwd;
+    homeDir: HomeDir;
     options: MagentaOptions;
   },
 ): boolean {
@@ -287,6 +287,7 @@ export function canWriteFile(
     absFilePath,
     context.options.filePermissions,
     context.cwd,
+    context.homeDir,
   );
 
   // Check if this file requires secret permissions
@@ -294,6 +295,7 @@ export function canWriteFile(
     absFilePath,
     context.options.filePermissions,
     context.cwd,
+    context.homeDir,
   );
 
   if (needsSecret) {
