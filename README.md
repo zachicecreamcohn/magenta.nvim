@@ -18,7 +18,9 @@ I sometimes write about AI, neovim and magenta specifically:
 - [AI whiplash, and neovim in the age of AI](https://dlants.me/ai-whiplash.html)
 - [AI is not mid](https://dlants.me/ai-mid.html)
 
-**Note**: I mostly develop using the Anthropic provider, so Claude Sonnet 3.7 or 4 are recommended. Other providers are supported but may be less stable. Contributions welcome!
+🔍 **Also check out [pkb](https://github.com/dlants/pkb)**: A CLI for building a local knowledge base with LLM-based context augmentation and embeddings for semantic search. Can be used as a claude skill.
+
+**Note**: I mostly develop using the Anthropic provider, so Claude Opus is recommended. I decided to drop support for other providers for now, since I am more interested in exploring the features space. If another provider becomes significantly better or cheaper, I'll probably add it.
 
 📖 **Documentation**: Run `:help magenta.nvim` in Neovim for complete documentation.
 
@@ -32,14 +34,16 @@ I sometimes write about AI, neovim and magenta specifically:
 
 ## Features
 
-- Chat sidebar with multi-threading support
+- Multi-threading support, forks and compaction
+- Sub-agents for parallel task processing
+- Web search server_tool_use with citations
+- MCP (Model Context Protocol) tools
+- Smart context tracking with automatic diffing
+- Claude skills
+- Progressive disclosure for large files and bash outputs
+- Prompt caching
 - Inline edits with visual selection support
 - Edit prediction based on recent changes
-- Sub-agents for parallel task processing
-- Web search with citations
-- MCP (Model Context Protocol) support
-- Smart context tracking with automatic diffing
-- Prompt caching for efficiency
 
 ## Roadmap
 
@@ -49,6 +53,17 @@ I sometimes write about AI, neovim and magenta specifically:
 
 <details>
 <summary>Recent updates (click to expand)</summary>
+
+## Jan 2026
+
+- Major provider refactor: messages now stored in native format, eliminating lossy round-trip conversions and improving cache reliability
+- Reworked `@fork`: it now clones the thread. Can now fork while streaming or pending tool use, and continue the original thread afterward
+- Bash command output now streams to temp files (`/tmp/magenta/threads/...`) with abbreviated results sent to the model
+- New `@compact` command for manual thread compaction
+- Tree-sitter minimap: large files now show structural overview (functions, classes) instead of just first 100 lines
+- Improved abort handling: cleaner tool lifecycle management
+- README split into `:help magenta` documentation
+- **Breaking**: Dropped support for non-Anthropic providers (openai, bedrock, ollama, copilot). I don't use them and maintaining them slowed me down in exploring new features. The new provider architecture is simpler - contributions to re-add providers welcome!
 
 ## Dec 2025
 
@@ -152,12 +167,10 @@ require('magenta').setup({
 ## Supported Providers
 
 - **anthropic** - Claude models via [Anthropic SDK](https://github.com/anthropics/anthropic-sdk-typescript)
-- **openai** - GPT models via [OpenAI SDK](https://github.com/openai/openai-node)
-- **bedrock** - Claude via [AWS Bedrock](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-bedrock-runtime/)
-- **ollama** - Local models via [Ollama](https://ollama.com)
-- **copilot** - Via GitHub Copilot subscription (no API key needed)
 
 See `:help magenta-providers` for detailed provider configuration.
+
+_Note: Other providers (openai, bedrock, ollama, copilot) were removed in Jan 2026. The new provider architecture is simpler - contributions welcome!_
 
 ## Project Settings
 
@@ -204,26 +217,43 @@ For complete documentation:
 - I made an effort to expose the raw tool use requests and responses, as well as the stop reasons and usage info from interactions with each model. This should make debugging your workflows a lot more straightforward.
 - Robust file snapshots system automatically captures file state before edits, allowing for accurate before/after comparison and better review experiences.
 
-# How is this different from other coding assistant plugins?
+# How is this different from other coding assistants (Jan 2026)?
 
-I think the closest plugins to this one are [avante.nvim](https://github.com/yetone/avante.nvim) and [codecompanion.nvim](https://github.com/olimorris/codecompanion.nvim)
+## claude code
 
-## compared to codecompanion:
+It's neovim baby! Use your hard-won muscle memory to browse the agent output, explore files, gather context, and hand-edit when the agent can't swing it!
 
-Codecompanion has a single buffer, while magenta.nvim has separate input & display buffers. This makes it easier to add some interactivity to the display buffer (since it's not directly editable). I think this makes it nicer for situations when the LLM uses multiple tools at once. So for example, in codecompanion when the LLM needs permission to open a file, or proposes a change, this takes over your editor, which isn't a nice workflow when the tool needs to edit multiple files.
+I've taken care to implement the best parts of claude code (context management, subagents, skills), so you shouldn't miss anything terribly.
 
-## compared to avante:
+Another thing is that magenta is a lot more transparent about what is happening to your context. For example, one major aspect of claude skills is that claude secretly litters the context with system reminders, to get the agent to actually use skills defined early in the context window. In magenta you can see everything the agent sees, and manipulate it to customize to your use case.
 
-I think it's fairly similar. However, magenta.nvim is written in typescript and uses the sdks to implement streaming, which I think makes it more stable. I think the main advantage is the architecture is very clean so it should be easy to extend the functionality. Between typescript, sdks and the architecture, I think my velocity is really high.
+## other neovim plugins
 
-## compared to both:
+The closest plugins are [avante.nvim](https://github.com/yetone/avante.nvim) and [codecompanion.nvim](https://github.com/olimorris/codecompanion.nvim). I haven't used either in a while, so take this with a grain of salt—both are actively developed and may have added features since I last checked.
 
-magenta.nvim includes capabilities that neither plugin offers:
+That said, I've spent a lot of time building magenta's abstractions around agentic coding. Here's what I think sets it apart:
 
-- **Web search tools**: Agents can search the internet for current information, documentation, and solutions, and cite these in their responses.
-- **Sub-agents**: Complex tasks can be broken down and delegated to specialized agents that work in parallel with focused context and system prompts.
-- **User-friendly, context-aware inline edits**: apply inline edits at a cursor position or to a selection. Dot-repeat to replay promtps against new locations.
-- **Smart context tracking**: The plugin automatically tracks the state of files on disk, in buffers, and what the agent has seen, sending only diffs when files change. This enables better cache utilization and more efficient communication while sending only diffs to the agent.
+**Context management**
+
+- **Sub-agents with parallelization**: Spawn multiple agents that work in parallel with focused contexts (`spawn_subagent`, `spawn_foreach`), then coordinate results
+- **Thread forking and compaction**: Fork conversations to explore alternatives, compact long threads to manage context size
+- **System reminders**: Automatic reminders injected after each message to keep the agent on track with skills and project conventions
+- **Progressive disclosure**: Tree-sitter minimaps for large files, bash summarization, claude skills, context tracking that only sends diffs of changed files
+
+**Permissions system**
+
+- Fine-grained bash command permissions with argument validation, subcommand support, and path checking (ensuring files are within project and not hidden/gitignored)
+- Per-command configuration rather than just approve/deny-all
+
+**Provider features**
+
+- Native support for Anthropic's server-side web search tool with citations
+- Messages stored in native provider format for more confident cache utilization
+
+**Architecture**
+
+- Written in TypeScript using official SDKs, making streaming and tool use more robust
+- Separate input & display buffers for better interactivity during multi-tool operations
 
 # Contributions
 
