@@ -1,0 +1,122 @@
+*magenta.txt*            Agentic AI coding assistant          *magenta.nvim*
+
+                            MAGENTA.NVIM
+                   Transparent tools for AI workflows
+
+==============================================================================
+CONTENTS                                                    *magenta-contents*
+
+    1. Introduction ............................ |magenta-introduction|
+    2. Requirements ............................ |magenta-requirements|
+    3. Installation ............................ |magenta-installation|
+    4. Quick Start ............................. |magenta-quickstart|
+    5. Configuration ........................... |magenta-config|
+    6. Commands ................................ |magenta-commands|
+    7. Tools ................................... |magenta-tools|
+    8. Providers ............................... |magenta-providers|
+    9. Changelog ............................... |magenta-changelog|
+
+For detailed configuration options, see |magenta-config.txt|
+For commands and keymaps, see |magenta-commands.txt|
+For tools and MCP support, see |magenta-tools.txt|
+For provider configuration, see |magenta-providers.txt|
+
+                                                            *magenta-config*
+                                                          *magenta-commands*
+                                                             *magenta-tools*
+                                                         *magenta-providers*
+
+==============================================================================
+INTRODUCTION                                            *magenta-introduction*
+
+Magenta.nvim provides transparent tools to empower AI workflows in Neovim.
+It allows fluid shifting of control between the developer and the AI, from
+targeted context-powered inline edits to AI automation and agent-led feature
+planning and development.
+
+Features:~
+  - Chat sidebar with multi-threading support
+  - Inline edits with visual selection support
+  - Edit prediction based on recent changes
+  - Sub-agents for parallel task processing
+  - Web search with citations
+  - MCP (Model Context Protocol) support
+  - Smart context tracking with automatic diffing
+  - Prompt caching for efficiency
+
+==============================================================================
+REQUIREMENTS                                            *magenta-requirements*
+
+- Neovim >= 0.8.0
+- Node.js >= v20 (check with `node --version`)
+- nvim-cmp (for input command completions)
+
+Recommended tools:~
+  - fd (sharkdp/fd) - Fast file finding that respects .gitignore
+  - ripgrep (rg) - Fast text search that respects .gitignore
+
+Without these tools, Magenta falls back to using `find`, which doesn't
+respect `.gitignore` files.
+
+==============================================================================
+INSTALLATION                                            *magenta-installation*
+
+Using lazy.nvim:~
+>lua
+    {
+        "dlants/magenta.nvim",
+        lazy = false,
+        build = "npm ci --production",
+        opts = {},
+    }
+<
+
+Using vim-plug:~
+>lua
+    local vim = vim
+    local Plug = vim.fn['plug#']
+
+    vim.call('plug#begin')
+    Plug('dlants/magenta.nvim', {
+      ['do'] = 'npm ci --production',
+    })
+    vim.call('plug#end')
+
+    require('magenta').setup({})
+<
+
+==============================================================================
+QUICK START                                               *magenta-quickstart*
+
+1. Set your API key environment variable:
+>bash
+    export ANTHROPIC_API_KEY="your-key-here"
+<
+
+2. Configure a profile in your setup (see |magenta-profiles|)
+
+3. Open Neovim and use `<leader>mt` to toggle the sidebar
+
+4. Start chatting! Use `<leader>mf` to add files to context
+
+Basic workflow:~
+  - `<leader>mt` - Toggle chat sidebar
+  - `<leader>mf` - Pick files to add to context
+  - `<leader>mi` - Start inline edit at cursor
+  - `<leader>mn` - Create new thread
+  - `<S-C-l>` - Trigger/accept edit prediction
+
+See |magenta-commands| for the full list of commands and keymaps.
+
+==============================================================================
+CHANGELOG                                                  *magenta-changelog*
+
+See the README.md file for detailed update history.
+
+Recent highlights:~
+  - Dec 2025: Enhanced command permissions system
+  - Nov 2025: System reminders and skills support
+  - Aug 2025: PDF support, Claude Max authentication
+  - Jul 2025: Edit prediction, spawn_foreach, fast models
+
+vim:tw=78:ts=8:noet:ft=help:norl:
