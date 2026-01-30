@@ -4,7 +4,7 @@ import { pollForToolResult, withDriver } from "../test/preamble";
 import { pollUntil } from "../utils/async.ts";
 import type { ToolName } from "./types.ts";
 
-describe("node/tools/diagnostics.spec.ts", () => {
+describe("node/tools/diagnostics.test.ts", () => {
   it("diagnostics end-to-end", { timeout: 10000 }, async () => {
     await withDriver({}, async (driver) => {
       await driver.editFile("test.ts");

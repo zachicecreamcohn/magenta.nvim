@@ -6,7 +6,7 @@ import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { ToolName } from "./types.ts";
 import { findToolResult } from "../chat/thread.ts";
 
-describe("node/tools/findReferences.spec.ts", () => {
+describe("node/tools/findReferences.test.ts", () => {
   it("findReferences end-to-end", async () => {
     await withDriver({}, async (driver) => {
       await driver.editFile("test.ts");

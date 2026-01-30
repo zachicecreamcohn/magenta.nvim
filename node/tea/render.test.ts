@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 import { type Row0Indexed } from "../nvim/window.ts";
 
-describe("tea/render.spec.ts", () => {
+describe("tea/render.test.ts", () => {
   it("rendering empty string", async () => {
     await withNvimClient(async (nvim) => {
       const buffer = await NvimBuffer.create(false, true, nvim);

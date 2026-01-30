@@ -4,7 +4,7 @@ import { LOGO } from "./thread.ts";
 import type { ToolRequestId } from "../tools/toolManager.ts";
 import type { ToolName } from "../tools/types.ts";
 
-describe("node/chat/chat.spec.ts", () => {
+describe("node/chat/chat.test.ts", () => {
   it("resets view when switching to a new thread", async () => {
     await withDriver({}, async (driver) => {
       // 1. Open the sidebar

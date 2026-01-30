@@ -3,7 +3,7 @@ import { withDriver } from "../test/preamble";
 import type { ToolRequestId } from "./toolManager";
 import type { ToolName } from "./types";
 
-describe("node/tools/thread-title.spec.ts", () => {
+describe("node/tools/thread-title.test.ts", () => {
   it("sets thread title after user message", async () => {
     await withDriver({}, async (driver) => {
       // 1. Open the sidebar

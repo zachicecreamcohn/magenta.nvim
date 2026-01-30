@@ -252,7 +252,7 @@ describe("remapCurrentToNextPos", () => {
   });
 });
 
-describe("tea/update.spec.ts", () => {
+describe("tea/update.test.ts", () => {
   it("updates to and from empty string", async () => {
     await withNvimClient(async (nvim) => {
       const buffer = await NvimBuffer.create(false, true, nvim);

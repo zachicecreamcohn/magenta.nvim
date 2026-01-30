@@ -9,7 +9,7 @@ import type { ToolRequestId } from "./toolManager";
 import type { ToolName } from "./types";
 import type { UnresolvedFilePath } from "../utils/files";
 
-describe("node/tools/insert.spec.ts", () => {
+describe("node/tools/insert.test.ts", () => {
   it("validate input", () => {
     const validInput = {
       filePath: "test.txt",

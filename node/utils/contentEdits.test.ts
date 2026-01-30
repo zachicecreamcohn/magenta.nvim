@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyInsert, applyReplace, findForgivingMatch } from "./contentEdits";
 
-describe("node/utils/contentEdits.spec.ts", () => {
+describe("node/utils/contentEdits.test.ts", () => {
   describe("findForgivingMatch", () => {
     it("finds exact match", () => {
       const contentLines = ["line1", "line2", "line3"];

@@ -9,7 +9,7 @@ import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 import { withNvimClient } from "../test/preamble.ts";
 import type { ByteIdx, Position0Indexed, Row0Indexed } from "../nvim/window.ts";
 
-describe("tea/util.spec.ts", () => {
+describe("tea/util.test.ts", () => {
   it("strWidthInBytes", async () => {
     await withNvimClient(async (nvim) => {
       const buffer = await NvimBuffer.create(false, true, nvim);

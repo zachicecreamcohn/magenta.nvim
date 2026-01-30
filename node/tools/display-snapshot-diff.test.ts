@@ -8,7 +8,7 @@ import type { UnresolvedFilePath } from "../utils/files";
 import type { ToolName } from "./types";
 import type { Row0Indexed } from "../nvim/window";
 
-describe("node/tools/display-snapshot-diff.spec.ts", () => {
+describe("node/tools/display-snapshot-diff.test.ts", () => {
   it("compare current file with snapshot", async () => {
     await withDriver({}, async (driver) => {
       await driver.nvim.call("nvim_set_option_value", [

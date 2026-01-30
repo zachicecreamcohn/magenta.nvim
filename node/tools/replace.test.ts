@@ -10,7 +10,7 @@ import * as fs from "node:fs";
 import type { UnresolvedFilePath } from "../utils/files";
 import { MockProvider } from "../providers/mock";
 
-describe("node/tools/replace.spec.ts", () => {
+describe("node/tools/replace.test.ts", () => {
   it("validate input", () => {
     const validInput = {
       filePath: "test.txt",

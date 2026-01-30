@@ -9,7 +9,7 @@ import {
 } from "./extmarks.ts";
 import type { Row0Indexed } from "./window.ts";
 
-describe("nvim/buffer.spec.ts", () => {
+describe("nvim/buffer.test.ts", () => {
   describe("extmark management", () => {
     it("should set and delete extmarks", async () => {
       await withNvimClient(async (nvim) => {

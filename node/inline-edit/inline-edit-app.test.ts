@@ -7,7 +7,7 @@ import type { Line } from "../nvim/buffer";
 import type { Position0Indexed, Row0Indexed } from "../nvim/window";
 import { AnthropicAgent } from "../providers/anthropic-agent";
 
-describe("node/inline-edit/inline-edit-app.spec.ts", () => {
+describe("node/inline-edit/inline-edit-app.test.ts", () => {
   it("performs inline edit on file", async () => {
     await withDriver({}, async (driver) => {
       await driver.editFile("poem.txt");

@@ -10,7 +10,7 @@ import type { AbsFilePath, UnresolvedFilePath } from "../utils/files";
 import { applyEdit } from "./applyEdit";
 import type { Row0Indexed } from "../nvim/window";
 
-describe("node/tools/applyEdit.spec.ts", () => {
+describe("node/tools/applyEdit.test.ts", () => {
   it("insert into new file", async () => {
     await withDriver({}, async (driver) => {
       await driver.nvim.call("nvim_set_option_value", [

@@ -11,7 +11,7 @@ The test system can operate in two modes:
 Set the environment variable `RECORD=true` to enable recording mode:
 
 ```bash
-RECORD=true npx vitest run node/providers/copilot.spec.ts
+RECORD=true npx vitest run node/providers/copilot.test.ts
 ```
 
 In recording mode:
@@ -26,7 +26,7 @@ In recording mode:
 Without the environment variable, tests run in replay mode:
 
 ```bash
-npx vitest run node/providers/copilot.spec.ts
+npx vitest run node/providers/copilot.test.ts
 ```
 
 In replay mode:

@@ -11,7 +11,7 @@ import { pollUntil } from "../utils/async.ts";
 import { BashCommandTool } from "./bashCommand.ts";
 import { spawnSync } from "child_process";
 
-describe("node/tools/bashCommand.spec.ts", () => {
+describe("node/tools/bashCommand.test.ts", () => {
   it("executes a simple echo command without requiring approval (allowlisted)", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();

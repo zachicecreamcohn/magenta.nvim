@@ -10,7 +10,7 @@ import type { Row0Indexed } from "./nvim/window";
 
 const writeFile = promisify(fs.writeFile);
 
-describe("node/buffer-tracker.spec.ts", () => {
+describe("node/buffer-tracker.test.ts", () => {
   it("should track buffer as not modified after initial read", async () => {
     await withDriver({}, async (driver) => {
       // Create a temporary file for testing

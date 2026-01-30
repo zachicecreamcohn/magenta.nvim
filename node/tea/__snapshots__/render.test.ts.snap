@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`tea/render.spec.ts > rendering array 1`] = `
+exports[`tea/render.test.ts > rendering array 1`] = `
 {
   "children": [
     {
@@ -105,7 +105,7 @@ exports[`tea/render.spec.ts > rendering array 1`] = `
 }
 `;
 
-exports[`tea/render.spec.ts > rendering empty array 1`] = `
+exports[`tea/render.test.ts > rendering empty array 1`] = `
 {
   "children": [
     {
@@ -133,7 +133,7 @@ exports[`tea/render.spec.ts > rendering empty array 1`] = `
 }
 `;
 
-exports[`tea/render.spec.ts > rendering empty string 1`] = `
+exports[`tea/render.test.ts > rendering empty string 1`] = `
 {
   "children": [
     {
@@ -185,7 +185,7 @@ exports[`tea/render.spec.ts > rendering empty string 1`] = `
 }
 `;
 
-exports[`tea/render.spec.ts > rendering multi-line interpolation 1`] = `
+exports[`tea/render.test.ts > rendering multi-line interpolation 1`] = `
 {
   "children": [
     {
@@ -239,7 +239,7 @@ third line",
 }
 `;
 
-exports[`tea/render.spec.ts > rendering multi-line template with interpolation 1`] = `
+exports[`tea/render.test.ts > rendering multi-line template with interpolation 1`] = `
 {
   "children": [
     {
@@ -295,7 +295,7 @@ exports[`tea/render.spec.ts > rendering multi-line template with interpolation 1
 }
 `;
 
-exports[`tea/render.spec.ts > rendering nested interpolation 1`] = `
+exports[`tea/render.test.ts > rendering nested interpolation 1`] = `
 {
   "children": [
     {
