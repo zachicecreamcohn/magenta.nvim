@@ -1,5 +1,12 @@
 import type { Nvim } from "../nvim/nvim-node";
 import { parseLsResponse } from "./lsBuffers.ts";
+import {
+  resolveFilePath,
+  type NvimCwd,
+  type HomeDir,
+  type UnresolvedFilePath,
+  type AbsFilePath,
+} from "./files.ts";
 
 export type DiagnosticsRes = {
   end_col: number;
@@ -33,7 +40,11 @@ export type DiagnosticsRes = {
   severity: number;
 };
 
-export async function getDiagnostics(nvim: Nvim): Promise<string> {
+export async function getDiagnostics(
+  nvim: Nvim,
+  cwd: NvimCwd,
+  homeDir: HomeDir,
+): Promise<string> {
   nvim.logger.debug(`Getting diagnostics`);
 
   let diagnostics: DiagnosticsRes[];
@@ -49,9 +60,13 @@ export async function getDiagnostics(nvim: Nvim): Promise<string> {
   const lsResponse = await nvim.call("nvim_exec2", ["ls", { output: true }]);
 
   const result = parseLsResponse(lsResponse.output as string);
-  const bufMap: { [bufId: string]: string } = {};
+  const bufMap: { [bufId: string]: AbsFilePath } = {};
   for (const res of result) {
-    bufMap[res.id] = res.filePath;
+    bufMap[res.id] = resolveFilePath(
+      cwd,
+      res.filePath as UnresolvedFilePath,
+      homeDir,
+    );
   }
 
   const content = diagnostics

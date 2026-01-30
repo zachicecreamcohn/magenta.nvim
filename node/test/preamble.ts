@@ -510,6 +510,42 @@ end
   );
 }
 
+/**
+ * Normalizes paths in test data by replacing the tmpDir prefix with a placeholder.
+ * This allows tests to match results that contain absolute paths.
+ */
+export function normalizePaths<T>(data: T, tmpDir: string): T {
+  const normalizedTmpDir = tmpDir.replace(/\/+$/, ""); // remove trailing slashes
+  // On macOS, /tmp is a symlink to /private/tmp, so we need to handle both
+  const privateTmpDir = `/private${normalizedTmpDir}`;
+
+  const replacePath = (str: string): string => {
+    // Replace both variations of the tmpDir path with a placeholder
+    return str
+      .replaceAll(privateTmpDir, "<tmpDir>")
+      .replaceAll(normalizedTmpDir, "<tmpDir>");
+  };
+
+  const normalize = (value: unknown): unknown => {
+    if (typeof value === "string") {
+      return replacePath(value);
+    }
+    if (Array.isArray(value)) {
+      return value.map(normalize);
+    }
+    if (value !== null && typeof value === "object") {
+      const result: Record<string, unknown> = {};
+      for (const [key, val] of Object.entries(value)) {
+        result[key] = normalize(val);
+      }
+      return result;
+    }
+    return value;
+  };
+
+  return normalize(data) as T;
+}
+
 export function extractMountTree(mounted: MountedVDOM): unknown {
   switch (mounted.type) {
     case "string":

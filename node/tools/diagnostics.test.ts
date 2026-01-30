@@ -1,12 +1,16 @@
 import { type ToolRequestId } from "./toolManager.ts";
 import { describe, it, expect } from "vitest";
-import { pollForToolResult, withDriver } from "../test/preamble";
+import {
+  pollForToolResult,
+  withDriver,
+  normalizePaths,
+} from "../test/preamble";
 import { pollUntil } from "../utils/async.ts";
 import type { ToolName } from "./types.ts";
 
 describe("node/tools/diagnostics.test.ts", () => {
   it("diagnostics end-to-end", { timeout: 10000 }, async () => {
-    await withDriver({}, async (driver) => {
+    await withDriver({}, async (driver, dirs) => {
       await driver.editFile("test.ts");
       await driver.showSidebar();
 
@@ -51,7 +55,7 @@ describe("node/tools/diagnostics.test.ts", () => {
 
       const result = await pollForToolResult(driver, toolRequestId);
 
-      expect(result).toEqual({
+      expect(normalizePaths(result, dirs.tmpDir)).toEqual({
         type: "tool_result",
         id: toolRequestId,
         result: {
@@ -59,7 +63,7 @@ describe("node/tools/diagnostics.test.ts", () => {
           value: [
             {
               type: "text",
-              text: `file: test.ts source: typescript, severity: 1, message: "Property 'd' does not exist on type '{ c: "test"; }'."`,
+              text: `file: <tmpDir>/test.ts source: typescript, severity: 1, message: "Property 'd' does not exist on type '{ c: "test"; }'."`,
             },
           ],
         },

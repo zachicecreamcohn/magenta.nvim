@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { withDriver } from "../test/preamble";
+import { withDriver, normalizePaths } from "../test/preamble";
 import type { ToolRequestId } from "../tools/toolManager";
 import type { ToolName } from "../tools/types";
 import { getCurrentBuffer, getCurrentWindow } from "../nvim/nvim";
@@ -9,7 +9,7 @@ import { AnthropicAgent } from "../providers/anthropic-agent";
 
 describe("node/inline-edit/inline-edit-app.test.ts", () => {
   it("performs inline edit on file", async () => {
-    await withDriver({}, async (driver) => {
+    await withDriver({}, async (driver, dirs) => {
       await driver.editFile("poem.txt");
       const targetBuffer = await getCurrentBuffer(driver.nvim);
       await driver.startInlineEdit();
@@ -33,7 +33,7 @@ describe("node/inline-edit/inline-edit-app.test.ts", () => {
       await driver.submitInlineEdit(targetBuffer.id);
       const request =
         await driver.mockAnthropic.awaitPendingForceToolUseRequest();
-      expect(request.input).toMatchSnapshot();
+      expect(normalizePaths(request.input, dirs.tmpDir)).toMatchSnapshot();
 
       const inputLines = await inputBuffer.getLines({
         start: 0 as Row0Indexed,
@@ -157,7 +157,7 @@ Golden shadows dance with ease.`,
   });
 
   it("performs inline edit with selection", async () => {
-    await withDriver({}, async (driver) => {
+    await withDriver({}, async (driver, dirs) => {
       await driver.editFile("poem.txt");
       const targetBuffer = await getCurrentBuffer(driver.nvim);
 
@@ -181,12 +181,12 @@ Golden shadows dance with ease.`,
       driver.submitInlineEdit(targetBuffer.id);
       const request =
         await driver.mockAnthropic.awaitPendingForceToolUseRequest();
-      expect(request.input).toMatchSnapshot();
+      expect(normalizePaths(request.input, dirs.tmpDir)).toMatchSnapshot();
     });
   });
 
   it("inline edit end of line selected", async () => {
-    await withDriver({}, async (driver) => {
+    await withDriver({}, async (driver, dirs) => {
       await driver.editFile("poem.txt");
       const targetBuffer = await getCurrentBuffer(driver.nvim);
 
@@ -210,7 +210,7 @@ Golden shadows dance with ease.`,
       driver.submitInlineEdit(targetBuffer.id);
       const request =
         await driver.mockAnthropic.awaitPendingForceToolUseRequest();
-      expect(request.input).toMatchSnapshot();
+      expect(normalizePaths(request.input, dirs.tmpDir)).toMatchSnapshot();
       await driver.mockAnthropic.respondToForceToolUse({
         stopReason: "tool_use",
         toolRequest: {
@@ -241,7 +241,7 @@ Paint their stories in the night.`,
   });
 
   it("inline edit mid-line selected", async () => {
-    await withDriver({}, async (driver) => {
+    await withDriver({}, async (driver, dirs) => {
       await driver.editFile("poem.txt");
       const targetBuffer = await getCurrentBuffer(driver.nvim);
 
@@ -265,7 +265,7 @@ Paint their stories in the night.`,
       driver.submitInlineEdit(targetBuffer.id);
       const request =
         await driver.mockAnthropic.awaitPendingForceToolUseRequest();
-      expect(request.input).toMatchSnapshot();
+      expect(normalizePaths(request.input, dirs.tmpDir)).toMatchSnapshot();
       await driver.mockAnthropic.respondToForceToolUse({
         stopReason: "tool_use",
         toolRequest: {

@@ -16,8 +16,8 @@ import type {
 } from "../providers/provider.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import {
-  relativePath,
   resolveFilePath,
+  displayPath,
   type UnresolvedFilePath,
   detectFileType,
   validateFileSize,
@@ -25,7 +25,12 @@ import {
   type NvimCwd,
   type HomeDir,
 } from "../utils/files.ts";
-import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
+import type {
+  StaticTool,
+  ToolName,
+  GenericToolRequest,
+  DisplayContext,
+} from "./types.ts";
 import type { Msg as ThreadMsg } from "../chat/thread.ts";
 import type { ContextManager } from "../context/context-manager.ts";
 import type { ProviderToolResultContent } from "../providers/provider-types.ts";
@@ -288,11 +293,6 @@ You already have the most up-to-date information about the contents of this file
       filePath,
       this.context.homeDir,
     );
-    const relFilePath = relativePath(
-      this.context.cwd,
-      absFilePath,
-      this.context.homeDir,
-    );
 
     const fileTypeInfo = await detectFileType(absFilePath);
     if (!fileTypeInfo) {
@@ -515,10 +515,7 @@ You already have the most up-to-date information about the contents of this file
         }
 
         // Get basic PDF info without pdfPage parameter
-        const pageCountResult = await getSummaryAsProviderContent(
-          absFilePath,
-          relFilePath,
-        );
+        const pageCountResult = await getSummaryAsProviderContent(absFilePath);
         if (pageCountResult.status === "error") {
           this.context.myDispatch({
             type: "finish",
@@ -708,7 +705,10 @@ You already have the most up-to-date information about the contents of this file
   }
 
   private formatFileDisplay() {
-    return formatGetFileDisplay(this.request.input);
+    return formatGetFileDisplay(this.request.input, {
+      cwd: this.context.cwd,
+      homeDir: this.context.homeDir,
+    });
   }
 
   renderSummary() {
@@ -745,18 +745,33 @@ You already have the most up-to-date information about the contents of this file
         )} │
 └────────────────┘`;
       case "done":
-        return renderCompletedSummary({
-          request: this.request as CompletedToolInfo["request"],
-          result: this.state.result,
-        });
+        return renderCompletedSummary(
+          {
+            request: this.request as CompletedToolInfo["request"],
+            result: this.state.result,
+          },
+          { cwd: this.context.cwd, homeDir: this.context.homeDir },
+        );
       default:
         assertUnreachable(this.state);
     }
   }
 }
 
-function formatGetFileDisplay(input: Input): VDOMNode {
-  const filePath = input.filePath;
+function formatGetFileDisplay(
+  input: Input,
+  displayContext: DisplayContext,
+): VDOMNode {
+  const absFilePath = resolveFilePath(
+    displayContext.cwd,
+    input.filePath,
+    displayContext.homeDir,
+  );
+  const pathForDisplay = displayPath(
+    displayContext.cwd,
+    absFilePath,
+    displayContext.homeDir,
+  );
   let extraInfo = "";
   if (input.pdfPage !== undefined) {
     extraInfo = ` (page ${input.pdfPage})`;
@@ -768,15 +783,18 @@ function formatGetFileDisplay(input: Input): VDOMNode {
         ? ` (lines ${start}-${start + num - 1})`
         : ` (from line ${start})`;
   }
-  return withInlineCode(d`\`${filePath}\`${extraInfo}`);
+  return withInlineCode(d`\`${pathForDisplay}\`${extraInfo}`);
 }
 
-export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+export function renderCompletedSummary(
+  info: CompletedToolInfo,
+  displayContext: DisplayContext,
+): VDOMNode {
   const input = info.request.input as Input;
   const result = info.result.result;
 
   if (result.status === "error") {
-    return d`👀❌ ${formatGetFileDisplay(input)}`;
+    return d`👀❌ ${formatGetFileDisplay(input, displayContext)}`;
   }
 
   let lineCount = 0;
@@ -787,7 +805,7 @@ export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
     }
   }
   const lineCountStr = lineCount > 0 ? ` [+ ${lineCount}]` : "";
-  return d`👀✅ ${formatGetFileDisplay(input)}${lineCountStr}`;
+  return d`👀✅ ${formatGetFileDisplay(input, displayContext)}${lineCountStr}`;
 }
 
 export function renderCompletedDetail(info: CompletedToolInfo): VDOMNode {
@@ -830,7 +848,7 @@ File size limits: 1MB for text files, 10MB for images, 32MB for PDFs.`,
     properties: {
       filePath: {
         type: "string",
-        description: `The path of the file. e.g. "./src/index.ts". This can be relative to the project root, or an absolute path.`,
+        description: `The path of the file. Prefer absolute paths (e.g. "/Users/name/project/src/index.ts"). Relative paths are resolved from the project root.`,
       },
       force: {
         type: "boolean",

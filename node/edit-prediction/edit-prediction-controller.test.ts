@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { withDriver } from "../test/preamble";
+import { withDriver, normalizePaths } from "../test/preamble";
 import type { ToolRequestId } from "../tools/types";
 import type { ToolName } from "../tools/types";
 import { getCurrentBuffer } from "../nvim/nvim";
@@ -10,7 +10,7 @@ import * as path from "path";
 import { MAGENTA_HIGHLIGHT_GROUPS } from "../nvim/extmarks";
 
 test("prediction after making edits", async () => {
-  await withDriver({}, async (driver) => {
+  await withDriver({}, async (driver, dirs) => {
     // Open the poem.txt fixture file
     await driver.editFile("poem.txt");
 
@@ -52,7 +52,7 @@ test("prediction after making edits", async () => {
     const text = userInput.type === "text" ? userInput.text : "";
 
     // Should contain buffer content around cursor with cursor marker
-    expect(text).toMatchSnapshot();
+    expect(normalizePaths(text, dirs.tmpDir)).toMatchSnapshot();
   });
 });
 
@@ -187,7 +187,7 @@ test("uses active profile when editPrediction.profile not configured", async () 
 });
 
 test("context window trims to 10 lines before and after cursor", async () => {
-  await withDriver({}, async (driver) => {
+  await withDriver({}, async (driver, dirs) => {
     // Create a file with many lines to test context trimming
     const lines = Array.from({ length: 50 }, (_, i) => `Line ${i + 1}`);
 
@@ -202,7 +202,7 @@ test("context window trims to 10 lines before and after cursor", async () => {
     const userMessage =
       await driver.magenta.editPredictionController.composeUserMessage();
 
-    expect(userMessage).toMatchSnapshot();
+    expect(normalizePaths(userMessage, dirs.tmpDir)).toMatchSnapshot();
   });
 });
 
@@ -312,7 +312,7 @@ test("error handling during prediction", async () => {
 });
 
 test("context recent changes to requested count", async () => {
-  await withDriver({}, async (driver) => {
+  await withDriver({}, async (driver, dirs) => {
     // Open the poem.txt fixture file
     await driver.editFile("poem.txt");
 
@@ -337,12 +337,12 @@ test("context recent changes to requested count", async () => {
       await driver.magenta.editPredictionController.composeUserMessage();
 
     // Capture the entire user message in a snapshot
-    expect(userMessage).toMatchSnapshot();
+    expect(normalizePaths(userMessage, dirs.tmpDir)).toMatchSnapshot();
   });
 });
 
 test("change selection respects token budget", async () => {
-  await withDriver({}, async (driver) => {
+  await withDriver({}, async (driver, dirs) => {
     // Override the token budget to a smaller value for testing
     const controller = driver.magenta.editPredictionController;
     const originalBudget = controller.recentChangeTokenBudget;
@@ -421,7 +421,7 @@ test("change selection respects token budget", async () => {
       expect(largeTextIncluded).toBe(false);
 
       // Capture for snapshot comparison
-      expect(userMessage).toMatchSnapshot();
+      expect(normalizePaths(userMessage, dirs.tmpDir)).toMatchSnapshot();
     } finally {
       // Restore the original budget
       if (originalBudget !== undefined) {

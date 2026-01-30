@@ -11,7 +11,7 @@ import * as diff from "diff";
 import { getProvider } from "../providers/provider.ts";
 import { type EditPredictionProfile, type MagentaOptions } from "../options.ts";
 import { spec } from "../tools/predict-edit.ts";
-import { relativePath } from "../utils/files.ts";
+import { resolveFilePath } from "../utils/files.ts";
 import {
   type Row0Indexed,
   type Row1Indexed,
@@ -659,7 +659,7 @@ export class EditPredictionController {
     contextWithCursor[cursorLine] =
       line.slice(0, cursorCol) + "│" + line.slice(cursorCol);
 
-    const bufferRelPath = relativePath(
+    const bufferAbsPath = resolveFilePath(
       this.context.cwd,
       bufferName as UnresolvedFilePath,
       this.context.homeDir,
@@ -724,7 +724,7 @@ export class EditPredictionController {
 ${recentChangesDiffs}
 
 Current context (│ marks cursor position):
-${bufferRelPath}:${displayStartLine}:${displayEndLine}
+${bufferAbsPath}:${displayStartLine}:${displayEndLine}
 ${contextWithCursor.join("\n")}
 
 Predict the most likely next edit the user will make.`;

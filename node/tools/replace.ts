@@ -19,17 +19,23 @@ import type { Nvim } from "../nvim/nvim-node";
 import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/types.ts";
 import * as diff from "diff";
-import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
+import type {
+  StaticTool,
+  ToolName,
+  GenericToolRequest,
+  DisplayContext,
+  CompletedToolInfo,
+} from "./types.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import {
   resolveFilePath,
+  displayPath,
   type NvimCwd,
   type UnresolvedFilePath,
   type HomeDir,
 } from "../utils/files.ts";
 import type { MagentaOptions } from "../options.ts";
 import { canWriteFile } from "./permissions.ts";
-import type { CompletedToolInfo } from "./types.ts";
 
 export type Input = {
   filePath: UnresolvedFilePath;
@@ -257,13 +263,23 @@ export class ReplaceTool implements StaticTool {
   renderSummary(): VDOMNode {
     const findLines = countLines(this.request.input.find);
     const replaceLines = countLines(this.request.input.replace);
+    const absFilePath = resolveFilePath(
+      this.context.cwd,
+      this.request.input.filePath,
+      this.context.homeDir,
+    );
+    const dispPath = displayPath(
+      this.context.cwd,
+      absFilePath,
+      this.context.homeDir,
+    );
 
     switch (this.state.state) {
       case "pending":
       case "processing":
-        return d`✏️⚙️ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
+        return d`✏️⚙️ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${dispPath}\``)}`;
       case "pending-user-action":
-        return d`✏️⏳ May I replace in file ${withInlineCode(d`\`${this.request.input.filePath}\``)}?
+        return d`✏️⏳ May I replace in file ${withInlineCode(d`\`${dispPath}\``)}?
 
 ┌────────────────┐
 │ ${withBindings(
@@ -291,10 +307,13 @@ export class ReplaceTool implements StaticTool {
         )} │
 └────────────────┘`;
       case "done":
-        return renderCompletedSummary({
-          request: this.request as CompletedToolInfo["request"],
-          result: this.state.result,
-        });
+        return renderCompletedSummary(
+          {
+            request: this.request as CompletedToolInfo["request"],
+            result: this.state.result,
+          },
+          { cwd: this.context.cwd, homeDir: this.context.homeDir },
+        );
       default:
         assertUnreachable(this.state);
     }
@@ -370,7 +389,10 @@ export class ReplaceTool implements StaticTool {
   }
 
   renderDetail(): VDOMNode {
-    return renderReplaceDetail(this.request.input);
+    return renderReplaceDetail(this.request.input, {
+      cwd: this.context.cwd,
+      homeDir: this.context.homeDir,
+    });
   }
 
   getToolResult(): ProviderToolResult {
@@ -416,16 +438,29 @@ function countLines(str: string): number {
   return (str.match(/\n/g) || []).length + 1;
 }
 
-export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+export function renderCompletedSummary(
+  info: CompletedToolInfo,
+  displayContext: DisplayContext,
+): VDOMNode {
   const input = info.request.input as Input;
   const result = info.result.result;
   const findLines = countLines(input.find);
   const replaceLines = countLines(input.replace);
+  const absFilePath = resolveFilePath(
+    displayContext.cwd,
+    input.filePath,
+    displayContext.homeDir,
+  );
+  const pathForDisplay = displayPath(
+    displayContext.cwd,
+    absFilePath,
+    displayContext.homeDir,
+  );
 
   if (result.status === "error") {
-    return d`✏️❌ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${input.filePath}\``)} - ${result.error}`;
+    return d`✏️❌ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${pathForDisplay}\``)} - ${result.error}`;
   }
-  return d`✏️✅ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${input.filePath}\``)}`;
+  return d`✏️✅ Replace [[ -${findLines.toString()} / +${replaceLines.toString()} ]] in ${withInlineCode(d`\`${pathForDisplay}\``)}`;
 }
 
 export function renderReplacePreview(
@@ -478,7 +513,21 @@ ${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`
 \`\`\``);
 }
 
-export function renderReplaceDetail(input: Input): VDOMNode {
+export function renderReplaceDetail(
+  input: Input,
+  displayContext: DisplayContext,
+): VDOMNode {
+  const absFilePath = resolveFilePath(
+    displayContext.cwd,
+    input.filePath,
+    displayContext.homeDir,
+  );
+  const dispPath = displayPath(
+    displayContext.cwd,
+    absFilePath,
+    displayContext.homeDir,
+  );
+
   const diffResult = diff.createPatch(
     input.filePath,
     input.find,
@@ -504,7 +553,7 @@ export function renderReplaceDetail(input: Input): VDOMNode {
   });
 
   return d`\
-filePath: ${withInlineCode(d`\`${input.filePath}\``)}
+filePath: ${withInlineCode(d`\`${dispPath}\``)}
 ${withCode(d`\`\`\`diff
 ${diffContent.map((line, index) => (index === diffContent.length - 1 ? line : d`${line}\n`))}
 \`\`\``)}`;
@@ -524,7 +573,8 @@ Try to make each replace call meaningful and atomic. This makes it easier for th
     properties: {
       filePath: {
         type: "string",
-        description: "Path of the file to modify.",
+        description:
+          "Path of the file to modify. Prefer absolute paths. Relative paths are resolved from the project root.",
       },
       find: {
         type: "string",

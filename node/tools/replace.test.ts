@@ -324,7 +324,9 @@ export const Component = () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains(`👀✅ \`${testFile}\``);
+      await driver.assertDisplayBufferContains(
+        `👀✅ \`unloaded-buffer-replace.tsx\``,
+      );
 
       // Now unload the buffer to test replace on unloaded buffer
       // Get the buffer number

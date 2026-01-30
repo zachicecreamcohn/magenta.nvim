@@ -390,10 +390,19 @@ it("sends update if the file was edited pre-insert", async () => {
         role: "user",
       });
 
-      expect(
-        providerMessages[providerMessages.length - 1],
-        "auto-respond request goes out",
-      ).toMatchSnapshot();
+      // Check the context update message contains the expected diff
+      const lastMsg = providerMessages[providerMessages.length - 1];
+      expect(lastMsg.role).toBe("user");
+      const contextContent = lastMsg.content.find(
+        (c: { type: string }) => c.type === "context_update",
+      );
+      expect(contextContent).toBeDefined();
+      if (contextContent && "text" in contextContent) {
+        expect(contextContent.text).toContain("<context_update>");
+        expect(contextContent.text).toContain("poem.txt");
+        expect(contextContent.text).toContain("```diff");
+        expect(contextContent.text).toContain("changed first line");
+      }
     }
   });
 });
@@ -918,8 +927,30 @@ it("includes PDF file in context and sends summary in context updates", async ()
         await driver.assertDisplayBufferContains(
           "- `context-test.pdf` (summary)",
         );
-        // assert context updates
-        expect(request.messages).toMatchSnapshot();
+        // assert context updates contain PDF summary
+        const contextUpdateMsg = request.messages.find(
+          (msg) =>
+            msg.role === "user" &&
+            Array.isArray(msg.content) &&
+            msg.content.some(
+              (c: { type: string; text?: string }) =>
+                c.type === "text" && c.text?.includes("<context_update>"),
+            ),
+        );
+        expect(contextUpdateMsg).toBeDefined();
+        const content = contextUpdateMsg!.content;
+        expect(Array.isArray(content)).toBe(true);
+        if (Array.isArray(content)) {
+          const textContent = content.find(
+            (c: { type: string }) => c.type === "text",
+          ) as { type: string; text: string } | undefined;
+          expect(textContent?.type).toBe("text");
+          if (textContent?.type === "text") {
+            expect(textContent.text).toContain("PDF Document:");
+            expect(textContent.text).toContain("context-test.pdf");
+            expect(textContent.text).toContain("Pages: 3");
+          }
+        }
         request.respond({
           text: "let me read that file",
           toolRequests: [

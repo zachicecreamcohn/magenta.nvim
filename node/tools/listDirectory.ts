@@ -12,10 +12,16 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
+import type {
+  StaticTool,
+  ToolName,
+  GenericToolRequest,
+  DisplayContext,
+} from "./types.ts";
 import {
   relativePath,
   resolveFilePath,
+  displayPath,
   type AbsFilePath,
   type HomeDir,
   type NvimCwd,
@@ -98,17 +104,14 @@ async function listDirectoryBFS(
         continue;
       }
 
-      // For display, always show path relative to cwd
-      const relFilePath = relativePath(context.cwd, fullPath, context.homeDir);
-
       if (!seen.has(fullPath)) {
         seen.add(fullPath);
 
         if (entry.isDirectory()) {
-          results.push(relFilePath + "/");
+          results.push(fullPath + "/");
           queue.push(fullPath);
         } else {
-          results.push(relFilePath);
+          results.push(fullPath);
         }
       }
     }
@@ -267,14 +270,31 @@ export class ListDirectoryTool implements StaticTool {
   }
 
   renderSummary() {
+    const displayContext = {
+      cwd: this.context.cwd,
+      homeDir: this.context.homeDir,
+    };
+    const absFilePath = resolveFilePath(
+      this.context.cwd,
+      (this.request.input.dirPath || ".") as UnresolvedFilePath,
+      this.context.homeDir,
+    );
+    const pathForDisplay = displayPath(
+      this.context.cwd,
+      absFilePath,
+      this.context.homeDir,
+    );
     switch (this.state.state) {
       case "processing":
-        return d`📁⚙️ list_directory ${withInlineCode(d`\`${this.request.input.dirPath || "."}\``)}`;
+        return d`📁⚙️ list_directory ${withInlineCode(d`\`${pathForDisplay}\``)}`;
       case "done":
-        return renderCompletedSummary({
-          request: this.request as CompletedToolInfo["request"],
-          result: this.state.result,
-        });
+        return renderCompletedSummary(
+          {
+            request: this.request as CompletedToolInfo["request"],
+            result: this.state.result,
+          },
+          displayContext,
+        );
       default:
         assertUnreachable(this.state);
     }
@@ -295,10 +315,23 @@ function getStatusEmoji(result: CompletedToolInfo["result"]): string {
   return isError(result) ? "❌" : "✅";
 }
 
-export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+export function renderCompletedSummary(
+  info: CompletedToolInfo,
+  displayContext: DisplayContext,
+): VDOMNode {
   const input = info.request.input as Input;
   const status = getStatusEmoji(info.result);
-  return d`📁${status} list_directory ${withInlineCode(d`\`${input.dirPath || "."}\``)}`;
+  const absFilePath = resolveFilePath(
+    displayContext.cwd,
+    (input.dirPath || ".") as UnresolvedFilePath,
+    displayContext.homeDir,
+  );
+  const pathForDisplay = displayPath(
+    displayContext.cwd,
+    absFilePath,
+    displayContext.homeDir,
+  );
+  return d`📁${status} list_directory ${withInlineCode(d`\`${pathForDisplay}\``)}`;
 }
 
 export const spec: ProviderToolSpec = {
@@ -309,7 +342,7 @@ export const spec: ProviderToolSpec = {
     properties: {
       dirPath: {
         type: "string",
-        description: `The directory path relative to cwd. Use "." to list whole directory.`,
+        description: `The directory path. Prefer absolute paths. Relative paths are resolved from the project root. Use "." to list whole directory.`,
       },
       includeGitignored: {
         type: "boolean",

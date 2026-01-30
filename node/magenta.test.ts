@@ -171,8 +171,9 @@ it("paste-selection command", async () => {
     );
 
     await driver.pasteSelection();
+    // Use cwd which has the resolved real path (handles /tmp -> /private/tmp symlink on macOS)
     await driver.assertInputBufferContains(`
-Here is a snippet from the file \`poem.txt\`
+Here is a snippet from the file \`${driver.magenta.cwd}/poem.txt\`
 \`\`\`txt
 ight whispers through the trees,
 Silver shadows dance with ease.

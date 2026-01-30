@@ -10,6 +10,7 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
+import type { NvimCwd, HomeDir } from "../utils/files.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type Input = {};
@@ -37,7 +38,12 @@ export class DiagnosticsTool implements StaticTool {
 
   constructor(
     public request: ToolRequest,
-    public context: { nvim: Nvim; myDispatch: (msg: Msg) => void },
+    public context: {
+      nvim: Nvim;
+      cwd: NvimCwd;
+      homeDir: HomeDir;
+      myDispatch: (msg: Msg) => void;
+    },
   ) {
     this.state = {
       state: "processing",
@@ -102,7 +108,11 @@ export class DiagnosticsTool implements StaticTool {
 
   async getDiagnostics() {
     try {
-      const content = await getDiagnostics(this.context.nvim);
+      const content = await getDiagnostics(
+        this.context.nvim,
+        this.context.cwd,
+        this.context.homeDir,
+      );
       if (this.aborted) return;
       this.context.myDispatch({
         type: "finish",

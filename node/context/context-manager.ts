@@ -11,6 +11,7 @@ import type { Row0Indexed } from "../nvim/window";
 import {
   relativePath,
   resolveFilePath,
+  displayPath,
   type AbsFilePath,
   type HomeDir,
   type NvimCwd,
@@ -622,10 +623,8 @@ export class ContextManager {
             if (!fileInfo.agentView.summary) {
               // Generate PDF summary and update agent view
               try {
-                const summaryResult = await getSummaryAsProviderContent(
-                  absFilePath,
-                  relFilePath,
-                );
+                const summaryResult =
+                  await getSummaryAsProviderContent(absFilePath);
                 if (summaryResult.status === "ok") {
                   fileInfo.agentView.summary = true;
 
@@ -669,10 +668,8 @@ export class ContextManager {
         if (fileInfo.fileTypeInfo.category == FileCategory.PDF) {
           // Generate PDF summary and create the pdf agentView with summary = true
           try {
-            const summaryResult = await getSummaryAsProviderContent(
-              absFilePath,
-              relFilePath,
-            );
+            const summaryResult =
+              await getSummaryAsProviderContent(absFilePath);
             if (summaryResult.status === "ok") {
               fileInfo.agentView = {
                 type: "pdf",
@@ -931,6 +928,11 @@ export class ContextManager {
 
     for (const absFilePath in this.files) {
       const fileInfo = this.files[absFilePath as AbsFilePath];
+      const pathForDisplay = displayPath(
+        this.context.cwd,
+        absFilePath as AbsFilePath,
+        this.context.homeDir,
+      );
 
       // Add PDF information if available
       const pdfInfo =
@@ -943,7 +945,7 @@ export class ContextManager {
 
       fileContext.push(
         withBindings(
-          d`- ${withInlineCode(d`\`${fileInfo.relFilePath}\`${pdfInfo}`)}\n`,
+          d`- ${withInlineCode(d`\`${pathForDisplay}\`${pdfInfo}`)}\n`,
           {
             dd: () =>
               this.myDispatch({
@@ -1072,8 +1074,14 @@ ${fileContext}`;
               })
             : "";
 
+        const pathForDisplay = displayPath(
+          this.context.cwd,
+          absFilePath,
+          this.context.homeDir,
+        );
+
         const filePathLink = withBindings(
-          d`- \`${update.relFilePath}\`${pdfInfo}`,
+          d`- \`${pathForDisplay}\`${pdfInfo}`,
           {
             "<CR>": () =>
               this.myDispatch({
@@ -1116,7 +1124,7 @@ ${fileContext}`;
           }
           case "diff": {
             textParts.push(`\
-- \`${update.relFilePath}\`
+- \`${absFilePath}\`
 \`\`\`diff
 ${update.update.value.patch}
 \`\`\``);
@@ -1124,7 +1132,7 @@ ${update.update.value.patch}
           }
           case "file-deleted": {
             textParts.push(`\
-- \`${update.relFilePath}\`
+- \`${absFilePath}\`
 This file has been deleted and removed from context.`);
             break;
           }
@@ -1133,7 +1141,7 @@ This file has been deleted and removed from context.`);
         }
       } else {
         textParts.push(`\
-- \`${update.relFilePath}\`
+- \`${absFilePath}\`
 Error fetching update: ${update.update.error}`);
       }
     }

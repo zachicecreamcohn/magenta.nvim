@@ -1,15 +1,9 @@
-import type {
-  AbsFilePath,
-  RelFilePath,
-  NvimCwd,
-  HomeDir,
-} from "./utils/files.ts";
-import { relativePath } from "./utils/files.ts";
+import type { AbsFilePath } from "./utils/files.ts";
 import type { Nvim } from "./nvim/nvim-node";
 import type { MagentaOptions } from "./options.ts";
 
 export interface TextChange {
-  filePath: RelFilePath;
+  filePath: AbsFilePath;
   oldText: string;
   newText: string;
   range: {
@@ -25,8 +19,6 @@ export class ChangeTracker {
 
   constructor(
     private nvim: Nvim,
-    private cwd: NvimCwd,
-    private homeDir: HomeDir,
     options: MagentaOptions,
   ) {
     this.maxChanges = options.editPrediction?.changeTrackerMaxChanges ?? 10;
@@ -42,10 +34,9 @@ export class ChangeTracker {
     };
   }): void {
     const absFilePath = data.filePath as AbsFilePath;
-    const relFilePath = relativePath(this.cwd, absFilePath, this.homeDir);
 
     const change: TextChange = {
-      filePath: relFilePath,
+      filePath: absFilePath,
       oldText: data.oldText,
       newText: data.newText,
       range: data.range,
@@ -64,7 +55,7 @@ export class ChangeTracker {
     return [...this.changes];
   }
 
-  getChangesForFile(filePath: RelFilePath): TextChange[] {
+  getChangesForFile(filePath: AbsFilePath): TextChange[] {
     return this.changes.filter((change) => change.filePath === filePath);
   }
 

@@ -13,9 +13,20 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { HomeDir, NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
-import type { GenericToolRequest, StaticTool, ToolName } from "./types.ts";
-import path from "path";
+import {
+  resolveFilePath,
+  displayPath,
+  type AbsFilePath,
+  type HomeDir,
+  type NvimCwd,
+  type UnresolvedFilePath,
+} from "../utils/files.ts";
+import type {
+  GenericToolRequest,
+  StaticTool,
+  ToolName,
+  DisplayContext,
+} from "./types.ts";
 
 export type ToolRequest = GenericToolRequest<"hover", Input>;
 
@@ -254,21 +265,15 @@ export class HoverTool implements StaticTool {
           content += "\nDefinition locations:\n";
           for (const def of definitions) {
             const absolutePath = def.uri.replace(/^file:\/\//, "");
-            let displayPath = absolutePath;
-
-            if (this.context.cwd) {
-              const relativePath = path.relative(
-                this.context.cwd,
-                absolutePath,
-              );
-              displayPath = relativePath.startsWith("../")
-                ? absolutePath
-                : relativePath;
-            }
+            const pathForDisplay = displayPath(
+              this.context.cwd,
+              absolutePath as AbsFilePath,
+              this.context.homeDir,
+            );
 
             const line = def.range.start.line + 1;
             const char = def.range.start.character + 1;
-            content += `  ${displayPath}:${line}:${char}\n`;
+            content += `  ${pathForDisplay}:${line}:${char}\n`;
           }
         }
       }
@@ -285,21 +290,15 @@ export class HoverTool implements StaticTool {
           content += "\nType definition locations:\n";
           for (const typeDef of typeDefinitions) {
             const absolutePath = typeDef.uri.replace(/^file:\/\//, "");
-            let displayPath = absolutePath;
-
-            if (this.context.cwd) {
-              const relativePath = path.relative(
-                this.context.cwd,
-                absolutePath,
-              );
-              displayPath = relativePath.startsWith("../")
-                ? absolutePath
-                : relativePath;
-            }
+            const pathForDisplay = displayPath(
+              this.context.cwd,
+              absolutePath as AbsFilePath,
+              this.context.homeDir,
+            );
 
             const line = typeDef.range.start.line + 1;
             const char = typeDef.range.start.character + 1;
-            content += `  ${displayPath}:${line}:${char}\n`;
+            content += `  ${pathForDisplay}:${line}:${char}\n`;
           }
         }
       }
@@ -345,24 +344,54 @@ export class HoverTool implements StaticTool {
   }
 
   renderSummary() {
+    const displayContext = {
+      cwd: this.context.cwd,
+      homeDir: this.context.homeDir,
+    };
+    const absFilePath = resolveFilePath(
+      this.context.cwd,
+      this.request.input.filePath,
+      this.context.homeDir,
+    );
+    const pathForDisplay = displayPath(
+      this.context.cwd,
+      absFilePath,
+      this.context.homeDir,
+    );
     switch (this.state.state) {
       case "processing":
-        return d`🔍⚙️ hover ${withInlineCode(d`\`${this.request.input.symbol}\``)} in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
+        return d`🔍⚙️ hover ${withInlineCode(d`\`${this.request.input.symbol}\``)} in ${withInlineCode(d`\`${pathForDisplay}\``)}`;
       case "done":
-        return renderCompletedSummary({
-          request: this.request as CompletedToolInfo["request"],
-          result: this.state.result,
-        });
+        return renderCompletedSummary(
+          {
+            request: this.request as CompletedToolInfo["request"],
+            result: this.state.result,
+          },
+          displayContext,
+        );
       default:
         assertUnreachable(this.state);
     }
   }
 }
 
-export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+export function renderCompletedSummary(
+  info: CompletedToolInfo,
+  displayContext: DisplayContext,
+): VDOMNode {
   const input = info.request.input as Input;
   const status = info.result.result.status === "error" ? "❌" : "✅";
-  return d`🔍${status} hover ${withInlineCode(d`\`${input.symbol}\``)} in ${withInlineCode(d`\`${input.filePath}\``)}`;
+  const absFilePath = resolveFilePath(
+    displayContext.cwd,
+    input.filePath,
+    displayContext.homeDir,
+  );
+  const pathForDisplay = displayPath(
+    displayContext.cwd,
+    absFilePath,
+    displayContext.homeDir,
+  );
+  return d`🔍${status} hover ${withInlineCode(d`\`${input.symbol}\``)} in ${withInlineCode(d`\`${pathForDisplay}\``)}`;
 }
 
 export const spec: ProviderToolSpec = {
@@ -374,7 +403,8 @@ export const spec: ProviderToolSpec = {
     properties: {
       filePath: {
         type: "string",
-        description: "Path to the file containing the symbol.",
+        description:
+          "Path to the file containing the symbol. Prefer absolute paths. Relative paths are resolved from the project root.",
       },
       symbol: {
         type: "string",

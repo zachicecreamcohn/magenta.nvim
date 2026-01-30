@@ -8,7 +8,6 @@ import type { Result } from "../utils/result.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/types.ts";
 import {
-  relativePath,
   resolveFilePath,
   type AbsFilePath,
   type NvimCwd,
@@ -177,7 +176,6 @@ async function handleFileEdit(
   const { myDispatch } = context;
   const { filePath } = request.input;
   const absFilePath = resolveFilePath(context.cwd, filePath, context.homeDir);
-  const relFilePath = relativePath(context.cwd, absFilePath, context.homeDir);
 
   if (request.toolName === "insert" && request.input.insertAfter === "") {
     try {
@@ -255,7 +253,7 @@ async function handleFileEdit(
         type: "finish",
         result: {
           status: "error",
-          error: `${result.error} in file \`${relFilePath}\`.
+          error: `${result.error} in file \`${absFilePath}\`.
           Read the contents of the file and make sure your insertAfter parameter matches the content of the file exactly.`,
         },
       });
@@ -271,7 +269,7 @@ async function handleFileEdit(
         type: "finish",
         result: {
           status: "error",
-          error: `${result.error} in file \`${relFilePath}\`.`,
+          error: `${result.error} in file \`${absFilePath}\`.`,
         },
       });
       return;
@@ -283,7 +281,7 @@ async function handleFileEdit(
       type: "finish",
       result: {
         status: "error",
-        error: `Unknown edit operation for file \`${relFilePath}\``,
+        error: `Unknown edit operation for file \`${absFilePath}\``,
       },
     });
     return;

@@ -17,7 +17,6 @@ import {
   type Agent,
   type AgentInput,
 } from "../providers/provider";
-import path from "node:path";
 import { getMarkdownExt } from "../utils/markdown";
 import {
   spec as replaceSelectionSpec,
@@ -25,12 +24,7 @@ import {
 } from "../tools/replace-selection-tool";
 import { spec as inlineEditSpec } from "../tools/inline-edit-tool";
 import type { Dispatch } from "../tea/tea";
-import {
-  relativePath,
-  resolveFilePath,
-  type NvimCwd,
-  type HomeDir,
-} from "../utils/files";
+import { resolveFilePath, type NvimCwd, type HomeDir } from "../utils/files";
 import {
   getActiveProfile,
   type MagentaOptions,
@@ -412,12 +406,14 @@ export class InlineEditManager {
     });
     const bufferName = await targetBuffer.getName();
 
+    const absFilePath = resolveFilePath(this.cwd, bufferName, this.homeDir);
+
     if (selection) {
       return [
         {
           type: "text",
           text: `\
-I am working in file \`${relativePath(this.cwd, resolveFilePath(this.cwd, bufferName, this.homeDir), this.homeDir)}\` with the following contents:
+I am working in file \`${absFilePath}\` with the following contents:
 \`\`\`${getMarkdownExt(bufferName)}
 ${targetLines.join("\n")}
 \`\`\`
@@ -435,7 +431,7 @@ ${processedInputText}`,
         {
           type: "text",
           text: `\
-I am working in file \`${path.relative(this.cwd, bufferName)}\` with the following contents:
+I am working in file \`${absFilePath}\` with the following contents:
 \`\`\`${getMarkdownExt(bufferName)}
 ${targetLines.join("\n")}
 \`\`\`

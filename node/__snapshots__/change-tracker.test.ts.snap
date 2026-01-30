@@ -3,7 +3,7 @@
 exports[`should track edits across multiple files 1`] = `
 [
   {
-    "filePath": "file1.js",
+    "filePath": "<tmpDir>/file1.js",
     "newText": "function hello() {
   return 'universe';
 }",
@@ -22,7 +22,7 @@ exports[`should track edits across multiple files 1`] = `
     },
   },
   {
-    "filePath": "file1.js",
+    "filePath": "<tmpDir>/file1.js",
     "newText": "function hello() {
   return 'universe!';
 }",
@@ -41,7 +41,7 @@ exports[`should track edits across multiple files 1`] = `
     },
   },
   {
-    "filePath": "file2.js",
+    "filePath": "<tmpDir>/file2.js",
     "newText": "const greeting = 'hi';",
     "oldText": "const greeting = 'hello';",
     "range": {
@@ -56,7 +56,7 @@ exports[`should track edits across multiple files 1`] = `
     },
   },
   {
-    "filePath": "file2.js",
+    "filePath": "<tmpDir>/file2.js",
     "newText": "const greeting = 'hi';
 // Added via insert mode typing
 ",

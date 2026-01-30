@@ -68,12 +68,7 @@ export class Magenta {
     public options: MagentaOptions,
   ) {
     this.bufferTracker = new BufferTracker(this.nvim);
-    this.changeTracker = new ChangeTracker(
-      this.nvim,
-      this.cwd,
-      this.homeDir,
-      this.options,
-    );
+    this.changeTracker = new ChangeTracker(this.nvim, this.options);
 
     this.dispatch = (msg: RootMsg) => {
       try {
@@ -409,14 +404,14 @@ export class Magenta {
           endPos: pos1col1to0(endPos),
         });
 
-        const relFileName = relativePath(
+        const absFilePath = resolveFilePath(
           this.cwd,
           await currentBuffer.getName(),
           this.homeDir,
         );
         const content = `
-Here is a snippet from the file \`${relFileName}\`
-\`\`\`${getMarkdownExt(relFileName)}
+Here is a snippet from the file \`${absFilePath}\`
+\`\`\`${getMarkdownExt(absFilePath)}
 ${lines.join("\n")}
 \`\`\`
 `;

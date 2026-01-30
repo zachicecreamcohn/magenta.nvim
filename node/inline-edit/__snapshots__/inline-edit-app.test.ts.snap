@@ -3,7 +3,7 @@
 exports[`node/inline-edit/inline-edit-app.test.ts > inline edit end of line selected 1`] = `
 [
   {
-    "text": "I am working in file \`poem.txt\` with the following contents:
+    "text": "I am working in file \`<tmpDir>/poem.txt\` with the following contents:
 \`\`\`txt
 Moonlight whispers through the trees,
 Silver shadows dance with ease.
@@ -26,7 +26,7 @@ Please change 'Silver' to 'Golden'",
 exports[`node/inline-edit/inline-edit-app.test.ts > inline edit mid-line selected 1`] = `
 [
   {
-    "text": "I am working in file \`poem.txt\` with the following contents:
+    "text": "I am working in file \`<tmpDir>/poem.txt\` with the following contents:
 \`\`\`txt
 Moonlight whispers through the trees,
 Silver shadows dance with ease.
@@ -49,7 +49,7 @@ Please change 'shadows' to 'ghosts'",
 exports[`node/inline-edit/inline-edit-app.test.ts > performs inline edit on file 1`] = `
 [
   {
-    "text": "I am working in file \`poem.txt\` with the following contents:
+    "text": "I am working in file \`<tmpDir>/poem.txt\` with the following contents:
 \`\`\`txt
 Moonlight whispers through the trees,
 Silver shadows dance with ease.
@@ -68,7 +68,7 @@ Please change 'Silver' to 'Golden' in line 2",
 exports[`node/inline-edit/inline-edit-app.test.ts > performs inline edit with selection 1`] = `
 [
   {
-    "text": "I am working in file \`poem.txt\` with the following contents:
+    "text": "I am working in file \`<tmpDir>/poem.txt\` with the following contents:
 \`\`\`txt
 Moonlight whispers through the trees,
 Silver shadows dance with ease.

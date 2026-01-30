@@ -40,7 +40,7 @@ it("render the getFile tool.", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`👀✅ \`./poem.txt\``);
+    await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\``);
   });
 });
 
@@ -70,7 +70,7 @@ it("should expand get_file tool detail on <CR>", async () => {
 
     // Verify summary is shown
     const summaryPos =
-      await driver.assertDisplayBufferContains(`👀✅ \`./poem.txt\``);
+      await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\``);
 
     // Press <CR> on the summary to expand details
     await driver.triggerDisplayBufferKey(summaryPos, "<CR>");
@@ -497,7 +497,8 @@ it("should return PDF basic info when pdfPage parameter is not provided", async 
         (item: ContentBlockParam) => item.type === "text",
       ) as TextBlockParam;
       expect(textContent).toBeDefined();
-      expect(textContent.text).toContain("PDF Document: multipage.pdf");
+      expect(textContent.text).toContain("PDF Document:");
+      expect(textContent.text).toContain("multipage.pdf");
       expect(textContent.text).toContain("Pages: 3");
       expect(textContent.text).toContain(
         "Use get-file tool with a pdfPage parameter to access specific pages",
@@ -978,7 +979,7 @@ it("getFile returns early when file is already in context", async () => {
     });
 
     // Should return the early message about file already being in context
-    await driver.assertDisplayBufferContains(`👀✅ \`./poem.txt\``);
+    await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\``);
 
     // Check the actual response content in the next request
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
@@ -1031,7 +1032,7 @@ it("getFile reads file when force is true even if already in context", async () 
       ],
     });
 
-    await driver.assertDisplayBufferContains(`👀✅ \`./poem.txt\``);
+    await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\``);
 
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
     const toolResultMessage = MockProvider.findLastToolResultMessage(
@@ -1096,7 +1097,7 @@ it("getFile adds file to context after reading", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`👀✅ \`./poem.txt\``);
+    await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\``);
 
     // Handle the auto-respond message
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
@@ -1167,7 +1168,7 @@ it("getFile reads unloaded buffer", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`👀✅ \`./poem.txt\``);
+    await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\``);
 
     // Check that the file contents are properly returned
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
@@ -1318,8 +1319,9 @@ it("getFile provides PDF summary info when no pdfPage parameter is given", async
     ) as TextBlockParam;
     expect(textContent).toBeDefined();
 
-    // Should contain PDF summary information
-    expect(textContent.text).toContain("PDF Document: sample2.pdf");
+    // Should contain PDF summary information (uses absolute path)
+    expect(textContent.text).toContain("PDF Document:");
+    expect(textContent.text).toContain("sample2.pdf");
     expect(textContent.text).toContain("Pages:");
     expect(textContent.text).toContain(
       "Use get-file tool with a pdfPage parameter to access specific pages",

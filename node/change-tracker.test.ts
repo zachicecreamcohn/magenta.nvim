@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { withDriver } from "./test/preamble.ts";
+import { withDriver, normalizePaths } from "./test/preamble.ts";
 import type { NvimDriver } from "./test/driver.ts";
 import { writeFileSync } from "fs";
 import { join } from "path";
@@ -11,7 +11,7 @@ it("should track edits across multiple files", async () => {
         changeDebounceMs: 100, // Use shorter debounce for faster tests
       },
     },
-    async (driver: NvimDriver) => {
+    async (driver: NvimDriver, dirs) => {
       // Write files directly to disk
       writeFileSync(
         join(driver.magenta.cwd, "file1.js"),
@@ -78,7 +78,7 @@ it("should track edits across multiple files", async () => {
           const { timestamp, ...changeWithoutTimestamp } = change;
           return changeWithoutTimestamp;
         });
-      expect(changes).toMatchSnapshot();
+      expect(normalizePaths(changes, dirs.tmpDir)).toMatchSnapshot();
     },
   );
 });

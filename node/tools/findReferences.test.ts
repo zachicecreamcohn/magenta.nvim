@@ -1,6 +1,6 @@
 import { type ToolRequestId } from "./toolManager.ts";
 import { describe, it, expect } from "vitest";
-import { withDriver } from "../test/preamble";
+import { withDriver, normalizePaths } from "../test/preamble";
 import { pollUntil } from "../utils/async.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { ToolName } from "./types.ts";
@@ -8,7 +8,7 @@ import { findToolResult } from "../chat/thread.ts";
 
 describe("node/tools/findReferences.test.ts", () => {
   it("findReferences end-to-end", async () => {
-    await withDriver({}, async (driver) => {
+    await withDriver({}, async (driver, dirs) => {
       await driver.editFile("test.ts");
       await driver.showSidebar();
 
@@ -52,7 +52,7 @@ describe("node/tools/findReferences.test.ts", () => {
         { timeout: 3000 },
       );
 
-      expect(result).toEqual({
+      expect(normalizePaths(result, dirs.tmpDir)).toEqual({
         type: "tool_result",
         id: toolRequestId,
         result: {
@@ -60,7 +60,7 @@ describe("node/tools/findReferences.test.ts", () => {
           value: [
             {
               type: "text",
-              text: `test.ts:4:6\ntest.ts:12:6\ntest.ts:17:20\n`,
+              text: `<tmpDir>/test.ts:4:6\n<tmpDir>/test.ts:12:6\n<tmpDir>/test.ts:17:20\n`,
             },
           ],
         },
