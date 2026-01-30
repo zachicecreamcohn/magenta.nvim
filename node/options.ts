@@ -921,6 +921,10 @@ function parseArgSpec(
       switch (spec["type"]) {
         case "file":
           return { type: "file" };
+        case "readFile":
+          return { type: "readFile" };
+        case "writeFile":
+          return { type: "writeFile" };
         case "restFiles":
           return { type: "restFiles" };
         case "restAny":

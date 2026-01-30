@@ -1351,3 +1351,101 @@ describe("isCommandAllowedByConfig with magenta temp files", () => {
     expect(result.allowed).toBe(true);
   });
 });
+
+describe("filePermissions with tilde expansion", () => {
+  test("allows command using tilde path when filePermissions uses tilde", () => {
+    const config: CommandPermissions = {
+      commands: [["ls", { type: "readFile" }]],
+      pipeCommands: [],
+    };
+
+    // filePermissions uses ~/projects, command uses ~/projects
+    const result = isCommandAllowedByConfig("ls ~/projects", config, {
+      cwd: "/some/project" as NvimCwd,
+      homeDir: "/home/user" as HomeDir,
+      filePermissions: [{ path: "~/projects", read: true }],
+    });
+    expect(result.allowed).toBe(true);
+  });
+
+  test("allows command using absolute path when filePermissions uses tilde", () => {
+    const config: CommandPermissions = {
+      commands: [["cat", { type: "readFile" }]],
+      pipeCommands: [],
+    };
+
+    // filePermissions uses ~/Documents, command uses absolute path
+    const result = isCommandAllowedByConfig(
+      "cat /home/user/Documents/file.txt",
+      config,
+      {
+        cwd: "/some/project" as NvimCwd,
+        homeDir: "/home/user" as HomeDir,
+        filePermissions: [{ path: "~/Documents", read: true }],
+      },
+    );
+    expect(result.allowed).toBe(true);
+  });
+
+  test("allows command using tilde path when filePermissions uses absolute path", () => {
+    const config: CommandPermissions = {
+      commands: [["cat", { type: "readFile" }]],
+      pipeCommands: [],
+    };
+
+    // filePermissions uses absolute path, command uses tilde
+    const result = isCommandAllowedByConfig(
+      "cat ~/Documents/file.txt",
+      config,
+      {
+        cwd: "/some/project" as NvimCwd,
+        homeDir: "/home/user" as HomeDir,
+        filePermissions: [{ path: "/home/user/Documents", read: true }],
+      },
+    );
+    expect(result.allowed).toBe(true);
+  });
+
+  test("rejects command when path is not permitted", () => {
+    const config: CommandPermissions = {
+      commands: [["cat", { type: "readFile" }]],
+      pipeCommands: [],
+    };
+
+    // filePermissions only permits ~/Documents, but command accesses ~/other
+    const result = isCommandAllowedByConfig("cat ~/other/file.txt", config, {
+      cwd: "/some/project" as NvimCwd,
+      homeDir: "/home/user" as HomeDir,
+      filePermissions: [{ path: "~/Documents", read: true }],
+    });
+    expect(result.allowed).toBe(false);
+  });
+
+  test("allows write command when filePermissions grants write with tilde", () => {
+    const config: CommandPermissions = {
+      commands: [["touch", { type: "writeFile" }]],
+      pipeCommands: [],
+    };
+
+    const result = isCommandAllowedByConfig("touch ~/output/file.txt", config, {
+      cwd: "/some/project" as NvimCwd,
+      homeDir: "/home/user" as HomeDir,
+      filePermissions: [{ path: "~/output", write: true }],
+    });
+    expect(result.allowed).toBe(true);
+  });
+
+  test("rejects write command when filePermissions only grants read with tilde", () => {
+    const config: CommandPermissions = {
+      commands: [["touch", { type: "writeFile" }]],
+      pipeCommands: [],
+    };
+
+    const result = isCommandAllowedByConfig("touch ~/output/file.txt", config, {
+      cwd: "/some/project" as NvimCwd,
+      homeDir: "/home/user" as HomeDir,
+      filePermissions: [{ path: "~/output", read: true }], // only read, not write
+    });
+    expect(result.allowed).toBe(false);
+  });
+});

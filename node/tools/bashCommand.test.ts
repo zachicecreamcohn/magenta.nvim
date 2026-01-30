@@ -1983,3 +1983,546 @@ wait
     );
   });
 });
+
+describe("bash command filePermissions tests", () => {
+  it("auto-approves read command on external directory with read permission", async () => {
+    let outsidePath: string;
+
+    await withDriver(
+      {
+        options: {
+          commandConfig: {
+            commands: [["cat", { type: "readFile" }]],
+            pipeCommands: [],
+          },
+        },
+        setupExtraDirs: async (baseDir) => {
+          outsidePath = path.join(baseDir, "external-data");
+          await fs.promises.mkdir(outsidePath, { recursive: true });
+          await fs.promises.writeFile(
+            path.join(outsidePath, "allowed.txt"),
+            "external content",
+          );
+
+          // Write ~/.magenta/options.json with filePermissions
+          const homeDir = path.join(baseDir, "home");
+          const magentaDir = path.join(homeDir, ".magenta");
+          await fs.promises.mkdir(magentaDir, { recursive: true });
+          await fs.promises.writeFile(
+            path.join(magentaDir, "options.json"),
+            JSON.stringify({
+              filePermissions: [{ path: outsidePath, read: true }],
+            }),
+          );
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText(`cat the external file`);
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingStream();
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "Reading external file.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "test-external-read" as ToolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command: `cat ${outsidePath!}/allowed.txt`,
+                },
+              },
+            },
+          ],
+        });
+
+        // Should auto-approve since filePermissions grants read
+        await driver.assertDisplayBufferContains(
+          `⚡✅ \`cat ${outsidePath!}/allowed.txt\``,
+        );
+        await driver.assertDisplayBufferContains("external content");
+        await driver.assertDisplayBufferDoesNotContain("[ YES ]");
+      },
+    );
+  });
+
+  it("requires approval for read command on external directory without permission", async () => {
+    let outsidePath: string;
+
+    await withDriver(
+      {
+        options: {
+          commandConfig: {
+            commands: [["cat", { type: "readFile" }]],
+            pipeCommands: [],
+          },
+        },
+        setupExtraDirs: async (baseDir) => {
+          outsidePath = path.join(baseDir, "external-data");
+          await fs.promises.mkdir(outsidePath, { recursive: true });
+          await fs.promises.writeFile(
+            path.join(outsidePath, "secret.txt"),
+            "secret content",
+          );
+          // No filePermissions configured
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText(`cat the external file`);
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingStream();
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "Reading external file.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "test-external-no-perm" as ToolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command: `cat ${outsidePath!}/secret.txt`,
+                },
+              },
+            },
+          ],
+        });
+
+        // Should require approval since no filePermissions for this path
+        await driver.assertDisplayBufferContains("⚡⏳ May I run command");
+        await driver.assertDisplayBufferContains("[ YES ]");
+      },
+    );
+  });
+
+  it("auto-approves write command on external directory with write permission", async () => {
+    let outsidePath: string;
+
+    await withDriver(
+      {
+        options: {
+          commandConfig: {
+            commands: [["echo", { type: "restAny" }]],
+            pipeCommands: [["tee", { type: "writeFile" }]],
+          },
+        },
+        setupExtraDirs: async (baseDir) => {
+          outsidePath = path.join(baseDir, "external-data");
+          await fs.promises.mkdir(outsidePath, { recursive: true });
+
+          // Write ~/.magenta/options.json with write permission
+          const homeDir = path.join(baseDir, "home");
+          const magentaDir = path.join(homeDir, ".magenta");
+          await fs.promises.mkdir(magentaDir, { recursive: true });
+          await fs.promises.writeFile(
+            path.join(magentaDir, "options.json"),
+            JSON.stringify({
+              filePermissions: [{ path: outsidePath, write: true }],
+            }),
+          );
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText(`write to external file`);
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingStream();
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "Writing to external file.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "test-external-write" as ToolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command: `echo "written content" | tee ${outsidePath!}/output.txt`,
+                },
+              },
+            },
+          ],
+        });
+
+        // Should auto-approve since filePermissions grants write
+        await driver.assertDisplayBufferContains(`⚡✅`);
+        await driver.assertDisplayBufferDoesNotContain("[ YES ]");
+      },
+    );
+  });
+
+  it("requires approval for write command on external directory with only read permission", async () => {
+    let outsidePath: string;
+
+    await withDriver(
+      {
+        options: {
+          commandConfig: {
+            commands: [["echo", { type: "restAny" }]],
+            pipeCommands: [["tee", { type: "writeFile" }]],
+          },
+        },
+        setupExtraDirs: async (baseDir) => {
+          outsidePath = path.join(baseDir, "external-data");
+          await fs.promises.mkdir(outsidePath, { recursive: true });
+
+          // Write ~/.magenta/options.json with only read permission
+          const homeDir = path.join(baseDir, "home");
+          const magentaDir = path.join(homeDir, ".magenta");
+          await fs.promises.mkdir(magentaDir, { recursive: true });
+          await fs.promises.writeFile(
+            path.join(magentaDir, "options.json"),
+            JSON.stringify({
+              filePermissions: [{ path: outsidePath, read: true }],
+            }),
+          );
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText(`write to external file`);
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingStream();
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "Writing to external file.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "test-write-readonly" as ToolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command: `echo "content" | tee ${outsidePath!}/output.txt`,
+                },
+              },
+            },
+          ],
+        });
+
+        // Should require approval since only read permission, not write
+        await driver.assertDisplayBufferContains("⚡⏳ May I run command");
+        await driver.assertDisplayBufferContains("[ YES ]");
+      },
+    );
+  });
+
+  it("requires approval for hidden file even in read:true directory", async () => {
+    let outsidePath: string;
+
+    await withDriver(
+      {
+        options: {
+          commandConfig: {
+            commands: [["cat", { type: "readFile" }]],
+            pipeCommands: [],
+          },
+        },
+        setupExtraDirs: async (baseDir) => {
+          outsidePath = path.join(baseDir, "external-data");
+          await fs.promises.mkdir(outsidePath, { recursive: true });
+          await fs.promises.writeFile(
+            path.join(outsidePath, ".hidden-file"),
+            "hidden content",
+          );
+
+          // Write ~/.magenta/options.json with read permission (but not readSecret)
+          const homeDir = path.join(baseDir, "home");
+          const magentaDir = path.join(homeDir, ".magenta");
+          await fs.promises.mkdir(magentaDir, { recursive: true });
+          await fs.promises.writeFile(
+            path.join(magentaDir, "options.json"),
+            JSON.stringify({
+              filePermissions: [{ path: outsidePath, read: true }],
+            }),
+          );
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText(`cat the hidden file`);
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingStream();
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "Reading hidden file.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "test-hidden-no-secret" as ToolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command: `cat ${outsidePath!}/.hidden-file`,
+                },
+              },
+            },
+          ],
+        });
+
+        // Should require approval since hidden file needs readSecret
+        await driver.assertDisplayBufferContains("⚡⏳ May I run command");
+        await driver.assertDisplayBufferContains("[ YES ]");
+      },
+    );
+  });
+
+  it("auto-approves hidden file read with readSecret permission", async () => {
+    let outsidePath: string;
+
+    await withDriver(
+      {
+        options: {
+          commandConfig: {
+            commands: [["cat", { type: "readFile" }]],
+            pipeCommands: [],
+          },
+        },
+        setupExtraDirs: async (baseDir) => {
+          outsidePath = path.join(baseDir, "external-data");
+          await fs.promises.mkdir(outsidePath, { recursive: true });
+          await fs.promises.writeFile(
+            path.join(outsidePath, ".hidden-file"),
+            "hidden content",
+          );
+
+          // Write ~/.magenta/options.json with readSecret permission
+          const homeDir = path.join(baseDir, "home");
+          const magentaDir = path.join(homeDir, ".magenta");
+          await fs.promises.mkdir(magentaDir, { recursive: true });
+          await fs.promises.writeFile(
+            path.join(magentaDir, "options.json"),
+            JSON.stringify({
+              filePermissions: [
+                { path: outsidePath, read: true, readSecret: true },
+              ],
+            }),
+          );
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText(`cat the hidden file`);
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingStream();
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "Reading hidden file.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "test-hidden-with-secret" as ToolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command: `cat ${outsidePath!}/.hidden-file`,
+                },
+              },
+            },
+          ],
+        });
+
+        // Should auto-approve since readSecret grants access to hidden files
+        await driver.assertDisplayBufferContains(
+          `⚡✅ \`cat ${outsidePath!}/.hidden-file\``,
+        );
+        await driver.assertDisplayBufferContains("hidden content");
+        await driver.assertDisplayBufferDoesNotContain("[ YES ]");
+      },
+    );
+  });
+
+  it("auto-approves hidden file write with writeSecret permission", async () => {
+    let outsidePath: string;
+
+    await withDriver(
+      {
+        options: {
+          commandConfig: {
+            commands: [["echo", { type: "restAny" }]],
+            pipeCommands: [["tee", { type: "writeFile" }]],
+          },
+        },
+        setupExtraDirs: async (baseDir) => {
+          outsidePath = path.join(baseDir, "external-data");
+          await fs.promises.mkdir(outsidePath, { recursive: true });
+
+          // Write ~/.magenta/options.json with writeSecret permission
+          const homeDir = path.join(baseDir, "home");
+          const magentaDir = path.join(homeDir, ".magenta");
+          await fs.promises.mkdir(magentaDir, { recursive: true });
+          await fs.promises.writeFile(
+            path.join(magentaDir, "options.json"),
+            JSON.stringify({
+              filePermissions: [
+                { path: outsidePath, write: true, writeSecret: true },
+              ],
+            }),
+          );
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText(`write to hidden file`);
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingStream();
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "Writing to hidden file.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "test-hidden-write-secret" as ToolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command: `echo "secret content" | tee ${outsidePath!}/.hidden-output`,
+                },
+              },
+            },
+          ],
+        });
+
+        // Should auto-approve since writeSecret grants access to hidden files
+        await driver.assertDisplayBufferContains(`⚡✅`);
+        await driver.assertDisplayBufferDoesNotContain("[ YES ]");
+      },
+    );
+  });
+
+  it("requires approval for hidden file write with only write permission", async () => {
+    let outsidePath: string;
+
+    await withDriver(
+      {
+        options: {
+          commandConfig: {
+            commands: [["echo", { type: "restAny" }]],
+            pipeCommands: [["tee", { type: "writeFile" }]],
+          },
+        },
+        setupExtraDirs: async (baseDir) => {
+          outsidePath = path.join(baseDir, "external-data");
+          await fs.promises.mkdir(outsidePath, { recursive: true });
+
+          // Write ~/.magenta/options.json with write permission (but not writeSecret)
+          const homeDir = path.join(baseDir, "home");
+          const magentaDir = path.join(homeDir, ".magenta");
+          await fs.promises.mkdir(magentaDir, { recursive: true });
+          await fs.promises.writeFile(
+            path.join(magentaDir, "options.json"),
+            JSON.stringify({
+              filePermissions: [{ path: outsidePath, write: true }],
+            }),
+          );
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText(`write to hidden file`);
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingStream();
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "Writing to hidden file.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "test-hidden-write-no-secret" as ToolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command: `echo "content" | tee ${outsidePath!}/.hidden-output`,
+                },
+              },
+            },
+          ],
+        });
+
+        // Should require approval since hidden file needs writeSecret
+        await driver.assertDisplayBufferContains("⚡⏳ May I run command");
+        await driver.assertDisplayBufferContains("[ YES ]");
+      },
+    );
+  });
+
+  it("respects tilde expansion in filePermissions paths", async () => {
+    await withDriver(
+      {
+        options: {
+          commandConfig: {
+            commands: [["cat", { type: "readFile" }]],
+            pipeCommands: [],
+          },
+        },
+        setupHome: async (homeDir) => {
+          // Create ~/Documents directory with a file
+          const docsDir = path.join(homeDir, "Documents");
+          await fs.promises.mkdir(docsDir, { recursive: true });
+          await fs.promises.writeFile(
+            path.join(docsDir, "notes.txt"),
+            "home document content",
+          );
+
+          // Write ~/.magenta/options.json with tilde path
+          const magentaDir = path.join(homeDir, ".magenta");
+          await fs.promises.mkdir(magentaDir, { recursive: true });
+          await fs.promises.writeFile(
+            path.join(magentaDir, "options.json"),
+            JSON.stringify({
+              filePermissions: [{ path: "~/Documents", read: true }],
+            }),
+          );
+        },
+      },
+      async (driver, dirs) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText(`cat the home file`);
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingStream();
+
+        request.respond({
+          stopReason: "tool_use",
+          text: "Reading home file.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "test-tilde-read" as ToolRequestId,
+                toolName: "bash_command" as ToolName,
+                input: {
+                  command: `cat ${dirs.homeDir}/Documents/notes.txt`,
+                },
+              },
+            },
+          ],
+        });
+
+        // Should auto-approve since ~/Documents is permitted
+        await driver.assertDisplayBufferContains(`⚡✅`);
+        await driver.assertDisplayBufferContains("home document content");
+        await driver.assertDisplayBufferDoesNotContain("[ YES ]");
+      },
+    );
+  });
+});

@@ -587,3 +587,275 @@ third inserted line`,
     await driver.assertDisplayBufferContains("third inserted line");
   });
 });
+
+it("insert respects filePermissions from ~/.magenta/options.json for external directories", async () => {
+  let outsidePath: string;
+
+  await withDriver(
+    {
+      setupExtraDirs: async (baseDir) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+
+        // Create a directory outside cwd with a test file
+        outsidePath = path.join(baseDir, "external-data");
+        await fs.mkdir(outsidePath, { recursive: true });
+        await fs.writeFile(
+          path.join(outsidePath, "allowed-file.txt"),
+          "existing content",
+        );
+
+        // Write ~/.magenta/options.json with filePermissions granting write access
+        const homeDir = path.join(baseDir, "home");
+        const magentaDir = path.join(homeDir, ".magenta");
+        await fs.mkdir(magentaDir, { recursive: true });
+        await fs.writeFile(
+          path.join(magentaDir, "options.json"),
+          JSON.stringify({
+            filePermissions: [{ path: outsidePath, write: true }],
+          }),
+        );
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // Try to insert in a file from the external directory
+      await driver.inputMagentaText(
+        `Please insert content in ${outsidePath}/allowed-file.txt`,
+      );
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll insert that content",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "external_file_request" as ToolRequestId,
+              toolName: "insert" as ToolName,
+              input: {
+                filePath:
+                  `${outsidePath}/allowed-file.txt` as UnresolvedFilePath,
+                insertAfter: "existing content",
+                content: "\nnew content after insertion",
+              },
+            },
+          },
+        ],
+      });
+
+      // Should be automatically approved (no user approval dialog)
+      await driver.assertDisplayBufferContains(
+        `✏️✅ Insert [[ +2 ]] in \`${outsidePath}/allowed-file.txt\``,
+      );
+
+      // Verify the file was actually modified
+      const fileContent = fs.readFileSync(
+        `${outsidePath}/allowed-file.txt`,
+        "utf-8",
+      );
+      expect(fileContent).toBe("existing content\nnew content after insertion");
+    },
+  );
+});
+
+it("insert requires approval for external directory without filePermissions", async () => {
+  let outsidePath: string;
+
+  await withDriver(
+    {
+      setupExtraDirs: async (baseDir) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+
+        // Create a directory outside cwd with a test file
+        outsidePath = path.join(baseDir, "restricted-data");
+        await fs.mkdir(outsidePath, { recursive: true });
+        await fs.writeFile(
+          path.join(outsidePath, "restricted-file.txt"),
+          "original content",
+        );
+
+        // Create empty ~/.magenta/options.json (no filePermissions for this dir)
+        const homeDir = path.join(baseDir, "home");
+        const magentaDir = path.join(homeDir, ".magenta");
+        await fs.mkdir(magentaDir, { recursive: true });
+        await fs.writeFile(
+          path.join(magentaDir, "options.json"),
+          JSON.stringify({}),
+        );
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // Try to insert in a file from the external directory
+      await driver.inputMagentaText(
+        `Please insert content in ${outsidePath}/restricted-file.txt`,
+      );
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll insert that content",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "restricted_file_request" as ToolRequestId,
+              toolName: "insert" as ToolName,
+              input: {
+                filePath:
+                  `${outsidePath}/restricted-file.txt` as UnresolvedFilePath,
+                insertAfter: "original content",
+                content: "\ninserted content",
+              },
+            },
+          },
+        ],
+      });
+
+      // Should require user approval since no filePermissions cover this path
+      await driver.assertDisplayBufferContains(
+        `✏️⏳ May I insert in file \`${outsidePath}/restricted-file.txt\`?`,
+      );
+    },
+  );
+});
+
+it("insert respects tilde expansion in filePermissions paths", async () => {
+  await withDriver(
+    {
+      setupHome: async (homeDir) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+
+        // Create a directory in home with a test file
+        const docsDir = path.join(homeDir, "Documents");
+        await fs.mkdir(docsDir, { recursive: true });
+        await fs.writeFile(
+          path.join(docsDir, "notes.txt"),
+          "Old notes content",
+        );
+
+        // Write ~/.magenta/options.json with tilde-based path
+        const magentaDir = path.join(homeDir, ".magenta");
+        await fs.mkdir(magentaDir, { recursive: true });
+        await fs.writeFile(
+          path.join(magentaDir, "options.json"),
+          JSON.stringify({
+            filePermissions: [{ path: "~/Documents", write: true }],
+          }),
+        );
+      },
+    },
+    async (driver, dirs) => {
+      await driver.showSidebar();
+
+      // Try to insert in a file using tilde path
+      await driver.inputMagentaText(`Please insert in ~/Documents/notes.txt`);
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll insert that content",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "tilde_file_request" as ToolRequestId,
+              toolName: "insert" as ToolName,
+              input: {
+                filePath: "~/Documents/notes.txt" as UnresolvedFilePath,
+                insertAfter: "Old notes content",
+                content: "\nNew notes appended",
+              },
+            },
+          },
+        ],
+      });
+
+      // Should be automatically approved via tilde-expanded filePermissions
+      await driver.assertDisplayBufferContains(
+        `✏️✅ Insert [[ +2 ]] in \`~/Documents/notes.txt\``,
+      );
+
+      // Verify the file was actually modified
+      const fileContent = fs.readFileSync(
+        path.join(dirs.homeDir, "Documents", "notes.txt"),
+        "utf-8",
+      );
+      expect(fileContent).toBe("Old notes content\nNew notes appended");
+    },
+  );
+});
+
+it("insert can modify files using tilde path with user approval", async () => {
+  await withDriver(
+    {
+      setupHome: async (homeDir) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+
+        // Create a file in the home directory
+        await fs.writeFile(
+          path.join(homeDir, "home-file.txt"),
+          "Original home content",
+        );
+      },
+    },
+    async (driver, dirs) => {
+      await driver.showSidebar();
+
+      // Try to insert in a file using tilde path (no filePermissions, so requires approval)
+      await driver.inputMagentaText(`Please insert in ~/home-file.txt`);
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll insert that content",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "tilde_approval_request" as ToolRequestId,
+              toolName: "insert" as ToolName,
+              input: {
+                filePath: "~/home-file.txt" as UnresolvedFilePath,
+                insertAfter: "Original home content",
+                content: "\nInserted home content",
+              },
+            },
+          },
+        ],
+      });
+
+      // Should require user approval since no filePermissions cover this path
+      await driver.assertDisplayBufferContains(
+        `✏️⏳ May I insert in file \`~/home-file.txt\`?`,
+      );
+
+      // Approve the request
+      const yesPos = await driver.assertDisplayBufferContains("[ YES ]");
+      await driver.triggerDisplayBufferKey(yesPos, "<CR>");
+
+      // Should now show success
+      await driver.assertDisplayBufferContains(
+        `✏️✅ Insert [[ +2 ]] in \`~/home-file.txt\``,
+      );
+
+      // Verify the file was actually modified
+      const fileContent = fs.readFileSync(
+        path.join(dirs.homeDir, "home-file.txt"),
+        "utf-8",
+      );
+      expect(fileContent).toBe("Original home content\nInserted home content");
+    },
+  );
+});
