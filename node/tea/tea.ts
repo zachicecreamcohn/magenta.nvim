@@ -28,7 +28,7 @@ type AppState<Model> =
 
 export type MountedApp = {
   onKey(key: BindingKey): Promise<void>;
-  render(): void;
+  render(msg: unknown): void;
   unmount(): void;
   getMountedNode(): MountedVDOM;
   waitForRender(): Promise<void>;
@@ -57,20 +57,25 @@ export function createApp<Model>({
 
   let renderDefer: Defer<void> | undefined;
   let renderPromise: Promise<void> | undefined;
-  let reRender = false;
+  let pendingMessages: unknown[] = [];
+  let mountPoint: MountPoint | undefined;
 
-  function render() {
+  function render(msg: unknown) {
     if (renderPromise) {
-      reRender = true;
+      pendingMessages.push(msg);
+      if (pendingMessages.length > 3) {
+        pendingMessages.shift();
+      }
     } else {
       if (!renderDefer) {
         renderDefer = new Defer();
       }
 
       if (root) {
-        renderPromise = root
-          .render({ currentState })
-          .catch((err) => {
+        renderPromise = (async () => {
+          try {
+            await root.render({ currentState });
+          } catch (err) {
             nvim.logger.error(
               err instanceof Error
                 ? `render failed: ${err.message}\n${err.stack}`
@@ -78,28 +83,63 @@ export function createApp<Model>({
             );
             if (root) {
               nvim.logger.error(
-                "render error: " +
-                  prettyPrintMountedNode(root._getMountedNode()),
+                `mounted view: ${prettyPrintMountedNode(root._getMountedNode())}`,
               );
             }
-            if (renderDefer) {
-              renderDefer.reject(err as Error);
-              renderDefer = undefined;
-            }
-          })
-          .finally(() => {
-            renderPromise = undefined;
-            if (reRender) {
-              reRender = false;
-              nvim.logger.debug(`followup render triggered`);
-              render();
+            nvim.logger.error(`msg: ${JSON.stringify(msg)}`);
+
+            // attempt to recover by re-mounting
+            if (mountPoint) {
+              try {
+                nvim.logger.info("Attempting to recover by re-mounting view");
+                await mountPoint.buffer.clearAllExtmarks();
+                await mountPoint.buffer.setLines({
+                  start: 0 as Row0Indexed,
+                  end: -1 as Row0Indexed,
+                  lines: [],
+                });
+                root = await mountView({
+                  view: App,
+                  mount: mountPoint,
+                  props: { currentState },
+                });
+                nvim.logger.info("Successfully re-mounted view after error");
+              } catch (remountErr) {
+                nvim.logger.error(
+                  remountErr instanceof Error
+                    ? `Re-mount failed: ${remountErr.message}\n${remountErr.stack}`
+                    : `Re-mount failed: ${JSON.stringify(remountErr)}`,
+                );
+                if (renderDefer) {
+                  renderDefer.reject(err as Error);
+                  renderDefer = undefined;
+                }
+                return;
+              }
             } else {
               if (renderDefer) {
-                renderDefer.resolve();
+                renderDefer.reject(err as Error);
                 renderDefer = undefined;
               }
+              return;
             }
-          });
+          }
+
+          renderPromise = undefined;
+          if (pendingMessages.length > 0) {
+            const msgs = pendingMessages;
+            pendingMessages = [];
+            nvim.logger.debug(
+              `followup render triggered with ${msgs.length} pending messages`,
+            );
+            render(msgs);
+          } else {
+            if (renderDefer) {
+              renderDefer.resolve();
+              renderDefer = undefined;
+            }
+          }
+        })();
       }
     }
   }
@@ -114,6 +154,7 @@ export function createApp<Model>({
 
   return {
     async mount(mount: MountPoint) {
+      mountPoint = mount;
       root = await mountView({
         view: App,
         mount,
@@ -143,8 +184,8 @@ export function createApp<Model>({
           }
         },
 
-        render() {
-          render();
+        render(msg: unknown) {
+          render(msg);
         },
 
         async waitForRender() {
@@ -187,6 +228,16 @@ export function createApp<Model>({
       if (root) {
         root.unmount();
         root = undefined;
+      }
+      if (mountPoint) {
+        mountPoint.buffer.clearAllExtmarks().catch((err) => {
+          nvim.logger.error(
+            err instanceof Error
+              ? `Failed to clear extmarks on destroy: ${err.message}`
+              : `Failed to clear extmarks on destroy: ${JSON.stringify(err)}`,
+          );
+        });
+        mountPoint = undefined;
       }
       currentState = {
         status: "error",

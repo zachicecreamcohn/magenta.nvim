@@ -1,0 +1,181 @@
+*magenta-tools.txt*      Tools and MCP support for magenta.nvim
+
+==============================================================================
+CONTENTS                                             *magenta-tools-contents*
+
+    1. Available Tools ......................... |magenta-available-tools|
+    2. Sub-agents .............................. |magenta-subagents|
+    3. MCP Support ............................. |magenta-mcp|
+    4. Command Permissions ..................... |magenta-permissions|
+
+==============================================================================
+AVAILABLE TOOLS                                      *magenta-available-tools*
+
+Tools available to the LLM agent:
+
+File Operations:~
+  - `get_file` - Get file contents (text, images, PDFs)
+  - `insert` - Insert content into a file
+  - `replace` - Replace content in a file
+  - `list_directory` - List files in a directory (respects .gitignore)
+
+Editor Integration:~
+  - `list_buffers` - List current open buffers
+  - `diagnostics` - Get LSP diagnostics
+  - `find_references` - Find LSP references for a symbol
+  - `hover` - Get LSP hover info for a symbol
+
+Execution:~
+  - `bash_command` - Run shell commands (with permission system)
+
+Agent Coordination:~
+  - `spawn_subagent` - Create specialized sub-agents
+  - `spawn_foreach` - Process arrays in parallel with sub-agents
+  - `wait_for_subagents` - Wait for sub-agents to complete
+  - `yield_to_parent` - Return results to parent agent
+
+See https://github.com/dlants/magenta.nvim/tree/main/node/tools for
+the most up-to-date list.
+
+==============================================================================
+SUB-AGENTS                                               *magenta-subagents*
+
+The main agent can spawn specialized sub-agents to handle tasks more
+effectively. Sub-agents:
+
+  - Get focused context relevant to their specific task
+  - Use specialized system prompts
+  - Can work in parallel
+  - Report results back to the main agent
+
+Agent types:~
+
+  `learn`     Focused on code discovery, analyzing APIs, understanding
+              existing implementations
+
+  `plan`      Specialized for strategic planning and breaking down
+              complex implementations
+
+  `fast`      Lightweight, uses fast model for quick transformations
+
+  `default`   General-purpose coding assistant behavior
+
+Example workflows:~
+
+Learning workflow:
+>
+    user: I want to refactor this interface
+    → Main agent spawns 'learn' sub-agent to analyze interface
+    → Sub-agent explores codebase, finds references, understands patterns
+    → Sub-agent yields findings back to main agent
+    → Main agent uses analysis to safely perform refactoring
+<
+
+Planning workflow:
+>
+    user: I want to build a new authentication system
+    → Main agent spawns 'plan' sub-agent
+    → Sub-agent analyzes existing patterns, creates plan
+    → Sub-agent yields plan location
+    → Main agent: "Please review plans/auth-system.md"
+<
+
+Parallel processing:
+>
+    user: Update all imports to use the new module path
+    → Main agent finds all files with old import
+    → Uses spawn_foreach with fast agent type
+    → Multiple fast sub-agents process files simultaneously
+    → Main agent reports: "Updated imports in 15 files"
+<
+
+Configuration:~
+>lua
+    maxConcurrentSubagents = 3  -- default
+<
+
+==============================================================================
+MCP SUPPORT                                                    *magenta-mcp*
+
+Magenta supports MCP (Model Context Protocol) servers through two
+transport methods:
+
+Standard I/O (stdio):~
+>lua
+    mcpServers = {
+      fetch = {
+        command = "uvx",
+        args = { "mcp-server-fetch" },
+        env = {
+          CUSTOM_VAR = "value"
+        }
+      }
+    }
+<
+
+Streamable HTTP:~
+>lua
+    mcpServers = {
+      httpServer = {
+        url = "http://localhost:8000/mcp",
+        requestInit = {
+          headers = {
+            Authorization = "Bearer your-token-here",
+          },
+        },
+      }
+    }
+<
+
+Magenta automatically handles protocol fallback for HTTP servers,
+attempting streamable HTTP first, then falling back to SSE transport.
+
+MCPHub Support:~
+
+Configure Magenta to connect to MCPHub.nvim:
+>lua
+    mcpServers = {
+      mcphub = {
+        url = "http://localhost:37373/mcp"
+      }
+    }
+<
+
+Project-specific MCP servers:~
+
+Add MCP servers in `.magenta/options.json`:
+>json
+    {
+      "mcpServers": {
+        "postgres": {
+          "command": "mcp-server-postgres",
+          "args": ["--connection-string", "postgresql://localhost/mydb"]
+        },
+        "filesystem": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+        }
+      }
+    }
+<
+
+==============================================================================
+COMMAND PERMISSIONS                                     *magenta-permissions*
+
+The bash_command tool requires user approval before running shell
+commands. Many common commands are pre-approved by default.
+
+Configure additional allowed commands in:
+  - Project: `.magenta/options.json`
+  - User: `~/.magenta/options.json`
+
+See the `update-permissions` skill at:
+    `node/skills/update-permissions/skill.md`
+
+⚠️ Security Warning:~
+Be careful when expanding command permissions. Malicious actors can use
+prompt injection attacks to manipulate the LLM into executing commands
+that exfiltrate sensitive data. The default allowlist is conservative
+by design.
+
+vim:tw=78:ts=8:noet:ft=help:norl:

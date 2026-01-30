@@ -1,0 +1,290 @@
+*magenta-config.txt*     Configuration options for magenta.nvim
+
+==============================================================================
+CONTENTS                                              *magenta-config-contents*
+
+    1. Setup ................................... |magenta-setup|
+    2. Profiles ................................ |magenta-profiles|
+    3. General Options ......................... |magenta-options|
+    4. Edit Prediction ......................... |magenta-edit-prediction|
+    5. Skills .................................. |magenta-skills|
+    6. Project Settings ........................ |magenta-project-settings|
+    7. Custom Commands ......................... |magenta-custom-commands|
+
+==============================================================================
+SETUP                                                        *magenta-setup*
+
+Call `require('magenta').setup()` with a configuration table:
+>lua
+    require('magenta').setup({
+      profiles = { ... },
+      sidebarPosition = "left",
+      picker = "fzf-lua",
+      defaultKeymaps = true,
+      -- see below for all options
+    })
+<
+
+==============================================================================
+PROFILES                                                   *magenta-profiles*
+
+Profiles configure provider access. The first profile is the default.
+Each profile specifies:
+
+  - `name`: identifier for the profile
+  - `provider`: "anthropic", "openai", "bedrock", "ollama", or "copilot"
+  - `model`: the specific model to use
+  - `fastModel`: (optional) model for lightweight tasks
+  - `authType`: (optional) "key" (default) or "max" for Anthropic OAuth
+  - `apiKeyEnvVar`: environment variable containing the API key
+  - `baseUrl`: (optional) custom API endpoint
+
+Example:~
+>lua
+    profiles = {
+      {
+        name = "claude-sonnet",
+        provider = "anthropic",
+        model = "claude-sonnet-4-5",
+        fastModel = "claude-haiku-4-5",
+        apiKeyEnvVar = "ANTHROPIC_API_KEY"
+      },
+      {
+        name = "gpt-5",
+        provider = "openai",
+        model = "gpt-5",
+        fastModel = "gpt-5-mini",
+        apiKeyEnvVar = "OPENAI_API_KEY"
+      }
+    }
+<
+
+With thinking/reasoning support:~
+>lua
+    {
+      name = "claude-opus",
+      provider = "anthropic",
+      model = "claude-opus-4-5",
+      apiKeyEnvVar = "ANTHROPIC_API_KEY",
+      thinking = {
+        enabled = true,
+        budgetTokens = 1024  -- must be >= 1024
+      }
+    }
+<
+
+See |magenta-providers| for provider-specific configuration.
+
+==============================================================================
+GENERAL OPTIONS                                            *magenta-options*
+
+                                                    *magenta-sidebarPosition*
+sidebarPosition ~
+    Type: `string`
+    Default: `"left"`
+    Values: `"left"` or `"right"`
+
+    Position of the chat sidebar.
+
+                                                          *magenta-picker*
+picker ~
+    Type: `string`
+    Default: `"fzf-lua"`
+    Values: `"fzf-lua"`, `"telescope"`, or `"snacks"`
+
+    Fuzzy finder to use for file selection.
+
+                                                    *magenta-defaultKeymaps*
+defaultKeymaps ~
+    Type: `boolean`
+    Default: `true`
+
+    Whether to enable default keymaps. See |magenta-default-keymaps|.
+
+                                            *magenta-maxConcurrentSubagents*
+maxConcurrentSubagents ~
+    Type: `number`
+    Default: `3`
+
+    Maximum number of sub-agents that can run concurrently.
+
+                                                      *magenta-chimeVolume*
+chimeVolume ~
+    Type: `number`
+    Default: `0.3`
+    Range: `0.0` to `1.0`
+
+    Volume for notification chimes. Set to `0.0` to disable.
+    Chimes play when the agent needs attention or tool approval.
+
+                                            *magenta-getFileAutoAllowGlobs*
+getFileAutoAllowGlobs ~
+    Type: `table`
+    Default: `{ "node_modules/*" }`
+
+    Glob patterns for files that bypass approval for getFile tool
+    (for hidden/gitignored files).
+
+                                                      *magenta-skillsPaths*
+skillsPaths ~
+    Type: `table`
+    Default: `{ ".claude/skills" }`
+
+    Directories containing skill subdirectories.
+
+                                                    *magenta-sidebarKeymaps*
+sidebarKeymaps ~
+    Type: `table`
+
+    Keymaps for the sidebar input buffer.
+>lua
+    sidebarKeymaps = {
+      normal = {
+        ["<CR>"] = ":Magenta send<CR>",
+      }
+    }
+<
+
+                                                     *magenta-inlineKeymaps*
+inlineKeymaps ~
+    Type: `table`
+
+    Keymaps for the inline edit input buffer.
+>lua
+    inlineKeymaps = {
+      normal = {
+        ["<CR>"] = function(target_bufnr)
+          vim.cmd("Magenta submit-inline-edit " .. target_bufnr)
+        end,
+      },
+    }
+<
+
+==============================================================================
+EDIT PREDICTION                                     *magenta-edit-prediction*
+
+AI-powered edit prediction suggests the next likely edit based on recent
+changes and cursor context.
+
+Usage:~
+  - `<S-C-l>` (Shift+Ctrl+L) to trigger a prediction
+  - `<S-C-l>` again to accept and apply
+  - `<Esc>` to dismiss
+
+Configuration:~
+>lua
+    editPrediction = {
+      -- Dedicated profile for predictions (optional)
+      profile = {
+        provider = "anthropic",
+        model = "claude-sonnet-4-5",
+        apiKeyEnvVar = "ANTHROPIC_API_KEY"
+      },
+      -- Max changes to track for context (default: 10)
+      changeTrackerMaxChanges = 20,
+      -- Token budget for recent changes (default: 1000)
+      recentChangeTokenBudget = 1500,
+      -- Replace default system prompt (optional)
+      -- systemPrompt = "...",
+      -- Append to default prompt (optional)
+      systemPromptAppend = "Focus on function calls."
+    }
+<
+
+==============================================================================
+SKILLS                                                       *magenta-skills*
+
+Skills provide reusable context and instructions for specific tasks.
+They are discovered automatically from configured directories.
+
+Structure:~
+>
+    .claude/
+    └── skills/
+        ├── code-review/
+        │   └── skill.md
+        └── testing/
+            └── skill.md
+<
+
+Each `skill.md` file has YAML frontmatter:
+>markdown
+    ---
+    name: your-skill-name
+    description: Brief description of what this skill does
+    ---
+
+    # Detailed Instructions
+
+    Your skill instructions go here...
+<
+
+Skills are presented to the agent at conversation start. The agent can
+use `get_file` to read the full skill content when needed.
+
+==============================================================================
+PROJECT SETTINGS                                   *magenta-project-settings*
+
+Create `.magenta/options.json` in your project root for project-specific
+configuration.
+
+Merging behavior:~
+  - `profiles`: Project profiles replace global profiles
+  - `commandConfig`: Project patterns append to global patterns
+  - `autoContext`: Project patterns add to base auto context
+  - `skillsPaths`: Project paths add to base skills paths
+  - `mcpServers`: Project servers merge (override same-name globals)
+  - Other settings: Project overrides global
+
+Example `.magenta/options.json`:~
+>json
+    {
+      "profiles": [
+        {
+          "name": "project-claude",
+          "provider": "anthropic",
+          "model": "claude-opus-4-5",
+          "apiKeyEnvVar": "PROJECT_ANTHROPIC_KEY"
+        }
+      ],
+      "autoContext": ["README.md", "docs/*.md"],
+      "skillsPaths": [".claude/skills", "team-skills"],
+      "mcpServers": {
+        "postgres": {
+          "command": "mcp-server-postgres",
+          "args": ["--connection-string", "postgresql://localhost/mydb"]
+        }
+      }
+    }
+<
+
+==============================================================================
+CUSTOM COMMANDS                                     *magenta-custom-commands*
+
+Define custom `@` commands that expand to predefined text.
+
+Configuration:~
+>lua
+    customCommands = {
+      {
+        name = "@nedit",
+        text = "DO NOT MAKE ANY EDITS TO CODE.",
+        description = "Disable code editing"
+      },
+      {
+        name = "@careful",
+        text = "Be extra careful and double-check your work.",
+        description = "Request extra caution"
+      }
+    }
+<
+
+Usage in input buffer:~
+>
+    @nedit Can you help me understand this algorithm?
+<
+
+Command names must start with `@` followed by a letter, then any
+combination of letters, numbers, and underscores.
+
+vim:tw=78:ts=8:noet:ft=help:norl:

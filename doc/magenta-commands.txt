@@ -1,0 +1,190 @@
+*magenta-commands.txt*   Commands and keymaps for magenta.nvim
+
+==============================================================================
+CONTENTS                                           *magenta-commands-contents*
+
+    1. Ex Commands ............................. |magenta-ex-commands|
+    2. Default Keymaps ......................... |magenta-default-keymaps|
+    3. Input Commands .......................... |magenta-input-commands|
+    4. Display Buffer .......................... |magenta-display-buffer|
+    5. Smart Completions ....................... |magenta-completions|
+
+==============================================================================
+EX COMMANDS                                            *magenta-ex-commands*
+
+:Magenta toggle                                         *:Magenta-toggle*
+    Toggle the chat sidebar open/closed.
+
+:Magenta send                                           *:Magenta-send*
+    Send the current input buffer content to the model.
+
+:Magenta new-thread                                     *:Magenta-new-thread*
+    Create a new independent chat thread.
+
+:Magenta clear                                          *:Magenta-clear*
+    Clear all Magenta state.
+
+:Magenta abort                                          *:Magenta-abort*
+    Abort the current operation/streaming response.
+
+:Magenta context-files                                  *:Magenta-context-files*
+    Open file picker to add files to context.
+
+:Magenta paste-selection                                *:Magenta-paste-selection*
+    Paste the current visual selection into the input buffer.
+
+:Magenta start-inline-edit                              *:Magenta-start-inline-edit*
+    Start an inline edit at the current cursor position.
+
+:Magenta start-inline-edit-selection                    *:Magenta-start-inline-edit-selection*
+    Start an inline edit on the current visual selection.
+
+:Magenta submit-inline-edit {bufnr}                     *:Magenta-submit-inline-edit*
+    Submit the inline edit for the target buffer.
+
+:Magenta replay-inline-edit                             *:Magenta-replay-inline-edit*
+    Replay the last inline edit prompt on the current buffer.
+
+:Magenta replay-inline-edit-selection                   *:Magenta-replay-inline-edit-selection*
+    Replay the last inline edit prompt on the current selection.
+
+:Magenta pick-provider                                  *:Magenta-pick-provider*
+    Open picker to select provider and model.
+
+:Magenta predict-edit                                   *:Magenta-predict-edit*
+    Trigger or accept an edit prediction at the cursor.
+
+==============================================================================
+DEFAULT KEYMAPS                                      *magenta-default-keymaps*
+
+When `defaultKeymaps = true`, these keymaps are configured:
+
+Chat and thread management:~
+
+    `<leader>mt`    Toggle Magenta sidebar          |:Magenta-toggle|
+    `<leader>mn`    Create new thread               |:Magenta-new-thread|
+    `<leader>mc`    Clear Magenta state             |:Magenta-clear|
+    `<leader>ma`    Abort current operation         |:Magenta-abort|
+
+Context management:~
+
+    `<leader>mb`    Add current buffer to context
+    `<leader>mf`    Pick files to add to context    |:Magenta-context-files|
+    `<leader>mp`    Paste selection (visual mode)   |:Magenta-paste-selection|
+
+Inline edit:~
+
+    `<leader>mi`    Start inline edit (normal)      |:Magenta-start-inline-edit|
+    `<leader>mi`    Start inline edit (visual)      |:Magenta-start-inline-edit-selection|
+    `<leader>mr`    Replay last inline edit         |:Magenta-replay-inline-edit|
+    `<leader>m.`    Replay last inline edit         (alias for `<leader>mr`)
+
+Provider selection:~
+
+    `<leader>mp`    Select provider and model       |:Magenta-pick-provider|
+
+Edit prediction:~
+
+    `<S-C-l>`       Predict/accept edit (insert)    |:Magenta-predict-edit|
+    `<S-C-l>`       Predict/accept edit (normal)    |:Magenta-predict-edit|
+
+==============================================================================
+INPUT COMMANDS                                        *magenta-input-commands*
+
+Special commands that can be used in the input buffer:
+
+@fork                                                   *magenta-@fork*
+    Fork the thread, retaining only relevant context for your next task.
+>
+    @fork Now let's implement unit tests for the feature we discussed
+<
+
+@diag, @diagnostics                                     *magenta-@diag*
+    Include current LSP diagnostics in your message.
+>
+    @diag Can you help me fix these TypeScript errors?
+<
+
+@buf, @buffers                                          *magenta-@buf*
+    Include list of currently open buffers.
+>
+    @buf Which files should I focus on for authentication?
+<
+
+@qf, @quickfix                                          *magenta-@qf*
+    Include current quickfix list entries.
+>
+    @qf Let's update each of these search results
+<
+
+@file:{path}                                            *magenta-@file*
+    Add files to context. Supports fuzzy completion.
+>
+    @file:src/main.ts @file:README.md Analyze these files
+<
+
+@diff:{path}                                            *magenta-@diff*
+    Include git diff for unstaged changes.
+>
+    @diff:src/main.ts Review my changes before I commit
+<
+
+@staged:{path}                                          *magenta-@staged*
+    Include staged git diff.
+>
+    @staged:src/main.ts Review my staged changes
+<
+
+@fast                                                   *magenta-@fast*
+    Use fast model for inline edits.
+>
+    @fast Convert this function to arrow syntax
+<
+
+@async                                                  *magenta-@async*
+    Enqueue message to send on next opportunity (when agent is streaming).
+>
+    @async Also update the tests when you're done
+<
+
+==============================================================================
+DISPLAY BUFFER                                        *magenta-display-buffer*
+
+The display buffer shows the conversation and is not directly editable.
+You can interact with elements by pressing keys:
+
+`<CR>` (Enter):~
+  - On `[review]` message: Pull up the diff
+  - On a tool: Expand/collapse tool details
+  - On a context file: Open the file
+  - On a diff: Show side-by-side comparison
+  - On web search results/citations: Open in browser
+
+`d`:~
+  - On a context file: Remove it from context
+
+`t`:~
+  - On a running bash command: Terminate it (SIGTERM)
+
+`-`:~
+  - In display buffer: View thread overview screen
+  - In overview: Press `<CR>` on a thread to make it active
+
+==============================================================================
+SMART COMPLETIONS                                      *magenta-completions*
+
+Magenta provides intelligent completions via nvim-cmp:
+
+File path completions (`@file:`):~
+  - Prioritizes open buffers
+  - Supports fuzzy finding (e.g., `@file:p3` finds `poem 3.txt`)
+  - Respects .gitignore
+
+Git diff completions:~
+  - `@diff:` - Files with unstaged changes
+  - `@staged:` - Files staged for commit
+
+Custom commands:~
+  - All custom commands (|magenta-custom-commands|) appear in completions
+
+vim:tw=78:ts=8:noet:ft=help:norl:

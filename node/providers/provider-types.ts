@@ -3,6 +3,7 @@ import * as ToolManager from "../tools/toolManager.ts";
 import type { Result } from "../utils/result";
 import Anthropic from "@anthropic-ai/sdk";
 import type { ToolName, ToolRequest } from "../tools/types.ts";
+import type { Dispatch } from "../tea/tea.ts";
 
 export const PROVIDER_NAMES = [
   "anthropic",
@@ -43,7 +44,8 @@ export type Usage = {
 export type ProviderMessage = {
   role: "user" | "assistant";
   content: Array<ProviderMessageContent>;
-  providerMetadata?: ProviderMetadata | undefined;
+  stopReason?: StopReason;
+  usage?: Usage;
 };
 
 export type ProviderWebSearchCitation = {
@@ -73,6 +75,11 @@ export type ProviderRedactedThinkingContent = {
 
 export type ProviderSystemReminderContent = {
   type: "system_reminder";
+  text: string;
+};
+
+export type ProviderContextUpdateContent = {
+  type: "context_update";
   text: string;
 };
 
@@ -135,63 +142,29 @@ export type ProviderToolSpec = {
 };
 
 export type ProviderMessageContent =
-  | (ProviderTextContent & { providerMetadata?: ProviderMetadata | undefined })
-  | (ProviderImageContent & { providerMetadata?: ProviderMetadata | undefined })
-  | (ProviderDocumentContent & {
-      providerMetadata?: ProviderMetadata | undefined;
-    })
-  | (ProviderToolUseContent & {
-      providerMetadata?: ProviderMetadata | undefined;
-    })
-  | (ProviderServerToolUseContent & {
-      providerMetadata?: ProviderMetadata | undefined;
-    })
-  | (ProviderWebSearchToolResult & {
-      providerMetadata?: ProviderMetadata | undefined;
-    })
-  | (ProviderToolResult & { providerMetadata?: ProviderMetadata | undefined })
-  | (ProviderThinkingContent & {
-      providerMetadata?: ProviderMetadata | undefined;
-    })
-  | (ProviderRedactedThinkingContent & {
-      providerMetadata?: ProviderMetadata | undefined;
-    })
-  | (ProviderSystemReminderContent & {
-      providerMetadata?: ProviderMetadata | undefined;
-    });
+  | ProviderTextContent
+  | ProviderImageContent
+  | ProviderDocumentContent
+  | ProviderToolUseContent
+  | ProviderServerToolUseContent
+  | ProviderWebSearchToolResult
+  | ProviderToolResult
+  | ProviderThinkingContent
+  | ProviderRedactedThinkingContent
+  | ProviderSystemReminderContent
+  | ProviderContextUpdateContent;
 
 export interface Provider {
-  createStreamParameters(options: {
-    model: string;
-    messages: Array<ProviderMessage>;
-    tools: Array<ProviderToolSpec>;
-    disableCaching?: boolean;
-    systemPrompt?: string;
-  }): unknown;
-
   forceToolUse(options: {
     model: string;
-    messages: Array<ProviderMessage>;
+    input: AgentInput[];
     spec: ProviderToolSpec;
     systemPrompt?: string;
     disableCaching?: boolean;
+    contextAgent?: Agent;
   }): ProviderToolUseRequest;
 
-  sendMessage(options: {
-    model: string;
-    messages: Array<ProviderMessage>;
-    onStreamEvent: (event: ProviderStreamEvent) => void;
-    tools: Array<ProviderToolSpec>;
-    systemPrompt?: string;
-    thinking?: {
-      enabled: boolean;
-      budgetTokens?: number;
-    };
-    reasoning?: {
-      effort?: "low" | "medium" | "high";
-      summary?: "auto" | "concise" | "detailed";
-    };
-  }): ProviderStreamRequest;
+  createAgent(options: AgentOptions, dispatch: Dispatch<AgentMsg>): Agent;
 }
 
 export type ProviderMetadata = {
@@ -232,4 +205,111 @@ export interface ProviderToolUseRequest {
   abort(): void;
   aborted: boolean;
   promise: Promise<ProviderToolUseResponse>;
+}
+
+// ============================================================================
+// Agent - Stateful conversation agent interface
+// ============================================================================
+
+export type AgentStatus =
+  | { type: "streaming"; startTime: Date }
+  | { type: "stopped"; stopReason: StopReason }
+  | { type: "error"; error: Error };
+
+/** Branded type for native message index within an Agent.
+ * This is opaque to external code - only the Agent knows how to use it.
+ */
+export type NativeMessageIdx = number & { __nativeMessageIdx: true };
+
+export type AgentStreamingBlock =
+  | { type: "text"; text: string }
+  | { type: "thinking"; thinking: string; signature: string }
+  | {
+      type: "tool_use";
+      id: ToolManager.ToolRequestId;
+      name: ToolName;
+      inputJson: string;
+    };
+
+export interface AgentState {
+  status: AgentStatus;
+  messages: ReadonlyArray<ProviderMessage>;
+  streamingBlock?: AgentStreamingBlock | undefined;
+  latestUsage?: Usage | undefined;
+}
+
+export type AgentInput =
+  | ProviderTextContent
+  | ProviderImageContent
+  | ProviderDocumentContent;
+
+/** Messages dispatched from Agent to Thread */
+export type AgentMsg =
+  | { type: "agent-content-updated" }
+  | { type: "agent-stopped"; stopReason: StopReason; usage?: Usage }
+  | { type: "agent-error"; error: Error };
+
+export type CompactRequest = {
+  summary: string;
+};
+
+export interface Agent {
+  getState(): AgentState;
+
+  getStreamingBlock(): AgentStreamingBlock | undefined;
+
+  /** Get the current native message index. Use this to capture a position
+   * that can later be passed to truncateMessages.
+   */
+  getNativeMessageIdx(): NativeMessageIdx;
+
+  appendUserMessage(content: AgentInput[]): void;
+
+  toolResult(
+    toolUseId: ToolManager.ToolRequestId,
+    result: ProviderToolResult,
+  ): void;
+
+  continueConversation(): void;
+
+  /** Abort the current operation.
+   * Returns a promise that resolves when the abort is complete.
+   * - If streaming: resolves when the stream is terminated
+   * - If not streaming: resolves immediately
+   */
+  abort(): Promise<void>;
+
+  /** Transition from stopped/tool_use to stopped/aborted.
+   * Call this after providing all tool results during an abort.
+   * @throws Error if not in stopped/tool_use state
+   */
+  abortToolUse(): void;
+
+  /** Truncate messages to keep only messages 0..messageIdx (inclusive).
+   * Sets status to stopped with end_turn.
+   */
+  truncateMessages(messageIdx: NativeMessageIdx): void;
+
+  /** Compact the thread by replacing the entire thread with a summary.
+   * The compacted thread will have:
+   * 1. A single user message with context files (if any)
+   * 2. A single assistant message with the summary
+   * @param truncateIdx - If provided, truncate messages to this index before applying compaction
+   *                      (used for user-initiated @compact to remove the compact request itself)
+   */
+  compact(request: CompactRequest, truncateIdx?: NativeMessageIdx): void;
+
+  /** Create a deep copy of this agent with a new dispatch function.
+   * Must only be called when agent is in stopped state (not streaming).
+   * @throws Error if agent is currently streaming
+   */
+  clone(dispatch: Dispatch<AgentMsg>): Agent;
+}
+
+export interface AgentOptions {
+  model: string;
+  systemPrompt: string;
+  tools: ProviderToolSpec[];
+  thinking?: { enabled: boolean; budgetTokens?: number };
+  reasoning?: { effort?: "low" | "medium" | "high"; summary?: string };
 }
