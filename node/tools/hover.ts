@@ -13,7 +13,7 @@ import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
+import type { HomeDir, NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { GenericToolRequest, StaticTool, ToolName } from "./types.ts";
 import path from "path";
 
@@ -43,6 +43,7 @@ export class HoverTool implements StaticTool {
     public context: {
       nvim: Nvim;
       cwd: NvimCwd;
+      homeDir: HomeDir;
       lsp: Lsp;
       myDispatch: (msg: Msg) => void;
     },
@@ -113,7 +114,11 @@ export class HoverTool implements StaticTool {
     const filePath = this.request.input.filePath;
     const bufferResult = await getOrOpenBuffer({
       unresolvedPath: filePath,
-      context: this.context,
+      context: {
+        nvim: this.context.nvim,
+        cwd: this.context.cwd,
+        homeDir: this.context.homeDir,
+      },
     });
 
     let buffer: NvimBuffer;

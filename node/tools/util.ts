@@ -4,16 +4,21 @@ import path from "node:path";
 import {
   resolveFilePath,
   type AbsFilePath,
+  type HomeDir,
   type NvimCwd,
   type RelFilePath,
 } from "../utils/files";
 
 export type Gitignore = ignore.Ignore;
 
-export function readGitignoreSync(cwd: NvimCwd): Gitignore {
+export function readGitignoreSync(cwd: NvimCwd, homeDir: HomeDir): Gitignore {
   const ig = ignore();
   try {
-    const gitignorePath = resolveFilePath(cwd, ".gitignore" as RelFilePath);
+    const gitignorePath = resolveFilePath(
+      cwd,
+      ".gitignore" as RelFilePath,
+      homeDir,
+    );
     const gitignoreContent = fs.readFileSync(gitignorePath, "utf8");
     ig.add(gitignoreContent);
   } catch {

@@ -51,7 +51,7 @@ async function listDirectoryBFS(
   includeGitignored: boolean = false,
 ): Promise<string[]> {
   // Determine if we're listing inside or outside cwd
-  const relToStart = relativePath(context.cwd, startPath);
+  const relToStart = relativePath(context.cwd, startPath, context.homeDir);
   const isOutsideCwd = relToStart.startsWith("../");
 
   // Use appropriate gitignore: cwd's gitignore for inside, or walk up from startPath for outside
@@ -79,8 +79,8 @@ async function listDirectoryBFS(
       if (ig) {
         // For gitignore checking, use path relative to the appropriate base
         let relForIgnore: string = isOutsideCwd
-          ? relativePath(startPath as NvimCwd, fullPath)
-          : relativePath(context.cwd, fullPath);
+          ? relativePath(startPath as NvimCwd, fullPath, context.homeDir)
+          : relativePath(context.cwd, fullPath, context.homeDir);
 
         // Append trailing slash for directories (required for patterns like "build/")
         if (entry.isDirectory()) {
@@ -99,7 +99,7 @@ async function listDirectoryBFS(
       }
 
       // For display, always show path relative to cwd
-      const relFilePath = relativePath(context.cwd, fullPath);
+      const relFilePath = relativePath(context.cwd, fullPath, context.homeDir);
 
       if (!seen.has(fullPath)) {
         seen.add(fullPath);
@@ -197,7 +197,11 @@ export class ListDirectoryTool implements StaticTool {
   async listDirectory() {
     try {
       const dirPath = (this.request.input.dirPath || ".") as UnresolvedFilePath;
-      const absolutePath = resolveFilePath(this.context.cwd, dirPath);
+      const absolutePath = resolveFilePath(
+        this.context.cwd,
+        dirPath,
+        this.context.homeDir,
+      );
       const includeGitignored = this.request.input.includeGitignored ?? false;
 
       // Check if we have read permissions for the starting directory

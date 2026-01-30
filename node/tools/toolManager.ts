@@ -18,6 +18,7 @@ import * as Compact from "./compact.ts";
 
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
+import type { HomeDir } from "../utils/files.ts";
 import type {
   ToolMsg,
   ToolRequestId,
@@ -226,6 +227,7 @@ type RenderContext = {
   getDisplayWidth: () => number;
   nvim: import("../nvim/nvim-node").Nvim;
   cwd: import("../utils/files.ts").NvimCwd;
+  homeDir: HomeDir;
   options: import("../options.ts").MagentaOptions;
 };
 

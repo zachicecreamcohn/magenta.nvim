@@ -234,7 +234,11 @@ export class GetFileTool implements StaticTool {
     if (this.aborted) return;
 
     const filePath = this.request.input.filePath;
-    const absFilePath = resolveFilePath(this.context.cwd, filePath);
+    const absFilePath = resolveFilePath(
+      this.context.cwd,
+      filePath,
+      this.context.homeDir,
+    );
 
     const hasLineParams =
       this.request.input.startLine !== undefined ||
@@ -279,8 +283,16 @@ You already have the most up-to-date information about the contents of this file
     if (this.aborted) return;
 
     const filePath = this.request.input.filePath;
-    const absFilePath = resolveFilePath(this.context.cwd, filePath);
-    const relFilePath = relativePath(this.context.cwd, absFilePath);
+    const absFilePath = resolveFilePath(
+      this.context.cwd,
+      filePath,
+      this.context.homeDir,
+    );
+    const relFilePath = relativePath(
+      this.context.cwd,
+      absFilePath,
+      this.context.homeDir,
+    );
 
     const fileTypeInfo = await detectFileType(absFilePath);
     if (!fileTypeInfo) {

@@ -2341,6 +2341,301 @@ it("should show treesitter minimap for large TypeScript file", async () => {
   );
 });
 
+it("getFile respects filePermissions from ~/.magenta/options.json for external directories", async () => {
+  let outsidePath: string;
+
+  await withDriver(
+    {
+      setupExtraDirs: async (baseDir) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+
+        // Create a directory outside cwd with a test file
+        outsidePath = path.join(baseDir, "external-data");
+        await fs.mkdir(outsidePath, { recursive: true });
+        await fs.writeFile(
+          path.join(outsidePath, "allowed-file.txt"),
+          "This file should be auto-allowed via filePermissions",
+        );
+
+        // Write ~/.magenta/options.json with filePermissions granting read access
+        const homeDir = path.join(baseDir, "home");
+        const magentaDir = path.join(homeDir, ".magenta");
+        await fs.mkdir(magentaDir, { recursive: true });
+        await fs.writeFile(
+          path.join(magentaDir, "options.json"),
+          JSON.stringify({
+            filePermissions: [{ path: outsidePath, read: true }],
+          }),
+        );
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // Try to read a file from the external directory
+      await driver.inputMagentaText(
+        `Please read the file ${outsidePath}/allowed-file.txt`,
+      );
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll read that file",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "external_file_request" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath:
+                  `${outsidePath}/allowed-file.txt` as UnresolvedFilePath,
+              },
+            },
+          },
+        ],
+      });
+
+      // Should be automatically approved (no user approval dialog)
+      await driver.assertDisplayBufferContains(
+        `👀✅ \`${outsidePath}/allowed-file.txt\``,
+      );
+
+      // Verify the file content was returned
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+      const toolResultMessage = MockProvider.findLastToolResultMessage(
+        toolResultRequest.messages,
+      );
+
+      expect(toolResultMessage).toBeDefined();
+      const contentArray = toolResultMessage!.content as ContentBlockParam[];
+      const toolResult = contentArray.find(
+        (item: ContentBlockParam) => item.type === "tool_result",
+      ) as ToolResultBlockParam;
+      expect(toolResult).toBeDefined();
+      expect(toolResult.is_error).toBeFalsy();
+
+      assertToolResultContainsText(
+        toolResult,
+        "This file should be auto-allowed via filePermissions",
+      );
+    },
+  );
+});
+
+it("getFile requires approval for external directory without filePermissions", async () => {
+  let outsidePath: string;
+
+  await withDriver(
+    {
+      setupExtraDirs: async (baseDir) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+
+        // Create a directory outside cwd with a test file
+        outsidePath = path.join(baseDir, "restricted-data");
+        await fs.mkdir(outsidePath, { recursive: true });
+        await fs.writeFile(
+          path.join(outsidePath, "restricted-file.txt"),
+          "This file should require user approval",
+        );
+
+        // Create empty ~/.magenta/options.json (no filePermissions for this dir)
+        const homeDir = path.join(baseDir, "home");
+        const magentaDir = path.join(homeDir, ".magenta");
+        await fs.mkdir(magentaDir, { recursive: true });
+        await fs.writeFile(
+          path.join(magentaDir, "options.json"),
+          JSON.stringify({}),
+        );
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // Try to read a file from the external directory
+      await driver.inputMagentaText(
+        `Please read the file ${outsidePath}/restricted-file.txt`,
+      );
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll read that file",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "restricted_file_request" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath:
+                  `${outsidePath}/restricted-file.txt` as UnresolvedFilePath,
+              },
+            },
+          },
+        ],
+      });
+
+      // Should require user approval since no filePermissions cover this path
+      await driver.assertDisplayBufferContains(
+        `👀⏳ May I read file \`${outsidePath}/restricted-file.txt\`?`,
+      );
+    },
+  );
+});
+
+it("getFile respects tilde expansion in filePermissions paths", async () => {
+  await withDriver(
+    {
+      setupHome: async (homeDir) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+
+        // Create a directory in home with a test file
+        const docsDir = path.join(homeDir, "Documents");
+        await fs.mkdir(docsDir, { recursive: true });
+        await fs.writeFile(
+          path.join(docsDir, "notes.txt"),
+          "Notes from home directory",
+        );
+
+        // Write ~/.magenta/options.json with tilde-based path
+        const magentaDir = path.join(homeDir, ".magenta");
+        await fs.mkdir(magentaDir, { recursive: true });
+        await fs.writeFile(
+          path.join(magentaDir, "options.json"),
+          JSON.stringify({
+            filePermissions: [{ path: "~/Documents", read: true }],
+          }),
+        );
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // Try to read a file using tilde path
+      await driver.inputMagentaText(`Please read ~/Documents/notes.txt`);
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll read that file",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "tilde_file_request" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath: "~/Documents/notes.txt" as UnresolvedFilePath,
+              },
+            },
+          },
+        ],
+      });
+
+      // Should be automatically approved via tilde-expanded filePermissions
+      await driver.assertDisplayBufferContains(
+        `👀✅ \`~/Documents/notes.txt\``,
+      );
+
+      // Verify the file content was returned
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+      const toolResultMessage = MockProvider.findLastToolResultMessage(
+        toolResultRequest.messages,
+      );
+
+      expect(toolResultMessage).toBeDefined();
+      const contentArray = toolResultMessage!.content as ContentBlockParam[];
+      const toolResult = contentArray.find(
+        (item: ContentBlockParam) => item.type === "tool_result",
+      ) as ToolResultBlockParam;
+      expect(toolResult).toBeDefined();
+      expect(toolResult.is_error).toBeFalsy();
+
+      assertToolResultContainsText(toolResult, "Notes from home directory");
+    },
+  );
+});
+
+it("getFile can read files using tilde path with user approval", async () => {
+  await withDriver(
+    {
+      setupHome: async (homeDir) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+
+        // Create a file in the home directory
+        await fs.writeFile(
+          path.join(homeDir, "home-file.txt"),
+          "Content from home directory file",
+        );
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // Try to read a file using tilde path (no filePermissions, so requires approval)
+      await driver.inputMagentaText(`Please read ~/home-file.txt`);
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll read that file",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "tilde_approval_request" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: {
+                filePath: "~/home-file.txt" as UnresolvedFilePath,
+              },
+            },
+          },
+        ],
+      });
+
+      // Should require user approval since no filePermissions cover this path
+      await driver.assertDisplayBufferContains(
+        `👀⏳ May I read file \`~/home-file.txt\`?`,
+      );
+
+      // Approve the request
+      const yesPos = await driver.assertDisplayBufferContains("[ YES ]");
+      await driver.triggerDisplayBufferKey(yesPos, "<CR>");
+
+      // Should now show success
+      await driver.assertDisplayBufferContains(`👀✅ \`~/home-file.txt\``);
+
+      // Verify the file content was returned
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+      const toolResultMessage = MockProvider.findLastToolResultMessage(
+        toolResultRequest.messages,
+      );
+
+      expect(toolResultMessage).toBeDefined();
+      const contentArray = toolResultMessage!.content as ContentBlockParam[];
+      const toolResult = contentArray.find(
+        (item: ContentBlockParam) => item.type === "tool_result",
+      ) as ToolResultBlockParam;
+      expect(toolResult).toBeDefined();
+      expect(toolResult.is_error).toBeFalsy();
+
+      assertToolResultContainsText(
+        toolResult,
+        "Content from home directory file",
+      );
+    },
+  );
+});
+
 it("should fallback to line-based truncation for unknown file type", async () => {
   await withDriver(
     {

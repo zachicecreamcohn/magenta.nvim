@@ -57,6 +57,116 @@ test("test with custom files", async () => {
 });
 ```
 
+**Directory Structure:**
+
+The test environment creates an isolated directory structure:
+
+- `baseDir`: `/tmp/magenta-test/{testId}/` - root of all test directories
+- `tmpDir`: `{baseDir}/cwd/` - the working directory where nvim runs (fixtures copied here)
+- `homeDir`: `{baseDir}/home/` - simulated home directory (`$HOME` is set to this)
+
+The `withDriver` callback receives a `dirs` object with all three paths:
+
+```typescript
+await withDriver({}, async (driver, dirs) => {
+  console.log(dirs.tmpDir); // /tmp/magenta-test/abc123/cwd
+  console.log(dirs.homeDir); // /tmp/magenta-test/abc123/home
+  console.log(dirs.baseDir); // /tmp/magenta-test/abc123
+});
+```
+
+**Setting Up Home Directory Files:**
+
+Use `setupHome` to create files in the simulated home directory. This is useful for testing features that read from `~/.magenta/` or other home directory paths:
+
+```typescript
+test("test with home directory config", async () => {
+  await withDriver(
+    {
+      setupHome: async (homeDir) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+        // Create ~/.magenta/options.json
+        const magentaDir = path.join(homeDir, ".magenta");
+        await fs.mkdir(magentaDir, { recursive: true });
+        await fs.writeFile(
+          path.join(magentaDir, "options.json"),
+          JSON.stringify({
+            filePermissions: [{ path: "~/Documents", read: true }],
+          }),
+        );
+      },
+    },
+    async (driver) => {
+      // Magenta will load options from the simulated ~/.magenta/options.json
+    },
+  );
+});
+```
+
+**Setting Up Directories Outside CWD:**
+
+Use `setupExtraDirs` to create directories outside the working directory. This is useful for testing file permission boundaries:
+
+```typescript
+test("test with external directories", async () => {
+  let outsidePath: string;
+
+  await withDriver(
+    {
+      setupExtraDirs: async (baseDir) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+        // Create a directory outside cwd
+        outsidePath = path.join(baseDir, "outside");
+        await fs.mkdir(outsidePath, { recursive: true });
+        await fs.writeFile(path.join(outsidePath, "secret.txt"), "secret");
+      },
+    },
+    async (driver, dirs) => {
+      // outsidePath is outside dirs.tmpDir, so file access should be restricted
+      // unless explicitly permitted via filePermissions
+    },
+  );
+});
+```
+
+**Combined Setup for Permission Testing:**
+
+A common pattern for testing file permissions is to use both `setupExtraDirs` and `setupHome` together:
+
+```typescript
+test("can access external dir with filePermissions", async () => {
+  let outsidePath: string;
+
+  await withDriver(
+    {
+      setupExtraDirs: async (baseDir) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+        outsidePath = path.join(baseDir, "outside");
+        await fs.mkdir(outsidePath, { recursive: true });
+        await fs.writeFile(path.join(outsidePath, "allowed.txt"), "content");
+
+        // Write options.json here since we now have the path
+        const homeDir = path.join(baseDir, "home");
+        const magentaDir = path.join(homeDir, ".magenta");
+        await fs.mkdir(magentaDir, { recursive: true });
+        await fs.writeFile(
+          path.join(magentaDir, "options.json"),
+          JSON.stringify({
+            filePermissions: [{ path: outsidePath, read: true }],
+          }),
+        );
+      },
+    },
+    async (driver) => {
+      // Tools can now access outsidePath due to filePermissions
+    },
+  );
+});
+```
+
 ## Available Mocks & Test Interactions
 
 **Configuring Magenta Options:**

@@ -227,7 +227,7 @@ export async function canReadFile(
     options: MagentaOptions;
   },
 ): Promise<boolean> {
-  const relFilePath = relativePath(context.cwd, absFilePath);
+  const relFilePath = relativePath(context.cwd, absFilePath, context.homeDir);
 
   // Magenta temp files (e.g., bash command logs) are auto-approved for reading
   if (isFileInMagentaTempDirectory(absFilePath)) {

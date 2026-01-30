@@ -6,7 +6,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { getCurrentBuffer, getpos } from "../nvim/nvim.ts";
 import type { Line, BufNr } from "../nvim/buffer.ts";
 import { NvimBuffer } from "../nvim/buffer.ts";
-import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
+import type { NvimCwd, UnresolvedFilePath, HomeDir } from "../utils/files.ts";
 import * as diff from "diff";
 import { getProvider } from "../providers/provider.ts";
 import { type EditPredictionProfile, type MagentaOptions } from "../options.ts";
@@ -93,6 +93,7 @@ export class EditPredictionController {
       nvim: Nvim;
       changeTracker: ChangeTracker;
       cwd: NvimCwd;
+      homeDir: HomeDir;
       options: MagentaOptions;
     },
   ) {
@@ -661,6 +662,7 @@ export class EditPredictionController {
     const bufferRelPath = relativePath(
       this.context.cwd,
       bufferName as UnresolvedFilePath,
+      this.context.homeDir,
     );
 
     // Get all recent changes

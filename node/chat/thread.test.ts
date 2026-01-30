@@ -9,7 +9,9 @@ import { getcwd } from "../nvim/nvim.ts";
 import { $, within } from "zx";
 import type { WebSearchResultBlock } from "@anthropic-ai/sdk/resources.mjs";
 import fs from "node:fs";
+import * as os from "node:os";
 import { resolveFilePath } from "../utils/files.ts";
+import type { HomeDir } from "../utils/files.ts";
 import lodash from "lodash";
 
 /** Sanitize display buffer text for stable snapshots by removing dynamic content */
@@ -1253,6 +1255,7 @@ it("displays deleted context updates correctly", async () => {
     const tempFilePath = resolveFilePath(
       cwd,
       "temp-delete-test.txt" as UnresolvedFilePath,
+      os.homedir() as HomeDir,
     );
     const tempContent = "temporary file content\nfor testing deletion";
     await fs.promises.writeFile(tempFilePath, tempContent);

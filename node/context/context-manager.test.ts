@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 import { withDriver } from "../test/preamble";
 import { pollUntil } from "../utils/async";
 import { getAllWindows, getcwd } from "../nvim/nvim";
-import { resolveFilePath, type UnresolvedFilePath } from "../utils/files";
+import {
+  resolveFilePath,
+  type UnresolvedFilePath,
+  type HomeDir,
+} from "../utils/files";
 import type { Line } from "../nvim/buffer";
 import type { Row0Indexed } from "../nvim/window";
 import type { DiffUpdate, WholeFileUpdate } from "./context-manager";
 import type { ToolRequestId } from "../tools/toolManager";
 import fs from "node:fs";
+import * as os from "node:os";
 import type { ToolName } from "../tools/types";
 import {
   type ProviderImageContent,
@@ -23,7 +28,11 @@ it("returns full file contents on first getContextUpdate and no updates on secon
       driver.magenta.chat.getActiveThread().context.contextManager;
 
     const cwd = await getcwd(driver.nvim);
-    const absFilePath = resolveFilePath(cwd, "poem.txt" as UnresolvedFilePath);
+    const absFilePath = resolveFilePath(
+      cwd,
+      "poem.txt" as UnresolvedFilePath,
+      os.homedir() as HomeDir,
+    );
 
     // Add file to context using the helper method
     await driver.addContextFiles("poem.txt");
@@ -75,7 +84,11 @@ it("returns diff when file is edited in a buffer", async () => {
       driver.magenta.chat.getActiveThread().context.contextManager;
 
     const cwd = await getcwd(driver.nvim);
-    const absFilePath = resolveFilePath(cwd, "poem.txt" as UnresolvedFilePath);
+    const absFilePath = resolveFilePath(
+      cwd,
+      "poem.txt" as UnresolvedFilePath,
+      os.homedir() as HomeDir,
+    );
 
     // Add file to context using the helper method
     await driver.addContextFiles("poem.txt");
@@ -125,7 +138,11 @@ it("returns diff when file is edited on disk", async () => {
       driver.magenta.chat.getActiveThread().context.contextManager;
 
     const cwd = await getcwd(driver.nvim);
-    const absFilePath = resolveFilePath(cwd, "poem.txt" as UnresolvedFilePath);
+    const absFilePath = resolveFilePath(
+      cwd,
+      "poem.txt" as UnresolvedFilePath,
+      os.homedir() as HomeDir,
+    );
 
     // Add file to context using the helper method
     await driver.addContextFiles("poem.txt");
@@ -577,6 +594,7 @@ it("removes deleted files from context during updates", async () => {
     const tempFilePath = resolveFilePath(
       cwd,
       "temp-file.txt" as UnresolvedFilePath,
+      os.homedir() as HomeDir,
     );
 
     // Create a temporary file
@@ -622,6 +640,7 @@ it("handles file deletion during buffer tracking", async () => {
     const tempFilePath = resolveFilePath(
       cwd,
       "temp-tracked.txt" as UnresolvedFilePath,
+      os.homedir() as HomeDir,
     );
 
     // Create a temporary file
@@ -686,7 +705,11 @@ it("adding a binary file sends the initial update. Further messages do not send 
     // First getContextUpdate call should return the initial content
     const firstUpdates = await contextManager.getContextUpdate();
     const cwd = await getcwd(driver.nvim);
-    const absFilePath = resolveFilePath(cwd, "test.jpg" as UnresolvedFilePath);
+    const absFilePath = resolveFilePath(
+      cwd,
+      "test.jpg" as UnresolvedFilePath,
+      os.homedir() as HomeDir,
+    );
 
     expect(firstUpdates[absFilePath]).toBeDefined();
     const firstUpdate = firstUpdates[absFilePath];
@@ -719,7 +742,11 @@ it("removing a binary file on disk removes it from the context and sends a delet
       driver.magenta.chat.getActiveThread().context.contextManager;
 
     const cwd = await getcwd(driver.nvim);
-    const testFilePath = resolveFilePath(cwd, "test.jpg" as UnresolvedFilePath);
+    const testFilePath = resolveFilePath(
+      cwd,
+      "test.jpg" as UnresolvedFilePath,
+      os.homedir() as HomeDir,
+    );
 
     // Add file to context using the helper method
     await driver.addContextFiles("test.jpg");
@@ -807,7 +834,11 @@ it("issuing a getFile request adds the file to the context but doesn't send its 
     // Verify the tool result contains the file content exactly once
     // Now the file should be in context
     const cwd = await getcwd(driver.nvim);
-    const absFilePath = resolveFilePath(cwd, "test.jpg" as UnresolvedFilePath);
+    const absFilePath = resolveFilePath(
+      cwd,
+      "test.jpg" as UnresolvedFilePath,
+      os.homedir() as HomeDir,
+    );
     expect(contextManager.files[absFilePath]).toBeDefined();
     expect(contextManager.files[absFilePath].fileTypeInfo.category).toBe(
       "image",

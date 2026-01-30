@@ -4,6 +4,7 @@ import type { Nvim } from "../nvim/nvim-node";
 import {
   resolveFilePath,
   type AbsFilePath,
+  type HomeDir,
   type NvimCwd,
   type RelFilePath,
   type UnresolvedFilePath,
@@ -14,7 +15,7 @@ export async function getBufferIfOpen({
   context,
 }: {
   unresolvedPath: UnresolvedFilePath | AbsFilePath | RelFilePath;
-  context: { nvim: Nvim; cwd: NvimCwd };
+  context: { nvim: Nvim; cwd: NvimCwd; homeDir: HomeDir };
 }): Promise<
   | { status: "ok"; buffer: NvimBuffer }
   | { status: "error"; error: string }
@@ -22,13 +23,19 @@ export async function getBufferIfOpen({
 > {
   // Get all buffers and nvim's cwd
   const buffers = await getAllBuffers(context.nvim);
-  const absolutePath = resolveFilePath(context.cwd, unresolvedPath);
+  const absolutePath = resolveFilePath(
+    context.cwd,
+    unresolvedPath,
+    context.homeDir,
+  );
 
   // Find buffer with matching path
   for (const buffer of buffers) {
     const bufferName = await buffer.getName();
 
-    if (resolveFilePath(context.cwd, bufferName) === absolutePath) {
+    if (
+      resolveFilePath(context.cwd, bufferName, context.homeDir) === absolutePath
+    ) {
       return { status: "ok", buffer };
     }
   }
@@ -41,7 +48,7 @@ export async function getOrOpenBuffer({
   context,
 }: {
   unresolvedPath: UnresolvedFilePath;
-  context: { nvim: Nvim; cwd: NvimCwd };
+  context: { nvim: Nvim; cwd: NvimCwd; homeDir: HomeDir };
 }): Promise<
   { status: "ok"; buffer: NvimBuffer } | { status: "error"; error: string }
 > {
@@ -59,7 +66,11 @@ export async function getOrOpenBuffer({
     return existingBuffer;
   }
 
-  const absolutePath = resolveFilePath(context.cwd, unresolvedPath);
+  const absolutePath = resolveFilePath(
+    context.cwd,
+    unresolvedPath,
+    context.homeDir,
+  );
 
   try {
     await NvimBuffer.bufadd(absolutePath, context.nvim);

@@ -2,9 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import { CommandRegistry } from "./registry.ts";
 import type { MessageContext } from "./types.ts";
 import type { Nvim } from "../../nvim/nvim-node";
-import type { NvimCwd } from "../../utils/files.ts";
+import type { NvimCwd, HomeDir } from "../../utils/files.ts";
 import type { ContextManager } from "../../context/context-manager.ts";
 import type { MagentaOptions } from "../../options.ts";
+import os from "os";
 
 // Mock the dependencies used by commands
 vi.mock("../../utils/diagnostics.ts", () => ({
@@ -49,6 +50,7 @@ const createMockContext = (): MessageContext => {
       },
     } as unknown as Nvim,
     cwd: "/test" as NvimCwd,
+    homeDir: os.homedir() as HomeDir,
     contextManager: {
       update: updateFn,
     } as unknown as ContextManager,

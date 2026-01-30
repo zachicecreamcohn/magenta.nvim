@@ -922,6 +922,7 @@ ${formattedOutput}
       getDisplayWidth: this.context.getDisplayWidth.bind(this.context),
       nvim: this.context.nvim,
       cwd: this.context.cwd,
+      homeDir: this.context.homeDir,
       options: this.context.options,
     };
 
@@ -994,6 +995,7 @@ export type RenderContext = {
   getDisplayWidth: () => number;
   nvim: Nvim;
   cwd: NvimCwd;
+  homeDir: HomeDir;
   options: MagentaOptions;
 };
 

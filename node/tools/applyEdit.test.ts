@@ -5,8 +5,9 @@ import type { ToolName } from "./types";
 import * as path from "path";
 import { getCurrentBuffer, getcwd } from "../nvim/nvim";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import { type Line } from "../nvim/buffer";
-import type { AbsFilePath, UnresolvedFilePath } from "../utils/files";
+import type { AbsFilePath, UnresolvedFilePath, HomeDir } from "../utils/files";
 import { applyEdit } from "./applyEdit";
 import type { Row0Indexed } from "../nvim/window";
 
@@ -464,6 +465,7 @@ Paint their stories in the night.
         threadId,
         {
           cwd,
+          homeDir: os.homedir() as HomeDir,
           nvim: driver.nvim,
           bufferTracker: driver.magenta.bufferTracker,
           myDispatch,
@@ -549,6 +551,7 @@ Paint their stories in the night.
         {
           nvim: driver.nvim,
           cwd,
+          homeDir: os.homedir() as HomeDir,
           bufferTracker: driver.magenta.bufferTracker,
           myDispatch,
           dispatch,

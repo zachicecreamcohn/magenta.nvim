@@ -17,6 +17,7 @@ import {
   relativePath,
   type NvimCwd,
   type UnresolvedFilePath,
+  type HomeDir,
 } from "../utils/files.ts";
 import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
 
@@ -44,6 +45,7 @@ export class FindReferencesTool implements StaticTool {
     public context: {
       nvim: Nvim;
       cwd: NvimCwd;
+      homeDir: HomeDir;
       lsp: Lsp;
       myDispatch: (msg: Msg) => void;
     },
@@ -110,11 +112,11 @@ export class FindReferencesTool implements StaticTool {
   }
 
   async findReferences() {
-    const { lsp, nvim, cwd } = this.context;
+    const { lsp, nvim, cwd, homeDir } = this.context;
     const filePath = this.request.input.filePath;
     const bufferResult = await getOrOpenBuffer({
       unresolvedPath: filePath,
-      context: { nvim, cwd },
+      context: { nvim, cwd, homeDir },
     });
 
     if (this.aborted) return;
@@ -177,6 +179,7 @@ export class FindReferencesTool implements StaticTool {
             const relFilePath = relativePath(
               this.context.cwd,
               uri as UnresolvedFilePath,
+              this.context.homeDir,
             );
             content += `${relFilePath}:${ref.range.start.line + 1}:${ref.range.start.character}\n`;
           }

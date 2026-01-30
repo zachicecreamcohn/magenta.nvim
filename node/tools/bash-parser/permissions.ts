@@ -197,6 +197,7 @@ function canReadPath(
   const absPath = resolveFilePath(
     currentCwd,
     expandedPath as UnresolvedFilePath,
+    homeDir,
   );
 
   // Magenta temp files (e.g., bash command logs) are always safe
@@ -252,6 +253,7 @@ function canWritePath(
   const absPath = resolveFilePath(
     currentCwd,
     expandedPath as UnresolvedFilePath,
+    homeDir,
   );
 
   // Get effective permissions from filePermissions config
@@ -334,6 +336,7 @@ function isWithinSkillsDir(
   const resolvedScript = resolveFilePath(
     cwd,
     expandedScriptPath as UnresolvedFilePath,
+    homeDir,
   );
 
   for (const skillsPath of skillsPaths) {
@@ -341,6 +344,7 @@ function isWithinSkillsDir(
     const resolvedSkillsPath = resolveFilePath(
       cwd,
       expandedSkillsPath as UnresolvedFilePath,
+      homeDir,
     );
 
     const normalizedSkillsPath = resolvedSkillsPath.endsWith(path.sep)
@@ -366,6 +370,7 @@ function isExecutableScript(
     const resolvedPath = resolveFilePath(
       cwd,
       expandedPath as UnresolvedFilePath,
+      homeDir,
     );
     const stats = fs.statSync(resolvedPath);
     return stats.isFile();
@@ -885,7 +890,11 @@ function processCdCommand(
 
   const targetDir = command.args[0];
   const expandedDir = expandTilde(targetDir, homeDir);
-  const newCwd = resolveFilePath(currentCwd, expandedDir as UnresolvedFilePath);
+  const newCwd = resolveFilePath(
+    currentCwd,
+    expandedDir as UnresolvedFilePath,
+    homeDir,
+  );
 
   return newCwd as NvimCwd;
 }

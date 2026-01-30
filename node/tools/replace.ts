@@ -111,7 +111,11 @@ export class ReplaceTool implements StaticTool {
 
   private initReplace(): void {
     const filePath = this.request.input.filePath;
-    const absFilePath = resolveFilePath(this.context.cwd, filePath);
+    const absFilePath = resolveFilePath(
+      this.context.cwd,
+      filePath,
+      this.context.homeDir,
+    );
 
     if (this.state.state === "pending") {
       const allowed = canWriteFile(absFilePath, this.context);

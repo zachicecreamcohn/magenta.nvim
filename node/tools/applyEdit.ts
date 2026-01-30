@@ -12,6 +12,7 @@ import {
   resolveFilePath,
   type AbsFilePath,
   type NvimCwd,
+  type HomeDir,
   FileCategory,
 } from "../utils/files.ts";
 import { applyInsert, applyReplace } from "../utils/contentEdits.ts";
@@ -30,6 +31,7 @@ type Msg = {
 type EditContext = {
   nvim: Nvim;
   cwd: NvimCwd;
+  homeDir: HomeDir;
   bufferTracker: BufferTracker;
   myDispatch: Dispatch<Msg>;
   dispatch: Dispatch<RootMsg>;
@@ -174,8 +176,8 @@ async function handleFileEdit(
 ): Promise<void> {
   const { myDispatch } = context;
   const { filePath } = request.input;
-  const absFilePath = resolveFilePath(context.cwd, filePath);
-  const relFilePath = relativePath(context.cwd, absFilePath);
+  const absFilePath = resolveFilePath(context.cwd, filePath, context.homeDir);
+  const relFilePath = relativePath(context.cwd, absFilePath, context.homeDir);
 
   if (request.toolName === "insert" && request.input.insertAfter === "") {
     try {
@@ -330,7 +332,7 @@ export async function applyEdit(
 
   const bufferOpenResult = await getBufferIfOpen({
     unresolvedPath: filePath,
-    context: { nvim, cwd },
+    context: { nvim, cwd, homeDir: context.homeDir },
   });
 
   if (bufferOpenResult.status === "error") {
@@ -344,7 +346,7 @@ export async function applyEdit(
     return;
   }
 
-  const absFilePath = resolveFilePath(cwd, filePath);
+  const absFilePath = resolveFilePath(cwd, filePath, context.homeDir);
 
   const notifyApplied = () =>
     dispatch({

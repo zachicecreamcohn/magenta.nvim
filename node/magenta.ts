@@ -68,7 +68,12 @@ export class Magenta {
     public options: MagentaOptions,
   ) {
     this.bufferTracker = new BufferTracker(this.nvim);
-    this.changeTracker = new ChangeTracker(this.nvim, this.cwd, this.options);
+    this.changeTracker = new ChangeTracker(
+      this.nvim,
+      this.cwd,
+      this.homeDir,
+      this.options,
+    );
 
     this.dispatch = (msg: RootMsg) => {
       try {
@@ -117,6 +122,7 @@ export class Magenta {
         nvim: this.nvim,
         changeTracker: this.changeTracker,
         cwd: this.cwd,
+        homeDir: this.homeDir,
         options: this.options,
       },
     );
@@ -147,6 +153,7 @@ export class Magenta {
     this.inlineEditManager = new InlineEditManager({
       nvim,
       cwd: this.cwd,
+      homeDir: this.homeDir,
       options,
       getContextAgent: () => this.chat.getContextAgent(),
     });
@@ -256,8 +263,9 @@ export class Magenta {
           const absFilePath = resolveFilePath(
             this.cwd,
             filePath as UnresolvedFilePath,
+            this.homeDir,
           );
-          const relFilePath = relativePath(this.cwd, absFilePath);
+          const relFilePath = relativePath(this.cwd, absFilePath, this.homeDir);
           const fileTypeInfo = await detectFileType(absFilePath);
           if (!fileTypeInfo) {
             this.nvim.logger.error(`File ${filePath} does not exist.`);
@@ -404,6 +412,7 @@ export class Magenta {
         const relFileName = relativePath(
           this.cwd,
           await currentBuffer.getName(),
+          this.homeDir,
         );
         const content = `
 Here is a snippet from the file \`${relFileName}\`

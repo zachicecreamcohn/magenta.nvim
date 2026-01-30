@@ -1,6 +1,5 @@
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
-import * as os from "node:os";
 import { fileTypeFromFile } from "file-type";
 import { lookup } from "mime-types";
 
@@ -39,12 +38,11 @@ export function expandTilde(filepath: string, homeDir: HomeDir): string {
 export function resolveFilePath(
   cwd: NvimCwd,
   filePath: UnresolvedFilePath | AbsFilePath | RelFilePath,
-  homeDir?: HomeDir,
+  homeDir: HomeDir,
 ) {
   let expandedPath = filePath as string;
   if (expandedPath.startsWith("~/") || expandedPath === "~") {
-    const home = homeDir ?? (os.homedir() as HomeDir);
-    expandedPath = path.join(home, expandedPath.slice(1));
+    expandedPath = path.join(homeDir, expandedPath.slice(1));
   }
   return path.resolve(cwd, expandedPath) as AbsFilePath;
 }
@@ -52,8 +50,9 @@ export function resolveFilePath(
 export function relativePath(
   cwd: NvimCwd,
   filePath: UnresolvedFilePath | AbsFilePath,
+  homeDir: HomeDir,
 ) {
-  const absPath = resolveFilePath(cwd, filePath);
+  const absPath = resolveFilePath(cwd, filePath, homeDir);
   return path.relative(cwd, absPath) as RelFilePath;
 }
 // File size limits in bytes

@@ -249,7 +249,11 @@ export class Thread {
         msg,
       });
 
-    this.fileSnapshots = new FileSnapshots(this.context.nvim, this.context.cwd);
+    this.fileSnapshots = new FileSnapshots(
+      this.context.nvim,
+      this.context.cwd,
+      this.context.homeDir,
+    );
     this.contextManager = this.context.contextManager;
 
     this.commandRegistry = new CommandRegistry();
@@ -421,6 +425,7 @@ export class Thread {
           unresolvedFilePath: msg.filePath as UnresolvedFilePath,
           nvim: this.context.nvim,
           cwd: this.context.cwd,
+          homeDir: this.context.homeDir,
           fileSnapshots: this.fileSnapshots,
           getDisplayWidth: this.context.getDisplayWidth,
         }).catch((e: Error) => this.context.nvim.logger.error(e.message));
@@ -540,6 +545,7 @@ export class Thread {
         const filePath = relativePath(
           this.context.cwd,
           input.filePath as UnresolvedFilePath,
+          this.context.homeDir,
         );
 
         if (!this.state.currentEdits[filePath]) {
@@ -676,6 +682,7 @@ export class Thread {
       {
         dispatch: this.context.dispatch,
         cwd: this.context.cwd,
+        homeDir: this.context.homeDir,
         nvim: this.context.nvim,
         options: this.context.options,
         bufferTracker: this.context.bufferTracker,
@@ -1145,6 +1152,7 @@ export class Thread {
           await this.commandRegistry.processMessage(m.text, {
             nvim: this.context.nvim,
             cwd: this.context.cwd,
+            homeDir: this.context.homeDir,
             contextManager: this.contextManager,
             options: this.context.options,
           });
@@ -1747,6 +1755,7 @@ function renderMessageContent(
         getDisplayWidth: thread.context.getDisplayWidth,
         nvim: thread.context.nvim,
         cwd: thread.context.cwd,
+        homeDir: thread.context.homeDir,
         options: thread.context.options,
       };
 

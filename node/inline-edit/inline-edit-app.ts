@@ -25,7 +25,12 @@ import {
 } from "../tools/replace-selection-tool";
 import { spec as inlineEditSpec } from "../tools/inline-edit-tool";
 import type { Dispatch } from "../tea/tea";
-import { relativePath, resolveFilePath, type NvimCwd } from "../utils/files";
+import {
+  relativePath,
+  resolveFilePath,
+  type NvimCwd,
+  type HomeDir,
+} from "../utils/files";
 import {
   getActiveProfile,
   type MagentaOptions,
@@ -52,6 +57,7 @@ export type InlineEditState = {
 export class InlineEditManager {
   private nvim: Nvim;
   private cwd: NvimCwd;
+  private homeDir: HomeDir;
   private inlineEdits: {
     [bufnr: BufNr]: InlineEditState;
   } = {};
@@ -61,16 +67,19 @@ export class InlineEditManager {
   constructor({
     nvim,
     cwd,
+    homeDir,
     options,
     getContextAgent,
   }: {
     nvim: Nvim;
     cwd: NvimCwd;
+    homeDir: HomeDir;
     options: MagentaOptions;
     getContextAgent: () => Agent | undefined;
   }) {
     this.nvim = nvim;
     this.cwd = cwd;
+    this.homeDir = homeDir;
     this.options = options;
     this.getContextAgent = getContextAgent;
   }
@@ -408,7 +417,7 @@ export class InlineEditManager {
         {
           type: "text",
           text: `\
-I am working in file \`${relativePath(this.cwd, resolveFilePath(this.cwd, bufferName))}\` with the following contents:
+I am working in file \`${relativePath(this.cwd, resolveFilePath(this.cwd, bufferName, this.homeDir), this.homeDir)}\` with the following contents:
 \`\`\`${getMarkdownExt(bufferName)}
 ${targetLines.join("\n")}
 \`\`\`

@@ -3,8 +3,13 @@ import { withDriver } from "../test/preamble";
 import { FileSnapshots } from "./file-snapshots";
 import * as path from "path";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import { getcwd } from "../nvim/nvim";
-import type { AbsFilePath, UnresolvedFilePath } from "../utils/files.ts";
+import type {
+  AbsFilePath,
+  HomeDir,
+  UnresolvedFilePath,
+} from "../utils/files.ts";
 
 describe("FileSnapshots", () => {
   it("should create a snapshot for a file that exists", async () => {
@@ -14,7 +19,11 @@ describe("FileSnapshots", () => {
       const fileContent = "This is a test file content";
       fs.writeFileSync(filePath, fileContent);
 
-      const fileSnapshots = new FileSnapshots(driver.nvim, cwd);
+      const fileSnapshots = new FileSnapshots(
+        driver.nvim,
+        cwd,
+        os.homedir() as HomeDir,
+      );
       const turn = fileSnapshots.startNewTurn();
 
       const result = await fileSnapshots.willEditFile(
@@ -34,7 +43,11 @@ describe("FileSnapshots", () => {
       const cwd = await getcwd(driver.nvim);
       const nonExistentPath = path.join(cwd, "non-existent.txt");
 
-      const fileSnapshots = new FileSnapshots(driver.nvim, cwd);
+      const fileSnapshots = new FileSnapshots(
+        driver.nvim,
+        cwd,
+        os.homedir() as HomeDir,
+      );
       const turn = fileSnapshots.startNewTurn();
 
       const result = await fileSnapshots.willEditFile(
@@ -59,7 +72,11 @@ describe("FileSnapshots", () => {
       const fileContent = "Original content";
       fs.writeFileSync(filePath, fileContent);
 
-      const fileSnapshots = new FileSnapshots(driver.nvim, cwd);
+      const fileSnapshots = new FileSnapshots(
+        driver.nvim,
+        cwd,
+        os.homedir() as HomeDir,
+      );
       const turn = fileSnapshots.startNewTurn();
 
       // First snapshot
@@ -90,7 +107,11 @@ describe("FileSnapshots", () => {
       const initialContent = "Initial content";
       fs.writeFileSync(filePath, initialContent);
 
-      const fileSnapshots = new FileSnapshots(driver.nvim, cwd);
+      const fileSnapshots = new FileSnapshots(
+        driver.nvim,
+        cwd,
+        os.homedir() as HomeDir,
+      );
 
       // First turn
       const turn1 = fileSnapshots.startNewTurn();
@@ -127,7 +148,11 @@ describe("FileSnapshots", () => {
       fs.writeFileSync(file1, "File 1 content");
       fs.writeFileSync(file2, "File 2 content");
 
-      const fileSnapshots = new FileSnapshots(driver.nvim, cwd);
+      const fileSnapshots = new FileSnapshots(
+        driver.nvim,
+        cwd,
+        os.homedir() as HomeDir,
+      );
 
       // First turn
       const turn1 = fileSnapshots.startNewTurn();
@@ -162,7 +187,11 @@ describe("FileSnapshots", () => {
       fs.writeFileSync(file1, "File 1 content");
       fs.writeFileSync(file2, "File 2 content");
 
-      const fileSnapshots = new FileSnapshots(driver.nvim, cwd);
+      const fileSnapshots = new FileSnapshots(
+        driver.nvim,
+        cwd,
+        os.homedir() as HomeDir,
+      );
 
       // First turn
       const turn1 = fileSnapshots.startNewTurn();
@@ -200,7 +229,11 @@ describe("FileSnapshots", () => {
       await driver.command("normal! ggdGiBuffer content that is different");
 
       // Create FileSnapshots instance
-      const fileSnapshots = new FileSnapshots(driver.nvim, cwd);
+      const fileSnapshots = new FileSnapshots(
+        driver.nvim,
+        cwd,
+        os.homedir() as HomeDir,
+      );
       const turn = fileSnapshots.startNewTurn();
 
       // Create snapshot - should use buffer content, not file content
@@ -223,7 +256,11 @@ describe("FileSnapshots", () => {
       const fileContent = "Test content";
       fs.writeFileSync(filePath, fileContent);
 
-      const fileSnapshots = new FileSnapshots(driver.nvim, cwd);
+      const fileSnapshots = new FileSnapshots(
+        driver.nvim,
+        cwd,
+        os.homedir() as HomeDir,
+      );
       fileSnapshots.startNewTurn();
 
       await fileSnapshots.willEditFile(filePath as UnresolvedFilePath);
