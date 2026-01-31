@@ -6,20 +6,29 @@ import type { Result } from "../utils/result.ts";
 import type { CompletedToolInfo } from "./types.ts";
 
 import type { Nvim } from "../nvim/nvim-node";
-import { readGitignoreSync } from "./util.ts";
+import { readAllGitignoresSync, readGitignoreForPath } from "./util.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
+import type {
+  StaticTool,
+  ToolName,
+  GenericToolRequest,
+  DisplayContext,
+} from "./types.ts";
 import {
   relativePath,
   resolveFilePath,
+  displayPath,
   type AbsFilePath,
+  type HomeDir,
   type NvimCwd,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
+import { canReadFile } from "./permissions.ts";
+import type { MagentaOptions } from "../options.ts";
 
 export type ToolRequest = GenericToolRequest<"list_directory", Input>;
 
@@ -39,9 +48,25 @@ export type Msg = {
 
 async function listDirectoryBFS(
   startPath: AbsFilePath,
-  cwd: NvimCwd,
+  context: {
+    cwd: NvimCwd;
+    homeDir: HomeDir;
+    nvim: Nvim;
+    options: MagentaOptions;
+  },
+  includeGitignored: boolean = false,
 ): Promise<string[]> {
-  const ig = readGitignoreSync(cwd);
+  // Determine if we're listing inside or outside cwd
+  const relToStart = relativePath(context.cwd, startPath, context.homeDir);
+  const isOutsideCwd = relToStart.startsWith("../");
+
+  // Use appropriate gitignore: cwd's gitignore for inside, or walk up from startPath for outside
+  const ig = includeGitignored
+    ? null
+    : isOutsideCwd
+      ? readGitignoreForPath(startPath)
+      : readAllGitignoresSync(context.cwd);
+
   const queue: string[] = [startPath];
   const results: string[] = [];
   const seen = new Set<string>();
@@ -54,16 +79,28 @@ async function listDirectoryBFS(
     });
 
     for (const entry of entries) {
-      const fullPath = path.join(currentPath, entry.name) as UnresolvedFilePath;
-      const relFilePath = relativePath(cwd, fullPath);
+      const fullPath = path.join(currentPath, entry.name) as AbsFilePath;
 
-      // Skip hidden files and respected gitignored files
-      if (entry.name.startsWith(".") || ig.ignores(relFilePath)) {
-        continue;
+      // Check gitignore if not including gitignored files
+      if (ig) {
+        // For gitignore checking, use path relative to the appropriate base
+        let relForIgnore: string = isOutsideCwd
+          ? relativePath(startPath as NvimCwd, fullPath, context.homeDir)
+          : relativePath(context.cwd, fullPath, context.homeDir);
+
+        // Append trailing slash for directories (required for patterns like "build/")
+        if (entry.isDirectory()) {
+          relForIgnore = relForIgnore + "/";
+        }
+
+        // Check gitignore (only if not a ../ path, which can happen in edge cases)
+        if (!relForIgnore.startsWith("../") && ig.ignores(relForIgnore)) {
+          continue;
+        }
       }
 
-      // Skip files outside of cwd
-      if (!fullPath.startsWith(cwd)) {
+      // Check if we have read permissions for this path
+      if (!(await canReadFile(fullPath, context))) {
         continue;
       }
 
@@ -71,10 +108,10 @@ async function listDirectoryBFS(
         seen.add(fullPath);
 
         if (entry.isDirectory()) {
-          results.push(relFilePath + "/");
+          results.push(fullPath + "/");
           queue.push(fullPath);
         } else {
-          results.push(relFilePath);
+          results.push(fullPath);
         }
       }
     }
@@ -94,6 +131,8 @@ export class ListDirectoryTool implements StaticTool {
     public context: {
       nvim: Nvim;
       cwd: NvimCwd;
+      homeDir: HomeDir;
+      options: MagentaOptions;
       myDispatch: (msg: Msg) => void;
     },
   ) {
@@ -161,21 +200,31 @@ export class ListDirectoryTool implements StaticTool {
   async listDirectory() {
     try {
       const dirPath = (this.request.input.dirPath || ".") as UnresolvedFilePath;
-      const absolutePath = resolveFilePath(this.context.cwd, dirPath);
+      const absolutePath = resolveFilePath(
+        this.context.cwd,
+        dirPath,
+        this.context.homeDir,
+      );
+      const includeGitignored = this.request.input.includeGitignored ?? false;
 
-      if (!absolutePath.startsWith(this.context.cwd)) {
+      // Check if we have read permissions for the starting directory
+      if (!(await canReadFile(absolutePath, this.context))) {
         if (this.aborted) return;
         this.context.myDispatch({
           type: "finish",
           result: {
             status: "error",
-            error: `The path \`${absolutePath}\` must be inside of neovim cwd \`${this.context.cwd}\``,
+            error: `No read permission for directory \`${absolutePath}\``,
           },
         });
         return;
       }
 
-      const files = await listDirectoryBFS(absolutePath, this.context.cwd);
+      const files = await listDirectoryBFS(
+        absolutePath,
+        this.context,
+        includeGitignored,
+      );
       if (this.aborted) return;
       this.context.nvim.logger.debug(`files: ${files.join("\n")}`);
       this.context.myDispatch({
@@ -221,14 +270,31 @@ export class ListDirectoryTool implements StaticTool {
   }
 
   renderSummary() {
+    const displayContext = {
+      cwd: this.context.cwd,
+      homeDir: this.context.homeDir,
+    };
+    const absFilePath = resolveFilePath(
+      this.context.cwd,
+      (this.request.input.dirPath || ".") as UnresolvedFilePath,
+      this.context.homeDir,
+    );
+    const pathForDisplay = displayPath(
+      this.context.cwd,
+      absFilePath,
+      this.context.homeDir,
+    );
     switch (this.state.state) {
       case "processing":
-        return d`📁⚙️ list_directory ${withInlineCode(d`\`${this.request.input.dirPath || "."}\``)}`;
+        return d`📁⚙️ list_directory ${withInlineCode(d`\`${pathForDisplay}\``)}`;
       case "done":
-        return renderCompletedSummary({
-          request: this.request as CompletedToolInfo["request"],
-          result: this.state.result,
-        });
+        return renderCompletedSummary(
+          {
+            request: this.request as CompletedToolInfo["request"],
+            result: this.state.result,
+          },
+          displayContext,
+        );
       default:
         assertUnreachable(this.state);
     }
@@ -249,21 +315,38 @@ function getStatusEmoji(result: CompletedToolInfo["result"]): string {
   return isError(result) ? "❌" : "✅";
 }
 
-export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+export function renderCompletedSummary(
+  info: CompletedToolInfo,
+  displayContext: DisplayContext,
+): VDOMNode {
   const input = info.request.input as Input;
   const status = getStatusEmoji(info.result);
-  return d`📁${status} list_directory ${withInlineCode(d`\`${input.dirPath || "."}\``)}`;
+  const absFilePath = resolveFilePath(
+    displayContext.cwd,
+    (input.dirPath || ".") as UnresolvedFilePath,
+    displayContext.homeDir,
+  );
+  const pathForDisplay = displayPath(
+    displayContext.cwd,
+    absFilePath,
+    displayContext.homeDir,
+  );
+  return d`📁${status} list_directory ${withInlineCode(d`\`${pathForDisplay}\``)}`;
 }
 
 export const spec: ProviderToolSpec = {
   name: "list_directory" as ToolName,
-  description: `List up to 100 files in a directory using breadth-first search, respecting .gitignore and hidden files.`,
+  description: `List up to 100 files in a directory using breadth-first search. By default, respects .gitignore files (checks the directory and all parent directories up to the git root, just like git does). Hidden files require explicit read permissions.`,
   input_schema: {
     type: "object",
     properties: {
       dirPath: {
         type: "string",
-        description: `The directory path relative to cwd. Use "." to list whole directory.`,
+        description: `The directory path. Prefer absolute paths. Relative paths are resolved from the project root. Use "." to list whole directory.`,
+      },
+      includeGitignored: {
+        type: "boolean",
+        description: `If true, include files that would normally be excluded by .gitignore. Default is false.`,
       },
     },
     required: ["dirPath"],
@@ -272,6 +355,7 @@ export const spec: ProviderToolSpec = {
 
 export type Input = {
   dirPath?: string;
+  includeGitignored?: boolean;
 };
 
 export function validateInput(input: {
@@ -281,6 +365,16 @@ export function validateInput(input: {
     return {
       status: "error",
       error: "expected req.input.dirPath to be a string if provided",
+    };
+  }
+
+  if (
+    input.includeGitignored !== undefined &&
+    typeof input.includeGitignored !== "boolean"
+  ) {
+    return {
+      status: "error",
+      error: "expected req.input.includeGitignored to be a boolean if provided",
     };
   }
 

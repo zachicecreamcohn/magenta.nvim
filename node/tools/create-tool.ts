@@ -30,8 +30,7 @@ import type {
   StaticTool,
 } from "./types.ts";
 import type { ThreadId } from "../chat/types.ts";
-import type { NvimCwd } from "../utils/files.ts";
-import type { Gitignore } from "./util.ts";
+import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { ContextManager } from "../context/context-manager.ts";
 import type { Msg as ThreadMsg } from "../chat/thread.ts";
@@ -49,9 +48,9 @@ export type CreateToolContext = {
   lsp: Lsp;
   mcpToolManager: MCPToolManager;
   cwd: NvimCwd;
+  homeDir: HomeDir;
   options: MagentaOptions;
   chat: Chat;
-  gitignore: Gitignore;
   contextManager: ContextManager;
   threadDispatch: Dispatch<ThreadMsg>;
 };
@@ -109,8 +108,8 @@ export function createTool(
       return new GetFile.GetFileTool(staticRequest, {
         nvim: context.nvim,
         cwd: context.cwd,
+        homeDir: context.homeDir,
         options: context.options,
-        gitignore: context.gitignore,
         contextManager: context.contextManager,
         threadDispatch: context.threadDispatch,
         myDispatch: wrapDispatch,

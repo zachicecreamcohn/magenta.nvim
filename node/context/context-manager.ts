@@ -11,7 +11,9 @@ import type { Row0Indexed } from "../nvim/window";
 import {
   relativePath,
   resolveFilePath,
+  displayPath,
   type AbsFilePath,
+  type HomeDir,
   type NvimCwd,
   type RelFilePath,
   type UnresolvedFilePath,
@@ -136,6 +138,7 @@ export class ContextManager {
     public myDispatch: Dispatch<Msg>,
     private context: {
       cwd: NvimCwd;
+      homeDir: HomeDir;
       dispatch: Dispatch<RootMsg>;
       bufferTracker: BufferTracker;
       nvim: Nvim;
@@ -151,6 +154,7 @@ export class ContextManager {
     context: {
       dispatch: Dispatch<RootMsg>;
       cwd: NvimCwd;
+      homeDir: HomeDir;
       nvim: Nvim;
       options: MagentaOptions;
       bufferTracker: BufferTracker;
@@ -159,6 +163,7 @@ export class ContextManager {
     const initialFiles = await ContextManager.loadAutoContext(
       context.nvim,
       context.cwd,
+      context.homeDir,
       context.options,
     );
     return new ContextManager(myDispatch, context, initialFiles);
@@ -169,8 +174,16 @@ export class ContextManager {
    */
   async addFiles(filePaths: UnresolvedFilePath[]): Promise<void> {
     for (const filePath of filePaths) {
-      const absFilePath = resolveFilePath(this.context.cwd, filePath);
-      const relFilePath = relativePath(this.context.cwd, absFilePath);
+      const absFilePath = resolveFilePath(
+        this.context.cwd,
+        filePath,
+        this.context.homeDir,
+      );
+      const relFilePath = relativePath(
+        this.context.cwd,
+        absFilePath,
+        this.context.homeDir,
+      );
 
       const fileTypeInfo = await detectFileType(absFilePath);
       if (!fileTypeInfo) {
@@ -239,6 +252,7 @@ export class ContextManager {
           openFileInNonMagentaWindow(msg.absFilePath, {
             nvim: this.context.nvim,
             cwd: this.context.cwd,
+            homeDir: this.context.homeDir,
             options: this.context.options,
           }).catch((e: Error) => this.context.nvim.logger.error(e.message));
         }
@@ -247,7 +261,11 @@ export class ContextManager {
       }
 
       case "tool-applied": {
-        const relFilePath = relativePath(this.context.cwd, msg.absFilePath);
+        const relFilePath = relativePath(
+          this.context.cwd,
+          msg.absFilePath,
+          this.context.homeDir,
+        );
 
         // make sure we add the file to context
         if (!this.files[msg.absFilePath]) {
@@ -414,7 +432,11 @@ export class ContextManager {
   }: {
     absFilePath: AbsFilePath;
   }): Promise<FileUpdates[keyof FileUpdates] | undefined> {
-    const relFilePath = relativePath(this.context.cwd, absFilePath);
+    const relFilePath = relativePath(
+      this.context.cwd,
+      absFilePath,
+      this.context.homeDir,
+    );
     const fileInfo = this.files[absFilePath];
 
     if (!fileInfo) {
@@ -601,10 +623,8 @@ export class ContextManager {
             if (!fileInfo.agentView.summary) {
               // Generate PDF summary and update agent view
               try {
-                const summaryResult = await getSummaryAsProviderContent(
-                  absFilePath,
-                  relFilePath,
-                );
+                const summaryResult =
+                  await getSummaryAsProviderContent(absFilePath);
                 if (summaryResult.status === "ok") {
                   fileInfo.agentView.summary = true;
 
@@ -648,10 +668,8 @@ export class ContextManager {
         if (fileInfo.fileTypeInfo.category == FileCategory.PDF) {
           // Generate PDF summary and create the pdf agentView with summary = true
           try {
-            const summaryResult = await getSummaryAsProviderContent(
-              absFilePath,
-              relFilePath,
-            );
+            const summaryResult =
+              await getSummaryAsProviderContent(absFilePath);
             if (summaryResult.status === "ok") {
               fileInfo.agentView = {
                 type: "pdf",
@@ -752,6 +770,7 @@ export class ContextManager {
   private static async loadAutoContext(
     nvim: Nvim,
     cwd: NvimCwd,
+    homeDir: HomeDir,
     options: MagentaOptions,
   ): Promise<Files> {
     const files: Files = {};
@@ -765,6 +784,7 @@ export class ContextManager {
         options.autoContext,
         cwd,
         nvim,
+        homeDir,
       );
 
       const filteredFiles = await this.filterSupportedFiles(matchedFiles, nvim);
@@ -790,6 +810,7 @@ export class ContextManager {
     globPatterns: string[],
     cwd: NvimCwd,
     nvim: Nvim,
+    homeDir: HomeDir,
   ): Promise<Array<{ absFilePath: AbsFilePath; relFilePath: RelFilePath }>> {
     const allMatchedPaths: Array<{
       absFilePath: AbsFilePath;
@@ -810,11 +831,12 @@ export class ContextManager {
             const absFilePath = resolveFilePath(
               cwd,
               match as UnresolvedFilePath,
+              homeDir,
             );
             if (fs.existsSync(absFilePath)) {
               allMatchedPaths.push({
                 absFilePath,
-                relFilePath: relativePath(cwd, absFilePath),
+                relFilePath: relativePath(cwd, absFilePath, homeDir),
               });
             }
           }
@@ -906,6 +928,11 @@ export class ContextManager {
 
     for (const absFilePath in this.files) {
       const fileInfo = this.files[absFilePath as AbsFilePath];
+      const pathForDisplay = displayPath(
+        this.context.cwd,
+        absFilePath as AbsFilePath,
+        this.context.homeDir,
+      );
 
       // Add PDF information if available
       const pdfInfo =
@@ -918,7 +945,7 @@ export class ContextManager {
 
       fileContext.push(
         withBindings(
-          d`- ${withInlineCode(d`\`${fileInfo.relFilePath}\`${pdfInfo}`)}\n`,
+          d`- ${withInlineCode(d`\`${pathForDisplay}\`${pdfInfo}`)}\n`,
           {
             dd: () =>
               this.myDispatch({
@@ -1047,8 +1074,14 @@ ${fileContext}`;
               })
             : "";
 
+        const pathForDisplay = displayPath(
+          this.context.cwd,
+          absFilePath,
+          this.context.homeDir,
+        );
+
         const filePathLink = withBindings(
-          d`- \`${update.relFilePath}\`${pdfInfo}`,
+          d`- \`${pathForDisplay}\`${pdfInfo}`,
           {
             "<CR>": () =>
               this.myDispatch({
@@ -1091,7 +1124,7 @@ ${fileContext}`;
           }
           case "diff": {
             textParts.push(`\
-- \`${update.relFilePath}\`
+- \`${absFilePath}\`
 \`\`\`diff
 ${update.update.value.patch}
 \`\`\``);
@@ -1099,7 +1132,7 @@ ${update.update.value.patch}
           }
           case "file-deleted": {
             textParts.push(`\
-- \`${update.relFilePath}\`
+- \`${absFilePath}\`
 This file has been deleted and removed from context.`);
             break;
           }
@@ -1108,7 +1141,7 @@ This file has been deleted and removed from context.`);
         }
       } else {
         textParts.push(`\
-- \`${update.relFilePath}\`
+- \`${absFilePath}\`
 Error fetching update: ${update.update.error}`);
       }
     }

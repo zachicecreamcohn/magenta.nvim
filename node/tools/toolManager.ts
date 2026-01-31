@@ -18,12 +18,14 @@ import * as Compact from "./compact.ts";
 
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
+import type { HomeDir } from "../utils/files.ts";
 import type {
   ToolMsg,
   ToolRequestId,
   ToolRequest,
   ToolManagerToolMsg,
   CompletedToolInfo,
+  DisplayContext,
 } from "./types.ts";
 import type {
   ProviderToolSpec,
@@ -226,6 +228,7 @@ type RenderContext = {
   getDisplayWidth: () => number;
   nvim: import("../nvim/nvim-node").Nvim;
   cwd: import("../utils/files.ts").NvimCwd;
+  homeDir: HomeDir;
   options: import("../options.ts").MagentaOptions;
 };
 
@@ -240,6 +243,7 @@ function getStatusEmoji(result: ProviderToolResult): string {
 export function renderCompletedToolSummary(
   info: CompletedToolInfo,
   dispatch: Dispatch<RootMsg>,
+  displayContext: DisplayContext,
 ): VDOMNode {
   const toolName = info.request.toolName as StaticToolName;
 
@@ -249,19 +253,19 @@ export function renderCompletedToolSummary(
 
   switch (toolName) {
     case "get_file":
-      return GetFile.renderCompletedSummary(info);
+      return GetFile.renderCompletedSummary(info, displayContext);
     case "insert":
-      return Insert.renderCompletedSummary(info);
+      return Insert.renderCompletedSummary(info, displayContext);
     case "replace":
-      return Replace.renderCompletedSummary(info);
+      return Replace.renderCompletedSummary(info, displayContext);
     case "list_directory":
-      return ListDirectory.renderCompletedSummary(info);
+      return ListDirectory.renderCompletedSummary(info, displayContext);
     case "bash_command":
       return BashCommand.renderCompletedSummary(info);
     case "hover":
-      return Hover.renderCompletedSummary(info);
+      return Hover.renderCompletedSummary(info, displayContext);
     case "find_references":
-      return FindReferences.renderCompletedSummary(info);
+      return FindReferences.renderCompletedSummary(info, displayContext);
     case "diagnostics":
       return Diagnostics.renderCompletedSummary(info);
     case "spawn_subagent":
@@ -325,9 +329,15 @@ export function renderCompletedToolDetail(
     case "get_file":
       return GetFile.renderCompletedDetail(info);
     case "insert":
-      return Insert.renderInsertDetail(info.request.input as Insert.Input);
+      return Insert.renderInsertDetail(info.request.input as Insert.Input, {
+        cwd: context.cwd,
+        homeDir: context.homeDir,
+      });
     case "replace":
-      return Replace.renderReplaceDetail(info.request.input as Replace.Input);
+      return Replace.renderReplaceDetail(info.request.input as Replace.Input, {
+        cwd: context.cwd,
+        homeDir: context.homeDir,
+      });
     case "bash_command":
       return BashCommand.renderCompletedDetail(info, context);
     default:

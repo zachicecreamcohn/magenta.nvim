@@ -1,6 +1,12 @@
 import type { ProviderToolResult } from "../providers/provider-types";
 import type { VDOMNode } from "../tea/view";
 import type { StaticToolName } from "./tool-registry";
+import type { NvimCwd, HomeDir } from "../utils/files";
+
+export type DisplayContext = {
+  cwd: NvimCwd;
+  homeDir: HomeDir;
+};
 
 export type CompletedToolInfo = {
   request: ToolRequest;

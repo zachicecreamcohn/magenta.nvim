@@ -14,11 +14,18 @@ import type {
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import {
-  relativePath,
+  resolveFilePath,
+  displayPath,
   type NvimCwd,
   type UnresolvedFilePath,
+  type HomeDir,
 } from "../utils/files.ts";
-import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
+import type {
+  StaticTool,
+  ToolName,
+  GenericToolRequest,
+  DisplayContext,
+} from "./types.ts";
 
 export type State =
   | {
@@ -44,6 +51,7 @@ export class FindReferencesTool implements StaticTool {
     public context: {
       nvim: Nvim;
       cwd: NvimCwd;
+      homeDir: HomeDir;
       lsp: Lsp;
       myDispatch: (msg: Msg) => void;
     },
@@ -110,11 +118,11 @@ export class FindReferencesTool implements StaticTool {
   }
 
   async findReferences() {
-    const { lsp, nvim, cwd } = this.context;
+    const { lsp, nvim, cwd, homeDir } = this.context;
     const filePath = this.request.input.filePath;
     const bufferResult = await getOrOpenBuffer({
       unresolvedPath: filePath,
-      context: { nvim, cwd },
+      context: { nvim, cwd, homeDir },
     });
 
     if (this.aborted) return;
@@ -174,11 +182,12 @@ export class FindReferencesTool implements StaticTool {
             const uri = ref.uri.startsWith("file://")
               ? ref.uri.slice(7)
               : ref.uri;
-            const relFilePath = relativePath(
+            const absFilePath = resolveFilePath(
               this.context.cwd,
               uri as UnresolvedFilePath,
+              this.context.homeDir,
             );
-            content += `${relFilePath}:${ref.range.start.line + 1}:${ref.range.start.character}\n`;
+            content += `${absFilePath}:${ref.range.start.line + 1}:${ref.range.start.character}\n`;
           }
         }
       }
@@ -224,24 +233,54 @@ export class FindReferencesTool implements StaticTool {
   }
 
   renderSummary() {
+    const displayContext = {
+      cwd: this.context.cwd,
+      homeDir: this.context.homeDir,
+    };
+    const absFilePath = resolveFilePath(
+      this.context.cwd,
+      this.request.input.filePath,
+      this.context.homeDir,
+    );
+    const pathForDisplay = displayPath(
+      this.context.cwd,
+      absFilePath,
+      this.context.homeDir,
+    );
     switch (this.state.state) {
       case "processing":
-        return d`🔍⚙️ ${withInlineCode(d`\`${this.request.input.symbol}\``)} in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
+        return d`🔍⚙️ ${withInlineCode(d`\`${this.request.input.symbol}\``)} in ${withInlineCode(d`\`${pathForDisplay}\``)}`;
       case "done":
-        return renderCompletedSummary({
-          request: this.request as CompletedToolInfo["request"],
-          result: this.state.result,
-        });
+        return renderCompletedSummary(
+          {
+            request: this.request as CompletedToolInfo["request"],
+            result: this.state.result,
+          },
+          displayContext,
+        );
       default:
         assertUnreachable(this.state);
     }
   }
 }
 
-export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+export function renderCompletedSummary(
+  info: CompletedToolInfo,
+  displayContext: DisplayContext,
+): VDOMNode {
   const input = info.request.input as Input;
   const status = info.result.result.status === "error" ? "❌" : "✅";
-  return d`🔍${status} ${withInlineCode(d`\`${input.symbol}\``)} in ${withInlineCode(d`\`${input.filePath}\``)}`;
+  const absFilePath = resolveFilePath(
+    displayContext.cwd,
+    input.filePath,
+    displayContext.homeDir,
+  );
+  const pathForDisplay = displayPath(
+    displayContext.cwd,
+    absFilePath,
+    displayContext.homeDir,
+  );
+  return d`🔍${status} ${withInlineCode(d`\`${input.symbol}\``)} in ${withInlineCode(d`\`${pathForDisplay}\``)}`;
 }
 
 export const spec: ProviderToolSpec = {
@@ -252,7 +291,8 @@ export const spec: ProviderToolSpec = {
     properties: {
       filePath: {
         type: "string",
-        description: "Path to the file containing the symbol.",
+        description:
+          "Path to the file containing the symbol. Prefer absolute paths. Relative paths are resolved from the project root.",
       },
       symbol: {
         type: "string",

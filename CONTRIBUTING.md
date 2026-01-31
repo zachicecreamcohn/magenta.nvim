@@ -39,7 +39,7 @@ This will load the plugin from `~/src/magenta.nvim` instead of from git. You can
 
 ## how to test
 
-All significant changes should come with accompanying tests. There should go into `*.spec.ts` files placed adjacent to the code they are testing. So if the "meat" of the functionality you're testing is in `a.ts`, you should put the test for that in `a.spec.ts` in the same directory.
+All significant changes should come with accompanying tests. There should go into `*.test.ts` files placed adjacent to the code they are testing. So if the "meat" of the functionality you're testing is in `a.ts`, you should put the test for that in `a.test.ts` in the same directory.
 
 To run tests, use `npx vitest`. You can also mark certain tests to run via `describe.only` or `it.only` and then run `npx vitest filter` to just tests marked as only from test files matching `filter`.
 

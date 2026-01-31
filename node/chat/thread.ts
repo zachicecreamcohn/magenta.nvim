@@ -46,6 +46,7 @@ import { type MagentaOptions, type Profile } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
 import {
   relativePath,
+  type HomeDir,
   type NvimCwd,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
@@ -64,7 +65,6 @@ import { fileURLToPath } from "url";
 import player from "play-sound";
 import { CommandRegistry } from "./commands/registry.ts";
 import { getSubsequentReminder } from "../providers/system-reminders.ts";
-import { readGitignoreSync, type Gitignore } from "../tools/util.ts";
 import { renderStreamdedTool } from "../tools/helpers.ts";
 
 export type InputMessage =
@@ -220,7 +220,6 @@ export class Thread {
   public fileSnapshots: FileSnapshots;
   public contextManager: ContextManager;
   private commandRegistry: CommandRegistry;
-  public gitignore: Gitignore;
   public agent: Agent;
 
   constructor(
@@ -235,6 +234,7 @@ export class Thread {
       profile: Profile;
       nvim: Nvim;
       cwd: NvimCwd;
+      homeDir: HomeDir;
       lsp: Lsp;
       contextManager: ContextManager;
       options: MagentaOptions;
@@ -249,8 +249,11 @@ export class Thread {
         msg,
       });
 
-    this.gitignore = readGitignoreSync(this.context.cwd);
-    this.fileSnapshots = new FileSnapshots(this.context.nvim, this.context.cwd);
+    this.fileSnapshots = new FileSnapshots(
+      this.context.nvim,
+      this.context.cwd,
+      this.context.homeDir,
+    );
     this.contextManager = this.context.contextManager;
 
     this.commandRegistry = new CommandRegistry();
@@ -422,6 +425,7 @@ export class Thread {
           unresolvedFilePath: msg.filePath as UnresolvedFilePath,
           nvim: this.context.nvim,
           cwd: this.context.cwd,
+          homeDir: this.context.homeDir,
           fileSnapshots: this.fileSnapshots,
           getDisplayWidth: this.context.getDisplayWidth,
         }).catch((e: Error) => this.context.nvim.logger.error(e.message));
@@ -507,9 +511,9 @@ export class Thread {
         nvim: this.context.nvim,
         lsp: this.context.lsp,
         cwd: this.context.cwd,
+        homeDir: this.context.homeDir,
         options: this.context.options,
         chat: this.context.chat,
-        gitignore: this.gitignore,
         contextManager: this.contextManager,
         threadDispatch: this.myDispatch,
       };
@@ -541,6 +545,7 @@ export class Thread {
         const filePath = relativePath(
           this.context.cwd,
           input.filePath as UnresolvedFilePath,
+          this.context.homeDir,
         );
 
         if (!this.state.currentEdits[filePath]) {
@@ -677,6 +682,7 @@ export class Thread {
       {
         dispatch: this.context.dispatch,
         cwd: this.context.cwd,
+        homeDir: this.context.homeDir,
         nvim: this.context.nvim,
         options: this.context.options,
         bufferTracker: this.context.bufferTracker,
@@ -1146,6 +1152,7 @@ export class Thread {
           await this.commandRegistry.processMessage(m.text, {
             nvim: this.context.nvim,
             cwd: this.context.cwd,
+            homeDir: this.context.homeDir,
             contextManager: this.contextManager,
             options: this.context.options,
           });
@@ -1748,6 +1755,7 @@ function renderMessageContent(
         getDisplayWidth: thread.context.getDisplayWidth,
         nvim: thread.context.nvim,
         cwd: thread.context.cwd,
+        homeDir: thread.context.homeDir,
         options: thread.context.options,
       };
 
@@ -1759,7 +1767,7 @@ function renderMessageContent(
 
       // Don't add trailing newline - let the message template handle it
       return withBindings(
-        d`${renderCompletedToolSummary(completedInfo, thread.context.dispatch)}${
+        d`${renderCompletedToolSummary(completedInfo, thread.context.dispatch, renderContext)}${
           showDetails
             ? d`\n${renderCompletedToolDetail(completedInfo, renderContext)}${usageInDetails}`
             : previewContent

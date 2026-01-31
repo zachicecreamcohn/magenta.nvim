@@ -4,6 +4,7 @@ import { getBufferIfOpen } from "../utils/buffers.ts";
 import {
   resolveFilePath,
   type AbsFilePath,
+  type HomeDir,
   type NvimCwd,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
@@ -24,6 +25,7 @@ export class FileSnapshots {
   constructor(
     private nvim: Nvim,
     private cwd: NvimCwd,
+    private homeDir: HomeDir,
   ) {}
 
   /**
@@ -58,7 +60,7 @@ export class FileSnapshots {
   public async willEditFile(
     unresolvedPath: UnresolvedFilePath,
   ): Promise<boolean> {
-    const absFilePath = resolveFilePath(this.cwd, unresolvedPath);
+    const absFilePath = resolveFilePath(this.cwd, unresolvedPath, this.homeDir);
     const key = this.createKey(this.currentTurn, absFilePath);
     // If we already have a snapshot for this file in this turn, don't take another one
     if (this.snapshots.has(key)) {
@@ -96,7 +98,7 @@ export class FileSnapshots {
   private async getFileContent(absFilePath: AbsFilePath): Promise<string> {
     const bufferResult = await getBufferIfOpen({
       unresolvedPath: absFilePath,
-      context: { nvim: this.nvim, cwd: this.cwd },
+      context: { nvim: this.nvim, cwd: this.cwd, homeDir: this.homeDir },
     });
 
     if (bufferResult.status === "ok") {

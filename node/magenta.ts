@@ -8,13 +8,16 @@ import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
 import type { BufNr, Line } from "./nvim/buffer.ts";
 import { pos1col1to0, type Row0Indexed } from "./nvim/window.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
+import * as os from "node:os";
 import {
   parseOptions,
+  loadUserSettings,
   loadProjectSettings,
   mergeOptions,
   type MagentaOptions,
   getActiveProfile,
 } from "./options.ts";
+import type { HomeDir } from "./utils/files.ts";
 import { InlineEditManager } from "./inline-edit/inline-edit-app.ts";
 import type { RootMsg, SidebarMsg } from "./root-msg.ts";
 import { Chat } from "./chat/chat.ts";
@@ -61,10 +64,11 @@ export class Magenta {
     public nvim: Nvim,
     public lsp: Lsp,
     public cwd: NvimCwd,
+    public homeDir: HomeDir,
     public options: MagentaOptions,
   ) {
     this.bufferTracker = new BufferTracker(this.nvim);
-    this.changeTracker = new ChangeTracker(this.nvim, this.cwd, this.options);
+    this.changeTracker = new ChangeTracker(this.nvim, this.options);
 
     this.dispatch = (msg: RootMsg) => {
       try {
@@ -100,6 +104,7 @@ export class Magenta {
       },
       bufferTracker: this.bufferTracker,
       cwd: this.cwd,
+      homeDir: this.homeDir,
       nvim: this.nvim,
       options: this.options,
       lsp: this.lsp,
@@ -112,6 +117,7 @@ export class Magenta {
         nvim: this.nvim,
         changeTracker: this.changeTracker,
         cwd: this.cwd,
+        homeDir: this.homeDir,
         options: this.options,
       },
     );
@@ -142,6 +148,7 @@ export class Magenta {
     this.inlineEditManager = new InlineEditManager({
       nvim,
       cwd: this.cwd,
+      homeDir: this.homeDir,
       options,
       getContextAgent: () => this.chat.getContextAgent(),
     });
@@ -251,8 +258,9 @@ export class Magenta {
           const absFilePath = resolveFilePath(
             this.cwd,
             filePath as UnresolvedFilePath,
+            this.homeDir,
           );
-          const relFilePath = relativePath(this.cwd, absFilePath);
+          const relFilePath = relativePath(this.cwd, absFilePath, this.homeDir);
           const fileTypeInfo = await detectFileType(absFilePath);
           if (!fileTypeInfo) {
             this.nvim.logger.error(`File ${filePath} does not exist.`);
@@ -396,13 +404,14 @@ export class Magenta {
           endPos: pos1col1to0(endPos),
         });
 
-        const relFileName = relativePath(
+        const absFilePath = resolveFilePath(
           this.cwd,
           await currentBuffer.getName(),
+          this.homeDir,
         );
         const content = `
-Here is a snippet from the file \`${relFileName}\`
-\`\`\`${getMarkdownExt(relFileName)}
+Here is a snippet from the file \`${absFilePath}\`
+\`\`\`${getMarkdownExt(absFilePath)}
 ${lines.join("\n")}
 \`\`\`
 `;
@@ -641,7 +650,7 @@ ${lines.join("\n")}
     });
   }
 
-  static async start(nvim: Nvim) {
+  static async start(nvim: Nvim, homeDir?: HomeDir) {
     const lsp = new Lsp(nvim);
     nvim.onNotification(MAGENTA_COMMAND, async (args: unknown[]) => {
       try {
@@ -801,17 +810,28 @@ ${lines.join("\n")}
     // Parse base options from Lua
     const baseOptions = parseOptions(opts, nvim.logger);
 
-    // Load and parse project settings
+    // Determine home directory - use provided value or fall back to os.homedir()
+    const resolvedHomeDir = homeDir ?? (os.homedir() as HomeDir);
+
+    // Load and merge user settings (~/.magenta/options.json)
+    const userSettings = loadUserSettings(resolvedHomeDir, {
+      warn: (msg) => nvim.logger.warn(`User settings: ${msg}`),
+    });
+    const optionsWithUser = userSettings
+      ? mergeOptions(baseOptions, userSettings)
+      : baseOptions;
+
+    // Load and parse project settings (cwd/.magenta/options.json)
     const cwd = await getcwd(nvim);
     const projectSettings = loadProjectSettings(cwd, {
       warn: (msg) => nvim.logger.warn(`Project settings: ${msg}`),
     });
 
-    // Merge project settings with base options
+    // Merge project settings with user+base options
     const parsedOptions = projectSettings
-      ? mergeOptions(baseOptions, projectSettings)
-      : baseOptions;
-    const magenta = new Magenta(nvim, lsp, cwd, parsedOptions);
+      ? mergeOptions(optionsWithUser, projectSettings)
+      : optionsWithUser;
+    const magenta = new Magenta(nvim, lsp, cwd, resolvedHomeDir, parsedOptions);
 
     // Initialize highlight groups in the magenta namespace
     try {

@@ -22,13 +22,13 @@ import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
 import {
   type NvimCwd,
   type UnresolvedFilePath,
+  type HomeDir,
   MAGENTA_TEMP_DIR,
 } from "../utils/files.ts";
 import {
   isCommandAllowedByConfig,
   type PermissionCheckResult,
 } from "./bash-parser/permissions.ts";
-import type { Gitignore } from "./util.ts";
 import type { ThreadId } from "../chat/types.ts";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
 import * as fs from "fs";
@@ -188,13 +188,13 @@ export function checkCommandPermissions({
   options,
   rememberedCommands,
   cwd,
-  gitignore,
+  homeDir,
 }: {
   command: string;
   options: MagentaOptions;
   rememberedCommands: Set<string>;
   cwd: NvimCwd;
-  gitignore: Gitignore;
+  homeDir: HomeDir;
 }): PermissionCheckResult {
   // First check remembered commands
   if (rememberedCommands.has(command)) {
@@ -203,8 +203,9 @@ export function checkCommandPermissions({
 
   return isCommandAllowedByConfig(command, options.commandConfig, {
     cwd,
+    homeDir,
     skillsPaths: options.skillsPaths,
-    gitignore,
+    filePermissions: options.filePermissions,
   });
 }
 
@@ -222,11 +223,11 @@ export class BashCommandTool implements StaticTool {
     public context: {
       nvim: Nvim;
       cwd: NvimCwd;
+      homeDir: HomeDir;
       options: MagentaOptions;
       myDispatch: Dispatch<Msg>;
       rememberedCommands: Set<string>;
       getDisplayWidth(): number;
-      gitignore: Gitignore;
       threadId: ThreadId;
     },
   ) {
@@ -236,7 +237,7 @@ export class BashCommandTool implements StaticTool {
       options: this.context.options,
       rememberedCommands: this.context.rememberedCommands,
       cwd: this.context.cwd,
-      gitignore: this.context.gitignore,
+      homeDir: this.context.homeDir,
     });
 
     if (permissionResult.allowed) {
@@ -921,6 +922,7 @@ ${formattedOutput}
       getDisplayWidth: this.context.getDisplayWidth.bind(this.context),
       nvim: this.context.nvim,
       cwd: this.context.cwd,
+      homeDir: this.context.homeDir,
       options: this.context.options,
     };
 
@@ -993,6 +995,7 @@ export type RenderContext = {
   getDisplayWidth: () => number;
   nvim: Nvim;
   cwd: NvimCwd;
+  homeDir: HomeDir;
   options: MagentaOptions;
 };
 

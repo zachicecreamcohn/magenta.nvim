@@ -3,6 +3,7 @@ import type { ProviderMessageContent } from "../../providers/provider-types.ts";
 export interface MessageContext {
   nvim: import("../../nvim/nvim-node").Nvim;
   cwd: import("../../utils/files.ts").NvimCwd;
+  homeDir: import("../../utils/files.ts").HomeDir;
   contextManager: import("../../context/context-manager.ts").ContextManager;
   options: import("../../options.ts").MagentaOptions;
 }

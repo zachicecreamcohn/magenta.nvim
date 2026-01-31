@@ -7,7 +7,11 @@ const createDiagnosticsCommand = (name: string, pattern: RegExp): Command => ({
   pattern,
   async execute(_match, context): Promise<ProviderMessageContent[]> {
     try {
-      const diagnostics = await getDiagnostics(context.nvim);
+      const diagnostics = await getDiagnostics(
+        context.nvim,
+        context.cwd,
+        context.homeDir,
+      );
       return [
         {
           type: "text",

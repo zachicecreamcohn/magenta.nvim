@@ -19,13 +19,17 @@ import { applyEdit } from "./applyEdit.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/types.ts";
-import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
-import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
+import type {
+  StaticTool,
+  ToolName,
+  GenericToolRequest,
+  DisplayContext,
+} from "./types.ts";
+import type { NvimCwd, UnresolvedFilePath, HomeDir } from "../utils/files.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
-import { resolveFilePath } from "../utils/files.ts";
+import { resolveFilePath, displayPath } from "../utils/files.ts";
 import type { MagentaOptions } from "../options.ts";
 import { canWriteFile } from "./permissions.ts";
-import type { Gitignore } from "./util.ts";
 
 export type ToolRequest = GenericToolRequest<"insert", Input>;
 
@@ -74,10 +78,10 @@ export class InsertTool implements StaticTool {
       bufferTracker: BufferTracker;
       nvim: Nvim;
       cwd: NvimCwd;
+      homeDir: HomeDir;
       dispatch: Dispatch<RootMsg>;
       options: MagentaOptions;
       getDisplayWidth: () => number;
-      gitignore: Gitignore;
     },
   ) {
     this.state = { state: "pending" };
@@ -104,7 +108,11 @@ export class InsertTool implements StaticTool {
     if (this.aborted) return;
 
     const filePath = this.request.input.filePath;
-    const absFilePath = resolveFilePath(this.context.cwd, filePath);
+    const absFilePath = resolveFilePath(
+      this.context.cwd,
+      filePath,
+      this.context.homeDir,
+    );
 
     if (this.state.state === "pending") {
       const allowed = canWriteFile(absFilePath, this.context);
@@ -246,13 +254,23 @@ export class InsertTool implements StaticTool {
   renderSummary(): VDOMNode {
     const lineCount =
       (this.request.input.content.match(/\n/g) || []).length + 1;
+    const absFilePath = resolveFilePath(
+      this.context.cwd,
+      this.request.input.filePath,
+      this.context.homeDir,
+    );
+    const dispPath = displayPath(
+      this.context.cwd,
+      absFilePath,
+      this.context.homeDir,
+    );
 
     switch (this.state.state) {
       case "pending":
       case "processing":
-        return d`✏️⚙️ Insert [[ +${lineCount.toString()} ]] in ${withInlineCode(d`\`${this.request.input.filePath}\``)}`;
+        return d`✏️⚙️ Insert [[ +${lineCount.toString()} ]] in ${withInlineCode(d`\`${dispPath}\``)}`;
       case "pending-user-action":
-        return d`✏️⏳ May I insert in file ${withInlineCode(d`\`${this.request.input.filePath}\``)}?
+        return d`✏️⏳ May I insert in file ${withInlineCode(d`\`${dispPath}\``)}?
 
 ┌────────────────┐
 │ ${withBindings(
@@ -280,10 +298,13 @@ export class InsertTool implements StaticTool {
         )} │
 └────────────────┘`;
       case "done":
-        return renderCompletedSummary({
-          request: this.request as CompletedToolInfo["request"],
-          result: this.state.result,
-        });
+        return renderCompletedSummary(
+          {
+            request: this.request as CompletedToolInfo["request"],
+            result: this.state.result,
+          },
+          { cwd: this.context.cwd, homeDir: this.context.homeDir },
+        );
       default:
         assertUnreachable(this.state);
     }
@@ -314,8 +335,18 @@ export class InsertTool implements StaticTool {
   }
 
   renderDetail(): VDOMNode {
+    const absFilePath = resolveFilePath(
+      this.context.cwd,
+      this.request.input.filePath,
+      this.context.homeDir,
+    );
+    const dispPath = displayPath(
+      this.context.cwd,
+      absFilePath,
+      this.context.homeDir,
+    );
     return d`\
-filePath: ${withInlineCode(d`\`${this.request.input.filePath}\``)}
+filePath: ${withInlineCode(d`\`${dispPath}\``)}
 insertAfter: ${withInlineCode(d`\`${this.request.input.insertAfter}\``)}
 content:
 ${withCode(d`\`\`\`
@@ -362,16 +393,29 @@ ${withExtmark(d`${this.request.input.content}`, { line_hl_group: "DiffAdd" })}
   }
 }
 
-export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+export function renderCompletedSummary(
+  info: CompletedToolInfo,
+  displayContext: DisplayContext,
+): VDOMNode {
   const input = info.request.input as Input;
   const lineCount = (input.content.match(/\n/g) || []).length + 1;
   const result = info.result.result;
   const status = result.status === "error" ? "❌" : "✅";
+  const absFilePath = resolveFilePath(
+    displayContext.cwd,
+    input.filePath,
+    displayContext.homeDir,
+  );
+  const pathForDisplay = displayPath(
+    displayContext.cwd,
+    absFilePath,
+    displayContext.homeDir,
+  );
 
   if (result.status === "error") {
-    return d`✏️${status} Insert [[ +${lineCount.toString()} ]] in ${withInlineCode(d`\`${input.filePath}\``)} - ${result.error}`;
+    return d`✏️${status} Insert [[ +${lineCount.toString()} ]] in ${withInlineCode(d`\`${pathForDisplay}\``)} - ${result.error}`;
   }
-  return d`✏️${status} Insert [[ +${lineCount.toString()} ]] in ${withInlineCode(d`\`${input.filePath}\``)}`;
+  return d`✏️${status} Insert [[ +${lineCount.toString()} ]] in ${withInlineCode(d`\`${pathForDisplay}\``)}`;
 }
 
 export function renderInsertPreview(
@@ -398,9 +442,22 @@ ${withExtmark(d`${result}`, { line_hl_group: "DiffAdd" })}
 \`\`\``);
 }
 
-export function renderInsertDetail(input: Input): VDOMNode {
+export function renderInsertDetail(
+  input: Input,
+  displayContext: DisplayContext,
+): VDOMNode {
+  const absFilePath = resolveFilePath(
+    displayContext.cwd,
+    input.filePath,
+    displayContext.homeDir,
+  );
+  const dispPath = displayPath(
+    displayContext.cwd,
+    absFilePath,
+    displayContext.homeDir,
+  );
   return d`\
-filePath: ${withInlineCode(d`\`${input.filePath}\``)}
+filePath: ${withInlineCode(d`\`${dispPath}\``)}
 insertAfter: ${withInlineCode(d`\`${input.insertAfter}\``)}
 content:
 ${withCode(d`\`\`\`
@@ -417,7 +474,7 @@ export const spec: ProviderToolSpec = {
     properties: {
       filePath: {
         type: "string",
-        description: `Path to the file to modify. The file will be created if it does not exist yet.`,
+        description: `Path to the file to modify. Prefer absolute paths. Relative paths are resolved from the project root. The file will be created if it does not exist yet.`,
       },
       insertAfter: {
         type: "string",

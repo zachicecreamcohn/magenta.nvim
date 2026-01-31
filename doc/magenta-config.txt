@@ -117,13 +117,47 @@ chimeVolume ~
     Volume for notification chimes. Set to `0.0` to disable.
     Chimes play when the agent needs attention or tool approval.
 
+                                            *magenta-filePermissions*
+filePermissions ~
+    Type: `table`
+    Default: `{}`
+
+    Configure file access permissions for tools. Each entry specifies a
+    path prefix and which operations are allowed without confirmation.
+
+    Properties:~
+      - `path`: Path prefix (supports `~` for home directory)
+      - `read`: Allow reading files without confirmation
+      - `write`: Allow writing files without confirmation
+      - `readSecret`: Allow reading hidden files (e.g., `.env`)
+      - `writeSecret`: Allow writing hidden files
+
+    By default, the current working directory has `read` and `write`
+    permissions. Hidden files (files with segments starting with `.`
+    after the permission path) require `readSecret`/`writeSecret`.
+
+    Permissions are inherited: if `/foo` has `read: true`, then
+    `/foo/bar/baz` also has read permission.
+
+    Example:~
+>json
+    {
+      "filePermissions": [
+        { "path": "/tmp", "read": true, "write": true },
+        { "path": "~/src", "read": true },
+        { "path": "~/.config", "read": true, "write": true,
+          "readSecret": true, "writeSecret": true }
+      ]
+    }
+<
                                             *magenta-getFileAutoAllowGlobs*
 getFileAutoAllowGlobs ~
     Type: `table`
     Default: `{ "node_modules/*" }`
 
-    Glob patterns for files that bypass approval for getFile tool
-    (for hidden/gitignored files).
+    DEPRECATED: Use |magenta-filePermissions| instead.
+
+    Glob patterns for files that bypass approval for getFile tool.
 
                                                       *magenta-skillsPaths*
 skillsPaths ~

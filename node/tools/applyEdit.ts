@@ -8,10 +8,10 @@ import type { Result } from "../utils/result.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { ThreadId } from "../chat/types.ts";
 import {
-  relativePath,
   resolveFilePath,
   type AbsFilePath,
   type NvimCwd,
+  type HomeDir,
   FileCategory,
 } from "../utils/files.ts";
 import { applyInsert, applyReplace } from "../utils/contentEdits.ts";
@@ -30,6 +30,7 @@ type Msg = {
 type EditContext = {
   nvim: Nvim;
   cwd: NvimCwd;
+  homeDir: HomeDir;
   bufferTracker: BufferTracker;
   myDispatch: Dispatch<Msg>;
   dispatch: Dispatch<RootMsg>;
@@ -174,8 +175,7 @@ async function handleFileEdit(
 ): Promise<void> {
   const { myDispatch } = context;
   const { filePath } = request.input;
-  const absFilePath = resolveFilePath(context.cwd, filePath);
-  const relFilePath = relativePath(context.cwd, absFilePath);
+  const absFilePath = resolveFilePath(context.cwd, filePath, context.homeDir);
 
   if (request.toolName === "insert" && request.input.insertAfter === "") {
     try {
@@ -253,7 +253,7 @@ async function handleFileEdit(
         type: "finish",
         result: {
           status: "error",
-          error: `${result.error} in file \`${relFilePath}\`.
+          error: `${result.error} in file \`${absFilePath}\`.
           Read the contents of the file and make sure your insertAfter parameter matches the content of the file exactly.`,
         },
       });
@@ -269,7 +269,7 @@ async function handleFileEdit(
         type: "finish",
         result: {
           status: "error",
-          error: `${result.error} in file \`${relFilePath}\`.`,
+          error: `${result.error} in file \`${absFilePath}\`.`,
         },
       });
       return;
@@ -281,7 +281,7 @@ async function handleFileEdit(
       type: "finish",
       result: {
         status: "error",
-        error: `Unknown edit operation for file \`${relFilePath}\``,
+        error: `Unknown edit operation for file \`${absFilePath}\``,
       },
     });
     return;
@@ -330,7 +330,7 @@ export async function applyEdit(
 
   const bufferOpenResult = await getBufferIfOpen({
     unresolvedPath: filePath,
-    context: { nvim, cwd },
+    context: { nvim, cwd, homeDir: context.homeDir },
   });
 
   if (bufferOpenResult.status === "error") {
@@ -344,7 +344,7 @@ export async function applyEdit(
     return;
   }
 
-  const absFilePath = resolveFilePath(cwd, filePath);
+  const absFilePath = resolveFilePath(cwd, filePath, context.homeDir);
 
   const notifyApplied = () =>
     dispatch({

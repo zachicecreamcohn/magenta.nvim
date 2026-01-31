@@ -7,6 +7,7 @@ import {
   resolveFilePath,
   type NvimCwd,
   type UnresolvedFilePath,
+  type HomeDir,
 } from "../utils/files.ts";
 
 export async function displaySnapshotDiff({
@@ -14,6 +15,7 @@ export async function displaySnapshotDiff({
   turn,
   nvim,
   cwd,
+  homeDir,
   fileSnapshots,
   getDisplayWidth,
 }: {
@@ -21,10 +23,11 @@ export async function displaySnapshotDiff({
   turn?: Turn;
   nvim: Nvim;
   cwd: NvimCwd;
+  homeDir: HomeDir;
   fileSnapshots: FileSnapshots;
   getDisplayWidth: () => number;
 }) {
-  const absFilePath = resolveFilePath(cwd, unresolvedFilePath);
+  const absFilePath = resolveFilePath(cwd, unresolvedFilePath, homeDir);
 
   const snapshot = fileSnapshots.getSnapshot(absFilePath, turn);
   if (snapshot == undefined) {

@@ -210,11 +210,18 @@ export async function pollForToolResult(
   );
 }
 
+export type NvimProcessOptions = {
+  setupFiles?: ((tmpDir: string) => Promise<void>) | undefined;
+  setupHome?: ((homeDir: string) => Promise<void>) | undefined;
+  setupExtraDirs?: ((baseDir: string) => Promise<void>) | undefined;
+};
+
 export async function withNvimProcess(
-  fn: (sock: string) => Promise<void>,
-  options: {
-    setupFiles?: ((tmpDir: string) => Promise<void>) | undefined;
-  } = {},
+  fn: (
+    sock: string,
+    dirs: { tmpDir: string; homeDir: string; baseDir: string },
+  ) => Promise<void>,
+  options: NvimProcessOptions = {},
 ) {
   // Generate unique ID for this test run
   const testId = Math.random().toString(36).substring(2, 15);
@@ -222,26 +229,39 @@ export async function withNvimProcess(
   // Set up test directory paths
   const testDir = path.dirname(__filename);
   const fixturesDir = path.join(testDir, "fixtures");
-  const tmpDir = path.join("/tmp/magenta-test", testId);
-  const sock = path.join(tmpDir, "magenta-test.sock");
+  const baseDir = path.join("/tmp/magenta-test", testId);
+  const tmpDir = path.join(baseDir, "cwd");
+  const homeDir = path.join(baseDir, "home");
+  const sock = path.join(baseDir, "magenta-test.sock");
 
-  // Clean up and recreate tmp directory
+  // Clean up and recreate base directory
   try {
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(baseDir, { recursive: true, force: true });
   } catch (e) {
     if ((e as { code: string }).code !== "ENOENT") {
       console.error(e);
     }
   }
 
-  // Create tmp directory and copy fixtures
+  // Create directories and copy fixtures
   try {
     await mkdir(tmpDir, { recursive: true });
+    await mkdir(homeDir, { recursive: true });
     await cp(fixturesDir, tmpDir, { recursive: true });
 
-    // Set up additional files if provided
+    // Set up additional files in cwd if provided
     if (options.setupFiles) {
       await options.setupFiles(tmpDir);
+    }
+
+    // Set up home directory if provided
+    if (options.setupHome) {
+      await options.setupHome(homeDir);
+    }
+
+    // Set up extra directories outside cwd if provided
+    if (options.setupExtraDirs) {
+      await options.setupExtraDirs(baseDir);
     }
   } catch (e) {
     console.error("Failed to set up test directory:", e);
@@ -265,6 +285,10 @@ export async function withNvimProcess(
     ],
     {
       cwd: tmpDir,
+      env: {
+        ...process.env,
+        HOME: homeDir,
+      },
     },
   );
 
@@ -298,15 +322,15 @@ export async function withNvimProcess(
       { timeout: 500 },
     );
 
-    await fn(sock);
+    await fn(sock, { tmpDir, homeDir, baseDir });
   } finally {
     nvimProcess.kill();
-    // Clean up temporary directory
+    // Clean up base directory (includes cwd and home)
     try {
-      await rm(tmpDir, { recursive: true, force: true });
+      await rm(baseDir, { recursive: true, force: true });
     } catch (e) {
       // Ignore cleanup errors to avoid masking test failures
-      console.warn(`Failed to cleanup test directory ${tmpDir}:`, e);
+      console.warn(`Failed to cleanup test directory ${baseDir}:`, e);
     }
   }
 }
@@ -318,6 +342,8 @@ export async function withNvimClient(
     logLevel?: LogLevel;
     overrideLogger?: boolean;
     setupFiles?: (tmpDir: string) => Promise<void>;
+    setupHome?: (homeDir: string) => Promise<void>;
+    setupExtraDirs?: (baseDir: string) => Promise<void>;
   } = {
     overrideLogger: true,
   },
@@ -385,7 +411,11 @@ export async function withNvimClient(
         nvim.detach();
       }
     },
-    { setupFiles: options.setupFiles },
+    {
+      setupFiles: options.setupFiles,
+      setupHome: options.setupHome,
+      setupExtraDirs: options.setupExtraDirs,
+    },
   );
 }
 
@@ -393,16 +423,24 @@ export type TestOptions = Partial<MagentaOptions> & {
   changeDebounceMs?: number;
 };
 
+export type TestDirs = {
+  tmpDir: string;
+  homeDir: string;
+  baseDir: string;
+};
+
 export async function withDriver(
   driverOptions: {
     options?: TestOptions;
     doNotOverrideLogger?: boolean;
     setupFiles?: (tmpDir: string) => Promise<void>;
+    setupHome?: (homeDir: string) => Promise<void>;
+    setupExtraDirs?: (baseDir: string) => Promise<void>;
   },
-  fn: (driver: NvimDriver) => Promise<void>,
+  fn: (driver: NvimDriver, dirs: TestDirs) => Promise<void>,
 ) {
   return await withNvimProcess(
-    async (sock) => {
+    async (sock, dirs) => {
       const nvim = await attach({
         socket: sock,
         client: { name: "test" },
@@ -421,7 +459,10 @@ export async function withDriver(
       }
 
       await withMockClient(async (mockAnthropic) => {
-        const magenta = await Magenta.start(nvim);
+        const magenta = await Magenta.start(
+          nvim,
+          dirs.homeDir as import("../utils/files.ts").HomeDir,
+        );
         await nvim.call("nvim_exec_lua", [
           `\
 -- Set up message interception
@@ -450,7 +491,7 @@ end
         }
 
         try {
-          await fn(new NvimDriver(nvim, magenta, mockAnthropic));
+          await fn(new NvimDriver(nvim, magenta, mockAnthropic), dirs);
         } finally {
           magenta.destroy();
           nvim.detach();
@@ -461,8 +502,48 @@ end
         }
       });
     },
-    { setupFiles: driverOptions.setupFiles },
+    {
+      setupFiles: driverOptions.setupFiles,
+      setupHome: driverOptions.setupHome,
+      setupExtraDirs: driverOptions.setupExtraDirs,
+    },
   );
+}
+
+/**
+ * Normalizes paths in test data by replacing the tmpDir prefix with a placeholder.
+ * This allows tests to match results that contain absolute paths.
+ */
+export function normalizePaths<T>(data: T, tmpDir: string): T {
+  const normalizedTmpDir = tmpDir.replace(/\/+$/, ""); // remove trailing slashes
+  // On macOS, /tmp is a symlink to /private/tmp, so we need to handle both
+  const privateTmpDir = `/private${normalizedTmpDir}`;
+
+  const replacePath = (str: string): string => {
+    // Replace both variations of the tmpDir path with a placeholder
+    return str
+      .replaceAll(privateTmpDir, "<tmpDir>")
+      .replaceAll(normalizedTmpDir, "<tmpDir>");
+  };
+
+  const normalize = (value: unknown): unknown => {
+    if (typeof value === "string") {
+      return replacePath(value);
+    }
+    if (Array.isArray(value)) {
+      return value.map(normalize);
+    }
+    if (value !== null && typeof value === "object") {
+      const result: Record<string, unknown> = {};
+      for (const [key, val] of Object.entries(value)) {
+        result[key] = normalize(val);
+      }
+      return result;
+    }
+    return value;
+  };
+
+  return normalize(data) as T;
 }
 
 export function extractMountTree(mounted: MountedVDOM): unknown {

@@ -11,6 +11,7 @@ import { ContextManager } from "../context/context-manager.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import {
   type AbsFilePath,
+  type HomeDir,
   type NvimCwd,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
@@ -108,6 +109,7 @@ export class Chat {
       bufferTracker: BufferTracker;
       options: MagentaOptions;
       cwd: NvimCwd;
+      homeDir: HomeDir;
       nvim: Nvim;
       lsp: Lsp;
     },
@@ -399,6 +401,7 @@ export class Chat {
           dispatch: this.context.dispatch,
           bufferTracker: this.context.bufferTracker,
           cwd: this.context.cwd,
+          homeDir: this.context.homeDir,
           nvim: this.context.nvim,
           options: this.context.options,
         },
@@ -658,6 +661,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
           dispatch: this.context.dispatch,
           bufferTracker: this.context.bufferTracker,
           cwd: this.context.cwd,
+          homeDir: this.context.homeDir,
           nvim: this.context.nvim,
           options: this.context.options,
         },

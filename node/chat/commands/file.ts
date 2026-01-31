@@ -13,8 +13,16 @@ export const fileCommand: Command = {
   async execute(match, context): Promise<ProviderMessageContent[]> {
     const filePath = match[1] as UnresolvedFilePath;
     try {
-      const absFilePath = resolveFilePath(context.cwd, filePath);
-      const relFilePath = relativePath(context.cwd, absFilePath);
+      const absFilePath = resolveFilePath(
+        context.cwd,
+        filePath,
+        context.homeDir,
+      );
+      const relFilePath = relativePath(
+        context.cwd,
+        absFilePath,
+        context.homeDir,
+      );
       const fileTypeInfo = await detectFileType(absFilePath);
 
       if (!fileTypeInfo) {

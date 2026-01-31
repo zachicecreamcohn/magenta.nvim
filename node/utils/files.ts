@@ -6,6 +6,8 @@ import { lookup } from "mime-types";
 export type AbsFilePath = string & { __abs_file_path: true };
 export type RelFilePath = string & { __rel_file_path: true };
 export type UnresolvedFilePath = string & { __unresolved_file_path: true };
+export type HomeDir = AbsFilePath & { __home_dir: true };
+export type DisplayPath = string & { __display_path: true };
 
 export const MAGENTA_TEMP_DIR = "/tmp/magenta" as AbsFilePath;
 
@@ -27,19 +29,47 @@ export interface FileTypeInfo {
   extension: string;
 }
 
+export function expandTilde(filepath: string, homeDir: HomeDir): string {
+  if (filepath.startsWith("~/") || filepath === "~") {
+    return path.join(homeDir, filepath.slice(1));
+  }
+  return filepath;
+}
+
 export function resolveFilePath(
   cwd: NvimCwd,
   filePath: UnresolvedFilePath | AbsFilePath | RelFilePath,
+  homeDir: HomeDir,
 ) {
-  return path.resolve(cwd, filePath) as AbsFilePath;
+  let expandedPath = filePath as string;
+  if (expandedPath.startsWith("~/") || expandedPath === "~") {
+    expandedPath = path.join(homeDir, expandedPath.slice(1));
+  }
+  return path.resolve(cwd, expandedPath) as AbsFilePath;
 }
 
 export function relativePath(
   cwd: NvimCwd,
   filePath: UnresolvedFilePath | AbsFilePath,
+  homeDir: HomeDir,
 ) {
-  const absPath = resolveFilePath(cwd, filePath);
+  const absPath = resolveFilePath(cwd, filePath, homeDir);
   return path.relative(cwd, absPath) as RelFilePath;
+}
+
+export function displayPath(
+  cwd: NvimCwd,
+  absFilePath: AbsFilePath,
+  homeDir: HomeDir,
+): DisplayPath {
+  const rel = path.relative(cwd, absFilePath);
+  if (!rel.startsWith("..")) {
+    return rel as DisplayPath;
+  }
+  if (absFilePath.startsWith(homeDir)) {
+    return ("~" + absFilePath.slice(homeDir.length)) as DisplayPath;
+  }
+  return absFilePath as string as DisplayPath;
 }
 // File size limits in bytes
 export const FILE_SIZE_LIMITS = {
