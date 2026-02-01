@@ -185,6 +185,7 @@ export function createTool(
       return new SpawnSubagent.SpawnSubagentTool(staticRequest, {
         nvim: context.nvim,
         dispatch: context.dispatch,
+        chat: context.chat,
         threadId: context.threadId,
         myDispatch: wrapDispatch,
       });

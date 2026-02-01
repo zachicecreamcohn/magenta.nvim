@@ -29,6 +29,7 @@ export function getSubsequentReminder(threadType: ThreadType): string {
       return BASE_REMINDER;
     case "subagent_default":
     case "subagent_fast":
+    case "subagent_explore":
       return SUBAGENT_REMINDER;
   }
 }
