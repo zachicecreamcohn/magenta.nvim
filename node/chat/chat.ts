@@ -20,6 +20,7 @@ import { wrapStaticToolMsg, type ToolRequestId } from "../tools/toolManager.ts";
 import type { ToolName } from "../tools/types.ts";
 import { MCPToolManager } from "../tools/mcp/manager.ts";
 import type { WaitForSubagentsTool } from "../tools/wait-for-subagents.ts";
+import type { SpawnSubagentTool } from "../tools/spawn-subagent.ts";
 import type { ThreadId, ThreadType } from "./types.ts";
 import { createSystemPrompt } from "../providers/system-prompt.ts";
 import type {
@@ -1089,6 +1090,24 @@ ${threadViews.map((view) => d`${view}\n`)}`;
                   type: "subagent-completed",
                   threadId,
                   result,
+                }),
+              },
+            });
+          });
+        } else if (
+          tool.toolName === "spawn_subagent" &&
+          (tool as SpawnSubagentTool).state.state === "waiting-for-subagent"
+        ) {
+          setTimeout(() => {
+            this.context.dispatch({
+              type: "thread-msg",
+              id: parentThread.id,
+              msg: {
+                type: "tool-msg",
+                id: tool.request.id,
+                toolName: "spawn_subagent" as ToolName,
+                msg: wrapStaticToolMsg({
+                  type: "check-thread",
                 }),
               },
             });

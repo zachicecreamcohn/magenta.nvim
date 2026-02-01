@@ -206,6 +206,7 @@ export function getToolSpecs(
   switch (threadType) {
     case "subagent_default":
     case "subagent_fast":
+    case "subagent_explore":
       staticToolNames = SUBAGENT_STATIC_TOOL_NAMES;
       break;
     case "root":

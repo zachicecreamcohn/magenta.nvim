@@ -13,17 +13,26 @@ import type { RootMsg } from "../root-msg.ts";
 import { AGENT_TYPES, type AgentType } from "../providers/system-prompt.ts";
 import type { ThreadId, ThreadType } from "../chat/types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import type { Chat } from "../chat/chat.ts";
 
 export type ToolRequest = GenericToolRequest<"spawn_subagent", Input>;
 
-export type Msg = {
-  type: "subagent-created";
-  result: Result<ThreadId>;
-};
+export type Msg =
+  | {
+      type: "subagent-created";
+      result: Result<ThreadId>;
+    }
+  | {
+      type: "check-thread";
+    };
 
 export type State =
   | {
       state: "preparing";
+    }
+  | {
+      state: "waiting-for-subagent";
+      threadId: ThreadId;
     }
   | {
       state: "done";
@@ -40,6 +49,7 @@ export class SpawnSubagentTool implements StaticTool {
     public context: {
       nvim: Nvim;
       dispatch: Dispatch<RootMsg>;
+      chat: Chat;
       threadId: ThreadId;
       myDispatch: Dispatch<Msg>;
     },
@@ -61,7 +71,11 @@ export class SpawnSubagentTool implements StaticTool {
     const prompt = input.prompt;
     const contextFiles = input.contextFiles || [];
     const threadType: ThreadType =
-      input.agentType === "fast" ? "subagent_fast" : "subagent_default";
+      input.agentType === "fast"
+        ? "subagent_fast"
+        : input.agentType === "explore"
+          ? "subagent_explore"
+          : "subagent_default";
 
     this.context.dispatch({
       type: "chat-msg",
@@ -114,25 +128,36 @@ export class SpawnSubagentTool implements StaticTool {
     switch (msg.type) {
       case "subagent-created":
         switch (msg.result.status) {
-          case "ok":
-            this.state = {
-              state: "done",
-              result: {
-                type: "tool_result",
-                id: this.request.id,
-                result: {
-                  status: "ok",
-                  value: [
-                    {
-                      type: "text",
-                      text: `Sub-agent started with threadId: ${msg.result.value}`,
-                    },
-                  ],
-                },
-              },
-            };
+          case "ok": {
+            const threadId = msg.result.value;
+            const isBlocking = this.request.input.blocking === true;
 
+            if (isBlocking) {
+              this.state = {
+                state: "waiting-for-subagent",
+                threadId,
+              };
+              this.checkThread();
+            } else {
+              this.state = {
+                state: "done",
+                result: {
+                  type: "tool_result",
+                  id: this.request.id,
+                  result: {
+                    status: "ok",
+                    value: [
+                      {
+                        type: "text",
+                        text: `Sub-agent started with threadId: ${threadId}`,
+                      },
+                    ],
+                  },
+                },
+              };
+            }
             break;
+          }
 
           case "error":
             this.state = {
@@ -150,8 +175,57 @@ export class SpawnSubagentTool implements StaticTool {
         }
         return;
 
+      case "check-thread":
+        this.checkThread();
+        return;
+
       default:
-        assertUnreachable(msg.type);
+        assertUnreachable(msg);
+    }
+  }
+
+  private checkThread(): void {
+    if (this.state.state !== "waiting-for-subagent" || this.aborted) {
+      return;
+    }
+
+    const threadId = this.state.threadId;
+    const threadResult = this.context.chat.getThreadResult(threadId);
+
+    switch (threadResult.status) {
+      case "done": {
+        const result = threadResult.result;
+        this.state = {
+          state: "done",
+          result: {
+            type: "tool_result",
+            id: this.request.id,
+            result:
+              result.status === "ok"
+                ? {
+                    status: "ok",
+                    value: [
+                      {
+                        type: "text",
+                        text: `Sub-agent (${threadId}) completed:\n${result.value}`,
+                      },
+                    ],
+                  }
+                : {
+                    status: "error",
+                    error: `Sub-agent (${threadId}) failed: ${result.error}`,
+                  },
+          },
+        };
+        break;
+      }
+
+      case "pending":
+        // Still waiting, will be checked again when thread state changes
+        return;
+
+      default:
+        assertUnreachable(threadResult);
     }
   }
 
@@ -172,7 +246,7 @@ export class SpawnSubagentTool implements StaticTool {
     return this.state.result;
   }
 
-  renderSummary() {
+  renderSummary(): VDOMNode {
     const promptPreview =
       this.request.input.prompt.length > 50
         ? this.request.input.prompt.substring(0, 50) + "..."
@@ -181,6 +255,51 @@ export class SpawnSubagentTool implements StaticTool {
     switch (this.state.state) {
       case "preparing":
         return d`🚀⚙️ spawn_subagent: ${promptPreview}`;
+      case "waiting-for-subagent": {
+        const summary = this.context.chat.getThreadSummary(this.state.threadId);
+        const title = summary.title || "[Untitled]";
+        let statusText: string;
+
+        switch (summary.status.type) {
+          case "missing":
+            statusText = "❓ not found";
+            break;
+          case "pending":
+            statusText = "⏳ initializing";
+            break;
+          case "running":
+            statusText = `⏳ ${summary.status.activity}`;
+            break;
+          case "stopped":
+            statusText = `⏹️ stopped (${summary.status.reason})`;
+            break;
+          case "yielded":
+            statusText = "✅ yielded";
+            break;
+          case "error":
+            statusText = `❌ error`;
+            break;
+          default:
+            assertUnreachable(summary.status);
+        }
+
+        return withBindings(
+          d`🚀⏳ spawn_subagent (blocking) ${this.state.threadId} ${title}: ${statusText}`,
+          {
+            "<CR>": () =>
+              this.context.dispatch({
+                type: "chat-msg",
+                msg: {
+                  type: "select-thread",
+                  id:
+                    this.state.state === "waiting-for-subagent"
+                      ? this.state.threadId
+                      : (undefined as unknown as ThreadId),
+                },
+              }),
+          },
+        );
+      }
       case "done":
         return renderCompletedSummary(
           {
@@ -232,71 +351,69 @@ export const spec: ProviderToolSpec = {
   name: "spawn_subagent" as ToolName,
   description: `Create a sub-agent that can perform a specific task and report back the results.
 
-## When to Use Sub-agents
-
-Use sub-agents for:
-- **Learning and discovery** tasks where you need to understand code, APIs, or concepts before proceeding
-- **Planning tasks** that require breaking down complex work into actionable steps
-- **Parallel work** when you need to perform multiple independent tasks
-
-Don't use sub-agents for:
-- Simple, single-step tasks you can complete directly
-- When you already have all the information needed
-- Quick clarifications or basic operations
-
-## Effective Sub-agent Usage
-
-The sub agent will run until it finishes the task. You will not be able to communicate with the subagent after spawning it, and it will only respond with a single output message.
-Because of this, it is important that you write **clear, specific prompts**
-- Be explicit about the task scope and expected deliverables
-- Include relevant context about what you're trying to achieve
-- Clearly define what specific information the sub-agent should include in its final response
-- For learning/discovery or planning tasks, remind the subagent to read the relevant skill file first
-
-**Choose appropriate agent types:**
+- Use 'explore' for searching the codebase - finding where something is defined, how it's used, or discovering code patterns. The explore agent is optimized for using search tools (rg, fd, grep) and returns structured findings with file paths, line numbers, and code snippets
 - Use 'fast' for quick tasks that don't require the full model capabilities
 - Use 'default' for everything else
 
-**Provide relevant context files:**
-- Include files the sub-agent will need to examine or modify
-- Don't over-include - focus on what's directly relevant to the task
-- Remember: sub-agents can use tools to discover additional files if needed
-
-Sub-agents have access to all standard tools except spawn_subagent (to prevent recursive spawning) and always have access to yield_to_parent.
+**Blocking vs non-blocking:**
+- Use \`blocking: true\` when you need the result before proceeding (simpler, no need to call wait_for_subagents)
+- Use \`blocking: false\` (default) when spawning multiple subagents in parallel, then use wait_for_subagents to collect results
 
 <example>
-user: refactor this interface
-assistant: [spawns subagent to learn about the interface]
-assistant: [waits for subagent]
-assistant: [uses find_references tool to find all references of the interface]
-assistant: [uses replace tool to refactor the interface]
-assistant: [spawns one subagent per file to update all references to the interface]
-assistant: [awaits all subagents]
+user: I'd like to change this interface
+assistant -> explore subagent, blocking: figure out where this interface is defined and used. Respond with code locations
+explore subagent: the interface is defined in file:line, and is used in file:line, file:line and file:line
+</example>
+
+
+<example>
+user: Where in this code base do we do X?
+assistant -> explore subagent, blocking: figure out where in the code we do X. Respond with code locations, and key snippets
+explore subagent: there is a class Class defined in file:line which does Y that's related to X. The main function is at file:line
+\`\`\`
+class Class...
+  function(args)...
+\`\`\`
+
+There is also another class Class2 ... etc...
+</example>
+
+
+<example>
+user: run the tests
+assistant: runs tests via bash command, receives a very long, trimmed output, as well as the full output file path
+assistant -> explore subagent, blocking: (full output of bash command passed via contextFiles) here's the output of a test command. Figure out which tests failed. Respond with the files and test names, as well as summaries of what failed.
+explore subagent: There were 4 failing tests:
+file: testfile
+test 'test description' on line
+failed assertion
+failed stack trace
+
+test 'test description' on line
+failed assertion
+failed stack trace
+
+file: otherfile
+... etc ...
 </example>
 
 <example>
-user: I want to build a new feature that does X
-assistant: [spawn subagent to plan the change]
-assistant: [wait for subagent, subagent writes to plans/X.md]
-assistant: Please review \`plans/X.md\` and confirm before I proceed. (end_turn)
-</example>
-
-<example>
-user: I am thinking about using technology X, Y or Z to implement a change.
-assistant: [spawn subagent to learn about the task constraints]
-assistant: [wait for subagent]
-assistant: [spawns subagent to consider the use of X for the task, given the constraints]
-assistant: [spawns subagent to consider the use of Y for the task, given the constraints]
-assistant: [spawns subagent to consider the use of Z for the task, given the constraints]
-assistant: [wait for subagents X, Y and Z]
-assistant: Summarizes the results
+assistant: while doing some work, uses get_file to read a file. The file is really large so get_file returns a file summary.
+assistant -> explore subagent, blocking: (file passed via contextFiles) here's a large file. Figure out where in this file we do X. Return the line numbers and the contents of a few surrounding relevant lines.
+explore subagent: X is defined on line XX.
+\`\`\`
+XX function x() {
+...
+YY }
+\`\`\`
 </example>`,
   input_schema: {
     type: "object",
     properties: {
       prompt: {
         type: "string",
-        description: "The sub-agent prompt.",
+        description:
+          "The sub-agent prompt. This should contain a clear question, and information about what the answer should look like.",
       },
       contextFiles: {
         type: "array",
@@ -306,12 +423,16 @@ assistant: Summarizes the results
         description:
           "Optional list of file paths to provide as context to the sub-agent.",
       },
-
       agentType: {
         type: "string",
         enum: AGENT_TYPES as unknown as string[],
         description:
-          "Optional agent type to use for the sub-agent. 'fast' uses the fast model for quick tasks. 'default' uses the standard model.",
+          "Optional agent type to use for the sub-agent. Use 'explore' for finding things and summarizing files. Use 'fast' for simple editing tasks. Use 'default' for tasks that require more thought and smarts.",
+      },
+      blocking: {
+        type: "boolean",
+        description:
+          "Pause this thread until the subagent finishes. If false (default), the tool returns immediately with the threadId you can use with wait_for_subagents to get the result.",
       },
     },
 
@@ -323,6 +444,7 @@ export type Input = {
   prompt: string;
   contextFiles?: UnresolvedFilePath[];
   agentType?: AgentType;
+  blocking?: boolean;
 };
 
 export function validateInput(input: {
@@ -363,6 +485,15 @@ export function validateInput(input: {
       return {
         status: "error",
         error: `expected req.input.agentType to be one of ${AGENT_TYPES.join(", ")} but it was ${JSON.stringify(input.agentType)}`,
+      };
+    }
+  }
+
+  if (input.blocking !== undefined) {
+    if (typeof input.blocking !== "boolean") {
+      return {
+        status: "error",
+        error: `expected req.input.blocking to be a boolean but it was ${JSON.stringify(input.blocking)}`,
       };
     }
   }
