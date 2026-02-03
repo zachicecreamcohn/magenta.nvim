@@ -257,7 +257,9 @@ export class SpawnSubagentTool implements StaticTool {
         return d`🚀⚙️ spawn_subagent: ${promptPreview}`;
       case "waiting-for-subagent": {
         const summary = this.context.chat.getThreadSummary(this.state.threadId);
-        const title = summary.title || "[Untitled]";
+        const displayName = this.context.chat.getThreadDisplayName(
+          this.state.threadId,
+        );
         let statusText: string;
 
         switch (summary.status.type) {
@@ -284,7 +286,7 @@ export class SpawnSubagentTool implements StaticTool {
         }
 
         return withBindings(
-          d`🚀⏳ spawn_subagent (blocking) ${this.state.threadId} ${title}: ${statusText}`,
+          d`🚀⏳ spawn_subagent (blocking) ${displayName}: ${statusText}`,
           {
             "<CR>": () =>
               this.context.dispatch({
@@ -326,25 +328,84 @@ export function renderCompletedSummary(
     return d`🤖❌ spawn_subagent: ${errorPreview}`;
   }
 
-  // Parse threadId from result text: "Sub-agent started with threadId: <id>"
+  // Parse threadId from result text
   const resultText =
     result.value[0]?.type === "text" ? result.value[0].text : "";
   const match = resultText.match(/threadId: ([a-f0-9-]+)/);
   const threadId = match ? (match[1] as ThreadId) : undefined;
 
-  return withBindings(d`🤖✅ spawn_subagent ${threadId || "undefined"}`, {
-    "<CR>": () => {
-      if (threadId) {
-        dispatch({
-          type: "chat-msg",
-          msg: {
-            type: "select-thread",
-            id: threadId,
-          },
-        });
-      }
+  // Check if this was a blocking call by looking for "completed:" in the result
+  const isBlocking = resultText.includes("completed:");
+
+  // For blocking calls, also try to extract threadId from the "Sub-agent (threadId) completed:" format
+  const blockingMatch = resultText.match(/Sub-agent \(([a-f0-9-]+)\)/);
+  const effectiveThreadId =
+    threadId || (blockingMatch ? (blockingMatch[1] as ThreadId) : undefined);
+
+  return withBindings(
+    d`🤖✅ spawn_subagent${isBlocking ? " (blocking)" : ""}`,
+    {
+      "<CR>": () => {
+        if (effectiveThreadId) {
+          dispatch({
+            type: "chat-msg",
+            msg: {
+              type: "select-thread",
+              id: effectiveThreadId,
+            },
+          });
+        }
+      },
     },
-  });
+  );
+}
+
+export function renderCompletedPreview(info: CompletedToolInfo): VDOMNode {
+  const result = info.result.result;
+  if (result.status === "error") {
+    return d``;
+  }
+
+  const resultText =
+    result.value[0]?.type === "text" ? result.value[0].text : "";
+
+  // Check if this was a blocking call - show preview of response
+  const completedMatch = resultText.match(/completed:\n([\s\S]*)/);
+  if (completedMatch) {
+    const response = completedMatch[1];
+    const previewLength = 200;
+    const preview =
+      response.length > previewLength
+        ? response.substring(0, previewLength) + "..."
+        : response;
+    return d`${preview}`;
+  }
+
+  return d``;
+}
+
+export function renderCompletedDetail(info: CompletedToolInfo): VDOMNode {
+  const input = info.request.input as Input;
+  const result = info.result.result;
+
+  const promptSection = d`**Prompt:**\n${input.prompt}`;
+
+  if (result.status === "error") {
+    return d`${promptSection}\n\n**Error:**\n${result.error}`;
+  }
+
+  const resultText =
+    result.value[0]?.type === "text" ? result.value[0].text : "";
+
+  // Check if this was a blocking call
+  const completedMatch = resultText.match(/completed:\n([\s\S]*)/);
+  if (completedMatch) {
+    const response = completedMatch[1];
+    return d`${promptSection}\n\n**Response:**\n${response}`;
+  }
+
+  // Non-blocking - just show prompt and that it was started
+  return d`${promptSection}\n\n**Status:** Started (non-blocking)`;
 }
 
 export const spec: ProviderToolSpec = {

@@ -231,6 +231,7 @@ type RenderContext = {
   cwd: import("../utils/files.ts").NvimCwd;
   homeDir: HomeDir;
   options: import("../options.ts").MagentaOptions;
+  dispatch: Dispatch<RootMsg>;
 };
 
 function isError(result: ProviderToolResult): boolean {
@@ -315,6 +316,10 @@ export function renderCompletedToolPreview(
       );
     case "bash_command":
       return BashCommand.renderCompletedPreview(info, context);
+    case "spawn_subagent":
+      return SpawnSubagent.renderCompletedPreview(info);
+    case "spawn_foreach":
+      return SpawnForeach.renderCompletedPreview(info);
     default:
       return d``;
   }
@@ -341,6 +346,10 @@ export function renderCompletedToolDetail(
       });
     case "bash_command":
       return BashCommand.renderCompletedDetail(info, context);
+    case "spawn_subagent":
+      return SpawnSubagent.renderCompletedDetail(info);
+    case "spawn_foreach":
+      return SpawnForeach.renderCompletedDetail(info, context.dispatch);
     default:
       return d`${JSON.stringify(info.request.input, null, 2)}`;
   }

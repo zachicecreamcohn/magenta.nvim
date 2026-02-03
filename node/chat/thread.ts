@@ -1757,6 +1757,7 @@ function renderMessageContent(
         cwd: thread.context.cwd,
         homeDir: thread.context.homeDir,
         options: thread.context.options,
+        dispatch: thread.context.dispatch,
       };
 
       // Get preview content to check if it's empty

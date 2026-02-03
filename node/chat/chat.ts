@@ -536,18 +536,44 @@ export class Chat {
     }
   }
 
+  getThreadDisplayName(threadId: ThreadId): string {
+    const threadWrapper = this.threadWrappers[threadId];
+    if (!threadWrapper || threadWrapper.state !== "initialized") {
+      return "[Untitled]";
+    }
+
+    const thread = threadWrapper.thread;
+    if (thread.state.title) {
+      return thread.state.title;
+    }
+
+    // Find the first user message text
+    const messages = thread.getProviderMessages();
+    for (const message of messages) {
+      if (message.role === "user") {
+        for (const content of message.content) {
+          if (content.type === "text" && content.text.trim()) {
+            const text = content.text.trim();
+            return text.length > 50 ? text.substring(0, 50) + "..." : text;
+          }
+        }
+      }
+    }
+
+    return "[Untitled]";
+  }
+
   private renderThread(
     threadId: ThreadId,
     isChild: boolean,
     activeThreadId: ThreadId | undefined,
   ): VDOMNode {
-    const summary = this.getThreadSummary(threadId);
-    const title = summary.title || "[Untitled]";
+    const displayName = this.getThreadDisplayName(threadId);
     const status = this.formatThreadStatus(threadId);
     const marker = threadId === activeThreadId ? "*" : "-";
     const indent = isChild ? "  " : "";
 
-    const displayLine = `${indent}${marker} ${threadId} ${title}: ${status}`;
+    const displayLine = `${indent}${marker} ${displayName}: ${status}`;
 
     return withBindings(d`${displayLine}`, {
       "<CR>": () =>
@@ -1135,7 +1161,8 @@ ${threadViews.map((view) => d`${view}\n`)}`;
 
         if (threadWrapper.parentThreadId) {
           const parent = threadWrapper.parentThreadId;
-          parentView = withBindings(d`Parent thread: ${parent.toString()}\n`, {
+          const parentDisplayName = this.getThreadDisplayName(parent);
+          parentView = withBindings(d`Parent thread: ${parentDisplayName}\n`, {
             "<CR>": () =>
               this.context.dispatch({
                 type: "chat-msg",
