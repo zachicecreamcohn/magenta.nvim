@@ -20,7 +20,24 @@ Trace:
 
 exports[`runScript > returns ok with no mutations when script only selects 1`] = `
 {
-  "result": "Trace:
+  "data": {
+    "finalSelection": {
+      "count": 1,
+      "snippet": "hello",
+    },
+    "mutations": [],
+    "trace": [
+      {
+        "command": "file /tmp/magenta-test/runscript-1770264767257-2/test.txt",
+        "snippet": "switched to /tmp/magenta-test/runscript-1770264767257-2/test.txt (2 lines)",
+      },
+      {
+        "command": "select_first",
+        "snippet": "hello",
+      },
+    ],
+  },
+  "formatted": "Trace:
   file <tmpDir>/test.txt → switched to <tmpDir>/test.txt (2 lines)
   select_first → hello
 
@@ -35,7 +52,39 @@ Final selection:
 
 exports[`runScript > returns ok with trace, mutations, and final selection 1`] = `
 {
-  "result": "Trace:
+  "data": {
+    "finalSelection": {
+      "count": 1,
+      "snippet": "planet",
+    },
+    "mutations": [
+      {
+        "path": "<tmpDir>/test.txt",
+        "summary": {
+          "deletions": 0,
+          "insertions": 0,
+          "linesAdded": 1,
+          "linesRemoved": 1,
+          "replacements": 1,
+        },
+      },
+    ],
+    "trace": [
+      {
+        "command": "file /tmp/magenta-test/runscript-1770264767251-0/test.txt",
+        "snippet": "switched to /tmp/magenta-test/runscript-1770264767251-0/test.txt (2 lines)",
+      },
+      {
+        "command": "select_first",
+        "snippet": "world",
+      },
+      {
+        "command": "replace",
+        "snippet": "planet",
+      },
+    ],
+  },
+  "formatted": "Trace:
   file <tmpDir>/test.txt → switched to <tmpDir>/test.txt (2 lines)
   select_first → world
   replace → planet

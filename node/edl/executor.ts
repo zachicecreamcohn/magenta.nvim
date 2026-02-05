@@ -23,6 +23,7 @@ export type FileState = {
   doc: Document;
   path: string;
   mutations: FileMutationSummary;
+  isNew?: boolean;
 };
 
 export class Executor {
@@ -205,6 +206,47 @@ export class Executor {
             command: `file ${cmd.path}`,
             ranges: [...this.selection],
             snippet: `switched to ${cmd.path} (${this.currentFile.doc.lineCount} lines)`,
+          });
+          break;
+        }
+        case "newfile": {
+          if (this.fileDocs.has(cmd.path)) {
+            throw new ExecutionError(
+              `newfile: file already loaded: ${cmd.path}`,
+              this.trace,
+            );
+          }
+          let exists = true;
+          try {
+            await fs.access(cmd.path);
+          } catch {
+            exists = false;
+          }
+          if (exists) {
+            throw new ExecutionError(
+              `newfile: file already exists on disk: ${cmd.path}`,
+              this.trace,
+            );
+          }
+          const state: FileState = {
+            doc: new Document(""),
+            path: cmd.path,
+            mutations: {
+              insertions: 0,
+              deletions: 0,
+              replacements: 0,
+              linesAdded: 0,
+              linesRemoved: 0,
+            },
+            isNew: true,
+          };
+          this.fileDocs.set(cmd.path, state);
+          this.currentFile = state;
+          this.selection = [{ start: 0, end: 0 }];
+          this.trace.push({
+            command: `newfile ${cmd.path}`,
+            ranges: [...this.selection],
+            snippet: `created ${cmd.path}`,
           });
           break;
         }
@@ -469,15 +511,23 @@ export class Executor {
     }
 
     const mutations = new Map<string, FileMutationSummary>();
+    const newFiles = new Set<string>();
     for (const [path, state] of this.fileDocs) {
       const m = state.mutations;
       if (m.insertions > 0 || m.deletions > 0 || m.replacements > 0) {
         mutations.set(path, m);
       }
+      if (state.isNew) {
+        newFiles.add(path);
+      }
     }
 
-    for (const [path] of mutations) {
+    for (const path of new Set([...mutations.keys(), ...newFiles])) {
       const state = this.fileDocs.get(path)!;
+      const dir = path.substring(0, path.lastIndexOf("/"));
+      if (dir) {
+        await fs.mkdir(dir, { recursive: true });
+      }
       await fs.writeFile(path, state.doc.content, "utf-8");
     }
 

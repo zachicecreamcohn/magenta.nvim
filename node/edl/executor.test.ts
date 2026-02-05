@@ -564,3 +564,82 @@ select /nonexistent_pattern/`;
     });
   });
 });
+
+describe("newfile", () => {
+  it("should create a new file and write content", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "new.txt");
+
+      const script = `\
+newfile \`${filePath}\`
+insert_after <<CONTENT
+hello new file
+CONTENT`;
+      const commands = parse(script);
+      const result = await executor(commands);
+
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("hello new file");
+      expect(result.mutations.get(filePath)).toMatchObject({
+        insertions: 1,
+        linesAdded: 1,
+      });
+    });
+  });
+
+  it("should create an empty file when no mutations follow", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "empty.txt");
+
+      const script = `newfile \`${filePath}\``;
+      const commands = parse(script);
+      await executor(commands);
+
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("");
+    });
+  });
+
+  it("should error if file already exists on disk", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "existing.txt");
+      await fs.writeFile(filePath, "existing content", "utf-8");
+
+      const script = `newfile \`${filePath}\``;
+      const commands = parse(script);
+      await expect(executor(commands)).rejects.toThrow(
+        "file already exists on disk",
+      );
+    });
+  });
+
+  it("should error if file was already loaded in the same script", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "content", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+newfile \`${filePath}\``;
+      const commands = parse(script);
+      await expect(executor(commands)).rejects.toThrow("file already loaded");
+    });
+  });
+
+  it("should create parent directories if they don't exist", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "a", "b", "new.txt");
+
+      const script = `\
+newfile \`${filePath}\`
+insert_after <<CONTENT
+nested file
+CONTENT`;
+      const commands = parse(script);
+      await executor(commands);
+
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("nested file");
+    });
+  });
+});

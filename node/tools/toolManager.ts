@@ -1,6 +1,4 @@
 import * as GetFile from "./getFile.ts";
-import * as Insert from "./insert.ts";
-import * as Replace from "./replace.ts";
 import * as ListDirectory from "./listDirectory.ts";
 import * as Hover from "./hover.ts";
 import * as FindReferences from "./findReferences.ts";
@@ -50,19 +48,6 @@ export type StaticToolMap = {
     msg: GetFile.Msg;
     spec: typeof GetFile.spec;
   };
-  insert: {
-    controller: Insert.InsertTool;
-    input: Insert.Input;
-    msg: Insert.Msg;
-    spec: typeof Insert.spec;
-  };
-  replace: {
-    controller: Replace.ReplaceTool;
-    input: Replace.Input;
-    msg: Replace.Msg;
-    spec: typeof Replace.spec;
-  };
-
   list_directory: {
     controller: ListDirectory.ListDirectoryTool;
     input: ListDirectory.Input;
@@ -187,8 +172,6 @@ const TOOL_SPEC_MAP: {
   [K in StaticToolName]: ProviderToolSpec;
 } = {
   get_file: GetFile.spec,
-  insert: Insert.spec,
-  replace: Replace.spec,
   list_directory: ListDirectory.spec,
   hover: Hover.spec,
   find_references: FindReferences.spec,
@@ -264,10 +247,6 @@ export function renderCompletedToolSummary(
   switch (toolName) {
     case "get_file":
       return GetFile.renderCompletedSummary(info, displayContext);
-    case "insert":
-      return Insert.renderCompletedSummary(info, displayContext);
-    case "replace":
-      return Replace.renderCompletedSummary(info, displayContext);
     case "list_directory":
       return ListDirectory.renderCompletedSummary(info, displayContext);
     case "bash_command":
@@ -314,16 +293,6 @@ export function renderCompletedToolPreview(
   }
 
   switch (toolName) {
-    case "insert":
-      return Insert.renderInsertPreview(
-        info.request.input as Insert.Input,
-        context.getDisplayWidth(),
-      );
-    case "replace":
-      return Replace.renderReplacePreview(
-        info.request.input as Replace.Input,
-        context.getDisplayWidth(),
-      );
     case "bash_command":
       return BashCommand.renderCompletedPreview(info, context);
     case "spawn_subagent":
@@ -331,7 +300,7 @@ export function renderCompletedToolPreview(
     case "spawn_foreach":
       return SpawnForeach.renderCompletedPreview(info);
     case "edl":
-      return d``;
+      return Edl.renderCompletedPreview(info);
     default:
       return d``;
   }
@@ -346,16 +315,6 @@ export function renderCompletedToolDetail(
   switch (toolName) {
     case "get_file":
       return GetFile.renderCompletedDetail(info);
-    case "insert":
-      return Insert.renderInsertDetail(info.request.input as Insert.Input, {
-        cwd: context.cwd,
-        homeDir: context.homeDir,
-      });
-    case "replace":
-      return Replace.renderReplaceDetail(info.request.input as Replace.Input, {
-        cwd: context.cwd,
-        homeDir: context.homeDir,
-      });
     case "bash_command":
       return BashCommand.renderCompletedDetail(info, context);
     case "spawn_subagent":
@@ -363,7 +322,7 @@ export function renderCompletedToolDetail(
     case "spawn_foreach":
       return SpawnForeach.renderCompletedDetail(info, context.dispatch);
     case "edl":
-      return d`${JSON.stringify(info.request.input, null, 2)}`;
+      return Edl.renderCompletedDetail(info);
     default:
       return d`${JSON.stringify(info.request.input, null, 2)}`;
   }

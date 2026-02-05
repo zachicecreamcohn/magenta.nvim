@@ -1,7 +1,4 @@
 import * as GetFile from "./getFile";
-import * as Insert from "./insert";
-import * as Replace from "./replace";
-
 import * as ListDirectory from "./listDirectory";
 import * as Hover from "./hover";
 import * as FindReferences from "./findReferences";
@@ -39,10 +36,6 @@ export function validateInput(
   switch (toolName as StaticToolName) {
     case "get_file":
       return GetFile.validateInput(input);
-    case "insert":
-      return Insert.validateInput(input);
-    case "replace":
-      return Replace.validateInput(input);
     case "list_directory":
       return ListDirectory.validateInput(input);
     case "hover":
@@ -89,10 +82,6 @@ export function renderStreamdedTool(
   switch (name) {
     case "get_file":
       break;
-    case "insert":
-      return Insert.renderStreamedBlock(streamingBlock.inputJson);
-    case "replace":
-      return Replace.renderStreamedBlock(streamingBlock.inputJson);
     case "list_directory":
     case "hover":
     case "find_references":

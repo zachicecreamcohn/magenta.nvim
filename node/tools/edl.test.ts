@@ -14,10 +14,7 @@ describe("edl tool", () => {
     await withDriver(
       {
         setupFiles: async (tmpDir) => {
-          await fs.writeFile(
-            path.join(tmpDir, "test.txt"),
-            "hello world\n",
-          );
+          await fs.writeFile(path.join(tmpDir, "test.txt"), "hello world\n");
         },
       },
       async (driver, dirs) => {
@@ -48,7 +45,9 @@ END`;
           ],
         });
 
-        await driver.assertDisplayBufferContains("📝✅ edl script");
+        await driver.assertDisplayBufferContains(
+          "📝✅ edl: 1 mutations in 1 file",
+        );
 
         const resultStream = await driver.mockAnthropic.awaitPendingStream();
         const toolResultMessage = MockProvider.findLastToolResultMessage(
@@ -160,6 +159,102 @@ select_one /nonexistent pattern that does not exist/`;
         expect(toolResult).toBeDefined();
         expect(toolResult!.is_error).toBe(true);
         expect(toolResult!.content).toContain("Error:");
+      },
+    );
+  });
+
+  test("shows mutation summary in display", async () => {
+    await withDriver(
+      {
+        setupFiles: async (tmpDir) => {
+          await fs.writeFile(path.join(tmpDir, "test.txt"), "hello world\n");
+        },
+      },
+      async (driver, dirs) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText("run edl script");
+        await driver.send();
+
+        const filePath = path.join(dirs.tmpDir, "test.txt");
+        const script = `file \`${filePath}\`
+select_one /hello/
+replace <<END
+goodbye
+END`;
+
+        const stream = await driver.mockAnthropic.awaitPendingStream();
+        stream.respond({
+          stopReason: "tool_use",
+          text: "I'll run an EDL script",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "tool_1" as ToolRequestId,
+                toolName: "edl" as ToolName,
+                input: { script },
+              },
+            },
+          ],
+        });
+
+        // Summary should show mutation count
+        await driver.assertDisplayBufferContains(
+          "📝✅ edl: 1 mutations in 1 file",
+        );
+
+        // Preview should show per-file stats
+        await driver.assertDisplayBufferContains("1 replace");
+        await driver.assertDisplayBufferContains("Final selection: 1 range");
+      },
+    );
+  });
+
+  test("toggles between preview and detail view", async () => {
+    await withDriver(
+      {
+        setupFiles: async (tmpDir) => {
+          await fs.writeFile(path.join(tmpDir, "test.txt"), "hello world\n");
+        },
+      },
+      async (driver, dirs) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText("run edl script");
+        await driver.send();
+
+        const filePath = path.join(dirs.tmpDir, "test.txt");
+        const script = `file \`${filePath}\`
+select_one /hello/
+replace <<END
+goodbye
+END`;
+
+        const stream = await driver.mockAnthropic.awaitPendingStream();
+        stream.respond({
+          stopReason: "tool_use",
+          text: "I'll run an EDL script",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "tool_1" as ToolRequestId,
+                toolName: "edl" as ToolName,
+                input: { script },
+              },
+            },
+          ],
+        });
+
+        await driver.assertDisplayBufferContains("📝✅ edl:");
+
+        // Toggle to detail view
+        const previewPos =
+          await driver.assertDisplayBufferContains("1 replace");
+        await driver.triggerDisplayBufferKey(previewPos, "<CR>");
+
+        // Detail should show full trace output
+        await driver.assertDisplayBufferContains("Trace:");
+        await driver.assertDisplayBufferContains("Mutations:");
       },
     );
   });

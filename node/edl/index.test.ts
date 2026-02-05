@@ -26,7 +26,14 @@ function normalizePaths(
   if (result.status === "ok") {
     return {
       status: "ok",
-      result: result.result.replaceAll(tmpDir, "<tmpDir>"),
+      data: {
+        ...result.data,
+        mutations: result.data.mutations.map((m) => ({
+          ...m,
+          path: m.path.replaceAll(tmpDir, "<tmpDir>"),
+        })),
+      },
+      formatted: result.formatted.replaceAll(tmpDir, "<tmpDir>"),
     };
   }
   return {

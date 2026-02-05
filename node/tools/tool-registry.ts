@@ -1,7 +1,5 @@
 export const STATIC_TOOL_NAMES = [
   "get_file",
-  "insert",
-  "replace",
   "list_directory",
   "hover",
   "find_references",
@@ -23,8 +21,6 @@ export type StaticToolName = (typeof STATIC_TOOL_NAMES)[number];
 
 export const CHAT_STATIC_TOOL_NAMES: StaticToolName[] = [
   "get_file",
-  "insert",
-  "replace",
   "list_directory",
   "hover",
   "find_references",
@@ -39,8 +35,6 @@ export const CHAT_STATIC_TOOL_NAMES: StaticToolName[] = [
 
 export const SUBAGENT_STATIC_TOOL_NAMES: StaticToolName[] = [
   "get_file",
-  "insert",
-  "replace",
   "list_directory",
   "hover",
   "find_references",

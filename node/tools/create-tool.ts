@@ -1,6 +1,4 @@
 import * as GetFile from "./getFile.ts";
-import * as Insert from "./insert.ts";
-import * as Replace from "./replace.ts";
 import * as ListDirectory from "./listDirectory.ts";
 import * as Hover from "./hover.ts";
 import * as FindReferences from "./findReferences.ts";
@@ -113,20 +111,6 @@ export function createTool(
         options: context.options,
         contextManager: context.contextManager,
         threadDispatch: context.threadDispatch,
-        myDispatch: wrapDispatch,
-      });
-    }
-
-    case "insert": {
-      return new Insert.InsertTool(staticRequest, context.threadId, {
-        ...context,
-        myDispatch: wrapDispatch,
-      });
-    }
-
-    case "replace": {
-      return new Replace.ReplaceTool(staticRequest, context.threadId, {
-        ...context,
         myDispatch: wrapDispatch,
       });
     }

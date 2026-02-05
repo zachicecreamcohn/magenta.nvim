@@ -5,8 +5,14 @@ import type { ScriptResult, TraceEntry, FileMutationSummary } from "./types.ts";
 export { ParseError, ExecutionError, Executor };
 export type { ScriptResult, TraceEntry, FileMutationSummary } from "./types.ts";
 
+export type EdlResultData = {
+  trace: { command: string; snippet: string }[];
+  mutations: { path: string; summary: FileMutationSummary }[];
+  finalSelection: { count: number; snippet: string } | undefined;
+};
+
 export type RunScriptResult =
-  | { status: "ok"; result: string }
+  | { status: "ok"; data: EdlResultData; formatted: string }
   | { status: "error"; error: string };
 
 function formatTrace(trace: TraceEntry[]): string {
@@ -47,7 +53,27 @@ export async function runScript(script: string): Promise<RunScriptResult> {
     const commands = parse(script);
     const executor = new Executor();
     const result = await executor.execute(commands);
-    return { status: "ok", result: formatResult(result) };
+
+    const data: EdlResultData = {
+      trace: result.trace.map((t) => ({
+        command: t.command,
+        snippet: t.snippet,
+      })),
+      mutations: Array.from(result.mutations.entries()).map(
+        ([path, summary]) => ({
+          path,
+          summary,
+        }),
+      ),
+      finalSelection: result.finalSelection
+        ? {
+            count: result.finalSelection.ranges.length,
+            snippet: result.finalSelection.snippet,
+          }
+        : undefined,
+    };
+
+    return { status: "ok", data, formatted: formatResult(result) };
   } catch (e) {
     if (e instanceof ParseError) {
       return { status: "error", error: `Parse error: ${e.message}` };

@@ -8,6 +8,7 @@ export type Pattern =
 
 export type Command =
   | { type: "file"; path: string }
+  | { type: "newfile"; path: string }
   | { type: "select"; pattern: Pattern }
   | { type: "select_first"; pattern: Pattern }
   | { type: "select_last"; pattern: Pattern }
@@ -214,6 +215,14 @@ export function parse(script: string): Command[] {
           throw new ParseError(`Expected file path, got ${pathTok.type}`);
         }
         commands.push({ type: "file", path: pathTok.value });
+        break;
+      }
+      case "newfile": {
+        const pathTok = next("file path")!;
+        if (pathTok.type !== "word" && pathTok.type !== "path") {
+          throw new ParseError(`Expected file path, got ${pathTok.type}`);
+        }
+        commands.push({ type: "newfile", path: pathTok.value });
         break;
       }
 
