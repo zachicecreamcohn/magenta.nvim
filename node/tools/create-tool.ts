@@ -13,6 +13,7 @@ import * as WaitForSubagents from "./wait-for-subagents.ts";
 import * as YieldToParent from "./yield-to-parent.ts";
 import * as PredictEdit from "./predict-edit.ts";
 import * as Compact from "./compact.ts";
+import * as Edl from "./edl.ts";
 
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Nvim } from "../nvim/nvim-node";
@@ -237,6 +238,13 @@ export function createTool(
       return new Compact.CompactTool(staticRequest, {
         nvim: context.nvim,
         thread: threadWrapper.thread,
+        myDispatch: wrapDispatch,
+      });
+    }
+
+    case "edl": {
+      return new Edl.EdlTool(staticRequest, {
+        nvim: context.nvim,
         myDispatch: wrapDispatch,
       });
     }

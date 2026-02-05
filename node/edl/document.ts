@@ -23,7 +23,7 @@ export class Document {
     if (idx < 0 || idx >= this._lineStarts.length) {
       throw new Error(`Line ${pos.line} out of range (1-${this.lineCount})`);
     }
-    return this._lineStarts[idx]! + pos.col;
+    return this._lineStarts[idx] + pos.col;
   }
 
   offsetToPos(offset: number): Pos {
@@ -31,13 +31,13 @@ export class Document {
     let hi = this._lineStarts.length - 1;
     while (lo < hi) {
       const mid = (lo + hi + 1) >> 1;
-      if (this._lineStarts[mid]! <= offset) {
+      if (this._lineStarts[mid] <= offset) {
         lo = mid;
       } else {
         hi = mid - 1;
       }
     }
-    return { line: lo + 1, col: offset - this._lineStarts[lo]! };
+    return { line: lo + 1, col: offset - this._lineStarts[lo] };
   }
 
   lineRange(line: number): Range {
@@ -45,10 +45,10 @@ export class Document {
     if (idx < 0 || idx >= this._lineStarts.length) {
       throw new Error(`Line ${line} out of range (1-${this.lineCount})`);
     }
-    const start = this._lineStarts[idx]!;
+    const start = this._lineStarts[idx];
     const end =
       idx + 1 < this._lineStarts.length
-        ? this._lineStarts[idx + 1]! - 1 // exclude the \n
+        ? this._lineStarts[idx + 1] - 1 // exclude the \n
         : this._content.length;
     return { start, end };
   }

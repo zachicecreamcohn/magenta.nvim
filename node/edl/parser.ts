@@ -39,10 +39,10 @@ export function* lex(script: string): Generator<Token> {
 
   while (pos < script.length) {
     // skip whitespace and newlines
-    while (pos < script.length && /\s/.test(script[pos]!)) pos++;
+    while (pos < script.length && /\s/.test(script[pos])) pos++;
     if (pos >= script.length) break;
 
-    const ch = script[pos]!;
+    const ch = script[pos];
 
     // comment — skip to end of line
     if (ch === "#") {
@@ -55,7 +55,7 @@ export function* lex(script: string): Generator<Token> {
       pos++; // skip opening /
       const patStart = pos;
       while (pos < script.length) {
-        const c = script[pos]!;
+        const c = script[pos];
         if (c === "\n") break;
         if (c === "\\") {
           pos += 2;
@@ -70,7 +70,7 @@ export function* lex(script: string): Generator<Token> {
       const pattern = script.slice(patStart, pos);
       pos++; // skip closing /
       const flagStart = pos;
-      while (pos < script.length && FLAG_CHARS.has(script[pos]!)) pos++;
+      while (pos < script.length && FLAG_CHARS.has(script[pos])) pos++;
       yield { type: "regex", pattern, flags: script.slice(flagStart, pos) };
       continue;
     }
@@ -92,14 +92,14 @@ export function* lex(script: string): Generator<Token> {
     if (ch === "<" && script[pos + 1] === "<") {
       pos += 2; // skip <<
       const delimStart = pos;
-      while (pos < script.length && /\w/.test(script[pos]!)) pos++;
+      while (pos < script.length && /\w/.test(script[pos])) pos++;
       if (pos === delimStart) {
         throw new ParseError(`Invalid heredoc marker`);
       }
       const delimiter = script.slice(delimStart, pos);
       // skip to next line
       while (pos < script.length && script[pos] !== "\n") {
-        if (!/\s/.test(script[pos]!)) {
+        if (!/\s/.test(script[pos])) {
           throw new ParseError(`Unexpected content after heredoc marker`);
         }
         pos++;
@@ -132,7 +132,7 @@ export function* lex(script: string): Generator<Token> {
 
     // word: consume until whitespace
     const start = pos;
-    while (pos < script.length && !/\s/.test(script[pos]!)) pos++;
+    while (pos < script.length && !/\s/.test(script[pos])) pos++;
     yield { type: "word", value: script.slice(start, pos) };
   }
 }
@@ -153,14 +153,14 @@ function tokenToPattern(tok: Token): Pattern {
       if (lineColMatch) {
         return {
           type: "lineCol",
-          line: parseInt(lineColMatch[1]!, 10),
-          col: parseInt(lineColMatch[2]!, 10),
+          line: parseInt(lineColMatch[1], 10),
+          col: parseInt(lineColMatch[2], 10),
         };
       }
 
       const lineMatch = tok.value.match(/^(\d+):?$/);
       if (lineMatch) {
-        return { type: "line", line: parseInt(lineMatch[1]!, 10) };
+        return { type: "line", line: parseInt(lineMatch[1], 10) };
       }
 
       throw new ParseError(`Invalid pattern: ${tok.value}`);

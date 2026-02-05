@@ -16,6 +16,7 @@ export const STATIC_TOOL_NAMES = [
   "yield_to_parent",
   "predict_edit",
   "compact",
+  "edl",
 ] as const;
 
 export type StaticToolName = (typeof STATIC_TOOL_NAMES)[number];
@@ -33,6 +34,7 @@ export const CHAT_STATIC_TOOL_NAMES: StaticToolName[] = [
   "spawn_foreach",
   "wait_for_subagents",
   "compact",
+  "edl",
 ];
 
 export const SUBAGENT_STATIC_TOOL_NAMES: StaticToolName[] = [
@@ -45,4 +47,5 @@ export const SUBAGENT_STATIC_TOOL_NAMES: StaticToolName[] = [
   "diagnostics",
   "bash_command",
   "yield_to_parent",
+  "edl",
 ];

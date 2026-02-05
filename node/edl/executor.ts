@@ -76,7 +76,7 @@ export class Executor {
         this.trace,
       );
     }
-    return this.selection[0]!;
+    return this.selection[0];
   }
 
   findAllMatches(
@@ -149,7 +149,7 @@ export class Executor {
     const texts = ranges.map((r) => doc.getText(r));
     const snippet =
       texts.length === 1
-        ? Executor.formatSnippet(texts[0]!)
+        ? Executor.formatSnippet(texts[0])
         : texts.map((t) => Executor.formatSnippet(t)).join(" | ");
     this.trace.push({ command, ranges: [...ranges], snippet });
   }
@@ -157,15 +157,15 @@ export class Executor {
   static formatSnippet(text: string): string {
     const lines = text.split("\n");
     if (lines.length === 1) {
-      const line = lines[0]!;
+      const line = lines[0];
       if (line.length > MAX_SNIPPET_LENGTH) {
         const half = Math.floor((MAX_SNIPPET_LENGTH - 3) / 2);
         return line.slice(0, half) + "..." + line.slice(line.length - half);
       }
       return line;
     }
-    const first = lines[0]!;
-    const last = lines[lines.length - 1]!;
+    const first = lines[0];
+    const last = lines[lines.length - 1];
     return first + "\n...\n" + last;
   }
 
@@ -238,7 +238,7 @@ export class Executor {
               "select_first: no matches for pattern",
               this.trace,
             );
-          this.selection = [matches[0]!];
+          this.selection = [matches[0]];
           this.addTrace("select_first", this.selection, file.doc);
           break;
         }
@@ -255,7 +255,7 @@ export class Executor {
               "select_last: no matches for pattern",
               this.trace,
             );
-          this.selection = [matches[matches.length - 1]!];
+          this.selection = [matches[matches.length - 1]];
           this.addTrace("select_last", this.selection, file.doc);
           break;
         }
@@ -277,7 +277,7 @@ export class Executor {
               `select_one: expected 1 match, got ${matches.length}`,
               this.trace,
             );
-          this.selection = [matches[0]!];
+          this.selection = [matches[0]];
           this.addTrace("select_one", this.selection, file.doc);
           break;
         }
@@ -297,7 +297,7 @@ export class Executor {
               "select_next: no matches after selection",
               this.trace,
             );
-          this.selection = [matches[0]!];
+          this.selection = [matches[0]];
           this.addTrace("select_next", this.selection, file.doc);
           break;
         }
@@ -312,7 +312,7 @@ export class Executor {
               "select_prev: no matches before selection",
               this.trace,
             );
-          this.selection = [matches[matches.length - 1]!];
+          this.selection = [matches[matches.length - 1]];
           this.addTrace("select_prev", this.selection, file.doc);
           break;
         }
@@ -332,7 +332,7 @@ export class Executor {
               "extend_forward: no matches after selection",
               this.trace,
             );
-          this.selection = [{ start: current.start, end: matches[0]!.end }];
+          this.selection = [{ start: current.start, end: matches[0].end }];
           this.addTrace("extend_forward", this.selection, file.doc);
           break;
         }
@@ -349,7 +349,7 @@ export class Executor {
             );
           this.selection = [
             {
-              start: matches[matches.length - 1]!.start,
+              start: matches[matches.length - 1].start,
               end: current.end,
             },
           ];
@@ -366,7 +366,7 @@ export class Executor {
               `nth: index ${cmd.n} out of range (${this.selection.length} selections)`,
               this.trace,
             );
-          this.selection = [this.selection[n]!];
+          this.selection = [this.selection[n]];
           const file = this.requireFile();
           this.addTrace(`nth ${cmd.n}`, this.selection, file.doc);
           break;
@@ -404,7 +404,7 @@ export class Executor {
             file.mutations.deletions++;
             file.mutations.linesRemoved += Executor.countLines(oldText);
           }
-          const firstRange = this.selection[0]!;
+          const firstRange = this.selection[0];
           this.selection = [{ start: firstRange.start, end: firstRange.start }];
           break;
         }

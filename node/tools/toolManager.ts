@@ -15,6 +15,7 @@ import * as WaitForSubagents from "./wait-for-subagents.ts";
 import * as YieldToParent from "./yield-to-parent.ts";
 import * as PredictEdit from "./predict-edit.ts";
 import * as Compact from "./compact.ts";
+import * as Edl from "./edl.ts";
 
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
@@ -146,6 +147,12 @@ export type StaticToolMap = {
     msg: Compact.Msg;
     spec: typeof Compact.spec;
   };
+  edl: {
+    controller: Edl.EdlTool;
+    input: Edl.Input;
+    msg: Edl.Msg;
+    spec: typeof Edl.spec;
+  };
 };
 
 export type StaticToolRequest = {
@@ -196,6 +203,7 @@ const TOOL_SPEC_MAP: {
   wait_for_subagents: WaitForSubagents.spec,
   predict_edit: PredictEdit.spec,
   compact: Compact.spec,
+  edl: Edl.spec,
 };
 
 export function getToolSpecs(
@@ -288,6 +296,8 @@ export function renderCompletedToolSummary(
       return PredictEdit.renderCompletedSummary(info);
     case "compact":
       return Compact.renderCompletedSummary(info);
+    case "edl":
+      return Edl.renderCompletedSummary(info);
     default:
       assertUnreachable(toolName);
   }
@@ -320,6 +330,8 @@ export function renderCompletedToolPreview(
       return SpawnSubagent.renderCompletedPreview(info);
     case "spawn_foreach":
       return SpawnForeach.renderCompletedPreview(info);
+    case "edl":
+      return d``;
     default:
       return d``;
   }
@@ -350,6 +362,8 @@ export function renderCompletedToolDetail(
       return SpawnSubagent.renderCompletedDetail(info);
     case "spawn_foreach":
       return SpawnForeach.renderCompletedDetail(info, context.dispatch);
+    case "edl":
+      return d`${JSON.stringify(info.request.input, null, 2)}`;
     default:
       return d`${JSON.stringify(info.request.input, null, 2)}`;
   }
