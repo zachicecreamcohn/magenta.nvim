@@ -2,47 +2,47 @@ import { describe, expect, it } from "vitest";
 import { parse } from "./parser.ts";
 
 describe("edl parser", () => {
-  it("parses select with regex", () => {
-    const cmds = parse(`select_first /hello/`);
+  it("parses narrow with regex", () => {
+    const cmds = parse(`narrow /hello/`);
     expect(cmds).toEqual([
       {
-        type: "select_first",
+        type: "narrow",
         pattern: { type: "regex", pattern: /hello/g },
       },
     ]);
   });
 
-  it("parses select with line number", () => {
-    const cmds = parse(`select 55`);
+  it("parses narrow with line number", () => {
+    const cmds = parse(`narrow 55`);
     expect(cmds).toEqual([
-      { type: "select", pattern: { type: "line", line: 55 } },
+      { type: "narrow", pattern: { type: "line", line: 55 } },
     ]);
   });
 
-  it("parses select with line:col", () => {
-    const cmds = parse(`select 55:10`);
+  it("parses narrow with line:col", () => {
+    const cmds = parse(`narrow 55:10`);
     expect(cmds).toEqual([
-      { type: "select", pattern: { type: "lineCol", line: 55, col: 10 } },
+      { type: "narrow", pattern: { type: "lineCol", line: 55, col: 10 } },
     ]);
   });
 
-  it("parses select with heredoc literal", () => {
-    const cmds = parse(`select_first <<FIND
+  it("parses narrow with heredoc literal", () => {
+    const cmds = parse(`narrow <<FIND
 exact text
 FIND`);
     expect(cmds).toEqual([
       {
-        type: "select_first",
+        type: "narrow",
         pattern: { type: "literal", text: "exact text" },
       },
     ]);
   });
 
   it("parses bof and eof", () => {
-    const cmds = parse(`select_first bof\nselect_first eof`);
+    const cmds = parse(`narrow bof\nnarrow eof`);
     expect(cmds).toEqual([
-      { type: "select_first", pattern: { type: "bof" } },
-      { type: "select_first", pattern: { type: "eof" } },
+      { type: "narrow", pattern: { type: "bof" } },
+      { type: "narrow", pattern: { type: "eof" } },
     ]);
   });
 
@@ -83,9 +83,14 @@ END`);
     expect(cmds).toEqual([{ type: "file", path: "src/app.ts" }]);
   });
 
-  it("parses nth", () => {
-    const cmds = parse(`nth 2`);
-    expect(cmds).toEqual([{ type: "nth", n: 2 }]);
+  it("parses retain_nth", () => {
+    const cmds = parse(`retain_nth 2`);
+    expect(cmds).toEqual([{ type: "retain_nth", n: 2 }]);
+  });
+
+  it("parses retain_first and retain_last", () => {
+    const cmds = parse(`retain_first\nretain_last`);
+    expect(cmds).toEqual([{ type: "retain_first" }, { type: "retain_last" }]);
   });
 
   it("skips comments and blank lines", () => {
@@ -104,34 +109,41 @@ END`);
   });
 
   it("parses regex with escaped slash", () => {
-    const cmds = parse(`select /foo\\/bar/`);
+    const cmds = parse(`narrow /foo\\/bar/`);
     expect(cmds).toEqual([
-      { type: "select", pattern: { type: "regex", pattern: /foo\/bar/g } },
+      { type: "narrow", pattern: { type: "regex", pattern: /foo\/bar/g } },
     ]);
   });
 
   it("parses regex with special characters", () => {
-    const cmds = parse(`select /\\d+\\.\\d+/`);
+    const cmds = parse(`narrow /\\d+\\.\\d+/`);
     expect(cmds).toEqual([
-      { type: "select", pattern: { type: "regex", pattern: /\d+\.\d+/g } },
+      { type: "narrow", pattern: { type: "regex", pattern: /\d+\.\d+/g } },
     ]);
   });
 
   it("parses regex with flags", () => {
-    const cmds = parse(`select /hello/i`);
+    const cmds = parse(`narrow /hello/i`);
     expect(cmds).toEqual([
-      { type: "select", pattern: { type: "regex", pattern: /hello/gi } },
+      { type: "narrow", pattern: { type: "regex", pattern: /hello/gi } },
     ]);
   });
 
   it("parses regex with escaped newline followed by another command", () => {
-    const cmds = parse(`select /abc\\ndef/\nselect /somethingelse/`);
+    const cmds = parse(`narrow /abc\\ndef/\nnarrow /somethingelse/`);
     expect(cmds).toEqual([
-      { type: "select", pattern: { type: "regex", pattern: /abc\ndef/g } },
+      { type: "narrow", pattern: { type: "regex", pattern: /abc\ndef/g } },
       {
-        type: "select",
+        type: "narrow",
         pattern: { type: "regex", pattern: /somethingelse/g },
       },
+    ]);
+  });
+
+  it("parses narrow_one", () => {
+    const cmds = parse(`narrow_one /hello/`);
+    expect(cmds).toEqual([
+      { type: "narrow_one", pattern: { type: "regex", pattern: /hello/g } },
     ]);
   });
 });

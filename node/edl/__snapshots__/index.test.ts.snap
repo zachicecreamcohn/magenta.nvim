@@ -9,11 +9,12 @@ exports[`runScript > returns error on parse failure 1`] = `
 
 exports[`runScript > returns error with message and trace on execution failure 1`] = `
 {
-  "error": "Error: select: no matches for pattern
+  "error": "Error: narrow: no matches for pattern /nonexistent/
 
 Trace:
   file <tmpDir>/test.txt → switched to <tmpDir>/test.txt (2 lines)
-  select_first → hello",
+  narrow → hello
+  retain_first → hello",
   "status": "error",
 }
 `;
@@ -32,14 +33,19 @@ exports[`runScript > returns ok with no mutations when script only selects 1`] =
         "snippet": "switched to <tmpDir>/test.txt (2 lines)",
       },
       {
-        "command": "select_first",
+        "command": "narrow",
+        "snippet": "hello",
+      },
+      {
+        "command": "retain_first",
         "snippet": "hello",
       },
     ],
   },
   "formatted": "Trace:
   file <tmpDir>/test.txt → switched to <tmpDir>/test.txt (2 lines)
-  select_first → hello
+  narrow → hello
+  retain_first → hello
 
 Mutations:
 No files modified.
@@ -75,7 +81,11 @@ exports[`runScript > returns ok with trace, mutations, and final selection 1`] =
         "snippet": "switched to <tmpDir>/test.txt (2 lines)",
       },
       {
-        "command": "select_first",
+        "command": "narrow",
+        "snippet": "world",
+      },
+      {
+        "command": "retain_first",
         "snippet": "world",
       },
       {
@@ -86,7 +96,8 @@ exports[`runScript > returns ok with trace, mutations, and final selection 1`] =
   },
   "formatted": "Trace:
   file <tmpDir>/test.txt → switched to <tmpDir>/test.txt (2 lines)
-  select_first → world
+  narrow → world
+  retain_first → world
   replace → planet
 
 Mutations:

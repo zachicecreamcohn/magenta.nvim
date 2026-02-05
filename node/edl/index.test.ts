@@ -55,7 +55,8 @@ describe("runScript", () => {
 
       const result = await runScript(`\
 file \`${filePath}\`
-select_first /world/
+narrow /world/
+retain_first
 replace <<END
 planet
 END`);
@@ -71,8 +72,9 @@ END`);
 
       const result = await runScript(`\
 file \`${filePath}\`
-select_first /hello/
-select /nonexistent/`);
+narrow /hello/
+retain_first
+narrow /nonexistent/`);
 
       expect(normalizePaths(result, tmpDir)).toMatchSnapshot();
     });
@@ -91,7 +93,8 @@ select /nonexistent/`);
 
       const result = await runScript(`\
 file \`${filePath}\`
-select_first /hello/`);
+narrow /hello/
+retain_first`);
 
       expect(normalizePaths(result, tmpDir)).toMatchSnapshot();
     });

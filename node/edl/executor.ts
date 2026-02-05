@@ -19,6 +19,28 @@ export class ExecutionError extends Error {
 
 const MAX_SNIPPET_LENGTH = 120;
 
+function formatPattern(pattern: Pattern): string {
+  switch (pattern.type) {
+    case "regex":
+      return `/${pattern.pattern.source}/${pattern.pattern.flags.replace("g", "")}`;
+    case "literal": {
+      const text = pattern.text;
+      if (text.length > 60) {
+        return `<<HEREDOC\n${text.slice(0, 60)}...\nHEREDOC`;
+      }
+      return `<<HEREDOC\n${text}\nHEREDOC`;
+    }
+    case "line":
+      return `${pattern.line}:`;
+    case "lineCol":
+      return `${pattern.line}:${pattern.col}`;
+    case "bof":
+      return "bof";
+    case "eof":
+      return "eof";
+  }
+}
+
 export type FileState = {
   doc: Document;
   path: string;
@@ -251,7 +273,7 @@ export class Executor {
           break;
         }
 
-        case "select": {
+        case "narrow": {
           const file = this.requireFile();
           const matches = this.findAllMatches(
             cmd.pattern,
@@ -260,15 +282,33 @@ export class Executor {
           );
           if (matches.length === 0)
             throw new ExecutionError(
-              `select: no matches for pattern`,
+              `narrow: no matches for pattern ${formatPattern(cmd.pattern)}`,
               this.trace,
             );
           this.selection = matches;
-          this.addTrace("select", this.selection, file.doc);
+          this.addTrace("narrow", this.selection, file.doc);
           break;
         }
 
-        case "select_first": {
+        case "retain_first": {
+          if (this.selection.length === 0)
+            throw new ExecutionError("retain_first: no selections", this.trace);
+          this.selection = [this.selection[0]];
+          const file = this.requireFile();
+          this.addTrace("retain_first", this.selection, file.doc);
+          break;
+        }
+
+        case "retain_last": {
+          if (this.selection.length === 0)
+            throw new ExecutionError("retain_last: no selections", this.trace);
+          this.selection = [this.selection[this.selection.length - 1]];
+          const file = this.requireFile();
+          this.addTrace("retain_last", this.selection, file.doc);
+          break;
+        }
+
+        case "narrow_one": {
           const file = this.requireFile();
           const matches = this.findAllMatches(
             cmd.pattern,
@@ -277,50 +317,16 @@ export class Executor {
           );
           if (matches.length === 0)
             throw new ExecutionError(
-              "select_first: no matches for pattern",
-              this.trace,
-            );
-          this.selection = [matches[0]];
-          this.addTrace("select_first", this.selection, file.doc);
-          break;
-        }
-
-        case "select_last": {
-          const file = this.requireFile();
-          const matches = this.findAllMatches(
-            cmd.pattern,
-            file.doc,
-            this.selection,
-          );
-          if (matches.length === 0)
-            throw new ExecutionError(
-              "select_last: no matches for pattern",
-              this.trace,
-            );
-          this.selection = [matches[matches.length - 1]];
-          this.addTrace("select_last", this.selection, file.doc);
-          break;
-        }
-
-        case "select_one": {
-          const file = this.requireFile();
-          const matches = this.findAllMatches(
-            cmd.pattern,
-            file.doc,
-            this.selection,
-          );
-          if (matches.length === 0)
-            throw new ExecutionError(
-              "select_one: no matches for pattern",
+              `narrow_one: no matches for pattern ${formatPattern(cmd.pattern)}`,
               this.trace,
             );
           if (matches.length > 1)
             throw new ExecutionError(
-              `select_one: expected 1 match, got ${matches.length}`,
+              `narrow_one: expected 1 match, got ${matches.length}`,
               this.trace,
             );
           this.selection = [matches[0]];
-          this.addTrace("select_one", this.selection, file.doc);
+          this.addTrace("narrow_one", this.selection, file.doc);
           break;
         }
 
@@ -336,7 +342,7 @@ export class Executor {
           );
           if (matches.length === 0)
             throw new ExecutionError(
-              "select_next: no matches after selection",
+              `select_next: no matches after selection for pattern ${formatPattern(cmd.pattern)}`,
               this.trace,
             );
           this.selection = [matches[0]];
@@ -351,7 +357,7 @@ export class Executor {
           const matches = this.findInText(cmd.pattern, searchText, file.doc, 0);
           if (matches.length === 0)
             throw new ExecutionError(
-              "select_prev: no matches before selection",
+              `select_prev: no matches before selection for pattern ${formatPattern(cmd.pattern)}`,
               this.trace,
             );
           this.selection = [matches[matches.length - 1]];
@@ -371,7 +377,7 @@ export class Executor {
           );
           if (matches.length === 0)
             throw new ExecutionError(
-              "extend_forward: no matches after selection",
+              `extend_forward: no matches after selection for pattern ${formatPattern(cmd.pattern)}`,
               this.trace,
             );
           this.selection = [{ start: current.start, end: matches[0].end }];
@@ -386,7 +392,7 @@ export class Executor {
           const matches = this.findInText(cmd.pattern, searchText, file.doc, 0);
           if (matches.length === 0)
             throw new ExecutionError(
-              "extend_back: no matches before selection",
+              `extend_back: no matches before selection for pattern ${formatPattern(cmd.pattern)}`,
               this.trace,
             );
           this.selection = [
@@ -399,18 +405,18 @@ export class Executor {
           break;
         }
 
-        case "nth": {
+        case "retain_nth": {
           if (this.selection.length === 0)
-            throw new ExecutionError("nth: no selections", this.trace);
+            throw new ExecutionError("retain_nth: no selections", this.trace);
           const n = cmd.n < 0 ? this.selection.length + cmd.n : cmd.n;
           if (n < 0 || n >= this.selection.length)
             throw new ExecutionError(
-              `nth: index ${cmd.n} out of range (${this.selection.length} selections)`,
+              `retain_nth: index ${cmd.n} out of range (${this.selection.length} selections)`,
               this.trace,
             );
           this.selection = [this.selection[n]];
           const file = this.requireFile();
-          this.addTrace(`nth ${cmd.n}`, this.selection, file.doc);
+          this.addTrace(`retain_nth ${cmd.n}`, this.selection, file.doc);
           break;
         }
 

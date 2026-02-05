@@ -37,7 +37,7 @@ goodbye world
 
     const script = `\
 file \`${filePath}\`
-select /world/
+narrow /world/
 replace <<END
 planet
 END`;
@@ -62,7 +62,7 @@ describe("selection commands", () => {
 
       const script = `\
 file \`${filePath}\`
-select /aaa/
+narrow /aaa/
 replace <<END
 xxx
 END`;
@@ -81,7 +81,7 @@ END`;
 
       const script = `\
 file \`${filePath}\`
-select /zzz/`;
+narrow /zzz/`;
       const commands = parse(script);
       await expect(executor(commands)).rejects.toThrow("no matches");
     });
@@ -94,7 +94,8 @@ select /zzz/`;
 
       const script = `\
 file \`${filePath}\`
-select_first /aaa/
+narrow /aaa/
+retain_first
 replace <<END
 xxx
 END`;
@@ -112,7 +113,8 @@ END`;
 
       const script = `\
 file \`${filePath}\`
-select_last /aaa/
+narrow /aaa/
+retain_last
 replace <<END
 xxx
 END`;
@@ -123,14 +125,14 @@ END`;
     });
   });
 
-  it("select_one: selects when exactly one match", async () => {
+  it("narrow_one: selects when exactly one match", async () => {
     await withTmpDir(async (tmpDir) => {
       const filePath = path.join(tmpDir, "test.txt");
       await fs.writeFile(filePath, "aaa bbb ccc\n", "utf-8");
 
       const script = `\
 file \`${filePath}\`
-select_one /bbb/
+narrow_one /bbb/
 replace <<END
 xxx
 END`;
@@ -141,14 +143,14 @@ END`;
     });
   });
 
-  it("select_one: errors when multiple matches", async () => {
+  it("narrow_one: errors when multiple matches", async () => {
     await withTmpDir(async (tmpDir) => {
       const filePath = path.join(tmpDir, "test.txt");
       await fs.writeFile(filePath, "aaa bbb aaa\n", "utf-8");
 
       const script = `\
 file \`${filePath}\`
-select_one /aaa/`;
+narrow_one /aaa/`;
       const commands = parse(script);
       await expect(executor(commands)).rejects.toThrow(
         "expected 1 match, got 2",
@@ -165,7 +167,8 @@ select_one /aaa/`;
       // Should find "bbb" at positions 6-9, not re-match within the selection
       const script = `\
 file \`${filePath}\`
-select_first /aaabbb/
+narrow /aaabbb/
+retain_first
 select_next /bbb/
 replace <<END2
 xxx
@@ -187,7 +190,8 @@ END2`;
       // No match exists after position 6, so this should error
       const script = `\
 file \`${filePath}\`
-select_first /aaabbb/
+narrow /aaabbb/
+retain_first
 select_next /bbb/`;
       const commands = parse(script);
       await expect(executor(commands)).rejects.toThrow(
@@ -205,7 +209,8 @@ select_next /bbb/`;
       // Should find "bbb" at positions 0-3, not re-match within the selection
       const script = `\
 file \`${filePath}\`
-select_last /bbbaaa/
+narrow /bbbaaa/
+retain_last
 select_prev /bbb/
 replace <<END2
 xxx
@@ -227,7 +232,8 @@ END2`;
       // No match exists before position 3, so this should error
       const script = `\
 file \`${filePath}\`
-select_last /bbbaaa/
+narrow /bbbaaa/
+retain_last
 select_prev /bbb/`;
       const commands = parse(script);
       await expect(executor(commands)).rejects.toThrow(
@@ -245,7 +251,8 @@ select_prev /bbb/`;
       // Should extend to include positions 6-9, giving "aaabbbbbb"
       const script = `\
 file \`${filePath}\`
-select_first /aaabbb/
+narrow /aaabbb/
+retain_first
 extend_forward /bbb/
 replace <<END2
 xxx
@@ -266,7 +273,8 @@ END2`;
       // Should extend to include positions 0-3, giving "bbbbbbaaa"
       const script = `\
 file \`${filePath}\`
-select_last /bbbaaa/
+narrow /bbbaaa/
+retain_last
 extend_back /bbb/
 replace <<END2
 xxx
@@ -284,7 +292,8 @@ END2`;
 
       const script = `\
 file \`${filePath}\`
-select_first /bbb/
+narrow /bbb/
+retain_first
 select_next /aaa/
 replace <<END
 xxx
@@ -303,7 +312,8 @@ END`;
 
       const script = `\
 file \`${filePath}\`
-select_last /bbb/
+narrow /bbb/
+retain_last
 select_prev /aaa/
 replace <<END
 xxx
@@ -326,7 +336,8 @@ END`;
 
       const script = `\
 file \`${filePath}\`
-select_first /function hello/
+narrow /function hello/
+retain_first
 extend_forward /}/
 replace <<END
 function hello() { return 2; }
@@ -349,7 +360,8 @@ END`;
 
       const script = `\
 file \`${filePath}\`
-select_first /}/
+narrow /}/
+retain_first
 extend_back /function/
 replace <<END
 function hello() { return 2; }
@@ -368,8 +380,8 @@ END`;
 
       const script = `\
 file \`${filePath}\`
-select /aaa/
-nth 1
+narrow /aaa/
+retain_nth 1
 replace <<END
 xxx
 END`;
@@ -387,8 +399,8 @@ END`;
 
       const script = `\
 file \`${filePath}\`
-select /aaa/
-nth -1
+narrow /aaa/
+retain_nth -1
 replace <<END
 xxx
 END`;
@@ -408,9 +420,11 @@ END`;
 
       const script = `\
 file \`${file1}\`
-select_first /one/
+narrow /one/
+retain_first
 file \`${file2}\`
-select_first /two/
+narrow /two/
+retain_first
 replace <<END
 TWO
 END`;
@@ -428,7 +442,7 @@ END`;
 
       const script = `\
 file \`${filePath}\`
-select 2
+narrow 2
 replace <<END
 replaced
 END`;
@@ -500,7 +514,7 @@ END`;
 
       const script = `\
 file \`${filePath}\`
-select <<FIND
+narrow <<FIND
 /pattern/
 FIND
 replace <<END2
@@ -520,7 +534,7 @@ END2`;
 
       const script = `\
 file \`${filePath}\`
-select bof
+narrow bof
 insert_after <<END
 prefix
 END`;
@@ -540,7 +554,8 @@ describe("mutation commands", () => {
 
       const script = `\
 file \`${filePath}\`
-select_first /line two\\n/
+narrow /line two\\n/
+retain_first
 delete`;
       const commands = parse(script);
       const result = await executor(commands);
@@ -557,7 +572,8 @@ delete`;
 
       const script = `\
 file \`${filePath}\`
-select_first /world/
+narrow /world/
+retain_first
 insert_before <<END
 beautiful_
 END`;
@@ -576,7 +592,8 @@ END`;
 
       const script = `\
 file \`${filePath}\`
-select_first /hello/
+narrow /hello/
+retain_first
 insert_after <<END
  beautiful
 END`;
@@ -595,7 +612,7 @@ END`;
 
       const script = `\
 file \`${filePath}\`
-select /a/
+narrow /a/
 insert_before <<END
 [
 END`;
@@ -613,10 +630,12 @@ END`;
 
       const script = `\
 file \`${filePath}\`
-select_first /second\\n/
+narrow /second\\n/
+retain_first
 cut a
 file \`${filePath}\`
-select_first /third/
+narrow /third/
+retain_first
 paste a`;
       const commands = parse(script);
       const result = await executor(commands);
@@ -636,10 +655,11 @@ paste a`;
 
       const script = `\
 file \`${file1}\`
-select_first /remove\\n/
+narrow /remove\\n/
+retain_first
 cut buf
 file \`${file2}\`
-select eof
+narrow eof
 paste buf`;
       const commands = parse(script);
       await executor(commands);
@@ -655,7 +675,8 @@ paste buf`;
 
       const script = `\
 file \`${filePath}\`
-select_first /hello/
+narrow /hello/
+retain_first
 paste noSuchReg`;
       const commands = parse(script);
       await expect(executor(commands)).rejects.toThrow(
@@ -671,7 +692,8 @@ paste noSuchReg`;
 
       const script = `\
 file \`${filePath}\`
-select_first /placeholder/
+narrow /placeholder/
+retain_first
 replace <<END
 line one
 line two
@@ -691,7 +713,7 @@ END`;
 
       const script = `\
 file \`${filePath}\`
-select /b /
+narrow /b /
 delete`;
       const commands = parse(script);
       const result = await executor(commands);
@@ -704,7 +726,7 @@ delete`;
 
 describe("error handling", () => {
   it("errors when no file is selected", async () => {
-    const script = `select /hello/`;
+    const script = `narrow /hello/`;
     const commands = parse(script);
     await expect(executor(commands)).rejects.toThrow("No file selected");
   });
@@ -713,6 +735,38 @@ describe("error handling", () => {
     const script = "file `/tmp/magenta-test/nonexistent-file-xyz.txt`";
     const commands = parse(script);
     await expect(executor(commands)).rejects.toThrow("Failed to read file");
+  });
+
+  it("includes pattern in error message for regex", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "hello world\n", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+narrow_one /nonexistent_pattern/`;
+      const commands = parse(script);
+      await expect(executor(commands)).rejects.toThrow(
+        "narrow_one: no matches for pattern /nonexistent_pattern/",
+      );
+    });
+  });
+
+  it("includes pattern in error message for heredoc", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "hello world\n", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+narrow_one <<FIND
+this text does not exist
+FIND`;
+      const commands = parse(script);
+      await expect(executor(commands)).rejects.toThrow(
+        "narrow_one: no matches for pattern <<HEREDOC",
+      );
+    });
   });
 });
 
@@ -726,12 +780,13 @@ describe("transactional behavior", () => {
 
       const script = `\
 file \`${file1}\`
-select_first /original/
+narrow /original/
+retain_first
 replace <<END
 modified
 END
 file \`${file2}\`
-select /nonexistent_pattern/`;
+narrow /nonexistent_pattern/`;
       const commands = parse(script);
       await expect(executor(commands)).rejects.toThrow("no matches");
       expect(await fs.readFile(file1, "utf-8")).toBe("original content\n");

@@ -550,21 +550,19 @@ export const spec: ProviderToolSpec = {
   name: "edl" as ToolName,
   description: `Execute an EDL (Edit Description Language) script to perform programmatic file edits.
 
-EDL is a mini-language for selecting and modifying text in files. Commands are whitespace-separated.
-
 ## Commands
 
-### File selection
-- \`file \`path\`\` or \`file path\` - Select a file to edit
+### File commands
+- \`file \`path\`\` or \`file path\` - Select a file to edit, resets the selection to the entire contents of the file.
 - \`newfile \`path\`\` - Create a new file (must not already exist)
 
 ### Selection commands (patterns can be: /regex/, heredoc, line number like \`5:\`, line:col like \`5:10\`, \`bof\`, \`eof\`)
-- \`select <pattern>\` - Select all matches
-- \`select_first <pattern>\` - Select first match
-- \`select_last <pattern>\` - Select last match
-- \`select_one <pattern>\` - Select exactly one match (errors if 0 or >1)
-- \`select_next <pattern>\` - Select next non-overlapping match after end of current selection
-- \`select_prev <pattern>\` - Select previous non-overlapping match before start of current selection
+- \`narrow <pattern>\` - Narrow the selection to all matches of the pattern within the current selection.
+- \`narrow_one <pattern>\` - Like narrow, but asserts that only one match within the current selection exists.
+- \`retain_first\` - Retain just the first selection from the current multi-selection (no-op for single selection).
+- \`retain_last\` - Retain just the last selection.
+- \`select_next <pattern>\` - Select next non-overlapping match after end of current selection.
+- \`select_prev <pattern>\` - Select previous non-overlapping match before start of current selection.
 - \`extend_forward <pattern>\` - Extend selection forward from its end to include the next non-overlapping match
 - \`extend_back <pattern>\` - Extend selection backward from its start to include the previous non-overlapping match
 - \`nth <n>\` - Select the nth match (1-indexed)
@@ -574,7 +572,7 @@ EDL is a mini-language for selecting and modifying text in files. Commands are w
 # Simple text replacement using replace:
 \`\`\`
 file \`src/utils.ts\`
-select_one <<END
+narrow_one <<END
 const oldValue = 42;
 END
 replace <<END
@@ -585,33 +583,12 @@ END
 # Insert after a match using insert_after:
 \`\`\`
 file \`src/utils.ts\`
-select_one <<END
+narrow_one <<END
 import { foo } from './foo';
 END
 insert_after <<END
 
 import { bar } from './bar';
-END
-\`\`\`
-
-# Replace a function using regex with extend_forward:
-\`\`\`
-file \`src/utils.ts\`
-select_one /function oldName\\(/
-extend_forward /^}/
-replace <<END
-function newName() {
-  return 42;
-}
-END
-\`\`\`
-
-# Insert at beginning of file using bof:
-\`\`\`
-file \`src/index.ts\`
-select bof
-insert_after <<END
-import { something } from './somewhere';
 END
 \`\`\`
 
@@ -627,7 +604,7 @@ END2
 # Delete a line using delete:
 \`\`\`
 file \`src/config.ts\`
-select_one /const DEBUG = true;.*\\n/
+narrow_one /const DEBUG = true;.*\\n/
 delete
 \`\`\`
 

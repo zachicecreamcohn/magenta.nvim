@@ -1,5 +1,5 @@
 file `{{FILE}}`
-select <<FIND
+narrow <<FIND
 \`world\`
 FIND
 replace <<END

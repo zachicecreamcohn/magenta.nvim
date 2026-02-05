@@ -24,7 +24,7 @@ describe("edl tool", () => {
 
         const filePath = path.join(dirs.tmpDir, "test.txt");
         const script = `file \`${filePath}\`
-select_one /hello/
+narrow_one /hello/
 replace <<END
 goodbye
 END`;
@@ -126,7 +126,7 @@ invalid_command`;
 
         const filePath = path.join(dirs.tmpDir, "test.txt");
         const script = `file \`${filePath}\`
-select_one /nonexistent pattern that does not exist/`;
+narrow_one /nonexistent pattern that does not exist/`;
 
         const stream = await driver.mockAnthropic.awaitPendingStream();
         stream.respond({
@@ -177,7 +177,7 @@ select_one /nonexistent pattern that does not exist/`;
 
         const filePath = path.join(dirs.tmpDir, "test.txt");
         const script = `file \`${filePath}\`
-select_one /hello/
+narrow_one /hello/
 replace <<END
 goodbye
 END`;
@@ -224,7 +224,7 @@ END`;
 
         const filePath = path.join(dirs.tmpDir, "test.txt");
         const script = `file \`${filePath}\`
-select_one /hello/
+narrow_one /hello/
 replace <<END
 goodbye
 END`;
@@ -279,7 +279,7 @@ END`;
         ).join("\n");
         const script = `file \`${filePath}\`
 ${extraLines}
-select_one /hello/
+narrow_one /hello/
 replace <<END
 goodbye
 END`;
@@ -328,7 +328,7 @@ END`;
 
         const filePath = path.join(dirs.tmpDir, "test.txt");
         const script = `file \`${filePath}\`
-select_one /hello/
+narrow_one /hello/
 replace <<END
 goodbye
 END`;
@@ -352,15 +352,15 @@ END`;
         await driver.assertDisplayBufferContains("📝✅ edl:");
 
         // Preview should show the script
-        await driver.assertDisplayBufferContains("select_one /hello/");
+        await driver.assertDisplayBufferContains("narrow_one /hello/");
 
         // Toggle to detail view
         const pos =
-          await driver.assertDisplayBufferContains("select_one /hello/");
+          await driver.assertDisplayBufferContains("narrow_one /hello/");
         await driver.triggerDisplayBufferKey(pos, "<CR>");
 
         // Detail should show full script AND the trace output
-        await driver.assertDisplayBufferContains("select_one /hello/");
+        await driver.assertDisplayBufferContains("narrow_one /hello/");
         await driver.assertDisplayBufferContains("replace <<END");
         await driver.assertDisplayBufferContains("Trace:");
         await driver.assertDisplayBufferContains("Mutations:");

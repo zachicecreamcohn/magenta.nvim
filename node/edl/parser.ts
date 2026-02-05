@@ -9,15 +9,15 @@ export type Pattern =
 export type Command =
   | { type: "file"; path: string }
   | { type: "newfile"; path: string }
-  | { type: "select"; pattern: Pattern }
-  | { type: "select_first"; pattern: Pattern }
-  | { type: "select_last"; pattern: Pattern }
-  | { type: "select_one"; pattern: Pattern }
+  | { type: "narrow"; pattern: Pattern }
+  | { type: "narrow_one"; pattern: Pattern }
+  | { type: "retain_first" }
+  | { type: "retain_last" }
+  | { type: "retain_nth"; n: number }
   | { type: "select_next"; pattern: Pattern }
   | { type: "select_prev"; pattern: Pattern }
   | { type: "extend_forward"; pattern: Pattern }
   | { type: "extend_back"; pattern: Pattern }
-  | { type: "nth"; n: number }
   | { type: "replace"; text: string }
   | { type: "delete" }
   | { type: "insert_before"; text: string }
@@ -226,10 +226,8 @@ export function parse(script: string): Command[] {
         break;
       }
 
-      case "select":
-      case "select_first":
-      case "select_last":
-      case "select_one":
+      case "narrow":
+      case "narrow_one":
       case "select_next":
       case "select_prev":
       case "extend_forward":
@@ -239,9 +237,9 @@ export function parse(script: string): Command[] {
         break;
       }
 
-      case "nth": {
+      case "retain_nth": {
         const nTok = expectWord("number");
-        commands.push({ type: "nth", n: parseInt(nTok.value, 10) });
+        commands.push({ type: "retain_nth", n: parseInt(nTok.value, 10) });
         break;
       }
 
@@ -251,8 +249,10 @@ export function parse(script: string): Command[] {
         break;
       }
 
+      case "retain_first":
+      case "retain_last":
       case "delete": {
-        commands.push({ type: "delete" });
+        commands.push({ type: cmdTok.value });
         break;
       }
 
