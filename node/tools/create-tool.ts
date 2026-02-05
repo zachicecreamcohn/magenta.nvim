@@ -229,6 +229,9 @@ export function createTool(
     case "edl": {
       return new Edl.EdlTool(staticRequest, {
         nvim: context.nvim,
+        cwd: context.cwd,
+        homeDir: context.homeDir,
+        options: context.options,
         myDispatch: wrapDispatch,
       });
     }

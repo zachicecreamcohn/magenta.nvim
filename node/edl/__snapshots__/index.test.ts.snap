@@ -28,8 +28,8 @@ exports[`runScript > returns ok with no mutations when script only selects 1`] =
     "mutations": [],
     "trace": [
       {
-        "command": "file /tmp/magenta-test/runscript-1770264767257-2/test.txt",
-        "snippet": "switched to /tmp/magenta-test/runscript-1770264767257-2/test.txt (2 lines)",
+        "command": "file <tmpDir>/test.txt",
+        "snippet": "switched to <tmpDir>/test.txt (2 lines)",
       },
       {
         "command": "select_first",
@@ -71,8 +71,8 @@ exports[`runScript > returns ok with trace, mutations, and final selection 1`] =
     ],
     "trace": [
       {
-        "command": "file /tmp/magenta-test/runscript-1770264767251-0/test.txt",
-        "snippet": "switched to /tmp/magenta-test/runscript-1770264767251-0/test.txt (2 lines)",
+        "command": "file <tmpDir>/test.txt",
+        "snippet": "switched to <tmpDir>/test.txt (2 lines)",
       },
       {
         "command": "select_first",

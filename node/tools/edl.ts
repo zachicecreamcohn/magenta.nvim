@@ -1,20 +1,47 @@
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { d, type VDOMNode } from "../tea/view.ts";
+import {
+  d,
+  withBindings,
+  withCode,
+  withExtmark,
+  type VDOMNode,
+} from "../tea/view.ts";
 import type { Result } from "../utils/result.ts";
 import type { CompletedToolInfo } from "./types.ts";
 
 import type { Nvim } from "../nvim/nvim-node";
+import {
+  resolveFilePath,
+  displayPath,
+  type UnresolvedFilePath,
+  type NvimCwd,
+  type HomeDir,
+} from "../utils/files.ts";
+import type { MagentaOptions } from "../options.ts";
+import { canReadFile, canWriteFile } from "./permissions.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider.ts";
 import type { StaticTool, ToolName, GenericToolRequest } from "./types.ts";
-import { runScript, type EdlResultData } from "../edl/index.ts";
+import {
+  runScript,
+  analyzeFileAccess,
+  type EdlResultData,
+  type FileAccessInfo,
+} from "../edl/index.ts";
 
 export type ToolRequest = GenericToolRequest<"edl", Input>;
 
 export type State =
+  | {
+      state: "pending";
+    }
+  | {
+      state: "pending-user-action";
+      deniedFiles: DeniedFileAccess[];
+    }
   | {
       state: "processing";
     }
@@ -23,10 +50,26 @@ export type State =
       result: ProviderToolResult;
     };
 
-export type Msg = {
-  type: "finish";
-  result: Result<ProviderToolResultContent[]>;
+type DeniedFileAccess = FileAccessInfo & {
+  displayPath: string;
 };
+
+export type Msg =
+  | {
+      type: "finish";
+      result: Result<ProviderToolResultContent[]>;
+    }
+  | {
+      type: "permissions-ok";
+    }
+  | {
+      type: "permissions-denied";
+      deniedFiles: DeniedFileAccess[];
+    }
+  | {
+      type: "user-approval";
+      approved: boolean;
+    };
 
 export class EdlTool implements StaticTool {
   state: State;
@@ -38,16 +81,22 @@ export class EdlTool implements StaticTool {
     public request: ToolRequest,
     public context: {
       nvim: Nvim;
+      cwd: NvimCwd;
+      homeDir: HomeDir;
+      options: MagentaOptions;
       myDispatch: (msg: Msg) => void;
     },
   ) {
     this.state = {
-      state: "processing",
+      state: "pending",
     };
-    this.executeScript().catch((error) => {
-      this.context.nvim.logger.error(
-        `Error executing EDL script: ${error instanceof Error ? error.message : String(error)}`,
-      );
+
+    setTimeout(() => {
+      this.checkPermissions().catch((error) => {
+        this.context.nvim.logger.error(
+          `Error checking EDL permissions: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
     });
   }
 
@@ -56,7 +105,7 @@ export class EdlTool implements StaticTool {
   }
 
   isPendingUserAction(): boolean {
-    return false;
+    return this.state.state === "pending-user-action";
   }
 
   abort(): ProviderToolResult {
@@ -97,11 +146,111 @@ export class EdlTool implements StaticTool {
           };
         }
         return;
+
+      case "permissions-ok":
+        if (this.state.state === "pending") {
+          this.state = { state: "processing" };
+          this.executeScript().catch((error) => {
+            this.context.nvim.logger.error(
+              `Error executing EDL script: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          });
+        }
+        return;
+
+      case "permissions-denied":
+        if (this.state.state === "pending") {
+          this.state = {
+            state: "pending-user-action",
+            deniedFiles: msg.deniedFiles,
+          };
+        }
+        return;
+
+      case "user-approval":
+        if (this.state.state === "pending-user-action") {
+          if (msg.approved) {
+            this.state = { state: "processing" };
+            this.executeScript().catch((error) => {
+              this.context.nvim.logger.error(
+                `Error executing EDL script: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            });
+          } else {
+            this.state = {
+              state: "done",
+              result: {
+                type: "tool_result",
+                id: this.request.id,
+                result: {
+                  status: "error",
+                  error:
+                    "The user did not approve the file access required by this EDL script.",
+                },
+              },
+            };
+          }
+        }
+        return;
+
       default:
-        assertUnreachable(msg.type);
+        assertUnreachable(msg);
     }
   }
 
+  async checkPermissions() {
+    if (this.aborted) return;
+
+    const script = this.request.input.script;
+    let fileAccesses: FileAccessInfo[];
+    try {
+      fileAccesses = analyzeFileAccess(script);
+    } catch {
+      // If parsing fails, we'll let executeScript handle the error
+      this.context.myDispatch({ type: "permissions-ok" });
+      return;
+    }
+
+    if (fileAccesses.length === 0) {
+      this.context.myDispatch({ type: "permissions-ok" });
+      return;
+    }
+
+    const deniedFiles: DeniedFileAccess[] = [];
+
+    for (const access of fileAccesses) {
+      const absPath = resolveFilePath(
+        this.context.cwd,
+        access.path as UnresolvedFilePath,
+        this.context.homeDir,
+      );
+      const dp = displayPath(this.context.cwd, absPath, this.context.homeDir);
+
+      if (access.read) {
+        const canRead = await canReadFile(absPath, this.context);
+        if (!canRead) {
+          deniedFiles.push({ ...access, displayPath: dp });
+          continue;
+        }
+      }
+
+      if (access.write) {
+        const hasWrite = canWriteFile(absPath, this.context);
+        if (!hasWrite) {
+          deniedFiles.push({ ...access, displayPath: dp });
+        }
+      }
+    }
+
+    if (deniedFiles.length === 0) {
+      this.context.myDispatch({ type: "permissions-ok" });
+    } else {
+      this.context.myDispatch({
+        type: "permissions-denied",
+        deniedFiles,
+      });
+    }
+  }
   async executeScript() {
     try {
       const script = this.request.input.script;
@@ -146,6 +295,7 @@ export class EdlTool implements StaticTool {
 
   getToolResult(): ProviderToolResult {
     switch (this.state.state) {
+      case "pending":
       case "processing":
         return {
           type: "tool_result",
@@ -160,6 +310,20 @@ export class EdlTool implements StaticTool {
             ],
           },
         };
+      case "pending-user-action":
+        return {
+          type: "tool_result",
+          id: this.request.id,
+          result: {
+            status: "ok",
+            value: [
+              {
+                type: "text",
+                text: `Waiting for user approval to access files required by this EDL script.`,
+              },
+            ],
+          },
+        };
       case "done":
         return this.state.result;
       default:
@@ -169,6 +333,44 @@ export class EdlTool implements StaticTool {
 
   renderSummary() {
     switch (this.state.state) {
+      case "pending":
+        return d`📝⚙️ edl checking permissions...`;
+      case "pending-user-action": {
+        const fileList = this.state.deniedFiles
+          .map((f) => {
+            const access = f.write ? "read/write" : "read";
+            return `  ${f.displayPath} (${access})`;
+          })
+          .join("\n");
+        return d`📝⏳ EDL script needs file access:
+${fileList}
+
+┌───────────────────┐
+│ ${withBindings(
+          withExtmark(d`[ NO ]`, {
+            hl_group: ["ErrorMsg", "@markup.strong.markdown"],
+          }),
+          {
+            "<CR>": () =>
+              this.context.myDispatch({
+                type: "user-approval",
+                approved: false,
+              }),
+          },
+        )} ${withBindings(
+          withExtmark(d`[ YES ]`, {
+            hl_group: ["String", "@markup.strong.markdown"],
+          }),
+          {
+            "<CR>": () =>
+              this.context.myDispatch({
+                type: "user-approval",
+                approved: true,
+              }),
+          },
+        )} │
+└───────────────────┘`;
+      }
       case "processing":
         return d`📝⚙️ edl script executing...`;
       case "done":
@@ -181,6 +383,44 @@ export class EdlTool implements StaticTool {
     }
   }
 
+  renderPreview() {
+    const abridged = abridgeScript(this.request.input.script);
+    switch (this.state.state) {
+      case "pending":
+      case "pending-user-action":
+      case "processing":
+        return withCode(d`\`\`\`
+${abridged}
+\`\`\``);
+      case "done":
+        return renderCompletedPreview({
+          request: this.request as CompletedToolInfo["request"],
+          result: this.state.result,
+        });
+      default:
+        assertUnreachable(this.state);
+    }
+  }
+
+  renderDetail() {
+    const scriptBlock = withCode(d`\`\`\`
+${this.request.input.script}
+\`\`\``);
+    switch (this.state.state) {
+      case "pending":
+      case "pending-user-action":
+      case "processing":
+        return scriptBlock;
+      case "done":
+        return d`${scriptBlock}
+${renderCompletedDetail({
+  request: this.request as CompletedToolInfo["request"],
+  result: this.state.result,
+})}`;
+      default:
+        assertUnreachable(this.state);
+    }
+  }
   displayInput() {
     const script = this.request.input.script;
     const preview =
@@ -191,6 +431,23 @@ export class EdlTool implements StaticTool {
   }
 }
 
+const PREVIEW_MAX_LINES = 10;
+const PREVIEW_MAX_LINE_LENGTH = 80;
+
+function abridgeScript(script: string): string {
+  const lines = script.split("\n");
+  const preview = lines
+    .slice(0, PREVIEW_MAX_LINES)
+    .map((line) =>
+      line.length > PREVIEW_MAX_LINE_LENGTH
+        ? line.substring(0, PREVIEW_MAX_LINE_LENGTH) + "..."
+        : line,
+    );
+  if (lines.length > PREVIEW_MAX_LINES) {
+    preview.push(`... (${lines.length - PREVIEW_MAX_LINES} more lines)`);
+  }
+  return preview.join("\n");
+}
 function isError(result: CompletedToolInfo["result"]): boolean {
   return result.result.status === "error";
 }
@@ -250,8 +507,13 @@ export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
 }
 
 export function renderCompletedPreview(info: CompletedToolInfo): VDOMNode {
+  const input = info.request.input as Input;
+  const abridged = abridgeScript(input.script);
+  const scriptBlock = withCode(d`\`\`\`
+${abridged}
+\`\`\``);
   const data = extractEdlData(info);
-  if (!data || isError(info.result)) return d``;
+  if (!data || isError(info.result)) return scriptBlock;
 
   const lines: string[] = [];
 
@@ -271,11 +533,17 @@ export function renderCompletedPreview(info: CompletedToolInfo): VDOMNode {
     );
   }
 
-  return d`${lines.join("\n")}`;
+  return d`${scriptBlock}
+${lines.join("\n")}`;
 }
 
 export function renderCompletedDetail(info: CompletedToolInfo): VDOMNode {
-  return d`${extractFormattedResult(info)}`;
+  const input = info.request.input as Input;
+  const scriptBlock = withCode(d`\`\`\`
+${input.script}
+\`\`\``);
+  return d`${scriptBlock}
+${extractFormattedResult(info)}`;
 }
 
 export const spec: ProviderToolSpec = {

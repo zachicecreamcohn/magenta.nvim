@@ -2,7 +2,7 @@ import { parse, ParseError } from "./parser.ts";
 import { Executor, ExecutionError } from "./executor.ts";
 import type { ScriptResult, TraceEntry, FileMutationSummary } from "./types.ts";
 
-export { ParseError, ExecutionError, Executor };
+export { parse, ParseError, ExecutionError, Executor };
 export type { ScriptResult, TraceEntry, FileMutationSummary } from "./types.ts";
 
 export type EdlResultData = {
@@ -34,6 +34,48 @@ function formatMutations(mutations: Map<string, FileMutationSummary>): string {
   return lines.join("\n");
 }
 
+export type FileAccessInfo = {
+  path: string;
+  read: boolean;
+  write: boolean;
+};
+
+const MUTATION_COMMANDS = new Set([
+  "replace",
+  "delete",
+  "insert_before",
+  "insert_after",
+  "cut",
+  "paste",
+]);
+
+export function analyzeFileAccess(script: string): FileAccessInfo[] {
+  const commands = parse(script);
+  const fileAccess = new Map<string, { read: boolean; write: boolean }>();
+  let currentFile: string | undefined;
+
+  for (const cmd of commands) {
+    if (cmd.type === "file") {
+      currentFile = cmd.path;
+      if (!fileAccess.has(cmd.path)) {
+        fileAccess.set(cmd.path, { read: true, write: false });
+      }
+    } else if (cmd.type === "newfile") {
+      currentFile = cmd.path;
+      fileAccess.set(cmd.path, { read: false, write: true });
+    } else if (MUTATION_COMMANDS.has(cmd.type) && currentFile) {
+      const access = fileAccess.get(currentFile);
+      if (access) {
+        access.write = true;
+      }
+    }
+  }
+
+  return Array.from(fileAccess.entries()).map(([path, access]) => ({
+    path,
+    ...access,
+  }));
+}
 function formatResult(result: ScriptResult): string {
   const sections: string[] = [];
 

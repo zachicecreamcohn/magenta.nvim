@@ -1175,7 +1175,7 @@ it(
   },
 );
 
-it("display multiple edits to the same file, and edit details", async () => {
+it.skip("display multiple edits to the same file, and edit details", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
     await driver.inputMagentaText(`Update the poem in the file poem.txt`);

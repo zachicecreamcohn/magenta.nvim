@@ -258,4 +258,113 @@ END`;
       },
     );
   });
+
+  test("preview shows abridged script for long scripts", async () => {
+    await withDriver(
+      {
+        setupFiles: async (tmpDir) => {
+          await fs.writeFile(path.join(tmpDir, "test.txt"), "hello world\n");
+        },
+      },
+      async (driver, dirs) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText("run edl script");
+        await driver.send();
+
+        const filePath = path.join(dirs.tmpDir, "test.txt");
+        const longLine = "a".repeat(100);
+        const extraLines = Array.from(
+          { length: 12 },
+          (_, i) => `# comment line ${i} ${longLine}`,
+        ).join("\n");
+        const script = `file \`${filePath}\`
+${extraLines}
+select_one /hello/
+replace <<END
+goodbye
+END`;
+
+        const stream = await driver.mockAnthropic.awaitPendingStream();
+        stream.respond({
+          stopReason: "tool_use",
+          text: "I'll run an EDL script",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "tool_1" as ToolRequestId,
+                toolName: "edl" as ToolName,
+                input: { script },
+              },
+            },
+          ],
+        });
+
+        await driver.assertDisplayBufferContains("📝✅ edl:");
+
+        // Preview should show truncated lines (ending with ...)
+        await driver.assertDisplayBufferContains("aaa...");
+
+        // Preview should show the "more lines" indicator
+        await driver.assertDisplayBufferContains("more lines)");
+
+        // Preview should NOT show the full long line
+        await driver.assertDisplayBufferDoesNotContain(longLine);
+      },
+    );
+  });
+
+  test("detail view shows full unabridged script", async () => {
+    await withDriver(
+      {
+        setupFiles: async (tmpDir) => {
+          await fs.writeFile(path.join(tmpDir, "test.txt"), "hello world\n");
+        },
+      },
+      async (driver, dirs) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText("run edl script");
+        await driver.send();
+
+        const filePath = path.join(dirs.tmpDir, "test.txt");
+        const script = `file \`${filePath}\`
+select_one /hello/
+replace <<END
+goodbye
+END`;
+
+        const stream = await driver.mockAnthropic.awaitPendingStream();
+        stream.respond({
+          stopReason: "tool_use",
+          text: "I'll run an EDL script",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "tool_1" as ToolRequestId,
+                toolName: "edl" as ToolName,
+                input: { script },
+              },
+            },
+          ],
+        });
+
+        await driver.assertDisplayBufferContains("📝✅ edl:");
+
+        // Preview should show the script
+        await driver.assertDisplayBufferContains("select_one /hello/");
+
+        // Toggle to detail view
+        const pos =
+          await driver.assertDisplayBufferContains("select_one /hello/");
+        await driver.triggerDisplayBufferKey(pos, "<CR>");
+
+        // Detail should show full script AND the trace output
+        await driver.assertDisplayBufferContains("select_one /hello/");
+        await driver.assertDisplayBufferContains("replace <<END");
+        await driver.assertDisplayBufferContains("Trace:");
+        await driver.assertDisplayBufferContains("Mutations:");
+      },
+    );
+  });
 });

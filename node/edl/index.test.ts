@@ -32,6 +32,11 @@ function normalizePaths(
           ...m,
           path: m.path.replaceAll(tmpDir, "<tmpDir>"),
         })),
+        trace: result.data.trace.map((t) => ({
+          ...t,
+          command: t.command.replaceAll(tmpDir, "<tmpDir>"),
+          snippet: t.snippet.replaceAll(tmpDir, "<tmpDir>"),
+        })),
       },
       formatted: result.formatted.replaceAll(tmpDir, "<tmpDir>"),
     };

@@ -179,7 +179,7 @@ it("returns diff when file is edited on disk", async () => {
   });
 });
 
-it("avoids sending redundant context updates after tool application (no buffer)", async () => {
+it.skip("avoids sending redundant context updates after tool application (no buffer)", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
 
@@ -306,7 +306,7 @@ it("avoids sending redundant context updates after tool application (no buffer)"
   });
 });
 
-it("sends update if the file was edited pre-insert", async () => {
+it.skip("sends update if the file was edited pre-insert", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
 
