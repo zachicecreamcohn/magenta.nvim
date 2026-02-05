@@ -14,7 +14,7 @@ import * as YieldToParent from "./yield-to-parent";
 import * as PredictEdit from "./predict-edit";
 import * as Compact from "./compact";
 import * as Edl from "./edl";
-import { d, type VDOMNode } from "../tea/view";
+import { d, withCode, type VDOMNode } from "../tea/view";
 import type { StaticToolName } from "./tool-registry";
 import { assertUnreachable } from "../utils/assertUnreachable";
 import type { AgentStreamingBlock } from "../providers/provider-types";
@@ -71,6 +71,70 @@ export function validateInput(
   }
 }
 
+/** Extract a string value from a partially-streamed JSON object.
+ * e.g. given inputJson = `{"script": "file \`foo\`\nselect` and key = "script",
+ * returns the unescaped partial string value.
+ */
+export function extractPartialJsonStringValue(
+  inputJson: string,
+  key: string,
+): string | undefined {
+  const keyPattern = `"${key}"`;
+  const keyIdx = inputJson.indexOf(keyPattern);
+  if (keyIdx === -1) return undefined;
+
+  const afterKey = inputJson.indexOf(":", keyIdx + keyPattern.length);
+  if (afterKey === -1) return undefined;
+
+  const openQuote = inputJson.indexOf('"', afterKey + 1);
+  if (openQuote === -1) return undefined;
+
+  const encoded = inputJson.slice(openQuote + 1);
+
+  let result = "";
+  for (let i = 0; i < encoded.length; i++) {
+    if (encoded[i] === "\\") {
+      i++;
+      if (i >= encoded.length) break;
+      switch (encoded[i]) {
+        case "n":
+          result += "\n";
+          break;
+        case "t":
+          result += "\t";
+          break;
+        case "r":
+          result += "\r";
+          break;
+        case '"':
+          result += '"';
+          break;
+        case "\\":
+          result += "\\";
+          break;
+        case "/":
+          result += "/";
+          break;
+        case "u": {
+          const hex = encoded.slice(i + 1, i + 5);
+          if (hex.length === 4) {
+            result += String.fromCharCode(parseInt(hex, 16));
+            i += 4;
+          }
+          break;
+        }
+        default:
+          result += encoded[i];
+      }
+    } else if (encoded[i] === '"') {
+      break;
+    } else {
+      result += encoded[i];
+    }
+  }
+
+  return result;
+}
 export function renderStreamdedTool(
   streamingBlock: Extract<AgentStreamingBlock, { type: "tool_use" }>,
 ): string | VDOMNode {
@@ -81,7 +145,6 @@ export function renderStreamdedTool(
   const name = streamingBlock.name as StaticToolName;
   switch (name) {
     case "get_file":
-      break;
     case "list_directory":
     case "hover":
     case "find_references":
@@ -96,8 +159,17 @@ export function renderStreamdedTool(
     case "spawn_foreach":
     case "predict_edit":
     case "compact":
-    case "edl":
       break;
+    case "edl": {
+      const script = extractPartialJsonStringValue(
+        streamingBlock.inputJson,
+        "script",
+      );
+      if (script !== undefined) {
+        return d`📝 edl:\n${withCode(d`${script}`)}`;
+      }
+      break;
+    }
     default:
       assertUnreachable(name);
   }

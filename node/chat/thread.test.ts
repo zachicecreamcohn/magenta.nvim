@@ -1513,6 +1513,55 @@ it("handles streaming thinking blocks correctly", async () => {
   });
 });
 
+it("shows EDL script preview while streaming", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText("Edit a file for me");
+    await driver.send();
+
+    const stream = await driver.mockAnthropic.mockClient.awaitStream();
+    const toolIndex = stream.nextBlockIndex();
+
+    // Start streaming an edl tool_use block
+    stream.emitEvent({
+      type: "content_block_start",
+      index: toolIndex,
+      content_block: {
+        type: "tool_use",
+        id: "edl-preview-test",
+        name: "edl",
+        input: {},
+      },
+    });
+
+    // Stream partial input JSON with escaped newlines
+    stream.emitEvent({
+      type: "content_block_delta",
+      index: toolIndex,
+      delta: {
+        type: "input_json_delta",
+        partial_json: '{"script": "file `src/utils.ts`\\nselect_one',
+      },
+    });
+
+    // Assert the display shows the unescaped script with newlines separating commands
+    await driver.assertDisplayBufferContains(
+      "📝 edl:\nfile `src/utils.ts`\nselect_one",
+    );
+
+    // Stream more of the script
+    stream.emitEvent({
+      type: "content_block_delta",
+      index: toolIndex,
+      delta: {
+        type: "input_json_delta",
+        partial_json: " /oldFunc/\\nextend_forward",
+      },
+    });
+
+    await driver.assertDisplayBufferContains("extend_forward");
+  });
+});
 it("aborts request when sending new message while waiting for response", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
