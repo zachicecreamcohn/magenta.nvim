@@ -295,10 +295,10 @@ EDL is a mini-language for selecting and modifying text in files. Commands are w
 - \`select_first <pattern>\` - Select first match
 - \`select_last <pattern>\` - Select last match
 - \`select_one <pattern>\` - Select exactly one match (errors if 0 or >1)
-- \`select_next <pattern>\` - Select next match after current selection
-- \`select_prev <pattern>\` - Select previous match before current selection
-- \`extend_forward <pattern>\` - Extend selection forward to include pattern
-- \`extend_back <pattern>\` - Extend selection backward to include pattern
+- \`select_next <pattern>\` - Select next non-overlapping match after end of current selection
+- \`select_prev <pattern>\` - Select previous non-overlapping match before start of current selection
+- \`extend_forward <pattern>\` - Extend selection forward from its end to include the next non-overlapping match
+- \`extend_back <pattern>\` - Extend selection backward from its start to include the previous non-overlapping match
 - \`nth <n>\` - Select the nth match (1-indexed)
 
 ## Examples
@@ -361,7 +361,12 @@ END2
 file \`src/config.ts\`
 select_one /const DEBUG = true;.*\\n/
 delete
-\`\`\``,
+\`\`\`
+
+## Notes on pattern matching
+- Patterns match against raw file bytes. Heredoc patterns are literal text and match exactly.
+- For regex, to match a literal backslash in the file, escape it with another backslash (e.g. /\\\\/ matches a single backslash).
+- When pattern matching is difficult due to complex escaping, use line-number selection (e.g. select 42:) as a fallback.`,
   input_schema: {
     type: "object",
     properties: {

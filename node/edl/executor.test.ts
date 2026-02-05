@@ -156,6 +156,127 @@ select_one /aaa/`;
     });
   });
 
+  it("select_next: searches from end of current selection (non-overlapping)", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "aaabbbbbb", "utf-8");
+
+      // Selection is "aaabbb" (positions 0-6), searching for "bbb"
+      // Should find "bbb" at positions 6-9, not re-match within the selection
+      const script = `\
+file \`${filePath}\`
+select_first /aaabbb/
+select_next /bbb/
+replace <<END2
+xxx
+END2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("aaabbbxxx");
+    });
+  });
+
+  it("select_next: does not find overlapping match within current selection", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "aaabbbccc", "utf-8");
+
+      // Selection is "aaabbb" (positions 0-6), searching for "bbb"
+      // "bbb" exists at positions 3-6 but overlaps with selection
+      // No match exists after position 6, so this should error
+      const script = `\
+file \`${filePath}\`
+select_first /aaabbb/
+select_next /bbb/`;
+      const commands = parse(script);
+      await expect(executor(commands)).rejects.toThrow(
+        "no matches after selection",
+      );
+    });
+  });
+
+  it("select_prev: searches up to start of current selection (non-overlapping)", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "bbbbbbaaa", "utf-8");
+
+      // Selection is "bbbaaa" (positions 3-9), searching for "bbb"
+      // Should find "bbb" at positions 0-3, not re-match within the selection
+      const script = `\
+file \`${filePath}\`
+select_last /bbbaaa/
+select_prev /bbb/
+replace <<END2
+xxx
+END2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("xxxbbbaaa");
+    });
+  });
+
+  it("select_prev: does not find overlapping match within current selection", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "cccbbbaaa", "utf-8");
+
+      // Selection is "bbbaaa" (positions 3-9), searching for "bbb"
+      // "bbb" exists at positions 3-6 but overlaps with selection
+      // No match exists before position 3, so this should error
+      const script = `\
+file \`${filePath}\`
+select_last /bbbaaa/
+select_prev /bbb/`;
+      const commands = parse(script);
+      await expect(executor(commands)).rejects.toThrow(
+        "no matches before selection",
+      );
+    });
+  });
+
+  it("extend_forward: searches from end of current selection (non-overlapping)", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "aaabbbbbb", "utf-8");
+
+      // Selection is "aaabbb" (positions 0-6), extending forward to "bbb"
+      // Should extend to include positions 6-9, giving "aaabbbbbb"
+      const script = `\
+file \`${filePath}\`
+select_first /aaabbb/
+extend_forward /bbb/
+replace <<END2
+xxx
+END2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("xxx");
+    });
+  });
+
+  it("extend_back: searches up to start of current selection (non-overlapping)", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "bbbbbbaaa", "utf-8");
+
+      // Selection is "bbbaaa" (positions 3-9), extending back to "bbb"
+      // Should extend to include positions 0-3, giving "bbbbbbaaa"
+      const script = `\
+file \`${filePath}\`
+select_last /bbbaaa/
+extend_back /bbb/
+replace <<END2
+xxx
+END2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("xxx");
+    });
+  });
   it("select_next: selects next occurrence after current selection", async () => {
     await withTmpDir(async (tmpDir) => {
       const filePath = path.join(tmpDir, "test.txt");
@@ -318,6 +439,60 @@ END`;
     });
   });
 
+  it("select literal backslash via regex", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(
+        filePath,
+        'import x from "\\path\\to\\file";\n',
+        "utf-8",
+      );
+
+      const scriptTemplate = await fs.readFile(
+        path.join(__dirname, "fixtures/backslash-regex.edl"),
+        "utf-8",
+      );
+      const script = scriptTemplate.replace("{{FILE}}", filePath);
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe('import x from "/newpath\\to\\file";\n');
+    });
+  });
+  it("select escaped backtick via heredoc", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "const s = `hello \\`world\\``;\n", "utf-8");
+
+      const scriptTemplate = await fs.readFile(
+        path.join(__dirname, "fixtures/escaped-backtick-heredoc.edl"),
+        "utf-8",
+      );
+      const script = scriptTemplate.replace("{{FILE}}", filePath);
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("const s = `hello \\`planet\\``;\n");
+    });
+  });
+
+  it("select escaped backtick via regex", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "const s = `hello \\`world\\``;\n", "utf-8");
+
+      const scriptTemplate = await fs.readFile(
+        path.join(__dirname, "fixtures/escaped-backtick-regex.edl"),
+        "utf-8",
+      );
+      const script = scriptTemplate.replace("{{FILE}}", filePath);
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("const s = `hello \\`planet\\``;\n");
+    });
+  });
+
   it("select with literal heredoc pattern", async () => {
     await withTmpDir(async (tmpDir) => {
       const filePath = path.join(tmpDir, "test.txt");
@@ -328,9 +503,9 @@ file \`${filePath}\`
 select <<FIND
 /pattern/
 FIND
-replace <<END
+replace <<END2
 /replaced/
-END`;
+END2`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
