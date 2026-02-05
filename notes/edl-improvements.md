@@ -1,4 +1,4 @@
-- [ ] Change _select_ to _refine_, so the agent doesn't get confused about using it several times in a row
+- [x] Change _select_ to _narrow_, so the agent doesn't get confused about using it several times in a row
 - [ ] encourage the agent to use heredoc over regexes, unless regexes are needed
 - [ ] Remap lines as we do the edits. So if we specify lines in the initial coordinate system of the file, resolve the lines differently for future changes below the first changes
 - [ ] when streaming the edl tool, only show the last N lines of the streamed text.

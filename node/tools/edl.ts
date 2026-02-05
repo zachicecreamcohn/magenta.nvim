@@ -608,8 +608,31 @@ narrow_one /const DEBUG = true;.*\\n/
 delete
 \`\`\`
 
+# Replace part of a line (heredocs don't include surrounding newlines):
+
+file contents before:
+const prev = true;
+const value = "old-value";
+const next = true;
+
+\`\`\`
+file \`src/config.ts\`
+narrow_one <<END
+"old-value"
+END
+replace <<END
+"new-value"
+END
+\`\`\`
+
+file contents after:
+const prev = true;
+const value = "new-value";
+const next = true;
+
 ## Notes on pattern matching
 - Patterns match against raw file bytes. Heredoc patterns are literal text and match exactly.
+- **Prefer heredoc patterns over regexes** - they are easier to read, less error-prone, and match exactly what you write. Only use regexes when you need their power (wildcards, character classes, etc.).
 - For regex, to match a literal backslash in the file, escape it with another backslash (e.g. /\\\\/ matches a single backslash).
 - When pattern matching is difficult due to complex escaping, use line-number selection (e.g. select 42:) as a fallback.`,
   input_schema: {
