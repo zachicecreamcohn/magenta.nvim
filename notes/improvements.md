@@ -5,7 +5,6 @@
 
 # subagents
 
-- right now the main agent often asks the subagent to respond with exact code from various files. Instead, it should only ask the subagent for file paths and line numbers, along with descriptions of what's in each one. The parent agent should then inspect them itself.
 - improve subagent display (what type of agent is it? Prompt?
 - when subagents block, show the blocking operation in the parent agent, so you don't have to go into the subagent to unblock the operation
 - show preview of what the subagent is doing while it's working
@@ -14,7 +13,7 @@
 
 - Remap lines as we do the edits. So if we specify lines in the initial coordinate system of the file, resolve the lines differently for future changes below the first changes
 - economy
-  - encourage the agent to not re-print large sections of the file to make its selections
+  - encourage the agent to not re-print large sections of the file to make its selections, but instead to just select the beginning and then extend to the end.
   - when we fail to do large replaces or inserts, save the replace in a register that can be used in a retry. Log this as part of the trace
 - when streaming the edl tool, only show the last N lines of the streamed text.
 - improve the trace by displaying line numbers and context
