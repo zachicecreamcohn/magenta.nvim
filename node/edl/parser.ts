@@ -1,10 +1,14 @@
-export type Pattern =
-  | { type: "regex"; pattern: RegExp }
-  | { type: "literal"; text: string }
+export type PositionalPattern =
   | { type: "line"; line: number }
   | { type: "lineCol"; line: number; col: number }
   | { type: "bof" }
   | { type: "eof" };
+
+export type Pattern =
+  | { type: "regex"; pattern: RegExp }
+  | { type: "literal"; text: string }
+  | PositionalPattern
+  | { type: "range"; from: PositionalPattern; to: PositionalPattern };
 
 export type Command =
   | { type: "file"; path: string }
@@ -22,6 +26,8 @@ export type Command =
   | { type: "delete" }
   | { type: "insert_before"; text: string }
   | { type: "insert_after"; text: string }
+  | { type: "select"; pattern: Pattern }
+  | { type: "select_one"; pattern: Pattern }
   | { type: "cut"; register: string }
   | { type: "paste"; register: string };
 
@@ -138,6 +144,24 @@ export function* lex(script: string): Generator<Token> {
   }
 }
 
+function tryParsePositionalPattern(s: string): PositionalPattern | undefined {
+  if (s === "bof") return { type: "bof" };
+  if (s === "eof") return { type: "eof" };
+  const lineColMatch = s.match(/^(\d+):(\d+)$/);
+  if (lineColMatch) {
+    return {
+      type: "lineCol",
+      line: parseInt(lineColMatch[1], 10),
+      col: parseInt(lineColMatch[2], 10),
+    };
+  }
+  const lineMatch = s.match(/^(\d+):?$/);
+  if (lineMatch) {
+    return { type: "line", line: parseInt(lineMatch[1], 10) };
+  }
+  return undefined;
+}
+
 function tokenToPattern(tok: Token): Pattern {
   switch (tok.type) {
     case "regex": {
@@ -147,22 +171,19 @@ function tokenToPattern(tok: Token): Pattern {
     case "heredoc":
       return { type: "literal", text: tok.value };
     case "word": {
-      if (tok.value === "bof") return { type: "bof" };
-      if (tok.value === "eof") return { type: "eof" };
-
-      const lineColMatch = tok.value.match(/^(\d+):(\d+)$/);
-      if (lineColMatch) {
-        return {
-          type: "lineCol",
-          line: parseInt(lineColMatch[1], 10),
-          col: parseInt(lineColMatch[2], 10),
-        };
+      const dashIdx = tok.value.indexOf("-");
+      if (dashIdx > 0 && dashIdx < tok.value.length - 1) {
+        const fromStr = tok.value.slice(0, dashIdx);
+        const toStr = tok.value.slice(dashIdx + 1);
+        const from = tryParsePositionalPattern(fromStr);
+        const to = tryParsePositionalPattern(toStr);
+        if (from && to) {
+          return { type: "range", from, to };
+        }
       }
 
-      const lineMatch = tok.value.match(/^(\d+):?$/);
-      if (lineMatch) {
-        return { type: "line", line: parseInt(lineMatch[1], 10) };
-      }
+      const pos = tryParsePositionalPattern(tok.value);
+      if (pos) return pos;
 
       throw new ParseError(`Invalid pattern: ${tok.value}`);
     }
@@ -228,6 +249,8 @@ export function parse(script: string): Command[] {
 
       case "narrow":
       case "narrow_one":
+      case "select":
+      case "select_one":
       case "select_next":
       case "select_prev":
       case "extend_forward":

@@ -15,7 +15,14 @@ newfile `path` # Create a new file (must not already exist)
 # 5:10 selects line 5, column 10
 # bof is beginning of file
 # eof is end of file
-narrow <pattern>         # Narrow selection to all matches of pattern
+# range patterns combine two positional patterns with `-`:
+#   55-70 (line range), 13:5-14:7 (line:col range), bof-eof, bof-55, 55-eof
+#   Range patterns create a single selection spanning from the start of the first
+#   pattern to the end of the second. Only work with positional patterns (line
+#   numbers, line:col, bof, eof) — not with regex or heredoc.
+select <pattern>         # Select all matches in the entire document
+select_one <pattern>     # Like select, but asserts only one match exists
+narrow <pattern>         # Narrow selection to matches within current selection
 narrow_one <pattern>     # Like narrow, but asserts only one match exists
 retain_first             # Keep just the first selection from multi-selection
 retain_last              # Keep just the last selection
@@ -31,7 +38,7 @@ extend_back <pattern>    # Extend selection backward to include previous match
 
 ```
 file `src/utils.ts`
-narrow_one <<END
+select_one <<END
 const oldValue = 42;
 END
 replace <<END
@@ -43,18 +50,28 @@ END
 
 ```
 file `src/file.test`
-narrow_one <<END
+select_one <<END
 describe("test block", () =>
 END
 extend_forward eof
 delete
 ```
 
+# find some text after a certain line
+
+```
+file `src/file.ts`
+select 103-eof
+narrow_one <<END
+function myFunction() {
+END
+```
+
 # Insert after a match using insert_after:
 
 ```
 file `src/utils.ts`
-narrow_one <<END
+select_one <<END
 import { foo } from './foo';
 END
 insert_after <<END
@@ -69,7 +86,7 @@ END
 newfile `src/newModule.ts`
 insert_after <<END2
 export function hello() {
-return "world";
+  return "world";
 }
 END2
 ```
@@ -78,7 +95,10 @@ END2
 
 ```
 file `src/config.ts`
-narrow_one /const DEBUG = true;.\*\\n/
+select_one <<END
+const DEBUG = true;
+END
+extend_forward /$/
 delete
 ```
 
@@ -91,6 +111,7 @@ const next = true;
 
 ```
 file `src/config.ts`
+select 2
 narrow_one <<END
 "old-value"
 END
@@ -106,19 +127,18 @@ const next = true;
 
 # Multiple edits in the same file:
 
-If doing mutiple operations on the same file, use `file` again to reset selection to the whole document before narrowing to the next edit location.
+If doing mutiple operations on the same file, use `select` since it always selects from the beginning of the file.
 
 ```
 file `src/utils.ts`
-narrow_one <<END1
+select_one <<END1
 const oldName = "foo";
 END1
 replace <<END1
 const newName = "foo";
 END1
 
-file `src/utils.ts`
-narrow_one <<END2
+select_one <<END2
 return oldName;
 END2
 replace <<END2
@@ -130,11 +150,28 @@ END2
 
 ```
 file `src/service.ts`
-narrow_one /function myMethod\(/
+narrow <<FIND
+function myMethod(
+FIND
 extend_forward /^\}/
-narrow /func/
+narrow <<FIND
+method
+FIND
 replace <<REPLACE
-this.func
+this.method
+REPLACE
+```
+
+# Change all instances of an identifier in a line range:
+
+```
+file `src/service.ts`
+select 55-150
+narrow <<FIND
+method
+FIND
+replace <<REPLACE
+this.method
 REPLACE
 ```
 

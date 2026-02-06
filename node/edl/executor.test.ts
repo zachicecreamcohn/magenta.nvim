@@ -537,6 +537,223 @@ END2`;
     });
   });
 
+  it("select: searches entire document regardless of current selection", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "aaa bbb aaa bbb aaa\n", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+narrow /bbb/
+retain_first
+select /aaa/
+replace <<END2
+xxx
+END2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("xxx bbb xxx bbb xxx\n");
+    });
+  });
+
+  it("select_one: searches entire document regardless of current selection", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "aaa bbb ccc\n", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+narrow /aaa/
+retain_first
+select_one /bbb/
+replace <<END2
+xxx
+END2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("aaa xxx ccc\n");
+    });
+  });
+
+  it("select_one: errors when multiple matches in document", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "aaa bbb aaa\n", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select_one /aaa/`;
+      const commands = parse(script);
+      const result = await executor(commands);
+      expectFileError(result, "test.txt", "expected 1 match, got 2");
+    });
+  });
+
+  it("select with line range pattern", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(
+        filePath,
+        "line one\nline two\nline three\nline four\n",
+        "utf-8",
+      );
+
+      const script = `\
+file \`${filePath}\`
+select 2-3
+replace <<END2
+replaced
+END2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("line one\nreplaced\nline four\n");
+    });
+  });
+
+  it("select with bof-eof range replaces entire file", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "hello world\n", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select bof-eof
+replace <<END2
+new content
+END2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("new content");
+    });
+  });
+
+  it("select with mixed range bof-3", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(
+        filePath,
+        "line one\nline two\nline three\nline four\n",
+        "utf-8",
+      );
+
+      const script = `\
+file \`${filePath}\`
+select bof-2
+replace <<END2
+replaced
+END2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("replaced\nline three\nline four\n");
+    });
+  });
+
+  it("select with line-eof range replaces from line to end", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(
+        filePath,
+        "line one\nline two\nline three\nline four\n",
+        "utf-8",
+      );
+
+      const script = `\
+file \`${filePath}\`
+select 3-eof
+replace <<END2
+replaced
+END2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("line one\nline two\nreplaced");
+    });
+  });
+
+  it("select with single line number", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "aaa\nbbb\nccc\n", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select 2
+replace <<END2
+xxx
+END2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("aaa\nxxx\nccc\n");
+    });
+  });
+
+  it("select with lineCol range", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "abcdefgh\nijklmnop\nqrstuvwx\n", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select 1:3-2:4
+replace <<END2
+X
+END2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("abcXmnop\nqrstuvwx\n");
+    });
+  });
+
+  it("narrow with range pattern restricts within selection", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(
+        filePath,
+        "line one\nline two\nline three\nline four\nline five\n",
+        "utf-8",
+      );
+
+      const script = `\
+file \`${filePath}\`
+select 2-4
+narrow /line three/
+replace <<END2
+LINE THREE
+END2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe(
+        "line one\nline two\nLINE THREE\nline four\nline five\n",
+      );
+    });
+  });
+
+  it("select with lineCol for precise insertion", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "hello world\n", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select 1:5
+insert_after <<END2
+ beautiful
+END2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("hello beautiful world\n");
+    });
+  });
+
   it("select with bof and eof", async () => {
     await withTmpDir(async (tmpDir) => {
       const filePath = path.join(tmpDir, "test.txt");

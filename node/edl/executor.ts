@@ -40,6 +40,8 @@ function formatPattern(pattern: Pattern): string {
       return "bof";
     case "eof":
       return "eof";
+    case "range":
+      return `${formatPattern(pattern.from)}-${formatPattern(pattern.to)}`;
   }
 }
 
@@ -172,6 +174,17 @@ export class Executor {
         return [{ start: 0, end: 0 }];
       case "eof":
         return [{ start: doc.content.length, end: doc.content.length }];
+      case "range": {
+        const fromMatches = this.findInText(
+          pattern.from,
+          text,
+          doc,
+          baseOffset,
+        );
+        const toMatches = this.findInText(pattern.to, text, doc, baseOffset);
+        if (fromMatches.length === 0 || toMatches.length === 0) return [];
+        return [{ start: fromMatches[0].start, end: toMatches[0].end }];
+      }
     }
   }
 
@@ -305,6 +318,46 @@ export class Executor {
           );
         this.selection = matches;
         this.addTrace("narrow", this.selection, file.doc);
+        break;
+      }
+      case "select": {
+        const file = this.requireFile();
+        const matches = this.findInText(
+          cmd.pattern,
+          file.doc.content,
+          file.doc,
+          0,
+        );
+        if (matches.length === 0)
+          throw new ExecutionError(
+            `select: no matches for pattern ${formatPattern(cmd.pattern)}`,
+            this.trace,
+          );
+        this.selection = matches;
+        this.addTrace("select", this.selection, file.doc);
+        break;
+      }
+
+      case "select_one": {
+        const file = this.requireFile();
+        const matches = this.findInText(
+          cmd.pattern,
+          file.doc.content,
+          file.doc,
+          0,
+        );
+        if (matches.length === 0)
+          throw new ExecutionError(
+            `select_one: no matches for pattern ${formatPattern(cmd.pattern)}`,
+            this.trace,
+          );
+        if (matches.length > 1)
+          throw new ExecutionError(
+            `select_one: expected 1 match, got ${matches.length}`,
+            this.trace,
+          );
+        this.selection = [matches[0]];
+        this.addTrace("select_one", this.selection, file.doc);
         break;
       }
 

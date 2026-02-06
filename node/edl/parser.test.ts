@@ -146,4 +146,129 @@ END`);
       { type: "narrow_one", pattern: { type: "regex", pattern: /hello/g } },
     ]);
   });
+  it("parses select", () => {
+    const cmds = parse(`select /hello/`);
+    expect(cmds).toEqual([
+      { type: "select", pattern: { type: "regex", pattern: /hello/g } },
+    ]);
+  });
+
+  it("parses select_one", () => {
+    const cmds = parse(`select_one /hello/`);
+    expect(cmds).toEqual([
+      { type: "select_one", pattern: { type: "regex", pattern: /hello/g } },
+    ]);
+  });
+
+  it("parses line range pattern", () => {
+    const cmds = parse(`narrow 55-70`);
+    expect(cmds).toEqual([
+      {
+        type: "narrow",
+        pattern: {
+          type: "range",
+          from: { type: "line", line: 55 },
+          to: { type: "line", line: 70 },
+        },
+      },
+    ]);
+  });
+
+  it("parses lineCol range pattern", () => {
+    const cmds = parse(`narrow 13:5-14:7`);
+    expect(cmds).toEqual([
+      {
+        type: "narrow",
+        pattern: {
+          type: "range",
+          from: { type: "lineCol", line: 13, col: 5 },
+          to: { type: "lineCol", line: 14, col: 7 },
+        },
+      },
+    ]);
+  });
+
+  it("parses bof-eof range pattern", () => {
+    const cmds = parse(`narrow bof-eof`);
+    expect(cmds).toEqual([
+      {
+        type: "narrow",
+        pattern: {
+          type: "range",
+          from: { type: "bof" },
+          to: { type: "eof" },
+        },
+      },
+    ]);
+  });
+
+  it("parses mixed range pattern bof-55", () => {
+    const cmds = parse(`select bof-55`);
+    expect(cmds).toEqual([
+      {
+        type: "select",
+        pattern: {
+          type: "range",
+          from: { type: "bof" },
+          to: { type: "line", line: 55 },
+        },
+      },
+    ]);
+  });
+
+  it("parses range pattern 3-eof", () => {
+    const cmds = parse(`select 3-eof`);
+    expect(cmds).toEqual([
+      {
+        type: "select",
+        pattern: {
+          type: "range",
+          from: { type: "line", line: 3 },
+          to: { type: "eof" },
+        },
+      },
+    ]);
+  });
+
+  it("parses select with single line number", () => {
+    const cmds = parse(`select 5`);
+    expect(cmds).toEqual([
+      { type: "select", pattern: { type: "line", line: 5 } },
+    ]);
+  });
+
+  it("parses select with bof", () => {
+    const cmds = parse(`select bof`);
+    expect(cmds).toEqual([{ type: "select", pattern: { type: "bof" } }]);
+  });
+
+  it("parses select_one with heredoc", () => {
+    const cmds = parse(`select_one <<FIND
+some text
+FIND`);
+    expect(cmds).toEqual([
+      { type: "select_one", pattern: { type: "literal", text: "some text" } },
+    ]);
+  });
+
+  it("parses select with lineCol", () => {
+    const cmds = parse(`select 5:10`);
+    expect(cmds).toEqual([
+      { type: "select", pattern: { type: "lineCol", line: 5, col: 10 } },
+    ]);
+  });
+
+  it("parses lineCol-lineCol range pattern", () => {
+    const cmds = parse(`select 1:0-3:5`);
+    expect(cmds).toEqual([
+      {
+        type: "select",
+        pattern: {
+          type: "range",
+          from: { type: "lineCol", line: 1, col: 0 },
+          to: { type: "lineCol", line: 3, col: 5 },
+        },
+      },
+    ]);
+  });
 });
