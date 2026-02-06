@@ -23,6 +23,18 @@ function executor(commands: ReturnType<typeof parse>) {
   return new Executor().execute(commands);
 }
 
+function expectFileError(
+  result: Awaited<ReturnType<typeof executor>>,
+  pathSubstring: string,
+  errorSubstring: string,
+) {
+  const error = result.fileErrors.find(
+    (e) => e.path.includes(pathSubstring) && e.error.includes(errorSubstring),
+  );
+  expect(error).toBeDefined();
+  return error!;
+}
+
 it("should find and replace text in a file", async () => {
   await withTmpDir(async (tmpDir) => {
     const filePath = path.join(tmpDir, "test.txt");
@@ -83,7 +95,8 @@ END`;
 file \`${filePath}\`
 narrow /zzz/`;
       const commands = parse(script);
-      await expect(executor(commands)).rejects.toThrow("no matches");
+      const result = await executor(commands);
+      expectFileError(result, "test.txt", "no matches");
     });
   });
 
@@ -152,9 +165,8 @@ END`;
 file \`${filePath}\`
 narrow_one /aaa/`;
       const commands = parse(script);
-      await expect(executor(commands)).rejects.toThrow(
-        "expected 1 match, got 2",
-      );
+      const result = await executor(commands);
+      expectFileError(result, "test.txt", "expected 1 match, got 2");
     });
   });
 
@@ -194,9 +206,8 @@ narrow /aaabbb/
 retain_first
 select_next /bbb/`;
       const commands = parse(script);
-      await expect(executor(commands)).rejects.toThrow(
-        "no matches after selection",
-      );
+      const result = await executor(commands);
+      expectFileError(result, "test.txt", "no matches after selection");
     });
   });
 
@@ -236,9 +247,8 @@ narrow /bbbaaa/
 retain_last
 select_prev /bbb/`;
       const commands = parse(script);
-      await expect(executor(commands)).rejects.toThrow(
-        "no matches before selection",
-      );
+      const result = await executor(commands);
+      expectFileError(result, "test.txt", "no matches before selection");
     });
   });
 
@@ -679,9 +689,8 @@ narrow /hello/
 retain_first
 paste noSuchReg`;
       const commands = parse(script);
-      await expect(executor(commands)).rejects.toThrow(
-        'register "noSuchReg" is empty',
-      );
+      const result = await executor(commands);
+      expectFileError(result, "test.txt", 'register "noSuchReg" is empty');
     });
   });
 
@@ -734,7 +743,8 @@ describe("error handling", () => {
   it("errors when file does not exist", async () => {
     const script = "file `/tmp/magenta-test/nonexistent-file-xyz.txt`";
     const commands = parse(script);
-    await expect(executor(commands)).rejects.toThrow("Failed to read file");
+    const result = await executor(commands);
+    expectFileError(result, "nonexistent-file-xyz.txt", "Failed to read file");
   });
 
   it("includes pattern in error message for regex", async () => {
@@ -746,7 +756,10 @@ describe("error handling", () => {
 file \`${filePath}\`
 narrow_one /nonexistent_pattern/`;
       const commands = parse(script);
-      await expect(executor(commands)).rejects.toThrow(
+      const result = await executor(commands);
+      expectFileError(
+        result,
+        "test.txt",
         "narrow_one: no matches for pattern /nonexistent_pattern/",
       );
     });
@@ -763,34 +776,110 @@ narrow_one <<FIND
 this text does not exist
 FIND`;
       const commands = parse(script);
-      await expect(executor(commands)).rejects.toThrow(
+      const result = await executor(commands);
+      expectFileError(
+        result,
+        "test.txt",
         "narrow_one: no matches for pattern <<HEREDOC",
       );
     });
   });
 });
 
-describe("transactional behavior", () => {
-  it("does not write any files if a later command fails", async () => {
+describe("per-file error handling", () => {
+  it("writes successful files even when other files fail", async () => {
     await withTmpDir(async (tmpDir) => {
       const file1 = path.join(tmpDir, "a.txt");
       const file2 = path.join(tmpDir, "b.txt");
       await fs.writeFile(file1, "original content\n", "utf-8");
       await fs.writeFile(file2, "file two\n", "utf-8");
 
-      const script = `\
+      const script = `
 file \`${file1}\`
 narrow /original/
 retain_first
-replace <<END
+replace <<REPL
 modified
-END
+REPL
 file \`${file2}\`
 narrow /nonexistent_pattern/`;
       const commands = parse(script);
-      await expect(executor(commands)).rejects.toThrow("no matches");
-      expect(await fs.readFile(file1, "utf-8")).toBe("original content\n");
+      const result = await executor(commands);
+
+      expect(await fs.readFile(file1, "utf-8")).toBe("modified content\n");
       expect(await fs.readFile(file2, "utf-8")).toBe("file two\n");
+
+      expect(result.mutations.has(file1)).toBe(true);
+      expect(result.mutations.has(file2)).toBe(false);
+      expectFileError(result, "b.txt", "no matches");
+    });
+  });
+
+  it("continues processing after file error to reach other files", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const file1 = path.join(tmpDir, "a.txt");
+      const file2 = path.join(tmpDir, "b.txt");
+      const file3 = path.join(tmpDir, "c.txt");
+      await fs.writeFile(file1, "aaa\n", "utf-8");
+      await fs.writeFile(file2, "bbb\n", "utf-8");
+      await fs.writeFile(file3, "ccc\n", "utf-8");
+
+      const script = `
+file \`${file1}\`
+narrow /aaa/
+replace <<REPL
+AAA
+REPL
+file \`${file2}\`
+narrow /nonexistent/
+file \`${file3}\`
+narrow /ccc/
+replace <<REPL
+CCC
+REPL`;
+      const commands = parse(script);
+      const result = await executor(commands);
+
+      expect(await fs.readFile(file1, "utf-8")).toBe("AAA\n");
+      expect(await fs.readFile(file2, "utf-8")).toBe("bbb\n");
+      expect(await fs.readFile(file3, "utf-8")).toBe("CCC\n");
+
+      expect(result.mutations.has(file1)).toBe(true);
+      expect(result.mutations.has(file2)).toBe(false);
+      expect(result.mutations.has(file3)).toBe(true);
+      expectFileError(result, "b.txt", "no matches");
+    });
+  });
+
+  it("handles interleaved edits where one file fails later", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const file1 = path.join(tmpDir, "a.txt");
+      const file2 = path.join(tmpDir, "b.txt");
+      await fs.writeFile(file1, "aaa bbb\n", "utf-8");
+      await fs.writeFile(file2, "ccc ddd\n", "utf-8");
+
+      const script = `
+file \`${file1}\`
+narrow /aaa/
+replace <<R
+AAA
+R
+file \`${file2}\`
+narrow /ccc/
+replace <<R
+CCC
+R
+file \`${file1}\`
+narrow /nonexistent/`;
+      const commands = parse(script);
+      const result = await executor(commands);
+
+      expect(await fs.readFile(file1, "utf-8")).toBe("aaa bbb\n");
+      expect(await fs.readFile(file2, "utf-8")).toBe("CCC ddd\n");
+
+      expect(result.mutations.has(file1)).toBe(false);
+      expect(result.mutations.has(file2)).toBe(true);
+      expectFileError(result, "a.txt", "no matches");
     });
   });
 });
@@ -837,9 +926,8 @@ CONTENT`;
 
       const script = `newfile \`${filePath}\``;
       const commands = parse(script);
-      await expect(executor(commands)).rejects.toThrow(
-        "file already exists on disk",
-      );
+      const result = await executor(commands);
+      expectFileError(result, "existing.txt", "file already exists on disk");
     });
   });
 
@@ -852,7 +940,8 @@ CONTENT`;
 file \`${filePath}\`
 newfile \`${filePath}\``;
       const commands = parse(script);
-      await expect(executor(commands)).rejects.toThrow("file already loaded");
+      const result = await executor(commands);
+      expectFileError(result, "test.txt", "file already loaded");
     });
   });
 

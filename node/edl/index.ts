@@ -1,14 +1,33 @@
 import { parse, ParseError } from "./parser.ts";
 import { Executor, ExecutionError } from "./executor.ts";
-import type { ScriptResult, TraceEntry, FileMutationSummary } from "./types.ts";
+import type {
+  ScriptResult,
+  TraceEntry,
+  FileMutationSummary,
+  RangeWithPos,
+  Pos,
+} from "./types.ts";
 
 export { parse, ParseError, ExecutionError, Executor };
 export type { ScriptResult, TraceEntry, FileMutationSummary } from "./types.ts";
 
+export type RangeInfo = {
+  startPos: Pos;
+  endPos: Pos;
+  content: string;
+};
+
+export type FileErrorInfo = {
+  path: string;
+  error: string;
+  trace: { command: string; snippet: string }[];
+};
+
 export type EdlResultData = {
   trace: { command: string; snippet: string }[];
   mutations: { path: string; summary: FileMutationSummary }[];
-  finalSelection: { count: number; snippet: string } | undefined;
+  finalSelection: { ranges: RangeInfo[] } | undefined;
+  fileErrors: FileErrorInfo[];
 };
 
 export type RunScriptResult =
@@ -76,6 +95,42 @@ export function analyzeFileAccess(script: string): FileAccessInfo[] {
     ...access,
   }));
 }
+function formatPos(pos: Pos): string {
+  return `${pos.line}:${pos.col}`;
+}
+
+const MAX_CONTENT_CHARS = 800;
+
+function abridgeContent(content: string): string {
+  if (content.length <= MAX_CONTENT_CHARS) {
+    return content;
+  }
+  const half = Math.floor((MAX_CONTENT_CHARS - 5) / 2);
+  return content.slice(0, half) + "\n...\n" + content.slice(-half);
+}
+
+function formatRangeInfo(r: RangeWithPos): string {
+  const posInfo = `[${formatPos(r.startPos)} - ${formatPos(r.endPos)}]`;
+  const abridged = abridgeContent(r.content);
+  return `${posInfo}\n${abridged}`;
+}
+
+function formatFileErrors(
+  fileErrors: ScriptResult["fileErrors"],
+): string | undefined {
+  if (fileErrors.length === 0) return undefined;
+  const lines: string[] = [];
+  for (const fe of fileErrors) {
+    lines.push(`  ${fe.path}: ${fe.error}`);
+    if (fe.trace.length > 0) {
+      lines.push(
+        `    Trace:\n${fe.trace.map((t) => `      ${t.command} → ${t.snippet}`).join("\n")}`,
+      );
+    }
+  }
+  return lines.join("\n");
+}
+
 function formatResult(result: ScriptResult): string {
   const sections: string[] = [];
 
@@ -84,7 +139,17 @@ function formatResult(result: ScriptResult): string {
   sections.push(`Mutations:\n${formatMutations(result.mutations)}`);
 
   if (result.finalSelection) {
-    sections.push(`Final selection:\n  ${result.finalSelection.snippet}`);
+    const rangeStrs = result.finalSelection.ranges.map(
+      (r, i) => `  Range ${i + 1}: ${formatRangeInfo(r)}`,
+    );
+    sections.push(
+      `Final selection (${result.finalSelection.ranges.length} ranges):\n${rangeStrs.join("\n\n")}`,
+    );
+  }
+
+  const fileErrorsStr = formatFileErrors(result.fileErrors);
+  if (fileErrorsStr) {
+    sections.push(`File errors:\n${fileErrorsStr}`);
   }
 
   return sections.join("\n\n");
@@ -109,10 +174,21 @@ export async function runScript(script: string): Promise<RunScriptResult> {
       ),
       finalSelection: result.finalSelection
         ? {
-            count: result.finalSelection.ranges.length,
-            snippet: result.finalSelection.snippet,
+            ranges: result.finalSelection.ranges.map((r) => ({
+              startPos: r.startPos,
+              endPos: r.endPos,
+              content: abridgeContent(r.content),
+            })),
           }
         : undefined,
+      fileErrors: result.fileErrors.map((fe) => ({
+        path: fe.path,
+        error: fe.error,
+        trace: fe.trace.map((t) => ({
+          command: t.command,
+          snippet: t.snippet,
+        })),
+      })),
     };
 
     return { status: "ok", data, formatted: formatResult(result) };

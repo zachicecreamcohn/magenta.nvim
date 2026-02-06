@@ -37,6 +37,15 @@ function normalizePaths(
           command: t.command.replaceAll(tmpDir, "<tmpDir>"),
           snippet: t.snippet.replaceAll(tmpDir, "<tmpDir>"),
         })),
+        fileErrors: result.data.fileErrors.map((fe) => ({
+          ...fe,
+          path: fe.path.replaceAll(tmpDir, "<tmpDir>"),
+          trace: fe.trace.map((t) => ({
+            ...t,
+            command: t.command.replaceAll(tmpDir, "<tmpDir>"),
+            snippet: t.snippet.replaceAll(tmpDir, "<tmpDir>"),
+          })),
+        })),
       },
       formatted: result.formatted.replaceAll(tmpDir, "<tmpDir>"),
     };

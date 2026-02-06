@@ -31,6 +31,14 @@ import {
   type EdlResultData,
   type FileAccessInfo,
 } from "../edl/index.ts";
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
+
+const EDL_DESCRIPTION = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "edl-description.md"),
+  "utf-8",
+);
 
 export type ToolRequest = GenericToolRequest<"edl", Input>;
 
@@ -528,9 +536,8 @@ ${abridged}
   }
 
   if (data.finalSelection) {
-    lines.push(
-      `  Final selection: ${data.finalSelection.count} range${data.finalSelection.count !== 1 ? "s" : ""}`,
-    );
+    const count = data.finalSelection.ranges.length;
+    lines.push(`  Final selection: ${count} range${count !== 1 ? "s" : ""}`);
   }
 
   return d`${scriptBlock}
@@ -548,93 +555,7 @@ ${extractFormattedResult(info)}`;
 
 export const spec: ProviderToolSpec = {
   name: "edl" as ToolName,
-  description: `Execute an EDL (Edit Description Language) script to perform programmatic file edits.
-
-## Commands
-
-### File commands
-- \`file \`path\`\` or \`file path\` - Select a file to edit, resets the selection to the entire contents of the file.
-- \`newfile \`path\`\` - Create a new file (must not already exist)
-
-### Selection commands (patterns can be: /regex/, heredoc, line number like \`5:\`, line:col like \`5:10\`, \`bof\`, \`eof\`)
-- \`narrow <pattern>\` - Narrow the selection to all matches of the pattern within the current selection.
-- \`narrow_one <pattern>\` - Like narrow, but asserts that only one match within the current selection exists.
-- \`retain_first\` - Retain just the first selection from the current multi-selection (no-op for single selection).
-- \`retain_last\` - Retain just the last selection.
-- \`select_next <pattern>\` - Select next non-overlapping match after end of current selection.
-- \`select_prev <pattern>\` - Select previous non-overlapping match before start of current selection.
-- \`extend_forward <pattern>\` - Extend selection forward from its end to include the next non-overlapping match
-- \`extend_back <pattern>\` - Extend selection backward from its start to include the previous non-overlapping match
-- \`nth <n>\` - Select the nth match (1-indexed)
-
-## Examples
-
-# Simple text replacement using replace:
-\`\`\`
-file \`src/utils.ts\`
-narrow_one <<END
-const oldValue = 42;
-END
-replace <<END
-const newValue = 100;
-END
-\`\`\`
-
-# Insert after a match using insert_after:
-\`\`\`
-file \`src/utils.ts\`
-narrow_one <<END
-import { foo } from './foo';
-END
-insert_after <<END
-
-import { bar } from './bar';
-END
-\`\`\`
-
-# Create a new file:
-\`\`\`
-newfile \`src/newModule.ts\`
-insert_after <<END2
-export function hello() {
-  return "world";
-}
-END2
-\`\`\`
-# Delete a line using delete:
-\`\`\`
-file \`src/config.ts\`
-narrow_one /const DEBUG = true;.*\\n/
-delete
-\`\`\`
-
-# Replace part of a line (heredocs don't include surrounding newlines):
-
-file contents before:
-const prev = true;
-const value = "old-value";
-const next = true;
-
-\`\`\`
-file \`src/config.ts\`
-narrow_one <<END
-"old-value"
-END
-replace <<END
-"new-value"
-END
-\`\`\`
-
-file contents after:
-const prev = true;
-const value = "new-value";
-const next = true;
-
-## Notes on pattern matching
-- Patterns match against raw file bytes. Heredoc patterns are literal text and match exactly.
-- **Prefer heredoc patterns over regexes** - they are easier to read, less error-prone, and match exactly what you write. Only use regexes when you need their power (wildcards, character classes, etc.).
-- For regex, to match a literal backslash in the file, escape it with another backslash (e.g. /\\\\/ matches a single backslash).
-- When pattern matching is difficult due to complex escaping, use line-number selection (e.g. select 42:) as a fallback.`,
+  description: EDL_DESCRIPTION,
   input_schema: {
     type: "object",
     properties: {

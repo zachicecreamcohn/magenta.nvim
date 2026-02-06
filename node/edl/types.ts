@@ -18,8 +18,22 @@ export type FileMutationSummary = {
   linesRemoved: number;
 };
 
+export type RangeWithPos = {
+  range: Range;
+  startPos: Pos;
+  endPos: Pos;
+  content: string;
+};
+
+export type FileError = {
+  path: string;
+  error: string;
+  trace: TraceEntry[];
+};
+
 export type ScriptResult = {
   trace: TraceEntry[];
-  finalSelection: { ranges: Range[]; snippet: string } | undefined;
+  finalSelection: { ranges: RangeWithPos[] } | undefined;
   mutations: Map<string, FileMutationSummary>;
+  fileErrors: FileError[];
 };

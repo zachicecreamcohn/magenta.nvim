@@ -2,8 +2,10 @@ import * as fs from "node:fs/promises";
 import { Document } from "./document.ts";
 import type { Command, Pattern } from "./parser.ts";
 import type {
+  FileError,
   FileMutationSummary,
   Range,
+  RangeWithPos,
   ScriptResult,
   TraceEntry,
 } from "./types.ts";
@@ -218,300 +220,362 @@ export class Executor {
     return result;
   }
 
-  async execute(commands: Command[]): Promise<ScriptResult> {
-    for (const cmd of commands) {
-      switch (cmd.type) {
-        case "file": {
-          this.currentFile = await this.getOrLoadFile(cmd.path);
-          this.selection = [this.currentFile.doc.fullRange()];
-          this.trace.push({
-            command: `file ${cmd.path}`,
-            ranges: [...this.selection],
-            snippet: `switched to ${cmd.path} (${this.currentFile.doc.lineCount} lines)`,
-          });
-          break;
-        }
-        case "newfile": {
-          if (this.fileDocs.has(cmd.path)) {
-            throw new ExecutionError(
-              `newfile: file already loaded: ${cmd.path}`,
-              this.trace,
-            );
-          }
-          let exists = true;
-          try {
-            await fs.access(cmd.path);
-          } catch {
-            exists = false;
-          }
-          if (exists) {
-            throw new ExecutionError(
-              `newfile: file already exists on disk: ${cmd.path}`,
-              this.trace,
-            );
-          }
-          const state: FileState = {
-            doc: new Document(""),
-            path: cmd.path,
-            mutations: {
-              insertions: 0,
-              deletions: 0,
-              replacements: 0,
-              linesAdded: 0,
-              linesRemoved: 0,
-            },
-            isNew: true,
-          };
-          this.fileDocs.set(cmd.path, state);
-          this.currentFile = state;
-          this.selection = [{ start: 0, end: 0 }];
-          this.trace.push({
-            command: `newfile ${cmd.path}`,
-            ranges: [...this.selection],
-            snippet: `created ${cmd.path}`,
-          });
-          break;
-        }
+  private findNextFileCommand(
+    commands: Command[],
+    startIndex: number,
+    excludePath: string,
+  ): number {
+    for (let i = startIndex; i < commands.length; i++) {
+      const cmd = commands[i];
+      if (
+        (cmd.type === "file" || cmd.type === "newfile") &&
+        cmd.path !== excludePath
+      ) {
+        return i;
+      }
+    }
+    return -1;
+  }
 
-        case "narrow": {
-          const file = this.requireFile();
-          const matches = this.findAllMatches(
-            cmd.pattern,
-            file.doc,
-            this.selection,
+  private async executeCommand(cmd: Command): Promise<void> {
+    switch (cmd.type) {
+      case "file": {
+        this.currentFile = await this.getOrLoadFile(cmd.path);
+        this.selection = [this.currentFile.doc.fullRange()];
+        this.trace.push({
+          command: `file ${cmd.path}`,
+          ranges: [...this.selection],
+          snippet: `switched to ${cmd.path} (${this.currentFile.doc.lineCount} lines)`,
+        });
+        break;
+      }
+      case "newfile": {
+        if (this.fileDocs.has(cmd.path)) {
+          throw new ExecutionError(
+            `newfile: file already loaded: ${cmd.path}`,
+            this.trace,
           );
-          if (matches.length === 0)
-            throw new ExecutionError(
-              `narrow: no matches for pattern ${formatPattern(cmd.pattern)}`,
-              this.trace,
-            );
-          this.selection = matches;
-          this.addTrace("narrow", this.selection, file.doc);
-          break;
         }
-
-        case "retain_first": {
-          if (this.selection.length === 0)
-            throw new ExecutionError("retain_first: no selections", this.trace);
-          this.selection = [this.selection[0]];
-          const file = this.requireFile();
-          this.addTrace("retain_first", this.selection, file.doc);
-          break;
+        let exists = true;
+        try {
+          await fs.access(cmd.path);
+        } catch {
+          exists = false;
         }
-
-        case "retain_last": {
-          if (this.selection.length === 0)
-            throw new ExecutionError("retain_last: no selections", this.trace);
-          this.selection = [this.selection[this.selection.length - 1]];
-          const file = this.requireFile();
-          this.addTrace("retain_last", this.selection, file.doc);
-          break;
-        }
-
-        case "narrow_one": {
-          const file = this.requireFile();
-          const matches = this.findAllMatches(
-            cmd.pattern,
-            file.doc,
-            this.selection,
+        if (exists) {
+          throw new ExecutionError(
+            `newfile: file already exists on disk: ${cmd.path}`,
+            this.trace,
           );
-          if (matches.length === 0)
-            throw new ExecutionError(
-              `narrow_one: no matches for pattern ${formatPattern(cmd.pattern)}`,
-              this.trace,
-            );
-          if (matches.length > 1)
-            throw new ExecutionError(
-              `narrow_one: expected 1 match, got ${matches.length}`,
-              this.trace,
-            );
-          this.selection = [matches[0]];
-          this.addTrace("narrow_one", this.selection, file.doc);
-          break;
         }
+        const state: FileState = {
+          doc: new Document(""),
+          path: cmd.path,
+          mutations: {
+            insertions: 0,
+            deletions: 0,
+            replacements: 0,
+            linesAdded: 0,
+            linesRemoved: 0,
+          },
+          isNew: true,
+        };
+        this.fileDocs.set(cmd.path, state);
+        this.currentFile = state;
+        this.selection = [{ start: 0, end: 0 }];
+        this.trace.push({
+          command: `newfile ${cmd.path}`,
+          ranges: [...this.selection],
+          snippet: `created ${cmd.path}`,
+        });
+        break;
+      }
 
-        case "select_next": {
-          const file = this.requireFile();
-          const current = this.requireSingleSelect();
-          const searchText = file.doc.content.slice(current.end);
-          const matches = this.findInText(
-            cmd.pattern,
-            searchText,
-            file.doc,
-            current.end,
+      case "narrow": {
+        const file = this.requireFile();
+        const matches = this.findAllMatches(
+          cmd.pattern,
+          file.doc,
+          this.selection,
+        );
+        if (matches.length === 0)
+          throw new ExecutionError(
+            `narrow: no matches for pattern ${formatPattern(cmd.pattern)}`,
+            this.trace,
           );
-          if (matches.length === 0)
-            throw new ExecutionError(
-              `select_next: no matches after selection for pattern ${formatPattern(cmd.pattern)}`,
-              this.trace,
-            );
-          this.selection = [matches[0]];
-          this.addTrace("select_next", this.selection, file.doc);
-          break;
-        }
+        this.selection = matches;
+        this.addTrace("narrow", this.selection, file.doc);
+        break;
+      }
 
-        case "select_prev": {
-          const file = this.requireFile();
-          const current = this.requireSingleSelect();
-          const searchText = file.doc.content.slice(0, current.start);
-          const matches = this.findInText(cmd.pattern, searchText, file.doc, 0);
-          if (matches.length === 0)
-            throw new ExecutionError(
-              `select_prev: no matches before selection for pattern ${formatPattern(cmd.pattern)}`,
-              this.trace,
-            );
-          this.selection = [matches[matches.length - 1]];
-          this.addTrace("select_prev", this.selection, file.doc);
-          break;
-        }
+      case "retain_first": {
+        if (this.selection.length === 0)
+          throw new ExecutionError("retain_first: no selections", this.trace);
+        this.selection = [this.selection[0]];
+        const file = this.requireFile();
+        this.addTrace("retain_first", this.selection, file.doc);
+        break;
+      }
 
-        case "extend_forward": {
-          const file = this.requireFile();
-          const current = this.requireSingleSelect();
-          const searchText = file.doc.content.slice(current.end);
-          const matches = this.findInText(
-            cmd.pattern,
-            searchText,
-            file.doc,
-            current.end,
+      case "retain_last": {
+        if (this.selection.length === 0)
+          throw new ExecutionError("retain_last: no selections", this.trace);
+        this.selection = [this.selection[this.selection.length - 1]];
+        const file = this.requireFile();
+        this.addTrace("retain_last", this.selection, file.doc);
+        break;
+      }
+
+      case "narrow_one": {
+        const file = this.requireFile();
+        const matches = this.findAllMatches(
+          cmd.pattern,
+          file.doc,
+          this.selection,
+        );
+        if (matches.length === 0)
+          throw new ExecutionError(
+            `narrow_one: no matches for pattern ${formatPattern(cmd.pattern)}`,
+            this.trace,
           );
-          if (matches.length === 0)
-            throw new ExecutionError(
-              `extend_forward: no matches after selection for pattern ${formatPattern(cmd.pattern)}`,
-              this.trace,
-            );
-          this.selection = [{ start: current.start, end: matches[0].end }];
-          this.addTrace("extend_forward", this.selection, file.doc);
-          break;
-        }
-
-        case "extend_back": {
-          const file = this.requireFile();
-          const current = this.requireSingleSelect();
-          const searchText = file.doc.content.slice(0, current.start);
-          const matches = this.findInText(cmd.pattern, searchText, file.doc, 0);
-          if (matches.length === 0)
-            throw new ExecutionError(
-              `extend_back: no matches before selection for pattern ${formatPattern(cmd.pattern)}`,
-              this.trace,
-            );
-          this.selection = [
-            {
-              start: matches[matches.length - 1].start,
-              end: current.end,
-            },
-          ];
-          this.addTrace("extend_back", this.selection, file.doc);
-          break;
-        }
-
-        case "retain_nth": {
-          if (this.selection.length === 0)
-            throw new ExecutionError("retain_nth: no selections", this.trace);
-          const n = cmd.n < 0 ? this.selection.length + cmd.n : cmd.n;
-          if (n < 0 || n >= this.selection.length)
-            throw new ExecutionError(
-              `retain_nth: index ${cmd.n} out of range (${this.selection.length} selections)`,
-              this.trace,
-            );
-          this.selection = [this.selection[n]];
-          const file = this.requireFile();
-          this.addTrace(`retain_nth ${cmd.n}`, this.selection, file.doc);
-          break;
-        }
-
-        case "replace": {
-          const file = this.requireFile();
-          if (this.selection.length === 0)
-            throw new ExecutionError("replace: no selection", this.trace);
-          const sorted = [...this.selection].sort((a, b) => b.start - a.start);
-          for (const range of sorted) {
-            const oldText = file.doc.getText(range);
-            file.doc.splice(range, cmd.text);
-            file.mutations.replacements++;
-            file.mutations.linesRemoved += Executor.countLines(oldText);
-            file.mutations.linesAdded += Executor.countLines(cmd.text);
-          }
-          this.selection = Executor.recalcSelectionAfterReplace(
-            this.selection,
-            cmd.text,
+        if (matches.length > 1)
+          throw new ExecutionError(
+            `narrow_one: expected 1 match, got ${matches.length}`,
+            this.trace,
           );
-          this.addTrace("replace", this.selection, file.doc);
-          break;
-        }
+        this.selection = [matches[0]];
+        this.addTrace("narrow_one", this.selection, file.doc);
+        break;
+      }
 
-        case "delete": {
-          const file = this.requireFile();
-          if (this.selection.length === 0)
-            throw new ExecutionError("delete: no selection", this.trace);
-          this.addTrace("delete", this.selection, file.doc);
-          const sorted = [...this.selection].sort((a, b) => b.start - a.start);
-          for (const range of sorted) {
-            const oldText = file.doc.getText(range);
-            file.doc.splice(range, "");
-            file.mutations.deletions++;
-            file.mutations.linesRemoved += Executor.countLines(oldText);
-          }
-          const firstRange = this.selection[0];
-          this.selection = [{ start: firstRange.start, end: firstRange.start }];
-          break;
-        }
+      case "select_next": {
+        const file = this.requireFile();
+        const current = this.requireSingleSelect();
+        const searchText = file.doc.content.slice(current.end);
+        const matches = this.findInText(
+          cmd.pattern,
+          searchText,
+          file.doc,
+          current.end,
+        );
+        if (matches.length === 0)
+          throw new ExecutionError(
+            `select_next: no matches after selection for pattern ${formatPattern(cmd.pattern)}`,
+            this.trace,
+          );
+        this.selection = [matches[0]];
+        this.addTrace("select_next", this.selection, file.doc);
+        break;
+      }
 
-        case "insert_before": {
-          const file = this.requireFile();
-          if (this.selection.length === 0)
-            throw new ExecutionError("insert_before: no selection", this.trace);
-          const sorted = [...this.selection].sort((a, b) => b.start - a.start);
-          for (const range of sorted) {
-            file.doc.splice({ start: range.start, end: range.start }, cmd.text);
-            file.mutations.insertions++;
-            file.mutations.linesAdded += Executor.countLines(cmd.text);
-          }
-          this.addTrace("insert_before", this.selection, file.doc);
-          break;
-        }
+      case "select_prev": {
+        const file = this.requireFile();
+        const current = this.requireSingleSelect();
+        const searchText = file.doc.content.slice(0, current.start);
+        const matches = this.findInText(cmd.pattern, searchText, file.doc, 0);
+        if (matches.length === 0)
+          throw new ExecutionError(
+            `select_prev: no matches before selection for pattern ${formatPattern(cmd.pattern)}`,
+            this.trace,
+          );
+        this.selection = [matches[matches.length - 1]];
+        this.addTrace("select_prev", this.selection, file.doc);
+        break;
+      }
 
-        case "insert_after": {
-          const file = this.requireFile();
-          if (this.selection.length === 0)
-            throw new ExecutionError("insert_after: no selection", this.trace);
-          const sorted = [...this.selection].sort((a, b) => b.start - a.start);
-          for (const range of sorted) {
-            file.doc.splice({ start: range.end, end: range.end }, cmd.text);
-            file.mutations.insertions++;
-            file.mutations.linesAdded += Executor.countLines(cmd.text);
-          }
-          this.addTrace("insert_after", this.selection, file.doc);
-          break;
-        }
+      case "extend_forward": {
+        const file = this.requireFile();
+        const current = this.requireSingleSelect();
+        const searchText = file.doc.content.slice(current.end);
+        const matches = this.findInText(
+          cmd.pattern,
+          searchText,
+          file.doc,
+          current.end,
+        );
+        if (matches.length === 0)
+          throw new ExecutionError(
+            `extend_forward: no matches after selection for pattern ${formatPattern(cmd.pattern)}`,
+            this.trace,
+          );
+        this.selection = [{ start: current.start, end: matches[0].end }];
+        this.addTrace("extend_forward", this.selection, file.doc);
+        break;
+      }
 
-        case "cut": {
-          const file = this.requireFile();
-          const range = this.requireSingleSelect();
-          const text = file.doc.getText(range);
-          this.registers.set(cmd.register, text);
+      case "extend_back": {
+        const file = this.requireFile();
+        const current = this.requireSingleSelect();
+        const searchText = file.doc.content.slice(0, current.start);
+        const matches = this.findInText(cmd.pattern, searchText, file.doc, 0);
+        if (matches.length === 0)
+          throw new ExecutionError(
+            `extend_back: no matches before selection for pattern ${formatPattern(cmd.pattern)}`,
+            this.trace,
+          );
+        this.selection = [
+          {
+            start: matches[matches.length - 1].start,
+            end: current.end,
+          },
+        ];
+        this.addTrace("extend_back", this.selection, file.doc);
+        break;
+      }
+
+      case "retain_nth": {
+        if (this.selection.length === 0)
+          throw new ExecutionError("retain_nth: no selections", this.trace);
+        const n = cmd.n < 0 ? this.selection.length + cmd.n : cmd.n;
+        if (n < 0 || n >= this.selection.length)
+          throw new ExecutionError(
+            `retain_nth: index ${cmd.n} out of range (${this.selection.length} selections)`,
+            this.trace,
+          );
+        this.selection = [this.selection[n]];
+        const file = this.requireFile();
+        this.addTrace(`retain_nth ${cmd.n}`, this.selection, file.doc);
+        break;
+      }
+
+      case "replace": {
+        const file = this.requireFile();
+        if (this.selection.length === 0)
+          throw new ExecutionError("replace: no selection", this.trace);
+        const sorted = [...this.selection].sort((a, b) => b.start - a.start);
+        for (const range of sorted) {
+          const oldText = file.doc.getText(range);
+          file.doc.splice(range, cmd.text);
+          file.mutations.replacements++;
+          file.mutations.linesRemoved += Executor.countLines(oldText);
+          file.mutations.linesAdded += Executor.countLines(cmd.text);
+        }
+        this.selection = Executor.recalcSelectionAfterReplace(
+          this.selection,
+          cmd.text,
+        );
+        this.addTrace("replace", this.selection, file.doc);
+        break;
+      }
+
+      case "delete": {
+        const file = this.requireFile();
+        if (this.selection.length === 0)
+          throw new ExecutionError("delete: no selection", this.trace);
+        this.addTrace("delete", this.selection, file.doc);
+        const sorted = [...this.selection].sort((a, b) => b.start - a.start);
+        for (const range of sorted) {
+          const oldText = file.doc.getText(range);
           file.doc.splice(range, "");
           file.mutations.deletions++;
-          file.mutations.linesRemoved += Executor.countLines(text);
-          this.addTrace(`cut ${cmd.register}`, [range], file.doc);
-          this.selection = [{ start: range.start, end: range.start }];
-          break;
+          file.mutations.linesRemoved += Executor.countLines(oldText);
         }
+        const firstRange = this.selection[0];
+        this.selection = [{ start: firstRange.start, end: firstRange.start }];
+        break;
+      }
 
-        case "paste": {
-          const file = this.requireFile();
-          const text = this.registers.get(cmd.register);
-          if (text === undefined)
-            throw new ExecutionError(
-              `paste: register "${cmd.register}" is empty`,
-              this.trace,
-            );
-          const range = this.requireSingleSelect();
-          file.doc.splice({ start: range.end, end: range.end }, text);
+      case "insert_before": {
+        const file = this.requireFile();
+        if (this.selection.length === 0)
+          throw new ExecutionError("insert_before: no selection", this.trace);
+        const sorted = [...this.selection].sort((a, b) => b.start - a.start);
+        for (const range of sorted) {
+          file.doc.splice({ start: range.start, end: range.start }, cmd.text);
           file.mutations.insertions++;
-          file.mutations.linesAdded += Executor.countLines(text);
-          this.addTrace(`paste ${cmd.register}`, [range], file.doc);
-          break;
+          file.mutations.linesAdded += Executor.countLines(cmd.text);
+        }
+        this.addTrace("insert_before", this.selection, file.doc);
+        break;
+      }
+
+      case "insert_after": {
+        const file = this.requireFile();
+        if (this.selection.length === 0)
+          throw new ExecutionError("insert_after: no selection", this.trace);
+        const sorted = [...this.selection].sort((a, b) => b.start - a.start);
+        for (const range of sorted) {
+          file.doc.splice({ start: range.end, end: range.end }, cmd.text);
+          file.mutations.insertions++;
+          file.mutations.linesAdded += Executor.countLines(cmd.text);
+        }
+        this.addTrace("insert_after", this.selection, file.doc);
+        break;
+      }
+
+      case "cut": {
+        const file = this.requireFile();
+        const range = this.requireSingleSelect();
+        const text = file.doc.getText(range);
+        this.registers.set(cmd.register, text);
+        file.doc.splice(range, "");
+        file.mutations.deletions++;
+        file.mutations.linesRemoved += Executor.countLines(text);
+        this.addTrace(`cut ${cmd.register}`, [range], file.doc);
+        this.selection = [{ start: range.start, end: range.start }];
+        break;
+      }
+
+      case "paste": {
+        const file = this.requireFile();
+        const text = this.registers.get(cmd.register);
+        if (text === undefined)
+          throw new ExecutionError(
+            `paste: register "${cmd.register}" is empty`,
+            this.trace,
+          );
+        const range = this.requireSingleSelect();
+        file.doc.splice({ start: range.end, end: range.end }, text);
+        file.mutations.insertions++;
+        file.mutations.linesAdded += Executor.countLines(text);
+        this.addTrace(`paste ${cmd.register}`, [range], file.doc);
+        break;
+      }
+    }
+  }
+
+  async execute(commands: Command[]): Promise<ScriptResult> {
+    const fileErrors: FileError[] = [];
+    const failedFiles = new Set<string>();
+    let i = 0;
+
+    while (i < commands.length) {
+      const cmd = commands[i];
+
+      try {
+        await this.executeCommand(cmd);
+        i++;
+      } catch (e) {
+        if (e instanceof ExecutionError) {
+          const errorPath =
+            cmd.type === "file" || cmd.type === "newfile"
+              ? cmd.path
+              : this.currentFile?.path;
+
+          if (errorPath) {
+            fileErrors.push({
+              path: errorPath,
+              error: e.message,
+              trace: [...e.trace],
+            });
+            failedFiles.add(errorPath);
+
+            const nextIdx = this.findNextFileCommand(
+              commands,
+              i + 1,
+              errorPath,
+            );
+            if (nextIdx === -1) {
+              break;
+            }
+            i = nextIdx;
+            this.currentFile = undefined;
+            this.selection = [];
+          } else {
+            throw e;
+          }
+        } else {
+          throw e;
         }
       }
     }
@@ -519,6 +583,8 @@ export class Executor {
     const mutations = new Map<string, FileMutationSummary>();
     const newFiles = new Set<string>();
     for (const [path, state] of this.fileDocs) {
+      if (failedFiles.has(path)) continue;
+
       const m = state.mutations;
       if (m.insertions > 0 || m.deletions > 0 || m.replacements > 0) {
         mutations.set(path, m);
@@ -537,20 +603,24 @@ export class Executor {
       await fs.writeFile(path, state.doc.content, "utf-8");
     }
 
+    let finalSelection: { ranges: RangeWithPos[] } | undefined;
+    if (this.selection.length > 0 && this.currentFile) {
+      const doc = this.currentFile.doc;
+      finalSelection = {
+        ranges: this.selection.map((r) => ({
+          range: r,
+          startPos: doc.offsetToPos(r.start),
+          endPos: doc.offsetToPos(r.end),
+          content: doc.getText(r),
+        })),
+      };
+    }
+
     return {
       trace: this.trace,
-      finalSelection:
-        this.selection.length > 0 && this.currentFile
-          ? {
-              ranges: this.selection,
-              snippet: this.selection
-                .map((r) =>
-                  Executor.formatSnippet(this.currentFile!.doc.getText(r)),
-                )
-                .join(" | "),
-            }
-          : undefined,
+      finalSelection,
       mutations,
+      fileErrors,
     };
   }
 }

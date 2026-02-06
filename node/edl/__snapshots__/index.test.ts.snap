@@ -9,22 +9,41 @@ exports[`runScript > returns error on parse failure 1`] = `
 
 exports[`runScript > returns error with message and trace on execution failure 1`] = `
 {
-  "error": "Error: narrow: no matches for pattern /nonexistent/
-
-Trace:
-  file <tmpDir>/test.txt → switched to <tmpDir>/test.txt (2 lines)
-  narrow → hello
-  retain_first → hello",
-  "status": "error",
-}
-`;
-
-exports[`runScript > returns ok with no mutations when script only selects 1`] = `
-{
   "data": {
+    "fileErrors": [
+      {
+        "error": "narrow: no matches for pattern /nonexistent/",
+        "path": "<tmpDir>/test.txt",
+        "trace": [
+          {
+            "command": "file <tmpDir>/test.txt",
+            "snippet": "switched to <tmpDir>/test.txt (2 lines)",
+          },
+          {
+            "command": "narrow",
+            "snippet": "hello",
+          },
+          {
+            "command": "retain_first",
+            "snippet": "hello",
+          },
+        ],
+      },
+    ],
     "finalSelection": {
-      "count": 1,
-      "snippet": "hello",
+      "ranges": [
+        {
+          "content": "hello",
+          "endPos": {
+            "col": 5,
+            "line": 1,
+          },
+          "startPos": {
+            "col": 0,
+            "line": 1,
+          },
+        },
+      ],
     },
     "mutations": [],
     "trace": [
@@ -50,8 +69,66 @@ exports[`runScript > returns ok with no mutations when script only selects 1`] =
 Mutations:
 No files modified.
 
-Final selection:
-  hello",
+Final selection (1 ranges):
+  Range 1: [1:0 - 1:5]
+hello
+
+File errors:
+  <tmpDir>/test.txt: narrow: no matches for pattern /nonexistent/
+    Trace:
+      file <tmpDir>/test.txt → switched to <tmpDir>/test.txt (2 lines)
+      narrow → hello
+      retain_first → hello",
+  "status": "ok",
+}
+`;
+
+exports[`runScript > returns ok with no mutations when script only selects 1`] = `
+{
+  "data": {
+    "fileErrors": [],
+    "finalSelection": {
+      "ranges": [
+        {
+          "content": "hello",
+          "endPos": {
+            "col": 5,
+            "line": 1,
+          },
+          "startPos": {
+            "col": 0,
+            "line": 1,
+          },
+        },
+      ],
+    },
+    "mutations": [],
+    "trace": [
+      {
+        "command": "file <tmpDir>/test.txt",
+        "snippet": "switched to <tmpDir>/test.txt (2 lines)",
+      },
+      {
+        "command": "narrow",
+        "snippet": "hello",
+      },
+      {
+        "command": "retain_first",
+        "snippet": "hello",
+      },
+    ],
+  },
+  "formatted": "Trace:
+  file <tmpDir>/test.txt → switched to <tmpDir>/test.txt (2 lines)
+  narrow → hello
+  retain_first → hello
+
+Mutations:
+No files modified.
+
+Final selection (1 ranges):
+  Range 1: [1:0 - 1:5]
+hello",
   "status": "ok",
 }
 `;
@@ -59,9 +136,21 @@ Final selection:
 exports[`runScript > returns ok with trace, mutations, and final selection 1`] = `
 {
   "data": {
+    "fileErrors": [],
     "finalSelection": {
-      "count": 1,
-      "snippet": "planet",
+      "ranges": [
+        {
+          "content": "planet",
+          "endPos": {
+            "col": 12,
+            "line": 1,
+          },
+          "startPos": {
+            "col": 6,
+            "line": 1,
+          },
+        },
+      ],
     },
     "mutations": [
       {
@@ -103,8 +192,9 @@ exports[`runScript > returns ok with trace, mutations, and final selection 1`] =
 Mutations:
   <tmpDir>/test.txt: 1 replacements, +1/-1 lines
 
-Final selection:
-  planet",
+Final selection (1 ranges):
+  Range 1: [1:6 - 1:12]
+planet",
   "status": "ok",
 }
 `;
