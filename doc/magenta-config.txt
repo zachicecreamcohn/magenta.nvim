@@ -64,7 +64,7 @@ With thinking/reasoning support:~
     {
       name = "claude-opus",
       provider = "anthropic",
-      model = "claude-opus-4-5",
+      model = "claude-opus-4-6",
       apiKeyEnvVar = "ANTHROPIC_API_KEY",
       thinking = {
         enabled = true,
@@ -277,7 +277,7 @@ Example `.magenta/options.json`:~
         {
           "name": "project-claude",
           "provider": "anthropic",
-          "model": "claude-opus-4-5",
+          "model": "claude-opus-4-6",
           "apiKeyEnvVar": "PROJECT_ANTHROPIC_KEY"
         }
       ],

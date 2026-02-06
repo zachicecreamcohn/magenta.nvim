@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import type { MessageStream } from "@anthropic-ai/sdk/lib/MessageStream.mjs";
 import type {
   Agent,
   AgentInput,
@@ -68,7 +69,7 @@ type Action =
 
 export class AnthropicAgent implements Agent {
   private messages: Anthropic.MessageParam[] = [];
-  private currentRequest: ReturnType<Anthropic.Messages["stream"]> | undefined;
+  private currentRequest: MessageStream | undefined;
   private params: Omit<Anthropic.Messages.MessageStreamParams, "messages">;
   private currentAnthropicBlock: AnthropicStreamingBlock | undefined;
   private status: AgentStatus = { type: "stopped", stopReason: "end_turn" };
@@ -555,25 +556,6 @@ export class AnthropicAgent implements Agent {
     } else {
       lastMessage.content = filteredContent;
     }
-  }
-
-  private stripSystemReminders(
-    blocks: Anthropic.Messages.ContentBlockParam[],
-  ): Anthropic.Messages.ContentBlockParam[] {
-    return blocks.filter((block) => {
-      if (block.type === "text" && block.text.includes("<system-reminder>")) {
-        return false;
-      }
-      return true;
-    });
-  }
-
-  private stripThinkingBlocks(
-    blocks: Anthropic.Messages.ContentBlockParam[],
-  ): Anthropic.Messages.ContentBlockParam[] {
-    return blocks.filter((block) => {
-      return block.type !== "thinking" && block.type !== "redacted_thinking";
-    });
   }
 
   private ensureValidMessageSequence(
@@ -1248,7 +1230,7 @@ export function withCacheControl(
 
 export function getMaxTokensForModel(model: string): number {
   // Claude 4.5 models (Opus, Sonnet, Haiku) - use high limits
-  if (model.match(/^claude-(opus-4-5|sonnet-4-5|haiku-4-5)/)) {
+  if (model.match(/^claude-(opus-4-5|opus-4-6|sonnet-4-5|haiku-4-5)/)) {
     return 32000;
   }
 

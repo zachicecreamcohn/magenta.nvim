@@ -3,9 +3,9 @@ local M = {}
 local defaults = {
   profiles = {
     {
-      name = "claude-opus-4-5",
+      name = "claude-opus-4-6",
       provider = "anthropic",
-      model = "claude-opus-4-5",
+      model = "claude-opus-4-6",
       apiKeyEnvVar = "ANTHROPIC_API_KEY"
     },
     {
@@ -17,7 +17,7 @@ local defaults = {
     {
       name = "claude-max",
       provider = "anthropic",
-      model = "claude-opus-4-5",
+      model = "claude-opus-4-6",
       authType = "max"
     },
     {
@@ -29,7 +29,7 @@ local defaults = {
     {
       name = "copilot-claude-opus",
       provider = "copilot",
-      model = "claude-opus-4-5"
+      model = "claude-opus-4-6"
     }
   },
   picker = "fzf-lua",

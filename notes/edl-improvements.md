@@ -5,4 +5,5 @@
 - [ ] improve the trace by displaying line numbers and context
 - [x] improve the final selection display by displaying line numbers and context
 - [ ] when we fail to do large replaces, save the replace in a register that can be used in a retry. Log this as part of the trace
-- [ ] have each file process independently. So even if some commands for file a fail, file b should write
+- [x] have each file process independently. So even if some commands for file a fail, file b should write
+- [ ] approve or deny each file access separately

@@ -16,7 +16,7 @@ Uses the Anthropic Node SDK.
 https://github.com/anthropics/anthropic-sdk-typescript
 
 Supported models:~
-  - claude-opus-4-5
+  - claude-opus-4-6
   - claude-sonnet-4-5
   - claude-haiku-4-5
 
@@ -36,7 +36,7 @@ With thinking/reasoning:~
     {
       name = "claude-opus",
       provider = "anthropic",
-      model = "claude-opus-4-5",
+      model = "claude-opus-4-6",
       apiKeyEnvVar = "ANTHROPIC_API_KEY",
       thinking = {
         enabled = true,
@@ -159,7 +159,7 @@ Uses your existing GitHub Copilot subscription. No API key required.
 
 Supported models:~
   - claude-3.7-sonnet
-  - claude-opus-4-5
+  - claude-opus-4-6
   - claude-haiku-4-5
   - gpt-5
 

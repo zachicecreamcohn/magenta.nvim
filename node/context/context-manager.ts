@@ -588,7 +588,6 @@ export class ContextManager {
       "current",
       {
         context: 2,
-        ignoreNewlineAtEof: true,
       },
     ) as Patch;
 
