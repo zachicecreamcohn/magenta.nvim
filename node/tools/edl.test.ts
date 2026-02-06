@@ -5,6 +5,10 @@ import * as path from "node:path";
 import type { ToolRequestId, ToolName } from "./types.ts";
 import type Anthropic from "@anthropic-ai/sdk";
 import { MockProvider } from "../providers/mock.ts";
+import type { AbsFilePath } from "../utils/files.ts";
+import type { Row0Indexed } from "../nvim/window.ts";
+import type { Line } from "../nvim/buffer.ts";
+import { getAllBuffers } from "../nvim/nvim.ts";
 
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
 type ContentBlockParam = Anthropic.Messages.ContentBlockParam;
@@ -364,6 +368,244 @@ END`;
         await driver.assertDisplayBufferContains("replace <<END");
         await driver.assertDisplayBufferContains("Trace:");
         await driver.assertDisplayBufferContains("Mutations:");
+      },
+    );
+  });
+});
+
+describe("edl tool buffer integration", () => {
+  test("edl edit updates context manager agent view", async () => {
+    await withDriver(
+      {
+        setupFiles: async (tmpDir) => {
+          await fs.writeFile(path.join(tmpDir, "test.txt"), "hello world\n");
+        },
+      },
+      async (driver, dirs) => {
+        await driver.showSidebar();
+        await driver.addContextFiles("test.txt");
+
+        const absFilePath = path.resolve(
+          dirs.tmpDir,
+          "test.txt",
+        ) as AbsFilePath;
+        const contextManager =
+          driver.magenta.chat.getActiveThread().contextManager;
+
+        await driver.inputMagentaText("edit the file");
+        await driver.send();
+
+        const filePath = path.join(dirs.tmpDir, "test.txt");
+        const script = `file \`${filePath}\`
+narrow_one /hello/
+replace <<END
+goodbye
+END`;
+
+        const stream = await driver.mockAnthropic.awaitPendingStream();
+        stream.respond({
+          stopReason: "tool_use",
+          text: "I'll edit the file",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "tool_1" as ToolRequestId,
+                toolName: "edl" as ToolName,
+                input: { script },
+              },
+            },
+          ],
+        });
+
+        await driver.assertDisplayBufferContains(
+          "📝✅ edl: 1 mutations in 1 file",
+        );
+
+        const fileInfo = contextManager.files[absFilePath];
+        expect(fileInfo).toBeDefined();
+        expect(fileInfo.agentView).toEqual({
+          type: "text",
+          content: "goodbye world\n",
+        });
+      },
+    );
+  });
+
+  test("edl writes to nvim buffer when file is open", async () => {
+    await withDriver(
+      {
+        setupFiles: async (tmpDir) => {
+          await fs.writeFile(path.join(tmpDir, "test.txt"), "hello world\n");
+        },
+      },
+      async (driver, dirs) => {
+        await driver.editFile("test.txt");
+        await driver.showSidebar();
+
+        const filePath = path.join(dirs.tmpDir, "test.txt");
+
+        await driver.inputMagentaText("edit the file");
+        await driver.send();
+
+        const script = `file \`${filePath}\`
+narrow_one /hello/
+replace <<END
+goodbye
+END`;
+
+        const stream = await driver.mockAnthropic.awaitPendingStream();
+        stream.respond({
+          stopReason: "tool_use",
+          text: "editing",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "tool_1" as ToolRequestId,
+                toolName: "edl" as ToolName,
+                input: { script },
+              },
+            },
+          ],
+        });
+
+        await driver.assertDisplayBufferContains("📝✅ edl:");
+
+        // Verify the nvim buffer was updated (not just disk)
+        const buffers = await getAllBuffers(driver.nvim);
+        let testBuffer;
+        for (const buf of buffers) {
+          const name = await buf.getName();
+          if (name.includes("test.txt")) {
+            testBuffer = buf;
+            break;
+          }
+        }
+        expect(testBuffer).toBeDefined();
+        if (!testBuffer) throw new Error("testBuffer undefined");
+
+        const lines = await testBuffer.getLines({
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
+        });
+        expect(lines.join("\n")).toBe("goodbye world");
+
+        // Verify disk was also saved (nvim adds trailing newline on save)
+        const diskContent = await fs.readFile(filePath, "utf-8");
+        expect(diskContent).toBe("goodbye world\n");
+      },
+    );
+  });
+
+  test("edl reads from buffer when buffer has unsaved changes", async () => {
+    await withDriver(
+      {
+        setupFiles: async (tmpDir) => {
+          await fs.writeFile(
+            path.join(tmpDir, "test.txt"),
+            "original content\n",
+          );
+        },
+      },
+      async (driver, dirs) => {
+        await driver.editFile("test.txt");
+        await driver.showSidebar();
+
+        const filePath = path.join(dirs.tmpDir, "test.txt");
+
+        // Step 1: Run EDL to write to the file (this tracks the buffer in bufferTracker)
+        await driver.inputMagentaText("edit file");
+        await driver.send();
+
+        const script1 = `file \`${filePath}\`
+narrow_one /original/
+replace <<END
+modified
+END`;
+
+        const stream1 = await driver.mockAnthropic.awaitPendingStream();
+        stream1.respond({
+          stopReason: "tool_use",
+          text: "editing",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "tool_1" as ToolRequestId,
+                toolName: "edl" as ToolName,
+                input: { script: script1 },
+              },
+            },
+          ],
+        });
+
+        await driver.assertDisplayBufferContains(
+          "📝✅ edl: 1 mutations in 1 file",
+        );
+
+        // End first turn
+        const autoStream = await driver.mockAnthropic.awaitPendingStream();
+        autoStream.respond({
+          stopReason: "end_turn",
+          text: "Done!",
+          toolRequests: [],
+        });
+        await driver.mockAnthropic.awaitStopped();
+
+        // Step 2: Edit buffer without saving (simulating user edit)
+        const buffers = await getAllBuffers(driver.nvim);
+        let testBuffer;
+        for (const buf of buffers) {
+          const name = await buf.getName();
+          if (name.includes("test.txt")) {
+            testBuffer = buf;
+            break;
+          }
+        }
+        expect(testBuffer).toBeDefined();
+        if (!testBuffer) throw new Error("expected testBuffer to be defined");
+
+        await testBuffer.setLines({
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
+          lines: ["buffer only content" as Line],
+        });
+
+        // Disk still has old content
+        const diskContent = await fs.readFile(filePath, "utf-8");
+        expect(diskContent).toBe("modified content\n");
+
+        // Step 3: Run EDL that searches for content only present in the buffer
+        await driver.inputMagentaText("edit again");
+        await driver.send();
+
+        const script2 = `file \`${filePath}\`
+narrow_one /buffer only/
+replace <<END
+replaced
+END`;
+
+        const stream2 = await driver.mockAnthropic.awaitPendingStream();
+        stream2.respond({
+          stopReason: "tool_use",
+          text: "editing again",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "tool_2" as ToolRequestId,
+                toolName: "edl" as ToolName,
+                input: { script: script2 },
+              },
+            },
+          ],
+        });
+
+        // If EDL succeeds, it read "buffer only" from the buffer (not disk which has "modified")
+        await driver.assertDisplayBufferContains(
+          "📝✅ edl: 1 mutations in 1 file",
+        );
       },
     );
   });

@@ -10,7 +10,11 @@ file `path` # Select a file to edit, resets the selection to the entire contents
 newfile `path` # Create a new file (must not already exist)
 
 # selection commands
-# patterns can be: heredoc, /regex/, line number like `5:`, line:col like `5:10`, `bof`, `eof`
+# patterns can be: heredoc, /regex/
+# 5: selects all of line 5  (1-indexed)
+# 5:10 selects line 5, column 10
+# bof is beginning of file
+# eof is end of file
 narrow <pattern>         # Narrow selection to all matches of pattern
 narrow_one <pattern>     # Like narrow, but asserts only one match exists
 retain_first             # Keep just the first selection from multi-selection
@@ -33,6 +37,17 @@ END
 replace <<END
 const newValue = 100;
 END
+```
+
+# delete from pattern to the end of file
+
+```
+file `src/file.test`
+narrow_one <<END
+describe("test block", () =>
+END
+extend_forward eof
+delete
 ```
 
 # Insert after a match using insert_after:

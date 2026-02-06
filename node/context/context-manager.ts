@@ -60,6 +60,10 @@ export type ToolApplication =
       type: "replace";
       find: string;
       replace: string;
+    }
+  | {
+      type: "edl-edit";
+      content: string;
     };
 
 export type Msg =
@@ -397,6 +401,10 @@ export class ContextManager {
             );
           }
         }
+        return;
+      }
+      case "edl-edit": {
+        fileInfo.agentView = { type: "text", content: tool.content };
         return;
       }
       default:

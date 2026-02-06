@@ -233,6 +233,8 @@ export function createTool(
         homeDir: context.homeDir,
         options: context.options,
         myDispatch: wrapDispatch,
+        bufferTracker: context.bufferTracker,
+        threadDispatch: context.threadDispatch,
       });
     }
 

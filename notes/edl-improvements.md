@@ -1,9 +1,0 @@
-- [x] Change _select_ to _narrow_, so the agent doesn't get confused about using it several times in a row
-- [x] encourage the agent to use heredoc over regexes, unless regexes are needed
-- [ ] Remap lines as we do the edits. So if we specify lines in the initial coordinate system of the file, resolve the lines differently for future changes below the first changes
-- [ ] when streaming the edl tool, only show the last N lines of the streamed text.
-- [ ] improve the trace by displaying line numbers and context
-- [x] improve the final selection display by displaying line numbers and context
-- [ ] when we fail to do large replaces, save the replace in a register that can be used in a retry. Log this as part of the trace
-- [x] have each file process independently. So even if some commands for file a fail, file b should write
-- [ ] approve or deny each file access separately

@@ -1,4 +1,4 @@
-import * as fs from "node:fs/promises";
+import { type FileIO, FsFileIO } from "./file-io.ts";
 import { Document } from "./document.ts";
 import type { Command, Pattern } from "./parser.ts";
 import type {
@@ -56,13 +56,18 @@ export class Executor {
   public fileDocs = new Map<string, FileState>();
   public currentFile: FileState | undefined;
   public selection: Range[] = [];
+  private fileIO: FileIO;
+
+  constructor(fileIO?: FileIO) {
+    this.fileIO = fileIO ?? new FsFileIO();
+  }
 
   async getOrLoadFile(path: string): Promise<FileState> {
     let state = this.fileDocs.get(path);
     if (!state) {
       let content: string;
       try {
-        content = await fs.readFile(path, "utf-8");
+        content = await this.fileIO.readFile(path);
       } catch (e) {
         throw new ExecutionError(
           `Failed to read file: ${path}: ${e instanceof Error ? e.message : String(e)}`,
@@ -256,12 +261,7 @@ export class Executor {
             this.trace,
           );
         }
-        let exists = true;
-        try {
-          await fs.access(cmd.path);
-        } catch {
-          exists = false;
-        }
+        const exists = await this.fileIO.fileExists(cmd.path);
         if (exists) {
           throw new ExecutionError(
             `newfile: file already exists on disk: ${cmd.path}`,
@@ -581,6 +581,7 @@ export class Executor {
     }
 
     const mutations = new Map<string, FileMutationSummary>();
+    const fileContents = new Map<string, string>();
     const newFiles = new Set<string>();
     for (const [path, state] of this.fileDocs) {
       if (failedFiles.has(path)) continue;
@@ -588,9 +589,11 @@ export class Executor {
       const m = state.mutations;
       if (m.insertions > 0 || m.deletions > 0 || m.replacements > 0) {
         mutations.set(path, m);
+        fileContents.set(path, state.doc.content);
       }
       if (state.isNew) {
         newFiles.add(path);
+        fileContents.set(path, state.doc.content);
       }
     }
 
@@ -598,9 +601,9 @@ export class Executor {
       const state = this.fileDocs.get(path)!;
       const dir = path.substring(0, path.lastIndexOf("/"));
       if (dir) {
-        await fs.mkdir(dir, { recursive: true });
+        await this.fileIO.mkdir(dir);
       }
-      await fs.writeFile(path, state.doc.content, "utf-8");
+      await this.fileIO.writeFile(path, state.doc.content);
     }
 
     let finalSelection: { ranges: RangeWithPos[] } | undefined;
@@ -620,6 +623,7 @@ export class Executor {
       trace: this.trace,
       finalSelection,
       mutations,
+      fileContents,
       fileErrors,
     };
   }

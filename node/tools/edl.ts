@@ -13,6 +13,7 @@ import type { Nvim } from "../nvim/nvim-node";
 import {
   resolveFilePath,
   displayPath,
+  FileCategory,
   type UnresolvedFilePath,
   type NvimCwd,
   type HomeDir,
@@ -31,6 +32,10 @@ import {
   type EdlResultData,
   type FileAccessInfo,
 } from "../edl/index.ts";
+import type { BufferTracker } from "../buffer-tracker.ts";
+import type { Dispatch } from "../tea/tea.ts";
+import type { Msg as ThreadMsg } from "../chat/thread.ts";
+import { BufferAwareFileIO } from "./buffer-file-io.ts";
 import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -93,6 +98,8 @@ export class EdlTool implements StaticTool {
       homeDir: HomeDir;
       options: MagentaOptions;
       myDispatch: (msg: Msg) => void;
+      bufferTracker: BufferTracker;
+      threadDispatch: Dispatch<ThreadMsg>;
     },
   ) {
     this.state = {
@@ -262,11 +269,36 @@ export class EdlTool implements StaticTool {
   async executeScript() {
     try {
       const script = this.request.input.script;
-      const result = await runScript(script);
+      const fileIO = new BufferAwareFileIO(this.context);
+      const result = await runScript(script, fileIO);
 
       if (this.aborted) return;
 
       if (result.status === "ok") {
+        for (const mutation of result.data.mutations) {
+          const absFilePath = resolveFilePath(
+            this.context.cwd,
+            mutation.path as Parameters<typeof resolveFilePath>[1],
+            this.context.homeDir,
+          );
+          this.context.threadDispatch({
+            type: "context-manager-msg",
+            msg: {
+              type: "tool-applied",
+              absFilePath,
+              tool: {
+                type: "edl-edit",
+                content: mutation.content,
+              },
+              fileTypeInfo: {
+                category: FileCategory.TEXT,
+                mimeType: "text/plain",
+                extension: "",
+              },
+            },
+          });
+        }
+
         this.context.myDispatch({
           type: "finish",
           result: {

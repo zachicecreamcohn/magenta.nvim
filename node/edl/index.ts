@@ -1,5 +1,6 @@
 import { parse, ParseError } from "./parser.ts";
 import { Executor, ExecutionError } from "./executor.ts";
+import type { FileIO } from "./file-io.ts";
 import type {
   ScriptResult,
   TraceEntry,
@@ -25,7 +26,7 @@ export type FileErrorInfo = {
 
 export type EdlResultData = {
   trace: { command: string; snippet: string }[];
-  mutations: { path: string; summary: FileMutationSummary }[];
+  mutations: { path: string; summary: FileMutationSummary; content: string }[];
   finalSelection: { ranges: RangeInfo[] } | undefined;
   fileErrors: FileErrorInfo[];
 };
@@ -155,10 +156,13 @@ function formatResult(result: ScriptResult): string {
   return sections.join("\n\n");
 }
 
-export async function runScript(script: string): Promise<RunScriptResult> {
+export async function runScript(
+  script: string,
+  fileIO?: FileIO,
+): Promise<RunScriptResult> {
   try {
     const commands = parse(script);
-    const executor = new Executor();
+    const executor = new Executor(fileIO);
     const result = await executor.execute(commands);
 
     const data: EdlResultData = {
@@ -170,6 +174,7 @@ export async function runScript(script: string): Promise<RunScriptResult> {
         ([path, summary]) => ({
           path,
           summary,
+          content: result.fileContents.get(path) ?? "",
         }),
       ),
       finalSelection: result.finalSelection

@@ -154,6 +154,8 @@ exports[`runScript > returns ok with trace, mutations, and final selection 1`] =
     },
     "mutations": [
       {
+        "content": "hello planet
+",
         "path": "<tmpDir>/test.txt",
         "summary": {
           "deletions": 0,
