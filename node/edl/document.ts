@@ -17,6 +17,9 @@ export class Document {
   get lineCount(): number {
     return this._lineStarts.length;
   }
+  get lineStarts(): readonly number[] {
+    return this._lineStarts;
+  }
 
   posToOffset(pos: Pos): number {
     const idx = pos.line - 1;

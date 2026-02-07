@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { Executor } from "./executor.ts";
+import { Executor, resolveIndex, type InitialDocIndex } from "./executor.ts";
 import { parse } from "./parser.ts";
 
 let testCounter = 0;
@@ -1176,6 +1176,241 @@ CONTENT`;
 
       const content = await fs.readFile(filePath, "utf-8");
       expect(content).toBe("nested file");
+    });
+  });
+});
+
+describe("resolveIndex", () => {
+  it("returns unchanged offset when no transforms", () => {
+    expect(resolveIndex(10 as InitialDocIndex, [])).toBe(10);
+  });
+
+  it("shifts offset after a replacement", () => {
+    // Replace [5, 10) with 20 chars: afterEnd = 25
+    const transforms = [{ start: 5, beforeEnd: 10, afterEnd: 25 }];
+    expect(resolveIndex(3 as InitialDocIndex, transforms)).toBe(3);
+    expect(resolveIndex(12 as InitialDocIndex, transforms)).toBe(27);
+  });
+
+  it("throws when offset falls inside replaced region", () => {
+    const transforms = [{ start: 5, beforeEnd: 10, afterEnd: 25 }];
+    expect(() => resolveIndex(7 as InitialDocIndex, transforms)).toThrow(
+      "Cannot resolve position",
+    );
+  });
+
+  it("leaves offset at start boundary unchanged", () => {
+    const transforms = [{ start: 5, beforeEnd: 10, afterEnd: 25 }];
+    expect(resolveIndex(5 as InitialDocIndex, transforms)).toBe(5);
+  });
+
+  it("composes multiple transforms sequentially", () => {
+    // First: replace [30, 35) with 2 chars (processed first in reverse doc order)
+    // Second: replace [10, 15) with 2 chars
+    const transforms = [
+      { start: 30, beforeEnd: 35, afterEnd: 32 },
+      { start: 10, beforeEnd: 15, afterEnd: 12 },
+    ];
+    // Offset 20: T1 doesn't affect (20 <= 30), T2 shifts by (12-15)=-3 → 17
+    expect(resolveIndex(20 as InitialDocIndex, transforms)).toBe(17);
+    // Offset 40: T1 shifts by -3 → 37, T2 shifts by -3 → 34
+    expect(resolveIndex(40 as InitialDocIndex, transforms)).toBe(34);
+    // Offset 5: neither affects it
+    expect(resolveIndex(5 as InitialDocIndex, transforms)).toBe(5);
+  });
+});
+
+describe("line/lineCol remapping after mutations", () => {
+  it("line number refers to original position after replace adds lines", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(
+        filePath,
+        "line one\nline two\nline three\nline four\n",
+        "utf-8",
+      );
+
+      const script = `\
+file \`${filePath}\`
+select 2
+replace <<R1
+new line two A
+new line two B
+new line two C
+R1
+select 4
+replace <<R2
+FOUR
+R2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe(
+        "line one\nnew line two A\nnew line two B\nnew line two C\nline three\nFOUR\n",
+      );
+    });
+  });
+
+  it("line number refers to original position after delete removes lines", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(
+        filePath,
+        "line one\nline two\nline three\nline four\nline five\n",
+        "utf-8",
+      );
+
+      const script = `\
+file \`${filePath}\`
+select 2-3
+delete
+select 4
+replace <<R1
+FOUR
+R1`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("line one\n\nFOUR\nline five\n");
+    });
+  });
+
+  it("lineCol refers to original position after earlier mutation", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "abcdef\nghijkl\nmnopqr\n", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select 1
+replace <<R1
+ABCDEFGHIJ
+R1
+select 3:2
+insert_after <<R2
+XX
+R2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      // Original line 3 col 2 = offset 14 (after "mn"). After replacing line 1
+      // (6→10 chars, delta +4), the "mn" is now at offset 18. Insert after → "mnXXopqr"
+      expect(content).toBe("ABCDEFGHIJ\nghijkl\nmnXXopqr\n");
+    });
+  });
+
+  it("line range refers to original positions after mutation", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(
+        filePath,
+        "line one\nline two\nline three\nline four\nline five\n",
+        "utf-8",
+      );
+
+      const script = `\
+file \`${filePath}\`
+select 1
+replace <<R1
+LINE ONE LONGER
+R1
+select 3-4
+replace <<R2
+REPLACED
+R2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("LINE ONE LONGER\nline two\nREPLACED\nline five\n");
+    });
+  });
+
+  it("last line reference works after earlier mutations", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "aaa\nbbb\nccc", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select 1
+replace <<R1
+AAAA
+R1
+select 3
+replace <<R2
+CCCC
+R2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("AAAA\nbbb\nCCCC");
+    });
+  });
+
+  it("lineCol later in same line maps correctly after earlier insert on that line", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "abcdefghij\nklmnopqrst\n", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select 1:3
+insert_after <<R1
+XXX
+R1
+select 1:7
+insert_after <<R2
+YYY
+R2`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      // Original col 3 is after "abc", col 7 is after "abcdefg"
+      // After inserting XXX at col 3: "abcXXXdefghij"
+      // Col 7 in original = offset 7, shifted by +3 = offset 10 in current doc
+      // Insert YYY there: "abcXXXdefgYYYhij"
+      expect(content).toBe("abcXXXdefgYYYhij\nklmnopqrst\n");
+    });
+  });
+
+  it("lineCol later in same line maps correctly after earlier delete on that line", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "abcdefghij\nklmnopqrst\n", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select 1:2-1:5
+delete
+select 1:7
+insert_after <<R1
+YYY
+R1`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      // Original col 2-5 = "cde" deleted: "abfghij"
+      // Original col 7 = offset 7, shifted by -3 = offset 4 in current doc
+      // Insert YYY there: "abfgYYYhij"
+      expect(content).toBe("abfgYYYhij\nklmnopqrst\n");
+    });
+  });
+
+  it("replace selects the replacement text", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "hello world\n", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select_one /hello/
+replace <<R1
+goodbye
+R1`;
+      const commands = parse(script);
+      const exec = new Executor();
+      const result = await exec.execute(commands);
+      expect(result.finalSelection?.ranges[0].content).toBe("goodbye");
     });
   });
 });

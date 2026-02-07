@@ -45,11 +45,47 @@ function formatPattern(pattern: Pattern): string {
   }
 }
 
+/** An offset into the original (pre-mutation) file content. */
+export type InitialDocIndex = number & { __initialDocIndex: true };
+
+/** Records a single mutation in the current-doc coordinate space at the time it occurred. */
+export type Transform = {
+  start: number;
+  beforeEnd: number;
+  afterEnd: number;
+};
+
+/** Maps an InitialDocIndex through accumulated transforms to a current-doc offset.
+ * Throws if the index falls inside a previously replaced region, since the
+ * original content there no longer exists and coordinates into it are meaningless. */
+export function resolveIndex(
+  index: InitialDocIndex,
+  transforms: Transform[],
+): number {
+  let offset: number = index;
+  for (const t of transforms) {
+    if (offset <= t.start) {
+      // Before the mutation, unchanged
+    } else if (offset < t.beforeEnd) {
+      throw new ExecutionError(
+        `Cannot resolve position: original offset ${index} falls inside a previously replaced region [${t.start}, ${t.beforeEnd})`,
+      );
+    } else {
+      // After the mutation, shift by delta
+      offset += t.afterEnd - t.beforeEnd;
+    }
+  }
+  return offset;
+}
+
 export type FileState = {
   doc: Document;
   path: string;
   mutations: FileMutationSummary;
   isNew?: boolean;
+  originalLineStarts: readonly number[];
+  originalContentLength: number;
+  transforms: Transform[];
 };
 
 export class Executor {
@@ -76,8 +112,9 @@ export class Executor {
           this.trace,
         );
       }
+      const doc = new Document(content);
       state = {
-        doc: new Document(content),
+        doc,
         path,
         mutations: {
           insertions: 0,
@@ -86,6 +123,9 @@ export class Executor {
           linesAdded: 0,
           linesRemoved: 0,
         },
+        originalLineStarts: doc.lineStarts,
+        originalContentLength: content.length,
+        transforms: [],
       };
       this.fileDocs.set(path, state);
     }
@@ -161,9 +201,47 @@ export class Executor {
         return results;
       }
       case "line": {
+        const file = this.currentFile;
+        if (file) {
+          const ols = file.originalLineStarts;
+          const idx = pattern.line - 1;
+          if (idx < 0 || idx >= ols.length) {
+            throw new ExecutionError(
+              `Line ${pattern.line} out of range (1-${ols.length})`,
+              this.trace,
+            );
+          }
+          const start = resolveIndex(
+            ols[idx] as InitialDocIndex,
+            file.transforms,
+          );
+          const origEnd =
+            idx + 1 < ols.length
+              ? ols[idx + 1] - 1
+              : file.originalContentLength;
+          const end = resolveIndex(origEnd as InitialDocIndex, file.transforms);
+          return [{ start, end }];
+        }
         return [doc.lineRange(pattern.line)];
       }
       case "lineCol": {
+        const file = this.currentFile;
+        if (file) {
+          const ols = file.originalLineStarts;
+          const idx = pattern.line - 1;
+          if (idx < 0 || idx >= ols.length) {
+            throw new ExecutionError(
+              `Line ${pattern.line} out of range (1-${ols.length})`,
+              this.trace,
+            );
+          }
+          const origOffset = ols[idx] + pattern.col;
+          const offset = resolveIndex(
+            origOffset as InitialDocIndex,
+            file.transforms,
+          );
+          return [{ start: offset, end: offset }];
+        }
         const offset = doc.posToOffset({
           line: pattern.line,
           col: pattern.col,
@@ -238,6 +316,14 @@ export class Executor {
     return result;
   }
 
+  private recordTransform(
+    file: FileState,
+    start: number,
+    beforeEnd: number,
+    afterEnd: number,
+  ): void {
+    file.transforms.push({ start, beforeEnd, afterEnd });
+  }
   private findNextFileCommand(
     commands: Command[],
     startIndex: number,
@@ -281,8 +367,9 @@ export class Executor {
             this.trace,
           );
         }
+        const newDoc = new Document("");
         const state: FileState = {
-          doc: new Document(""),
+          doc: newDoc,
           path: cmd.path,
           mutations: {
             insertions: 0,
@@ -292,6 +379,9 @@ export class Executor {
             linesRemoved: 0,
           },
           isNew: true,
+          originalLineStarts: newDoc.lineStarts,
+          originalContentLength: 0,
+          transforms: [],
         };
         this.fileDocs.set(cmd.path, state);
         this.currentFile = state;
@@ -498,6 +588,12 @@ export class Executor {
         const sorted = [...this.selection].sort((a, b) => b.start - a.start);
         for (const range of sorted) {
           const oldText = file.doc.getText(range);
+          this.recordTransform(
+            file,
+            range.start,
+            range.end,
+            range.start + cmd.text.length,
+          );
           file.doc.splice(range, cmd.text);
           file.mutations.replacements++;
           file.mutations.linesRemoved += Executor.countLines(oldText);
@@ -519,6 +615,7 @@ export class Executor {
         const sorted = [...this.selection].sort((a, b) => b.start - a.start);
         for (const range of sorted) {
           const oldText = file.doc.getText(range);
+          this.recordTransform(file, range.start, range.end, range.start);
           file.doc.splice(range, "");
           file.mutations.deletions++;
           file.mutations.linesRemoved += Executor.countLines(oldText);
@@ -534,6 +631,12 @@ export class Executor {
           throw new ExecutionError("insert_before: no selection", this.trace);
         const sorted = [...this.selection].sort((a, b) => b.start - a.start);
         for (const range of sorted) {
+          this.recordTransform(
+            file,
+            range.start,
+            range.start,
+            range.start + cmd.text.length,
+          );
           file.doc.splice({ start: range.start, end: range.start }, cmd.text);
           file.mutations.insertions++;
           file.mutations.linesAdded += Executor.countLines(cmd.text);
@@ -548,6 +651,12 @@ export class Executor {
           throw new ExecutionError("insert_after: no selection", this.trace);
         const sorted = [...this.selection].sort((a, b) => b.start - a.start);
         for (const range of sorted) {
+          this.recordTransform(
+            file,
+            range.end,
+            range.end,
+            range.end + cmd.text.length,
+          );
           file.doc.splice({ start: range.end, end: range.end }, cmd.text);
           file.mutations.insertions++;
           file.mutations.linesAdded += Executor.countLines(cmd.text);
@@ -561,6 +670,7 @@ export class Executor {
         const range = this.requireSingleSelect();
         const text = file.doc.getText(range);
         this.registers.set(cmd.register, text);
+        this.recordTransform(file, range.start, range.end, range.start);
         file.doc.splice(range, "");
         file.mutations.deletions++;
         file.mutations.linesRemoved += Executor.countLines(text);
@@ -578,6 +688,12 @@ export class Executor {
             this.trace,
           );
         const range = this.requireSingleSelect();
+        this.recordTransform(
+          file,
+          range.end,
+          range.end,
+          range.end + text.length,
+        );
         file.doc.splice({ start: range.end, end: range.end }, text);
         file.mutations.insertions++;
         file.mutations.linesAdded += Executor.countLines(text);
