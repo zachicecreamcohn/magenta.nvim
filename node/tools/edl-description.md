@@ -1,9 +1,5 @@
 Execute an EDL (Edit Description Language) script to perform programmatic file edits.
 
-## Commands
-
-### File commands
-
 ```
 # file commands
 file `path` # Select a file to edit, resets the selection to the entire contents of the file.
@@ -31,8 +27,6 @@ select_prev <pattern>    # Select previous non-overlapping match before current 
 extend_forward <pattern> # Extend selection forward to include next match
 extend_back <pattern>    # Extend selection backward to include previous match
 ```
-
-## Examples
 
 # Simple text replacement using replace:
 
@@ -227,6 +221,32 @@ extend_forward /^\}/
 When doing this be careful to make sure that you're still uniquely identifying the location in the doc.
 
 ## Notes on pattern matching
+
+## Heredoc termination codes
+
+When the text you're selecting or inserting contains heredoc delimiters (e.g. `<<END`, `<<EOF`), you **must** use a different, unique termination code for your EDL heredoc to avoid conflicts. For example, if the file contains `<<END`, use `<<DELIM` or `<<MARKER` instead:
+
+WRONG - termination code conflicts with file content:
+
+```
+select_one <<END
+select_one <<END
+const x = 1;
+END
+END
+```
+
+RIGHT - use a unique termination code:
+
+```
+select_one <<DELIM
+select_one <<END
+const x = 1;
+END
+DELIM
+```
+
+Pick any termination code that does not appear in the text you're matching or inserting.
 
 - Patterns match against raw file bytes. Heredoc patterns are literal text and match exactly.
 - **Prefer heredoc patterns over regexes** - they are easier to read, less error-prone, and match exactly what you write. Only use regexes when you need their power (wildcards, character classes, etc.).
