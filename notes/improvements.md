@@ -12,7 +12,6 @@
 
 # edl
 
-- Remap lines as we do the edits. So if we specify lines in the initial coordinate system of the file, resolve the lines differently for future changes below the first changes
 - economy
   - when we fail to do large replaces or inserts, save the replace in a register that can be used in a retry. Log this as part of the trace
 - when streaming the edl tool, only show the last N lines of the streamed text.
@@ -21,6 +20,7 @@
 - maybe add special command to fully print the contents of selection, to aid in exploration
 - maybe elaborate on output to make it easier to tell when the selection was messed up?
 - investigate treesitter query syntax / matryoshka style file exploration
+- context manager. Improve the integration. Actually replay the edits on the agent's view of the file.
 
 # polish
 

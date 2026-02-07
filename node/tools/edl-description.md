@@ -175,6 +175,57 @@ this.method
 REPLACE
 ```
 
+## Selecting large blocks of text
+
+**CRITICAL: Avoid using large heredoc patterns for select operations.** Large text blocks are fragile and wasteful. Instead:
+
+1. **Use line ranges** when you know the line numbers: `select 42-58`
+2. **Use beginning of text + extend_forward** to match a block by its boundaries:
+
+```
+file `src/service.ts`
+select_one <<END
+function processRequest(
+END
+extend_forward /^\}/
+```
+
+This selects from the function signature through its closing brace, without needing to include the entire function body in the pattern.
+
+3. **Use select + narrow** to find something within a known region:
+
+```
+file `src/service.ts`
+select 42-58
+narrow_one <<END
+return result;
+END
+```
+
+WRONG - using a large heredoc to select a multi-line block:
+
+```
+select_one <<END
+function processRequest(req: Request) {
+  const validated = validate(req);
+  const result = transform(validated);
+  logger.info("processed", result);
+  return result;
+}
+END
+```
+
+RIGHT - selecting by boundaries:
+
+```
+select_one <<END
+function processRequest(req: Request) {
+END
+extend_forward /^\}/
+```
+
+When doing this be careful to make sure that you're still uniquely identifying the location in the doc.
+
 ## Notes on pattern matching
 
 - Patterns match against raw file bytes. Heredoc patterns are literal text and match exactly.
