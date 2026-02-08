@@ -33,6 +33,14 @@ jobs:
       - name: Install fzf and fd
         run: sudo apt-get update && sudo apt-get install -y fzf fd-find
 
+      - name: Install tree-sitter TypeScript parser for Neovim
+        run: |
+          git clone --depth 1 https://github.com/tree-sitter/tree-sitter-typescript
+          cd tree-sitter-typescript
+          cc -shared -fPIC -O2 -I typescript/src typescript/src/parser.c typescript/src/scanner.c -o typescript.so
+          mkdir -p ~/.local/share/nvim/parser
+          cp typescript.so ~/.local/share/nvim/parser/
+
       - name: Run tests
         run: npx vitest
         env:
