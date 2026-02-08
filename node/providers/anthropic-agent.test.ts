@@ -414,6 +414,110 @@ describe("abort", () => {
   });
 });
 
+describe("abort with empty blocks", () => {
+  it("removes empty text block when aborting before any text deltas", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+
+    agent.appendUserMessage([{ type: "text", text: "Hello" }]);
+    await delay(0);
+    agent.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+
+    // Start a text block but don't send any deltas
+    const blockIndex = stream.nextBlockIndex();
+    stream.emitEvent({
+      type: "content_block_start",
+      index: blockIndex,
+      content_block: { type: "text", text: "", citations: null },
+    });
+
+    // Block finishes with empty text (can happen during abort)
+    stream.emitEvent({
+      type: "content_block_stop",
+      index: blockIndex,
+    });
+
+    // Abort
+    await agent.abort();
+    await delay(0);
+
+    const state = agent.getState();
+    // The empty text block should be filtered out, leaving only the user message
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0].role).toBe("user");
+  });
+
+  it("removes empty thinking block when aborting before any thinking deltas", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+
+    agent.appendUserMessage([{ type: "text", text: "Hello" }]);
+    await delay(0);
+    agent.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+
+    // Start a thinking block but don't send any deltas
+    const blockIndex = stream.nextBlockIndex();
+    stream.emitEvent({
+      type: "content_block_start",
+      index: blockIndex,
+      content_block: { type: "thinking", thinking: "", signature: "" },
+    });
+
+    stream.emitEvent({
+      type: "content_block_stop",
+      index: blockIndex,
+    });
+
+    await agent.abort();
+    await delay(0);
+
+    const state = agent.getState();
+    // The empty thinking block should be filtered out
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0].role).toBe("user");
+  });
+
+  it("keeps non-empty blocks and removes empty ones when aborting", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+
+    agent.appendUserMessage([{ type: "text", text: "Hello" }]);
+    await delay(0);
+    agent.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+
+    // Stream a thinking block with content
+    stream.streamThinking("Some thoughts", "sig123");
+
+    // Start a text block but don't send any deltas (empty)
+    const blockIndex = stream.nextBlockIndex();
+    stream.emitEvent({
+      type: "content_block_start",
+      index: blockIndex,
+      content_block: { type: "text", text: "", citations: null },
+    });
+    stream.emitEvent({
+      type: "content_block_stop",
+      index: blockIndex,
+    });
+
+    await agent.abort();
+    await delay(0);
+
+    const state = agent.getState();
+    // Should keep the thinking block but remove the empty text block
+    expect(state.messages).toHaveLength(2);
+    expect(state.messages[1].role).toBe("assistant");
+    expect(state.messages[1].content).toHaveLength(1);
+    expect(state.messages[1].content[0].type).toBe("thinking");
+  });
+});
+
 describe("thinking blocks", () => {
   it("captures thinking content and signature during streaming", async () => {
     const mockClient = new MockAnthropicClient();

@@ -1,7 +1,6 @@
 # general
 
 - @fork should work at any time - when the agent is streaming, aborted, executing tools, etc...
-- fixup issue where empty thinking blocks break resuming after abort. Add the partially streamed thinking block to the thread so we don't have to start over
 - speed up startup / stop having to press toggle a bunch
 
 # subagents

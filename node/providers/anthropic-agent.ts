@@ -605,41 +605,54 @@ export class AnthropicAgent implements Agent {
       return;
     }
 
-    const content = lastMessage.content;
-    if (typeof content === "string" || content.length === 0) {
-      return;
-    }
+    const lastMessageContent = lastMessage.content;
+    if (
+      typeof lastMessageContent !== "string" &&
+      lastMessageContent.length > 0
+    ) {
+      const lastBlock = lastMessageContent[lastMessageContent.length - 1];
 
-    const lastBlock = content[content.length - 1];
+      if ((lastBlock as { type: string }).type === "server_tool_use") {
+        lastMessageContent.pop();
+      } else if (lastBlock.type === "tool_use") {
+        const errorMessage =
+          reason.type === "aborted"
+            ? "Request was aborted by the user before tool execution completed."
+            : `Stream error occurred: ${reason.error.message}`;
 
-    if ((lastBlock as { type: string }).type === "server_tool_use") {
-      content.pop();
-      if (content.length === 0) {
-        this.messages.pop();
+        this.messages.push({
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: lastBlock.id,
+              content: errorMessage,
+              is_error: true,
+            },
+          ],
+        });
+        this.updateCachedProviderMessages();
+        return;
       }
-      this.updateCachedProviderMessages();
-      return;
-    }
 
-    if (lastBlock.type === "tool_use") {
-      const errorMessage =
-        reason.type === "aborted"
-          ? "Request was aborted by the user before tool execution completed."
-          : `Stream error occurred: ${reason.error.message}`;
-
-      this.messages.push({
-        role: "user",
-        content: [
-          {
-            type: "tool_result",
-            tool_use_id: lastBlock.id,
-            content: errorMessage,
-            is_error: true,
-          },
-        ],
+      // Filter out empty/incomplete blocks that can result from aborting mid-stream.
+      // Anthropic rejects empty text blocks with 400 "text content blocks must be non-empty".
+      lastMessage.content = lastMessageContent.filter((block) => {
+        if (block.type === "text" && !block.text) return false;
+        if (block.type === "thinking" && !block.thinking) return false;
+        return true;
       });
-      this.updateCachedProviderMessages();
     }
+
+    if (
+      (typeof lastMessage.content === "string" && !lastMessage.content) ||
+      (typeof lastMessage.content !== "string" &&
+        lastMessage.content.length === 0)
+    ) {
+      this.messages.pop();
+    }
+
+    this.updateCachedProviderMessages();
   }
 
   private createNativeStreamParameters(
