@@ -460,10 +460,6 @@ it("navigates to spawned subagent thread when pressing Enter on completed summar
           "Use spawn_foreach",
         );
 
-      // Get the parent thread id
-      const parentThread = driver.magenta.chat.getActiveThread();
-      const parentThreadId = parentThread.id;
-
       stream1.respond({
         stopReason: "tool_use",
         text: "I'll use spawn_foreach to process 1 element.",
@@ -504,25 +500,21 @@ it("navigates to spawned subagent thread when pressing Enter on completed summar
         ],
       });
 
-      // Wait for the completed summary to appear (with thread link)
-      await driver.assertDisplayBufferContains("🤖✅ Foreach subagents (1/1):");
+      // Wait for the completed summary to appear
+      await driver.assertDisplayBufferContains("🤖✅ Foreach subagents (1/1)");
 
-      // Find the thread link in the completed summary
-      // The format is "🤖✅ Foreach subagents (1/1): <threadId>"
-      const displayContent = await driver.getDisplayBufferText();
-      const threadIdMatch = displayContent.match(
-        /🤖✅ Foreach subagents \(1\/1\): ([a-f0-9-]+)/,
+      // Get the spawned thread id (it's the second thread created)
+      const subagentThreadId = driver.getThreadId(1);
+
+      // Press Enter on the Foreach subagents summary to navigate to the subagent thread
+      await driver.triggerDisplayBufferKeyOnContent(
+        "🤖✅ Foreach subagents (1/1)",
+        "<CR>",
       );
-      expect(threadIdMatch).toBeTruthy();
-      const threadId = threadIdMatch![1];
-
-      // Find the position of the thread link and press Enter
-      const threadLinkPos = await driver.assertDisplayBufferContains(threadId);
-      await driver.triggerDisplayBufferKey(threadLinkPos, "<CR>");
 
       // Verify we navigated to the subagent thread
       await pollUntil(
-        () => driver.magenta.chat.getActiveThread().id !== parentThreadId,
+        () => driver.magenta.chat.getActiveThread().id === subagentThreadId,
       );
     },
   );

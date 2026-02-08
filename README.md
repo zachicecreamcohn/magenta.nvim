@@ -54,6 +54,11 @@ I sometimes write about AI, neovim and magenta specifically:
 <details>
 <summary>Recent updates (click to expand)</summary>
 
+## Feb 2026
+
+- Introduced the edit description language (edl) tool, which subsumes the insert and replace tools.
+- Introduced explore subagent, blocking subagents for better token economy and exploration speed.
+
 ## Jan 2026
 
 - Major provider refactor: messages now stored in native format, eliminating lossy round-trip conversions and improving cache reliability
@@ -208,6 +213,7 @@ For complete documentation:
 
 # Why it's cool
 
+- The [Edit Description Language](https://github.com/dlants/magenta.nvim/blob/main/node/tools/edl-description.md) is a small DSL that allows the agent to be more flexible and expressive about how it mutates files. This speeds up coding tasks dramatically as the agent can express the edits in a lot fewer tokens, since it doesn't have to re-type nearly identical content to what's already in the file twice!
 - It uses the new [rpc-pased remote plugin setup](https://github.com/dlants/magenta.nvim/issues/1). This means more flexible plugin development (can easily use both lua and typescript), and no need for `:UpdateRemotePlugins`! (h/t [wallpants](https://github.com/wallpants/bunvim)).
 - The state of the plugin is managed via an elm-inspired architecture (The Elm Architecture or [TEA](https://github.com/evancz/elm-architecture-tutorial)) [code](https://github.com/dlants/magenta.nvim/blob/main/node/tea/tea.ts). I think this makes it fairly easy to understand and lays out a clear pattern for extending the feature set, as well as [eases testing](https://github.com/dlants/magenta.nvim/blob/main/node/chat/chat.test.ts). It also unlocks some cool future features (like the ability to persist a structured chat state into a file).
 - I spent a considerable amount of time figuring out a full end-to-end testing setup. Combined with typescript's async/await, it makes writing tests fairly easy and readable. The plugin is already fairly well-tested [code](https://github.com/dlants/magenta.nvim/blob/main/node/magenta.test.ts#L8).

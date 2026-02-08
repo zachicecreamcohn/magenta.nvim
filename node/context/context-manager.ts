@@ -27,7 +27,6 @@ import type { BufferTracker } from "../buffer-tracker";
 import { NvimBuffer } from "../nvim/buffer";
 import { d, withBindings, withExtmark, withInlineCode } from "../tea/view";
 import type { ProviderMessageContent } from "../providers/provider-types";
-import { applyInsert, applyReplace } from "../utils/contentEdits";
 import open from "open";
 import { getSummaryAsProviderContent } from "../utils/pdf-pages";
 
@@ -52,14 +51,8 @@ export type ToolApplication =
           };
     }
   | {
-      type: "insert";
-      insertAfter: string;
+      type: "edl-edit";
       content: string;
-    }
-  | {
-      type: "replace";
-      find: string;
-      replace: string;
     };
 
 export type Msg =
@@ -342,61 +335,8 @@ export class ContextManager {
         return;
       }
 
-      case "insert":
-      case "replace": {
-        if (fileInfo.fileTypeInfo.category !== FileCategory.TEXT) {
-          throw new Error(
-            `Cannot perform ${tool.type} operation on non-text file ${absFilePath} (file type: ${fileInfo.fileTypeInfo.category})`,
-          );
-        }
-
-        if (fileInfo.agentView && fileInfo.agentView.type !== "text") {
-          throw new Error(
-            `Cannot perform ${tool.type} operation on ${absFilePath}: agent view type is ${fileInfo.agentView.type}, expected text`,
-          );
-        }
-
-        // If we don't have the agent's view of the file yet, we need to read the current file content
-        // This may happen if the agent performs the edit based on a text snippet the user sent without adding the
-        // file to the context
-        if (fileInfo.agentView) {
-          const result =
-            tool.type === "insert"
-              ? applyInsert(
-                  fileInfo.agentView.content,
-                  tool.insertAfter,
-                  tool.content,
-                )
-              : applyReplace(
-                  fileInfo.agentView.content,
-                  tool.find,
-                  tool.replace,
-                );
-
-          if (result.status === "ok") {
-            fileInfo.agentView = {
-              type: "text",
-              content: result.content,
-            };
-          } else {
-            throw new Error(
-              `Failed to update agent's view of ${absFilePath}: ${result.error}`,
-            );
-          }
-        } else {
-          // Read the current file content from disk
-          try {
-            const currentContent = fs.readFileSync(absFilePath, "utf8");
-            fileInfo.agentView = {
-              type: "text",
-              content: currentContent,
-            };
-          } catch (err) {
-            throw new Error(
-              `Failed to read file ${absFilePath} to update agent's view: ${(err as Error).message}`,
-            );
-          }
-        }
+      case "edl-edit": {
+        fileInfo.agentView = { type: "text", content: tool.content };
         return;
       }
       default:
@@ -588,7 +528,6 @@ export class ContextManager {
       "current",
       {
         context: 2,
-        ignoreNewlineAtEof: true,
       },
     ) as Patch;
 

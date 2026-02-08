@@ -120,7 +120,7 @@ describe("explore subagent", () => {
         "explore subagent specialized in searching",
       );
       expect(subagentStream.systemPrompt).toContain(
-        "File paths with line numbers",
+        "File paths with line ranges",
       );
     });
   });

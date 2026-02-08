@@ -1,6 +1,4 @@
 import * as GetFile from "./getFile.ts";
-import * as Insert from "./insert.ts";
-import * as Replace from "./replace.ts";
 import * as ListDirectory from "./listDirectory.ts";
 import * as Hover from "./hover.ts";
 import * as FindReferences from "./findReferences.ts";
@@ -13,6 +11,9 @@ import * as WaitForSubagents from "./wait-for-subagents.ts";
 import * as YieldToParent from "./yield-to-parent.ts";
 import * as PredictEdit from "./predict-edit.ts";
 import * as Compact from "./compact.ts";
+import * as Edl from "./edl.ts";
+
+import type { EdlRegisters } from "../edl/index.ts";
 
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Nvim } from "../nvim/nvim-node";
@@ -53,6 +54,7 @@ export type CreateToolContext = {
   chat: Chat;
   contextManager: ContextManager;
   threadDispatch: Dispatch<ThreadMsg>;
+  edlRegisters: EdlRegisters;
 };
 
 export type ToolDispatch = (msg: {
@@ -112,20 +114,6 @@ export function createTool(
         options: context.options,
         contextManager: context.contextManager,
         threadDispatch: context.threadDispatch,
-        myDispatch: wrapDispatch,
-      });
-    }
-
-    case "insert": {
-      return new Insert.InsertTool(staticRequest, context.threadId, {
-        ...context,
-        myDispatch: wrapDispatch,
-      });
-    }
-
-    case "replace": {
-      return new Replace.ReplaceTool(staticRequest, context.threadId, {
-        ...context,
         myDispatch: wrapDispatch,
       });
     }
@@ -238,6 +226,19 @@ export function createTool(
         nvim: context.nvim,
         thread: threadWrapper.thread,
         myDispatch: wrapDispatch,
+      });
+    }
+
+    case "edl": {
+      return new Edl.EdlTool(staticRequest, {
+        nvim: context.nvim,
+        cwd: context.cwd,
+        homeDir: context.homeDir,
+        options: context.options,
+        myDispatch: wrapDispatch,
+        bufferTracker: context.bufferTracker,
+        threadDispatch: context.threadDispatch,
+        edlRegisters: context.edlRegisters,
       });
     }
 

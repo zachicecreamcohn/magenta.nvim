@@ -65,7 +65,7 @@ test("uses dedicated profile when editPrediction.profile is configured", async (
           {
             name: "main-claude",
             provider: "mock",
-            model: "claude-opus-4-5",
+            model: "claude-opus-4-6",
             fastModel: "claude-haiku-4-5",
             apiKeyEnvVar: "ANTHROPIC_API_KEY",
           },
@@ -120,7 +120,7 @@ test("uses different provider for predictions when configured", async () => {
           {
             name: "main-claude",
             provider: "mock",
-            model: "claude-opus-4-5",
+            model: "claude-opus-4-6",
             fastModel: "claude-haiku-4-5",
             apiKeyEnvVar: "ANTHROPIC_API_KEY",
           },
@@ -161,7 +161,7 @@ test("uses active profile when editPrediction.profile not configured", async () 
           {
             name: "main-claude",
             provider: "mock",
-            model: "claude-opus-4-5",
+            model: "claude-opus-4-6",
             fastModel: "claude-haiku-4-5",
             apiKeyEnvVar: "ANTHROPIC_API_KEY",
           },
@@ -181,7 +181,7 @@ test("uses active profile when editPrediction.profile not configured", async () 
         await driver.mockAnthropic.awaitPendingForceToolUseRequest();
 
       // Should use the active profile's model (fallback behavior)
-      expect(request.model).toBe("claude-opus-4-5");
+      expect(request.model).toBe("claude-opus-4-6");
     },
   );
 });

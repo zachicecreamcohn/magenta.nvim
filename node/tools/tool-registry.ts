@@ -1,7 +1,5 @@
 export const STATIC_TOOL_NAMES = [
   "get_file",
-  "insert",
-  "replace",
   "list_directory",
   "hover",
   "find_references",
@@ -16,14 +14,13 @@ export const STATIC_TOOL_NAMES = [
   "yield_to_parent",
   "predict_edit",
   "compact",
+  "edl",
 ] as const;
 
 export type StaticToolName = (typeof STATIC_TOOL_NAMES)[number];
 
 export const CHAT_STATIC_TOOL_NAMES: StaticToolName[] = [
   "get_file",
-  "insert",
-  "replace",
   "list_directory",
   "hover",
   "find_references",
@@ -33,16 +30,16 @@ export const CHAT_STATIC_TOOL_NAMES: StaticToolName[] = [
   "spawn_foreach",
   "wait_for_subagents",
   "compact",
+  "edl",
 ];
 
 export const SUBAGENT_STATIC_TOOL_NAMES: StaticToolName[] = [
   "get_file",
-  "insert",
-  "replace",
   "list_directory",
   "hover",
   "find_references",
   "diagnostics",
   "bash_command",
   "yield_to_parent",
+  "edl",
 ];

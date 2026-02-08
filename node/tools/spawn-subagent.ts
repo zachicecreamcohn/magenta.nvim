@@ -257,7 +257,9 @@ export class SpawnSubagentTool implements StaticTool {
         return d`🚀⚙️ spawn_subagent: ${promptPreview}`;
       case "waiting-for-subagent": {
         const summary = this.context.chat.getThreadSummary(this.state.threadId);
-        const title = summary.title || "[Untitled]";
+        const displayName = this.context.chat.getThreadDisplayName(
+          this.state.threadId,
+        );
         let statusText: string;
 
         switch (summary.status.type) {
@@ -284,7 +286,7 @@ export class SpawnSubagentTool implements StaticTool {
         }
 
         return withBindings(
-          d`🚀⏳ spawn_subagent (blocking) ${this.state.threadId} ${title}: ${statusText}`,
+          d`🚀⏳ spawn_subagent (blocking) ${displayName}: ${statusText}`,
           {
             "<CR>": () =>
               this.context.dispatch({
@@ -326,33 +328,92 @@ export function renderCompletedSummary(
     return d`🤖❌ spawn_subagent: ${errorPreview}`;
   }
 
-  // Parse threadId from result text: "Sub-agent started with threadId: <id>"
+  // Parse threadId from result text
   const resultText =
     result.value[0]?.type === "text" ? result.value[0].text : "";
   const match = resultText.match(/threadId: ([a-f0-9-]+)/);
   const threadId = match ? (match[1] as ThreadId) : undefined;
 
-  return withBindings(d`🤖✅ spawn_subagent ${threadId || "undefined"}`, {
-    "<CR>": () => {
-      if (threadId) {
-        dispatch({
-          type: "chat-msg",
-          msg: {
-            type: "select-thread",
-            id: threadId,
-          },
-        });
-      }
+  // Check if this was a blocking call by looking for "completed:" in the result
+  const isBlocking = resultText.includes("completed:");
+
+  // For blocking calls, also try to extract threadId from the "Sub-agent (threadId) completed:" format
+  const blockingMatch = resultText.match(/Sub-agent \(([a-f0-9-]+)\)/);
+  const effectiveThreadId =
+    threadId || (blockingMatch ? (blockingMatch[1] as ThreadId) : undefined);
+
+  return withBindings(
+    d`🤖✅ spawn_subagent${isBlocking ? " (blocking)" : ""}`,
+    {
+      "<CR>": () => {
+        if (effectiveThreadId) {
+          dispatch({
+            type: "chat-msg",
+            msg: {
+              type: "select-thread",
+              id: effectiveThreadId,
+            },
+          });
+        }
+      },
     },
-  });
+  );
+}
+
+export function renderCompletedPreview(info: CompletedToolInfo): VDOMNode {
+  const result = info.result.result;
+  if (result.status === "error") {
+    return d``;
+  }
+
+  const resultText =
+    result.value[0]?.type === "text" ? result.value[0].text : "";
+
+  // Check if this was a blocking call - show preview of response
+  const completedMatch = resultText.match(/completed:\n([\s\S]*)/);
+  if (completedMatch) {
+    const response = completedMatch[1];
+    const previewLength = 200;
+    const preview =
+      response.length > previewLength
+        ? response.substring(0, previewLength) + "..."
+        : response;
+    return d`${preview}`;
+  }
+
+  return d``;
+}
+
+export function renderCompletedDetail(info: CompletedToolInfo): VDOMNode {
+  const input = info.request.input as Input;
+  const result = info.result.result;
+
+  const promptSection = d`**Prompt:**\n${input.prompt}`;
+
+  if (result.status === "error") {
+    return d`${promptSection}\n\n**Error:**\n${result.error}`;
+  }
+
+  const resultText =
+    result.value[0]?.type === "text" ? result.value[0].text : "";
+
+  // Check if this was a blocking call
+  const completedMatch = resultText.match(/completed:\n([\s\S]*)/);
+  if (completedMatch) {
+    const response = completedMatch[1];
+    return d`${promptSection}\n\n**Response:**\n${response}`;
+  }
+
+  // Non-blocking - just show prompt and that it was started
+  return d`${promptSection}\n\n**Status:** Started (non-blocking)`;
 }
 
 export const spec: ProviderToolSpec = {
   name: "spawn_subagent" as ToolName,
   description: `Create a sub-agent that can perform a specific task and report back the results.
 
-- Use 'explore' for searching the codebase - finding where something is defined, how it's used, or discovering code patterns. The explore agent is optimized for using search tools (rg, fd, grep) and returns structured findings with file paths, line numbers, and code snippets
-- Use 'fast' for quick tasks that don't require the full model capabilities
+- Use 'explore' for searching the codebase. Each explore agent should answer one specific question about the code. It will respond with file paths, line ranges, and descriptions of what's there (never exact code - you can read the files yourself). Before spawning explore agents, state "I need to answer these questions:" and write a high-level list of all the things you need to find out. Then spawn a non-blocking explore agent for each question, and use wait_for_subagents to collect all results.
+- Use 'fast' for quick and predictable edit tasks that don't require the full model capabilities, like straightforward refactors
 - Use 'default' for everything else
 
 **Blocking vs non-blocking:**
@@ -361,51 +422,33 @@ export const spec: ProviderToolSpec = {
 
 <example>
 user: I'd like to change this interface
-assistant -> explore subagent, blocking: figure out where this interface is defined and used. Respond with code locations
-explore subagent: the interface is defined in file:line, and is used in file:line, file:line and file:line
+assistant -> explore subagent, blocking: where is the FooInterface defined and where is it used?
+explore subagent: FooInterface is defined in src/types.ts:15-30. It is used in src/service.ts:42, src/handler.ts:88, and src/utils.ts:12.
+assistant: [reads the relevant files and makes changes]
 </example>
-
 
 <example>
-user: Where in this code base do we do X?
-assistant -> explore subagent, blocking: figure out where in the code we do X. Respond with code locations, and key snippets
-explore subagent: there is a class Class defined in file:line which does Y that's related to X. The main function is at file:line
-\`\`\`
-class Class...
-  function(args)...
-\`\`\`
-
-There is also another class Class2 ... etc...
+user: I need to understand how the auth system works and also how the database layer is structured
+assistant: I need to answer these questions:
+1. How does the auth system work?
+2. How is the database layer structured?
+assistant -> explore subagent 1 (non-blocking): how does the auth system work? Where are the key auth files and entry points?
+assistant -> explore subagent 2 (non-blocking): how is the database layer structured? Where are the key database files and entry points?
+assistant -> wait_for_subagents([subagent1, subagent2])
+assistant: [reads the relevant files based on both results]
 </example>
-
 
 <example>
 user: run the tests
-assistant: runs tests via bash command, receives a very long, trimmed output, as well as the full output file path
-assistant -> explore subagent, blocking: (full output of bash command passed via contextFiles) here's the output of a test command. Figure out which tests failed. Respond with the files and test names, as well as summaries of what failed.
-explore subagent: There were 4 failing tests:
-file: testfile
-test 'test description' on line
-failed assertion
-failed stack trace
-
-test 'test description' on line
-failed assertion
-failed stack trace
-
-file: otherfile
-... etc ...
+assistant: runs tests via bash command, receives a very long, trimmed output, as well as the file path where the full bash command output can be found.
+assistant -> explore subagent, blocking: (bash output path passed via contextFiles) here's the output of a test command. Which tests failed, and what were the failure reasons?
+explore subagent: There were 4 failing tests. They can be found in bashCommandOutput.log:12-15, bashCommandOutput:23-17, ...
 </example>
 
 <example>
 assistant: while doing some work, uses get_file to read a file. The file is really large so get_file returns a file summary.
-assistant -> explore subagent, blocking: (file passed via contextFiles) here's a large file. Figure out where in this file we do X. Return the line numbers and the contents of a few surrounding relevant lines.
-explore subagent: X is defined on line XX.
-\`\`\`
-XX function x() {
-...
-YY }
-\`\`\`
+assistant -> explore subagent, blocking: (filepath passed via contextFiles) here's a large file. Where in this file do we handle X?
+explore subagent: X is handled on lines 42-58, in function processRequest which spans lines 20-120 that processes incoming requests and validates them.
 </example>`,
   input_schema: {
     type: "object",
@@ -427,7 +470,7 @@ YY }
         type: "string",
         enum: AGENT_TYPES as unknown as string[],
         description:
-          "Optional agent type to use for the sub-agent. Use 'explore' for finding things and summarizing files. Use 'fast' for simple editing tasks. Use 'default' for tasks that require more thought and smarts.",
+          "Optional agent type to use for the sub-agent. Use 'explore' for answering specific questions about the codebase (returns file paths and descriptions, not code). Use 'fast' for simple editing tasks. Use 'default' for tasks that require more thought and smarts.",
       },
       blocking: {
         type: "boolean",

@@ -7,6 +7,7 @@ description: Comprehensive guide for writing tests in magenta.nvim, including te
 
 To run the full test suite, use `npx vitest run` from the project root. You do not need to cd.
 To run a specific test file, use `npx vitest run <file>`. **Important** You do not need to cd.
+Test files should use the `.test.ts` extension (e.g., `myFeature.test.ts`).
 Tests should make use of the `node/test/preamble.ts` helpers.
 When doing integration-level testing, like user flows, use the `withDriver` helper and the interactions in `node/test/driver.ts`. When performing generic user actions that may be reusable between tests, put them into the NvimDriver class as helpers.
 

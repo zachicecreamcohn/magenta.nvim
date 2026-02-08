@@ -1,5 +1,5 @@
 import { attach, type LogLevel, type Nvim } from "../nvim/nvim-node/index.ts";
-import { access, rm, cp, mkdir } from "node:fs/promises";
+import { access, rm, cp, mkdir, realpath } from "node:fs/promises";
 import { spawn } from "child_process";
 import { type MountedVDOM } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
@@ -229,7 +229,10 @@ export async function withNvimProcess(
   // Set up test directory paths
   const testDir = path.dirname(__filename);
   const fixturesDir = path.join(testDir, "fixtures");
-  const baseDir = path.join("/tmp/magenta-test", testId);
+  // On macOS, /tmp is a symlink to /private/tmp. Resolve the symlink so paths
+  // are consistent for permission checking logic.
+  const resolvedTmp = await realpath("/tmp");
+  const baseDir = path.join(resolvedTmp, "magenta-test", testId);
   const tmpDir = path.join(baseDir, "cwd");
   const homeDir = path.join(baseDir, "home");
   const sock = path.join(baseDir, "magenta-test.sock");

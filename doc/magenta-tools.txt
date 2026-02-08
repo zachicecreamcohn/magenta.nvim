@@ -14,9 +14,9 @@ AVAILABLE TOOLS                                      *magenta-available-tools*
 Tools available to the LLM agent:
 
 File Operations:~
+
   - `get_file` - Get file contents (text, images, PDFs)
-  - `insert` - Insert content into a file
-  - `replace` - Replace content in a file
+  - `edl` - Edit Description Language for programmatic file edits (create, select, replace, insert, delete)
   - `list_directory` - List files in a directory (respects .gitignore)
 
 Editor Integration:~

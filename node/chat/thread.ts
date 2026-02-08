@@ -4,7 +4,7 @@ import {
   type FileUpdates,
 } from "../context/context-manager.ts";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
-import { displaySnapshotDiff } from "../tools/display-snapshot-diff.ts";
+
 import { type Dispatch } from "../tea/tea.ts";
 import {
   d,
@@ -26,7 +26,7 @@ import { createTool, type CreateToolContext } from "../tools/create-tool.ts";
 import type { StaticTool, ToolMsg, ToolName } from "../tools/types.ts";
 import { MCPToolManager } from "../tools/mcp/manager.ts";
 import * as BashCommand from "../tools/bashCommand.ts";
-import { FileSnapshots } from "../tools/file-snapshots.ts";
+
 import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp } from "../lsp.ts";
 import {
@@ -45,7 +45,6 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type MagentaOptions, type Profile } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
 import {
-  relativePath,
   type HomeDir,
   type NvimCwd,
   type UnresolvedFilePath,
@@ -65,6 +64,7 @@ import { fileURLToPath } from "url";
 import player from "play-sound";
 import { CommandRegistry } from "./commands/registry.ts";
 import { getSubsequentReminder } from "../providers/system-reminders.ts";
+import type { EdlRegisters } from "../edl/index.ts";
 import { renderStreamdedTool } from "../tools/helpers.ts";
 
 export type InputMessage =
@@ -86,10 +86,6 @@ export type Msg =
     }
   | {
       type: "abort";
-    }
-  | {
-      type: "take-file-snapshot";
-      unresolvedFilePath: UnresolvedFilePath;
     }
   | {
       type: "tool-msg";
@@ -124,10 +120,6 @@ export type Msg =
       filePath: UnresolvedFilePath;
     }
   | {
-      type: "diff-snapshot";
-      filePath: string;
-    }
-  | {
       type: "agent-msg";
       msg: AgentMsg;
     };
@@ -151,20 +143,6 @@ export type MessageViewState = {
 /** View state for tools, keyed by tool request ID */
 export type ToolViewState = {
   details: boolean;
-};
-
-/** Edit tracking for files modified in this thread */
-export type FileEditState = {
-  requestIds: ToolRequestId[];
-  status: { status: "pending" } | { status: "error"; message: string };
-};
-
-/** Edits for a single turn, keyed by file path */
-export type TurnEdits = { [filePath: string]: FileEditState };
-
-/** Edit tracking per turn, keyed by the message index when the agent yielded */
-export type EditsByYield = {
-  [yieldMessageIdx: number]: TurnEdits;
 };
 
 /** Map of active tool instances, keyed by tool request ID */
@@ -206,18 +184,15 @@ export class Thread {
     messageViewState: { [messageIdx: number]: MessageViewState };
     /** View state per tool, keyed by tool request ID */
     toolViewState: { [toolRequestId: ToolRequestId]: ToolViewState };
-    /** Edits accumulating for the current turn (before yield) */
-    currentEdits: TurnEdits;
-    /** Edit turns keyed by the assistant message index when the agent yielded */
-    editsByYield: EditsByYield;
+
     /** Thread-specific mode (agent status is read directly from agent.getState().status) */
     mode: ConversationMode;
     /** Cached lookup maps for tool requests and results */
     toolCache: ToolCache;
+    edlRegisters: EdlRegisters;
   };
 
   private myDispatch: Dispatch<Msg>;
-  public fileSnapshots: FileSnapshots;
   public contextManager: ContextManager;
   private commandRegistry: CommandRegistry;
   public agent: Agent;
@@ -249,11 +224,6 @@ export class Thread {
         msg,
       });
 
-    this.fileSnapshots = new FileSnapshots(
-      this.context.nvim,
-      this.context.cwd,
-      this.context.homeDir,
-    );
     this.contextManager = this.context.contextManager;
 
     this.commandRegistry = new CommandRegistry();
@@ -272,10 +242,9 @@ export class Thread {
       showSystemPrompt: false,
       messageViewState: {},
       toolViewState: {},
-      currentEdits: {},
-      editsByYield: {},
       mode: { type: "normal" },
       toolCache: { results: new Map() },
+      edlRegisters: { registers: new Map(), nextSavedId: 0 },
     };
 
     if (clonedAgent) {
@@ -332,17 +301,6 @@ export class Thread {
           this.handleSendMessageError.bind(this),
         );
         break;
-      }
-
-      case "take-file-snapshot": {
-        this.fileSnapshots
-          .willEditFile(msg.unresolvedFilePath)
-          .catch((e: Error) => {
-            this.context.nvim.logger.error(
-              `Failed to take file snapshot: ${e.message}`,
-            );
-          });
-        return;
       }
 
       case "tool-msg": {
@@ -417,18 +375,6 @@ export class Thread {
         openFileInNonMagentaWindow(msg.filePath, this.context).catch(
           (e: Error) => this.context.nvim.logger.error(e.message),
         );
-        return;
-      }
-
-      case "diff-snapshot": {
-        displaySnapshotDiff({
-          unresolvedFilePath: msg.filePath as UnresolvedFilePath,
-          nvim: this.context.nvim,
-          cwd: this.context.cwd,
-          homeDir: this.context.homeDir,
-          fileSnapshots: this.fileSnapshots,
-          getDisplayWidth: this.context.getDisplayWidth,
-        }).catch((e: Error) => this.context.nvim.logger.error(e.message));
         return;
       }
 
@@ -516,6 +462,7 @@ export class Thread {
         chat: this.context.chat,
         contextManager: this.contextManager,
         threadDispatch: this.myDispatch,
+        edlRegisters: this.state.edlRegisters,
       };
 
       // Create the dispatch function for this tool
@@ -538,24 +485,6 @@ export class Thread {
       // Create static tool
       const tool = createTool(request, toolContext, toolDispatch);
       activeTools.set(request.id, tool);
-
-      // Track edits for insert/replace tools
-      if (request.toolName === "insert" || request.toolName === "replace") {
-        const input = request.input as { filePath: string };
-        const filePath = relativePath(
-          this.context.cwd,
-          input.filePath as UnresolvedFilePath,
-          this.context.homeDir,
-        );
-
-        if (!this.state.currentEdits[filePath]) {
-          this.state.currentEdits[filePath] = {
-            status: { status: "pending" },
-            requestIds: [],
-          };
-        }
-        this.state.currentEdits[filePath].requestIds.push(request.id);
-      }
     }
 
     // Set mode based on whether we found yield_to_parent
@@ -721,18 +650,6 @@ export class Thread {
 
     // Handle stopped state - check for pending messages
     const autoRespondResult = this.maybeAutoRespond();
-
-    // Record a yield if we're not auto-responding and not waiting for tool input
-    if (
-      autoRespondResult.type !== "did-autorespond" &&
-      autoRespondResult.type !== "waiting-for-tool-input"
-    ) {
-      this.fileSnapshots.startNewTurn();
-      // Save current edits under the assistant message index where we yielded
-      const yieldMessageIdx = this.getProviderMessages().length - 1;
-      this.state.editsByYield[yieldMessageIdx] = this.state.currentEdits;
-      this.state.currentEdits = {};
-    }
 
     if (autoRespondResult.type !== "did-autorespond") {
       this.playChimeIfNeeded();
@@ -1175,10 +1092,9 @@ export class Thread {
 The user's next prompt will be:
 ${compactText}
 
-Use the compact tool to reduce the thread size. You should:
-- Summarize the entire conversation up to this point
-- Include a list of important context files that should be preserved
+Use the compact tool. You should:
 - Preserve important context needed for the user's next prompt
+- Include a list of important context files that should be preserved
 - Strip redundant details, verbose tool outputs, and resolved discussions
 
 You must use the compact tool immediately. Do not use any other tools.`,
@@ -1480,9 +1396,6 @@ ${thread.context.contextManager.view()}`;
       ? d`\n✉️  ${thread.state.pendingMessages.length.toString()} pending message${thread.state.pendingMessages.length === 1 ? "" : "s"}`
       : d``;
 
-  // Render edit summary
-  const editSummaryView = renderEditSummary(thread, dispatch);
-
   // Helper to check if a message is a tool-result-only user message
   const isToolResultOnlyMessage = (msg: ProviderMessage): boolean =>
     msg.role === "user" &&
@@ -1563,55 +1476,10 @@ ${systemPromptView}
 
 ${messagesView}\
 ${streamingBlockView}\
-${editSummaryView}\
 ${contextManagerView}\
 ${pendingMessagesView}
 ${statusView}`;
 };
-
-/** Render the edit summary for files modified in the current/last turn */
-function renderEditSummary(thread: Thread, dispatch: Dispatch<Msg>): VDOMNode {
-  const messages = thread.getProviderMessages();
-  const lastMessage = messages[messages.length - 1];
-  const lastMessageIdx = messages.length - 1;
-
-  let edits: TurnEdits;
-
-  // If the last message is an assistant message and it's in the yield map,
-  // we're stopped and should show those edits
-  if (
-    lastMessage?.role === "assistant" &&
-    thread.state.editsByYield[lastMessageIdx]
-  ) {
-    edits = thread.state.editsByYield[lastMessageIdx];
-  } else {
-    // Otherwise we're streaming or have pending user input, show currentEdits
-    edits = thread.state.currentEdits;
-  }
-
-  if (Object.keys(edits).length === 0) {
-    return d``;
-  }
-
-  const filePaths = Object.keys(edits);
-  const editLines = filePaths.map((filePath) => {
-    const editState = edits[filePath];
-    const editCount = editState.requestIds.length;
-
-    return withBindings(
-      d`- \`${filePath}\` (${editCount.toString()} edits). [± diff snapshot]\n`,
-      {
-        "<CR>": () =>
-          dispatch({
-            type: "diff-snapshot",
-            filePath,
-          }),
-      },
-    );
-  });
-
-  return d`\nEdits:\n${editLines}`;
-}
 
 /** Render a single content block from a message */
 function renderMessageContent(
@@ -1757,6 +1625,7 @@ function renderMessageContent(
         cwd: thread.context.cwd,
         homeDir: thread.context.homeDir,
         options: thread.context.options,
+        dispatch: thread.context.dispatch,
       };
 
       // Get preview content to check if it's empty

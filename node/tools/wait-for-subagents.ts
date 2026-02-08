@@ -217,24 +217,24 @@ ${threadStatusLines}`;
 
   private renderThreadStatus(threadId: ThreadId): VDOMNode {
     const summary = this.context.chat.getThreadSummary(threadId);
-    const title = summary.title || "[Untitled]";
+    const displayName = this.context.chat.getThreadDisplayName(threadId);
 
     let statusText: string;
     switch (summary.status.type) {
       case "missing":
-        statusText = `- ${threadId} ${title}: ❓ not found`;
+        statusText = `- ${displayName}: ❓ not found`;
         break;
 
       case "pending":
-        statusText = `- ${threadId} ${title}: ⏳ initializing`;
+        statusText = `- ${displayName}: ⏳ initializing`;
         break;
 
       case "running":
-        statusText = `- ${threadId} ${title}: ⏳ ${summary.status.activity}`;
+        statusText = `- ${displayName}: ⏳ ${summary.status.activity}`;
         break;
 
       case "stopped":
-        statusText = `- ${threadId} ${title}: ⏹️ stopped (${summary.status.reason})`;
+        statusText = `- ${displayName}: ⏹️ stopped (${summary.status.reason})`;
         break;
 
       case "yielded": {
@@ -242,7 +242,7 @@ ${threadStatusLines}`;
           summary.status.response.length > 50
             ? summary.status.response.substring(0, 47) + "..."
             : summary.status.response;
-        statusText = `- ${threadId} ${title}: ✅ yielded: ${truncatedResponse}`;
+        statusText = `- ${displayName}: ✅ yielded: ${truncatedResponse}`;
         break;
       }
 
@@ -251,7 +251,7 @@ ${threadStatusLines}`;
           summary.status.message.length > 50
             ? summary.status.message.substring(0, 47) + "..."
             : summary.status.message;
-        statusText = `- ${threadId} ${title}: ❌ error: ${truncatedError}`;
+        statusText = `- ${displayName}: ❌ error: ${truncatedError}`;
         break;
       }
 
@@ -282,28 +282,11 @@ function getStatusEmoji(info: CompletedToolInfo): string {
 
 export function renderCompletedSummary(
   info: CompletedToolInfo,
-  dispatch: Dispatch<RootMsg>,
+  _dispatch: Dispatch<RootMsg>,
 ): VDOMNode {
   const input = info.request.input as Input;
   const status = getStatusEmoji(info);
   const count = input.threadIds?.length ?? 0;
-
-  const threadLinks = input.threadIds?.map((threadId) =>
-    withBindings(d`${threadId}`, {
-      "<CR>": () =>
-        dispatch({
-          type: "chat-msg",
-          msg: {
-            type: "select-thread",
-            id: threadId,
-          },
-        }),
-    }),
-  );
-
-  if (threadLinks && threadLinks.length > 0) {
-    return d`⏳${status} wait_for_subagents (${count.toString()} threads): ${threadLinks.map((link, i) => (i === threadLinks.length - 1 ? link : d`${link}, `))}`;
-  }
 
   return d`⏳${status} wait_for_subagents (${count.toString()} threads)`;
 }

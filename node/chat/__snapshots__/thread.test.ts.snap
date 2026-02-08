@@ -18,6 +18,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -40,6 +44,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -77,6 +85,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -142,6 +154,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -168,6 +184,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "text",
       },
@@ -199,6 +219,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "text",
       },
@@ -223,6 +247,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "text",
       },
@@ -249,6 +277,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "text",
       },
@@ -302,6 +334,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "text",
       },
@@ -328,6 +364,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "text",
       },
@@ -359,6 +399,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "text",
       },
@@ -393,6 +437,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "text",
       },
@@ -420,6 +468,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -457,6 +509,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -494,6 +550,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -530,6 +590,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "text",
       },
@@ -564,6 +628,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "text",
       },
@@ -590,6 +658,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "text",
       },
@@ -649,6 +721,10 @@ CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NE
 WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\`
+CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
+Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
+WRONG: select_one with 5+ lines of text in a heredoc
+RIGHT: select_one first line, then extend_forward to match the end
 </system-reminder>",
         "type": "text",
       },

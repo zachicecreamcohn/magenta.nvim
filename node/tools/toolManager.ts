@@ -1,6 +1,4 @@
 import * as GetFile from "./getFile.ts";
-import * as Insert from "./insert.ts";
-import * as Replace from "./replace.ts";
 import * as ListDirectory from "./listDirectory.ts";
 import * as Hover from "./hover.ts";
 import * as FindReferences from "./findReferences.ts";
@@ -15,6 +13,7 @@ import * as WaitForSubagents from "./wait-for-subagents.ts";
 import * as YieldToParent from "./yield-to-parent.ts";
 import * as PredictEdit from "./predict-edit.ts";
 import * as Compact from "./compact.ts";
+import * as Edl from "./edl.ts";
 
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
@@ -49,19 +48,6 @@ export type StaticToolMap = {
     msg: GetFile.Msg;
     spec: typeof GetFile.spec;
   };
-  insert: {
-    controller: Insert.InsertTool;
-    input: Insert.Input;
-    msg: Insert.Msg;
-    spec: typeof Insert.spec;
-  };
-  replace: {
-    controller: Replace.ReplaceTool;
-    input: Replace.Input;
-    msg: Replace.Msg;
-    spec: typeof Replace.spec;
-  };
-
   list_directory: {
     controller: ListDirectory.ListDirectoryTool;
     input: ListDirectory.Input;
@@ -146,6 +132,12 @@ export type StaticToolMap = {
     msg: Compact.Msg;
     spec: typeof Compact.spec;
   };
+  edl: {
+    controller: Edl.EdlTool;
+    input: Edl.Input;
+    msg: Edl.Msg;
+    spec: typeof Edl.spec;
+  };
 };
 
 export type StaticToolRequest = {
@@ -180,8 +172,6 @@ const TOOL_SPEC_MAP: {
   [K in StaticToolName]: ProviderToolSpec;
 } = {
   get_file: GetFile.spec,
-  insert: Insert.spec,
-  replace: Replace.spec,
   list_directory: ListDirectory.spec,
   hover: Hover.spec,
   find_references: FindReferences.spec,
@@ -196,6 +186,7 @@ const TOOL_SPEC_MAP: {
   wait_for_subagents: WaitForSubagents.spec,
   predict_edit: PredictEdit.spec,
   compact: Compact.spec,
+  edl: Edl.spec,
 };
 
 export function getToolSpecs(
@@ -231,6 +222,7 @@ type RenderContext = {
   cwd: import("../utils/files.ts").NvimCwd;
   homeDir: HomeDir;
   options: import("../options.ts").MagentaOptions;
+  dispatch: Dispatch<RootMsg>;
 };
 
 function isError(result: ProviderToolResult): boolean {
@@ -255,10 +247,6 @@ export function renderCompletedToolSummary(
   switch (toolName) {
     case "get_file":
       return GetFile.renderCompletedSummary(info, displayContext);
-    case "insert":
-      return Insert.renderCompletedSummary(info, displayContext);
-    case "replace":
-      return Replace.renderCompletedSummary(info, displayContext);
     case "list_directory":
       return ListDirectory.renderCompletedSummary(info, displayContext);
     case "bash_command":
@@ -287,6 +275,8 @@ export function renderCompletedToolSummary(
       return PredictEdit.renderCompletedSummary(info);
     case "compact":
       return Compact.renderCompletedSummary(info);
+    case "edl":
+      return Edl.renderCompletedSummary(info);
     default:
       assertUnreachable(toolName);
   }
@@ -303,18 +293,14 @@ export function renderCompletedToolPreview(
   }
 
   switch (toolName) {
-    case "insert":
-      return Insert.renderInsertPreview(
-        info.request.input as Insert.Input,
-        context.getDisplayWidth(),
-      );
-    case "replace":
-      return Replace.renderReplacePreview(
-        info.request.input as Replace.Input,
-        context.getDisplayWidth(),
-      );
     case "bash_command":
       return BashCommand.renderCompletedPreview(info, context);
+    case "spawn_subagent":
+      return SpawnSubagent.renderCompletedPreview(info);
+    case "spawn_foreach":
+      return SpawnForeach.renderCompletedPreview(info);
+    case "edl":
+      return Edl.renderCompletedPreview(info);
     default:
       return d``;
   }
@@ -329,18 +315,14 @@ export function renderCompletedToolDetail(
   switch (toolName) {
     case "get_file":
       return GetFile.renderCompletedDetail(info);
-    case "insert":
-      return Insert.renderInsertDetail(info.request.input as Insert.Input, {
-        cwd: context.cwd,
-        homeDir: context.homeDir,
-      });
-    case "replace":
-      return Replace.renderReplaceDetail(info.request.input as Replace.Input, {
-        cwd: context.cwd,
-        homeDir: context.homeDir,
-      });
     case "bash_command":
       return BashCommand.renderCompletedDetail(info, context);
+    case "spawn_subagent":
+      return SpawnSubagent.renderCompletedDetail(info);
+    case "spawn_foreach":
+      return SpawnForeach.renderCompletedDetail(info, context.dispatch);
+    case "edl":
+      return Edl.renderCompletedDetail(info);
     default:
       return d`${JSON.stringify(info.request.input, null, 2)}`;
   }

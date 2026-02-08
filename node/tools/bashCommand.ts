@@ -35,7 +35,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 const MAX_OUTPUT_TOKENS_FOR_AGENT = 2000;
-const MAX_OUTPUT_TOKENS_FOR_ONE_LINE = 200;
+const MAX_CHARS_PER_LINE = 800; // When abbreviating, truncate long lines
 const CHARACTERS_PER_TOKEN = 4;
 
 // Regex to match ANSI escape codes (colors, cursor movement, etc.)
@@ -297,20 +297,17 @@ export class BashCommandTool implements StaticTool {
     this.logStream.write(`${text}\n`);
   }
 
-  private abbreviateLine(text: string): { text: string; abbreviated: boolean } {
-    const maxLineChars = MAX_OUTPUT_TOKENS_FOR_ONE_LINE * CHARACTERS_PER_TOKEN;
-    if (text.length <= maxLineChars) {
-      return { text, abbreviated: false };
+  private abbreviateLine(text: string): string {
+    if (text.length <= MAX_CHARS_PER_LINE) {
+      return text;
     }
     // Show first half and last portion with ellipsis in middle
-    const halfLength = Math.floor(maxLineChars / 2) - 3; // -3 for "..."
-    return {
-      text:
-        text.substring(0, halfLength) +
-        "..." +
-        text.substring(text.length - halfLength),
-      abbreviated: true,
-    };
+    const halfLength = Math.floor(MAX_CHARS_PER_LINE / 2) - 3; // -3 for "..."
+    return (
+      text.substring(0, halfLength) +
+      "..." +
+      text.substring(text.length - halfLength)
+    );
   }
 
   private formatOutputForToolResult(
@@ -321,6 +318,41 @@ export class BashCommandTool implements StaticTool {
   ): string {
     const totalLines = output.length;
     const totalBudgetChars = MAX_OUTPUT_TOKENS_FOR_AGENT * CHARACTERS_PER_TOKEN;
+
+    // First, calculate total raw output size
+    let totalRawChars = 0;
+    for (const line of output) {
+      totalRawChars += line.text.length + 1; // +1 for newline
+    }
+
+    // If under budget, return as-is without any abbreviation
+    if (totalRawChars <= totalBudgetChars) {
+      let formattedOutput = "";
+      let currentStream: "stdout" | "stderr" | null = null;
+
+      for (const line of output) {
+        if (currentStream !== line.stream) {
+          formattedOutput +=
+            line.stream === "stdout" ? "stdout:\n" : "stderr:\n";
+          currentStream = line.stream;
+        }
+        formattedOutput += line.text + "\n";
+      }
+
+      if (signal) {
+        formattedOutput += `terminated by signal ${signal} (${durationMs}ms)\n`;
+      } else {
+        formattedOutput += `exit code ${exitCode} (${durationMs}ms)\n`;
+      }
+
+      if (this.logFilePath) {
+        formattedOutput += `\nFull output (${totalLines} lines): ${this.logFilePath}`;
+      }
+
+      return formattedOutput;
+    }
+
+    // Over budget - need to abbreviate lines and omit from the middle
     const headBudgetChars = Math.floor(totalBudgetChars * 0.3);
     const tailBudgetChars = Math.floor(totalBudgetChars * 0.7);
 
@@ -328,7 +360,7 @@ export class BashCommandTool implements StaticTool {
     const headLines: { line: OutputLine; text: string }[] = [];
     let headChars = 0;
     for (let i = 0; i < output.length; i++) {
-      const { text } = this.abbreviateLine(output[i].text);
+      const text = this.abbreviateLine(output[i].text);
       const lineLength = text.length + 1; // +1 for newline
       if (headChars + lineLength > headBudgetChars && headLines.length > 0) {
         break;
@@ -342,7 +374,7 @@ export class BashCommandTool implements StaticTool {
     let tailChars = 0;
     const tailStartIndex = headLines.length;
     for (let i = output.length - 1; i >= tailStartIndex; i--) {
-      const { text } = this.abbreviateLine(output[i].text);
+      const text = this.abbreviateLine(output[i].text);
       const lineLength = text.length + 1;
       if (tailChars + lineLength > tailBudgetChars && tailLines.length > 0) {
         break;
@@ -389,8 +421,8 @@ export class BashCommandTool implements StaticTool {
       formattedOutput += `exit code ${exitCode} (${durationMs}ms)\n`;
     }
 
-    // Only include log file reference if output was abbreviated
-    if (this.logFilePath && omittedCount > 0) {
+    // Always include log file reference when we've abbreviated
+    if (this.logFilePath) {
       formattedOutput += `\nFull output (${totalLines} lines): ${this.logFilePath}`;
     }
 

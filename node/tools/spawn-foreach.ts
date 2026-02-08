@@ -352,16 +352,15 @@ ${element}`;
     resultText += `Successful: ${successful.length}\n`;
     resultText += `Failed: ${failed.length}\n\n`;
 
-    // Collect threadIds for completed summary navigation
-    const threadIds: string[] = [];
+    // Include element -> threadId mappings for detail view navigation
+    resultText += `ElementThreads:\n`;
     for (const item of completedElements) {
       if (item.state.status === "completed" && item.state.threadId) {
-        threadIds.push(item.state.threadId);
+        const status = item.state.result.status === "ok" ? "ok" : "error";
+        resultText += `${item.element}::${item.state.threadId}::${status}\n`;
       }
     }
-    if (threadIds.length > 0) {
-      resultText += `ThreadIds: ${threadIds.join(",")}\n\n`;
-    }
+    resultText += `\n`;
 
     if (successful.length > 0) {
       resultText += `Successful results:\n`;
@@ -548,7 +547,7 @@ ${elementViews}`;
 
 export function renderCompletedSummary(
   info: CompletedToolInfo,
-  dispatch: Dispatch<RootMsg>,
+  _dispatch: Dispatch<RootMsg>,
 ): VDOMNode {
   const input = info.request.input as Input;
   const result = info.result.result;
@@ -557,33 +556,74 @@ export function renderCompletedSummary(
   const totalElements = input.elements?.length ?? 0;
   const status = result.status === "error" ? "❌" : "✅";
 
-  // Parse threadIds from result text
-  let threadIds: ThreadId[] = [];
-  if (result.status === "ok" && result.value[0]?.type === "text") {
-    const match = result.value[0].text.match(/ThreadIds: ([a-f0-9,-]+)/);
-    if (match) {
-      threadIds = match[1].split(",") as ThreadId[];
-    }
-  }
-
-  const threadLinks = threadIds.map((threadId) =>
-    withBindings(d`${threadId}`, {
-      "<CR>": () =>
-        dispatch({
-          type: "chat-msg",
-          msg: {
-            type: "select-thread",
-            id: threadId,
-          },
-        }),
-    }),
-  );
-
-  if (threadLinks.length > 0) {
-    return d`🤖${status} Foreach subagents${agentTypeText} (${totalElements.toString()}/${totalElements.toString()}): ${threadLinks.map((link, i) => (i === threadLinks.length - 1 ? link : d`${link}, `))}`;
-  }
-
   return d`🤖${status} Foreach subagents${agentTypeText} (${totalElements.toString()}/${totalElements.toString()})`;
+}
+
+export function renderCompletedPreview(info: CompletedToolInfo): VDOMNode {
+  const input = info.request.input as Input;
+  const result = info.result.result;
+
+  if (result.status === "error") {
+    return d``;
+  }
+
+  // Show brief list of elements
+  const elements = input.elements || [];
+  const maxPreviewElements = 3;
+  const previewElements = elements.slice(0, maxPreviewElements);
+  const remaining = elements.length - maxPreviewElements;
+
+  const elementList = previewElements.join(", ");
+  const suffix = remaining > 0 ? ` (+${remaining} more)` : "";
+
+  return d`Elements: ${elementList}${suffix}`;
+}
+
+export function renderCompletedDetail(
+  info: CompletedToolInfo,
+  dispatch: Dispatch<RootMsg>,
+): VDOMNode {
+  const result = info.result.result;
+
+  if (result.status === "error") {
+    return d`**Error:**\n${result.error}`;
+  }
+
+  // Parse ElementThreads from the result text
+  const resultText =
+    result.value[0]?.type === "text" ? result.value[0].text : "";
+
+  // Parse element::threadId::status lines
+  const elementThreadsMatch = resultText.match(
+    /ElementThreads:\n([\s\S]*?)\n\n/,
+  );
+  const elementLines = elementThreadsMatch
+    ? elementThreadsMatch[1].split("\n").filter((line) => line.includes("::"))
+    : [];
+
+  const elementViews = elementLines.map((line) => {
+    const parts = line.split("::");
+    if (parts.length >= 3) {
+      const element = parts[0];
+      const threadId = parts[1] as ThreadId;
+      const status = parts[2] === "ok" ? "✅" : "❌";
+
+      return withBindings(d`  - ${element}: ${status}\n`, {
+        "<CR>": () => {
+          dispatch({
+            type: "chat-msg",
+            msg: {
+              type: "select-thread",
+              id: threadId,
+            },
+          });
+        },
+      });
+    }
+    return d`  - ${line}\n`;
+  });
+
+  return d`${elementViews}`;
 }
 
 export const spec: ProviderToolSpec = {

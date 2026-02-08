@@ -16,12 +16,12 @@
   },
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.25.0",
-    "@anthropic-ai/sdk": "^0.71.0",
+    "@anthropic-ai/sdk": "^0.73.0",
     "@modelcontextprotocol/sdk": "^1.15.1",
     "@openauthjs/openauth": "^0.4.3",
     "@types/diff": "^7.0.2",
     "@types/lodash": "^4.17.20",
-    "diff": "^7.0.0",
+    "diff": "^8.0.3",
     "file-type": "^21.0.0",
     "glob": "^10.3.10",
     "ignore": "^7.0.0",
@@ -41,9 +41,6 @@
     "zx": "^8.8.5"
   },
   "overrides": {
-    "@anthropic-ai/bedrock-sdk": {
-      "@anthropic-ai/sdk": "^0.65.0"
-    },
     "winston": {
       "async": "3.2.5"
     }

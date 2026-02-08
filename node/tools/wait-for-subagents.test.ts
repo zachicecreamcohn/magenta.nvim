@@ -1,9 +1,8 @@
 import { withDriver } from "../test/preamble.ts";
-import { it, expect } from "vitest";
+import { it } from "vitest";
 import type { ToolRequestId } from "./toolManager.ts";
 import type { ToolName } from "./types.ts";
 import { pollUntil } from "../utils/async.ts";
-import type { ThreadId } from "../chat/types.ts";
 
 it("navigates to subagent thread when pressing Enter on completed summary thread link", async () => {
   await withDriver({}, async (driver) => {
@@ -16,10 +15,6 @@ it("navigates to subagent thread when pressing Enter on completed summary thread
 
     const stream1 =
       await driver.mockAnthropic.awaitPendingStreamWithText("Spawn a subagent");
-
-    // Get the parent thread id
-    const parentThread = driver.magenta.chat.getActiveThread();
-    const parentThreadId = parentThread.id;
 
     stream1.respond({
       stopReason: "tool_use",
@@ -38,16 +33,11 @@ it("navigates to subagent thread when pressing Enter on completed summary thread
       ],
     });
 
-    // Wait for spawn_subagent to complete and get the thread id
+    // Wait for spawn_subagent to complete
     await driver.assertDisplayBufferContains("🤖✅ spawn_subagent");
 
-    // Get the spawned thread id from the display
-    const displayContent = await driver.getDisplayBufferText();
-    const threadIdMatch = displayContent.match(
-      /🤖✅ spawn_subagent ([a-f0-9-]+)/,
-    );
-    expect(threadIdMatch).toBeTruthy();
-    const subagentThreadId = threadIdMatch![1] as ThreadId;
+    // Get the spawned thread id (it's the second thread created)
+    const subagentThreadId = driver.getThreadId(1);
 
     // Now the parent continues and waits for the subagent
     const stream2 = await driver.mockAnthropic.awaitPendingStreamWithText(
@@ -99,14 +89,15 @@ it("navigates to subagent thread when pressing Enter on completed summary thread
     // Wait for the completed summary to appear
     await driver.assertDisplayBufferContains("⏳✅ wait_for_subagents");
 
-    // Find the thread link in the completed summary and press Enter
-    const threadLinkPos =
-      await driver.assertDisplayBufferContains(subagentThreadId);
-    await driver.triggerDisplayBufferKey(threadLinkPos, "<CR>");
+    // Press Enter on the spawn_subagent summary to navigate to the subagent thread
+    await driver.triggerDisplayBufferKeyOnContent(
+      "🤖✅ spawn_subagent",
+      "<CR>",
+    );
 
-    // Verify we navigated to a subagent thread
+    // Verify we navigated to the subagent thread
     await pollUntil(
-      () => driver.magenta.chat.getActiveThread().id !== parentThreadId,
+      () => driver.magenta.chat.getActiveThread().id === subagentThreadId,
     );
   });
 });
