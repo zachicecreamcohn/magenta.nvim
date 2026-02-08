@@ -148,7 +148,9 @@ narrow_one /nonexistent pattern that does not exist/`;
           ],
         });
 
-        await driver.assertDisplayBufferContains("📝❌ edl script");
+        await driver.assertDisplayBufferContains(
+          "📝✅ edl: 0 mutations in 0 files (1 file error)",
+        );
 
         const resultStream = await driver.mockAnthropic.awaitPendingStream();
         const toolResultMessage = MockProvider.findLastToolResultMessage(
@@ -161,8 +163,8 @@ narrow_one /nonexistent pattern that does not exist/`;
           (c): c is ToolResultBlockParam => c.type === "tool_result",
         );
         expect(toolResult).toBeDefined();
-        expect(toolResult!.is_error).toBe(true);
-        expect(toolResult!.content).toContain("Error:");
+        expect(toolResult!.is_error).toBeFalsy();
+        assertToolResultContainsText(toolResult!, "File errors:");
       },
     );
   });

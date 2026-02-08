@@ -70,12 +70,9 @@ END`);
     ]);
   });
 
-  it("parses cut and paste", () => {
-    const cmds = parse(`cut my_reg\npaste my_reg`);
-    expect(cmds).toEqual([
-      { type: "cut", register: "my_reg" },
-      { type: "paste", register: "my_reg" },
-    ]);
+  it("parses cut", () => {
+    const cmds = parse(`cut my_reg`);
+    expect(cmds).toEqual([{ type: "cut", register: "my_reg" }]);
   });
 
   it("parses file command", () => {

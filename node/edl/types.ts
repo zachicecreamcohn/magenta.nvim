@@ -25,10 +25,16 @@ export type RangeWithPos = {
   content: string;
 };
 
+export type SavedRegisterInfo = {
+  name: string;
+  sizeChars: number;
+};
+
 export type FileError = {
   path: string;
   error: string;
   trace: TraceEntry[];
+  savedRegisters: SavedRegisterInfo[];
 };
 
 export type ScriptResult = {

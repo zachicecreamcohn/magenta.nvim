@@ -22,14 +22,15 @@ export type Command =
   | { type: "select_prev"; pattern: Pattern }
   | { type: "extend_forward"; pattern: Pattern }
   | { type: "extend_back"; pattern: Pattern }
-  | { type: "replace"; text: string }
+  | ({ type: "replace" } & MutationText)
   | { type: "delete" }
-  | { type: "insert_before"; text: string }
-  | { type: "insert_after"; text: string }
+  | ({ type: "insert_before" } & MutationText)
+  | ({ type: "insert_after" } & MutationText)
   | { type: "select"; pattern: Pattern }
   | { type: "select_one"; pattern: Pattern }
-  | { type: "cut"; register: string }
-  | { type: "paste"; register: string };
+  | { type: "cut"; register: string };
+
+export type MutationText = { text: string } | { register: string };
 
 export class ParseError extends Error {}
 
@@ -215,14 +216,6 @@ export function parse(script: string): Command[] {
     return tok as Token & { type: "word" };
   }
 
-  function expectHeredoc(): Token & { type: "heredoc" } {
-    const tok = next("heredoc")!;
-    if (tok.type !== "heredoc") {
-      throw new ParseError(`Expected heredoc, got ${tok.type}`);
-    }
-    return tok as Token & { type: "heredoc" };
-  }
-
   let cmdTok: Token | undefined;
   while ((cmdTok = next()) !== undefined) {
     if (cmdTok.type !== "word") {
@@ -267,8 +260,16 @@ export function parse(script: string): Command[] {
       }
 
       case "replace": {
-        const textTok = expectHeredoc();
-        commands.push({ type: "replace", text: textTok.value });
+        const tok = next("heredoc or register name")!;
+        if (tok.type === "heredoc") {
+          commands.push({ type: "replace", text: tok.value });
+        } else if (tok.type === "word") {
+          commands.push({ type: "replace", register: tok.value });
+        } else {
+          throw new ParseError(
+            `Expected heredoc or register name after replace, got ${tok.type}`,
+          );
+        }
         break;
       }
 
@@ -281,20 +282,22 @@ export function parse(script: string): Command[] {
 
       case "insert_before":
       case "insert_after": {
-        const textTok = expectHeredoc();
-        commands.push({ type: cmdTok.value, text: textTok.value });
+        const tok = next("heredoc or register name")!;
+        if (tok.type === "heredoc") {
+          commands.push({ type: cmdTok.value, text: tok.value } as Command);
+        } else if (tok.type === "word") {
+          commands.push({ type: cmdTok.value, register: tok.value } as Command);
+        } else {
+          throw new ParseError(
+            `Expected heredoc or register name after ${cmdTok.value}, got ${tok.type}`,
+          );
+        }
         break;
       }
 
       case "cut": {
         const regTok = expectWord("register name");
         commands.push({ type: "cut", register: regTok.value });
-        break;
-      }
-
-      case "paste": {
-        const regTok = expectWord("register name");
-        commands.push({ type: "paste", register: regTok.value });
         break;
       }
 

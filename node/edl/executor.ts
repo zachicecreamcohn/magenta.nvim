@@ -1,11 +1,12 @@
 import { type FileIO, FsFileIO } from "./file-io.ts";
 import { Document } from "./document.ts";
-import type { Command, Pattern } from "./parser.ts";
+import type { Command, MutationText, Pattern } from "./parser.ts";
 import type {
   FileError,
   FileMutationSummary,
   Range,
   RangeWithPos,
+  SavedRegisterInfo,
   ScriptResult,
   TraceEntry,
 } from "./types.ts";
@@ -94,6 +95,7 @@ export class Executor {
   public fileDocs = new Map<string, FileState>();
   public currentFile: FileState | undefined;
   public selection: Range[] = [];
+  public savedRegisterCount = 0;
   private fileIO: FileIO;
 
   constructor(fileIO?: FileIO) {
@@ -341,6 +343,16 @@ export class Executor {
     return -1;
   }
 
+  private resolveText(cmd: MutationText): string {
+    if ("text" in cmd) return cmd.text;
+    const text = this.registers.get(cmd.register);
+    if (text === undefined)
+      throw new ExecutionError(
+        `Register "${cmd.register}" is empty or does not exist`,
+        this.trace,
+      );
+    return text;
+  }
   private async executeCommand(cmd: Command): Promise<void> {
     switch (cmd.type) {
       case "file": {
@@ -585,6 +597,7 @@ export class Executor {
         const file = this.requireFile();
         if (this.selection.length === 0)
           throw new ExecutionError("replace: no selection", this.trace);
+        const text = this.resolveText(cmd);
         const sorted = [...this.selection].sort((a, b) => b.start - a.start);
         for (const range of sorted) {
           const oldText = file.doc.getText(range);
@@ -592,16 +605,16 @@ export class Executor {
             file,
             range.start,
             range.end,
-            range.start + cmd.text.length,
+            range.start + text.length,
           );
-          file.doc.splice(range, cmd.text);
+          file.doc.splice(range, text);
           file.mutations.replacements++;
           file.mutations.linesRemoved += Executor.countLines(oldText);
-          file.mutations.linesAdded += Executor.countLines(cmd.text);
+          file.mutations.linesAdded += Executor.countLines(text);
         }
         this.selection = Executor.recalcSelectionAfterReplace(
           this.selection,
-          cmd.text,
+          text,
         );
         this.addTrace("replace", this.selection, file.doc);
         break;
@@ -629,17 +642,18 @@ export class Executor {
         const file = this.requireFile();
         if (this.selection.length === 0)
           throw new ExecutionError("insert_before: no selection", this.trace);
+        const text = this.resolveText(cmd);
         const sorted = [...this.selection].sort((a, b) => b.start - a.start);
         for (const range of sorted) {
           this.recordTransform(
             file,
             range.start,
             range.start,
-            range.start + cmd.text.length,
+            range.start + text.length,
           );
-          file.doc.splice({ start: range.start, end: range.start }, cmd.text);
+          file.doc.splice({ start: range.start, end: range.start }, text);
           file.mutations.insertions++;
-          file.mutations.linesAdded += Executor.countLines(cmd.text);
+          file.mutations.linesAdded += Executor.countLines(text);
         }
         this.addTrace("insert_before", this.selection, file.doc);
         break;
@@ -649,17 +663,18 @@ export class Executor {
         const file = this.requireFile();
         if (this.selection.length === 0)
           throw new ExecutionError("insert_after: no selection", this.trace);
+        const text = this.resolveText(cmd);
         const sorted = [...this.selection].sort((a, b) => b.start - a.start);
         for (const range of sorted) {
           this.recordTransform(
             file,
             range.end,
             range.end,
-            range.end + cmd.text.length,
+            range.end + text.length,
           );
-          file.doc.splice({ start: range.end, end: range.end }, cmd.text);
+          file.doc.splice({ start: range.end, end: range.end }, text);
           file.mutations.insertions++;
-          file.mutations.linesAdded += Executor.countLines(cmd.text);
+          file.mutations.linesAdded += Executor.countLines(text);
         }
         this.addTrace("insert_after", this.selection, file.doc);
         break;
@@ -678,31 +693,36 @@ export class Executor {
         this.selection = [{ start: range.start, end: range.start }];
         break;
       }
-
-      case "paste": {
-        const file = this.requireFile();
-        const text = this.registers.get(cmd.register);
-        if (text === undefined)
-          throw new ExecutionError(
-            `paste: register "${cmd.register}" is empty`,
-            this.trace,
-          );
-        const range = this.requireSingleSelect();
-        this.recordTransform(
-          file,
-          range.end,
-          range.end,
-          range.end + text.length,
-        );
-        file.doc.splice({ start: range.end, end: range.end }, text);
-        file.mutations.insertions++;
-        file.mutations.linesAdded += Executor.countLines(text);
-        this.addTrace(`paste ${cmd.register}`, [range], file.doc);
-        break;
-      }
     }
   }
 
+  private static getCommandText(cmd: Command): string | undefined {
+    if (
+      cmd.type === "replace" ||
+      cmd.type === "insert_before" ||
+      cmd.type === "insert_after"
+    ) {
+      return "text" in cmd ? cmd.text : undefined;
+    }
+    return undefined;
+  }
+
+  private saveCommandTexts(
+    commands: Command[],
+    startIdx: number,
+    endIdx: number,
+  ): SavedRegisterInfo[] {
+    const saved: SavedRegisterInfo[] = [];
+    for (let j = startIdx; j < endIdx; j++) {
+      const text = Executor.getCommandText(commands[j]);
+      if (text !== undefined) {
+        const name = `_saved_${++this.savedRegisterCount}`;
+        this.registers.set(name, text);
+        saved.push({ name, sizeChars: text.length });
+      }
+    }
+    return saved;
+  }
   async execute(commands: Command[]): Promise<ScriptResult> {
     const fileErrors: FileError[] = [];
     const failedFiles = new Set<string>();
@@ -722,11 +742,6 @@ export class Executor {
               : this.currentFile?.path;
 
           if (errorPath) {
-            fileErrors.push({
-              path: errorPath,
-              error: e.message,
-              trace: [...e.trace],
-            });
             failedFiles.add(errorPath);
 
             const nextIdx = this.findNextFileCommand(
@@ -734,6 +749,17 @@ export class Executor {
               i + 1,
               errorPath,
             );
+            const skipEnd = nextIdx === -1 ? commands.length : nextIdx;
+
+            const savedRegisters = this.saveCommandTexts(commands, i, skipEnd);
+
+            fileErrors.push({
+              path: errorPath,
+              error: e.message,
+              trace: [...e.trace],
+              savedRegisters,
+            });
+
             if (nextIdx === -1) {
               break;
             }

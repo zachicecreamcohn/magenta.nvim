@@ -64,6 +64,7 @@ import { fileURLToPath } from "url";
 import player from "play-sound";
 import { CommandRegistry } from "./commands/registry.ts";
 import { getSubsequentReminder } from "../providers/system-reminders.ts";
+import type { EdlRegisters } from "../edl/index.ts";
 import { renderStreamdedTool } from "../tools/helpers.ts";
 
 export type InputMessage =
@@ -188,6 +189,7 @@ export class Thread {
     mode: ConversationMode;
     /** Cached lookup maps for tool requests and results */
     toolCache: ToolCache;
+    edlRegisters: EdlRegisters;
   };
 
   private myDispatch: Dispatch<Msg>;
@@ -242,6 +244,7 @@ export class Thread {
       toolViewState: {},
       mode: { type: "normal" },
       toolCache: { results: new Map() },
+      edlRegisters: { registers: new Map(), nextSavedId: 0 },
     };
 
     if (clonedAgent) {
@@ -459,6 +462,7 @@ export class Thread {
         chat: this.context.chat,
         contextManager: this.contextManager,
         threadDispatch: this.myDispatch,
+        edlRegisters: this.state.edlRegisters,
       };
 
       // Create the dispatch function for this tool
@@ -1088,10 +1092,9 @@ export class Thread {
 The user's next prompt will be:
 ${compactText}
 
-Use the compact tool to reduce the thread size. You should:
-- Summarize the entire conversation up to this point
-- Include a list of important context files that should be preserved
+Use the compact tool. You should:
 - Preserve important context needed for the user's next prompt
+- Include a list of important context files that should be preserved
 - Strip redundant details, verbose tool outputs, and resolved discussions
 
 You must use the compact tool immediately. Do not use any other tools.`,

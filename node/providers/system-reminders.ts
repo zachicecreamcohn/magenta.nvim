@@ -10,6 +10,7 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end`;
+
 const BASH_REMINDER = `\
 CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
 WRONG: \`command 2>&1 | tail -50\`

@@ -48,6 +48,7 @@ function normalizePaths(
         })),
       },
       formatted: result.formatted.replaceAll(tmpDir, "<tmpDir>"),
+      edlRegisters: result.edlRegisters,
     };
   }
   return {
@@ -106,6 +107,146 @@ narrow /hello/
 retain_first`);
 
       expect(normalizePaths(result, tmpDir)).toMatchSnapshot();
+    });
+  });
+});
+
+describe("register persistence across invocations", () => {
+  it("registers from one runScript call can be pre-loaded into the next", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "aaa bbb ccc", "utf-8");
+
+      const result1 = await runScript(`\
+file \`${filePath}\`
+select_one /bbb/
+cut myReg`);
+
+      expect(result1.status).toBe("ok");
+      if (result1.status !== "ok") return;
+      expect(result1.edlRegisters.registers.get("myReg")).toBe("bbb");
+
+      await fs.writeFile(filePath, "aaa  ccc", "utf-8");
+
+      const result2 = await runScript(
+        `\
+file \`${filePath}\`
+select_one /  /
+replace myReg`,
+        undefined,
+        result1.edlRegisters,
+      );
+
+      expect(result2.status).toBe("ok");
+      if (result2.status !== "ok") return;
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("aaabbbccc");
+    });
+  });
+
+  it("round-trip: fail saves register, next script replaces from it", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "hello world", "utf-8");
+
+      const result1 = await runScript(`\
+file \`${filePath}\`
+select_one /nonexistent/
+replace <<END
+replacement text here
+END`);
+
+      expect(result1.status).toBe("ok");
+      if (result1.status !== "ok") return;
+      expect(result1.data.fileErrors.length).toBe(1);
+      expect(result1.edlRegisters.registers.get("_saved_1")).toBe(
+        "replacement text here",
+      );
+      expect(result1.edlRegisters.nextSavedId).toBe(1);
+
+      const result2 = await runScript(
+        `\
+file \`${filePath}\`
+select_one /world/
+replace _saved_1`,
+        undefined,
+        result1.edlRegisters,
+      );
+
+      expect(result2.status).toBe("ok");
+      if (result2.status !== "ok") return;
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("hello replacement text here");
+    });
+  });
+
+  it("cut in one invocation can be used via insert_after in a subsequent invocation", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const file1 = path.join(tmpDir, "a.txt");
+      const file2 = path.join(tmpDir, "b.txt");
+      await fs.writeFile(file1, "foo bar baz", "utf-8");
+      await fs.writeFile(file2, "start end", "utf-8");
+
+      const result1 = await runScript(`\
+file \`${file1}\`
+select_one / bar/
+cut chunk`);
+
+      expect(result1.status).toBe("ok");
+      if (result1.status !== "ok") return;
+      expect(result1.edlRegisters.registers.get("chunk")).toBe(" bar");
+
+      const result2 = await runScript(
+        `\
+file \`${file2}\`
+select_one /start/
+insert_after chunk`,
+        undefined,
+        result1.edlRegisters,
+      );
+
+      expect(result2.status).toBe("ok");
+      if (result2.status !== "ok") return;
+      const content = await fs.readFile(file2, "utf-8");
+      expect(content).toBe("start bar end");
+    });
+  });
+
+  it("saved register counter continues across invocations", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "hello world", "utf-8");
+
+      const result1 = await runScript(`\
+file \`${filePath}\`
+select_one /nonexistent/
+replace <<END
+text1
+END`);
+
+      expect(result1.status).toBe("ok");
+      if (result1.status !== "ok") return;
+      expect(result1.edlRegisters.nextSavedId).toBe(1);
+      expect(result1.edlRegisters.registers.has("_saved_1")).toBe(true);
+
+      await fs.writeFile(filePath, "hello world", "utf-8");
+
+      const result2 = await runScript(
+        `\
+file \`${filePath}\`
+select_one /alsoNonexistent/
+replace <<END
+text2
+END`,
+        undefined,
+        result1.edlRegisters,
+      );
+
+      expect(result2.status).toBe("ok");
+      if (result2.status !== "ok") return;
+      expect(result2.edlRegisters.nextSavedId).toBe(2);
+      expect(result2.edlRegisters.registers.get("_saved_2")).toBe("text2");
+      expect(result2.edlRegisters.registers.get("_saved_1")).toBe("text1");
     });
   });
 });

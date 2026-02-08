@@ -14,6 +14,7 @@ exports[`runScript > returns error with message and trace on execution failure 1
       {
         "error": "narrow: no matches for pattern /nonexistent/",
         "path": "<tmpDir>/test.txt",
+        "savedRegisters": [],
         "trace": [
           {
             "command": "file <tmpDir>/test.txt",
@@ -60,6 +61,10 @@ exports[`runScript > returns error with message and trace on execution failure 1
         "snippet": "hello",
       },
     ],
+  },
+  "edlRegisters": {
+    "nextSavedId": 0,
+    "registers": Map {},
   },
   "formatted": "Trace:
   file <tmpDir>/test.txt → switched to <tmpDir>/test.txt (2 lines)
@@ -117,6 +122,10 @@ exports[`runScript > returns ok with no mutations when script only selects 1`] =
         "snippet": "hello",
       },
     ],
+  },
+  "edlRegisters": {
+    "nextSavedId": 0,
+    "registers": Map {},
   },
   "formatted": "Trace:
   file <tmpDir>/test.txt → switched to <tmpDir>/test.txt (2 lines)
@@ -184,6 +193,10 @@ exports[`runScript > returns ok with trace, mutations, and final selection 1`] =
         "snippet": "planet",
       },
     ],
+  },
+  "edlRegisters": {
+    "nextSavedId": 0,
+    "registers": Map {},
   },
   "formatted": "Trace:
   file <tmpDir>/test.txt → switched to <tmpDir>/test.txt (2 lines)

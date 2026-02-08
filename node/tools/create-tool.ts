@@ -13,6 +13,8 @@ import * as PredictEdit from "./predict-edit.ts";
 import * as Compact from "./compact.ts";
 import * as Edl from "./edl.ts";
 
+import type { EdlRegisters } from "../edl/index.ts";
+
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Nvim } from "../nvim/nvim-node";
 import type { Lsp } from "../lsp.ts";
@@ -52,6 +54,7 @@ export type CreateToolContext = {
   chat: Chat;
   contextManager: ContextManager;
   threadDispatch: Dispatch<ThreadMsg>;
+  edlRegisters: EdlRegisters;
 };
 
 export type ToolDispatch = (msg: {
@@ -235,6 +238,7 @@ export function createTool(
         myDispatch: wrapDispatch,
         bufferTracker: context.bufferTracker,
         threadDispatch: context.threadDispatch,
+        edlRegisters: context.edlRegisters,
       });
     }
 

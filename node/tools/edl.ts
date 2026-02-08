@@ -31,6 +31,7 @@ import {
   analyzeFileAccess,
   type EdlResultData,
   type FileAccessInfo,
+  type EdlRegisters,
 } from "../edl/index.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
 import type { Dispatch } from "../tea/tea.ts";
@@ -100,6 +101,7 @@ export class EdlTool implements StaticTool {
       myDispatch: (msg: Msg) => void;
       bufferTracker: BufferTracker;
       threadDispatch: Dispatch<ThreadMsg>;
+      edlRegisters: EdlRegisters;
     },
   ) {
     this.state = {
@@ -270,11 +272,14 @@ export class EdlTool implements StaticTool {
     try {
       const script = this.request.input.script;
       const fileIO = new BufferAwareFileIO(this.context);
-      const result = await runScript(script, fileIO);
+      const result = await runScript(script, fileIO, this.context.edlRegisters);
 
       if (this.aborted) return;
 
       if (result.status === "ok") {
+        this.context.edlRegisters.registers = result.edlRegisters.registers;
+        this.context.edlRegisters.nextSavedId = result.edlRegisters.nextSavedId;
+
         for (const mutation of result.data.mutations) {
           const absFilePath = resolveFilePath(
             this.context.cwd,
@@ -540,7 +545,12 @@ export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
       0,
     );
     const filesCount = data.mutations.length;
-    return d`📝${status} edl: ${String(totalMutations)} mutations in ${String(filesCount)} file${filesCount !== 1 ? "s" : ""}`;
+    const fileErrorCount = data.fileErrors.length;
+    const errorSuffix =
+      fileErrorCount > 0
+        ? ` (${String(fileErrorCount)} file error${fileErrorCount !== 1 ? "s" : ""})`
+        : "";
+    return d`📝${status} edl: ${String(totalMutations)} mutations in ${String(filesCount)} file${filesCount !== 1 ? "s" : ""}${errorSuffix}`;
   }
 
   return d`📝${status} edl script`;

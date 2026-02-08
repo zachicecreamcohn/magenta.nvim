@@ -26,6 +26,43 @@ select_next <pattern>    # Select next non-overlapping match after current selec
 select_prev <pattern>    # Select previous non-overlapping match before current selection
 extend_forward <pattern> # Extend selection forward to include next match
 extend_back <pattern>    # Extend selection backward to include previous match
+
+# mutation commands
+# replace/insert_before/insert_after accept either a heredoc or a register name
+replace <heredoc>        # Replace selection with heredoc text
+replace <register_name>  # Replace selection with text from a named register
+insert_before <heredoc>  # Insert text before selection
+insert_before <register> # Insert register contents before selection
+insert_after <heredoc>   # Insert text after selection
+insert_after <register>  # Insert register contents after selection
+delete                   # Delete selected text
+cut <register_name>      # Cut selection into a named register
+
+```
+
+# Registers
+
+Registers are named storage for text that persists across EDL tool invocations within the same thread.
+
+- **`cut <name>`**: Save selection text into a named register (and delete it from the file).
+- **`replace <name>`, `insert_before <name>`, `insert_after <name>`**: Use a register name (a plain word) instead of a heredoc to supply the text from a previously stored register.
+- **Auto-saved registers on error**: When an EDL script fails for a file (e.g., a `select_one` finds no matches), any text from unexecuted `replace`/`insert_before`/`insert_after` commands in that file is automatically saved to registers named `_saved_1`, `_saved_2`, etc. The error message reports the register names and sizes so you can reuse them.
+
+## Retry workflow using auto-saved registers
+
+If a script fails because a select pattern didn't match, you don't need to regenerate the replacement text. Just fix the select pattern and reference the auto-saved register:
+
+```
+# First EDL invocation fails:
+#   select_one: no matches for pattern ...
+#   Text saved to register _saved_1 (1500 chars). Use `replace _saved_1` to reference it.
+#
+# Second EDL invocation retries with corrected select and reuses the saved text:
+file `src/component.ts`
+select_one <<END
+corrected pattern here
+END
+replace _saved_1
 ```
 
 # Simple text replacement using replace:

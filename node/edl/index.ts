@@ -12,6 +12,10 @@ import type {
 export { parse, ParseError, ExecutionError, Executor };
 export type { ScriptResult, TraceEntry, FileMutationSummary } from "./types.ts";
 
+export type EdlRegisters = {
+  registers: Map<string, string>;
+  nextSavedId: number;
+};
 export type RangeInfo = {
   startPos: Pos;
   endPos: Pos;
@@ -22,6 +26,7 @@ export type FileErrorInfo = {
   path: string;
   error: string;
   trace: { command: string; snippet: string }[];
+  savedRegisters: { name: string; sizeChars: number }[];
 };
 
 export type EdlResultData = {
@@ -32,7 +37,12 @@ export type EdlResultData = {
 };
 
 export type RunScriptResult =
-  | { status: "ok"; data: EdlResultData; formatted: string }
+  | {
+      status: "ok";
+      data: EdlResultData;
+      formatted: string;
+      edlRegisters: EdlRegisters;
+    }
   | { status: "error"; error: string };
 
 function formatTrace(trace: TraceEntry[]): string {
@@ -66,7 +76,6 @@ const MUTATION_COMMANDS = new Set([
   "insert_before",
   "insert_after",
   "cut",
-  "paste",
 ]);
 
 export function analyzeFileAccess(script: string): FileAccessInfo[] {
@@ -128,10 +137,14 @@ function formatFileErrors(
         `    Trace:\n${fe.trace.map((t) => `      ${t.command} → ${t.snippet}`).join("\n")}`,
       );
     }
+    for (const reg of fe.savedRegisters) {
+      lines.push(
+        `    Text saved to register ${reg.name} (${reg.sizeChars} chars). Use \`replace ${reg.name}\` to reference it.`,
+      );
+    }
   }
   return lines.join("\n");
 }
-
 function formatResult(result: ScriptResult): string {
   const sections: string[] = [];
 
@@ -159,10 +172,17 @@ function formatResult(result: ScriptResult): string {
 export async function runScript(
   script: string,
   fileIO?: FileIO,
+  edlRegisters?: EdlRegisters,
 ): Promise<RunScriptResult> {
   try {
     const commands = parse(script);
     const executor = new Executor(fileIO);
+    if (edlRegisters) {
+      for (const [key, value] of edlRegisters.registers) {
+        executor.registers.set(key, value);
+      }
+      executor.savedRegisterCount = edlRegisters.nextSavedId;
+    }
     const result = await executor.execute(commands);
 
     const data: EdlResultData = {
@@ -193,10 +213,21 @@ export async function runScript(
           command: t.command,
           snippet: t.snippet,
         })),
+        savedRegisters: fe.savedRegisters,
       })),
     };
 
-    return { status: "ok", data, formatted: formatResult(result) };
+    const updatedRegisters: EdlRegisters = {
+      registers: new Map(executor.registers),
+      nextSavedId: executor.savedRegisterCount,
+    };
+
+    return {
+      status: "ok",
+      data,
+      formatted: formatResult(result),
+      edlRegisters: updatedRegisters,
+    };
   } catch (e) {
     if (e instanceof ParseError) {
       return { status: "error", error: `Parse error: ${e.message}` };
