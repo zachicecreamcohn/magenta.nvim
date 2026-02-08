@@ -108,15 +108,4 @@ Basic workflow:~
 
 See |magenta-commands| for the full list of commands and keymaps.
 
-==============================================================================
-CHANGELOG                                                  *magenta-changelog*
-
-See the README.md file for detailed update history.
-
-Recent highlights:~
-  - Dec 2025: Enhanced command permissions system
-  - Nov 2025: System reminders and skills support
-  - Aug 2025: PDF support, Claude Max authentication
-  - Jul 2025: Edit prediction, spawn_foreach, fast models
-
 vim:tw=78:ts=8:noet:ft=help:norl:
