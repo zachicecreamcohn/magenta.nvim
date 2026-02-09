@@ -618,10 +618,7 @@ export class AnthropicAgent implements Agent {
     });
 
     // If the assistant message is now empty, remove it
-    if (
-      (lastMessage.content).length ===
-      0
-    ) {
+    if (lastMessage.content.length === 0) {
       messages.pop();
     } else if (toolUseIds.length > 0) {
       // Add error tool_results for each tool_use block

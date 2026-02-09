@@ -276,11 +276,11 @@ We use **TypeScript project references** to enforce boundaries at compile time:
 node/
   shared/                ← pure types, protocol definitions, utilities
     tsconfig.json        ← no references (standalone)
-  control-plane/         ← state management, routing, agent lifecycle, durability
+  core/
+    control-pane/        ← state management, routing, agent lifecycle, durability
     runner/              ← module within CP: environment provisioning, tool construction, checkpointing
+    agent/               ← pure AI logic: LLM streaming, tool execution, conversation loop
     tsconfig.json        ← references: [shared, agent]  (CP imports agent to manage it via runner module)
-  agent/                 ← pure AI logic: LLM streaming, tool execution, conversation loop
-    tsconfig.json        ← references: [shared]  (cannot import from runner/, client/, or control-plane/)
   client/                ← neovim bridge, sidebar, VDOM, rendering
     tsconfig.json        ← references: [shared]  (can import its own nvim/ code)
     nvim/                ← neovim RPC code (moved from node/nvim/)
@@ -554,6 +554,43 @@ The key insight is that we can migrate incrementally, and the control plane / ag
 
    Denis: this sounds good.
 
-## Implementation
+## Implementation Plan
 
-_To be written as a separate step-by-step plan._
+### Phase 0: Clean up existing code
+
+- [ ] Remove inline edit code and tests
+- [ ] Remove edit prediction code and tests
+
+### Phase 1: Build core as a standalone project
+
+Create a new top-level `core/` directory (outside of `node/`) as a clean-room implementation. This is the future control plane + runner + agent. Iterate using unit tests.
+
+- [ ] Set up `core/` project with its own `package.json`, `tsconfig.json`, test infrastructure
+- [ ] Define shared types and protocol interfaces (client↔CP, runner↔agent)
+- [ ] Implement the agent layer — conversation loop, providers, tools with backend interfaces (`FileIO`, `CommandExec`)
+- [ ] Implement the runner module — environment provisioning, tool construction, checkpointing
+- [ ] Implement the control plane — state management, routing, agent lifecycle, JSON-RPC WebSocket server
+- [ ] Implement the `local` environment (host filesystem, local shell)
+- [ ] Build out state sync (JSON Patch generation, snapshot/patch protocol)
+- [ ] Unit test all of the above in isolation
+
+### Phase 2: Transition the existing project to a client
+
+Update `node/` to connect to core via WebSocket instead of housing duplicate logic. This turns the current project into a neovim client.
+
+- [ ] Add WebSocket client to `node/` that connects to the core's JSON-RPC server
+- [ ] Replace direct agent/thread management with protocol calls (`session/new`, `session/prompt`, etc.)
+- [ ] Implement client-side capability handlers (`fs/*`, `lsp/*`, `permission/*`, `editor/*`)
+- [ ] Wire state sync — receive `state/snapshot` and `state/patch`, drive the existing view/rendering from synced state
+- [ ] Remove duplicated agent/provider/tool code from `node/` as the core takes over
+- [ ] Integration test the full stack (neovim ↔ client ↔ core)
+
+### Phase 3: Reorganize into TypeScript project references
+
+Restructure the repo so that boundaries are enforced at compile time.
+
+- [ ] Move shared types to `node/shared/`
+- [ ] Move core code under `node/core/` (control-plane, runner, agent)
+- [ ] Move client code under `node/client/`
+- [ ] Set up `tsconfig.json` project references to enforce import boundaries
+- [ ] Verify that agent cannot import control plane or client code, client cannot import core code, etc.
