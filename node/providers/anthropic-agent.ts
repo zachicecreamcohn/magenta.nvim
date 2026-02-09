@@ -430,18 +430,6 @@ export class AnthropicAgent implements Agent {
   }
 
   clone(dispatch: Dispatch<AgentMsg>): AnthropicAgent {
-    if (this.status.type === "streaming") {
-      throw new Error("Cannot clone agent while streaming");
-    }
-
-    // Cannot clone if we're waiting for tool results - the cloned agent would
-    // have an assistant message with tool_use but no corresponding tool_result
-    if (this.status.type == "stopped" && this.status.stopReason == "tool_use") {
-      throw new Error(
-        "Cannot clone agent while waiting for tool results. Abort the pending tool use first.",
-      );
-    }
-
     const cloned = new AnthropicAgent(
       this.options,
       this.client,
@@ -449,9 +437,14 @@ export class AnthropicAgent implements Agent {
       this.anthropicOptions,
     );
 
-    // Deep copy messages
+    // Deep copy messages — during streaming, this.messages already contains
+    // a reference to currentAssistantMessage with all finalized blocks
+    // (but not the in-progress currentAnthropicBlock)
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     cloned.messages = JSON.parse(JSON.stringify(this.messages));
+
+    // Clean up the cloned messages to handle incomplete state
+    AnthropicAgent.cleanupClonedMessages(cloned.messages);
 
     // Deep copy messageStopInfo
     cloned.messageStopInfo = new Map(
@@ -461,8 +454,8 @@ export class AnthropicAgent implements Agent {
       ]),
     );
 
-    // Copy status (it's stopped since we checked above)
-    cloned.status = { ...this.status };
+    // Cloned agent is always in stopped/end_turn state
+    cloned.status = { type: "stopped", stopReason: "end_turn" };
 
     // Copy latestUsage if present
     if (this.latestUsage) {
@@ -593,6 +586,55 @@ export class AnthropicAgent implements Agent {
     }
 
     return result;
+  }
+
+  /** Clean up a deep-copied messages array for use in a cloned agent.
+   * Handles: dropping server_tool_use blocks, adding error tool_results
+   * for tool_use blocks, filtering empty blocks, and removing empty messages.
+   */
+  private static cleanupClonedMessages(
+    messages: Anthropic.MessageParam[],
+  ): void {
+    if (messages.length === 0) return;
+
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage || lastMessage.role !== "assistant") return;
+
+    const lastMessageContent = lastMessage.content;
+    if (typeof lastMessageContent === "string") return;
+
+    // Collect tool_use IDs that need error tool_results
+    const toolUseIds: { id: string }[] = [];
+
+    // Filter out server_tool_use blocks and empty/incomplete blocks
+    lastMessage.content = lastMessageContent.filter((block) => {
+      if ((block as { type: string }).type === "server_tool_use") return false;
+      if (block.type === "text" && !block.text) return false;
+      if (block.type === "thinking" && !block.thinking) return false;
+      if (block.type === "tool_use") {
+        toolUseIds.push({ id: block.id });
+      }
+      return true;
+    });
+
+    // If the assistant message is now empty, remove it
+    if (
+      (lastMessage.content).length ===
+      0
+    ) {
+      messages.pop();
+    } else if (toolUseIds.length > 0) {
+      // Add error tool_results for each tool_use block
+      messages.push({
+        role: "user",
+        content: toolUseIds.map((t) => ({
+          type: "tool_result" as const,
+          tool_use_id: t.id,
+          content: "The thread was forked before the tool could execute.",
+          is_error: true,
+        })),
+      });
+    }
   }
 
   private cleanup(

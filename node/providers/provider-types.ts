@@ -300,8 +300,9 @@ export interface Agent {
   compact(request: CompactRequest, truncateIdx?: NativeMessageIdx): void;
 
   /** Create a deep copy of this agent with a new dispatch function.
-   * Must only be called when agent is in stopped state (not streaming).
-   * @throws Error if agent is currently streaming
+   * Can be called in any state (stopped, streaming, tool_use).
+   * The cloned agent will always be in stopped/end_turn state.
+   * Incomplete blocks and pending tool_use are cleaned up in the clone.
    */
   clone(dispatch: Dispatch<AgentMsg>): Agent;
 }

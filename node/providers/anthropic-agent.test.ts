@@ -1417,25 +1417,241 @@ describe("clone", () => {
     expect(cloned.getState().messages).toHaveLength(2);
   });
 
-  it("throws when trying to clone while streaming", async () => {
+  it("clone while streaming with only a partial text block drops the empty assistant message", async () => {
     const mockClient = new MockAnthropicClient();
     const agent = createAgent(mockClient);
 
     agent.appendUserMessage([{ type: "text", text: "Hello" }]);
     agent.continueConversation();
 
-    // Agent is now streaming
+    const stream = await mockClient.awaitStream();
     expect(agent.getState().status.type).toBe("streaming");
 
-    expect(() => agent.clone(() => {})).toThrow(
-      "Cannot clone agent while streaming",
-    );
+    // Start a text block but don't finish it — stays in currentAnthropicBlock
+    const index = stream.nextBlockIndex();
+    stream.emitEvent({
+      type: "content_block_start",
+      index,
+      content_block: { type: "text", text: "", citations: null },
+    });
+    stream.emitEvent({
+      type: "content_block_delta",
+      index,
+      delta: { type: "text_delta", text: "partial" },
+    });
 
-    // Clean up
-    const stream = await mockClient.awaitStream();
-    stream.streamText("Response");
+    // Clone — currentAssistantMessage hasn't been created yet (no block-finished)
+    const cloned = agent.clone(() => {});
+    const clonedState = cloned.getState();
+
+    // Only the user message should be present (no assistant message)
+    expect(clonedState.messages).toHaveLength(1);
+    expect(clonedState.messages[0].role).toBe("user");
+    expect(clonedState.status).toEqual({
+      type: "stopped",
+      stopReason: "end_turn",
+    });
+
+    // Clean up source
+    stream.emitEvent({ type: "content_block_stop", index });
     stream.finishResponse("end_turn");
     await stream.finalMessage();
+  });
+
+  it("clone while streaming with finalized text and in-progress tool_use keeps the text", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+
+    agent.appendUserMessage([{ type: "text", text: "Hello" }]);
+    agent.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+
+    // Finalize a text block
+    stream.streamText("Complete text");
+
+    // Start a tool_use block but don't finish it
+    const toolIndex = stream.nextBlockIndex();
+    stream.emitEvent({
+      type: "content_block_start",
+      index: toolIndex,
+      content_block: {
+        type: "tool_use",
+        id: "tool-1" as ToolRequestId,
+        name: "get_file" as ToolName,
+        input: {},
+      },
+    });
+
+    // Clone while tool_use is in-progress (in currentAnthropicBlock)
+    const cloned = agent.clone(() => {});
+    const clonedState = cloned.getState();
+
+    // Should have user + assistant with just the finalized text
+    expect(clonedState.messages[1].content).toHaveLength(1);
+    expect(clonedState.messages[1].content[0].type).toBe("text");
+    expect(clonedState.messages[1].content[0]).toHaveProperty(
+      "text",
+      "Complete text",
+    );
+    expect(clonedState.status).toEqual({
+      type: "stopped",
+      stopReason: "end_turn",
+    });
+
+    // Clean up source
+    stream.emitEvent({ type: "content_block_stop", index: toolIndex });
+    stream.finishResponse("end_turn");
+    await stream.finalMessage();
+  });
+
+  it("clone while streaming with finalized server_tool_use drops it", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+
+    agent.appendUserMessage([{ type: "text", text: "Search for something" }]);
+    agent.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+
+    // Finalize a server_tool_use block
+    stream.streamServerToolUse("server-tool-1", "web_search", {
+      query: "test query",
+    });
+
+    expect(agent.getState().status.type).toBe("streaming");
+
+    // Clone — server_tool_use should be dropped, leaving empty assistant → removed
+    const cloned = agent.clone(() => {});
+    const clonedState = cloned.getState();
+
+    expect(clonedState.messages).toHaveLength(1);
+    expect(clonedState.messages[0].role).toBe("user");
+    expect(clonedState.status).toEqual({
+      type: "stopped",
+      stopReason: "end_turn",
+    });
+
+    // Clean up source
+    stream.finishResponse("end_turn");
+    await stream.finalMessage();
+  });
+
+  it("clone while stopped on tool_use adds error tool_results", async () => {
+    const mockClient = new MockAnthropicClient();
+    const tracked = trackMessages();
+    const agent = createAgent(mockClient, undefined, tracked);
+
+    agent.appendUserMessage([{ type: "text", text: "Use a tool" }]);
+    agent.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+    stream.streamText("I'll use the tool.");
+    stream.streamToolUse(
+      "tool-req-1" as ToolRequestId,
+      "get_file" as ToolName,
+      { filePath: "test.ts" },
+    );
+    stream.finishResponse("tool_use");
+    await stream.finalMessage();
+    await delay(0);
+
+    expect(agent.getState().status).toEqual({
+      type: "stopped",
+      stopReason: "tool_use",
+    });
+
+    // Clone while stopped on tool_use
+    const clonedTracked = trackMessages();
+    const cloned = agent.clone((msg) => clonedTracked.messages.push(msg));
+    const clonedState = cloned.getState();
+
+    // Should have: user, assistant (text + tool_use), user (error tool_result)
+    expect(clonedState.messages).toHaveLength(3);
+    expect(clonedState.messages[1].role).toBe("assistant");
+    expect(clonedState.messages[1].content).toHaveLength(2);
+    expect(clonedState.messages[1].content[0].type).toBe("text");
+    expect(clonedState.messages[1].content[0]).toHaveProperty(
+      "text",
+      "I'll use the tool.",
+    );
+    expect(clonedState.messages[1].content[1].type).toBe("tool_use");
+    expect(clonedState.messages[1].content[1]).toHaveProperty(
+      "id",
+      "tool-req-1",
+    );
+    expect(clonedState.messages[1].content[1]).toHaveProperty(
+      "name",
+      "get_file",
+    );
+    expect(clonedState.messages[2].role).toBe("user");
+    expect(clonedState.messages[2].content).toHaveLength(1);
+    expect(clonedState.messages[2].content[0]).toEqual({
+      type: "tool_result",
+      id: "tool-req-1",
+      result: {
+        status: "error",
+        error: "The thread was forked before the tool could execute.",
+      },
+    });
+    expect(clonedState.status).toEqual({
+      type: "stopped",
+      stopReason: "end_turn",
+    });
+
+    // Source agent should be unchanged
+    expect(agent.getState().status).toEqual({
+      type: "stopped",
+      stopReason: "tool_use",
+    });
+    expect(agent.getState().messages).toHaveLength(2);
+  });
+
+  it("source agent continues streaming unaffected after clone", async () => {
+    const mockClient = new MockAnthropicClient();
+    const tracked = trackMessages();
+    const agent = createAgent(mockClient, undefined, tracked);
+
+    agent.appendUserMessage([{ type: "text", text: "Hello" }]);
+    agent.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+    stream.streamText("First part");
+
+    // Clone mid-stream
+    const cloned = agent.clone(() => {});
+
+    // Continue streaming on source
+    stream.streamText("Second part");
+    stream.finishResponse("end_turn");
+    await stream.finalMessage();
+    await delay(0);
+
+    // Source should have the complete response
+    const sourceState = agent.getState();
+    expect(sourceState.status).toEqual({
+      type: "stopped",
+      stopReason: "end_turn",
+    });
+    expect(sourceState.messages).toHaveLength(2);
+    expect(sourceState.messages[1].content).toHaveLength(2);
+    expect(sourceState.messages[1].content[0]).toHaveProperty(
+      "text",
+      "First part",
+    );
+    expect(sourceState.messages[1].content[1]).toHaveProperty(
+      "text",
+      "Second part",
+    );
+
+    // Clone should only have the snapshot from before
+    const clonedState = cloned.getState();
+    expect(clonedState.messages).toHaveLength(2);
+    expect(clonedState.messages[1].content).toHaveLength(1);
+    expect(clonedState.messages[1].content[0]).toHaveProperty(
+      "text",
+      "First part",
+    );
   });
 
   it("preserves stop info for messages", async () => {
