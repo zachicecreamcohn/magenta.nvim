@@ -4,14 +4,11 @@ import * as Hover from "./hover.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as Diagnostics from "./diagnostics.ts";
 import * as BashCommand from "./bashCommand.ts";
-import * as InlineEdit from "./inline-edit-tool.ts";
-import * as ReplaceSelection from "./replace-selection-tool.ts";
 import * as ThreadTitle from "./thread-title.ts";
 import * as SpawnSubagent from "./spawn-subagent.ts";
 import * as SpawnForeach from "./spawn-foreach.ts";
 import * as WaitForSubagents from "./wait-for-subagents.ts";
 import * as YieldToParent from "./yield-to-parent.ts";
-import * as PredictEdit from "./predict-edit.ts";
 import * as Compact from "./compact.ts";
 import * as Edl from "./edl.ts";
 
@@ -78,18 +75,6 @@ export type StaticToolMap = {
     msg: BashCommand.Msg;
     spec: typeof BashCommand.spec;
   };
-  inline_edit: {
-    controller: InlineEdit.InlineEditTool;
-    input: InlineEdit.Input;
-    msg: InlineEdit.Msg;
-    spec: typeof InlineEdit.spec;
-  };
-  replace_selection: {
-    controller: ReplaceSelection.ReplaceSelectionTool;
-    input: ReplaceSelection.Input;
-    msg: ReplaceSelection.Msg;
-    spec: typeof ReplaceSelection.spec;
-  };
   thread_title: {
     controller: ThreadTitle.ThreadTitleTool;
     input: ThreadTitle.Input;
@@ -119,12 +104,6 @@ export type StaticToolMap = {
     input: YieldToParent.Input;
     msg: YieldToParent.Msg;
     spec: typeof YieldToParent.spec;
-  };
-  predict_edit: {
-    controller: PredictEdit.PredictEditTool;
-    input: PredictEdit.Input;
-    msg: PredictEdit.Msg;
-    spec: typeof PredictEdit.spec;
   };
   compact: {
     controller: Compact.CompactTool;
@@ -177,14 +156,11 @@ const TOOL_SPEC_MAP: {
   find_references: FindReferences.spec,
   diagnostics: Diagnostics.spec,
   bash_command: BashCommand.spec,
-  inline_edit: InlineEdit.spec,
-  replace_selection: ReplaceSelection.spec,
   thread_title: ThreadTitle.spec,
   spawn_subagent: SpawnSubagent.spec,
   spawn_foreach: SpawnForeach.spec,
   yield_to_parent: YieldToParent.spec,
   wait_for_subagents: WaitForSubagents.spec,
-  predict_edit: PredictEdit.spec,
   compact: Compact.spec,
   edl: Edl.spec,
 };
@@ -267,12 +243,6 @@ export function renderCompletedToolSummary(
       return YieldToParent.renderCompletedSummary(info);
     case "thread_title":
       return ThreadTitle.renderCompletedSummary(info);
-    case "inline_edit":
-      return InlineEdit.renderCompletedSummary(info);
-    case "replace_selection":
-      return ReplaceSelection.renderCompletedSummary(info);
-    case "predict_edit":
-      return PredictEdit.renderCompletedSummary(info);
     case "compact":
       return Compact.renderCompletedSummary(info);
     case "edl":

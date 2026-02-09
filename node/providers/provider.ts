@@ -4,7 +4,7 @@ import { AnthropicProvider } from "./anthropic.ts";
 import { BedrockProvider } from "./bedrock.ts";
 // import { OpenAIProvider } from "./openai.ts";
 import type { Provider } from "./provider-types.ts";
-import { type EditPredictionProfile, type Profile } from "../options.ts";
+import { type Profile } from "../options.ts";
 // import { OllamaProvider } from "./ollama.ts";
 // import { CopilotProvider } from "./copilot.ts";
 
@@ -13,10 +13,7 @@ export * from "./provider-types.ts";
 const clients: { [key: string]: Provider } = {};
 
 // lazy load so we have a chance to init context before constructing the class
-export function getProvider(
-  nvim: Nvim,
-  profile: Profile | EditPredictionProfile,
-): Provider {
+export function getProvider(nvim: Nvim, profile: Profile): Provider {
   const clientKey = profile.name;
 
   if (!clients[clientKey]) {
@@ -29,7 +26,7 @@ export function getProvider(
         });
       case "bedrock":
         return new BedrockProvider(nvim, {
-          env: (profile as Profile).env,
+          env: profile.env,
         });
       case "openai":
         // return new OpenAIProvider(nvim, {

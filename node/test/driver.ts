@@ -1,6 +1,6 @@
 import { type Nvim } from "../nvim/nvim-node";
 import type { Magenta } from "../magenta";
-import type { BufNr, Line, NvimBuffer } from "../nvim/buffer";
+import type { Line, NvimBuffer } from "../nvim/buffer";
 import type { MockProvider } from "../providers/mock";
 import {
   NvimWindow,
@@ -12,11 +12,7 @@ import {
 import { Defer, pollUntil } from "../utils/async";
 import { calculatePosition } from "../tea/util";
 import type { BindingKey } from "../tea/bindings";
-import {
-  getAllWindows,
-  getCurrentBuffer,
-  getCurrentWindow,
-} from "../nvim/nvim";
+import { getAllWindows, getCurrentWindow } from "../nvim/nvim";
 import { expect, vi } from "vitest";
 import type { ThreadId } from "../chat/types";
 import { CompletionsInteraction } from "./driver/completions.ts";
@@ -191,30 +187,6 @@ export class NvimDriver {
 
   abort() {
     return this.magenta.command("abort");
-  }
-
-  async startInlineEdit() {
-    const currentBuffer = await getCurrentBuffer(this.nvim);
-    return this.magenta.command(`start-inline-edit ${currentBuffer.id}`);
-  }
-
-  async startInlineEditWithSelection() {
-    const currentBuffer = await getCurrentBuffer(this.nvim);
-    return this.magenta.command(
-      `start-inline-edit-selection ${currentBuffer.id}`,
-    );
-  }
-
-  async replayInlineEdit() {
-    return this.magenta.command("replay-inline-edit");
-  }
-
-  async replayInlineEditWithSelection() {
-    return this.magenta.command("replay-inline-edit-selection");
-  }
-
-  async submitInlineEdit(bufnr: BufNr) {
-    return this.magenta.command(`submit-inline-edit ${bufnr}`);
   }
 
   pasteSelection() {
@@ -658,11 +630,7 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
 
   async sendKeysToInputBuffer(keys: string): Promise<void> {
     const { inputWindow } = this.getVisibleState();
-
-    // Switch to input window
     await this.nvim.call("nvim_set_current_win", [inputWindow.id]);
-
-    // Send keys using nvim_feedkeys
     const escapedKeys = await this.nvim.call("nvim_replace_termcodes", [
       keys,
       true,
@@ -670,99 +638,6 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
       true,
     ]);
     await this.nvim.call("nvim_feedkeys", [escapedKeys, "n", false]);
-  }
-
-  async assertChangeTrackerHasEdits(expectedCount: number): Promise<void> {
-    await pollUntil(
-      () => {
-        const changes = this.magenta.changeTracker.getChanges();
-        if (changes.length !== expectedCount) {
-          const changeDetails = changes
-            .map(
-              (change, i) =>
-                `  ${i}: ${change.filePath} [${change.range.start.line}:${change.range.start.character}-${change.range.end.line}:${change.range.end.character}] "${change.oldText}" -> "${change.newText}"`,
-            )
-            .join("\n");
-          throw new Error(
-            `Expected ${expectedCount} changes, but found ${changes.length}:\n${changeDetails}`,
-          );
-        }
-        return;
-      },
-      { timeout: 2000 },
-    );
-  }
-
-  async assertChangeTrackerContains(
-    expectedChanges: Array<{
-      oldText?: string;
-      newText?: string;
-      filePath?: string;
-    }>,
-  ): Promise<void> {
-    await pollUntil(
-      () => {
-        const changes = this.magenta.changeTracker.getChanges();
-        const changeDetails = changes
-          .map(
-            (change, i) =>
-              `  ${i}: ${change.filePath} [${change.range.start.line}:${change.range.start.character}-${change.range.end.line}:${change.range.end.character}] "${change.oldText}" -> "${change.newText}"`,
-          )
-          .join("\n");
-
-        if (changes.length != expectedChanges.length) {
-          throw new Error(
-            `Expected ${expectedChanges.length} changes, but found ${changes.length}:\n${changeDetails}`,
-          );
-        }
-
-        for (let i = 0; i < expectedChanges.length; i++) {
-          const expected = expectedChanges[i];
-          const change = changes[i];
-
-          if (expected.oldText && !change.oldText.includes(expected.oldText)) {
-            throw new Error(
-              `Expected change ${i} oldText to contain "${expected.oldText}", but got "${change.oldText}".\nAll changes:\n${changeDetails}`,
-            );
-          }
-
-          if (expected.newText && !change.newText.includes(expected.newText)) {
-            throw new Error(
-              `Expected change ${i} newText to contain "${expected.newText}", but got "${change.newText}".\nAll changes:\n${changeDetails}`,
-            );
-          }
-
-          if (
-            expected.filePath &&
-            !change.filePath.endsWith(expected.filePath)
-          ) {
-            throw new Error(
-              `Expected change ${i} filePath to end with "${expected.filePath}", but got "${change.filePath}".\nAll changes:\n${changeDetails}`,
-            );
-          }
-        }
-        return;
-      },
-      { timeout: 2000 },
-    );
-  }
-
-  async awaitPredictionControllerState(
-    expectedStateType: string,
-    timeout: number = 2000,
-  ): Promise<void> {
-    await pollUntil(
-      () => {
-        const currentState = this.magenta.editPredictionController.state.type;
-        if (currentState !== expectedStateType) {
-          throw new Error(
-            `Expected prediction controller state to be "${expectedStateType}", but got "${currentState}"`,
-          );
-        }
-        return;
-      },
-      { timeout },
-    );
   }
 
   async getVimMessages(): Promise<string> {

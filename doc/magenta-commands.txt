@@ -33,26 +33,9 @@ EX COMMANDS                                            *magenta-ex-commands*
 :Magenta paste-selection                                *:Magenta-paste-selection*
     Paste the current visual selection into the input buffer.
 
-:Magenta start-inline-edit                              *:Magenta-start-inline-edit*
-    Start an inline edit at the current cursor position.
-
-:Magenta start-inline-edit-selection                    *:Magenta-start-inline-edit-selection*
-    Start an inline edit on the current visual selection.
-
-:Magenta submit-inline-edit {bufnr}                     *:Magenta-submit-inline-edit*
-    Submit the inline edit for the target buffer.
-
-:Magenta replay-inline-edit                             *:Magenta-replay-inline-edit*
-    Replay the last inline edit prompt on the current buffer.
-
-:Magenta replay-inline-edit-selection                   *:Magenta-replay-inline-edit-selection*
-    Replay the last inline edit prompt on the current selection.
-
 :Magenta pick-provider                                  *:Magenta-pick-provider*
     Open picker to select provider and model.
 
-:Magenta predict-edit                                   *:Magenta-predict-edit*
-    Trigger or accept an edit prediction at the cursor.
 
 ==============================================================================
 DEFAULT KEYMAPS                                      *magenta-default-keymaps*
@@ -72,21 +55,10 @@ Context management:~
     `<leader>mf`    Pick files to add to context    |:Magenta-context-files|
     `<leader>mp`    Paste selection (visual mode)   |:Magenta-paste-selection|
 
-Inline edit:~
-
-    `<leader>mi`    Start inline edit (normal)      |:Magenta-start-inline-edit|
-    `<leader>mi`    Start inline edit (visual)      |:Magenta-start-inline-edit-selection|
-    `<leader>mr`    Replay last inline edit         |:Magenta-replay-inline-edit|
-    `<leader>m.`    Replay last inline edit         (alias for `<leader>mr`)
 
 Provider selection:~
 
     `<leader>mp`    Select provider and model       |:Magenta-pick-provider|
-
-Edit prediction:~
-
-    `<S-C-l>`       Predict/accept edit (insert)    |:Magenta-predict-edit|
-    `<S-C-l>`       Predict/accept edit (normal)    |:Magenta-predict-edit|
 
 ==============================================================================
 INPUT COMMANDS                                        *magenta-input-commands*
@@ -136,7 +108,7 @@ Special commands that can be used in the input buffer:
 <
 
 @fast                                                   *magenta-@fast*
-    Use fast model for inline edits.
+    Use fast model for chat responses.
 >
     @fast Convert this function to arrow syntax
 <

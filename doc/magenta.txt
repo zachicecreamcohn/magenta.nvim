@@ -31,13 +31,9 @@ INTRODUCTION                                            *magenta-introduction*
 
 Magenta.nvim provides transparent tools to empower AI workflows in Neovim.
 It allows fluid shifting of control between the developer and the AI, from
-targeted context-powered inline edits to AI automation and agent-led feature
-planning and development.
-
+AI automation and agent-led feature planning and development.
 Features:~
   - Chat sidebar with multi-threading support
-  - Inline edits with visual selection support
-  - Edit prediction based on recent changes
   - Sub-agents for parallel task processing
   - Web search with citations
   - MCP (Model Context Protocol) support
@@ -102,9 +98,7 @@ QUICK START                                               *magenta-quickstart*
 Basic workflow:~
   - `<leader>mt` - Toggle chat sidebar
   - `<leader>mf` - Pick files to add to context
-  - `<leader>mi` - Start inline edit at cursor
   - `<leader>mn` - Create new thread
-  - `<S-C-l>` - Trigger/accept edit prediction
 
 See |magenta-commands| for the full list of commands and keymaps.
 

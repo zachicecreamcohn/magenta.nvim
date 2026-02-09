@@ -99,27 +99,10 @@ export type MCPServerConfig =
       tools?: MCPMockToolConfig[];
     };
 
-export type EditPredictionProfile = {
-  name: string;
-  provider: ProviderName;
-  model: string;
-  baseUrl?: string | undefined;
-  apiKeyEnvVar?: string | undefined;
-  authType?: "key" | "max" | undefined;
-};
-
 export type CustomCommand = {
   name: string;
   text: string;
   description?: string;
-};
-
-export type EditPredictionOptions = {
-  changeTrackerMaxChanges?: number;
-  recentChangeTokenBudget?: number;
-  systemPrompt?: string;
-  systemPromptAppend?: string;
-  profile?: EditPredictionProfile;
 };
 
 export type HSplitWindowDimensions = {
@@ -178,75 +161,9 @@ export type MagentaOptions = {
   lspDebounceMs?: number;
   debug?: boolean;
   chimeVolume?: number; // Volume from 0.0 (silent) to 1.0 (full), defaults to 0.3
-  // New structured options
-  editPrediction?: EditPredictionOptions;
 };
 
 // Reusable parsing helpers
-function parseEditPredictionProfile(
-  profileInput: unknown,
-  logger: { warn: (msg: string) => void },
-): EditPredictionProfile | undefined {
-  if (typeof profileInput !== "object" || profileInput === null) {
-    logger.warn("editPrediction.profile must be an object");
-    return undefined;
-  }
-
-  const p = profileInput as { [key: string]: unknown };
-
-  if (
-    !(
-      typeof p["provider"] === "string" &&
-      PROVIDER_NAMES.indexOf(p["provider"] as ProviderName) !== -1
-    )
-  ) {
-    logger.warn("editPrediction.profile must have a valid provider field");
-    return undefined;
-  }
-
-  const provider = p["provider"] as ProviderName;
-  const defaults = DEFAULT_MODELS[provider];
-
-  const profile: EditPredictionProfile = {
-    name: "edit-prediction",
-    provider,
-    model: typeof p["model"] === "string" ? p["model"] : defaults.model,
-  };
-
-  if ("baseUrl" in p) {
-    if (typeof p["baseUrl"] === "string") {
-      profile.baseUrl = p["baseUrl"];
-    } else {
-      logger.warn("Invalid baseUrl in editPrediction.profile, ignoring field");
-    }
-  }
-
-  if ("apiKeyEnvVar" in p) {
-    if (typeof p["apiKeyEnvVar"] === "string") {
-      profile.apiKeyEnvVar = p["apiKeyEnvVar"];
-    } else {
-      logger.warn(
-        "Invalid apiKeyEnvVar in editPrediction.profile, ignoring field",
-      );
-    }
-  }
-
-  if ("authType" in p) {
-    if (
-      typeof p["authType"] === "string" &&
-      (p["authType"] === "key" || p["authType"] === "max")
-    ) {
-      profile.authType = p["authType"];
-    } else {
-      logger.warn(
-        'Invalid authType in editPrediction.profile, must be "key" or "max"',
-      );
-    }
-  }
-
-  return profile;
-}
-
 function parseProfiles(
   profilesInput: unknown,
   logger: { warn: (msg: string) => void },
@@ -1256,68 +1173,6 @@ export function parseOptions(
         logger,
       );
     }
-
-    if (
-      "editPrediction" in inputOptionsObj &&
-      typeof inputOptionsObj["editPrediction"] === "object" &&
-      inputOptionsObj["editPrediction"] !== null
-    ) {
-      const editPrediction = inputOptionsObj["editPrediction"] as Record<
-        string,
-        unknown
-      >;
-      options.editPrediction = {};
-
-      // Parse changeTrackerMaxChanges
-      if (
-        "changeTrackerMaxChanges" in editPrediction &&
-        typeof editPrediction["changeTrackerMaxChanges"] === "number" &&
-        editPrediction["changeTrackerMaxChanges"] > 0
-      ) {
-        options.editPrediction.changeTrackerMaxChanges =
-          editPrediction["changeTrackerMaxChanges"];
-      }
-
-      // Parse recentChangeTokenBudget
-      if (
-        "recentChangeTokenBudget" in editPrediction &&
-        typeof editPrediction["recentChangeTokenBudget"] === "number" &&
-        editPrediction["recentChangeTokenBudget"] > 0
-      ) {
-        options.editPrediction.recentChangeTokenBudget =
-          editPrediction["recentChangeTokenBudget"];
-      }
-
-      // Parse systemPrompt
-      if (
-        "systemPrompt" in editPrediction &&
-        typeof editPrediction["systemPrompt"] === "string" &&
-        editPrediction["systemPrompt"].trim() !== ""
-      ) {
-        options.editPrediction.systemPrompt = editPrediction["systemPrompt"];
-      }
-
-      // Parse systemPromptAppend
-      if (
-        "systemPromptAppend" in editPrediction &&
-        typeof editPrediction["systemPromptAppend"] === "string" &&
-        editPrediction["systemPromptAppend"].trim() !== ""
-      ) {
-        options.editPrediction.systemPromptAppend =
-          editPrediction["systemPromptAppend"];
-      }
-
-      // Parse profile
-      if ("profile" in editPrediction) {
-        const profile = parseEditPredictionProfile(
-          editPrediction["profile"],
-          logger,
-        );
-        if (profile) {
-          options.editPrediction.profile = profile;
-        }
-      }
-    }
   }
 
   return options;
@@ -1461,68 +1316,6 @@ export function parseProjectOptions(
     );
   }
 
-  if (
-    "editPrediction" in inputOptionsObj &&
-    typeof inputOptionsObj["editPrediction"] === "object" &&
-    inputOptionsObj["editPrediction"] !== null
-  ) {
-    const editPrediction = inputOptionsObj["editPrediction"] as Record<
-      string,
-      unknown
-    >;
-    options.editPrediction = {};
-
-    // Parse changeTrackerMaxChanges
-    if (
-      "changeTrackerMaxChanges" in editPrediction &&
-      typeof editPrediction["changeTrackerMaxChanges"] === "number" &&
-      editPrediction["changeTrackerMaxChanges"] > 0
-    ) {
-      options.editPrediction.changeTrackerMaxChanges =
-        editPrediction["changeTrackerMaxChanges"];
-    }
-
-    // Parse recentChangeTokenBudget
-    if (
-      "recentChangeTokenBudget" in editPrediction &&
-      typeof editPrediction["recentChangeTokenBudget"] === "number" &&
-      editPrediction["recentChangeTokenBudget"] > 0
-    ) {
-      options.editPrediction.recentChangeTokenBudget =
-        editPrediction["recentChangeTokenBudget"];
-    }
-
-    // Parse systemPrompt
-    if (
-      "systemPrompt" in editPrediction &&
-      typeof editPrediction["systemPrompt"] === "string" &&
-      editPrediction["systemPrompt"].trim() !== ""
-    ) {
-      options.editPrediction.systemPrompt = editPrediction["systemPrompt"];
-    }
-
-    // Parse systemPromptAppend
-    if (
-      "systemPromptAppend" in editPrediction &&
-      typeof editPrediction["systemPromptAppend"] === "string" &&
-      editPrediction["systemPromptAppend"].trim() !== ""
-    ) {
-      options.editPrediction.systemPromptAppend =
-        editPrediction["systemPromptAppend"];
-    }
-
-    // Parse profile
-    if ("profile" in editPrediction) {
-      const profile = parseEditPredictionProfile(
-        editPrediction["profile"],
-        logger,
-      );
-      if (profile) {
-        options.editPrediction.profile = profile;
-      }
-    }
-  }
-
   return options;
 }
 
@@ -1662,14 +1455,6 @@ export function mergeOptions(
       ...baseOptions.customCommands,
       ...projectSettings.customCommands,
     ];
-  }
-
-  // Merge structured edit prediction options
-  if (projectSettings.editPrediction) {
-    merged.editPrediction = {
-      ...merged.editPrediction,
-      ...projectSettings.editPrediction,
-    };
   }
 
   return merged;

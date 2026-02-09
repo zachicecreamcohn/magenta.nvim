@@ -3,23 +3,15 @@ import type { Nvim } from "./nvim-node";
 /**
  * Highlight group names used by magenta
  */
-export const MAGENTA_HIGHLIGHT_GROUPS = {
-  PREDICTION_STRIKETHROUGH: "MagentaPredictionStrikethrough",
-} as const;
+export const MAGENTA_HIGHLIGHT_GROUPS = {} as const;
 
 /**
  * Initialize all magenta highlight groups within the magenta namespace.
  * This should be called once during plugin initialization.
  */
 export async function initializeMagentaHighlightGroups(
-  nvim: Nvim,
-): Promise<void> {
-  await nvim.call("nvim_set_hl", [
-    0, // clearing a namespace clears highlight definitions on that namespace
-    MAGENTA_HIGHLIGHT_GROUPS.PREDICTION_STRIKETHROUGH,
-    { strikethrough: true },
-  ]);
-}
+  _nvim: Nvim,
+): Promise<void> {}
 
 /**
  * Union type of all available highlight groups for type safety.
@@ -79,7 +71,6 @@ export const HL_GROUPS = [
   "@lsp.type.comment",
   "@lsp.type.type",
   "@lsp.type.constant",
-  MAGENTA_HIGHLIGHT_GROUPS.PREDICTION_STRIKETHROUGH,
 ] as const;
 
 /**

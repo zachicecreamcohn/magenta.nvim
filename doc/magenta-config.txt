@@ -6,10 +6,9 @@ CONTENTS                                              *magenta-config-contents*
     1. Setup ................................... |magenta-setup|
     2. Profiles ................................ |magenta-profiles|
     3. General Options ......................... |magenta-options|
-    4. Edit Prediction ......................... |magenta-edit-prediction|
-    5. Skills .................................. |magenta-skills|
-    6. Project Settings ........................ |magenta-project-settings|
-    7. Custom Commands ......................... |magenta-custom-commands|
+    4. Skills .................................. |magenta-skills|
+    5. Project Settings ........................ |magenta-project-settings|
+    6. Custom Commands ......................... |magenta-custom-commands|
 
 ==============================================================================
 SETUP                                                        *magenta-setup*
@@ -176,52 +175,6 @@ sidebarKeymaps ~
       normal = {
         ["<CR>"] = ":Magenta send<CR>",
       }
-    }
-<
-
-                                                     *magenta-inlineKeymaps*
-inlineKeymaps ~
-    Type: `table`
-
-    Keymaps for the inline edit input buffer.
->lua
-    inlineKeymaps = {
-      normal = {
-        ["<CR>"] = function(target_bufnr)
-          vim.cmd("Magenta submit-inline-edit " .. target_bufnr)
-        end,
-      },
-    }
-<
-
-==============================================================================
-EDIT PREDICTION                                     *magenta-edit-prediction*
-
-AI-powered edit prediction suggests the next likely edit based on recent
-changes and cursor context.
-
-Usage:~
-  - `<S-C-l>` (Shift+Ctrl+L) to trigger a prediction
-  - `<S-C-l>` again to accept and apply
-  - `<Esc>` to dismiss
-
-Configuration:~
->lua
-    editPrediction = {
-      -- Dedicated profile for predictions (optional)
-      profile = {
-        provider = "anthropic",
-        model = "claude-sonnet-4-5",
-        apiKeyEnvVar = "ANTHROPIC_API_KEY"
-      },
-      -- Max changes to track for context (default: 10)
-      changeTrackerMaxChanges = 20,
-      -- Token budget for recent changes (default: 1000)
-      recentChangeTokenBudget = 1500,
-      -- Replace default system prompt (optional)
-      -- systemPrompt = "...",
-      -- Append to default prompt (optional)
-      systemPromptAppend = "Focus on function calls."
     }
 <
 

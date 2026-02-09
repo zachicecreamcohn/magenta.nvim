@@ -195,7 +195,7 @@ test("diff - insert at end", function()
   assert_equal(diff.newText, "original\nnew last", "Should show insertion at end")
 end)
 
--- Test reproducing the character-by-character typing issue from change-tracker.spec.ts
+-- Test reproducing the character-by-character typing issue
 -- Test document initialization from different sources
 test("document initialization consistency", function()
   -- Test how we split content vs how nvim represents lines

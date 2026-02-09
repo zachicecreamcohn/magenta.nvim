@@ -9,7 +9,7 @@ import * as SpawnSubagent from "./spawn-subagent.ts";
 import * as SpawnForeach from "./spawn-foreach.ts";
 import * as WaitForSubagents from "./wait-for-subagents.ts";
 import * as YieldToParent from "./yield-to-parent.ts";
-import * as PredictEdit from "./predict-edit.ts";
+
 import * as Compact from "./compact.ts";
 import * as Edl from "./edl.ts";
 
@@ -154,14 +154,6 @@ export function createTool(
       });
     }
 
-    case "inline_edit": {
-      throw new Error(`inline_edit tool is not supported.`);
-    }
-
-    case "replace_selection": {
-      throw new Error(`replace_selection tool is not supported.`);
-    }
-
     case "thread_title": {
       return new ThreadTitle.ThreadTitleTool(staticRequest, {
         nvim: context.nvim,
@@ -205,12 +197,6 @@ export function createTool(
         nvim: context.nvim,
         dispatch: context.dispatch,
         threadId: context.threadId,
-        myDispatch: wrapDispatch,
-      });
-    }
-
-    case "predict_edit": {
-      return new PredictEdit.PredictEditTool(staticRequest, context.threadId, {
         myDispatch: wrapDispatch,
       });
     }

@@ -18,12 +18,10 @@ import {
   getActiveProfile,
 } from "./options.ts";
 import type { HomeDir } from "./utils/files.ts";
-import { InlineEditManager } from "./inline-edit/inline-edit-app.ts";
 import type { RootMsg, SidebarMsg } from "./root-msg.ts";
 import { Chat } from "./chat/chat.ts";
 import type { Dispatch } from "./tea/tea.ts";
 import { BufferTracker } from "./buffer-tracker.ts";
-import { ChangeTracker } from "./change-tracker.ts";
 import {
   relativePath,
   resolveFilePath,
@@ -33,10 +31,6 @@ import {
   detectFileType,
 } from "./utils/files.ts";
 import { assertUnreachable } from "./utils/assertUnreachable.ts";
-import {
-  EditPredictionController,
-  type EditPredictionId,
-} from "./edit-prediction/edit-prediction-controller.ts";
 import { initializeMagentaHighlightGroups } from "./nvim/extmarks.ts";
 import { MAGENTA_HIGHLIGHT_NAMESPACE } from "./nvim/buffer.ts";
 
@@ -46,19 +40,14 @@ const MAGENTA_ON_WINDOW_CLOSED = "magentaWindowClosed";
 const MAGENTA_KEY = "magentaKey";
 const MAGENTA_LSP_RESPONSE = "magentaLspResponse";
 const MAGENTA_BUFFER_TRACKER = "magentaBufferTracker";
-const MAGENTA_TEXT_DOCUMENT_DID_CHANGE = "magentaTextDocumentDidChange";
-const MAGENTA_UI_EVENTS = "magentaUiEvents";
 
 export class Magenta {
   public sidebar: Sidebar;
   public chatApp: TEA.App<Chat>;
   public mountedChatApp: TEA.MountedApp | undefined;
-  public inlineEditManager: InlineEditManager;
   public chat: Chat;
   public dispatch: Dispatch<RootMsg>;
   public bufferTracker: BufferTracker;
-  public changeTracker: ChangeTracker;
-  public editPredictionController: EditPredictionController;
 
   constructor(
     public nvim: Nvim,
@@ -68,12 +57,10 @@ export class Magenta {
     public options: MagentaOptions,
   ) {
     this.bufferTracker = new BufferTracker(this.nvim);
-    this.changeTracker = new ChangeTracker(this.nvim, this.options);
 
     this.dispatch = (msg: RootMsg) => {
       try {
         this.chat.update(msg);
-        this.editPredictionController.update(msg);
 
         if (msg.type == "sidebar-msg") {
           this.handleSidebarMsg(msg.msg);
@@ -110,18 +97,6 @@ export class Magenta {
       lsp: this.lsp,
     });
 
-    this.editPredictionController = new EditPredictionController(
-      1 as EditPredictionId,
-      {
-        dispatch: this.dispatch,
-        nvim: this.nvim,
-        changeTracker: this.changeTracker,
-        cwd: this.cwd,
-        homeDir: this.homeDir,
-        options: this.options,
-      },
-    );
-
     this.sidebar = new Sidebar(
       this.nvim,
       () => this.getActiveProfile(),
@@ -143,14 +118,6 @@ export class Magenta {
       nvim: this.nvim,
       initialModel: this.chat,
       View: () => this.chat.view(),
-    });
-
-    this.inlineEditManager = new InlineEditManager({
-      nvim,
-      cwd: this.cwd,
-      homeDir: this.homeDir,
-      options,
-      getContextAgent: () => this.chat.getContextAgent(),
     });
   }
 
@@ -217,9 +184,6 @@ export class Magenta {
 
         if (profile) {
           this.options.activeProfile = profile.name;
-
-          // Update inline edit manager with new options
-          this.inlineEditManager.updateOptions(this.options);
 
           this.dispatch({
             type: "thread-msg",
@@ -333,8 +297,6 @@ export class Magenta {
           },
         });
 
-        this.inlineEditManager.abort();
-
         break;
       }
 
@@ -434,118 +396,6 @@ ${lines.join("\n")}
         break;
       }
 
-      case "start-inline-edit-selection": {
-        const [startPos, endPos] = await Promise.all([
-          getpos(this.nvim, "'<"),
-          getpos(this.nvim, "'>"),
-        ]);
-
-        await this.inlineEditManager.initInlineEdit({
-          startPos,
-          endPos,
-        });
-        break;
-      }
-
-      case "start-inline-edit": {
-        await this.inlineEditManager.initInlineEdit();
-        break;
-      }
-
-      case "replay-inline-edit": {
-        await this.inlineEditManager.replay();
-        break;
-      }
-
-      case "replay-inline-edit-selection": {
-        const [startPos, endPos] = await Promise.all([
-          getpos(this.nvim, "'<"),
-          getpos(this.nvim, "'>"),
-        ]);
-
-        await this.inlineEditManager.replay({
-          startPos,
-          endPos,
-        });
-        break;
-      }
-
-      case "predict-edit": {
-        if (
-          this.editPredictionController.state.type ===
-          "displaying-proposed-edit"
-        ) {
-          this.dispatch({
-            type: "edit-prediction-msg",
-            id: this.editPredictionController.id,
-            msg: {
-              type: "prediction-accepted",
-            },
-          });
-        } else {
-          this.dispatch({
-            type: "edit-prediction-msg",
-            id: this.editPredictionController.id,
-            msg: {
-              type: "trigger-prediction",
-            },
-          });
-        }
-        break;
-      }
-
-      case "accept-prediction": {
-        this.dispatch({
-          type: "edit-prediction-msg",
-          id: this.editPredictionController.id,
-          msg: {
-            type: "prediction-accepted",
-          },
-        });
-        break;
-      }
-
-      case "dismiss-prediction": {
-        this.dispatch({
-          type: "edit-prediction-msg",
-          id: this.editPredictionController.id,
-          msg: {
-            type: "prediction-dismissed",
-          },
-        });
-        break;
-      }
-
-      case "debug-prediction-message": {
-        this.dispatch({
-          type: "edit-prediction-msg",
-          id: this.editPredictionController.id,
-          msg: {
-            type: "debug-log-message",
-          },
-        });
-        break;
-      }
-
-      case "submit-inline-edit": {
-        if (rest.length != 1 || typeof rest[0] != "string") {
-          this.nvim.logger.error(
-            `Expected bufnr argument to submit-inline-edit`,
-          );
-          return;
-        }
-
-        const bufnr = Number.parseInt(rest[0]) as BufNr;
-        const chat = this.chatApp.getState();
-        if (chat.status !== "running") {
-          this.nvim.logger.error(`Chat is not running.`);
-          return;
-        }
-
-        await this.inlineEditManager.submitInlineEdit(bufnr);
-        break;
-      }
-
       default:
         this.nvim.logger.error(`Unrecognized command ${command}\n`);
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
@@ -578,10 +428,7 @@ ${lines.join("\n")}
   }
 
   async onWinClosed() {
-    await Promise.all([
-      this.sidebar.onWinClosed(),
-      this.inlineEditManager.onWinClosed(),
-    ]);
+    await this.sidebar.onWinClosed();
   }
 
   onBufferTrackerEvent(
@@ -599,16 +446,6 @@ ${lines.join("\n")}
           );
         });
 
-        // Dismiss any active prediction when buffer changes
-        if (eventType === "write") {
-          this.dispatch({
-            type: "edit-prediction-msg",
-            id: this.editPredictionController.id,
-            msg: {
-              type: "prediction-dismissed",
-            },
-          });
-        }
         break;
       case "close":
         this.bufferTracker.clearFileTracking(absFilePath);
@@ -618,36 +455,11 @@ ${lines.join("\n")}
     }
   }
 
-  onUiEvent(
-    _eventType:
-      | "mode-change"
-      | "buffer-focus-change"
-      | "text-changed-insert"
-      | "escape-pressed",
-  ) {
-    if (
-      this.editPredictionController.state.type === "displaying-proposed-edit"
-    ) {
-      this.dispatch({
-        type: "edit-prediction-msg",
-        id: this.editPredictionController.id,
-        msg: {
-          type: "prediction-dismissed",
-        },
-      });
-    }
-  }
-
   destroy() {
     if (this.mountedChatApp) {
       this.mountedChatApp.unmount();
       this.mountedChatApp = undefined;
     }
-    this.inlineEditManager.destroy().catch((e) => {
-      this.nvim.logger.warn(
-        `Error destroying inline edit manager: ${e instanceof Error ? e.message + "\n" + e.stack : JSON.stringify(e)}`,
-      );
-    });
   }
 
   static async start(nvim: Nvim, homeDir?: HomeDir) {
@@ -726,82 +538,6 @@ ${lines.join("\n")}
       }
     });
 
-    nvim.onNotification(MAGENTA_TEXT_DOCUMENT_DID_CHANGE, (data) => {
-      try {
-        // Data comes as an array with a single object element from Lua
-        if (!Array.isArray(data) || data.length !== 1) {
-          throw new Error(
-            "Expected change data to be an array with one element",
-          );
-        }
-
-        const changeData = data[0] as {
-          filePath?: unknown;
-          oldText?: unknown;
-          newText?: unknown;
-          range?: unknown;
-        };
-
-        if (
-          typeof changeData.filePath !== "string" ||
-          typeof changeData.oldText !== "string" ||
-          typeof changeData.newText !== "string" ||
-          typeof changeData.range !== "object" ||
-          changeData.range === null
-        ) {
-          throw new Error(
-            `Invalid change data format: expected { filePath: string, oldText: string, newText: string, range: object }, got ${JSON.stringify(changeData)}`,
-          );
-        }
-
-        magenta.changeTracker.onTextDocumentDidChange(
-          changeData as {
-            filePath: string;
-            oldText: string;
-            newText: string;
-            range: {
-              start: { line: number; character: number };
-              end: { line: number; character: number };
-            };
-          },
-        );
-      } catch (err) {
-        nvim.logger.error(
-          `Error handling text document change: ${err instanceof Error ? err.message + "\n" + err.stack : JSON.stringify(err)}`,
-        );
-      }
-    });
-
-    nvim.onNotification(MAGENTA_UI_EVENTS, (args) => {
-      try {
-        if (
-          !Array.isArray(args) ||
-          args.length < 1 ||
-          typeof args[0] !== "string"
-        ) {
-          throw new Error(`Expected UI event args to be [eventType]`);
-        }
-
-        const eventType = args[0];
-        // Validate that eventType is one of the expected values
-        if (
-          eventType !== "mode-change" &&
-          eventType !== "buffer-focus-change" &&
-          eventType !== "text-changed-insert" &&
-          eventType !== "escape-pressed"
-        ) {
-          throw new Error(
-            `Invalid UI eventType: ${eventType}. Expected 'mode-change', 'buffer-focus-change', 'text-changed-insert', or 'escape-pressed'`,
-          );
-        }
-
-        magenta.onUiEvent(eventType);
-      } catch (err) {
-        nvim.logger.error(
-          `Error handling UI event for ${JSON.stringify(args)}: ${err instanceof Error ? err.message + "\n" + err.stack : JSON.stringify(err)}`,
-        );
-      }
-    });
     const opts = await nvim.call("nvim_exec_lua", [
       `return require('magenta').bridge(${nvim.channelId})`,
       [],

@@ -108,13 +108,13 @@ export const BUILTIN_COMMAND_PERMISSIONS: CommandPermissions = {
       { type: "group", args: ["--type", { type: "any" }], optional: true },
       { type: "restFiles" },
     ],
-    // fd: [optional -t f|d] [optional -e ext] [optional pattern] [optional dir]
+    // fd: [optional -t f|d] [optional -e ext] [optional pattern] [dirs...]
     [
       "fd",
       { type: "group", args: ["-t", { type: "any" }], optional: true },
       { type: "group", args: ["-e", { type: "any" }], optional: true },
       { type: "group", args: [{ type: "any" }], optional: true },
-      { type: "group", args: [{ type: "readFile" }], optional: true },
+      { type: "restFiles" },
     ],
   ],
   pipeCommands: [

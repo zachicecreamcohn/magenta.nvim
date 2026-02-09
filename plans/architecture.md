@@ -556,11 +556,6 @@ The key insight is that we can migrate incrementally, and the control plane / ag
 
 ## Implementation Plan
 
-### Phase 0: Clean up existing code
-
-- [ ] Remove inline edit code and tests
-- [ ] Remove edit prediction code and tests
-
 ### Phase 1: Build core as a standalone project
 
 Create a new top-level `core/` directory (outside of `node/`) as a clean-room implementation. This is the future control plane + runner + agent. Iterate using unit tests.

@@ -2,7 +2,6 @@ local Utils = require("magenta.utils")
 local Options = require("magenta.options")
 require("magenta.actions")
 local M = {}
-local LspServer = require('magenta.lsp-server')
 
 M.setup = function(opts)
   Options.set_options(opts)
@@ -59,21 +58,13 @@ local normal_commands = {
   "abort",
   "clear",
   "context-files",
-  "debug-prediction-message",
   "profile",
-  "start-inline-edit",
-  "replay-inline-edit",
   "toggle",
   "new-thread",
   "threads-overview",
-  "predict-edit",
-  "accept-prediction",
-  "dismiss-prediction",
 }
 
 local visual_commands = {
-  "start-inline-edit-selection",
-  "replay-inline-edit-selection",
   "paste-selection",
 }
 
@@ -86,50 +77,6 @@ M.bridge = function(channelId)
   if completion_source.setup then
     completion_source.setup()
   end
-
-  -- Setup LSP server for change tracking
-  local notify_fn = function(data)
-    vim.rpcnotify(channelId, 'magentaTextDocumentDidChange', data)
-  end
-
-  local opts = Options.options
-  if _G.magenta_test_options then
-    for k, v in pairs(_G.magenta_test_options) do
-      opts[k] = v
-    end
-  end
-
-  M.lsp_server = LspServer.new(notify_fn, opts)
-  local client_id = M.lsp_server:start()
-
-  -- Attach LSP server to all existing buffers
-  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_loaded(bufnr) and vim.api.nvim_buf_get_name(bufnr) ~= '' then
-      vim.lsp.buf_attach_client(bufnr, client_id)
-    end
-  end
-
-  -- Auto-attach LSP server to new buffers
-  vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
-    callback = function(ev)
-      local bufnr = ev.buf
-      if vim.api.nvim_buf_get_name(bufnr) ~= '' then
-        -- Check if client is already attached to avoid duplicate attachments
-        local clients = vim.lsp.get_clients({ bufnr = bufnr })
-        local already_attached = false
-        for _, client in ipairs(clients) do
-          if client.id == client_id then
-            already_attached = true
-            break
-          end
-        end
-
-        if not already_attached then
-          vim.lsp.buf_attach_client(bufnr, client_id)
-        end
-      end
-    end
-  })
 
   vim.api.nvim_create_user_command(
     "Magenta",
@@ -253,27 +200,6 @@ M.bridge = function(channelId)
     }
   )
 
-  -- Setup UI event tracking for edit prediction dismissal
-  vim.api.nvim_create_autocmd(
-    "ModeChanged",
-    {
-      pattern = "*",
-      callback = function()
-        vim.rpcnotify(channelId, "magentaUiEvents", "mode-change")
-      end
-    }
-  )
-
-  vim.api.nvim_create_autocmd(
-    "BufEnter",
-    {
-      pattern = "*",
-      callback = function()
-        vim.rpcnotify(channelId, "magentaUiEvents", "buffer-focus-change")
-      end
-    }
-  )
-
   M.listenToBufKey = function(bufnr, vimKey)
     vim.keymap.set(
       "n",
@@ -287,74 +213,6 @@ M.bridge = function(channelId)
 
   M.lsp_response = function(requestId, response)
     vim.rpcnotify(channelId, "magentaLspResponse", { requestId, response })
-  end
-
-  -- Store original mappings for cleanup
-  local original_esc_mappings = {}
-
-  M.setup_prediction_esc_mapping = function(bufnr)
-    original_esc_mappings[bufnr] = vim.fn.maparg("<Esc>", "n", false, true)
-    vim.keymap.set(
-      "n",
-      "<Esc>",
-      function()
-        vim.rpcnotify(channelId, "magentaUiEvents", "escape-pressed")
-        M.cleanup_prediction_esc_mapping(bufnr)
-      end,
-      {
-        buffer = bufnr,
-        noremap = true,
-        silent = true,
-        desc = "Dismiss prediction"
-      }
-    )
-  end
-
-  M.cleanup_prediction_esc_mapping = function(bufnr)
-    local original = original_esc_mappings[bufnr]
-    if original and original.lhs and original.rhs then
-      local restore_opts = {
-        silent = original.silent == 1,
-        noremap = original.noremap == 1,
-        expr = original.expr == 1,
-        buffer = original.buffer ~= 0 and original.buffer or nil,
-      }
-
-      vim.keymap.set("n", original.lhs, original.rhs, restore_opts)
-    else
-      vim.keymap.del("n", "<Esc>", { buffer = bufnr })
-    end
-
-    original_esc_mappings[bufnr] = nil
-  end
-
-  -- Store autocmd IDs for cleanup
-  local text_changed_autocmds = {}
-
-  M.listenForTextChangedI = function(bufnr)
-    -- Clean up any existing autocmd for this buffer first
-    M.cleanupListenForTextChangedI(bufnr)
-
-    local autocmd_id = vim.api.nvim_create_autocmd(
-      "TextChangedI",
-      {
-        buffer = bufnr,
-        callback = function()
-          vim.rpcnotify(channelId, "magentaUiEvents", "text-changed-insert")
-          M.cleanupListenForTextChangedI(bufnr)
-        end
-      }
-    )
-
-    text_changed_autocmds[bufnr] = autocmd_id
-  end
-
-  M.cleanupListenForTextChangedI = function(bufnr)
-    local autocmd_id = text_changed_autocmds[bufnr]
-    if autocmd_id then
-      vim.api.nvim_del_autocmd(autocmd_id)
-      text_changed_autocmds[bufnr] = nil
-    end
   end
 
   local opts = Options.options

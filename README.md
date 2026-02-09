@@ -9,7 +9,7 @@
  magenta is for agentic flow
 ```
 
-Magenta provides transparent tools to empower AI workflows in neovim. It allows fluid shifting of control between the developer and the AI, from targeted context-powered inline edits to AI automation and agent-led feature planning and development.
+Magenta provides transparent tools to empower AI workflows in neovim. It allows fluid shifting of control between the developer and the AI, from AI automation and agent-led feature planning and development.
 
 Developed by [dlants.me](https://dlants.me): I was tempted by other editors due to lack of high-quality agentic coding support in neovim. I missed neovim a lot, though, so I decided to go back and implement my own. I now happily code in neovim using magenta, and find that it's just as good as cursor, windsurf, ampcode & claude code.
 
@@ -26,8 +26,6 @@ I sometimes write about AI, neovim and magenta specifically:
 
 ## Demos
 
-![next-edit-prediction July 2025](https://github.com/user-attachments/assets/2bebf6bb-9552-4396-94ce-f3f694b7265d)
-
 ![completion commands (July 2025)](https://github.com/user-attachments/assets/70eb1ddc-a592-47cb-a803-19414829c5d2)
 
 [![June 2025 demo](https://img.youtube.com/vi/W_YctNT20NQ/0.jpg)](https://www.youtube.com/watch?v=W_YctNT20NQ)
@@ -42,8 +40,6 @@ I sometimes write about AI, neovim and magenta specifically:
 - Claude skills
 - Progressive disclosure for large files and bash outputs
 - Prompt caching
-- Inline edits with visual selection support
-- Edit prediction based on recent changes
 
 ## Roadmap
 
@@ -58,6 +54,7 @@ I sometimes write about AI, neovim and magenta specifically:
 
 - Introduced the edit description language (edl) tool, which subsumes the insert and replace tools.
 - Introduced explore subagent, blocking subagents for better token economy and exploration speed.
+- I decided to drop next edit prediciton and inline edits. I think I'm going to pivot this in a slightly different direction - for more power around unsupervised agent mode and managing teams of agents.
 
 ## Jan 2026
 
@@ -89,12 +86,11 @@ I sometimes write about AI, neovim and magenta specifically:
 
 ## Jul 2025
 
-- Edit prediction (`<S-C-l>`)
 - Input buffer completions with nvim-cmp
 - Thinking/reasoning support
 - Remote MCP support (HTTP/SSE)
 - Fast models and `@fast` modifier
-- Inline edit replay (`<leader>m.`)
+
 - `spawn_foreach` for parallel sub-agents
 
 ## Jun 2025
@@ -194,13 +190,11 @@ See `:help magenta-project-settings` for details.
 
 # Usage
 
-| Keymap       | Description                    |
-| ------------ | ------------------------------ |
-| `<leader>mt` | Toggle chat sidebar            |
-| `<leader>mf` | Pick files to add to context   |
-| `<leader>mi` | Start inline edit              |
-| `<leader>mn` | Create new thread              |
-| `<S-C-l>`    | Trigger/accept edit prediction |
+| Keymap       | Description                  |
+| ------------ | ---------------------------- |
+| `<leader>mt` | Toggle chat sidebar          |
+| `<leader>mf` | Pick files to add to context |
+| `<leader>mn` | Create new thread            |
 
 **Input commands:** `@fork`, `@file:`, `@diff:`, `@diag`, `@buf`, `@qf`, `@fast`
 

@@ -4,13 +4,7 @@
 :Magenta-new-thread	magenta-commands.txt	/*:Magenta-new-thread*
 :Magenta-paste-selection	magenta-commands.txt	/*:Magenta-paste-selection*
 :Magenta-pick-provider	magenta-commands.txt	/*:Magenta-pick-provider*
-:Magenta-predict-edit	magenta-commands.txt	/*:Magenta-predict-edit*
-:Magenta-replay-inline-edit	magenta-commands.txt	/*:Magenta-replay-inline-edit*
-:Magenta-replay-inline-edit-selection	magenta-commands.txt	/*:Magenta-replay-inline-edit-selection*
 :Magenta-send	magenta-commands.txt	/*:Magenta-send*
-:Magenta-start-inline-edit	magenta-commands.txt	/*:Magenta-start-inline-edit*
-:Magenta-start-inline-edit-selection	magenta-commands.txt	/*:Magenta-start-inline-edit-selection*
-:Magenta-submit-inline-edit	magenta-commands.txt	/*:Magenta-submit-inline-edit*
 :Magenta-toggle	magenta-commands.txt	/*:Magenta-toggle*
 magenta-@async	magenta-commands.txt	/*magenta-@async*
 magenta-@buf	magenta-commands.txt	/*magenta-@buf*
@@ -40,11 +34,9 @@ magenta-custom-commands	magenta-config.txt	/*magenta-custom-commands*
 magenta-default-keymaps	magenta-commands.txt	/*magenta-default-keymaps*
 magenta-defaultKeymaps	magenta-config.txt	/*magenta-defaultKeymaps*
 magenta-display-buffer	magenta-commands.txt	/*magenta-display-buffer*
-magenta-edit-prediction	magenta-config.txt	/*magenta-edit-prediction*
 magenta-ex-commands	magenta-commands.txt	/*magenta-ex-commands*
 magenta-filePermissions	magenta-config.txt	/*magenta-filePermissions*
 magenta-getFileAutoAllowGlobs	magenta-config.txt	/*magenta-getFileAutoAllowGlobs*
-magenta-inlineKeymaps	magenta-config.txt	/*magenta-inlineKeymaps*
 magenta-input-commands	magenta-commands.txt	/*magenta-input-commands*
 magenta-installation	magenta.txt	/*magenta-installation*
 magenta-introduction	magenta.txt	/*magenta-introduction*
