@@ -28,6 +28,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -60,6 +64,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -107,6 +115,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -182,6 +194,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -218,6 +234,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -259,6 +279,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -293,6 +317,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -329,6 +357,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -392,6 +424,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -428,6 +464,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -469,6 +509,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -513,6 +557,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -550,6 +598,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -597,6 +649,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -644,6 +700,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -690,6 +750,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -734,6 +798,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -770,6 +838,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -839,6 +911,10 @@ CRITICAL: You're really bad at counting lines. Whenever using line or line:col r
 WRONG: select_one 55-57 -> delete in one script
 RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
 
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
