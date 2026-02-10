@@ -22,6 +22,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -48,6 +58,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -89,6 +109,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -158,6 +188,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -188,6 +228,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -223,6 +273,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -251,6 +311,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -281,6 +351,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -338,6 +418,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -368,6 +458,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -403,6 +503,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -441,6 +551,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -472,6 +592,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -513,6 +643,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -554,6 +694,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -594,6 +744,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -632,6 +792,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -662,6 +832,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },
@@ -725,6 +905,16 @@ CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns i
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
 RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.
 </system-reminder>",
         "type": "text",
       },

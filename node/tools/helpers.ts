@@ -1,5 +1,5 @@
 import * as GetFile from "./getFile";
-import * as ListDirectory from "./listDirectory";
+
 import * as Hover from "./hover";
 import * as FindReferences from "./findReferences";
 import * as Diagnostics from "./diagnostics";
@@ -33,8 +33,7 @@ export function validateInput(
   switch (toolName as StaticToolName) {
     case "get_file":
       return GetFile.validateInput(input);
-    case "list_directory":
-      return ListDirectory.validateInput(input);
+
     case "hover":
       return Hover.validateInput(input);
     case "find_references":
@@ -136,7 +135,6 @@ export function renderStreamdedTool(
   const name = streamingBlock.name as StaticToolName;
   switch (name) {
     case "get_file":
-    case "list_directory":
     case "hover":
     case "find_references":
     case "diagnostics":

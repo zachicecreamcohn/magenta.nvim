@@ -1,5 +1,5 @@
 import * as GetFile from "./getFile.ts";
-import * as ListDirectory from "./listDirectory.ts";
+
 import * as Hover from "./hover.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as Diagnostics from "./diagnostics.ts";
@@ -45,12 +45,7 @@ export type StaticToolMap = {
     msg: GetFile.Msg;
     spec: typeof GetFile.spec;
   };
-  list_directory: {
-    controller: ListDirectory.ListDirectoryTool;
-    input: ListDirectory.Input;
-    msg: ListDirectory.Msg;
-    spec: typeof ListDirectory.spec;
-  };
+
   hover: {
     controller: Hover.HoverTool;
     input: Hover.Input;
@@ -151,7 +146,7 @@ const TOOL_SPEC_MAP: {
   [K in StaticToolName]: ProviderToolSpec;
 } = {
   get_file: GetFile.spec,
-  list_directory: ListDirectory.spec,
+
   hover: Hover.spec,
   find_references: FindReferences.spec,
   diagnostics: Diagnostics.spec,
@@ -223,8 +218,7 @@ export function renderCompletedToolSummary(
   switch (toolName) {
     case "get_file":
       return GetFile.renderCompletedSummary(info, displayContext);
-    case "list_directory":
-      return ListDirectory.renderCompletedSummary(info, displayContext);
+
     case "bash_command":
       return BashCommand.renderCompletedSummary(info);
     case "hover":
