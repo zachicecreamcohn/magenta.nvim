@@ -23,16 +23,28 @@ WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\``;
 
+const EXPLORE_REMINDER = `\
+CRITICAL: The explore subagent should NEVER be used to read the full contents of a file. It should only extract and report relevant line ranges and descriptions.
+WRONG: spawn explore agent to read the full contents of a large file
+RIGHT: spawn explore agent to find where X is handled, getting back line ranges and descriptions`;
+
+const CODE_COPY_REMINDER = `\
+CRITICAL: Avoid copying code by writing it out. Instead, use EDL registers or scripts to move code around.`;
 const BASE_REMINDER = `<system-reminder>
 ${SKILLS_REMINDER}
 ${BASH_REMINDER}
 ${EDL_REMINDER}
+${EXPLORE_REMINDER}
+${CODE_COPY_REMINDER}
 </system-reminder>`;
 
+const EXPLORE_VERIFY_REMINDER = `\
+CRITICAL: Before reporting line ranges in your yield, you MUST verify them using the edl tool's select command (e.g. \`file \\\`src/file.ts\\\`\\nselect 55-60\`). You are bad at counting lines, so never eyeball line numbers from get_file output.`;
 const SUBAGENT_REMINDER = `<system-reminder>
 ${SKILLS_REMINDER}
 ${BASH_REMINDER}
 ${EDL_REMINDER}
+${CODE_COPY_REMINDER}
 
 CRITICAL: Use yield_to_parent tool when task is complete.
 </system-reminder>`;
@@ -43,7 +55,16 @@ export function getSubsequentReminder(threadType: ThreadType): string {
       return BASE_REMINDER;
     case "subagent_default":
     case "subagent_fast":
-    case "subagent_explore":
       return SUBAGENT_REMINDER;
+    case "subagent_explore":
+      return `<system-reminder>
+${SKILLS_REMINDER}
+${BASH_REMINDER}
+${EDL_REMINDER}
+${EXPLORE_VERIFY_REMINDER}
+${CODE_COPY_REMINDER}
+
+CRITICAL: Use yield_to_parent tool when task is complete.
+</system-reminder>`;
   }
 }

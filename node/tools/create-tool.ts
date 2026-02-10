@@ -118,8 +118,6 @@ export function createTool(
       });
     }
 
-
-
     case "hover": {
       return new Hover.HoverTool(staticRequest, {
         ...context,

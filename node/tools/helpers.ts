@@ -135,7 +135,6 @@ export function renderStreamdedTool(
   const name = streamingBlock.name as StaticToolName;
   switch (name) {
     case "get_file":
-
     case "hover":
     case "find_references":
     case "diagnostics":
