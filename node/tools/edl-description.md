@@ -210,8 +210,8 @@ REPLACE
 
 **CRITICAL: Avoid using large heredoc patterns for select operations.** Large text blocks are fragile and wasteful. Instead:
 
-1. **Use line ranges** when you know the line numbers: `select 42-58`
-2. **Use beginning of text + extend_forward** to match a block by its boundaries:
+1. **Use beginning of text + extend_forward** to match a block by its boundaries:
+2. **Use line ranges** when you know the line numbers: `select 42-58`
 
 ```
 file `src/service.ts`
@@ -289,3 +289,4 @@ Pick any termination code that does not appear in the text you're matching or in
 - **Prefer heredoc patterns over regexes** - they are easier to read, less error-prone, and match exactly what you write. Only use regexes when you need their power (wildcards, character classes, etc.).
 - For regex, to match a literal backslash in the file, escape it with another backslash (e.g. /\\/ matches a single backslash).
 - When pattern matching is difficult due to complex escaping, use line-number selection (e.g. select 42:) as a fallback.
+- You're really bad at counting lines. Whenever using line or line:col ranges, first use a `select` to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.

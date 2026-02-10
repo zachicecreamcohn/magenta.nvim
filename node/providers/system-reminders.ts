@@ -9,7 +9,13 @@ const EDL_REMINDER = `\
 CRITICAL: When using the edl tool, NEVER use large multi-line heredoc patterns in select/select_one. Large text blocks are fragile and wasteful.
 Instead, use line ranges (select 42-58), or select the first line then extend_forward to the last line boundary.
 WRONG: select_one with 5+ lines of text in a heredoc
-RIGHT: select_one first line, then extend_forward to match the end`;
+RIGHT: select_one first line, then extend_forward to match the end
+
+
+CRITICAL: You're really bad at counting lines. Whenever using line or line:col ranges, first use a select to confirm that you're targeting the appropriate place in the code. The tool output will show you what text you're actually going to be operating on. Only once you confirm that you're going to be editing the right location, do the actual edit in a followup operation.
+WRONG: select_one 55-57 -> delete in one script
+RIGHT: select_one 55-57 in the first script, then confirm the selection in the tool response, then select_one 55-57 -> delete in the second script
+`;
 
 const BASH_REMINDER = `\
 CRITICAL: When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.

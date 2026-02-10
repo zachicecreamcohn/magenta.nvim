@@ -1,5 +1,5 @@
 import * as GetFile from "./getFile.ts";
-import * as ListDirectory from "./listDirectory.ts";
+
 import * as Hover from "./hover.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as Diagnostics from "./diagnostics.ts";
@@ -118,12 +118,7 @@ export function createTool(
       });
     }
 
-    case "list_directory": {
-      return new ListDirectory.ListDirectoryTool(staticRequest, {
-        ...context,
-        myDispatch: wrapDispatch,
-      });
-    }
+
 
     case "hover": {
       return new Hover.HoverTool(staticRequest, {
