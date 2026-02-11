@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import fs from "node:fs/promises";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -36,8 +35,16 @@ describe("src/logger.test.ts", () => {
         expect(logLines.length, `logContent: ${logContent}`).toBe(3);
 
         // Parse and verify each line
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-        const logs = logLines.map((line) => JSON.parse(line));
+
+        const logs: { level: string; message: string; timestamp: string }[] =
+          logLines.map(
+            (line) =>
+              JSON.parse(line) as {
+                level: string;
+                message: string;
+                timestamp: string;
+              },
+          );
 
         // Check error message
         expect(logs[0].level).toBe("error");
