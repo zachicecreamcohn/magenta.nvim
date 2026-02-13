@@ -278,6 +278,7 @@ export class MockStream implements MockMessageStream {
         cache_read_input_tokens: usage.cacheHits ?? null,
         cache_creation_input_tokens: usage.cacheMisses ?? null,
         cache_creation: null,
+        inference_geo: null,
         server_tool_use: null,
         service_tier: null,
       },
