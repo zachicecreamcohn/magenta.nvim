@@ -285,13 +285,9 @@ export class HoverTool implements StaticTool {
                 const startLine = def.range.start.line;
                 const endLine = def.range.end.line;
 
-                // Extract lines around the definition with some context
-                const contextLines = 20;
+                // Use LSP range to get the full definition scope, with a couple lines of context
                 const extractStart = Math.max(0, startLine - 2);
-                const extractEnd = Math.min(
-                  lines.length,
-                  endLine + contextLines + 1,
-                );
+                const extractEnd = Math.min(lines.length, endLine + 1);
                 const extractedLines = lines.slice(extractStart, extractEnd);
 
                 const lineNumbers = extractedLines.map(
@@ -338,13 +334,9 @@ export class HoverTool implements StaticTool {
                 const startLine = typeDef.range.start.line;
                 const endLine = typeDef.range.end.line;
 
-                // Extract lines around the definition with some context
-                const contextLines = 20;
+                // Use LSP range to get the full definition scope, with a couple lines of context
                 const extractStart = Math.max(0, startLine - 2);
-                const extractEnd = Math.min(
-                  lines.length,
-                  endLine + contextLines + 1,
-                );
+                const extractEnd = Math.min(lines.length, endLine + 1);
                 const extractedLines = lines.slice(extractStart, extractEnd);
 
                 const lineNumbers = extractedLines.map(
