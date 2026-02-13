@@ -27,6 +27,7 @@ import type {
   ToolName,
   DisplayContext,
 } from "./types.ts";
+import fs from "fs/promises";
 
 export type ToolRequest = GenericToolRequest<"hover", Input>;
 
@@ -274,6 +275,34 @@ export class HoverTool implements StaticTool {
             const line = def.range.start.line + 1;
             const char = def.range.start.character + 1;
             content += `  ${pathForDisplay}:${line}:${char}\n`;
+
+            // Include source code if requested
+            if (this.request.input.includeSource) {
+              try {
+                const fileContent = await fs.readFile(absolutePath, "utf-8");
+                const lines = fileContent.split("\n");
+
+                const startLine = def.range.start.line;
+                const endLine = def.range.end.line;
+
+                // Extract lines around the definition with some context
+                const contextLines = 20;
+                const extractStart = Math.max(0, startLine - 2);
+                const extractEnd = Math.min(
+                  lines.length,
+                  endLine + contextLines + 1,
+                );
+                const extractedLines = lines.slice(extractStart, extractEnd);
+
+                const lineNumbers = extractedLines.map(
+                  (line, i) => `${extractStart + i + 1}: ${line}`,
+                );
+
+                content += `\n\`\`\`\n${lineNumbers.join("\n")}\n\`\`\`\n`;
+              } catch (readError) {
+                content += `\n(Unable to read source: ${readError instanceof Error ? readError.message : String(readError)})\n`;
+              }
+            }
           }
         }
       }
@@ -299,6 +328,34 @@ export class HoverTool implements StaticTool {
             const line = typeDef.range.start.line + 1;
             const char = typeDef.range.start.character + 1;
             content += `  ${pathForDisplay}:${line}:${char}\n`;
+
+            // Include source code if requested
+            if (this.request.input.includeSource) {
+              try {
+                const fileContent = await fs.readFile(absolutePath, "utf-8");
+                const lines = fileContent.split("\n");
+
+                const startLine = typeDef.range.start.line;
+                const endLine = typeDef.range.end.line;
+
+                // Extract lines around the definition with some context
+                const contextLines = 20;
+                const extractStart = Math.max(0, startLine - 2);
+                const extractEnd = Math.min(
+                  lines.length,
+                  endLine + contextLines + 1,
+                );
+                const extractedLines = lines.slice(extractStart, extractEnd);
+
+                const lineNumbers = extractedLines.map(
+                  (line, i) => `${extractStart + i + 1}: ${line}`,
+                );
+
+                content += `\n\`\`\`\n${lineNumbers.join("\n")}\n\`\`\`\n`;
+              } catch (readError) {
+                content += `\n(Unable to read source: ${readError instanceof Error ? readError.message : String(readError)})\n`;
+              }
+            }
           }
         }
       }
@@ -429,6 +486,11 @@ For example, if you have multiple instances of a variable "res":
 You could use context "  const res = request2()" to specify the second instance. Context should match the content of the file exactly, including whitespace.
 If context is provided but not found in the file, the tool will fail.`,
       },
+      includeSource: {
+        type: "boolean",
+        description:
+          "If true, include the source code from the definition location. This is useful for understanding how a function, class, or variable is implemented, especially for symbols defined in external packages or node_modules. Default is false.",
+      },
     },
     required: ["filePath", "symbol"],
   },
@@ -438,6 +500,7 @@ export type Input = {
   filePath: UnresolvedFilePath;
   symbol: string;
   context?: string;
+  includeSource?: boolean;
 };
 
 export function validateInput(input: {
@@ -453,6 +516,16 @@ export function validateInput(input: {
 
   if (input.context !== undefined && typeof input.context != "string") {
     return { status: "error", error: "expected input.context to be a string" };
+  }
+
+  if (
+    input.includeSource !== undefined &&
+    typeof input.includeSource != "boolean"
+  ) {
+    return {
+      status: "error",
+      error: "expected input.includeSource to be a boolean",
+    };
   }
 
   return {
