@@ -245,6 +245,7 @@ export class HoverTool implements StaticTool {
         uri: string;
         range: LspRange;
       } | null => {
+        if (!def) return null;
         if ("uri" in def && "range" in def) {
           return { uri: def.uri, range: def.range };
         }
