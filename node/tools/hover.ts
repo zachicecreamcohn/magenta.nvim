@@ -355,7 +355,6 @@ export class HoverTool implements StaticTool {
 
       if (this.aborted) return;
 
-      // If we got no information at all, provide a helpful message
       if (!content.trim()) {
         content = `No hover information or definition found for symbol "${this.request.input.symbol}".`;
       }
