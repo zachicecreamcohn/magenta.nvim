@@ -232,7 +232,7 @@ export class HoverTool implements StaticTool {
 
       // Add hover information
       for (const lspResult of hoverResult) {
-        if (lspResult != null) {
+        if (lspResult?.result?.contents?.value) {
           content += `${lspResult.result.contents.value}
 `;
         }
@@ -353,6 +353,12 @@ export class HoverTool implements StaticTool {
       }
 
       if (this.aborted) return;
+
+      // If we got no information at all, provide a helpful message
+      if (!content.trim()) {
+        content = `No hover information or definition found for symbol "${this.request.input.symbol}".`;
+      }
+
       this.context.myDispatch({
         type: "finish",
         result: {
