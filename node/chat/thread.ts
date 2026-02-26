@@ -20,6 +20,8 @@ import {
   type EdlRegisters,
   type FileIO,
   type ContextTracker,
+  provisionContainer,
+  type ContainerConfig,
 } from "@magenta/core";
 
 import type { Nvim } from "../nvim/nvim-node/index.ts";
@@ -64,6 +66,7 @@ import {
   CompactionManager,
   type CompactionResult,
 } from "./compaction-manager.ts";
+import type { ThreadSupervisor } from "./thread-supervisor.ts";
 
 export type InputMessage =
   | {
@@ -224,6 +227,7 @@ export class Thread {
   public permissionShell: PermissionCheckingShell | undefined;
   public shell: Shell;
   public compactionManager: CompactionManager | undefined;
+  public supervisor: ThreadSupervisor | undefined;
 
   constructor(
     public id: ThreadId,
@@ -527,6 +531,17 @@ export class Thread {
         fileIO: this.fileIO,
         shell: this.shell,
         threadManager: this.context.chat,
+        containerProvisioner: this.context.options.container
+          ? {
+              containerConfig: this.context.options.container,
+              provision: (opts: {
+                repoPath: string;
+                branch: string;
+                containerConfig: ContainerConfig;
+                onProgress?: (message: string) => void;
+              }) => provisionContainer(opts),
+            }
+          : undefined,
         requestRender: () =>
           this.context.dispatch({
             type: "thread-msg",
@@ -698,6 +713,16 @@ export class Thread {
 
     // Handle stopped state - check for pending messages
     const autoRespondResult = this.maybeAutoRespond();
+
+    if (autoRespondResult.type === "no-action-needed" && this.supervisor) {
+      const action = this.supervisor.onEndTurnWithoutYield();
+      if (action.type === "send-message") {
+        this.sendMessage([{ type: "system", text: action.text }]).catch(
+          this.handleSendMessageError.bind(this),
+        );
+        return;
+      }
+    }
 
     if (autoRespondResult.type !== "did-autorespond") {
       this.playChimeIfNeeded();
@@ -883,9 +908,17 @@ export class Thread {
       }> = [];
       for (const [toolId, entry] of mode.activeTools) {
         if (entry.toolName === "yield_to_parent") {
-          this.state.yieldedResponse = (
-            entry.request.input as { result: string }
-          ).result;
+          const yieldResult = (entry.request.input as { result: string })
+            .result;
+
+          if (this.supervisor) {
+            this.handleSupervisedYield(yieldResult).catch(
+              this.handleSendMessageError.bind(this),
+            );
+            return { type: "yielded-to-parent" };
+          }
+
+          this.state.yieldedResponse = yieldResult;
           return { type: "yielded-to-parent" };
         }
 
@@ -922,6 +955,26 @@ export class Thread {
       return { type: "did-autorespond" };
     }
     return { type: "no-action-needed" };
+  }
+
+  private async handleSupervisedYield(yieldResult: string): Promise<void> {
+    const action = await this.supervisor!.onYield(yieldResult);
+    switch (action.type) {
+      case "accept":
+        this.state.yieldedResponse = yieldResult;
+        break;
+      case "reject":
+        this.state.mode = { type: "normal" };
+        await this.sendMessage([{ type: "system", text: action.message }]);
+        break;
+      case "send-message":
+        this.state.mode = { type: "normal" };
+        await this.sendMessage([{ type: "system", text: action.text }]);
+        break;
+      case "none":
+        this.state.yieldedResponse = yieldResult;
+        break;
+    }
   }
 
   private async getAndPrepareContextUpdates(): Promise<{

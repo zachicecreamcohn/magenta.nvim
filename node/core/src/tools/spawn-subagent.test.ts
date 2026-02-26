@@ -3,6 +3,7 @@ import * as SpawnSubagent from "./spawn-subagent.ts";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
 import type { ThreadId } from "../chat-types.ts";
 import type { ToolRequestId } from "../tool-types.ts";
+import type { NvimCwd } from "../utils/files.ts";
 import type { ProviderToolResult } from "../providers/provider-types.ts";
 
 function createMockThreadManager(
@@ -43,6 +44,7 @@ describe("spawn-subagent unit tests", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
       },
     );
 
@@ -66,6 +68,7 @@ describe("spawn-subagent unit tests", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
       },
     );
 
@@ -88,6 +91,7 @@ describe("spawn-subagent unit tests", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
       },
     );
 
@@ -107,6 +111,7 @@ describe("spawn-subagent unit tests", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
       },
     );
 
@@ -125,6 +130,7 @@ describe("spawn-subagent unit tests", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
       },
     );
 
@@ -158,6 +164,7 @@ describe("spawn-subagent unit tests", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
       });
 
       await vi.waitFor(() => {

@@ -2,12 +2,21 @@ import type { ThreadId, ThreadType } from "../chat-types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
 
+export type DockerSpawnConfig = {
+  branch: string;
+  containerName: string;
+  tempDir: string;
+  imageName: string;
+  workspacePath: string;
+};
+
 export interface ThreadManager {
   spawnThread(opts: {
     parentThreadId: ThreadId;
     prompt: string;
     threadType: ThreadType;
     contextFiles?: UnresolvedFilePath[];
+    dockerSpawnConfig?: DockerSpawnConfig;
   }): Promise<ThreadId>;
 
   waitForThread(threadId: ThreadId): Promise<Result<string>>;

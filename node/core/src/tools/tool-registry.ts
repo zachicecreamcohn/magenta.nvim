@@ -27,6 +27,10 @@ export const CHAT_STATIC_TOOL_NAMES: StaticToolName[] = [
 ];
 
 export const COMPACT_STATIC_TOOL_NAMES: StaticToolName[] = ["get_file", "edl"];
+export const DOCKER_ROOT_STATIC_TOOL_NAMES: StaticToolName[] = [
+  ...CHAT_STATIC_TOOL_NAMES,
+  "yield_to_parent",
+];
 export const SUBAGENT_STATIC_TOOL_NAMES: StaticToolName[] = [
   "get_file",
   "hover",

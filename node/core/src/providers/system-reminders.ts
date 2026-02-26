@@ -43,6 +43,15 @@ export function getSubsequentReminder(threadType: ThreadType): string {
   switch (threadType) {
     case "root":
       return BASE_REMINDER;
+    case "docker_root":
+      return `<system-reminder>
+${SKILLS_REMINDER}
+${BASH_REMINDER}
+${EDL_REMINDER}
+${EXPLORE_REMINDER}
+
+CRITICAL: You are in a Docker container. Commit all changes with git and call yield_to_parent when done. Your working tree must be clean before yielding.
+</system-reminder>`;
     case "subagent_default":
     case "subagent_fast":
       return SUBAGENT_REMINDER;

@@ -4,6 +4,7 @@ import type { RootMsg } from "../root-msg.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import { Thread, type InputMessage } from "./thread.ts";
 import { view as threadView } from "./thread-view.ts";
+import { DockerSupervisor } from "./thread-supervisor.ts";
 import type { Lsp } from "../capabilities/lsp.ts";
 import {
   createLocalEnvironment,
@@ -29,7 +30,10 @@ import {
   type UnresolvedFilePath,
 } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
-import type { ThreadManager } from "../capabilities/thread-manager.ts";
+import type {
+  ThreadManager,
+  DockerSpawnConfig,
+} from "../capabilities/thread-manager.ts";
 
 import { MCPToolManagerImpl } from "@magenta/core";
 import type { ThreadId, ThreadType } from "./types.ts";
@@ -49,6 +53,7 @@ type ThreadWrapper = (
     }
 ) & {
   parentThreadId: ThreadId | undefined;
+  depth: number;
 };
 
 type ChatState =
@@ -88,12 +93,6 @@ export type Msg =
     }
   | {
       type: "threads-overview";
-    }
-  | {
-      type: "new-docker-thread";
-      branch: string;
-      container: string;
-      cwd: string;
     };
 
 export type ChatMsg = {
@@ -210,6 +209,7 @@ export class Chat implements ThreadManager {
           state: "initialized",
           thread: msg.thread,
           parentThreadId: prev.parentThreadId,
+          depth: prev.depth,
         };
         this.threadWrappers[msg.thread.id] = wrapper;
 
@@ -239,6 +239,7 @@ export class Chat implements ThreadManager {
           state: "error",
           error: msg.error,
           parentThreadId: thread.parentThreadId,
+          depth: thread.depth,
         };
 
         if (this.state.state === "thread-selected") {
@@ -322,14 +323,6 @@ export class Chat implements ThreadManager {
         };
         return;
 
-      case "new-docker-thread": {
-        this.handleNewDockerThread(msg).catch((e: Error) => {
-          this.context.nvim.logger.error(
-            "Failed to create docker thread: " + e.message + "\n" + e.stack,
-          );
-        });
-        return;
-      }
       case "fork-thread": {
         this.handleForkThread(msg).catch((e: Error) => {
           this.context.nvim.logger.error(
@@ -381,6 +374,7 @@ export class Chat implements ThreadManager {
     threadType,
     fileIO,
     environmentConfig,
+    dockerSpawnConfig,
   }: {
     threadId: ThreadId;
     profile: Profile;
@@ -391,10 +385,12 @@ export class Chat implements ThreadManager {
     threadType: ThreadType;
     fileIO?: FileIO;
     environmentConfig?: EnvironmentConfig;
+    dockerSpawnConfig?: DockerSpawnConfig | undefined;
   }) {
     this.threadWrappers[threadId] = {
       state: "pending",
       parentThreadId: parent,
+      depth: parent ? (this.threadWrappers[parent]?.depth ?? 0) + 1 : 0,
     };
 
     const [autoContextFiles, systemPrompt] = await Promise.all([
@@ -489,6 +485,20 @@ export class Chat implements ThreadManager {
       environment,
     });
 
+    if (dockerSpawnConfig && this.context.options.container) {
+      thread.supervisor = new DockerSupervisor(
+        environment.shell,
+        {
+          containerName: dockerSpawnConfig.containerName,
+          tempDir: dockerSpawnConfig.tempDir,
+          imageName: dockerSpawnConfig.imageName,
+        },
+        this.context.options.container,
+        dockerSpawnConfig.branch,
+        this.context.cwd,
+      );
+    }
+
     this.context.dispatch({
       type: "chat-msg",
       msg: {
@@ -535,54 +545,18 @@ export class Chat implements ThreadManager {
     });
   }
 
-  private async handleNewDockerThread(msg: {
-    type: "new-docker-thread";
-    branch: string;
-    container: string;
-    cwd: string;
-  }) {
-    const id = uuidv7() as ThreadId;
-
-    await this.createThreadWithContext({
-      threadId: id,
-      profile: getActiveProfile(
-        this.context.options.profiles,
-        this.context.options.activeProfile,
-      ),
-      switchToThread: true,
-      threadType: "root",
-      environmentConfig: {
-        type: "docker",
-        container: msg.container,
-        cwd: msg.cwd,
-      },
-    });
-  }
-  private buildThreadHierarchy(): {
-    rootThreads: ThreadId[];
-    childrenMap: Map<ThreadId, ThreadId[]>;
-  } {
+  private buildChildrenMap(): Map<ThreadId, ThreadId[]> {
     const childrenMap = new Map<ThreadId, ThreadId[]>();
-    const rootThreads: ThreadId[] = [];
-
-    // Iterate through all threads to build hierarchy
     for (const [idStr, threadWrapper] of Object.entries(this.threadWrappers)) {
-      const threadId = idStr as ThreadId;
       const parentId = threadWrapper.parentThreadId;
-
-      if (parentId === undefined) {
-        // This is a root thread
-        rootThreads.push(threadId);
-      } else {
-        // This is a child thread, add to parent's children
+      if (parentId !== undefined) {
         if (!childrenMap.has(parentId)) {
           childrenMap.set(parentId, []);
         }
-        childrenMap.get(parentId)!.push(threadId);
+        childrenMap.get(parentId)!.push(idStr as ThreadId);
       }
     }
-
-    return { rootThreads, childrenMap };
+    return childrenMap;
   }
 
   private formatThreadStatus(threadId: ThreadId): string {
@@ -646,13 +620,13 @@ export class Chat implements ThreadManager {
 
   private renderThread(
     threadId: ThreadId,
-    isChild: boolean,
+    depth: number,
     activeThreadId: ThreadId | undefined,
   ): VDOMNode {
     const displayName = this.getThreadDisplayName(threadId);
     const status = this.formatThreadStatus(threadId);
     const marker = threadId === activeThreadId ? "*" : "-";
-    const indent = isChild ? "  " : "";
+    const indent = "  ".repeat(depth);
 
     const displayLine = `${indent}${marker} ${displayName}: ${status}`;
 
@@ -668,6 +642,20 @@ export class Chat implements ThreadManager {
     });
   }
 
+  private renderThreadSubtree(
+    threadId: ThreadId,
+    childrenMap: Map<ThreadId, ThreadId[]>,
+    activeThreadId: ThreadId | undefined,
+    views: VDOMNode[],
+  ) {
+    const wrapper = this.threadWrappers[threadId];
+    views.push(this.renderThread(threadId, wrapper.depth, activeThreadId));
+    const children = childrenMap.get(threadId) || [];
+    for (const childId of children) {
+      this.renderThreadSubtree(childId, childrenMap, activeThreadId, views);
+    }
+  }
+
   renderThreadOverview() {
     if (Object.keys(this.threadWrappers).length === 0) {
       return d`# Threads
@@ -675,21 +663,16 @@ export class Chat implements ThreadManager {
 No threads yet`;
     }
 
-    const { rootThreads, childrenMap } = this.buildThreadHierarchy();
+    const childrenMap = this.buildChildrenMap();
     const threadViews: VDOMNode[] = [];
 
-    // Render all root threads and their children
-    for (const rootThreadId of rootThreads) {
-      // Render the root thread
-      threadViews.push(
-        this.renderThread(rootThreadId, false, this.state.activeThreadId),
-      );
-
-      // Render children of this root thread
-      const children = childrenMap.get(rootThreadId) || [];
-      for (const childThreadId of children) {
-        threadViews.push(
-          this.renderThread(childThreadId, true, this.state.activeThreadId),
+    for (const [idStr, wrapper] of Object.entries(this.threadWrappers)) {
+      if (wrapper.parentThreadId === undefined) {
+        this.renderThreadSubtree(
+          idStr as ThreadId,
+          childrenMap,
+          this.state.activeThreadId,
+          threadViews,
         );
       }
     }
@@ -752,6 +735,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     this.threadWrappers[newThreadId] = {
       state: "pending",
       parentThreadId: undefined,
+      depth: 0,
     };
 
     const [autoContextFiles, systemPrompt] = await Promise.all([
@@ -1054,6 +1038,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     prompt: string;
     threadType: ThreadType;
     contextFiles?: UnresolvedFilePath[];
+    dockerSpawnConfig?: DockerSpawnConfig;
   }): Promise<ThreadId> {
     const parentThreadId = opts.parentThreadId;
     const parentThreadWrapper = this.threadWrappers[parentThreadId];
@@ -1074,6 +1059,17 @@ ${threadViews.map((view) => d`${view}\n`)}`;
           }
         : parentThread.state.profile;
 
+    let environmentConfig: EnvironmentConfig;
+    if (opts.dockerSpawnConfig) {
+      environmentConfig = {
+        type: "docker",
+        container: opts.dockerSpawnConfig.containerName,
+        cwd: opts.dockerSpawnConfig.workspacePath,
+      };
+    } else {
+      environmentConfig = parentThread.context.environment.environmentConfig;
+    }
+
     const thread = await this.createThreadWithContext({
       threadId: subagentThreadId,
       profile: subagentProfile,
@@ -1082,7 +1078,8 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       switchToThread: false,
       inputMessages: [{ type: "system", text: opts.prompt }],
       threadType: opts.threadType,
-      environmentConfig: parentThread.context.environment.environmentConfig,
+      environmentConfig,
+      dockerSpawnConfig: opts.dockerSpawnConfig,
     });
 
     return thread.id;

@@ -20,6 +20,7 @@ import {
   CHAT_STATIC_TOOL_NAMES,
   COMPACT_STATIC_TOOL_NAMES,
   SUBAGENT_STATIC_TOOL_NAMES,
+  DOCKER_ROOT_STATIC_TOOL_NAMES,
   TOOL_REQUIRED_CAPABILITIES,
   type StaticToolName,
   type ToolCapability,
@@ -94,6 +95,9 @@ export function getToolSpecs(
       break;
     case "compact":
       staticToolNames = COMPACT_STATIC_TOOL_NAMES;
+      break;
+    case "docker_root":
+      staticToolNames = DOCKER_ROOT_STATIC_TOOL_NAMES;
       break;
     case "root":
       staticToolNames = CHAT_STATIC_TOOL_NAMES;

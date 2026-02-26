@@ -185,7 +185,10 @@ export type {
   OnToolApplied,
 } from "./capabilities/context-tracker.ts";
 export type { Shell, ShellResult, OutputLine } from "./capabilities/shell.ts";
-export type { ThreadManager } from "./capabilities/thread-manager.ts";
+export type {
+  ThreadManager,
+  DockerSpawnConfig,
+} from "./capabilities/thread-manager.ts";
 export type {
   MCPServerConfig,
   MCPServersConfig,
