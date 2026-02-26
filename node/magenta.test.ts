@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { withDriver } from "./test/preamble.ts";
 import type { Position0Indexed } from "./nvim/window.ts";
-import { LOGO } from "./chat/thread.ts";
+import { LOGO } from "./chat/thread-view.ts";
 import type { ToolRequestId, ToolName } from "@magenta/core";
 import type { UnresolvedFilePath } from "./utils/files.ts";
 import { writeFile, mkdir } from "node:fs/promises";

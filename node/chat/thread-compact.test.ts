@@ -586,7 +586,7 @@ it("auto-compact triggers when inputTokenCount exceeds 80% of context window", a
     // Verify the nextPrompt was preserved
     if (originalThread.state.mode.type !== "compacting")
       throw new Error("expected compacting");
-    expect(originalThread.state.mode.nextPrompt).toBe(
+    expect(originalThread.compactionManager?.nextPrompt).toBe(
       "Now help me with multiplication",
     );
 
@@ -732,8 +732,8 @@ it("compaction history records steps from multi-chunk compaction", async () => {
     // Verify we got multiple chunks
     if (thread.state.mode.type !== "compacting")
       throw new Error("not compacting");
-    expect(thread.state.mode.chunks.length).toBeGreaterThanOrEqual(2);
-    const totalChunks = thread.state.mode.chunks.length;
+    expect(thread.compactionManager!.chunks.length).toBeGreaterThanOrEqual(2);
+    const totalChunks = thread.compactionManager!.chunks.length;
 
     // === Process chunk 1 ===
     const chunk1Stream = await driver.mockAnthropic.awaitPendingStream({

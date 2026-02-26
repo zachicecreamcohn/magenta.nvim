@@ -2,7 +2,8 @@ import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { MagentaOptions, Profile } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { Dispatch } from "../tea/tea.ts";
-import { Thread, view as threadView, type InputMessage } from "./thread.ts";
+import { Thread, type InputMessage } from "./thread.ts";
+import { view as threadView } from "./thread-view.ts";
 import type { Lsp } from "../capabilities/lsp.ts";
 import {
   createLocalEnvironment,

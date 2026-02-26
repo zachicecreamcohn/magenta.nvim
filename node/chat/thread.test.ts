@@ -1,5 +1,5 @@
 import { withDriver } from "../test/preamble.ts";
-import { LOGO } from "./thread.ts";
+import { LOGO } from "./thread-view.ts";
 import { type ToolRequestId, type ToolName } from "@magenta/core";
 import { expect, it } from "vitest";
 import type { UnresolvedFilePath } from "../utils/files.ts";

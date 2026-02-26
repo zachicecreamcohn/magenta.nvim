@@ -191,4 +191,3 @@ The supervisor is an optional config object passed to the thread at construction
 - [ ] If keeping: refactor to share provisioning logic with spawn_subagent
 - [ ] If removing: remove the `docker` and `docker-stop` cases from `magenta.ts` and the `dockerProvisions` map
 - [ ] Update `plans/dev-container.md` to reflect the new architecture
-

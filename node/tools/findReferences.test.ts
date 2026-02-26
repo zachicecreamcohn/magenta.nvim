@@ -6,7 +6,7 @@ import {
 } from "@magenta/core";
 import { describe, it, expect } from "vitest";
 import { withDriver, normalizePaths } from "../test/preamble.ts";
-import { findToolResult } from "../chat/thread.ts";
+import { findToolResult } from "../chat/thread-view.ts";
 
 describe("node/tools/findReferences.test.ts", () => {
   it("findReferences end-to-end", async () => {

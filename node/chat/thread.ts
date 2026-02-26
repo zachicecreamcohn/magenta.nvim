@@ -6,16 +6,9 @@ import {
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
 
 import { type Dispatch } from "../tea/tea.ts";
-import {
-  d,
-  type View,
-  type VDOMNode,
-  withBindings,
-  withExtmark,
-} from "../tea/view.ts";
+
 import {
   type ToolRequestId,
-  type CompletedToolInfo,
   getToolSpecs,
   createTool,
   type CreateToolContext,
@@ -26,17 +19,8 @@ import {
   ThreadTitle,
   type EdlRegisters,
   type FileIO,
-  InMemoryFileIO,
   type ContextTracker,
 } from "@magenta/core";
-import {
-  renderCompletedToolSummary,
-  renderCompletedToolPreview,
-  renderCompletedToolDetail,
-  renderInFlightToolSummary,
-  renderInFlightToolPreview,
-  renderInFlightToolDetail,
-} from "../render-tools/index.ts";
 
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 
@@ -50,7 +34,6 @@ import {
   type AgentMsg,
   type ProviderToolResult,
   type StopReason,
-  type Usage,
 } from "../providers/provider.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type MagentaOptions, type Profile } from "../options.ts";
@@ -64,7 +47,7 @@ import {
 import type { Chat } from "./chat.ts";
 import type { ThreadId, ThreadType } from "./types.ts";
 import type { SystemPrompt } from "../providers/system-prompt.ts";
-import { readFileSync } from "fs";
+
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import player from "play-sound";
@@ -75,16 +58,12 @@ import type { PermissionCheckingFileIO } from "../capabilities/permission-file-i
 import type { PermissionCheckingShell } from "../capabilities/permission-shell.ts";
 import type { Shell } from "../capabilities/shell.ts";
 import type { Environment } from "../environment.ts";
-import {
-  renderThreadToMarkdown,
-  chunkMessages,
-  CHARS_PER_TOKEN,
-  TARGET_CHUNK_TOKENS,
-  TOLERANCE_TOKENS,
-} from "./compact-renderer.ts";
 
-import { renderStreamdedTool } from "../render-tools/streaming.ts";
 import { getContextWindowForModel } from "../providers/anthropic-agent.ts";
+import {
+  CompactionManager,
+  type CompactionResult,
+} from "./compaction-manager.ts";
 
 export type InputMessage =
   | {
@@ -203,17 +182,7 @@ export type CompactionRecord = {
 export type ConversationMode =
   | { type: "normal" }
   | { type: "tool_use"; activeTools: Map<ToolRequestId, ActiveToolEntry> }
-  | {
-      type: "compacting";
-      nextPrompt?: string;
-      chunks: string[];
-      currentChunkIndex: number;
-      compactFileIO: InMemoryFileIO;
-      compactAgent: Agent;
-      compactActiveTools: Map<ToolRequestId, ActiveToolEntry>;
-      compactEdlRegisters: EdlRegisters;
-      steps: CompactionStep[];
-    };
+  | { type: "compacting" };
 
 /** Minimum output tokens between system reminders during auto-respond loops */
 const SYSTEM_REMINDER_MIN_TOKEN_INTERVAL = 2000;
@@ -254,6 +223,7 @@ export class Thread {
   public fileIO: FileIO;
   public permissionShell: PermissionCheckingShell | undefined;
   public shell: Shell;
+  public compactionManager: CompactionManager | undefined;
 
   constructor(
     public id: ThreadId,
@@ -457,7 +427,7 @@ export class Thread {
         // no-op: re-render is triggered by the dispatch itself
         return;
       case "compact-agent-msg":
-        this.handleCompactAgentMsg(msg.msg);
+        this.compactionManager?.handleAgentMsg(msg.msg);
         return;
 
       case "toggle-compaction-record": {
@@ -663,6 +633,45 @@ export class Thread {
     this.context.contextManager = this.contextManager;
   }
 
+  private startCompaction(nextPrompt?: string): void {
+    this.compactionManager = new CompactionManager({
+      profile: this.state.profile,
+      mcpToolManager: this.context.mcpToolManager,
+      environment: this.context.environment,
+      contextManager: this.contextManager,
+      threadId: this.id,
+      dispatch: this.context.dispatch,
+      nvim: this.context.nvim,
+      options: this.context.options,
+      shell: this.shell,
+      chat: this.context.chat,
+      onComplete: (result) => this.handleCompactionResult(result),
+    });
+    this.state.mode = { type: "compacting" };
+    this.compactionManager.start(this.getProviderMessages(), nextPrompt);
+  }
+
+  private handleCompactionResult(result: CompactionResult): void {
+    this.compactionManager = undefined;
+    this.state.mode = { type: "normal" };
+
+    if (result.type === "complete") {
+      this.handleCompactComplete(
+        result.summary,
+        result.nextPrompt,
+        result.steps,
+      ).catch((e: Error) => {
+        this.context.nvim.logger.error(
+          `Failed during compact-complete: ${e.message}`,
+        );
+      });
+    } else {
+      this.state.compactionHistory.push({
+        steps: result.steps,
+        finalSummary: undefined,
+      });
+    }
+  }
   private shouldAutoCompact(): boolean {
     const inputTokenCount = this.agent.getState().inputTokenCount;
     if (inputTokenCount === undefined) return false;
@@ -670,328 +679,6 @@ export class Thread {
 
     const contextWindow = getContextWindowForModel(this.state.profile.model);
     return inputTokenCount >= contextWindow * 0.8;
-  }
-
-  private startCompaction(nextPrompt?: string): void {
-    const { markdown, messageBoundaries } = renderThreadToMarkdown(
-      this.getProviderMessages(),
-    );
-
-    const targetChunkChars = TARGET_CHUNK_TOKENS * CHARS_PER_TOKEN;
-    const toleranceChars = TOLERANCE_TOKENS * CHARS_PER_TOKEN;
-    const chunks = chunkMessages(
-      markdown,
-      messageBoundaries,
-      targetChunkChars,
-      toleranceChars,
-    );
-
-    if (chunks.length === 0) {
-      this.context.nvim.logger.warn("No chunks to compact");
-      return;
-    }
-
-    const compactFileIO = new InMemoryFileIO({ "/summary.md": "" });
-    const compactEdlRegisters: EdlRegisters = {
-      registers: new Map(),
-      nextSavedId: 0,
-    };
-    const compactAgent = this.createCompactAgent();
-
-    this.state.mode = {
-      type: "compacting",
-      ...(nextPrompt !== undefined && { nextPrompt }),
-      chunks,
-      currentChunkIndex: 0,
-      compactFileIO,
-      compactAgent,
-      compactActiveTools: new Map(),
-      compactEdlRegisters,
-      steps: [],
-    };
-
-    this.sendCompactChunkToAgent(compactAgent, chunks, 0, nextPrompt);
-  }
-
-  private createCompactAgent(): Agent {
-    const provider = getProvider(this.context.nvim, this.state.profile);
-    return provider.createAgent(
-      {
-        model: this.state.profile.fastModel,
-        systemPrompt:
-          "You are a conversation compactor. Summarize conversation transcripts into concise summaries that preserve essential information for continuing the work.",
-        tools: getToolSpecs(
-          "compact",
-          this.context.mcpToolManager,
-          this.context.environment.availableCapabilities,
-        ),
-        skipPostFlightTokenCount: true,
-      },
-      (msg) => this.myDispatch({ type: "compact-agent-msg", msg }),
-    );
-  }
-
-  private sendCompactChunkToAgent(
-    agent: Agent,
-    chunks: string[],
-    chunkIndex: number,
-    nextPrompt?: string,
-  ): void {
-    const mode = this.state.mode;
-    if (mode.type !== "compacting") return;
-
-    // Write the chunk to /chunk.md so EDL can cut/paste from it into /summary.md
-    mode.compactFileIO.writeFileSync("/chunk.md", chunks[chunkIndex]);
-
-    const isLastChunk = chunkIndex === chunks.length - 1;
-    const chunkLabel = `chunk ${chunkIndex + 1} of ${chunks.length}`;
-
-    const statusParts = [`This is ${chunkLabel}.`];
-    if (chunkIndex === 0) {
-      statusParts.push(
-        "The file /summary.md is currently empty. Write the initial summary.",
-      );
-    } else {
-      statusParts.push(
-        "Fold the essential information from the new chunk into the existing /summary.md. Do NOT rewrite the summary from scratch.",
-      );
-    }
-    if (isLastChunk) {
-      statusParts.push(
-        "This is the LAST chunk. Make sure the summary is complete and well-organized.",
-      );
-    }
-
-    const nextPromptText = nextPrompt ?? "Continue from where you left off.";
-
-    const summaryContent =
-      chunkIndex > 0
-        ? (mode.compactFileIO.getFileContents("/summary.md") ?? "")
-        : "";
-
-    const prompt = COMPACT_PROMPT_TEMPLATE.replace(
-      "{{status}}",
-      statusParts.join(" "),
-    )
-      .replace("{{next_prompt}}", nextPromptText)
-      .replace("{{summary}}", summaryContent)
-      .replace("{{chunk}}", chunks[chunkIndex]);
-
-    agent.appendUserMessage([{ type: "text", text: prompt }]);
-    agent.continueConversation();
-  }
-
-  private handleCompactAgentMsg(msg: AgentMsg): void {
-    const mode = this.state.mode;
-    if (mode.type !== "compacting") {
-      this.context.nvim.logger.warn(
-        "Received compact-agent-msg while not in compacting mode",
-      );
-      return;
-    }
-
-    switch (msg.type) {
-      case "agent-content-updated":
-        return;
-
-      case "agent-error":
-        this.context.nvim.logger.error(
-          `Compact agent error: ${msg.error.message}`,
-        );
-        this.state.compactionHistory.push({
-          steps: mode.steps,
-          finalSummary: undefined,
-        });
-        this.state.mode = { type: "normal" };
-        return;
-
-      case "agent-stopped": {
-        if (msg.stopReason === "tool_use") {
-          this.handleCompactAgentToolUse(mode);
-        } else if (msg.stopReason === "end_turn") {
-          this.handleCompactChunkComplete(mode);
-        } else {
-          this.context.nvim.logger.warn(
-            `Compact agent stopped with unexpected reason: ${msg.stopReason}`,
-          );
-          this.state.compactionHistory.push({
-            steps: mode.steps,
-            finalSummary: undefined,
-          });
-          this.state.mode = { type: "normal" };
-        }
-        return;
-      }
-    }
-  }
-
-  private handleCompactAgentToolUse(
-    mode: Extract<ConversationMode, { type: "compacting" }>,
-  ): void {
-    const messages = mode.compactAgent.getState().messages;
-    const lastMessage = messages[messages.length - 1];
-
-    if (!lastMessage || lastMessage.role !== "assistant") {
-      this.context.nvim.logger.error(
-        "Compact agent tool_use but no assistant message",
-      );
-      this.state.mode = { type: "normal" };
-      return;
-    }
-
-    const activeTools = new Map<ToolRequestId, ActiveToolEntry>();
-
-    for (const block of lastMessage.content) {
-      if (block.type !== "tool_use") {
-        continue;
-      }
-
-      if (block.request.status !== "ok") {
-        mode.compactAgent.toolResult(block.id, {
-          type: "tool_result",
-          id: block.id,
-          result: {
-            status: "error",
-            error: `Malformed tool_use block: ${block.request.error}`,
-          },
-        });
-        continue;
-      }
-
-      const request = block.request.value;
-      const toolContext: CreateToolContext = {
-        mcpToolManager: this.context.mcpToolManager,
-        threadId: this.id,
-        logger: this.context.nvim.logger,
-        lspClient: this.context.environment.lspClient,
-        cwd: this.context.environment.cwd,
-        homeDir: this.context.environment.homeDir,
-        maxConcurrentSubagents:
-          this.context.options.maxConcurrentSubagents || 3,
-        contextTracker: this.contextManager as ContextTracker,
-        onToolApplied: (absFilePath, tool, fileTypeInfo) => {
-          this.contextManager.update({
-            type: "tool-applied",
-            absFilePath,
-            tool,
-            fileTypeInfo,
-          });
-        },
-        diagnosticsProvider: this.context.environment.diagnosticsProvider,
-        edlRegisters: mode.compactEdlRegisters,
-        fileIO: mode.compactFileIO,
-        shell: this.shell,
-        threadManager: this.context.chat,
-        requestRender: () =>
-          this.context.dispatch({
-            type: "thread-msg",
-            id: this.id,
-            msg: { type: "tool-progress" },
-          }),
-      };
-
-      const invocation = createTool(request, toolContext);
-      activeTools.set(request.id, {
-        handle: invocation,
-        progress: "progress" in invocation ? invocation.progress : undefined,
-        toolName: request.toolName,
-        request,
-      });
-
-      void invocation.promise
-        .then((result) => {
-          this.state.toolCache.results.set(request.id, result);
-        })
-        .catch((err: Error) => {
-          this.state.toolCache.results.set(request.id, {
-            type: "tool_result",
-            id: request.id,
-            result: {
-              status: "error",
-              error: `Tool execution failed: ${err.message}`,
-            },
-          });
-        })
-        .then(() => {
-          this.handleCompactToolCompletion();
-        });
-    }
-
-    mode.compactActiveTools = activeTools;
-  }
-
-  private handleCompactToolCompletion(): void {
-    const mode = this.state.mode;
-    if (mode.type !== "compacting") {
-      return;
-    }
-
-    // Check if all compact tools are done
-    for (const [, entry] of mode.compactActiveTools) {
-      if (!this.state.toolCache.results.has(entry.request.id)) return;
-    }
-
-    // All tools done — send results back to compact agent and continue
-    for (const [toolId, entry] of mode.compactActiveTools) {
-      const result = this.state.toolCache.results.get(entry.request.id);
-      if (result) {
-        mode.compactAgent.toolResult(toolId, result);
-      }
-    }
-    mode.compactActiveTools = new Map();
-    mode.compactAgent.continueConversation();
-  }
-
-  private handleCompactChunkComplete(
-    mode: Extract<ConversationMode, { type: "compacting" }>,
-  ): void {
-    const nextChunkIndex = mode.currentChunkIndex + 1;
-
-    // Snapshot the current agent's messages as a completed step
-    mode.steps.push({
-      chunkIndex: mode.currentChunkIndex,
-      totalChunks: mode.chunks.length,
-      messages: [...mode.compactAgent.getState().messages],
-    });
-
-    if (nextChunkIndex < mode.chunks.length) {
-      // More chunks to process — create a new compact agent for the next chunk
-      const newAgent = this.createCompactAgent();
-      mode.compactAgent = newAgent;
-      mode.currentChunkIndex = nextChunkIndex;
-      mode.compactActiveTools = new Map();
-      this.sendCompactChunkToAgent(
-        newAgent,
-        mode.chunks,
-        nextChunkIndex,
-        mode.nextPrompt,
-      );
-    } else {
-      // All chunks processed — read the final summary
-      const summary = mode.compactFileIO.getFileContents("/summary.md");
-      if (summary === undefined || summary === "") {
-        this.context.nvim.logger.error(
-          "Compact agent finished but /summary.md is empty",
-        );
-        this.state.compactionHistory.push({
-          steps: mode.steps,
-          finalSummary: undefined,
-        });
-        this.state.mode = { type: "normal" };
-        return;
-      }
-
-      const nextPrompt = mode.nextPrompt;
-      const { steps } = mode;
-      this.state.mode = { type: "normal" };
-      this.handleCompactComplete(summary, nextPrompt, steps).catch(
-        (e: Error) => {
-          this.context.nvim.logger.error(
-            `Failed during compact-complete: ${e.message}`,
-          );
-        },
-      );
-    }
   }
 
   private handleProviderStopped(stopReason: StopReason): void {
@@ -1560,645 +1247,3 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
     );
   }
 }
-
-/**
- * Helper function to render the animation frame for in-progress operations
- */
-const getAnimationFrame = (sendDate: Date): string => {
-  const frameIndex =
-    Math.floor((new Date().getTime() - sendDate.getTime()) / 333) %
-    MESSAGE_ANIMATION.length;
-
-  return MESSAGE_ANIMATION[frameIndex];
-};
-
-/**
- * Helper function to render the status message
- * Composes agent status with thread mode for complete display
- */
-const renderStatus = (
-  agentStatus: AgentStatus,
-  mode: ConversationMode,
-  latestUsage: Usage | undefined,
-  yieldedResponse: string | undefined,
-): VDOMNode => {
-  // First check mode for thread-specific states
-  if (mode.type === "tool_use") {
-    return d`Executing tools...`;
-  }
-  if (yieldedResponse !== undefined) {
-    return d`↗️ yielded to parent: ${yieldedResponse}`;
-  }
-  if (mode.type === "compacting") {
-    return d`📦 Compacting thread...`;
-  }
-
-  // Then render based on agent status
-  switch (agentStatus.type) {
-    case "streaming":
-      return d`Streaming response ${getAnimationFrame(agentStatus.startTime)}`;
-    case "stopped":
-      return renderStopReason(agentStatus.stopReason, latestUsage);
-    case "error":
-      return d`Error ${agentStatus.error.message}${
-        agentStatus.error.stack ? "\n" + agentStatus.error.stack : ""
-      }`;
-    default:
-      assertUnreachable(agentStatus);
-  }
-};
-
-function renderStopReason(
-  stopReason: StopReason,
-  usage: Usage | undefined,
-): VDOMNode {
-  const usageView = usage ? d` ${renderUsage(usage)}` : d``;
-  if (stopReason === "aborted") {
-    return d`[ABORTED] ${usageView} `;
-  }
-  return d`Stopped (${stopReason}) ${usageView} `;
-}
-
-function renderUsage(usage: Usage): VDOMNode {
-  return d`[input: ${usage.inputTokens.toString()}, output: ${usage.outputTokens.toString()}${
-    usage.cacheHits !== undefined
-      ? d`, cache hits: ${usage.cacheHits.toString()}`
-      : ""
-  }${
-    usage.cacheMisses !== undefined
-      ? d`, cache misses: ${usage.cacheMisses.toString()}`
-      : ""
-  }]`;
-}
-
-/**
- * Helper function to determine if context manager view should be shown
- */
-const shouldShowContextManager = (
-  agentStatus: AgentStatus,
-  mode: ConversationMode,
-  contextManager: ContextManager,
-): boolean => {
-  return (
-    agentStatus.type === "stopped" &&
-    mode.type === "normal" &&
-    !contextManager.isContextEmpty()
-  );
-};
-
-/**
- * Helper function to render the system prompt in collapsed/expanded state
- */
-const renderSystemPrompt = (
-  systemPrompt: SystemPrompt,
-  showSystemPrompt: boolean,
-  dispatch: Dispatch<Msg>,
-): VDOMNode => {
-  if (showSystemPrompt) {
-    return withBindings(
-      withExtmark(d`⚙️ [System Prompt]\n${systemPrompt}`, {
-        hl_group: "@comment",
-      }),
-      {
-        "<CR>": () => {
-          dispatch({ type: "toggle-system-prompt" });
-        },
-      },
-    );
-  } else {
-    const estimatedTokens = Math.round(systemPrompt.length / 4 / 1000) * 1000;
-    const tokenDisplay =
-      estimatedTokens >= 1000
-        ? `~${(estimatedTokens / 1000).toString()}K`
-        : `~${estimatedTokens.toString()}`;
-
-    return withBindings(
-      withExtmark(d`⚙️ [System Prompt ${tokenDisplay}]`, {
-        hl_group: "@comment",
-      }),
-      {
-        "<CR>": () => {
-          dispatch({ type: "toggle-system-prompt" });
-        },
-      },
-    );
-  }
-};
-
-function renderCompactionHistory(
-  history: CompactionRecord[],
-  viewState: Thread["state"]["compactionViewState"],
-  dispatch: Dispatch<Msg>,
-): VDOMNode {
-  if (history.length === 0) return d``;
-
-  return d`${history.map((record, recordIdx) => {
-    const rv = viewState[recordIdx];
-    const isExpanded = rv?.expanded || false;
-    const summaryLen = record.finalSummary?.length ?? 0;
-    const status =
-      record.finalSummary !== undefined
-        ? `summary: ${summaryLen} chars`
-        : "⚠️ failed";
-
-    const header = withBindings(
-      withExtmark(
-        d`📦 [Compaction ${(recordIdx + 1).toString()} — ${record.steps.length.toString()} step${record.steps.length === 1 ? "" : "s"}, ${status}]\n`,
-        { hl_group: "@comment" },
-      ),
-      {
-        "<CR>": () => dispatch({ type: "toggle-compaction-record", recordIdx }),
-      },
-    );
-
-    if (!isExpanded) return header;
-
-    const stepsView = record.steps.map((step, stepIdx) => {
-      const stepExpanded = rv?.expandedSteps[stepIdx] || false;
-      const stepHeader = withBindings(
-        withExtmark(
-          d`  📄 [Step ${(step.chunkIndex + 1).toString()} of ${step.totalChunks.toString()}]\n`,
-          { hl_group: "@comment" },
-        ),
-        {
-          "<CR>": () =>
-            dispatch({
-              type: "toggle-compaction-step",
-              recordIdx,
-              stepIdx,
-            }),
-        },
-      );
-
-      if (!stepExpanded) return stepHeader;
-
-      const { markdown } = renderThreadToMarkdown(step.messages);
-      return d`${stepHeader}${withExtmark(d`${markdown}\n`, { hl_group: "@comment" })}`;
-    });
-
-    const summaryView =
-      record.finalSummary !== undefined
-        ? d`  📋 Final Summary:\n${withExtmark(d`${record.finalSummary}\n`, { hl_group: "@comment" })}`
-        : d`  ⚠️ Compaction failed — no summary produced\n`;
-
-    return d`${header}${stepsView}${summaryView}`;
-  })}`;
-}
-export const view: View<{
-  thread: Thread;
-  dispatch: Dispatch<Msg>;
-}> = ({ thread, dispatch }) => {
-  const titleView = thread.state.title
-    ? d`# ${thread.state.title}`
-    : d`# [ Untitled ]`;
-
-  const systemPromptView = renderSystemPrompt(
-    thread.state.systemPrompt,
-    thread.state.showSystemPrompt,
-    dispatch,
-  );
-
-  const messages = thread.getProviderMessages();
-  const agentStatus = thread.agent.getState().status;
-  const mode = thread.state.mode;
-
-  // Show logo when empty and not busy
-  const isIdle =
-    agentStatus.type === "stopped" && agentStatus.stopReason === "end_turn";
-  if (messages.length === 0 && isIdle && mode.type === "normal") {
-    return d`\
-${titleView}
-${systemPromptView}
-
-${LOGO}
-
-magenta is for agentic flow
-
-${thread.context.contextManager.view()}`;
-  }
-
-  const latestUsage = thread.agent.getState().latestUsage;
-  const statusView = renderStatus(
-    agentStatus,
-    mode,
-    latestUsage,
-    thread.state.yieldedResponse,
-  );
-
-  const contextManagerView = shouldShowContextManager(
-    agentStatus,
-    mode,
-    thread.context.contextManager,
-  )
-    ? d`\n${thread.context.contextManager.view()}`
-    : d``;
-
-  const filePermissionView =
-    thread.permissionFileIO &&
-    thread.permissionFileIO.getPendingPermissions().size > 0
-      ? d`\n${thread.permissionFileIO.view()}`
-      : d``;
-  const shellPermissionView =
-    thread.permissionShell &&
-    thread.permissionShell.getPendingPermissions().size > 0
-      ? d`\n${thread.permissionShell.view()}`
-      : d``;
-  const permissionView = d`${filePermissionView}${shellPermissionView}`;
-  const compactionHistoryView = renderCompactionHistory(
-    thread.state.compactionHistory,
-    thread.state.compactionViewState,
-    dispatch,
-  );
-  const pendingMessagesView =
-    thread.state.pendingMessages.length > 0
-      ? d`\n✉️  ${thread.state.pendingMessages.length.toString()} pending message${thread.state.pendingMessages.length === 1 ? "" : "s"}`
-      : d``;
-
-  // Helper to check if a message is a tool-result-only user message
-  const isToolResultOnlyMessage = (msg: ProviderMessage): boolean =>
-    msg.role === "user" &&
-    msg.content.every(
-      (c) => c.type === "tool_result" || c.type === "system_reminder",
-    );
-
-  // Render messages from provider thread
-  const messagesView = messages.map((message, messageIdx) => {
-    // Skip user messages that only contain tool results (no system_reminder)
-    if (
-      message.role === "user" &&
-      message.content.every((c) => c.type === "tool_result")
-    ) {
-      return d``;
-    }
-
-    // For user messages with only tool_result and system_reminder,
-    // skip the header but show the system reminder inline
-    const isToolResultWithReminder =
-      message.role === "user" &&
-      message.content.every(
-        (c) => c.type === "tool_result" || c.type === "system_reminder",
-      ) &&
-      message.content.some((c) => c.type === "system_reminder");
-
-    // Skip "# assistant:" header if this is a continuation of a tool-use turn
-    // (i.e., previous message was a tool-result-only user message)
-    const prevMessage = messageIdx > 0 ? messages[messageIdx - 1] : undefined;
-    const isAssistantContinuation =
-      message.role === "assistant" &&
-      prevMessage &&
-      isToolResultOnlyMessage(prevMessage);
-
-    const roleHeader =
-      isToolResultWithReminder || isAssistantContinuation
-        ? d``
-        : withExtmark(d`# ${message.role}:\n`, {
-            hl_group: "@markup.heading.1.markdown",
-          });
-
-    // Get view state for this message
-    const viewState = thread.state.messageViewState[messageIdx];
-
-    // Render context updates for user messages
-    const contextUpdateView = viewState?.contextUpdates
-      ? thread.contextManager.renderContextUpdate(viewState.contextUpdates)
-      : d``;
-
-    // Render content blocks
-    const contentView = message.content.map((content, contentIdx) => {
-      const isLastBlock = contentIdx === message.content.length - 1;
-      return renderMessageContent(
-        content,
-        messageIdx,
-        contentIdx,
-        thread,
-        dispatch,
-        message.usage,
-        isLastBlock,
-      );
-    });
-
-    return d`\
-${roleHeader}\
-${contextUpdateView}\
-${contentView}`;
-  });
-
-  const streamingBlockView =
-    agentStatus.type === "streaming"
-      ? d`\n${renderStreamingBlock(thread)}\n`
-      : d``;
-
-  return d`\
-${titleView}
-${systemPromptView}
-${compactionHistoryView}
-${messagesView}\
-${streamingBlockView}\
-${contextManagerView}\
-${permissionView}\
-${pendingMessagesView}
-${statusView}`;
-};
-
-/** Render a single content block from a message */
-function renderMessageContent(
-  content: ProviderMessageContent,
-  messageIdx: number,
-  contentIdx: number,
-  thread: Thread,
-  dispatch: Dispatch<Msg>,
-  messageUsage: Usage | undefined,
-  isLastBlock: boolean,
-): VDOMNode {
-  switch (content.type) {
-    case "text":
-      return d`${content.text}\n`;
-
-    case "thinking": {
-      const viewState = thread.state.messageViewState[messageIdx];
-      const isExpanded = viewState?.expandedContent?.[contentIdx] || false;
-
-      if (isExpanded) {
-        return withBindings(
-          withExtmark(d`💭 [Thinking]\n${content.thinking}\n`, {
-            hl_group: "@comment",
-          }),
-          {
-            "<CR>": () => {
-              dispatch({
-                type: "toggle-expand-content",
-                messageIdx,
-                contentIdx,
-              });
-            },
-          },
-        );
-      } else {
-        return withBindings(
-          withExtmark(d`💭 [Thinking]\n`, { hl_group: "@comment" }),
-          {
-            "<CR>": () =>
-              dispatch({
-                type: "toggle-expand-content",
-                messageIdx,
-                contentIdx,
-              }),
-          },
-        );
-      }
-    }
-
-    case "redacted_thinking":
-      return withExtmark(d`💭 [Redacted Thinking]\n`, { hl_group: "@comment" });
-
-    case "system_reminder": {
-      const viewState = thread.state.messageViewState[messageIdx];
-      const isExpanded = viewState?.expandedContent?.[contentIdx] || false;
-
-      if (isExpanded) {
-        return withBindings(
-          withExtmark(d`📋 [System Reminder]\n${content.text}\n`, {
-            hl_group: "@comment",
-          }),
-          {
-            "<CR>": () => {
-              dispatch({
-                type: "toggle-expand-content",
-                messageIdx,
-                contentIdx,
-              });
-            },
-          },
-        );
-      } else {
-        // Render inline (no newline) so checkpoint can follow on same line
-        return withBindings(
-          withExtmark(d`📋 [System Reminder]\n`, { hl_group: "@comment" }),
-          {
-            "<CR>": () =>
-              dispatch({
-                type: "toggle-expand-content",
-                messageIdx,
-                contentIdx,
-              }),
-          },
-        );
-      }
-    }
-
-    case "tool_use": {
-      if (content.request.status === "error") {
-        return d`Malformed request: ${content.request.error}\n`;
-      }
-
-      const request = content.request.value;
-      const toolViewState = thread.state.toolViewState[request.id];
-      const showDetails = toolViewState?.details || false;
-
-      // Show usage in details if this is the last block in the message
-      const usageInDetails =
-        showDetails && isLastBlock && messageUsage
-          ? d`\n${renderUsage(messageUsage)}`
-          : d``;
-
-      // Check if tool is active (still running)
-      const activeEntry =
-        thread.state.mode.type === "tool_use" &&
-        thread.state.mode.activeTools.get(request.id);
-
-      if (activeEntry) {
-        const displayContext = {
-          cwd: thread.context.cwd,
-          homeDir: thread.context.homeDir,
-        };
-        const renderContext = {
-          getDisplayWidth: thread.context.getDisplayWidth,
-          nvim: thread.context.nvim,
-          cwd: thread.context.cwd,
-          homeDir: thread.context.homeDir,
-          options: thread.context.options,
-          dispatch: thread.context.dispatch,
-          chat: thread.context.chat,
-        };
-
-        const inFlightPreview = renderInFlightToolPreview(
-          activeEntry.request,
-          activeEntry.progress,
-          renderContext,
-        );
-
-        return withBindings(
-          d`${renderInFlightToolSummary(activeEntry.request, displayContext, activeEntry.progress)}${
-            showDetails
-              ? d`\n${renderInFlightToolDetail(activeEntry.request, activeEntry.progress, renderContext)}${usageInDetails}`
-              : inFlightPreview
-                ? d`\n${inFlightPreview}`
-                : d``
-          }\n`,
-          {
-            "<CR>": () =>
-              dispatch({
-                type: "toggle-tool-details",
-                toolRequestId: request.id,
-              }),
-            t: () => activeEntry.handle.abort(),
-          },
-        );
-      }
-
-      // Completed tool - find the result and use tool-renderers
-      const toolResult = findToolResult(thread, request.id);
-      if (!toolResult) {
-        return d`⚠️ tool result for ${request.id} not found\n`;
-      }
-
-      const completedInfo: CompletedToolInfo = {
-        request: request,
-        result: toolResult,
-      };
-
-      const renderContext = {
-        getDisplayWidth: thread.context.getDisplayWidth,
-        nvim: thread.context.nvim,
-        cwd: thread.context.cwd,
-        homeDir: thread.context.homeDir,
-        options: thread.context.options,
-        dispatch: thread.context.dispatch,
-      };
-
-      // Get preview content to check if it's empty
-      const previewContent = renderCompletedToolPreview(
-        completedInfo,
-        renderContext,
-      );
-
-      // Don't add trailing newline - let the message template handle it
-      return withBindings(
-        d`${renderCompletedToolSummary(completedInfo, thread.context.dispatch, renderContext, thread.context.chat)}${
-          showDetails
-            ? d`\n${renderCompletedToolDetail(completedInfo, renderContext)}${usageInDetails}`
-            : previewContent
-              ? d`\n${previewContent}`
-              : d``
-        }\n`,
-        {
-          "<CR>": () => {
-            dispatch({
-              type: "toggle-tool-details",
-              toolRequestId: request.id,
-            });
-          },
-        },
-      );
-    }
-
-    case "tool_result":
-      // Tool results are rendered with their corresponding tool_use
-      return d``;
-
-    case "image":
-      return d`[Image]\n`;
-
-    case "document":
-      return d`[Document${content.title ? `: ${content.title}` : ""}]\n`;
-
-    case "server_tool_use":
-      return d`🔍 Searching ${withExtmark(d`${content.input.query}`, { hl_group: "@string" })}...\n`;
-
-    case "web_search_tool_result": {
-      const viewState = thread.state.messageViewState[messageIdx];
-      const isExpanded = viewState?.expandedContent?.[contentIdx] || false;
-
-      if (
-        "type" in content.content &&
-        content.content.type === "web_search_tool_result_error"
-      ) {
-        return d`🌐 Search error: ${withExtmark(d`${content.content.error_code}`, { hl_group: "ErrorMsg" })}\n`;
-      }
-      if (Array.isArray(content.content)) {
-        const searchResults = content.content.filter(
-          (
-            r,
-          ): r is Extract<
-            (typeof content.content)[number],
-            { type: "web_search_result" }
-          > => r.type === "web_search_result",
-        );
-        if (isExpanded) {
-          const results = searchResults.map(
-            (r) =>
-              d`  [${r.title}](${r.url})${r.page_age ? ` (${r.page_age})` : ""}\n`,
-          );
-          return withBindings(d`🌐 Search results\n${results}\n`, {
-            "<CR>": () =>
-              dispatch({
-                type: "toggle-expand-content",
-                messageIdx,
-                contentIdx,
-              }),
-          });
-        }
-        return withBindings(
-          d`🌐 ${searchResults.length.toString()} search result${searchResults.length === 1 ? "" : "s"}\n`,
-          {
-            "<CR>": () =>
-              dispatch({
-                type: "toggle-expand-content",
-                messageIdx,
-                contentIdx,
-              }),
-          },
-        );
-      }
-      return d`🌐 Search results\n`;
-    }
-
-    case "context_update":
-      // Context updates are rendered via thread.state.messageViewState
-      return d``;
-
-    default:
-      return d`[Unknown content type]\n`;
-  }
-}
-
-/** Find the tool result for a given tool request ID using the cached map */
-export function findToolResult(
-  thread: Thread,
-  toolRequestId: ToolRequestId,
-): ProviderToolResult | undefined {
-  return thread.state.toolCache.results.get(toolRequestId);
-}
-
-function renderStreamingBlock(thread: Thread): string | VDOMNode {
-  const state = thread.agent.getState();
-  const block = state.streamingBlock;
-  if (!block) return d``;
-
-  switch (block.type) {
-    case "text":
-      return d`${block.text}`;
-    case "thinking": {
-      const lastLine = block.thinking.slice(
-        block.thinking.lastIndexOf("\n") + 1,
-      );
-      return withExtmark(d`\n💭 [Thinking] ${lastLine}`, {
-        hl_group: "@comment",
-      });
-    }
-    case "tool_use": {
-      return renderStreamdedTool(block);
-    }
-  }
-}
-
-const COMPACT_PROMPT_TEMPLATE = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "compact-system-prompt.md"),
-  "utf-8",
-);
-export const LOGO = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "logo.txt"),
-  "utf-8",
-);
-
-const MESSAGE_ANIMATION = ["⠁", "⠂", "⠄", "⠂"];
