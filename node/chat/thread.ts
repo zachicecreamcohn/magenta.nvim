@@ -209,6 +209,7 @@ export class Thread {
     edlRegisters: EdlRegisters;
     outputTokensSinceLastReminder: number;
     yieldedResponse?: string;
+    teardownMessage?: string;
     compactionHistory: CompactionRecord[];
     compactionViewState: {
       [recordIdx: number]: {

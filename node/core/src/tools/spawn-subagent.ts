@@ -32,6 +32,7 @@ export type ToolRequest = GenericToolRequest<"spawn_subagent", Input>;
 
 export type SpawnSubagentProgress = {
   threadId?: ThreadId;
+  provisioningMessage?: string;
 };
 
 export function execute(
@@ -89,6 +90,10 @@ export function execute(
           repoPath: context.cwd,
           branch: input.branch,
           containerConfig: provisioner.containerConfig,
+          onProgress: (message) => {
+            progress.provisioningMessage = message;
+            context.requestRender();
+          },
         });
 
         const threadId = await context.threadManager.spawnThread({

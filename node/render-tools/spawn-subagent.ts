@@ -44,6 +44,10 @@ export function renderInFlightSummary(
     return d`🚀⏳ spawn_subagent${typeLabel} (blocking): spawned ${progress.threadId}`;
   }
 
+  if (progress?.provisioningMessage) {
+    return d`🐳⚙️ spawn_subagent${typeLabel}: ${progress.provisioningMessage}`;
+  }
+
   return d`🚀⚙️ spawn_subagent${typeLabel}: ${truncate(input.prompt)}`;
 }
 
@@ -55,7 +59,14 @@ export function renderInFlightPreview(
     chat?: Chat;
   },
 ): VDOMNode {
-  if (!context.chat || !progress?.threadId) {
+  if (!progress?.threadId) {
+    if (progress?.provisioningMessage) {
+      return d`🐳 ${progress.provisioningMessage}`;
+    }
+    return d``;
+  }
+
+  if (!context.chat) {
     return d``;
   }
 

@@ -12,6 +12,7 @@ export async function teardownContainer({
   tempDir,
   volumeOverlays,
   force = false,
+  onProgress,
 }: {
   containerName: string;
   repoPath: string;
@@ -19,8 +20,10 @@ export async function teardownContainer({
   tempDir: string;
   volumeOverlays?: string[] | undefined;
   force?: boolean;
+  onProgress?: (message: string) => void;
 }): Promise<void> {
-  // Stop and remove the container
+  const progress = onProgress ?? (() => {});
+  progress("Stopping container...");
   await execFile("docker", ["rm", "-f", containerName]).catch(() => {});
 
   // Fetch only the named branch from the temp clone back into the host repo
@@ -78,7 +81,7 @@ export async function teardownContainer({
       }
     }
 
-    // Fetch the branch. Use + prefix with force to allow non-fast-forward updates.
+    progress("Fetching branch back to host repo...");
     const refspec = force ? `+${branch}:${branch}` : `${branch}:${branch}`;
     await execFile("git", ["-C", repoPath, "fetch", cloneDir, refspec]);
   }
@@ -91,6 +94,6 @@ export async function teardownContainer({
     }
   }
 
-  // Remove temp directory
+  progress("Cleaning up...");
   await fs.promises.rm(tempDir, { recursive: true, force: true });
 }

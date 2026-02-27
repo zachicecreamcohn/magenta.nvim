@@ -1,4 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
+
+vi.mock("@magenta/core", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("@magenta/core")>();
+  return {
+    ...orig,
+    teardownContainer: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
+import { teardownContainer } from "@magenta/core";
 import { DockerSupervisor } from "./thread-supervisor.ts";
 import type { Shell, ShellResult } from "../capabilities/shell.ts";
 import type { ProvisionResult, ContainerConfig } from "@magenta/core";
@@ -96,20 +106,52 @@ describe("DockerSupervisor", () => {
         "/repo" as NvimCwd,
       );
 
-      // teardownContainer will fail since there's no actual container,
-      // but we can test that it's called by mocking the module
-      // For now, just test the git status check path
-      try {
-        await supervisor.onYield("done");
-      } catch {
-        // teardownContainer will throw in test env — that's expected
-      }
+      const action = await supervisor.onYield("done");
 
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(shell.execute).toHaveBeenCalledWith(
-        "git status --porcelain",
-        expect.objectContaining({ toolRequestId: "supervisor-git-status" }),
+      expect(action).toEqual({ type: "accept" });
+      expect(teardownContainer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          containerName: "test-container",
+          branch: "feature-branch",
+        }),
       );
+    });
+
+    it("forwards onProgress to teardownContainer", async () => {
+      const shell = createMockShell({ output: [] });
+      const onProgress = vi.fn();
+      const supervisor = new DockerSupervisor(
+        shell,
+        mockProvisionResult,
+        mockContainerConfig,
+        "feature-branch",
+        "/repo" as NvimCwd,
+        { onProgress },
+      );
+
+      await supervisor.onYield("done");
+
+      expect(teardownContainer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          onProgress,
+        }),
+      );
+    });
+
+    it("does not pass onProgress when not provided", async () => {
+      const shell = createMockShell({ output: [] });
+      const supervisor = new DockerSupervisor(
+        shell,
+        mockProvisionResult,
+        mockContainerConfig,
+        "feature-branch",
+        "/repo" as NvimCwd,
+      );
+
+      await supervisor.onYield("done");
+
+      const call = vi.mocked(teardownContainer).mock.calls[0][0];
+      expect(call).not.toHaveProperty("onProgress");
     });
   });
 

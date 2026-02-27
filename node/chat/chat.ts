@@ -496,6 +496,16 @@ export class Chat implements ThreadManager {
         this.context.options.container,
         dockerSpawnConfig.branch,
         this.context.cwd,
+        {
+          onProgress: (message) => {
+            thread.state.teardownMessage = message;
+            this.context.dispatch({
+              type: "thread-msg",
+              id: thread.id,
+              msg: { type: "tool-progress" },
+            });
+          },
+        },
       );
     }
 
@@ -972,6 +982,13 @@ ${threadViews.map((view) => d`${view}\n`)}`;
               return {
                 type: "yielded" as const,
                 response: thread.state.yieldedResponse,
+              };
+            }
+
+            if (thread.state.teardownMessage) {
+              return {
+                type: "running" as const,
+                activity: `🐳 ${thread.state.teardownMessage}`,
               };
             }
 

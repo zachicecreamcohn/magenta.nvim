@@ -25,10 +25,13 @@ export class DockerSupervisor implements ThreadSupervisor {
     private containerConfig: ContainerConfig,
     private branch: string,
     private repoPath: NvimCwd,
-    opts?: { maxRestarts?: number },
+    opts?: { maxRestarts?: number; onProgress?: (message: string) => void },
   ) {
     this.maxRestarts = opts?.maxRestarts ?? 5;
+    this.onProgress = opts?.onProgress;
   }
+
+  private onProgress: ((message: string) => void) | undefined;
 
   onEndTurnWithoutYield(): SupervisorAction {
     if (this.restartCount >= this.maxRestarts) {
@@ -58,13 +61,13 @@ export class DockerSupervisor implements ThreadSupervisor {
       };
     }
 
-    // Clean yield — trigger teardown
     await teardownContainer({
       containerName: this.provisionResult.containerName,
       tempDir: this.provisionResult.tempDir,
       repoPath: this.repoPath,
       branch: this.branch,
       volumeOverlays: this.containerConfig.volumeOverlays,
+      ...(this.onProgress ? { onProgress: this.onProgress } : {}),
     });
 
     return { type: "accept" };
