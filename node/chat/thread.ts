@@ -210,6 +210,7 @@ export class Thread {
     outputTokensSinceLastReminder: number;
     yieldedResponse?: string;
     teardownMessage?: string;
+    tornDown?: boolean;
     compactionHistory: CompactionRecord[];
     compactionViewState: {
       [recordIdx: number]: {
@@ -716,7 +717,7 @@ export class Thread {
     const autoRespondResult = this.maybeAutoRespond();
 
     if (autoRespondResult.type === "no-action-needed" && this.supervisor) {
-      const action = this.supervisor.onEndTurnWithoutYield();
+      const action = this.supervisor.onEndTurnWithoutYield(stopReason);
       if (action.type === "send-message") {
         this.sendMessage([{ type: "system", text: action.text }]).catch(
           this.handleSendMessageError.bind(this),
@@ -907,20 +908,27 @@ export class Thread {
         id: ToolRequestId;
         result: ProviderToolResult;
       }> = [];
+      let yieldResult: string | undefined;
       for (const [toolId, entry] of mode.activeTools) {
         if (entry.toolName === "yield_to_parent") {
-          const yieldResult = (entry.request.input as { result: string })
-            .result;
-
-          if (this.supervisor) {
-            this.handleSupervisedYield(yieldResult).catch(
-              this.handleSendMessageError.bind(this),
-            );
-            return { type: "yielded-to-parent" };
-          }
-
-          this.state.yieldedResponse = yieldResult;
-          return { type: "yielded-to-parent" };
+          yieldResult = (entry.request.input as { result: string }).result;
+          completedTools.push({
+            id: toolId,
+            result: {
+              type: "tool_result",
+              id: toolId,
+              result: {
+                status: "ok",
+                value: [
+                  {
+                    type: "text",
+                    text: "Yield accepted. Your result has been sent to the parent thread.",
+                  },
+                ],
+              },
+            },
+          });
+          continue;
         }
 
         const cachedResult = this.state.toolCache.results.get(toolId);
@@ -932,6 +940,15 @@ export class Thread {
           id: toolId,
           result: cachedResult,
         });
+      }
+
+      if (yieldResult !== undefined) {
+        // Submit tool results back to the thread but don't continue the conversation
+        this.submitToolResultsAndStop(completedTools, yieldResult).catch(
+          this.handleSendMessageError.bind(this),
+        );
+        this.rebuildToolCache();
+        return { type: "yielded-to-parent" };
       }
 
       const pendingMessages = this.state.pendingMessages;
@@ -958,25 +975,37 @@ export class Thread {
     return { type: "no-action-needed" };
   }
 
-  private async handleSupervisedYield(yieldResult: string): Promise<void> {
-    const action = await this.supervisor!.onYield(yieldResult);
-    switch (action.type) {
-      case "accept":
-        this.state.yieldedResponse = yieldResult;
-        this.dispatchYieldComplete();
-        break;
-      case "reject":
-        this.state.mode = { type: "normal" };
-        await this.sendMessage([{ type: "system", text: action.message }]);
-        break;
-      case "send-message":
-        this.state.mode = { type: "normal" };
-        await this.sendMessage([{ type: "system", text: action.text }]);
-        break;
-      case "none":
-        this.state.yieldedResponse = yieldResult;
-        this.dispatchYieldComplete();
-        break;
+  private async submitToolResultsAndStop(
+    toolResults: Array<{ id: ToolRequestId; result: ProviderToolResult }>,
+    yieldResult: string,
+  ): Promise<void> {
+    for (const { id, result } of toolResults) {
+      this.agent.toolResult(id, result);
+    }
+    this.state.mode = { type: "normal" };
+
+    if (this.supervisor) {
+      const action = await this.supervisor.onYield(yieldResult);
+      switch (action.type) {
+        case "accept":
+          this.state.tornDown = true;
+          this.state.yieldedResponse = yieldResult;
+          this.dispatchYieldComplete();
+          break;
+        case "none":
+          this.state.yieldedResponse = yieldResult;
+          this.dispatchYieldComplete();
+          break;
+        case "reject":
+          await this.sendMessage([{ type: "system", text: action.message }]);
+          return;
+        case "send-message":
+          await this.sendMessage([{ type: "system", text: action.text }]);
+          return;
+      }
+    } else {
+      this.state.yieldedResponse = yieldResult;
+      this.dispatchYieldComplete();
     }
   }
 
@@ -1181,6 +1210,12 @@ export class Thread {
   }
 
   async sendMessage(inputMessages?: InputMessage[]): Promise<void> {
+    if (this.state.tornDown) {
+      throw new Error(
+        "This thread's container has been torn down. No further messages can be sent.",
+      );
+    }
+
     // Prepare user content
     const { content, hasContent } =
       await this.prepareUserContent(inputMessages);

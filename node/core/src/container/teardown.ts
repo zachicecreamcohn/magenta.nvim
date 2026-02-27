@@ -9,89 +9,100 @@ export async function teardownContainer({
   containerName,
   repoPath,
   branch,
+  startSha,
+  workspacePath,
   tempDir,
-  volumeOverlays,
   force = false,
   onProgress,
 }: {
   containerName: string;
   repoPath: string;
   branch: string;
+  startSha: string;
+  workspacePath: string;
   tempDir: string;
-  volumeOverlays?: string[] | undefined;
   force?: boolean;
   onProgress?: (message: string) => void;
 }): Promise<void> {
   const progress = onProgress ?? (() => {});
+
+  // Extract patches for commits the agent made (startSha..HEAD)
+  progress("Extracting patches from container...");
+  const patchDir = path.join(tempDir, "patches");
+  await fs.promises.mkdir(patchDir, { recursive: true });
+
+  const { stdout: patchOutput } = await execFile("docker", [
+    "exec",
+    "-w",
+    workspacePath,
+    containerName,
+    "git",
+    "format-patch",
+    "--stdout",
+    `${startSha}..HEAD`,
+  ]).catch(() => ({ stdout: "" }));
+
   progress("Stopping container...");
   await execFile("docker", ["rm", "-f", containerName]).catch(() => {});
 
-  // Fetch only the named branch from the temp clone back into the host repo
-  const cloneDir = path.join(tempDir, "repo");
-
-  if (fs.existsSync(cloneDir)) {
+  // Apply patches to the host repo if there are any
+  if (patchOutput.length > 0) {
     if (!force) {
-      // Check if branch exists and has diverged in the host repo
-      const hostHasRef = await execFile("git", [
+      // Check if the branch exists and has diverged
+      const hostRef = await execFile("git", [
         "-C",
         repoPath,
         "rev-parse",
         "--verify",
         branch,
       ]).then(
-        () => true,
-        () => false,
+        (r) => r.stdout.trim(),
+        () => undefined,
       );
 
-      if (hostHasRef) {
-        // Check if they've diverged: the host branch should be an ancestor of the clone branch
-        const cloneRef = await execFile("git", [
-          "-C",
-          cloneDir,
-          "rev-parse",
-          branch,
-        ]).then((r) => r.stdout.trim());
-
-        const hostRef = await execFile("git", [
-          "-C",
-          repoPath,
-          "rev-parse",
-          branch,
-        ]).then((r) => r.stdout.trim());
-
-        if (cloneRef !== hostRef) {
-          const isAncestor = await execFile("git", [
-            "-C",
-            repoPath,
-            "merge-base",
-            "--is-ancestor",
-            hostRef,
-            cloneRef,
-          ]).then(
-            () => true,
-            () => false,
-          );
-
-          if (!isAncestor) {
-            throw new Error(
-              `Branch "${branch}" has diverged in the host repo. Use force=true to overwrite.`,
-            );
-          }
-        }
+      if (hostRef !== undefined && hostRef !== startSha) {
+        throw new Error(
+          `Branch "${branch}" has diverged in the host repo. Use force=true to overwrite.`,
+        );
       }
     }
 
-    progress("Fetching branch back to host repo...");
-    const refspec = force ? `+${branch}:${branch}` : `${branch}:${branch}`;
-    await execFile("git", ["-C", repoPath, "fetch", cloneDir, refspec]);
-  }
+    progress("Applying patches to host repo...");
 
-  // Clean up volume overlays
-  if (volumeOverlays) {
-    for (const overlay of volumeOverlays) {
-      const volumeName = `${containerName}-${overlay.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-      await execFile("docker", ["volume", "rm", volumeName]).catch(() => {});
+    // Ensure the branch exists in the host repo at startSha
+    const hostHasBranch = await execFile("git", [
+      "-C",
+      repoPath,
+      "rev-parse",
+      "--verify",
+      branch,
+    ]).then(
+      () => true,
+      () => false,
+    );
+
+    if (!hostHasBranch) {
+      await execFile("git", ["-C", repoPath, "branch", branch, startSha]);
+    } else if (force) {
+      await execFile("git", ["-C", repoPath, "branch", "-f", branch, startSha]);
     }
+
+    // Write patches to a temp file and apply with git am
+    const patchFile = path.join(tempDir, "agent.patch");
+    await fs.promises.writeFile(patchFile, patchOutput);
+
+    // Get current branch so we can restore it after
+    const { stdout: currentBranch } = await execFile("git", [
+      "-C",
+      repoPath,
+      "rev-parse",
+      "--abbrev-ref",
+      "HEAD",
+    ]);
+
+    await execFile("git", ["-C", repoPath, "checkout", branch]);
+    await execFile("git", ["-C", repoPath, "am", patchFile]);
+    await execFile("git", ["-C", repoPath, "checkout", currentBranch.trim()]);
   }
 
   progress("Cleaning up...");

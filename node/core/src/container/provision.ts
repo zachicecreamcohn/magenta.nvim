@@ -31,10 +31,10 @@ export async function provisionContainer({
 
   await fs.promises.mkdir(repoDir, { recursive: true });
 
+  // Shallow-clone into a temp dir and checkout the desired branch
   progress("Cloning repository...");
-  await execFile("git", ["clone", "--local", repoPath, repoDir]);
+  await execFile("git", ["clone", "--depth=1", "--local", repoPath, repoDir]);
 
-  // Check if branch exists in the clone
   const { exitCode: branchExists } = await execFile("git", [
     "-C",
     repoDir,
@@ -59,57 +59,35 @@ export async function provisionContainer({
     ]);
   }
 
-  // Remove remote so the agent can't push
   await execFile("git", ["-C", repoDir, "remote", "remove", "origin"]);
 
+  // Record the starting commit so teardown can extract only new commits
+  const { stdout: startSha } = await execFile("git", [
+    "-C",
+    repoDir,
+    "rev-parse",
+    "HEAD",
+  ]);
+
+  // Build image using the cloned branch as context.
+  // Docker layer caching keeps the npm ci layer cached when the lockfile is unchanged.
   progress("Building Docker image...");
   const dockerfilePath = path.join(repoPath, containerConfig.devcontainer);
-  const dockerContext = path.dirname(dockerfilePath);
   const imageName = `magenta-dev-${safeBranch}`;
 
   await execFile(
     "docker",
-    ["build", "-t", imageName, "-f", dockerfilePath, dockerContext],
+    ["build", "-t", imageName, "-f", dockerfilePath, repoDir],
     { timeout: 600_000 },
   );
 
-  // Prepare docker run args
-  const runArgs = [
-    "run",
-    "-d",
-    "--name",
-    containerName,
-    "-v",
-    `${repoDir}:${containerConfig.workspacePath}`,
-  ];
-
-  // Add volume overlays to isolate platform-specific dirs
-  if (containerConfig.volumeOverlays) {
-    for (const overlay of containerConfig.volumeOverlays) {
-      const volumeName = `${containerName}-${overlay.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-      const mountPath = path.posix.join(containerConfig.workspacePath, overlay);
-      runArgs.push("-v", `${volumeName}:${mountPath}`);
-    }
-  }
-
-  runArgs.push(imageName);
   progress("Starting container...");
-  await execFile("docker", runArgs);
+  await execFile("docker", ["run", "-d", "--name", containerName, imageName]);
 
-  progress(`Running install command: ${containerConfig.installCommand}`);
-  await execFile(
-    "docker",
-    [
-      "exec",
-      "-w",
-      containerConfig.workspacePath,
-      containerName,
-      "sh",
-      "-c",
-      containerConfig.installCommand,
-    ],
-    { timeout: 300_000 },
-  );
-
-  return { containerName, tempDir, imageName };
+  return {
+    containerName,
+    tempDir,
+    imageName,
+    startSha: startSha.trim(),
+  };
 }

@@ -32,4 +32,12 @@ RUN git config --global user.name "magenta-agent" \
 
 WORKDIR /workspace
 
+# Install deps first (cached when lockfile unchanged)
+COPY package.json package-lock.json ./
+COPY node/core/package.json node/core/
+RUN --mount=type=cache,target=/root/.npm npm ci
+
+# Copy project files
+COPY . .
+
 CMD ["tail", "-f", "/dev/null"]

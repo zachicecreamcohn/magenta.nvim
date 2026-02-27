@@ -10,7 +10,7 @@ export type SupervisorAction =
   | { type: "none" };
 
 export interface ThreadSupervisor {
-  onEndTurnWithoutYield(): SupervisorAction;
+  onEndTurnWithoutYield(stopReason: string): SupervisorAction;
   onYield(result: string): Promise<SupervisorAction>;
   onAbort(): SupervisorAction;
 }
@@ -33,8 +33,8 @@ export class DockerSupervisor implements ThreadSupervisor {
 
   private onProgress: ((message: string) => void) | undefined;
 
-  onEndTurnWithoutYield(): SupervisorAction {
-    if (this.restartCount >= this.maxRestarts) {
+  onEndTurnWithoutYield(stopReason: string): SupervisorAction {
+    if (stopReason === "aborted" || this.restartCount >= this.maxRestarts) {
       return { type: "none" };
     }
     this.restartCount++;
@@ -64,9 +64,10 @@ export class DockerSupervisor implements ThreadSupervisor {
     await teardownContainer({
       containerName: this.provisionResult.containerName,
       tempDir: this.provisionResult.tempDir,
+      startSha: this.provisionResult.startSha,
+      workspacePath: this.containerConfig.workspacePath,
       repoPath: this.repoPath,
       branch: this.branch,
-      volumeOverlays: this.containerConfig.volumeOverlays,
       ...(this.onProgress ? { onProgress: this.onProgress } : {}),
     });
 

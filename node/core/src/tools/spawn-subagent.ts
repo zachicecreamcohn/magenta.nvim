@@ -61,7 +61,10 @@ export function execute(
     try {
       const input = request.input;
 
-      if (input.agentType === "docker") {
+      if (
+        input.agentType === "docker" ||
+        input.agentType === "docker_unsupervised"
+      ) {
         if (!input.branch) {
           return {
             type: "tool_result",
@@ -106,7 +109,9 @@ export function execute(
             containerName: provisionResult.containerName,
             tempDir: provisionResult.tempDir,
             imageName: provisionResult.imageName,
+            startSha: provisionResult.startSha,
             workspacePath: provisioner.containerConfig.workspacePath,
+            supervised: input.agentType === "docker_unsupervised",
           },
         });
 
@@ -197,7 +202,11 @@ export function execute(
   return { promise, abort: () => {}, progress };
 }
 
-const ALL_AGENT_TYPES = [...AGENT_TYPES, "docker"] as const;
+const ALL_AGENT_TYPES = [
+  ...AGENT_TYPES,
+  "docker",
+  "docker_unsupervised",
+] as const;
 export const spec: ProviderToolSpec = {
   name: "spawn_subagent" as ToolName,
   description: SPAWN_SUBAGENT_DESCRIPTION,
@@ -221,7 +230,7 @@ export const spec: ProviderToolSpec = {
         type: "string",
         enum: ALL_AGENT_TYPES as unknown as string[],
         description:
-          "Optional agent type to use for the sub-agent. Use 'explore' for answering specific questions about the codebase (returns file paths and descriptions, not code). Use 'fast' for simple editing tasks. Use 'default' for tasks that require more thought and smarts. Use 'docker' to spawn a thread in an isolated Docker container (requires 'branch' parameter).",
+          "Optional agent type to use for the sub-agent. Use 'explore' for answering specific questions about the codebase (returns file paths and descriptions, not code). Use 'fast' for simple editing tasks. Use 'default' for tasks that require more thought and smarts. Use 'docker' to spawn a thread in an isolated Docker container (requires 'branch' parameter). Use 'docker_unsupervised' to spawn an autonomous docker agent that auto-restarts and handles teardown automatically (requires 'branch' parameter).",
       },
       branch: {
         type: "string",
@@ -242,7 +251,7 @@ export const spec: ProviderToolSpec = {
 export type Input = {
   prompt: string;
   contextFiles?: UnresolvedFilePath[];
-  agentType?: AgentType | "docker";
+  agentType?: AgentType | "docker" | "docker_unsupervised";
   blocking?: boolean;
   branch?: string;
 };

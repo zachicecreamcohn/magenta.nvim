@@ -24,18 +24,21 @@ const dockerAvailable = await isDockerAvailable();
 describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
   let sourceRepo: string;
   let result:
-    | { containerName: string; tempDir: string; imageName: string }
+    | {
+        containerName: string;
+        tempDir: string;
+        imageName: string;
+        startSha: string;
+      }
     | undefined;
 
   const containerConfig: ContainerConfig = {
     devcontainer: "Dockerfile",
     workspacePath: "/workspace",
     installCommand: "echo install-done",
-    volumeOverlays: ["test-overlay"],
   };
 
   beforeAll(async () => {
-    // Create a minimal git repo as the "source project"
     sourceRepo = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), "magenta-test-repo-"),
     );
@@ -49,11 +52,12 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
       "test@test.com",
     ]);
 
-    // Create a minimal Dockerfile in the source repo
     const dockerfile = [
       "FROM alpine:latest",
       "RUN apk add --no-cache git",
       'RUN git config --global user.name "test" && git config --global user.email "test@test"',
+      "WORKDIR /workspace",
+      "COPY . .",
       'CMD ["tail", "-f", "/dev/null"]',
     ].join("\n");
     await fs.promises.writeFile(
@@ -70,23 +74,18 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
   }, 30_000);
 
   afterAll(async () => {
-    // Clean up container if provisioned
     if (result) {
       await execFile("docker", ["rm", "-f", result.containerName]).catch(
         () => {},
       );
-      // Clean up volume overlays
-      const volumeName = `${result.containerName}-test-overlay`;
-      await execFile("docker", ["volume", "rm", volumeName]).catch(() => {});
       await fs.promises.rm(result.tempDir, { recursive: true, force: true });
     }
-    // Clean up source repo
     if (sourceRepo) {
       await fs.promises.rm(sourceRepo, { recursive: true, force: true });
     }
   });
 
-  it("provisions a container with a cloned repo", async () => {
+  it("provisions a container with project files baked in", async () => {
     result = await provisionContainer({
       repoPath: sourceRepo,
       branch: "test-branch",
@@ -95,6 +94,7 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
 
     expect(result.containerName).toMatch(/^magenta-test-branch-/);
     expect(result.tempDir).toContain("magenta-dev-containers");
+    expect(result.startSha).toMatch(/^[0-9a-f]{40}$/);
 
     // Container should be running
     const { stdout: status } = await execFile("docker", [
@@ -105,7 +105,7 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
     ]);
     expect(status.trim()).toBe("true");
 
-    // Repo should be mounted and accessible
+    // Project files should be baked into the image (not bind-mounted)
     const { stdout: content } = await execFile("docker", [
       "exec",
       result.containerName,
@@ -114,7 +114,7 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
     ]);
     expect(content.trim()).toBe("hello from source");
 
-    // Branch should exist in the clone
+    // Branch should exist
     const { stdout: branchOutput } = await execFile("docker", [
       "exec",
       "-w",
@@ -125,20 +125,9 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
       "--show-current",
     ]);
     expect(branchOutput.trim()).toBe("test-branch");
-
-    // Remote should be removed
-    const { stdout: remotes } = await execFile("docker", [
-      "exec",
-      "-w",
-      "/workspace",
-      result.containerName,
-      "git",
-      "remote",
-    ]);
-    expect(remotes.trim()).toBe("");
   }, 120_000);
 
-  it("tears down and fetches the branch back", async () => {
+  it("tears down and applies patches back", async () => {
     expect(result).toBeDefined();
     const r = result!;
 
@@ -150,7 +139,7 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
       r.containerName,
       "sh",
       "-c",
-      'git config user.name "agent" && git config user.email "agent@test" && echo "agent change" > agent.txt && git add . && git commit -m "agent commit"',
+      'echo "agent change" > agent.txt && git add . && git commit -m "agent commit"',
     ]);
 
     const containerName = r.containerName;
@@ -160,11 +149,11 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
       containerName,
       repoPath: sourceRepo,
       branch: "test-branch",
+      startSha: r.startSha,
+      workspacePath: containerConfig.workspacePath,
       tempDir,
-      volumeOverlays: containerConfig.volumeOverlays,
     });
 
-    // Prevent afterAll from trying to clean up again
     result = undefined;
 
     // Container should be gone
@@ -177,7 +166,7 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
     );
     expect(inspectResult).toBe("gone");
 
-    // Branch should be fetched back into the source repo
+    // Branch should exist in source repo with the agent's commit
     const { stdout: logOutput } = await execFile("git", [
       "-C",
       sourceRepo,
@@ -192,14 +181,13 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
   }, 60_000);
 
   it("fails teardown on diverged branch without force", async () => {
-    // Provision again
     result = await provisionContainer({
       repoPath: sourceRepo,
       branch: "diverge-test",
       containerConfig,
     });
 
-    // Make a commit in the container clone
+    // Make a commit in the container
     await execFile("docker", [
       "exec",
       "-w",
@@ -207,7 +195,7 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
       result.containerName,
       "sh",
       "-c",
-      'git config user.name "agent" && git config user.email "agent@test" && echo "clone change" > clone.txt && git add . && git commit -m "clone commit"',
+      'echo "clone change" > clone.txt && git add . && git commit -m "clone commit"',
     ]);
 
     // Make a diverging commit in the source repo on the same branch
@@ -218,40 +206,34 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
     );
     await execFile("git", ["-C", sourceRepo, "add", "."]);
     await execFile("git", ["-C", sourceRepo, "commit", "-m", "source diverge"]);
-
-    // Go back to main so later tests can create branches from it
     await execFile("git", ["-C", sourceRepo, "checkout", "main"]);
-    // Teardown without force should fail
+
     await expect(
       teardownContainer({
         containerName: result.containerName,
         repoPath: sourceRepo,
         branch: "diverge-test",
+        startSha: result.startSha,
+        workspacePath: containerConfig.workspacePath,
         tempDir: result.tempDir,
-        volumeOverlays: containerConfig.volumeOverlays,
       }),
     ).rejects.toThrow("diverged");
 
-    // Note: container was already removed by teardown's first step.
-    // But temp dir should still exist since teardown threw before cleanup.
+    // Container was removed but temp dir should remain since teardown threw
     expect(fs.existsSync(result.tempDir)).toBe(true);
 
-    // Clean up manually
     await fs.promises.rm(result.tempDir, { recursive: true, force: true });
-    const volumeName = `${result.containerName}-test-overlay`;
-    await execFile("docker", ["volume", "rm", volumeName]).catch(() => {});
     result = undefined;
   }, 120_000);
 
   it("succeeds teardown on diverged branch with force", async () => {
-    // Provision again
     result = await provisionContainer({
       repoPath: sourceRepo,
       branch: "force-test",
       containerConfig,
     });
 
-    // Make a commit in the container clone
+    // Make a commit in the container
     await execFile("docker", [
       "exec",
       "-w",
@@ -259,7 +241,7 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
       result.containerName,
       "sh",
       "-c",
-      'git config user.name "agent" && git config user.email "agent@test" && echo "clone change" > clone.txt && git add . && git commit -m "clone commit"',
+      'echo "clone change" > clone.txt && git add . && git commit -m "clone commit"',
     ]);
 
     // Make a diverging commit in the source repo
@@ -270,25 +252,23 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
     );
     await execFile("git", ["-C", sourceRepo, "add", "."]);
     await execFile("git", ["-C", sourceRepo, "commit", "-m", "source diverge"]);
-
-    // Go back to main so fetch into force-test can succeed
     await execFile("git", ["-C", sourceRepo, "checkout", "main"]);
+
     const containerName = result.containerName;
     const tempDir = result.tempDir;
 
-    // Teardown with force should succeed
     await teardownContainer({
       containerName,
       repoPath: sourceRepo,
       branch: "force-test",
+      startSha: result.startSha,
+      workspacePath: containerConfig.workspacePath,
       tempDir,
-      volumeOverlays: containerConfig.volumeOverlays,
       force: true,
     });
 
     result = undefined;
 
-    // Branch should exist with the clone's commit
     const { stdout: logOutput } = await execFile("git", [
       "-C",
       sourceRepo,
@@ -298,7 +278,6 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
     ]);
     expect(logOutput).toContain("clone commit");
 
-    // Temp dir should be gone
     expect(fs.existsSync(tempDir)).toBe(false);
   }, 120_000);
 });

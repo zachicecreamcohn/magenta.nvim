@@ -485,13 +485,14 @@ export class Chat implements ThreadManager {
       environment,
     });
 
-    if (dockerSpawnConfig && this.context.options.container) {
+    if (dockerSpawnConfig?.supervised && this.context.options.container) {
       thread.supervisor = new DockerSupervisor(
         environment.shell,
         {
           containerName: dockerSpawnConfig.containerName,
           tempDir: dockerSpawnConfig.tempDir,
           imageName: dockerSpawnConfig.imageName,
+          startSha: dockerSpawnConfig.startSha,
         },
         this.context.options.container,
         dockerSpawnConfig.branch,

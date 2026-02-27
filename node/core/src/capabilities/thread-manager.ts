@@ -7,7 +7,9 @@ export type DockerSpawnConfig = {
   containerName: string;
   tempDir: string;
   imageName: string;
+  startSha: string;
   workspacePath: string;
+  supervised: boolean;
 };
 
 export interface ThreadManager {

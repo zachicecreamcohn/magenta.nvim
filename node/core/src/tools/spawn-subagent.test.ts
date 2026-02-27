@@ -191,6 +191,7 @@ describe("spawn-subagent docker provisioning progress", () => {
     containerName: "magenta-test-abc123",
     tempDir: "/tmp/magenta-dev-containers/magenta-test-abc123",
     imageName: "magenta-dev-test",
+    startSha: "abc123",
   };
 
   it("updates progress.provisioningMessage during provisioning", async () => {
@@ -336,5 +337,73 @@ describe("spawn-subagent docker provisioning progress", () => {
     expect(threadManager.spawnThread).toHaveBeenCalledWith(expectedSpawnOpts);
 
     expect(invocation.progress.threadId).toBe("thread-1");
+  });
+
+  it("docker agentType sets supervised=false in DockerSpawnConfig", async () => {
+    const threadManager = createMockThreadManager();
+
+    const invocation = SpawnSubagent.execute(
+      makeRequest({
+        prompt: "do docker work",
+        agentType: "docker",
+        branch: "feature-branch",
+      }),
+      {
+        threadManager,
+        threadId: "parent-1" as ThreadId,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+        containerProvisioner: {
+          containerConfig,
+          provision: vi.fn().mockResolvedValue(provisionResult),
+        },
+      },
+    );
+
+    await invocation.promise;
+
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(threadManager.spawnThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        dockerSpawnConfig: expect.objectContaining({
+          supervised: false,
+        }),
+      }),
+    );
+  });
+
+  it("docker_unsupervised agentType sets supervised=true in DockerSpawnConfig", async () => {
+    const threadManager = createMockThreadManager();
+
+    const invocation = SpawnSubagent.execute(
+      makeRequest({
+        prompt: "do docker work",
+        agentType: "docker_unsupervised",
+        branch: "feature-branch",
+      }),
+      {
+        threadManager,
+        threadId: "parent-1" as ThreadId,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+        containerProvisioner: {
+          containerConfig,
+          provision: vi.fn().mockResolvedValue(provisionResult),
+        },
+      },
+    );
+
+    await invocation.promise;
+
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(threadManager.spawnThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        dockerSpawnConfig: expect.objectContaining({
+          supervised: true,
+        }),
+      }),
+    );
   });
 });

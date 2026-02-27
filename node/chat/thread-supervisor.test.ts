@@ -32,6 +32,7 @@ const mockProvisionResult: ProvisionResult = {
   containerName: "test-container",
   tempDir: "/tmp/test-dir",
   imageName: "test-image",
+  startSha: "abc123",
 };
 
 const mockContainerConfig: ContainerConfig = {
@@ -51,7 +52,7 @@ describe("DockerSupervisor", () => {
         "/repo" as NvimCwd,
       );
 
-      const action = supervisor.onEndTurnWithoutYield();
+      const action = supervisor.onEndTurnWithoutYield("end_turn");
       expect(action.type).toBe("send-message");
       if (action.type === "send-message") {
         expect(action.text).toContain("yield_to_parent");
@@ -69,9 +70,26 @@ describe("DockerSupervisor", () => {
         { maxRestarts: 2 },
       );
 
-      expect(supervisor.onEndTurnWithoutYield().type).toBe("send-message");
-      expect(supervisor.onEndTurnWithoutYield().type).toBe("send-message");
-      expect(supervisor.onEndTurnWithoutYield().type).toBe("none");
+      expect(supervisor.onEndTurnWithoutYield("end_turn").type).toBe(
+        "send-message",
+      );
+      expect(supervisor.onEndTurnWithoutYield("end_turn").type).toBe(
+        "send-message",
+      );
+      expect(supervisor.onEndTurnWithoutYield("end_turn").type).toBe("none");
+    });
+
+    it("does not restart when stop reason is aborted", () => {
+      const supervisor = new DockerSupervisor(
+        createMockShell(),
+        mockProvisionResult,
+        mockContainerConfig,
+        "feature-branch",
+        "/repo" as NvimCwd,
+      );
+
+      const action = supervisor.onEndTurnWithoutYield("aborted");
+      expect(action.type).toBe("none");
     });
   });
 

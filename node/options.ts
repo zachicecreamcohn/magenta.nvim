@@ -1211,17 +1211,6 @@ function parseContainerConfig(
     installCommand: obj["installCommand"],
   };
 
-  if ("volumeOverlays" in obj) {
-    if (
-      Array.isArray(obj["volumeOverlays"]) &&
-      obj["volumeOverlays"].every((v) => typeof v === "string")
-    ) {
-      config.volumeOverlays = obj["volumeOverlays"];
-    } else {
-      logger.warn("container.volumeOverlays must be an array of strings");
-    }
-  }
-
   return config;
 }
 export function parseProjectOptions(
