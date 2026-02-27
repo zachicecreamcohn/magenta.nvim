@@ -963,6 +963,7 @@ export class Thread {
     switch (action.type) {
       case "accept":
         this.state.yieldedResponse = yieldResult;
+        this.dispatchYieldComplete();
         break;
       case "reject":
         this.state.mode = { type: "normal" };
@@ -974,8 +975,17 @@ export class Thread {
         break;
       case "none":
         this.state.yieldedResponse = yieldResult;
+        this.dispatchYieldComplete();
         break;
     }
+  }
+
+  private dispatchYieldComplete(): void {
+    this.context.dispatch({
+      type: "thread-msg",
+      id: this.id,
+      msg: { type: "tool-progress" },
+    });
   }
 
   private async getAndPrepareContextUpdates(): Promise<{
