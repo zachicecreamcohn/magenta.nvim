@@ -148,7 +148,11 @@ describe("spawn-subagent unit tests", () => {
     for (const { agentType, expectedThreadType } of cases) {
       const threadManager = createMockThreadManager();
       SpawnSubagent.execute(
-        makeRequest({ prompt: "do something", agentType, blocking: false }),
+        makeRequest({
+          prompt: "do something",
+          ...(agentType ? { agentType } : {}),
+          blocking: false,
+        }),
         {
           threadManager,
           threadId: "parent-1" as ThreadId,

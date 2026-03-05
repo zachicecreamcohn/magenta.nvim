@@ -18,7 +18,7 @@ function createMockThreadManager(
       if (!result) {
         throw new Error(`No mock result for thread ${threadId}`);
       }
-      return result;
+      return Promise.resolve(result);
     }),
     yieldResult: vi.fn(),
   };

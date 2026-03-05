@@ -304,6 +304,44 @@ Content B
     );
   });
 
+  it("handles frontmatter with values that are invalid in strict YAML", async () => {
+    await withDriver(
+      {
+        setupFiles: async (tmpDir) => {
+          const skillDir = path.join(
+            tmpDir,
+            ".claude",
+            "skills",
+            "claude-code-skill",
+          );
+          await fs.promises.mkdir(skillDir, { recursive: true });
+          await fs.promises.writeFile(
+            path.join(skillDir, "skill.md"),
+            `---
+name: fix-ci-failures
+description: Fix failing tests
+allowed-tools: Bash(git show:*), Bash(git fetch: *), Bash(git diff:*)
+---
+
+# Fix CI Failures
+`,
+          );
+        },
+        options: {
+          skillsPaths: [".claude/skills"],
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+
+        const thread = driver.magenta.chat.getActiveThread();
+        const systemPrompt = thread.state.systemPrompt;
+
+        expect(systemPrompt).toContain("fix-ci-failures");
+        expect(systemPrompt).toContain("Fix failing tests");
+      },
+    );
+  });
   it("handles non-existent skills directory gracefully", async () => {
     await withDriver(
       {

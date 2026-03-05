@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { parse as parseYaml } from "yaml";
+
 import type { Logger } from "../logger.ts";
 import type { AbsFilePath, NvimCwd } from "../utils/files.ts";
 import type { ProviderOptions } from "../provider-options.ts";
@@ -185,18 +185,20 @@ function extractYamlFrontmatter(content: string): YamlFrontmatter | undefined {
     return undefined;
   }
 
-  // Extract YAML content between the delimiters
-  const yamlLines = lines.slice(1, endIndex);
-  const yamlContent = yamlLines.join("\n");
-
-  try {
-    const parsed = parseYaml(yamlContent) as YamlFrontmatter;
-    return parsed;
-  } catch (err) {
-    throw new Error(
-      `Failed to parse YAML frontmatter: ${(err as Error).message}`,
-    );
+  // Parse frontmatter lines as simple key: value pairs.
+  // We avoid a full YAML parser because skill files from other tools (e.g.
+  // Claude Code) may contain values with unquoted colons that are invalid YAML.
+  const result: YamlFrontmatter = {};
+  for (let i = 1; i < endIndex; i++) {
+    const colonIndex = lines[i].indexOf(":");
+    if (colonIndex === -1) continue;
+    const key = lines[i].slice(0, colonIndex).trim();
+    const value = lines[i].slice(colonIndex + 1).trim();
+    if (key === "name" || key === "description") {
+      result[key] = value;
+    }
   }
+  return result;
 }
 
 export function formatSkillsIntroduction(
