@@ -232,19 +232,11 @@ export class Magenta {
             continue;
           }
 
-          this.dispatch({
-            type: "thread-msg",
-            id: thread.id,
-            msg: {
-              type: "context-manager-msg",
-              msg: {
-                type: "add-file-context",
-                absFilePath,
-                relFilePath,
-                fileTypeInfo,
-              },
-            },
-          });
+          thread.contextManager.addFileContext(
+            absFilePath,
+            relFilePath,
+            fileTypeInfo,
+          );
         }
 
         break;

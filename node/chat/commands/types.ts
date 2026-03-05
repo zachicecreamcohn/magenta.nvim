@@ -4,7 +4,7 @@ export interface MessageContext {
   nvim: import("../../nvim/nvim-node/index.ts").Nvim;
   cwd: import("../../utils/files.ts").NvimCwd;
   homeDir: import("../../utils/files.ts").HomeDir;
-  contextManager: import("../../context/context-manager.ts").ContextManager;
+  contextManager: import("@magenta/core").CoreContextManager;
   options: import("../../options.ts").MagentaOptions;
 }
 

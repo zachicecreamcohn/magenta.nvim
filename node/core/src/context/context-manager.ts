@@ -21,6 +21,7 @@ import {
 import type { Result } from "../utils/result.ts";
 import type { ProviderMessageContent } from "../providers/provider-types.ts";
 import { getSummaryAsProviderContent } from "../utils/pdf-pages.ts";
+import { Emitter } from "../emitter.ts";
 import * as diff from "diff";
 
 export type Patch = string & { __patch: true };
@@ -59,7 +60,16 @@ export type Files = {
   };
 };
 
-export class ContextManager implements ContextTracker {
+export type ContextManagerEvents = {
+  fileAdded: [absFilePath: AbsFilePath];
+  fileRemoved: [absFilePath: AbsFilePath];
+  filesReset: [];
+};
+
+export class ContextManager
+  extends Emitter<ContextManagerEvents>
+  implements ContextTracker
+{
   public files: Files;
 
   constructor(
@@ -69,6 +79,7 @@ export class ContextManager implements ContextTracker {
     private homeDir: HomeDir,
     initialFiles: Files = {},
   ) {
+    super();
     this.files = initialFiles;
   }
 
@@ -87,10 +98,12 @@ export class ContextManager implements ContextTracker {
       fileTypeInfo,
       agentView: undefined,
     };
+    this.emit("fileAdded", absFilePath);
   }
 
   removeFileContext(absFilePath: AbsFilePath): void {
     delete this.files[absFilePath];
+    this.emit("fileRemoved", absFilePath);
   }
 
   toolApplied(
@@ -100,7 +113,8 @@ export class ContextManager implements ContextTracker {
   ): void {
     const relFilePath = relativePath(this.cwd, absFilePath, this.homeDir);
 
-    if (!this.files[absFilePath]) {
+    const isNew = !this.files[absFilePath];
+    if (isNew) {
       this.files[absFilePath] = {
         relFilePath,
         fileTypeInfo,
@@ -109,6 +123,10 @@ export class ContextManager implements ContextTracker {
     }
 
     this.updateAgentsViewOfFiles(absFilePath, tool);
+
+    if (isNew) {
+      this.emit("fileAdded", absFilePath);
+    }
   }
 
   async addFiles(filePaths: UnresolvedFilePath[]): Promise<void> {
@@ -134,6 +152,7 @@ export class ContextManager implements ContextTracker {
         fileTypeInfo,
         agentView: undefined,
       };
+      this.emit("fileAdded", absFilePath);
     }
   }
 
@@ -141,6 +160,7 @@ export class ContextManager implements ContextTracker {
     for (const absFilePath in this.files) {
       this.files[absFilePath as AbsFilePath].agentView = undefined;
     }
+    this.emit("filesReset");
   }
 
   isContextEmpty(): boolean {

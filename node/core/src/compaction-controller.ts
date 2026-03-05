@@ -22,10 +22,8 @@ export type CompactionResult =
 
 export interface CompactionController {
   chunks: string[];
-  currentChunkIndex: number;
   steps: CompactionStep[];
   nextPrompt: string | undefined;
-  result: CompactionResult | undefined;
 
   start(messages: ReadonlyArray<ProviderMessage>, nextPrompt?: string): void;
   handleAgentMsg(msg: AgentMsg): void;

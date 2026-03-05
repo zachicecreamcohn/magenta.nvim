@@ -1,3 +1,12 @@
+function contextViewCtx(thread: Thread): ContextViewContext {
+  return {
+    cwd: thread.context.cwd,
+    homeDir: thread.context.homeDir,
+    nvim: thread.context.nvim,
+    options: thread.context.options,
+  };
+}
+
 /**
  * Helper function to render the animation frame for in-progress operations
  */
@@ -15,10 +24,10 @@ const getAnimationFrame = (sendDate: Date): string => {
  */
 const renderStatus = (
   agentStatus: AgentStatus,
-  mode: ConversationMode,
+  mode: ThreadMode,
   latestUsage: Usage | undefined,
-  yieldedResponse: string | undefined,
 ): VDOMNode => {
+  const yieldedResponse = mode.type === "yielded" ? mode.response : undefined;
   // First check mode for thread-specific states
   if (mode.type === "tool_use") {
     return d`Executing tools...`;
@@ -73,8 +82,8 @@ function renderUsage(usage: Usage): VDOMNode {
  */
 const shouldShowContextManager = (
   agentStatus: AgentStatus,
-  mode: ConversationMode,
-  contextManager: ContextManager,
+  mode: ThreadMode,
+  contextManager: CoreContextManager,
 ): boolean => {
   return (
     agentStatus.type === "stopped" &&
@@ -211,23 +220,18 @@ ${LOGO}
 
 magenta is for agentic flow
 
-${thread.context.contextManager.view()}`;
+${contextView(thread.context.contextManager, contextViewCtx(thread))}`;
   }
 
   const latestUsage = thread.agent.getState().latestUsage;
-  const statusView = renderStatus(
-    agentStatus,
-    mode,
-    latestUsage,
-    thread.core.state.yieldedResponse,
-  );
+  const statusView = renderStatus(agentStatus, mode, latestUsage);
 
   const contextManagerView = shouldShowContextManager(
     agentStatus,
     mode,
     thread.context.contextManager,
   )
-    ? d`\n${thread.context.contextManager.view()}`
+    ? d`\n${contextView(thread.context.contextManager, contextViewCtx(thread))}`
     : d``;
 
   const filePermissionView =
@@ -297,7 +301,11 @@ ${thread.context.contextManager.view()}`;
 
     // Render context updates for user messages
     const contextUpdateView = viewState?.contextUpdates
-      ? thread.contextManager.renderContextUpdate(viewState.contextUpdates)
+      ? renderContextUpdate(
+          viewState.contextUpdates,
+          thread.contextManager,
+          contextViewCtx(thread),
+        )
       : d``;
 
     // Render content blocks
@@ -643,7 +651,11 @@ import {
   withExtmark,
 } from "../tea/view.ts";
 import { type Dispatch } from "../tea/tea.ts";
-import { type ToolRequestId, type CompletedToolInfo } from "@magenta/core";
+import {
+  type ToolRequestId,
+  type CompletedToolInfo,
+  type CoreContextManager,
+} from "@magenta/core";
 import {
   renderCompletedToolSummary,
   renderCompletedToolPreview,
@@ -661,16 +673,15 @@ import {
   type Usage,
 } from "../providers/provider.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { ContextManager } from "../context/context-manager.ts";
+import {
+  contextView,
+  renderContextUpdate,
+  type ContextViewContext,
+} from "../context/context-manager.ts";
 import type { SystemPrompt } from "../providers/system-prompt.ts";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { renderStreamdedTool } from "../render-tools/streaming.ts";
 import { renderThreadToMarkdown } from "./compact-renderer.ts";
-import type {
-  Thread,
-  Msg,
-  ConversationMode,
-  CompactionRecord,
-} from "./thread.ts";
+import type { Thread, Msg, ThreadMode, CompactionRecord } from "./thread.ts";

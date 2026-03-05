@@ -16,14 +16,18 @@ import type {
   AgentMsg,
   ProviderToolResult,
 } from "./providers/provider-types.ts";
-import type { ToolRequestId, ToolRequest, ToolInvocation } from "./tool-types.ts";
+import type {
+  ToolRequestId,
+  ToolRequest,
+  ToolInvocation,
+} from "./tool-types.ts";
 import type { ToolName } from "./tool-types.ts";
 import type { EdlRegisters } from "./edl/index.ts";
 import type {
-  CompactionController,
   CompactionResult,
   CompactionStep,
 } from "./compaction-controller.ts";
+import { Emitter } from "./emitter.ts";
 import { MCPToolManager as MCPToolManagerImpl } from "./tools/mcp/manager.ts";
 
 import { getToolSpecs } from "./tools/toolManager.ts";
@@ -52,6 +56,41 @@ type ActiveToolEntry = {
   request: ToolRequest;
 };
 
+export type CompactionState =
+  | { type: "idle" }
+  | {
+      type: "processing-chunk";
+      chunkIndex: number;
+      totalChunks: number;
+      agent: Agent;
+    }
+  | {
+      type: "waiting-for-tools";
+      chunkIndex: number;
+      totalChunks: number;
+      agent: Agent;
+      activeTools: Map<ToolRequestId, ActiveToolEntry>;
+      toolResults: Map<ToolRequestId, ProviderToolResult>;
+    }
+  | { type: "complete"; result: CompactionResult }
+  | { type: "error"; steps: CompactionStep[] };
+
+export type CompactionAction =
+  | {
+      type: "start";
+      messages: ReadonlyArray<ProviderMessage>;
+      nextPrompt?: string | undefined;
+    }
+  | { type: "agent-msg"; msg: AgentMsg }
+  | {
+      type: "tool-complete";
+      id: ToolRequestId;
+      result: ProviderToolResult;
+    };
+
+export type CompactionEvents = {
+  transition: [prev: CompactionState, next: CompactionState];
+};
 export interface CompactionManagerContext {
   logger: Logger;
   profile: ProviderProfile;
@@ -68,54 +107,216 @@ export interface CompactionManagerContext {
   maxConcurrentSubagents: number;
   getProvider: (profile: ProviderProfile) => Provider;
   requestRender: () => void;
-  onComplete: (result: CompactionResult) => void;
 }
 
-export class CompactionManager implements CompactionController {
-  private agent: Agent;
+export class CompactionManager extends Emitter<CompactionEvents> {
+  state: CompactionState = { type: "idle" };
+  chunks: string[] = [];
+  steps: CompactionStep[] = [];
+  nextPrompt: string | undefined;
+
   private fileIO: InMemoryFileIO;
   private edlRegisters: EdlRegisters;
-  private activeTools: Map<ToolRequestId, ActiveToolEntry>;
-  public chunks: string[];
-  public currentChunkIndex: number;
-  public steps: CompactionStep[];
-  public nextPrompt: string | undefined;
-  private toolResults: Map<ToolRequestId, ProviderToolResult>;
-  public result: CompactionResult | undefined;
 
   constructor(private context: CompactionManagerContext) {
+    super();
     this.fileIO = new InMemoryFileIO({ "/summary.md": "" });
     this.edlRegisters = { registers: new Map(), nextSavedId: 0 };
-    this.activeTools = new Map();
-    this.chunks = [];
-    this.currentChunkIndex = 0;
-    this.steps = [];
-    this.toolResults = new Map();
-    this.agent = this.createCompactAgent();
+  }
+
+  send(action: CompactionAction): void {
+    const prev = this.state;
+    this.state = this.reduce(prev, action);
+    if (prev !== this.state) {
+      this.emit("transition", prev, this.state);
+      this.effect(prev, this.state, action);
+    }
   }
 
   start(messages: ReadonlyArray<ProviderMessage>, nextPrompt?: string): void {
-    const { markdown, messageBoundaries } = renderThreadToMarkdown(messages);
+    this.send({ type: "start", messages, nextPrompt });
+  }
 
-    const targetChunkChars = TARGET_CHUNK_TOKENS * CHARS_PER_TOKEN;
-    const toleranceChars = TOLERANCE_TOKENS * CHARS_PER_TOKEN;
-    this.chunks = chunkMessages(
-      markdown,
-      messageBoundaries,
-      targetChunkChars,
-      toleranceChars,
-    );
+  handleAgentMsg(msg: AgentMsg): void {
+    this.send({ type: "agent-msg", msg });
+  }
 
-    if (this.chunks.length === 0) {
-      this.context.logger.warn("No chunks to compact");
-      return;
+  private reduce(
+    state: CompactionState,
+    action: CompactionAction,
+  ): CompactionState {
+    switch (action.type) {
+      case "start": {
+        if (state.type !== "idle") return state;
+
+        const { markdown, messageBoundaries } = renderThreadToMarkdown(
+          action.messages,
+        );
+        const targetChunkChars = TARGET_CHUNK_TOKENS * CHARS_PER_TOKEN;
+        const toleranceChars = TOLERANCE_TOKENS * CHARS_PER_TOKEN;
+        this.chunks = chunkMessages(
+          markdown,
+          messageBoundaries,
+          targetChunkChars,
+          toleranceChars,
+        );
+
+        if (this.chunks.length === 0) {
+          this.context.logger.warn("No chunks to compact");
+          return state;
+        }
+
+        this.nextPrompt = action.nextPrompt;
+        this.steps = [];
+
+        const agent = this.createCompactAgent();
+        return {
+          type: "processing-chunk",
+          chunkIndex: 0,
+          totalChunks: this.chunks.length,
+          agent,
+        };
+      }
+
+      case "agent-msg": {
+        const { msg } = action;
+        if (msg.type === "agent-content-updated") return state;
+
+        if (msg.type === "agent-error") {
+          this.context.logger.error(
+            `Compact agent error: ${msg.error.message}`,
+          );
+          return { type: "error", steps: this.steps };
+        }
+
+        if (msg.type === "agent-stopped") {
+          if (msg.stopReason === "tool_use") {
+            if (state.type !== "processing-chunk") {
+              return state;
+            }
+            const { activeTools, malformedResults } = this.buildToolEntries(
+              state.agent,
+            );
+            for (const r of malformedResults) {
+              state.agent.toolResult(r.id, r);
+            }
+            return {
+              type: "waiting-for-tools",
+              chunkIndex: state.chunkIndex,
+              totalChunks: state.totalChunks,
+              agent: state.agent,
+              activeTools,
+              toolResults: new Map(),
+            };
+          }
+
+          if (msg.stopReason === "end_turn") {
+            if (state.type !== "processing-chunk") {
+              return state;
+            }
+            return this.reduceChunkComplete(state);
+          }
+
+          this.context.logger.warn(
+            `Compact agent stopped with unexpected reason: ${msg.stopReason}`,
+          );
+          return { type: "error", steps: this.steps };
+        }
+
+        return state;
+      }
+
+      case "tool-complete": {
+        if (state.type !== "waiting-for-tools") return state;
+        state.toolResults.set(action.id, action.result);
+
+        // Check if all tools are done
+        for (const [, entry] of state.activeTools) {
+          if (!state.toolResults.has(entry.request.id)) return state;
+        }
+
+        // All tools done — feed results back and continue
+        for (const [toolId, entry] of state.activeTools) {
+          const result = state.toolResults.get(entry.request.id);
+          if (result) {
+            state.agent.toolResult(toolId, result);
+          }
+        }
+
+        return {
+          type: "processing-chunk",
+          chunkIndex: state.chunkIndex,
+          totalChunks: state.totalChunks,
+          agent: state.agent,
+        };
+      }
+
+      default: {
+        const _exhaustive: never = action;
+        return _exhaustive;
+      }
+    }
+  }
+
+  private reduceChunkComplete(
+    state: Extract<CompactionState, { type: "processing-chunk" }>,
+  ): CompactionState {
+    this.steps.push({
+      chunkIndex: state.chunkIndex,
+      totalChunks: state.totalChunks,
+      messages: [...state.agent.getState().messages],
+    });
+
+    const nextChunkIndex = state.chunkIndex + 1;
+
+    if (nextChunkIndex < state.totalChunks) {
+      const newAgent = this.createCompactAgent();
+      return {
+        type: "processing-chunk",
+        chunkIndex: nextChunkIndex,
+        totalChunks: state.totalChunks,
+        agent: newAgent,
+      };
     }
 
-    this.nextPrompt = nextPrompt;
-    this.currentChunkIndex = 0;
-    this.steps = [];
+    const summary = this.fileIO.getFileContents("/summary.md");
+    if (summary === undefined || summary === "") {
+      this.context.logger.error(
+        "Compact agent finished but /summary.md is empty",
+      );
+      return { type: "error", steps: this.steps };
+    }
 
-    this.sendChunkToAgent(this.agent, this.chunks, 0, nextPrompt);
+    return {
+      type: "complete",
+      result: {
+        type: "complete",
+        summary,
+        steps: this.steps,
+        nextPrompt: this.nextPrompt,
+      },
+    };
+  }
+
+  private effect(
+    _prev: CompactionState,
+    next: CompactionState,
+    action: CompactionAction,
+  ): void {
+    if (next.type === "processing-chunk") {
+      if (action.type === "tool-complete") {
+        // All tools finished — resume the conversation
+        next.agent.continueConversation();
+      } else {
+        // Entering a new chunk (from start or chunk-complete) — send it
+        this.sendChunkToAgent(
+          next.agent,
+          this.chunks,
+          next.chunkIndex,
+          this.nextPrompt,
+        );
+      }
+    }
   }
 
   private createCompactAgent(): Agent {
@@ -132,108 +333,31 @@ export class CompactionManager implements CompactionController {
         ),
         skipPostFlightTokenCount: true,
       },
-      (msg) => this.handleAgentMsg(msg),
+      (msg) => this.send({ type: "agent-msg", msg }),
     );
   }
 
-  private sendChunkToAgent(
-    agent: Agent,
-    chunks: string[],
-    chunkIndex: number,
-    nextPrompt?: string,
-  ): void {
-    this.fileIO.writeFileSync("/chunk.md", chunks[chunkIndex]);
-
-    const isLastChunk = chunkIndex === chunks.length - 1;
-    const chunkLabel = `chunk ${chunkIndex + 1} of ${chunks.length}`;
-
-    const statusParts = [`This is ${chunkLabel}.`];
-    if (chunkIndex === 0) {
-      statusParts.push(
-        "The file /summary.md is currently empty. Write the initial summary.",
-      );
-    } else {
-      statusParts.push(
-        "Fold the essential information from the new chunk into the existing /summary.md. Do NOT rewrite the summary from scratch.",
-      );
-    }
-    if (isLastChunk) {
-      statusParts.push(
-        "This is the LAST chunk. Make sure the summary is complete and well-organized.",
-      );
-    }
-
-    const nextPromptText = nextPrompt ?? "Continue from where you left off.";
-
-    const summaryContent =
-      chunkIndex > 0 ? (this.fileIO.getFileContents("/summary.md") ?? "") : "";
-
-    const prompt = COMPACT_PROMPT_TEMPLATE.replace(
-      "{{status}}",
-      statusParts.join(" "),
-    )
-      .replace("{{next_prompt}}", nextPromptText)
-      .replace("{{summary}}", summaryContent)
-      .replace("{{chunk}}", chunks[chunkIndex]);
-
-    agent.appendUserMessage([{ type: "text", text: prompt }]);
-    agent.continueConversation();
-  }
-
-  handleAgentMsg(msg: AgentMsg): void {
-    switch (msg.type) {
-      case "agent-content-updated":
-        return;
-
-      case "agent-error":
-        this.context.logger.error(
-          `Compact agent error: ${msg.error.message}`,
-        );
-        this.complete({ type: "error", steps: this.steps });
-        return;
-
-      case "agent-stopped": {
-        if (msg.stopReason === "tool_use") {
-          this.handleToolUse();
-        } else if (msg.stopReason === "end_turn") {
-          this.handleChunkComplete();
-        } else {
-          this.context.logger.warn(
-            `Compact agent stopped with unexpected reason: ${msg.stopReason}`,
-          );
-          this.complete({ type: "error", steps: this.steps });
-        }
-        return;
-      }
-    }
-  }
-
-  private complete(result: CompactionResult): void {
-    this.result = result;
-    this.context.onComplete(result);
-  }
-
-  private handleToolUse(): void {
-    const messages = this.agent.getState().messages;
+  private buildToolEntries(agent: Agent): {
+    activeTools: Map<ToolRequestId, ActiveToolEntry>;
+    malformedResults: ProviderToolResult[];
+  } {
+    const messages = agent.getState().messages;
     const lastMessage = messages[messages.length - 1];
+    const activeTools = new Map<ToolRequestId, ActiveToolEntry>();
+    const malformedResults: ProviderToolResult[] = [];
 
     if (!lastMessage || lastMessage.role !== "assistant") {
       this.context.logger.error(
         "Compact agent tool_use but no assistant message",
       );
-      this.complete({ type: "error", steps: this.steps });
-      return;
+      return { activeTools, malformedResults };
     }
 
-    const activeTools = new Map<ToolRequestId, ActiveToolEntry>();
-
     for (const block of lastMessage.content) {
-      if (block.type !== "tool_use") {
-        continue;
-      }
+      if (block.type !== "tool_use") continue;
 
       if (block.request.status !== "ok") {
-        this.agent.toolResult(block.id, {
+        malformedResults.push({
           type: "tool_result",
           id: block.id,
           result: {
@@ -279,77 +403,68 @@ export class CompactionManager implements CompactionController {
 
       void invocation.promise
         .then((result) => {
-          this.toolResults.set(request.id, result);
+          this.send({ type: "tool-complete", id: request.id, result });
         })
         .catch((err: Error) => {
-          this.toolResults.set(request.id, {
-            type: "tool_result",
+          this.send({
+            type: "tool-complete",
             id: request.id,
             result: {
-              status: "error",
-              error: `Tool execution failed: ${err.message}`,
+              type: "tool_result",
+              id: request.id,
+              result: {
+                status: "error",
+                error: `Tool execution failed: ${err.message}`,
+              },
             },
           });
-        })
-        .then(() => {
-          this.handleToolCompletion();
         });
     }
 
-    this.activeTools = activeTools;
+    return { activeTools, malformedResults };
   }
 
-  private handleToolCompletion(): void {
-    for (const [, entry] of this.activeTools) {
-      if (!this.toolResults.has(entry.request.id)) return;
-    }
+  private sendChunkToAgent(
+    agent: Agent,
+    chunks: string[],
+    chunkIndex: number,
+    nextPrompt?: string,
+  ): void {
+    this.fileIO.writeFileSync("/chunk.md", chunks[chunkIndex]);
 
-    for (const [toolId, entry] of this.activeTools) {
-      const result = this.toolResults.get(entry.request.id);
-      if (result) {
-        this.agent.toolResult(toolId, result);
-      }
-    }
-    this.activeTools = new Map();
-    this.agent.continueConversation();
-  }
+    const isLastChunk = chunkIndex === chunks.length - 1;
+    const chunkLabel = `chunk ${chunkIndex + 1} of ${chunks.length}`;
 
-  private handleChunkComplete(): void {
-    const nextChunkIndex = this.currentChunkIndex + 1;
-
-    this.steps.push({
-      chunkIndex: this.currentChunkIndex,
-      totalChunks: this.chunks.length,
-      messages: [...this.agent.getState().messages],
-    });
-
-    if (nextChunkIndex < this.chunks.length) {
-      const newAgent = this.createCompactAgent();
-      this.agent = newAgent;
-      this.currentChunkIndex = nextChunkIndex;
-      this.activeTools = new Map();
-      this.sendChunkToAgent(
-        newAgent,
-        this.chunks,
-        nextChunkIndex,
-        this.nextPrompt,
+    const statusParts = [`This is ${chunkLabel}.`];
+    if (chunkIndex === 0) {
+      statusParts.push(
+        "The file /summary.md is currently empty. Write the initial summary.",
       );
     } else {
-      const summary = this.fileIO.getFileContents("/summary.md");
-      if (summary === undefined || summary === "") {
-        this.context.logger.error(
-          "Compact agent finished but /summary.md is empty",
-        );
-        this.complete({ type: "error", steps: this.steps });
-        return;
-      }
-
-      this.complete({
-        type: "complete",
-        summary,
-        steps: this.steps,
-        nextPrompt: this.nextPrompt,
-      });
+      statusParts.push(
+        "Fold the essential information from the new chunk into the existing /summary.md. Do NOT rewrite the summary from scratch.",
+      );
     }
+    if (isLastChunk) {
+      statusParts.push(
+        "This is the LAST chunk. Make sure the summary is complete and well-organized.",
+      );
+    }
+
+    const nextPromptText = nextPrompt ?? "Continue from where you left off.";
+
+    const summaryContent =
+      chunkIndex > 0 ? (this.fileIO.getFileContents("/summary.md") ?? "") : "";
+
+    const prompt = COMPACT_PROMPT_TEMPLATE.replace(
+      "{{status}}",
+      statusParts.join(" "),
+    )
+      .replace("{{next_prompt}}", nextPromptText)
+      .replace("{{summary}}", summaryContent)
+      .replace("{{chunk}}", chunks[chunkIndex]);
+
+    agent.appendUserMessage([{ type: "text", text: prompt }]);
+    agent.continueConversation();
   }
 }

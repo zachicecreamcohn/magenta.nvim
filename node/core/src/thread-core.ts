@@ -38,6 +38,7 @@ import type {
 } from "./compaction-controller.ts";
 import { CompactionManager } from "./compaction-manager.ts";
 import type { ThreadSupervisor } from "./thread-supervisor.ts";
+import { Emitter } from "./emitter.ts";
 
 import { getToolSpecs } from "./tools/toolManager.ts";
 import { createTool, type CreateToolContext } from "./tools/create-tool.ts";
@@ -68,22 +69,29 @@ export type ToolCache = {
   results: Map<ToolRequestId, ProviderToolResult>;
 };
 
-export type ConversationMode =
+export type ThreadMode =
   | { type: "normal" }
   | { type: "tool_use"; activeTools: Map<ToolRequestId, ActiveToolEntry> }
-  | { type: "compacting" };
+  | { type: "compacting" }
+  | {
+      type: "yielded";
+      response: string;
+      tornDown?: boolean;
+      teardownMessage?: string;
+    };
 
 export type EnvironmentConfig =
   | { type: "local" }
   | { type: "docker"; container: string; cwd: string };
 
-export interface ThreadCoreCallbacks {
-  onUpdate: () => void;
-  onPlayChime: () => void;
-  onScrollToLastMessage: () => void;
-  onSetupResubmit: (lastUserMessage: string) => void;
-  onAgentMsg: (msg: AgentMsg) => void;
-}
+export type ThreadCoreEvents = {
+  update: [];
+  playChime: [];
+  scrollToLastMessage: [];
+  setupResubmit: [lastUserMessage: string];
+  agentMsg: [msg: AgentMsg];
+  contextUpdatesSent: [updates: Record<string, unknown>];
+};
 
 export interface ThreadCoreContext {
   logger: Logger;
@@ -113,31 +121,27 @@ const SYSTEM_REMINDER_MIN_TOKEN_INTERVAL = 2000;
 
 export type ThreadCoreAction =
   | { type: "set-title"; title: string }
-  | { type: "set-mode"; mode: ConversationMode }
+  | { type: "set-mode"; mode: ThreadMode }
   | { type: "rebuild-tool-cache" }
   | { type: "cache-tool-result"; id: ToolRequestId; result: ProviderToolResult }
   | { type: "increment-output-tokens"; tokens: number }
   | { type: "reset-output-tokens" }
-  | { type: "set-yielded-response"; response: string }
-  | { type: "set-torn-down" }
+  | { type: "set-teardown-message"; message: string }
   | { type: "push-pending-messages"; messages: InputMessage[] }
   | { type: "drain-pending-messages" }
   | { type: "push-compaction-record"; record: CompactionRecord }
   | { type: "reset-after-compaction" };
 
-export class ThreadCore {
+export class ThreadCore extends Emitter<ThreadCoreEvents> {
   public state: {
     title?: string;
     threadType: ThreadType;
     systemPrompt: SystemPrompt;
     pendingMessages: InputMessage[];
-    mode: ConversationMode;
+    mode: ThreadMode;
     toolCache: ToolCache;
     edlRegisters: EdlRegisters;
     outputTokensSinceLastReminder: number;
-    yieldedResponse?: string;
-    teardownMessage?: string;
-    tornDown?: boolean;
     compactionHistory: CompactionRecord[];
   };
 
@@ -148,9 +152,9 @@ export class ThreadCore {
   constructor(
     public id: ThreadId,
     private context: ThreadCoreContext,
-    private callbacks: ThreadCoreCallbacks,
     clonedAgent?: Agent,
   ) {
+    super();
     this.state = {
       threadType: context.threadType,
       systemPrompt: context.systemPrompt,
@@ -205,11 +209,10 @@ export class ThreadCore {
       case "reset-output-tokens":
         this.state.outputTokensSinceLastReminder = 0;
         break;
-      case "set-yielded-response":
-        this.state.yieldedResponse = action.response;
-        break;
-      case "set-torn-down":
-        this.state.tornDown = true;
+      case "set-teardown-message":
+        if (this.state.mode.type === "yielded") {
+          this.state.mode.teardownMessage = action.message;
+        }
         break;
       case "push-pending-messages":
         this.state.pendingMessages.push(...action.messages);
@@ -229,7 +232,7 @@ export class ThreadCore {
         assertUnreachable(action);
     }
     if (!silent) {
-      this.callbacks.onUpdate();
+      this.emit("update");
     }
   }
 
@@ -255,7 +258,7 @@ export class ThreadCore {
             reasoning: this.context.profile.reasoning,
           }),
       },
-      (msg) => this.callbacks.onAgentMsg(msg),
+      (msg) => this.emit("agentMsg", msg),
     );
   }
 
@@ -306,10 +309,6 @@ export class ThreadCore {
     }
   }
 
-  handleCompactAgentMsg(msg: AgentMsg): void {
-    this.compactionController?.handleAgentMsg(msg);
-  }
-
   setTitle(title: string): void {
     this.update({ type: "set-title", title });
   }
@@ -347,7 +346,7 @@ export class ThreadCore {
     }
 
     if (autoRespondResult.type !== "did-autorespond") {
-      this.callbacks.onPlayChime();
+      this.emit("playChime");
     }
   }
 
@@ -414,7 +413,7 @@ export class ThreadCore {
               }) => provisionContainer(opts),
             }
           : undefined,
-        requestRender: () => this.callbacks.onUpdate(),
+        requestRender: () => this.emit("update"),
       };
 
       const invocation = createTool(request, toolContext);
@@ -453,7 +452,7 @@ export class ThreadCore {
     const autoRespondResult = this.maybeAutoRespond();
 
     if (autoRespondResult.type !== "did-autorespond") {
-      this.callbacks.onPlayChime();
+      this.emit("playChime");
     }
   }
 
@@ -468,7 +467,7 @@ export class ThreadCore {
         .map((c) => c.text)
         .join("");
       if (textContent) {
-        setTimeout(() => this.callbacks.onSetupResubmit(textContent), 1);
+        setTimeout(() => this.emit("setupResubmit", textContent), 1);
       }
     }
     this.context.logger.error(error);
@@ -510,7 +509,7 @@ export class ThreadCore {
   }
 
   async sendMessage(inputMessages?: InputMessage[]): Promise<void> {
-    if (this.state.tornDown) {
+    if (this.state.mode.type === "yielded" && this.state.mode.tornDown) {
       throw new Error(
         "This thread's container has been torn down. No further messages can be sent.",
       );
@@ -526,7 +525,7 @@ export class ThreadCore {
     }
 
     if (contextUpdates) {
-      this.onContextUpdatesSent?.(contextUpdates);
+      this.emit("contextUpdatesSent", contextUpdates);
     }
 
     const contentToSend: AgentInput[] = [...contextContent];
@@ -555,13 +554,6 @@ export class ThreadCore {
     this.agent.appendUserMessage(contentToSend);
     this.agent.continueConversation();
   }
-
-  /** Hook for the wrapper to capture context updates sent with each message.
-   * Set by the wrapper to store contextUpdates in view state.
-   */
-  public onContextUpdatesSent:
-    | ((updates: Record<string, unknown>) => void)
-    | undefined;
 
   async handleSendMessageRequest(
     messages: InputMessage[],
@@ -600,7 +592,7 @@ export class ThreadCore {
     }
 
     if (messages.length) {
-      setTimeout(() => this.callbacks.onScrollToLastMessage(), 100);
+      setTimeout(() => this.emit("scrollToLastMessage"), 100);
     }
   }
 
@@ -612,7 +604,7 @@ export class ThreadCore {
     const mode = this.state.mode;
     const agentStatus = this.agent.getState().status;
 
-    if (this.state.yieldedResponse !== undefined) {
+    if (this.state.mode.type === "yielded") {
       return { type: "yielded-to-parent" };
     }
     if (
@@ -709,11 +701,16 @@ export class ThreadCore {
       const action = await this.supervisor.onYield(yieldResult);
       switch (action.type) {
         case "accept":
-          this.update({ type: "set-torn-down" });
-          this.update({ type: "set-yielded-response", response: yieldResult });
+          this.update({
+            type: "set-mode",
+            mode: { type: "yielded", response: yieldResult, tornDown: true },
+          });
           break;
         case "none":
-          this.update({ type: "set-yielded-response", response: yieldResult });
+          this.update({
+            type: "set-mode",
+            mode: { type: "yielded", response: yieldResult },
+          });
           break;
         case "reject":
           await this.sendMessage([{ type: "system", text: action.message }]);
@@ -723,7 +720,10 @@ export class ThreadCore {
           return;
       }
     } else {
-      this.update({ type: "set-yielded-response", response: yieldResult });
+      this.update({
+        type: "set-mode",
+        mode: { type: "yielded", response: yieldResult },
+      });
     }
   }
 
@@ -783,7 +783,7 @@ export class ThreadCore {
     }
 
     if (contextUpdates) {
-      this.onContextUpdatesSent?.(contextUpdates);
+      this.emit("contextUpdatesSent", contextUpdates);
     }
 
     if (this.shouldAutoCompact()) {
@@ -844,7 +844,7 @@ export class ThreadCore {
   }
 
   startCompaction(nextPrompt?: string, contextFiles?: string[]): void {
-    this.compactionController = new CompactionManager({
+    const manager = new CompactionManager({
       logger: this.context.logger,
       profile: this.context.profile,
       mcpToolManager: this.context.mcpToolManager,
@@ -859,11 +859,21 @@ export class ThreadCore {
       threadManager: this.context.threadManager,
       maxConcurrentSubagents: this.context.maxConcurrentSubagents,
       getProvider: this.context.getProvider,
-      requestRender: () => this.callbacks.onUpdate(),
-      onComplete: (result) => this.handleCompactionResult(result, contextFiles),
+      requestRender: () => this.emit("update"),
     });
+    manager.on("transition", (_prev, next) => {
+      if (next.type === "complete") {
+        this.handleCompactionResult(next.result, contextFiles);
+      } else if (next.type === "error") {
+        this.handleCompactionResult(
+          { type: "error", steps: next.steps },
+          contextFiles,
+        );
+      }
+    });
+    this.compactionController = manager;
     this.update({ type: "set-mode", mode: { type: "compacting" } });
-    this.compactionController.start(this.getProviderMessages(), nextPrompt);
+    manager.start(this.getProviderMessages(), nextPrompt);
   }
 
   private handleCompactionResult(

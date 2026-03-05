@@ -5,11 +5,14 @@ import * as fs from "fs";
 import { DockerFileIO } from "./docker-file-io.ts";
 import { DockerShell } from "./docker-shell.ts";
 import { createDockerEnvironment } from "../environment.ts";
-import { ContextManager } from "../context/context-manager.ts";
-import { getToolSpecs, GetFile, FileCategory } from "@magenta/core";
+
+import {
+  getToolSpecs,
+  GetFile,
+  FileCategory,
+  CoreContextManager,
+} from "@magenta/core";
 import type { ThreadId } from "../chat/types.ts";
-import type { Nvim } from "../nvim/nvim-node/index.ts";
-import type { MagentaOptions } from "../options.ts";
 
 import type {
   MCPToolManager,
@@ -315,22 +318,19 @@ describe.skipIf(!dockerAvailable)("Docker Environment", () => {
     };
 
     function createDockerContextManager(fileIO: DockerFileIO) {
-      const mockNvim = {
-        logger: {
-          error: vi.fn(),
-          warn: vi.fn(),
-          info: vi.fn(),
-        },
-      } as unknown as Nvim;
+      const mockLogger = {
+        error: vi.fn(),
+        warn: vi.fn(),
+        info: vi.fn(),
+        debug: vi.fn(),
+      };
 
-      const cm = new ContextManager(() => {}, {
-        cwd: "/tmp" as NvimCwd,
-        homeDir: "/root" as HomeDir,
-        dispatch: () => {},
+      const cm = new CoreContextManager(
+        mockLogger,
         fileIO,
-        nvim: mockNvim,
-        options: {} as MagentaOptions,
-      });
+        "/tmp" as NvimCwd,
+        "/root" as HomeDir,
+      );
 
       return cm;
     }
@@ -342,12 +342,11 @@ describe.skipIf(!dockerAvailable)("Docker Environment", () => {
 
       const cm = createDockerContextManager(fileIO);
 
-      cm.update({
-        type: "tool-applied",
-        absFilePath: CONTAINER_FILE,
-        tool: { type: "get-file", content: "container content" },
-        fileTypeInfo: TEXT_FILE_TYPE,
-      });
+      cm.toolApplied(
+        CONTAINER_FILE,
+        { type: "get-file", content: "container content" },
+        TEXT_FILE_TYPE,
+      );
 
       const updates = await cm.getContextUpdate();
       expect(Object.keys(updates).length).toBe(0);
@@ -360,12 +359,11 @@ describe.skipIf(!dockerAvailable)("Docker Environment", () => {
 
       const cm = createDockerContextManager(fileIO);
 
-      cm.update({
-        type: "tool-applied",
-        absFilePath: CONTAINER_FILE,
-        tool: { type: "get-file", content: "original content" },
-        fileTypeInfo: TEXT_FILE_TYPE,
-      });
+      cm.toolApplied(
+        CONTAINER_FILE,
+        { type: "get-file", content: "original content" },
+        TEXT_FILE_TYPE,
+      );
 
       // Modify the file inside the container
       await fileIO.writeFile(CONTAINER_FILE, "modified content");
@@ -385,12 +383,11 @@ describe.skipIf(!dockerAvailable)("Docker Environment", () => {
 
       const cm = createDockerContextManager(fileIO);
 
-      cm.update({
-        type: "tool-applied",
-        absFilePath: CONTAINER_FILE,
-        tool: { type: "get-file", content: "soon to be deleted" },
-        fileTypeInfo: TEXT_FILE_TYPE,
-      });
+      cm.toolApplied(
+        CONTAINER_FILE,
+        { type: "get-file", content: "soon to be deleted" },
+        TEXT_FILE_TYPE,
+      );
 
       // Actually delete the file inside the container
       await execFile("docker", ["exec", containerId, "rm", CONTAINER_FILE]);

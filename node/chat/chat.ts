@@ -16,7 +16,7 @@ import type { FileIO } from "@magenta/core";
 
 import { d, withBindings, type VDOMNode } from "../tea/view.ts";
 import { v7 as uuidv7 } from "uuid";
-import { ContextManager } from "../context/context-manager.ts";
+
 import {
   resolveAutoContext,
   autoContextFilesToInitialFiles,
@@ -35,7 +35,7 @@ import type {
   DockerSpawnConfig,
 } from "../capabilities/thread-manager.ts";
 
-import { MCPToolManagerImpl } from "@magenta/core";
+import { MCPToolManagerImpl, CoreContextManager } from "@magenta/core";
 import type { ThreadId, ThreadType } from "./types.ts";
 import { createSystemPrompt } from "../providers/system-prompt.ts";
 
@@ -176,10 +176,10 @@ export class Chat implements ThreadManager {
         // and should not generate any more thread messages. As such, this won't be terribly inefficient.
         const agentStatus = thread.agent.getState().status;
 
-        if (thread.core.state.yieldedResponse !== undefined) {
+        if (thread.core.state.mode.type === "yielded") {
           this.resolveThreadWaiters(thread.id, {
             status: "ok",
-            value: thread.core.state.yieldedResponse,
+            value: thread.core.state.mode.response,
           });
         } else if (agentStatus.type === "error") {
           const result: Result<string> = {
@@ -452,24 +452,11 @@ export class Chat implements ThreadManager {
         ? environment.homeDir
         : this.context.homeDir;
 
-    const contextManager = new ContextManager(
-      (msg) =>
-        this.context.dispatch({
-          type: "thread-msg",
-          id: threadId,
-          msg: {
-            type: "context-manager-msg",
-            msg,
-          },
-        }),
-      {
-        dispatch: this.context.dispatch,
-        fileIO: cmFileIO,
-        cwd: cmCwd,
-        homeDir: cmHomeDir,
-        nvim: this.context.nvim,
-        options: this.context.options,
-      },
+    const contextManager = new CoreContextManager(
+      this.context.nvim.logger,
+      cmFileIO,
+      cmCwd,
+      cmHomeDir,
       initialFiles,
     );
 
@@ -500,7 +487,10 @@ export class Chat implements ThreadManager {
         this.context.cwd,
         {
           onProgress: (message) => {
-            thread.core.state.teardownMessage = message;
+            thread.core.update({
+              type: "set-teardown-message",
+              message,
+            });
             this.context.dispatch({
               type: "thread-msg",
               id: thread.id,
@@ -770,24 +760,11 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       };
     }
 
-    const contextManager = new ContextManager(
-      (msg) =>
-        this.context.dispatch({
-          type: "thread-msg",
-          id: newThreadId,
-          msg: {
-            type: "context-manager-msg",
-            msg,
-          },
-        }),
-      {
-        dispatch: this.context.dispatch,
-        fileIO: new BufferAwareFileIO(this.context),
-        cwd: this.context.cwd,
-        homeDir: this.context.homeDir,
-        nvim: this.context.nvim,
-        options: this.context.options,
-      },
+    const contextManager = new CoreContextManager(
+      this.context.nvim.logger,
+      new BufferAwareFileIO(this.context),
+      this.context.cwd,
+      this.context.homeDir,
       initialFiles,
     );
 
@@ -871,12 +848,12 @@ ${threadViews.map((view) => d`${view}\n`)}`;
         const agentStatus = thread.agent.getState().status;
 
         // Check for yielded state first
-        if (thread.core.state.yieldedResponse !== undefined) {
+        if (thread.core.state.mode.type === "yielded") {
           return {
             status: "done",
             result: {
               status: "ok",
-              value: thread.core.state.yieldedResponse,
+              value: thread.core.state.mode.response,
             },
           };
         }
@@ -968,17 +945,16 @@ ${threadViews.map((view) => d`${view}\n`)}`;
           title: thread.core.state.title,
           status: (() => {
             // Check mode for thread-specific states first
-            if (thread.core.state.yieldedResponse !== undefined) {
+            if (mode.type === "yielded") {
+              if (mode.teardownMessage) {
+                return {
+                  type: "running" as const,
+                  activity: `🐳 ${mode.teardownMessage}`,
+                };
+              }
               return {
                 type: "yielded" as const,
-                response: thread.core.state.yieldedResponse,
-              };
-            }
-
-            if (thread.core.state.teardownMessage) {
-              return {
-                type: "running" as const,
-                activity: `🐳 ${thread.core.state.teardownMessage}`,
+                response: mode.response,
               };
             }
 
@@ -1112,7 +1088,10 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const threadWrapper = this.threadWrappers[threadId];
     if (threadWrapper && threadWrapper.state === "initialized") {
       if (result.status === "ok") {
-        threadWrapper.thread.core.state.yieldedResponse = result.value;
+        threadWrapper.thread.core.update({
+          type: "set-mode",
+          mode: { type: "yielded", response: result.value },
+        });
       }
     }
     this.resolveThreadWaiters(threadId, result);

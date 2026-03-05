@@ -193,6 +193,7 @@ export {
   type FileDeletedUpdate,
   type FileUpdate,
   type FileUpdates,
+  type ContextManagerEvents,
 } from "./context/context-manager.ts";
 export type { Shell, ShellResult, OutputLine } from "./capabilities/shell.ts";
 export type {
@@ -247,11 +248,11 @@ export { createTool, type CreateToolContext } from "./tools/create-tool.ts";
 export {
   ThreadCore,
   type ThreadCoreContext,
-  type ThreadCoreCallbacks,
+  type ThreadCoreEvents,
   type InputMessage,
   type ActiveToolEntry,
   type ToolCache,
-  type ConversationMode,
+  type ThreadMode,
   type EnvironmentConfig,
   type ThreadCoreAction,
 } from "./thread-core.ts";
@@ -276,7 +277,11 @@ export {
 export {
   CompactionManager,
   type CompactionManagerContext,
+  type CompactionState,
+  type CompactionAction,
+  type CompactionEvents,
 } from "./compaction-manager.ts";
 export type { ContainerConfig, ProvisionResult } from "./container/types.ts";
 export { provisionContainer } from "./container/provision.ts";
 export { teardownContainer } from "./container/teardown.ts";
+export { Emitter, type EventMap } from "./emitter.ts";

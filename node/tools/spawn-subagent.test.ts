@@ -376,14 +376,17 @@ describe("yield behavior", () => {
 
       // Wait for yieldedResponse to be set
       await pollUntil(() => {
-        if (childWrapper.thread.core.state.yieldedResponse === undefined) {
+        const mode = childWrapper.thread.core.state.mode;
+        if (mode.type !== "yielded") {
           throw new Error("yieldedResponse not set yet");
         }
-        return childWrapper.thread.core.state.yieldedResponse;
+        return mode.response;
       });
-      expect(childWrapper.thread.core.state.yieldedResponse).toBe(
-        "Task result: success",
-      );
+      const mode = childWrapper.thread.core.state.mode;
+      expect(mode.type).toBe("yielded");
+      if (mode.type === "yielded") {
+        expect(mode.response).toBe("Task result: success");
+      }
     });
   });
 
@@ -411,7 +414,8 @@ describe("yield behavior", () => {
 
       // Wait for yield to complete
       await pollUntil(() => {
-        if (childWrapper.thread.core.state.yieldedResponse === undefined) {
+        const mode = childWrapper.thread.core.state.mode;
+        if (mode.type !== "yielded") {
           throw new Error("yieldedResponse not set yet");
         }
       });

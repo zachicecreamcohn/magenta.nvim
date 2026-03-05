@@ -1,8 +1,4 @@
-import {
-  ContextManager,
-  type Msg as ContextManagerMsg,
-  type FileUpdates,
-} from "../context/context-manager.ts";
+import { type FileUpdates } from "../context/context-manager.ts";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
 
 import { type Dispatch } from "../tea/tea.ts";
@@ -12,6 +8,7 @@ import {
   MCPToolManagerImpl,
   ThreadCore,
   type InputMessage,
+  CoreContextManager,
 } from "@magenta/core";
 
 import type { Nvim } from "../nvim/nvim-node/index.ts";
@@ -48,7 +45,7 @@ export type {
   InputMessage,
   ActiveToolEntry,
   ToolCache,
-  ConversationMode,
+  ThreadMode,
   CompactionStep,
   CompactionRecord,
 } from "@magenta/core";
@@ -67,10 +64,6 @@ export type Msg =
       type: "start-compaction";
       nextPrompt?: string;
       contextFiles?: string[];
-    }
-  | {
-      type: "context-manager-msg";
-      msg: ContextManagerMsg;
     }
   | {
       type: "toggle-system-prompt";
@@ -95,10 +88,6 @@ export type Msg =
     }
   | {
       type: "agent-msg";
-      msg: AgentMsg;
-    }
-  | {
-      type: "compact-agent-msg";
       msg: AgentMsg;
     }
   | {
@@ -150,7 +139,7 @@ export class Thread {
 
   public core: ThreadCore;
   private myDispatch: Dispatch<Msg>;
-  public contextManager: ContextManager;
+  public contextManager: CoreContextManager;
   public permissionFileIO: PermissionCheckingFileIO | undefined;
   public permissionShell: PermissionCheckingShell | undefined;
 
@@ -178,7 +167,7 @@ export class Thread {
       nvim: Nvim;
       cwd: NvimCwd;
       homeDir: HomeDir;
-      contextManager: ContextManager;
+      contextManager: CoreContextManager;
       options: MagentaOptions;
       getDisplayWidth: () => number;
       environment: Environment;
@@ -216,7 +205,7 @@ export class Thread {
         threadType,
         systemPrompt,
         mcpToolManager: context.mcpToolManager,
-        contextManager: this.contextManager.core,
+        contextManager: this.contextManager,
         threadManager: context.chat,
         fileIO: env.fileIO,
         shell: env.shell,
@@ -229,33 +218,42 @@ export class Thread {
         getProvider: (profile) => getProvider(context.nvim, profile),
         resetContextManager: async (contextFiles) => {
           await this.resetContextManager(contextFiles);
-          return this.contextManager.core;
+          return this.contextManager;
         },
-      },
-      {
-        onUpdate: () => this.myDispatch({ type: "tool-progress" }),
-        onPlayChime: () => this.playChimeIfNeeded(),
-        onScrollToLastMessage: () =>
-          this.context.dispatch({
-            type: "sidebar-msg",
-            msg: { type: "scroll-to-last-user-message" },
-          }),
-        onSetupResubmit: (lastUserMessage) =>
-          this.context.dispatch({
-            type: "sidebar-msg",
-            msg: { type: "setup-resubmit", lastUserMessage },
-          }),
-        onAgentMsg: (msg) => this.myDispatch({ type: "agent-msg", msg }),
       },
       clonedAgent,
     );
 
-    this.core.onContextUpdatesSent = (updates) => {
+    this.core.on("update", () => this.myDispatch({ type: "tool-progress" }));
+    this.core.on("playChime", () => this.playChimeIfNeeded());
+    this.core.on("scrollToLastMessage", () =>
+      this.context.dispatch({
+        type: "sidebar-msg",
+        msg: { type: "scroll-to-last-user-message" },
+      }),
+    );
+    this.core.on("setupResubmit", (lastUserMessage) =>
+      this.context.dispatch({
+        type: "sidebar-msg",
+        msg: { type: "setup-resubmit", lastUserMessage },
+      }),
+    );
+    this.core.on("agentMsg", (msg) =>
+      this.myDispatch({ type: "agent-msg", msg }),
+    );
+    this.core.on("contextUpdatesSent", (updates) => {
       const messageCount = this.core.getProviderMessages().length;
       this.state.messageViewState[messageCount] = {
         contextUpdates: updates as FileUpdates,
       };
-    };
+    });
+    // Re-render when context files change (added/removed directly on core)
+    this.contextManager.on("fileAdded", () =>
+      this.myDispatch({ type: "tool-progress" }),
+    );
+    this.contextManager.on("fileRemoved", () =>
+      this.myDispatch({ type: "tool-progress" }),
+    );
   }
 
   getProviderStatus(): AgentStatus {
@@ -290,10 +288,6 @@ export class Thread {
         this.core
           .handleSendMessageRequest(msg.messages, msg.async)
           .catch((e: Error) => this.context.nvim.logger.error(e));
-        return;
-
-      case "context-manager-msg":
-        this.contextManager.update(msg.msg);
         return;
 
       case "start-compaction":
@@ -361,10 +355,6 @@ export class Thread {
       case "tool-progress":
         return;
 
-      case "compact-agent-msg":
-        this.core.handleCompactAgentMsg(msg.msg);
-        return;
-
       case "toggle-compaction-record": {
         const vs = this.state.compactionViewState[msg.recordIdx] || {
           expanded: false,
@@ -399,21 +389,11 @@ export class Thread {
   private async resetContextManager(contextFiles?: string[]): Promise<void> {
     const env = this.context.environment;
     const isDocker = env.environmentConfig.type === "docker";
-    this.contextManager = new ContextManager(
-      (msg) =>
-        this.context.dispatch({
-          type: "thread-msg",
-          id: this.id,
-          msg: { type: "context-manager-msg", msg },
-        }),
-      {
-        dispatch: this.context.dispatch,
-        fileIO: env.fileIO,
-        cwd: isDocker ? env.cwd : this.context.cwd,
-        homeDir: isDocker ? env.homeDir : this.context.homeDir,
-        nvim: this.context.nvim,
-        options: this.context.options,
-      },
+    this.contextManager = new CoreContextManager(
+      this.context.nvim.logger,
+      env.fileIO,
+      isDocker ? env.cwd : this.context.cwd,
+      isDocker ? env.homeDir : this.context.homeDir,
     );
 
     if (contextFiles && contextFiles.length > 0) {

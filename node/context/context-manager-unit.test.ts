@@ -1,39 +1,33 @@
 import { describe, it, expect, vi } from "vitest";
-import { ContextManager, type DiffUpdate } from "./context-manager.ts";
-import { InMemoryFileIO } from "@magenta/core";
+import {
+  CoreContextManager,
+  InMemoryFileIO,
+  type DiffUpdate,
+} from "@magenta/core";
 import {
   FileCategory,
   type AbsFilePath,
   type RelFilePath,
 } from "../utils/files.ts";
 import type { NvimCwd, HomeDir } from "../utils/files.ts";
-import type { Nvim } from "../nvim/nvim-node/index.ts";
-import type { MagentaOptions } from "../options.ts";
-import type { RootMsg } from "../root-msg.ts";
 
 function createTestContextManager(files: Record<string, string>) {
   const fileIO = new InMemoryFileIO(files);
-  const dispatched: RootMsg[] = [];
-  const mockNvim = {
-    logger: {
-      error: vi.fn(),
-      warn: vi.fn(),
-      info: vi.fn(),
-    },
-  } as unknown as Nvim;
+  const mockLogger = {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+  };
 
-  const cm = new ContextManager(() => {}, {
-    cwd: "/test" as NvimCwd,
-    homeDir: "/home" as HomeDir,
-    dispatch: (msg: RootMsg) => {
-      dispatched.push(msg);
-    },
+  const cm = new CoreContextManager(
+    mockLogger,
     fileIO,
-    nvim: mockNvim,
-    options: {} as MagentaOptions,
-  });
+    "/test" as NvimCwd,
+    "/home" as HomeDir,
+  );
 
-  return { cm, fileIO, dispatched };
+  return { cm, fileIO };
 }
 
 const TEST_PATH = "/test/file.txt" as AbsFilePath;
@@ -50,12 +44,11 @@ describe("ContextManager unit tests", () => {
       [TEST_PATH]: "hello world",
     });
 
-    cm.update({
-      type: "tool-applied",
-      absFilePath: TEST_PATH,
-      tool: { type: "get-file", content: "hello world" },
-      fileTypeInfo: TEXT_FILE_TYPE,
-    });
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "get-file", content: "hello world" },
+      TEXT_FILE_TYPE,
+    );
 
     expect(cm.files[TEST_PATH].agentView).toEqual({
       type: "text",
@@ -72,12 +65,11 @@ describe("ContextManager unit tests", () => {
       [TEST_PATH]: "edited content",
     });
 
-    cm.update({
-      type: "tool-applied",
-      absFilePath: TEST_PATH,
-      tool: { type: "edl-edit", content: "edited content" },
-      fileTypeInfo: TEXT_FILE_TYPE,
-    });
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "edl-edit", content: "edited content" },
+      TEXT_FILE_TYPE,
+    );
 
     expect(cm.files[TEST_PATH].agentView).toEqual({
       type: "text",
@@ -95,12 +87,11 @@ describe("ContextManager unit tests", () => {
     });
 
     // Simulate get_file tool setting agentView
-    cm.update({
-      type: "tool-applied",
-      absFilePath: TEST_PATH,
-      tool: { type: "get-file", content: "original content" },
-      fileTypeInfo: TEXT_FILE_TYPE,
-    });
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "get-file", content: "original content" },
+      TEXT_FILE_TYPE,
+    );
 
     // Simulate file being modified (e.g., by a formatter)
     await fileIO.writeFile(TEST_PATH, "formatted content");
@@ -123,12 +114,11 @@ describe("ContextManager unit tests", () => {
     });
 
     // EDL writes the file
-    cm.update({
-      type: "tool-applied",
-      absFilePath: TEST_PATH,
-      tool: { type: "edl-edit", content: "const x=1" },
-      fileTypeInfo: TEXT_FILE_TYPE,
-    });
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "edl-edit", content: "const x=1" },
+      TEXT_FILE_TYPE,
+    );
 
     // Formatter rewrites it
     await fileIO.writeFile(TEST_PATH, "const x = 1;\n");
@@ -149,12 +139,11 @@ describe("ContextManager unit tests", () => {
       [TEST_PATH]: "same content",
     });
 
-    cm.update({
-      type: "tool-applied",
-      absFilePath: TEST_PATH,
-      tool: { type: "get-file", content: "same content" },
-      fileTypeInfo: TEXT_FILE_TYPE,
-    });
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "get-file", content: "same content" },
+      TEXT_FILE_TYPE,
+    );
 
     const updates = await cm.getContextUpdate();
     expect(Object.keys(updates).length).toBe(0);
@@ -168,22 +157,16 @@ describe("ContextManager unit tests", () => {
     });
 
     // Add file and establish initial agentView
-    cm.update({
-      type: "add-file-context",
-      absFilePath: TEST_PATH,
-      relFilePath: TEST_REL,
-      fileTypeInfo: TEXT_FILE_TYPE,
-    });
+    cm.addFileContext(TEST_PATH, TEST_REL, TEXT_FILE_TYPE);
     await cm.getContextUpdate();
 
     // EDL tool writes the file and sets agentView
     await fileIO.writeFile(TEST_PATH, editedContent);
-    cm.update({
-      type: "tool-applied",
-      absFilePath: TEST_PATH,
-      tool: { type: "edl-edit", content: editedContent },
-      fileTypeInfo: TEXT_FILE_TYPE,
-    });
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "edl-edit", content: editedContent },
+      TEXT_FILE_TYPE,
+    );
 
     // Next context update should be empty — agent already knows the content
     const updates = await cm.getContextUpdate();
@@ -195,12 +178,11 @@ describe("ContextManager unit tests", () => {
       [TEST_PATH]: "some content",
     });
 
-    cm.update({
-      type: "tool-applied",
-      absFilePath: TEST_PATH,
-      tool: { type: "get-file", content: "some content" },
-      fileTypeInfo: TEXT_FILE_TYPE,
-    });
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "get-file", content: "some content" },
+      TEXT_FILE_TYPE,
+    );
 
     // Delete the file
     fileIO.deleteFile(TEST_PATH);
