@@ -265,6 +265,18 @@ export type {
   CompactionResult,
   CompactionController,
 } from "./compaction-controller.ts";
+export {
+  renderThreadToMarkdown,
+  chunkMessages,
+  CHARS_PER_TOKEN,
+  TARGET_CHUNK_TOKENS,
+  TOLERANCE_TOKENS,
+  type RenderResult,
+} from "./compact-renderer.ts";
+export {
+  CompactionManager,
+  type CompactionManagerContext,
+} from "./compaction-manager.ts";
 export type { ContainerConfig, ProvisionResult } from "./container/types.ts";
 export { provisionContainer } from "./container/provision.ts";
 export { teardownContainer } from "./container/teardown.ts";

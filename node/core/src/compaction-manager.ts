@@ -1,32 +1,34 @@
-import {
-  type ToolRequestId,
-  getToolSpecs,
-  createTool,
-  type CreateToolContext,
-  type EdlRegisters,
-  InMemoryFileIO,
-  type ContextTracker,
-} from "@magenta/core";
-import {
-  getProvider,
-  type Agent,
-  type AgentMsg,
-  type ProviderMessage,
-  type ProviderToolResult,
-} from "../providers/provider.ts";
-import type { Nvim } from "../nvim/nvim-node/index.ts";
-import type { MCPToolManagerImpl } from "@magenta/core";
-import type { Profile } from "../options.ts";
-import type { ThreadId } from "./types.ts";
-import type { Shell } from "../capabilities/shell.ts";
-import type { Environment } from "../environment.ts";
-import type { ContextManager } from "../context/context-manager.ts";
-import type { Chat } from "./chat.ts";
-import type { MagentaOptions } from "../options.ts";
-import type { Dispatch } from "../tea/tea.ts";
-import type { RootMsg } from "../root-msg.ts";
-import type { ActiveToolEntry } from "./thread.ts";
-import type { CompactionStep, CompactionResult } from "@magenta/core";
+import type { Logger } from "./logger.ts";
+import type { ProviderProfile } from "./provider-options.ts";
+import type { ThreadId } from "./chat-types.ts";
+import type { ContextTracker } from "./capabilities/context-tracker.ts";
+import type { ContextManager } from "./context/context-manager.ts";
+import type { ThreadManager } from "./capabilities/thread-manager.ts";
+import type { Shell } from "./capabilities/shell.ts";
+import type { LspClient } from "./capabilities/lsp-client.ts";
+import type { DiagnosticsProvider } from "./capabilities/diagnostics-provider.ts";
+import type { NvimCwd, HomeDir } from "./utils/files.ts";
+import type { ToolCapability } from "./tools/tool-registry.ts";
+import type {
+  Provider,
+  ProviderMessage,
+  Agent,
+  AgentMsg,
+  ProviderToolResult,
+} from "./providers/provider-types.ts";
+import type { ToolRequestId, ToolRequest, ToolInvocation } from "./tool-types.ts";
+import type { ToolName } from "./tool-types.ts";
+import type { EdlRegisters } from "./edl/index.ts";
+import type {
+  CompactionController,
+  CompactionResult,
+  CompactionStep,
+} from "./compaction-controller.ts";
+import { MCPToolManager as MCPToolManagerImpl } from "./tools/mcp/manager.ts";
+
+import { getToolSpecs } from "./tools/toolManager.ts";
+import { createTool, type CreateToolContext } from "./tools/create-tool.ts";
+import { InMemoryFileIO } from "./edl/in-memory-file-io.ts";
 import {
   renderThreadToMarkdown,
   chunkMessages,
@@ -43,9 +45,33 @@ const COMPACT_PROMPT_TEMPLATE = readFileSync(
   "utf-8",
 );
 
-export type { CompactionResult, CompactionStep } from "@magenta/core";
+type ActiveToolEntry = {
+  handle: ToolInvocation;
+  progress: unknown;
+  toolName: ToolName;
+  request: ToolRequest;
+};
 
-export class CompactionManager {
+export interface CompactionManagerContext {
+  logger: Logger;
+  profile: ProviderProfile;
+  mcpToolManager: MCPToolManagerImpl;
+  threadId: ThreadId;
+  cwd: NvimCwd;
+  homeDir: HomeDir;
+  lspClient: LspClient;
+  diagnosticsProvider: DiagnosticsProvider;
+  availableCapabilities: Set<ToolCapability>;
+  contextManager: ContextManager;
+  shell: Shell;
+  threadManager: ThreadManager;
+  maxConcurrentSubagents: number;
+  getProvider: (profile: ProviderProfile) => Provider;
+  requestRender: () => void;
+  onComplete: (result: CompactionResult) => void;
+}
+
+export class CompactionManager implements CompactionController {
   private agent: Agent;
   private fileIO: InMemoryFileIO;
   private edlRegisters: EdlRegisters;
@@ -57,21 +83,7 @@ export class CompactionManager {
   private toolResults: Map<ToolRequestId, ProviderToolResult>;
   public result: CompactionResult | undefined;
 
-  constructor(
-    private context: {
-      profile: Profile;
-      mcpToolManager: MCPToolManagerImpl;
-      environment: Environment;
-      contextManager: ContextManager;
-      threadId: ThreadId;
-      dispatch: Dispatch<RootMsg>;
-      nvim: Nvim;
-      options: MagentaOptions;
-      shell: Shell;
-      chat: Chat;
-      onComplete: (result: CompactionResult) => void;
-    },
-  ) {
+  constructor(private context: CompactionManagerContext) {
     this.fileIO = new InMemoryFileIO({ "/summary.md": "" });
     this.edlRegisters = { registers: new Map(), nextSavedId: 0 };
     this.activeTools = new Map();
@@ -95,7 +107,7 @@ export class CompactionManager {
     );
 
     if (this.chunks.length === 0) {
-      this.context.nvim.logger.warn("No chunks to compact");
+      this.context.logger.warn("No chunks to compact");
       return;
     }
 
@@ -107,7 +119,7 @@ export class CompactionManager {
   }
 
   private createCompactAgent(): Agent {
-    const provider = getProvider(this.context.nvim, this.context.profile);
+    const provider = this.context.getProvider(this.context.profile);
     return provider.createAgent(
       {
         model: this.context.profile.fastModel,
@@ -116,16 +128,11 @@ export class CompactionManager {
         tools: getToolSpecs(
           "compact",
           this.context.mcpToolManager,
-          this.context.environment.availableCapabilities,
+          this.context.availableCapabilities,
         ),
         skipPostFlightTokenCount: true,
       },
-      (msg) =>
-        this.context.dispatch({
-          type: "thread-msg",
-          id: this.context.threadId,
-          msg: { type: "compact-agent-msg", msg },
-        }),
+      (msg) => this.handleAgentMsg(msg),
     );
   }
 
@@ -179,7 +186,7 @@ export class CompactionManager {
         return;
 
       case "agent-error":
-        this.context.nvim.logger.error(
+        this.context.logger.error(
           `Compact agent error: ${msg.error.message}`,
         );
         this.complete({ type: "error", steps: this.steps });
@@ -191,7 +198,7 @@ export class CompactionManager {
         } else if (msg.stopReason === "end_turn") {
           this.handleChunkComplete();
         } else {
-          this.context.nvim.logger.warn(
+          this.context.logger.warn(
             `Compact agent stopped with unexpected reason: ${msg.stopReason}`,
           );
           this.complete({ type: "error", steps: this.steps });
@@ -211,7 +218,7 @@ export class CompactionManager {
     const lastMessage = messages[messages.length - 1];
 
     if (!lastMessage || lastMessage.role !== "assistant") {
-      this.context.nvim.logger.error(
+      this.context.logger.error(
         "Compact agent tool_use but no assistant message",
       );
       this.complete({ type: "error", steps: this.steps });
@@ -241,32 +248,25 @@ export class CompactionManager {
       const toolContext: CreateToolContext = {
         mcpToolManager: this.context.mcpToolManager,
         threadId: this.context.threadId,
-        logger: this.context.nvim.logger,
-        lspClient: this.context.environment.lspClient,
-        cwd: this.context.environment.cwd,
-        homeDir: this.context.environment.homeDir,
-        maxConcurrentSubagents:
-          this.context.options.maxConcurrentSubagents || 3,
+        logger: this.context.logger,
+        lspClient: this.context.lspClient,
+        cwd: this.context.cwd,
+        homeDir: this.context.homeDir,
+        maxConcurrentSubagents: this.context.maxConcurrentSubagents,
         contextTracker: this.context.contextManager as ContextTracker,
         onToolApplied: (absFilePath, tool, fileTypeInfo) => {
-          this.context.contextManager.update({
-            type: "tool-applied",
+          this.context.contextManager.toolApplied(
             absFilePath,
             tool,
             fileTypeInfo,
-          });
+          );
         },
-        diagnosticsProvider: this.context.environment.diagnosticsProvider,
+        diagnosticsProvider: this.context.diagnosticsProvider,
         edlRegisters: this.edlRegisters,
         fileIO: this.fileIO,
         shell: this.context.shell,
-        threadManager: this.context.chat,
-        requestRender: () =>
-          this.context.dispatch({
-            type: "thread-msg",
-            id: this.context.threadId,
-            msg: { type: "tool-progress" },
-          }),
+        threadManager: this.context.threadManager,
+        requestRender: () => this.context.requestRender(),
       };
 
       const invocation = createTool(request, toolContext);
@@ -337,7 +337,7 @@ export class CompactionManager {
     } else {
       const summary = this.fileIO.getFileContents("/summary.md");
       if (summary === undefined || summary === "") {
-        this.context.nvim.logger.error(
+        this.context.logger.error(
           "Compact agent finished but /summary.md is empty",
         );
         this.complete({ type: "error", steps: this.steps });

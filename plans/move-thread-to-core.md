@@ -275,4 +275,3 @@ Note: `ContextProvider` interface is no longer needed — ThreadCore uses core's
   - Test callbacks fire correctly (onUpdate, onPlayChime, onScrollToLastMessage)
 - [ ] Run existing integration tests to make sure wrapper behavior unchanged: `npx vitest run`
 - [ ] Iterate until all tests pass
-

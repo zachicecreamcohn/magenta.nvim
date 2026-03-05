@@ -44,8 +44,6 @@ import type { PermissionCheckingFileIO } from "../capabilities/permission-file-i
 import type { PermissionCheckingShell } from "../capabilities/permission-shell.ts";
 import type { Environment } from "../environment.ts";
 
-import { CompactionManager } from "./compaction-manager.ts";
-
 export type {
   InputMessage,
   ActiveToolEntry,
@@ -155,7 +153,6 @@ export class Thread {
   public contextManager: ContextManager;
   public permissionFileIO: PermissionCheckingFileIO | undefined;
   public permissionShell: PermissionCheckingShell | undefined;
-  public compactionManager: CompactionManager | undefined;
 
   get agent(): Agent {
     return this.core.agent;
@@ -230,23 +227,6 @@ export class Thread {
         maxConcurrentSubagents: context.options.maxConcurrentSubagents || 3,
         container: context.options.container,
         getProvider: (profile) => getProvider(context.nvim, profile),
-        createCompactionController: (onComplete) => {
-          const manager = new CompactionManager({
-            profile: context.profile,
-            mcpToolManager: context.mcpToolManager,
-            environment: context.environment,
-            contextManager: this.contextManager,
-            threadId: this.id,
-            dispatch: context.dispatch,
-            nvim: context.nvim,
-            options: context.options,
-            shell: env.shell,
-            chat: context.chat,
-            onComplete,
-          });
-          this.compactionManager = manager;
-          return manager;
-        },
         resetContextManager: async (contextFiles) => {
           await this.resetContextManager(contextFiles);
           return this.contextManager.core;

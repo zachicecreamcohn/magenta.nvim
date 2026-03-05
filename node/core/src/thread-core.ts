@@ -32,11 +32,11 @@ import type {
 } from "./tool-types.ts";
 import type { EdlRegisters } from "./edl/index.ts";
 import type {
-  CompactionController,
   CompactionResult,
   CompactionStep,
   CompactionRecord,
 } from "./compaction-controller.ts";
+import { CompactionManager } from "./compaction-manager.ts";
 import type { ThreadSupervisor } from "./thread-supervisor.ts";
 
 import { getToolSpecs } from "./tools/toolManager.ts";
@@ -104,9 +104,7 @@ export interface ThreadCoreContext {
   maxConcurrentSubagents: number;
   container?: ContainerConfig | undefined;
   getProvider: (profile: ProviderProfile) => Provider;
-  createCompactionController: (
-    onComplete: (result: CompactionResult) => void,
-  ) => CompactionController;
+
   resetContextManager: (contextFiles?: string[]) => Promise<ContextManager>;
 }
 
@@ -144,7 +142,7 @@ export class ThreadCore {
   };
 
   public agent: Agent;
-  public compactionController: CompactionController | undefined;
+  public compactionController: CompactionManager | undefined;
   public supervisor: ThreadSupervisor | undefined;
 
   constructor(
@@ -846,9 +844,24 @@ export class ThreadCore {
   }
 
   startCompaction(nextPrompt?: string, contextFiles?: string[]): void {
-    this.compactionController = this.context.createCompactionController(
-      (result) => this.handleCompactionResult(result, contextFiles),
-    );
+    this.compactionController = new CompactionManager({
+      logger: this.context.logger,
+      profile: this.context.profile,
+      mcpToolManager: this.context.mcpToolManager,
+      threadId: this.id,
+      cwd: this.context.cwd,
+      homeDir: this.context.homeDir,
+      lspClient: this.context.lspClient,
+      diagnosticsProvider: this.context.diagnosticsProvider,
+      availableCapabilities: this.context.availableCapabilities,
+      contextManager: this.context.contextManager,
+      shell: this.context.shell,
+      threadManager: this.context.threadManager,
+      maxConcurrentSubagents: this.context.maxConcurrentSubagents,
+      getProvider: this.context.getProvider,
+      requestRender: () => this.callbacks.onUpdate(),
+      onComplete: (result) => this.handleCompactionResult(result, contextFiles),
+    });
     this.update({ type: "set-mode", mode: { type: "compacting" } });
     this.compactionController.start(this.getProviderMessages(), nextPrompt);
   }

@@ -153,19 +153,23 @@ export class NvimDriver {
       ReturnType<typeof thread.core.maybeAutoRespond>
     >();
 
-    const originalMaybeAutoRespond = thread.core.maybeAutoRespond.bind(thread.core);
-    const spy = vi.spyOn(thread.core, "maybeAutoRespond").mockImplementation(() => {
-      callDefer.resolve();
-      // Block until execute() is called - return a default value synchronously
-      let result: ReturnType<typeof thread.core.maybeAutoRespond> = {
-        type: "no-action-needed",
-      };
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
-      executeDefer.promise.then((r) => {
-        result = r;
+    const originalMaybeAutoRespond = thread.core.maybeAutoRespond.bind(
+      thread.core,
+    );
+    const spy = vi
+      .spyOn(thread.core, "maybeAutoRespond")
+      .mockImplementation(() => {
+        callDefer.resolve();
+        // Block until execute() is called - return a default value synchronously
+        let result: ReturnType<typeof thread.core.maybeAutoRespond> = {
+          type: "no-action-needed",
+        };
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        executeDefer.promise.then((r) => {
+          result = r;
+        });
+        return result;
       });
-      return result;
-    });
 
     return {
       /** Resolves when maybeAutoRespond is called */
