@@ -184,6 +184,16 @@ export type {
   ToolApplied,
   OnToolApplied,
 } from "./capabilities/context-tracker.ts";
+export {
+  ContextManager as CoreContextManager,
+  type Files as ContextFiles,
+  type Patch,
+  type WholeFileUpdate,
+  type DiffUpdate,
+  type FileDeletedUpdate,
+  type FileUpdate,
+  type FileUpdates,
+} from "./context/context-manager.ts";
 export type { Shell, ShellResult, OutputLine } from "./capabilities/shell.ts";
 export type {
   ThreadManager,
@@ -234,6 +244,27 @@ export * as YieldToParent from "./tools/yield-to-parent.ts";
 export * as Edl from "./tools/edl.ts";
 export { createTool, type CreateToolContext } from "./tools/create-tool.ts";
 
+export {
+  ThreadCore,
+  type ThreadCoreContext,
+  type ThreadCoreCallbacks,
+  type InputMessage,
+  type ActiveToolEntry,
+  type ToolCache,
+  type ConversationMode,
+  type EnvironmentConfig,
+  type ThreadCoreAction,
+} from "./thread-core.ts";
+export type {
+  SupervisorAction,
+  ThreadSupervisor,
+} from "./thread-supervisor.ts";
+export type {
+  CompactionStep,
+  CompactionRecord,
+  CompactionResult,
+  CompactionController,
+} from "./compaction-controller.ts";
 export type { ContainerConfig, ProvisionResult } from "./container/types.ts";
 export { provisionContainer } from "./container/provision.ts";
 export { teardownContainer } from "./container/teardown.ts";

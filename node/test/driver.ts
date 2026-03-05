@@ -117,13 +117,13 @@ export class NvimDriver {
 
   interceptSendMessage() {
     const thread = this.magenta.chat.getActiveThread();
-    const callDefer = new Defer<Parameters<typeof thread.sendMessage>>();
+    const callDefer = new Defer<Parameters<typeof thread.core.sendMessage>>();
     const executeDefer = new Defer<void>();
 
     const spy = vi
-      .spyOn(thread, "sendMessage")
+      .spyOn(thread.core, "sendMessage")
       .mockImplementation(
-        async (...args: Parameters<typeof thread.sendMessage>) => {
+        async (...args: Parameters<typeof thread.core.sendMessage>) => {
           callDefer.resolve(args);
           return executeDefer.promise;
         },
@@ -132,9 +132,9 @@ export class NvimDriver {
     return {
       promise: callDefer.promise,
       spy,
-      execute: (...args: Parameters<typeof thread.sendMessage>) => {
+      execute: (...args: Parameters<typeof thread.core.sendMessage>) => {
         spy.mockRestore();
-        return thread.sendMessage(...args).then(
+        return thread.core.sendMessage(...args).then(
           () => executeDefer.resolve(),
           (err: Error) => executeDefer.reject(err),
         );
@@ -150,14 +150,14 @@ export class NvimDriver {
     const thread = this.magenta.chat.getActiveThread();
     const callDefer = new Defer<void>();
     const executeDefer = new Defer<
-      ReturnType<typeof thread.maybeAutoRespond>
+      ReturnType<typeof thread.core.maybeAutoRespond>
     >();
 
-    const originalMaybeAutoRespond = thread.maybeAutoRespond.bind(thread);
-    const spy = vi.spyOn(thread, "maybeAutoRespond").mockImplementation(() => {
+    const originalMaybeAutoRespond = thread.core.maybeAutoRespond.bind(thread.core);
+    const spy = vi.spyOn(thread.core, "maybeAutoRespond").mockImplementation(() => {
       callDefer.resolve();
       // Block until execute() is called - return a default value synchronously
-      let result: ReturnType<typeof thread.maybeAutoRespond> = {
+      let result: ReturnType<typeof thread.core.maybeAutoRespond> = {
         type: "no-action-needed",
       };
       // eslint-disable-next-line @typescript-eslint/no-floating-promises

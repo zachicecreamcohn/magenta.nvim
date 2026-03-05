@@ -50,9 +50,9 @@ it("compact flow: user initiates @compact, spawns compact thread, compacts and c
     // Wait for the thread to enter compacting mode
     await pollUntil(
       () => {
-        if (originalThread.state.mode.type !== "compacting")
+        if (originalThread.core.state.mode.type !== "compacting")
           throw new Error(
-            `expected compacting mode but got ${originalThread.state.mode.type}`,
+            `expected compacting mode but got ${originalThread.core.state.mode.type}`,
           );
       },
       { timeout: 2000, message: "thread should enter compacting mode" },
@@ -212,9 +212,9 @@ it("compact flow without continuation: @compact with no next prompt", async () =
     // Wait for compacting mode
     await pollUntil(
       () => {
-        if (thread.state.mode.type !== "compacting")
+        if (thread.core.state.mode.type !== "compacting")
           throw new Error(
-            `expected compacting mode but got ${thread.state.mode.type}`,
+            `expected compacting mode but got ${thread.core.state.mode.type}`,
           );
       },
       { timeout: 2000, message: "thread should enter compacting mode" },
@@ -308,9 +308,9 @@ it("compact flow does not process @file commands in subagent or summary", async 
 
     await pollUntil(
       () => {
-        if (thread.state.mode.type !== "compacting")
+        if (thread.core.state.mode.type !== "compacting")
           throw new Error(
-            `expected compacting mode but got ${thread.state.mode.type}`,
+            `expected compacting mode but got ${thread.core.state.mode.type}`,
           );
       },
       { timeout: 2000, message: "thread should enter compacting mode" },
@@ -575,16 +575,16 @@ it("auto-compact triggers when inputTokenCount exceeds 80% of context window", a
     // The thread should enter compacting mode automatically
     await pollUntil(
       () => {
-        if (originalThread.state.mode.type !== "compacting")
+        if (originalThread.core.state.mode.type !== "compacting")
           throw new Error(
-            `expected compacting mode but got ${originalThread.state.mode.type}`,
+            `expected compacting mode but got ${originalThread.core.state.mode.type}`,
           );
       },
       { timeout: 2000, message: "thread should auto-compact" },
     );
 
     // Verify the nextPrompt was preserved
-    if (originalThread.state.mode.type !== "compacting")
+    if (originalThread.core.state.mode.type !== "compacting")
       throw new Error("expected compacting");
     expect(originalThread.compactionManager?.nextPrompt).toBe(
       "Now help me with multiplication",
@@ -713,7 +713,7 @@ it("compaction history records steps from multi-chunk compaction", async () => {
     });
 
     const thread = driver.magenta.chat.getActiveThread();
-    expect(thread.state.compactionHistory).toHaveLength(0);
+    expect(thread.core.state.compactionHistory).toHaveLength(0);
 
     // Trigger compaction
     await driver.inputMagentaText("@compact Continue with next task");
@@ -721,16 +721,16 @@ it("compaction history records steps from multi-chunk compaction", async () => {
 
     await pollUntil(
       () => {
-        if (thread.state.mode.type !== "compacting")
+        if (thread.core.state.mode.type !== "compacting")
           throw new Error(
-            `expected compacting mode but got ${thread.state.mode.type}`,
+            `expected compacting mode but got ${thread.core.state.mode.type}`,
           );
       },
       { timeout: 2000, message: "thread should enter compacting mode" },
     );
 
     // Verify we got multiple chunks
-    if (thread.state.mode.type !== "compacting")
+    if (thread.core.state.mode.type !== "compacting")
       throw new Error("not compacting");
     expect(thread.compactionManager!.chunks.length).toBeGreaterThanOrEqual(2);
     const totalChunks = thread.compactionManager!.chunks.length;
@@ -865,8 +865,8 @@ it("compaction history records steps from multi-chunk compaction", async () => {
     await driver.assertDisplayBufferContains("Ready for the next task!");
 
     // === Verify compaction history ===
-    expect(thread.state.compactionHistory).toHaveLength(1);
-    const record = thread.state.compactionHistory[0];
+    expect(thread.core.state.compactionHistory).toHaveLength(1);
+    const record = thread.core.state.compactionHistory[0];
     expect(record.steps).toHaveLength(totalChunks);
     expect(record.finalSummary).toBeDefined();
     expect(record.finalSummary).toContain("Summary");
@@ -929,7 +929,7 @@ it("auto-compact does not trigger on compact threads", async () => {
 
     await pollUntil(
       () => {
-        if (originalThread.state.mode.type !== "compacting")
+        if (originalThread.core.state.mode.type !== "compacting")
           throw new Error("expected compacting");
       },
       { timeout: 2000, message: "thread should enter compacting mode" },
@@ -946,7 +946,7 @@ it("auto-compact does not trigger on compact threads", async () => {
 
     // Verify a compact thread was spawned
     // Verify the thread is in compacting mode with an internal compact agent
-    expect(originalThread.state.mode.type).toBe("compacting");
+    expect(originalThread.core.state.mode.type).toBe("compacting");
 
     // Clean up: respond to the compact subagent
 

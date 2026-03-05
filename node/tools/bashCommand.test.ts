@@ -1741,7 +1741,7 @@ describe("bash command output logging", () => {
 
         // Get the tool instance and trigger termination
         const thread = driver.magenta.chat.getActiveThread();
-        const { mode } = thread.state;
+        const { mode } = thread.core.state;
         if (mode.type !== "tool_use") {
           throw new Error(`Expected tool_use mode, got ${mode.type}`);
         }
@@ -1842,7 +1842,7 @@ describe("bash command output logging", () => {
 
         // Get the tool instance and trigger termination
         const thread = driver.magenta.chat.getActiveThread();
-        const { mode } = thread.state;
+        const { mode } = thread.core.state;
         if (mode.type !== "tool_use") {
           throw new Error(`Expected tool_use mode, got ${mode.type}`);
         }
@@ -1963,7 +1963,7 @@ wait
 
         // Get the tool instance and trigger termination
         const thread = driver.magenta.chat.getActiveThread();
-        const { mode } = thread.state;
+        const { mode } = thread.core.state;
         if (mode.type !== "tool_use") {
           throw new Error(`Expected tool_use mode, got ${mode.type}`);
         }

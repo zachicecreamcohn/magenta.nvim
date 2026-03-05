@@ -18,6 +18,7 @@ magenta-@staged	magenta-commands.txt	/*magenta-@staged*
 magenta-anthropic	magenta-providers.txt	/*magenta-anthropic*
 magenta-available-tools	magenta-tools.txt	/*magenta-available-tools*
 magenta-bedrock	magenta-providers.txt	/*magenta-bedrock*
+magenta-changelog	magenta.txt	/*magenta-changelog*
 magenta-chimeVolume	magenta-config.txt	/*magenta-chimeVolume*
 magenta-claude-max	magenta-providers.txt	/*magenta-claude-max*
 magenta-commands	magenta.txt	/*magenta-commands*
@@ -32,6 +33,7 @@ magenta-copilot	magenta-providers.txt	/*magenta-copilot*
 magenta-custom-commands	magenta-config.txt	/*magenta-custom-commands*
 magenta-default-keymaps	magenta-commands.txt	/*magenta-default-keymaps*
 magenta-defaultKeymaps	magenta-config.txt	/*magenta-defaultKeymaps*
+magenta-deprecated-providers	magenta-providers.txt	/*magenta-deprecated-providers*
 magenta-display-buffer	magenta-commands.txt	/*magenta-display-buffer*
 magenta-ex-commands	magenta-commands.txt	/*magenta-ex-commands*
 magenta-filePermissions	magenta-config.txt	/*magenta-filePermissions*

@@ -25,7 +25,8 @@ import type { Chat } from "./chat.ts";
 import type { MagentaOptions } from "../options.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
-import type { ActiveToolEntry, CompactionStep } from "./thread.ts";
+import type { ActiveToolEntry } from "./thread.ts";
+import type { CompactionStep, CompactionResult } from "@magenta/core";
 import {
   renderThreadToMarkdown,
   chunkMessages,
@@ -42,14 +43,7 @@ const COMPACT_PROMPT_TEMPLATE = readFileSync(
   "utf-8",
 );
 
-export type CompactionResult =
-  | {
-      type: "complete";
-      summary: string;
-      steps: CompactionStep[];
-      nextPrompt: string | undefined;
-    }
-  | { type: "error"; steps: CompactionStep[] };
+export type { CompactionResult, CompactionStep } from "@magenta/core";
 
 export class CompactionManager {
   private agent: Agent;

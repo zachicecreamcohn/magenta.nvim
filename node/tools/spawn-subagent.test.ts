@@ -376,12 +376,12 @@ describe("yield behavior", () => {
 
       // Wait for yieldedResponse to be set
       await pollUntil(() => {
-        if (childWrapper.thread.state.yieldedResponse === undefined) {
+        if (childWrapper.thread.core.state.yieldedResponse === undefined) {
           throw new Error("yieldedResponse not set yet");
         }
-        return childWrapper.thread.state.yieldedResponse;
+        return childWrapper.thread.core.state.yieldedResponse;
       });
-      expect(childWrapper.thread.state.yieldedResponse).toBe(
+      expect(childWrapper.thread.core.state.yieldedResponse).toBe(
         "Task result: success",
       );
     });
@@ -411,7 +411,7 @@ describe("yield behavior", () => {
 
       // Wait for yield to complete
       await pollUntil(() => {
-        if (childWrapper.thread.state.yieldedResponse === undefined) {
+        if (childWrapper.thread.core.state.yieldedResponse === undefined) {
           throw new Error("yieldedResponse not set yet");
         }
       });

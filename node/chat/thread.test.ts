@@ -1397,8 +1397,8 @@ it("handles @async messages by queueing them and sending on next tool response",
 
     // Verify the @async message is queued, not immediately sent
     const thread = driver.magenta.chat.getActiveThread();
-    expect(thread.state.pendingMessages).toHaveLength(1);
-    expect(thread.state.pendingMessages[0].text).toBe("This should be queued");
+    expect(thread.core.state.pendingMessages).toHaveLength(1);
+    expect(thread.core.state.pendingMessages[0].text).toBe("This should be queued");
 
     // Approve the file read to complete the tool execution
     const yesPos = await driver.assertDisplayBufferContains("> YES");
@@ -1449,8 +1449,8 @@ it("handles @async messages and sends them on end turn", async () => {
 
     // Verify message is queued
     const thread = driver.magenta.chat.getActiveThread();
-    expect(thread.state.pendingMessages).toHaveLength(1);
-    expect(thread.state.pendingMessages[0].text).toBe(
+    expect(thread.core.state.pendingMessages).toHaveLength(1);
+    expect(thread.core.state.pendingMessages[0].text).toBe(
       "Also tell me about JavaScript",
     );
 

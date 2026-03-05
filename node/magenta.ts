@@ -20,6 +20,7 @@ import {
 import type { HomeDir } from "./utils/files.ts";
 import type { RootMsg, SidebarMsg } from "./root-msg.ts";
 import { Chat } from "./chat/chat.ts";
+import type { InputMessage } from "./chat/thread.ts";
 import type { Dispatch } from "./tea/tea.ts";
 import { BufferTracker } from "./buffer-tracker.ts";
 import {
@@ -31,6 +32,7 @@ import {
   detectFileType,
 } from "./utils/files.ts";
 import { assertUnreachable } from "./utils/assertUnreachable.ts";
+import { CommandRegistry } from "./chat/commands/registry.ts";
 
 import { initializeMagentaHighlightGroups } from "./nvim/extmarks.ts";
 import { MAGENTA_HIGHLIGHT_NAMESPACE } from "./nvim/buffer.ts";
@@ -49,6 +51,7 @@ export class Magenta {
   public chat: Chat;
   public dispatch: Dispatch<RootMsg>;
   public bufferTracker: BufferTracker;
+  public commandRegistry: CommandRegistry;
 
   constructor(
     public nvim: Nvim,
@@ -58,6 +61,12 @@ export class Magenta {
     public options: MagentaOptions,
   ) {
     this.bufferTracker = new BufferTracker(this.nvim);
+    this.commandRegistry = new CommandRegistry();
+    if (this.options.customCommands) {
+      for (const customCommand of this.options.customCommands) {
+        this.commandRegistry.registerCustomCommand(customCommand);
+      }
+    }
 
     this.dispatch = (msg: RootMsg) => {
       try {
@@ -185,15 +194,6 @@ export class Magenta {
 
         if (profile) {
           this.options.activeProfile = profile.name;
-
-          this.dispatch({
-            type: "thread-msg",
-            id: this.chat.getActiveThread().id,
-            msg: {
-              type: "update-profile",
-              profile: this.getActiveProfile(),
-            },
-          });
         } else {
           this.nvim.logger.error(`Profile "${profileName}" not found.`);
           // eslint-disable-next-line @typescript-eslint/no-floating-promises
@@ -272,20 +272,7 @@ export class Magenta {
         this.nvim.logger.debug(`current message: ${text}`);
         if (!text) return;
 
-        this.dispatch({
-          type: "thread-msg",
-          id: this.chat.getActiveThread().id,
-          msg: {
-            type: "send-message",
-            messages: [
-              {
-                type: "user",
-                text,
-              },
-            ],
-          },
-        });
-
+        await this.preprocessAndSend(text);
         break;
       }
 
@@ -583,5 +570,89 @@ ${lines.join("\n")}
 
     nvim.logger.info(`Magenta initialized. ${JSON.stringify(parsedOptions)}`);
     return magenta;
+  }
+
+  /** Preprocess user input text and dispatch the appropriate message.
+   * Handles @fork, @compact, @async detection and command expansion.
+   */
+  private async preprocessAndSend(text: string): Promise<void> {
+    const thread = this.chat.getActiveThread();
+
+    // @fork: create a forked thread, then re-process remaining text on it
+    if (text.trim().startsWith("@fork")) {
+      const strippedText = text.replace(/^\s*@fork\s*/, "");
+      await this.chat.handleForkThread({ sourceThreadId: thread.id });
+
+      // If there's remaining text, re-invoke preprocessAndSend on the new active thread
+      if (strippedText.trim()) {
+        await this.preprocessAndSend(strippedText);
+      }
+      return;
+    }
+
+    // @compact: tell the thread to start compaction
+    // Note: @compact @fork is not supported. Use @fork @compact instead.
+    if (text.trim().startsWith("@compact")) {
+      const rawNextPrompt = text.replace(/^\s*@compact\s*/, "").trim();
+      const nextMessages = rawNextPrompt
+        ? await this.processCommands(rawNextPrompt, thread)
+        : undefined;
+      const nextPrompt = nextMessages?.map((m) => m.text).join("\n");
+      // Preserve all current context files across compaction reset
+      const contextFiles = Object.keys(thread.contextManager.files);
+      this.dispatch({
+        type: "thread-msg",
+        id: thread.id,
+        msg: {
+          type: "start-compaction",
+          ...(nextPrompt ? { nextPrompt } : {}),
+          ...(contextFiles.length > 0 ? { contextFiles } : {}),
+        },
+      });
+      return;
+    }
+
+    // @async: strip prefix and set flag
+    // Note: @async @fork and @async @compact are not supported. Use @fork @async instead.
+    const isAsync = text.trim().startsWith("@async");
+    const cleanText = isAsync ? text.replace(/^\s*@async\s*/, "") : text;
+
+    const messages = await this.processCommands(cleanText, thread);
+
+    this.dispatch({
+      type: "thread-msg",
+      id: thread.id,
+      msg: {
+        type: "send-message",
+        messages,
+        ...(isAsync ? { async: true } : {}),
+      },
+    });
+  }
+
+  /** Run CommandRegistry on user text, returning processed InputMessages. */
+  private async processCommands(
+    text: string,
+    thread: import("./chat/thread.ts").Thread,
+  ): Promise<InputMessage[]> {
+    const { processedText, additionalContent } =
+      await this.commandRegistry.processMessage(text, {
+        nvim: this.nvim,
+        cwd: thread.context.environment.cwd,
+        homeDir: thread.context.environment.homeDir,
+        contextManager: thread.contextManager,
+        options: this.options,
+      });
+
+    const messages: InputMessage[] = [{ type: "user", text: processedText }];
+
+    // Fold additional content (from @diff, @staged, etc.) into text messages
+    for (const content of additionalContent) {
+      if (content.type === "text") {
+        messages.push({ type: "user", text: content.text });
+      }
+    }
+
+    return messages;
   }
 }

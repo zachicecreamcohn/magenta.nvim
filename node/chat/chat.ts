@@ -82,7 +82,6 @@ export type Msg =
   | {
       type: "fork-thread";
       sourceThreadId: ThreadId;
-      strippedMessages: InputMessage[];
     }
   | {
       type: "select-thread";
@@ -177,10 +176,10 @@ export class Chat implements ThreadManager {
         // and should not generate any more thread messages. As such, this won't be terribly inefficient.
         const agentStatus = thread.agent.getState().status;
 
-        if (thread.state.yieldedResponse !== undefined) {
+        if (thread.core.state.yieldedResponse !== undefined) {
           this.resolveThreadWaiters(thread.id, {
             status: "ok",
-            value: thread.state.yieldedResponse,
+            value: thread.core.state.yieldedResponse,
           });
         } else if (agentStatus.type === "error") {
           const result: Result<string> = {
@@ -324,7 +323,9 @@ export class Chat implements ThreadManager {
         return;
 
       case "fork-thread": {
-        this.handleForkThread(msg).catch((e: Error) => {
+        this.handleForkThread({
+          sourceThreadId: msg.sourceThreadId,
+        }).catch((e: Error) => {
           this.context.nvim.logger.error(
             "Failed to handle thread fork: " + e.message + "\n" + e.stack,
           );
@@ -499,7 +500,7 @@ export class Chat implements ThreadManager {
         this.context.cwd,
         {
           onProgress: (message) => {
-            thread.state.teardownMessage = message;
+            thread.core.state.teardownMessage = message;
             this.context.dispatch({
               type: "thread-msg",
               id: thread.id,
@@ -609,8 +610,8 @@ export class Chat implements ThreadManager {
     }
 
     const thread = threadWrapper.thread;
-    if (thread.state.title) {
-      return thread.state.title;
+    if (thread.core.state.title) {
+      return thread.core.state.title;
     }
 
     // Find the first user message text
@@ -708,11 +709,9 @@ ${threadViews.map((view) => d`${view}\n`)}`;
 
   async handleForkThread({
     sourceThreadId,
-    strippedMessages,
   }: {
     sourceThreadId: ThreadId;
-    strippedMessages: InputMessage[];
-  }) {
+  }): Promise<ThreadId> {
     const sourceThreadWrapper = this.threadWrappers[sourceThreadId];
     if (!sourceThreadWrapper || sourceThreadWrapper.state !== "initialized") {
       throw new Error(`Thread ${sourceThreadId} not available for forking`);
@@ -817,7 +816,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
         ...this.context,
         contextManager,
         mcpToolManager: this.mcpToolManager,
-        profile: sourceThread.state.profile,
+        profile: sourceThread.context.profile,
         chat: this,
         environment: forkEnvironment,
       },
@@ -840,17 +839,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       },
     });
 
-    // Send the stripped messages to the new thread
-    if (strippedMessages.length > 0) {
-      this.context.dispatch({
-        type: "thread-msg",
-        id: newThreadId,
-        msg: {
-          type: "send-message",
-          messages: strippedMessages,
-        },
-      });
-    }
+    return newThreadId;
   }
 
   getThreadResult(
@@ -882,12 +871,12 @@ ${threadViews.map((view) => d`${view}\n`)}`;
         const agentStatus = thread.agent.getState().status;
 
         // Check for yielded state first
-        if (thread.state.yieldedResponse !== undefined) {
+        if (thread.core.state.yieldedResponse !== undefined) {
           return {
             status: "done",
             result: {
               status: "ok",
-              value: thread.state.yieldedResponse,
+              value: thread.core.state.yieldedResponse,
             },
           };
         }
@@ -972,24 +961,24 @@ ${threadViews.map((view) => d`${view}\n`)}`;
 
       case "initialized": {
         const thread = threadWrapper.thread;
-        const mode = thread.state.mode;
+        const mode = thread.core.state.mode;
         const agentStatus = thread.agent.getState().status;
 
         const summary = {
-          title: thread.state.title,
+          title: thread.core.state.title,
           status: (() => {
             // Check mode for thread-specific states first
-            if (thread.state.yieldedResponse !== undefined) {
+            if (thread.core.state.yieldedResponse !== undefined) {
               return {
                 type: "yielded" as const,
-                response: thread.state.yieldedResponse,
+                response: thread.core.state.yieldedResponse,
               };
             }
 
-            if (thread.state.teardownMessage) {
+            if (thread.core.state.teardownMessage) {
               return {
                 type: "running" as const,
-                activity: `🐳 ${thread.state.teardownMessage}`,
+                activity: `🐳 ${thread.core.state.teardownMessage}`,
               };
             }
 
@@ -1070,12 +1059,12 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const subagentProfile: Profile =
       opts.threadType === "subagent_fast"
         ? {
-            ...parentThread.state.profile,
-            model: parentThread.state.profile.fastModel,
+            ...parentThread.context.profile,
+            model: parentThread.context.profile.fastModel,
             thinking: undefined,
             reasoning: undefined,
           }
-        : parentThread.state.profile;
+        : parentThread.context.profile;
 
     let environmentConfig: EnvironmentConfig;
     if (opts.dockerSpawnConfig) {
@@ -1123,7 +1112,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const threadWrapper = this.threadWrappers[threadId];
     if (threadWrapper && threadWrapper.state === "initialized") {
       if (result.status === "ok") {
-        threadWrapper.thread.state.yieldedResponse = result.value;
+        threadWrapper.thread.core.state.yieldedResponse = result.value;
       }
     }
     this.resolveThreadWaiters(threadId, result);

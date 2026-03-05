@@ -3,17 +3,8 @@ import { teardownContainer } from "@magenta/core";
 import type { ContainerConfig, ProvisionResult } from "@magenta/core";
 import type { NvimCwd } from "../utils/files.ts";
 
-export type SupervisorAction =
-  | { type: "send-message"; text: string }
-  | { type: "accept" }
-  | { type: "reject"; message: string }
-  | { type: "none" };
-
-export interface ThreadSupervisor {
-  onEndTurnWithoutYield(stopReason: string): SupervisorAction;
-  onYield(result: string): Promise<SupervisorAction>;
-  onAbort(): SupervisorAction;
-}
+import type { SupervisorAction, ThreadSupervisor } from "@magenta/core";
+export type { SupervisorAction, ThreadSupervisor } from "@magenta/core";
 
 export class DockerSupervisor implements ThreadSupervisor {
   private restartCount = 0;

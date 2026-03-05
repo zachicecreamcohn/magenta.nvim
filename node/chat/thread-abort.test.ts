@@ -93,7 +93,7 @@ it("forks a thread while waiting for tool use by aborting pending tools first", 
     const originalThreadId = originalThread.id;
 
     // Verify we're in tool_use mode
-    expect(originalThread.state.mode.type).toBe("tool_use");
+    expect(originalThread.core.state.mode.type).toBe("tool_use");
 
     // Fork the thread while waiting for tool use
     await driver.inputMagentaText("@fork Do something else instead");
@@ -112,7 +112,7 @@ it("forks a thread while waiting for tool use by aborting pending tools first", 
     expect(newThread.id).not.toBe(originalThreadId);
 
     // Verify original thread was aborted
-    expect(originalThread.state.mode.type).toBe("normal");
+    expect(originalThread.core.state.mode.type).toBe("normal");
     expect(originalThread.agent.getState().status).toEqual({
       type: "stopped",
       stopReason: "aborted",

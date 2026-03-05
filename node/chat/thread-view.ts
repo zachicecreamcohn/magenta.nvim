@@ -185,19 +185,19 @@ export const view: View<{
   thread: Thread;
   dispatch: Dispatch<Msg>;
 }> = ({ thread, dispatch }) => {
-  const titleView = thread.state.title
-    ? d`# ${thread.state.title}`
+  const titleView = thread.core.state.title
+    ? d`# ${thread.core.state.title}`
     : d`# [ Untitled ]`;
 
   const systemPromptView = renderSystemPrompt(
-    thread.state.systemPrompt,
+    thread.core.state.systemPrompt,
     thread.state.showSystemPrompt,
     dispatch,
   );
 
   const messages = thread.getProviderMessages();
   const agentStatus = thread.agent.getState().status;
-  const mode = thread.state.mode;
+  const mode = thread.core.state.mode;
 
   // Show logo when empty and not busy
   const isIdle =
@@ -219,7 +219,7 @@ ${thread.context.contextManager.view()}`;
     agentStatus,
     mode,
     latestUsage,
-    thread.state.yieldedResponse,
+    thread.core.state.yieldedResponse,
   );
 
   const contextManagerView = shouldShowContextManager(
@@ -242,13 +242,13 @@ ${thread.context.contextManager.view()}`;
       : d``;
   const permissionView = d`${filePermissionView}${shellPermissionView}`;
   const compactionHistoryView = renderCompactionHistory(
-    thread.state.compactionHistory,
+    thread.core.state.compactionHistory,
     thread.state.compactionViewState,
     dispatch,
   );
   const pendingMessagesView =
-    thread.state.pendingMessages.length > 0
-      ? d`\n✉️  ${thread.state.pendingMessages.length.toString()} pending message${thread.state.pendingMessages.length === 1 ? "" : "s"}`
+    thread.core.state.pendingMessages.length > 0
+      ? d`\n✉️  ${thread.core.state.pendingMessages.length.toString()} pending message${thread.core.state.pendingMessages.length === 1 ? "" : "s"}`
       : d``;
 
   // Helper to check if a message is a tool-result-only user message
@@ -440,8 +440,8 @@ function renderMessageContent(
 
       // Check if tool is active (still running)
       const activeEntry =
-        thread.state.mode.type === "tool_use" &&
-        thread.state.mode.activeTools.get(request.id);
+        thread.core.state.mode.type === "tool_use" &&
+        thread.core.state.mode.activeTools.get(request.id);
 
       if (activeEntry) {
         const displayContext = {
@@ -604,7 +604,7 @@ export function findToolResult(
   thread: Thread,
   toolRequestId: ToolRequestId,
 ): ProviderToolResult | undefined {
-  return thread.state.toolCache.results.get(toolRequestId);
+  return thread.core.state.toolCache.results.get(toolRequestId);
 }
 
 function renderStreamingBlock(thread: Thread): string | VDOMNode {
