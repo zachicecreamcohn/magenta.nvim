@@ -8,8 +8,9 @@ import {
   type SystemPrompt,
   type NvimCwd,
   type ProviderOptions,
+  type ThreadType,
 } from "@magenta/core";
-import type { ThreadType } from "../chat/types.ts";
+
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import { platform } from "os";
 

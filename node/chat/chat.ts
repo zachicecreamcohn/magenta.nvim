@@ -2,7 +2,7 @@ import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { MagentaOptions, Profile } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { Dispatch } from "../tea/tea.ts";
-import { Thread, type InputMessage } from "./thread.ts";
+import { Thread } from "./thread.ts";
 import { view as threadView } from "./thread-view.ts";
 import { DockerSupervisor } from "./thread-supervisor.ts";
 import type { Lsp } from "../capabilities/lsp.ts";
@@ -12,7 +12,8 @@ import {
   type EnvironmentConfig,
 } from "../environment.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { FileIO } from "@magenta/core";
+import type { FileIO, InputMessage, ThreadId, ThreadType } from "@magenta/core";
+import { MCPToolManagerImpl } from "@magenta/core";
 
 import { d, withBindings, type VDOMNode } from "../tea/view.ts";
 import { v7 as uuidv7 } from "uuid";
@@ -34,9 +35,6 @@ import type {
   ThreadManager,
   DockerSpawnConfig,
 } from "../capabilities/thread-manager.ts";
-
-import { MCPToolManagerImpl } from "@magenta/core";
-import type { ThreadId, ThreadType } from "./types.ts";
 import { createSystemPrompt } from "../providers/system-prompt.ts";
 
 type ThreadWrapper = (

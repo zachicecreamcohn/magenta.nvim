@@ -181,8 +181,9 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
   }
 
   private listenToAgent(agent: Agent): void {
-    agent.on("contentUpdated", () => {
+    agent.on("didUpdate", () => {
       this.rebuildToolCache();
+      this.emit("update");
     });
     agent.on("stopped", (stopReason, usage) => {
       this.handleProviderStopped(stopReason, usage);

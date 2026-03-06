@@ -12,7 +12,6 @@ import {
   FileCategory,
   ContextManager,
 } from "@magenta/core";
-import type { ThreadId } from "../chat/types.ts";
 
 import type {
   MCPToolManager,
@@ -21,6 +20,7 @@ import type {
   NvimCwd,
   HomeDir,
   AbsFilePath,
+  ThreadId,
 } from "@magenta/core";
 
 const execFile = promisify(execFileCb);

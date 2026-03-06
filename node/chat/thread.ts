@@ -10,6 +10,8 @@ import {
   type InputMessage,
   ContextManager,
   type ContextFiles,
+  type ThreadId,
+  type ThreadType,
 } from "@magenta/core";
 
 import type { Nvim } from "../nvim/nvim-node/index.ts";
@@ -30,7 +32,6 @@ import {
 } from "../utils/files.ts";
 
 import type { Chat } from "./chat.ts";
-import type { ThreadId, ThreadType } from "./types.ts";
 import type { SystemPrompt } from "../providers/system-prompt.ts";
 
 import { join, dirname } from "path";
@@ -41,16 +42,7 @@ import type { PermissionCheckingFileIO } from "../capabilities/permission-file-i
 import type { PermissionCheckingShell } from "../capabilities/permission-shell.ts";
 import type { Environment } from "../environment.ts";
 
-import type { ThreadSupervisor } from "./thread-supervisor.ts";
-
-export type {
-  InputMessage,
-  ActiveToolEntry,
-  ToolCache,
-  ThreadMode,
-  CompactionStep,
-  CompactionRecord,
-} from "@magenta/core";
+import type { ThreadSupervisor } from "@magenta/core";
 
 export type Msg =
   | { type: "set-title"; title: string }

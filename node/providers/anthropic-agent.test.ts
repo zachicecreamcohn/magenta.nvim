@@ -31,7 +31,7 @@ function createAgent(
     defaultAnthropicOptions,
   );
   if (tracked) {
-    agent.on("contentUpdated", () => {
+    agent.on("didUpdate", () => {
       tracked.messages.push({ type: "agent-content-updated" });
     });
     agent.on("stopped", (stopReason, usage) => {
@@ -1415,7 +1415,7 @@ File context here
       // Clone the agent
       const clonedTracked = trackMessages();
       const cloned = agent.clone();
-      cloned.on("contentUpdated", () => {
+      cloned.on("didUpdate", () => {
         clonedTracked.messages.push({ type: "agent-content-updated" });
       });
       cloned.on("stopped", (stopReason, usage) => {
@@ -1620,7 +1620,7 @@ File context here
       // Clone while stopped on tool_use
       const clonedTracked = trackMessages();
       const cloned = agent.clone();
-      cloned.on("contentUpdated", () => {
+      cloned.on("didUpdate", () => {
         clonedTracked.messages.push({ type: "agent-content-updated" });
       });
       cloned.on("stopped", (stopReason, usage) => {

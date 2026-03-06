@@ -14,7 +14,7 @@ import { calculatePosition } from "../tea/util.ts";
 import { getBindings, type BindingKey } from "../tea/bindings.ts";
 import { getAllWindows, getCurrentWindow } from "../nvim/nvim.ts";
 import { expect, vi } from "vitest";
-import type { ThreadId } from "../chat/types.ts";
+import type { ThreadId } from "@magenta/core";
 import { CompletionsInteraction } from "./driver/completions.ts";
 import { SidebarInteraction } from "./driver/sidebar.ts";
 

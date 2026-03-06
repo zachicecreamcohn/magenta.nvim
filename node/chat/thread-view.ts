@@ -10,6 +10,8 @@ import {
   type ToolRequestId,
   type CompletedToolInfo,
   type ContextManager,
+  type ThreadMode,
+  type CompactionRecord,
 } from "@magenta/core";
 import {
   renderCompletedToolSummary,
@@ -39,7 +41,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { renderStreamdedTool } from "../render-tools/streaming.ts";
 import { renderThreadToMarkdown } from "@magenta/core";
-import type { Thread, Msg, ThreadMode, CompactionRecord } from "./thread.ts";
+import type { Thread, Msg } from "./thread.ts";
 
 function contextViewCtx(thread: Thread): ContextViewContext {
   return {

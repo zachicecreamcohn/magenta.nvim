@@ -1,6 +1,6 @@
 import { spawn } from "child_process";
 import type { Shell, ShellResult, OutputLine } from "./shell.ts";
-import type { ThreadId } from "../chat/types.ts";
+import type { ThreadId } from "@magenta/core";
 import { withTimeout } from "../utils/async.ts";
 import {
   createLogWriter,

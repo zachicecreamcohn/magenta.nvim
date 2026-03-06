@@ -120,7 +120,7 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
         this.streamingEndPromise = new Promise((resolve) => {
           this.streamingEndResolver = resolve;
         });
-        this.emitAsync("contentUpdated");
+
         break;
 
       case "block-started":
@@ -133,7 +133,7 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
         this.currentAnthropicBlock = this.initAnthropicStreamingBlock(
           action.block,
         );
-        this.emitAsync("contentUpdated");
+
         break;
 
       case "block-delta":
@@ -147,10 +147,6 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
             this.currentAnthropicBlock,
             action.delta,
           );
-          const streamingBlock = this.getStreamingBlock();
-          if (streamingBlock) {
-            this.emitAsync("contentUpdated");
-          }
         }
         break;
 
@@ -260,6 +256,8 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
       default:
         assertUnreachable(action);
     }
+
+    this.emitAsync("didUpdate");
   }
 
   getState(): AgentState {
@@ -447,7 +445,7 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
       .countTokens(countParams)
       .then((result) => {
         this.inputTokenCount = result.input_tokens;
-        this.emitAsync("contentUpdated");
+        this.emitAsync("didUpdate");
       })
       .catch((error: unknown) => {
         this.anthropicOptions.logger.warn(
@@ -933,7 +931,7 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
       this.messages,
       this.messageStopInfo,
     );
-    this.emitAsync("contentUpdated");
+    this.emitAsync("didUpdate");
   }
 }
 

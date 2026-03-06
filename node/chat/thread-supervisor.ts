@@ -4,7 +4,6 @@ import type { ContainerConfig, ProvisionResult } from "@magenta/core";
 import type { NvimCwd } from "../utils/files.ts";
 
 import type { SupervisorAction, ThreadSupervisor } from "@magenta/core";
-export type { SupervisorAction, ThreadSupervisor } from "@magenta/core";
 
 export class DockerSupervisor implements ThreadSupervisor {
   private restartCount = 0;

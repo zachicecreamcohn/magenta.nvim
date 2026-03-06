@@ -3,6 +3,7 @@ import type {
   LspClient,
   DiagnosticsProvider,
   ToolCapability,
+  ThreadId,
 } from "@magenta/core";
 import type { Shell } from "./capabilities/shell.ts";
 import type { PermissionCheckingFileIO } from "./capabilities/permission-file-io.ts";
@@ -41,7 +42,6 @@ import type { Nvim } from "./nvim/nvim-node/index.ts";
 import type { Lsp } from "./capabilities/lsp.ts";
 import type { BufferTracker } from "./buffer-tracker.ts";
 import type { MagentaOptions } from "./options.ts";
-import type { ThreadId } from "./chat/types.ts";
 
 export function createLocalEnvironment({
   nvim,

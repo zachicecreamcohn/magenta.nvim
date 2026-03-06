@@ -20,7 +20,7 @@ import {
 import type { HomeDir } from "./utils/files.ts";
 import type { RootMsg, SidebarMsg } from "./root-msg.ts";
 import { Chat } from "./chat/chat.ts";
-import type { InputMessage } from "./chat/thread.ts";
+import type { InputMessage } from "@magenta/core";
 import type { Dispatch } from "./tea/tea.ts";
 import { BufferTracker } from "./buffer-tracker.ts";
 import {

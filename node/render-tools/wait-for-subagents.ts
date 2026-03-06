@@ -4,10 +4,11 @@ import type {
   CompletedToolInfo,
   ToolRequest as UnionToolRequest,
   WaitForSubagents,
+  ThreadId,
 } from "@magenta/core";
 import type { Dispatch } from "../tea/tea.ts";
 import type { RootMsg } from "../root-msg.ts";
-import type { ThreadId } from "../chat/types.ts";
+
 import type { Chat } from "../chat/chat.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { renderPendingApprovals } from "../capabilities/render-pending-approvals.ts";

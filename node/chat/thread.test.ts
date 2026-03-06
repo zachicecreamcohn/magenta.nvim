@@ -1264,7 +1264,7 @@ it("handles streaming thinking blocks correctly", async () => {
     await driver.inputMagentaText("Explain how async/await works");
     await driver.send();
 
-    const stream = await driver.mockAnthropic.mockClient.awaitStream();
+    const stream = await driver.mockAnthropic.awaitPendingStream();
     const thinkingIndex = stream.nextBlockIndex();
 
     // Start streaming thinking block
@@ -1313,7 +1313,7 @@ it("shows EDL script preview while streaming", async () => {
     await driver.inputMagentaText("Edit a file for me");
     await driver.send();
 
-    const stream = await driver.mockAnthropic.mockClient.awaitStream();
+    const stream = await driver.mockAnthropic.awaitPendingStream();
     const toolIndex = stream.nextBlockIndex();
 
     // Start streaming an edl tool_use block

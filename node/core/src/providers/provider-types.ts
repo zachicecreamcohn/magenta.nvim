@@ -251,7 +251,7 @@ export type AgentMsg =
   | { type: "agent-error"; error: Error };
 
 export type AgentEvents = {
-  contentUpdated: [];
+  didUpdate: [];
   stopped: [stopReason: StopReason, usage: Usage | undefined];
   error: [error: Error];
 };

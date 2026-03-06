@@ -1,8 +1,13 @@
 import { withDriver } from "../test/preamble.ts";
 import { describe, expect, it, vi } from "vitest";
-import { type ToolRequestId, type ToolName, pollUntil } from "@magenta/core";
+import {
+  type ToolRequestId,
+  type ToolName,
+  type ThreadId,
+  pollUntil,
+} from "@magenta/core";
 import { EXPLORE_SUBAGENT_SYSTEM_PROMPT } from "../providers/system-prompt.ts";
-import type { ThreadId } from "../chat/types.ts";
+
 import type { Chat } from "../chat/chat.ts";
 import type Anthropic from "@anthropic-ai/sdk";
 
