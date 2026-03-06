@@ -144,19 +144,19 @@ describe.skipIf(!dockerAvailable)("Docker Environment", () => {
         threadId: mockThreadId,
       });
 
-      const executePromise = shell.execute("sleep 60", {
+      const startTime = Date.now();
+      await shell.execute("sleep 60", {
         toolRequestId: "test-terminate",
         onStart: () => {
           setTimeout(() => shell.terminate(), 100);
         },
       });
+      const elapsed = Date.now() - startTime;
 
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("terminate timed out")), 10_000),
-      );
-
-      const result = await Promise.race([executePromise, timeoutPromise]);
-      expect(result.signal !== undefined || result.exitCode !== 0).toBe(true);
+      // docker exec on macOS exits with code 0 even when terminated,
+      // so we verify termination by checking it finished quickly
+      // rather than inspecting the exit code/signal.
+      expect(elapsed).toBeLessThan(10_000);
     });
   });
 
