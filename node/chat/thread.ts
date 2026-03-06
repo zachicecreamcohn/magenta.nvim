@@ -8,7 +8,8 @@ import {
   MCPToolManagerImpl,
   ThreadCore,
   type InputMessage,
-  CoreContextManager,
+  ContextManager,
+  type ContextFiles,
 } from "@magenta/core";
 
 import type { Nvim } from "../nvim/nvim-node/index.ts";
@@ -40,6 +41,8 @@ import player from "play-sound";
 import type { PermissionCheckingFileIO } from "../capabilities/permission-file-io.ts";
 import type { PermissionCheckingShell } from "../capabilities/permission-shell.ts";
 import type { Environment } from "../environment.ts";
+
+import type { ThreadSupervisor } from "./thread-supervisor.ts";
 
 export type {
   InputMessage,
@@ -139,9 +142,12 @@ export class Thread {
 
   public core: ThreadCore;
   private myDispatch: Dispatch<Msg>;
-  public contextManager: CoreContextManager;
   public permissionFileIO: PermissionCheckingFileIO | undefined;
   public permissionShell: PermissionCheckingShell | undefined;
+
+  get contextManager(): ContextManager {
+    return this.core.contextManager;
+  }
 
   get agent(): Agent {
     return this.core.agent;
@@ -167,10 +173,10 @@ export class Thread {
       nvim: Nvim;
       cwd: NvimCwd;
       homeDir: HomeDir;
-      contextManager: CoreContextManager;
       options: MagentaOptions;
       getDisplayWidth: () => number;
       environment: Environment;
+      initialFiles?: ContextFiles;
     },
     clonedAgent?: Agent,
   ) {
@@ -181,7 +187,6 @@ export class Thread {
         msg,
       });
 
-    this.contextManager = this.context.contextManager;
     const env = this.context.environment;
     this.permissionFileIO = env.permissionFileIO;
     this.permissionShell = env.permissionShell;
@@ -205,7 +210,6 @@ export class Thread {
         threadType,
         systemPrompt,
         mcpToolManager: context.mcpToolManager,
-        contextManager: this.contextManager,
         threadManager: context.chat,
         fileIO: env.fileIO,
         shell: env.shell,
@@ -216,10 +220,7 @@ export class Thread {
         maxConcurrentSubagents: context.options.maxConcurrentSubagents || 3,
         container: context.options.container,
         getProvider: (profile) => getProvider(context.nvim, profile),
-        resetContextManager: async (contextFiles) => {
-          await this.resetContextManager(contextFiles);
-          return this.contextManager;
-        },
+        ...(context.initialFiles ? { initialFiles: context.initialFiles } : {}),
       },
       clonedAgent,
     );
@@ -386,23 +387,6 @@ export class Thread {
     this.permissionShell?.denyAll();
   }
 
-  private async resetContextManager(contextFiles?: string[]): Promise<void> {
-    const env = this.context.environment;
-    const isDocker = env.environmentConfig.type === "docker";
-    this.contextManager = new CoreContextManager(
-      this.context.nvim.logger,
-      env.fileIO,
-      isDocker ? env.cwd : this.context.cwd,
-      isDocker ? env.homeDir : this.context.homeDir,
-    );
-
-    if (contextFiles && contextFiles.length > 0) {
-      await this.contextManager.addFiles(contextFiles as UnresolvedFilePath[]);
-    }
-
-    this.context.contextManager = this.contextManager;
-  }
-
   private playChimeIfNeeded(): void {
     const agentStatus = this.core.agent.getState().status;
 
@@ -451,5 +435,3 @@ export class Thread {
     }
   }
 }
-
-import type { ThreadSupervisor } from "./thread-supervisor.ts";

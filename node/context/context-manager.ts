@@ -14,7 +14,7 @@ import {
 import { d, withBindings, withExtmark, withInlineCode } from "../tea/view.ts";
 import open from "open";
 
-import { type CoreContextManager, type FileUpdates } from "@magenta/core";
+import { type ContextManager, type FileUpdates } from "@magenta/core";
 
 export type { ContextFiles as Files, FileUpdates } from "@magenta/core";
 export type {
@@ -35,7 +35,7 @@ export type ContextViewContext = {
 
 export function openFile(
   absFilePath: AbsFilePath,
-  core: CoreContextManager,
+  core: ContextManager,
   context: ContextViewContext,
 ): void {
   const fileInfo = core.files[absFilePath];
@@ -56,10 +56,7 @@ export function openFile(
   }
 }
 
-export function contextView(
-  core: CoreContextManager,
-  context: ContextViewContext,
-) {
+export function contextView(core: ContextManager, context: ContextViewContext) {
   if (core.isContextEmpty()) {
     return "";
   }
@@ -99,7 +96,7 @@ ${fileContext}`;
 
 export function renderContextUpdate(
   contextUpdates: FileUpdates | undefined,
-  core: CoreContextManager,
+  core: ContextManager,
   context: ContextViewContext,
 ) {
   if (!(contextUpdates && Object.keys(contextUpdates).length)) {

@@ -1,3 +1,46 @@
+import {
+  d,
+  type View,
+  type VDOMNode,
+  withBindings,
+  withExtmark,
+} from "../tea/view.ts";
+import { type Dispatch } from "../tea/tea.ts";
+import {
+  type ToolRequestId,
+  type CompletedToolInfo,
+  type ContextManager,
+} from "@magenta/core";
+import {
+  renderCompletedToolSummary,
+  renderCompletedToolPreview,
+  renderCompletedToolDetail,
+  renderInFlightToolSummary,
+  renderInFlightToolPreview,
+  renderInFlightToolDetail,
+} from "../render-tools/index.ts";
+import {
+  type ProviderMessage,
+  type ProviderMessageContent,
+  type AgentStatus,
+  type ProviderToolResult,
+  type StopReason,
+  type Usage,
+} from "../providers/provider.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import {
+  contextView,
+  renderContextUpdate,
+  type ContextViewContext,
+} from "../context/context-manager.ts";
+import type { SystemPrompt } from "../providers/system-prompt.ts";
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+import { renderStreamdedTool } from "../render-tools/streaming.ts";
+import { renderThreadToMarkdown } from "@magenta/core";
+import type { Thread, Msg, ThreadMode, CompactionRecord } from "./thread.ts";
+
 function contextViewCtx(thread: Thread): ContextViewContext {
   return {
     cwd: thread.context.cwd,
@@ -83,7 +126,7 @@ function renderUsage(usage: Usage): VDOMNode {
 const shouldShowContextManager = (
   agentStatus: AgentStatus,
   mode: ThreadMode,
-  contextManager: CoreContextManager,
+  contextManager: ContextManager,
 ): boolean => {
   return (
     agentStatus.type === "stopped" &&
@@ -220,7 +263,7 @@ ${LOGO}
 
 magenta is for agentic flow
 
-${contextView(thread.context.contextManager, contextViewCtx(thread))}`;
+${contextView(thread.contextManager, contextViewCtx(thread))}`;
   }
 
   const latestUsage = thread.agent.getState().latestUsage;
@@ -229,9 +272,9 @@ ${contextView(thread.context.contextManager, contextViewCtx(thread))}`;
   const contextManagerView = shouldShowContextManager(
     agentStatus,
     mode,
-    thread.context.contextManager,
+    thread.contextManager,
   )
-    ? d`\n${contextView(thread.context.contextManager, contextViewCtx(thread))}`
+    ? d`\n${contextView(thread.contextManager, contextViewCtx(thread))}`
     : d``;
 
   const filePermissionView =
@@ -643,45 +686,3 @@ export const LOGO = readFileSync(
 );
 
 const MESSAGE_ANIMATION = ["⠁", "⠂", "⠄", "⠂"];
-import {
-  d,
-  type View,
-  type VDOMNode,
-  withBindings,
-  withExtmark,
-} from "../tea/view.ts";
-import { type Dispatch } from "../tea/tea.ts";
-import {
-  type ToolRequestId,
-  type CompletedToolInfo,
-  type CoreContextManager,
-} from "@magenta/core";
-import {
-  renderCompletedToolSummary,
-  renderCompletedToolPreview,
-  renderCompletedToolDetail,
-  renderInFlightToolSummary,
-  renderInFlightToolPreview,
-  renderInFlightToolDetail,
-} from "../render-tools/index.ts";
-import {
-  type ProviderMessage,
-  type ProviderMessageContent,
-  type AgentStatus,
-  type ProviderToolResult,
-  type StopReason,
-  type Usage,
-} from "../providers/provider.ts";
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import {
-  contextView,
-  renderContextUpdate,
-  type ContextViewContext,
-} from "../context/context-manager.ts";
-import type { SystemPrompt } from "../providers/system-prompt.ts";
-import { readFileSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-import { renderStreamdedTool } from "../render-tools/streaming.ts";
-import { renderThreadToMarkdown } from "./compact-renderer.ts";
-import type { Thread, Msg, ThreadMode, CompactionRecord } from "./thread.ts";

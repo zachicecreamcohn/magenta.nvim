@@ -3,7 +3,7 @@ import type { ProviderProfile } from "./provider-options.ts";
 import type { ThreadType, ThreadId } from "./chat-types.ts";
 import type { SystemPrompt } from "./providers/system-prompt.ts";
 import { MCPToolManager as MCPToolManagerImpl } from "./tools/mcp/manager.ts";
-import type { ContextManager } from "./context/context-manager.ts";
+import { ContextManager, type Files } from "./context/context-manager.ts";
 import type { ThreadManager } from "./capabilities/thread-manager.ts";
 import type { FileIO } from "./capabilities/file-io.ts";
 import type { Shell } from "./capabilities/shell.ts";
@@ -11,7 +11,7 @@ import type { LspClient } from "./capabilities/lsp-client.ts";
 import type { DiagnosticsProvider } from "./capabilities/diagnostics-provider.ts";
 import type { ContextTracker } from "./capabilities/context-tracker.ts";
 import type { ContainerConfig } from "./container/types.ts";
-import type { NvimCwd, HomeDir } from "./utils/files.ts";
+import type { NvimCwd, HomeDir, UnresolvedFilePath } from "./utils/files.ts";
 import type { ToolCapability } from "./tools/tool-registry.ts";
 import type {
   Provider,
@@ -101,7 +101,6 @@ export interface ThreadCoreContext {
   threadType: ThreadType;
   systemPrompt: SystemPrompt;
   mcpToolManager: MCPToolManagerImpl;
-  contextManager: ContextManager;
   threadManager: ThreadManager;
   fileIO: FileIO;
   shell: Shell;
@@ -112,8 +111,7 @@ export interface ThreadCoreContext {
   maxConcurrentSubagents: number;
   container?: ContainerConfig | undefined;
   getProvider: (profile: ProviderProfile) => Provider;
-
-  resetContextManager: (contextFiles?: string[]) => Promise<ContextManager>;
+  initialFiles?: Files;
 }
 
 /** Minimum output tokens between system reminders during auto-respond loops */
@@ -146,6 +144,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
   };
 
   public agent: Agent;
+  public contextManager: ContextManager;
   public compactionController: CompactionManager | undefined;
   public supervisor: ThreadSupervisor | undefined;
 
@@ -155,6 +154,13 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     clonedAgent?: Agent,
   ) {
     super();
+    this.contextManager = new ContextManager(
+      context.logger,
+      context.fileIO,
+      context.cwd,
+      context.homeDir,
+      context.initialFiles,
+    );
     this.state = {
       threadType: context.threadType,
       systemPrompt: context.systemPrompt,
@@ -389,13 +395,9 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         cwd: this.context.cwd,
         homeDir: this.context.homeDir,
         maxConcurrentSubagents: this.context.maxConcurrentSubagents,
-        contextTracker: this.context.contextManager as ContextTracker,
+        contextTracker: this.contextManager as ContextTracker,
         onToolApplied: (absFilePath, tool, fileTypeInfo) => {
-          this.context.contextManager.toolApplied(
-            absFilePath,
-            tool,
-            fileTypeInfo,
-          );
+          this.contextManager.toolApplied(absFilePath, tool, fileTypeInfo);
         },
         diagnosticsProvider: this.context.diagnosticsProvider,
         edlRegisters: this.state.edlRegisters,
@@ -731,13 +733,13 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     content: AgentInput[];
     updates: Record<string, unknown> | undefined;
   }> {
-    const contextUpdates = await this.context.contextManager.getContextUpdate();
+    const contextUpdates = await this.contextManager.getContextUpdate();
     if (Object.keys(contextUpdates).length === 0) {
       return { content: [], updates: undefined };
     }
 
     const contextContent =
-      this.context.contextManager.contextUpdatesToContent(contextUpdates);
+      this.contextManager.contextUpdatesToContent(contextUpdates);
     const content: AgentInput[] = [];
     for (const c of contextContent) {
       if (c.type === "text") {
@@ -854,7 +856,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       lspClient: this.context.lspClient,
       diagnosticsProvider: this.context.diagnosticsProvider,
       availableCapabilities: this.context.availableCapabilities,
-      contextManager: this.context.contextManager,
+      contextManager: this.contextManager,
       shell: this.context.shell,
       threadManager: this.context.threadManager,
       maxConcurrentSubagents: this.context.maxConcurrentSubagents,
@@ -913,9 +915,15 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       record: { steps, finalSummary: summary },
     });
 
-    const newContextManager =
-      await this.context.resetContextManager(contextFiles);
-    this.context.contextManager = newContextManager;
+    this.contextManager = new ContextManager(
+      this.context.logger,
+      this.context.fileIO,
+      this.context.cwd,
+      this.context.homeDir,
+    );
+    if (contextFiles && contextFiles.length > 0) {
+      await this.contextManager.addFiles(contextFiles as UnresolvedFilePath[]);
+    }
 
     this.agent = this.createFreshAgent();
 

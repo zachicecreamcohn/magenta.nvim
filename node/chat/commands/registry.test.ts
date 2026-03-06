@@ -3,7 +3,7 @@ import { CommandRegistry } from "./registry.ts";
 import type { MessageContext } from "./types.ts";
 import type { Nvim } from "../../nvim/nvim-node/index.ts";
 import type { NvimCwd, HomeDir } from "../../utils/files.ts";
-import type { CoreContextManager } from "@magenta/core";
+import type { ContextManager } from "@magenta/core";
 import type { MagentaOptions } from "../../options.ts";
 import os from "os";
 
@@ -53,7 +53,7 @@ const createMockContext = (): MessageContext => {
     homeDir: os.homedir() as HomeDir,
     contextManager: {
       addFileContext: updateFn,
-    } as unknown as CoreContextManager,
+    } as unknown as ContextManager,
     options: {
       customCommands: [],
     } as unknown as MagentaOptions,

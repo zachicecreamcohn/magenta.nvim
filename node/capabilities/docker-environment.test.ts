@@ -10,7 +10,7 @@ import {
   getToolSpecs,
   GetFile,
   FileCategory,
-  CoreContextManager,
+  ContextManager,
 } from "@magenta/core";
 import type { ThreadId } from "../chat/types.ts";
 
@@ -325,7 +325,7 @@ describe.skipIf(!dockerAvailable)("Docker Environment", () => {
         debug: vi.fn(),
       };
 
-      const cm = new CoreContextManager(
+      const cm = new ContextManager(
         mockLogger,
         fileIO,
         "/tmp" as NvimCwd,

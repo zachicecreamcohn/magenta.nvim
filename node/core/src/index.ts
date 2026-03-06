@@ -185,7 +185,7 @@ export type {
   OnToolApplied,
 } from "./capabilities/context-tracker.ts";
 export {
-  ContextManager as CoreContextManager,
+  ContextManager,
   type Files as ContextFiles,
   type Patch,
   type WholeFileUpdate,

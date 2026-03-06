@@ -21,7 +21,7 @@ import {
   resolveAutoContext,
   autoContextFilesToInitialFiles,
 } from "../context/auto-context.ts";
-import { BufferAwareFileIO } from "../capabilities/buffer-file-io.ts";
+
 import type { BufferTracker } from "../buffer-tracker.ts";
 import {
   type AbsFilePath,
@@ -35,7 +35,7 @@ import type {
   DockerSpawnConfig,
 } from "../capabilities/thread-manager.ts";
 
-import { MCPToolManagerImpl, CoreContextManager } from "@magenta/core";
+import { MCPToolManagerImpl } from "@magenta/core";
 import type { ThreadId, ThreadType } from "./types.ts";
 import { createSystemPrompt } from "../providers/system-prompt.ts";
 
@@ -437,41 +437,19 @@ export class Chat implements ThreadManager {
       environment.permissionFileIO = undefined;
     }
 
-    // For Docker environments, use the container's fileIO/cwd/homeDir so the
-    // context manager checks file existence inside the container, not on the host.
-    const cmFileIO =
-      environment.environmentConfig.type === "docker"
-        ? environment.fileIO
-        : new BufferAwareFileIO(this.context);
-    const cmCwd =
-      environment.environmentConfig.type === "docker"
-        ? environment.cwd
-        : this.context.cwd;
-    const cmHomeDir =
-      environment.environmentConfig.type === "docker"
-        ? environment.homeDir
-        : this.context.homeDir;
-
-    const contextManager = new CoreContextManager(
-      this.context.nvim.logger,
-      cmFileIO,
-      cmCwd,
-      cmHomeDir,
-      initialFiles,
-    );
-
-    if (contextFiles.length > 0) {
-      await contextManager.addFiles(contextFiles);
-    }
-
     const thread = new Thread(threadId, threadType, systemPrompt, {
       ...this.context,
-      contextManager,
+
       mcpToolManager: this.mcpToolManager,
       profile,
       chat: this,
       environment,
+      initialFiles,
     });
+
+    if (contextFiles.length > 0) {
+      await thread.contextManager.addFiles(contextFiles);
+    }
 
     if (dockerSpawnConfig?.supervised && this.context.options.container) {
       thread.supervisor = new DockerSupervisor(
@@ -760,14 +738,6 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       };
     }
 
-    const contextManager = new CoreContextManager(
-      this.context.nvim.logger,
-      new BufferAwareFileIO(this.context),
-      this.context.cwd,
-      this.context.homeDir,
-      initialFiles,
-    );
-
     const forkEnvironment = createLocalEnvironment({
       nvim: this.context.nvim,
       lsp: this.context.lsp,
@@ -791,11 +761,12 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       systemPrompt,
       {
         ...this.context,
-        contextManager,
+
         mcpToolManager: this.mcpToolManager,
         profile: sourceThread.context.profile,
         chat: this,
         environment: forkEnvironment,
+        initialFiles,
       },
       clonedAgent,
     );
