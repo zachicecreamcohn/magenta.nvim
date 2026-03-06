@@ -440,6 +440,124 @@ describe("PermissionCheckingFileIO", () => {
     });
   });
 
+  describe("approval persistence", () => {
+    test("approved read allows subsequent readFile without re-prompting", async () => {
+      const pio = createPermissionIO(mockIO, defaultOptions, onPendingChange);
+      const promise1 = pio.readFile("/outside/file.txt");
+
+      await vi.waitFor(() => {
+        expect(pio.getPendingPermissions().size).toBe(1);
+      });
+
+      pio.approve("read:/outside/file.txt");
+      await promise1;
+
+      // Second read should not block
+      const result = await pio.readFile("/outside/file.txt");
+      expect(result).toBe("file content");
+      expect(pio.getPendingPermissions().size).toBe(0);
+      expect(mockIO.readFile).toHaveBeenCalledTimes(2);
+    });
+
+    test("approved read allows subsequent readBinaryFile without re-prompting", async () => {
+      const pio = createPermissionIO(mockIO, defaultOptions, onPendingChange);
+      const promise1 = pio.readFile("/outside/file.txt");
+
+      await vi.waitFor(() => {
+        expect(pio.getPendingPermissions().size).toBe(1);
+      });
+
+      pio.approve("read:/outside/file.txt");
+      await promise1;
+
+      // readBinaryFile should also be allowed now
+      const result = await pio.readBinaryFile("/outside/file.txt");
+      expect(result).toEqual(Buffer.from("binary"));
+      expect(pio.getPendingPermissions().size).toBe(0);
+    });
+
+    test("approved write allows subsequent writeFile without re-prompting", async () => {
+      const pio = createPermissionIO(mockIO, defaultOptions, onPendingChange);
+      const promise1 = pio.writeFile("/outside/file.txt", "data1");
+
+      await vi.waitFor(() => {
+        expect(pio.getPendingPermissions().size).toBe(1);
+      });
+
+      pio.approve("write:/outside/file.txt");
+      await promise1;
+
+      // Second write should not block
+      await pio.writeFile("/outside/file.txt", "data2");
+      expect(pio.getPendingPermissions().size).toBe(0);
+      expect(mockIO.writeFile).toHaveBeenCalledTimes(2);
+    });
+
+    test("read approval does not grant write access", async () => {
+      const pio = createPermissionIO(mockIO, defaultOptions, onPendingChange);
+      const readPromise = pio.readFile("/outside/file.txt");
+
+      await vi.waitFor(() => {
+        expect(pio.getPendingPermissions().size).toBe(1);
+      });
+
+      pio.approve("read:/outside/file.txt");
+      await readPromise;
+
+      // Write should still block
+      let writeResolved = false;
+      void pio.writeFile("/outside/file.txt", "data").then(() => {
+        writeResolved = true;
+      });
+
+      await vi.waitFor(() => {
+        expect(pio.getPendingPermissions().size).toBe(1);
+      });
+      expect(writeResolved).toBe(false);
+    });
+
+    test("denied read does not grant future access", async () => {
+      const pio = createPermissionIO(mockIO, defaultOptions, onPendingChange);
+      const promise1 = pio.readFile("/outside/file.txt").catch(() => {});
+
+      await vi.waitFor(() => {
+        expect(pio.getPendingPermissions().size).toBe(1);
+      });
+
+      pio.deny("read:/outside/file.txt");
+      await promise1;
+
+      // Should block again
+      let resolved = false;
+      void pio.readFile("/outside/file.txt").then(() => {
+        resolved = true;
+      });
+
+      await vi.waitFor(() => {
+        expect(pio.getPendingPermissions().size).toBe(1);
+      });
+      expect(resolved).toBe(false);
+    });
+
+    test("approveAll remembers all approved files", async () => {
+      const pio = createPermissionIO(mockIO, defaultOptions, onPendingChange);
+      const promiseA = pio.readFile("/outside/a.txt");
+      const promiseB = pio.readFile("/outside/b.txt");
+
+      await vi.waitFor(() => {
+        expect(pio.getPendingPermissions().size).toBe(2);
+      });
+
+      pio.approveAll();
+      await promiseA;
+      await promiseB;
+
+      // Both should be allowed without prompting
+      await pio.readFile("/outside/a.txt");
+      await pio.readFile("/outside/b.txt");
+      expect(pio.getPendingPermissions().size).toBe(0);
+    });
+  });
   describe("getFileAutoAllowGlobs", () => {
     test("allows file matching glob pattern with real filesystem", async () => {
       const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "magenta-test-"));
