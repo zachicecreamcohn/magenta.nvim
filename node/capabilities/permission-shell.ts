@@ -76,6 +76,9 @@ export class PermissionCheckingShell implements Shell {
   }
 
   approve(id: string, remember?: boolean): void {
+    console.error(
+      `[PermissionShell] approve(${id}) pending=${this.pending.size}`,
+    );
     const entry = this.pending.get(id);
     if (!entry) return;
 
@@ -95,6 +98,7 @@ export class PermissionCheckingShell implements Shell {
   }
 
   deny(id: string): void {
+    console.error(`[PermissionShell] deny(${id}) pending=${this.pending.size}`);
     const entry = this.pending.get(id);
     if (!entry) return;
 

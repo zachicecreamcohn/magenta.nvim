@@ -41,6 +41,28 @@ I sometimes write about AI, neovim and magenta specifically:
 - Claude skills
 - Progressive disclosure for large files and bash outputs
 - Prompt caching
+- Dev containers for isolated agent work (Docker)
+
+## Dev Containers
+
+Magenta can spawn Docker sub-agents that work in isolated containers on
+their own branch. This enables safe, unsupervised parallel work — the agent
+can edit files, run tests, and make commits without touching your local setup.
+
+Add a `container` section to `.magenta/options.json`:
+
+```json
+{
+  "container": {
+    "dockerfile": "docker/Dockerfile",
+    "workspacePath": "/workspace"
+  }
+}
+```
+
+The Dockerfile should install your project's toolchain and dependencies,
+using Docker layer caching to keep rebuilds fast. See `:help
+magenta-dev-containers` for details.
 
 ## Roadmap
 
@@ -50,6 +72,10 @@ I sometimes write about AI, neovim and magenta specifically:
 
 <details>
 <summary>Recent updates (click to expand)</summary>
+
+## Mar 2026
+
+- Dev containers: spawn Docker sub-agents that work on isolated branches in containers. Dockerfile-based, no bind mounts, Docker layer caching for fast startup.
 
 ## Feb 2026
 

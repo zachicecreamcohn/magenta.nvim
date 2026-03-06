@@ -1,6 +1,6 @@
 import { withDriver } from "../test/preamble.ts";
 import { describe, it } from "vitest";
-import { LOGO } from "./thread.ts";
+import { LOGO } from "./thread-view.ts";
 import type { ToolRequestId, ToolName } from "@magenta/core";
 import { pollUntil } from "../utils/async.ts";
 

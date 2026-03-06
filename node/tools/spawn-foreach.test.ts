@@ -213,7 +213,7 @@ it("uses fast model for subagents when agentType is 'fast'", async () => {
       await driver.showSidebar();
 
       const activeThread = driver.magenta.chat.getActiveThread();
-      const parentProfile = activeThread.state.profile;
+      const parentProfile = activeThread.context.profile;
 
       await driver.inputMagentaText(
         "Use spawn_foreach with fast agent type to process 1 element.",

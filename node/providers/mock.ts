@@ -12,9 +12,8 @@ import type {
   Agent,
   AgentOptions,
   AgentInput,
-  AgentMsg,
 } from "./provider-types.ts";
-import type { Dispatch } from "../tea/tea.ts";
+
 import { setMockProvider } from "./provider.ts";
 import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
 import { type ToolRequest, validateInput } from "@magenta/core";
@@ -351,11 +350,10 @@ Streams: ${this.mockClient.streams.length}`);
     });
   }
 
-  createAgent(options: AgentOptions, dispatch: Dispatch<AgentMsg>): Agent {
+  createAgent(options: AgentOptions): Agent {
     return new AnthropicAgent(
       options,
       this.mockClient as unknown as Anthropic,
-      dispatch,
       {
         authType: "max",
         includeWebSearch: true,

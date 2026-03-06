@@ -29,12 +29,11 @@ export const fileCommand: Command = {
         throw new Error(`File ${filePath} does not exist`);
       }
 
-      context.contextManager.update({
-        type: "add-file-context",
-        relFilePath,
+      context.contextManager.addFileContext(
         absFilePath,
+        relFilePath,
         fileTypeInfo,
-      });
+      );
 
       return []; // File context is handled by contextManager
     } catch (error) {

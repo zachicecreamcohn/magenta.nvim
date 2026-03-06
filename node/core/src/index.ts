@@ -25,6 +25,7 @@ export {
   displayPath,
   expandTilde,
   detectFileType,
+  detectFileTypeViaFileIO,
   isLikelyTextFile,
   categorizeFileType,
   validateFileSize,
@@ -134,6 +135,9 @@ export {
   CHAT_STATIC_TOOL_NAMES,
   COMPACT_STATIC_TOOL_NAMES,
   SUBAGENT_STATIC_TOOL_NAMES,
+  TOOL_CAPABILITIES,
+  type ToolCapability,
+  TOOL_REQUIRED_CAPABILITIES,
 } from "./tools/tool-registry.ts";
 export {
   type MCPToolName,
@@ -180,8 +184,22 @@ export type {
   ToolApplied,
   OnToolApplied,
 } from "./capabilities/context-tracker.ts";
+export {
+  ContextManager,
+  type Files as ContextFiles,
+  type Patch,
+  type WholeFileUpdate,
+  type DiffUpdate,
+  type FileDeletedUpdate,
+  type FileUpdate,
+  type FileUpdates,
+  type ContextManagerEvents,
+} from "./context/context-manager.ts";
 export type { Shell, ShellResult, OutputLine } from "./capabilities/shell.ts";
-export type { ThreadManager } from "./capabilities/thread-manager.ts";
+export type {
+  ThreadManager,
+  DockerSpawnConfig,
+} from "./capabilities/thread-manager.ts";
 export type {
   MCPServerConfig,
   MCPServersConfig,
@@ -226,3 +244,44 @@ export * as WaitForSubagents from "./tools/wait-for-subagents.ts";
 export * as YieldToParent from "./tools/yield-to-parent.ts";
 export * as Edl from "./tools/edl.ts";
 export { createTool, type CreateToolContext } from "./tools/create-tool.ts";
+
+export {
+  ThreadCore,
+  type ThreadCoreContext,
+  type ThreadCoreEvents,
+  type InputMessage,
+  type ActiveToolEntry,
+  type ToolCache,
+  type ThreadMode,
+  type EnvironmentConfig,
+  type ThreadCoreAction,
+} from "./thread-core.ts";
+export type {
+  SupervisorAction,
+  ThreadSupervisor,
+} from "./thread-supervisor.ts";
+export type {
+  CompactionStep,
+  CompactionRecord,
+  CompactionResult,
+  CompactionController,
+} from "./compaction-controller.ts";
+export {
+  renderThreadToMarkdown,
+  chunkMessages,
+  CHARS_PER_TOKEN,
+  TARGET_CHUNK_TOKENS,
+  TOLERANCE_TOKENS,
+  type RenderResult,
+} from "./compact-renderer.ts";
+export {
+  CompactionManager,
+  type CompactionManagerContext,
+  type CompactionState,
+  type CompactionAction,
+  type CompactionEvents,
+} from "./compaction-manager.ts";
+export type { ContainerConfig, ProvisionResult } from "./container/types.ts";
+export { provisionContainer } from "./container/provision.ts";
+export { teardownContainer } from "./container/teardown.ts";
+export { Emitter, type EventMap } from "./emitter.ts";

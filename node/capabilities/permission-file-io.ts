@@ -23,6 +23,8 @@ export type PendingPermission = {
 
 export class PermissionCheckingFileIO implements FileIO {
   private pending: Map<string, PendingPermission> = new Map();
+  private approvedReads: Set<AbsFilePath> = new Set();
+  private approvedWrites: Set<AbsFilePath> = new Set();
 
   constructor(
     private inner: FileIO,
@@ -48,6 +50,7 @@ export class PermissionCheckingFileIO implements FileIO {
   }
 
   private async checkReadPermission(absFilePath: AbsFilePath): Promise<void> {
+    if (this.approvedReads.has(absFilePath)) return;
     const allowed = await canReadFile(absFilePath, this.permissionContext);
     if (allowed) return;
 
@@ -69,6 +72,7 @@ export class PermissionCheckingFileIO implements FileIO {
   }
 
   private checkWritePermission(absFilePath: AbsFilePath): Promise<void> {
+    if (this.approvedWrites.has(absFilePath)) return Promise.resolve();
     const allowed = canWriteFile(absFilePath, this.permissionContext);
     if (allowed) return Promise.resolve();
 
@@ -112,7 +116,9 @@ export class PermissionCheckingFileIO implements FileIO {
     return this.inner.mkdir(path);
   }
 
-  async stat(path: string): Promise<{ mtimeMs: number } | undefined> {
+  async stat(
+    path: string,
+  ): Promise<{ mtimeMs: number; size: number } | undefined> {
     return this.inner.stat(path);
   }
 
@@ -120,6 +126,11 @@ export class PermissionCheckingFileIO implements FileIO {
     const entry = this.pending.get(key);
     if (entry) {
       this.pending.delete(key);
+      if (entry.accessType === "read") {
+        this.approvedReads.add(entry.absFilePath);
+      } else {
+        this.approvedWrites.add(entry.absFilePath);
+      }
       entry.resolve();
       this.onPendingChange();
     }
@@ -141,6 +152,11 @@ export class PermissionCheckingFileIO implements FileIO {
   approveAll(): void {
     for (const [key, entry] of this.pending) {
       this.pending.delete(key);
+      if (entry.accessType === "read") {
+        this.approvedReads.add(entry.absFilePath);
+      } else {
+        this.approvedWrites.add(entry.absFilePath);
+      }
       entry.resolve();
     }
     this.onPendingChange();

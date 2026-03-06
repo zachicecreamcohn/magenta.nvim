@@ -2,19 +2,27 @@ import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { MagentaOptions, Profile } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { Dispatch } from "../tea/tea.ts";
-import { Thread, view as threadView, type InputMessage } from "./thread.ts";
+import { Thread } from "./thread.ts";
+import { view as threadView } from "./thread-view.ts";
+import { DockerSupervisor } from "./thread-supervisor.ts";
 import type { Lsp } from "../capabilities/lsp.ts";
+import {
+  createLocalEnvironment,
+  createDockerEnvironment,
+  type EnvironmentConfig,
+} from "../environment.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { FileIO } from "@magenta/core";
+import type { FileIO, InputMessage, ThreadId, ThreadType } from "@magenta/core";
+import { MCPToolManagerImpl } from "@magenta/core";
 
 import { d, withBindings, type VDOMNode } from "../tea/view.ts";
 import { v7 as uuidv7 } from "uuid";
-import { ContextManager } from "../context/context-manager.ts";
+
 import {
   resolveAutoContext,
   autoContextFilesToInitialFiles,
 } from "../context/auto-context.ts";
-import { BufferAwareFileIO } from "../capabilities/buffer-file-io.ts";
+
 import type { BufferTracker } from "../buffer-tracker.ts";
 import {
   type AbsFilePath,
@@ -23,10 +31,10 @@ import {
   type UnresolvedFilePath,
 } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
-import type { ThreadManager } from "../capabilities/thread-manager.ts";
-
-import { MCPToolManagerImpl } from "@magenta/core";
-import type { ThreadId, ThreadType } from "./types.ts";
+import type {
+  ThreadManager,
+  DockerSpawnConfig,
+} from "../capabilities/thread-manager.ts";
 import { createSystemPrompt } from "../providers/system-prompt.ts";
 
 type ThreadWrapper = (
@@ -43,6 +51,7 @@ type ThreadWrapper = (
     }
 ) & {
   parentThreadId: ThreadId | undefined;
+  depth: number;
 };
 
 type ChatState =
@@ -71,7 +80,6 @@ export type Msg =
   | {
       type: "fork-thread";
       sourceThreadId: ThreadId;
-      strippedMessages: InputMessage[];
     }
   | {
       type: "select-thread";
@@ -166,10 +174,10 @@ export class Chat implements ThreadManager {
         // and should not generate any more thread messages. As such, this won't be terribly inefficient.
         const agentStatus = thread.agent.getState().status;
 
-        if (thread.state.yieldedResponse !== undefined) {
+        if (thread.core.state.mode.type === "yielded") {
           this.resolveThreadWaiters(thread.id, {
             status: "ok",
-            value: thread.state.yieldedResponse,
+            value: thread.core.state.mode.response,
           });
         } else if (agentStatus.type === "error") {
           const result: Result<string> = {
@@ -198,6 +206,7 @@ export class Chat implements ThreadManager {
           state: "initialized",
           thread: msg.thread,
           parentThreadId: prev.parentThreadId,
+          depth: prev.depth,
         };
         this.threadWrappers[msg.thread.id] = wrapper;
 
@@ -227,6 +236,7 @@ export class Chat implements ThreadManager {
           state: "error",
           error: msg.error,
           parentThreadId: thread.parentThreadId,
+          depth: thread.depth,
         };
 
         if (this.state.state === "thread-selected") {
@@ -311,7 +321,9 @@ export class Chat implements ThreadManager {
         return;
 
       case "fork-thread": {
-        this.handleForkThread(msg).catch((e: Error) => {
+        this.handleForkThread({
+          sourceThreadId: msg.sourceThreadId,
+        }).catch((e: Error) => {
           this.context.nvim.logger.error(
             "Failed to handle thread fork: " + e.message + "\n" + e.stack,
           );
@@ -360,6 +372,8 @@ export class Chat implements ThreadManager {
     inputMessages,
     threadType,
     fileIO,
+    environmentConfig,
+    dockerSpawnConfig,
   }: {
     threadId: ThreadId;
     profile: Profile;
@@ -369,10 +383,13 @@ export class Chat implements ThreadManager {
     inputMessages?: InputMessage[];
     threadType: ThreadType;
     fileIO?: FileIO;
+    environmentConfig?: EnvironmentConfig;
+    dockerSpawnConfig?: DockerSpawnConfig | undefined;
   }) {
     this.threadWrappers[threadId] = {
       state: "pending",
       parentThreadId: parent,
+      depth: parent ? (this.threadWrappers[parent]?.depth ?? 0) + 1 : 0,
     };
 
     const [autoContextFiles, systemPrompt] = await Promise.all([
@@ -386,45 +403,79 @@ export class Chat implements ThreadManager {
 
     const initialFiles = autoContextFilesToInitialFiles(autoContextFiles);
 
-    const contextManager = new ContextManager(
-      (msg) =>
-        this.context.dispatch({
-          type: "thread-msg",
-          id: threadId,
-          msg: {
-            type: "context-manager-msg",
-            msg,
-          },
-        }),
-      {
-        dispatch: this.context.dispatch,
-        fileIO: new BufferAwareFileIO(this.context),
-        cwd: this.context.cwd,
-        homeDir: this.context.homeDir,
-        nvim: this.context.nvim,
-        options: this.context.options,
-      },
-      initialFiles,
-    );
+    const resolvedConfig: EnvironmentConfig = environmentConfig ?? {
+      type: "local",
+    };
+    const environment =
+      resolvedConfig.type === "docker"
+        ? await createDockerEnvironment({
+            container: resolvedConfig.container,
+            cwd: resolvedConfig.cwd,
+            threadId,
+          })
+        : createLocalEnvironment({
+            nvim: this.context.nvim,
+            lsp: this.context.lsp,
+            bufferTracker: this.context.bufferTracker,
+            cwd: this.context.cwd,
+            homeDir: this.context.homeDir,
+            options: this.context.options,
+            threadId,
+            rememberedCommands: this.rememberedCommands,
+            onPendingChange: () =>
+              this.context.dispatch({
+                type: "thread-msg",
+                id: threadId,
+                msg: { type: "permission-pending-change" },
+              }),
+          });
 
-    if (contextFiles.length > 0) {
-      await contextManager.addFiles(contextFiles);
+    if (fileIO) {
+      environment.fileIO = fileIO;
+      environment.permissionFileIO = undefined;
     }
 
-    const thread = new Thread(
-      threadId,
-      threadType,
-      systemPrompt,
-      {
-        ...this.context,
-        contextManager,
-        mcpToolManager: this.mcpToolManager,
-        profile,
-        chat: this,
-      },
-      undefined,
-      fileIO,
-    );
+    const thread = new Thread(threadId, threadType, systemPrompt, {
+      ...this.context,
+
+      mcpToolManager: this.mcpToolManager,
+      profile,
+      chat: this,
+      environment,
+      initialFiles,
+    });
+
+    if (contextFiles.length > 0) {
+      await thread.contextManager.addFiles(contextFiles);
+    }
+
+    if (dockerSpawnConfig?.supervised && this.context.options.container) {
+      thread.supervisor = new DockerSupervisor(
+        environment.shell,
+        {
+          containerName: dockerSpawnConfig.containerName,
+          tempDir: dockerSpawnConfig.tempDir,
+          imageName: dockerSpawnConfig.imageName,
+          startSha: dockerSpawnConfig.startSha,
+        },
+        this.context.options.container,
+        dockerSpawnConfig.branch,
+        this.context.cwd,
+        {
+          onProgress: (message) => {
+            thread.core.update({
+              type: "set-teardown-message",
+              message,
+            });
+            this.context.dispatch({
+              type: "thread-msg",
+              id: thread.id,
+              msg: { type: "tool-progress" },
+            });
+          },
+        },
+      );
+    }
 
     this.context.dispatch({
       type: "chat-msg",
@@ -472,31 +523,18 @@ export class Chat implements ThreadManager {
     });
   }
 
-  private buildThreadHierarchy(): {
-    rootThreads: ThreadId[];
-    childrenMap: Map<ThreadId, ThreadId[]>;
-  } {
+  private buildChildrenMap(): Map<ThreadId, ThreadId[]> {
     const childrenMap = new Map<ThreadId, ThreadId[]>();
-    const rootThreads: ThreadId[] = [];
-
-    // Iterate through all threads to build hierarchy
     for (const [idStr, threadWrapper] of Object.entries(this.threadWrappers)) {
-      const threadId = idStr as ThreadId;
       const parentId = threadWrapper.parentThreadId;
-
-      if (parentId === undefined) {
-        // This is a root thread
-        rootThreads.push(threadId);
-      } else {
-        // This is a child thread, add to parent's children
+      if (parentId !== undefined) {
         if (!childrenMap.has(parentId)) {
           childrenMap.set(parentId, []);
         }
-        childrenMap.get(parentId)!.push(threadId);
+        childrenMap.get(parentId)!.push(idStr as ThreadId);
       }
     }
-
-    return { rootThreads, childrenMap };
+    return childrenMap;
   }
 
   private formatThreadStatus(threadId: ThreadId): string {
@@ -538,8 +576,8 @@ export class Chat implements ThreadManager {
     }
 
     const thread = threadWrapper.thread;
-    if (thread.state.title) {
-      return thread.state.title;
+    if (thread.core.state.title) {
+      return thread.core.state.title;
     }
 
     // Find the first user message text
@@ -560,13 +598,13 @@ export class Chat implements ThreadManager {
 
   private renderThread(
     threadId: ThreadId,
-    isChild: boolean,
+    depth: number,
     activeThreadId: ThreadId | undefined,
   ): VDOMNode {
     const displayName = this.getThreadDisplayName(threadId);
     const status = this.formatThreadStatus(threadId);
     const marker = threadId === activeThreadId ? "*" : "-";
-    const indent = isChild ? "  " : "";
+    const indent = "  ".repeat(depth);
 
     const displayLine = `${indent}${marker} ${displayName}: ${status}`;
 
@@ -582,6 +620,20 @@ export class Chat implements ThreadManager {
     });
   }
 
+  private renderThreadSubtree(
+    threadId: ThreadId,
+    childrenMap: Map<ThreadId, ThreadId[]>,
+    activeThreadId: ThreadId | undefined,
+    views: VDOMNode[],
+  ) {
+    const wrapper = this.threadWrappers[threadId];
+    views.push(this.renderThread(threadId, wrapper.depth, activeThreadId));
+    const children = childrenMap.get(threadId) || [];
+    for (const childId of children) {
+      this.renderThreadSubtree(childId, childrenMap, activeThreadId, views);
+    }
+  }
+
   renderThreadOverview() {
     if (Object.keys(this.threadWrappers).length === 0) {
       return d`# Threads
@@ -589,21 +641,16 @@ export class Chat implements ThreadManager {
 No threads yet`;
     }
 
-    const { rootThreads, childrenMap } = this.buildThreadHierarchy();
+    const childrenMap = this.buildChildrenMap();
     const threadViews: VDOMNode[] = [];
 
-    // Render all root threads and their children
-    for (const rootThreadId of rootThreads) {
-      // Render the root thread
-      threadViews.push(
-        this.renderThread(rootThreadId, false, this.state.activeThreadId),
-      );
-
-      // Render children of this root thread
-      const children = childrenMap.get(rootThreadId) || [];
-      for (const childThreadId of children) {
-        threadViews.push(
-          this.renderThread(childThreadId, true, this.state.activeThreadId),
+    for (const [idStr, wrapper] of Object.entries(this.threadWrappers)) {
+      if (wrapper.parentThreadId === undefined) {
+        this.renderThreadSubtree(
+          idStr as ThreadId,
+          childrenMap,
+          this.state.activeThreadId,
+          threadViews,
         );
       }
     }
@@ -628,11 +675,9 @@ ${threadViews.map((view) => d`${view}\n`)}`;
 
   async handleForkThread({
     sourceThreadId,
-    strippedMessages,
   }: {
     sourceThreadId: ThreadId;
-    strippedMessages: InputMessage[];
-  }) {
+  }): Promise<ThreadId> {
     const sourceThreadWrapper = this.threadWrappers[sourceThreadId];
     if (!sourceThreadWrapper || sourceThreadWrapper.state !== "initialized") {
       throw new Error(`Thread ${sourceThreadId} not available for forking`);
@@ -653,19 +698,13 @@ ${threadViews.map((view) => d`${view}\n`)}`;
 
     const newThreadId = uuidv7() as ThreadId;
 
-    // Clone the agent with dispatch pointing to the new thread
-    const clonedAgent = sourceAgent.clone((msg) =>
-      this.context.dispatch({
-        type: "thread-msg",
-        id: newThreadId,
-        msg: { type: "agent-msg", msg },
-      }),
-    );
+    const clonedAgent = sourceAgent.clone();
 
     // Create the new thread with the cloned agent
     this.threadWrappers[newThreadId] = {
       state: "pending",
       parentThreadId: undefined,
+      depth: 0,
     };
 
     const [autoContextFiles, systemPrompt] = await Promise.all([
@@ -690,26 +729,22 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       };
     }
 
-    const contextManager = new ContextManager(
-      (msg) =>
+    const forkEnvironment = createLocalEnvironment({
+      nvim: this.context.nvim,
+      lsp: this.context.lsp,
+      bufferTracker: this.context.bufferTracker,
+      cwd: this.context.cwd,
+      homeDir: this.context.homeDir,
+      options: this.context.options,
+      threadId: newThreadId,
+      rememberedCommands: this.rememberedCommands,
+      onPendingChange: () =>
         this.context.dispatch({
           type: "thread-msg",
           id: newThreadId,
-          msg: {
-            type: "context-manager-msg",
-            msg,
-          },
+          msg: { type: "permission-pending-change" },
         }),
-      {
-        dispatch: this.context.dispatch,
-        fileIO: new BufferAwareFileIO(this.context),
-        cwd: this.context.cwd,
-        homeDir: this.context.homeDir,
-        nvim: this.context.nvim,
-        options: this.context.options,
-      },
-      initialFiles,
-    );
+    });
 
     const thread = new Thread(
       newThreadId,
@@ -717,10 +752,12 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       systemPrompt,
       {
         ...this.context,
-        contextManager,
+
         mcpToolManager: this.mcpToolManager,
-        profile: sourceThread.state.profile,
+        profile: sourceThread.context.profile,
         chat: this,
+        environment: forkEnvironment,
+        initialFiles,
       },
       clonedAgent,
     );
@@ -741,17 +778,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       },
     });
 
-    // Send the stripped messages to the new thread
-    if (strippedMessages.length > 0) {
-      this.context.dispatch({
-        type: "thread-msg",
-        id: newThreadId,
-        msg: {
-          type: "send-message",
-          messages: strippedMessages,
-        },
-      });
-    }
+    return newThreadId;
   }
 
   getThreadResult(
@@ -783,12 +810,12 @@ ${threadViews.map((view) => d`${view}\n`)}`;
         const agentStatus = thread.agent.getState().status;
 
         // Check for yielded state first
-        if (thread.state.yieldedResponse !== undefined) {
+        if (thread.core.state.mode.type === "yielded") {
           return {
             status: "done",
             result: {
               status: "ok",
-              value: thread.state.yieldedResponse,
+              value: thread.core.state.mode.response,
             },
           };
         }
@@ -873,17 +900,23 @@ ${threadViews.map((view) => d`${view}\n`)}`;
 
       case "initialized": {
         const thread = threadWrapper.thread;
-        const mode = thread.state.mode;
+        const mode = thread.core.state.mode;
         const agentStatus = thread.agent.getState().status;
 
         const summary = {
-          title: thread.state.title,
+          title: thread.core.state.title,
           status: (() => {
             // Check mode for thread-specific states first
-            if (thread.state.yieldedResponse !== undefined) {
+            if (mode.type === "yielded") {
+              if (mode.teardownMessage) {
+                return {
+                  type: "running" as const,
+                  activity: `🐳 ${mode.teardownMessage}`,
+                };
+              }
               return {
                 type: "yielded" as const,
-                response: thread.state.yieldedResponse,
+                response: mode.response,
               };
             }
 
@@ -950,6 +983,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     prompt: string;
     threadType: ThreadType;
     contextFiles?: UnresolvedFilePath[];
+    dockerSpawnConfig?: DockerSpawnConfig;
   }): Promise<ThreadId> {
     const parentThreadId = opts.parentThreadId;
     const parentThreadWrapper = this.threadWrappers[parentThreadId];
@@ -963,12 +997,23 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const subagentProfile: Profile =
       opts.threadType === "subagent_fast"
         ? {
-            ...parentThread.state.profile,
-            model: parentThread.state.profile.fastModel,
+            ...parentThread.context.profile,
+            model: parentThread.context.profile.fastModel,
             thinking: undefined,
             reasoning: undefined,
           }
-        : parentThread.state.profile;
+        : parentThread.context.profile;
+
+    let environmentConfig: EnvironmentConfig;
+    if (opts.dockerSpawnConfig) {
+      environmentConfig = {
+        type: "docker",
+        container: opts.dockerSpawnConfig.containerName,
+        cwd: opts.dockerSpawnConfig.workspacePath,
+      };
+    } else {
+      environmentConfig = parentThread.context.environment.environmentConfig;
+    }
 
     const thread = await this.createThreadWithContext({
       threadId: subagentThreadId,
@@ -978,6 +1023,8 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       switchToThread: false,
       inputMessages: [{ type: "system", text: opts.prompt }],
       threadType: opts.threadType,
+      environmentConfig,
+      dockerSpawnConfig: opts.dockerSpawnConfig,
     });
 
     return thread.id;
@@ -1003,7 +1050,10 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const threadWrapper = this.threadWrappers[threadId];
     if (threadWrapper && threadWrapper.state === "initialized") {
       if (result.status === "ok") {
-        threadWrapper.thread.state.yieldedResponse = result.value;
+        threadWrapper.thread.core.update({
+          type: "set-mode",
+          mode: { type: "yielded", response: result.value },
+        });
       }
     }
     this.resolveThreadWaiters(threadId, result);

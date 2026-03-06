@@ -3,7 +3,6 @@ import * as ToolManager from "../tool-types.ts";
 import type { Result } from "../utils/result.ts";
 import Anthropic from "@anthropic-ai/sdk";
 import type { ToolName, ToolRequest } from "../tool-types.ts";
-import type { Dispatch } from "../dispatch.ts";
 
 export const PROVIDER_NAMES = [
   "anthropic",
@@ -165,7 +164,7 @@ export interface Provider {
     contextAgent?: Agent;
   }): ProviderToolUseRequest;
 
-  createAgent(options: AgentOptions, dispatch: Dispatch<AgentMsg>): Agent;
+  createAgent(options: AgentOptions): Agent;
 }
 
 export type ProviderMetadata = {
@@ -251,7 +250,22 @@ export type AgentMsg =
   | { type: "agent-stopped"; stopReason: StopReason; usage?: Usage }
   | { type: "agent-error"; error: Error };
 
+export type AgentEvents = {
+  didUpdate: [];
+  stopped: [stopReason: StopReason, usage: Usage | undefined];
+  error: [error: Error];
+};
+
 export interface Agent {
+  on<K extends keyof AgentEvents>(
+    event: K,
+    listener: (...args: AgentEvents[K]) => void,
+  ): void;
+  off<K extends keyof AgentEvents>(
+    event: K,
+    listener: (...args: AgentEvents[K]) => void,
+  ): void;
+
   getState(): AgentState;
 
   getStreamingBlock(): AgentStreamingBlock | undefined;
@@ -288,12 +302,12 @@ export interface Agent {
    */
   truncateMessages(messageIdx: NativeMessageIdx): void;
 
-  /** Create a deep copy of this agent with a new dispatch function.
+  /** Create a deep copy of this agent.
    * Can be called in any state (stopped, streaming, tool_use).
    * The cloned agent will always be in stopped/end_turn state.
    * Incomplete blocks and pending tool_use are cleaned up in the clone.
    */
-  clone(dispatch: Dispatch<AgentMsg>): Agent;
+  clone(): Agent;
 }
 
 export interface AgentOptions {

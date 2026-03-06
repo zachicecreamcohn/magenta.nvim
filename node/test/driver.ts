@@ -11,10 +11,10 @@ import {
 } from "../nvim/window.ts";
 import { Defer, pollUntil } from "../utils/async.ts";
 import { calculatePosition } from "../tea/util.ts";
-import type { BindingKey } from "../tea/bindings.ts";
+import { getBindings, type BindingKey } from "../tea/bindings.ts";
 import { getAllWindows, getCurrentWindow } from "../nvim/nvim.ts";
 import { expect, vi } from "vitest";
-import type { ThreadId } from "../chat/types.ts";
+import type { ThreadId } from "@magenta/core";
 import { CompletionsInteraction } from "./driver/completions.ts";
 import { SidebarInteraction } from "./driver/sidebar.ts";
 
@@ -117,13 +117,13 @@ export class NvimDriver {
 
   interceptSendMessage() {
     const thread = this.magenta.chat.getActiveThread();
-    const callDefer = new Defer<Parameters<typeof thread.sendMessage>>();
+    const callDefer = new Defer<Parameters<typeof thread.core.sendMessage>>();
     const executeDefer = new Defer<void>();
 
     const spy = vi
-      .spyOn(thread, "sendMessage")
+      .spyOn(thread.core, "sendMessage")
       .mockImplementation(
-        async (...args: Parameters<typeof thread.sendMessage>) => {
+        async (...args: Parameters<typeof thread.core.sendMessage>) => {
           callDefer.resolve(args);
           return executeDefer.promise;
         },
@@ -132,9 +132,9 @@ export class NvimDriver {
     return {
       promise: callDefer.promise,
       spy,
-      execute: (...args: Parameters<typeof thread.sendMessage>) => {
+      execute: (...args: Parameters<typeof thread.core.sendMessage>) => {
         spy.mockRestore();
-        return thread.sendMessage(...args).then(
+        return thread.core.sendMessage(...args).then(
           () => executeDefer.resolve(),
           (err: Error) => executeDefer.reject(err),
         );
@@ -150,22 +150,26 @@ export class NvimDriver {
     const thread = this.magenta.chat.getActiveThread();
     const callDefer = new Defer<void>();
     const executeDefer = new Defer<
-      ReturnType<typeof thread.maybeAutoRespond>
+      ReturnType<typeof thread.core.maybeAutoRespond>
     >();
 
-    const originalMaybeAutoRespond = thread.maybeAutoRespond.bind(thread);
-    const spy = vi.spyOn(thread, "maybeAutoRespond").mockImplementation(() => {
-      callDefer.resolve();
-      // Block until execute() is called - return a default value synchronously
-      let result: ReturnType<typeof thread.maybeAutoRespond> = {
-        type: "no-action-needed",
-      };
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
-      executeDefer.promise.then((r) => {
-        result = r;
+    const originalMaybeAutoRespond = thread.core.maybeAutoRespond.bind(
+      thread.core,
+    );
+    const spy = vi
+      .spyOn(thread.core, "maybeAutoRespond")
+      .mockImplementation(() => {
+        callDefer.resolve();
+        // Block until execute() is called - return a default value synchronously
+        let result: ReturnType<typeof thread.core.maybeAutoRespond> = {
+          type: "no-action-needed",
+        };
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        executeDefer.promise.then((r) => {
+          result = r;
+        });
+        return result;
       });
-      return result;
-    });
 
     return {
       /** Resolves when maybeAutoRespond is called */
@@ -467,69 +471,52 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
       await pollUntil(
         async () => {
           const displayBuffer = this.getDisplayBuffer();
-
-          const findTextPosition = (content: string): Position0Indexed => {
-            const index = Buffer.from(content).indexOf(text) as ByteIdx;
-            if (index == -1) {
-              throw new Error(
-                `! Unable to find text ${text} after line ${start} in displayBuffer`,
-              );
-            }
-            return calculatePosition(
-              { row: start, col: 0 } as Position0Indexed,
-              Buffer.from(content),
-              index,
-            );
-          };
+          // Capture renderVersion before any async operations so we can
+          // detect if a re-render happens at any point during this attempt.
+          const versionBefore = this.magenta.mountedChatApp?.renderVersion ?? 0;
 
           const lines = await displayBuffer.getLines({
             start: 0 as Row0Indexed,
             end: -1 as Row0Indexed,
           });
           latestContent = lines.slice(start).join("\n");
-          const position = findTextPosition(latestContent);
+          const index = Buffer.from(latestContent).indexOf(text) as ByteIdx;
+          if (index == -1) {
+            throw new Error(
+              `! Unable to find text ${text} after line ${start} in displayBuffer`,
+            );
+          }
+          const position = calculatePosition(
+            { row: start, col: 0 } as Position0Indexed,
+            Buffer.from(latestContent),
+            index,
+          );
 
-          // Set cursor position and re-verify the content is still there
           const { displayWindow } = this.getVisibleState();
           await this.nvim.call("nvim_set_current_win", [displayWindow.id]);
           await displayWindow.setCursor(pos0to1(position));
 
-          // Re-verify content under cursor by checking buffer again
-          const updatedLines = await displayBuffer.getLines({
-            start: 0 as Row0Indexed,
-            end: -1 as Row0Indexed,
-          });
-          const updatedContent = updatedLines.slice(start).join("\n");
-          const updatedPosition = findTextPosition(updatedContent);
-
-          // Verify cursor is still at the correct position
-          if (
-            position.row !== updatedPosition.row ||
-            position.col !== updatedPosition.col
-          ) {
+          const versionAfter = this.magenta.mountedChatApp?.renderVersion ?? 0;
+          if (versionBefore !== versionAfter) {
             throw new Error(
-              `! Content position changed after setting cursor. Original: ${JSON.stringify(position)}, Updated: ${JSON.stringify(updatedPosition)}`,
+              `! Re-render occurred while setting cursor. Retrying.`,
             );
           }
 
-          // Double-check cursor position right before triggering the key
-          const currentCursor = await displayWindow.getCursor();
-          const expectedCursor = pos0to1(updatedPosition);
-          if (
-            currentCursor.row !== expectedCursor.row ||
-            currentCursor.col !== expectedCursor.col
-          ) {
+          // Directly resolve and invoke the binding at the known position
+          // instead of going through rpcnotify + getCursor, which is
+          // vulnerable to re-renders moving the cursor.
+          const mountedNode = this.magenta.mountedChatApp?.getMountedNode();
+          if (!mountedNode) {
+            throw new Error(`! mountedChatApp not available`);
+          }
+          const bindings = getBindings(mountedNode, position);
+          if (!bindings || !bindings[key]) {
             throw new Error(
-              `! Cursor position mismatch before triggering key. Expected: ${JSON.stringify(expectedCursor)}, Actual: ${JSON.stringify(currentCursor)}`,
+              `! No binding for key "${key}" at position ${JSON.stringify(position)}`,
             );
           }
-
-          await this.nvim.call("nvim_exec_lua", [
-            `vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")`,
-            [],
-          ]);
-
-          return; // Success - found content and triggered key
+          bindings[key]();
         },
         { timeout: 2000 },
       );

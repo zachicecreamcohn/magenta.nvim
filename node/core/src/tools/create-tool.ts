@@ -28,6 +28,7 @@ import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import type { Logger } from "../logger.ts";
 
 import type { StaticToolRequest } from "./toolManager.ts";
+import type { ContainerConfig, ProvisionResult } from "../container/types.ts";
 import type { MCPToolManager } from "./mcp/manager.ts";
 import { parseToolName } from "./mcp/types.ts";
 import * as MCPTool from "./mcp/tool.ts";
@@ -48,6 +49,17 @@ export type CreateToolContext = {
   shell: Shell;
   threadManager: ThreadManager;
   requestRender: () => void;
+  containerProvisioner?:
+    | {
+        containerConfig: ContainerConfig;
+        provision: (opts: {
+          repoPath: string;
+          branch: string;
+          containerConfig: ContainerConfig;
+          onProgress?: (message: string) => void;
+        }) => Promise<ProvisionResult>;
+      }
+    | undefined;
 };
 
 export function createTool(
@@ -128,6 +140,8 @@ export function createTool(
         threadManager: context.threadManager,
         threadId: context.threadId,
         requestRender: context.requestRender,
+        cwd: context.cwd,
+        containerProvisioner: context.containerProvisioner,
       });
     }
 

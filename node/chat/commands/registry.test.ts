@@ -3,7 +3,7 @@ import { CommandRegistry } from "./registry.ts";
 import type { MessageContext } from "./types.ts";
 import type { Nvim } from "../../nvim/nvim-node/index.ts";
 import type { NvimCwd, HomeDir } from "../../utils/files.ts";
-import type { ContextManager } from "../../context/context-manager.ts";
+import type { ContextManager } from "@magenta/core";
 import type { MagentaOptions } from "../../options.ts";
 import os from "os";
 
@@ -52,7 +52,7 @@ const createMockContext = (): MessageContext => {
     cwd: "/test" as NvimCwd,
     homeDir: os.homedir() as HomeDir,
     contextManager: {
-      update: updateFn,
+      addFileContext: updateFn,
     } as unknown as ContextManager,
     options: {
       customCommands: [],
@@ -122,8 +122,9 @@ describe("CommandRegistry", () => {
     // Commands should NOT be removed from text
     expect(result.processedText).toBe("@file:test.ts more text");
     // Context manager should have been called
+    // Should also add file to context
     // eslint-disable-next-line @typescript-eslint/unbound-method
-    expect(context.contextManager.update).toHaveBeenCalled();
+    expect(context.contextManager.addFileContext).toHaveBeenCalled();
   });
 
   it("should handle @async by stripping it", async () => {

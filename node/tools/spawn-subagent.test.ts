@@ -1,10 +1,29 @@
 import { withDriver } from "../test/preamble.ts";
-import { describe, expect, it } from "vitest";
-import { type ToolRequestId, type ToolName, pollUntil } from "@magenta/core";
+import { describe, expect, it, vi } from "vitest";
+import {
+  type ToolRequestId,
+  type ToolName,
+  type ThreadId,
+  pollUntil,
+} from "@magenta/core";
 import { EXPLORE_SUBAGENT_SYSTEM_PROMPT } from "../providers/system-prompt.ts";
+
+import type { Chat } from "../chat/chat.ts";
 import type Anthropic from "@anthropic-ai/sdk";
 
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
+function findChildThread(chat: Chat) {
+  const childThreadId = Object.keys(chat.threadWrappers).find((id) => {
+    const wrapper = chat.threadWrappers[id as ThreadId];
+    return wrapper?.parentThreadId !== undefined;
+  }) as ThreadId | undefined;
+  expect(childThreadId).toBeDefined();
+  const childWrapper = chat.threadWrappers[childThreadId!];
+  expect(childWrapper.state).toBe("initialized");
+  if (childWrapper.state !== "initialized")
+    throw new Error("Expected initialized");
+  return childWrapper;
+}
 
 function findToolResult(
   messages: Anthropic.MessageParam[],
@@ -53,12 +72,11 @@ it("navigates to spawned subagent thread when pressing Enter on completed summar
       ],
     });
 
-    // Wait for the completed summary to appear
-    const summaryPos =
-      await driver.assertDisplayBufferContains("🤖✅ spawn_subagent");
-
-    // Press Enter on the completed summary to navigate to the subagent thread
-    await driver.triggerDisplayBufferKey(summaryPos, "<CR>");
+    // Navigate to the subagent thread by pressing Enter on the completed summary
+    await driver.triggerDisplayBufferKeyOnContent(
+      "🤖✅ spawn_subagent",
+      "<CR>",
+    );
 
     // Verify we navigated to a different thread (the subagent)
     await pollUntil(
@@ -268,6 +286,244 @@ describe("blocking option", () => {
           : JSON.stringify(toolResult!.content);
       expect(content).toContain("Found the answer: 42");
       expect(content).toContain("completed");
+    });
+  });
+});
+
+describe("yield behavior", () => {
+  async function spawnSubagentAndYield(
+    driver: Parameters<Parameters<typeof withDriver>[1]>[0],
+  ) {
+    await driver.showSidebar();
+
+    await driver.inputMagentaText("Spawn a subagent.");
+    await driver.send();
+
+    const parentStream =
+      await driver.mockAnthropic.awaitPendingStreamWithText("Spawn a subagent");
+
+    const parentThread = driver.magenta.chat.getActiveThread();
+
+    parentStream.respond({
+      stopReason: "tool_use",
+      text: "Spawning.",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "spawn-1" as ToolRequestId,
+            toolName: "spawn_subagent" as ToolName,
+            input: {
+              prompt: "Do the task",
+              blocking: false,
+            },
+          },
+        },
+      ],
+    });
+
+    // Parent gets tool result immediately (non-blocking)
+    const parentContinue =
+      await driver.mockAnthropic.awaitPendingStreamWithText(
+        "Sub-agent started with threadId:",
+      );
+    parentContinue.respond({
+      stopReason: "end_turn",
+      text: "Subagent spawned, waiting.",
+      toolRequests: [],
+    });
+
+    // Now find and respond to the subagent stream
+    const subagentStream = await driver.mockAnthropic.awaitPendingStream({
+      predicate: (stream) => {
+        return stream.messages.some((msg) => {
+          if (msg.role !== "user") return false;
+          const content = msg.content;
+          if (typeof content === "string")
+            return content.includes("Do the task");
+          if (Array.isArray(content)) {
+            return content.some(
+              (block) =>
+                block.type === "text" && block.text.includes("Do the task"),
+            );
+          }
+          return false;
+        });
+      },
+      message: "waiting for subagent stream",
+    });
+
+    return { parentThread, subagentStream };
+  }
+
+  it("yield_to_parent submits tool result back to subagent thread", async () => {
+    await withDriver({}, async (driver) => {
+      const { subagentStream } = await spawnSubagentAndYield(driver);
+
+      subagentStream.respond({
+        stopReason: "tool_use",
+        text: "Done with the task.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "yield-1" as ToolRequestId,
+              toolName: "yield_to_parent" as ToolName,
+              input: { result: "Task result: success" },
+            },
+          },
+        ],
+      });
+
+      // The subagent should get a tool result submitted back
+      const childWrapper = findChildThread(driver.magenta.chat);
+
+      // Wait for yieldedResponse to be set
+      await pollUntil(() => {
+        const mode = childWrapper.thread.core.state.mode;
+        if (mode.type !== "yielded") {
+          throw new Error("yieldedResponse not set yet");
+        }
+        return mode.response;
+      });
+      const mode = childWrapper.thread.core.state.mode;
+      expect(mode.type).toBe("yielded");
+      if (mode.type === "yielded") {
+        expect(mode.response).toBe("Task result: success");
+      }
+    });
+  });
+
+  it("yield_to_parent does not auto-continue the subagent conversation", async () => {
+    await withDriver({}, async (driver) => {
+      const { subagentStream } = await spawnSubagentAndYield(driver);
+
+      subagentStream.respond({
+        stopReason: "tool_use",
+        text: "Done.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "yield-2" as ToolRequestId,
+              toolName: "yield_to_parent" as ToolName,
+              input: { result: "Yielded result" },
+            },
+          },
+        ],
+      });
+
+      // Find the child thread
+      const childWrapper = findChildThread(driver.magenta.chat);
+
+      // Wait for yield to complete
+      await pollUntil(() => {
+        const mode = childWrapper.thread.core.state.mode;
+        if (mode.type !== "yielded") {
+          throw new Error("yieldedResponse not set yet");
+        }
+      });
+
+      // After a short wait, no new stream should have been created for the subagent
+      // (i.e., the conversation was not auto-continued)
+      await vi.waitFor(
+        () => {
+          // Check that there are no unresolved streams
+          const hasUnresolved = driver.mockAnthropic.mockClient.streams.some(
+            (s) => !s.resolved && !s.aborted,
+          );
+          expect(hasUnresolved).toBe(false);
+        },
+        { timeout: 500 },
+      );
+    });
+  });
+
+  it("parent thread waiter resolves on yield", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+
+      await driver.inputMagentaText(
+        "Spawn a blocking subagent for yield test.",
+      );
+      await driver.send();
+
+      const parentStream =
+        await driver.mockAnthropic.awaitPendingStreamWithText(
+          "Spawn a blocking subagent for yield test",
+        );
+
+      parentStream.respond({
+        stopReason: "tool_use",
+        text: "Spawning blocking.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "blocking-yield" as ToolRequestId,
+              toolName: "spawn_subagent" as ToolName,
+              input: {
+                prompt: "Do blocking task",
+                blocking: true,
+              },
+            },
+          },
+        ],
+      });
+
+      const subagentStream = await driver.mockAnthropic.awaitPendingStream({
+        predicate: (stream) => {
+          return stream.messages.some((msg) => {
+            if (msg.role !== "user") return false;
+            const content = msg.content;
+            if (typeof content === "string")
+              return content.includes("Do blocking task");
+            if (Array.isArray(content)) {
+              return content.some(
+                (block) =>
+                  block.type === "text" &&
+                  block.text.includes("Do blocking task"),
+              );
+            }
+            return false;
+          });
+        },
+        message: "waiting for blocking subagent",
+      });
+
+      subagentStream.respond({
+        stopReason: "tool_use",
+        text: "Blocking task done.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "yield-blocking" as ToolRequestId,
+              toolName: "yield_to_parent" as ToolName,
+              input: { result: "Blocking yield result" },
+            },
+          },
+        ],
+      });
+
+      // The parent should receive the yield result in its tool result
+      const parentResume =
+        await driver.mockAnthropic.awaitPendingStreamWithText(
+          "Blocking yield result",
+        );
+
+      const toolResult = findToolResult(
+        parentResume.messages,
+        "blocking-yield",
+      );
+      expect(toolResult).toBeDefined();
+      expect(toolResult!.is_error).toBeFalsy();
+
+      const content =
+        typeof toolResult!.content === "string"
+          ? toolResult!.content
+          : JSON.stringify(toolResult!.content);
+      expect(content).toContain("Blocking yield result");
     });
   });
 });

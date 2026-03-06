@@ -93,9 +93,7 @@ END`;
         await driver.assertDisplayBufferContains("📝✅ edl:");
 
         // Toggle to detail view
-        const previewPos =
-          await driver.assertDisplayBufferContains("1 replace");
-        await driver.triggerDisplayBufferKey(previewPos, "<CR>");
+        await driver.triggerDisplayBufferKeyOnContent("1 replace", "<CR>");
 
         // Detail should show full trace output
         await driver.assertDisplayBufferContains("Trace:");
@@ -200,8 +198,7 @@ END`;
         await driver.assertDisplayBufferContains("narrow /hello/");
 
         // Toggle to detail view
-        const pos = await driver.assertDisplayBufferContains("narrow /hello/");
-        await driver.triggerDisplayBufferKey(pos, "<CR>");
+        await driver.triggerDisplayBufferKeyOnContent("narrow /hello/", "<CR>");
 
         // Detail should show full script AND the trace output
         await driver.assertDisplayBufferContains("narrow /hello/");

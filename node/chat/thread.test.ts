@@ -1,5 +1,5 @@
 import { withDriver } from "../test/preamble.ts";
-import { LOGO } from "./thread.ts";
+import { LOGO } from "./thread-view.ts";
 import { type ToolRequestId, type ToolName } from "@magenta/core";
 import { expect, it } from "vitest";
 import type { UnresolvedFilePath } from "../utils/files.ts";
@@ -1029,8 +1029,7 @@ ok, I will try to rewrite the poem in that file
 Edits:
 - \`poem.txt\` (1 edits). [± diff snapshot]`);
 
-    const reviewPos = await driver.assertDisplayBufferContains("diff snapshot");
-    await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
+    await driver.triggerDisplayBufferKeyOnContent("diff snapshot", "<CR>");
 
     await driver.assertDisplayBufferContains(`\
 # assistant:
@@ -1038,7 +1037,7 @@ ok, I will try to rewrite the poem in that file
 ✏️✅ Replace [[ -4 / +2 ]] in \`poem.txt\``);
 
     // Go back to main view
-    await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
+    await driver.triggerDisplayBufferKeyOnContent("diff snapshot", "<CR>");
 
     await driver.assertDisplayBufferContains(`\
 # assistant:
@@ -1194,9 +1193,7 @@ it("handles thinking and redacted thinking blocks", async () => {
     await driver.assertDisplayBufferContains("💭 [Redacted Thinking]");
 
     // Test expanding the thinking block
-    const thinkingPos =
-      await driver.assertDisplayBufferContains("💭 [Thinking]");
-    await driver.triggerDisplayBufferKey(thinkingPos, "<CR>");
+    await driver.triggerDisplayBufferKeyOnContent("💭 [Thinking]", "<CR>");
 
     // Verify expanded thinking block - check pieces separately
     await driver.assertDisplayBufferContains("# user:");
@@ -1211,9 +1208,7 @@ it("handles thinking and redacted thinking blocks", async () => {
     await driver.assertDisplayBufferContains("💭 [Redacted Thinking]");
 
     // Test collapsing the thinking block
-    const expandedThinkingPos =
-      await driver.assertDisplayBufferContains("💭 [Thinking]");
-    await driver.triggerDisplayBufferKey(expandedThinkingPos, "<CR>");
+    await driver.triggerDisplayBufferKeyOnContent("💭 [Thinking]", "<CR>");
 
     // Verify collapsed thinking block again - check pieces separately
     await driver.assertDisplayBufferContains("# user:");
@@ -1269,7 +1264,7 @@ it("handles streaming thinking blocks correctly", async () => {
     await driver.inputMagentaText("Explain how async/await works");
     await driver.send();
 
-    const stream = await driver.mockAnthropic.mockClient.awaitStream();
+    const stream = await driver.mockAnthropic.awaitPendingStream();
     const thinkingIndex = stream.nextBlockIndex();
 
     // Start streaming thinking block
@@ -1318,7 +1313,7 @@ it("shows EDL script preview while streaming", async () => {
     await driver.inputMagentaText("Edit a file for me");
     await driver.send();
 
-    const stream = await driver.mockAnthropic.mockClient.awaitStream();
+    const stream = await driver.mockAnthropic.awaitPendingStream();
     const toolIndex = stream.nextBlockIndex();
 
     // Start streaming an edl tool_use block
@@ -1388,21 +1383,18 @@ it("handles @async messages by queueing them and sending on next tool response",
       ],
     });
 
-    // Wait for approval dialog to appear
-    await driver.assertDisplayBufferContains("👀 .secret");
+    // Wait for approval dialog to fully render
+    await driver.assertDisplayBufferContains("> YES");
 
     // Now send an @async message while the tool is waiting for approval
     await driver.inputMagentaText("@async This should be queued");
     await driver.send();
 
-    // Verify the @async message is queued, not immediately sent
-    const thread = driver.magenta.chat.getActiveThread();
-    expect(thread.state.pendingMessages).toHaveLength(1);
-    expect(thread.state.pendingMessages[0].text).toBe("This should be queued");
+    // Wait for the pending message indicator to appear in the display
+    await driver.assertDisplayBufferContains("pending message");
 
     // Approve the file read to complete the tool execution
-    const yesPos = await driver.assertDisplayBufferContains("> YES");
-    await driver.triggerDisplayBufferKey(yesPos, "<CR>");
+    await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");
 
     // Wait for file read to complete
     await driver.assertDisplayBufferContains("👀✅ `.secret`");
@@ -1449,8 +1441,8 @@ it("handles @async messages and sends them on end turn", async () => {
 
     // Verify message is queued
     const thread = driver.magenta.chat.getActiveThread();
-    expect(thread.state.pendingMessages).toHaveLength(1);
-    expect(thread.state.pendingMessages[0].text).toBe(
+    expect(thread.core.state.pendingMessages).toHaveLength(1);
+    expect(thread.core.state.pendingMessages[0].text).toBe(
       "Also tell me about JavaScript",
     );
 

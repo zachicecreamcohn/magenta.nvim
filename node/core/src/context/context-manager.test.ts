@@ -1,0 +1,401 @@
+import { describe, it, expect, vi } from "vitest";
+import { ContextManager } from "./context-manager.ts";
+import { InMemoryFileIO } from "../edl/in-memory-file-io.ts";
+import {
+  FileCategory,
+  type AbsFilePath,
+  type RelFilePath,
+  type NvimCwd,
+  type HomeDir,
+} from "../utils/files.ts";
+import type { DiffUpdate, WholeFileUpdate } from "./context-manager.ts";
+import type { ProviderImageContent } from "../providers/provider-types.ts";
+
+vi.mock("../utils/pdf-pages.ts", () => ({
+  getSummaryAsProviderContent: vi.fn().mockResolvedValue({
+    status: "ok",
+    value: [
+      {
+        type: "text",
+        text: `PDF Document: /test/doc.pdf\nPages: 3\n\nUse get-file tool with a pdfPage parameter to access specific pages.`,
+      },
+    ],
+  }),
+}));
+
+function createTestContextManager(files: Record<string, string>) {
+  const fileIO = new InMemoryFileIO(files);
+  const mockLogger = {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+  };
+
+  const cm = new ContextManager(
+    mockLogger,
+    fileIO,
+    "/test" as NvimCwd,
+    "/home" as HomeDir,
+  );
+
+  return { cm, fileIO };
+}
+
+const TEST_PATH = "/test/file.txt" as AbsFilePath;
+const TEST_REL = "file.txt" as RelFilePath;
+const TEXT_FILE_TYPE = {
+  category: FileCategory.TEXT,
+  mimeType: "text/plain",
+  extension: ".txt",
+};
+
+describe("ContextManager unit tests", () => {
+  it("get_file sets agentView", async () => {
+    const { cm } = createTestContextManager({
+      [TEST_PATH]: "hello world",
+    });
+
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "get-file", content: "hello world" },
+      TEXT_FILE_TYPE,
+    );
+
+    expect(cm.files[TEST_PATH].agentView).toEqual({
+      type: "text",
+      content: "hello world",
+    });
+
+    const updates = await cm.getContextUpdate();
+    expect(Object.keys(updates).length).toBe(0);
+  });
+
+  it("edl-edit sets agentView", async () => {
+    const { cm } = createTestContextManager({
+      [TEST_PATH]: "edited content",
+    });
+
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "edl-edit", content: "edited content" },
+      TEXT_FILE_TYPE,
+    );
+
+    expect(cm.files[TEST_PATH].agentView).toEqual({
+      type: "text",
+      content: "edited content",
+    });
+
+    const updates = await cm.getContextUpdate();
+    expect(Object.keys(updates).length).toBe(0);
+  });
+
+  it("file updated after agentView set returns a diff", async () => {
+    const { cm, fileIO } = createTestContextManager({
+      [TEST_PATH]: "original content",
+    });
+
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "get-file", content: "original content" },
+      TEXT_FILE_TYPE,
+    );
+
+    await fileIO.writeFile(TEST_PATH, "formatted content");
+
+    const updates = await cm.getContextUpdate();
+    const update = updates[TEST_PATH];
+    expect(update).toBeDefined();
+    expect(update.update.status).toBe("ok");
+    if (update.update.status !== "ok") throw new Error("Expected ok");
+    expect(update.update.value.type).toBe("diff");
+
+    const diff = update.update.value as DiffUpdate;
+    expect(diff.patch).toContain("original content");
+    expect(diff.patch).toContain("formatted content");
+  });
+
+  it("edl-edit followed by formatter change returns a diff", async () => {
+    const { cm, fileIO } = createTestContextManager({
+      [TEST_PATH]: "const x=1",
+    });
+
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "edl-edit", content: "const x=1" },
+      TEXT_FILE_TYPE,
+    );
+
+    await fileIO.writeFile(TEST_PATH, "const x = 1;\n");
+
+    const updates = await cm.getContextUpdate();
+    const update = updates[TEST_PATH];
+    expect(update).toBeDefined();
+    expect(update.update.status).toBe("ok");
+    if (update.update.status !== "ok") throw new Error("Expected ok");
+    expect(update.update.value.type).toBe("diff");
+
+    const diff = update.update.value as DiffUpdate;
+    expect(diff.patch).toContain("const x = 1;");
+  });
+
+  it("no update when file content matches agentView", async () => {
+    const { cm } = createTestContextManager({
+      [TEST_PATH]: "same content",
+    });
+
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "get-file", content: "same content" },
+      TEXT_FILE_TYPE,
+    );
+
+    const updates = await cm.getContextUpdate();
+    expect(Object.keys(updates).length).toBe(0);
+  });
+
+  it("avoids redundant context update after edl tool application", async () => {
+    const originalContent = "original line 1\noriginal line 2\n";
+    const editedContent = "original line 1\nedited line 2\n";
+    const { cm, fileIO } = createTestContextManager({
+      [TEST_PATH]: originalContent,
+    });
+
+    cm.addFileContext(TEST_PATH, TEST_REL, TEXT_FILE_TYPE);
+    await cm.getContextUpdate();
+
+    await fileIO.writeFile(TEST_PATH, editedContent);
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "edl-edit", content: editedContent },
+      TEXT_FILE_TYPE,
+    );
+
+    const updates = await cm.getContextUpdate();
+    expect(Object.keys(updates).length).toBe(0);
+  });
+
+  it("file deleted after agentView set returns file-deleted", async () => {
+    const { cm, fileIO } = createTestContextManager({
+      [TEST_PATH]: "some content",
+    });
+
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "get-file", content: "some content" },
+      TEXT_FILE_TYPE,
+    );
+
+    fileIO.deleteFile(TEST_PATH);
+
+    const updates = await cm.getContextUpdate();
+    const update = updates[TEST_PATH];
+    expect(update).toBeDefined();
+    expect(update.update.status).toBe("ok");
+    if (update.update.status !== "ok") throw new Error("Expected ok");
+    expect(update.update.value.type).toBe("file-deleted");
+
+    expect(cm.files[TEST_PATH]).toBeUndefined();
+  });
+});
+
+describe("ContextManager - full file and diff updates", () => {
+  it("returns full file contents on first getContextUpdate and no updates on second call when file hasn't changed", async () => {
+    const fileContent =
+      "Moonlight whispers through the trees\nSilver shadows dance with ease.";
+    const { cm } = createTestContextManager({
+      [TEST_PATH]: fileContent,
+    });
+
+    cm.addFileContext(TEST_PATH, TEST_REL, TEXT_FILE_TYPE);
+
+    const firstUpdates = await cm.getContextUpdate();
+    expect(firstUpdates[TEST_PATH]).toBeDefined();
+
+    const firstUpdate = firstUpdates[TEST_PATH];
+    expect(firstUpdate.update.status).toBe("ok");
+
+    const okResult = firstUpdate.update as Extract<
+      typeof firstUpdate.update,
+      { status: "ok" }
+    >;
+    expect(okResult.value.type).toBe("whole-file");
+    expect(firstUpdate.absFilePath).toBe(TEST_PATH);
+
+    const wholeFileUpdate = okResult.value as WholeFileUpdate;
+    const textBlocks = wholeFileUpdate.content.filter(
+      (item) => item.type === "text",
+    );
+    expect(textBlocks).toHaveLength(2);
+    expect(textBlocks[0].text).toBe("File `file.txt`");
+    expect(textBlocks[1].text).toContain(
+      "Moonlight whispers through the trees",
+    );
+
+    const secondUpdates = await cm.getContextUpdate();
+    expect(Object.keys(secondUpdates).length).toBe(0);
+  });
+
+  it("returns diff when file is edited on disk", async () => {
+    const originalContent =
+      "Moonlight whispers through the trees\nSilver shadows dance with ease.";
+    const { cm, fileIO } = createTestContextManager({
+      [TEST_PATH]: originalContent,
+    });
+
+    cm.addFileContext(TEST_PATH, TEST_REL, TEXT_FILE_TYPE);
+    await cm.getContextUpdate();
+
+    const updatedContent =
+      "Modified content directly on disk\nThis should be detected.";
+    await fileIO.writeFile(TEST_PATH, updatedContent);
+
+    const updates = await cm.getContextUpdate();
+    expect(updates[TEST_PATH]).toBeDefined();
+
+    const update = updates[TEST_PATH];
+    expect(update.update.status).toBe("ok");
+    if (update.update.status === "ok") {
+      expect(update.update.value.type).toBe("diff");
+      expect((update.update.value as DiffUpdate).patch).toContain(
+        "Modified content",
+      );
+    }
+  });
+
+  it("removes deleted files from context during updates", async () => {
+    const { cm, fileIO } = createTestContextManager({
+      [TEST_PATH]: "temporary content",
+    });
+
+    cm.addFileContext(TEST_PATH, TEST_REL, TEXT_FILE_TYPE);
+
+    expect(cm.files[TEST_PATH]).toBeDefined();
+
+    const firstUpdates = await cm.getContextUpdate();
+    expect(firstUpdates[TEST_PATH]).toBeDefined();
+
+    fileIO.deleteFile(TEST_PATH);
+
+    const secondUpdates = await cm.getContextUpdate();
+
+    expect(cm.files[TEST_PATH]).toBeUndefined();
+    expect(secondUpdates[TEST_PATH]).toBeDefined();
+    expect(secondUpdates[TEST_PATH].update.status).toBe("ok");
+    if (secondUpdates[TEST_PATH].update.status === "ok") {
+      expect(secondUpdates[TEST_PATH].update.value.type).toBe("file-deleted");
+    }
+  });
+});
+
+describe("ContextManager - binary file handling", () => {
+  const IMAGE_PATH = "/test/test.jpg" as AbsFilePath;
+  const IMAGE_REL = "test.jpg" as RelFilePath;
+  const IMAGE_FILE_TYPE = {
+    category: FileCategory.IMAGE,
+    mimeType: "image/jpeg",
+    extension: ".jpg",
+  };
+
+  it("adding a binary file sends the initial update and no updates on second call", async () => {
+    const binaryContent = "fake-binary-image-data";
+    const { cm } = createTestContextManager({
+      [IMAGE_PATH]: binaryContent,
+    });
+
+    cm.addFileContext(IMAGE_PATH, IMAGE_REL, IMAGE_FILE_TYPE);
+
+    const firstUpdates = await cm.getContextUpdate();
+    expect(firstUpdates[IMAGE_PATH]).toBeDefined();
+
+    const firstUpdate = firstUpdates[IMAGE_PATH];
+    expect(firstUpdate.update.status).toBe("ok");
+    if (firstUpdate.update.status === "ok") {
+      expect(firstUpdate.update.value.type).toBe("whole-file");
+      expect(firstUpdate.absFilePath).toBe(IMAGE_PATH);
+      expect(firstUpdate.relFilePath).toBe(IMAGE_REL);
+      const imageContent = (firstUpdate.update.value as WholeFileUpdate)
+        .content[0] as ProviderImageContent;
+      expect(imageContent.type).toBe("image");
+      expect(imageContent.source.media_type).toBe("image/jpeg");
+      expect(imageContent.source.data).toBe(
+        Buffer.from(binaryContent).toString("base64"),
+      );
+    }
+
+    const secondUpdates = await cm.getContextUpdate();
+    expect(Object.keys(secondUpdates).length).toBe(0);
+  });
+
+  it("removing a binary file on disk removes it from context and sends a delete message", async () => {
+    const { cm, fileIO } = createTestContextManager({
+      [IMAGE_PATH]: "fake-binary-image-data",
+    });
+
+    cm.addFileContext(IMAGE_PATH, IMAGE_REL, IMAGE_FILE_TYPE);
+
+    expect(cm.files[IMAGE_PATH]).toBeDefined();
+
+    const firstUpdates = await cm.getContextUpdate();
+    expect(firstUpdates[IMAGE_PATH]).toBeDefined();
+
+    fileIO.deleteFile(IMAGE_PATH);
+
+    const secondUpdates = await cm.getContextUpdate();
+
+    expect(cm.files[IMAGE_PATH]).toBeUndefined();
+    expect(secondUpdates[IMAGE_PATH]).toBeDefined();
+    expect(secondUpdates[IMAGE_PATH].update.status).toBe("ok");
+    if (secondUpdates[IMAGE_PATH].update.status === "ok") {
+      expect(secondUpdates[IMAGE_PATH].update.value.type).toBe("file-deleted");
+    }
+  });
+});
+
+describe("ContextManager - PDF file handling", () => {
+  const PDF_PATH = "/test/doc.pdf" as AbsFilePath;
+  const PDF_REL = "doc.pdf" as RelFilePath;
+  const PDF_FILE_TYPE = {
+    category: FileCategory.PDF,
+    mimeType: "application/pdf",
+    extension: ".pdf",
+  };
+
+  it("includes PDF file in context and sends summary in context updates", async () => {
+    const { cm } = createTestContextManager({
+      [PDF_PATH]: "fake-pdf-content",
+    });
+
+    cm.addFileContext(PDF_PATH, PDF_REL, PDF_FILE_TYPE);
+
+    const updates = await cm.getContextUpdate();
+    expect(updates[PDF_PATH]).toBeDefined();
+
+    const update = updates[PDF_PATH];
+    expect(update.update.status).toBe("ok");
+    if (update.update.status === "ok") {
+      expect(update.update.value.type).toBe("whole-file");
+      const wholeFile = update.update.value as WholeFileUpdate;
+      expect(wholeFile.pdfSummary).toBe(true);
+      const textContent = wholeFile.content.find((c) => c.type === "text");
+      expect(textContent).toBeDefined();
+      if (textContent && textContent.type === "text") {
+        expect(textContent.text).toContain("PDF Document:");
+        expect(textContent.text).toContain("Pages: 3");
+      }
+    }
+
+    // agentView should be set to pdf with summary
+    expect(cm.files[PDF_PATH].agentView).toEqual({
+      type: "pdf",
+      summary: true,
+      pages: [],
+      supportsPageExtraction: true,
+    });
+
+    // Second call should return no updates (summary already sent)
+    const secondUpdates = await cm.getContextUpdate();
+    expect(Object.keys(secondUpdates).length).toBe(0);
+  });
+});

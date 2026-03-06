@@ -39,7 +39,7 @@ Features:~
   - MCP (Model Context Protocol) support
   - Smart context tracking with automatic diffing
   - Auto-compaction with chunked incremental summarization
-  - Prompt caching for efficiency
+  - Prompt caching for efficiency  - Dev containers for isolated Docker-based agent work
 
 ==============================================================================
 REQUIREMENTS                                            *magenta-requirements*
@@ -107,6 +107,9 @@ See |magenta-commands| for the full list of commands and keymaps.
 ==============================================================================
 CHANGELOG                                                 *magenta-changelog*
 
+Mar 2026:~
+  - Dev containers: Docker sub-agents work on isolated branches in
+    containers. Dockerfile-based provisioning with Docker layer caching.
 Feb 2026:~
   - Refactored tool architecture: separated execution from rendering,
     extracted shared capabilities (permissions, file I/O, shell) into a

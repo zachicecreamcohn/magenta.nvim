@@ -64,6 +64,18 @@ function getBaseSystemPrompt(type: ThreadType): string {
       return COMPACT_SYSTEM_PROMPT;
     case "root":
       return DEFAULT_SYSTEM_PROMPT;
+    case "docker_root":
+      return (
+        DEFAULT_SYSTEM_PROMPT +
+        "\n\n# Docker Environment\n\n" +
+        "You are running inside an isolated Docker container. " +
+        "You have full shell access and can install packages, run builds, and execute tests freely.\n\n" +
+        "**Important rules:**\n" +
+        "- Commit all your changes with `git commit` before finishing.\n" +
+        "- When your task is complete and all changes are committed, call `yield_to_parent` with a summary of what you did.\n" +
+        "- Do NOT stop without yielding. If you need to pause, explain why in your yield message.\n" +
+        "- Your git working tree must be clean (no uncommitted changes) when you yield."
+      );
     default:
       assertUnreachable(type);
   }

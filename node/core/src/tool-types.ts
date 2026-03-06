@@ -46,6 +46,7 @@ export type ToolInvocation = {
   promise: Promise<ProviderToolResult>;
   abort: () => void;
 };
+
 export type ValidateInput = (
   toolName: unknown,
   input: { [key: string]: unknown },

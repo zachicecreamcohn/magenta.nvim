@@ -1,1 +1,1 @@
-export { type ThreadManager } from "@magenta/core";
+export { type ThreadManager, type DockerSpawnConfig } from "@magenta/core";

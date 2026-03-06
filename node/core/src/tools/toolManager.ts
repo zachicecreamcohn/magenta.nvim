@@ -20,7 +20,10 @@ import {
   CHAT_STATIC_TOOL_NAMES,
   COMPACT_STATIC_TOOL_NAMES,
   SUBAGENT_STATIC_TOOL_NAMES,
+  DOCKER_ROOT_STATIC_TOOL_NAMES,
+  TOOL_REQUIRED_CAPABILITIES,
   type StaticToolName,
+  type ToolCapability,
 } from "./tool-registry.ts";
 import type { ThreadId, ThreadType } from "../chat-types.ts";
 import type { ProviderToolSpec as MCPProviderToolSpec } from "../providers/provider-types.ts";
@@ -81,6 +84,7 @@ const TOOL_SPEC_MAP: {
 export function getToolSpecs(
   threadType: ThreadType,
   mcpToolManager: MCPToolManager,
+  availableCapabilities?: Set<ToolCapability>,
 ): ProviderToolSpec[] {
   let staticToolNames: StaticToolName[] = [];
   switch (threadType) {
@@ -92,14 +96,29 @@ export function getToolSpecs(
     case "compact":
       staticToolNames = COMPACT_STATIC_TOOL_NAMES;
       break;
+    case "docker_root":
+      staticToolNames = DOCKER_ROOT_STATIC_TOOL_NAMES;
+      break;
     case "root":
       staticToolNames = CHAT_STATIC_TOOL_NAMES;
       break;
     default:
       assertUnreachable(threadType);
   }
+  const filteredToolNames =
+    availableCapabilities !== undefined
+      ? staticToolNames.filter((toolName) => {
+          const required = TOOL_REQUIRED_CAPABILITIES[toolName];
+          for (const cap of required) {
+            if (!availableCapabilities.has(cap)) {
+              return false;
+            }
+          }
+          return true;
+        })
+      : staticToolNames;
   return [
-    ...staticToolNames.map((toolName) => TOOL_SPEC_MAP[toolName]),
+    ...filteredToolNames.map((toolName) => TOOL_SPEC_MAP[toolName]),
     ...mcpToolManager.getToolSpecs(),
   ];
 }

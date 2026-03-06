@@ -81,8 +81,7 @@ describe("node/tools/bashCommand.test.ts", () => {
       await driver.assertDisplayBufferContains(
         "⚡ May I run command `nonexistentcommand`?",
       );
-      const pos = await driver.assertDisplayBufferContains("> YES");
-      await driver.triggerDisplayBufferKey(pos, "<CR>");
+      await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");
 
       await driver.assertDisplayBufferContains("Exit code: 127");
       await driver.assertDisplayBufferContains(
@@ -128,8 +127,7 @@ describe("node/tools/bashCommand.test.ts", () => {
       await driver.assertDisplayBufferContains('true && echo "hello, world"');
       await driver.assertDisplayBufferContains("> NO");
 
-      const pos = await driver.assertDisplayBufferContains("> YES");
-      await driver.triggerDisplayBufferKey(pos, "<CR>");
+      await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");
 
       // Wait for command execution and verify output
       await driver.assertDisplayBufferContains("hello, world");
@@ -174,8 +172,7 @@ describe("node/tools/bashCommand.test.ts", () => {
       );
 
       // Find approval text position and trigger key on NO button
-      const pos = await driver.assertDisplayBufferContains("> NO");
-      await driver.triggerDisplayBufferKey(pos, "<CR>");
+      await driver.triggerDisplayBufferKeyOnContent("> NO", "<CR>");
 
       // Verify the rejection message in the result
       await driver.assertDisplayBufferContains("The user did not allow");
@@ -219,8 +216,7 @@ describe("node/tools/bashCommand.test.ts", () => {
       await driver.assertDisplayBufferContains("> ALWAYS");
 
       // Test that clicking YES works
-      const yesPos = await driver.assertDisplayBufferContains("> YES");
-      await driver.triggerDisplayBufferKey(yesPos, "<CR>");
+      await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");
 
       // Verify command executes (should fail but that's expected)
       await driver.assertDisplayBufferContains("Exit code: 127");
@@ -257,13 +253,10 @@ describe("node/tools/bashCommand.test.ts", () => {
       await driver.assertDisplayBufferContains(
         "⚡ May I run command `sleep 30`?",
       );
-      const approvePos = await driver.assertDisplayBufferContains("> YES");
-      await driver.triggerDisplayBufferKey(approvePos, "<CR>");
-
-      const pos = await driver.assertDisplayBufferContains("⚡⚙️ (");
+      await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");
 
       // Press 't' to abort the command
-      await driver.triggerDisplayBufferKey(pos, "t");
+      await driver.triggerDisplayBufferKeyOnContent("⚡⚙️ (", "t");
 
       // Verify that the command was aborted
       await driver.assertDisplayBufferContains(
@@ -304,8 +297,7 @@ describe("node/tools/bashCommand.test.ts", () => {
         "⚡ May I run command `true && echo 'tada'`?",
       );
 
-      const alwaysPos = await driver.assertDisplayBufferContains("> ALWAYS");
-      await driver.triggerDisplayBufferKey(alwaysPos, "<CR>");
+      await driver.triggerDisplayBufferKeyOnContent("> ALWAYS", "<CR>");
 
       await driver.inputMagentaText(`Ok, run it again`);
       await driver.send();
@@ -383,8 +375,7 @@ describe("node/tools/bashCommand.test.ts", () => {
       await driver.assertDisplayBufferContains("⚡ May I run command");
 
       // Click the YES button to approve the command
-      const yesPos = await driver.assertDisplayBufferContains("> YES");
-      await driver.triggerDisplayBufferKey(yesPos, "<CR>");
+      await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");
 
       // Wait for command to complete
       await driver.assertDisplayBufferContains("⚡✅");
@@ -1454,15 +1445,13 @@ describe("bash command output logging", () => {
         await driver.assertDisplayBufferDoesNotContain("command:");
 
         // Toggle to detail view by pressing Enter on the output preview
-        const previewPos = await driver.assertDisplayBufferContains("stdout:");
-        await driver.triggerDisplayBufferKey(previewPos, "<CR>");
+        await driver.triggerDisplayBufferKeyOnContent("stdout:", "<CR>");
 
         // After toggling, should show full detail with command header
         await driver.assertDisplayBufferContains("command:");
 
         // Toggle back to preview view
-        const detailPos = await driver.assertDisplayBufferContains("command:");
-        await driver.triggerDisplayBufferKey(detailPos, "<CR>");
+        await driver.triggerDisplayBufferKeyOnContent("command:", "<CR>");
 
         // Should be back in preview mode (no command header)
         await driver.assertDisplayBufferDoesNotContain("command:");
@@ -1513,10 +1502,11 @@ describe("bash command output logging", () => {
         await driver.assertDisplayBufferContains("⚡✅");
 
         // Find and click the "Full output" link
-        const fullOutputPos = await driver.assertDisplayBufferContains(
+        // Find and click the "Full output" link
+        await driver.triggerDisplayBufferKeyOnContent(
           "Full output (100 lines):",
+          "<CR>",
         );
-        await driver.triggerDisplayBufferKey(fullOutputPos, "<CR>");
 
         // Verify a new window was opened with the log file
         const logWindow = await driver.findWindow(async (w) => {
@@ -1635,8 +1625,7 @@ describe("bash command output logging", () => {
       await driver.assertDisplayBufferContains(
         "⚡ May I run command `exit 1`?",
       );
-      const pos = await driver.assertDisplayBufferContains("> YES");
-      await driver.triggerDisplayBufferKey(pos, "<CR>");
+      await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");
 
       await driver.assertDisplayBufferContains("Exit code: 1");
 
@@ -1741,7 +1730,7 @@ describe("bash command output logging", () => {
 
         // Get the tool instance and trigger termination
         const thread = driver.magenta.chat.getActiveThread();
-        const { mode } = thread.state;
+        const { mode } = thread.core.state;
         if (mode.type !== "tool_use") {
           throw new Error(`Expected tool_use mode, got ${mode.type}`);
         }
@@ -1842,7 +1831,7 @@ describe("bash command output logging", () => {
 
         // Get the tool instance and trigger termination
         const thread = driver.magenta.chat.getActiveThread();
-        const { mode } = thread.state;
+        const { mode } = thread.core.state;
         if (mode.type !== "tool_use") {
           throw new Error(`Expected tool_use mode, got ${mode.type}`);
         }
@@ -1963,7 +1952,7 @@ wait
 
         // Get the tool instance and trigger termination
         const thread = driver.magenta.chat.getActiveThread();
-        const { mode } = thread.state;
+        const { mode } = thread.core.state;
         if (mode.type !== "tool_use") {
           throw new Error(`Expected tool_use mode, got ${mode.type}`);
         }

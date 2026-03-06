@@ -3,7 +3,6 @@ import type { MessageStream } from "@anthropic-ai/sdk/lib/MessageStream.mjs";
 import type {
   Agent,
   AgentInput,
-  AgentMsg,
   AgentOptions,
   AgentState,
   AgentStatus,
@@ -12,7 +11,8 @@ import type {
   ProviderMessage,
   ProviderToolResult,
 } from "./provider-types.ts";
-import type { Dispatch } from "../dispatch.ts";
+import { Emitter } from "../emitter.ts";
+import type { AgentEvents } from "./provider-types.ts";
 import type { ToolRequestId } from "../tool-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Logger } from "../logger.ts";
@@ -69,7 +69,7 @@ type Action =
   | { type: "stream-error"; error: Error }
   | { type: "stream-aborted" };
 
-export class AnthropicAgent implements Agent {
+export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
   private messages: Anthropic.MessageParam[] = [];
   private currentRequest: MessageStream | undefined;
   private params: Omit<Anthropic.Messages.MessageStreamParams, "messages">;
@@ -95,16 +95,19 @@ export class AnthropicAgent implements Agent {
   constructor(
     private options: AgentOptions,
     private client: Anthropic,
-    private dispatch: Dispatch<AgentMsg>,
     anthropicOptions: AnthropicAgentOptions,
   ) {
+    super();
     this.anthropicOptions = anthropicOptions;
     this.params = this.createNativeStreamParameters(anthropicOptions);
   }
 
-  private dispatchAsync(msg: AgentMsg): void {
+  private emitAsync<K extends keyof AgentEvents>(
+    event: K,
+    ...args: AgentEvents[K]
+  ): void {
     queueMicrotask(() => {
-      this.dispatch(msg);
+      this.emit(event, ...args);
     });
   }
 
@@ -117,7 +120,7 @@ export class AnthropicAgent implements Agent {
         this.streamingEndPromise = new Promise((resolve) => {
           this.streamingEndResolver = resolve;
         });
-        this.dispatchAsync({ type: "agent-content-updated" });
+
         break;
 
       case "block-started":
@@ -130,7 +133,7 @@ export class AnthropicAgent implements Agent {
         this.currentAnthropicBlock = this.initAnthropicStreamingBlock(
           action.block,
         );
-        this.dispatchAsync({ type: "agent-content-updated" });
+
         break;
 
       case "block-delta":
@@ -144,10 +147,6 @@ export class AnthropicAgent implements Agent {
             this.currentAnthropicBlock,
             action.delta,
           );
-          const streamingBlock = this.getStreamingBlock();
-          if (streamingBlock) {
-            this.dispatchAsync({ type: "agent-content-updated" });
-          }
         }
         break;
 
@@ -229,7 +228,7 @@ export class AnthropicAgent implements Agent {
         this.status = { type: "stopped", stopReason };
         this.resolveStreamingEnd();
         this.countTokensPostFlight();
-        this.dispatchAsync({ type: "agent-stopped", stopReason, usage });
+        this.emitAsync("stopped", stopReason, usage);
         break;
       }
 
@@ -240,7 +239,7 @@ export class AnthropicAgent implements Agent {
         this.status = { type: "error", error: action.error };
         this.resolveStreamingEnd();
         this.countTokensPostFlight();
-        this.dispatchAsync({ type: "agent-error", error: action.error });
+        this.emitAsync("error", action.error);
         break;
       }
 
@@ -251,12 +250,14 @@ export class AnthropicAgent implements Agent {
         this.status = { type: "stopped", stopReason: "aborted" };
         this.resolveStreamingEnd();
         this.countTokensPostFlight();
-        this.dispatchAsync({ type: "agent-stopped", stopReason: "aborted" });
+        this.emitAsync("stopped", "aborted", undefined);
         break;
 
       default:
         assertUnreachable(action);
     }
+
+    this.emitAsync("didUpdate");
   }
 
   getState(): AgentState {
@@ -366,7 +367,7 @@ export class AnthropicAgent implements Agent {
       );
     }
     this.status = { type: "stopped", stopReason: "aborted" };
-    this.dispatchAsync({ type: "agent-stopped", stopReason: "aborted" });
+    this.emitAsync("stopped", "aborted", undefined);
   }
 
   private resolveStreamingEnd(): void {
@@ -444,7 +445,7 @@ export class AnthropicAgent implements Agent {
       .countTokens(countParams)
       .then((result) => {
         this.inputTokenCount = result.input_tokens;
-        this.dispatchAsync({ type: "agent-content-updated" });
+        this.emitAsync("didUpdate");
       })
       .catch((error: unknown) => {
         this.anthropicOptions.logger.warn(
@@ -466,14 +467,13 @@ export class AnthropicAgent implements Agent {
 
     this.status = { type: "stopped", stopReason: "end_turn" };
     this.updateCachedProviderMessages();
-    this.dispatchAsync({ type: "agent-stopped", stopReason: "end_turn" });
+    this.emitAsync("stopped", "end_turn", undefined);
   }
 
-  clone(dispatch: Dispatch<AgentMsg>): AnthropicAgent {
+  clone(): AnthropicAgent {
     const cloned = new AnthropicAgent(
       this.options,
       this.client,
-      dispatch,
       this.anthropicOptions,
     );
 
@@ -931,7 +931,7 @@ export class AnthropicAgent implements Agent {
       this.messages,
       this.messageStopInfo,
     );
-    this.dispatchAsync({ type: "agent-content-updated" });
+    this.emitAsync("didUpdate");
   }
 }
 

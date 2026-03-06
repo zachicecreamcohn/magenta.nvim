@@ -1,4 +1,8 @@
 {
+  "container": {
+    "dockerfile": "docker/Dockerfile",
+    "workspacePath": "/workspace"
+  },
   "commandConfig": {
     "commands": [
       ["npx", "tsc", "--noEmit"],

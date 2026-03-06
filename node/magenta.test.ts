@@ -1,7 +1,8 @@
 import { expect, it } from "vitest";
 import { withDriver } from "./test/preamble.ts";
+import { pollUntil } from "./utils/async.ts";
 import type { Position0Indexed } from "./nvim/window.ts";
-import { LOGO } from "./chat/thread.ts";
+import { LOGO } from "./chat/thread-view.ts";
 import type { ToolRequestId, ToolName } from "@magenta/core";
 import type { UnresolvedFilePath } from "./utils/files.ts";
 import { writeFile, mkdir } from "node:fs/promises";
@@ -134,7 +135,7 @@ it("can switch profiles", async () => {
     await driver.showSidebar();
     {
       const thread = driver.magenta.chat.getActiveThread();
-      expect(thread.state.profile).toEqual({
+      expect(thread.context.profile).toEqual({
         name: "mock",
         provider: "mock",
         model: "mock",
@@ -148,15 +149,30 @@ it("can switch profiles", async () => {
     }
     await driver.nvim.call("nvim_command", ["Magenta profile mock2"]);
     {
+      // Profile change only affects future threads, not the current one
       const thread = driver.magenta.chat.getActiveThread();
-      expect(thread.state.profile).toEqual({
+      expect(thread.context.profile.name).toEqual("mock");
+      expect(driver.magenta.options.activeProfile).toEqual("mock2");
+      // Winbar still shows old profile since the active thread hasn't changed
+      const winbar = await displayState.inputWindow.getOption("winbar");
+      expect(winbar).toContain(`Magenta Input (mock)`);
+    }
+    // Create a new thread to verify the new profile applies
+    await driver.nvim.call("nvim_command", ["Magenta new-thread"]);
+    await pollUntil(() => {
+      const thread = driver.magenta.chat.getActiveThread();
+      if (thread.context.profile.name !== "mock2") {
+        throw new Error("Waiting for new thread with mock2 profile");
+      }
+    });
+    {
+      const thread = driver.magenta.chat.getActiveThread();
+      expect(thread.context.profile).toEqual({
         name: "mock2",
         provider: "mock",
         model: "mock",
         fastModel: "mock-fast",
       });
-      const winbar = await displayState.inputWindow.getOption("winbar");
-      expect(winbar).toContain(`Magenta Input (mock2)`);
     }
   });
 });

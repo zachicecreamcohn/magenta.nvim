@@ -3,8 +3,8 @@ import type {
   ProviderMessageContent,
   ProviderToolResult,
   ProviderToolUseContent,
-} from "../providers/provider-types.ts";
-import type { ToolRequestId, ToolName } from "@magenta/core";
+} from "./providers/provider-types.ts";
+import type { ToolRequestId, ToolName } from "./tool-types.ts";
 type ToolInfoMap = Map<ToolRequestId, ToolName>;
 
 export type RenderResult = {

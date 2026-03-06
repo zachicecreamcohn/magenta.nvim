@@ -5,8 +5,9 @@ CONTENTS                                             *magenta-tools-contents*
 
     1. Available Tools ......................... |magenta-available-tools|
     2. Sub-agents .............................. |magenta-subagents|
-    3. MCP Support ............................. |magenta-mcp|
-    4. Command Permissions ..................... |magenta-permissions|
+    3. Dev Containers .......................... |magenta-dev-containers|
+    4. MCP Support ............................. |magenta-mcp|
+    5. Command Permissions ..................... |magenta-permissions|
 
 ==============================================================================
 AVAILABLE TOOLS                                      *magenta-available-tools*
@@ -59,6 +60,16 @@ Agent types:~
   `fast`      Lightweight, uses fast model for quick transformations
 
   `default`   General-purpose coding assistant behavior
+  `docker`    Runs in an isolated Docker container on a specified branch.
+              Requires a Dockerfile configured in `.magenta/options.json`.
+              The agent can edit files, run tests, and make commits.
+              On completion, the branch (with commits) is fetched back
+              to the host repo.
+
+  `docker_unsupervised`
+              Same as `docker`, but runs autonomously without user
+              approval for tool use. Suited for well-scoped tasks on
+              isolated branches.
 
 Example workflows:~
 
@@ -80,6 +91,16 @@ Planning workflow:
     → Main agent: "Please review plans/auth-system.md"
 <
 
+Docker workflow:
+>
+    user: Fix the flaky test in auth.test.ts
+    → Coordinator creates branch: git branch fix-auth-test main
+    → Spawns docker sub-agent on branch 'fix-auth-test'
+    → Container provisioned: clone, docker build, docker run
+    → Agent edits files, runs tests, commits inside container
+    → On completion: branch fetched back to host repo
+    → Coordinator reviews commits on fix-auth-test branch
+<
 Parallel processing:
 >
     user: Update all imports to use the new module path
@@ -94,6 +115,72 @@ Configuration:~
     maxConcurrentSubagents = 3  -- default
 <
 
+==============================================================================
+DEV CONTAINERS                                        *magenta-dev-containers*
+
+Docker sub-agents run in isolated containers, each working on a single
+branch. This provides a safe environment for unsupervised agent work —
+the agent cannot affect your local files or other branches.
+
+Requirements:~
+  - Docker installed and running
+  - A Dockerfile in your project (configured in `.magenta/options.json`)
+
+Configuration:~
+
+Add a `container` section to `.magenta/options.json`:
+>json
+    {
+      "container": {
+        "dockerfile": "docker/Dockerfile",
+        "workspacePath": "/workspace"
+      }
+    }
+<
+
+  `dockerfile`      Path to a Dockerfile relative to the repo root.
+                    The Dockerfile receives the repo as build context and
+                    should produce a ready-to-work-in container with all
+                    toolchain dependencies installed.
+
+  `workspacePath`   Where the project lives inside the container
+                    (should match WORKDIR in the Dockerfile).
+
+Writing a Dockerfile:~
+
+The Dockerfile should install your project's toolchain and dependencies.
+The repo is provided as the Docker build context, so you can COPY files
+and run install commands. Use Docker's layer caching to keep rebuilds
+fast:
+>dockerfile
+    FROM node:24-bookworm
+    # Install system deps
+    RUN apt-get update && apt-get install -y git curl
+    # Install project deps (cached until lockfile changes)
+    WORKDIR /workspace
+    COPY package.json package-lock.json ./
+    RUN npm ci
+    # Copy project files (only this layer rebuilds on code changes)
+    COPY . .
+    # Configure git for agent commits
+    RUN git config --global user.name "magenta-agent" \
+      && git config --global user.email "magenta-agent@localhost"
+    CMD ["tail", "-f", "/dev/null"]
+<
+
+Lifecycle:~
+
+  1. Caller creates a branch for the agent to work on
+  2. Repo is cloned to a temp directory, branch checked out, remote
+     removed (agent cannot push or access other refs)
+  3. Docker image is built from the clone (layer cache reused)
+  4. Container started; agent works via `docker exec`
+  5. Agent can edit files, run tests, and make commits
+  6. On teardown: branch (with commits) is fetched back to host repo,
+     container and temp directory are cleaned up
+
+The agent only has access to the single branch it was given. On
+teardown, only that branch is fetched back — no other refs are trusted.
 ==============================================================================
 MCP SUPPORT                                                    *magenta-mcp*
 
