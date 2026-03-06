@@ -89,6 +89,7 @@ export type ThreadCoreEvents = {
   playChime: [];
   scrollToLastMessage: [];
   setupResubmit: [lastUserMessage: string];
+  aborting: [];
 
   contextUpdatesSent: [updates: Record<string, unknown>];
 };
@@ -485,6 +486,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
   }
 
   private async abortAndWait(): Promise<void> {
+    this.emit("aborting");
     await this.agent.abort();
 
     if (this.state.mode.type === "tool_use") {

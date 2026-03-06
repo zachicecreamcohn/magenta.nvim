@@ -343,6 +343,63 @@ it("clears pending file permission checks when aborting", async () => {
   });
 });
 
+it("clears pending permissions when sending a new message during tool_use", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText("Read my secret file");
+    await driver.send();
+
+    const request1 = await driver.mockAnthropic.awaitPendingStream();
+
+    // Respond with get_file tool use - this will block on user approval
+    request1.respond({
+      stopReason: "tool_use",
+      text: "I'll read your secret file.",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "get-file-tool" as ToolRequestId,
+            toolName: "get_file" as ToolName,
+            input: { filePath: ".secret" as UnresolvedFilePath },
+          },
+        },
+      ],
+    });
+
+    // Wait for approval dialog to appear
+    await driver.assertDisplayBufferContains("👀 .secret");
+
+    const thread = driver.magenta.chat.getActiveThread();
+
+    // Verify we have a pending permission
+    expect(thread.permissionFileIO!.getPendingPermissions().size).toBe(1);
+
+    // Send a new message instead of explicitly aborting — this triggers
+    // an implicit abort via handleSendMessageRequest
+    await driver.inputMagentaText("Never mind, do something else");
+    await driver.send();
+
+    // The implicit abort should clear pending permissions
+    await pollUntil(
+      () => thread.permissionFileIO!.getPendingPermissions().size === 0,
+      { timeout: 2000, message: "waiting for pending permissions to clear" },
+    );
+
+    // Verify the approval dialog is no longer displayed
+    await driver.assertDisplayBufferDoesNotContain("👀 .secret");
+
+    // Handle the second request to confirm flow continues
+    const request2 = await driver.mockAnthropic.awaitPendingStream();
+    request2.respond({
+      stopReason: "end_turn",
+      text: "Ok, doing something else.",
+      toolRequests: [],
+    });
+
+    await driver.assertDisplayBufferContains("Ok, doing something else.");
+  });
+});
 it("removes server_tool_use content when aborted before receiving results", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();

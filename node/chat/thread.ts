@@ -227,6 +227,10 @@ export class Thread {
       }),
     );
 
+    this.core.on("aborting", () => {
+      this.permissionFileIO?.denyAll();
+      this.permissionShell?.denyAll();
+    });
     this.core.on("contextUpdatesSent", (updates) => {
       const messageCount = this.core.getProviderMessages().length;
       this.state.messageViewState[messageCount] = {
@@ -361,8 +365,6 @@ export class Thread {
 
   async abortAndWait(): Promise<void> {
     await this.core.abort();
-    this.permissionFileIO?.denyAll();
-    this.permissionShell?.denyAll();
   }
 
   private playChimeIfNeeded(): void {
