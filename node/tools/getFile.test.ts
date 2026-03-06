@@ -65,12 +65,8 @@ it("should expand get_file tool detail on <CR>", async () => {
       ],
     });
 
-    // Verify summary is shown
-    const summaryPos =
-      await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\``);
-
     // Press <CR> on the summary to expand details
-    await driver.triggerDisplayBufferKey(summaryPos, "<CR>");
+    await driver.triggerDisplayBufferKeyOnContent(`👀✅ \`poem.txt\``, "<CR>");
 
     // Verify the file content is now visible (poem.txt content from fixtures)
     await driver.assertDisplayBufferContains(

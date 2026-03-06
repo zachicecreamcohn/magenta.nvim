@@ -32,6 +32,7 @@ export type MountedApp = {
   unmount(): void;
   getMountedNode(): MountedVDOM;
   waitForRender(): Promise<void>;
+  renderVersion: number;
 };
 
 export type App<Model> = {
@@ -59,6 +60,7 @@ export function createApp<Model>({
   let renderPromise: Promise<void> | undefined;
   let pendingMessages: unknown[] = [];
   let mountPoint: MountPoint | undefined;
+  let renderVersion = 0;
 
   function render(msg: unknown) {
     if (renderPromise) {
@@ -75,6 +77,7 @@ export function createApp<Model>({
         renderPromise = (async () => {
           try {
             await root.render({ currentState });
+            renderVersion++;
           } catch (err) {
             nvim.logger.error(
               err instanceof Error
@@ -103,6 +106,7 @@ export function createApp<Model>({
                   mount: mountPoint,
                   props: { currentState },
                 });
+                renderVersion++;
                 nvim.logger.info("Successfully re-mounted view after error");
               } catch (remountErr) {
                 nvim.logger.error(
@@ -194,7 +198,16 @@ export function createApp<Model>({
           }
         },
 
+        get renderVersion() {
+          return renderVersion;
+        },
+
         async onKey(key: BindingKey): Promise<void> {
+          // Wait for any in-flight render to finish so buffer content
+          // and VDOM positions are consistent when we read the cursor.
+          if (renderPromise) {
+            await renderPromise;
+          }
           const window = await getCurrentWindow(mount.nvim);
           const buffer = await window.buffer();
           if (buffer.id != mount.buffer.id) {
@@ -210,6 +223,7 @@ export function createApp<Model>({
               row: (row - 1) as Row0Indexed,
               col,
             });
+
             if (bindings && bindings[key]) {
               bindings[key]();
             }

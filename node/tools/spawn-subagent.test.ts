@@ -67,12 +67,11 @@ it("navigates to spawned subagent thread when pressing Enter on completed summar
       ],
     });
 
-    // Wait for the completed summary to appear
-    const summaryPos =
-      await driver.assertDisplayBufferContains("🤖✅ spawn_subagent");
-
-    // Press Enter on the completed summary to navigate to the subagent thread
-    await driver.triggerDisplayBufferKey(summaryPos, "<CR>");
+    // Navigate to the subagent thread by pressing Enter on the completed summary
+    await driver.triggerDisplayBufferKeyOnContent(
+      "🤖✅ spawn_subagent",
+      "<CR>",
+    );
 
     // Verify we navigated to a different thread (the subagent)
     await pollUntil(

@@ -127,11 +127,8 @@ describe("key bindings", () => {
 
       await driver.addContextFiles("poem 3.txt", "poem2.txt", "poem.txt");
 
-      const middleFilePos =
-        await driver.assertDisplayBufferContains(`- \`poem2.txt\``);
-
       // Press dd on the middle file to remove it
-      await driver.triggerDisplayBufferKey(middleFilePos, "dd");
+      await driver.triggerDisplayBufferKeyOnContent(`- \`poem2.txt\``, "dd");
 
       // Wait for the file to be removed from context
       await pollUntil(async () => {
@@ -163,9 +160,7 @@ describe("key bindings", () => {
       // Add file to context using the helper method
       await driver.addContextFiles("poem.txt");
 
-      const pos = await driver.assertDisplayBufferContains(`\`poem.txt\``);
-
-      await driver.triggerDisplayBufferKey(pos, "<CR>");
+      await driver.triggerDisplayBufferKeyOnContent(`\`poem.txt\``, "<CR>");
 
       await driver.assertWindowCount(
         3,
@@ -194,9 +189,7 @@ describe("key bindings", () => {
       // Add file to context using the helper method
       await driver.addContextFiles("poem.txt");
 
-      const pos = await driver.assertDisplayBufferContains(`\`poem.txt\``);
-
-      await driver.triggerDisplayBufferKey(pos, "<CR>");
+      await driver.triggerDisplayBufferKeyOnContent(`\`poem.txt\``, "<CR>");
       await driver.assertWindowCount(4);
 
       const poemWindow = await driver.findWindow(async (w) => {
@@ -227,9 +220,7 @@ describe("key bindings", () => {
         const displayWindow = driver.getVisibleState().displayWindow;
 
         // Get position of the file line to click on
-        const pos = await driver.assertDisplayBufferContains(`\`poem.txt\``);
-
-        await driver.triggerDisplayBufferKey(pos, "<CR>");
+        await driver.triggerDisplayBufferKeyOnContent(`\`poem.txt\``, "<CR>");
 
         await driver.assertWindowCount(3, "Enter should open a new window");
 
@@ -265,9 +256,7 @@ describe("key bindings", () => {
         const displayWindow = driver.getVisibleState().displayWindow;
 
         // Get position of the file line to click on
-        const pos = await driver.assertDisplayBufferContains(`\`poem.txt\``);
-
-        await driver.triggerDisplayBufferKey(pos, "<CR>");
+        await driver.triggerDisplayBufferKeyOnContent(`\`poem.txt\``, "<CR>");
 
         await driver.assertWindowCount(3, "Enter should open a new window");
 

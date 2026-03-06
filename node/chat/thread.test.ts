@@ -1029,8 +1029,7 @@ ok, I will try to rewrite the poem in that file
 Edits:
 - \`poem.txt\` (1 edits). [± diff snapshot]`);
 
-    const reviewPos = await driver.assertDisplayBufferContains("diff snapshot");
-    await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
+    await driver.triggerDisplayBufferKeyOnContent("diff snapshot", "<CR>");
 
     await driver.assertDisplayBufferContains(`\
 # assistant:
@@ -1038,7 +1037,7 @@ ok, I will try to rewrite the poem in that file
 ✏️✅ Replace [[ -4 / +2 ]] in \`poem.txt\``);
 
     // Go back to main view
-    await driver.triggerDisplayBufferKey(reviewPos, "<CR>");
+    await driver.triggerDisplayBufferKeyOnContent("diff snapshot", "<CR>");
 
     await driver.assertDisplayBufferContains(`\
 # assistant:
@@ -1194,9 +1193,7 @@ it("handles thinking and redacted thinking blocks", async () => {
     await driver.assertDisplayBufferContains("💭 [Redacted Thinking]");
 
     // Test expanding the thinking block
-    const thinkingPos =
-      await driver.assertDisplayBufferContains("💭 [Thinking]");
-    await driver.triggerDisplayBufferKey(thinkingPos, "<CR>");
+    await driver.triggerDisplayBufferKeyOnContent("💭 [Thinking]", "<CR>");
 
     // Verify expanded thinking block - check pieces separately
     await driver.assertDisplayBufferContains("# user:");
@@ -1211,9 +1208,7 @@ it("handles thinking and redacted thinking blocks", async () => {
     await driver.assertDisplayBufferContains("💭 [Redacted Thinking]");
 
     // Test collapsing the thinking block
-    const expandedThinkingPos =
-      await driver.assertDisplayBufferContains("💭 [Thinking]");
-    await driver.triggerDisplayBufferKey(expandedThinkingPos, "<CR>");
+    await driver.triggerDisplayBufferKeyOnContent("💭 [Thinking]", "<CR>");
 
     // Verify collapsed thinking block again - check pieces separately
     await driver.assertDisplayBufferContains("# user:");
@@ -1403,8 +1398,7 @@ it("handles @async messages by queueing them and sending on next tool response",
     );
 
     // Approve the file read to complete the tool execution
-    const yesPos = await driver.assertDisplayBufferContains("> YES");
-    await driver.triggerDisplayBufferKey(yesPos, "<CR>");
+    await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");
 
     // Wait for file read to complete
     await driver.assertDisplayBufferContains("👀✅ `.secret`");

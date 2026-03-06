@@ -81,8 +81,7 @@ describe("pending approvals surfaced in parent thread", () => {
       await driver.assertDisplayBufferContains("waiting for approval");
 
       // Approve from parent view
-      const yesPos = await driver.assertDisplayBufferContains("> YES");
-      await driver.triggerDisplayBufferKey(yesPos, "<CR>");
+      await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");
 
       // After approval, the approval dialog should disappear
       await driver.assertDisplayBufferDoesNotContain("> YES");
@@ -225,8 +224,7 @@ describe("pending approvals surfaced in parent thread", () => {
       await driver.assertDisplayBufferContains("> YES");
 
       // Approve from parent view
-      const yesPos = await driver.assertDisplayBufferContains("> YES");
-      await driver.triggerDisplayBufferKey(yesPos, "<CR>");
+      await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");
 
       // After approval, it should disappear
       await driver.assertDisplayBufferDoesNotContain("> YES");
@@ -353,8 +351,7 @@ describe("pending approvals surfaced in parent thread", () => {
         await driver.assertDisplayBufferContains("> YES");
 
         // Approve from parent view
-        const yesPos = await driver.assertDisplayBufferContains("> YES");
-        await driver.triggerDisplayBufferKey(yesPos, "<CR>");
+        await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");
 
         // After approval, it should disappear
         await driver.assertDisplayBufferDoesNotContain("> YES");
