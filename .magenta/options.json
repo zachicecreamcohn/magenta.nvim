@@ -1,8 +1,7 @@
 {
   "container": {
-    "devcontainer": "docker/Dockerfile",
-    "workspacePath": "/workspace",
-    "installCommand": "npm ci"
+    "dockerfile": "docker/Dockerfile",
+    "workspacePath": "/workspace"
   },
   "commandConfig": {
     "commands": [
