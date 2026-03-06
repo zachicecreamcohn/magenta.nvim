@@ -118,18 +118,42 @@ export function execute(
         progress.threadId = threadId;
         context.requestRender();
 
+        if (!input.blocking) {
+          return {
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "ok",
+              value: [
+                {
+                  type: "text",
+                  text: `Docker thread started with threadId: ${threadId} on branch: ${input.branch}`,
+                },
+              ],
+            },
+          };
+        }
+
+        const result = await context.threadManager.waitForThread(threadId);
+
         return {
           type: "tool_result",
           id: request.id,
-          result: {
-            status: "ok",
-            value: [
-              {
-                type: "text",
-                text: `Docker thread started with threadId: ${threadId} on branch: ${input.branch}`,
-              },
-            ],
-          },
+          result:
+            result.status === "ok"
+              ? {
+                  status: "ok",
+                  value: [
+                    {
+                      type: "text",
+                      text: `Docker sub-agent (${threadId}) on branch ${input.branch} completed:\n${result.value}`,
+                    },
+                  ],
+                }
+              : {
+                  status: "error",
+                  error: `Docker sub-agent (${threadId}) on branch ${input.branch} failed: ${result.error}`,
+                },
         };
       }
 

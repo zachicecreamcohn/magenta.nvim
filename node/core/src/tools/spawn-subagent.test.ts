@@ -406,4 +406,101 @@ describe("spawn-subagent docker provisioning progress", () => {
       }),
     );
   });
+
+  it("blocking docker waits for completion and returns result", async () => {
+    const threadManager = createMockThreadManager({
+      waitForThread: vi.fn().mockResolvedValue({
+        status: "ok",
+        value: "docker work done",
+      }),
+    });
+
+    const invocation = SpawnSubagent.execute(
+      makeRequest({
+        prompt: "do docker work",
+        agentType: "docker",
+        branch: "feature-branch",
+        blocking: true,
+      }),
+      {
+        threadManager,
+        threadId: "parent-1" as ThreadId,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+        containerProvisioner: {
+          containerConfig,
+          provision: vi.fn().mockResolvedValue(provisionResult),
+        },
+      },
+    );
+
+    const text = await getResultText(invocation);
+    expect(text).toContain("completed");
+    expect(text).toContain("docker work done");
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(threadManager.waitForThread).toHaveBeenCalledWith("thread-1");
+  });
+
+  it("blocking docker returns error when thread fails", async () => {
+    const threadManager = createMockThreadManager({
+      waitForThread: vi.fn().mockResolvedValue({
+        status: "error",
+        error: "container crashed",
+      }),
+    });
+
+    const invocation = SpawnSubagent.execute(
+      makeRequest({
+        prompt: "do docker work",
+        agentType: "docker",
+        branch: "feature-branch",
+        blocking: true,
+      }),
+      {
+        threadManager,
+        threadId: "parent-1" as ThreadId,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+        containerProvisioner: {
+          containerConfig,
+          provision: vi.fn().mockResolvedValue(provisionResult),
+        },
+      },
+    );
+
+    const result = await invocation.promise;
+    expect(result.result.status).toBe("error");
+    if (result.result.status === "error") {
+      expect(result.result.error).toContain("failed");
+      expect(result.result.error).toContain("container crashed");
+    }
+  });
+
+  it("non-blocking docker returns immediately with threadId", async () => {
+    const threadManager = createMockThreadManager();
+
+    const invocation = SpawnSubagent.execute(
+      makeRequest({
+        prompt: "do docker work",
+        agentType: "docker",
+        branch: "feature-branch",
+        blocking: false,
+      }),
+      {
+        threadManager,
+        threadId: "parent-1" as ThreadId,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+        containerProvisioner: {
+          containerConfig,
+          provision: vi.fn().mockResolvedValue(provisionResult),
+        },
+      },
+    );
+
+    const text = await getResultText(invocation);
+    expect(text).toContain("Docker thread started with threadId: thread-1");
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(threadManager.waitForThread).not.toHaveBeenCalled();
+  });
 });
