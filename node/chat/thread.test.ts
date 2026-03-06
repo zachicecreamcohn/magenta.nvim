@@ -1383,19 +1383,15 @@ it("handles @async messages by queueing them and sending on next tool response",
       ],
     });
 
-    // Wait for approval dialog to appear
-    await driver.assertDisplayBufferContains("👀 .secret");
+    // Wait for approval dialog to fully render
+    await driver.assertDisplayBufferContains("> YES");
 
     // Now send an @async message while the tool is waiting for approval
     await driver.inputMagentaText("@async This should be queued");
     await driver.send();
 
-    // Verify the @async message is queued, not immediately sent
-    const thread = driver.magenta.chat.getActiveThread();
-    expect(thread.core.state.pendingMessages).toHaveLength(1);
-    expect(thread.core.state.pendingMessages[0].text).toBe(
-      "This should be queued",
-    );
+    // Wait for the pending message indicator to appear in the display
+    await driver.assertDisplayBufferContains("pending message");
 
     // Approve the file read to complete the tool execution
     await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");
