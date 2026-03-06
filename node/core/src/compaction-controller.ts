@@ -1,4 +1,4 @@
-import type { AgentMsg, ProviderMessage } from "./providers/provider-types.ts";
+import type { ProviderMessage } from "./providers/provider-types.ts";
 
 export type CompactionStep = {
   chunkIndex: number;
@@ -26,5 +26,4 @@ export interface CompactionController {
   nextPrompt: string | undefined;
 
   start(messages: ReadonlyArray<ProviderMessage>, nextPrompt?: string): void;
-  handleAgentMsg(msg: AgentMsg): void;
 }

@@ -20,9 +20,9 @@ import type {
   Agent,
   AgentInput,
   AgentStatus,
-  AgentMsg,
   ProviderToolResult,
   StopReason,
+  Usage,
 } from "./providers/provider-types.ts";
 import type {
   ToolRequestId,
@@ -89,7 +89,7 @@ export type ThreadCoreEvents = {
   playChime: [];
   scrollToLastMessage: [];
   setupResubmit: [lastUserMessage: string];
-  agentMsg: [msg: AgentMsg];
+
   contextUpdatesSent: [updates: Record<string, unknown>];
 };
 
@@ -173,10 +173,23 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     };
 
     if (clonedAgent) {
-      this.agent = clonedAgent;
+      this.agent = clonedAgent.clone();
+      this.listenToAgent(this.agent);
     } else {
       this.agent = this.createFreshAgent();
     }
+  }
+
+  private listenToAgent(agent: Agent): void {
+    agent.on("contentUpdated", () => {
+      this.rebuildToolCache();
+    });
+    agent.on("stopped", (stopReason, usage) => {
+      this.handleProviderStopped(stopReason, usage);
+    });
+    agent.on("error", (error) => {
+      this.handleErrorState(error);
+    });
   }
 
   /** Process a state mutation. Calls onUpdate() unless silent is true.
@@ -244,28 +257,27 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
 
   private createFreshAgent(): Agent {
     const provider = this.context.getProvider(this.context.profile);
-    return provider.createAgent(
-      {
-        model: this.context.profile.model,
-        systemPrompt: this.state.systemPrompt,
-        tools: getToolSpecs(
-          this.state.threadType,
-          this.context.mcpToolManager,
-          this.context.availableCapabilities,
-        ),
-        ...(this.context.profile.thinking &&
-          (this.context.profile.provider === "anthropic" ||
-            this.context.profile.provider === "mock") && {
-            thinking: this.context.profile.thinking,
-          }),
-        ...(this.context.profile.reasoning &&
-          (this.context.profile.provider === "openai" ||
-            this.context.profile.provider === "mock") && {
-            reasoning: this.context.profile.reasoning,
-          }),
-      },
-      (msg) => this.emit("agentMsg", msg),
-    );
+    const agent = provider.createAgent({
+      model: this.context.profile.model,
+      systemPrompt: this.state.systemPrompt,
+      tools: getToolSpecs(
+        this.state.threadType,
+        this.context.mcpToolManager,
+        this.context.availableCapabilities,
+      ),
+      ...(this.context.profile.thinking &&
+        (this.context.profile.provider === "anthropic" ||
+          this.context.profile.provider === "mock") && {
+          thinking: this.context.profile.thinking,
+        }),
+      ...(this.context.profile.reasoning &&
+        (this.context.profile.provider === "openai" ||
+          this.context.profile.provider === "mock") && {
+          reasoning: this.context.profile.reasoning,
+        }),
+    });
+    this.listenToAgent(agent);
+    return agent;
   }
 
   getProviderStatus(): AgentStatus {
@@ -299,22 +311,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     );
   }
 
-  handleAgentMsg(msg: AgentMsg): void {
-    switch (msg.type) {
-      case "agent-content-updated":
-        this.rebuildToolCache();
-        return;
-      case "agent-stopped":
-        this.handleProviderStopped(msg.stopReason);
-        return;
-      case "agent-error":
-        this.handleErrorState(msg.error);
-        return;
-      default:
-        return assertUnreachable(msg);
-    }
-  }
-
   setTitle(title: string): void {
     this.update({ type: "set-title", title });
   }
@@ -323,11 +319,13 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     this.update({ type: "rebuild-tool-cache" }, { silent: true });
   }
 
-  private handleProviderStopped(stopReason: StopReason): void {
-    const latestUsage = this.agent.getState().latestUsage;
-    if (latestUsage) {
+  private handleProviderStopped(
+    stopReason: StopReason,
+    usage: Usage | undefined,
+  ): void {
+    if (usage) {
       this.update(
-        { type: "increment-output-tokens", tokens: latestUsage.outputTokens },
+        { type: "increment-output-tokens", tokens: usage.outputTokens },
         { silent: true },
       );
     }

@@ -13,7 +13,7 @@ import type {
   Provider,
   ProviderMessage,
   Agent,
-  AgentMsg,
+  StopReason,
   ProviderToolResult,
 } from "./providers/provider-types.ts";
 import type {
@@ -81,7 +81,8 @@ export type CompactionAction =
       messages: ReadonlyArray<ProviderMessage>;
       nextPrompt?: string | undefined;
     }
-  | { type: "agent-msg"; msg: AgentMsg }
+  | { type: "agent-stopped"; stopReason: StopReason }
+  | { type: "agent-error"; error: Error }
   | {
       type: "tool-complete";
       id: ToolRequestId;
@@ -137,10 +138,6 @@ export class CompactionManager extends Emitter<CompactionEvents> {
     this.send({ type: "start", messages, nextPrompt });
   }
 
-  handleAgentMsg(msg: AgentMsg): void {
-    this.send({ type: "agent-msg", msg });
-  }
-
   private reduce(
     state: CompactionState,
     action: CompactionAction,
@@ -178,52 +175,45 @@ export class CompactionManager extends Emitter<CompactionEvents> {
         };
       }
 
-      case "agent-msg": {
-        const { msg } = action;
-        if (msg.type === "agent-content-updated") return state;
+      case "agent-error": {
+        this.context.logger.error(
+          `Compact agent error: ${action.error.message}`,
+        );
+        return { type: "error", steps: this.steps };
+      }
 
-        if (msg.type === "agent-error") {
-          this.context.logger.error(
-            `Compact agent error: ${msg.error.message}`,
+      case "agent-stopped": {
+        if (action.stopReason === "tool_use") {
+          if (state.type !== "processing-chunk") {
+            return state;
+          }
+          const { activeTools, malformedResults } = this.buildToolEntries(
+            state.agent,
           );
-          return { type: "error", steps: this.steps };
+          for (const r of malformedResults) {
+            state.agent.toolResult(r.id, r);
+          }
+          return {
+            type: "waiting-for-tools",
+            chunkIndex: state.chunkIndex,
+            totalChunks: state.totalChunks,
+            agent: state.agent,
+            activeTools,
+            toolResults: new Map(),
+          };
         }
 
-        if (msg.type === "agent-stopped") {
-          if (msg.stopReason === "tool_use") {
-            if (state.type !== "processing-chunk") {
-              return state;
-            }
-            const { activeTools, malformedResults } = this.buildToolEntries(
-              state.agent,
-            );
-            for (const r of malformedResults) {
-              state.agent.toolResult(r.id, r);
-            }
-            return {
-              type: "waiting-for-tools",
-              chunkIndex: state.chunkIndex,
-              totalChunks: state.totalChunks,
-              agent: state.agent,
-              activeTools,
-              toolResults: new Map(),
-            };
+        if (action.stopReason === "end_turn") {
+          if (state.type !== "processing-chunk") {
+            return state;
           }
-
-          if (msg.stopReason === "end_turn") {
-            if (state.type !== "processing-chunk") {
-              return state;
-            }
-            return this.reduceChunkComplete(state);
-          }
-
-          this.context.logger.warn(
-            `Compact agent stopped with unexpected reason: ${msg.stopReason}`,
-          );
-          return { type: "error", steps: this.steps };
+          return this.reduceChunkComplete(state);
         }
 
-        return state;
+        this.context.logger.warn(
+          `Compact agent stopped with unexpected reason: ${action.stopReason}`,
+        );
+        return { type: "error", steps: this.steps };
       }
 
       case "tool-complete": {
@@ -321,20 +311,24 @@ export class CompactionManager extends Emitter<CompactionEvents> {
 
   private createCompactAgent(): Agent {
     const provider = this.context.getProvider(this.context.profile);
-    return provider.createAgent(
-      {
-        model: this.context.profile.fastModel,
-        systemPrompt:
-          "You are a conversation compactor. Summarize conversation transcripts into concise summaries that preserve essential information for continuing the work.",
-        tools: getToolSpecs(
-          "compact",
-          this.context.mcpToolManager,
-          this.context.availableCapabilities,
-        ),
-        skipPostFlightTokenCount: true,
-      },
-      (msg) => this.send({ type: "agent-msg", msg }),
-    );
+    const agent = provider.createAgent({
+      model: this.context.profile.fastModel,
+      systemPrompt:
+        "You are a conversation compactor. Summarize conversation transcripts into concise summaries that preserve essential information for continuing the work.",
+      tools: getToolSpecs(
+        "compact",
+        this.context.mcpToolManager,
+        this.context.availableCapabilities,
+      ),
+      skipPostFlightTokenCount: true,
+    });
+    agent.on("stopped", (stopReason) => {
+      this.send({ type: "agent-stopped", stopReason });
+    });
+    agent.on("error", (error) => {
+      this.send({ type: "agent-error", error });
+    });
+    return agent;
   }
 
   private buildToolEntries(agent: Agent): {

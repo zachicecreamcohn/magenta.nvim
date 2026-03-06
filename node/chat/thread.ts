@@ -19,7 +19,6 @@ import {
   type ProviderMessage,
   type Agent,
   type AgentStatus,
-  type AgentMsg,
 } from "../providers/provider.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { type MagentaOptions, type Profile } from "../options.ts";
@@ -88,10 +87,6 @@ export type Msg =
   | {
       type: "open-edit-file";
       filePath: UnresolvedFilePath;
-    }
-  | {
-      type: "agent-msg";
-      msg: AgentMsg;
     }
   | {
       type: "permission-pending-change";
@@ -239,9 +234,7 @@ export class Thread {
         msg: { type: "setup-resubmit", lastUserMessage },
       }),
     );
-    this.core.on("agentMsg", (msg) =>
-      this.myDispatch({ type: "agent-msg", msg }),
-    );
+
     this.core.on("contextUpdatesSent", (updates) => {
       const messageCount = this.core.getProviderMessages().length;
       this.state.messageViewState[messageCount] = {
@@ -280,10 +273,7 @@ export class Thread {
   }
 
   private myUpdate(msg: Msg): void {
-    console.error(
-      `[Thread ${this.id}] myUpdate: ${msg.type}`,
-      msg.type === "agent-msg" ? msg.msg.type : "",
-    );
+    console.error(`[Thread ${this.id}] myUpdate: ${msg.type}`);
     switch (msg.type) {
       case "send-message":
         this.core
@@ -346,10 +336,6 @@ export class Thread {
         openFileInNonMagentaWindow(msg.filePath, this.context).catch(
           (e: Error) => this.context.nvim.logger.error(e.message),
         );
-        return;
-
-      case "agent-msg":
-        this.core.handleAgentMsg(msg.msg);
         return;
 
       case "permission-pending-change":

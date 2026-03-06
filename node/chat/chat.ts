@@ -700,14 +700,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
 
     const newThreadId = uuidv7() as ThreadId;
 
-    // Clone the agent with dispatch pointing to the new thread
-    const clonedAgent = sourceAgent.clone((msg) =>
-      this.context.dispatch({
-        type: "thread-msg",
-        id: newThreadId,
-        msg: { type: "agent-msg", msg },
-      }),
-    );
+    const clonedAgent = sourceAgent.clone();
 
     // Create the new thread with the cloned agent
     this.threadWrappers[newThreadId] = {

@@ -17,9 +17,8 @@ import type {
   Agent,
   AgentOptions,
   AgentInput,
-  AgentMsg,
 } from "./provider-types.ts";
-import type { Dispatch } from "../dispatch.ts";
+
 import {
   AnthropicAgent,
   CLAUDE_CODE_SPOOF_PROMPT,
@@ -619,8 +618,8 @@ export class AnthropicProvider implements Provider {
     };
   }
 
-  createAgent(options: AgentOptions, dispatch: Dispatch<AgentMsg>): Agent {
-    return new AnthropicAgent(options, this.client, dispatch, {
+  createAgent(options: AgentOptions): Agent {
+    return new AnthropicAgent(options, this.client, {
       authType: this.authType,
       includeWebSearch: this.includeWebSearch,
       disableParallelToolUseFlag: this.disableParallelToolUseFlag,

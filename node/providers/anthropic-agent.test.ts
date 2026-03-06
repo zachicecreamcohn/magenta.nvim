@@ -25,17 +25,27 @@ function createAgent(
   options?: Partial<typeof defaultOptions>,
   tracked?: TrackedMessages,
 ): AnthropicAgent {
-  const dispatch = (msg: AgentMsg) => {
-    if (tracked) {
-      tracked.messages.push(msg);
-    }
-  };
-  return new AnthropicAgent(
+  const agent = new AnthropicAgent(
     { ...defaultOptions, ...options },
     mockClient as unknown as Anthropic,
-    dispatch,
     defaultAnthropicOptions,
   );
+  if (tracked) {
+    agent.on("contentUpdated", () => {
+      tracked.messages.push({ type: "agent-content-updated" });
+    });
+    agent.on("stopped", (stopReason, usage) => {
+      tracked.messages.push({
+        type: "agent-stopped",
+        stopReason,
+        ...(usage && { usage }),
+      });
+    });
+    agent.on("error", (error) => {
+      tracked.messages.push({ type: "agent-error", error });
+    });
+  }
+  return agent;
 }
 
 function trackMessages(): TrackedMessages {
@@ -1404,7 +1414,20 @@ File context here
 
       // Clone the agent
       const clonedTracked = trackMessages();
-      const cloned = agent.clone((msg) => clonedTracked.messages.push(msg));
+      const cloned = agent.clone();
+      cloned.on("contentUpdated", () => {
+        clonedTracked.messages.push({ type: "agent-content-updated" });
+      });
+      cloned.on("stopped", (stopReason, usage) => {
+        clonedTracked.messages.push({
+          type: "agent-stopped",
+          stopReason,
+          ...(usage && { usage }),
+        });
+      });
+      cloned.on("error", (error) => {
+        clonedTracked.messages.push({ type: "agent-error", error });
+      });
 
       // Verify cloned agent has same messages
       expect(cloned.getState().messages).toHaveLength(4);
@@ -1439,7 +1462,7 @@ File context here
       await delay(0);
 
       // Clone the agent
-      const cloned = agent.clone(() => {});
+      const cloned = agent.clone();
 
       // Add more messages to original
       agent.appendUserMessage([{ type: "text", text: "Another message" }]);
@@ -1474,7 +1497,7 @@ File context here
       });
 
       // Clone — currentAssistantMessage hasn't been created yet (no block-finished)
-      const cloned = agent.clone(() => {});
+      const cloned = agent.clone();
       const clonedState = cloned.getState();
 
       // Only the user message should be present (no assistant message)
@@ -1517,7 +1540,7 @@ File context here
       });
 
       // Clone while tool_use is in-progress (in currentAnthropicBlock)
-      const cloned = agent.clone(() => {});
+      const cloned = agent.clone();
       const clonedState = cloned.getState();
 
       // Should have user + assistant with just the finalized text
@@ -1555,7 +1578,7 @@ File context here
       expect(agent.getState().status.type).toBe("streaming");
 
       // Clone — server_tool_use should be dropped, leaving empty assistant → removed
-      const cloned = agent.clone(() => {});
+      const cloned = agent.clone();
       const clonedState = cloned.getState();
 
       expect(clonedState.messages).toHaveLength(1);
@@ -1596,7 +1619,20 @@ File context here
 
       // Clone while stopped on tool_use
       const clonedTracked = trackMessages();
-      const cloned = agent.clone((msg) => clonedTracked.messages.push(msg));
+      const cloned = agent.clone();
+      cloned.on("contentUpdated", () => {
+        clonedTracked.messages.push({ type: "agent-content-updated" });
+      });
+      cloned.on("stopped", (stopReason, usage) => {
+        clonedTracked.messages.push({
+          type: "agent-stopped",
+          stopReason,
+          ...(usage && { usage }),
+        });
+      });
+      cloned.on("error", (error) => {
+        clonedTracked.messages.push({ type: "agent-error", error });
+      });
       const clonedState = cloned.getState();
 
       // Should have: user, assistant (text + tool_use), user (error tool_result)
@@ -1652,7 +1688,7 @@ File context here
       stream.streamText("First part");
 
       // Clone mid-stream
-      const cloned = agent.clone(() => {});
+      const cloned = agent.clone();
 
       // Continue streaming on source
       stream.streamText("Second part");
@@ -1701,7 +1737,7 @@ File context here
       await delay(0);
 
       // Clone the agent
-      const cloned = agent.clone(() => {});
+      const cloned = agent.clone();
 
       // Verify stop reason is preserved
       const clonedState = cloned.getState();
@@ -1726,7 +1762,7 @@ File context here
       await delay(0);
 
       // Clone the agent
-      const cloned = agent.clone(() => {});
+      const cloned = agent.clone();
 
       // Append message to cloned agent (without streaming)
       cloned.appendUserMessage([{ type: "text", text: "From clone" }]);
