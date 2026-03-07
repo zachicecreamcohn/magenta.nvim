@@ -1192,23 +1192,28 @@ function parseContainerConfig(
   }
   const obj = input as { [key: string]: unknown };
 
-  if (typeof obj["devcontainer"] !== "string") {
-    logger.warn("container.devcontainer must be a string");
+  if (typeof obj["dockerfile"] !== "string") {
+    logger.warn("container.dockerfile must be a string");
     return undefined;
   }
   if (typeof obj["workspacePath"] !== "string") {
     logger.warn("container.workspacePath must be a string");
     return undefined;
   }
-  if (typeof obj["installCommand"] !== "string") {
+  if (
+    obj["installCommand"] !== undefined &&
+    typeof obj["installCommand"] !== "string"
+  ) {
     logger.warn("container.installCommand must be a string");
     return undefined;
   }
 
   const config: ContainerConfig = {
-    devcontainer: obj["devcontainer"],
+    dockerfile: obj["dockerfile"],
     workspacePath: obj["workspacePath"],
-    installCommand: obj["installCommand"],
+    ...(typeof obj["installCommand"] === "string"
+      ? { installCommand: obj["installCommand"] }
+      : {}),
   };
 
   return config;

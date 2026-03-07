@@ -36,7 +36,7 @@ const mockProvisionResult: ProvisionResult = {
 };
 
 const mockContainerConfig: ContainerConfig = {
-  devcontainer: ".devcontainer",
+  dockerfile: ".devcontainer",
   workspacePath: "/workspace",
   installCommand: "npm install",
 };

@@ -33,7 +33,7 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
     | undefined;
 
   const containerConfig: ContainerConfig = {
-    devcontainer: "Dockerfile",
+    dockerfile: "Dockerfile",
     workspacePath: "/workspace",
     installCommand: "echo install-done",
   };

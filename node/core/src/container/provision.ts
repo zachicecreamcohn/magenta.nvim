@@ -72,7 +72,7 @@ export async function provisionContainer({
   // Build image using the cloned branch as context.
   // Docker layer caching keeps the npm ci layer cached when the lockfile is unchanged.
   progress("Building Docker image...");
-  const dockerfilePath = path.join(repoPath, containerConfig.devcontainer);
+  const dockerfilePath = path.join(repoPath, containerConfig.dockerfile);
   const imageName = `magenta-dev-${safeBranch}`;
 
   await execFile(

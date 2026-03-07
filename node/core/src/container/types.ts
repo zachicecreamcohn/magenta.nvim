@@ -1,7 +1,7 @@
 export interface ContainerConfig {
-  devcontainer: string;
+  dockerfile: string;
   workspacePath: string;
-  installCommand: string;
+  installCommand?: string;
 }
 
 export interface ProvisionResult {

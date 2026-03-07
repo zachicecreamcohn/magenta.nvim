@@ -182,7 +182,7 @@ describe("spawn-subagent unit tests", () => {
 });
 describe("spawn-subagent docker provisioning progress", () => {
   const containerConfig: ContainerConfig = {
-    devcontainer: "Dockerfile",
+    dockerfile: "Dockerfile",
     workspacePath: "/workspace",
     installCommand: "npm install",
   };
