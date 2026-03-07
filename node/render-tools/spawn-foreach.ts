@@ -56,23 +56,7 @@ export function renderInFlightSummary(
   ).length;
   const total = progress.elements.length;
 
-  const elementViews = progress.elements.map((entry) => {
-    switch (entry.state.status) {
-      case "completed": {
-        const status = entry.state.result.status === "ok" ? "✅" : "❌";
-        return d`  - ${entry.element}: ${status}\n`;
-      }
-      case "running":
-        return d`  - ${entry.element}: ⏳\n`;
-      case "pending":
-        return d`  - ${entry.element}: ⏸️\n`;
-      default:
-        return assertUnreachable(entry.state);
-    }
-  });
-
-  return d`🤖⏳ Foreach subagents${agentTypeText} (${completed.toString()}/${total.toString()}):
-${elementViews}`;
+  return d`🤖⏳ Foreach subagents${agentTypeText} (${completed.toString()}/${total.toString()})`;
 }
 
 export function renderInFlightPreview(
@@ -92,7 +76,7 @@ export function renderInFlightPreview(
       case "completed": {
         const status = entry.state.result.status === "ok" ? "✅" : "❌";
         if (entry.state.threadId) {
-          return withBindings(d`  - ${entry.element}: ${status}\n`, {
+          return withBindings(d`  ${status} ${entry.element}\n`, {
             "<CR>": () =>
               context.dispatch({
                 type: "chat-msg",
@@ -106,40 +90,33 @@ export function renderInFlightPreview(
               }),
           });
         }
-        return d`  - ${entry.element}: ${status}\n`;
+        return d`  ${status} ${entry.element}\n`;
       }
       case "running": {
         if (!entry.state.threadId) {
-          return d`  - ${entry.element}: 🚀\n`;
+          return d`  🚀 ${entry.element}\n`;
         }
         const summary = context.chat!.getThreadSummary(entry.state.threadId);
-        let statusText: string;
+        let statusIcon: string;
         switch (summary.status.type) {
           case "missing":
-            statusText = "❓ not found";
+            statusIcon = "❓";
             break;
           case "pending":
-            statusText = "⏳ initializing";
+            statusIcon = "⏳";
             break;
           case "running":
-            statusText = `⏳ ${summary.status.activity}`;
+            statusIcon = "⏳";
             break;
           case "stopped":
-            statusText = `⏹️ stopped (${summary.status.reason})`;
+            statusIcon = "⏹️";
             break;
-          case "yielded": {
-            const lineCount = summary.status.response.split("\n").length;
-            statusText = `✅ ${lineCount.toString()} lines`;
+          case "yielded":
+            statusIcon = "✅";
             break;
-          }
-          case "error": {
-            const truncatedError =
-              summary.status.message.length > 50
-                ? summary.status.message.substring(0, 47) + "..."
-                : summary.status.message;
-            statusText = `❌ error: ${truncatedError}`;
+          case "error":
+            statusIcon = "❌";
             break;
-          }
           default:
             return assertUnreachable(summary.status);
         }
@@ -148,7 +125,7 @@ export function renderInFlightPreview(
           entry.state.threadId,
         );
         return withBindings(
-          d`  - ${entry.element}: ${statusText}\n${pendingApprovals ? d`${pendingApprovals}` : d``}`,
+          d`  ${statusIcon} ${entry.element}\n${pendingApprovals ? d`${pendingApprovals}` : d``}`,
           {
             "<CR>": () =>
               context.dispatch({
@@ -165,7 +142,7 @@ export function renderInFlightPreview(
         );
       }
       case "pending":
-        return d`  - ${entry.element}: ⏸️\n`;
+        return d`  ⏸️ ${entry.element}\n`;
       default:
         return assertUnreachable(entry.state);
     }
@@ -192,22 +169,33 @@ export function renderCompletedSummary(
 }
 
 export function renderCompletedPreview(info: CompletedToolInfo): VDOMNode {
-  const input = info.request.input as Input;
   const result = info.result.result;
 
   if (result.status === "error") {
     return d``;
   }
 
-  const elements = input.elements || [];
-  const maxPreviewElements = 3;
-  const previewElements = elements.slice(0, maxPreviewElements);
-  const remaining = elements.length - maxPreviewElements;
+  const resultText =
+    result.value[0]?.type === "text" ? result.value[0].text : "";
 
-  const elementList = previewElements.join(", ");
-  const suffix = remaining > 0 ? ` (+${remaining} more)` : "";
+  const elementThreadsMatch = resultText.match(
+    /ElementThreads:\n([\s\S]*?)\n\n/,
+  );
+  const elementLines = elementThreadsMatch
+    ? elementThreadsMatch[1].split("\n").filter((line) => line.includes("::"))
+    : [];
 
-  return d`Elements: ${elementList}${suffix}`;
+  const elementViews = elementLines.map((line) => {
+    const parts = line.split("::");
+    if (parts.length >= 3) {
+      const element = parts[0];
+      const status = parts[2] === "ok" ? "✅" : "❌";
+      return d`  ${status} ${element}\n`;
+    }
+    return d`  - ${line}\n`;
+  });
+
+  return d`${elementViews}`;
 }
 
 export function renderCompletedDetail(
@@ -237,7 +225,7 @@ export function renderCompletedDetail(
       const threadId = parts[1] as ThreadId;
       const status = parts[2] === "ok" ? "✅" : "❌";
 
-      return withBindings(d`  - ${element}: ${status}\n`, {
+      return withBindings(d`  ${status} ${element}\n`, {
         "<CR>": () => {
           dispatch({
             type: "chat-msg",

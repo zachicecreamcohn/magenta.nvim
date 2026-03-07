@@ -67,11 +67,11 @@ it("respects maxConcurrentSubagents limit and processes elements in batches", as
         await driver.mockAnthropic.awaitPendingStreamWithText("element3");
 
       // Now we should see 3 running and 1 pending
-      await driver.assertDisplayBufferContains("🤖⏳ Foreach subagents (0/4):");
-      await driver.assertDisplayBufferContains("- element1: ⏳");
-      await driver.assertDisplayBufferContains("- element2: ⏳");
-      await driver.assertDisplayBufferContains("- element3: ⏳");
-      await driver.assertDisplayBufferContains("- element4: ⏸️");
+      await driver.assertDisplayBufferContains("🤖⏳ Foreach subagents (0/4)");
+      await driver.assertDisplayBufferContains("⏳ element1");
+      await driver.assertDisplayBufferContains("⏳ element2");
+      await driver.assertDisplayBufferContains("⏳ element3");
+      await driver.assertDisplayBufferContains("⏸️ element4");
 
       // Complete the first subagent
       subagent1Stream.respond({
@@ -92,15 +92,15 @@ it("respects maxConcurrentSubagents limit and processes elements in batches", as
       });
 
       // After element1 completes, element4 should start and element1 should show as completed
-      await driver.assertDisplayBufferContains("🤖⏳ Foreach subagents (1/4):");
-      await driver.assertDisplayBufferContains("- element1: ✅");
+      await driver.assertDisplayBufferContains("🤖⏳ Foreach subagents (1/4)");
+      await driver.assertDisplayBufferContains("✅ element1");
 
       // The 4th subagent should now start
       const subagent4Stream =
         await driver.mockAnthropic.awaitPendingStreamWithText("element4");
 
       // Verify element4 is now running
-      await driver.assertDisplayBufferContains("- element4: ⏳");
+      await driver.assertDisplayBufferContains("⏳ element4");
 
       // Complete the remaining 3 subagents
       subagent2Stream.respond({
@@ -307,15 +307,15 @@ it("handles subagent errors gracefully and continues processing remaining elemen
         await driver.mockAnthropic.awaitPendingStreamWithText("error_element");
 
       // Verify initial state: 1 running, 1 pending
-      await driver.assertDisplayBufferContains("🤖⏳ Foreach subagents (0/2):");
-      await driver.assertDisplayBufferContains("- error_element: ⏳");
-      await driver.assertDisplayBufferContains("- success_element: ⏸️");
+      await driver.assertDisplayBufferContains("🤖⏳ Foreach subagents (0/2)");
+      await driver.assertDisplayBufferContains("⏳ error_element");
+      await driver.assertDisplayBufferContains("⏸️ success_element");
 
       // First subagent encounters an error
       subagent1Stream.respondWithError(new Error("Simulated subagent error"));
 
       // Verify error_element shows as error state
-      await driver.assertDisplayBufferContains("- error_element: ❌");
+      await driver.assertDisplayBufferContains("❌ error_element");
 
       // After error_element fails, success_element should start
       const subagent2Stream =
@@ -419,10 +419,10 @@ it("aborts all child threads when the foreach request is aborted", async () => {
         await driver.mockAnthropic.awaitPendingStreamWithText("element2");
 
       // Verify initial state: 2 running, 1 pending
-      await driver.assertDisplayBufferContains("🤖⏳ Foreach subagents (0/3):");
-      await driver.assertDisplayBufferContains("- element1: ⏳");
-      await driver.assertDisplayBufferContains("- element2: ⏳");
-      await driver.assertDisplayBufferContains("- element3: ⏸️");
+      await driver.assertDisplayBufferContains("🤖⏳ Foreach subagents (0/3)");
+      await driver.assertDisplayBufferContains("⏳ element1");
+      await driver.assertDisplayBufferContains("⏳ element2");
+      await driver.assertDisplayBufferContains("⏸️ element3");
 
       // Abort the chat (which should abort all running tools including foreach)
       await driver.abort();
