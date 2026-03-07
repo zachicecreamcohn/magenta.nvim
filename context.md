@@ -1,70 +1,64 @@
 # Overview
 
-this is a neovim plugin for agentic tool use
-the entrypoint is in `lua/magenta/init.lua`. When the plugin starts up, it will kick off the `node/magenta.ts` node process. That will reach back out and establish the bridge, which will grab the options from lua and establish bidirectional communication between the two halves of the plugin.
+This is a neovim plugin for agentic tool use. The entrypoint is `lua/magenta/init.lua`, which kicks off the `node/magenta.ts` node process. That process establishes a bidirectional bridge, grabbing options from lua and enabling communication between the two halves.
 
 The node code is organized as npm workspaces:
 
-- `node/core/` (`@magenta/core`) — standalone logic with no neovim dependency (tools, providers, edl, etc.)
-- Root project — neovim-specific code (sidebar, tea, buffer-tracker, nvim bindings)
+- `node/core/` (`@magenta/core`) — standalone logic with no neovim dependency (tools, providers, agents, thread-core, EDL, etc.)
+- Root project — neovim-specific code (sidebar, TEA rendering, buffer-tracker, nvim bindings)
 
 The root `tsconfig.json` uses TypeScript project references to enforce the boundary: core cannot import from the root project.
 
-### Migration status
+Key entry points:
 
-Moved to `@magenta/core`:
-
-- `edl/` — EDL script parser, executor, document model
-- `capabilities/file-io.ts` — FileIO interface and FsFileIO implementation
-- `utils/files.ts` — branded file path types and utilities
-- `utils/pdf-pages.ts` — PDF page extraction
-- `utils/file-summary.ts` — file summarization
-- `utils/string-position.ts` — string position calculation (from `tea/util.ts`)
-- `tools/` — all tool specs, validation, and execution logic
-- `tools/mcp/` — MCP client, manager, mock server, types
-- `tools/tool-registry.ts` — static tool name constants
-- `tools/toolManager.ts` — tool spec map and getToolSpecs
-- `tools/create-tool.ts` — tool factory using core interfaces
-- `tools/helpers.ts` — validateInput dispatcher, extractPartialJsonStringValue
-- `capabilities/shell.ts` — Shell interface
-- `capabilities/thread-manager.ts` — ThreadManager interface
-- `capabilities/lsp-client.ts` — LspClient interface (new, abstracts nvim LSP)
-- `capabilities/diagnostics-provider.ts` — DiagnosticsProvider interface (new)
-- `capabilities/context-tracker.ts` — ContextTracker interface (new)
-
-Still in root (neovim-dependent or not yet migrated):
-
-- `auth/`, `capabilities/` (remaining nvim-specific implementations), `chat/`, `context/`, `nvim/`, `render-tools/`, `skills/`, `tea/`, `test/`, `utils/` (remaining)
-
-options are configured in `lua/magenta/options.lua`
-neovim keymaps are configured in `lua/magenta/keymaps.lua`
-`node/sidebar.ts` manages the sidebar. This is where we create the chat and input buffers, and initialize keymaps on them.
+- `lua/magenta/options.lua` — plugin options
+- `lua/magenta/keymaps.lua` — neovim keymaps
+- `node/sidebar.ts` — manages the sidebar (chat/input buffers, keymaps)
 
 # Architecture
 
-The core architectural components include:
+## Core layer (`@magenta/core`)
 
-- `Controllers` - Classes that manage specific parts of the application. Each controller maintains its own state and handles messages that are relevant to it.
-- `Msg/RootMsg` - Messages that trigger state changes. There's a root message type that is then directed to specific controllers.
-- `dispatch/myDispatch` - Functions passed to controllers that allows them to send messages through the system. Each controller receives a root dispatcher that it can use to communicate with other parts of the system.
-- `view` - A function that renders the current controller state in TUI. This is done in a declarative way using the `d` template literal. You can attach bindings to different parts of the text via `withBindings`.
+Core classes like `ThreadCore` and `AnthropicAgent` are **event emitters**. They extend a custom type-safe `Emitter<Events>` class (`node/core/src/emitter.ts`) that provides `on()`, `off()`, and `emit()` methods parameterized on a typed event map.
 
-The general flow is:
+- **`Agent`** (`node/core/src/providers/provider-types.ts`) — emits `didUpdate`, `stopped`, and `error` events as it streams responses.
+- **`ThreadCore`** (`node/core/src/thread-core.ts`) — orchestrates agents and tools. Emits `update`, `playChime`, `scrollToLastMessage`, `setupResubmit`, `aborting`, and `contextUpdatesSent`.
 
-- Controllers initialize with their own state and receive a root dispatcher.
-- When a user action occurs, it triggers a command or binding that dispatches a message.
-- The message flows to the appropriate controller via the root dispatcher.
-- The controller updates its internal state and may dispatch additional messages to other controllers.
-- The view is rendered based on the updated state.
+ThreadCore subscribes to Agent events internally. This means the root project only needs to subscribe to ThreadCore — all core events are routed through a single point rather than requiring the root to subscribe to multiple emitters.
 
-One key principle: **If you create a class, you're responsible for passing actions or messages to that class.**
+## Root layer (neovim-specific)
 
-The main architectural files are:
+The root project uses a **single-dispatch TEA architecture**:
 
-- [root-msg.ts](https://github.com/dlants/magenta.nvim/blob/main/node/root-msg.ts) - Defines the root message type that flows through the system
-- [magenta.ts](https://github.com/dlants/magenta.nvim/blob/main/node/magenta.ts#L21) - Contains the central dispatching loop in the `dispatch` method of the Magenta class
-- [tea/tea.ts](https://github.com/dlants/magenta.nvim/blob/main/node/tea/tea.ts) - Manages the rendering cycle
-- [view.ts](https://github.com/dlants/magenta.nvim/blob/main/node/tea/view.ts) - Implements the VDOM-like declarative rendering template
+- **`RootMsg`** (`node/root-msg.ts`) — a discriminated union of all message types (`ThreadMsg`, `ChatMsg`, `SidebarMsg`).
+- **`dispatch`** (`node/magenta.ts`) — the single state update point. Every message flows through `dispatch`, which forwards it to controllers and triggers a re-render.
+- **Controllers** (e.g. `Chat`, `Thread`) — each maintains its own state and filters `RootMsg` for messages relevant to it. Each controller has a `myDispatch` that wraps local messages into the appropriate `RootMsg` variant.
+- **`view`** — declarative TUI rendering using the `d` template literal, with `withBindings` for interactive elements.
+
+## Core → Root bridge
+
+The root `Thread` class (`node/chat/thread.ts`) bridges the two layers. In its constructor, it subscribes to `ThreadCore` events and converts them into dispatches:
+
+- `core.on("update")` → dispatches `{ type: "tool-progress" }` to trigger re-renders
+- `core.on("scrollToLastMessage")` → dispatches a `sidebar-msg` to scroll the view
+- `core.on("setupResubmit")` → dispatches a `sidebar-msg` to populate the input buffer
+
+This is the key pattern: **core emits events, the root subscribes at a single point (Thread), and converts them into RootMsg dispatches** that flow through the central update loop.
+
+## Message flow
+
+1. User action → binding or command dispatches a `RootMsg`
+2. `dispatch` forwards the message to all controllers
+3. Each controller filters for its own messages and updates internal state
+4. Controllers may dispatch additional messages to other controllers
+5. The view re-renders based on updated state
+
+Key files:
+
+- [root-msg.ts](https://github.com/dlants/magenta.nvim/blob/main/node/root-msg.ts) — root message union
+- [magenta.ts](https://github.com/dlants/magenta.nvim/blob/main/node/magenta.ts) — central dispatch loop
+- [tea/tea.ts](https://github.com/dlants/magenta.nvim/blob/main/node/tea/tea.ts) — render cycle
+- [tea/view.ts](https://github.com/dlants/magenta.nvim/blob/main/node/tea/view.ts) — declarative TUI template
 
 # View System
 
@@ -167,7 +161,8 @@ Quick reference:
 - Run tests: `npx vitest run` (from project root)
 - Run specific test: `npx vitest run <file>`
 - Use `withDriver()` helper for integration tests
-- Prefer realistic nvim interactions over internal API access
+- Prefer realistic nvim interactions over internal API access for integration tests
+- Prefer unit tests over core classes for things that don't require neovim / UX interaction
 
 # Type checks
 
@@ -177,17 +172,16 @@ To type-check just the core package: `npx tsgo -p node/core/tsconfig.json --noEm
 
 To run just the core tests: `npx vitest run node/core/`
 
-# Worktrees
+# Development Workflow
 
-This repo uses git worktrees with a bare repo layout. Sibling directories of the repo root are individual worktrees (e.g. `../main`, `../my-feature`).
+When given a task:
 
-To create a new worktree:
-
-```sh
-scripts/setup-worktree.sh <branch-name> [base-branch]
-```
-
-This creates the worktree as a sibling directory, sets up git hooks, and runs `npm ci`. If the branch already exists it checks it out; otherwise it creates a new branch optionally based on `[base-branch]`.
+1. **Create a branch** — Create a new branch for the task if one doesn't already exist.
+2. **Ask about planning** — Ask the user whether a planning step is needed before implementation.
+3. **Work in docker subagents** — All work should be done using `docker_unsupervised` subagents, unless otherwise requested:
+   - If a planning step is requested, spawn a separate docker subagent to produce the plan, then present it to the user for feedback before proceeding.
+   - All implementation work must be done in `docker_unsupervised` subagents (not `dev-in-docker`).
+   - Pass the branch name and have the prompt include the plan location to the docker subagent so it checks out the correct branch.
 
 # Notes
 
