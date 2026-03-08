@@ -44,6 +44,7 @@ Re-read both options files on every permission check, but use file `mtime` to av
 #### 1. New file: `node/options-loader.ts` — Dynamic options loader
 
 Create a class `DynamicOptionsLoader` that:
+
 - Holds the base `MagentaOptions` (from Lua config, which doesn't change)
 - Caches the parsed user settings and project settings, along with their file mtimes
 - On `getOptions()`: stats both options files, re-reads/re-parses only if mtime changed, re-merges, and returns the result
@@ -99,6 +100,7 @@ export class DynamicOptionsLoader {
 - Expose a getter `get options(): MagentaOptions` that delegates to `this.optionsLoader.getOptions()`
 
 Changes in `initMagenta()` (~line 520-551):
+
 - Keep the initial `parseOptions(opts)` call for `baseOptions`
 - Remove `loadUserSettings`/`loadProjectSettings`/`mergeOptions` calls
 - Create `new DynamicOptionsLoader(baseOptions, cwd, resolvedHomeDir, logger)`
@@ -122,6 +124,7 @@ In `createLocalEnvironment()`, the `options` parameter is already received from 
 However, there's a subtlety: `PermissionCheckingShell` and `PermissionCheckingFileIO` store `options` in their `permissionContext` at construction time. Since environments are created per-thread, options are frozen for the lifetime of a thread.
 
 Two approaches:
+
 - **Simple:** Accept that options are frozen per-thread. New threads get fresh options. This is probably fine — a user adds a permission and their next tool call (in a new or existing thread) picks it up.
 - **Fully dynamic:** Make `permissionContext.options` a getter. This requires changing how `permissionContext` is structured.
 
@@ -132,6 +135,7 @@ Two approaches:
 Change `permissionContext` type to use `getOptions: () => MagentaOptions` instead of `options: MagentaOptions`.
 
 Update `checkPermissions()`:
+
 ```typescript
 private checkPermissions(command: string): PermissionCheckResult {
   if (this.permissionContext.rememberedCommands.has(command)) {
@@ -163,23 +167,23 @@ No changes needed — `isCommandAllowedByConfig()` already receives `commandConf
 
 ### Files to change (summary)
 
-| File | Change |
-|------|--------|
-| `node/options-loader.ts` | **New file** — `DynamicOptionsLoader` class |
-| `node/magenta.ts` | Use `DynamicOptionsLoader` instead of one-time load |
-| `node/chat/chat.ts` | Ensure `options` comes from dynamic getter |
-| `node/environment.ts` | Pass `getOptions` callback instead of `options` |
-| `node/capabilities/permission-shell.ts` | Use `getOptions()` in `permissionContext` |
-| `node/capabilities/permission-file-io.ts` | Use `getOptions()` in `permissionContext` |
+| File                                      | Change                                              |
+| ----------------------------------------- | --------------------------------------------------- |
+| `node/options-loader.ts`                  | **New file** — `DynamicOptionsLoader` class         |
+| `node/magenta.ts`                         | Use `DynamicOptionsLoader` instead of one-time load |
+| `node/chat/chat.ts`                       | Ensure `options` comes from dynamic getter          |
+| `node/environment.ts`                     | Pass `getOptions` callback instead of `options`     |
+| `node/capabilities/permission-shell.ts`   | Use `getOptions()` in `permissionContext`           |
+| `node/capabilities/permission-file-io.ts` | Use `getOptions()` in `permissionContext`           |
 
 ### Files that do NOT need changes
 
-| File | Why |
-|------|-----|
-| `node/capabilities/permissions.ts` | Already parameterized |
-| `node/capabilities/bash-parser/permissions.ts` | Already parameterized |
-| `node/options.ts` | `loadUserSettings`, `loadProjectSettings`, `mergeOptions` are reused as-is |
-| `lua/magenta/options.lua` | Lua-side options don't change dynamically |
+| File                                           | Why                                                                        |
+| ---------------------------------------------- | -------------------------------------------------------------------------- |
+| `node/capabilities/permissions.ts`             | Already parameterized                                                      |
+| `node/capabilities/bash-parser/permissions.ts` | Already parameterized                                                      |
+| `node/options.ts`                              | `loadUserSettings`, `loadProjectSettings`, `mergeOptions` are reused as-is |
+| `lua/magenta/options.lua`                      | Lua-side options don't change dynamically                                  |
 
 ## Performance Considerations
 
