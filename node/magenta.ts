@@ -12,12 +12,10 @@ import type { Nvim } from "./nvim/nvim-node/index.ts";
 import { pos1col1to0, type Row0Indexed } from "./nvim/window.ts";
 import {
   getActiveProfile,
-  loadProjectSettings,
-  loadUserSettings,
   type MagentaOptions,
-  mergeOptions,
   parseOptions,
 } from "./options.ts";
+import { DynamicOptionsLoader } from "./options-loader.ts";
 import type { RootMsg, SidebarMsg } from "./root-msg.ts";
 import { Sidebar } from "./sidebar.ts";
 import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
@@ -51,14 +49,16 @@ export class Magenta {
   public dispatch: Dispatch<RootMsg>;
   public bufferTracker: BufferTracker;
   public commandRegistry: CommandRegistry;
+  public optionsLoader: DynamicOptionsLoader;
 
   constructor(
     public nvim: Nvim,
     public lsp: Lsp,
     public cwd: NvimCwd,
     public homeDir: HomeDir,
-    public options: MagentaOptions,
+    optionsLoader: DynamicOptionsLoader,
   ) {
+    this.optionsLoader = optionsLoader;
     this.bufferTracker = new BufferTracker(this.nvim);
     this.commandRegistry = new CommandRegistry();
     if (this.options.customCommands) {
@@ -102,7 +102,7 @@ export class Magenta {
       cwd: this.cwd,
       homeDir: this.homeDir,
       nvim: this.nvim,
-      options: this.options,
+      getOptions: () => this.options,
       lsp: this.lsp,
     });
 
@@ -128,6 +128,10 @@ export class Magenta {
       initialModel: this.chat,
       View: () => this.chat.view(),
     });
+  }
+
+  get options(): MagentaOptions {
+    return this.optionsLoader.getOptions();
   }
 
   getActiveProfile() {
@@ -520,25 +524,17 @@ ${lines.join("\n")}
     // Determine home directory - use provided value or fall back to os.homedir()
     const resolvedHomeDir = homeDir ?? (os.homedir() as HomeDir);
 
-    // Load and merge user settings (~/.magenta/options.json)
-    const userSettings = loadUserSettings(resolvedHomeDir, {
-      warn: (msg) => nvim.logger.warn(`User settings: ${msg}`),
-    });
-    const optionsWithUser = userSettings
-      ? mergeOptions(baseOptions, userSettings)
-      : baseOptions;
-
-    // Load and parse project settings (cwd/.magenta/options.json)
+    // Get the current working directory
     const cwd = await getcwd(nvim);
-    const projectSettings = loadProjectSettings(cwd, {
-      warn: (msg) => nvim.logger.warn(`Project settings: ${msg}`),
-    });
 
-    // Merge project settings with user+base options
-    const parsedOptions = projectSettings
-      ? mergeOptions(optionsWithUser, projectSettings)
-      : optionsWithUser;
-    const magenta = new Magenta(nvim, lsp, cwd, resolvedHomeDir, parsedOptions);
+    const optionsLoader = new DynamicOptionsLoader(
+      baseOptions,
+      cwd,
+      resolvedHomeDir,
+      { warn: (msg) => nvim.logger.warn(`Settings: ${msg}`) },
+    );
+    const parsedOptions = optionsLoader.getOptions();
+    const magenta = new Magenta(nvim, lsp, cwd, resolvedHomeDir, optionsLoader);
 
     // Initialize highlight groups in the magenta namespace
     try {

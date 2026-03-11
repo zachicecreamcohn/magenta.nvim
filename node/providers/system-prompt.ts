@@ -8,9 +8,9 @@ import {
   EXPLORE_SUBAGENT_SYSTEM_PROMPT,
   type NvimCwd,
   type ProviderOptions,
+  type SystemInfo,
   type SystemPrompt,
   type ThreadType,
-  type SystemInfo,
 } from "@magenta/core";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 

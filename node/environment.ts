@@ -50,7 +50,7 @@ export function createLocalEnvironment({
   bufferTracker,
   cwd,
   homeDir,
-  options,
+  getOptions,
   threadId,
   rememberedCommands,
   onPendingChange,
@@ -60,7 +60,7 @@ export function createLocalEnvironment({
   bufferTracker: BufferTracker;
   cwd: NvimCwd;
   homeDir: HomeDir;
-  options: MagentaOptions;
+  getOptions: () => MagentaOptions;
   threadId: ThreadId;
   rememberedCommands: Set<string>;
   onPendingChange: () => void;
@@ -73,14 +73,14 @@ export function createLocalEnvironment({
   });
   const permissionFileIO = new PermissionCheckingFileIOImpl(
     bufferFileIO,
-    { cwd, homeDir, options, nvim },
+    { cwd, homeDir, getOptions, nvim },
     onPendingChange,
   );
 
   const baseShell = new BaseShell({ cwd, threadId });
   const permissionShell = new PermissionCheckingShellImpl(
     baseShell,
-    { cwd, homeDir, options, nvim, rememberedCommands },
+    { cwd, homeDir, getOptions, nvim, rememberedCommands },
     onPendingChange,
   );
 

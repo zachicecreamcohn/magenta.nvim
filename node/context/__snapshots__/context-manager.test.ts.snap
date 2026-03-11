@@ -39,64 +39,10 @@ Avoid using large portions of text when using the EDL tool. Large text blocks ar
 When making a selection, select the beginning of the text, then extend_forward to the end. To move code around, use registers via cut.
 
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
-Only use the explore agent to answer specific questions that can be answered concisely, like summarizing how something works or where something is defined.
+Only use the explore agent when you don't already know where to find something. If you know the file or location, use get_file directly instead of spawning an explore agent.
 WRONG: read the full contents of file
-RIGHT: where is X is handled?
-</system-reminder>",
-        "type": "text",
-      },
-    ],
-    "role": "user",
-  },
-]
-`;
-
-exports[`context-files multiple, weird path names 1`] = `
-[
-  {
-    "content": [
-      {
-        "text": "<context_update>
-<file_paths>
-poem.txt (5 lines)
-poem 3.txt (2 lines)
-</file_paths>
-These files are part of your context. This is the latest information about the content of each file.
-From now on, whenever any of these files are updated by the user, you will get a message letting you know.
-File \`poem.txt\`
-Moonlight whispers through the trees,
-Silver shadows dance with ease.
-Stars above like diamonds bright,
-Paint their stories in the night.
-
-File \`poem 3.txt\`
-poem3
-
-</context_update>",
-        "type": "text",
-      },
-      {
-        "text": "check out this file",
-        "type": "text",
-      },
-      {
-        "cache_control": {
-          "type": "ephemeral",
-        },
-        "text": "<system-reminder>
-Remember the skills in <available-skills>.
-If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
-When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
-WRONG: \`command 2>&1 | tail -50\`
-WRONG: \`command | head -100\`
-RIGHT: \`command\`
-Avoid using large portions of text when using the EDL tool. Large text blocks are fragile and wasteful.
-When making a selection, select the beginning of the text, then extend_forward to the end. To move code around, use registers via cut.
-
-Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
-Only use the explore agent to answer specific questions that can be answered concisely, like summarizing how something works or where something is defined.
-WRONG: read the full contents of file
-RIGHT: where is X is handled?
+WRONG: spawning explore when you already know the file path
+RIGHT: where is X handled?
 </system-reminder>",
         "type": "text",
       },

@@ -29,7 +29,7 @@ export class PermissionCheckingShell implements Shell {
     private permissionContext: {
       cwd: NvimCwd;
       homeDir: HomeDir;
-      options: MagentaOptions;
+      getOptions: () => MagentaOptions;
       nvim: Nvim;
       rememberedCommands: Set<string>;
     },
@@ -41,16 +41,13 @@ export class PermissionCheckingShell implements Shell {
       return { allowed: true };
     }
 
-    return isCommandAllowedByConfig(
-      command,
-      this.permissionContext.options.commandConfig,
-      {
-        cwd: this.permissionContext.cwd,
-        homeDir: this.permissionContext.homeDir,
-        skillsPaths: this.permissionContext.options.skillsPaths,
-        filePermissions: this.permissionContext.options.filePermissions,
-      },
-    );
+    const options = this.permissionContext.getOptions();
+    return isCommandAllowedByConfig(command, options.commandConfig, {
+      cwd: this.permissionContext.cwd,
+      homeDir: this.permissionContext.homeDir,
+      skillsPaths: options.skillsPaths,
+      filePermissions: options.filePermissions,
+    });
   }
 
   async execute(

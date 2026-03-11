@@ -31,7 +31,7 @@ export class PermissionCheckingFileIO implements FileIO {
     private permissionContext: {
       cwd: NvimCwd;
       homeDir: HomeDir;
-      options: MagentaOptions;
+      getOptions: () => MagentaOptions;
       nvim: Nvim;
     },
     private onPendingChange: () => void,

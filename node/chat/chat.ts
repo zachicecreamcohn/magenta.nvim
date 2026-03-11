@@ -106,7 +106,7 @@ export class Chat implements ThreadManager {
       dispatch: Dispatch<RootMsg>;
       getDisplayWidth: () => number;
       bufferTracker: BufferTracker;
-      options: MagentaOptions;
+      getOptions: () => MagentaOptions;
       cwd: NvimCwd;
       homeDir: HomeDir;
       nvim: Nvim;
@@ -122,7 +122,7 @@ export class Chat implements ThreadManager {
     };
 
     this.mcpToolManager = new MCPToolManagerImpl(
-      this.context.options.mcpServers,
+      this.context.getOptions().mcpServers,
       { logger: this.context.nvim.logger },
     );
 
@@ -394,7 +394,10 @@ export class Chat implements ThreadManager {
     };
 
     const [autoContextFiles, environment] = await Promise.all([
-      resolveAutoContext(this.context),
+      resolveAutoContext({
+        ...this.context,
+        options: this.context.getOptions(),
+      }),
       resolvedConfig.type === "docker"
         ? createDockerEnvironment({
             container: resolvedConfig.container,
@@ -408,7 +411,7 @@ export class Chat implements ThreadManager {
               bufferTracker: this.context.bufferTracker,
               cwd: this.context.cwd,
               homeDir: this.context.homeDir,
-              options: this.context.options,
+              getOptions: this.context.getOptions,
               threadId,
               rememberedCommands: this.rememberedCommands,
               onPendingChange: () =>
@@ -431,7 +434,7 @@ export class Chat implements ThreadManager {
     const systemPrompt = await createSystemPrompt(threadType, {
       nvim: this.context.nvim,
       cwd: environment.cwd,
-      options: this.context.options,
+      options: this.context.getOptions(),
       ...(resolvedConfig.type === "docker"
         ? {
             systemInfoOverrides: {
@@ -444,7 +447,7 @@ export class Chat implements ThreadManager {
 
     const thread = new Thread(threadId, threadType, systemPrompt, {
       ...this.context,
-
+      options: this.context.getOptions(),
       mcpToolManager: this.mcpToolManager,
       profile,
       chat: this,
@@ -456,7 +459,7 @@ export class Chat implements ThreadManager {
       await thread.contextManager.addFiles(contextFiles);
     }
 
-    if (dockerSpawnConfig?.supervised && this.context.options.container) {
+    if (dockerSpawnConfig?.supervised && this.context.getOptions().container) {
       thread.supervisor = new DockerSupervisor(
         environment.shell,
         {
@@ -465,7 +468,7 @@ export class Chat implements ThreadManager {
           imageName: dockerSpawnConfig.imageName,
           startSha: dockerSpawnConfig.startSha,
         },
-        this.context.options.container,
+        this.context.getOptions().container!,
         dockerSpawnConfig.branch,
         this.context.cwd,
         {
@@ -522,8 +525,8 @@ export class Chat implements ThreadManager {
     await this.createThreadWithContext({
       threadId: id,
       profile: getActiveProfile(
-        this.context.options.profiles,
-        this.context.options.activeProfile,
+        this.context.getOptions().profiles,
+        this.context.getOptions().activeProfile,
       ),
       switchToThread: true,
       threadType: "root",
@@ -715,11 +718,14 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     };
 
     const [autoContextFiles, systemPrompt] = await Promise.all([
-      resolveAutoContext(this.context),
+      resolveAutoContext({
+        ...this.context,
+        options: this.context.getOptions(),
+      }),
       createSystemPrompt("root", {
         nvim: this.context.nvim,
         cwd: this.context.cwd,
-        options: this.context.options,
+        options: this.context.getOptions(),
       }),
     ]);
 
@@ -742,7 +748,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       bufferTracker: this.context.bufferTracker,
       cwd: this.context.cwd,
       homeDir: this.context.homeDir,
-      options: this.context.options,
+      getOptions: this.context.getOptions,
       threadId: newThreadId,
       rememberedCommands: this.rememberedCommands,
       onPendingChange: () =>
@@ -759,7 +765,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       systemPrompt,
       {
         ...this.context,
-
+        options: this.context.getOptions(),
         mcpToolManager: this.mcpToolManager,
         profile: sourceThread.context.profile,
         chat: this,
