@@ -1,6 +1,6 @@
-import type { Command } from "./types.ts";
 import type { ProviderMessageContent } from "../../providers/provider-types.ts";
 import { getDiagnostics } from "../../utils/diagnostics.ts";
+import type { Command } from "./types.ts";
 
 const createDiagnosticsCommand = (name: string, pattern: RegExp): Command => ({
   name,

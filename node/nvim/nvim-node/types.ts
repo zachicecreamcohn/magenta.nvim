@@ -1,5 +1,5 @@
 import type winston from "winston";
-import { type NeovimApi } from "./neovim-api.types.ts";
+import type { NeovimApi } from "./neovim-api.types.ts";
 
 export type Awaitable<T> = T | Promise<T>;
 

@@ -1,22 +1,22 @@
-import * as path from "node:path";
 import * as fs from "node:fs";
-import type { ParsedCommand, ParsedCommandList } from "./parser.ts";
-import { parse, ParserError } from "./parser.ts";
-import { LexerError } from "./lexer.ts";
+import * as path from "node:path";
+import type { FilePermission } from "../../options.ts";
 import {
-  resolveFilePath,
-  expandTilde,
-  type NvimCwd,
-  type UnresolvedFilePath,
   type AbsFilePath,
+  expandTilde,
   type HomeDir,
   MAGENTA_TEMP_DIR,
+  type NvimCwd,
+  resolveFilePath,
+  type UnresolvedFilePath,
 } from "../../utils/files.ts";
-import type { FilePermission } from "../../options.ts";
 import {
   getEffectivePermissions,
   hasNewSecretSegment,
 } from "../permissions.ts";
+import { LexerError } from "./lexer.ts";
+import type { ParsedCommand, ParsedCommandList } from "./parser.ts";
+import { ParserError, parse } from "./parser.ts";
 
 /** A single argument specification */
 export type ArgSpec =

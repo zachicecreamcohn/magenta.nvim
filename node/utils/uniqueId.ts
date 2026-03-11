@@ -13,7 +13,6 @@ export class IdCounter {
 
 export class Counter {
   private counter: number = 1;
-  constructor() {}
 
   get() {
     const val = this.counter;

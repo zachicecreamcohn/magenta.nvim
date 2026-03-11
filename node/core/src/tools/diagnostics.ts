@@ -1,16 +1,15 @@
-import { type Result } from "../utils/result.ts";
-import type {
-  ToolInvocation,
-  GenericToolRequest,
-  ToolName,
-} from "../tool-types.ts";
 import type { DiagnosticsProvider } from "../capabilities/diagnostics-provider.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider-types.ts";
+import type {
+  GenericToolRequest,
+  ToolInvocation,
+  ToolName,
+} from "../tool-types.ts";
+import type { Result } from "../utils/result.ts";
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type Input = {};
 
 export type ToolRequest = GenericToolRequest<"diagnostics", Input>;

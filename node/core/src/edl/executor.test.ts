@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { Executor, resolveIndex, type InitialDocIndex } from "./executor.ts";
+import { describe, expect, it } from "vitest";
+import { Executor, type InitialDocIndex, resolveIndex } from "./executor.ts";
 import { parse } from "./parser.ts";
 
 let testCounter = 0;

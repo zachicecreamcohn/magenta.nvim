@@ -1,13 +1,13 @@
-import type { Shell, ShellResult, OutputLine } from "./shell.ts";
+import type { Nvim } from "../nvim/nvim-node/index.ts";
+import type { MagentaOptions } from "../options.ts";
+import type { VDOMNode } from "../tea/view.ts";
+import { d, withBindings, withExtmark, withInlineCode } from "../tea/view.ts";
+import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import {
   isCommandAllowedByConfig,
   type PermissionCheckResult,
 } from "./bash-parser/permissions.ts";
-import type { MagentaOptions } from "../options.ts";
-import type { NvimCwd, HomeDir } from "../utils/files.ts";
-import type { Nvim } from "../nvim/nvim-node/index.ts";
-import { d, withBindings, withExtmark, withInlineCode } from "../tea/view.ts";
-import type { VDOMNode } from "../tea/view.ts";
+import type { OutputLine, Shell, ShellResult } from "./shell.ts";
 
 export type PendingCommand = {
   command: string;
@@ -163,15 +163,15 @@ ${withBindings(
 )}
 `,
 )}${
-      entries.length > 1
-        ? d`${withBindings(
-            withExtmark(d`> DENY ALL`, {
-              hl_group: ["ErrorMsg", "@markup.strong.markdown"],
-            }),
-            {
-              "<CR>": () => this.denyAll(),
-            },
-          )}
+  entries.length > 1
+    ? d`${withBindings(
+        withExtmark(d`> DENY ALL`, {
+          hl_group: ["ErrorMsg", "@markup.strong.markdown"],
+        }),
+        {
+          "<CR>": () => this.denyAll(),
+        },
+      )}
 ${withBindings(
   withExtmark(d`> APPROVE ALL`, {
     hl_group: ["String", "@markup.strong.markdown"],
@@ -181,7 +181,7 @@ ${withBindings(
   },
 )}
 `
-        : d``
-    }`;
+    : d``
+}`;
   }
 }

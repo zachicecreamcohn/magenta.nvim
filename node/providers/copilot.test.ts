@@ -265,19 +265,14 @@ describe.skip("CopilotProvider", () => {
 //         typeof schema.properties === "object"
 //       ) {
 //         // Type-safe property access
-//         // eslint-disable-next-line @typescript-eslint/no-explicit-any
 //         const properties = schema.properties as Record<string, any>;
-//         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 //         const emailProp = properties.email;
-//         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 //         const uriProp = properties.uri;
 //
 //         // Should remove unsupported formats and add descriptions
 //         expect(emailProp).not.toHaveProperty("format");
-//         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
 //         expect(emailProp.description).toBe("A valid email address");
 //         expect(uriProp).not.toHaveProperty("format");
-//         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
 //         expect(uriProp.description).toBe("A valid URI string");
 //
 //         // Should make all properties required and disable additional properties

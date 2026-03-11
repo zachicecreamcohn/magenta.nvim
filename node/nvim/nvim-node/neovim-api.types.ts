@@ -1,6 +1,6 @@
 /* eslint @typescript-eslint/no-invalid-void-type: 0 */
 
-import { type EventsMap } from "./types.ts";
+import type { EventsMap } from "./types.ts";
 
 type ui_options = [
   "rgb",
@@ -30,11 +30,11 @@ export type NeovimApi<
     };
     nvim_del_autocmd: {
       parameters: [id: number];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_clear_autocmds: {
       parameters: [opts: Record<string, unknown>];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_create_augroup: {
       parameters: [name: string, opts: Record<string, unknown>];
@@ -42,15 +42,15 @@ export type NeovimApi<
     };
     nvim_del_augroup_by_id: {
       parameters: [id: number];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_del_augroup_by_name: {
       parameters: [name: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_exec_autocmds: {
       parameters: [event: unknown, opts: Record<string, unknown>];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_buf_line_count: {
       parameters: [buffer: number];
@@ -85,7 +85,7 @@ export type NeovimApi<
         strict_indexing: boolean,
         replacement: string[],
       ];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_buf_set_text: {
       parameters: [
@@ -96,7 +96,7 @@ export type NeovimApi<
         end_col: number,
         replacement: string[],
       ];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_buf_get_text: {
       parameters: [
@@ -133,19 +133,19 @@ export type NeovimApi<
         rhs: string,
         opts: Record<string, unknown>,
       ];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_buf_del_keymap: {
       parameters: [buffer: number, mode: string, lhs: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_buf_set_var: {
       parameters: [buffer: number, name: string, value: unknown];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_buf_del_var: {
       parameters: [buffer: number, name: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_buf_get_name: {
       parameters: [buffer: number];
@@ -153,7 +153,7 @@ export type NeovimApi<
     };
     nvim_buf_set_name: {
       parameters: [buffer: number, name: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_buf_is_loaded: {
       parameters: [buffer: number];
@@ -161,7 +161,7 @@ export type NeovimApi<
     };
     nvim_buf_delete: {
       parameters: [buffer: number, opts: Record<string, unknown>];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_buf_is_valid: {
       parameters: [buffer: number];
@@ -203,11 +203,11 @@ export type NeovimApi<
         command: unknown,
         opts: Record<string, unknown>,
       ];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_del_user_command: {
       parameters: [name: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_buf_create_user_command: {
       parameters: [
@@ -216,11 +216,11 @@ export type NeovimApi<
         command: unknown,
         opts: Record<string, unknown>,
       ];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_buf_del_user_command: {
       parameters: [buffer: number, name: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_get_commands: {
       parameters: [opts: Record<string, unknown>];
@@ -293,11 +293,11 @@ export type NeovimApi<
         line_start: number,
         line_end: number,
       ];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_set_decoration_provider: {
       parameters: [ns_id: number, opts: Record<string, unknown>];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_get_option_value: {
       parameters: [name: string, opts: Record<string, unknown>];
@@ -305,7 +305,7 @@ export type NeovimApi<
     };
     nvim_set_option_value: {
       parameters: [name: string, value: unknown, opts: Record<string, unknown>];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_get_all_options_info: {
       parameters: [];
@@ -317,7 +317,7 @@ export type NeovimApi<
     };
     nvim_set_option: {
       parameters: [name: string, value: unknown];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_get_option: {
       parameters: [name: string];
@@ -329,7 +329,7 @@ export type NeovimApi<
     };
     nvim_buf_set_option: {
       parameters: [buffer: number, name: string, value: unknown];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_win_get_option: {
       parameters: [window: number, name: string];
@@ -337,7 +337,7 @@ export type NeovimApi<
     };
     nvim_win_set_option: {
       parameters: [window: number, name: string, value: unknown];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_tabpage_list_wins: {
       parameters: [tabpage: number];
@@ -349,11 +349,11 @@ export type NeovimApi<
     };
     nvim_tabpage_set_var: {
       parameters: [tabpage: number, name: string, value: unknown];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_tabpage_del_var: {
       parameters: [tabpage: number, name: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_tabpage_get_win: {
       parameters: [tabpage: number];
@@ -373,35 +373,35 @@ export type NeovimApi<
         height: number,
         options: Partial<Record<ui_options[number], unknown>>,
       ];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_ui_set_focus: {
       parameters: [gained: boolean];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_ui_detach: {
       parameters: [];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_ui_try_resize: {
       parameters: [width: number, height: number];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_ui_set_option: {
       parameters: [name: string, value: unknown];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_ui_try_resize_grid: {
       parameters: [grid: number, width: number, height: number];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_ui_pum_set_height: {
       parameters: [height: number];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_ui_pum_set_bounds: {
       parameters: [width: number, height: number, row: number, col: number];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_get_hl_id_by_name: {
       parameters: [name: string];
@@ -413,19 +413,19 @@ export type NeovimApi<
     };
     nvim_set_hl: {
       parameters: [ns_id: number, name: string, val: Record<string, unknown>];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_set_hl_ns: {
       parameters: [ns_id: number];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_set_hl_ns_fast: {
       parameters: [ns_id: number];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_feedkeys: {
       parameters: [keys: string, mode: string, escape_ks: boolean];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_input: {
       parameters: [keys: string];
@@ -440,7 +440,7 @@ export type NeovimApi<
         row: number,
         col: number,
       ];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_replace_termcodes: {
       parameters: [
@@ -477,7 +477,7 @@ export type NeovimApi<
     };
     nvim_set_current_dir: {
       parameters: [dir: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_get_current_line: {
       parameters: [];
@@ -485,11 +485,11 @@ export type NeovimApi<
     };
     nvim_set_current_line: {
       parameters: [line: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_del_current_line: {
       parameters: [];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_get_var: {
       parameters: [name: string];
@@ -497,11 +497,11 @@ export type NeovimApi<
     };
     nvim_set_var: {
       parameters: [name: string, value: unknown];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_del_var: {
       parameters: [name: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_get_vvar: {
       parameters: [name: string];
@@ -509,7 +509,7 @@ export type NeovimApi<
     };
     nvim_set_vvar: {
       parameters: [name: string, value: unknown];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_echo: {
       parameters: [
@@ -517,19 +517,19 @@ export type NeovimApi<
         history: boolean,
         opts: Record<string, unknown>,
       ];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_out_write: {
       parameters: [str: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_err_write: {
       parameters: [str: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_err_writeln: {
       parameters: [str: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_list_bufs: {
       parameters: [];
@@ -541,7 +541,7 @@ export type NeovimApi<
     };
     nvim_set_current_buf: {
       parameters: [buffer: number];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_list_wins: {
       parameters: [];
@@ -553,7 +553,7 @@ export type NeovimApi<
     };
     nvim_set_current_win: {
       parameters: [window: number];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_create_buf: {
       parameters: [listed: boolean, scratch: boolean];
@@ -565,7 +565,7 @@ export type NeovimApi<
     };
     nvim_chan_send: {
       parameters: [chan: number, data: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_list_tabpages: {
       parameters: [];
@@ -577,7 +577,7 @@ export type NeovimApi<
     };
     nvim_set_current_tabpage: {
       parameters: [tabpage: number];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_paste: {
       parameters: [data: string, crlf: boolean, phase: number];
@@ -590,15 +590,15 @@ export type NeovimApi<
         after: boolean,
         follow: boolean,
       ];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_subscribe: {
       parameters: [event: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_unsubscribe: {
       parameters: [event: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_get_color_by_name: {
       parameters: [name: string];
@@ -631,11 +631,11 @@ export type NeovimApi<
         rhs: string,
         opts: Record<string, unknown>,
       ];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_del_keymap: {
       parameters: [mode: string, lhs: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_get_api_info: {
       parameters: [];
@@ -649,7 +649,7 @@ export type NeovimApi<
         methods: Record<string, unknown>,
         attributes: Record<string, unknown>,
       ];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_get_chan_info: {
       parameters: [chan: number];
@@ -682,7 +682,7 @@ export type NeovimApi<
         finish: boolean,
         opts: Record<string, unknown>,
       ];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_del_mark: {
       parameters: [name: string];
@@ -702,7 +702,7 @@ export type NeovimApi<
     };
     nvim_command: {
       parameters: [command: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_eval: {
       parameters: [expr: string];
@@ -730,7 +730,7 @@ export type NeovimApi<
     };
     nvim_win_set_config: {
       parameters: [window: number, config: Record<string, unknown>];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_win_get_config: {
       parameters: [window: number];
@@ -742,7 +742,7 @@ export type NeovimApi<
     };
     nvim_win_set_buf: {
       parameters: [window: number, buffer: number];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_win_get_cursor: {
       parameters: [window: number];
@@ -750,7 +750,7 @@ export type NeovimApi<
     };
     nvim_win_set_cursor: {
       parameters: [window: number, pos: [number, number]];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_win_get_height: {
       parameters: [window: number];
@@ -758,7 +758,7 @@ export type NeovimApi<
     };
     nvim_win_set_height: {
       parameters: [window: number, height: number];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_win_get_width: {
       parameters: [window: number];
@@ -766,7 +766,7 @@ export type NeovimApi<
     };
     nvim_win_set_width: {
       parameters: [window: number, width: number];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_win_get_var: {
       parameters: [window: number, name: string];
@@ -774,11 +774,11 @@ export type NeovimApi<
     };
     nvim_win_set_var: {
       parameters: [window: number, name: string, value: unknown];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_win_del_var: {
       parameters: [window: number, name: string];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_win_get_position: {
       parameters: [window: number];
@@ -798,11 +798,11 @@ export type NeovimApi<
     };
     nvim_win_hide: {
       parameters: [window: number];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_win_close: {
       parameters: [window: number, force: boolean];
-      return_type: void;
+      return_type: undefined;
     };
     nvim_win_call: {
       parameters: [window: number, fun: unknown];
@@ -810,7 +810,7 @@ export type NeovimApi<
     };
     nvim_win_set_hl_ns: {
       parameters: [window: number, ns_id: number];
-      return_type: void;
+      return_type: undefined;
     };
   };
 

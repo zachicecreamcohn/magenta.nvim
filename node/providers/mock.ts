@@ -1,26 +1,28 @@
-import { type Result } from "../utils/result.ts";
+import type Anthropic from "@anthropic-ai/sdk";
+import { type ToolRequest, validateInput } from "@magenta/core";
+import winston from "winston";
 import { Defer, pollUntil } from "../utils/async.ts";
+import type { Result } from "../utils/result.ts";
+import { AnthropicAgent } from "./anthropic-agent.ts";
+import {
+  MockAnthropicClient,
+  type MockStream,
+} from "./mock-anthropic-client.ts";
+import { setMockProvider } from "./provider.ts";
 import type {
+  Agent,
+  AgentInput,
+  AgentOptions,
   Provider,
   ProviderMessage,
+  ProviderStreamEvent,
   ProviderStreamRequest,
-  StopReason,
-  Usage,
   ProviderToolSpec,
   ProviderToolUseRequest,
-  ProviderStreamEvent,
-  Agent,
-  AgentOptions,
-  AgentInput,
+  StopReason,
+  Usage,
 } from "./provider-types.ts";
-
-import { setMockProvider } from "./provider.ts";
 import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
-import { type ToolRequest, validateInput } from "@magenta/core";
-import { AnthropicAgent } from "./anthropic-agent.ts";
-import { MockAnthropicClient, MockStream } from "./mock-anthropic-client.ts";
-import type Anthropic from "@anthropic-ai/sdk";
-import winston from "winston";
 
 function anthropicBlockIncludesText(
   block: Anthropic.Messages.ContentBlockParam,
@@ -231,7 +233,7 @@ Streams: ${this.mockClient.streams.length}`);
     return pollUntil(() => {
       const lastStream =
         this.mockClient.streams[this.mockClient.streams.length - 1];
-      if (lastStream && lastStream.resolved) {
+      if (lastStream?.resolved) {
         return lastStream;
       }
       throw new Error(`has pending streams`);

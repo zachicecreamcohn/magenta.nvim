@@ -1,6 +1,6 @@
-import type { Command } from "./types.ts";
 import type { ProviderMessageContent } from "../../providers/provider-types.ts";
 import { getBuffersList } from "../../utils/listBuffers.ts";
+import type { Command } from "./types.ts";
 
 const createBuffersCommand = (name: string, pattern: RegExp): Command => ({
   name,

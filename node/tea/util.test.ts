@@ -1,13 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+import { type Line, NvimBuffer } from "../nvim/buffer.ts";
+import type { ByteIdx, Position0Indexed, Row0Indexed } from "../nvim/window.ts";
+import { withNvimClient } from "../test/preamble.ts";
 import {
   calculatePosition,
   replaceBetweenPositions,
   strWidthInBytes,
 } from "./util.ts";
 import { pos } from "./view.ts";
-import { NvimBuffer, type Line } from "../nvim/buffer.ts";
-import { withNvimClient } from "../test/preamble.ts";
-import type { ByteIdx, Position0Indexed, Row0Indexed } from "../nvim/window.ts";
 
 describe("tea/util.test.ts", () => {
   it("strWidthInBytes", async () => {

@@ -1,16 +1,16 @@
 import * as fs from "node:fs/promises";
 import type { FileIO } from "@magenta/core";
-import type { Nvim } from "../nvim/nvim-node/index.ts";
-import { NvimBuffer, type Line } from "../nvim/buffer.ts";
 import type { BufferTracker } from "../buffer-tracker.ts";
+import { type Line, NvimBuffer } from "../nvim/buffer.ts";
+import type { Nvim } from "../nvim/nvim-node/index.ts";
+import type { Row0Indexed } from "../nvim/window.ts";
 import { getBufferIfOpen } from "../utils/buffers.ts";
 import {
-  resolveFilePath,
   type AbsFilePath,
-  type NvimCwd,
   type HomeDir,
+  type NvimCwd,
+  resolveFilePath,
 } from "../utils/files.ts";
-import type { Row0Indexed } from "../nvim/window.ts";
 
 export class BufferAwareFileIO implements FileIO {
   constructor(

@@ -1,11 +1,11 @@
-import type { Nvim } from "./nvim/nvim-node/index.ts";
-import { NvimBuffer, type Line } from "./nvim/buffer.ts";
+import { type Line, NvimBuffer } from "./nvim/buffer.ts";
 import { getOption } from "./nvim/nvim.ts";
+import type { Nvim } from "./nvim/nvim-node/index.ts";
 import {
-  type Position1Indexed,
   NvimWindow,
-  type WindowId,
+  type Position1Indexed,
   type Row0Indexed,
+  type WindowId,
 } from "./nvim/window.ts";
 import type {
   Profile,
@@ -174,7 +174,7 @@ export class Sidebar {
   }
 
   async onWinClosed() {
-    if (this.state.state == "visible") {
+    if (this.state.state === "visible") {
       const [displayWindowValid, inputWindowValid] = await Promise.all([
         this.state.displayWindow.valid(),
         this.state.inputWindow.valid(),
@@ -198,7 +198,7 @@ export class Sidebar {
       }
     | undefined
   > {
-    if (this.state.state == "hidden") {
+    if (this.state.state === "hidden") {
       return await this.show(sidebarPosition, sidebarPositionOpts);
     } else {
       await this.hide();
@@ -248,7 +248,7 @@ export class Sidebar {
 
     let displayWindowId: WindowId;
 
-    if (resolvedPosition == "tab") {
+    if (resolvedPosition === "tab") {
       await this.nvim.call("nvim_command", ["tabnew"]);
       displayWindowId = (await this.nvim.call(
         "nvim_get_current_win",
@@ -339,7 +339,7 @@ export class Sidebar {
   }
 
   async renderInputHeader() {
-    if (this.state.state == "visible") {
+    if (this.state.state === "visible") {
       await this.state.inputWindow.setOption(
         "winbar",
         this.getInputWindowTitle(),
@@ -348,7 +348,7 @@ export class Sidebar {
   }
 
   async hide() {
-    if (this.state.state == "visible") {
+    if (this.state.state === "visible") {
       const { displayWindow, inputWindow, displayBuffer, inputBuffer } =
         this.state;
 
@@ -402,8 +402,8 @@ export class Sidebar {
         start: 0 as Row0Indexed,
         end: -1 as Row0Indexed,
       });
-      const lineIdx = lines.findLastIndex((l) => l == "# user:");
-      if (lineIdx != -1) {
+      const lineIdx = lines.lastIndexOf("# user:" as Line);
+      if (lineIdx !== -1) {
         await displayWindow.setCursor({
           row: lineIdx + 1,
           col: 0,
@@ -444,7 +444,7 @@ export class Sidebar {
     displayWindow?: NvimWindow | undefined;
     inputWindow?: NvimWindow | undefined;
   }> {
-    if (this.state.state != "visible") {
+    if (this.state.state !== "visible") {
       return {};
     }
 
@@ -463,7 +463,7 @@ export class Sidebar {
   }
 
   async getMessage(): Promise<string> {
-    if (this.state.state != "visible") {
+    if (this.state.state !== "visible") {
       this.nvim.logger.debug(
         `sidebar state is ${this.state.state} in getMessage`,
       );

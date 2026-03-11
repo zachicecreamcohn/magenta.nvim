@@ -1,33 +1,32 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { extendError, type Result } from "../utils/result.ts";
+import type { AnthropicAuth } from "../anthropic-auth.ts";
+import type { AuthUI } from "../auth-ui.ts";
+import type { Logger } from "../logger.ts";
 import type {
-  ToolRequestId,
   ToolRequest,
+  ToolRequestId,
   ValidateInput,
 } from "../tool-types.ts";
-import type { Logger } from "../logger.ts";
-import type { AuthUI } from "../auth-ui.ts";
-import type {
-  Provider,
-  ProviderMessage,
-  Usage,
-  ProviderToolSpec,
-  ProviderToolUseRequest,
-  ProviderTextContent,
-  Agent,
-  AgentOptions,
-  AgentInput,
-} from "./provider-types.ts";
-
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { extendError, type Result } from "../utils/result.ts";
 import {
   AnthropicAgent,
   CLAUDE_CODE_SPOOF_PROMPT,
   getMaxTokensForModel,
   withCacheControl,
 } from "./anthropic-agent.ts";
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import type {
+  Agent,
+  AgentInput,
+  AgentOptions,
+  Provider,
+  ProviderMessage,
+  ProviderTextContent,
+  ProviderToolSpec,
+  ProviderToolUseRequest,
+  Usage,
+} from "./provider-types.ts";
 import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
-import type { AnthropicAuth } from "../anthropic-auth.ts";
 
 function mapProviderTextToAnthropicText(
   providerText: ProviderTextContent,
@@ -66,7 +65,7 @@ export class AnthropicProvider implements Provider {
   constructor(
     protected logger: Logger,
     private authUI: AuthUI | undefined,
-    private _validateInput: ValidateInput,
+    _validateInput: ValidateInput,
     anthropicAuth: AnthropicAuth | undefined,
     options?: {
       baseUrl?: string | undefined;
@@ -120,7 +119,7 @@ export class AnthropicProvider implements Provider {
       };
 
       // Remove x-api-key header if present
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+      // biome-ignore lint/suspicious/noExplicitAny: necessary to cast headers to any to allow dynamic key deletion
       delete (headers as any)["x-api-key"];
 
       return fetch(input, {
@@ -179,7 +178,7 @@ export class AnthropicProvider implements Provider {
   }): MessageStreamParams {
     let anthropicMessages = messages.map((m): Anthropic.MessageParam => {
       let content: Anthropic.Messages.ContentBlockParam[];
-      if (typeof m.content == "string") {
+      if (typeof m.content === "string") {
         content = [
           {
             type: "text",
@@ -204,7 +203,7 @@ export class AnthropicProvider implements Provider {
 
             case "tool_use":
               content.push(
-                c.request.status == "ok"
+                c.request.status === "ok"
                   ? {
                       id: c.id,
                       input: c.request.value.input,
@@ -230,7 +229,7 @@ export class AnthropicProvider implements Provider {
               break;
 
             case "tool_result":
-              if (c.result.status == "ok") {
+              if (c.result.status === "ok") {
                 // Collect all contents into one array
                 const allContents: Array<
                   | Anthropic.Messages.TextBlockParam
@@ -441,6 +440,7 @@ export class AnthropicProvider implements Provider {
     let aborted = false;
 
     // Convert input to native Anthropic content blocks
+    // biome-ignore lint/suspicious/useIterableCallbackReturn: exhaustive switch with assertUnreachable handles all cases
     const userContent: Anthropic.Messages.ContentBlockParam[] = input.map(
       (c): Anthropic.Messages.ContentBlockParam => {
         switch (c.type) {
@@ -515,7 +515,7 @@ export class AnthropicProvider implements Provider {
         throw new Error("Response exceeded max_tokens limit");
       }
 
-      if (response.content.length != 1) {
+      if (response.content.length !== 1) {
         throw new Error(
           `Expected a single response but got ${response.content.length}`,
         );
@@ -525,21 +525,21 @@ export class AnthropicProvider implements Provider {
 
       const toolRequest = extendError(
         ((): Result<ToolRequest> => {
-          if (contentBlock.type != "tool_use") {
+          if (contentBlock.type !== "tool_use") {
             throw new Error(
               `Expected a tool_use response but got ${response.type}`,
             );
           }
 
-          if (typeof contentBlock != "object" || contentBlock == null) {
+          if (typeof contentBlock !== "object" || contentBlock == null) {
             return { status: "error", error: "received a non-object" };
           }
 
           const name = (
             contentBlock as unknown as { [key: string]: unknown } | undefined
-          )?.["name"];
+          )?.name;
 
-          if (name != spec.name) {
+          if (name !== spec.name) {
             return {
               status: "error",
               error: `expected contentBlock.name to be '${spec.name}'`,
@@ -548,21 +548,21 @@ export class AnthropicProvider implements Provider {
 
           const req2 = contentBlock as unknown as { [key: string]: unknown };
 
-          if (req2.type != "tool_use") {
+          if (req2.type !== "tool_use") {
             return {
               status: "error",
               error: "expected contentBlock.type to be tool_use",
             };
           }
 
-          if (typeof req2.id != "string") {
+          if (typeof req2.id !== "string") {
             return {
               status: "error",
               error: "expected contentBlock.id to be a string",
             };
           }
 
-          if (typeof req2.input != "object" || req2.input == null) {
+          if (typeof req2.input !== "object" || req2.input == null) {
             return {
               status: "error",
               error: "expected contentBlock.input to be an object",
@@ -574,7 +574,7 @@ export class AnthropicProvider implements Provider {
             req2.input as { [key: string]: unknown },
           );
 
-          if (input.status == "ok") {
+          if (input.status === "ok") {
             return {
               status: "ok",
               value: {
@@ -594,10 +594,10 @@ export class AnthropicProvider implements Provider {
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
       };
-      if (response.usage.cache_read_input_tokens != undefined) {
+      if (response.usage.cache_read_input_tokens != null) {
         usage.cacheHits = response.usage.cache_read_input_tokens;
       }
-      if (response.usage.cache_creation_input_tokens != undefined) {
+      if (response.usage.cache_creation_input_tokens != null) {
         usage.cacheMisses = response.usage.cache_creation_input_tokens;
       }
 

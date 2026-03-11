@@ -1,28 +1,28 @@
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { Logger } from "../logger.ts";
-import type { FileIO } from "../capabilities/file-io.ts";
+import * as diff from "diff";
 import type {
-  ToolApplied,
   ContextTracker,
+  ToolApplied,
   TrackedFileInfo,
 } from "../capabilities/context-tracker.ts";
+import type { FileIO } from "../capabilities/file-io.ts";
+import { Emitter } from "../emitter.ts";
+import type { Logger } from "../logger.ts";
+import type { ProviderMessageContent } from "../providers/provider-types.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import {
-  relativePath,
-  resolveFilePath,
+  type AbsFilePath,
   detectFileType,
   FileCategory,
-  type AbsFilePath,
+  type FileTypeInfo,
   type HomeDir,
   type NvimCwd,
   type RelFilePath,
+  relativePath,
+  resolveFilePath,
   type UnresolvedFilePath,
-  type FileTypeInfo,
 } from "../utils/files.ts";
-import type { Result } from "../utils/result.ts";
-import type { ProviderMessageContent } from "../providers/provider-types.ts";
 import { getSummaryAsProviderContent } from "../utils/pdf-pages.ts";
-import { Emitter } from "../emitter.ts";
-import * as diff from "diff";
+import type { Result } from "../utils/result.ts";
 
 export type Patch = string & { __patch: true };
 
@@ -385,7 +385,7 @@ From now on, whenever any of these files are updated by the user, you will get a
     fileInfo: Files[AbsFilePath],
   ): Promise<FileUpdates[keyof FileUpdates] | undefined> {
     try {
-      if (fileInfo.agentView != undefined) {
+      if (fileInfo.agentView !== undefined) {
         switch (fileInfo.agentView.type) {
           case "text":
             throw new Error(
@@ -437,7 +437,7 @@ From now on, whenever any of these files are updated by the user, you will get a
           }
         }
       } else {
-        if (fileInfo.fileTypeInfo.category == FileCategory.PDF) {
+        if (fileInfo.fileTypeInfo.category === FileCategory.PDF) {
           try {
             const summaryResult =
               await getSummaryAsProviderContent(absFilePath);
@@ -480,7 +480,7 @@ From now on, whenever any of these files are updated by the user, you will get a
               },
             };
           }
-        } else if (fileInfo.fileTypeInfo.category == FileCategory.IMAGE) {
+        } else if (fileInfo.fileTypeInfo.category === FileCategory.IMAGE) {
           try {
             const buffer = await this.fileIO.readBinaryFile(absFilePath);
             fileInfo.agentView = { type: "binary" };
@@ -558,7 +558,7 @@ From now on, whenever any of these files are updated by the user, you will get a
 
       case "get-file-pdf": {
         if (fileInfo.agentView?.type === "pdf") {
-          if (tool.content.type == "summary") {
+          if (tool.content.type === "summary") {
             fileInfo.agentView.summary = true;
           } else {
             if (!fileInfo.agentView.pages.includes(tool.content.pdfPage)) {
@@ -569,8 +569,8 @@ From now on, whenever any of these files are updated by the user, you will get a
         } else {
           fileInfo.agentView = {
             type: "pdf",
-            summary: tool.content.type == "summary",
-            pages: tool.content.type == "page" ? [tool.content.pdfPage] : [],
+            summary: tool.content.type === "summary",
+            pages: tool.content.type === "page" ? [tool.content.pdfPage] : [],
             supportsPageExtraction: true,
           };
         }

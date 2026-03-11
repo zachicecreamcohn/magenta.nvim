@@ -1,9 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
-import * as WaitForSubagents from "./wait-for-subagents.ts";
+import { describe, expect, it, vi } from "vitest";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
 import type { ThreadId } from "../chat-types.ts";
-import type { Result } from "../utils/result.ts";
 import type { ToolRequestId } from "../tool-types.ts";
+import type { Result } from "../utils/result.ts";
+import * as WaitForSubagents from "./wait-for-subagents.ts";
 
 function createMockThreadManager(
   results: Record<

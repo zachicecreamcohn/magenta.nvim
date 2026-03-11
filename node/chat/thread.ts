@@ -1,48 +1,36 @@
-import { type FileUpdates } from "../context/context-manager.ts";
-import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
-
-import { type Dispatch } from "../tea/tea.ts";
-
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import type { ThreadSupervisor } from "@magenta/core";
 import {
-  type ToolRequestId,
-  MCPToolManagerImpl,
-  ThreadCore,
-  type InputMessage,
-  ContextManager,
   type ContextFiles,
+  type ContextManager,
+  type InputMessage,
+  type MCPToolManagerImpl,
+  ThreadCore,
   type ThreadId,
   type ThreadType,
+  type ToolRequestId,
 } from "@magenta/core";
-
-import type { Nvim } from "../nvim/nvim-node/index.ts";
-
-import {
-  getProvider as getProvider,
-  type ProviderMessage,
-  type Agent,
-  type AgentStatus,
-} from "../providers/provider.ts";
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { type MagentaOptions, type Profile } from "../options.ts";
-import type { RootMsg } from "../root-msg.ts";
-import {
-  type HomeDir,
-  type NvimCwd,
-  type UnresolvedFilePath,
-} from "../utils/files.ts";
-
-import type { Chat } from "./chat.ts";
-import type { SystemPrompt } from "../providers/system-prompt.ts";
-
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
 import player from "play-sound";
-
 import type { PermissionCheckingFileIO } from "../capabilities/permission-file-io.ts";
 import type { PermissionCheckingShell } from "../capabilities/permission-shell.ts";
+import type { FileUpdates } from "../context/context-manager.ts";
 import type { Environment } from "../environment.ts";
-
-import type { ThreadSupervisor } from "@magenta/core";
+import type { Nvim } from "../nvim/nvim-node/index.ts";
+import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
+import type { MagentaOptions, Profile } from "../options.ts";
+import {
+  type Agent,
+  type AgentStatus,
+  getProvider,
+  type ProviderMessage,
+} from "../providers/provider.ts";
+import type { SystemPrompt } from "../providers/system-prompt.ts";
+import type { RootMsg } from "../root-msg.ts";
+import type { Dispatch } from "../tea/tea.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import type { HomeDir, NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
+import type { Chat } from "./chat.ts";
 
 export type Msg =
   | { type: "set-title"; title: string }
@@ -263,7 +251,7 @@ export class Thread {
   }
 
   update(msg: RootMsg): void {
-    if (msg.type == "thread-msg" && msg.id == this.id) {
+    if (msg.type === "thread-msg" && msg.id === this.id) {
       this.myUpdate(msg.msg);
     }
   }
@@ -397,7 +385,7 @@ export class Thread {
 
       const playOptions = {
         afplay: ["-v", actualVolume.toString()],
-        aplay: ["-v", Math.round(actualVolume * 100).toString() + "%"],
+        aplay: ["-v", `${Math.round(actualVolume * 100).toString()}%`],
         mpg123: ["-f", Math.round(actualVolume * 32768).toString()],
       };
 

@@ -1,14 +1,14 @@
-import { describe, it, expect, vi } from "vitest";
-import * as Hover from "./hover.ts";
+import { describe, expect, it, vi } from "vitest";
+import type { FileIO } from "../capabilities/file-io.ts";
 import type {
   LspClient,
-  LspHoverResponse,
   LspDefinitionResponse,
+  LspHoverResponse,
 } from "../capabilities/lsp-client.ts";
-import type { FileIO } from "../capabilities/file-io.ts";
-import type { ToolRequestId } from "../tool-types.ts";
-import type { NvimCwd, HomeDir } from "../utils/files.ts";
 import type { ProviderToolResult } from "../providers/provider-types.ts";
+import type { ToolRequestId } from "../tool-types.ts";
+import type { HomeDir, NvimCwd } from "../utils/files.ts";
+import * as Hover from "./hover.ts";
 
 function createMockLspClient(overrides: Partial<LspClient> = {}): LspClient {
   return {
@@ -155,7 +155,6 @@ describe("hover unit tests", () => {
     // the standalone "Transport" (index 10-18), not "AutoTransport"
     // The last char of "Transport" at index 10 is at index 18 (10 + 9 - 1)
     // which is line 0, character 18
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(lspClient.requestHover).toHaveBeenCalledWith(expect.anything(), {
       line: 0,
       character: 18,
@@ -193,7 +192,6 @@ describe("hover unit tests", () => {
     // The symbolStart in the full buffer = contextIndex + 8.
     // The position passed to LSP is for the last char of "res" = symbolStart + 2.
     // Line 5 (0-indexed), character 10 (0-indexed) for the 's' of the second 'res'
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(lspClient.requestHover).toHaveBeenCalledWith(expect.anything(), {
       line: 5,
       character: 10,

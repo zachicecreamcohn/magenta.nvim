@@ -1,14 +1,14 @@
-import { d, withInlineCode, type VDOMNode } from "../tea/view.ts";
-import {
-  resolveFilePath,
-  displayPath,
-  type UnresolvedFilePath,
-} from "../utils/files.ts";
 import type {
-  DisplayContext,
   CompletedToolInfo,
+  DisplayContext,
   ToolRequest as UnionToolRequest,
 } from "@magenta/core";
+import { d, type VDOMNode, withInlineCode } from "../tea/view.ts";
+import {
+  displayPath,
+  resolveFilePath,
+  type UnresolvedFilePath,
+} from "../utils/files.ts";
 
 type Input = {
   filePath: UnresolvedFilePath;

@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { withDriver } from "./test/preamble.ts";
+import { describe, expect, it } from "vitest";
 import { getQuickfixList, quickfixListToString } from "./nvim/nvim.ts";
+import { withDriver } from "./test/preamble.ts";
 
 describe("node/nvim.test.ts", () => {
   it("should populate quickfix list and fetch it from node side", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tokenize, LexerError } from "./lexer.ts";
+import { LexerError, tokenize } from "./lexer.ts";
 
 describe("bash lexer", () => {
   describe("basic words", () => {
@@ -207,6 +207,7 @@ describe("bash lexer", () => {
 
     it("should throw on variable expansion in double quotes", () => {
       expect(() => tokenize('echo "$HOME"')).toThrow(LexerError);
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: testing bash variable expansion
       expect(() => tokenize('echo "${HOME}"')).toThrow(LexerError);
     });
 
@@ -273,6 +274,7 @@ describe("bash lexer", () => {
 
     it("should throw on variable expansion", () => {
       expect(() => tokenize("echo $HOME")).toThrow(LexerError);
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: testing bash variable expansion
       expect(() => tokenize("echo ${HOME}")).toThrow(LexerError);
     });
 

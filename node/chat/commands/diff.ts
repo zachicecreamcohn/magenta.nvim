@@ -1,7 +1,7 @@
-import type { Command } from "./types.ts";
-import type { ProviderMessageContent } from "../../providers/provider-types.ts";
-import type { UnresolvedFilePath, NvimCwd } from "../../utils/files.ts";
 import { $, within } from "zx";
+import type { ProviderMessageContent } from "../../providers/provider-types.ts";
+import type { NvimCwd, UnresolvedFilePath } from "../../utils/files.ts";
+import type { Command } from "./types.ts";
 
 async function getGitDiff(
   filePath: UnresolvedFilePath,

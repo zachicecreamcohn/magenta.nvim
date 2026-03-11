@@ -1,6 +1,6 @@
+import type { ToolName, ToolRequestId } from "@magenta/core";
 import { describe, expect, it } from "vitest";
 import { withDriver } from "../test/preamble.ts";
-import type { ToolRequestId, ToolName } from "@magenta/core";
 
 describe("node/tools/thread-title.test.ts", () => {
   it("sets thread title after user message", async () => {
@@ -30,7 +30,6 @@ describe("node/tools/thread-title.test.ts", () => {
       expect(request.input).toMatchObject([
         {
           type: "text",
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           text: expect.stringContaining(userMessage),
         },
       ] as unknown[]);

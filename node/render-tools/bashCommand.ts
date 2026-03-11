@@ -1,21 +1,23 @@
+import type {
+  BashCommand,
+  CompletedToolInfo,
+  DisplayContext,
+  ToolRequest as UnionToolRequest,
+} from "@magenta/core";
+import type { OutputLine } from "../capabilities/shell.ts";
+import type { Nvim } from "../nvim/nvim-node/index.ts";
+import type { MagentaOptions } from "../options.ts";
 import {
   d,
+  type VDOMNode,
   withBindings,
   withCode,
   withInlineCode,
-  type VDOMNode,
 } from "../tea/view.ts";
-import type {
-  CompletedToolInfo,
-  ToolRequest as UnionToolRequest,
-  DisplayContext,
-  BashCommand,
-} from "@magenta/core";
-import type { Nvim } from "../nvim/nvim-node/index.ts";
-import type { NvimCwd, UnresolvedFilePath, HomeDir } from "../utils/files.ts";
-import type { MagentaOptions } from "../options.ts";
-import type { OutputLine } from "../capabilities/shell.ts";
+import type { HomeDir, NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
+
 type BashProgress = BashCommand.BashProgress;
+
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
 
 type Input = {
@@ -81,9 +83,9 @@ function formatOutputPreview(
     const displayWidth = getDisplayWidth() - 5;
     const displayText =
       line.text.length > displayWidth
-        ? line.text.substring(0, displayWidth) + "..."
+        ? `${line.text.substring(0, displayWidth)}...`
         : line.text;
-    formattedOutput += displayText + "\n";
+    formattedOutput += `${displayText}\n`;
   }
 
   return formattedOutput;
@@ -150,7 +152,7 @@ export function renderCompletedPreview(
 
   let previewLines = lines.length > maxLines ? lines.slice(-maxLines) : lines;
   previewLines = previewLines.map((line) =>
-    line.length > maxLength ? line.substring(0, maxLength) + "..." : line,
+    line.length > maxLength ? `${line.substring(0, maxLength)}...` : line,
   );
 
   const previewText = previewLines.join("\n");
@@ -185,7 +187,7 @@ function renderOutputDetail(
       formattedOutput += line.stream === "stdout" ? "stdout:\n" : "stderr:\n";
       currentStream = line.stream;
     }
-    formattedOutput += line.text + "\n";
+    formattedOutput += `${line.text}\n`;
   }
 
   const logFileView = logFilePath

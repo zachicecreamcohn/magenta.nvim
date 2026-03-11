@@ -1,34 +1,34 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import {
+  SSEClientTransport,
+  type SSEClientTransportOptions,
+} from "@modelcontextprotocol/sdk/client/sse.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import {
   StreamableHTTPClientTransport,
   type StreamableHTTPClientTransportOptions,
 } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
-  SSEClientTransport,
-  type SSEClientTransportOptions,
-} from "@modelcontextprotocol/sdk/client/sse.js";
-import {
-  CallToolResultSchema,
   type CallToolResult,
+  CallToolResultSchema,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { MCPServerConfig } from "./options.ts";
+import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import type { Logger } from "../../logger.ts";
 import type {
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../../providers/provider-types.ts";
 import { assertUnreachable } from "../../utils/assertUnreachable.ts";
-import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
+import { MockMCPServer } from "./mock-server.ts";
+import type { MCPServerConfig } from "./options.ts";
 import {
-  mcpToolNameToToolName,
   type MCPToolName,
   type MCPToolRequestParams,
+  mcpToolNameToToolName,
   type ServerName,
 } from "./types.ts";
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { MockMCPServer } from "./mock-server.ts";
 
 export class MCPClient {
   private client: Client | undefined;
@@ -235,6 +235,7 @@ export class MCPClient {
       CallToolResultSchema,
     );
 
+    // biome-ignore lint/suspicious/useIterableCallbackReturn: exhaustive switch handles all cases
     const content = result.content.map((c): ProviderToolResultContent => {
       switch (c.type) {
         case "text":
@@ -277,7 +278,7 @@ export class MCPClient {
 
     if (result.isError) {
       const textContent = content
-        .filter((c) => c.type == "text")
+        .filter((c) => c.type === "text")
         .map((c) => c.text)
         .join("\n");
 

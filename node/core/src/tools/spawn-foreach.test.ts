@@ -1,11 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
-import * as SpawnForeach from "./spawn-foreach.ts";
-import type { ForEachElement } from "./spawn-foreach.ts";
+import { describe, expect, it, vi } from "vitest";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
 import type { ThreadId } from "../chat-types.ts";
 import type { ToolRequestId } from "../tool-types.ts";
-import type { Result } from "../utils/result.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { Result } from "../utils/result.ts";
+import type { ForEachElement } from "./spawn-foreach.ts";
+import * as SpawnForeach from "./spawn-foreach.ts";
 
 function createMockThreadManager(opts?: {
   spawnThread?: ThreadManager["spawnThread"];

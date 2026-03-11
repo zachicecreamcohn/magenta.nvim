@@ -1,9 +1,9 @@
+import * as assert from "node:assert";
+import { describe, it } from "vitest";
+import { type Line, NvimBuffer } from "../nvim/buffer.ts";
+import type { Row0Indexed } from "../nvim/window.ts";
 import { extractMountTree, withNvimClient } from "../test/preamble.ts";
 import { d, mountView, pos } from "./view.ts";
-import * as assert from "assert";
-import { describe, it } from "vitest";
-import { NvimBuffer, type Line } from "../nvim/buffer.ts";
-import { type Row0Indexed } from "../nvim/window.ts";
 
 describe("Neovim Plugin Tests", () => {
   it("basic rendering & update", async () => {

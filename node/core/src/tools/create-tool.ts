@@ -1,37 +1,34 @@
-import * as GetFile from "./getFile.ts";
-import * as Hover from "./hover.ts";
-import * as FindReferences from "./findReferences.ts";
-import * as Diagnostics from "./diagnostics.ts";
-import * as BashCommand from "./bashCommand.ts";
-import * as ThreadTitle from "./thread-title.ts";
-import * as SpawnSubagent from "./spawn-subagent.ts";
-import * as SpawnForeach from "./spawn-foreach.ts";
-import * as WaitForSubagents from "./wait-for-subagents.ts";
-import * as YieldToParent from "./yield-to-parent.ts";
-import * as Edl from "./edl.ts";
-
-import type { EdlRegisters } from "../edl/index.ts";
-
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { LspClient } from "../capabilities/lsp-client.ts";
 import type {
   ContextTracker,
   OnToolApplied,
 } from "../capabilities/context-tracker.ts";
 import type { DiagnosticsProvider } from "../capabilities/diagnostics-provider.ts";
 import type { FileIO } from "../capabilities/file-io.ts";
+import type { LspClient } from "../capabilities/lsp-client.ts";
 import type { Shell } from "../capabilities/shell.ts";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
-import type { ToolRequest, ToolInvocation } from "../tool-types.ts";
 import type { ThreadId } from "../chat-types.ts";
-import type { HomeDir, NvimCwd } from "../utils/files.ts";
-import type { Logger } from "../logger.ts";
-
-import type { StaticToolRequest } from "./toolManager.ts";
 import type { ContainerConfig, ProvisionResult } from "../container/types.ts";
+import type { EdlRegisters } from "../edl/index.ts";
+import type { Logger } from "../logger.ts";
+import type { ToolInvocation, ToolRequest } from "../tool-types.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import type { HomeDir, NvimCwd } from "../utils/files.ts";
+import * as BashCommand from "./bashCommand.ts";
+import * as Diagnostics from "./diagnostics.ts";
+import * as Edl from "./edl.ts";
+import * as FindReferences from "./findReferences.ts";
+import * as GetFile from "./getFile.ts";
+import * as Hover from "./hover.ts";
 import type { MCPToolManager } from "./mcp/manager.ts";
-import { parseToolName } from "./mcp/types.ts";
 import * as MCPTool from "./mcp/tool.ts";
+import { parseToolName } from "./mcp/types.ts";
+import * as SpawnForeach from "./spawn-foreach.ts";
+import * as SpawnSubagent from "./spawn-subagent.ts";
+import * as ThreadTitle from "./thread-title.ts";
+import type { StaticToolRequest } from "./toolManager.ts";
+import * as WaitForSubagents from "./wait-for-subagents.ts";
+import * as YieldToParent from "./yield-to-parent.ts";
 
 export type CreateToolContext = {
   threadId: ThreadId;

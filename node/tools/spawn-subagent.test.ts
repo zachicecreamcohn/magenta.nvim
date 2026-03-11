@@ -1,15 +1,14 @@
-import { withDriver } from "../test/preamble.ts";
-import { describe, expect, it, vi } from "vitest";
-import {
-  type ToolRequestId,
-  type ToolName,
-  type ThreadId,
-  pollUntil,
-} from "@magenta/core";
-import { EXPLORE_SUBAGENT_SYSTEM_PROMPT } from "../providers/system-prompt.ts";
-
-import type { Chat } from "../chat/chat.ts";
 import type Anthropic from "@anthropic-ai/sdk";
+import {
+  pollUntil,
+  type ThreadId,
+  type ToolName,
+  type ToolRequestId,
+} from "@magenta/core";
+import { describe, expect, it, vi } from "vitest";
+import type { Chat } from "../chat/chat.ts";
+import { EXPLORE_SUBAGENT_SYSTEM_PROMPT } from "../providers/system-prompt.ts";
+import { withDriver } from "../test/preamble.ts";
 
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
 function findChildThread(chat: Chat) {

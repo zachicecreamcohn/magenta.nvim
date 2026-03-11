@@ -1,7 +1,12 @@
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 import type { MessageStream } from "@anthropic-ai/sdk/lib/MessageStream.mjs";
+import { Emitter } from "../emitter.ts";
+import type { Logger } from "../logger.ts";
+import type { ToolName, ToolRequestId, ValidateInput } from "../tool-types.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type {
   Agent,
+  AgentEvents,
   AgentInput,
   AgentOptions,
   AgentState,
@@ -11,13 +16,6 @@ import type {
   ProviderMessage,
   ProviderToolResult,
 } from "./provider-types.ts";
-import { Emitter } from "../emitter.ts";
-import type { AgentEvents } from "./provider-types.ts";
-import type { ToolRequestId } from "../tool-types.ts";
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { Logger } from "../logger.ts";
-import type { ToolName } from "../tool-types.ts";
-import type { ValidateInput } from "../tool-types.ts";
 
 export type AnthropicAgentOptions = {
   authType: "key" | "max";
@@ -480,7 +478,6 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
     // Deep copy messages — during streaming, this.messages already contains
     // a reference to currentAssistantMessage with all finalized blocks
     // (but not the in-progress currentAnthropicBlock)
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     cloned.messages = JSON.parse(JSON.stringify(this.messages));
 
     // Clean up the cloned messages to handle incomplete state
@@ -848,6 +845,7 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
   private convertInputToNative(
     content: AgentInput[],
   ): Anthropic.MessageParam["content"] {
+    // biome-ignore lint/suspicious/useIterableCallbackReturn: exhaustive switch handles all cases
     return content.map((c): Anthropic.Messages.ContentBlockParam => {
       switch (c.type) {
         case "text":
@@ -944,7 +942,7 @@ export function convertAnthropicMessagesToProvider(
   return messages.map((msg, msgIndex): ProviderMessage => {
     const stopInfo = messageStopInfo?.get(msgIndex);
     const content =
-      typeof msg.content == "string"
+      typeof msg.content === "string"
         ? [{ type: "text" as const, text: msg.content }]
         : msg.content.map((block) =>
             convertBlockToProvider(validateInput, block),
@@ -1172,7 +1170,7 @@ export function withCacheControl(
     messageIndex--
   ) {
     const message = messages[messageIndex];
-    if (typeof message.content == "string") {
+    if (typeof message.content === "string") {
       continue;
     }
 
@@ -1186,7 +1184,7 @@ export function withCacheControl(
       // Check if this block is eligible for caching
       if (
         block &&
-        typeof block != "string" &&
+        typeof block !== "string" &&
         block.type !== "thinking" &&
         block.type !== "redacted_thinking" &&
         !(block.type === "text" && !block.text)

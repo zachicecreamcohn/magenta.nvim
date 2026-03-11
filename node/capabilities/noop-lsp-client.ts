@@ -1,10 +1,10 @@
 import type {
+  AbsFilePath,
   LspClient,
+  LspDefinitionResponse,
   LspHoverResponse,
   LspReferencesResponse,
-  LspDefinitionResponse,
 } from "@magenta/core";
-import type { AbsFilePath } from "@magenta/core";
 
 export class NoopLspClient implements LspClient {
   requestHover(

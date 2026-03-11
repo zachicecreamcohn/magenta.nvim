@@ -1,24 +1,24 @@
-import { type Result } from "../utils/result.ts";
+import type { FileIO } from "../capabilities/file-io.ts";
 
 import type { LspClient } from "../capabilities/lsp-client.ts";
-import type { FileIO } from "../capabilities/file-io.ts";
-import { calculateStringPosition } from "../utils/string-position.ts";
-import type { PositionString, StringIdx } from "../utils/string-position.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider-types.ts";
-import {
-  resolveFilePath,
-  type NvimCwd,
-  type UnresolvedFilePath,
-  type HomeDir,
-} from "../utils/files.ts";
 import type {
-  ToolName,
   GenericToolRequest,
   ToolInvocation,
+  ToolName,
 } from "../tool-types.ts";
+import {
+  type HomeDir,
+  type NvimCwd,
+  resolveFilePath,
+  type UnresolvedFilePath,
+} from "../utils/files.ts";
+import type { Result } from "../utils/result.ts";
+import type { PositionString, StringIdx } from "../utils/string-position.ts";
+import { calculateStringPosition } from "../utils/string-position.ts";
 
 export function execute(
   request: ToolRequest,
@@ -106,7 +106,7 @@ export function execute(
 
       let content = "";
       for (const lspResult of result) {
-        if (lspResult != null && lspResult.result) {
+        if (lspResult?.result) {
           for (const ref of lspResult.result) {
             const uri = ref.uri.startsWith("file://")
               ? ref.uri.slice(7)
@@ -191,11 +191,11 @@ export type ToolRequest = GenericToolRequest<"find_references", Input>;
 export function validateInput(input: {
   [key: string]: unknown;
 }): Result<Input> {
-  if (typeof input.filePath != "string") {
+  if (typeof input.filePath !== "string") {
     return { status: "error", error: "expected input.filePath to be a string" };
   }
 
-  if (typeof input.symbol != "string") {
+  if (typeof input.symbol !== "string") {
     return { status: "error", error: "expected input.symbol to be a string" };
   }
 

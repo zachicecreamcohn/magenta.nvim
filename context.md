@@ -171,6 +171,9 @@ Use `npx tsgo -b` to run type checking, from the project root. This uses build m
 To type-check just the core package: `npx tsgo -p node/core/tsconfig.json --noEmit`
 
 To run just the core tests: `npx vitest run node/core/`
+# Linting and Formatting
+
+Use `npx biome check .` to run linting and formatting checks. Use `npx biome check --write .` to auto-fix issues.
 
 # Development Workflow
 

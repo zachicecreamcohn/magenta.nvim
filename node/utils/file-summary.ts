@@ -1,12 +1,12 @@
 export {
-  type Chunk,
-  type FileSummary,
-  tokenize,
   buildFrequencyTable,
+  type Chunk,
   chunkFile,
   computeScopeSize,
+  type FileSummary,
+  formatSummary,
   scoreChunk,
   selectChunks,
   summarizeFile,
-  formatSummary,
+  tokenize,
 } from "@magenta/core";

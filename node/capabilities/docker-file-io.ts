@@ -1,5 +1,5 @@
-import { execFile as execFileCb, spawn } from "child_process";
-import { promisify } from "util";
+import { execFile as execFileCb, spawn } from "node:child_process";
+import { promisify } from "node:util";
 import type { FileIO } from "@magenta/core";
 
 const execFile = promisify(execFileCb);

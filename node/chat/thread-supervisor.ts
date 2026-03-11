@@ -1,9 +1,12 @@
-import type { Shell } from "../capabilities/shell.ts";
+import type {
+  ContainerConfig,
+  ProvisionResult,
+  SupervisorAction,
+  ThreadSupervisor,
+} from "@magenta/core";
 import { teardownContainer } from "@magenta/core";
-import type { ContainerConfig, ProvisionResult } from "@magenta/core";
+import type { Shell } from "../capabilities/shell.ts";
 import type { NvimCwd } from "../utils/files.ts";
-
-import type { SupervisorAction, ThreadSupervisor } from "@magenta/core";
 
 export class DockerSupervisor implements ThreadSupervisor {
   private restartCount = 0;

@@ -3,8 +3,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import type { Logger } from "../logger.ts";
-import type { AbsFilePath, NvimCwd } from "../utils/files.ts";
 import type { ProviderOptions } from "../provider-options.ts";
+import type { AbsFilePath, NvimCwd } from "../utils/files.ts";
 
 export type SkillInfo = {
   skillFile: AbsFilePath;

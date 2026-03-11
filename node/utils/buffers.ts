@@ -2,11 +2,11 @@ import { NvimBuffer } from "../nvim/buffer.ts";
 import { getAllBuffers } from "../nvim/nvim.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import {
-  resolveFilePath,
   type AbsFilePath,
   type HomeDir,
   type NvimCwd,
   type RelFilePath,
+  resolveFilePath,
   type UnresolvedFilePath,
 } from "./files.ts";
 
@@ -79,7 +79,7 @@ export async function getOrOpenBuffer({
       unresolvedPath,
       context,
     });
-    if (existingBuffer.status == "error" || existingBuffer.status == "ok") {
+    if (existingBuffer.status === "error" || existingBuffer.status === "ok") {
       return existingBuffer;
     } else {
       return { status: "error", error: "Unable to open file." };

@@ -1,19 +1,19 @@
+import {
+  type ExtmarkId,
+  type ExtmarkOptions,
+  extmarkOptionsEqual,
+} from "../nvim/extmarks.ts";
 import type { ByteIdx, Position0Indexed, Row0Indexed } from "../nvim/window.ts";
 import { render } from "./render.ts";
 import { replaceBetweenPositions } from "./util.ts";
-import {
-  type ArrayVDOMNode,
-  type ComponentVDOMNode,
-  type MountedVDOM,
-  type MountPoint,
-  type StringVDOMNode,
-  type VDOMNode,
+import type {
+  ArrayVDOMNode,
+  ComponentVDOMNode,
+  MountedVDOM,
+  MountPoint,
+  StringVDOMNode,
+  VDOMNode,
 } from "./view.ts";
-import {
-  extmarkOptionsEqual,
-  type ExtmarkId,
-  type ExtmarkOptions,
-} from "../nvim/extmarks.ts";
 
 // a number in the coordinate system of the buffer before the update
 type CurrentByteIdx = ByteIdx & { __current: true };
@@ -68,7 +68,7 @@ export function updateAccumulatedEdit(
     endPos: NextPosition;
   },
 ) {
-  if (newPos.endPos.row == accumulatedEdit.lastEditRow) {
+  if (newPos.endPos.row === accumulatedEdit.lastEditRow) {
     // this view post-render is all on the final line, so we just need to adjust the col delta by the view
     // before replacing the node:
     //
@@ -115,11 +115,11 @@ export function remapCurrentToNextPos(
   startPos.row = (startPos.row + accumulatedEdit.deltaRow) as NextRow;
   endPos.row = (endPos.row + accumulatedEdit.deltaRow) as NextRow;
 
-  if (startPos.row == accumulatedEdit.lastEditRow) {
+  if (startPos.row === accumulatedEdit.lastEditRow) {
     startPos.col = (startPos.col + accumulatedEdit.deltaCol) as NextByteIdx;
   }
 
-  if (endPos.row == accumulatedEdit.lastEditRow) {
+  if (endPos.row === accumulatedEdit.lastEditRow) {
     endPos.col = (endPos.col + accumulatedEdit.deltaCol) as NextByteIdx;
   }
 
@@ -306,7 +306,7 @@ export async function update({
     },
   ) {
     const compareResult = comparePositions(nextPos.startPos, nextPos.endPos);
-    if (compareResult == "gt" || compareResult == "eq") {
+    if (compareResult === "gt" || compareResult === "eq") {
       return;
     }
 
@@ -327,14 +327,14 @@ export async function update({
     current: MountedVDOM,
     next: VDOMNode,
   ): Promise<NextMountedVDOM> {
-    if (current.type != next.type) {
+    if (current.type !== next.type) {
       return await replaceNode(current as unknown as CurrentMountedVDOM, next);
     }
 
     switch (current.type) {
       case "string": {
         const nextStringNode = next as StringVDOMNode;
-        if (current.content == nextStringNode.content) {
+        if (current.content === nextStringNode.content) {
           const updatedNode = updateNodePos(
             current as unknown as CurrentMountedVDOM,
           );
@@ -378,8 +378,8 @@ export async function update({
           accumulatedEdit,
         );
         const nextChildren = [];
-        if (current.template == nextNode.template) {
-          if (current.children.length != nextNode.children.length) {
+        if (current.template === nextNode.template) {
+          if (current.children.length !== nextNode.children.length) {
             throw new Error(
               `Expected VDOM components with the same template to have the same number of children.`,
             );

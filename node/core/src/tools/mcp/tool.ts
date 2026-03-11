@@ -1,11 +1,11 @@
 import type { ProviderToolResult } from "../../providers/provider-types.ts";
 import type {
   ToolInvocation,
-  ToolRequestId,
   ToolName,
+  ToolRequestId,
 } from "../../tool-types.ts";
 import type { MCPClient } from "./client.ts";
-import { parseToolName, type MCPToolRequestParams } from "./types.ts";
+import { type MCPToolRequestParams, parseToolName } from "./types.ts";
 
 export type Input = {
   [key: string]: unknown;
@@ -66,7 +66,7 @@ export function execute(
 
       const errorMessage =
         error instanceof Error
-          ? error.message + "\n" + error.stack
+          ? `${error.message}\n${error.stack}`
           : String(error);
 
       return {

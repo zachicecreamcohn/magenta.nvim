@@ -1,30 +1,29 @@
-import {
-  resolveFilePath,
-  FileCategory,
-  type NvimCwd,
-  type HomeDir,
-} from "../utils/files.ts";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { OnToolApplied } from "../capabilities/context-tracker.ts";
-
+import type { FileIO } from "../capabilities/file-io.ts";
+import {
+  type EdlRegisters,
+  type FileMutationSummary,
+  runScript,
+} from "../edl/index.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider-types.ts";
 import type {
-  ToolName,
   GenericToolRequest,
   ToolInvocation,
+  ToolName,
 } from "../tool-types.ts";
 import {
-  runScript,
-  type EdlRegisters,
-  type FileMutationSummary,
-} from "../edl/index.ts";
-import type { FileIO } from "../capabilities/file-io.ts";
+  FileCategory,
+  type HomeDir,
+  type NvimCwd,
+  resolveFilePath,
+} from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
-import { readFileSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
 
 const EDL_DESCRIPTION = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "edl-description.md"),

@@ -1,19 +1,17 @@
-import { type Result } from "../utils/result.ts";
+import type { ThreadManager } from "../capabilities/thread-manager.ts";
+import type { ThreadId, ThreadType } from "../chat-types.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider.ts";
-
+import { AGENT_TYPES, type AgentType } from "../providers/system-prompt.ts";
 import type {
   GenericToolRequest,
-  ToolName,
   ToolInvocation,
+  ToolName,
 } from "../tool-types.ts";
-import type { ThreadManager } from "../capabilities/thread-manager.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
-
-import { AGENT_TYPES, type AgentType } from "../providers/system-prompt.ts";
-import type { ThreadId, ThreadType } from "../chat-types.ts";
+import type { Result } from "../utils/result.ts";
 
 export type ForEachElement = string & { __forEachElement: true };
 

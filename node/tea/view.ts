@@ -1,11 +1,11 @@
+import type { NvimBuffer } from "../nvim/buffer.ts";
+import type { ExtmarkId, ExtmarkOptions } from "../nvim/extmarks.ts";
+import type { Nvim } from "../nvim/nvim-node/index.ts";
+import type { Position0Indexed } from "../nvim/window.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import type { Bindings } from "./bindings.ts";
 import { render } from "./render.ts";
 import { update } from "./update.ts";
-import { type Bindings } from "./bindings.ts";
-import { type ExtmarkOptions, type ExtmarkId } from "../nvim/extmarks.ts";
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { NvimBuffer } from "../nvim/buffer.ts";
-import { type Position0Indexed } from "../nvim/window.ts";
-import type { Nvim } from "../nvim/nvim-node/index.ts";
 
 export function pos(row: number, col: number) {
   return { row, col } as Position0Indexed;
@@ -175,7 +175,7 @@ export function d(
     children.push({ type: "string", content: template[0] });
   }
   for (let i = 0; i < values.length; i++) {
-    if (typeof values[i] == "string") {
+    if (typeof values[i] === "string") {
       children.push({ type: "string", content: values[i] as string });
     } else if (Array.isArray(values[i])) {
       children.push({ type: "array", children: values[i] as VDOMNode[] });

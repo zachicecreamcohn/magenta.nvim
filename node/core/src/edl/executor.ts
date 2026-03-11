@@ -179,7 +179,7 @@ export class Executor {
         const results: Range[] = [];
         const flags = pattern.pattern.flags.includes("g")
           ? pattern.pattern.flags
-          : pattern.pattern.flags + "g";
+          : `${pattern.pattern.flags}g`;
         const re = new RegExp(pattern.pattern.source, flags);
         let m: RegExpExecArray | null;
         while ((m = re.exec(text)) !== null) {
@@ -307,13 +307,13 @@ export class Executor {
       const line = lines[0];
       if (line.length > MAX_SNIPPET_LENGTH) {
         const half = Math.floor((MAX_SNIPPET_LENGTH - 3) / 2);
-        return line.slice(0, half) + "..." + line.slice(line.length - half);
+        return `${line.slice(0, half)}...${line.slice(line.length - half)}`;
       }
       return line;
     }
     const first = lines[0];
     const last = lines[lines.length - 1];
-    return first + "\n...\n" + last;
+    return `${first}\n...\n${last}`;
   }
 
   static countLines(text: string): number {

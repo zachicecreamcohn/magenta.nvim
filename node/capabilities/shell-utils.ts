@@ -1,10 +1,9 @@
-import * as fs from "fs";
-import * as path from "path";
-import type { OutputLine } from "./shell.ts";
+import type { spawn } from "node:child_process";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { MAGENTA_TEMP_DIR } from "../utils/files.ts";
-import type { spawn } from "child_process";
+import type { OutputLine } from "./shell.ts";
 
-// eslint-disable-next-line no-control-regex
 const ANSI_ESCAPE_REGEX = /\x1B\[[0-9;]*[a-zA-Z]/g;
 
 export function stripAnsiCodes(text: string): string {

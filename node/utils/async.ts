@@ -15,14 +15,14 @@ export class Defer<T> {
     let reject: typeof this.reject;
 
     this.resolve = (val) => {
-      if (resolve != undefined) {
+      if (resolve !== undefined) {
         resolve(val);
       }
       this.resolved = true;
     };
 
     this.reject = (err) => {
-      if (reject != undefined) {
+      if (reject !== undefined) {
         reject(err);
       }
       this.resolved = true;
@@ -41,10 +41,10 @@ export async function pollUntil<T>(
   fn: (() => Promise<T>) | (() => T),
   opts: { timeout: number; message?: string } = { timeout: 1000 },
 ): Promise<T> {
-  const start = new Date().getTime();
+  const start = Date.now();
   let lastError: Error | undefined;
   while (true) {
-    if (new Date().getTime() - start > opts.timeout) {
+    if (Date.now() - start > opts.timeout) {
       if (opts.message) {
         throw new Error(opts.message);
       }

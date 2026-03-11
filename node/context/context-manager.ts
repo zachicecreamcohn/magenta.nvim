@@ -1,30 +1,28 @@
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import type { ContextManager, FileUpdates } from "@magenta/core";
+import open from "open";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
-
-import type { MagentaOptions } from "../options.ts";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
-
+import type { MagentaOptions } from "../options.ts";
+import { d, withBindings, withExtmark, withInlineCode } from "../tea/view.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import {
-  displayPath,
   type AbsFilePath,
+  displayPath,
+  FileCategory,
   type HomeDir,
   type NvimCwd,
-  FileCategory,
 } from "../utils/files.ts";
-import { d, withBindings, withExtmark, withInlineCode } from "../tea/view.ts";
-import open from "open";
 
-import { type ContextManager, type FileUpdates } from "@magenta/core";
-
-export type { ContextFiles as Files, FileUpdates } from "@magenta/core";
 export type {
-  Patch,
-  WholeFileUpdate,
+  ContextFiles as Files,
   DiffUpdate,
   FileDeletedUpdate,
   FileUpdate,
+  FileUpdates,
+  Patch,
+  ToolApplied as ToolApplication,
+  WholeFileUpdate,
 } from "@magenta/core";
-export type { ToolApplied as ToolApplication } from "@magenta/core";
 
 export type ContextViewContext = {
   cwd: NvimCwd;
@@ -208,7 +206,7 @@ function formatPdfInfo(options: {
     parts.push("summary");
   }
 
-  if (options.pages && options.pages.length == 1) {
+  if (options.pages && options.pages.length === 1) {
     parts.push(`page ${options.pages[0]}`);
   } else if (options.pages && options.pages.length > 1) {
     const pageRanges = formatPageRanges(options.pages);

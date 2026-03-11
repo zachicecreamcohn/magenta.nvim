@@ -1,27 +1,25 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
-import { execFile as execFileCb } from "child_process";
-import { promisify } from "util";
-import * as fs from "fs";
-import { DockerFileIO } from "./docker-file-io.ts";
-import { DockerShell } from "./docker-shell.ts";
-import { createDockerEnvironment } from "../environment.ts";
-
-import {
-  getToolSpecs,
-  GetFile,
-  FileCategory,
-  ContextManager,
-} from "@magenta/core";
-
+import { execFile as execFileCb } from "node:child_process";
+import * as fs from "node:fs";
+import { promisify } from "node:util";
 import type {
+  AbsFilePath,
+  HomeDir,
   MCPToolManager,
+  NvimCwd,
+  ThreadId,
   ToolRequestId,
   UnresolvedFilePath,
-  NvimCwd,
-  HomeDir,
-  AbsFilePath,
-  ThreadId,
 } from "@magenta/core";
+import {
+  ContextManager,
+  FileCategory,
+  GetFile,
+  getToolSpecs,
+} from "@magenta/core";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { createDockerEnvironment } from "../environment.ts";
+import { DockerFileIO } from "./docker-file-io.ts";
+import { DockerShell } from "./docker-shell.ts";
 
 const execFile = promisify(execFileCb);
 

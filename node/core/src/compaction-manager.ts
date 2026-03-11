@@ -1,48 +1,47 @@
-import type { Logger } from "./logger.ts";
-import type { ProviderProfile } from "./provider-options.ts";
-import type { ThreadId } from "./chat-types.ts";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ContextTracker } from "./capabilities/context-tracker.ts";
-import type { ContextManager } from "./context/context-manager.ts";
-import type { ThreadManager } from "./capabilities/thread-manager.ts";
-import type { Shell } from "./capabilities/shell.ts";
-import type { LspClient } from "./capabilities/lsp-client.ts";
 import type { DiagnosticsProvider } from "./capabilities/diagnostics-provider.ts";
-import type { NvimCwd, HomeDir } from "./utils/files.ts";
-import type { ToolCapability } from "./tools/tool-registry.ts";
-import type {
-  Provider,
-  ProviderMessage,
-  Agent,
-  StopReason,
-  ProviderToolResult,
-} from "./providers/provider-types.ts";
-import type {
-  ToolRequestId,
-  ToolRequest,
-  ToolInvocation,
-} from "./tool-types.ts";
-import type { ToolName } from "./tool-types.ts";
-import type { EdlRegisters } from "./edl/index.ts";
+import type { LspClient } from "./capabilities/lsp-client.ts";
+import type { Shell } from "./capabilities/shell.ts";
+import type { ThreadManager } from "./capabilities/thread-manager.ts";
+import type { ThreadId } from "./chat-types.ts";
+import {
+  CHARS_PER_TOKEN,
+  chunkMessages,
+  renderThreadToMarkdown,
+  TARGET_CHUNK_TOKENS,
+  TOLERANCE_TOKENS,
+} from "./compact-renderer.ts";
 import type {
   CompactionResult,
   CompactionStep,
 } from "./compaction-controller.ts";
-import { Emitter } from "./emitter.ts";
-import { MCPToolManager as MCPToolManagerImpl } from "./tools/mcp/manager.ts";
-
-import { getToolSpecs } from "./tools/toolManager.ts";
-import { createTool, type CreateToolContext } from "./tools/create-tool.ts";
+import type { ContextManager } from "./context/context-manager.ts";
 import { InMemoryFileIO } from "./edl/in-memory-file-io.ts";
-import {
-  renderThreadToMarkdown,
-  chunkMessages,
-  CHARS_PER_TOKEN,
-  TARGET_CHUNK_TOKENS,
-  TOLERANCE_TOKENS,
-} from "./compact-renderer.ts";
-import { readFileSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import type { EdlRegisters } from "./edl/index.ts";
+import { Emitter } from "./emitter.ts";
+import type { Logger } from "./logger.ts";
+import type { ProviderProfile } from "./provider-options.ts";
+import type {
+  Agent,
+  Provider,
+  ProviderMessage,
+  ProviderToolResult,
+  StopReason,
+} from "./providers/provider-types.ts";
+import type {
+  ToolInvocation,
+  ToolName,
+  ToolRequest,
+  ToolRequestId,
+} from "./tool-types.ts";
+import { type CreateToolContext, createTool } from "./tools/create-tool.ts";
+import type { MCPToolManager as MCPToolManagerImpl } from "./tools/mcp/manager.ts";
+import type { ToolCapability } from "./tools/tool-registry.ts";
+import { getToolSpecs } from "./tools/toolManager.ts";
+import type { HomeDir, NvimCwd } from "./utils/files.ts";
 
 const COMPACT_PROMPT_TEMPLATE = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "compact-system-prompt.md"),

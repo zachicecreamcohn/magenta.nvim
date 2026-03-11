@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { renderThreadToMarkdown, chunkMessages } from "./compact-renderer.ts";
+import { describe, expect, it } from "vitest";
+import { chunkMessages, renderThreadToMarkdown } from "./compact-renderer.ts";
 import type { ProviderMessage } from "./providers/provider-types.ts";
-import type { ToolRequestId, ToolName } from "./tool-types.ts";
+import type { ToolName, ToolRequestId } from "./tool-types.ts";
 
 describe("renderThreadToMarkdown", () => {
   it("renders a simple text conversation", () => {

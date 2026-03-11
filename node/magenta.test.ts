@@ -1,12 +1,12 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import type { ToolName, ToolRequestId } from "@magenta/core";
 import { expect, it } from "vitest";
+import { LOGO } from "./chat/thread-view.ts";
+import type { Position0Indexed } from "./nvim/window.ts";
 import { withDriver } from "./test/preamble.ts";
 import { pollUntil } from "./utils/async.ts";
-import type { Position0Indexed } from "./nvim/window.ts";
-import { LOGO } from "./chat/thread-view.ts";
-import type { ToolRequestId, ToolName } from "@magenta/core";
 import type { UnresolvedFilePath } from "./utils/files.ts";
-import { writeFile, mkdir } from "node:fs/promises";
-import path from "node:path";
 
 it("new-thread command should work", async () => {
   await withDriver({}, async (driver) => {

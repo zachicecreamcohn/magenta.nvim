@@ -1,10 +1,9 @@
-import type { MCPServersConfig } from "./options.ts";
 import type { Logger } from "../../logger.ts";
 import type { ProviderToolSpec } from "../../providers/provider-types.ts";
-import { MCPClient } from "./client.ts";
-
 import type { ToolName } from "../../tool-types.ts";
-import { type ServerName } from "./types.ts";
+import { MCPClient } from "./client.ts";
+import type { MCPServersConfig } from "./options.ts";
+import type { ServerName } from "./types.ts";
 
 type ServerMap = {
   [serverName: ServerName]: {

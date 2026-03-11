@@ -1,15 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+import type { Chunk } from "./file-summary.ts";
 import {
-  tokenize,
   buildFrequencyTable,
   chunkFile,
   computeScopeSize,
+  formatSummary,
   scoreChunk,
   selectChunks,
   summarizeFile,
-  formatSummary,
+  tokenize,
 } from "./file-summary.ts";
-import type { Chunk } from "./file-summary.ts";
 
 describe("tokenize", () => {
   it("returns empty array for empty string", () => {

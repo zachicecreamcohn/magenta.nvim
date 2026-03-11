@@ -1,13 +1,13 @@
-import { spawn } from "child_process";
-import type { Shell, ShellResult, OutputLine } from "./shell.ts";
-import type { NvimCwd } from "../utils/files.ts";
+import { spawn } from "node:child_process";
 import type { ThreadId } from "@magenta/core";
 import { withTimeout } from "../utils/async.ts";
+import type { NvimCwd } from "../utils/files.ts";
+import type { OutputLine, Shell, ShellResult } from "./shell.ts";
 import {
   createLogWriter,
+  escalateToSigkill,
   processStreamData,
   terminateProcess,
-  escalateToSigkill,
 } from "./shell-utils.ts";
 
 export class BaseShell implements Shell {

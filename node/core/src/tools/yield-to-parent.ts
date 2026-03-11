@@ -1,10 +1,10 @@
-import type { Result } from "../utils/result.ts";
 import type { ProviderToolSpec } from "../providers/provider-types.ts";
 import type {
-  ToolName,
   GenericToolRequest,
   ToolInvocation,
+  ToolName,
 } from "../tool-types.ts";
+import type { Result } from "../utils/result.ts";
 
 export type Input = {
   result: string;
@@ -51,7 +51,7 @@ After using this tool, the sub-agent thread will be terminated.`,
 export function validateInput(input: {
   [key: string]: unknown;
 }): Result<Input> {
-  if (typeof input.result != "string") {
+  if (typeof input.result !== "string") {
     return {
       status: "error",
       error: `expected req.input.result to be a string but it was ${JSON.stringify(input.result)}`,

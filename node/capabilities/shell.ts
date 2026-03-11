@@ -1,1 +1,1 @@
-export { type Shell, type ShellResult, type OutputLine } from "@magenta/core";
+export type { OutputLine, Shell, ShellResult } from "@magenta/core";

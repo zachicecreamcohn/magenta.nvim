@@ -4,7 +4,8 @@ import type {
   ProviderToolResult,
   ProviderToolUseContent,
 } from "./providers/provider-types.ts";
-import type { ToolRequestId, ToolName } from "./tool-types.ts";
+import type { ToolName, ToolRequestId } from "./tool-types.ts";
+
 type ToolInfoMap = Map<ToolRequestId, ToolName>;
 
 export type RenderResult = {
@@ -138,7 +139,7 @@ function renderContentBlock(
 ): string {
   switch (block.type) {
     case "text":
-      return block.text + "\n";
+      return `${block.text}\n`;
 
     case "thinking":
     case "redacted_thinking":
@@ -148,7 +149,7 @@ function renderContentBlock(
     case "context_update": {
       const files = extractFilePathsFromContextUpdate(block.text);
       if (files.length > 0) {
-        return `[context update: ${files.map((f) => "`" + f + "`").join(", ")}]\n`;
+        return `[context update: ${files.map((f) => `\`${f}\``).join(", ")}]\n`;
       }
       return `[context update]\n`;
     }

@@ -1,10 +1,11 @@
-import {
-  type ToolRequestId,
-  type UnresolvedFilePath,
-  type ToolName,
+import type {
+  ToolName,
+  ToolRequestId,
+  UnresolvedFilePath,
 } from "@magenta/core";
-import { it, expect } from "vitest";
+import { expect, it } from "vitest";
 import { pollForToolResult, withDriver } from "../test/preamble.ts";
+
 it("hover end-to-end", async () => {
   await withDriver({}, async (driver) => {
     await driver.editFileAndWaitForLsp("test.ts");

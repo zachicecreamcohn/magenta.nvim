@@ -1,10 +1,10 @@
-import { test, expect } from "vitest";
-import { extractPDFPage, getPDFPageCount } from "./pdf-pages.ts";
-import { withDriver } from "../test/preamble.ts";
+import fs from "node:fs";
+import path from "node:path";
 import { PDFDocument } from "pdf-lib";
-import fs from "fs";
-import path from "path";
+import { expect, test } from "vitest";
+import { withDriver } from "../test/preamble.ts";
 import type { AbsFilePath } from "./files.ts";
+import { extractPDFPage, getPDFPageCount } from "./pdf-pages.ts";
 
 test("getPDFPageCount returns correct page count", async () => {
   await withDriver(

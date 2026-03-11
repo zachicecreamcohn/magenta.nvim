@@ -1,22 +1,22 @@
-import { attach, type LogLevel, type Nvim } from "../nvim/nvim-node/index.ts";
-import { access, rm, cp, mkdir, realpath } from "node:fs/promises";
-import { spawn } from "child_process";
-import { type MountedVDOM } from "../tea/view.ts";
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { spawn } from "node:child_process";
+import { access, cp, mkdir, realpath, rm } from "node:fs/promises";
 import * as path from "node:path";
-import { pollUntil } from "../utils/async.ts";
-import { Magenta } from "../magenta.ts";
-import { withMockClient } from "../providers/mock.ts";
-import { NvimDriver } from "./driver.ts";
-import { type MagentaOptions } from "../options.ts";
+import type Anthropic from "@anthropic-ai/sdk";
+import type { ToolRequestId } from "@magenta/core";
 import {
   type MockMCPServer,
   mockServers,
   type ServerName,
 } from "@magenta/core";
-import type Anthropic from "@anthropic-ai/sdk";
+import { Magenta } from "../magenta.ts";
+import { attach, type LogLevel, type Nvim } from "../nvim/nvim-node/index.ts";
+import type { MagentaOptions } from "../options.ts";
+import { withMockClient } from "../providers/mock.ts";
 import type { ProviderToolResult } from "../providers/provider-types.ts";
-import type { ToolRequestId } from "@magenta/core";
+import type { MountedVDOM } from "../tea/view.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { pollUntil } from "../utils/async.ts";
+import { NvimDriver } from "./driver.ts";
 
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
 
@@ -380,13 +380,12 @@ export async function withNvimClient(
       ]);
 
       if (options.overrideLogger) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         nvim.logger = {
           error: (msg: string) => console.error(msg),
           warn: (msg: string) => console.warn(msg),
           info: (msg: string) => console.info(msg),
           debug: (msg: string) => console.debug(msg),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // biome-ignore lint/suspicious/noExplicitAny: logger type is defined in nvim module
         } as any;
       }
 
@@ -485,14 +484,13 @@ end
           [],
         ]);
         if (!driverOptions.doNotOverrideLogger) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           magenta.nvim.logger = {
             error: (msg: string) => console.error(msg),
             warn: (msg: string) => console.warn(msg),
             info: (msg: string) => console.log(msg),
             debug: (msg: string) =>
-              process.env.LOG_LEVEL == "debug" && console.debug(msg),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              process.env.LOG_LEVEL === "debug" && console.debug(msg),
+            // biome-ignore lint/suspicious/noExplicitAny: logger type is defined in nvim module
           } as any;
         }
 

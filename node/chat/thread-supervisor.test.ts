@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@magenta/core", async (importOriginal) => {
   const orig = await importOriginal<typeof import("@magenta/core")>();
@@ -8,11 +8,11 @@ vi.mock("@magenta/core", async (importOriginal) => {
   };
 });
 
+import type { ContainerConfig, ProvisionResult } from "@magenta/core";
 import { teardownContainer } from "@magenta/core";
-import { DockerSupervisor } from "./thread-supervisor.ts";
 import type { Shell, ShellResult } from "../capabilities/shell.ts";
-import type { ProvisionResult, ContainerConfig } from "@magenta/core";
 import type { NvimCwd } from "../utils/files.ts";
+import { DockerSupervisor } from "./thread-supervisor.ts";
 
 function createMockShell(execResult?: Partial<ShellResult>): Shell {
   return {

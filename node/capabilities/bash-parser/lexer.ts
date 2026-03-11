@@ -143,7 +143,7 @@ export class Lexer {
       // Consume the redirect target (filename)
       const target = this.parseWord();
       if (target === undefined) {
-        throw new LexerError("Expected redirect target after " + fileMatch[0]);
+        throw new LexerError(`Expected redirect target after ${fileMatch[0]}`);
       }
       result += target;
       return result;
@@ -243,7 +243,7 @@ export class Lexer {
           result += escaped;
         } else {
           // Keep the backslash for other characters
-          result += "\\" + escaped;
+          result += `\\${escaped}`;
         }
         this.pos++;
         continue;

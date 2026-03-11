@@ -1,20 +1,20 @@
-import { describe, it, expect } from "vitest";
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
+import type { ToolName, ToolRequestId } from "@magenta/core";
+import { validateInput } from "@magenta/core";
+import { describe, expect, it } from "vitest";
+import winston from "winston";
+import { delay } from "../utils/async.ts";
 import {
   AnthropicAgent,
   type AnthropicAgentOptions,
 } from "./anthropic-agent.ts";
+import { MockAnthropicClient } from "./mock-anthropic-client.ts";
 import type {
   AgentInput,
   AgentMsg,
   ProviderToolResult,
   ProviderToolSpec,
 } from "./provider-types.ts";
-import type { ToolRequestId, ToolName } from "@magenta/core";
-import { validateInput } from "@magenta/core";
-import { MockAnthropicClient } from "./mock-anthropic-client.ts";
-import { delay } from "../utils/async.ts";
-import winston from "winston";
 
 type TrackedMessages = {
   messages: AgentMsg[];

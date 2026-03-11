@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { type Line, NvimBuffer } from "../nvim/buffer.ts";
+import type { Position0Indexed, Row0Indexed } from "../nvim/window.ts";
+import { extractMountTree, withNvimClient } from "../test/preamble.ts";
 import {
-  updateAccumulatedEdit,
-  remapCurrentToNextPos,
   type AccumulatedEdit,
+  type CurrentPosition,
   type NextPosition,
   type NextRow,
-  type CurrentPosition,
+  remapCurrentToNextPos,
+  updateAccumulatedEdit,
 } from "./update.ts";
-import { type Position0Indexed, type Row0Indexed } from "../nvim/window.ts";
 import {
   d,
   mountView,
@@ -16,8 +18,6 @@ import {
   withExtmark,
   withWarning,
 } from "./view.ts";
-import { NvimBuffer, type Line } from "../nvim/buffer.ts";
-import { extractMountTree, withNvimClient } from "../test/preamble.ts";
 
 describe("updateAccumulatedEdit", () => {
   it("handles the streaming block to edit transition case", () => {
@@ -750,93 +750,91 @@ describe("tea/update.test.ts", () => {
     });
   });
 
-  it(
-    "reproduces streaming block to edit transition",
-    { timeout: 0 },
-    async () => {
-      await withNvimClient(async (nvim) => {
-        const buffer = await NvimBuffer.create(false, true, nvim);
-        await buffer.setOption("modifiable", false);
+  it("reproduces streaming block to edit transition", {
+    timeout: 0,
+  }, async () => {
+    await withNvimClient(async (nvim) => {
+      const buffer = await NvimBuffer.create(false, true, nvim);
+      await buffer.setOption("modifiable", false);
 
-        type Props = {
-          role: string;
-          streamingBlock: string | null;
-          edits: boolean;
-          awaitingResponse?: boolean;
-        };
+      type Props = {
+        role: string;
+        streamingBlock: string | null;
+        edits: boolean;
+        awaitingResponse?: boolean;
+      };
 
-        // This mimics the Message view structure from message.ts
-        const view = (props: Props) => {
-          const fileEdits = [];
-          if (props.edits) {
-            fileEdits.push(d`  edit. \n`);
-          }
+      // This mimics the Message view structure from message.ts
+      const view = (props: Props) => {
+        const fileEdits = [];
+        if (props.edits) {
+          fileEdits.push(d`  edit. \n`);
+        }
 
-          return d`\
+        return d`\
 ${props.streamingBlock ? d`edit ${props.streamingBlock}` : ""}${
-            fileEdits.length
-              ? d`
+  fileEdits.length
+    ? d`
 Edits:
 ${fileEdits}`
-              : ""
-          }${props.awaitingResponse ? d`\nAwaiting response ⠂` : ""}`;
-        };
+    : ""
+}${props.awaitingResponse ? d`\nAwaiting response ⠂` : ""}`;
+      };
 
-        const mountedView = await mountView<Props>({
-          view,
-          props: {
-            role: "assistant",
-            streamingBlock: "streaming...",
-            edits: false,
-            awaitingResponse: true,
-          },
-          mount: {
-            nvim,
-            buffer,
-            startPos: pos(0, 0),
-            endPos: pos(0, 0),
-          },
-        });
-
-        await mountedView.render({
+      const mountedView = await mountView<Props>({
+        view,
+        props: {
           role: "assistant",
-          streamingBlock: "Processing insert...",
-          edits: true,
+          streamingBlock: "streaming...",
+          edits: false,
           awaitingResponse: true,
-        });
-
-        {
-          const lines = await buffer.getLines({
-            start: 0 as Row0Indexed,
-            end: -1 as Row0Indexed,
-          });
-          expect(lines).toEqual([
-            "edit Processing insert...",
-            "Edits:",
-            "  edit. ",
-            "",
-            "Awaiting response ⠂",
-          ] as Line[]);
-        }
-
-        // Final state - no streaming block, only edits
-        await mountedView.render({
-          role: "assistant",
-          streamingBlock: null,
-          edits: true,
-          awaitingResponse: false,
-        });
-
-        {
-          const lines = await buffer.getLines({
-            start: 0 as Row0Indexed,
-            end: -1 as Row0Indexed,
-          });
-          expect(lines).toEqual(["", "Edits:", "  edit. ", ""] as Line[]);
-        }
+        },
+        mount: {
+          nvim,
+          buffer,
+          startPos: pos(0, 0),
+          endPos: pos(0, 0),
+        },
       });
-    },
-  );
+
+      await mountedView.render({
+        role: "assistant",
+        streamingBlock: "Processing insert...",
+        edits: true,
+        awaitingResponse: true,
+      });
+
+      {
+        const lines = await buffer.getLines({
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
+        });
+        expect(lines).toEqual([
+          "edit Processing insert...",
+          "Edits:",
+          "  edit. ",
+          "",
+          "Awaiting response ⠂",
+        ] as Line[]);
+      }
+
+      // Final state - no streaming block, only edits
+      await mountedView.render({
+        role: "assistant",
+        streamingBlock: null,
+        edits: true,
+        awaitingResponse: false,
+      });
+
+      {
+        const lines = await buffer.getLines({
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
+        });
+        expect(lines).toEqual(["", "Edits:", "  edit. ", ""] as Line[]);
+      }
+    });
+  });
 
   it("message w parts", async () => {
     await withNvimClient(async (nvim) => {

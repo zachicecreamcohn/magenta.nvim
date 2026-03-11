@@ -1,14 +1,13 @@
-import type { Command, MessageContext } from "./types.ts";
-import type { ProviderMessageContent } from "../../providers/provider-types.ts";
-import { forkCommand } from "./fork.ts";
-import { compactCommand } from "./compact.ts";
-import { fileCommand } from "./file.ts";
-import { diffCommand, stagedCommand } from "./diff.ts";
-import { diagCommand, diagnosticsCommand } from "./diagnostics.ts";
-import { qfCommand, quickfixCommand } from "./quickfix.ts";
-import { bufCommand, buffersCommand } from "./buffers.ts";
-
 import type { CustomCommand as CustomCommandConfig } from "../../options.ts";
+import type { ProviderMessageContent } from "../../providers/provider-types.ts";
+import { bufCommand, buffersCommand } from "./buffers.ts";
+import { compactCommand } from "./compact.ts";
+import { diagCommand, diagnosticsCommand } from "./diagnostics.ts";
+import { diffCommand, stagedCommand } from "./diff.ts";
+import { fileCommand } from "./file.ts";
+import { forkCommand } from "./fork.ts";
+import { qfCommand, quickfixCommand } from "./quickfix.ts";
+import type { Command, MessageContext } from "./types.ts";
 
 export class CommandRegistry {
   private commands: Map<string, Command> = new Map();

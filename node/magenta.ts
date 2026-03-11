@@ -1,41 +1,40 @@
-import { Sidebar } from "./sidebar.ts";
-import * as TEA from "./tea/tea.ts";
-import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
-import { pos } from "./tea/view.ts";
-import type { Nvim } from "./nvim/nvim-node/index.ts";
-import { Lsp } from "./capabilities/lsp.ts";
-import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
-import type { BufNr, Line } from "./nvim/buffer.ts";
-import { pos1col1to0, type Row0Indexed } from "./nvim/window.ts";
-import { getMarkdownExt } from "./utils/markdown.ts";
 import * as os from "node:os";
-import {
-  parseOptions,
-  loadUserSettings,
-  loadProjectSettings,
-  mergeOptions,
-  type MagentaOptions,
-  getActiveProfile,
-} from "./options.ts";
-import type { HomeDir } from "./utils/files.ts";
-import type { RootMsg, SidebarMsg } from "./root-msg.ts";
-import { Chat } from "./chat/chat.ts";
 import type { InputMessage } from "@magenta/core";
-import type { Dispatch } from "./tea/tea.ts";
 import { BufferTracker } from "./buffer-tracker.ts";
+import { Lsp } from "./capabilities/lsp.ts";
+import { Chat } from "./chat/chat.ts";
+import { CommandRegistry } from "./chat/commands/registry.ts";
+import type { BufNr, Line } from "./nvim/buffer.ts";
+import { MAGENTA_HIGHLIGHT_NAMESPACE } from "./nvim/buffer.ts";
+import { initializeMagentaHighlightGroups } from "./nvim/extmarks.ts";
+import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
+import type { Nvim } from "./nvim/nvim-node/index.ts";
+import { pos1col1to0, type Row0Indexed } from "./nvim/window.ts";
 import {
+  getActiveProfile,
+  loadProjectSettings,
+  loadUserSettings,
+  type MagentaOptions,
+  mergeOptions,
+  parseOptions,
+} from "./options.ts";
+import type { RootMsg, SidebarMsg } from "./root-msg.ts";
+import { Sidebar } from "./sidebar.ts";
+import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
+import type { Dispatch } from "./tea/tea.ts";
+import * as TEA from "./tea/tea.ts";
+import { pos } from "./tea/view.ts";
+import { assertUnreachable } from "./utils/assertUnreachable.ts";
+import type { HomeDir } from "./utils/files.ts";
+import {
+  type AbsFilePath,
+  detectFileType,
+  type NvimCwd,
   relativePath,
   resolveFilePath,
   type UnresolvedFilePath,
-  type AbsFilePath,
-  type NvimCwd,
-  detectFileType,
 } from "./utils/files.ts";
-import { assertUnreachable } from "./utils/assertUnreachable.ts";
-import { CommandRegistry } from "./chat/commands/registry.ts";
-
-import { initializeMagentaHighlightGroups } from "./nvim/extmarks.ts";
-import { MAGENTA_HIGHLIGHT_NAMESPACE } from "./nvim/buffer.ts";
+import { getMarkdownExt } from "./utils/markdown.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
@@ -72,7 +71,7 @@ export class Magenta {
       try {
         this.chat.update(msg);
 
-        if (msg.type == "sidebar-msg") {
+        if (msg.type === "sidebar-msg") {
           this.handleSidebarMsg(msg.msg);
         }
         if (this.mountedChatApp) {
@@ -81,7 +80,7 @@ export class Magenta {
 
         this.sidebar.renderInputHeader().catch((e) => {
           this.nvim.logger.error(
-            `Error rendering sidebar input header: ${e instanceof Error ? e.message + "\n" + e.stack : JSON.stringify(e)}`,
+            `Error rendering sidebar input header: ${e instanceof Error ? `${e.message}\n${e.stack}` : JSON.stringify(e)}`,
           );
         });
       } catch (e) {
@@ -92,7 +91,7 @@ export class Magenta {
     this.chat = new Chat({
       dispatch: this.dispatch,
       getDisplayWidth: () => {
-        if (this.sidebar.state.state == "visible") {
+        if (this.sidebar.state.state === "visible") {
           return this.sidebar.state.displayWidth;
         } else {
           // a placeholder value
@@ -137,11 +136,7 @@ export class Magenta {
   private handleSidebarMsg(msg: SidebarMsg): void {
     switch (msg.type) {
       case "setup-resubmit":
-        if (
-          this.sidebar &&
-          this.sidebar.state &&
-          this.sidebar.state.inputBuffer
-        ) {
+        if (this.sidebar?.state?.inputBuffer) {
           this.sidebar.state.inputBuffer
             .setLines({
               start: 0 as Row0Indexed,
@@ -160,7 +155,7 @@ export class Magenta {
             await this.sidebar.scrollToLastUserMessage();
           })().catch((error: Error) =>
             this.nvim.logger.error(
-              `Error scrolling to last user message: ${error.message + "\n" + error.stack}`,
+              `Error scrolling to last user message: ${`${error.message}\n${error.stack}`}`,
             ),
           );
         }
@@ -172,7 +167,7 @@ export class Magenta {
             await this.sidebar.scrollToBottom();
           })().catch((error: Error) =>
             this.nvim.logger.error(
-              `Error scrolling to bottom: ${error.message + "\n" + error.stack}`,
+              `Error scrolling to bottom: ${`${error.message}\n${error.stack}`}`,
             ),
           );
         }
@@ -196,7 +191,6 @@ export class Magenta {
           this.options.activeProfile = profile.name;
         } else {
           this.nvim.logger.error(`Profile "${profileName}" not found.`);
-          // eslint-disable-next-line @typescript-eslint/no-floating-promises
           notifyErr(
             this.nvim,
             "profile command",
@@ -378,7 +372,6 @@ ${lines.join("\n")}
 
       default:
         this.nvim.logger.error(`Unrecognized command ${command}\n`);
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         notifyErr(
           this.nvim,
           "unrecognized command",
@@ -397,7 +390,6 @@ ${lines.join("\n")}
         });
       } else {
         this.nvim.logger.error(`Unexpected MagentaKey ${JSON.stringify(key)}`);
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         notifyErr(
           this.nvim,
           "unexpected key",
@@ -453,7 +445,6 @@ ${lines.join("\n")}
             ? `Error executing command ${args[0] as string}: ${err.message}\n${err.stack}`
             : JSON.stringify(err),
         );
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         notifyErr(nvim, `error processing command ${args[0] as string}`, err);
       }
     });
@@ -513,7 +504,7 @@ ${lines.join("\n")}
         magenta.onBufferTrackerEvent(eventType, absFilePath, bufnr);
       } catch (err) {
         nvim.logger.error(
-          `Error handling buffer tracker event for ${JSON.stringify(args)}: ${err instanceof Error ? err.message + "\n" + err.stack : JSON.stringify(err)}`,
+          `Error handling buffer tracker event for ${JSON.stringify(args)}: ${err instanceof Error ? `${err.message}\n${err.stack}` : JSON.stringify(err)}`,
         );
       }
     });

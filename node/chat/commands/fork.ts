@@ -1,5 +1,5 @@
-import type { Command } from "./types.ts";
 import type { ProviderMessageContent } from "../../providers/provider-types.ts";
+import type { Command } from "./types.ts";
 
 export const forkCommand: Command = {
   name: "@fork",

@@ -1,6 +1,6 @@
 import { attach } from "./index.ts";
 
-const SOCKET = process.env["NVIM"];
+const SOCKET = process.env.NVIM;
 if (!SOCKET) throw Error("socket missing");
 
 type MyEvents = {

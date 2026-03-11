@@ -1,34 +1,32 @@
-import * as GetFile from "./getFile.ts";
-
-import * as Hover from "./hover.ts";
-import * as FindReferences from "./findReferences.ts";
-import * as Diagnostics from "./diagnostics.ts";
-import * as BashCommand from "./bashCommand.ts";
-import * as ThreadTitle from "./thread-title.ts";
-import * as SpawnSubagent from "./spawn-subagent.ts";
-import * as SpawnForeach from "./spawn-foreach.ts";
-import * as WaitForSubagents from "./wait-for-subagents.ts";
-import * as YieldToParent from "./yield-to-parent.ts";
-
-import * as Edl from "./edl.ts";
-
+import type { ThreadId, ThreadType } from "../chat-types.ts";
+import type {
+  ProviderToolSpec as MCPProviderToolSpec,
+  ProviderToolSpec,
+} from "../providers/provider-types.ts";
+import type { ToolRequest, ToolRequestId } from "../tool-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-
-import type { ToolRequestId, ToolRequest } from "../tool-types.ts";
-import type { ProviderToolSpec } from "../providers/provider-types.ts";
+import * as BashCommand from "./bashCommand.ts";
+import * as Diagnostics from "./diagnostics.ts";
+import * as Edl from "./edl.ts";
+import * as FindReferences from "./findReferences.ts";
+import * as GetFile from "./getFile.ts";
+import * as Hover from "./hover.ts";
+import * as SpawnForeach from "./spawn-foreach.ts";
+import * as SpawnSubagent from "./spawn-subagent.ts";
+import * as ThreadTitle from "./thread-title.ts";
 import {
   CHAT_STATIC_TOOL_NAMES,
   COMPACT_STATIC_TOOL_NAMES,
-  SUBAGENT_STATIC_TOOL_NAMES,
   DOCKER_ROOT_STATIC_TOOL_NAMES,
-  TOOL_REQUIRED_CAPABILITIES,
   type StaticToolName,
+  SUBAGENT_STATIC_TOOL_NAMES,
+  TOOL_REQUIRED_CAPABILITIES,
   type ToolCapability,
 } from "./tool-registry.ts";
-import type { ThreadId, ThreadType } from "../chat-types.ts";
-import type { ProviderToolSpec as MCPProviderToolSpec } from "../providers/provider-types.ts";
+import * as WaitForSubagents from "./wait-for-subagents.ts";
+import * as YieldToParent from "./yield-to-parent.ts";
 
-export type { ToolRequestId, CompletedToolInfo } from "../tool-types.ts";
+export type { CompletedToolInfo, ToolRequestId } from "../tool-types.ts";
 
 export interface MCPToolManager {
   getToolSpecs(): MCPProviderToolSpec[];

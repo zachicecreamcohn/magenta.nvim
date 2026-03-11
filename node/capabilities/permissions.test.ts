@@ -1,14 +1,14 @@
-import { test, expect, describe } from "vitest";
+import os from "node:os";
+import { describe, expect, test } from "vitest";
+import type { Nvim } from "../nvim/nvim-node/index.ts";
+import type { FilePermission, MagentaOptions } from "../options.ts";
+import type { AbsFilePath, HomeDir, NvimCwd } from "../utils/files.ts";
 import {
   canReadFile,
   canWriteFile,
   getEffectivePermissions,
   hasNewSecretSegment,
 } from "./permissions.ts";
-import type { AbsFilePath, HomeDir, NvimCwd } from "../utils/files.ts";
-import type { MagentaOptions, FilePermission } from "../options.ts";
-import type { Nvim } from "../nvim/nvim-node/index.ts";
-import os from "os";
 
 const mockNvim = {
   logger: {

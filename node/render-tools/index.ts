@@ -1,37 +1,35 @@
-import * as GetFileRender from "./getFile.ts";
-import * as HoverRender from "./hover.ts";
-import * as FindReferencesRender from "./findReferences.ts";
-import * as DiagnosticsRender from "./diagnostics.ts";
-import * as BashCommandRender from "./bashCommand.ts";
-import * as ThreadTitleRender from "./thread-title.ts";
-import * as SpawnSubagentRender from "./spawn-subagent.ts";
-import * as SpawnForeachRender from "./spawn-foreach.ts";
-import * as WaitForSubagentsRender from "./wait-for-subagents.ts";
-import * as YieldToParentRender from "./yield-to-parent.ts";
-import * as EdlRender from "./edl.ts";
-import * as MCPToolRender from "./mcp-tool.ts";
-
 import {
-  BashCommand,
-  SpawnSubagent,
-  SpawnForeach,
-  WaitForSubagents,
-  isMCPTool,
-  type ToolRequest,
+  type BashCommand,
   type CompletedToolInfo,
   type DisplayContext,
+  isMCPTool,
+  type SpawnForeach,
+  type SpawnSubagent,
   type StaticToolName,
+  type ToolRequest,
+  type WaitForSubagents,
 } from "@magenta/core";
-
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { d, type VDOMNode } from "../tea/view.ts";
-import type { ProviderToolResult } from "../providers/provider-types.ts";
-import type { Dispatch } from "../tea/tea.ts";
-import type { RootMsg } from "../root-msg.ts";
-import type { Nvim } from "../nvim/nvim-node/index.ts";
-import type { NvimCwd, HomeDir } from "../utils/files.ts";
-import type { MagentaOptions } from "../options.ts";
 import type { Chat } from "../chat/chat.ts";
+import type { Nvim } from "../nvim/nvim-node/index.ts";
+import type { MagentaOptions } from "../options.ts";
+import type { ProviderToolResult } from "../providers/provider-types.ts";
+import type { RootMsg } from "../root-msg.ts";
+import type { Dispatch } from "../tea/tea.ts";
+import { d, type VDOMNode } from "../tea/view.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import type { HomeDir, NvimCwd } from "../utils/files.ts";
+import * as BashCommandRender from "./bashCommand.ts";
+import * as DiagnosticsRender from "./diagnostics.ts";
+import * as EdlRender from "./edl.ts";
+import * as FindReferencesRender from "./findReferences.ts";
+import * as GetFileRender from "./getFile.ts";
+import * as HoverRender from "./hover.ts";
+import * as MCPToolRender from "./mcp-tool.ts";
+import * as SpawnForeachRender from "./spawn-foreach.ts";
+import * as SpawnSubagentRender from "./spawn-subagent.ts";
+import * as ThreadTitleRender from "./thread-title.ts";
+import * as WaitForSubagentsRender from "./wait-for-subagents.ts";
+import * as YieldToParentRender from "./yield-to-parent.ts";
 
 export type RenderContext = {
   getDisplayWidth: () => number;

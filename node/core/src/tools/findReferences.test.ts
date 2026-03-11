@@ -1,13 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
-import * as FindReferences from "./findReferences.ts";
+import { describe, expect, it, vi } from "vitest";
+import type { FileIO } from "../capabilities/file-io.ts";
 import type {
   LspClient,
   LspReferencesResponse,
 } from "../capabilities/lsp-client.ts";
-import type { FileIO } from "../capabilities/file-io.ts";
-import type { ToolRequestId } from "../tool-types.ts";
 import type { ProviderToolResult } from "../providers/provider-types.ts";
-import type { NvimCwd, HomeDir, UnresolvedFilePath } from "../utils/files.ts";
+import type { ToolRequestId } from "../tool-types.ts";
+import type { HomeDir, NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
+import * as FindReferences from "./findReferences.ts";
 
 const CWD = "/project" as NvimCwd;
 const HOME = "/home/user" as HomeDir;

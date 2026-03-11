@@ -1,19 +1,18 @@
-import { d, withBindings, type VDOMNode } from "../tea/view.ts";
 import type {
-  DisplayContext,
   CompletedToolInfo,
-  ToolRequest as UnionToolRequest,
+  DisplayContext,
+  SpawnSubagent,
   ThreadId,
+  ToolRequest as UnionToolRequest,
 } from "@magenta/core";
-import type { Dispatch } from "../tea/tea.ts";
-import type { RootMsg } from "../root-msg.ts";
-
+import { renderPendingApprovals } from "../capabilities/render-pending-approvals.ts";
 import type { Chat } from "../chat/chat.ts";
 import type { AgentType } from "../providers/system-prompt.ts";
-import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { RootMsg } from "../root-msg.ts";
+import type { Dispatch } from "../tea/tea.ts";
+import { d, type VDOMNode, withBindings } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { renderPendingApprovals } from "../capabilities/render-pending-approvals.ts";
-import type { SpawnSubagent } from "@magenta/core";
+import type { UnresolvedFilePath } from "../utils/files.ts";
 
 type Input = {
   prompt: string;
@@ -25,7 +24,7 @@ type Input = {
 function truncate(text: string, maxLen: number = 50): string {
   const singleLine = text.replace(/\n/g, " ");
   return singleLine.length > maxLen
-    ? singleLine.substring(0, maxLen) + "..."
+    ? `${singleLine.substring(0, maxLen)}...`
     : singleLine;
 }
 
@@ -97,7 +96,7 @@ export function renderInFlightPreview(
     case "error": {
       const truncatedError =
         summary.status.message.length > 50
-          ? summary.status.message.substring(0, 47) + "..."
+          ? `${summary.status.message.substring(0, 47)}...`
           : summary.status.message;
       statusText = `❌ error: ${truncatedError}`;
       break;
@@ -134,7 +133,7 @@ export function renderCompletedSummary(
   if (result.status === "error") {
     const errorPreview =
       result.error.length > 50
-        ? result.error.substring(0, 50) + "..."
+        ? `${result.error.substring(0, 50)}...`
         : result.error;
 
     return d`🤖❌ spawn_subagent${typeLabel}: ${errorPreview}`;

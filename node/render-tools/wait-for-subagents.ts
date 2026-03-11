@@ -1,17 +1,16 @@
-import { d, withBindings, type VDOMNode } from "../tea/view.ts";
 import type {
-  DisplayContext,
   CompletedToolInfo,
+  DisplayContext,
+  ThreadId,
   ToolRequest as UnionToolRequest,
   WaitForSubagents,
-  ThreadId,
 } from "@magenta/core";
-import type { Dispatch } from "../tea/tea.ts";
-import type { RootMsg } from "../root-msg.ts";
-
-import type { Chat } from "../chat/chat.ts";
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { renderPendingApprovals } from "../capabilities/render-pending-approvals.ts";
+import type { Chat } from "../chat/chat.ts";
+import type { RootMsg } from "../root-msg.ts";
+import type { Dispatch } from "../tea/tea.ts";
+import { d, type VDOMNode, withBindings } from "../tea/view.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
 
 type Input = {
   threadIds: ThreadId[];
@@ -65,7 +64,7 @@ export function renderInFlightPreview(
       case "error": {
         const truncatedError =
           summary.status.message.length > 50
-            ? summary.status.message.substring(0, 47) + "..."
+            ? `${summary.status.message.substring(0, 47)}...`
             : summary.status.message;
         statusText = `- ${displayName}: ❌ error: ${truncatedError}`;
         break;

@@ -1,13 +1,13 @@
-import { type Result } from "../utils/result.ts";
-import type {
-  ToolInvocation,
-  ToolName,
-  GenericToolRequest,
-} from "../tool-types.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider-types.ts";
+import type {
+  GenericToolRequest,
+  ToolInvocation,
+  ToolName,
+} from "../tool-types.ts";
+import type { Result } from "../utils/result.ts";
 
 export function execute(
   request: ToolRequest,
@@ -92,7 +92,7 @@ export type ToolRequest = GenericToolRequest<"thread_title", Input>;
 export function validateInput(input: {
   [key: string]: unknown;
 }): Result<Input> {
-  if (typeof input.title != "string") {
+  if (typeof input.title !== "string") {
     return {
       status: "error",
       error: "expected req.input.title to be a string",

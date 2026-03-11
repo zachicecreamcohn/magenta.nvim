@@ -1,7 +1,7 @@
-import { it, expect } from "vitest";
-import { withDriver } from "./preamble.ts";
+import { expect, it } from "vitest";
 import { $ } from "zx";
 import { getcwd } from "../nvim/nvim.ts";
+import { withDriver } from "./preamble.ts";
 
 it("should have nvim-cmp available", async () => {
   await withDriver({}, async (driver) => {

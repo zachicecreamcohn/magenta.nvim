@@ -1,19 +1,16 @@
-import { type Result } from "../utils/result.ts";
+import type { ThreadManager } from "../capabilities/thread-manager.ts";
+import type { ThreadId } from "../chat-types.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider-types.ts";
-
 import type {
-  ToolName,
   GenericToolRequest,
   ToolInvocation,
+  ToolName,
 } from "../tool-types.ts";
-
-import type { ThreadId } from "../chat-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-
-import type { ThreadManager } from "../capabilities/thread-manager.ts";
+import type { Result } from "../utils/result.ts";
 
 export type Input = {
   threadIds: ThreadId[];

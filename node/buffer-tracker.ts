@@ -1,7 +1,7 @@
+import fs from "node:fs";
+import { type BufNr, NvimBuffer } from "./nvim/buffer.ts";
 import type { Nvim } from "./nvim/nvim-node/index.ts";
 import type { AbsFilePath } from "./utils/files.ts";
-import { NvimBuffer, type BufNr } from "./nvim/buffer.ts";
-import fs from "node:fs";
 
 interface BufferSyncInfo {
   mtime: number; // File modification time when last synced

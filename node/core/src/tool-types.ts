@@ -10,9 +10,10 @@ export type ToolRequest = {
   toolName: ToolName;
   input: unknown;
 };
-import type { NvimCwd, HomeDir } from "./utils/files.ts";
+
 import type { ProviderToolResult } from "./providers/provider-types.ts";
 import type { StaticToolName } from "./tools/tool-registry.ts";
+import type { HomeDir, NvimCwd } from "./utils/files.ts";
 import type { Result } from "./utils/result.ts";
 
 export type DisplayContext = {

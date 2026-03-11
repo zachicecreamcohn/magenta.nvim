@@ -1,18 +1,17 @@
-import { d, withBindings, type VDOMNode } from "../tea/view.ts";
 import type {
-  DisplayContext,
   CompletedToolInfo,
-  ToolRequest as UnionToolRequest,
+  DisplayContext,
   ThreadId,
+  ToolRequest as UnionToolRequest,
 } from "@magenta/core";
-import type { Dispatch } from "../tea/tea.ts";
-import type { RootMsg } from "../root-msg.ts";
-
+import { renderPendingApprovals } from "../capabilities/render-pending-approvals.ts";
 import type { Chat } from "../chat/chat.ts";
 import type { AgentType } from "../providers/system-prompt.ts";
-import type { UnresolvedFilePath } from "../utils/files.ts";
+import type { RootMsg } from "../root-msg.ts";
+import type { Dispatch } from "../tea/tea.ts";
+import { d, type VDOMNode, withBindings } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { renderPendingApprovals } from "../capabilities/render-pending-approvals.ts";
+import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
 
 type ForEachElement = string & { __forEachElement: true };

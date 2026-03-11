@@ -8,7 +8,6 @@ export type ResultError<E> = {
   error: string;
 } & E;
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type Result<T, E = {}> = Success<T> | ResultError<E>;
 
 export type ExtractSuccess<R extends Result<unknown, unknown>> = Extract<
@@ -20,7 +19,7 @@ export function extendError<T, E1, E2>(
   result: Result<T, E1>,
   additionalErrorProps: E2,
 ): Result<T, E1 & E2> {
-  if (result.status == "ok") {
+  if (result.status === "ok") {
     return result;
   }
 

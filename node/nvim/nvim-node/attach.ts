@@ -1,12 +1,12 @@
-import { Packr, UnpackrStream, addExtension, unpack } from "msgpackr";
 import { EventEmitter } from "node:events";
 import net from "node:net";
+import { addExtension, Packr, UnpackrStream, unpack } from "msgpackr";
 import { createLogger, prettyRPCMessage } from "./logger.ts";
 import {
-  MessageType,
   type AttachParams,
   type BaseEvents,
   type EventHandler,
+  MessageType,
   type Nvim,
   type RPCMessage,
   type RPCNotification,
@@ -34,10 +34,10 @@ export async function attach<ApiInfo extends BaseEvents = BaseEvents>({
   const messageOutQueue: RPCMessage[] = [];
   const notificationHandlers = new Map<
     string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: EventHandler generic parameter varies per notification type
     Record<string, EventHandler<any, unknown>>
   >();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // biome-ignore lint/suspicious/noExplicitAny: EventHandler generic parameter varies per request type
   const requestHandlers = new Map<string, EventHandler<any, unknown>>();
   const emitter = new EventEmitter({ captureRejections: true });
 
@@ -91,7 +91,6 @@ export async function attach<ApiInfo extends BaseEvents = BaseEvents>({
     const handlers = notificationHandlers.get(message[1]);
     if (!handlers) return;
 
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises
     Object.entries(handlers).forEach(async ([id, handler]) => {
       const result = await handler(message[2]);
       // remove notification handler if it returns specifically `true`

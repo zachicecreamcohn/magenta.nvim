@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeOptions, type MagentaOptions } from "./options.ts";
+import { type MagentaOptions, mergeOptions } from "./options.ts";
 
 describe("mergeOptions", () => {
   const baseOptions: MagentaOptions = {

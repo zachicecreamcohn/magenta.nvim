@@ -1,11 +1,11 @@
-import { test, expect, describe } from "vitest";
-import { withDriver } from "../test/preamble.ts";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { ToolRequestId, ToolName } from "@magenta/core";
-import type { Row0Indexed } from "../nvim/window.ts";
+import type { ToolName, ToolRequestId } from "@magenta/core";
+import { describe, expect, test } from "vitest";
 import type { Line } from "../nvim/buffer.ts";
 import { getAllBuffers } from "../nvim/nvim.ts";
+import type { Row0Indexed } from "../nvim/window.ts";
+import { withDriver } from "../test/preamble.ts";
 
 describe("edl tool", () => {
   test("shows mutation summary in display", async () => {

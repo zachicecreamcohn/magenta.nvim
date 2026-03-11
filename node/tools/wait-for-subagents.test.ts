@@ -1,7 +1,7 @@
-import { withDriver } from "../test/preamble.ts";
-import { it } from "vitest";
-import type { ToolRequestId, ToolName } from "@magenta/core";
+import type { ToolName, ToolRequestId } from "@magenta/core";
 import { pollUntil } from "@magenta/core";
+import { it } from "vitest";
+import { withDriver } from "../test/preamble.ts";
 
 it("navigates to subagent thread when pressing Enter on completed summary thread link", async () => {
   await withDriver({}, async (driver) => {

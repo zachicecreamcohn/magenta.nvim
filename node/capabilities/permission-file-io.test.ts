@@ -1,13 +1,13 @@
-import { describe, test, expect, vi, beforeEach } from "vitest";
-import { PermissionCheckingFileIO } from "./permission-file-io.ts";
+import * as fs from "node:fs/promises";
+import os from "node:os";
+import * as path from "node:path";
 import type { FileIO } from "@magenta/core";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import type { Nvim } from "../nvim/nvim-node/index.ts";
+import type { FilePermission, MagentaOptions } from "../options.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import { MAGENTA_TEMP_DIR } from "../utils/files.ts";
-import type { MagentaOptions, FilePermission } from "../options.ts";
-import type { Nvim } from "../nvim/nvim-node/index.ts";
-import * as fs from "node:fs/promises";
-import * as path from "path";
-import os from "os";
+import { PermissionCheckingFileIO } from "./permission-file-io.ts";
 
 const mockNvim = {
   logger: { error: () => {} },

@@ -1,15 +1,15 @@
+import * as BashCommand from "./bashCommand.ts";
+import * as Diagnostics from "./diagnostics.ts";
+import * as Edl from "./edl.ts";
+import * as FindReferences from "./findReferences.ts";
 import * as GetFile from "./getFile.ts";
 import * as Hover from "./hover.ts";
-import * as FindReferences from "./findReferences.ts";
-import * as Diagnostics from "./diagnostics.ts";
-import * as BashCommand from "./bashCommand.ts";
-import * as ThreadTitle from "./thread-title.ts";
-import * as SpawnSubagent from "./spawn-subagent.ts";
 import * as SpawnForeach from "./spawn-foreach.ts";
+import * as SpawnSubagent from "./spawn-subagent.ts";
+import * as ThreadTitle from "./thread-title.ts";
+import type { StaticToolName } from "./tool-registry.ts";
 import * as WaitForSubagents from "./wait-for-subagents.ts";
 import * as YieldToParent from "./yield-to-parent.ts";
-import * as Edl from "./edl.ts";
-import type { StaticToolName } from "./tool-registry.ts";
 
 export function validateInput(
   toolName: unknown,

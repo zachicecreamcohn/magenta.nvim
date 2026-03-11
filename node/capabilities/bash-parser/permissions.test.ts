@@ -1,15 +1,15 @@
-import { describe, it, test, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import * as os from "node:os";
-import type { NvimCwd, HomeDir } from "../../utils/files.ts";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, test } from "vitest";
+import type { HomeDir, NvimCwd } from "../../utils/files.ts";
+import { parse } from "./parser.ts";
 import {
-  isCommandAllowedByConfig,
-  checkCommandListPermissions,
   BUILTIN_COMMAND_PERMISSIONS,
   type CommandPermissions,
+  checkCommandListPermissions,
+  isCommandAllowedByConfig,
 } from "./permissions.ts";
-import { parse } from "./parser.ts";
 
 const homeDir = "/home/user" as HomeDir;
 

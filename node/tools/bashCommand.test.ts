@@ -1,12 +1,12 @@
-import { withDriver } from "../test/preamble.ts";
-import { type ToolRequestId, type ToolName, pollUntil } from "@magenta/core";
-import { describe, it, expect } from "vitest";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { pollUntil, type ToolName, type ToolRequestId } from "@magenta/core";
+import { describe, expect, it } from "vitest";
 import { getcwd } from "../nvim/nvim.ts";
-import { MockProvider } from "../providers/mock.ts";
 import type { Row0Indexed } from "../nvim/window.ts";
-import { spawnSync } from "child_process";
+import { MockProvider } from "../providers/mock.ts";
+import { withDriver } from "../test/preamble.ts";
 
 describe("node/tools/bashCommand.test.ts", () => {
   it("executes a simple echo command without requiring approval (allowlisted)", async () => {
@@ -435,7 +435,7 @@ describe("node/tools/bashCommand.test.ts", () => {
         await driver.assertDisplayBufferContains("⚡✅");
 
         // Verify display shows truncated text
-        const truncatedText = "A".repeat(10) + "...";
+        const truncatedText = `${"A".repeat(10)}...`;
         await driver.assertDisplayBufferContains(truncatedText);
 
         // Verify the full output is preserved for the agent

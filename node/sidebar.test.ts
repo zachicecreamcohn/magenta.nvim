@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { withDriver } from "./test/preamble.ts";
 import { pollUntil } from "./utils/async.ts";
 
@@ -305,7 +305,7 @@ function extractTokenCount(winbar: string): number {
   if (!match) return 0;
 
   if (match[1] && match[0].includes("K")) {
-    return parseInt(match[1]) * 1000;
+    return parseInt(match[1], 10) * 1000;
   }
-  return parseInt(match[1]);
+  return parseInt(match[1], 10);
 }

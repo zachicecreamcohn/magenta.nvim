@@ -1,15 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
-import { ContextManager } from "./context-manager.ts";
+import { describe, expect, it, vi } from "vitest";
 import { InMemoryFileIO } from "../edl/in-memory-file-io.ts";
+import type { ProviderImageContent } from "../providers/provider-types.ts";
 import {
-  FileCategory,
   type AbsFilePath,
-  type RelFilePath,
-  type NvimCwd,
+  FileCategory,
   type HomeDir,
+  type NvimCwd,
+  type RelFilePath,
 } from "../utils/files.ts";
 import type { DiffUpdate, WholeFileUpdate } from "./context-manager.ts";
-import type { ProviderImageContent } from "../providers/provider-types.ts";
+import { ContextManager } from "./context-manager.ts";
 
 vi.mock("../utils/pdf-pages.ts", () => ({
   getSummaryAsProviderContent: vi.fn().mockResolvedValue({

@@ -1,20 +1,20 @@
-import { type Nvim } from "../nvim/nvim-node/index.ts";
+import type { ThreadId } from "@magenta/core";
+import { expect, vi } from "vitest";
 import type { Magenta } from "../magenta.ts";
 import type { Line, NvimBuffer } from "../nvim/buffer.ts";
-import type { MockProvider } from "../providers/mock.ts";
+import { getAllWindows, getCurrentWindow } from "../nvim/nvim.ts";
+import type { Nvim } from "../nvim/nvim-node/index.ts";
 import {
-  NvimWindow,
-  pos0to1,
   type ByteIdx,
+  type NvimWindow,
   type Position0Indexed,
+  pos0to1,
   type Row0Indexed,
 } from "../nvim/window.ts";
-import { Defer, pollUntil } from "../utils/async.ts";
+import type { MockProvider } from "../providers/mock.ts";
+import { type BindingKey, getBindings } from "../tea/bindings.ts";
 import { calculatePosition } from "../tea/util.ts";
-import { getBindings, type BindingKey } from "../tea/bindings.ts";
-import { getAllWindows, getCurrentWindow } from "../nvim/nvim.ts";
-import { expect, vi } from "vitest";
-import type { ThreadId } from "@magenta/core";
+import { Defer, pollUntil } from "../utils/async.ts";
 import { CompletionsInteraction } from "./driver/completions.ts";
 import { SidebarInteraction } from "./driver/sidebar.ts";
 
@@ -164,7 +164,6 @@ export class NvimDriver {
         let result: ReturnType<typeof thread.core.maybeAutoRespond> = {
           type: "no-action-needed",
         };
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         executeDefer.promise.then((r) => {
           result = r;
         });
@@ -223,7 +222,7 @@ export class NvimDriver {
   }
 
   getVisibleState() {
-    if (this.magenta.sidebar.state.state != "visible") {
+    if (this.magenta.sidebar.state.state !== "visible") {
       throw new Error(`sidebar is not visible`);
     }
     return this.magenta.sidebar.state;
@@ -244,7 +243,7 @@ export class NvimDriver {
           });
           latestContent = lines.slice(start).join("\n");
           const index = Buffer.from(latestContent).indexOf(text) as ByteIdx;
-          if (index == -1) {
+          if (index === -1) {
             throw new Error(
               `! Unable to find text ${text} after line ${start} in displayBuffer`,
             );
@@ -276,7 +275,7 @@ export class NvimDriver {
       });
       const content = lines.slice(start).join("\n");
       const index = Buffer.from(content).indexOf(text) as ByteIdx;
-      if (index == -1) {
+      if (index === -1) {
         throw new Error(
           `Unable to find text:\n"${text}"\nafter line ${start} in inputBuffer.\ninputBuffer content:\n${content}`,
         );
@@ -305,9 +304,9 @@ export class NvimDriver {
       }
 
       if (
-        desiredState.state == "thread-selected" &&
+        desiredState.state === "thread-selected" &&
         desiredState.id !== undefined &&
-        desiredState.id != state.activeThreadId
+        desiredState.id !== state.activeThreadId
       ) {
         throw new Error(
           `Unexpected chat state. Desired: ${JSON.stringify(desiredState)} actual: ${JSON.stringify(state)}`,
@@ -369,7 +368,7 @@ export class NvimDriver {
         });
         const content = lines.slice(start).join("\n");
         const index = Buffer.from(content).indexOf(text) as ByteIdx;
-        if (index == -1) {
+        if (index === -1) {
           throw new Error(
             `Unable to find text:\n"${text}"\nafter line ${start} in inputBuffer.\ninputBuffer content:\n${content}`,
           );
@@ -401,7 +400,7 @@ export class NvimDriver {
           end: -1 as Row0Indexed,
         });
         const content = lines.join("\n");
-        if (content != text) {
+        if (content !== text) {
           throw new Error(
             `display buffer content does not match text:\n"${text}"\ndisplayBuffer content:\n${content}`,
           );
@@ -481,7 +480,7 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
           });
           latestContent = lines.slice(start).join("\n");
           const index = Buffer.from(latestContent).indexOf(text) as ByteIdx;
-          if (index == -1) {
+          if (index === -1) {
             throw new Error(
               `! Unable to find text ${text} after line ${start} in displayBuffer`,
             );
@@ -530,7 +529,7 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
     return await pollUntil(
       async () => {
         const windows = await getAllWindows(this.nvim);
-        if (windows.length != n) {
+        if (windows.length !== n) {
           const windowDetails = await Promise.all(
             windows.map(async (w) => {
               const buffer = await w.buffer();

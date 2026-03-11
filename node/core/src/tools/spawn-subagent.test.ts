@@ -1,11 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
-import * as SpawnSubagent from "./spawn-subagent.ts";
+import { describe, expect, it, vi } from "vitest";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
 import type { ThreadId } from "../chat-types.ts";
+import type { ContainerConfig, ProvisionResult } from "../container/types.ts";
+import type { ProviderToolResult } from "../providers/provider-types.ts";
 import type { ToolRequestId } from "../tool-types.ts";
 import type { NvimCwd } from "../utils/files.ts";
-import type { ProviderToolResult } from "../providers/provider-types.ts";
-import type { ContainerConfig, ProvisionResult } from "../container/types.ts";
+import * as SpawnSubagent from "./spawn-subagent.ts";
 
 function createMockThreadManager(
   overrides: Partial<ThreadManager> = {},
@@ -51,7 +51,6 @@ describe("spawn-subagent unit tests", () => {
 
     const text = await getResultText(invocation);
     expect(text).toContain("Sub-agent started with threadId: thread-1");
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(threadManager.waitForThread).not.toHaveBeenCalled();
   });
 
@@ -169,11 +168,9 @@ describe("spawn-subagent unit tests", () => {
       });
 
       await vi.waitFor(() => {
-        // eslint-disable-next-line @typescript-eslint/unbound-method
         expect(threadManager.spawnThread).toHaveBeenCalled();
       });
 
-      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(threadManager.spawnThread).toHaveBeenCalledWith(
         expect.objectContaining({ threadType: expectedThreadType }),
       );
@@ -232,9 +229,7 @@ describe("spawn-subagent docker provisioning progress", () => {
 
     await invocation.promise;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const expectedProvisionOpts = expect.objectContaining({
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       onProgress: expect.any(Function),
     });
     expect(provision).toHaveBeenCalledWith(expectedProvisionOpts);
@@ -322,10 +317,8 @@ describe("spawn-subagent docker provisioning progress", () => {
 
     await invocation.promise;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const expectedSpawnOpts = expect.objectContaining({
       threadType: "docker_root",
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       dockerSpawnConfig: expect.objectContaining({
         branch: "feature-branch",
         containerName: provisionResult.containerName,
@@ -333,7 +326,6 @@ describe("spawn-subagent docker provisioning progress", () => {
         imageName: provisionResult.imageName,
       }),
     });
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(threadManager.spawnThread).toHaveBeenCalledWith(expectedSpawnOpts);
 
     expect(invocation.progress.threadId).toBe("thread-1");
@@ -362,10 +354,8 @@ describe("spawn-subagent docker provisioning progress", () => {
 
     await invocation.promise;
 
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(threadManager.spawnThread).toHaveBeenCalledWith(
       expect.objectContaining({
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         dockerSpawnConfig: expect.objectContaining({
           supervised: false,
         }),
@@ -396,10 +386,8 @@ describe("spawn-subagent docker provisioning progress", () => {
 
     await invocation.promise;
 
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(threadManager.spawnThread).toHaveBeenCalledWith(
       expect.objectContaining({
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         dockerSpawnConfig: expect.objectContaining({
           supervised: true,
         }),
@@ -437,7 +425,6 @@ describe("spawn-subagent docker provisioning progress", () => {
     const text = await getResultText(invocation);
     expect(text).toContain("completed");
     expect(text).toContain("docker work done");
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(threadManager.waitForThread).toHaveBeenCalledWith("thread-1");
   });
 
@@ -500,7 +487,6 @@ describe("spawn-subagent docker provisioning progress", () => {
 
     const text = await getResultText(invocation);
     expect(text).toContain("Docker thread started with threadId: thread-1");
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(threadManager.waitForThread).not.toHaveBeenCalled();
   });
 });
