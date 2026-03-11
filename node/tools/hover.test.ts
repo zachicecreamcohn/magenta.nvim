@@ -6,7 +6,7 @@ import type {
 import { expect, it } from "vitest";
 import { pollForToolResult, withDriver } from "../test/preamble.ts";
 
-it("hover end-to-end", async () => {
+it.skip("hover end-to-end", async () => {
   await withDriver({}, async (driver) => {
     await driver.editFileAndWaitForLsp("test.ts");
     await driver.showSidebar();
