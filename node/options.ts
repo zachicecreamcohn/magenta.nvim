@@ -1,18 +1,18 @@
-import { PROVIDER_NAMES, type ProviderName } from "./providers/provider.ts";
-import * as fs from "fs";
-import * as path from "path";
-import { fileURLToPath } from "url";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
+  type ContainerConfig,
   type ServerName,
   validateServerName,
-  type ContainerConfig,
 } from "@magenta/core";
-import type { NvimCwd } from "./utils/files.ts";
 import {
-  BUILTIN_COMMAND_PERMISSIONS,
   type ArgSpec,
+  BUILTIN_COMMAND_PERMISSIONS,
   type CommandPermissions,
 } from "./capabilities/bash-parser/permissions.ts";
+import { PROVIDER_NAMES, type ProviderName } from "./providers/provider.ts";
+import type { NvimCwd } from "./utils/files.ts";
 
 // Get the path to the built-in skills directory
 const __filename = fileURLToPath(import.meta.url);
@@ -190,9 +190,9 @@ function parseProfiles(
 
       if (
         !(
-          typeof p["name"] === "string" &&
-          typeof p["provider"] === "string" &&
-          PROVIDER_NAMES.indexOf(p["provider"] as ProviderName) !== -1
+          typeof p.name === "string" &&
+          typeof p.provider === "string" &&
+          PROVIDER_NAMES.indexOf(p.provider as ProviderName) !== -1
         )
       ) {
         logger.warn(
@@ -201,80 +201,77 @@ function parseProfiles(
         continue;
       }
 
-      const provider = p["provider"] as ProviderName;
+      const provider = p.provider as ProviderName;
       const defaults = DEFAULT_MODELS[provider];
 
-      const model =
-        typeof p["model"] === "string" ? p["model"] : defaults.model;
+      const model = typeof p.model === "string" ? p.model : defaults.model;
 
       const out: Profile = {
-        name: p["name"],
+        name: p.name,
         provider,
         model,
         fastModel:
-          typeof p["fastModel"] === "string"
-            ? p["fastModel"]
+          typeof p.fastModel === "string"
+            ? p.fastModel
             : (defaults.fastModel ?? model),
       };
 
       if ("baseUrl" in p) {
-        if (typeof p["baseUrl"] === "string") {
-          out.baseUrl = p["baseUrl"];
+        if (typeof p.baseUrl === "string") {
+          out.baseUrl = p.baseUrl;
         } else {
-          logger.warn(
-            `Invalid baseUrl in profile ${p["name"]}, ignoring field`,
-          );
+          logger.warn(`Invalid baseUrl in profile ${p.name}, ignoring field`);
         }
       }
 
       if ("apiKeyEnvVar" in p) {
-        if (typeof p["apiKeyEnvVar"] === "string") {
-          out.apiKeyEnvVar = p["apiKeyEnvVar"];
+        if (typeof p.apiKeyEnvVar === "string") {
+          out.apiKeyEnvVar = p.apiKeyEnvVar;
         } else {
           logger.warn(
-            `Invalid apiKeyEnvVar in profile ${p["name"]}, ignoring field`,
+            `Invalid apiKeyEnvVar in profile ${p.name}, ignoring field`,
           );
         }
       }
 
       if ("authType" in p) {
         if (
-          typeof p["authType"] === "string" &&
-          (p["authType"] === "key" || p["authType"] === "max")
+          typeof p.authType === "string" &&
+          (p.authType === "key" || p.authType === "max")
         ) {
-          out.authType = p["authType"];
+          out.authType = p.authType;
         } else {
           logger.warn(
-            `Invalid authType in profile ${p["name"]}, must be "key" or "max"`,
+            `Invalid authType in profile ${p.name}, must be "key" or "max"`,
           );
         }
       }
 
       if ("promptCaching" in p) {
-        if (typeof p["promptCaching"] === "boolean") {
-          out.promptCaching = p["promptCaching"];
+        if (typeof p.promptCaching === "boolean") {
+          out.promptCaching = p.promptCaching;
         } else {
           logger.warn(
-            `Invalid promptCaching in profile ${p["name"]}, ignoring field`,
+            `Invalid promptCaching in profile ${p.name}, ignoring field`,
           );
         }
       }
 
       if ("env" in p) {
         if (
-          typeof p["env"] === "object" &&
-          p["env"] !== null &&
-          !Array.isArray(p["env"])
+          typeof p.env === "object" &&
+          p.env !== null &&
+          !Array.isArray(p.env)
         ) {
           const env: Record<string, string> = {};
-          const envObj = p["env"] as Record<string, unknown>;
+          const envObj = p.env as Record<string, unknown>;
 
           for (const [envKey, envValue] of Object.entries(envObj)) {
             if (typeof envValue === "string") {
               env[envKey] = envValue;
             } else {
               logger.warn(
-                `Skipping non-string env value in profile ${p["name"]}: ${envKey}=${JSON.stringify(envValue)}`,
+                `Skipping non-string env value in profile ${p.name}: ${envKey}=${JSON.stringify(envValue)}`,
               );
             }
           }
@@ -283,78 +280,78 @@ function parseProfiles(
             out.env = env;
           }
         } else {
-          logger.warn(`Invalid env in profile ${p["name"]}, must be an object`);
+          logger.warn(`Invalid env in profile ${p.name}, must be an object`);
         }
       }
 
       if ("thinking" in p) {
-        if (typeof p["thinking"] === "object" && p["thinking"] !== null) {
-          const thinking = p["thinking"] as { [key: string]: unknown };
-          if (typeof thinking["enabled"] === "boolean") {
+        if (typeof p.thinking === "object" && p.thinking !== null) {
+          const thinking = p.thinking as { [key: string]: unknown };
+          if (typeof thinking.enabled === "boolean") {
             out.thinking = {
-              enabled: thinking["enabled"],
+              enabled: thinking.enabled,
             };
             if (
-              typeof thinking["budgetTokens"] === "number" &&
-              thinking["budgetTokens"] >= 1024
+              typeof thinking.budgetTokens === "number" &&
+              thinking.budgetTokens >= 1024
             ) {
-              out.thinking.budgetTokens = thinking["budgetTokens"];
+              out.thinking.budgetTokens = thinking.budgetTokens;
             } else if ("budgetTokens" in thinking) {
               logger.warn(
-                `Invalid budgetTokens in profile ${p["name"]}, must be a number >= 1024`,
+                `Invalid budgetTokens in profile ${p.name}, must be a number >= 1024`,
               );
             }
           } else {
             logger.warn(
-              `Invalid thinking config in profile ${p["name"]}, must have enabled boolean field`,
+              `Invalid thinking config in profile ${p.name}, must have enabled boolean field`,
             );
           }
         } else {
           logger.warn(
-            `Invalid thinking in profile ${p["name"]}, must be an object`,
+            `Invalid thinking in profile ${p.name}, must be an object`,
           );
         }
       }
 
       if ("reasoning" in p) {
-        if (typeof p["reasoning"] === "object" && p["reasoning"] !== null) {
-          const reasoning = p["reasoning"] as { [key: string]: unknown };
+        if (typeof p.reasoning === "object" && p.reasoning !== null) {
+          const reasoning = p.reasoning as { [key: string]: unknown };
           out.reasoning = {};
 
           if ("effort" in reasoning) {
             if (
-              typeof reasoning["effort"] === "string" &&
-              ["low", "medium", "high"].includes(reasoning["effort"])
+              typeof reasoning.effort === "string" &&
+              ["low", "medium", "high"].includes(reasoning.effort)
             ) {
-              out.reasoning.effort = reasoning["effort"] as
+              out.reasoning.effort = reasoning.effort as
                 | "low"
                 | "medium"
                 | "high";
             } else {
               logger.warn(
-                `Invalid effort in profile ${p["name"]}, must be "low", "medium", or "high"`,
+                `Invalid effort in profile ${p.name}, must be "low", "medium", or "high"`,
               );
             }
           }
 
           if ("summary" in reasoning) {
             if (
-              typeof reasoning["summary"] === "string" &&
-              ["auto", "concise", "detailed"].includes(reasoning["summary"])
+              typeof reasoning.summary === "string" &&
+              ["auto", "concise", "detailed"].includes(reasoning.summary)
             ) {
-              out.reasoning.summary = reasoning["summary"] as
+              out.reasoning.summary = reasoning.summary as
                 | "auto"
                 | "concise"
                 | "detailed";
             } else {
               logger.warn(
-                `Invalid summary in profile ${p["name"]}, must be "auto", "concise", or "detailed"`,
+                `Invalid summary in profile ${p.name}, must be "auto", "concise", or "detailed"`,
               );
             }
           }
         } else {
           logger.warn(
-            `Invalid reasoning in profile ${p["name"]}, must be an object`,
+            `Invalid reasoning in profile ${p.name}, must be an object`,
           );
         }
       }
@@ -581,7 +578,7 @@ function parseFilePermissions(
 
       const p = item as { [key: string]: unknown };
 
-      if (typeof p["path"] !== "string" || p["path"].trim() === "") {
+      if (typeof p.path !== "string" || p.path.trim() === "") {
         logger.warn(
           `File permission must have a non-empty 'path' field: ${JSON.stringify(p)}`,
         );
@@ -589,39 +586,39 @@ function parseFilePermissions(
       }
 
       const permission: FilePermission = {
-        path: p["path"],
+        path: p.path,
       };
 
       // Parse boolean permission flags - they must be `true` if present
-      if (p["read"] === true) {
+      if (p.read === true) {
         permission.read = true;
-      } else if ("read" in p && p["read"] !== undefined) {
+      } else if ("read" in p && p.read !== undefined) {
         logger.warn(
-          `Invalid 'read' value in file permission for path "${p["path"]}", must be true or omitted`,
+          `Invalid 'read' value in file permission for path "${p.path}", must be true or omitted`,
         );
       }
 
-      if (p["write"] === true) {
+      if (p.write === true) {
         permission.write = true;
-      } else if ("write" in p && p["write"] !== undefined) {
+      } else if ("write" in p && p.write !== undefined) {
         logger.warn(
-          `Invalid 'write' value in file permission for path "${p["path"]}", must be true or omitted`,
+          `Invalid 'write' value in file permission for path "${p.path}", must be true or omitted`,
         );
       }
 
-      if (p["readSecret"] === true) {
+      if (p.readSecret === true) {
         permission.readSecret = true;
-      } else if ("readSecret" in p && p["readSecret"] !== undefined) {
+      } else if ("readSecret" in p && p.readSecret !== undefined) {
         logger.warn(
-          `Invalid 'readSecret' value in file permission for path "${p["path"]}", must be true or omitted`,
+          `Invalid 'readSecret' value in file permission for path "${p.path}", must be true or omitted`,
         );
       }
 
-      if (p["writeSecret"] === true) {
+      if (p.writeSecret === true) {
         permission.writeSecret = true;
-      } else if ("writeSecret" in p && p["writeSecret"] !== undefined) {
+      } else if ("writeSecret" in p && p.writeSecret !== undefined) {
         logger.warn(
-          `Invalid 'writeSecret' value in file permission for path "${p["path"]}", must be true or omitted`,
+          `Invalid 'writeSecret' value in file permission for path "${p.path}", must be true or omitted`,
         );
       }
 
@@ -635,7 +632,7 @@ function parseFilePermissions(
         permissions.push(permission);
       } else {
         logger.warn(
-          `File permission for path "${p["path"]}" has no permissions set, skipping`,
+          `File permission for path "${p.path}" has no permissions set, skipping`,
         );
       }
     } catch (error) {
@@ -720,9 +717,9 @@ function parseSidebarPosition(
   if (
     input === "right" ||
     input === "left" ||
-    input == "above" ||
-    input == "below" ||
-    input == "tab" ||
+    input === "above" ||
+    input === "below" ||
+    input === "tab" ||
     input === "leftbelow" ||
     input === "leftabove" ||
     input === "rightbelow" ||
@@ -756,12 +753,12 @@ function parseSidebarPositionOpts(
       if (typeof sideOpts === "object" && sideOpts !== null) {
         const sideOptsObj = sideOpts as { [key: string]: unknown };
         if (
-          typeof sideOptsObj["widthPercentage"] === "number" &&
-          typeof sideOptsObj["displayHeightPercentage"] === "number"
+          typeof sideOptsObj.widthPercentage === "number" &&
+          typeof sideOptsObj.displayHeightPercentage === "number"
         ) {
           result[side] = {
-            widthPercentage: sideOptsObj["widthPercentage"],
-            displayHeightPercentage: sideOptsObj["displayHeightPercentage"],
+            widthPercentage: sideOptsObj.widthPercentage,
+            displayHeightPercentage: sideOptsObj.displayHeightPercentage,
           };
         } else {
           logger?.warn(
@@ -781,12 +778,12 @@ function parseSidebarPositionOpts(
       if (typeof sideOpts === "object" && sideOpts !== null) {
         const sideOptsObj = sideOpts as { [key: string]: unknown };
         if (
-          typeof sideOptsObj["displayHeightPercentage"] === "number" &&
-          typeof sideOptsObj["inputHeightPercentage"] === "number"
+          typeof sideOptsObj.displayHeightPercentage === "number" &&
+          typeof sideOptsObj.inputHeightPercentage === "number"
         ) {
           result[side] = {
-            displayHeightPercentage: sideOptsObj["displayHeightPercentage"],
-            inputHeightPercentage: sideOptsObj["inputHeightPercentage"],
+            displayHeightPercentage: sideOptsObj.displayHeightPercentage,
+            inputHeightPercentage: sideOptsObj.inputHeightPercentage,
           };
         } else {
           logger?.warn(
@@ -801,12 +798,12 @@ function parseSidebarPositionOpts(
 
   // Parse tab (TabWindowDimensions)
   if ("tab" in opts) {
-    const tabOpts = opts["tab"];
+    const tabOpts = opts.tab;
     if (typeof tabOpts === "object" && tabOpts !== null) {
       const tabOptsObj = tabOpts as { [key: string]: unknown };
-      if (typeof tabOptsObj["displayHeightPercentage"] === "number") {
+      if (typeof tabOptsObj.displayHeightPercentage === "number") {
         result.tab = {
-          displayHeightPercentage: tabOptsObj["displayHeightPercentage"],
+          displayHeightPercentage: tabOptsObj.displayHeightPercentage,
         };
       } else {
         logger?.warn(
@@ -838,8 +835,8 @@ function parseArgSpec(
     const spec = argSpec as Record<string, unknown>;
 
     // Check for type-based discriminated union
-    if (typeof spec["type"] === "string") {
-      switch (spec["type"]) {
+    if (typeof spec.type === "string") {
+      switch (spec.type) {
         case "file":
           return { type: "file" };
         case "readFile":
@@ -853,17 +850,17 @@ function parseArgSpec(
         case "any":
           return { type: "any" };
         case "pattern":
-          if (typeof spec["pattern"] === "string") {
-            return { type: "pattern", pattern: spec["pattern"] };
+          if (typeof spec.pattern === "string") {
+            return { type: "pattern", pattern: spec.pattern };
           }
           logger.warn(
             `Invalid pattern ArgSpec at ${path}: missing pattern string`,
           );
           return undefined;
         case "group":
-          if (Array.isArray(spec["args"])) {
+          if (Array.isArray(spec.args)) {
             const groupArgs: ArgSpec[] = [];
-            const argsArray = spec["args"] as Array<unknown>;
+            const argsArray = spec.args as Array<unknown>;
             for (let i = 0; i < argsArray.length; i++) {
               const parsed = parseArgSpec(
                 argsArray[i],
@@ -876,10 +873,10 @@ function parseArgSpec(
               groupArgs.push(parsed);
             }
             const result: ArgSpec = { type: "group", args: groupArgs };
-            if (spec["optional"] === true) {
+            if (spec.optional === true) {
               result.optional = true;
             }
-            if (spec["anyOrder"] === true) {
+            if (spec.anyOrder === true) {
               result.anyOrder = true;
             }
             return result;
@@ -887,31 +884,31 @@ function parseArgSpec(
           logger.warn(`Invalid group ArgSpec at ${path}: missing args array`);
           return undefined;
         default:
-          logger.warn(`Invalid ArgSpec type at ${path}: "${spec["type"]}"`);
+          logger.warn(`Invalid ArgSpec type at ${path}: "${spec.type}"`);
           return undefined;
       }
     }
 
     // Legacy support for old format
-    if (spec["file"] === true && Object.keys(spec).length === 1) {
+    if (spec.file === true && Object.keys(spec).length === 1) {
       return { type: "file" };
     }
-    if (spec["restFiles"] === true && Object.keys(spec).length === 1) {
+    if (spec.restFiles === true && Object.keys(spec).length === 1) {
       return { type: "restFiles" };
     }
-    if (spec["any"] === true && Object.keys(spec).length === 1) {
+    if (spec.any === true && Object.keys(spec).length === 1) {
       return { type: "any" };
     }
     if (
       "pattern" in spec &&
-      typeof spec["pattern"] === "string" &&
+      typeof spec.pattern === "string" &&
       Object.keys(spec).length === 1
     ) {
-      return { type: "pattern", pattern: spec["pattern"] };
+      return { type: "pattern", pattern: spec.pattern };
     }
-    if (Array.isArray(spec["optional"])) {
+    if (Array.isArray(spec.optional)) {
       const optionalSpecs: ArgSpec[] = [];
-      const optionalArray = spec["optional"] as Array<unknown>;
+      const optionalArray = spec.optional as Array<unknown>;
       for (let i = 0; i < optionalArray.length; i++) {
         const parsed = parseArgSpec(
           optionalArray[i],
@@ -993,7 +990,7 @@ function parseCommandConfig(
 
   if ("commands" in inputObj) {
     result.commands = parseCommandPatterns(
-      inputObj["commands"],
+      inputObj.commands,
       logger,
       "commandConfig.commands",
     );
@@ -1001,7 +998,7 @@ function parseCommandConfig(
 
   if ("pipeCommands" in inputObj) {
     result.pipeCommands = parseCommandPatterns(
-      inputObj["pipeCommands"],
+      inputObj.pipeCommands,
       logger,
       "commandConfig.pipeCommands",
     );
@@ -1059,12 +1056,12 @@ export function parseOptions(
     customCommands: [],
   };
 
-  if (typeof inputOptions == "object" && inputOptions != null) {
+  if (typeof inputOptions === "object" && inputOptions != null) {
     const inputOptionsObj = inputOptions as { [key: string]: unknown };
 
     // Parse sidebar position
     const sidebarPosition = parseSidebarPosition(
-      inputOptionsObj["sidebarPosition"],
+      inputOptionsObj.sidebarPosition,
     );
     if (sidebarPosition) {
       options.sidebarPosition = sidebarPosition;
@@ -1072,7 +1069,7 @@ export function parseOptions(
 
     // Parse sidebar position opts
     const sidebarPositionOpts = parseSidebarPositionOpts(
-      inputOptionsObj["sidebarPositionOpts"],
+      inputOptionsObj.sidebarPositionOpts,
     );
     if (sidebarPositionOpts) {
       options.sidebarPositionOpts = sidebarPositionOpts;
@@ -1081,7 +1078,7 @@ export function parseOptions(
     // Parse command config - merge with builtins
     if ("commandConfig" in inputOptionsObj) {
       const commandConfig = parseCommandConfig(
-        inputOptionsObj["commandConfig"],
+        inputOptionsObj.commandConfig,
         logger,
       );
       if (commandConfig) {
@@ -1093,23 +1090,23 @@ export function parseOptions(
     }
 
     // Parse profiles (throw errors for invalid profiles in main config)
-    options.profiles = parseProfiles(inputOptionsObj["profiles"], logger);
+    options.profiles = parseProfiles(inputOptionsObj.profiles, logger);
 
-    if (options.profiles.length == 0) {
+    if (options.profiles.length === 0) {
       throw new Error(`Invalid profiles provided`);
     }
     options.activeProfile = options.profiles[0].name;
 
     // Parse auto context
     options.autoContext = parseStringArray(
-      inputOptionsObj["autoContext"],
+      inputOptionsObj.autoContext,
       "autoContext",
     );
 
     // Parse skills paths - always prepend built-in skills
     if ("skillsPaths" in inputOptionsObj) {
       const userSkillsPaths = parseStringArray(
-        inputOptionsObj["skillsPaths"],
+        inputOptionsObj.skillsPaths,
         "skillsPaths",
       );
       options.skillsPaths = [BUILTIN_SKILLS_PATH, ...userSkillsPaths];
@@ -1117,14 +1114,14 @@ export function parseOptions(
 
     // Parse getFile auto allow globs
     options.getFileAutoAllowGlobs = parseStringArray(
-      inputOptionsObj["getFileAutoAllowGlobs"],
+      inputOptionsObj.getFileAutoAllowGlobs,
       "getFileAutoAllowGlobs",
     );
 
     // Parse file permissions
     if ("filePermissions" in inputOptionsObj) {
       options.filePermissions = parseFilePermissions(
-        inputOptionsObj["filePermissions"],
+        inputOptionsObj.filePermissions,
         logger,
       );
     }
@@ -1132,48 +1129,47 @@ export function parseOptions(
     // Parse max concurrent subagents
     if (
       "maxConcurrentSubagents" in inputOptionsObj &&
-      typeof inputOptionsObj["maxConcurrentSubagents"] === "number" &&
-      inputOptionsObj["maxConcurrentSubagents"] > 0
+      typeof inputOptionsObj.maxConcurrentSubagents === "number" &&
+      inputOptionsObj.maxConcurrentSubagents > 0
     ) {
-      options.maxConcurrentSubagents =
-        inputOptionsObj["maxConcurrentSubagents"];
+      options.maxConcurrentSubagents = inputOptionsObj.maxConcurrentSubagents;
     }
 
     // Parse LSP debounce ms
     if (
       "lspDebounceMs" in inputOptionsObj &&
-      typeof inputOptionsObj["lspDebounceMs"] === "number" &&
-      inputOptionsObj["lspDebounceMs"] > 0
+      typeof inputOptionsObj.lspDebounceMs === "number" &&
+      inputOptionsObj.lspDebounceMs > 0
     ) {
-      options.lspDebounceMs = inputOptionsObj["lspDebounceMs"];
+      options.lspDebounceMs = inputOptionsObj.lspDebounceMs;
     }
 
     // Parse debug flag
     if (
       "debug" in inputOptionsObj &&
-      typeof inputOptionsObj["debug"] === "boolean"
+      typeof inputOptionsObj.debug === "boolean"
     ) {
-      options.debug = inputOptionsObj["debug"];
+      options.debug = inputOptionsObj.debug;
     }
 
     // Parse chime volume
     if (
       "chimeVolume" in inputOptionsObj &&
-      typeof inputOptionsObj["chimeVolume"] === "number" &&
-      inputOptionsObj["chimeVolume"] >= 0 &&
-      inputOptionsObj["chimeVolume"] <= 1
+      typeof inputOptionsObj.chimeVolume === "number" &&
+      inputOptionsObj.chimeVolume >= 0 &&
+      inputOptionsObj.chimeVolume <= 1
     ) {
-      options.chimeVolume = inputOptionsObj["chimeVolume"];
+      options.chimeVolume = inputOptionsObj.chimeVolume;
     } else if ("chimeVolume" in inputOptionsObj) {
       logger.warn("chimeVolume must be a number between 0.0 and 1.0");
     }
 
     // Parse MCP servers (throw errors for invalid MCP servers in main config)
-    options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
+    options.mcpServers = parseMCPServers(inputOptionsObj.mcpServers, logger);
 
     if ("customCommands" in inputOptionsObj) {
       options.customCommands = parseCustomCommands(
-        inputOptionsObj["customCommands"],
+        inputOptionsObj.customCommands,
         logger,
       );
     }
@@ -1192,27 +1188,27 @@ function parseContainerConfig(
   }
   const obj = input as { [key: string]: unknown };
 
-  if (typeof obj["dockerfile"] !== "string") {
+  if (typeof obj.dockerfile !== "string") {
     logger.warn("container.dockerfile must be a string");
     return undefined;
   }
-  if (typeof obj["workspacePath"] !== "string") {
+  if (typeof obj.workspacePath !== "string") {
     logger.warn("container.workspacePath must be a string");
     return undefined;
   }
   if (
-    obj["installCommand"] !== undefined &&
-    typeof obj["installCommand"] !== "string"
+    obj.installCommand !== undefined &&
+    typeof obj.installCommand !== "string"
   ) {
     logger.warn("container.installCommand must be a string");
     return undefined;
   }
 
   const config: ContainerConfig = {
-    dockerfile: obj["dockerfile"],
-    workspacePath: obj["workspacePath"],
-    ...(typeof obj["installCommand"] === "string"
-      ? { installCommand: obj["installCommand"] }
+    dockerfile: obj.dockerfile,
+    workspacePath: obj.workspacePath,
+    ...(typeof obj.installCommand === "string"
+      ? { installCommand: obj.installCommand }
       : {}),
   };
 
@@ -1233,7 +1229,7 @@ export function parseProjectOptions(
 
   // Parse sidebar position
   const sidebarPosition = parseSidebarPosition(
-    inputOptionsObj["sidebarPosition"],
+    inputOptionsObj.sidebarPosition,
     logger,
   );
   if (sidebarPosition) {
@@ -1243,7 +1239,7 @@ export function parseProjectOptions(
   // Parse command config
   if ("commandConfig" in inputOptionsObj) {
     const commandConfig = parseCommandConfig(
-      inputOptionsObj["commandConfig"],
+      inputOptionsObj.commandConfig,
       logger,
     );
     if (commandConfig) {
@@ -1253,7 +1249,7 @@ export function parseProjectOptions(
 
   // Parse profiles
   if ("profiles" in inputOptionsObj) {
-    const profiles = parseProfiles(inputOptionsObj["profiles"], logger);
+    const profiles = parseProfiles(inputOptionsObj.profiles, logger);
     if (profiles.length > 0) {
       options.profiles = profiles;
       // Set active profile to first one if not explicitly set
@@ -1265,8 +1261,8 @@ export function parseProjectOptions(
 
   // Parse active profile
   if ("activeProfile" in inputOptionsObj) {
-    if (typeof inputOptionsObj["activeProfile"] === "string") {
-      options.activeProfile = inputOptionsObj["activeProfile"];
+    if (typeof inputOptionsObj.activeProfile === "string") {
+      options.activeProfile = inputOptionsObj.activeProfile;
     } else {
       logger.warn("activeProfile must be a string");
     }
@@ -1275,7 +1271,7 @@ export function parseProjectOptions(
   // Parse auto context
   if ("autoContext" in inputOptionsObj) {
     options.autoContext = parseStringArray(
-      inputOptionsObj["autoContext"],
+      inputOptionsObj.autoContext,
       "autoContext",
       logger,
     );
@@ -1284,7 +1280,7 @@ export function parseProjectOptions(
   // Parse skills paths
   if ("skillsPaths" in inputOptionsObj) {
     options.skillsPaths = parseStringArray(
-      inputOptionsObj["skillsPaths"],
+      inputOptionsObj.skillsPaths,
       "skillsPaths",
       logger,
     );
@@ -1293,7 +1289,7 @@ export function parseProjectOptions(
   // Parse getFile auto allow globs
   if ("getFileAutoAllowGlobs" in inputOptionsObj) {
     options.getFileAutoAllowGlobs = parseStringArray(
-      inputOptionsObj["getFileAutoAllowGlobs"],
+      inputOptionsObj.getFileAutoAllowGlobs,
       "getFileAutoAllowGlobs",
       logger,
     );
@@ -1302,7 +1298,7 @@ export function parseProjectOptions(
   // Parse file permissions
   if ("filePermissions" in inputOptionsObj) {
     options.filePermissions = parseFilePermissions(
-      inputOptionsObj["filePermissions"],
+      inputOptionsObj.filePermissions,
       logger,
     );
   }
@@ -1310,57 +1306,54 @@ export function parseProjectOptions(
   // Parse max concurrent subagents
   if (
     "maxConcurrentSubagents" in inputOptionsObj &&
-    typeof inputOptionsObj["maxConcurrentSubagents"] === "number" &&
-    inputOptionsObj["maxConcurrentSubagents"] > 0
+    typeof inputOptionsObj.maxConcurrentSubagents === "number" &&
+    inputOptionsObj.maxConcurrentSubagents > 0
   ) {
-    options.maxConcurrentSubagents = inputOptionsObj["maxConcurrentSubagents"];
+    options.maxConcurrentSubagents = inputOptionsObj.maxConcurrentSubagents;
   }
 
   // Parse LSP debounce ms
   if (
     "lspDebounceMs" in inputOptionsObj &&
-    typeof inputOptionsObj["lspDebounceMs"] === "number" &&
-    inputOptionsObj["lspDebounceMs"] > 0
+    typeof inputOptionsObj.lspDebounceMs === "number" &&
+    inputOptionsObj.lspDebounceMs > 0
   ) {
-    options.lspDebounceMs = inputOptionsObj["lspDebounceMs"];
+    options.lspDebounceMs = inputOptionsObj.lspDebounceMs;
   }
 
   // Parse debug flag
   if (
     "debug" in inputOptionsObj &&
-    typeof inputOptionsObj["debug"] === "boolean"
+    typeof inputOptionsObj.debug === "boolean"
   ) {
-    options.debug = inputOptionsObj["debug"];
+    options.debug = inputOptionsObj.debug;
   }
 
   if (
     "chimeVolume" in inputOptionsObj &&
-    typeof inputOptionsObj["chimeVolume"] === "number" &&
-    inputOptionsObj["chimeVolume"] >= 0 &&
-    inputOptionsObj["chimeVolume"] <= 1
+    typeof inputOptionsObj.chimeVolume === "number" &&
+    inputOptionsObj.chimeVolume >= 0 &&
+    inputOptionsObj.chimeVolume <= 1
   ) {
-    options.chimeVolume = inputOptionsObj["chimeVolume"];
+    options.chimeVolume = inputOptionsObj.chimeVolume;
   } else if ("chimeVolume" in inputOptionsObj) {
     logger.warn("chimeVolume must be a number between 0.0 and 1.0");
   }
 
   // Parse MCP servers
   if ("mcpServers" in inputOptionsObj) {
-    options.mcpServers = parseMCPServers(inputOptionsObj["mcpServers"], logger);
+    options.mcpServers = parseMCPServers(inputOptionsObj.mcpServers, logger);
   }
 
   if ("customCommands" in inputOptionsObj) {
     options.customCommands = parseCustomCommands(
-      inputOptionsObj["customCommands"],
+      inputOptionsObj.customCommands,
       logger,
     );
   }
 
   if ("container" in inputOptionsObj) {
-    options.container = parseContainerConfig(
-      inputOptionsObj["container"],
-      logger,
-    );
+    options.container = parseContainerConfig(inputOptionsObj.container, logger);
   }
 
   return options;
@@ -1512,7 +1505,7 @@ export function mergeOptions(
 }
 
 export function getActiveProfile(profiles: Profile[], activeProfile: string) {
-  const profile = profiles.find((p) => p.name == activeProfile);
+  const profile = profiles.find((p) => p.name === activeProfile);
   if (!profile) {
     throw new Error(`Profile ${activeProfile} not found.`);
   }

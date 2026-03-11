@@ -1,13 +1,13 @@
 import {
   getProvider as coreGetProvider,
-  setMockProvider,
-  validateInput,
   type Provider,
   type ProviderProfile,
+  setMockProvider,
+  validateInput,
 } from "@magenta/core";
-import type { Nvim } from "../nvim/nvim-node/index.ts";
-import { NvimAuthUI } from "../auth/auth-ui.ts";
 import * as AnthropicAuthImpl from "../auth/anthropic.ts";
+import { NvimAuthUI } from "../auth/auth-ui.ts";
+import type { Nvim } from "../nvim/nvim-node/index.ts";
 
 export { setMockProvider };
 export * from "./provider-types.ts";

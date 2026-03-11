@@ -1,12 +1,12 @@
-import type { Nvim } from "../../nvim/nvim-node/index.ts";
 import type { Magenta } from "../../magenta.ts";
 import type { Line } from "../../nvim/buffer.ts";
-import { pollUntil } from "../../utils/async.ts";
 import { getAllWindows } from "../../nvim/nvim.ts";
-import type { BindingKey } from "../../tea/bindings.ts";
+import type { Nvim } from "../../nvim/nvim-node/index.ts";
 import type { Position0Indexed, Row0Indexed } from "../../nvim/window.ts";
+import { type ByteIdx, pos0to1 } from "../../nvim/window.ts";
+import type { BindingKey } from "../../tea/bindings.ts";
 import { calculatePosition } from "../../tea/util.ts";
-import { pos0to1, type ByteIdx } from "../../nvim/window.ts";
+import { pollUntil } from "../../utils/async.ts";
 
 export class SidebarInteraction {
   constructor(

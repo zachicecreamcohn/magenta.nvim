@@ -16,7 +16,7 @@ export function calculateStringPosition(
   let currentIndex = 0 as StringIdx;
 
   while (currentIndex < indexInText) {
-    if (content[currentIndex] == "\n") {
+    if (content[currentIndex] === "\n") {
       row++;
       col = 0 as StringIdx;
     } else {

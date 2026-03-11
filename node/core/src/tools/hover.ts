@@ -1,30 +1,30 @@
-import { type Result } from "../utils/result.ts";
+import type { FileIO } from "../capabilities/file-io.ts";
 
 import type {
   LspClient,
   LspDefinitionResponse,
   LspRange,
 } from "../capabilities/lsp-client.ts";
-import type { FileIO } from "../capabilities/file-io.ts";
-import { calculateStringPosition } from "../utils/string-position.ts";
-import type { PositionString, StringIdx } from "../utils/string-position.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider-types.ts";
-import {
-  displayPath,
-  resolveFilePath,
-  type AbsFilePath,
-  type HomeDir,
-  type NvimCwd,
-  type UnresolvedFilePath,
-} from "../utils/files.ts";
 import type {
   GenericToolRequest,
-  ToolName,
   ToolInvocation,
+  ToolName,
 } from "../tool-types.ts";
+import {
+  type AbsFilePath,
+  displayPath,
+  type HomeDir,
+  type NvimCwd,
+  resolveFilePath,
+  type UnresolvedFilePath,
+} from "../utils/files.ts";
+import type { Result } from "../utils/result.ts";
+import type { PositionString, StringIdx } from "../utils/string-position.ts";
+import { calculateStringPosition } from "../utils/string-position.ts";
 
 export type ToolRequest = GenericToolRequest<"hover", Input>;
 
@@ -325,15 +325,15 @@ export type Input = {
 export function validateInput(input: {
   [key: string]: unknown;
 }): Result<Input> {
-  if (typeof input.filePath != "string") {
+  if (typeof input.filePath !== "string") {
     return { status: "error", error: "expected input.filePath to be a string" };
   }
 
-  if (typeof input.symbol != "string") {
+  if (typeof input.symbol !== "string") {
     return { status: "error", error: "expected input.symbol to be a string" };
   }
 
-  if (input.context !== undefined && typeof input.context != "string") {
+  if (input.context !== undefined && typeof input.context !== "string") {
     return { status: "error", error: "expected input.context to be a string" };
   }
 

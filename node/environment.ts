@@ -1,14 +1,14 @@
 import type {
+  DiagnosticsProvider,
   FileIO,
   LspClient,
-  DiagnosticsProvider,
-  ToolCapability,
   ThreadId,
+  ToolCapability,
 } from "@magenta/core";
-import type { Shell } from "./capabilities/shell.ts";
 import type { PermissionCheckingFileIO } from "./capabilities/permission-file-io.ts";
 import type { PermissionCheckingShell } from "./capabilities/permission-shell.ts";
-import type { NvimCwd, HomeDir } from "./utils/files.ts";
+import type { Shell } from "./capabilities/shell.ts";
+import type { HomeDir, NvimCwd } from "./utils/files.ts";
 
 export type EnvironmentConfig =
   | { type: "local" }
@@ -26,22 +26,23 @@ export interface Environment {
   availableCapabilities: Set<ToolCapability>;
   environmentConfig: EnvironmentConfig;
 }
+
+import { execFile as execFileCb } from "node:child_process";
+import { promisify } from "node:util";
+import type { BufferTracker } from "./buffer-tracker.ts";
+import { BaseShell } from "./capabilities/base-shell.ts";
 import { BufferAwareFileIO } from "./capabilities/buffer-file-io.ts";
-import { PermissionCheckingFileIO as PermissionCheckingFileIOImpl } from "./capabilities/permission-file-io.ts";
 import { DockerFileIO } from "./capabilities/docker-file-io.ts";
 import { DockerShell } from "./capabilities/docker-shell.ts";
-import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
-import { NoopDiagnosticsProvider } from "./capabilities/noop-diagnostics-provider.ts";
-import { execFile as execFileCb } from "child_process";
-import { promisify } from "util";
-import { BaseShell } from "./capabilities/base-shell.ts";
-import { PermissionCheckingShell as PermissionCheckingShellImpl } from "./capabilities/permission-shell.ts";
-import { NvimLspClient } from "./capabilities/lsp-client-adapter.ts";
-import { getDiagnostics } from "./utils/diagnostics.ts";
-import type { Nvim } from "./nvim/nvim-node/index.ts";
 import type { Lsp } from "./capabilities/lsp.ts";
-import type { BufferTracker } from "./buffer-tracker.ts";
+import { NvimLspClient } from "./capabilities/lsp-client-adapter.ts";
+import { NoopDiagnosticsProvider } from "./capabilities/noop-diagnostics-provider.ts";
+import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
+import { PermissionCheckingFileIO as PermissionCheckingFileIOImpl } from "./capabilities/permission-file-io.ts";
+import { PermissionCheckingShell as PermissionCheckingShellImpl } from "./capabilities/permission-shell.ts";
+import type { Nvim } from "./nvim/nvim-node/index.ts";
 import type { MagentaOptions } from "./options.ts";
+import { getDiagnostics } from "./utils/diagnostics.ts";
 
 export function createLocalEnvironment({
   nvim,

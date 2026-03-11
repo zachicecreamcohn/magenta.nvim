@@ -67,7 +67,6 @@
 //       typeof sanitizedSchema !== "object" ||
 //       sanitizedSchema === null ||
 //       Array.isArray(sanitizedSchema) ||
-//       // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
 //       (sanitizedSchema as any).type !== "object"
 //     ) {
 //       return { ...spec, input_schema: sanitizedSchema };
@@ -167,7 +166,6 @@
 //         delete sanitized.format;
 //         // Add a description hint if not already present
 //         if (!("description" in sanitized) || !sanitized.description) {
-//           // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
 //           switch ((schema as any).format) {
 //             case "uri":
 //             case "uri-reference":
@@ -193,7 +191,6 @@
 //     // Recursively sanitize nested objects
 //     for (const [key, value] of Object.entries(sanitized)) {
 //       if (key !== "format" && typeof value === "object" && value !== null) {
-//         // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
 //         (sanitized as any)[key] = this.sanitizeSchemaForOpenAI(value);
 //       }
 //     }

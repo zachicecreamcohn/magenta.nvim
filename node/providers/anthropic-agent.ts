@@ -1,10 +1,9 @@
+export type { AnthropicAgentOptions } from "@magenta/core";
 export {
   AnthropicAgent,
-  convertAnthropicMessagesToProvider,
   CLAUDE_CODE_SPOOF_PROMPT,
-  getMaxTokensForModel,
+  convertAnthropicMessagesToProvider,
   getContextWindowForModel,
+  getMaxTokensForModel,
   withCacheControl,
 } from "@magenta/core";
-
-export type { AnthropicAgentOptions } from "@magenta/core";

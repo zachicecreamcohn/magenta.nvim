@@ -1,6 +1,6 @@
-import { it, expect } from "vitest";
-import { withDriver, assertHasMcpServer } from "../../test/preamble.ts";
-import type { ServerName, ToolRequestId, ToolName } from "@magenta/core";
+import type { ServerName, ToolName, ToolRequestId } from "@magenta/core";
+import { expect, it } from "vitest";
+import { assertHasMcpServer, withDriver } from "../../test/preamble.ts";
 
 const serverName = "test-server" as ServerName;
 

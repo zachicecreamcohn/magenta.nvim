@@ -1,10 +1,10 @@
-import { withDriver } from "../test/preamble.ts";
-import { expect, it } from "vitest";
 import type {
-  ToolRequestId,
   ToolName,
+  ToolRequestId,
   UnresolvedFilePath,
 } from "@magenta/core";
+import { expect, it } from "vitest";
+import { withDriver } from "../test/preamble.ts";
 import { delay, pollUntil } from "../utils/async.ts";
 
 it("forks a thread while streaming by aborting the stream first", async () => {
@@ -260,7 +260,7 @@ it("inserts error tool results when aborting while stopped waiting for tool use"
 
     // Verify the message structure includes an error tool_result for the aborted tool
     const messagePattern = request2.messages.flatMap((m) =>
-      typeof m.content == "string"
+      typeof m.content === "string"
         ? "stringmessage"
         : m.content.map((c) => `${m.role}:${c.type}`),
     );

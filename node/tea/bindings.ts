@@ -1,6 +1,6 @@
-import { type MountedVDOM } from "./view.ts";
-import { type Position0Indexed } from "../nvim/window.ts";
+import type { Position0Indexed } from "../nvim/window.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import type { MountedVDOM } from "./view.ts";
 
 export const BINDING_KEYS = ["<CR>", "t", "dd"] as const;
 

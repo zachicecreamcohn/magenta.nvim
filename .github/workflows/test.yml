@@ -53,10 +53,8 @@ jobs:
         command:
           - name: "typecheck"
             run: "npx tsgo -b"
-          - name: "eslint"
-            run: "npx eslint ."
-          - name: "prettier"
-            run: "npx prettier --check ."
+          - name: "biome"
+            run: "npx biome check ."
     name: ${{ matrix.command.name }}
     steps:
       - uses: actions/checkout@v3

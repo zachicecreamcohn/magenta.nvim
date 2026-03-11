@@ -1,16 +1,16 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ThreadType } from "../chat-types.ts";
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Logger } from "../logger.ts";
-import type { NvimCwd } from "../utils/files.ts";
 import type { ProviderOptions } from "../provider-options.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import type { NvimCwd } from "../utils/files.ts";
 import {
-  loadSkills,
   formatSkillsIntroduction,
+  loadSkills,
   type SkillsMap,
 } from "./skills.ts";
-import { readFileSync } from "fs";
-import { fileURLToPath } from "url";
-import path from "path";
 
 export const AGENT_TYPES = ["default", "fast", "explore"] as const;
 export type AgentType = (typeof AGENT_TYPES)[number];

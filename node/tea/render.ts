@@ -1,10 +1,10 @@
 import type { Line } from "../nvim/buffer.ts";
+import type { ExtmarkId, ExtmarkOptions } from "../nvim/extmarks.ts";
 import type { ByteIdx } from "../nvim/window.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import { type Bindings } from "./bindings.ts";
+import type { Bindings } from "./bindings.ts";
 import { calculatePosition, replaceBetweenPositions } from "./util.ts";
-import { type MountedVDOM, type MountPoint, type VDOMNode } from "./view.ts";
-import type { ExtmarkId, ExtmarkOptions } from "../nvim/extmarks.ts";
+import type { MountedVDOM, MountPoint, VDOMNode } from "./view.ts";
 
 export async function render({
   vdom,
@@ -109,7 +109,7 @@ export async function render({
     const endPos = calculatePosition(mountPos, contentBuf, node.end);
 
     // Set extmark if options are provided and there's actual content
-    let extmarkId: ExtmarkId | undefined = undefined;
+    let extmarkId: ExtmarkId | undefined;
     if (node.extmarkOptions && node.start < node.end) {
       extmarkId = await mount.buffer.setExtmark({
         startPos,

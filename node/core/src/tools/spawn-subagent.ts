@@ -1,24 +1,21 @@
-import { type Result } from "../utils/result.ts";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import type { ThreadManager } from "../capabilities/thread-manager.ts";
+import type { ThreadId, ThreadType } from "../chat-types.ts";
+import type { ContainerConfig, ProvisionResult } from "../container/types.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider-types.ts";
+import { AGENT_TYPES, type AgentType } from "../providers/system-prompt.ts";
 import type {
-  ToolName,
   GenericToolRequest,
   ToolInvocation,
+  ToolName,
 } from "../tool-types.ts";
-import type { UnresolvedFilePath } from "../utils/files.ts";
-import type { ThreadManager } from "../capabilities/thread-manager.ts";
-
-import { AGENT_TYPES, type AgentType } from "../providers/system-prompt.ts";
-import type { ThreadId, ThreadType } from "../chat-types.ts";
-import type { ContainerConfig, ProvisionResult } from "../container/types.ts";
-import type { NvimCwd } from "../utils/files.ts";
-
-import { readFileSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
+import type { Result } from "../utils/result.ts";
 
 const SPAWN_SUBAGENT_DESCRIPTION = readFileSync(
   join(
@@ -283,7 +280,7 @@ export type Input = {
 export function validateInput(input: {
   [key: string]: unknown;
 }): Result<Input> {
-  if (typeof input.prompt != "string") {
+  if (typeof input.prompt !== "string") {
     return {
       status: "error",
       error: `expected req.input.prompt to be a string but it was ${JSON.stringify(input.prompt)}`,

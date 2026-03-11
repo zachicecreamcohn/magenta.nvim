@@ -1,8 +1,8 @@
+import fs from "node:fs";
 import { PDFDocument } from "pdf-lib";
-import fs from "fs";
-import type { Result } from "./result.ts";
-import type { AbsFilePath } from "./files.ts";
 import type { ProviderToolResultContent } from "../providers/provider-types.ts";
+import type { AbsFilePath } from "./files.ts";
+import type { Result } from "./result.ts";
 
 export async function extractPDFPage(
   filePath: AbsFilePath,

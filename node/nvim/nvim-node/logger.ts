@@ -1,9 +1,9 @@
 import { resolve } from "node:path";
 import winston from "winston";
 import {
-  MessageType,
   type Client,
   type LogLevel,
+  MessageType,
   type RPCMessage,
 } from "./types.ts";
 

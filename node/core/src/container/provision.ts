@@ -1,8 +1,8 @@
-import { execFile as execFileCb } from "child_process";
-import { promisify } from "util";
-import * as crypto from "crypto";
-import * as fs from "fs";
-import * as path from "path";
+import { execFile as execFileCb } from "node:child_process";
+import * as crypto from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { promisify } from "node:util";
 import type { ContainerConfig, ProvisionResult } from "./types.ts";
 
 const execFile = promisify(execFileCb);

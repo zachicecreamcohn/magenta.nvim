@@ -1,8 +1,8 @@
-import type { Logger } from "../logger.ts";
+import type { AnthropicAuth } from "../anthropic-auth.ts";
 import type { AuthUI } from "../auth-ui.ts";
+import type { Logger } from "../logger.ts";
 import type { ProviderProfile } from "../provider-options.ts";
 import type { ValidateInput } from "../tool-types.ts";
-import type { AnthropicAuth } from "../anthropic-auth.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { AnthropicProvider } from "./anthropic.ts";
 import { BedrockProvider } from "./bedrock.ts";

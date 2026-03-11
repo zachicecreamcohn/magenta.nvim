@@ -1,10 +1,10 @@
-import { d, type VDOMNode } from "../tea/view.ts";
 import type {
-  DisplayContext,
   CompletedToolInfo,
+  DisplayContext,
   ToolRequest as UnionToolRequest,
 } from "@magenta/core";
 import type { ProviderToolResult } from "../providers/provider-types.ts";
+import { d, type VDOMNode } from "../tea/view.ts";
 
 type Input = {
   title: string;

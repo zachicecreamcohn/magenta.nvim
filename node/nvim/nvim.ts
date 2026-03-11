@@ -1,11 +1,11 @@
+import type { NvimCwd } from "../utils/files.ts";
+import { type BufNr, NvimBuffer } from "./buffer.ts";
 import type { Nvim } from "./nvim-node/index.ts";
-import { NvimBuffer, type BufNr } from "./buffer.ts";
 import {
   NvimWindow,
   type Position1IndexedCol1Indexed,
   type WindowId,
 } from "./window.ts";
-import type { NvimCwd } from "../utils/files.ts";
 
 export function getOption(option: string, nvim: Nvim) {
   return nvim.call("nvim_get_option", [option]);
@@ -36,7 +36,7 @@ export async function getcwd(nvim: Nvim): Promise<NvimCwd> {
     "echo getcwd()",
     { output: true },
   ]);
-  if (typeof res.output != "string") {
+  if (typeof res.output !== "string") {
     throw new Error(`Unable to get cwd`);
   }
   return res.output as NvimCwd;
@@ -44,7 +44,7 @@ export async function getcwd(nvim: Nvim): Promise<NvimCwd> {
 
 export async function mode(nvim: Nvim) {
   const res = await nvim.call("nvim_exec2", ["echo mode()", { output: true }]);
-  if (typeof res.output != "string") {
+  if (typeof res.output !== "string") {
     throw new Error(`Unable to get mode`);
   }
   return res.output;
@@ -58,14 +58,13 @@ export async function getpos(
     `echo getpos("${str}")`,
     { output: true },
   ]);
-  if (typeof res.output != "string") {
+  if (typeof res.output !== "string") {
     throw new Error(`Unable to getpos`);
   }
   const posStr = res.output;
 
   const [_, row, col] = posStr
-    // eslint-disable-next-line no-useless-escape
-    .replace(/[\[\]]/g, "")
+    .replace(/[[\]]/g, "")
     .split(",")
     .map((n) => parseInt(n.trim(), 10));
 

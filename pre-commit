@@ -36,8 +36,7 @@ async function main() {
   console.log("Running checks in parallel...");
   const checks = [
     { name: "typecheck", command: "npx tsc --noEmit" },
-    { name: "eslint", command: "npx eslint . --fix" },
-    { name: "prettier", command: "npx prettier --write ." },
+    { name: "biome", command: "npx biome check --write ." },
   ];
 
   function runCheck(check) {

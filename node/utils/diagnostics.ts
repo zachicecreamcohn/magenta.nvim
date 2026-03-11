@@ -1,12 +1,12 @@
 import type { Nvim } from "../nvim/nvim-node/index.ts";
-import { parseLsResponse } from "./lsBuffers.ts";
 import {
-  resolveFilePath,
-  type NvimCwd,
-  type HomeDir,
-  type UnresolvedFilePath,
   type AbsFilePath,
+  type HomeDir,
+  type NvimCwd,
+  resolveFilePath,
+  type UnresolvedFilePath,
 } from "./files.ts";
+import { parseLsResponse } from "./lsBuffers.ts";
 
 export type DiagnosticsRes = {
   end_col: number;

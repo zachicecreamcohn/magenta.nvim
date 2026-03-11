@@ -28,7 +28,6 @@ vi.mock("openai", () => {
     responses = {
       create: vi.fn().mockImplementation(() => {
         return {
-          // eslint-disable-next-line @typescript-eslint/require-await
           [Symbol.asyncIterator]: async function* () {
             for (const event of mockStreamEvents) {
               yield event;
@@ -65,7 +64,6 @@ describe("OpenAIProvider", () => {
   });
 
   it("should correctly reset baseUrl when switching between profiles with different baseUrls", async () => {
-    // eslint-disable-next-line @typescript-eslint/require-await
     await withNvimClient(async (nvim) => {
       const profile1 = {
         name: "gpt-4o",
@@ -311,7 +309,6 @@ describe("OpenAIProvider", () => {
   });
 
   it("should aggregate thinking blocks back into reasoning messages", async () => {
-    // eslint-disable-next-line @typescript-eslint/require-await
     await withNvimClient(async (nvim) => {
       const provider = new OpenAIProvider(nvim);
 
@@ -443,7 +440,6 @@ describe("OpenAIProvider", () => {
   });
 
   it("should place reasoning messages in correct position in stream", async () => {
-    // eslint-disable-next-line @typescript-eslint/require-await
     await withNvimClient(async (nvim) => {
       const provider = new OpenAIProvider(nvim);
 
@@ -513,7 +509,6 @@ describe("OpenAIProvider", () => {
   });
 
   it("should throw error for multiple redacted thinking blocks with same itemId", async () => {
-    // eslint-disable-next-line @typescript-eslint/require-await
     await withNvimClient(async (nvim) => {
       const provider = new OpenAIProvider(nvim);
 
@@ -560,7 +555,6 @@ describe("OpenAIProvider", () => {
   });
 
   it("should throw error for thinking blocks without itemId", async () => {
-    // eslint-disable-next-line @typescript-eslint/require-await
     await withNvimClient(async (nvim) => {
       const provider = new OpenAIProvider(nvim);
 
@@ -595,7 +589,6 @@ describe("OpenAIProvider", () => {
   });
 
   it("should throw error for thinking blocks in non-assistant messages", async () => {
-    // eslint-disable-next-line @typescript-eslint/require-await
     await withNvimClient(async (nvim) => {
       const provider = new OpenAIProvider(nvim);
 
@@ -628,7 +621,6 @@ describe("OpenAIProvider", () => {
   });
 
   it("should not create reasoning summaries for empty thinking blocks", async () => {
-    // eslint-disable-next-line @typescript-eslint/require-await
     await withNvimClient(async (nvim) => {
       const provider = new OpenAIProvider(nvim);
 

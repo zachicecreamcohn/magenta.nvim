@@ -1,14 +1,14 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
-import * as path from "node:path";
 import * as os from "node:os";
-import * as Edl from "./edl.ts";
-import { FsFileIO } from "../capabilities/file-io.ts";
-import type { ToolRequestId } from "../tool-types.ts";
-import type { NvimCwd, HomeDir } from "../utils/files.ts";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OnToolApplied } from "../capabilities/context-tracker.ts";
-import type { ProviderToolResult } from "../providers/provider-types.ts";
+import { FsFileIO } from "../capabilities/file-io.ts";
 import type { EdlRegisters } from "../index.ts";
+import type { ProviderToolResult } from "../providers/provider-types.ts";
+import type { ToolRequestId } from "../tool-types.ts";
+import type { HomeDir, NvimCwd } from "../utils/files.ts";
+import * as Edl from "./edl.ts";
 
 describe("EdlTool unit tests", () => {
   let tmpDir: string;

@@ -1,6 +1,6 @@
-import type { Command } from "./types.ts";
-import type { ProviderMessageContent } from "../../providers/provider-types.ts";
 import { getQuickfixList, quickfixListToString } from "../../nvim/nvim.ts";
+import type { ProviderMessageContent } from "../../providers/provider-types.ts";
+import type { Command } from "./types.ts";
 
 const createQuickfixCommand = (name: string, pattern: RegExp): Command => ({
   name,

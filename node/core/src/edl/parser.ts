@@ -186,7 +186,7 @@ function tryParsePositionalPattern(s: string): PositionalPattern | undefined {
 function tokenToPattern(tok: Token): Pattern {
   switch (tok.type) {
     case "regex": {
-      const flags = tok.flags.includes("g") ? tok.flags : tok.flags + "g";
+      const flags = tok.flags.includes("g") ? tok.flags : `${tok.flags}g`;
       return { type: "regex", pattern: new RegExp(tok.pattern, flags) };
     }
     case "heredoc":

@@ -1,18 +1,17 @@
+import { platform } from "node:os";
 import {
   AGENT_TYPES,
-  createSystemPrompt as coreCreateSystemPrompt,
-  DEFAULT_SYSTEM_PROMPT,
-  DEFAULT_SUBAGENT_SYSTEM_PROMPT,
-  EXPLORE_SUBAGENT_SYSTEM_PROMPT,
   COMPACT_SYSTEM_PROMPT,
-  type SystemPrompt,
+  createSystemPrompt as coreCreateSystemPrompt,
+  DEFAULT_SUBAGENT_SYSTEM_PROMPT,
+  DEFAULT_SYSTEM_PROMPT,
+  EXPLORE_SUBAGENT_SYSTEM_PROMPT,
   type NvimCwd,
   type ProviderOptions,
+  type SystemPrompt,
   type ThreadType,
 } from "@magenta/core";
-
 import type { Nvim } from "../nvim/nvim-node/index.ts";
-import { platform } from "os";
 
 export {
   AGENT_TYPES,
@@ -22,7 +21,7 @@ export {
   COMPACT_SYSTEM_PROMPT,
 };
 
-export type { AgentType, SystemPrompt, SystemInfo } from "@magenta/core";
+export type { AgentType, SystemInfo, SystemPrompt } from "@magenta/core";
 
 export async function createSystemPrompt(
   type: ThreadType,

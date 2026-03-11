@@ -1,8 +1,8 @@
-import { withDriver } from "../test/preamble.ts";
+import type { ToolName, ToolRequestId } from "@magenta/core";
 import { describe, it } from "vitest";
-import { LOGO } from "./thread-view.ts";
-import type { ToolRequestId, ToolName } from "@magenta/core";
+import { withDriver } from "../test/preamble.ts";
 import { pollUntil } from "../utils/async.ts";
+import { LOGO } from "./thread-view.ts";
 
 describe("node/chat/chat.test.ts", () => {
   it("resets view when switching to a new thread", async () => {

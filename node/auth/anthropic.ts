@@ -1,7 +1,7 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { generatePKCE } from "@openauthjs/openauth/pkce";
-import fs from "fs/promises";
-import path from "path";
-import os from "os";
 
 const CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 

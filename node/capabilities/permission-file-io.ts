@@ -1,15 +1,15 @@
 import type { FileIO } from "@magenta/core";
-import { canReadFile, canWriteFile } from "./permissions.ts";
+import type { Nvim } from "../nvim/nvim-node/index.ts";
+import type { MagentaOptions } from "../options.ts";
+import { d, type VDOMNode, withBindings, withExtmark } from "../tea/view.ts";
 import {
-  displayPath,
-  resolveFilePath,
   type AbsFilePath,
+  displayPath,
   type HomeDir,
   type NvimCwd,
+  resolveFilePath,
 } from "../utils/files.ts";
-import type { MagentaOptions } from "../options.ts";
-import type { Nvim } from "../nvim/nvim-node/index.ts";
-import { d, withBindings, withExtmark, type VDOMNode } from "../tea/view.ts";
+import { canReadFile, canWriteFile } from "./permissions.ts";
 
 export type AccessType = "read" | "write";
 
@@ -207,15 +207,15 @@ ${withBindings(
 )}
 `,
 )}${
-      entries.length > 1
-        ? d`${withBindings(
-            withExtmark(d`> DENY ALL`, {
-              hl_group: ["ErrorMsg", "@markup.strong.markdown"],
-            }),
-            {
-              "<CR>": () => this.denyAll(),
-            },
-          )}
+  entries.length > 1
+    ? d`${withBindings(
+        withExtmark(d`> DENY ALL`, {
+          hl_group: ["ErrorMsg", "@markup.strong.markdown"],
+        }),
+        {
+          "<CR>": () => this.denyAll(),
+        },
+      )}
 ${withBindings(
   withExtmark(d`> APPROVE ALL`, {
     hl_group: ["String", "@markup.strong.markdown"],
@@ -225,7 +225,7 @@ ${withBindings(
   },
 )}
 `
-        : d``
-    }`;
+    : d``
+}`;
   }
 }

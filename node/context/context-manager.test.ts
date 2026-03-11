@@ -1,23 +1,23 @@
-import { describe, expect, it } from "vitest";
-import { withDriver } from "../test/preamble.ts";
-import { pollUntil } from "@magenta/core";
-import { getAllWindows, getcwd } from "../nvim/nvim.ts";
-import {
-  resolveFilePath,
-  type UnresolvedFilePath,
-  type HomeDir,
-} from "@magenta/core";
-import type { Line } from "../nvim/buffer.ts";
-import type { Row0Indexed } from "@magenta/core";
-import type { DiffUpdate } from "./context-manager.ts";
-import type {
-  ToolRequestId,
-  ToolName,
-  ProviderMessage,
-  ProviderMessageContent,
-} from "@magenta/core";
 import fs from "node:fs";
 import * as os from "node:os";
+import type {
+  ProviderMessage,
+  ProviderMessageContent,
+  Row0Indexed,
+  ToolName,
+  ToolRequestId,
+} from "@magenta/core";
+import {
+  type HomeDir,
+  pollUntil,
+  resolveFilePath,
+  type UnresolvedFilePath,
+} from "@magenta/core";
+import { describe, expect, it } from "vitest";
+import type { Line } from "../nvim/buffer.ts";
+import { getAllWindows, getcwd } from "../nvim/nvim.ts";
+import { withDriver } from "../test/preamble.ts";
+import type { DiffUpdate } from "./context-manager.ts";
 
 it("returns diff when file is edited in a buffer", async () => {
   await withDriver({}, async (driver) => {
@@ -436,7 +436,6 @@ it("autoContext loads on startup and after new-thread", async () => {
         content: expect.arrayContaining([
           expect.objectContaining({
             type: "text",
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             text: expect.stringContaining("test-auto-context.md"),
           }),
         ]) as ProviderMessageContent[],

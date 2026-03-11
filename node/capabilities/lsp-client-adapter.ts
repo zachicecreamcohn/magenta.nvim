@@ -1,19 +1,19 @@
 import type {
   LspClient,
+  LspDefinitionResponse,
   LspHoverResponse,
   LspReferencesResponse,
-  LspDefinitionResponse,
 } from "@magenta/core";
-import type { Lsp } from "./lsp.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
+import type { Row0Indexed, StringIdx } from "../nvim/window.ts";
+import { getOrOpenBuffer } from "../utils/buffers.ts";
 import type {
   AbsFilePath,
   HomeDir,
   NvimCwd,
   UnresolvedFilePath,
 } from "../utils/files.ts";
-import { getOrOpenBuffer } from "../utils/buffers.ts";
-import type { Row0Indexed, StringIdx } from "../nvim/window.ts";
+import type { Lsp } from "./lsp.ts";
 
 export class NvimLspClient implements LspClient {
   constructor(

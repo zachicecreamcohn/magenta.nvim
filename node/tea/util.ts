@@ -1,5 +1,5 @@
-import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { Line, NvimBuffer } from "../nvim/buffer.ts";
+import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { ByteIdx, Position0Indexed, Row0Indexed } from "../nvim/window.ts";
 
 export async function replaceBetweenPositions({
@@ -47,7 +47,7 @@ export function calculatePosition(
 
   while (currentIndex < indexInText) {
     // 10 == '\n' in hex
-    if (buf[currentIndex] == 10) {
+    if (buf[currentIndex] === 10) {
       row++;
       col = 0 as ByteIdx;
     } else {
@@ -66,7 +66,7 @@ export async function logBuffer(buffer: NvimBuffer, context: { nvim: Nvim }) {
     start: 0 as Row0Indexed,
     end: -1 as Row0Indexed,
   });
-  context.nvim.logger.info("buffer:\n" + lines.join("\n") + "\nend");
+  context.nvim.logger.info(`buffer:\n${lines.join("\n")}\nend`);
 }
 
 export function strWidthInBytes(str: string) {

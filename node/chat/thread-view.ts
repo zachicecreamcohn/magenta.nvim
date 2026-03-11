@@ -1,47 +1,47 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  type CompactionRecord,
+  type CompletedToolInfo,
+  type ContextManager,
+  renderThreadToMarkdown,
+  type ThreadMode,
+  type ToolRequestId,
+} from "@magenta/core";
+import {
+  type ContextViewContext,
+  contextView,
+  renderContextUpdate,
+} from "../context/context-manager.ts";
+import type {
+  AgentStatus,
+  ProviderMessage,
+  ProviderMessageContent,
+  ProviderToolResult,
+  StopReason,
+  Usage,
+} from "../providers/provider.ts";
+import type { SystemPrompt } from "../providers/system-prompt.ts";
+import {
+  renderCompletedToolDetail,
+  renderCompletedToolPreview,
+  renderCompletedToolSummary,
+  renderInFlightToolDetail,
+  renderInFlightToolPreview,
+  renderInFlightToolSummary,
+} from "../render-tools/index.ts";
+import { renderStreamdedTool } from "../render-tools/streaming.ts";
+import type { Dispatch } from "../tea/tea.ts";
 import {
   d,
-  type View,
   type VDOMNode,
+  type View,
   withBindings,
   withExtmark,
 } from "../tea/view.ts";
-import { type Dispatch } from "../tea/tea.ts";
-import {
-  type ToolRequestId,
-  type CompletedToolInfo,
-  type ContextManager,
-  type ThreadMode,
-  type CompactionRecord,
-} from "@magenta/core";
-import {
-  renderCompletedToolSummary,
-  renderCompletedToolPreview,
-  renderCompletedToolDetail,
-  renderInFlightToolSummary,
-  renderInFlightToolPreview,
-  renderInFlightToolDetail,
-} from "../render-tools/index.ts";
-import {
-  type ProviderMessage,
-  type ProviderMessageContent,
-  type AgentStatus,
-  type ProviderToolResult,
-  type StopReason,
-  type Usage,
-} from "../providers/provider.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import {
-  contextView,
-  renderContextUpdate,
-  type ContextViewContext,
-} from "../context/context-manager.ts";
-import type { SystemPrompt } from "../providers/system-prompt.ts";
-import { readFileSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-import { renderStreamdedTool } from "../render-tools/streaming.ts";
-import { renderThreadToMarkdown } from "@magenta/core";
-import type { Thread, Msg } from "./thread.ts";
+import type { Msg, Thread } from "./thread.ts";
 
 function contextViewCtx(thread: Thread): ContextViewContext {
   return {
@@ -57,7 +57,7 @@ function contextViewCtx(thread: Thread): ContextViewContext {
  */
 const getAnimationFrame = (sendDate: Date): string => {
   const frameIndex =
-    Math.floor((new Date().getTime() - sendDate.getTime()) / 333) %
+    Math.floor((Date.now() - sendDate.getTime()) / 333) %
     MESSAGE_ANIMATION.length;
 
   return MESSAGE_ANIMATION[frameIndex];
@@ -92,7 +92,7 @@ const renderStatus = (
       return renderStopReason(agentStatus.stopReason, latestUsage);
     case "error":
       return d`Error ${agentStatus.error.message}${
-        agentStatus.error.stack ? "\n" + agentStatus.error.stack : ""
+        agentStatus.error.stack ? `\n${agentStatus.error.stack}` : ""
       }`;
     default:
       assertUnreachable(agentStatus);

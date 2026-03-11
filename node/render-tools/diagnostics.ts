@@ -1,9 +1,9 @@
-import { d, type VDOMNode } from "../tea/view.ts";
 import type {
-  DisplayContext,
   CompletedToolInfo,
+  DisplayContext,
   ToolRequest as UnionToolRequest,
 } from "@magenta/core";
+import { d, type VDOMNode } from "../tea/view.ts";
 
 export function renderInFlightSummary(
   _request: UnionToolRequest,

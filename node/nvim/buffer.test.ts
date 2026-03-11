@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { withNvimClient } from "../test/preamble.ts";
-import { NvimBuffer, type Line } from "./buffer.ts";
 import { pos } from "../tea/view.ts";
+import { withNvimClient } from "../test/preamble.ts";
+import { type Line, NvimBuffer } from "./buffer.ts";
 import {
-  extmarkOptionsEqual,
   type ExtmarkId,
   type ExtmarkOptions,
+  extmarkOptionsEqual,
 } from "./extmarks.ts";
 import type { Row0Indexed } from "./window.ts";
 

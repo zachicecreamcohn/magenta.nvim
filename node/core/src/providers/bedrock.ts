@@ -1,9 +1,9 @@
 import { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
+import type Anthropic from "@anthropic-ai/sdk";
+import type { AnthropicAuth } from "../anthropic-auth.ts";
 import type { Logger } from "../logger.ts";
 import type { ValidateInput } from "../tool-types.ts";
-import type { AnthropicAuth } from "../anthropic-auth.ts";
 import { AnthropicProvider } from "./anthropic.ts";
-import type Anthropic from "@anthropic-ai/sdk";
 
 export type BedrockProviderOptions = {
   env?: Record<string, string> | undefined;

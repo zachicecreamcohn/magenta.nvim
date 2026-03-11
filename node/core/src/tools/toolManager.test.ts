@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { getToolSpecs } from "./toolManager.ts";
+import { describe, expect, it } from "vitest";
 import type { ToolCapability } from "./tool-registry.ts";
+import { getToolSpecs } from "./toolManager.ts";
 
 const noopMcpToolManager = { getToolSpecs: () => [] };
 

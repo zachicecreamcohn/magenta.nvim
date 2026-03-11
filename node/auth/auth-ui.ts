@@ -1,6 +1,6 @@
-import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { AuthUI } from "@magenta/core";
 import open from "open";
+import type { Nvim } from "../nvim/nvim-node/index.ts";
 
 export class NvimAuthUI implements AuthUI {
   constructor(private nvim: Nvim) {}

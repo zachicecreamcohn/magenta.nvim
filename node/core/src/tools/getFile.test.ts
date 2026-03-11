@@ -1,21 +1,21 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
-import * as path from "node:path";
 import * as os from "node:os";
-import * as GetFile from "./getFile.ts";
-import { FsFileIO } from "../capabilities/file-io.ts";
-import type { ToolRequestId } from "../tool-types.ts";
-import type {
-  UnresolvedFilePath,
-  NvimCwd,
-  HomeDir,
-  AbsFilePath,
-} from "../utils/files.ts";
-import type { ProviderToolResult } from "../providers/provider-types.ts";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   ContextTracker,
   OnToolApplied,
 } from "../capabilities/context-tracker.ts";
+import { FsFileIO } from "../capabilities/file-io.ts";
+import type { ProviderToolResult } from "../providers/provider-types.ts";
+import type { ToolRequestId } from "../tool-types.ts";
+import type {
+  AbsFilePath,
+  HomeDir,
+  NvimCwd,
+  UnresolvedFilePath,
+} from "../utils/files.ts";
+import * as GetFile from "./getFile.ts";
 
 describe("GetFileTool unit tests", () => {
   let tmpDir: string;

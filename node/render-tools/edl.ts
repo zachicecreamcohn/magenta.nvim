@@ -1,10 +1,10 @@
-import { d, withCode, type VDOMNode } from "../tea/view.ts";
 import {
-  Edl,
   type CompletedToolInfo,
   type DisplayContext,
+  Edl,
   type ToolRequest as UnionToolRequest,
 } from "@magenta/core";
+import { d, type VDOMNode, withCode } from "../tea/view.ts";
 
 type Input = {
   script: string;
@@ -19,7 +19,7 @@ function abridgeScript(script: string): string {
     .slice(0, PREVIEW_MAX_LINES)
     .map((line) =>
       line.length > PREVIEW_MAX_LINE_LENGTH
-        ? line.substring(0, PREVIEW_MAX_LINE_LENGTH) + "..."
+        ? `${line.substring(0, PREVIEW_MAX_LINE_LENGTH)}...`
         : line,
     );
   if (lines.length > PREVIEW_MAX_LINES) {
@@ -121,7 +121,7 @@ ${abridged}
     );
   }
 
-  if (data.finalSelectionCount != undefined) {
+  if (data.finalSelectionCount !== undefined) {
     lines.push(
       `  Final selection: ${data.finalSelectionCount} range${data.finalSelectionCount !== 1 ? "s" : ""}`,
     );

@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { withDriver } from "../test/preamble.ts";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { describe, expect, it } from "vitest";
+import { withDriver } from "../test/preamble.ts";
 
 describe("Skills", () => {
   it("loads skills from a directory with skill.md", async () => {

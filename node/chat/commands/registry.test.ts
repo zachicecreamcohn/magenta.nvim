@@ -1,11 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
+import os from "node:os";
+import type { ContextManager } from "@magenta/core";
+import { describe, expect, it, vi } from "vitest";
+import type { Nvim } from "../../nvim/nvim-node/index.ts";
+import type { MagentaOptions } from "../../options.ts";
+import type { HomeDir, NvimCwd } from "../../utils/files.ts";
 import { CommandRegistry } from "./registry.ts";
 import type { MessageContext } from "./types.ts";
-import type { Nvim } from "../../nvim/nvim-node/index.ts";
-import type { NvimCwd, HomeDir } from "../../utils/files.ts";
-import type { ContextManager } from "@magenta/core";
-import type { MagentaOptions } from "../../options.ts";
-import os from "os";
 
 // Mock the dependencies used by commands
 vi.mock("../../utils/diagnostics.ts", () => ({
@@ -123,7 +123,6 @@ describe("CommandRegistry", () => {
     expect(result.processedText).toBe("@file:test.ts more text");
     // Context manager should have been called
     // Should also add file to context
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(context.contextManager.addFileContext).toHaveBeenCalled();
   });
 

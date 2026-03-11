@@ -1,12 +1,12 @@
-import { attach, type LogLevel } from "./nvim/nvim-node/index.ts";
 import { Magenta } from "./magenta.ts";
 import { notifyErr } from "./nvim/nvim.ts";
+import { attach, type LogLevel } from "./nvim/nvim-node/index.ts";
 
 // These values are set by neovim when starting the node process
 const ENV = {
-  NVIM: process.env["NVIM"],
-  LOG_LEVEL: process.env["LOG_LEVEL"] as LogLevel | undefined,
-  DEV: Boolean(process.env["IS_DEV"]),
+  NVIM: process.env.NVIM,
+  LOG_LEVEL: process.env.LOG_LEVEL as LogLevel | undefined,
+  DEV: Boolean(process.env.IS_DEV),
 };
 
 if (!ENV.NVIM) throw Error("socket missing");

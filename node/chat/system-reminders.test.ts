@@ -1,8 +1,8 @@
-import { test, expect } from "vitest";
-import { withDriver } from "../test/preamble.ts";
-import type { ToolName, ToolRequestId } from "@magenta/core";
 import type Anthropic from "@anthropic-ai/sdk";
+import type { ToolName, ToolRequestId } from "@magenta/core";
+import { expect, test } from "vitest";
 import { MockProvider } from "../providers/mock.ts";
+import { withDriver } from "../test/preamble.ts";
 
 type ContentBlockParam = Anthropic.Messages.ContentBlockParam;
 type TextBlockParam = Anthropic.Messages.TextBlockParam;

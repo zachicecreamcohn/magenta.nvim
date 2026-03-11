@@ -1,8 +1,8 @@
+import type Anthropic from "@anthropic-ai/sdk";
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
-import * as ToolManager from "../tool-types.ts";
-import type { Result } from "../utils/result.ts";
-import Anthropic from "@anthropic-ai/sdk";
+import type * as ToolManager from "../tool-types.ts";
 import type { ToolName, ToolRequest } from "../tool-types.ts";
+import type { Result } from "../utils/result.ts";
 
 export const PROVIDER_NAMES = [
   "anthropic",
@@ -13,6 +13,7 @@ export const PROVIDER_NAMES = [
   "mock",
 ] as const;
 export type { ProviderName } from "../provider-options.ts";
+
 import type { ProviderName } from "../provider-options.ts";
 
 export type ProviderSetting = {

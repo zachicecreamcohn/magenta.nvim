@@ -1,6 +1,6 @@
-import { it, expect } from "vitest";
-import { createSystemPrompt } from "./system-prompt.ts";
+import { expect, it } from "vitest";
 import { withDriver } from "../test/preamble.ts";
+import { createSystemPrompt } from "./system-prompt.ts";
 
 it("includes system information in the prompt", async () => {
   await withDriver({}, async (driver) => {

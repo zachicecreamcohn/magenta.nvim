@@ -1,5 +1,5 @@
-import * as path from "node:path";
 import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { fileTypeFromFile } from "file-type";
 import { lookup } from "mime-types";
 
@@ -68,7 +68,7 @@ export function displayPath(
     return rel as DisplayPath;
   }
   if (absFilePath.startsWith(homeDir)) {
-    return ("~" + absFilePath.slice(homeDir.length)) as DisplayPath;
+    return `~${absFilePath.slice(homeDir.length)}` as DisplayPath;
   }
   return absFilePath as string as DisplayPath;
 }

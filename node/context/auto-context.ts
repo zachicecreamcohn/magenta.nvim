@@ -1,19 +1,19 @@
-import { glob } from "glob";
-import path from "node:path";
 import fs from "node:fs";
+import path from "node:path";
+import { glob } from "glob";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { MagentaOptions } from "../options.ts";
 import {
-  relativePath,
-  resolveFilePath,
+  type AbsFilePath,
   detectFileType,
   FileCategory,
-  type AbsFilePath,
+  type FileTypeInfo,
   type HomeDir,
   type NvimCwd,
   type RelFilePath,
+  relativePath,
+  resolveFilePath,
   type UnresolvedFilePath,
-  type FileTypeInfo,
 } from "../utils/files.ts";
 import type { Files } from "./context-manager.ts";
 

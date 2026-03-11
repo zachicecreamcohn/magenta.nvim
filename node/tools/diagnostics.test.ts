@@ -1,10 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { pollUntil, type ToolName, type ToolRequestId } from "@magenta/core";
+import { describe, expect, it } from "vitest";
 import {
+  normalizePaths,
   pollForToolResult,
   withDriver,
-  normalizePaths,
 } from "../test/preamble.ts";
-import { type ToolRequestId, type ToolName, pollUntil } from "@magenta/core";
 
 describe("node/tools/diagnostics.test.ts", () => {
   it("diagnostics end-to-end", { timeout: 10000 }, async () => {
@@ -20,7 +20,7 @@ describe("node/tools/diagnostics.test.ts", () => {
       await pollUntil(
         async () => {
           const state = driver.magenta.chatApp.getState();
-          if (state.status != "running") {
+          if (state.status !== "running") {
             throw new Error(`app crashed`);
           }
           const diagnostics = (await driver.nvim.call("nvim_exec_lua", [

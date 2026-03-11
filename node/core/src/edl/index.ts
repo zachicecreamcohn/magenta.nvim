@@ -1,16 +1,16 @@
-import { parse, ParseError } from "./parser.ts";
-import { Executor, ExecutionError } from "./executor.ts";
 import type { FileIO } from "../capabilities/file-io.ts";
+import { ExecutionError, Executor } from "./executor.ts";
+import { ParseError, parse } from "./parser.ts";
 import type {
+  FileMutationSummary,
+  Pos,
+  RangeWithPos,
   ScriptResult,
   TraceEntry,
-  FileMutationSummary,
-  RangeWithPos,
-  Pos,
 } from "./types.ts";
 
 export { parse, ParseError, ExecutionError, Executor };
-export type { ScriptResult, TraceEntry, FileMutationSummary } from "./types.ts";
+export type { FileMutationSummary, ScriptResult, TraceEntry } from "./types.ts";
 
 export type EdlRegisters = {
   registers: Map<string, string>;
@@ -117,7 +117,7 @@ function abridgeContent(content: string): string {
     return content;
   }
   const half = Math.floor((MAX_CONTENT_CHARS - 5) / 2);
-  return content.slice(0, half) + "\n...\n" + content.slice(-half);
+  return `${content.slice(0, half)}\n...\n${content.slice(-half)}`;
 }
 
 function formatRangeInfo(r: RangeWithPos): string {

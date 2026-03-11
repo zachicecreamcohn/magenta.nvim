@@ -1,11 +1,11 @@
-import { d, withInlineCode, type VDOMNode } from "../tea/view.ts";
-import type { ProviderToolResult } from "../providers/provider-types.ts";
 import type {
-  DisplayContext,
   CompletedToolInfo,
-  ToolRequest as UnionToolRequest,
+  DisplayContext,
   MCPProgress,
+  ToolRequest as UnionToolRequest,
 } from "@magenta/core";
+import type { ProviderToolResult } from "../providers/provider-types.ts";
+import { d, type VDOMNode, withInlineCode } from "../tea/view.ts";
 export type { MCPProgress };
 
 export function renderInFlightSummary(

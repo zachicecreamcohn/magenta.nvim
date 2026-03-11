@@ -1,3 +1,8 @@
+import { getCurrentWindow } from "../nvim/nvim.ts";
+import type { Nvim } from "../nvim/nvim-node/index.ts";
+import type { Row0Indexed } from "../nvim/window.ts";
+import { Defer } from "../utils/async.ts";
+import { BINDING_KEYS, type BindingKey, getBindings } from "./bindings.ts";
 import {
   d,
   type MountedVDOM,
@@ -7,11 +12,6 @@ import {
   prettyPrintMountedNode,
   type VDOMNode,
 } from "./view.ts";
-import { BINDING_KEYS, type BindingKey, getBindings } from "./bindings.ts";
-import { getCurrentWindow } from "../nvim/nvim.ts";
-import type { Row0Indexed } from "../nvim/window.ts";
-import type { Nvim } from "../nvim/nvim-node/index.ts";
-import { Defer } from "../utils/async.ts";
 
 export type Dispatch<Msg> = (msg: Msg) => void;
 export type View<Model> = ({ model }: { model: Model }) => VDOMNode;
@@ -150,7 +150,7 @@ export function createApp<Model>({
 
   function App({ currentState }: { currentState: AppState<Model> }) {
     return d`${
-      currentState.status == "running"
+      currentState.status === "running"
         ? View({ model: currentState.model })
         : d`Error: ${currentState.error}`
     }`;
@@ -210,7 +210,7 @@ export function createApp<Model>({
           }
           const window = await getCurrentWindow(mount.nvim);
           const buffer = await window.buffer();
-          if (buffer.id != mount.buffer.id) {
+          if (buffer.id !== mount.buffer.id) {
             nvim.logger.warn(
               `Got onKey event ${key}, but current window is not showing mounted buffer`,
             );
@@ -224,7 +224,7 @@ export function createApp<Model>({
               col,
             });
 
-            if (bindings && bindings[key]) {
+            if (bindings?.[key]) {
               bindings[key]();
             }
           } else {

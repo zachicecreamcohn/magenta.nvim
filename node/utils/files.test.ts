@@ -1,15 +1,15 @@
-import { describe, it, expect } from "vitest";
-import * as path from "node:path";
 import * as fs from "node:fs/promises";
+import * as path from "node:path";
+import { describe, expect, it } from "vitest";
+import { getcwd } from "../nvim/nvim.ts";
+import { withNvimClient } from "../test/preamble.ts";
 import {
-  detectFileType,
   categorizeFileType,
+  detectFileType,
+  FileCategory,
   isLikelyTextFile,
   validateFileSize,
-  FileCategory,
 } from "./files.ts";
-import { withNvimClient } from "../test/preamble.ts";
-import { getcwd } from "../nvim/nvim.ts";
 
 describe("categorizeFileType", () => {
   it("should categorize text MIME types correctly", () => {

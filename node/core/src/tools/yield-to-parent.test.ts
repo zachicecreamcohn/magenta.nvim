@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import * as YieldToParent from "./yield-to-parent.ts";
+import { describe, expect, it } from "vitest";
 import type { ToolRequestId } from "../tool-types.ts";
+import * as YieldToParent from "./yield-to-parent.ts";
 
 describe("yield-to-parent unit tests", () => {
   it("returns result text as tool result", async () => {

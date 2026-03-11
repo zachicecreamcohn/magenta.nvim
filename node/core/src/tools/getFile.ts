@@ -1,37 +1,35 @@
+import type {
+  ContextTracker,
+  OnToolApplied,
+} from "../capabilities/context-tracker.ts";
 import type { FileIO } from "../capabilities/file-io.ts";
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
-
-import { type Result } from "../utils/result.ts";
 import type {
   ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider-types.ts";
-import {
-  resolveFilePath,
-  type UnresolvedFilePath,
-  detectFileTypeViaFileIO,
-  FileCategory,
-  FILE_SIZE_LIMITS,
-  type NvimCwd,
-  type HomeDir,
-} from "../utils/files.ts";
 import type {
-  ToolName,
   GenericToolRequest,
   ToolInvocation,
+  ToolName,
 } from "../tool-types.ts";
-import type {
-  ContextTracker,
-  OnToolApplied,
-} from "../capabilities/context-tracker.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { formatSummary, summarizeFile } from "../utils/file-summary.ts";
+import {
+  detectFileTypeViaFileIO,
+  FILE_SIZE_LIMITS,
+  FileCategory,
+  type HomeDir,
+  type NvimCwd,
+  resolveFilePath,
+  type UnresolvedFilePath,
+} from "../utils/files.ts";
 
 import {
   extractPDFPage,
   getSummaryAsProviderContent,
 } from "../utils/pdf-pages.ts";
-
-import { summarizeFile, formatSummary } from "../utils/file-summary.ts";
+import type { Result } from "../utils/result.ts";
 
 export type ToolRequest = GenericToolRequest<"get_file", Input>;
 
@@ -485,7 +483,7 @@ export type Input = {
 export function validateInput(input: {
   [key: string]: unknown;
 }): Result<Input> {
-  if (typeof input.filePath != "string") {
+  if (typeof input.filePath !== "string") {
     return {
       status: "error",
       error: "expected req.input.filePath to be a string",

@@ -1,5 +1,5 @@
-import { type Nvim } from "../nvim/nvim-node/index.ts";
 import type { NvimBuffer } from "../nvim/buffer.ts";
+import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { PositionString } from "../nvim/window.ts";
 
 export class Lsp {
@@ -138,7 +138,7 @@ export class Lsp {
       );
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+    // biome-ignore lint/suspicious/noExplicitAny: LSP response is dynamically typed and needs to be cast
     request.resolve(res as any);
   }
 }

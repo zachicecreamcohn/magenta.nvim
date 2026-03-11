@@ -1,52 +1,51 @@
+import type { ContextTracker } from "./capabilities/context-tracker.ts";
+import type { DiagnosticsProvider } from "./capabilities/diagnostics-provider.ts";
+import type { FileIO } from "./capabilities/file-io.ts";
+import type { LspClient } from "./capabilities/lsp-client.ts";
+import type { Shell } from "./capabilities/shell.ts";
+import type { ThreadManager } from "./capabilities/thread-manager.ts";
+import type { ThreadId, ThreadType } from "./chat-types.ts";
+import type {
+  CompactionRecord,
+  CompactionResult,
+  CompactionStep,
+} from "./compaction-controller.ts";
+import { CompactionManager } from "./compaction-manager.ts";
+import { provisionContainer } from "./container/provision.ts";
+import type { ContainerConfig } from "./container/types.ts";
+import { ContextManager, type Files } from "./context/context-manager.ts";
+import type { EdlRegisters } from "./edl/index.ts";
+import { Emitter } from "./emitter.ts";
 import type { Logger } from "./logger.ts";
 import type { ProviderProfile } from "./provider-options.ts";
-import type { ThreadType, ThreadId } from "./chat-types.ts";
-import type { SystemPrompt } from "./providers/system-prompt.ts";
-import { MCPToolManager as MCPToolManagerImpl } from "./tools/mcp/manager.ts";
-import { ContextManager, type Files } from "./context/context-manager.ts";
-import type { ThreadManager } from "./capabilities/thread-manager.ts";
-import type { FileIO } from "./capabilities/file-io.ts";
-import type { Shell } from "./capabilities/shell.ts";
-import type { LspClient } from "./capabilities/lsp-client.ts";
-import type { DiagnosticsProvider } from "./capabilities/diagnostics-provider.ts";
-import type { ContextTracker } from "./capabilities/context-tracker.ts";
-import type { ContainerConfig } from "./container/types.ts";
-import type { NvimCwd, HomeDir, UnresolvedFilePath } from "./utils/files.ts";
-import type { ToolCapability } from "./tools/tool-registry.ts";
+import { getContextWindowForModel } from "./providers/anthropic-agent.ts";
 import type {
-  Provider,
-  ProviderMessage,
-  ProviderMessageContent,
   Agent,
   AgentInput,
   AgentStatus,
+  Provider,
+  ProviderMessage,
+  ProviderMessageContent,
   ProviderToolResult,
   StopReason,
   Usage,
 } from "./providers/provider-types.ts";
+import type { SystemPrompt } from "./providers/system-prompt.ts";
+import { getSubsequentReminder } from "./providers/system-reminders.ts";
+import type { ThreadSupervisor } from "./thread-supervisor.ts";
 import type {
-  ToolRequestId,
+  ToolInvocation,
   ToolName,
   ToolRequest,
-  ToolInvocation,
+  ToolRequestId,
 } from "./tool-types.ts";
-import type { EdlRegisters } from "./edl/index.ts";
-import type {
-  CompactionResult,
-  CompactionStep,
-  CompactionRecord,
-} from "./compaction-controller.ts";
-import { CompactionManager } from "./compaction-manager.ts";
-import type { ThreadSupervisor } from "./thread-supervisor.ts";
-import { Emitter } from "./emitter.ts";
-
-import { getToolSpecs } from "./tools/toolManager.ts";
-import { createTool, type CreateToolContext } from "./tools/create-tool.ts";
-import { provisionContainer } from "./container/provision.ts";
-import { getSubsequentReminder } from "./providers/system-reminders.ts";
-import { getContextWindowForModel } from "./providers/anthropic-agent.ts";
-import { assertUnreachable } from "./utils/assertUnreachable.ts";
+import { type CreateToolContext, createTool } from "./tools/create-tool.ts";
+import type { MCPToolManager as MCPToolManagerImpl } from "./tools/mcp/manager.ts";
 import * as ThreadTitle from "./tools/thread-title.ts";
+import type { ToolCapability } from "./tools/tool-registry.ts";
+import { getToolSpecs } from "./tools/toolManager.ts";
+import { assertUnreachable } from "./utils/assertUnreachable.ts";
+import type { HomeDir, NvimCwd, UnresolvedFilePath } from "./utils/files.ts";
 
 export type InputMessage =
   | {
@@ -296,7 +295,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
 
   getLastStopTokenCount(): number {
     const state = this.agent.getState();
-    if (state.inputTokenCount != undefined) {
+    if (state.inputTokenCount !== undefined) {
       return state.inputTokenCount;
     }
 
@@ -589,7 +588,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       this.setThreadTitle(messages.map((m) => m.text).join("\n")).catch(
         (err: Error) =>
           this.context.logger.error(
-            "Error getting thread title: " + err.message + "\n" + err.stack,
+            `Error getting thread title: ${err.message}\n${err.stack}`,
           ),
       );
     }
@@ -976,7 +975,7 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
       disableCaching: true,
     });
     const result = await request.promise;
-    if (result.toolRequest.status == "ok") {
+    if (result.toolRequest.status === "ok") {
       this.setTitle(
         (result.toolRequest.value.input as ThreadTitle.Input).title,
       );

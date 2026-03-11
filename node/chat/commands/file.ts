@@ -1,11 +1,11 @@
-import type { Command } from "./types.ts";
 import type { ProviderMessageContent } from "../../providers/provider-types.ts";
 import type { UnresolvedFilePath } from "../../utils/files.ts";
 import {
-  resolveFilePath,
-  relativePath,
   detectFileType,
+  relativePath,
+  resolveFilePath,
 } from "../../utils/files.ts";
+import type { Command } from "./types.ts";
 
 export const fileCommand: Command = {
   name: "@file:",

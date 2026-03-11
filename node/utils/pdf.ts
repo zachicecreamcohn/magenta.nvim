@@ -1,4 +1,4 @@
-import fs from "fs";
+import fs from "node:fs";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { Result } from "./result.ts";
 

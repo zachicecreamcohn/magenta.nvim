@@ -1,5 +1,5 @@
-import type { Chat } from "../chat/chat.ts";
 import type { ThreadId } from "@magenta/core";
+import type { Chat } from "../chat/chat.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
 
 export function renderPendingApprovals(

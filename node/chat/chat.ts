@@ -1,41 +1,38 @@
-import type { Nvim } from "../nvim/nvim-node/index.ts";
-import type { MagentaOptions, Profile } from "../options.ts";
-import type { RootMsg } from "../root-msg.ts";
-import type { Dispatch } from "../tea/tea.ts";
-import { Thread } from "./thread.ts";
-import { view as threadView } from "./thread-view.ts";
-import { DockerSupervisor } from "./thread-supervisor.ts";
-import type { Lsp } from "../capabilities/lsp.ts";
-import {
-  createLocalEnvironment,
-  createDockerEnvironment,
-  type EnvironmentConfig,
-} from "../environment.ts";
-import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { FileIO, InputMessage, ThreadId, ThreadType } from "@magenta/core";
 import { MCPToolManagerImpl } from "@magenta/core";
-
-import { d, withBindings, type VDOMNode } from "../tea/view.ts";
 import { v7 as uuidv7 } from "uuid";
-
-import {
-  resolveAutoContext,
-  autoContextFilesToInitialFiles,
-} from "../context/auto-context.ts";
-
 import type { BufferTracker } from "../buffer-tracker.ts";
+import type { Lsp } from "../capabilities/lsp.ts";
+import type {
+  DockerSpawnConfig,
+  ThreadManager,
+} from "../capabilities/thread-manager.ts";
 import {
-  type AbsFilePath,
-  type HomeDir,
-  type NvimCwd,
-  type UnresolvedFilePath,
+  autoContextFilesToInitialFiles,
+  resolveAutoContext,
+} from "../context/auto-context.ts";
+import {
+  createDockerEnvironment,
+  createLocalEnvironment,
+  type EnvironmentConfig,
+} from "../environment.ts";
+import type { Nvim } from "../nvim/nvim-node/index.ts";
+import type { MagentaOptions, Profile } from "../options.ts";
+import { createSystemPrompt } from "../providers/system-prompt.ts";
+import type { RootMsg } from "../root-msg.ts";
+import type { Dispatch } from "../tea/tea.ts";
+import { d, type VDOMNode, withBindings } from "../tea/view.ts";
+import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import type {
+  AbsFilePath,
+  HomeDir,
+  NvimCwd,
+  UnresolvedFilePath,
 } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
-import type {
-  ThreadManager,
-  DockerSpawnConfig,
-} from "../capabilities/thread-manager.ts";
-import { createSystemPrompt } from "../providers/system-prompt.ts";
+import { Thread } from "./thread.ts";
+import { DockerSupervisor } from "./thread-supervisor.ts";
+import { view as threadView } from "./thread-view.ts";
 
 type ThreadWrapper = (
   | {
@@ -132,25 +129,25 @@ export class Chat implements ThreadManager {
     setTimeout(() => {
       this.createNewThread().catch((e: Error) => {
         this.context.nvim.logger.error(
-          "Failed to create thread: " + e.message + "\n" + e.stack,
+          `Failed to create thread: ${e.message}\n${e.stack}`,
         );
       });
     });
   }
 
   update(msg: RootMsg) {
-    if (msg.type == "chat-msg") {
+    if (msg.type === "chat-msg") {
       this.myUpdate(msg.msg);
       return;
     }
 
-    if (msg.type == "thread-msg" && msg.id in this.threadWrappers) {
+    if (msg.type === "thread-msg" && msg.id in this.threadWrappers) {
       const threadState = this.threadWrappers[msg.id];
       if (threadState.state === "initialized") {
         const thread = threadState.thread;
         thread.update(msg);
 
-        if (msg.msg.type == "abort") {
+        if (msg.msg.type === "abort") {
           // Find all child threads of the parent thread and abort them directly
           for (const [threadId, threadWrapper] of Object.entries(
             this.threadWrappers,
@@ -262,7 +259,7 @@ export class Chat implements ThreadManager {
         setTimeout(() => {
           this.createNewThread().catch((e: Error) => {
             this.context.nvim.logger.error(
-              "Failed to create new thread: " + e.message + "\n" + e.stack,
+              `Failed to create new thread: ${e.message}\n${e.stack}`,
             );
           });
         });
@@ -284,7 +281,7 @@ export class Chat implements ThreadManager {
           this.state.activeThreadId
         ) {
           const threadWrapper = this.threadWrappers[this.state.activeThreadId];
-          if (threadWrapper && threadWrapper.parentThreadId) {
+          if (threadWrapper?.parentThreadId) {
             // Navigate to parent thread
             this.state = {
               state: "thread-selected",
@@ -325,7 +322,7 @@ export class Chat implements ThreadManager {
           sourceThreadId: msg.sourceThreadId,
         }).catch((e: Error) => {
           this.context.nvim.logger.error(
-            "Failed to handle thread fork: " + e.message + "\n" + e.stack,
+            `Failed to handle thread fork: ${e.message}\n${e.stack}`,
           );
         });
         return;
@@ -559,7 +556,7 @@ export class Chat implements ThreadManager {
       case "error": {
         const truncatedError =
           summary.status.message.length > 50
-            ? summary.status.message.substring(0, 47) + "..."
+            ? `${summary.status.message.substring(0, 47)}...`
             : summary.status.message;
         return `❌ error: ${truncatedError}`;
       }
@@ -587,7 +584,7 @@ export class Chat implements ThreadManager {
         for (const content of message.content) {
           if (content.type === "text" && content.text.trim()) {
             const text = content.text.trim();
-            return text.length > 50 ? text.substring(0, 50) + "..." : text;
+            return text.length > 50 ? `${text.substring(0, 50)}...` : text;
           }
         }
       }
@@ -665,7 +662,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       throw new Error(`Chat is not initialized yet... no active thread`);
     }
     const threadWrapper = this.threadWrappers[this.state.activeThreadId];
-    if (!(threadWrapper && threadWrapper.state == "initialized")) {
+    if (!(threadWrapper && threadWrapper.state === "initialized")) {
       throw new Error(
         `Thread ${this.state.activeThreadId} not initialized yet...`,
       );
@@ -1118,7 +1115,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
 }
 
 function getActiveProfile(profiles: Profile[], activeProfile: string) {
-  const profile = profiles.find((p) => p.name == activeProfile);
+  const profile = profiles.find((p) => p.name === activeProfile);
   if (!profile) {
     throw new Error(`Profile ${activeProfile} not found.`);
   }

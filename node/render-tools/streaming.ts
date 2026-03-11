@@ -1,10 +1,10 @@
-import { d, withCode, type VDOMNode } from "../tea/view.ts";
 import {
-  extractPartialJsonStringValue,
-  assertUnreachable,
-  type StaticToolName,
   type AgentStreamingBlock,
+  assertUnreachable,
+  extractPartialJsonStringValue,
+  type StaticToolName,
 } from "@magenta/core";
+import { d, type VDOMNode, withCode } from "../tea/view.ts";
 
 export function renderStreamdedTool(
   streamingBlock: Extract<AgentStreamingBlock, { type: "tool_use" }>,

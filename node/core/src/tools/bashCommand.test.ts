@@ -1,8 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
-import * as BashCommand from "./bashCommand.ts";
-import type { Shell, ShellResult, OutputLine } from "../capabilities/shell.ts";
-import type { ToolRequestId } from "../tool-types.ts";
+import { describe, expect, it, vi } from "vitest";
+import type { OutputLine, Shell, ShellResult } from "../capabilities/shell.ts";
 import type { ProviderToolResult } from "../providers/provider-types.ts";
+import type { ToolRequestId } from "../tool-types.ts";
+import * as BashCommand from "./bashCommand.ts";
 
 function createMockShell(result: ShellResult): Shell {
   return {
@@ -234,7 +234,6 @@ describe("bashCommand unit tests", () => {
     if (result.result.status === "error") {
       expect(result.result.error).toContain("aborted by the user");
     }
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(shell.terminate).toHaveBeenCalled();
   });
 

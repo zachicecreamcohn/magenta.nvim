@@ -1,13 +1,13 @@
+import type Anthropic from "@anthropic-ai/sdk";
 import type {
+  ToolName,
   ToolRequestId,
   UnresolvedFilePath,
-  ToolName,
 } from "@magenta/core";
 import { expect, it } from "vitest";
-import { withDriver, assertToolResultContainsText } from "../test/preamble.ts";
 import type { BufNr } from "../nvim/buffer.ts";
-import type Anthropic from "@anthropic-ai/sdk";
 import { MockProvider } from "../providers/mock.ts";
+import { assertToolResultContainsText, withDriver } from "../test/preamble.ts";
 
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
 type ContentBlockParam = Anthropic.Messages.ContentBlockParam;

@@ -1,12 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { withDriver } from "./test/preamble.ts";
 import fs from "node:fs";
 import path from "node:path";
-import { promisify } from "util";
-import { getCurrentBuffer } from "./nvim/nvim.ts";
-import type { AbsFilePath } from "./utils/files.ts";
+import { promisify } from "node:util";
+import { describe, expect, it } from "vitest";
 import type { Line } from "./nvim/buffer.ts";
+import { getCurrentBuffer } from "./nvim/nvim.ts";
 import type { Row0Indexed } from "./nvim/window.ts";
+import { withDriver } from "./test/preamble.ts";
+import type { AbsFilePath } from "./utils/files.ts";
 
 const writeFile = promisify(fs.writeFile);
 

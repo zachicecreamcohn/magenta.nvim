@@ -1,5 +1,5 @@
+import { promises as fs } from "node:fs";
 import { vi } from "vitest";
-import { promises as fs } from "fs";
 
 const isRecording = process.env.RECORD === "true";
 
@@ -34,7 +34,6 @@ export class MockFileSystem {
     });
 
     vi.spyOn(fs, "readFile").mockImplementation((path, encoding) => {
-      // eslint-disable-next-line @typescript-eslint/no-base-to-string
       const pathStr = path.toString();
       const content = this.files.get(pathStr);
       if (content !== undefined) {

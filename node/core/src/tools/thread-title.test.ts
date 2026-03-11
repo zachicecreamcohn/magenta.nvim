@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import * as ThreadTitle from "./thread-title.ts";
+import { describe, expect, it } from "vitest";
 import type { ToolRequestId } from "../tool-types.ts";
+import * as ThreadTitle from "./thread-title.ts";
 
 describe("thread-title unit tests", () => {
   it("returns title as tool result text", async () => {

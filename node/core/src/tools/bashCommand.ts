@@ -1,17 +1,15 @@
-import type { Result } from "../utils/result.ts";
+import { spawnSync } from "node:child_process";
+import type { OutputLine, Shell } from "../capabilities/shell.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider-types.ts";
-
-import { spawnSync } from "child_process";
 import type {
-  ToolName,
   GenericToolRequest,
   ToolInvocation,
+  ToolName,
 } from "../tool-types.ts";
-
-import type { Shell, OutputLine } from "../capabilities/shell.ts";
+import type { Result } from "../utils/result.ts";
 
 let rgAvailable: boolean | undefined;
 let fdAvailable: boolean | undefined;
@@ -147,7 +145,7 @@ function formatOutputForToolResult(
         formattedOutput += line.stream === "stdout" ? "stdout:\n" : "stderr:\n";
         currentStream = line.stream;
       }
-      formattedOutput += line.text + "\n";
+      formattedOutput += `${line.text}\n`;
     }
 
     if (signal) {
@@ -203,7 +201,7 @@ function formatOutputForToolResult(
       formattedOutput += line.stream === "stdout" ? "stdout:\n" : "stderr:\n";
       currentStream = line.stream;
     }
-    formattedOutput += text + "\n";
+    formattedOutput += `${text}\n`;
   }
 
   if (omittedCount > 0) {
@@ -215,7 +213,7 @@ function formatOutputForToolResult(
       formattedOutput += line.stream === "stdout" ? "stdout:\n" : "stderr:\n";
       currentStream = line.stream;
     }
-    formattedOutput += text + "\n";
+    formattedOutput += `${text}\n`;
   }
 
   if (signal) {

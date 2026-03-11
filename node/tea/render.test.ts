@@ -1,16 +1,16 @@
+import { describe, expect, it } from "vitest";
+import { type Line, NvimBuffer } from "../nvim/buffer.ts";
+import type { Row0Indexed } from "../nvim/window.ts";
 import { extractMountTree, withNvimClient } from "../test/preamble.ts";
 import {
   d,
   mountView,
   pos,
-  withExtmark,
   withError,
-  withWarning,
+  withExtmark,
   withInfo,
+  withWarning,
 } from "./view.ts";
-import { describe, expect, it } from "vitest";
-import { NvimBuffer, type Line } from "../nvim/buffer.ts";
-import { type Row0Indexed } from "../nvim/window.ts";
 
 describe("tea/render.test.ts", () => {
   it("rendering empty string", async () => {
