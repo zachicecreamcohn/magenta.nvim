@@ -17,9 +17,10 @@ WRONG: \`command | head -100\`
 RIGHT: \`command\``;
 
 const EXPLORE_REMINDER = `\
-Only use the explore agent to answer specific questions that can be answered concisely, like summarizing how something works or where something is defined.
+Only use the explore agent when you don't already know where to find something. If you know the file or location, use get_file directly instead of spawning an explore agent.
 WRONG: read the full contents of file
-RIGHT: where is X is handled?`;
+WRONG: spawning explore when you already know the file path
+RIGHT: where is X handled?`;
 
 const BASE_REMINDER = `<system-reminder>
 ${SKILLS_REMINDER}

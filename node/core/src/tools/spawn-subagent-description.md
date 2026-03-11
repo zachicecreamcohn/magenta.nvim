@@ -1,9 +1,10 @@
 Create a sub-agent that can perform a specific task and report back the results.
 
-- Use 'explore' for searching the codebase. Each explore agent should answer one specific question about the code. It will respond with file paths, line ranges, and descriptions of what's there (never exact code). IMPORTANT: Never use an explore agent to read or summarize a file's full contents. If you need file contents, use get_file directly. Explore agents should only be used when you need to answer a specific question about location - where a symbol is defined, where a pattern is used, etc.
+- Use 'explore' **only when you don't already know where to look**. Each explore agent should answer one specific question about the code. It will respond with file paths, line ranges, and descriptions of what's there (never exact code). If you already know the file or location, use get_file directly instead of spawning an explore agent. Never use an explore agent to read or summarize a file's full contents.
 - Before spawning explore agents, state "I need to answer these questions:" and write a high-level list of all the things you need to find out. Then spawn a non-blocking explore agent for each question, and use wait_for_subagents to collect all results.
 
 WRONG: spawning explore to "read file X and tell me what's in it", "summarize the contents of directory Y", "what does file Z export?"
+WRONG: spawning explore when you already know the file path — just use get_file directly
 RIGHT: spawning explore to "where is FooInterface defined and used?", "which files handle authentication?", "find where errors are caught in the request pipeline"
 
 - Use 'fast' for quick and predictable edit tasks that don't require the full model capabilities, like straightforward refactors
