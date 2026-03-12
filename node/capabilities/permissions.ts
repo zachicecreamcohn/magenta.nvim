@@ -106,17 +106,15 @@ function isFileInSkillsDirectory(
   context: {
     cwd: NvimCwd;
     homeDir: HomeDir;
-    options: MagentaOptions;
+    getOptions: () => MagentaOptions;
   },
 ): boolean {
-  if (
-    !context.options.skillsPaths ||
-    context.options.skillsPaths.length === 0
-  ) {
+  const options = context.getOptions();
+  if (!options.skillsPaths || options.skillsPaths.length === 0) {
     return false;
   }
 
-  for (const skillsDir of context.options.skillsPaths) {
+  for (const skillsDir of options.skillsPaths) {
     const expandedDir = expandTilde(skillsDir, context.homeDir);
     const skillsDirPath = path.isAbsolute(expandedDir)
       ? expandedDir
@@ -135,14 +133,15 @@ async function isFileAutoAllowed(
   context: {
     cwd: NvimCwd;
     nvim: Nvim;
-    options: MagentaOptions;
+    getOptions: () => MagentaOptions;
   },
 ): Promise<boolean> {
-  if (context.options.getFileAutoAllowGlobs.length === 0) {
+  const options = context.getOptions();
+  if (options.getFileAutoAllowGlobs.length === 0) {
     return false;
   }
 
-  for (const pattern of context.options.getFileAutoAllowGlobs) {
+  for (const pattern of options.getFileAutoAllowGlobs) {
     try {
       const matches = await glob(pattern, {
         cwd: context.cwd,
@@ -224,9 +223,10 @@ export async function canReadFile(
     cwd: NvimCwd;
     homeDir: HomeDir;
     nvim: Nvim;
-    options: MagentaOptions;
+    getOptions: () => MagentaOptions;
   },
 ): Promise<boolean> {
+  const options = context.getOptions();
   const relFilePath = relativePath(context.cwd, absFilePath, context.homeDir);
 
   // Magenta temp files (e.g., bash command logs) are auto-approved for reading
@@ -247,7 +247,7 @@ export async function canReadFile(
   // Get effective permissions from filePermissions config
   const effectivePerms = getEffectivePermissions(
     absFilePath,
-    context.options.filePermissions,
+    options.filePermissions,
     context.cwd,
     context.homeDir,
   );
@@ -255,7 +255,7 @@ export async function canReadFile(
   // Check if this file requires secret permissions
   const needsSecret = fileRequiresSecretPermission(
     absFilePath,
-    context.options.filePermissions,
+    options.filePermissions,
     context.cwd,
     context.homeDir,
   );
@@ -274,9 +274,10 @@ export function canWriteFile(
   context: {
     cwd: NvimCwd;
     homeDir: HomeDir;
-    options: MagentaOptions;
+    getOptions: () => MagentaOptions;
   },
 ): boolean {
+  const options = context.getOptions();
   // Files in magenta temp directory are always writable (magenta owns that directory)
   if (isFileInMagentaTempDirectory(absFilePath)) {
     return true;
@@ -289,7 +290,7 @@ export function canWriteFile(
   // Get effective permissions from filePermissions config
   const effectivePerms = getEffectivePermissions(
     absFilePath,
-    context.options.filePermissions,
+    options.filePermissions,
     context.cwd,
     context.homeDir,
   );
@@ -297,7 +298,7 @@ export function canWriteFile(
   // Check if this file requires secret permissions
   const needsSecret = fileRequiresSecretPermission(
     absFilePath,
-    context.options.filePermissions,
+    options.filePermissions,
     context.cwd,
     context.homeDir,
   );

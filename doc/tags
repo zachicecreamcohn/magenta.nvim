@@ -34,6 +34,7 @@ magenta-custom-commands	magenta-config.txt	/*magenta-custom-commands*
 magenta-default-keymaps	magenta-commands.txt	/*magenta-default-keymaps*
 magenta-defaultKeymaps	magenta-config.txt	/*magenta-defaultKeymaps*
 magenta-deprecated-providers	magenta-providers.txt	/*magenta-deprecated-providers*
+magenta-dev-containers	magenta-tools.txt	/*magenta-dev-containers*
 magenta-display-buffer	magenta-commands.txt	/*magenta-display-buffer*
 magenta-ex-commands	magenta-commands.txt	/*magenta-ex-commands*
 magenta-filePermissions	magenta-config.txt	/*magenta-filePermissions*

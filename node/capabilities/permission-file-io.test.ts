@@ -47,7 +47,7 @@ function createPermissionIO(
 ) {
   return new PermissionCheckingFileIO(
     inner,
-    { cwd, homeDir, options, nvim: mockNvim },
+    { cwd, homeDir, getOptions: () => options, nvim: mockNvim },
     onPendingChange,
   );
 }
@@ -430,7 +430,12 @@ describe("PermissionCheckingFileIO", () => {
       } as unknown as MagentaOptions;
       const pio = new PermissionCheckingFileIO(
         mockIO,
-        { cwd, homeDir: actualHomeDir, options, nvim: mockNvim },
+        {
+          cwd,
+          homeDir: actualHomeDir,
+          getOptions: () => options,
+          nvim: mockNvim,
+        },
         onPendingChange,
       );
       const result = await pio.readFile(
@@ -575,7 +580,7 @@ describe("PermissionCheckingFileIO", () => {
           {
             cwd: tmpDir as NvimCwd,
             homeDir,
-            options,
+            getOptions: () => options,
             nvim: mockNvim,
           },
           onPendingChange,

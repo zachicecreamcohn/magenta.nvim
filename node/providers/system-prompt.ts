@@ -8,6 +8,7 @@ import {
   EXPLORE_SUBAGENT_SYSTEM_PROMPT,
   type NvimCwd,
   type ProviderOptions,
+  type SystemInfo,
   type SystemPrompt,
   type ThreadType,
 } from "@magenta/core";
@@ -29,6 +30,7 @@ export async function createSystemPrompt(
     nvim: Nvim;
     cwd: NvimCwd;
     options: ProviderOptions;
+    systemInfoOverrides?: Partial<SystemInfo>;
   },
 ): Promise<SystemPrompt> {
   const neovimVersion = (await context.nvim.call("nvim_eval", [
@@ -41,6 +43,7 @@ export async function createSystemPrompt(
       platform: platform(),
       neovimVersion,
       cwd: context.cwd,
+      ...context.systemInfoOverrides,
     },
     logger: context.nvim.logger,
     cwd: context.cwd,

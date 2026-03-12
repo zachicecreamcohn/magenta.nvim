@@ -16,7 +16,7 @@ describe("mergeOptions", () => {
       right: { widthPercentage: 0.4, displayHeightPercentage: 0.8 },
     },
     maxConcurrentSubagents: 3,
-    commandConfig: { commands: [], pipeCommands: [] },
+    commandConfig: { rules: [] },
     autoContext: [],
     skillsPaths: [],
     mcpServers: {},
@@ -26,92 +26,66 @@ describe("mergeOptions", () => {
   };
 
   describe("commandConfig merging", () => {
-    it("should combine commands from both configs", () => {
+    it("should combine rules from both configs", () => {
       const base: MagentaOptions = {
         ...baseOptions,
         commandConfig: {
-          commands: [["git", "status", { type: "restAny" }]],
-          pipeCommands: [],
+          rules: [
+            { cmd: "git", subcommands: [{ cmd: "status", rest: "any" }] },
+          ],
         },
       };
 
       const merged = mergeOptions(base, {
         commandConfig: {
-          commands: [["npm", "install", { type: "restAny" }]],
-          pipeCommands: [],
+          rules: [
+            { cmd: "npm", subcommands: [{ cmd: "install", rest: "any" }] },
+          ],
         },
       });
 
-      expect(merged.commandConfig.commands).toEqual([
-        ["git", "status", { type: "restAny" }],
-        ["npm", "install", { type: "restAny" }],
+      expect(merged.commandConfig.rules).toEqual([
+        { cmd: "git", subcommands: [{ cmd: "status", rest: "any" }] },
+        { cmd: "npm", subcommands: [{ cmd: "install", rest: "any" }] },
       ]);
     });
 
-    it("should combine pipeCommands from both configs", () => {
+    it("should combine pipe and non-pipe rules", () => {
       const base: MagentaOptions = {
         ...baseOptions,
         commandConfig: {
-          commands: [],
-          pipeCommands: [["head", "-n", { type: "any" }]],
+          rules: [{ cmd: "cat", args: ["readFile"] }],
         },
       };
 
       const merged = mergeOptions(base, {
         commandConfig: {
-          commands: [],
-          pipeCommands: [["grep", { type: "any" }]],
+          rules: [{ cmd: "grep", rest: "any", pipe: true }],
         },
       });
 
-      expect(merged.commandConfig.pipeCommands).toEqual([
-        ["head", "-n", { type: "any" }],
-        ["grep", { type: "any" }],
-      ]);
-    });
-
-    it("should combine both commands and pipeCommands arrays", () => {
-      const base: MagentaOptions = {
-        ...baseOptions,
-        commandConfig: {
-          commands: [["cat", { type: "file" }]],
-          pipeCommands: [["head"]],
-        },
-      };
-
-      const merged = mergeOptions(base, {
-        commandConfig: {
-          commands: [["cat", "-n", { type: "file" }]],
-          pipeCommands: [["head", "-n", { type: "any" }]],
-        },
-      });
-
-      expect(merged.commandConfig.commands).toEqual([
-        ["cat", { type: "file" }],
-        ["cat", "-n", { type: "file" }],
-      ]);
-      expect(merged.commandConfig.pipeCommands).toEqual([
-        ["head"],
-        ["head", "-n", { type: "any" }],
+      expect(merged.commandConfig.rules).toEqual([
+        { cmd: "cat", args: ["readFile"] },
+        { cmd: "grep", rest: "any", pipe: true },
       ]);
     });
 
     it("should handle empty base config", () => {
       const base: MagentaOptions = {
         ...baseOptions,
-        commandConfig: { commands: [], pipeCommands: [] },
+        commandConfig: { rules: [] },
       };
 
       const merged = mergeOptions(base, {
         commandConfig: {
-          commands: [["git", "status"]],
-          pipeCommands: [["grep", { type: "any" }]],
+          rules: [
+            { cmd: "git", subcommands: [{ cmd: "status", rest: "any" }] },
+          ],
         },
       });
 
-      expect(merged.commandConfig.commands).toEqual([["git", "status"]]);
-      expect(merged.commandConfig.pipeCommands).toEqual([
-        ["grep", { type: "any" }],
+      expect(merged.commandConfig.rules).toEqual([
+        { cmd: "git", subcommands: [{ cmd: "status", rest: "any" }] },
       ]);
     });
 
@@ -119,17 +93,19 @@ describe("mergeOptions", () => {
       const base: MagentaOptions = {
         ...baseOptions,
         commandConfig: {
-          commands: [["git", "status"]],
-          pipeCommands: [["head"]],
+          rules: [
+            { cmd: "git", subcommands: [{ cmd: "status", rest: "any" }] },
+          ],
         },
       };
 
       const merged = mergeOptions(base, {
-        commandConfig: { commands: [], pipeCommands: [] },
+        commandConfig: { rules: [] },
       });
 
-      expect(merged.commandConfig.commands).toEqual([["git", "status"]]);
-      expect(merged.commandConfig.pipeCommands).toEqual([["head"]]);
+      expect(merged.commandConfig.rules).toEqual([
+        { cmd: "git", subcommands: [{ cmd: "status", rest: "any" }] },
+      ]);
     });
   });
 });

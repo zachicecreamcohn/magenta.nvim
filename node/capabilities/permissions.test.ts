@@ -200,7 +200,7 @@ describe("canReadFile", () => {
         cwd: "/home/user/project" as NvimCwd,
         homeDir,
         nvim: mockNvim,
-        options: defaultOptions,
+        getOptions: () => defaultOptions,
       },
     );
     expect(result).toBe(true);
@@ -211,7 +211,7 @@ describe("canReadFile", () => {
       cwd: "/home/user/project" as NvimCwd,
       homeDir,
       nvim: mockNvim,
-      options: defaultOptions,
+      getOptions: () => defaultOptions,
     });
     expect(result).toBe(false);
   });
@@ -225,7 +225,7 @@ describe("canReadFile", () => {
       cwd: "/home/user/project" as NvimCwd,
       homeDir,
       nvim: mockNvim,
-      options,
+      getOptions: () => options,
     });
     expect(result).toBe(true);
   });
@@ -237,7 +237,7 @@ describe("canReadFile", () => {
         cwd: "/home/user/project" as NvimCwd,
         homeDir,
         nvim: mockNvim,
-        options: defaultOptions,
+        getOptions: () => defaultOptions,
       },
     );
     expect(result).toBe(true);
@@ -250,7 +250,7 @@ describe("canReadFile", () => {
         cwd: "/home/user/project" as NvimCwd,
         homeDir,
         nvim: mockNvim,
-        options: defaultOptions,
+        getOptions: () => defaultOptions,
       },
     );
     expect(result).toBe(false);
@@ -267,7 +267,7 @@ describe("canReadFile", () => {
       cwd: "/home/user/project" as NvimCwd,
       homeDir,
       nvim: mockNvim,
-      options,
+      getOptions: () => options,
     });
     expect(result).toBe(true);
   });
@@ -279,7 +279,7 @@ describe("canReadFile", () => {
         cwd: "/home/user/project" as NvimCwd,
         homeDir,
         nvim: mockNvim,
-        options: defaultOptions,
+        getOptions: () => defaultOptions,
       },
     );
     expect(result).toBe(true);
@@ -296,7 +296,7 @@ describe("canReadFile", () => {
         cwd: "/home/user/project" as NvimCwd,
         homeDir,
         nvim: mockNvim,
-        options,
+        getOptions: () => options,
       },
     );
     expect(result).toBe(true);
@@ -316,7 +316,7 @@ describe("canReadFile", () => {
         cwd: "/home/user/project" as NvimCwd,
         homeDir: actualHomeDir,
         nvim: mockNvim,
-        options,
+        getOptions: () => options,
       },
     );
     expect(result).toBe(true);
@@ -332,7 +332,7 @@ describe("canWriteFile", () => {
       {
         cwd: "/home/user/project" as NvimCwd,
         homeDir,
-        options: defaultOptions,
+        getOptions: () => defaultOptions,
       },
     );
     expect(result).toBe(true);
@@ -342,7 +342,7 @@ describe("canWriteFile", () => {
     const result = canWriteFile("/tmp/file.txt" as AbsFilePath, {
       cwd: "/home/user/project" as NvimCwd,
       homeDir,
-      options: defaultOptions,
+      getOptions: () => defaultOptions,
     });
     expect(result).toBe(false);
   });
@@ -355,7 +355,7 @@ describe("canWriteFile", () => {
     const result = canWriteFile("/tmp/file.txt" as AbsFilePath, {
       cwd: "/home/user/project" as NvimCwd,
       homeDir,
-      options,
+      getOptions: () => options,
     });
     expect(result).toBe(true);
   });
@@ -364,7 +364,7 @@ describe("canWriteFile", () => {
     const result = canWriteFile("/home/user/project/.env" as AbsFilePath, {
       cwd: "/home/user/project" as NvimCwd,
       homeDir,
-      options: defaultOptions,
+      getOptions: () => defaultOptions,
     });
     expect(result).toBe(false);
   });
@@ -379,7 +379,7 @@ describe("canWriteFile", () => {
     const result = canWriteFile("/home/user/project/.env" as AbsFilePath, {
       cwd: "/home/user/project" as NvimCwd,
       homeDir,
-      options,
+      getOptions: () => options,
     });
     expect(result).toBe(true);
   });
@@ -390,7 +390,7 @@ describe("canWriteFile", () => {
       {
         cwd: "/home/user/project" as NvimCwd,
         homeDir,
-        options: defaultOptions,
+        getOptions: () => defaultOptions,
       },
     );
     expect(result).toBe(true);
