@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { FilePermission } from "../../options.ts";
 import {
   type AbsFilePath,
@@ -801,7 +802,7 @@ export function checkCommandListPermissionsByRules(
 }
 
 const BUILTIN_PERMISSIONS_PATH = path.join(
-  __dirname,
+  path.join(path.dirname(fileURLToPath(import.meta.url))),
   "builtin-permissions.json",
 );
 
