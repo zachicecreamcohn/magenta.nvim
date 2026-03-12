@@ -186,6 +186,7 @@ When given a task:
    - If a planning step is requested, spawn a separate docker subagent to produce the plan, then present it to the user for feedback before proceeding.
    - All implementation work must be done in `docker_unsupervised` subagents.
    - Pass the branch name and have the prompt include the plan location to the docker subagent so it checks out the correct branch.
+   - Docker subagents should commit all changes to the branch (not push). When they yield, commits are automatically synced back to the host via `git format-patch`/`git am`.
 
 # Notes
 

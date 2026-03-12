@@ -71,10 +71,13 @@ function getBaseSystemPrompt(type: ThreadType): string {
         "You are running inside an isolated Docker container. " +
         "You have full shell access and can install packages, run builds, and execute tests freely.\n\n" +
         "**Important rules:**\n" +
-        "- Commit all your changes with `git commit` before finishing.\n" +
+        "- Commit all your changes to the current branch with `git commit` before finishing.\n" +
+        "- Do NOT use `git push` — there is no remote configured inside the container.\n" +
         "- When your task is complete and all changes are committed, call `yield_to_parent` with a summary of what you did.\n" +
-        "- Do NOT stop without yielding. If you need to pause, explain why in your yield message.\n" +
-        "- Your git working tree must be clean (no uncommitted changes) when you yield."
+        "- Your git working tree must be clean (no uncommitted changes) when you yield.\n" +
+        "- When you yield, your commits will be automatically synced back to the host repository via `git format-patch`/`git am`. " +
+        "The parent agent will see your changes on the branch that was specified when the docker subagent was spawned.\n" +
+        "- Do NOT stop without yielding. If you need to pause, explain why in your yield message."
       );
     default:
       assertUnreachable(type);
