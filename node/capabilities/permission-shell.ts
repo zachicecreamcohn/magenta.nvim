@@ -4,7 +4,7 @@ import type { VDOMNode } from "../tea/view.ts";
 import { d, withBindings, withExtmark, withInlineCode } from "../tea/view.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import {
-  isCommandAllowedByConfig,
+  isCommandAllowedByRules,
   type PermissionCheckResult,
 } from "./bash-parser/permissions.ts";
 import type { OutputLine, Shell, ShellResult } from "./shell.ts";
@@ -42,7 +42,7 @@ export class PermissionCheckingShell implements Shell {
     }
 
     const options = this.permissionContext.getOptions();
-    return isCommandAllowedByConfig(command, options.commandConfig, {
+    return isCommandAllowedByRules(command, options.commandConfig, {
       cwd: this.permissionContext.cwd,
       homeDir: this.permissionContext.homeDir,
       skillsPaths: options.skillsPaths,

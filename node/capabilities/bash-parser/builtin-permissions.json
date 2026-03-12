@@ -1,0 +1,77 @@
+{
+  "rules": [
+    { "cmd": "ls", "rest": "any" },
+    { "cmd": "pwd" },
+    { "cmd": "echo", "rest": "any" },
+    { "cmd": "cat", "args": ["readFile"] },
+    { "cmd": "head", "options": { "-n": "any" }, "args": ["readFile"] },
+    { "cmd": "head", "args": [{ "pattern": "-[0-9]+" }, "readFile"] },
+    { "cmd": "tail", "options": { "-n": "any" }, "args": ["readFile"] },
+    { "cmd": "tail", "args": [{ "pattern": "-[0-9]+" }, "readFile"] },
+    { "cmd": "wc", "flags": ["-l"], "args": ["readFile"] },
+    {
+      "cmd": "grep",
+      "flags": ["-i"],
+      "args": ["any"],
+      "rest": "readFiles"
+    },
+    { "cmd": "sort", "args": ["readFile"] },
+    { "cmd": "uniq", "args": ["readFile"] },
+    {
+      "cmd": "cut",
+      "options": { "-d": "any", "-f": "any" },
+      "args": ["readFile"]
+    },
+    { "cmd": "awk", "args": ["any", "readFile"] },
+    { "cmd": "sed", "args": ["any", "readFile"] },
+    {
+      "cmd": "git",
+      "options": { "-C": "any", "-c": "any" },
+      "subcommands": [
+        { "cmd": "status", "rest": "any" },
+        { "cmd": "log", "rest": "any" },
+        { "cmd": "diff", "rest": "any" },
+        { "cmd": "show", "rest": "any" },
+        { "cmd": "add", "rest": "any" },
+        { "cmd": "commit", "rest": "any" },
+        { "cmd": "push", "rest": "any" },
+        { "cmd": "reset", "rest": "any" },
+        { "cmd": "restore", "rest": "any" },
+        { "cmd": "branch", "rest": "any" },
+        { "cmd": "checkout", "rest": "any" },
+        { "cmd": "switch", "rest": "any" },
+        { "cmd": "fetch", "rest": "any" },
+        { "cmd": "pull", "rest": "any" },
+        { "cmd": "merge", "rest": "any" },
+        { "cmd": "rebase", "rest": "any" },
+        { "cmd": "tag", "rest": "any" },
+        { "cmd": "stash", "rest": "any" }
+      ]
+    },
+    {
+      "cmd": "rg",
+      "flags": ["-l"],
+      "options": { "--type": "any" },
+      "args": ["any"],
+      "rest": "readFiles"
+    },
+    {
+      "cmd": "fd",
+      "options": { "-t": "any", "-e": "any" },
+      "args": [{ "type": "any", "optional": true }],
+      "rest": "readFiles"
+    },
+    { "cmd": "awk", "rest": "any", "pipe": true },
+    { "cmd": "cut", "rest": "any", "pipe": true },
+    { "cmd": "grep", "rest": "any", "pipe": true },
+    { "cmd": "head", "rest": "any", "pipe": true },
+    { "cmd": "rg", "rest": "any", "pipe": true },
+    { "cmd": "sed", "rest": "any", "pipe": true },
+    { "cmd": "sort", "rest": "any", "pipe": true },
+    { "cmd": "tail", "rest": "any", "pipe": true },
+    { "cmd": "tr", "rest": "any", "pipe": true },
+    { "cmd": "uniq", "rest": "any", "pipe": true },
+    { "cmd": "wc", "rest": "any", "pipe": true },
+    { "cmd": "xargs", "rest": "any", "pipe": true }
+  ]
+}

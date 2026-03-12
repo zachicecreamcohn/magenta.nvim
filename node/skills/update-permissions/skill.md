@@ -24,129 +24,161 @@ If the file doesn't exist, create it with just the `commandConfig` key.
 
 ## Permission Structure
 
-The `commandConfig` option defines which commands can run automatically without user confirmation. It has two arrays:
-
-- **`commands`**: Patterns for standalone commands
-- **`pipeCommands`**: Patterns for commands receiving pipe input (more permissive)
+The `commandConfig` option uses a `rules` array where each rule describes a command tree:
 
 ```json
 {
   "commandConfig": {
-    "commands": [
-      ["npx", "tsc", "--noEmit"],
-      ["npx", "vitest", "run", { "type": "restFiles" }],
-      ["cat", { "type": "file" }],
-      ["echo", { "type": "restAny" }]
-    ],
-    "pipeCommands": [
-      ["grep", { "type": "restAny" }],
-      ["wc", { "type": "restAny" }]
+    "rules": [
+      { "cmd": "echo", "rest": "any" },
+      { "cmd": "cat", "args": ["readFile"] },
+      { "cmd": "grep", "flags": ["-i"], "args": ["any"], "rest": "readFiles" },
+      { "cmd": "sort", "options": { "-o": "writeFile" }, "args": ["readFile"] },
+      {
+        "cmd": "git",
+        "options": { "-C": "any" },
+        "subcommands": [
+          { "cmd": "status", "rest": "any" },
+          { "cmd": "commit", "options": { "-m": "any" }, "rest": "any" }
+        ]
+      }
     ]
   }
 }
 ```
 
-Each pattern is an array where the first element is the executable and subsequent elements are the expected arguments.
+## CommandRule Fields
 
-## ArgSpec Types
+Each rule is an object with these fields:
 
-Each element in a pattern can be:
+- **`cmd`** (required): The command name (e.g., `"grep"`, `"git"`)
+- **`flags`**: Array of boolean flags (no value, order-independent, all optional). E.g., `["-i", "-l"]`
+- **`options`**: Object mapping option keys to value types (order-independent, all optional). E.g., `{ "-n": "any", "-o": "writeFile" }`
+- **`subcommands`**: Array of nested `CommandRule` objects. After extracting parent flags/options, the next arg must match a subcommand. Mutually exclusive with `args`/`rest`/`pipe`.
+- **`args`**: Array of positional argument types, matched in order (leaf nodes only)
+- **`rest`**: What to do with remaining args after positionals: `"any"`, `"readFiles"`, or `"writeFiles"` (leaf nodes only)
+- **`pipe`**: If `true`, this rule only applies when the command receives pipe input (leaf nodes only)
 
-- **String literal**: `"--noEmit"` - exact match required
-- **`{ "type": "readFile" }`**: A single file path that will be read (validated against `filePermissions`)
-- **`{ "type": "writeFile" }`**: A single file path that will be written (validated against `filePermissions`)
-- **`{ "type": "file" }`**: A single file path (checks both read and write permissions)
-- **`{ "type": "restFiles" }`**: Zero or more file paths (must be last in pattern)
-- **`{ "type": "restAny" }`**: Zero or more arguments of any type (must be last in pattern)
-- **`{ "type": "any" }`**: Any single argument (wildcard)
-- **`{ "type": "pattern", "pattern": "regex" }`**: Argument matching a regex pattern
-- **`{ "type": "group", "args": [...], "optional": true }`**: Optional group of arguments
-- **`{ "type": "group", "args": [...], "anyOrder": true }`**: Group where args can appear in any order
+## Argument Types (for `args`)
+
+Each positional in `args` can be:
+
+- **`"any"`**: Any single value
+- **`"readFile"`**: A readable file path (permission-checked)
+- **`"writeFile"`**: A writable file path (permission-checked)
+- **`{ "pattern": "regex" }`**: Must match the given regex
+- **`{ "type": "any"|"readFile"|"writeFile", "optional": true }`**: Optional positional argument
+
+## Option Value Types (for `options` values)
+
+- **`"any"`**: Any value
+- **`"readFile"`**: Value is a readable file path (permission-checked)
+- **`"writeFile"`**: Value is a writable file path (permission-checked)
+- **`{ "pattern": "regex" }`**: Value must match regex
 
 ## Examples
-
-### Allow `rg` (ripgrep) with pattern and optional files
-
-```json
-{
-  "commandConfig": {
-    "commands": [
-      ["rg", { "type": "any" }],
-      ["rg", { "type": "any" }, { "type": "restFiles" }]
-    ]
-  }
-}
-```
 
 ### Allow `npm` commands
 
 ```json
 {
   "commandConfig": {
-    "commands": [
-      ["npm", "install", { "type": "restAny" }],
-      ["npm", "run", { "type": "restAny" }],
-      ["npm", "test"]
+    "rules": [
+      {
+        "cmd": "npm",
+        "subcommands": [
+          { "cmd": "install", "rest": "any" },
+          { "cmd": "run", "rest": "any" },
+          { "cmd": "test" }
+        ]
+      }
     ]
   }
 }
 ```
 
-### Allow `fd` with pattern and optional directory
+### Allow `rg` with flags and file targets
 
 ```json
 {
   "commandConfig": {
-    "commands": [
-      ["fd", { "type": "any" }],
-      ["fd", { "type": "any" }, { "type": "file" }]
+    "rules": [
+      {
+        "cmd": "rg",
+        "flags": ["-l", "-i"],
+        "options": { "--type": "any" },
+        "args": ["any"],
+        "rest": "readFiles"
+      }
     ]
   }
 }
 ```
 
-### Allow commands with optional flags using groups
+### Allow `head` with optional `-n` flag or numeric pattern
 
 ```json
 {
   "commandConfig": {
-    "commands": [
-      [
-        "head",
-        {
-          "type": "group",
-          "args": ["-n", { "type": "any" }],
-          "optional": true
-        },
-        { "type": "file" }
-      ],
-      [
-        "grep",
-        { "type": "group", "args": ["-i"], "optional": true },
-        { "type": "any" },
-        { "type": "restFiles" }
-      ]
+    "rules": [
+      { "cmd": "head", "options": { "-n": "any" }, "args": ["readFile"] },
+      { "cmd": "head", "args": [{ "pattern": "-[0-9]+" }, "readFile"] }
     ]
   }
 }
 ```
+
+### Allow pipe commands
+
+```json
+{
+  "commandConfig": {
+    "rules": [
+      { "cmd": "grep", "rest": "any", "pipe": true },
+      { "cmd": "sort", "rest": "any", "pipe": true }
+    ]
+  }
+}
+```
+
+### Allow `sort` with write-checked output option
+
+```json
+{
+  "commandConfig": {
+    "rules": [
+      { "cmd": "sort", "options": { "-o": "writeFile" }, "args": ["readFile"] }
+    ]
+  }
+}
+```
+
+## Matching Semantics
+
+- **Flags and options are order-independent**: `-i` can appear before or after positional args
+- **Unrecognized `-` args pass through to positional matching**: `head -10 file.txt` works when `-10` matches a pattern positional
+- **`--key=value` syntax is supported**: `--output=file.txt` is split and checked if `--output` is a known option
+- **A command is allowed if ANY rule matches**
+- **Pipe rules only match piped commands**: Rules with `pipe: true` only apply when the command receives pipe input; rules without `pipe` only apply to standalone commands
 
 ## Merging Rules
 
-When adding new permissions to an existing config:
+When adding new permissions to an existing config, append new rule objects to the `rules` array. Avoid duplicate rules.
 
-1. Append new patterns to the `commands` array
-2. Append new patterns to the `pipeCommands` array
-3. Avoid duplicate patterns
+## Legacy Format Support
 
-## Notes
+The old format using `commands` and `pipeCommands` arrays is still supported for backward compatibility:
 
-- Patterns are order-specific unless using `{ "type": "group", "anyOrder": true }`
-- File paths are validated to be within the project directory and non-hidden
-- Gitignored files are blocked
-- Skills directory scripts are always allowed regardless of permissions
-- `restFiles` and `restAny` must be the last element in a pattern
-- Groups cannot contain `restFiles` or `restAny`
+```json
+{
+  "commandConfig": {
+    "commands": [["echo", { "type": "restAny" }]],
+    "pipeCommands": [["grep", { "type": "restAny" }]]
+  }
+}
+```
+
+This will be automatically converted to the new rules format. New configs should use the `rules` format.
 
 ## File Permissions
 
@@ -182,10 +214,10 @@ Permissions inherit down the directory tree: if `~/src` has `read: true`, then `
 
 ## Builtin Permissions
 
-Many common commands are already allowed by default (see `BUILTIN_COMMAND_PERMISSIONS` in `node/tools/bash-parser/permissions.ts`), including:
+Many common commands are already allowed by default (see `node/capabilities/bash-parser/builtin-permissions.json`), including:
 
 - Basic commands: `ls`, `pwd`, `echo`, `cat`, `head`, `tail`, `wc`, `grep`, `sort`, `uniq`, `cut`, `awk`, `sed`
-- Git commands: `status`, `log`, `diff`, `show`, `add`, `commit`, `push`, etc.
+- Git commands (via subcommands): `status`, `log`, `diff`, `show`, `add`, `commit`, `push`, etc. (with global `-C` and `-c` options)
 - Search tools: `rg`, `fd`
 
 Pipe commands like `grep`, `sed`, `awk`, `sort`, `head`, `tail`, etc. are also allowed when receiving pipe input.

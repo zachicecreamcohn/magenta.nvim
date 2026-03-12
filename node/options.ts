@@ -8,8 +8,12 @@ import {
 } from "@magenta/core";
 import {
   type ArgSpec,
-  BUILTIN_COMMAND_PERMISSIONS,
+  type ArgType,
   type CommandPermissions,
+  type CommandPermissionsConfig,
+  type CommandRule,
+  getBuiltinPermissions,
+  type OptionValueType,
 } from "./capabilities/bash-parser/permissions.ts";
 import { PROVIDER_NAMES, type ProviderName } from "./providers/provider.ts";
 import type { NvimCwd } from "./utils/files.ts";
@@ -74,7 +78,15 @@ export type Profile = {
 };
 
 // Re-export permission types for convenience
-export type { ArgSpec, CommandPermissions };
+export type {
+  ArgSpec,
+  CommandPermissions,
+  CommandPermissionsConfig,
+  CommandRule,
+  ArgType,
+  OptionValueType,
+};
+export { getBuiltinPermissions };
 
 export type MCPMockToolSchemaType = "string" | "number" | "boolean";
 
@@ -153,7 +165,7 @@ export type MagentaOptions = {
   activeProfile: string;
   sidebarPosition: SidebarPositions;
   sidebarPositionOpts: SidebarPositionOpts;
-  commandConfig: CommandPermissions;
+  commandConfig: CommandPermissionsConfig;
   autoContext: string[];
   skillsPaths: string[];
   maxConcurrentSubagents: number;
@@ -1011,6 +1023,232 @@ function parseCommandConfig(
   return result;
 }
 
+function parseOptionValueType(
+  input: unknown,
+  logger: { warn: (msg: string) => void },
+  loc: string,
+): OptionValueType | undefined {
+  if (input === "any" || input === "readFile" || input === "writeFile") {
+    return input;
+  }
+  if (typeof input === "object" && input !== null) {
+    const obj = input as Record<string, unknown>;
+    if (typeof obj.pattern === "string") {
+      return { pattern: obj.pattern };
+    }
+  }
+  logger.warn(`Invalid OptionValueType at ${loc}`);
+  return undefined;
+}
+
+function parseArgType(
+  input: unknown,
+  logger: { warn: (msg: string) => void },
+  loc: string,
+): ArgType | undefined {
+  if (input === "any" || input === "readFile" || input === "writeFile") {
+    return input;
+  }
+  if (typeof input === "object" && input !== null) {
+    const obj = input as Record<string, unknown>;
+    if (typeof obj.pattern === "string") {
+      return { pattern: obj.pattern };
+    }
+    if (
+      typeof obj.type === "string" &&
+      (obj.type === "any" ||
+        obj.type === "readFile" ||
+        obj.type === "writeFile")
+    ) {
+      const result: {
+        type: "any" | "readFile" | "writeFile";
+        optional?: boolean;
+      } = {
+        type: obj.type,
+      };
+      if (obj.optional === true) {
+        result.optional = true;
+      }
+      return result;
+    }
+  }
+  logger.warn(`Invalid ArgType at ${loc}`);
+  return undefined;
+}
+
+function parseCommandRule(
+  input: unknown,
+  logger: { warn: (msg: string) => void },
+  loc: string,
+): CommandRule | undefined {
+  if (typeof input !== "object" || input === null) {
+    logger.warn(`${loc}: must be an object`);
+    return undefined;
+  }
+  const obj = input as Record<string, unknown>;
+
+  if (typeof obj.cmd !== "string") {
+    logger.warn(`${loc}: cmd must be a string`);
+    return undefined;
+  }
+
+  const rule: CommandRule = { cmd: obj.cmd };
+
+  if (Array.isArray(obj.flags)) {
+    const flags: string[] = [];
+    for (const f of obj.flags) {
+      if (typeof f === "string") {
+        flags.push(f);
+      } else {
+        logger.warn(`${loc}.flags: each flag must be a string`);
+        return undefined;
+      }
+    }
+    rule.flags = flags;
+  }
+
+  if (
+    typeof obj.options === "object" &&
+    obj.options !== null &&
+    !Array.isArray(obj.options)
+  ) {
+    const options: Record<string, OptionValueType> = {};
+    for (const [key, val] of Object.entries(
+      obj.options as Record<string, unknown>,
+    )) {
+      const parsed = parseOptionValueType(val, logger, `${loc}.options.${key}`);
+      if (parsed === undefined) return undefined;
+      options[key] = parsed;
+    }
+    rule.options = options;
+  }
+
+  if (Array.isArray(obj.subcommands)) {
+    const subcommands: CommandRule[] = [];
+    for (let i = 0; i < obj.subcommands.length; i++) {
+      const sub = parseCommandRule(
+        obj.subcommands[i],
+        logger,
+        `${loc}.subcommands[${i}]`,
+      );
+      if (sub === undefined) return undefined;
+      subcommands.push(sub);
+    }
+    rule.subcommands = subcommands;
+  }
+
+  if (Array.isArray(obj.args)) {
+    const args: ArgType[] = [];
+    for (let i = 0; i < obj.args.length; i++) {
+      const parsed = parseArgType(obj.args[i], logger, `${loc}.args[${i}]`);
+      if (parsed === undefined) return undefined;
+      args.push(parsed);
+    }
+    rule.args = args;
+  }
+
+  if (obj.rest !== undefined) {
+    if (
+      obj.rest === "any" ||
+      obj.rest === "readFiles" ||
+      obj.rest === "writeFiles"
+    ) {
+      rule.rest = obj.rest;
+    } else {
+      logger.warn(`${loc}.rest: must be "any", "readFiles", or "writeFiles"`);
+      return undefined;
+    }
+  }
+
+  if (obj.pipe === true) {
+    rule.pipe = true;
+  }
+
+  return rule;
+}
+
+function parseCommandRulesConfig(
+  input: unknown,
+  logger: { warn: (msg: string) => void },
+): CommandPermissionsConfig | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+  if (typeof input !== "object" || input === null) {
+    logger.warn("commandConfig must be an object");
+    return undefined;
+  }
+  const obj = input as Record<string, unknown>;
+
+  // New format: { rules: [...] }
+  if (Array.isArray(obj.rules)) {
+    const rules: CommandRule[] = [];
+    for (let i = 0; i < obj.rules.length; i++) {
+      const parsed = parseCommandRule(
+        obj.rules[i],
+        logger,
+        `commandConfig.rules[${i}]`,
+      );
+      if (parsed === undefined) return undefined;
+      rules.push(parsed);
+    }
+    if (rules.length === 0) return undefined;
+    return { rules };
+  }
+
+  // Old format: { commands: [...], pipeCommands: [...] }
+  // Parse with old parser, then convert
+  const oldConfig = parseCommandConfig(input, logger);
+  if (oldConfig === undefined) return undefined;
+  return convertOldConfigToRules(oldConfig);
+}
+
+function convertOldConfigToRules(
+  config: CommandPermissions,
+): CommandPermissionsConfig {
+  const rules: CommandRule[] = [];
+
+  for (const pattern of config.commands) {
+    const rule = convertArgSpecPatternToRule(pattern, false);
+    if (rule) rules.push(rule);
+  }
+
+  for (const pattern of config.pipeCommands) {
+    const rule = convertArgSpecPatternToRule(pattern, true);
+    if (rule) rules.push(rule);
+  }
+
+  return { rules };
+}
+
+function convertArgSpecPatternToRule(
+  pattern: ArgSpec[],
+  pipe: boolean,
+): CommandRule | undefined {
+  if (pattern.length === 0) return undefined;
+
+  const first = pattern[0];
+  if (typeof first !== "string") return undefined;
+
+  const rule: CommandRule = { cmd: first };
+  if (pipe) rule.pipe = true;
+
+  // Simple heuristic: remaining args become rest: "any" (safe fallback for old patterns)
+  if (pattern.length > 1) {
+    const last = pattern[pattern.length - 1];
+    if (typeof last === "object" && "type" in last && last.type === "restAny") {
+      rule.rest = "any";
+    } else if (
+      typeof last === "object" &&
+      "type" in last &&
+      last.type === "restFiles"
+    ) {
+      rule.rest = "readFiles";
+    }
+  }
+
+  return rule;
+}
 export function parseOptions(
   inputOptions: unknown,
   logger: { warn: (msg: string) => void; error: (msg: string) => void },
@@ -1041,7 +1279,7 @@ export function parseOptions(
       },
     },
     maxConcurrentSubagents: 3,
-    commandConfig: BUILTIN_COMMAND_PERMISSIONS,
+    commandConfig: getBuiltinPermissions(),
     autoContext: [],
     skillsPaths: [
       BUILTIN_SKILLS_PATH,
@@ -1077,13 +1315,13 @@ export function parseOptions(
 
     // Parse command config - merge with builtins
     if ("commandConfig" in inputOptionsObj) {
-      const commandConfig = parseCommandConfig(
+      const commandConfig = parseCommandRulesConfig(
         inputOptionsObj.commandConfig,
         logger,
       );
       if (commandConfig) {
-        options.commandConfig = mergeCommandConfig(
-          BUILTIN_COMMAND_PERMISSIONS,
+        options.commandConfig = mergeCommandRulesConfig(
+          getBuiltinPermissions(),
           commandConfig,
         );
       }
@@ -1238,7 +1476,7 @@ export function parseProjectOptions(
 
   // Parse command config
   if ("commandConfig" in inputOptionsObj) {
-    const commandConfig = parseCommandConfig(
+    const commandConfig = parseCommandRulesConfig(
       inputOptionsObj.commandConfig,
       logger,
     );
@@ -1405,14 +1643,13 @@ export function loadProjectSettings(
   return undefined;
 }
 
-/** Merge two CommandPermissions objects - combines both command lists */
-function mergeCommandConfig(
-  base: CommandPermissions,
-  project: CommandPermissions,
-): CommandPermissions {
+/** Merge two CommandPermissionsConfig objects - combines rules arrays */
+function mergeCommandRulesConfig(
+  base: CommandPermissionsConfig,
+  project: CommandPermissionsConfig,
+): CommandPermissionsConfig {
   return {
-    commands: [...base.commands, ...project.commands],
-    pipeCommands: [...base.pipeCommands, ...project.pipeCommands],
+    rules: [...base.rules, ...project.rules],
   };
 }
 
@@ -1429,7 +1666,7 @@ export function mergeOptions(
 
   // Deep merge commandConfig - command is allowed if it matches either config
   if (projectSettings.commandConfig) {
-    merged.commandConfig = mergeCommandConfig(
+    merged.commandConfig = mergeCommandRulesConfig(
       baseOptions.commandConfig,
       projectSettings.commandConfig,
     );

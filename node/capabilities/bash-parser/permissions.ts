@@ -36,103 +36,6 @@ export type CommandPermissions = {
   pipeCommands: ArgSpec[][]; // Array of allowed patterns when receiving pipe input
 };
 
-/** Builtin command permissions - always allowed */
-export const BUILTIN_COMMAND_PERMISSIONS: CommandPermissions = {
-  commands: [
-    // Basic commands
-    ["ls", { type: "restAny" }],
-    ["pwd"],
-    ["echo", { type: "restAny" }],
-    ["cat", { type: "readFile" }],
-    // head: with optional -n flag or pattern like -10, plus file
-    [
-      "head",
-      { type: "group", args: ["-n", { type: "any" }], optional: true },
-      { type: "readFile" },
-    ],
-    ["head", { type: "pattern", pattern: "-[0-9]+" }, { type: "readFile" }],
-    // tail: with optional -n flag or pattern like -10, plus file
-    [
-      "tail",
-      { type: "group", args: ["-n", { type: "any" }], optional: true },
-      { type: "readFile" },
-    ],
-    ["tail", { type: "pattern", pattern: "-[0-9]+" }, { type: "readFile" }],
-    // wc: optional -l flag plus file
-    [
-      "wc",
-      { type: "group", args: ["-l"], optional: true },
-      { type: "readFile" },
-    ],
-    // grep: optional -i, pattern, restFiles
-    [
-      "grep",
-      { type: "group", args: ["-i"], optional: true },
-      { type: "any" },
-      { type: "restFiles" },
-    ],
-    // sort: file (read-only)
-    ["sort", { type: "readFile" }],
-    // uniq: file (read-only)
-    ["uniq", { type: "readFile" }],
-    // cut: with delim, field, file (read-only)
-    ["cut", "-d", { type: "any" }, "-f", { type: "any" }, { type: "readFile" }],
-    // awk: pattern, file (read-only)
-    ["awk", { type: "any" }, { type: "readFile" }],
-    // sed: pattern, file (read-only, no -i flag)
-    ["sed", { type: "any" }, { type: "readFile" }],
-    // git subcommands
-    ["git", "status", { type: "restAny" }],
-    ["git", "log", { type: "restAny" }],
-    ["git", "diff", { type: "restAny" }],
-    ["git", "show", { type: "restAny" }],
-    ["git", "add", { type: "restAny" }],
-    ["git", "commit", { type: "restAny" }],
-    ["git", "push", { type: "restAny" }],
-    ["git", "reset", { type: "restAny" }],
-    ["git", "restore", { type: "restAny" }],
-    ["git", "branch", { type: "restAny" }],
-    ["git", "checkout", { type: "restAny" }],
-    ["git", "switch", { type: "restAny" }],
-    ["git", "fetch", { type: "restAny" }],
-    ["git", "pull", { type: "restAny" }],
-    ["git", "merge", { type: "restAny" }],
-    ["git", "rebase", { type: "restAny" }],
-    ["git", "tag", { type: "restAny" }],
-    ["git", "stash", { type: "restAny" }],
-    // ripgrep: [optional -l] pattern [optional --type ext] [files...]
-    [
-      "rg",
-      { type: "group", args: ["-l"], optional: true },
-      { type: "any" },
-      { type: "group", args: ["--type", { type: "any" }], optional: true },
-      { type: "restFiles" },
-    ],
-    // fd: [optional -t f|d] [optional -e ext] [optional pattern] [dirs...]
-    [
-      "fd",
-      { type: "group", args: ["-t", { type: "any" }], optional: true },
-      { type: "group", args: ["-e", { type: "any" }], optional: true },
-      { type: "group", args: [{ type: "any" }], optional: true },
-      { type: "restFiles" },
-    ],
-  ],
-  pipeCommands: [
-    ["awk", { type: "restAny" }],
-    ["cut", { type: "restAny" }],
-    ["grep", { type: "restAny" }],
-    ["head", { type: "restAny" }],
-    ["rg", { type: "restAny" }],
-    ["sed", { type: "restAny" }],
-    ["sort", { type: "restAny" }],
-    ["tail", { type: "restAny" }],
-    ["tr", { type: "restAny" }],
-    ["uniq", { type: "restAny" }],
-    ["wc", { type: "restAny" }],
-    ["xargs", { type: "restAny" }],
-  ],
-};
-
 export class PermissionError extends Error {
   constructor(message: string) {
     super(message);
@@ -286,40 +189,6 @@ function canWritePath(
         reason: `path "${filePath}" is not writable (no write permission)`,
       };
     }
-  }
-
-  return { safe: true };
-}
-
-/** Legacy: Check if a path is safe for both read and write (for backwards compatibility with { type: "file" }) */
-function isPathSafe(
-  filePath: string,
-  currentCwd: NvimCwd,
-  projectCwd: NvimCwd,
-  filePermissions: FilePermission[],
-  homeDir: HomeDir,
-): { safe: boolean; reason?: string } {
-  // For legacy { type: "file" }, we check both read and write permissions
-  const readResult = canReadPath(
-    filePath,
-    currentCwd,
-    projectCwd,
-    filePermissions,
-    homeDir,
-  );
-  if (!readResult.safe) {
-    return readResult;
-  }
-
-  const writeResult = canWritePath(
-    filePath,
-    currentCwd,
-    projectCwd,
-    filePermissions,
-    homeDir,
-  );
-  if (!writeResult.safe) {
-    return writeResult;
   }
 
   return { safe: true };
@@ -492,388 +361,6 @@ type MatchContext = {
   homeDir: HomeDir;
 };
 
-type NonGroupArgSpec = Exclude<
-  ArgSpec,
-  { type: "group"; args: ArgSpec[]; optional?: boolean; anyOrder?: boolean }
->;
-
-/** Try to match a single non-group spec at the current position. Returns number of args consumed or error. */
-function matchSingleSpec(
-  args: string[],
-  argIndex: number,
-  spec: NonGroupArgSpec,
-  ctx: MatchContext,
-): { consumed: number } | { error: string } {
-  if (typeof spec === "string") {
-    if (argIndex >= args.length || args[argIndex] !== spec) {
-      return { error: `expected argument "${spec}"` };
-    }
-    return { consumed: 1 };
-  }
-
-  switch (spec.type) {
-    case "file": {
-      // Legacy: checks both read and write for backwards compatibility
-      if (argIndex >= args.length) {
-        return { error: "expected file argument" };
-      }
-      const pathCheck = isPathSafe(
-        args[argIndex],
-        ctx.currentCwd,
-        ctx.projectCwd,
-        ctx.filePermissions,
-        ctx.homeDir,
-      );
-      if (!pathCheck.safe) {
-        return { error: pathCheck.reason ?? "invalid file path" };
-      }
-      return { consumed: 1 };
-    }
-
-    case "readFile": {
-      if (argIndex >= args.length) {
-        return { error: "expected file argument" };
-      }
-      const pathCheck = canReadPath(
-        args[argIndex],
-        ctx.currentCwd,
-        ctx.projectCwd,
-        ctx.filePermissions,
-        ctx.homeDir,
-      );
-      if (!pathCheck.safe) {
-        return { error: pathCheck.reason ?? "invalid file path" };
-      }
-      return { consumed: 1 };
-    }
-
-    case "writeFile": {
-      if (argIndex >= args.length) {
-        return { error: "expected file argument" };
-      }
-      const pathCheck = canWritePath(
-        args[argIndex],
-        ctx.currentCwd,
-        ctx.projectCwd,
-        ctx.filePermissions,
-        ctx.homeDir,
-      );
-      if (!pathCheck.safe) {
-        return { error: pathCheck.reason ?? "invalid file path" };
-      }
-      return { consumed: 1 };
-    }
-
-    case "any": {
-      if (argIndex >= args.length) {
-        return { error: "expected argument" };
-      }
-      return { consumed: 1 };
-    }
-
-    case "pattern": {
-      if (argIndex >= args.length) {
-        return { error: "expected argument matching pattern" };
-      }
-      const regex = new RegExp(`^${spec.pattern}$`);
-      if (!regex.test(args[argIndex])) {
-        return {
-          error: `argument "${args[argIndex]}" does not match pattern "${spec.pattern}"`,
-        };
-      }
-      return { consumed: 1 };
-    }
-
-    case "restFiles": {
-      // Check read permission for all remaining files
-      let consumed = 0;
-      while (argIndex + consumed < args.length) {
-        const pathCheck = canReadPath(
-          args[argIndex + consumed],
-          ctx.currentCwd,
-          ctx.projectCwd,
-          ctx.filePermissions,
-          ctx.homeDir,
-        );
-        if (!pathCheck.safe) {
-          return { error: pathCheck.reason ?? "invalid file path" };
-        }
-        consumed++;
-      }
-      return { consumed };
-    }
-
-    case "restAny": {
-      // Consume all remaining arguments
-      return { consumed: args.length - argIndex };
-    }
-  }
-}
-
-/** Try to match a group's args sequentially. Returns number of args consumed or error. */
-function matchGroupSequential(
-  args: string[],
-  argIndex: number,
-  specs: ArgSpec[],
-  ctx: MatchContext,
-): { consumed: number } | { error: string } {
-  let tempIndex = argIndex;
-
-  for (const spec of specs) {
-    if (typeof spec === "object" && "type" in spec && spec.type === "group") {
-      const result = matchGroup(args, tempIndex, spec, ctx);
-      if ("error" in result) {
-        return result;
-      }
-      tempIndex += result.consumed;
-    } else if (
-      typeof spec === "object" &&
-      "type" in spec &&
-      spec.type === "restFiles"
-    ) {
-      return { error: "restFiles not allowed inside group" };
-    } else if (
-      typeof spec === "object" &&
-      "type" in spec &&
-      spec.type === "restAny"
-    ) {
-      return { error: "restAny not allowed inside group" };
-    } else {
-      const result = matchSingleSpec(
-        args,
-        tempIndex,
-        spec as NonGroupArgSpec,
-        ctx,
-      );
-      if ("error" in result) {
-        return result;
-      }
-      tempIndex += result.consumed;
-    }
-  }
-
-  return { consumed: tempIndex - argIndex };
-}
-
-/** Try to match a group's args in any order. Returns number of args consumed or error. */
-function matchGroupAnyOrder(
-  args: string[],
-  argIndex: number,
-  specs: ArgSpec[],
-  ctx: MatchContext,
-): { consumed: number } | { error: string } {
-  const remaining = [...specs];
-  let tempIndex = argIndex;
-
-  while (remaining.length > 0 && tempIndex < args.length) {
-    let matched = false;
-
-    for (let i = 0; i < remaining.length; i++) {
-      const spec = remaining[i];
-      let result: { consumed: number } | { error: string };
-
-      if (typeof spec === "object" && "type" in spec && spec.type === "group") {
-        result = matchGroup(args, tempIndex, spec, ctx);
-      } else if (
-        typeof spec === "object" &&
-        "type" in spec &&
-        spec.type === "restFiles"
-      ) {
-        return { error: "restFiles not allowed inside group" };
-      } else if (
-        typeof spec === "object" &&
-        "type" in spec &&
-        spec.type === "restAny"
-      ) {
-        return { error: "restAny not allowed inside group" };
-      } else {
-        result = matchSingleSpec(args, tempIndex, spec as NonGroupArgSpec, ctx);
-      }
-
-      if (!("error" in result) && result.consumed > 0) {
-        tempIndex += result.consumed;
-        remaining.splice(i, 1);
-        matched = true;
-        break;
-      }
-    }
-
-    if (!matched) {
-      break;
-    }
-  }
-
-  // Check if all non-optional specs were matched
-  for (const spec of remaining) {
-    if (typeof spec === "object" && "type" in spec && spec.type === "group") {
-      if (!spec.optional) {
-        return { error: "required group not matched" };
-      }
-    } else {
-      return { error: "required argument not matched" };
-    }
-  }
-
-  return { consumed: tempIndex - argIndex };
-}
-
-/** Try to match a group. Returns number of args consumed or error. */
-function matchGroup(
-  args: string[],
-  argIndex: number,
-  spec: {
-    type: "group";
-    args: ArgSpec[];
-    optional?: boolean;
-    anyOrder?: boolean;
-  },
-  ctx: MatchContext,
-): { consumed: number } | { error: string } {
-  const result = spec.anyOrder
-    ? matchGroupAnyOrder(args, argIndex, spec.args, ctx)
-    : matchGroupSequential(args, argIndex, spec.args, ctx);
-
-  if ("error" in result) {
-    // Structural errors should always propagate
-    if (result.error.includes("restFiles not allowed inside group")) {
-      return result;
-    }
-    if (spec.optional) {
-      return { consumed: 0 };
-    }
-    return result;
-  }
-
-  return result;
-}
-
-/** Match arguments against an arg pattern */
-function matchArgsPattern(
-  args: string[],
-  pattern: ArgSpec[],
-  currentCwd: NvimCwd,
-  projectCwd: NvimCwd,
-  filePermissions: FilePermission[],
-  homeDir: HomeDir,
-): { matches: boolean; reason?: string } {
-  let argIndex = 0;
-  let patternIndex = 0;
-  const ctx: MatchContext = {
-    currentCwd,
-    projectCwd,
-    filePermissions,
-    homeDir,
-  };
-
-  while (patternIndex < pattern.length) {
-    const spec = pattern[patternIndex];
-
-    if (typeof spec === "object" && "type" in spec && spec.type === "group") {
-      const result = matchGroup(args, argIndex, spec, ctx);
-      if ("error" in result) {
-        return { matches: false, reason: result.error };
-      }
-      argIndex += result.consumed;
-      patternIndex++;
-    } else if (
-      typeof spec === "object" &&
-      "type" in spec &&
-      spec.type === "restFiles"
-    ) {
-      // Rest files - must be last in pattern
-      if (patternIndex !== pattern.length - 1) {
-        return { matches: false, reason: "restFiles must be last in pattern" };
-      }
-      const result = matchSingleSpec(args, argIndex, spec, ctx);
-      if ("error" in result) {
-        return { matches: false, reason: result.error };
-      }
-      argIndex += result.consumed;
-      patternIndex++;
-    } else if (
-      typeof spec === "object" &&
-      "type" in spec &&
-      spec.type === "restAny"
-    ) {
-      // Rest any - must be last in pattern
-      if (patternIndex !== pattern.length - 1) {
-        return { matches: false, reason: "restAny must be last in pattern" };
-      }
-      const result = matchSingleSpec(args, argIndex, spec, ctx);
-      if ("error" in result) {
-        return { matches: false, reason: result.error };
-      }
-      argIndex += result.consumed;
-      patternIndex++;
-    } else {
-      const result = matchSingleSpec(
-        args,
-        argIndex,
-        spec as NonGroupArgSpec,
-        ctx,
-      );
-      if ("error" in result) {
-        return { matches: false, reason: result.error };
-      }
-      argIndex += result.consumed;
-      patternIndex++;
-    }
-  }
-
-  // All args must be consumed
-  if (argIndex < args.length) {
-    return {
-      matches: false,
-      reason: `unexpected extra arguments: ${args.slice(argIndex).join(" ")}`,
-    };
-  }
-
-  return { matches: true };
-}
-
-/** Check a single command against the command permissions */
-function checkCommand(
-  executable: string,
-  args: string[],
-  config: CommandPermissions,
-  currentCwd: NvimCwd,
-  projectCwd: NvimCwd,
-  filePermissions: FilePermission[],
-  receivingPipe: boolean,
-  homeDir: HomeDir,
-): { allowed: boolean; reason?: string } {
-  // Build full command array: [executable, ...args]
-  const fullCommand = [executable, ...args];
-
-  // Choose which patterns to use based on pipe status
-  const patterns = receivingPipe ? config.pipeCommands : config.commands;
-
-  // Try each pattern
-  let lastReason: string | undefined;
-  for (const pattern of patterns) {
-    const result = matchArgsPattern(
-      fullCommand,
-      pattern,
-      currentCwd,
-      projectCwd,
-      filePermissions,
-      homeDir,
-    );
-    if (result.matches) {
-      return { allowed: true };
-    }
-    lastReason = result.reason;
-  }
-
-  return {
-    allowed: false,
-    reason:
-      lastReason ??
-      `command "${executable}" does not match any allowed pattern`,
-  };
-}
-
-/** Process cd command and return new cwd */
 function processCdCommand(
   command: ParsedCommand,
   currentCwd: NvimCwd,
@@ -905,9 +392,362 @@ export type PermissionCheckResult = {
 };
 
 /** Check if a parsed command list is allowed */
-export function checkCommandListPermissions(
+
+// New JSON-based command permission types and matching engine
+// =====================================================================
+
+/** Value type for an option that takes a value */
+export type OptionValueType =
+  | "any"
+  | "readFile"
+  | "writeFile"
+  | { pattern: string };
+
+/** Positional argument type */
+export type ArgType =
+  | "any"
+  | "readFile"
+  | "writeFile"
+  | { pattern: string }
+  | { type: "any" | "readFile" | "writeFile"; optional?: boolean };
+
+/** A single command rule — recursive tree structure */
+export type CommandRule = {
+  cmd: string;
+  flags?: string[];
+  options?: Record<string, OptionValueType>;
+  subcommands?: CommandRule[];
+  args?: ArgType[];
+  rest?: "any" | "readFiles" | "writeFiles";
+  pipe?: boolean;
+};
+
+/** The full permissions config */
+export type CommandPermissionsConfig = {
+  rules: CommandRule[];
+};
+
+/** Check an option value against its declared type */
+function checkOptionValue(
+  value: string,
+  valueType: OptionValueType,
+  ctx: MatchContext,
+): { ok: boolean; reason?: string } {
+  if (valueType === "any") {
+    return { ok: true };
+  }
+  if (valueType === "readFile") {
+    const result = canReadPath(
+      value,
+      ctx.currentCwd,
+      ctx.projectCwd,
+      ctx.filePermissions,
+      ctx.homeDir,
+    );
+    return result.safe
+      ? { ok: true }
+      : { ok: false, reason: result.reason ?? "invalid file path" };
+  }
+  if (valueType === "writeFile") {
+    const result = canWritePath(
+      value,
+      ctx.currentCwd,
+      ctx.projectCwd,
+      ctx.filePermissions,
+      ctx.homeDir,
+    );
+    return result.safe
+      ? { ok: true }
+      : { ok: false, reason: result.reason ?? "invalid file path" };
+  }
+  // { pattern: string }
+  const regex = new RegExp(`^${valueType.pattern}$`);
+  if (!regex.test(value)) {
+    return {
+      ok: false,
+      reason: `option value "${value}" does not match pattern "${valueType.pattern}"`,
+    };
+  }
+  return { ok: true };
+}
+
+/** Check a positional argument against its declared type */
+function checkPositionalArg(
+  value: string,
+  argType: ArgType,
+  ctx: MatchContext,
+): { ok: boolean; reason?: string } {
+  if (argType === "any") {
+    return { ok: true };
+  }
+  if (argType === "readFile") {
+    const result = canReadPath(
+      value,
+      ctx.currentCwd,
+      ctx.projectCwd,
+      ctx.filePermissions,
+      ctx.homeDir,
+    );
+    return result.safe
+      ? { ok: true }
+      : { ok: false, reason: result.reason ?? "invalid file path" };
+  }
+  if (argType === "writeFile") {
+    const result = canWritePath(
+      value,
+      ctx.currentCwd,
+      ctx.projectCwd,
+      ctx.filePermissions,
+      ctx.homeDir,
+    );
+    return result.safe
+      ? { ok: true }
+      : { ok: false, reason: result.reason ?? "invalid file path" };
+  }
+  if ("pattern" in argType) {
+    const regex = new RegExp(`^${argType.pattern}$`);
+    if (!regex.test(value)) {
+      return {
+        ok: false,
+        reason: `argument "${value}" does not match pattern "${argType.pattern}"`,
+      };
+    }
+    return { ok: true };
+  }
+  // { type, optional }
+  return checkPositionalArg(value, argType.type, ctx);
+}
+
+/** Get whether an ArgType is optional */
+function isArgOptional(argType: ArgType): boolean {
+  if (typeof argType === "string") return false;
+  if ("pattern" in argType) return false;
+  return argType.optional === true;
+}
+
+/**
+ * Try to match remaining args against a CommandRule (after cmd has been consumed).
+ * Returns { matches: true } or { matches: false, reason }.
+ */
+function matchRuleBody(
+  remaining: string[],
+  rule: CommandRule,
+  ctx: MatchContext,
+): { matches: boolean; reason?: string } {
+  // Phase 1: Extract flags and options, leaving unrecognized args in place
+  const knownFlags = new Set(rule.flags ?? []);
+  const knownOptions: Record<string, OptionValueType> = rule.options ?? {};
+  const leftover: string[] = [];
+
+  let i = 0;
+  while (i < remaining.length) {
+    const arg = remaining[i];
+
+    // Check if it's a known flag
+    if (knownFlags.has(arg)) {
+      i++;
+      continue;
+    }
+
+    // Check if it's a known option key
+    if (arg in knownOptions) {
+      if (i + 1 >= remaining.length) {
+        return {
+          matches: false,
+          reason: `option "${arg}" requires a value`,
+        };
+      }
+      const valueCheck = checkOptionValue(
+        remaining[i + 1],
+        knownOptions[arg],
+        ctx,
+      );
+      if (!valueCheck.ok) {
+        return {
+          matches: false,
+          reason: valueCheck.reason ?? "invalid option value",
+        };
+      }
+      i += 2;
+      continue;
+    }
+
+    // Check --key=value syntax
+    if (arg.startsWith("--") && arg.includes("=")) {
+      const eqIndex = arg.indexOf("=");
+      const key = arg.slice(0, eqIndex);
+      const value = arg.slice(eqIndex + 1);
+      if (key in knownOptions) {
+        const valueCheck = checkOptionValue(value, knownOptions[key], ctx);
+        if (!valueCheck.ok) {
+          return {
+            matches: false,
+            reason: valueCheck.reason ?? "invalid option value",
+          };
+        }
+        i++;
+        continue;
+      }
+    }
+
+    // Unrecognized — pass through to positional matching
+    leftover.push(arg);
+    i++;
+  }
+
+  // Phase 2: Branch — subcommands vs leaf
+  if (rule.subcommands !== undefined && rule.subcommands.length > 0) {
+    if (leftover.length === 0) {
+      return {
+        matches: false,
+        reason: `expected a subcommand for "${rule.cmd}"`,
+      };
+    }
+    const subcmd = leftover[0];
+    const matchingSubcommand = rule.subcommands.find((s) => s.cmd === subcmd);
+    if (!matchingSubcommand) {
+      return {
+        matches: false,
+        reason: `unknown subcommand "${subcmd}" for "${rule.cmd}"`,
+      };
+    }
+    return matchRuleBody(leftover.slice(1), matchingSubcommand, ctx);
+  }
+
+  // Phase 3: Positional matching (leaf node)
+  const positionals = rule.args ?? [];
+  let posIdx = 0;
+  let leftIdx = 0;
+
+  while (posIdx < positionals.length && leftIdx < leftover.length) {
+    const argType = positionals[posIdx];
+    const check = checkPositionalArg(leftover[leftIdx], argType, ctx);
+    if (!check.ok) {
+      // If this positional is optional, skip it and try the next positional
+      if (isArgOptional(argType)) {
+        posIdx++;
+        continue;
+      }
+      return { matches: false, reason: check.reason ?? "argument mismatch" };
+    }
+    posIdx++;
+    leftIdx++;
+  }
+
+  // Skip remaining optional positionals
+  while (posIdx < positionals.length && isArgOptional(positionals[posIdx])) {
+    posIdx++;
+  }
+
+  // Check all required positionals were consumed
+  if (posIdx < positionals.length) {
+    return {
+      matches: false,
+      reason: `missing required positional argument`,
+    };
+  }
+
+  // Phase 4: Rest handling
+  if (leftIdx < leftover.length) {
+    if (rule.rest === undefined) {
+      return {
+        matches: false,
+        reason: `unexpected extra arguments: ${leftover.slice(leftIdx).join(" ")}`,
+      };
+    }
+    if (rule.rest === "any") {
+      // Accept everything
+      return { matches: true };
+    }
+    // Validate remaining args as files
+    while (leftIdx < leftover.length) {
+      if (rule.rest === "readFiles") {
+        const check = canReadPath(
+          leftover[leftIdx],
+          ctx.currentCwd,
+          ctx.projectCwd,
+          ctx.filePermissions,
+          ctx.homeDir,
+        );
+        if (!check.safe) {
+          return {
+            matches: false,
+            reason: check.reason ?? "invalid file path",
+          };
+        }
+      } else if (rule.rest === "writeFiles") {
+        const check = canWritePath(
+          leftover[leftIdx],
+          ctx.currentCwd,
+          ctx.projectCwd,
+          ctx.filePermissions,
+          ctx.homeDir,
+        );
+        if (!check.safe) {
+          return {
+            matches: false,
+            reason: check.reason ?? "invalid file path",
+          };
+        }
+      }
+      leftIdx++;
+    }
+  }
+
+  return { matches: true };
+}
+
+/** Check a single parsed command against a CommandRule */
+export function checkCommandAgainstRule(
+  command: ParsedCommand,
+  rule: CommandRule,
+  ctx: MatchContext,
+): { matches: boolean; reason?: string } {
+  // Check cmd matches executable
+  if (command.executable !== rule.cmd) {
+    return {
+      matches: false,
+      reason: `expected "${rule.cmd}" but got "${command.executable}"`,
+    };
+  }
+
+  return matchRuleBody(command.args, rule, ctx);
+}
+
+/** Check a single parsed command against all rules */
+function checkCommandAgainstRules(
+  command: ParsedCommand,
+  config: CommandPermissionsConfig,
+  ctx: MatchContext,
+): { allowed: boolean; reason?: string } {
+  const applicableRules = config.rules.filter((rule) => {
+    if (command.receivingPipe) {
+      return rule.pipe === true;
+    }
+    return rule.pipe !== true;
+  });
+
+  let lastReason: string | undefined;
+  for (const rule of applicableRules) {
+    const result = checkCommandAgainstRule(command, rule, ctx);
+    if (result.matches) {
+      return { allowed: true };
+    }
+    lastReason = result.reason;
+  }
+
+  return {
+    allowed: false,
+    reason:
+      lastReason ??
+      `command "${command.executable}" does not match any allowed rule`,
+  };
+}
+
+/** Check if a parsed command list is allowed (new rule-based engine) */
+export function checkCommandListPermissionsByRules(
   commandList: ParsedCommandList,
-  config: CommandPermissions,
+  config: CommandPermissionsConfig,
   options: {
     cwd: NvimCwd;
     homeDir: HomeDir;
@@ -922,28 +762,24 @@ export function checkCommandListPermissions(
   const filePermissions = options.filePermissions ?? [];
 
   for (const command of commandList.commands) {
-    // Handle cd command - update cwd for subsequent commands
     const newCwd = processCdCommand(command, currentCwd, homeDir);
     if (newCwd !== undefined) {
       currentCwd = newCwd;
       continue;
     }
 
-    // Check if this is a skills script execution
     if (isSkillsScriptExecution(command, skillsPaths, currentCwd, homeDir)) {
       continue;
     }
 
-    const result = checkCommand(
-      command.executable,
-      command.args,
-      config,
+    const ctx: MatchContext = {
       currentCwd,
       projectCwd,
       filePermissions,
-      command.receivingPipe,
       homeDir,
-    );
+    };
+
+    const result = checkCommandAgainstRules(command, config, ctx);
     if (!result.allowed) {
       return {
         allowed: false,
@@ -964,10 +800,28 @@ export function checkCommandListPermissions(
   return { allowed: true };
 }
 
-/** Main entry point - check if a command string is allowed */
-export function isCommandAllowedByConfig(
+/** Load builtin permissions from the JSON file */
+export function loadBuiltinPermissions(): CommandPermissionsConfig {
+  const jsonPath = path.join(__dirname, "builtin-permissions.json");
+  const content = fs.readFileSync(jsonPath, "utf-8");
+  const parsed = JSON.parse(content) as CommandPermissionsConfig;
+  return parsed;
+}
+
+/** Cached builtin permissions (loaded once) */
+let _cachedBuiltinRules: CommandPermissionsConfig | undefined;
+
+/** Get builtin permissions (cached after first load) */
+export function getBuiltinPermissions(): CommandPermissionsConfig {
+  if (_cachedBuiltinRules === undefined) {
+    _cachedBuiltinRules = loadBuiltinPermissions();
+  }
+  return _cachedBuiltinRules;
+}
+/** Main entry point for rule-based permissions checking */
+export function isCommandAllowedByRules(
   command: string,
-  config: CommandPermissions,
+  config: CommandPermissionsConfig,
   options: {
     cwd: NvimCwd;
     homeDir: HomeDir;
@@ -977,7 +831,7 @@ export function isCommandAllowedByConfig(
 ): PermissionCheckResult {
   try {
     const parsed = parse(command);
-    return checkCommandListPermissions(parsed, config, options);
+    return checkCommandListPermissionsByRules(parsed, config, options);
   } catch (error) {
     if (error instanceof LexerError || error instanceof ParserError) {
       return {

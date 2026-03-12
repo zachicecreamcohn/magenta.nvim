@@ -400,8 +400,7 @@ describe("node/tools/bashCommand.test.ts", () => {
       {
         options: {
           commandConfig: {
-            commands: [["echo", { type: "restAny" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "echo", rest: "any" }],
           },
         },
       },
@@ -479,8 +478,7 @@ describe("node/tools/bashCommand.test.ts", () => {
       {
         options: {
           commandConfig: {
-            commands: [["echo", { type: "restAny" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "echo", rest: "any" }],
           },
         },
       },
@@ -528,11 +526,11 @@ describe("node/tools/bashCommand.test.ts", () => {
       {
         options: {
           commandConfig: {
-            commands: [
-              ["yes", { type: "restAny" }],
-              ["head", { type: "restAny" }],
+            rules: [
+              { cmd: "yes", rest: "any" },
+              { cmd: "head", rest: "any" },
+              { cmd: "head", rest: "any", pipe: true },
             ],
-            pipeCommands: [["head", { type: "restAny" }]],
           },
         },
       },
@@ -607,8 +605,7 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["echo", { type: "restAny" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "echo", rest: "any" }],
           },
         },
       },
@@ -650,8 +647,7 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["ls", "-la"]],
-            pipeCommands: [],
+            rules: [{ cmd: "ls", rest: "any" }],
           },
         },
       },
@@ -692,14 +688,13 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["npx", "tsc", "--noEmit"]],
-            pipeCommands: [],
+            rules: [{ cmd: "npx", args: ["any", "any"] }],
           },
         },
       },
       async (driver) => {
         await driver.showSidebar();
-        // --watch is not in the allowed args
+        // --watch is not in the allowed args (rule only allows 2 positionals)
         await driver.inputMagentaText(
           `Run this command: npx tsc --watch --noEmit`,
         );
@@ -739,8 +734,7 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["cat", { type: "file" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "cat", args: ["readFile"] }],
           },
         },
       },
@@ -792,8 +786,7 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["cat", { type: "file" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "cat", args: ["readFile"] }],
           },
         },
       },
@@ -837,8 +830,7 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["cat", { type: "restFiles" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "cat", rest: "readFiles" }],
           },
         },
       },
@@ -893,8 +885,7 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["cat", { type: "restFiles" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "cat", rest: "readFiles" }],
           },
         },
       },
@@ -943,8 +934,7 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["cat", { type: "file" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "cat", args: ["readFile"] }],
           },
         },
       },
@@ -998,8 +988,7 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["cat", { type: "file" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "cat", args: ["readFile"] }],
           },
         },
       },
@@ -1078,8 +1067,7 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["cat", { type: "file" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "cat", args: ["readFile"] }],
           },
         },
       },
@@ -1126,11 +1114,10 @@ describe("commandConfig integration tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [
-              ["git", "status", { type: "restAny" }],
-              ["git", "log", "--oneline"],
+            rules: [
+              { cmd: "git", subcommands: [{ cmd: "status", rest: "any" }] },
+              { cmd: "git", subcommands: [{ cmd: "log", rest: "any" }] },
             ],
-            pipeCommands: [],
           },
         },
       },
@@ -1202,8 +1189,7 @@ describe("bash command output logging", () => {
       {
         options: {
           commandConfig: {
-            commands: [["echo", { type: "restAny" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "echo", rest: "any" }],
           },
         },
       },
@@ -1275,8 +1261,7 @@ describe("bash command output logging", () => {
       {
         options: {
           commandConfig: {
-            commands: [["bash", { type: "restAny" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "bash", rest: "any" }],
           },
         },
       },
@@ -1344,8 +1329,7 @@ describe("bash command output logging", () => {
       {
         options: {
           commandConfig: {
-            commands: [["seq", { type: "restAny" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "seq", rest: "any" }],
           },
         },
       },
@@ -1404,8 +1388,7 @@ describe("bash command output logging", () => {
       {
         options: {
           commandConfig: {
-            commands: [["echo", { type: "restAny" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "echo", rest: "any" }],
           },
         },
       },
@@ -1465,8 +1448,7 @@ describe("bash command output logging", () => {
       {
         options: {
           commandConfig: {
-            commands: [["bash", { type: "restAny" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "bash", rest: "any" }],
           },
         },
       },
@@ -1665,11 +1647,10 @@ describe("bash command output logging", () => {
       {
         options: {
           commandConfig: {
-            commands: [
-              ["echo", { type: "restAny" }],
-              ["sleep", { type: "restAny" }],
+            rules: [
+              { cmd: "echo", rest: "any" },
+              { cmd: "sleep", rest: "any" },
             ],
-            pipeCommands: [],
           },
         },
       },
@@ -1767,8 +1748,7 @@ describe("bash command output logging", () => {
       {
         options: {
           commandConfig: {
-            commands: [["bash", { type: "restAny" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "bash", rest: "any" }],
           },
         },
       },
@@ -1873,8 +1853,7 @@ describe("bash command output logging", () => {
       {
         options: {
           commandConfig: {
-            commands: [["bash", { type: "restAny" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "bash", rest: "any" }],
           },
         },
       },
@@ -1997,8 +1976,7 @@ describe("bash command filePermissions tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["cat", { type: "readFile" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "cat", args: ["readFile"] }],
           },
         },
         setupExtraDirs: async (baseDir) => {
@@ -2062,8 +2040,7 @@ describe("bash command filePermissions tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["cat", { type: "readFile" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "cat", args: ["readFile"] }],
           },
         },
         setupExtraDirs: async (baseDir) => {
@@ -2114,8 +2091,10 @@ describe("bash command filePermissions tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["echo", { type: "restAny" }]],
-            pipeCommands: [["tee", { type: "writeFile" }]],
+            rules: [
+              { cmd: "echo", rest: "any" },
+              { cmd: "tee", args: ["writeFile"], pipe: true },
+            ],
           },
         },
         setupExtraDirs: async (baseDir) => {
@@ -2172,8 +2151,10 @@ describe("bash command filePermissions tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["echo", { type: "restAny" }]],
-            pipeCommands: [["tee", { type: "writeFile" }]],
+            rules: [
+              { cmd: "echo", rest: "any" },
+              { cmd: "tee", args: ["writeFile"], pipe: true },
+            ],
           },
         },
         setupExtraDirs: async (baseDir) => {
@@ -2230,8 +2211,7 @@ describe("bash command filePermissions tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["cat", { type: "readFile" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "cat", args: ["readFile"] }],
           },
         },
         setupExtraDirs: async (baseDir) => {
@@ -2292,8 +2272,7 @@ describe("bash command filePermissions tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["cat", { type: "readFile" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "cat", args: ["readFile"] }],
           },
         },
         setupExtraDirs: async (baseDir) => {
@@ -2359,8 +2338,10 @@ describe("bash command filePermissions tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["echo", { type: "restAny" }]],
-            pipeCommands: [["tee", { type: "writeFile" }]],
+            rules: [
+              { cmd: "echo", rest: "any" },
+              { cmd: "tee", args: ["writeFile"], pipe: true },
+            ],
           },
         },
         setupExtraDirs: async (baseDir) => {
@@ -2419,8 +2400,10 @@ describe("bash command filePermissions tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["echo", { type: "restAny" }]],
-            pipeCommands: [["tee", { type: "writeFile" }]],
+            rules: [
+              { cmd: "echo", rest: "any" },
+              { cmd: "tee", args: ["writeFile"], pipe: true },
+            ],
           },
         },
         setupExtraDirs: async (baseDir) => {
@@ -2475,8 +2458,7 @@ describe("bash command filePermissions tests", () => {
       {
         options: {
           commandConfig: {
-            commands: [["cat", { type: "readFile" }]],
-            pipeCommands: [],
+            rules: [{ cmd: "cat", args: ["readFile"] }],
           },
         },
         setupHome: async (homeDir) => {
