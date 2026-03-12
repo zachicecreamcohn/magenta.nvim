@@ -800,21 +800,35 @@ export function checkCommandListPermissionsByRules(
   return { allowed: true };
 }
 
+const BUILTIN_PERMISSIONS_PATH = path.join(
+  __dirname,
+  "builtin-permissions.json",
+);
+
 /** Load builtin permissions from the JSON file */
 export function loadBuiltinPermissions(): CommandPermissionsConfig {
-  const jsonPath = path.join(__dirname, "builtin-permissions.json");
-  const content = fs.readFileSync(jsonPath, "utf-8");
+  const content = fs.readFileSync(BUILTIN_PERMISSIONS_PATH, "utf-8");
   const parsed = JSON.parse(content) as CommandPermissionsConfig;
   return parsed;
 }
 
-/** Cached builtin permissions (loaded once) */
+/** Cached builtin permissions with mtime tracking */
 let _cachedBuiltinRules: CommandPermissionsConfig | undefined;
+let _builtinMtime: number | undefined;
 
-/** Get builtin permissions (cached after first load) */
+/** Get builtin permissions (reloads when file mtime changes) */
 export function getBuiltinPermissions(): CommandPermissionsConfig {
-  if (_cachedBuiltinRules === undefined) {
-    _cachedBuiltinRules = loadBuiltinPermissions();
+  try {
+    const stat = fs.statSync(BUILTIN_PERMISSIONS_PATH);
+    const mtime = stat.mtimeMs;
+    if (_cachedBuiltinRules === undefined || mtime !== _builtinMtime) {
+      _builtinMtime = mtime;
+      _cachedBuiltinRules = loadBuiltinPermissions();
+    }
+  } catch {
+    if (_cachedBuiltinRules === undefined) {
+      _cachedBuiltinRules = loadBuiltinPermissions();
+    }
   }
   return _cachedBuiltinRules;
 }
