@@ -9,4 +9,11 @@ export interface ProvisionResult {
   tempDir: string;
   imageName: string;
   startSha: string;
+  workerBranch: string;
+}
+
+export interface TeardownResult {
+  workerBranch: string;
+  baseBranch: string;
+  commitCount: number;
 }

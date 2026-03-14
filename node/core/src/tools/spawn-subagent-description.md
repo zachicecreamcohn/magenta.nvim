@@ -9,7 +9,7 @@ RIGHT: spawning explore to "where is FooInterface defined and used?", "which fil
 
 - Use 'fast' for quick and predictable edit tasks that don't require the full model capabilities, like straightforward refactors
 - Use 'default' for everything else
-- Use 'docker' or 'docker_unsupervised' to run a sub-agent in an isolated Docker container with full shell access. The container is provisioned with the specified branch checked out. The sub-agent will commit all changes to the branch (will not push to remote, since we do not provide remote access to the container). When the sub-agent yields, the commits are automatically synced back to the host repository via `git format-patch`/`git am`, so the parent agent can see the changes on the specified branch.
+- Use 'docker' or 'docker_unsupervised' to run a sub-agent in an isolated Docker container with full shell access. The container is provisioned with a unique worker branch forked from the specified base branch (or HEAD if not specified). The sub-agent will commit all changes to the worker branch (will not push to remote, since we do not provide remote access to the container). When the sub-agent yields, the worker branch is synced back to the host repository. The parent agent receives the worker branch name in the result.
 
 **Blocking vs non-blocking:**
 

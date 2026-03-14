@@ -33,6 +33,7 @@ const mockProvisionResult: ProvisionResult = {
   tempDir: "/tmp/test-dir",
   imageName: "test-image",
   startSha: "abc123",
+  workerBranch: "magenta/worker-abc123",
 };
 
 const mockContainerConfig: ContainerConfig = {
@@ -130,7 +131,8 @@ describe("DockerSupervisor", () => {
       expect(teardownContainer).toHaveBeenCalledWith(
         expect.objectContaining({
           containerName: "test-container",
-          branch: "feature-branch",
+          baseBranch: "feature-branch",
+          workerBranch: "magenta/worker-abc123",
         }),
       );
     });
@@ -151,6 +153,8 @@ describe("DockerSupervisor", () => {
 
       expect(teardownContainer).toHaveBeenCalledWith(
         expect.objectContaining({
+          baseBranch: "feature-branch",
+          workerBranch: "magenta/worker-abc123",
           onProgress,
         }),
       );

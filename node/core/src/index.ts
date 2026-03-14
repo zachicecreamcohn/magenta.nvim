@@ -45,7 +45,11 @@ export {
 } from "./compaction-manager.ts";
 export { provisionContainer } from "./container/provision.ts";
 export { teardownContainer } from "./container/teardown.ts";
-export type { ContainerConfig, ProvisionResult } from "./container/types.ts";
+export type {
+  ContainerConfig,
+  ProvisionResult,
+  TeardownResult,
+} from "./container/types.ts";
 export {
   ContextManager,
   type ContextManagerEvents,

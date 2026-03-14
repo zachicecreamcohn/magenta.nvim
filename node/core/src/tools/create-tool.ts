@@ -51,7 +51,7 @@ export type CreateToolContext = {
         containerConfig: ContainerConfig;
         provision: (opts: {
           repoPath: string;
-          branch: string;
+          baseBranch?: string;
           containerConfig: ContainerConfig;
           onProgress?: (message: string) => void;
         }) => Promise<ProvisionResult>;

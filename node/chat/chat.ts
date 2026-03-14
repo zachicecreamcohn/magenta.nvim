@@ -467,9 +467,10 @@ export class Chat implements ThreadManager {
           tempDir: dockerSpawnConfig.tempDir,
           imageName: dockerSpawnConfig.imageName,
           startSha: dockerSpawnConfig.startSha,
+          workerBranch: dockerSpawnConfig.workerBranch,
         },
         this.context.getOptions().container!,
-        dockerSpawnConfig.branch,
+        dockerSpawnConfig.baseBranch,
         this.context.cwd,
         {
           onProgress: (message) => {

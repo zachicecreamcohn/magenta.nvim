@@ -408,7 +408,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
               containerConfig: this.context.container,
               provision: (opts: {
                 repoPath: string;
-                branch: string;
+                baseBranch?: string;
                 containerConfig: ContainerConfig;
                 onProgress?: (message: string) => void;
               }) => provisionContainer(opts),

@@ -11,21 +11,19 @@ const TEMP_BASE = "/tmp/magenta-dev-containers";
 
 export async function provisionContainer({
   repoPath,
-  branch,
   baseBranch = "HEAD",
   containerConfig,
   onProgress,
 }: {
   repoPath: string;
-  branch: string;
   baseBranch?: string;
   containerConfig: ContainerConfig;
   onProgress?: (message: string) => void;
 }): Promise<ProvisionResult> {
   const progress = onProgress ?? (() => {});
   const shortHash = crypto.randomBytes(4).toString("hex");
-  const safeBranch = branch.replace(/[^a-zA-Z0-9_-]/g, "-");
-  const containerName = `magenta-${safeBranch}-${shortHash}`;
+  const workerBranch = `magenta/worker-${shortHash}`;
+  const containerName = `magenta-worker-${shortHash}`;
   const tempDir = path.join(TEMP_BASE, containerName);
   const repoDir = path.join(tempDir, "repo");
 
@@ -35,29 +33,16 @@ export async function provisionContainer({
   progress("Cloning repository...");
   await execFile("git", ["clone", "--depth=1", "--local", repoPath, repoDir]);
 
-  const { exitCode: branchExists } = await execFile("git", [
+  // Fetch the baseBranch if it's a remote ref or branch name
+  const baseBranchResolved = baseBranch === "HEAD" ? "HEAD" : baseBranch;
+  await execFile("git", [
     "-C",
     repoDir,
-    "rev-parse",
-    "--verify",
-    branch,
-  ]).then(
-    () => ({ exitCode: 0 }),
-    () => ({ exitCode: 1 }),
-  );
-
-  if (branchExists === 0) {
-    await execFile("git", ["-C", repoDir, "checkout", branch]);
-  } else {
-    await execFile("git", [
-      "-C",
-      repoDir,
-      "checkout",
-      "-b",
-      branch,
-      baseBranch,
-    ]);
-  }
+    "checkout",
+    "-b",
+    workerBranch,
+    baseBranchResolved,
+  ]);
 
   await execFile("git", ["-C", repoDir, "remote", "remove", "origin"]);
 
@@ -73,7 +58,7 @@ export async function provisionContainer({
   // Docker layer caching keeps the npm ci layer cached when the lockfile is unchanged.
   progress("Building Docker image...");
   const dockerfilePath = path.join(repoPath, containerConfig.dockerfile);
-  const imageName = `magenta-dev-${safeBranch}`;
+  const imageName = `magenta-dev-${shortHash}`;
 
   await execFile(
     "docker",
@@ -89,5 +74,6 @@ export async function provisionContainer({
     tempDir,
     imageName,
     startSha: startSha.trim(),
+    workerBranch,
   };
 }
