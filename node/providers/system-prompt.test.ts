@@ -51,6 +51,37 @@ it("does not include branch info in docker prompt without dockerContext", async 
     expect(systemPrompt).not.toContain("forked from");
   });
 });
+it("returns conductor base prompt without docker addendum when no dockerContext", async () => {
+  await withDriver({}, async (driver) => {
+    const systemPrompt = await createSystemPrompt("conductor", {
+      nvim: driver.magenta.nvim,
+      cwd: driver.magenta.cwd,
+      options: driver.magenta.options,
+    });
+
+    expect(systemPrompt).toContain("You are a conductor");
+    expect(systemPrompt).toContain("~/.magenta/tasks/");
+    expect(systemPrompt).not.toContain("# Docker Subagents");
+  });
+});
+
+it("includes docker addendum in conductor prompt when dockerContext is provided", async () => {
+  await withDriver({}, async (driver) => {
+    const systemPrompt = await createSystemPrompt("conductor", {
+      nvim: driver.magenta.nvim,
+      cwd: driver.magenta.cwd,
+      options: driver.magenta.options,
+      dockerContext: {
+        workerBranch: "magenta/worker-test",
+        baseBranch: "main",
+      },
+    });
+
+    expect(systemPrompt).toContain("You are a conductor");
+    expect(systemPrompt).toContain("# Docker Subagents");
+    expect(systemPrompt).toContain("docker_unsupervised");
+  });
+});
 it("includes system information in the prompt", async () => {
   await withDriver({}, async (driver) => {
     const systemPrompt = await createSystemPrompt("root", {

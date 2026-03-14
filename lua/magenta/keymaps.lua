@@ -59,6 +59,12 @@ M.default_keymaps = function()
     ":Magenta new-thread<CR>",
     { silent = true, noremap = true, desc = "Create a new thread" }
   )
+  vim.keymap.set(
+    "n",
+    "<leader>mo",
+    ":Magenta new-conductor-thread<CR>",
+    { silent = true, noremap = true, desc = "Create a new conductor thread" }
+  )
 
 end
 

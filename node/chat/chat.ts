@@ -75,6 +75,9 @@ export type Msg =
       type: "new-thread";
     }
   | {
+      type: "new-conductor-thread";
+    }
+  | {
       type: "fork-thread";
       sourceThreadId: ThreadId;
     }
@@ -260,6 +263,15 @@ export class Chat implements ThreadManager {
           this.createNewThread().catch((e: Error) => {
             this.context.nvim.logger.error(
               `Failed to create new thread: ${e.message}\n${e.stack}`,
+            );
+          });
+        });
+        return;
+      case "new-conductor-thread":
+        setTimeout(() => {
+          this.createNewConductorThread().catch((e: Error) => {
+            this.context.nvim.logger.error(
+              `Failed to create conductor thread: ${e.message}\n${e.stack}`,
             );
           });
         });
@@ -539,6 +551,20 @@ export class Chat implements ThreadManager {
       ),
       switchToThread: true,
       threadType: "root",
+    });
+  }
+
+  async createNewConductorThread() {
+    const id = uuidv7() as ThreadId;
+
+    await this.createThreadWithContext({
+      threadId: id,
+      profile: getActiveProfile(
+        this.context.getOptions().profiles,
+        this.context.getOptions().activeProfile,
+      ),
+      switchToThread: true,
+      threadType: "conductor",
     });
   }
 

@@ -98,6 +98,7 @@ export function getToolSpecs(
       staticToolNames = DOCKER_ROOT_STATIC_TOOL_NAMES;
       break;
     case "root":
+    case "conductor":
       staticToolNames = CHAT_STATIC_TOOL_NAMES;
       break;
     default:
