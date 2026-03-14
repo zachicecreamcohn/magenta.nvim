@@ -14,7 +14,11 @@ Lifecycle for a task:
 2. **Planning** — conductor spawns a `docker_unsupervised` subagent to explore the codebase and produce a plan (committed to `plans/` in the repo on the branch). The plan translates the high-level task description into concrete implementation steps.
 3. **Plan review** — plan syncs back to host via git. Conductor presents it to the user for review. During review, the user and conductor may decide to split the task, adjust scope, or re-plan. Can skip review for trivial tasks at the conductor's judgement.
 4. **Execution** — conductor spawns a `docker_unsupervised` subagent to execute the plan
-5. **Completion** — conductor updates the task file with the outcome and creates a PR via `gh pr create`
+5. **Completion** — conductor updates the task file with the outcome, pushes the branch, and creates a PR via `gh pr create`
+
+The conductor should use its judgement about when to skip steps. For trivial tasks (simple bug fixes, small refactors, etc.), it can skip planning and go straight to execution. The full plan → review → execute cycle is for non-trivial work where getting alignment with the user before implementation is valuable.
+
+When work is complete, the conductor should present it to the user by creating a PR with `gh pr create`, including a clear description of what was done. The PR is the primary artifact for code review.
 
 ## Task tracking
 
