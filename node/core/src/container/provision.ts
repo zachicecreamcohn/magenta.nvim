@@ -29,20 +29,17 @@ export async function provisionContainer({
 
   await fs.promises.mkdir(repoDir, { recursive: true });
 
-  // Shallow-clone into a temp dir and checkout the desired branch
+  // Shallow-clone into a temp dir, checking out the desired branch directly
   progress("Cloning repository...");
-  await execFile("git", ["clone", "--depth=1", "--local", repoPath, repoDir]);
+  const cloneArgs = ["clone", "--depth=1", "--local"];
+  if (baseBranch !== "HEAD") {
+    cloneArgs.push("--branch", baseBranch);
+  }
+  cloneArgs.push(repoPath, repoDir);
+  await execFile("git", cloneArgs);
 
-  // Fetch the baseBranch if it's a remote ref or branch name
-  const baseBranchResolved = baseBranch === "HEAD" ? "HEAD" : baseBranch;
-  await execFile("git", [
-    "-C",
-    repoDir,
-    "checkout",
-    "-b",
-    workerBranch,
-    baseBranchResolved,
-  ]);
+  // Create the worker branch from the cloned HEAD
+  await execFile("git", ["-C", repoDir, "checkout", "-b", workerBranch]);
 
   await execFile("git", ["-C", repoDir, "remote", "remove", "origin"]);
 
