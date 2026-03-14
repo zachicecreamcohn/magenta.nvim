@@ -189,6 +189,7 @@ describe("spawn-subagent docker provisioning progress", () => {
     tempDir: "/tmp/magenta-dev-containers/magenta-test-abc123",
     imageName: "magenta-dev-test",
     startSha: "abc123",
+    workerBranch: "magenta/worker-abc123",
   };
 
   it("updates progress.provisioningMessage during provisioning", async () => {
@@ -198,7 +199,7 @@ describe("spawn-subagent docker provisioning progress", () => {
     const provision = vi.fn(
       (opts: {
         repoPath: string;
-        branch: string;
+        baseBranch?: string;
         containerConfig: ContainerConfig;
         onProgress?: (message: string) => void;
       }) => {
@@ -320,10 +321,11 @@ describe("spawn-subagent docker provisioning progress", () => {
     const expectedSpawnOpts = expect.objectContaining({
       threadType: "docker_root",
       dockerSpawnConfig: expect.objectContaining({
-        branch: "feature-branch",
+        baseBranch: "feature-branch",
         containerName: provisionResult.containerName,
         tempDir: provisionResult.tempDir,
         imageName: provisionResult.imageName,
+        workerBranch: provisionResult.workerBranch,
       }),
     });
     expect(threadManager.spawnThread).toHaveBeenCalledWith(expectedSpawnOpts);

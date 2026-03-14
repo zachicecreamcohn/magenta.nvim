@@ -3,7 +3,8 @@ import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
 
 export type DockerSpawnConfig = {
-  branch: string;
+  baseBranch: string;
+  workerBranch: string;
   containerName: string;
   tempDir: string;
   imageName: string;

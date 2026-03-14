@@ -408,7 +408,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
               containerConfig: this.context.container,
               provision: (opts: {
                 repoPath: string;
-                branch: string;
+                baseBranch?: string;
                 containerConfig: ContainerConfig;
                 onProgress?: (message: string) => void;
               }) => provisionContainer(opts),
@@ -702,12 +702,16 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     if (this.supervisor) {
       const action = await this.supervisor.onYield(yieldResult);
       switch (action.type) {
-        case "accept":
+        case "accept": {
+          const response = action.resultPrefix
+            ? `${action.resultPrefix}\n\n${yieldResult}`
+            : yieldResult;
           this.update({
             type: "set-mode",
-            mode: { type: "yielded", response: yieldResult, tornDown: true },
+            mode: { type: "yielded", response, tornDown: true },
           });
           break;
+        }
         case "none":
           this.update({
             type: "set-mode",

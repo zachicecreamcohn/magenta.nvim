@@ -4,7 +4,11 @@ vi.mock("@magenta/core", async (importOriginal) => {
   const orig = await importOriginal<typeof import("@magenta/core")>();
   return {
     ...orig,
-    teardownContainer: vi.fn().mockResolvedValue(undefined),
+    teardownContainer: vi.fn().mockResolvedValue({
+      workerBranch: "magenta/worker-abc123",
+      baseBranch: "feature-branch",
+      commitCount: 1,
+    }),
   };
 });
 
@@ -33,6 +37,7 @@ const mockProvisionResult: ProvisionResult = {
   tempDir: "/tmp/test-dir",
   imageName: "test-image",
   startSha: "abc123",
+  workerBranch: "magenta/worker-abc123",
 };
 
 const mockContainerConfig: ContainerConfig = {
@@ -126,11 +131,17 @@ describe("DockerSupervisor", () => {
 
       const action = await supervisor.onYield("done");
 
-      expect(action).toEqual({ type: "accept" });
+      expect(action.type).toBe("accept");
+      if (action.type === "accept") {
+        expect(action.resultPrefix).toContain("magenta/worker-abc123");
+        expect(action.resultPrefix).toContain("feature-branch");
+        expect(action.resultPrefix).toContain("1 commit(s)");
+      }
       expect(teardownContainer).toHaveBeenCalledWith(
         expect.objectContaining({
           containerName: "test-container",
-          branch: "feature-branch",
+          baseBranch: "feature-branch",
+          workerBranch: "magenta/worker-abc123",
         }),
       );
     });
@@ -151,6 +162,8 @@ describe("DockerSupervisor", () => {
 
       expect(teardownContainer).toHaveBeenCalledWith(
         expect.objectContaining({
+          baseBranch: "feature-branch",
+          workerBranch: "magenta/worker-abc123",
           onProgress,
         }),
       );

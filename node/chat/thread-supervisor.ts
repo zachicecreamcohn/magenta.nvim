@@ -2,6 +2,7 @@ import type {
   ContainerConfig,
   ProvisionResult,
   SupervisorAction,
+  TeardownResult,
   ThreadSupervisor,
 } from "@magenta/core";
 import { teardownContainer } from "@magenta/core";
@@ -12,11 +13,13 @@ export class DockerSupervisor implements ThreadSupervisor {
   private restartCount = 0;
   private readonly maxRestarts: number;
 
+  public teardownResult: TeardownResult | undefined;
+
   constructor(
     private shell: Shell,
     private provisionResult: ProvisionResult,
     private containerConfig: ContainerConfig,
-    private branch: string,
+    private baseBranch: string,
     private repoPath: NvimCwd,
     opts?: { maxRestarts?: number; onProgress?: (message: string) => void },
   ) {
@@ -54,17 +57,22 @@ export class DockerSupervisor implements ThreadSupervisor {
       };
     }
 
-    await teardownContainer({
+    this.teardownResult = await teardownContainer({
       containerName: this.provisionResult.containerName,
       tempDir: this.provisionResult.tempDir,
       startSha: this.provisionResult.startSha,
       workspacePath: this.containerConfig.workspacePath,
       repoPath: this.repoPath,
-      branch: this.branch,
+      baseBranch: this.baseBranch,
+      workerBranch: this.provisionResult.workerBranch,
       ...(this.onProgress ? { onProgress: this.onProgress } : {}),
     });
 
-    return { type: "accept" };
+    const { workerBranch, baseBranch, commitCount } = this.teardownResult;
+    return {
+      type: "accept",
+      resultPrefix: `[Worker branch: ${workerBranch} (forked from ${baseBranch}), ${commitCount} commit(s) synced to host]`,
+    };
   }
 
   onAbort(): SupervisorAction {

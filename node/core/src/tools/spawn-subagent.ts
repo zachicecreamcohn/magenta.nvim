@@ -44,7 +44,7 @@ export function execute(
           containerConfig: ContainerConfig;
           provision: (opts: {
             repoPath: string;
-            branch: string;
+            baseBranch?: string;
             containerConfig: ContainerConfig;
             onProgress?: (message: string) => void;
           }) => Promise<ProvisionResult>;
@@ -88,7 +88,7 @@ export function execute(
         const provisioner = context.containerProvisioner;
         const provisionResult = await provisioner.provision({
           repoPath: context.cwd,
-          branch: input.branch,
+          baseBranch: input.branch,
           containerConfig: provisioner.containerConfig,
           onProgress: (message) => {
             progress.provisioningMessage = message;
@@ -102,7 +102,8 @@ export function execute(
           threadType: "docker_root",
           ...(input.contextFiles ? { contextFiles: input.contextFiles } : {}),
           dockerSpawnConfig: {
-            branch: input.branch,
+            baseBranch: input.branch ?? "HEAD",
+            workerBranch: provisionResult.workerBranch,
             containerName: provisionResult.containerName,
             tempDir: provisionResult.tempDir,
             imageName: provisionResult.imageName,
@@ -124,7 +125,7 @@ export function execute(
               value: [
                 {
                   type: "text",
-                  text: `Docker thread started with threadId: ${threadId} on branch: ${input.branch}`,
+                  text: `Docker thread started with threadId: ${threadId} on worker branch: ${provisionResult.workerBranch} (forked from ${input.branch ?? "HEAD"})`,
                 },
               ],
             },
@@ -143,13 +144,13 @@ export function execute(
                   value: [
                     {
                       type: "text",
-                      text: `Docker sub-agent (${threadId}) on branch ${input.branch} completed:\n${result.value}`,
+                      text: `Docker sub-agent (${threadId}) on worker branch ${provisionResult.workerBranch} completed:\n${result.value}`,
                     },
                   ],
                 }
               : {
                   status: "error",
-                  error: `Docker sub-agent (${threadId}) on branch ${input.branch} failed: ${result.error}`,
+                  error: `Docker sub-agent (${threadId}) on worker branch ${provisionResult.workerBranch} failed: ${result.error}`,
                 },
         };
       }
@@ -256,7 +257,7 @@ export const spec: ProviderToolSpec = {
       branch: {
         type: "string",
         description:
-          "Git branch name for the docker agent. Required when agentType is 'docker'. The container will be provisioned with this branch checked out.",
+          "Base branch to fork from for the docker agent. Required when agentType is 'docker'. A unique worker branch will be created from this base branch.",
       },
       blocking: {
         type: "boolean",

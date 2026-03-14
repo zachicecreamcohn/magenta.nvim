@@ -1,6 +1,6 @@
 export type SupervisorAction =
   | { type: "send-message"; text: string }
-  | { type: "accept" }
+  | { type: "accept"; resultPrefix?: string }
   | { type: "reject"; message: string }
   | { type: "none" };
 

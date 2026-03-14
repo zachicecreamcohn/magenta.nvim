@@ -52,7 +52,10 @@ export const EXPLORE_SUBAGENT_SYSTEM_PROMPT = loadPrompt("explore-subagent.md");
 export const COMPACT_SYSTEM_PROMPT =
   "You are a compaction agent that reduces conversation transcripts using the edl tool. You MUST write your summary to the `/summary.md` file using the edl tool. Do NOT place the summary in your text response — only the contents of `/summary.md` are captured.";
 
-function getBaseSystemPrompt(type: ThreadType): string {
+function getBaseSystemPrompt(
+  type: ThreadType,
+  dockerContext?: DockerContext,
+): string {
   switch (type) {
     case "subagent_default":
       return DEFAULT_SUBAGENT_SYSTEM_PROMPT;
@@ -64,24 +67,34 @@ function getBaseSystemPrompt(type: ThreadType): string {
       return COMPACT_SYSTEM_PROMPT;
     case "root":
       return DEFAULT_SYSTEM_PROMPT;
-    case "docker_root":
+    case "docker_root": {
+      const branchInfo = dockerContext
+        ? `\n\nYou are working on branch \`${dockerContext.workerBranch}\` (forked from \`${dockerContext.baseBranch}\`).`
+        : "";
       return (
         DEFAULT_SYSTEM_PROMPT +
         "\n\n# Docker Environment\n\n" +
         "You are running inside an isolated Docker container. " +
-        "You have full shell access and can install packages, run builds, and execute tests freely.\n\n" +
-        "**Important rules:**\n" +
+        "You have full shell access and can install packages, run builds, and execute tests freely." +
+        branchInfo +
+        "\n\n**Important rules:**\n" +
         "- Commit all your changes to the current branch with `git commit` before finishing.\n" +
         "- Do NOT use `git push` — there is no remote configured inside the container.\n" +
         "- When your task is complete and all changes are committed, call `yield_to_parent` with a summary of what you did.\n" +
         "- Your git working tree must be clean (no uncommitted changes) when you yield.\n" +
-        "- When you yield, your commits will be automatically synced back to the host repository via `git format-patch`/`git am`. " +
-        "The parent agent will see your changes on the branch that was specified when the docker subagent was spawned.\n" +
+        "- When you yield, your commits will be automatically synced back to the host repository. " +
+        "The parent agent will see your changes on the worker branch.\n" +
         "- Do NOT stop without yielding. If you need to pause, explain why in your yield message."
       );
+    }
     default:
       assertUnreachable(type);
   }
+}
+
+export interface DockerContext {
+  workerBranch: string;
+  baseBranch: string;
 }
 
 export function createSystemPrompt(
@@ -91,9 +104,10 @@ export function createSystemPrompt(
     logger: Logger;
     cwd: NvimCwd;
     options: ProviderOptions;
+    dockerContext?: DockerContext;
   },
 ): SystemPrompt {
-  const basePrompt = getBaseSystemPrompt(type);
+  const basePrompt = getBaseSystemPrompt(type, context.dockerContext);
   const skills = type === "compact" ? ({} as SkillsMap) : loadSkills(context);
   const systemInfo = context.systemInfo;
 
