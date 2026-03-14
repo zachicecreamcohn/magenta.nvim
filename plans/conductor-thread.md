@@ -4,6 +4,44 @@ The goal is to add a new thread type `"conductor"` that lives at the same level 
 
 The conductor system prompt should be **dynamic**: when docker subagents are available (i.e., `dockerContext` is passed), the prompt should guide the agent to use `docker_unsupervised` subagents. When docker is not available, it should still instruct a plan → review → execute workflow, but without the docker-specific parts.
 
+## Conductor workflow
+
+The conductor follows this lifecycle for a task:
+
+1. **Plan** — break down the task into subtasks, document them as task files in `~/.magenta/tasks/`
+2. **Review** — present the plan to the user for verification (can skip this for trivial tasks at the conductor's judgement)
+3. **Execute** — work through the tasks, updating task status as it goes
+4. **PR** — when done, put up the change for code review using `gh pr create`
+
+## Task tracking
+
+The conductor uses `~/.magenta/tasks/` as its task directory. Each file is a markdown file with YAML frontmatter:
+
+```markdown
+---
+branchId: my-feature
+status: ready
+---
+
+Brief description of the task to be done.
+```
+
+### Status values
+
+- `ready` — task is ready to be picked up
+- `blocked: task-a.md, task-b.md` — blocked on other tasks (comma-separated list of task filenames)
+- `active: branchName` — being worked on by a docker subagent on that branch, or `active: host` if the host is working on it
+- `completed: branchName` — completed by the agent on that branch
+- `abandoned` — task was abandoned
+
+### Task management responsibilities
+
+- Document tasks as files in the tasks directory
+- Track progress by updating task status
+- Track dependencies between tasks using the `blocked` status
+- Break down tasks into subtasks when appropriate
+- When any task is completed, mark it as `completed` and add notes about the outcome to the task file body
+
 ## Key types and interfaces (current state)
 
 - **`ThreadType`** (`node/core/src/chat-types.ts`): union of `"subagent_default" | "subagent_fast" | "subagent_explore" | "compact" | "root" | "docker_root"`. Needs `"conductor"` added.
@@ -42,7 +80,11 @@ The conductor system prompt should be **dynamic**: when docker subagents are ava
 - [ ] **Step 2: Create the conductor prompt files**
   - [ ] Create `node/core/src/providers/prompts/conductor-system-prompt.md` — the base conductor prompt covering:
     - Role: you are an orchestrating agent that coordinates implementation work
-    - Workflow: plan → user review → execute plan
+    - Workflow: plan → user review → execute → PR (see "Conductor workflow" section above)
+    - Can skip planning for trivial tasks at its own judgement
+    - Task tracking: use `~/.magenta/tasks/` directory with markdown files containing YAML frontmatter (see "Task tracking" section above for format and status values)
+    - Task management: document tasks, track progress/dependencies via status updates, break down into subtasks when appropriate, annotate completed tasks with outcomes
+    - PR creation: use `gh pr create` when work is done
   - [ ] Create `node/core/src/providers/prompts/conductor-docker-addendum.md` — addendum when docker is available:
     - Explains that `docker_unsupervised` subagents are available
     - How code flows: host repo → cloned into container → agent works in container → patches extracted back
@@ -85,3 +127,4 @@ The conductor system prompt should be **dynamic**: when docker subagents are ava
   - [ ] Add unit tests for `getToolSpecs("conductor", ...)`.
   - [ ] Add to `node/providers/system-prompt.test.ts` — follow the existing pattern for `docker_root` tests.
   - [ ] Iterate until tests pass.
+
