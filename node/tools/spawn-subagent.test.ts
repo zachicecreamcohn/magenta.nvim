@@ -1,7 +1,9 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import {
   pollUntil,
+  type SupervisorAction,
   type ThreadId,
+  type ThreadSupervisor,
   type ToolName,
   type ToolRequestId,
 } from "@magenta/core";
@@ -523,6 +525,55 @@ describe("yield behavior", () => {
           ? toolResult!.content
           : JSON.stringify(toolResult!.content);
       expect(content).toContain("Blocking yield result");
+    });
+  });
+
+  it("supervisor resultPrefix is prepended to yield response", async () => {
+    await withDriver({}, async (driver) => {
+      const { subagentStream } = await spawnSubagentAndYield(driver);
+
+      // Set a mock supervisor on the child thread that returns a resultPrefix
+      const childWrapper = findChildThread(driver.magenta.chat);
+      const mockSupervisor: ThreadSupervisor = {
+        onEndTurnWithoutYield: (): SupervisorAction => ({ type: "none" }),
+        onYield: async (): Promise<SupervisorAction> => ({
+          type: "accept",
+          resultPrefix:
+            "[Worker branch: magenta/worker-test123 (forked from main), 2 commit(s) synced to host]",
+        }),
+        onAbort: (): SupervisorAction => ({ type: "none" }),
+      };
+      childWrapper.thread.supervisor = mockSupervisor;
+
+      subagentStream.respond({
+        stopReason: "tool_use",
+        text: "Done with the task.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "yield-prefix" as ToolRequestId,
+              toolName: "yield_to_parent" as ToolName,
+              input: { result: "Completed all changes" },
+            },
+          },
+        ],
+      });
+
+      const mode = await pollUntil(() => {
+        const m = childWrapper.thread.core.state.mode;
+        if (m.type !== "yielded") {
+          throw new Error("not yielded yet");
+        }
+        return m;
+      });
+
+      expect(mode.response).toContain("magenta/worker-test123");
+      expect(mode.response).toContain("Completed all changes");
+      expect(mode.response).toMatch(
+        /^\[Worker branch:.*\]\n\nCompleted all changes$/,
+      );
+      expect(mode.tornDown).toBe(true);
     });
   });
 });
