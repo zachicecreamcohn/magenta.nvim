@@ -6,12 +6,15 @@ The conductor system prompt should be **dynamic**: when docker subagents are ava
 
 ## Conductor workflow
 
-The conductor follows this lifecycle for a task:
+The conductor is a pure orchestrator — it never touches the codebase directly. All exploration and implementation is delegated to docker subagents.
 
-1. **Plan** — break down the task into subtasks, document them as task files in `~/.magenta/tasks/`
-2. **Review** — present the plan to the user for verification (can skip this for trivial tasks at the conductor's judgement)
-3. **Execute** — work through the tasks, updating task status as it goes
-4. **PR** — when done, put up the change for code review using `gh pr create`
+Lifecycle for a task:
+
+1. **Task creation** — conductor writes a task file to `~/.magenta/tasks/` with a brief description
+2. **Planning** — conductor spawns a `docker_unsupervised` subagent to explore the codebase and produce a plan (committed to `plans/` in the repo on the branch). The plan translates the high-level task description into concrete implementation steps.
+3. **Plan review** — plan syncs back to host via git. Conductor presents it to the user for review. During review, the user and conductor may decide to split the task, adjust scope, or re-plan. Can skip review for trivial tasks at the conductor's judgement.
+4. **Execution** — conductor spawns a `docker_unsupervised` subagent to execute the plan
+5. **Completion** — conductor updates the task file with the outcome and creates a PR via `gh pr create`
 
 ## Task tracking
 
@@ -39,7 +42,7 @@ Brief description of the task to be done.
 - Document tasks as files in the tasks directory
 - Track progress by updating task status
 - Track dependencies between tasks using the `blocked` status
-- Break down tasks into subtasks when appropriate
+- Break down tasks into subtasks when appropriate (e.g., during plan review when complexity is discovered)
 - When any task is completed, mark it as `completed` and add notes about the outcome to the task file body
 
 ## Key types and interfaces (current state)
@@ -79,11 +82,11 @@ Brief description of the task to be done.
 
 - [ ] **Step 2: Create the conductor prompt files**
   - [ ] Create `node/core/src/providers/prompts/conductor-system-prompt.md` — the base conductor prompt covering:
-    - Role: you are an orchestrating agent that coordinates implementation work
-    - Workflow: plan → user review → execute → PR (see "Conductor workflow" section above)
-    - Can skip planning for trivial tasks at its own judgement
-    - Task tracking: use `~/.magenta/tasks/` directory with markdown files containing YAML frontmatter (see "Task tracking" section above for format and status values)
-    - Task management: document tasks, track progress/dependencies via status updates, break down into subtasks when appropriate, annotate completed tasks with outcomes
+    - Role: you are a pure orchestrator — you never touch the codebase directly, you delegate all exploration and implementation to docker subagents
+    - Workflow: task creation → spawn planning subagent → plan review with user → spawn execution subagent → update task → PR (see "Conductor workflow" above)
+    - Can skip plan review for trivial tasks at its own judgement
+    - Task tracking: use `~/.magenta/tasks/` directory with markdown files containing YAML frontmatter (see "Task tracking" above for format and status values)
+    - Task management: document tasks, track progress/dependencies via status updates, break down into subtasks during plan review when complexity is discovered, annotate completed tasks with outcomes
     - PR creation: use `gh pr create` when work is done
   - [ ] Create `node/core/src/providers/prompts/conductor-docker-addendum.md` — addendum when docker is available:
     - Explains that `docker_unsupervised` subagents are available
