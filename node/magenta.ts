@@ -292,6 +292,20 @@ export class Magenta {
 
         break;
       }
+      case "new-conductor-thread": {
+        if (!this.sidebar.isVisible()) {
+          await this.command("toggle");
+        }
+
+        this.dispatch({
+          type: "chat-msg",
+          msg: {
+            type: "new-conductor-thread",
+          },
+        });
+
+        break;
+      }
 
       case "threads-navigate-up": {
         this.dispatch({

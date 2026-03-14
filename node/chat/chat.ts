@@ -75,6 +75,9 @@ export type Msg =
       type: "new-thread";
     }
   | {
+      type: "new-conductor-thread";
+    }
+  | {
       type: "fork-thread";
       sourceThreadId: ThreadId;
     }
@@ -260,6 +263,15 @@ export class Chat implements ThreadManager {
           this.createNewThread().catch((e: Error) => {
             this.context.nvim.logger.error(
               `Failed to create new thread: ${e.message}\n${e.stack}`,
+            );
+          });
+        });
+        return;
+      case "new-conductor-thread":
+        setTimeout(() => {
+          this.createNewConductorThread().catch((e: Error) => {
+            this.context.nvim.logger.error(
+              `Failed to create conductor thread: ${e.message}\n${e.stack}`,
             );
           });
         });
@@ -542,6 +554,20 @@ export class Chat implements ThreadManager {
     });
   }
 
+  async createNewConductorThread() {
+    const id = uuidv7() as ThreadId;
+
+    await this.createThreadWithContext({
+      threadId: id,
+      profile: getActiveProfile(
+        this.context.getOptions().profiles,
+        this.context.getOptions().activeProfile,
+      ),
+      switchToThread: true,
+      threadType: "conductor",
+    });
+  }
+
   private buildChildrenMap(): Map<ThreadId, ThreadId[]> {
     const childrenMap = new Map<ThreadId, ThreadId[]>();
     for (const [idStr, threadWrapper] of Object.entries(this.threadWrappers)) {
@@ -624,8 +650,13 @@ export class Chat implements ThreadManager {
     const status = this.formatThreadStatus(threadId);
     const marker = threadId === activeThreadId ? "*" : "-";
     const indent = "  ".repeat(depth);
+    const threadWrapper = this.threadWrappers[threadId];
+    const isDocker =
+      threadWrapper?.state === "initialized" &&
+      threadWrapper.thread.core.state.threadType === "docker_root";
+    const icon = isDocker ? "🐳 " : "";
 
-    const displayLine = `${indent}${marker} ${displayName}: ${status}`;
+    const displayLine = `${indent}${marker} ${icon}${displayName}: ${status}`;
 
     return withBindings(d`${displayLine}`, {
       "<CR>": () =>

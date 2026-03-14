@@ -239,9 +239,11 @@ export const view: View<{
   thread: Thread;
   dispatch: Dispatch<Msg>;
 }> = ({ thread, dispatch }) => {
+  const isDocker = thread.core.state.threadType === "docker_root";
+  const titlePrefix = isDocker ? "🐳 " : "";
   const titleView = thread.core.state.title
-    ? d`# ${thread.core.state.title}`
-    : d`# [ Untitled ]`;
+    ? d`# ${titlePrefix}${thread.core.state.title}`
+    : d`# ${titlePrefix}[ Untitled ]`;
 
   const systemPromptView = renderSystemPrompt(
     thread.core.state.systemPrompt,

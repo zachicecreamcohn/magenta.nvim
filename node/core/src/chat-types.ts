@@ -10,4 +10,5 @@ export type ThreadType =
   | "subagent_explore"
   | "compact"
   | "root"
-  | "docker_root";
+  | "docker_root"
+  | "conductor";

@@ -61,6 +61,7 @@ local normal_commands = {
   "profile",
   "toggle",
   "new-thread",
+  "new-conductor-thread",
   "threads-overview",
 }
 

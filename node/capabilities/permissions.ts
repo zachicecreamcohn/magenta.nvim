@@ -38,7 +38,14 @@ export function getEffectivePermissions(
     write: true,
   };
 
-  const allPermissions = [cwdPermission, ...filePermissions];
+  // Add implicit ~/.magenta/tasks/ permission (read + write)
+  const tasksPermission: FilePermission = {
+    path: path.join(homeDir, ".magenta", "tasks"),
+    read: true,
+    write: true,
+  };
+
+  const allPermissions = [cwdPermission, tasksPermission, ...filePermissions];
 
   for (const perm of allPermissions) {
     const permPath = expandTilde(perm.path, homeDir);
