@@ -17,7 +17,7 @@ import type { UnresolvedFilePath } from "../utils/files.ts";
 type Input = {
   prompt: string;
   contextFiles?: UnresolvedFilePath[];
-  agentType?: AgentType;
+  agentType?: AgentType | "docker" | "docker_unsupervised";
   blocking?: boolean;
 };
 
@@ -28,8 +28,16 @@ function truncate(text: string, maxLen: number = 50): string {
     : singleLine;
 }
 
-function agentTypeLabel(agentType: AgentType | undefined): string {
+function agentTypeLabel(
+  agentType: AgentType | "docker" | "docker_unsupervised" | undefined,
+): string {
   return agentType && agentType !== "default" ? ` (${agentType})` : "";
+}
+
+function isDockerAgentType(
+  agentType: AgentType | "docker" | "docker_unsupervised" | undefined,
+): boolean {
+  return agentType === "docker" || agentType === "docker_unsupervised";
 }
 
 export function renderInFlightSummary(
@@ -40,15 +48,16 @@ export function renderInFlightSummary(
   const input = request.input as Input;
   const typeLabel = agentTypeLabel(input.agentType);
 
+  const dockerIcon = isDockerAgentType(input.agentType);
   if (progress?.threadId) {
-    return d`🚀⏳ spawn_subagent${typeLabel} (blocking): spawned ${progress.threadId}`;
+    return d`${dockerIcon ? "🐳" : "🚀"}⏳ spawn_subagent${typeLabel} (blocking): spawned ${progress.threadId}`;
   }
 
   if (progress?.provisioningMessage) {
     return d`🐳⚙️ spawn_subagent${typeLabel}: ${progress.provisioningMessage}`;
   }
 
-  return d`🚀⚙️ spawn_subagent${typeLabel}: ${truncate(input.prompt)}`;
+  return d`${dockerIcon ? "🐳" : "🚀"}⚙️ spawn_subagent${typeLabel}: ${truncate(input.prompt)}`;
 }
 
 export function renderInFlightPreview(
@@ -136,7 +145,7 @@ export function renderCompletedSummary(
         ? `${result.error.substring(0, 50)}...`
         : result.error;
 
-    return d`🤖❌ spawn_subagent${typeLabel}: ${errorPreview}`;
+    return d`${isDockerAgentType(input.agentType) ? "🐳" : "🤖"}❌ spawn_subagent${typeLabel}: ${errorPreview}`;
   }
 
   const resultText =
@@ -151,7 +160,7 @@ export function renderCompletedSummary(
     threadId || (blockingMatch ? (blockingMatch[1] as ThreadId) : undefined);
 
   return withBindings(
-    d`🤖✅ spawn_subagent${typeLabel}${isBlocking ? " (blocking)" : ""}: ${effectiveThreadId && chat ? truncate(chat.getThreadDisplayName(effectiveThreadId)) : truncate(input.prompt)}`,
+    d`${isDockerAgentType(input.agentType) ? "🐳" : "🤖"}✅ spawn_subagent${typeLabel}${isBlocking ? " (blocking)" : ""}: ${effectiveThreadId && chat ? truncate(chat.getThreadDisplayName(effectiveThreadId)) : truncate(input.prompt)}`,
     {
       "<CR>": () => {
         if (effectiveThreadId) {
