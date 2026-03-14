@@ -132,6 +132,7 @@ const shouldShowContextManager = (
 ): boolean => {
   return (
     agentStatus.type === "stopped" &&
+    agentStatus.stopReason !== "tool_use" &&
     mode.type === "normal" &&
     !contextManager.isContextEmpty()
   );
