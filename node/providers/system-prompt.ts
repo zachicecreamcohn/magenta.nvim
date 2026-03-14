@@ -5,6 +5,7 @@ import {
   createSystemPrompt as coreCreateSystemPrompt,
   DEFAULT_SUBAGENT_SYSTEM_PROMPT,
   DEFAULT_SYSTEM_PROMPT,
+  type DockerContext,
   EXPLORE_SUBAGENT_SYSTEM_PROMPT,
   type NvimCwd,
   type ProviderOptions,
@@ -31,6 +32,7 @@ export async function createSystemPrompt(
     cwd: NvimCwd;
     options: ProviderOptions;
     systemInfoOverrides?: Partial<SystemInfo>;
+    dockerContext?: DockerContext;
   },
 ): Promise<SystemPrompt> {
   const neovimVersion = (await context.nvim.call("nvim_eval", [
@@ -48,5 +50,6 @@ export async function createSystemPrompt(
     logger: context.nvim.logger,
     cwd: context.cwd,
     options: context.options,
+    ...(context.dockerContext ? { dockerContext: context.dockerContext } : {}),
   });
 }

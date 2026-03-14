@@ -135,6 +135,7 @@ export type { SkillInfo, SkillsMap } from "./providers/skills.ts";
 export { formatSkillsIntroduction, loadSkills } from "./providers/skills.ts";
 export type {
   AgentType,
+  DockerContext,
   SystemInfo,
   SystemPrompt,
 } from "./providers/system-prompt.ts";

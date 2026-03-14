@@ -68,7 +68,11 @@ export class DockerSupervisor implements ThreadSupervisor {
       ...(this.onProgress ? { onProgress: this.onProgress } : {}),
     });
 
-    return { type: "accept" };
+    const { workerBranch, baseBranch, commitCount } = this.teardownResult;
+    return {
+      type: "accept",
+      resultPrefix: `[Worker branch: ${workerBranch} (forked from ${baseBranch}), ${commitCount} commit(s) synced to host]`,
+    };
   }
 
   onAbort(): SupervisorAction {

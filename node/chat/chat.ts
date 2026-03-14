@@ -441,6 +441,14 @@ export class Chat implements ThreadManager {
               platform: "linux (docker)",
               cwd: environment.cwd,
             },
+            ...(dockerSpawnConfig
+              ? {
+                  dockerContext: {
+                    workerBranch: dockerSpawnConfig.workerBranch,
+                    baseBranch: dockerSpawnConfig.baseBranch,
+                  },
+                }
+              : {}),
           }
         : {}),
     });
