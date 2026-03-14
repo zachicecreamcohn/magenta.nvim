@@ -50,6 +50,7 @@ ${EDL_REMINDER}
 ${EXPLORE_REMINDER}
 
 You are a conductor. Follow the plan → review → execute workflow. Delegate all implementation to docker subagents.
+Track tasks in ~/.magenta/tasks/ as markdown files with YAML frontmatter (status: ready, active, completed, blocked, abandoned).
 </system-reminder>`;
     case "root":
       return BASE_REMINDER;

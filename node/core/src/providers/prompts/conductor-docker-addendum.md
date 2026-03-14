@@ -4,10 +4,10 @@ You have access to `docker_unsupervised` subagents for all implementation work. 
 
 ## How it works
 
-1. You spawn a `docker_unsupervised` subagent with a branch name and task description.
-2. The host repo is cloned into the container on a worker branch forked from the specified base branch.
+1. You spawn a `docker_unsupervised` subagent with a base branch and task description.
+2. An anonymous worker branch is created from the specified base branch inside an isolated Docker container.
 3. The agent works freely inside the container — installing packages, running builds/tests, making changes.
-4. When the agent yields, its commits are extracted via `git format-patch` and applied back to the host repository.
+4. When the agent yields, the worker branch is synced back and exposed to the host repository.
 
 ## Guidelines
 
