@@ -239,8 +239,13 @@ export const view: View<{
   thread: Thread;
   dispatch: Dispatch<Msg>;
 }> = ({ thread, dispatch }) => {
-  const isDocker = thread.core.state.threadType === "docker_root";
-  const titlePrefix = isDocker ? "🐳 " : "";
+  const threadType = thread.core.state.threadType;
+  const titlePrefix =
+    threadType === "docker_root"
+      ? "🐳 "
+      : threadType === "conductor"
+        ? "🎼 "
+        : "";
   const titleView = thread.core.state.title
     ? d`# ${titlePrefix}${thread.core.state.title}`
     : d`# ${titlePrefix}[ Untitled ]`;
