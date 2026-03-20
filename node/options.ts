@@ -60,7 +60,7 @@ export type Profile = {
   fastModel: string;
   baseUrl?: string;
   apiKeyEnvVar?: string;
-  authType?: "key" | "max"; // New field for authentication type
+  authType?: "key" | "max" | "keychain"; // New field for authentication type
   promptCaching?: boolean; // Primarily used by Bedrock provider
   env?: Record<string, string>; // Environment variables to set before provider initialization (e.g., AWS_PROFILE, AWS_REGION)
   thinking?:
@@ -249,12 +249,14 @@ function parseProfiles(
       if ("authType" in p) {
         if (
           typeof p.authType === "string" &&
-          (p.authType === "key" || p.authType === "max")
+          (p.authType === "key" ||
+            p.authType === "max" ||
+            p.authType === "keychain")
         ) {
           out.authType = p.authType;
         } else {
           logger.warn(
-            `Invalid authType in profile ${p.name}, must be "key" or "max"`,
+            `Invalid authType in profile ${p.name}, must be "key", "max", or "keychain"`,
           );
         }
       }

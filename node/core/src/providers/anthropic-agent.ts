@@ -18,7 +18,7 @@ import type {
 } from "./provider-types.ts";
 
 export type AnthropicAgentOptions = {
-  authType: "key" | "max";
+  authType: "key" | "max" | "keychain";
   includeWebSearch: boolean;
   disableParallelToolUseFlag: boolean;
   logger: Logger;

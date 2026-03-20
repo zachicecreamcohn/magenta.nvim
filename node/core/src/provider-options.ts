@@ -19,7 +19,8 @@ export type ProviderProfile = {
   fastModel: string;
   baseUrl?: string;
   apiKeyEnvVar?: string;
-  authType?: "key" | "max";
+  apiKey?: string;
+  authType?: "key" | "max" | "keychain";
   promptCaching?: boolean;
   env?: Record<string, string>;
   thinking?:

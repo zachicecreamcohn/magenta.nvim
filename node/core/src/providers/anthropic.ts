@@ -58,7 +58,7 @@ type MessageStreamParams = Omit<
 
 export class AnthropicProvider implements Provider {
   protected client: Anthropic;
-  private authType: "key" | "max";
+  private authType: "key" | "max" | "keychain";
   private validateInput: ValidateInput;
   private auth: AnthropicAuth | undefined;
 
@@ -70,7 +70,7 @@ export class AnthropicProvider implements Provider {
     options?: {
       baseUrl?: string | undefined;
       apiKeyEnvVar?: string | undefined;
-      authType?: "key" | "max" | undefined;
+      authType?: "key" | "max" | "keychain" | undefined;
       disableParallelToolUseFlag?: boolean;
     },
   ) {
@@ -85,8 +85,10 @@ export class AnthropicProvider implements Provider {
         fetch: this.createOAuthFetch(),
       });
     } else {
-      const apiKeyEnvVar = options?.apiKeyEnvVar || "ANTHROPIC_API_KEY";
-      const apiKey = process.env[apiKeyEnvVar];
+      // For "key" and "keychain" auth, use API key from profile or environment
+      const apiKey =
+        options?.apiKey ||
+        process.env[options?.apiKeyEnvVar || "ANTHROPIC_API_KEY"];
 
       this.client = new Anthropic({
         apiKey,
@@ -132,11 +134,11 @@ export class AnthropicProvider implements Provider {
   private async ensureValidToken(): Promise<void> {
     const isAuthenticated = await this.auth!.isAuthenticated();
     if (!isAuthenticated) {
-      await this.triggerOAuthFlow();
+      await this.authenticateMax();
     }
   }
 
-  private async triggerOAuthFlow(): Promise<void> {
+  async authenticateMax(): Promise<void> {
     if (!this.authUI) {
       throw new Error(
         "OAuth authentication required but no AuthUI provided. Configure authType or provide an AuthUI implementation.",
