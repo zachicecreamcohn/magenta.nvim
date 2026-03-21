@@ -1,13 +1,11 @@
 import type { FileIO } from "../capabilities/file-io.ts";
 
 import type { LspClient } from "../capabilities/lsp-client.ts";
-import type {
-  ProviderToolResult,
-  ProviderToolSpec,
-} from "../providers/provider-types.ts";
+import type { ProviderToolSpec } from "../providers/provider-types.ts";
 import type {
   GenericToolRequest,
   ToolInvocation,
+  ToolInvocationResult,
   ToolName,
 } from "../tool-types.ts";
 import {
@@ -19,6 +17,7 @@ import {
 import type { Result } from "../utils/result.ts";
 import type { PositionString, StringIdx } from "../utils/string-position.ts";
 import { calculateStringPosition } from "../utils/string-position.ts";
+export type ResultInfo = { toolName: "find_references" };
 
 export function execute(
   request: ToolRequest,
@@ -31,7 +30,7 @@ export function execute(
 ): ToolInvocation {
   let aborted = false;
 
-  const promise = (async (): Promise<ProviderToolResult> => {
+  const promise = (async (): Promise<ToolInvocationResult> => {
     try {
       const filePath = request.input.filePath;
       const absFilePath = resolveFilePath(
@@ -45,23 +44,29 @@ export function execute(
         bufferContent = await context.fileIO.readFile(absFilePath);
       } catch (e) {
         return {
-          type: "tool_result",
-          id: request.id,
           result: {
-            status: "error",
-            error: `Failed to read file ${absFilePath}: ${e instanceof Error ? e.message : String(e)}`,
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: `Failed to read file ${absFilePath}: ${e instanceof Error ? e.message : String(e)}`,
+            },
           },
+          resultInfo: { toolName: "find_references" },
         };
       }
 
       if (aborted) {
         return {
-          type: "tool_result",
-          id: request.id,
           result: {
-            status: "error",
-            error: "Request was aborted by the user.",
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: "Request was aborted by the user.",
+            },
           },
+          resultInfo: { toolName: "find_references" },
         };
       }
 
@@ -71,12 +76,15 @@ export function execute(
 
       if (symbolStart === -1) {
         return {
-          type: "tool_result",
-          id: request.id,
           result: {
-            status: "error",
-            error: `Symbol "${request.input.symbol}" not found in file.`,
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: `Symbol "${request.input.symbol}" not found in file.`,
+            },
           },
+          resultInfo: { toolName: "find_references" },
         };
       }
 
@@ -95,12 +103,15 @@ export function execute(
 
       if (aborted) {
         return {
-          type: "tool_result",
-          id: request.id,
           result: {
-            status: "error",
-            error: "Request was aborted by the user.",
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: "Request was aborted by the user.",
+            },
           },
+          resultInfo: { toolName: "find_references" },
         };
       }
 
@@ -122,31 +133,40 @@ export function execute(
       }
 
       return {
-        type: "tool_result",
-        id: request.id,
         result: {
-          status: "ok",
-          value: [{ type: "text", text: content || "No references found" }],
+          type: "tool_result",
+          id: request.id,
+          result: {
+            status: "ok",
+            value: [{ type: "text", text: content || "No references found" }],
+          },
         },
+        resultInfo: { toolName: "find_references" },
       };
     } catch (error) {
       if (aborted) {
         return {
+          result: {
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: "Request was aborted by the user.",
+            },
+          },
+          resultInfo: { toolName: "find_references" },
+        };
+      }
+      return {
+        result: {
           type: "tool_result",
           id: request.id,
           result: {
             status: "error",
-            error: "Request was aborted by the user.",
+            error: `Error requesting references: ${error instanceof Error ? error.message : String(error)}`,
           },
-        };
-      }
-      return {
-        type: "tool_result",
-        id: request.id,
-        result: {
-          status: "error",
-          error: `Error requesting references: ${error instanceof Error ? error.message : String(error)}`,
         },
+        resultInfo: { toolName: "find_references" },
       };
     }
   })();

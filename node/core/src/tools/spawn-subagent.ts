@@ -4,14 +4,12 @@ import { fileURLToPath } from "node:url";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
 import type { ThreadId, ThreadType } from "../chat-types.ts";
 import type { ContainerConfig, ProvisionResult } from "../container/types.ts";
-import type {
-  ProviderToolResult,
-  ProviderToolSpec,
-} from "../providers/provider-types.ts";
+import type { ProviderToolSpec } from "../providers/provider-types.ts";
 import { AGENT_TYPES, type AgentType } from "../providers/system-prompt.ts";
 import type {
   GenericToolRequest,
   ToolInvocation,
+  ToolInvocationResult,
   ToolName,
 } from "../tool-types.ts";
 import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
@@ -30,6 +28,12 @@ export type ToolRequest = GenericToolRequest<"spawn_subagent", Input>;
 export type SpawnSubagentProgress = {
   threadId?: ThreadId;
   provisioningMessage?: string;
+};
+export type ResultInfo = {
+  toolName: "spawn_subagent";
+  threadId?: ThreadId;
+  isBlocking: boolean;
+  responseBody?: string;
 };
 
 export function execute(
@@ -54,7 +58,7 @@ export function execute(
 ): ToolInvocation & { progress: SpawnSubagentProgress } {
   const progress: SpawnSubagentProgress = {};
 
-  const promise = (async (): Promise<ProviderToolResult> => {
+  const promise = (async (): Promise<ToolInvocationResult> => {
     try {
       const input = request.input;
 
@@ -64,24 +68,31 @@ export function execute(
       ) {
         if (!input.branch) {
           return {
-            type: "tool_result",
-            id: request.id,
             result: {
-              status: "error",
-              error: "branch parameter is required when agentType is 'docker'",
+              type: "tool_result",
+              id: request.id,
+              result: {
+                status: "error",
+                error:
+                  "branch parameter is required when agentType is 'docker'",
+              },
             },
+            resultInfo: { toolName: "spawn_subagent", isBlocking: false },
           };
         }
 
         if (!context.containerProvisioner) {
           return {
-            type: "tool_result",
-            id: request.id,
             result: {
-              status: "error",
-              error:
-                "Docker environment is not configured. Set options.container in your magenta config.",
+              type: "tool_result",
+              id: request.id,
+              result: {
+                status: "error",
+                error:
+                  "Docker environment is not configured. Set options.container in your magenta config.",
+              },
             },
+            resultInfo: { toolName: "spawn_subagent", isBlocking: false },
           };
         }
 
@@ -118,41 +129,68 @@ export function execute(
 
         if (!input.blocking) {
           return {
-            type: "tool_result",
-            id: request.id,
             result: {
-              status: "ok",
-              value: [
-                {
-                  type: "text",
-                  text: `Docker thread started with threadId: ${threadId} on worker branch: ${provisionResult.workerBranch} (forked from ${input.branch ?? "HEAD"})`,
-                },
-              ],
+              type: "tool_result",
+              id: request.id,
+              result: {
+                status: "ok",
+                value: [
+                  {
+                    type: "text",
+                    text: `Docker thread started with threadId: ${threadId} on worker branch: ${provisionResult.workerBranch} (forked from ${input.branch ?? "HEAD"})`,
+                  },
+                ],
+              },
+            },
+            resultInfo: {
+              toolName: "spawn_subagent",
+              threadId,
+              isBlocking: false,
             },
           };
         }
 
         const result = await context.threadManager.waitForThread(threadId);
 
-        return {
-          type: "tool_result",
-          id: request.id,
-          result:
-            result.status === "ok"
-              ? {
-                  status: "ok",
-                  value: [
-                    {
-                      type: "text",
-                      text: `Docker sub-agent (${threadId}) on worker branch ${provisionResult.workerBranch} completed:\n${result.value}`,
-                    },
-                  ],
-                }
-              : {
-                  status: "error",
-                  error: `Docker sub-agent (${threadId}) on worker branch ${provisionResult.workerBranch} failed: ${result.error}`,
-                },
-        };
+        if (result.status === "ok") {
+          return {
+            result: {
+              type: "tool_result",
+              id: request.id,
+              result: {
+                status: "ok",
+                value: [
+                  {
+                    type: "text",
+                    text: `Docker sub-agent (${threadId}) on worker branch ${provisionResult.workerBranch} completed:\n${result.value}`,
+                  },
+                ],
+              },
+            },
+            resultInfo: {
+              toolName: "spawn_subagent",
+              threadId,
+              isBlocking: true,
+              responseBody: result.value,
+            },
+          };
+        } else {
+          return {
+            result: {
+              type: "tool_result",
+              id: request.id,
+              result: {
+                status: "error",
+                error: `Docker sub-agent (${threadId}) on worker branch ${provisionResult.workerBranch} failed: ${result.error}`,
+              },
+            },
+            resultInfo: {
+              toolName: "spawn_subagent",
+              threadId,
+              isBlocking: true,
+            },
+          };
+        }
       }
 
       const threadType: ThreadType =
@@ -174,48 +212,81 @@ export function execute(
 
       if (!input.blocking) {
         return {
-          type: "tool_result",
-          id: request.id,
           result: {
-            status: "ok",
-            value: [
-              {
-                type: "text",
-                text: `Sub-agent started with threadId: ${threadId}`,
-              },
-            ],
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "ok",
+              value: [
+                {
+                  type: "text",
+                  text: `Sub-agent started with threadId: ${threadId}`,
+                },
+              ],
+            },
+          },
+          resultInfo: {
+            toolName: "spawn_subagent",
+            threadId,
+            isBlocking: false,
           },
         };
       }
 
       const result = await context.threadManager.waitForThread(threadId);
 
-      return {
-        type: "tool_result",
-        id: request.id,
-        result:
-          result.status === "ok"
-            ? {
-                status: "ok",
-                value: [
-                  {
-                    type: "text",
-                    text: `Sub-agent (${threadId}) completed:\n${result.value}`,
-                  },
-                ],
-              }
-            : {
-                status: "error",
-                error: `Sub-agent (${threadId}) failed: ${result.error}`,
-              },
-      };
+      if (result.status === "ok") {
+        return {
+          result: {
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "ok",
+              value: [
+                {
+                  type: "text",
+                  text: `Sub-agent (${threadId}) completed:\n${result.value}`,
+                },
+              ],
+            },
+          },
+          resultInfo: {
+            toolName: "spawn_subagent",
+            threadId,
+            isBlocking: true,
+            responseBody: result.value,
+          },
+        };
+      } else {
+        return {
+          result: {
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: `Sub-agent (${threadId}) failed: ${result.error}`,
+            },
+          },
+          resultInfo: {
+            toolName: "spawn_subagent",
+            threadId,
+            isBlocking: true,
+          },
+        };
+      }
     } catch (e) {
       return {
-        type: "tool_result",
-        id: request.id,
         result: {
-          status: "error",
-          error: `Failed to create sub-agent thread: ${e instanceof Error ? e.message : String(e)}`,
+          type: "tool_result",
+          id: request.id,
+          result: {
+            status: "error",
+            error: `Failed to create sub-agent thread: ${e instanceof Error ? e.message : String(e)}`,
+          },
+        },
+        resultInfo: {
+          toolName: "spawn_subagent",
+          isBlocking: !!request.input.blocking,
         },
       };
     }

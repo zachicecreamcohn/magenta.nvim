@@ -10,7 +10,7 @@ describe("yield-to-parent unit tests", () => {
       input: { result: "the answer" },
     });
 
-    const result = await invocation.promise;
+    const { result } = await invocation.promise;
     expect(result.result.status).toBe("ok");
     if (result.result.status === "ok") {
       expect(result.result.value).toEqual([
@@ -48,7 +48,7 @@ describe("yield-to-parent unit tests", () => {
 
     invocation.abort();
 
-    const result = await invocation.promise;
+    const { result } = await invocation.promise;
     expect(result.result.status).toBe("ok");
     if (result.result.status === "ok") {
       expect(result.result.value).toEqual([

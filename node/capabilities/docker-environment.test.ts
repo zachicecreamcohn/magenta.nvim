@@ -291,7 +291,7 @@ describe.skipIf(!dockerAvailable)("Docker Environment", () => {
           onToolApplied: () => {},
         });
 
-        const result = await invocation.promise;
+        const { result } = await invocation.promise;
         expect(result.result.status).toBe("ok");
         if (result.result.status === "ok") {
           const text = result.result.value

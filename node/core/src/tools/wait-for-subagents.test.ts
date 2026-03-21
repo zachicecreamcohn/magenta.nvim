@@ -45,7 +45,7 @@ describe("wait-for-subagents unit tests", () => {
       { threadManager, requestRender },
     );
 
-    const result = await invocation.promise;
+    const { result } = await invocation.promise;
     expect(result.result.status).toBe("ok");
     if (result.result.status === "ok") {
       const text = (result.result.value[0] as { type: "text"; text: string })
@@ -74,7 +74,7 @@ describe("wait-for-subagents unit tests", () => {
       { threadManager, requestRender },
     );
 
-    const result = await invocation.promise;
+    const { result } = await invocation.promise;
     expect(result.result.status).toBe("ok");
     if (result.result.status === "ok") {
       const text = (result.result.value[0] as { type: "text"; text: string })

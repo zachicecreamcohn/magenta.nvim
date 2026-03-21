@@ -39,6 +39,9 @@ function getStatusEmoji(result: CompletedToolInfo["result"]): string {
 function extractEdlDisplayData(
   info: CompletedToolInfo,
 ): Edl.EdlDisplayData | undefined {
+  if (info.resultInfo?.toolName === "edl") {
+    return (info.resultInfo as Edl.ResultInfo).displayData;
+  }
   if (info.result.result.status !== "ok") return undefined;
   const content = info.result.result.value;
   for (const item of content) {
@@ -56,6 +59,9 @@ function extractEdlDisplayData(
 }
 
 function extractFormattedResult(info: CompletedToolInfo): string {
+  if (info.resultInfo?.toolName === "edl") {
+    return (info.resultInfo as Edl.ResultInfo).formattedResult;
+  }
   if (info.result.result.status !== "ok") {
     return info.result.result.error;
   }

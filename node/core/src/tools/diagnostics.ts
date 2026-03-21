@@ -1,15 +1,14 @@
 import type { DiagnosticsProvider } from "../capabilities/diagnostics-provider.ts";
-import type {
-  ProviderToolResult,
-  ProviderToolSpec,
-} from "../providers/provider-types.ts";
+import type { ProviderToolSpec } from "../providers/provider-types.ts";
 import type {
   GenericToolRequest,
   ToolInvocation,
+  ToolInvocationResult,
   ToolName,
 } from "../tool-types.ts";
 import type { Result } from "../utils/result.ts";
 
+export type ResultInfo = { toolName: "diagnostics" };
 export type Input = {};
 
 export type ToolRequest = GenericToolRequest<"diagnostics", Input>;
@@ -22,45 +21,57 @@ export function execute(
 ): ToolInvocation {
   let aborted = false;
 
-  const promise = (async (): Promise<ProviderToolResult> => {
+  const promise = (async (): Promise<ToolInvocationResult> => {
     try {
       const content = await context.diagnosticsProvider.getDiagnostics();
       if (aborted) {
         return {
-          type: "tool_result",
-          id: request.id,
           result: {
-            status: "error",
-            error: "Request was aborted by the user.",
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: "Request was aborted by the user.",
+            },
           },
+          resultInfo: { toolName: "diagnostics" },
         };
       }
       return {
-        type: "tool_result",
-        id: request.id,
         result: {
-          status: "ok",
-          value: [{ type: "text", text: content }],
+          type: "tool_result",
+          id: request.id,
+          result: {
+            status: "ok",
+            value: [{ type: "text", text: content }],
+          },
         },
+        resultInfo: { toolName: "diagnostics" },
       };
     } catch (error) {
       if (aborted) {
         return {
+          result: {
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: "Request was aborted by the user.",
+            },
+          },
+          resultInfo: { toolName: "diagnostics" },
+        };
+      }
+      return {
+        result: {
           type: "tool_result",
           id: request.id,
           result: {
             status: "error",
-            error: "Request was aborted by the user.",
+            error: `Failed to get diagnostics: ${error instanceof Error ? error.message : String(error)}`,
           },
-        };
-      }
-      return {
-        type: "tool_result",
-        id: request.id,
-        result: {
-          status: "error",
-          error: `Failed to get diagnostics: ${error instanceof Error ? error.message : String(error)}`,
         },
+        resultInfo: { toolName: "diagnostics" },
       };
     }
   })();

@@ -38,6 +38,7 @@ import type {
   ToolName,
   ToolRequest,
   ToolRequestId,
+  ToolResultInfo,
 } from "./tool-types.ts";
 import { type CreateToolContext, createTool } from "./tools/create-tool.ts";
 import type { MCPToolManager as MCPToolManagerImpl } from "./tools/mcp/manager.ts";
@@ -66,6 +67,7 @@ export type ActiveToolEntry = {
 
 export type ToolCache = {
   results: Map<ToolRequestId, ProviderToolResult>;
+  resultInfos: Map<ToolRequestId, ToolResultInfo>;
 };
 
 export type ThreadMode =
@@ -121,7 +123,12 @@ export type ThreadCoreAction =
   | { type: "set-title"; title: string }
   | { type: "set-mode"; mode: ThreadMode }
   | { type: "rebuild-tool-cache" }
-  | { type: "cache-tool-result"; id: ToolRequestId; result: ProviderToolResult }
+  | {
+      type: "cache-tool-result";
+      id: ToolRequestId;
+      result: ProviderToolResult;
+      resultInfo: ToolResultInfo;
+    }
   | { type: "increment-output-tokens"; tokens: number }
   | { type: "reset-output-tokens" }
   | { type: "set-teardown-message"; message: string }
@@ -166,7 +173,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       systemPrompt: context.systemPrompt,
       pendingMessages: [],
       mode: { type: "normal" },
-      toolCache: { results: new Map() },
+      toolCache: { results: new Map(), resultInfos: new Map() },
       edlRegisters: { registers: new Map(), nextSavedId: 0 },
       outputTokensSinceLastReminder: 0,
       compactionHistory: [],
@@ -301,11 +308,15 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
             }
           }
         }
-        this.state.toolCache = { results };
+        this.state.toolCache = {
+          results,
+          resultInfos: this.state.toolCache.resultInfos,
+        };
         break;
       }
       case "cache-tool-result":
         this.state.toolCache.results.set(action.id, action.result);
+        this.state.toolCache.resultInfos.set(action.id, action.resultInfo);
         break;
       case "increment-output-tokens":
         this.state.outputTokensSinceLastReminder += action.tokens;
@@ -328,7 +339,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         this.state.compactionHistory.push(action.record);
         break;
       case "reset-after-compaction":
-        this.state.toolCache = { results: new Map() };
+        this.state.toolCache = { results: new Map(), resultInfos: new Map() };
         this.state.edlRegisters = { registers: new Map(), nextSavedId: 0 };
         this.state.outputTokensSinceLastReminder = 0;
         break;
@@ -514,8 +525,13 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       });
 
       void invocation.promise
-        .then((result) => {
-          this.update({ type: "cache-tool-result", id: request.id, result });
+        .then(({ result, resultInfo }) => {
+          this.update({
+            type: "cache-tool-result",
+            id: request.id,
+            result,
+            resultInfo,
+          });
         })
         .catch((err: Error) => {
           this.update({
@@ -529,6 +545,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
                 error: `Tool execution failed: ${err.message}`,
               },
             },
+            resultInfo: { toolName: request.toolName },
           });
         })
         .then(() => {

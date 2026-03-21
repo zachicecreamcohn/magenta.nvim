@@ -4,13 +4,13 @@ import type {
 } from "../capabilities/context-tracker.ts";
 import type { FileIO } from "../capabilities/file-io.ts";
 import type {
-  ProviderToolResult,
   ProviderToolResultContent,
   ProviderToolSpec,
 } from "../providers/provider-types.ts";
 import type {
   GenericToolRequest,
   ToolInvocation,
+  ToolInvocationResult,
   ToolName,
 } from "../tool-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
@@ -32,6 +32,10 @@ import {
 import type { Result } from "../utils/result.ts";
 
 export type ToolRequest = GenericToolRequest<"get_file", Input>;
+export type ResultInfo = {
+  toolName: "get_file";
+  lineCount: number;
+};
 
 const MAX_FILE_CHARACTERS = 40000;
 const MAX_LINE_CHARACTERS = 2000;
@@ -114,13 +118,16 @@ export function execute(
 ): ToolInvocation {
   let aborted = false;
 
-  const abortResult: ProviderToolResult = {
-    type: "tool_result",
-    id: request.id,
-    result: { status: "error", error: "Request was aborted by the user." },
+  const abortResult: ToolInvocationResult = {
+    result: {
+      type: "tool_result",
+      id: request.id,
+      result: { status: "error", error: "Request was aborted by the user." },
+    },
+    resultInfo: { toolName: "get_file", lineCount: 0 },
   };
 
-  const promise = (async (): Promise<ProviderToolResult> => {
+  const promise = (async (): Promise<ToolInvocationResult> => {
     try {
       const filePath = request.input.filePath;
       const absFilePath = resolveFilePath(
@@ -140,18 +147,21 @@ export function execute(
         !hasLineParams
       ) {
         return {
-          type: "tool_result",
-          id: request.id,
           result: {
-            status: "ok",
-            value: [
-              {
-                type: "text",
-                text: `This file is already part of the thread context. \
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "ok",
+              value: [
+                {
+                  type: "text",
+                  text: `This file is already part of the thread context. \
 You already have the most up-to-date information about the contents of this file.`,
-              },
-            ],
+                },
+              ],
+            },
           },
+          resultInfo: { toolName: "get_file", lineCount: 0 },
         };
       }
 
@@ -163,23 +173,29 @@ You already have the most up-to-date information about the contents of this file
 
       if (!fileTypeInfo) {
         return {
-          type: "tool_result",
-          id: request.id,
           result: {
-            status: "error",
-            error: `File ${filePath} does not exist.`,
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: `File ${filePath} does not exist.`,
+            },
           },
+          resultInfo: { toolName: "get_file", lineCount: 0 },
         };
       }
 
       if (fileTypeInfo.category === FileCategory.UNSUPPORTED) {
         return {
-          type: "tool_result",
-          id: request.id,
           result: {
-            status: "error",
-            error: `Unsupported file type: ${fileTypeInfo.mimeType}. Supported types: text files, images (JPEG, PNG, GIF, WebP), and PDF documents.`,
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: `Unsupported file type: ${fileTypeInfo.mimeType}. Supported types: text files, images (JPEG, PNG, GIF, WebP), and PDF documents.`,
+            },
           },
+          resultInfo: { toolName: "get_file", lineCount: 0 },
         };
       }
 
@@ -199,16 +215,20 @@ You already have the most up-to-date information about the contents of this file
         const sizeMB = (actualSize / (1024 * 1024)).toFixed(2);
         const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(2);
         return {
-          type: "tool_result",
-          id: request.id,
           result: {
-            status: "error",
-            error: `File too large: ${sizeMB}MB (max ${maxSizeMB}MB for ${fileTypeInfo.category} files)`,
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: `File too large: ${sizeMB}MB (max ${maxSizeMB}MB for ${fileTypeInfo.category} files)`,
+            },
           },
+          resultInfo: { toolName: "get_file", lineCount: 0 },
         };
       }
 
       let result: ProviderToolResultContent[];
+      let lineCount = 0;
 
       if (fileTypeInfo.category === FileCategory.TEXT) {
         const rawContent = await context.fileIO.readFile(absFilePath);
@@ -221,12 +241,15 @@ You already have the most up-to-date information about the contents of this file
 
         if (startIndex >= totalLines) {
           return {
-            type: "tool_result",
-            id: request.id,
             result: {
-              status: "error",
-              error: `startLine ${startLine} is beyond end of file (${totalLines} lines)`,
+              type: "tool_result",
+              id: request.id,
+              result: {
+                status: "error",
+                error: `startLine ${startLine} is beyond end of file (${totalLines} lines)`,
+              },
             },
+            resultInfo: { toolName: "get_file", lineCount: 0 },
           };
         }
 
@@ -267,6 +290,7 @@ You already have the most up-to-date information about the contents of this file
         }
 
         result = [{ type: "text", text: processedResult.text }];
+        lineCount = processedResult.text.split("\n").length;
       } else if (fileTypeInfo.category === FileCategory.PDF) {
         const existingFileInfo = context.contextTracker.files[absFilePath];
         const agentView = existingFileInfo?.agentView;
@@ -277,17 +301,20 @@ You already have the most up-to-date information about the contents of this file
             agentView.pages.includes(request.input.pdfPage)
           ) {
             return {
-              type: "tool_result",
-              id: request.id,
               result: {
-                status: "ok",
-                value: [
-                  {
-                    type: "text",
-                    text: `Page ${request.input.pdfPage} of ${filePath} has already been provided to you in this conversation.`,
-                  },
-                ],
+                type: "tool_result",
+                id: request.id,
+                result: {
+                  status: "ok",
+                  value: [
+                    {
+                      type: "text",
+                      text: `Page ${request.input.pdfPage} of ${filePath} has already been provided to you in this conversation.`,
+                    },
+                  ],
+                },
               },
+              resultInfo: { toolName: "get_file", lineCount: 0 },
             };
           }
 
@@ -299,9 +326,12 @@ You already have the most up-to-date information about the contents of this file
 
           if (pageResult.status === "error") {
             return {
-              type: "tool_result",
-              id: request.id,
-              result: { status: "error", error: pageResult.error },
+              result: {
+                type: "tool_result",
+                id: request.id,
+                result: { status: "error", error: pageResult.error },
+              },
+              resultInfo: { toolName: "get_file", lineCount: 0 },
             };
           }
 
@@ -328,17 +358,20 @@ You already have the most up-to-date information about the contents of this file
         } else {
           if (agentView?.type === "pdf" && agentView.summary) {
             return {
-              type: "tool_result",
-              id: request.id,
               result: {
-                status: "ok",
-                value: [
-                  {
-                    type: "text",
-                    text: `The summary information for ${filePath} has already been provided to you in this conversation.`,
-                  },
-                ],
+                type: "tool_result",
+                id: request.id,
+                result: {
+                  status: "ok",
+                  value: [
+                    {
+                      type: "text",
+                      text: `The summary information for ${filePath} has already been provided to you in this conversation.`,
+                    },
+                  ],
+                },
               },
+              resultInfo: { toolName: "get_file", lineCount: 0 },
             };
           }
 
@@ -348,9 +381,12 @@ You already have the most up-to-date information about the contents of this file
 
           if (pageCountResult.status === "error") {
             return {
-              type: "tool_result",
-              id: request.id,
-              result: { status: "error", error: pageCountResult.error },
+              result: {
+                type: "tool_result",
+                id: request.id,
+                result: { status: "error", error: pageCountResult.error },
+              },
+              resultInfo: { toolName: "get_file", lineCount: 0 },
             };
           }
 
@@ -402,19 +438,25 @@ You already have the most up-to-date information about the contents of this file
       }
 
       return {
-        type: "tool_result",
-        id: request.id,
-        result: { status: "ok", value: result },
+        result: {
+          type: "tool_result",
+          id: request.id,
+          result: { status: "ok", value: result },
+        },
+        resultInfo: { toolName: "get_file", lineCount },
       };
     } catch (error) {
       if (aborted) return abortResult;
       return {
-        type: "tool_result",
-        id: request.id,
         result: {
-          status: "error",
-          error: `Failed: ${error instanceof Error ? error.message : String(error)}`,
+          type: "tool_result",
+          id: request.id,
+          result: {
+            status: "error",
+            error: `Failed: ${error instanceof Error ? error.message : String(error)}`,
+          },
         },
+        resultInfo: { toolName: "get_file", lineCount: 0 },
       };
     }
   })();

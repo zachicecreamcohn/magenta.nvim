@@ -1,6 +1,6 @@
-import type { ProviderToolResult } from "../../providers/provider-types.ts";
 import type {
   ToolInvocation,
+  ToolInvocationResult,
   ToolName,
   ToolRequestId,
 } from "../../tool-types.ts";
@@ -36,13 +36,16 @@ export function execute(
     context.requestRender();
   }, 1000);
 
-  const abortResult: ProviderToolResult = {
-    type: "tool_result",
-    id: request.id,
-    result: { status: "error", error: "Request was aborted by the user." },
+  const abortResult: ToolInvocationResult = {
+    result: {
+      type: "tool_result",
+      id: request.id,
+      result: { status: "error", error: "Request was aborted by the user." },
+    },
+    resultInfo: { toolName: request.toolName },
   };
 
-  const promise = (async (): Promise<ProviderToolResult> => {
+  const promise = (async (): Promise<ToolInvocationResult> => {
     try {
       if (aborted) return abortResult;
 
@@ -54,12 +57,15 @@ export function execute(
       if (aborted) return abortResult;
 
       return {
-        type: "tool_result",
-        id: request.id,
         result: {
-          status: "ok",
-          value: result,
+          type: "tool_result",
+          id: request.id,
+          result: {
+            status: "ok",
+            value: result,
+          },
         },
+        resultInfo: { toolName: request.toolName },
       };
     } catch (error) {
       if (aborted) return abortResult;
@@ -70,12 +76,15 @@ export function execute(
           : String(error);
 
       return {
-        type: "tool_result",
-        id: request.id,
         result: {
-          status: "error",
-          error: `MCP tool error: ${errorMessage}`,
+          type: "tool_result",
+          id: request.id,
+          result: {
+            status: "error",
+            error: `MCP tool error: ${errorMessage}`,
+          },
         },
+        resultInfo: { toolName: request.toolName },
       };
     } finally {
       clearInterval(tickInterval);

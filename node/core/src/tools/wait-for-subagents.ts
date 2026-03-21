@@ -1,12 +1,10 @@
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
 import type { ThreadId } from "../chat-types.ts";
-import type {
-  ProviderToolResult,
-  ProviderToolSpec,
-} from "../providers/provider-types.ts";
+import type { ProviderToolSpec } from "../providers/provider-types.ts";
 import type {
   GenericToolRequest,
   ToolInvocation,
+  ToolInvocationResult,
   ToolName,
 } from "../tool-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
@@ -15,6 +13,7 @@ import type { Result } from "../utils/result.ts";
 export type Input = {
   threadIds: ThreadId[];
 };
+export type ResultInfo = { toolName: "wait_for_subagents" };
 
 export type ToolRequest = GenericToolRequest<"wait_for_subagents", Input>;
 
@@ -33,7 +32,7 @@ export function execute(
     completedThreadIds: [],
   };
 
-  const promise = (async (): Promise<ProviderToolResult> => {
+  const promise = (async (): Promise<ToolInvocationResult> => {
     try {
       const threadIds = request.input.threadIds;
       const results = await Promise.all(
@@ -61,21 +60,27 @@ ${results
   .join("\n")}`;
 
       return {
-        type: "tool_result",
-        id: request.id,
         result: {
-          status: "ok",
-          value: [{ type: "text", text }],
+          type: "tool_result",
+          id: request.id,
+          result: {
+            status: "ok",
+            value: [{ type: "text", text }],
+          },
         },
+        resultInfo: { toolName: "wait_for_subagents" },
       };
     } catch (e) {
       return {
-        type: "tool_result",
-        id: request.id,
         result: {
-          status: "error",
-          error: e instanceof Error ? e.message : String(e),
+          type: "tool_result",
+          id: request.id,
+          result: {
+            status: "error",
+            error: e instanceof Error ? e.message : String(e),
+          },
         },
+        resultInfo: { toolName: "wait_for_subagents" },
       };
     }
   })();

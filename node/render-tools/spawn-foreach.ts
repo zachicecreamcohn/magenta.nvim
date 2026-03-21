@@ -1,6 +1,7 @@
 import type {
   CompletedToolInfo,
   DisplayContext,
+  SpawnForeach,
   ThreadId,
   ToolRequest as UnionToolRequest,
 } from "@magenta/core";
@@ -174,6 +175,15 @@ export function renderCompletedPreview(info: CompletedToolInfo): VDOMNode {
     return d``;
   }
 
+  if (info.resultInfo?.toolName === "spawn_foreach") {
+    const ri = info.resultInfo as SpawnForeach.ResultInfo;
+    const elementViews = ri.elements.map((el) => {
+      const status = el.ok ? "✅" : "❌";
+      return d`  ${status} ${el.name}\n`;
+    });
+    return d`${elementViews}`;
+  }
+
   const resultText =
     result.value[0]?.type === "text" ? result.value[0].text : "";
 
@@ -205,6 +215,28 @@ export function renderCompletedDetail(
 
   if (result.status === "error") {
     return d`**Error:**\n${result.error}`;
+  }
+
+  if (info.resultInfo?.toolName === "spawn_foreach") {
+    const ri = info.resultInfo as SpawnForeach.ResultInfo;
+    const elementViews = ri.elements.map((el) => {
+      const status = el.ok ? "✅" : "❌";
+      if (el.threadId) {
+        return withBindings(d`  ${status} ${el.name}\n`, {
+          "<CR>": () => {
+            dispatch({
+              type: "chat-msg",
+              msg: {
+                type: "select-thread",
+                id: el.threadId!,
+              },
+            });
+          },
+        });
+      }
+      return d`  ${status} ${el.name}\n`;
+    });
+    return d`${elementViews}`;
   }
 
   const resultText =

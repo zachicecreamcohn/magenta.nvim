@@ -550,9 +550,13 @@ function renderMessageContent(
         return d`⚠️ tool result for ${request.id} not found\n`;
       }
 
+      const resultInfo = thread.core.state.toolCache.resultInfos.get(
+        request.id,
+      );
       const completedInfo: CompletedToolInfo = {
         request: request,
         result: toolResult,
+        ...(resultInfo ? { resultInfo } : {}),
       };
 
       const renderContext = {

@@ -68,7 +68,7 @@ describe("spawn-foreach unit tests", () => {
       },
     );
 
-    const result = await invocation.promise;
+    const { result } = await invocation.promise;
     expect(result.result.status).toBe("ok");
     if (result.result.status === "ok") {
       const text = (result.result.value[0] as { type: "text"; text: string })
@@ -110,7 +110,7 @@ describe("spawn-foreach unit tests", () => {
       },
     );
 
-    const result = await invocation.promise;
+    const { result } = await invocation.promise;
     expect(result.result.status).toBe("ok");
     if (result.result.status === "ok") {
       const text = (result.result.value[0] as { type: "text"; text: string })
@@ -173,7 +173,7 @@ describe("spawn-foreach unit tests", () => {
     await vi.waitFor(() => expect(waitDeferreds.has("thread_2")).toBe(true));
     waitDeferreds.get("thread_2")!.resolve({ status: "ok", value: "done" });
 
-    const result = await invocation.promise;
+    const { result } = await invocation.promise;
     expect(result.result.status).toBe("error");
     if (result.result.status === "error") {
       expect(result.result.error).toContain("aborted");
@@ -261,7 +261,7 @@ describe("spawn-foreach unit tests", () => {
     await vi.waitFor(() => expect(waitDeferreds.has("thread_3")).toBe(true));
     waitDeferreds.get("thread_3")!.resolve({ status: "ok", value: "done3" });
 
-    const result = await invocation.promise;
+    const { result } = await invocation.promise;
     expect(result.result.status).toBe("ok");
     // Max concurrent should never exceed 2
     expect(maxConcurrent).toBe(2);

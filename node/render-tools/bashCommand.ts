@@ -101,7 +101,12 @@ export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
 
   let exitCode: number | undefined;
   let signal: string | undefined;
-  if (result.value.length > 0) {
+
+  if (info.resultInfo && info.resultInfo.toolName === "bash_command") {
+    const ri = info.resultInfo as BashCommand.ResultInfo;
+    exitCode = ri.exitCode;
+    signal = ri.signal;
+  } else if (result.value.length > 0) {
     const firstValue = result.value[0];
     if (firstValue.type === "text") {
       const exitCodeMatch = firstValue.text.match(/exit code (\d+)/);
@@ -141,12 +146,27 @@ export function renderCompletedPreview(
     return d``;
   }
 
-  const text = firstValue.text;
-  const textWithoutLogLine = text.replace(
-    /\n?Full output \(\d+ lines\): .+$/m,
-    "",
-  );
-  const lines = textWithoutLogLine.split("\n");
+  let outputText: string;
+  let exitCode: number | undefined;
+  let logFileView: VDOMNode;
+
+  if (info.resultInfo && info.resultInfo.toolName === "bash_command") {
+    const ri = info.resultInfo as BashCommand.ResultInfo;
+    outputText = ri.outputText;
+    exitCode = ri.exitCode;
+    logFileView =
+      ri.logFilePath && ri.logFileLineCount !== undefined
+        ? renderLogFileLinkDirect(ri.logFilePath, ri.logFileLineCount, context)
+        : d``;
+  } else {
+    const text = firstValue.text;
+    outputText = text.replace(/\n?Full output \(\d+ lines\): .+$/m, "");
+    const exitCodeMatch = text.match(/exit code (\d+)/);
+    exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : undefined;
+    logFileView = renderLogFileLink(text, context);
+  }
+
+  const lines = outputText.split("\n");
   const maxLines = 10;
   const maxLength = context.getDisplayWidth() - 5;
 
@@ -156,11 +176,6 @@ export function renderCompletedPreview(
   );
 
   const previewText = previewLines.join("\n");
-
-  const exitCodeMatch = text.match(/exit code (\d+)/);
-  const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : undefined;
-
-  const logFileView = renderLogFileLink(text, context);
 
   if (exitCode !== undefined && exitCode !== 0) {
     return d`❌ Exit code: ${exitCode.toString()}
@@ -255,14 +270,26 @@ export function renderCompletedDetail(
     return d`command: ${withInlineCode(d`\`${input.command}\``)}`;
   }
 
-  const textWithoutLogLine = firstValue.text.replace(
-    /\n?Full output \(\d+ lines\): .+$/m,
-    "",
-  );
-  const logFileView = renderLogFileLink(firstValue.text, context);
+  let outputText: string;
+  let logFileView: VDOMNode;
+
+  if (info.resultInfo && info.resultInfo.toolName === "bash_command") {
+    const ri = info.resultInfo as BashCommand.ResultInfo;
+    outputText = ri.outputText;
+    logFileView =
+      ri.logFilePath && ri.logFileLineCount !== undefined
+        ? renderLogFileLinkDirect(ri.logFilePath, ri.logFileLineCount, context)
+        : d``;
+  } else {
+    outputText = firstValue.text.replace(
+      /\n?Full output \(\d+ lines\): .+$/m,
+      "",
+    );
+    logFileView = renderLogFileLink(firstValue.text, context);
+  }
 
   return d`command: ${withInlineCode(d`\`${input.command}\``)}
 ${withCode(d`\`\`\`
-${textWithoutLogLine}
+${outputText}
 \`\`\``)}${logFileView}`;
 }

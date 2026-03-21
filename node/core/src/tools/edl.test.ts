@@ -5,8 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OnToolApplied } from "../capabilities/context-tracker.ts";
 import { FsFileIO } from "../capabilities/file-io.ts";
 import type { EdlRegisters } from "../index.ts";
-import type { ProviderToolResult } from "../providers/provider-types.ts";
-import type { ToolRequestId } from "../tool-types.ts";
+import type { ToolInvocationResult, ToolRequestId } from "../tool-types.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import * as Edl from "./edl.ts";
 
@@ -53,7 +52,7 @@ END`;
       },
     );
 
-    const result = await invocation.promise;
+    const { result } = await invocation.promise;
 
     expect(result.result.status).toBe("ok");
 
@@ -98,9 +97,9 @@ END`;
   }
 
   async function getResultText(invocation: {
-    promise: Promise<ProviderToolResult>;
+    promise: Promise<ToolInvocationResult>;
   }): Promise<{ status: string; text: string }> {
-    const result = await invocation.promise;
+    const { result } = await invocation.promise;
     if (result.result.status === "ok") {
       const text = (result.result.value[0] as { type: "text"; text: string })
         .text;

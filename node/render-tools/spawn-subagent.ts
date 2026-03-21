@@ -148,16 +148,23 @@ export function renderCompletedSummary(
     return d`${isDockerAgentType(input.agentType) ? "🐳" : "🤖"}❌ spawn_subagent${typeLabel}: ${errorPreview}`;
   }
 
-  const resultText =
-    result.value[0]?.type === "text" ? result.value[0].text : "";
-  const match = resultText.match(/threadId: ([a-f0-9-]+)/);
-  const threadId = match ? (match[1] as ThreadId) : undefined;
+  let effectiveThreadId: ThreadId | undefined;
+  let isBlocking: boolean;
 
-  const isBlocking = resultText.includes("completed:");
-
-  const blockingMatch = resultText.match(/Sub-agent \(([a-f0-9-]+)\)/);
-  const effectiveThreadId =
-    threadId || (blockingMatch ? (blockingMatch[1] as ThreadId) : undefined);
+  if (info.resultInfo?.toolName === "spawn_subagent") {
+    const ri = info.resultInfo as SpawnSubagent.ResultInfo;
+    effectiveThreadId = ri.threadId;
+    isBlocking = ri.isBlocking;
+  } else {
+    const resultText =
+      result.value[0]?.type === "text" ? result.value[0].text : "";
+    const match = resultText.match(/threadId: ([a-f0-9-]+)/);
+    const threadId = match ? (match[1] as ThreadId) : undefined;
+    isBlocking = resultText.includes("completed:");
+    const blockingMatch = resultText.match(/Sub-agent \(([a-f0-9-]+)\)/);
+    effectiveThreadId =
+      threadId || (blockingMatch ? (blockingMatch[1] as ThreadId) : undefined);
+  }
 
   return withBindings(
     d`${isDockerAgentType(input.agentType) ? "🐳" : "🤖"}✅ spawn_subagent${typeLabel}${isBlocking ? " (blocking)" : ""}: ${effectiveThreadId && chat ? truncate(chat.getThreadDisplayName(effectiveThreadId)) : truncate(input.prompt)}`,
@@ -183,6 +190,15 @@ export function renderCompletedPreview(info: CompletedToolInfo): VDOMNode {
     return d``;
   }
 
+  if (info.resultInfo?.toolName === "spawn_subagent") {
+    const ri = info.resultInfo as SpawnSubagent.ResultInfo;
+    if (ri.responseBody) {
+      const lineCount = ri.responseBody.split("\n").length;
+      return d`${lineCount.toString()} lines`;
+    }
+    return d``;
+  }
+
   const resultText =
     result.value[0]?.type === "text" ? result.value[0].text : "";
 
@@ -204,6 +220,14 @@ export function renderCompletedDetail(info: CompletedToolInfo): VDOMNode {
 
   if (result.status === "error") {
     return d`${promptSection}\n\n**Error:**\n${result.error}`;
+  }
+
+  if (info.resultInfo?.toolName === "spawn_subagent") {
+    const ri = info.resultInfo as SpawnSubagent.ResultInfo;
+    if (ri.responseBody) {
+      return d`${promptSection}\n\n**Response:**\n${ri.responseBody}`;
+    }
+    return d`${promptSection}\n\n**Status:** Started (non-blocking)`;
   }
 
   const resultText =

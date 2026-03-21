@@ -5,13 +5,11 @@ import type {
   LspDefinitionResponse,
   LspRange,
 } from "../capabilities/lsp-client.ts";
-import type {
-  ProviderToolResult,
-  ProviderToolSpec,
-} from "../providers/provider-types.ts";
+import type { ProviderToolSpec } from "../providers/provider-types.ts";
 import type {
   GenericToolRequest,
   ToolInvocation,
+  ToolInvocationResult,
   ToolName,
 } from "../tool-types.ts";
 import {
@@ -27,6 +25,7 @@ import type { PositionString, StringIdx } from "../utils/string-position.ts";
 import { calculateStringPosition } from "../utils/string-position.ts";
 
 export type ToolRequest = GenericToolRequest<"hover", Input>;
+export type ResultInfo = { toolName: "hover" };
 
 export function execute(
   request: ToolRequest,
@@ -39,7 +38,7 @@ export function execute(
 ): ToolInvocation {
   let aborted = false;
 
-  const promise = (async (): Promise<ProviderToolResult> => {
+  const promise = (async (): Promise<ToolInvocationResult> => {
     try {
       const filePath = request.input.filePath;
       const absFilePath = resolveFilePath(
@@ -53,23 +52,29 @@ export function execute(
         bufferContent = await context.fileIO.readFile(absFilePath);
       } catch (e) {
         return {
-          type: "tool_result",
-          id: request.id,
           result: {
-            status: "error",
-            error: `Failed to read file ${absFilePath}: ${e instanceof Error ? e.message : String(e)}`,
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: `Failed to read file ${absFilePath}: ${e instanceof Error ? e.message : String(e)}`,
+            },
           },
+          resultInfo: { toolName: "hover" },
         };
       }
 
       if (aborted) {
         return {
-          type: "tool_result",
-          id: request.id,
           result: {
-            status: "error",
-            error: "Request was aborted by the user.",
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: "Request was aborted by the user.",
+            },
           },
+          resultInfo: { toolName: "hover" },
         };
       }
 
@@ -80,12 +85,15 @@ export function execute(
         const contextIndex = bufferContent.indexOf(request.input.context);
         if (contextIndex === -1) {
           return {
-            type: "tool_result",
-            id: request.id,
             result: {
-              status: "error",
-              error: `Context "${request.input.context}" not found in file.`,
+              type: "tool_result",
+              id: request.id,
+              result: {
+                status: "error",
+                error: `Context "${request.input.context}" not found in file.`,
+              },
             },
+            resultInfo: { toolName: "hover" },
           };
         }
 
@@ -99,12 +107,15 @@ export function execute(
         const match = contextContent.match(symbolRegex);
         if (!match || match.index === undefined) {
           return {
-            type: "tool_result",
-            id: request.id,
             result: {
-              status: "error",
-              error: `Symbol "${request.input.symbol}" not found within the provided context.`,
+              type: "tool_result",
+              id: request.id,
+              result: {
+                status: "error",
+                error: `Symbol "${request.input.symbol}" not found within the provided context.`,
+              },
             },
+            resultInfo: { toolName: "hover" },
           };
         }
         symbolStart = (contextIndex + match.index) as StringIdx;
@@ -115,12 +126,15 @@ export function execute(
         const match = bufferContent.match(symbolRegex);
         if (!match || match.index === undefined) {
           return {
-            type: "tool_result",
-            id: request.id,
             result: {
-              status: "error",
-              error: `Symbol "${request.input.symbol}" not found in file.`,
+              type: "tool_result",
+              id: request.id,
+              result: {
+                status: "error",
+                error: `Symbol "${request.input.symbol}" not found in file.`,
+              },
             },
+            resultInfo: { toolName: "hover" },
           };
         }
         symbolStart = match.index as StringIdx;
@@ -163,12 +177,15 @@ export function execute(
 
       if (aborted) {
         return {
-          type: "tool_result",
-          id: request.id,
           result: {
-            status: "error",
-            error: "Request was aborted by the user.",
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: "Request was aborted by the user.",
+            },
           },
+          resultInfo: { toolName: "hover" },
         };
       }
 
@@ -242,28 +259,37 @@ export function execute(
       }
 
       return {
-        type: "tool_result",
-        id: request.id,
-        result: { status: "ok", value: [{ type: "text", text: content }] },
+        result: {
+          type: "tool_result",
+          id: request.id,
+          result: { status: "ok", value: [{ type: "text", text: content }] },
+        },
+        resultInfo: { toolName: "hover" },
       };
     } catch (error) {
       if (aborted) {
         return {
+          result: {
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: "Request was aborted by the user.",
+            },
+          },
+          resultInfo: { toolName: "hover" },
+        };
+      }
+      return {
+        result: {
           type: "tool_result",
           id: request.id,
           result: {
             status: "error",
-            error: "Request was aborted by the user.",
+            error: `Error requesting hover: ${error instanceof Error ? error.message : String(error)}`,
           },
-        };
-      }
-      return {
-        type: "tool_result",
-        id: request.id,
-        result: {
-          status: "error",
-          error: `Error requesting hover: ${error instanceof Error ? error.message : String(error)}`,
         },
+        resultInfo: { toolName: "hover" },
       };
     }
   })();

@@ -5,8 +5,7 @@ import type {
   LspDefinitionResponse,
   LspHoverResponse,
 } from "../capabilities/lsp-client.ts";
-import type { ProviderToolResult } from "../providers/provider-types.ts";
-import type { ToolRequestId } from "../tool-types.ts";
+import type { ToolInvocationResult, ToolRequestId } from "../tool-types.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import * as Hover from "./hover.ts";
 
@@ -51,9 +50,9 @@ function makeRequest(
 }
 
 async function getResultText(invocation: {
-  promise: Promise<ProviderToolResult>;
+  promise: Promise<ToolInvocationResult>;
 }): Promise<string> {
-  const result = await invocation.promise;
+  const { result } = await invocation.promise;
   if (result.result.status === "ok") {
     return (result.result.value[0] as { type: "text"; text: string }).text;
   }
@@ -61,9 +60,9 @@ async function getResultText(invocation: {
 }
 
 async function getResultStatus(invocation: {
-  promise: Promise<ProviderToolResult>;
+  promise: Promise<ToolInvocationResult>;
 }): Promise<"ok" | "error"> {
-  const result = await invocation.promise;
+  const { result } = await invocation.promise;
   return result.result.status;
 }
 

@@ -8,13 +8,11 @@ import {
   type FileMutationSummary,
   runScript,
 } from "../edl/index.ts";
-import type {
-  ProviderToolResult,
-  ProviderToolSpec,
-} from "../providers/provider-types.ts";
+import type { ProviderToolSpec } from "../providers/provider-types.ts";
 import type {
   GenericToolRequest,
   ToolInvocation,
+  ToolInvocationResult,
   ToolName,
 } from "../tool-types.ts";
 import {
@@ -36,6 +34,12 @@ export type EdlDisplayData = {
   finalSelectionCount: number | undefined;
 };
 
+export type ResultInfo = {
+  toolName: "edl";
+  displayData?: EdlDisplayData;
+  formattedResult: string;
+};
+
 export const EDL_DISPLAY_PREFIX = "__EDL_DISPLAY__";
 export type ToolRequest = GenericToolRequest<"edl", Input>;
 
@@ -51,7 +55,7 @@ export function execute(
 ): ToolInvocation {
   let aborted = false;
 
-  const promise = (async (): Promise<ProviderToolResult> => {
+  const promise = (async (): Promise<ToolInvocationResult> => {
     try {
       const script = request.input.script;
       const result = await runScript(
@@ -62,12 +66,15 @@ export function execute(
 
       if (aborted) {
         return {
-          type: "tool_result",
-          id: request.id,
           result: {
-            status: "error",
-            error: "Request was aborted by the user.",
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: "Request was aborted by the user.",
+            },
           },
+          resultInfo: { toolName: "edl", formattedResult: "" },
         };
       }
 
@@ -107,47 +114,64 @@ export function execute(
         };
 
         return {
-          type: "tool_result",
-          id: request.id,
           result: {
-            status: "ok",
-            value: [
-              {
-                type: "text",
-                text: `${EDL_DISPLAY_PREFIX}${JSON.stringify(displayData)}`,
-              },
-              { type: "text", text: result.formatted },
-            ],
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "ok",
+              value: [
+                {
+                  type: "text",
+                  text: `${EDL_DISPLAY_PREFIX}${JSON.stringify(displayData)}`,
+                },
+                { type: "text", text: result.formatted },
+              ],
+            },
+          },
+          resultInfo: {
+            toolName: "edl",
+            displayData,
+            formattedResult: result.formatted,
           },
         };
       } else {
         return {
-          type: "tool_result",
-          id: request.id,
           result: {
-            status: "error",
-            error: result.error,
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: result.error,
+            },
           },
+          resultInfo: { toolName: "edl", formattedResult: result.error },
         };
       }
     } catch (error) {
       if (aborted) {
         return {
+          result: {
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: "Request was aborted by the user.",
+            },
+          },
+          resultInfo: { toolName: "edl", formattedResult: "" },
+        };
+      }
+      const errorMessage = `Failed to execute EDL script: ${error instanceof Error ? error.message : String(error)}`;
+      return {
+        result: {
           type: "tool_result",
           id: request.id,
           result: {
             status: "error",
-            error: "Request was aborted by the user.",
+            error: errorMessage,
           },
-        };
-      }
-      return {
-        type: "tool_result",
-        id: request.id,
-        result: {
-          status: "error",
-          error: `Failed to execute EDL script: ${error instanceof Error ? error.message : String(error)}`,
         },
+        resultInfo: { toolName: "edl", formattedResult: errorMessage },
       };
     }
   })();

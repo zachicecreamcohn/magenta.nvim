@@ -8,6 +8,7 @@ import { AGENT_TYPES, type AgentType } from "../providers/system-prompt.ts";
 import type {
   GenericToolRequest,
   ToolInvocation,
+  ToolInvocationResult,
   ToolName,
 } from "../tool-types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
@@ -25,6 +26,10 @@ export type SpawnForeachProgress = {
     element: ForEachElement;
     state: SpawnForeachElementProgress;
   }>;
+};
+export type ResultInfo = {
+  toolName: "spawn_foreach";
+  elements: Array<{ name: string; threadId?: ThreadId; ok: boolean }>;
 };
 
 export function execute(
@@ -47,7 +52,10 @@ export function execute(
       result: { status: "error", error: validationResult.error },
     };
     return {
-      promise: Promise.resolve(errorResult),
+      promise: Promise.resolve({
+        result: errorResult,
+        resultInfo: { toolName: "spawn_foreach" as const, elements: [] },
+      }),
       abort: () => {},
       progress: { elements: [] },
     };
@@ -102,7 +110,7 @@ export function execute(
     }
   };
 
-  const promise = (async (): Promise<ProviderToolResult> => {
+  const promise = (async (): Promise<ToolInvocationResult> => {
     try {
       const threadType: ThreadType =
         input.agentType === "fast" ? "subagent_fast" : "subagent_default";
@@ -141,24 +149,30 @@ export function execute(
 
       if (abortController.aborted) {
         return {
-          type: "tool_result",
-          id: request.id,
           result: {
-            status: "error",
-            error: "Foreach sub-agent execution was aborted",
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: "Foreach sub-agent execution was aborted",
+            },
           },
+          resultInfo: { toolName: "spawn_foreach" as const, elements: [] },
         };
       }
 
       return buildForeachResult(request.id, progress);
     } catch (e) {
       return {
-        type: "tool_result",
-        id: request.id,
         result: {
-          status: "error",
-          error: e instanceof Error ? e.message : String(e),
+          type: "tool_result",
+          id: request.id,
+          result: {
+            status: "error",
+            error: e instanceof Error ? e.message : String(e),
+          },
         },
+        resultInfo: { toolName: "spawn_foreach" as const, elements: [] },
       };
     }
   })();
@@ -175,7 +189,7 @@ export function execute(
 function buildForeachResult(
   requestId: ToolRequest["id"],
   progress: SpawnForeachProgress,
-): ProviderToolResult {
+): ToolInvocationResult {
   const completedElements = progress.elements.filter(
     (el) => el.state.status === "completed",
   );
@@ -226,11 +240,23 @@ function buildForeachResult(
   }
 
   return {
-    type: "tool_result",
-    id: requestId,
     result: {
-      status: "ok",
-      value: [{ type: "text", text: resultText }],
+      type: "tool_result",
+      id: requestId,
+      result: {
+        status: "ok",
+        value: [{ type: "text", text: resultText }],
+      },
+    },
+    resultInfo: {
+      toolName: "spawn_foreach" as const,
+      elements: completedElements.map((el) => ({
+        name: el.element as string,
+        ...(el.state.status === "completed" && el.state.threadId
+          ? { threadId: el.state.threadId }
+          : {}),
+        ok: el.state.status === "completed" && el.state.result.status === "ok",
+      })),
     },
   };
 }
