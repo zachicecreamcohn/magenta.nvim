@@ -172,6 +172,8 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       compactionHistory: [],
     };
 
+    this.listenToContextManager();
+
     if (clonedAgent) {
       this.agent = clonedAgent.clone();
       this.listenToAgent(this.agent);
@@ -180,17 +182,99 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     }
   }
 
-  private listenToAgent(agent: Agent): void {
-    agent.on("didUpdate", () => {
-      this.rebuildToolCache();
+  private contextManagerListeners:
+    | { fileAdded: () => void; fileRemoved: () => void }
+    | undefined;
+
+  private listenToContextManager(): void {
+    const listeners = {
+      fileAdded: () => this.emit("update"),
+      fileRemoved: () => this.emit("update"),
+    };
+    this.contextManagerListeners = listeners;
+    this.contextManager.on("fileAdded", listeners.fileAdded);
+    this.contextManager.on("fileRemoved", listeners.fileRemoved);
+  }
+
+  private unlistenContextManager(): void {
+    if (this.contextManagerListeners) {
+      this.contextManager.off(
+        "fileAdded",
+        this.contextManagerListeners.fileAdded,
+      );
+      this.contextManager.off(
+        "fileRemoved",
+        this.contextManagerListeners.fileRemoved,
+      );
+      this.contextManagerListeners = undefined;
+    }
+  }
+
+  /** Stored listener references so we can unsubscribe when replacing agents */
+  private agentListeners:
+    | {
+        didUpdate: () => void;
+        stopped: (stopReason: StopReason, usage: Usage | undefined) => void;
+        error: (error: Error) => void;
+      }
+    | undefined;
+
+  private updateThrottleTimer: ReturnType<typeof setTimeout> | undefined;
+  private updatePending = false;
+
+  private flushUpdate(): void {
+    if (this.updatePending) {
+      this.updatePending = false;
       this.emit("update");
-    });
-    agent.on("stopped", (stopReason, usage) => {
-      this.handleProviderStopped(stopReason, usage);
-    });
-    agent.on("error", (error) => {
-      this.handleErrorState(error);
-    });
+    }
+  }
+
+  private scheduleUpdate(): void {
+    this.updatePending = true;
+    if (!this.updateThrottleTimer) {
+      this.updateThrottleTimer = setTimeout(() => {
+        this.updateThrottleTimer = undefined;
+        this.flushUpdate();
+      }, 32);
+    }
+  }
+
+  private unlistenAgent(agent: Agent): void {
+    if (this.agentListeners) {
+      agent.off("didUpdate", this.agentListeners.didUpdate);
+      agent.off("stopped", this.agentListeners.stopped);
+      agent.off("error", this.agentListeners.error);
+      this.agentListeners = undefined;
+    }
+  }
+
+  private listenToAgent(agent: Agent): void {
+    const listeners = {
+      didUpdate: () => {
+        this.scheduleUpdate();
+      },
+      stopped: (stopReason: StopReason, usage: Usage | undefined) => {
+        // Flush any pending throttled update before handling stop
+        if (this.updateThrottleTimer) {
+          clearTimeout(this.updateThrottleTimer);
+          this.updateThrottleTimer = undefined;
+        }
+        this.updatePending = false;
+        this.handleProviderStopped(stopReason, usage);
+      },
+      error: (error: Error) => {
+        if (this.updateThrottleTimer) {
+          clearTimeout(this.updateThrottleTimer);
+          this.updateThrottleTimer = undefined;
+        }
+        this.updatePending = false;
+        this.handleErrorState(error);
+      },
+    };
+    this.agentListeners = listeners;
+    agent.on("didUpdate", listeners.didUpdate);
+    agent.on("stopped", listeners.stopped);
+    agent.on("error", listeners.error);
   }
 
   /** Process a state mutation. Calls onUpdate() unless silent is true.
@@ -257,6 +341,10 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
   }
 
   private createFreshAgent(): Agent {
+    // Clean up listeners from old agent if replacing
+    if (this.agentListeners && this.agent) {
+      this.unlistenAgent(this.agent);
+    }
     const provider = this.context.getProvider(this.context.profile);
     const agent = provider.createAgent({
       model: this.context.profile.model,
@@ -919,12 +1007,14 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       record: { steps, finalSummary: summary },
     });
 
+    this.unlistenContextManager();
     this.contextManager = new ContextManager(
       this.context.logger,
       this.context.fileIO,
       this.context.cwd,
       this.context.homeDir,
     );
+    this.listenToContextManager();
     if (contextFiles && contextFiles.length > 0) {
       await this.contextManager.addFiles(contextFiles as UnresolvedFilePath[]);
     }

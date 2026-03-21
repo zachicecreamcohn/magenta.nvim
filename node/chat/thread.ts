@@ -225,13 +225,6 @@ export class Thread {
         contextUpdates: updates as FileUpdates,
       };
     });
-    // Re-render when context files change (added/removed directly on core)
-    this.contextManager.on("fileAdded", () =>
-      this.myDispatch({ type: "tool-progress" }),
-    );
-    this.contextManager.on("fileRemoved", () =>
-      this.myDispatch({ type: "tool-progress" }),
-    );
   }
 
   getProviderStatus(): AgentStatus {
