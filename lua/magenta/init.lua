@@ -35,6 +35,10 @@ M.start = function(silent)
     XAUTHORITY = vim.env.XAUTHORITY,
   }
 
+  if vim.env.MAGENTA_NODE_INSPECT then
+    env.NODE_OPTIONS = "--inspect=" .. vim.env.MAGENTA_NODE_INSPECT
+  end
+
   local job_id =
       vim.fn.jobstart(
         "npm run start -s",
