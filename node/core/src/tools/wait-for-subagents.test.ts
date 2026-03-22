@@ -46,10 +46,9 @@ describe("wait-for-subagents unit tests", () => {
     );
 
     const { result } = await invocation.promise;
-    expect(result.result.status).toBe("ok");
-    if (result.result.status === "ok") {
-      const text = (result.result.value[0] as { type: "text"; text: string })
-        .text;
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      const text = (result.value[0] as { type: "text"; text: string }).text;
       expect(text).toContain("All subagents completed");
       expect(text).toContain("result from thread 1");
       expect(text).toContain("result from thread 2");
@@ -75,10 +74,9 @@ describe("wait-for-subagents unit tests", () => {
     );
 
     const { result } = await invocation.promise;
-    expect(result.result.status).toBe("ok");
-    if (result.result.status === "ok") {
-      const text = (result.result.value[0] as { type: "text"; text: string })
-        .text;
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      const text = (result.value[0] as { type: "text"; text: string }).text;
       expect(text).toContain("thread-1: success");
       expect(text).toContain("thread-2: ❌ Error: something went wrong");
     }

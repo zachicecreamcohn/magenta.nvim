@@ -14,9 +14,9 @@ describe("thread-title unit tests", () => {
     );
 
     const result = await invocation.promise;
-    expect(result.result.result.status).toBe("ok");
-    if (result.result.result.status === "ok") {
-      expect(result.result.result.value[0]).toEqual({
+    expect(result.result.status).toBe("ok");
+    if (result.result.status === "ok") {
+      expect(result.result.value[0]).toEqual({
         type: "text",
         text: "My Title",
       });
@@ -35,9 +35,9 @@ describe("thread-title unit tests", () => {
 
     invocation.abort();
     const result = await invocation.promise;
-    expect(result.result.result.status).toBe("error");
-    if (result.result.result.status === "error") {
-      expect(result.result.result.error).toContain("aborted");
+    expect(result.result.status).toBe("error");
+    if (result.result.status === "error") {
+      expect(result.result.error).toContain("aborted");
     }
   });
 });

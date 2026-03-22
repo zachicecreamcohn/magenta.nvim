@@ -67,13 +67,8 @@ export function renderCompletedSummary(
   }
 
   let lineCount = 0;
-  if (info.resultInfo?.toolName === "get_file") {
-    lineCount = (info.resultInfo as GetFile.ResultInfo).lineCount;
-  } else if (result.value.length > 0) {
-    const firstValue = result.value[0];
-    if (firstValue.type === "text") {
-      lineCount = firstValue.text.split("\n").length;
-    }
+  if (info.structuredResult.toolName === "get_file") {
+    lineCount = (info.structuredResult as GetFile.StructuredResult).lineCount;
   }
   const lineCountStr = lineCount > 0 ? ` [+ ${lineCount}]` : "";
   return d`👀✅ ${formatGetFileDisplay(input, displayContext)}${lineCountStr}`;

@@ -10,22 +10,20 @@ export type Input = {
   result: string;
 };
 
-export type ResultInfo = { toolName: "yield_to_parent" };
+export type StructuredResult = { toolName: "yield_to_parent" };
 
 export type ToolRequest = GenericToolRequest<"yield_to_parent", Input>;
 
 export function execute(request: ToolRequest): ToolInvocation {
   return {
     promise: Promise.resolve({
+      type: "tool_result" as const,
+      id: request.id,
       result: {
-        type: "tool_result" as const,
-        id: request.id,
-        result: {
-          status: "ok" as const,
-          value: [{ type: "text" as const, text: request.input.result }],
-        },
+        status: "ok" as const,
+        value: [{ type: "text" as const, text: request.input.result }],
       },
-      resultInfo: { toolName: "yield_to_parent" },
+      structuredResult: { toolName: "yield_to_parent" as const },
     }),
     abort: () => {},
   };

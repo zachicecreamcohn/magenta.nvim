@@ -102,22 +102,10 @@ export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
   let exitCode: number | undefined;
   let signal: string | undefined;
 
-  if (info.resultInfo && info.resultInfo.toolName === "bash_command") {
-    const ri = info.resultInfo as BashCommand.ResultInfo;
-    exitCode = ri.exitCode;
-    signal = ri.signal;
-  } else if (result.value.length > 0) {
-    const firstValue = result.value[0];
-    if (firstValue.type === "text") {
-      const exitCodeMatch = firstValue.text.match(/exit code (\d+)/);
-      if (exitCodeMatch) {
-        exitCode = parseInt(exitCodeMatch[1], 10);
-      }
-      const signalMatch = firstValue.text.match(/terminated by signal (\w+)/);
-      if (signalMatch) {
-        signal = signalMatch[1];
-      }
-    }
+  if (info.structuredResult.toolName === "bash_command") {
+    const sr = info.structuredResult as BashCommand.StructuredResult;
+    exitCode = sr.exitCode;
+    signal = sr.signal;
   }
 
   if (signal) {
@@ -146,25 +134,27 @@ export function renderCompletedPreview(
     return d``;
   }
 
-  let outputText: string;
-  let exitCode: number | undefined;
-  let logFileView: VDOMNode;
-
-  if (info.resultInfo && info.resultInfo.toolName === "bash_command") {
-    const ri = info.resultInfo as BashCommand.ResultInfo;
-    outputText = ri.outputText;
-    exitCode = ri.exitCode;
-    logFileView =
-      ri.logFilePath && ri.logFileLineCount !== undefined
-        ? renderLogFileLinkDirect(ri.logFilePath, ri.logFileLineCount, context)
-        : d``;
-  } else {
-    const text = firstValue.text;
-    outputText = text.replace(/\n?Full output \(\d+ lines\): .+$/m, "");
-    const exitCodeMatch = text.match(/exit code (\d+)/);
-    exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : undefined;
-    logFileView = renderLogFileLink(text, context);
-  }
+  const outputText =
+    info.structuredResult.toolName === "bash_command"
+      ? (info.structuredResult as BashCommand.StructuredResult).outputText
+      : firstValue.text;
+  const exitCode =
+    info.structuredResult.toolName === "bash_command"
+      ? (info.structuredResult as BashCommand.StructuredResult).exitCode
+      : undefined;
+  const logFileView =
+    info.structuredResult.toolName === "bash_command"
+      ? (() => {
+          const sr = info.structuredResult as BashCommand.StructuredResult;
+          return sr.logFilePath && sr.logFileLineCount !== undefined
+            ? renderLogFileLinkDirect(
+                sr.logFilePath,
+                sr.logFileLineCount,
+                context,
+              )
+            : d``;
+        })()
+      : d``;
 
   const lines = outputText.split("\n");
   const maxLines = 10;
@@ -232,28 +222,6 @@ function renderLogFileLinkDirect(
   );
 }
 
-function renderLogFileLink(text: string, context: RenderContext): VDOMNode {
-  const match = text.match(/Full output \((\d+) lines\): (.+)$/m);
-  if (!match) {
-    return d``;
-  }
-
-  const lineCount = match[1];
-  const filePath = match[2];
-
-  return withBindings(
-    d`\nFull output (${lineCount} lines): ${withInlineCode(d`\`${filePath}\``)}`,
-    {
-      "<CR>": () => {
-        openFileInNonMagentaWindow(
-          filePath as UnresolvedFilePath,
-          context,
-        ).catch((e: Error) => context.nvim.logger.error(e.message));
-      },
-    },
-  );
-}
-
 export function renderCompletedDetail(
   info: CompletedToolInfo,
   context: RenderContext,
@@ -270,23 +238,23 @@ export function renderCompletedDetail(
     return d`command: ${withInlineCode(d`\`${input.command}\``)}`;
   }
 
-  let outputText: string;
-  let logFileView: VDOMNode;
-
-  if (info.resultInfo && info.resultInfo.toolName === "bash_command") {
-    const ri = info.resultInfo as BashCommand.ResultInfo;
-    outputText = ri.outputText;
-    logFileView =
-      ri.logFilePath && ri.logFileLineCount !== undefined
-        ? renderLogFileLinkDirect(ri.logFilePath, ri.logFileLineCount, context)
-        : d``;
-  } else {
-    outputText = firstValue.text.replace(
-      /\n?Full output \(\d+ lines\): .+$/m,
-      "",
-    );
-    logFileView = renderLogFileLink(firstValue.text, context);
-  }
+  const outputText =
+    info.structuredResult.toolName === "bash_command"
+      ? (info.structuredResult as BashCommand.StructuredResult).outputText
+      : firstValue.text;
+  const logFileView =
+    info.structuredResult.toolName === "bash_command"
+      ? (() => {
+          const sr = info.structuredResult as BashCommand.StructuredResult;
+          return sr.logFilePath && sr.logFileLineCount !== undefined
+            ? renderLogFileLinkDirect(
+                sr.logFilePath,
+                sr.logFileLineCount,
+                context,
+              )
+            : d``;
+        })()
+      : d``;
 
   return d`command: ${withInlineCode(d`\`${input.command}\``)}
 ${withCode(d`\`\`\`

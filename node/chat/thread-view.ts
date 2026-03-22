@@ -550,13 +550,12 @@ function renderMessageContent(
         return d`⚠️ tool result for ${request.id} not found\n`;
       }
 
-      const resultInfo = thread.core.state.toolCache.resultInfos.get(
-        request.id,
-      );
       const completedInfo: CompletedToolInfo = {
         request: request,
         result: toolResult,
-        ...(resultInfo ? { resultInfo } : {}),
+        structuredResult: toolResult.structuredResult ?? {
+          toolName: request.toolName as import("@magenta/core").ToolName,
+        },
       };
 
       const renderContext = {

@@ -32,31 +32,26 @@ export type DisplayContext = {
   homeDir: HomeDir;
 };
 
-export type GenericResultInfo = { toolName: ToolName };
+export type GenericStructuredResult = { toolName: ToolName };
 
-export type ToolResultInfo =
-  | BashCommand.ResultInfo
-  | Edl.ResultInfo
-  | SpawnSubagent.ResultInfo
-  | SpawnForeach.ResultInfo
-  | GetFile.ResultInfo
-  | Hover.ResultInfo
-  | FindReferences.ResultInfo
-  | Diagnostics.ResultInfo
-  | ThreadTitle.ResultInfo
-  | WaitForSubagents.ResultInfo
-  | YieldToParent.ResultInfo
-  | GenericResultInfo;
-
-export type ToolInvocationResult = {
-  result: ProviderToolResult;
-  resultInfo: ToolResultInfo;
-};
+export type ToolStructuredResult =
+  | BashCommand.StructuredResult
+  | Edl.StructuredResult
+  | SpawnSubagent.StructuredResult
+  | SpawnForeach.StructuredResult
+  | GetFile.StructuredResult
+  | Hover.StructuredResult
+  | FindReferences.StructuredResult
+  | Diagnostics.StructuredResult
+  | ThreadTitle.StructuredResult
+  | WaitForSubagents.StructuredResult
+  | YieldToParent.StructuredResult
+  | GenericStructuredResult;
 
 export type CompletedToolInfo = {
   request: ToolRequest;
   result: ProviderToolResult;
-  resultInfo?: ToolResultInfo;
+  structuredResult: ToolStructuredResult;
 };
 
 export type GenericToolRequest<K extends StaticToolName, I> = {
@@ -77,7 +72,7 @@ export type ToolManagerToolMsg = {
 export type ToolMsg = { __toolMsg: true };
 
 export type ToolInvocation = {
-  promise: Promise<ToolInvocationResult>;
+  promise: Promise<ProviderToolResult>;
   abort: () => void;
 };
 

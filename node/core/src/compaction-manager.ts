@@ -395,7 +395,7 @@ export class CompactionManager extends Emitter<CompactionEvents> {
       });
 
       void invocation.promise
-        .then(({ result }) => {
+        .then((result) => {
           this.send({ type: "tool-complete", id: request.id, result });
         })
         .catch((err: Error) => {

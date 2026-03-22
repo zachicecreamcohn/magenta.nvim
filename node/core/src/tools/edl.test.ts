@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OnToolApplied } from "../capabilities/context-tracker.ts";
 import { FsFileIO } from "../capabilities/file-io.ts";
 import type { EdlRegisters } from "../index.ts";
-import type { ToolInvocationResult, ToolRequestId } from "../tool-types.ts";
+import type { ProviderToolResult } from "../providers/provider-types.ts";
+import type { ToolRequestId } from "../tool-types.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import * as Edl from "./edl.ts";
 
@@ -52,9 +53,9 @@ END`;
       },
     );
 
-    const { result } = await invocation.promise;
+    const providerResult = await invocation.promise;
 
-    expect(result.result.status).toBe("ok");
+    expect(providerResult.result.status).toBe("ok");
 
     expect(onToolApplied).toHaveBeenCalledWith(
       expect.stringContaining("test.txt"),
@@ -97,15 +98,16 @@ END`;
   }
 
   async function getResultText(invocation: {
-    promise: Promise<ToolInvocationResult>;
+    promise: Promise<ProviderToolResult>;
   }): Promise<{ status: string; text: string }> {
-    const { result } = await invocation.promise;
-    if (result.result.status === "ok") {
-      const text = (result.result.value[0] as { type: "text"; text: string })
-        .text;
+    const providerResult = await invocation.promise;
+    if (providerResult.result.status === "ok") {
+      const text = (
+        providerResult.result.value[0] as { type: "text"; text: string }
+      ).text;
       return { status: "ok", text };
     }
-    return { status: "error", text: result.result.error };
+    return { status: "error", text: providerResult.result.error };
   }
 
   it("successful script returns mutation summary", async () => {

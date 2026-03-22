@@ -4,7 +4,8 @@ import type {
   LspClient,
   LspReferencesResponse,
 } from "../capabilities/lsp-client.ts";
-import type { ToolInvocationResult, ToolRequestId } from "../tool-types.ts";
+import type { ProviderToolResult } from "../providers/provider-types.ts";
+import type { ToolRequestId } from "../tool-types.ts";
 import type { HomeDir, NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import * as FindReferences from "./findReferences.ts";
 
@@ -45,9 +46,9 @@ function createFailingFileIO(error: Error): FileIO {
 }
 
 async function getResultText(invocation: {
-  promise: Promise<ToolInvocationResult>;
+  promise: Promise<ProviderToolResult>;
 }): Promise<string> {
-  const { result } = await invocation.promise;
+  const result = await invocation.promise;
   if (result.result.status === "ok") {
     return (result.result.value[0] as { type: "text"; text: string }).text;
   }
@@ -55,9 +56,9 @@ async function getResultText(invocation: {
 }
 
 async function getResultStatus(invocation: {
-  promise: Promise<ToolInvocationResult>;
+  promise: Promise<ProviderToolResult>;
 }): Promise<"ok" | "error"> {
-  const { result } = await invocation.promise;
+  const result = await invocation.promise;
   return result.result.status;
 }
 
@@ -130,7 +131,7 @@ describe("findReferences unit tests", () => {
       },
     );
 
-    const { result } = await invocation.promise;
+    const result = await invocation.promise;
     expect(result.result.status).toBe("error");
     if (result.result.status === "error") {
       expect(result.result.error).toContain(
@@ -157,7 +158,7 @@ describe("findReferences unit tests", () => {
       },
     );
 
-    const { result } = await invocation.promise;
+    const result = await invocation.promise;
     expect(result.result.status).toBe("error");
     if (result.result.status === "error") {
       expect(result.result.error).toContain("Failed to read file");

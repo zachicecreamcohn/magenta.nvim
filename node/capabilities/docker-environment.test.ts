@@ -292,9 +292,9 @@ describe.skipIf(!dockerAvailable)("Docker Environment", () => {
         });
 
         const { result } = await invocation.promise;
-        expect(result.result.status).toBe("ok");
-        if (result.result.status === "ok") {
-          const text = result.result.value
+        expect(result.status).toBe("ok");
+        if (result.status === "ok") {
+          const text = result.value
             .filter(
               (c): c is { type: "text"; text: string } => c.type === "text",
             )

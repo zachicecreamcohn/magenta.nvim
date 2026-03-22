@@ -1,8 +1,8 @@
-import {
-  type CompletedToolInfo,
-  type DisplayContext,
+import type {
+  CompletedToolInfo,
+  DisplayContext,
   Edl,
-  type ToolRequest as UnionToolRequest,
+  ToolRequest as UnionToolRequest,
 } from "@magenta/core";
 import { d, type VDOMNode, withCode } from "../tea/view.ts";
 
@@ -39,37 +39,18 @@ function getStatusEmoji(result: CompletedToolInfo["result"]): string {
 function extractEdlDisplayData(
   info: CompletedToolInfo,
 ): Edl.EdlDisplayData | undefined {
-  if (info.resultInfo?.toolName === "edl") {
-    return (info.resultInfo as Edl.ResultInfo).displayData;
-  }
-  if (info.result.result.status !== "ok") return undefined;
-  const content = info.result.result.value;
-  for (const item of content) {
-    if (item.type === "text" && item.text.startsWith(Edl.EDL_DISPLAY_PREFIX)) {
-      try {
-        return JSON.parse(
-          item.text.slice(Edl.EDL_DISPLAY_PREFIX.length),
-        ) as Edl.EdlDisplayData;
-      } catch {
-        return undefined;
-      }
-    }
+  if (info.structuredResult.toolName === "edl") {
+    return (info.structuredResult as Edl.StructuredResult).displayData;
   }
   return undefined;
 }
 
 function extractFormattedResult(info: CompletedToolInfo): string {
-  if (info.resultInfo?.toolName === "edl") {
-    return (info.resultInfo as Edl.ResultInfo).formattedResult;
+  if (info.structuredResult.toolName === "edl") {
+    return (info.structuredResult as Edl.StructuredResult).formattedResult;
   }
   if (info.result.result.status !== "ok") {
     return info.result.result.error;
-  }
-  const content = info.result.result.value;
-  for (const item of content) {
-    if (item.type === "text" && !item.text.startsWith(Edl.EDL_DISPLAY_PREFIX)) {
-      return item.text;
-    }
   }
   return "";
 }

@@ -38,7 +38,6 @@ import type {
   ToolName,
   ToolRequest,
   ToolRequestId,
-  ToolResultInfo,
 } from "./tool-types.ts";
 import { type CreateToolContext, createTool } from "./tools/create-tool.ts";
 import type { MCPToolManager as MCPToolManagerImpl } from "./tools/mcp/manager.ts";
@@ -67,7 +66,6 @@ export type ActiveToolEntry = {
 
 export type ToolCache = {
   results: Map<ToolRequestId, ProviderToolResult>;
-  resultInfos: Map<ToolRequestId, ToolResultInfo>;
 };
 
 export type ThreadMode =
@@ -127,7 +125,6 @@ export type ThreadCoreAction =
       type: "cache-tool-result";
       id: ToolRequestId;
       result: ProviderToolResult;
-      resultInfo: ToolResultInfo;
     }
   | { type: "increment-output-tokens"; tokens: number }
   | { type: "reset-output-tokens" }
@@ -173,7 +170,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       systemPrompt: context.systemPrompt,
       pendingMessages: [],
       mode: { type: "normal" },
-      toolCache: { results: new Map(), resultInfos: new Map() },
+      toolCache: { results: new Map() },
       edlRegisters: { registers: new Map(), nextSavedId: 0 },
       outputTokensSinceLastReminder: 0,
       compactionHistory: [],
@@ -300,23 +297,28 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         break;
       case "rebuild-tool-cache": {
         const results = new Map<ToolRequestId, ProviderToolResult>();
+        const oldResults = this.state.toolCache.results;
         for (const message of this.getProviderMessages()) {
           if (message.role !== "user") continue;
           for (const content of message.content) {
             if (content.type === "tool_result") {
-              results.set(content.id, content);
+              const cached = oldResults.get(content.id);
+              if (cached?.structuredResult) {
+                results.set(content.id, {
+                  ...content,
+                  structuredResult: cached.structuredResult,
+                });
+              } else {
+                results.set(content.id, content);
+              }
             }
           }
         }
-        this.state.toolCache = {
-          results,
-          resultInfos: this.state.toolCache.resultInfos,
-        };
+        this.state.toolCache = { results };
         break;
       }
       case "cache-tool-result":
         this.state.toolCache.results.set(action.id, action.result);
-        this.state.toolCache.resultInfos.set(action.id, action.resultInfo);
         break;
       case "increment-output-tokens":
         this.state.outputTokensSinceLastReminder += action.tokens;
@@ -339,7 +341,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         this.state.compactionHistory.push(action.record);
         break;
       case "reset-after-compaction":
-        this.state.toolCache = { results: new Map(), resultInfos: new Map() };
+        this.state.toolCache = { results: new Map() };
         this.state.edlRegisters = { registers: new Map(), nextSavedId: 0 };
         this.state.outputTokensSinceLastReminder = 0;
         break;
@@ -525,12 +527,11 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       });
 
       void invocation.promise
-        .then(({ result, resultInfo }) => {
+        .then((result) => {
           this.update({
             type: "cache-tool-result",
             id: request.id,
             result,
-            resultInfo,
           });
         })
         .catch((err: Error) => {
@@ -545,7 +546,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
                 error: `Tool execution failed: ${err.message}`,
               },
             },
-            resultInfo: { toolName: request.toolName },
           });
         })
         .then(() => {

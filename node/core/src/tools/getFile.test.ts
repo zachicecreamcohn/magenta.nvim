@@ -7,7 +7,8 @@ import type {
   OnToolApplied,
 } from "../capabilities/context-tracker.ts";
 import { FsFileIO } from "../capabilities/file-io.ts";
-import type { ToolInvocationResult, ToolRequestId } from "../tool-types.ts";
+import type { ProviderToolResult } from "../providers/provider-types.ts";
+import type { ToolRequestId } from "../tool-types.ts";
 import type {
   AbsFilePath,
   HomeDir,
@@ -57,10 +58,9 @@ describe("GetFileTool unit tests", () => {
   }
 
   async function getResult(invocation: {
-    promise: Promise<ToolInvocationResult>;
+    promise: Promise<ProviderToolResult>;
   }) {
-    const { result } = await invocation.promise;
-    return result;
+    return await invocation.promise;
   }
 
   it("returns early when file is already in context", async () => {

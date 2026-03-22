@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { OutputLine, Shell, ShellResult } from "../capabilities/shell.ts";
-import type { ToolInvocationResult, ToolRequestId } from "../tool-types.ts";
+import type { ProviderToolResult } from "../providers/provider-types.ts";
+import type { ToolRequestId } from "../tool-types.ts";
 import * as BashCommand from "./bashCommand.ts";
 
 function createMockShell(result: ShellResult): Shell {
@@ -47,13 +48,13 @@ function createTool(command: string, shellResult: ShellResult) {
 }
 
 async function getResultText(invocation: {
-  promise: Promise<ToolInvocationResult>;
+  promise: Promise<ProviderToolResult>;
 }): Promise<string> {
   const { result } = await invocation.promise;
-  if (result.result.status === "ok") {
-    return (result.result.value[0] as { type: "text"; text: string }).text;
+  if (result.status === "ok") {
+    return (result.value[0] as { type: "text"; text: string }).text;
   }
-  return result.result.error;
+  return result.error;
 }
 
 describe("bashCommand unit tests", () => {
@@ -229,9 +230,9 @@ describe("bashCommand unit tests", () => {
     });
 
     const result = await invocation.promise;
-    expect(result.result.result.status).toBe("error");
-    if (result.result.result.status === "error") {
-      expect(result.result.result.error).toContain("aborted by the user");
+    expect(result.result.status).toBe("error");
+    if (result.result.status === "error") {
+      expect(result.result.error).toContain("aborted by the user");
     }
     expect(shell.terminate).toHaveBeenCalled();
   });

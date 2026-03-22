@@ -1,10 +1,12 @@
 import { spawnSync } from "node:child_process";
 import type { OutputLine, Shell } from "../capabilities/shell.ts";
-import type { ProviderToolSpec } from "../providers/provider-types.ts";
+import type {
+  ProviderToolResult,
+  ProviderToolSpec,
+} from "../providers/provider-types.ts";
 import type {
   GenericToolRequest,
   ToolInvocation,
-  ToolInvocationResult,
   ToolName,
 } from "../tool-types.ts";
 import type { Result } from "../utils/result.ts";
@@ -85,12 +87,12 @@ export const spec: ProviderToolSpec = getSpec();
 export type Input = {
   command: string;
 };
-export type ResultInfo = {
+export type StructuredResult = {
   toolName: "bash_command";
-  exitCode?: number;
-  signal?: string;
-  logFilePath?: string;
-  logFileLineCount?: number;
+  exitCode: number;
+  signal: string | undefined;
+  logFilePath: string | undefined;
+  logFileLineCount: number | undefined;
   outputText: string;
 };
 
@@ -278,18 +280,15 @@ export function execute(
         }, 1000);
       },
     })
-    .then((result): ToolInvocationResult => {
+    .then((result): ProviderToolResult => {
       if (aborted) {
         return {
+          type: "tool_result",
+          id: request.id,
           result: {
-            type: "tool_result",
-            id: request.id,
-            result: {
-              status: "error",
-              error: "Request was aborted by the user.",
-            },
+            status: "error",
+            error: "Request was aborted by the user.",
           },
-          resultInfo: { toolName: "bash_command", outputText: "" },
         };
       }
       stopTickInterval();
@@ -303,26 +302,20 @@ export function execute(
       );
 
       return {
+        type: "tool_result",
+        id: request.id,
         result: {
-          type: "tool_result",
-          id: request.id,
-          result: {
-            status: "ok",
-            value: [{ type: "text", text: formattedOutput }],
-          },
+          status: "ok",
+          value: [{ type: "text", text: formattedOutput }],
         },
-        resultInfo: {
+        structuredResult: {
           toolName: "bash_command" as const,
-          ...(result.exitCode !== undefined
-            ? { exitCode: result.exitCode }
-            : {}),
-          ...(result.signal ? { signal: String(result.signal) } : {}),
-          ...(result.logFilePath
-            ? {
-                logFilePath: result.logFilePath,
-                logFileLineCount: result.output.length,
-              }
-            : {}),
+          exitCode: result.exitCode,
+          signal: result.signal ? String(result.signal) : undefined,
+          logFilePath: result.logFilePath,
+          logFileLineCount: result.logFilePath
+            ? result.output.length
+            : undefined,
           outputText: formattedOutput.replace(
             /\n?Full output \(\d+ lines\): .+$/m,
             "",
@@ -330,18 +323,15 @@ export function execute(
         },
       };
     })
-    .catch((error: Error): ToolInvocationResult => {
+    .catch((error: Error): ProviderToolResult => {
       if (aborted) {
         return {
+          type: "tool_result",
+          id: request.id,
           result: {
-            type: "tool_result",
-            id: request.id,
-            result: {
-              status: "error",
-              error: "Request was aborted by the user.",
-            },
+            status: "error",
+            error: "Request was aborted by the user.",
           },
-          resultInfo: { toolName: "bash_command", outputText: "" },
         };
       }
       stopTickInterval();
@@ -352,15 +342,12 @@ export function execute(
       const durationStr = durationMs > 0 ? ` (${durationMs}ms)` : "";
 
       return {
+        type: "tool_result",
+        id: request.id,
         result: {
-          type: "tool_result",
-          id: request.id,
-          result: {
-            status: "error",
-            error: `Error: ${error.message}${durationStr}`,
-          },
+          status: "error",
+          error: `Error: ${error.message}${durationStr}`,
         },
-        resultInfo: { toolName: "bash_command", outputText: "" },
       };
     });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DiagnosticsProvider } from "../capabilities/diagnostics-provider.ts";
-import type { ToolInvocationResult, ToolRequestId } from "../tool-types.ts";
+import type { ProviderToolResult } from "../providers/provider-types.ts";
+import type { ToolRequestId } from "../tool-types.ts";
 import * as Diagnostics from "./diagnostics.ts";
 
 function createMockProvider(
@@ -10,13 +11,13 @@ function createMockProvider(
 }
 
 async function getResultText(invocation: {
-  promise: Promise<ToolInvocationResult>;
+  promise: Promise<ProviderToolResult>;
 }): Promise<string> {
   const { result } = await invocation.promise;
-  if (result.result.status === "ok") {
-    return (result.result.value[0] as { type: "text"; text: string }).text;
+  if (result.status === "ok") {
+    return (result.value[0] as { type: "text"; text: string }).text;
   }
-  return result.result.error;
+  return result.error;
 }
 
 describe("diagnostics unit tests", () => {
@@ -34,7 +35,7 @@ describe("diagnostics unit tests", () => {
     );
 
     const { result } = await invocation.promise;
-    expect(result.result.status).toBe("ok");
+    expect(result.status).toBe("ok");
     const text = await getResultText(invocation);
     expect(text).toBe(diagnosticText);
   });
@@ -54,9 +55,9 @@ describe("diagnostics unit tests", () => {
     );
 
     const { result } = await invocation.promise;
-    expect(result.result.status).toBe("error");
-    if (result.result.status === "error") {
-      expect(result.result.error).toContain("LSP not ready");
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("LSP not ready");
     }
   });
 
@@ -82,9 +83,9 @@ describe("diagnostics unit tests", () => {
     resolveProvider!("some diagnostics");
 
     const { result } = await invocation.promise;
-    expect(result.result.status).toBe("error");
-    if (result.result.status === "error") {
-      expect(result.result.error).toContain("aborted");
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("aborted");
     }
   });
 });

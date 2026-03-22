@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
 import type { ThreadId } from "../chat-types.ts";
 import type { ContainerConfig, ProvisionResult } from "../container/types.ts";
-
-import type { ToolInvocationResult, ToolRequestId } from "../tool-types.ts";
+import type { ProviderToolResult } from "../providers/provider-types.ts";
+import type { ToolRequestId } from "../tool-types.ts";
 import type { NvimCwd } from "../utils/files.ts";
 import * as SpawnSubagent from "./spawn-subagent.ts";
 
@@ -27,13 +27,13 @@ function makeRequest(input: SpawnSubagent.Input): SpawnSubagent.ToolRequest {
 }
 
 async function getResultText(invocation: {
-  promise: Promise<ToolInvocationResult>;
+  promise: Promise<ProviderToolResult>;
 }): Promise<string> {
   const { result } = await invocation.promise;
-  if (result.result.status === "ok") {
-    return (result.result.value[0] as { type: "text"; text: string }).text;
+  if (result.status === "ok") {
+    return (result.value[0] as { type: "text"; text: string }).text;
   }
-  return result.result.error;
+  return result.error;
 }
 
 describe("spawn-subagent unit tests", () => {
@@ -96,10 +96,10 @@ describe("spawn-subagent unit tests", () => {
     );
 
     const { result } = await invocation.promise;
-    expect(result.result.status).toBe("error");
-    if (result.result.status === "error") {
-      expect(result.result.error).toContain("failed");
-      expect(result.result.error).toContain("crashed");
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("failed");
+      expect(result.error).toContain("crashed");
     }
   });
 
@@ -135,9 +135,9 @@ describe("spawn-subagent unit tests", () => {
     );
 
     const { result } = await invocation.promise;
-    expect(result.result.status).toBe("error");
-    if (result.result.status === "error") {
-      expect(result.result.error).toContain("spawn failed");
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("spawn failed");
     }
   });
 
@@ -263,9 +263,9 @@ describe("spawn-subagent docker provisioning progress", () => {
     );
 
     const { result } = await invocation.promise;
-    expect(result.result.status).toBe("error");
-    if (result.result.status === "error") {
-      expect(result.result.error).toContain("branch parameter is required");
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("branch parameter is required");
     }
   });
 
@@ -287,11 +287,9 @@ describe("spawn-subagent docker provisioning progress", () => {
     );
 
     const { result } = await invocation.promise;
-    expect(result.result.status).toBe("error");
-    if (result.result.status === "error") {
-      expect(result.result.error).toContain(
-        "Docker environment is not configured",
-      );
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("Docker environment is not configured");
     }
   });
 
@@ -458,10 +456,10 @@ describe("spawn-subagent docker provisioning progress", () => {
     );
 
     const { result } = await invocation.promise;
-    expect(result.result.status).toBe("error");
-    if (result.result.status === "error") {
-      expect(result.result.error).toContain("failed");
-      expect(result.result.error).toContain("container crashed");
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("failed");
+      expect(result.error).toContain("container crashed");
     }
   });
 

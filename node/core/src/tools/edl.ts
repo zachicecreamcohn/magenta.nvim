@@ -8,11 +8,13 @@ import {
   type FileMutationSummary,
   runScript,
 } from "../edl/index.ts";
-import type { ProviderToolSpec } from "../providers/provider-types.ts";
+import type {
+  ProviderToolResult,
+  ProviderToolSpec,
+} from "../providers/provider-types.ts";
 import type {
   GenericToolRequest,
   ToolInvocation,
-  ToolInvocationResult,
   ToolName,
 } from "../tool-types.ts";
 import {
@@ -34,7 +36,7 @@ export type EdlDisplayData = {
   finalSelectionCount: number | undefined;
 };
 
-export type ResultInfo = {
+export type StructuredResult = {
   toolName: "edl";
   displayData?: EdlDisplayData;
   formattedResult: string;
@@ -55,7 +57,7 @@ export function execute(
 ): ToolInvocation {
   let aborted = false;
 
-  const promise = (async (): Promise<ToolInvocationResult> => {
+  const promise = (async (): Promise<ProviderToolResult> => {
     try {
       const script = request.input.script;
       const result = await runScript(
@@ -66,15 +68,12 @@ export function execute(
 
       if (aborted) {
         return {
+          type: "tool_result",
+          id: request.id,
           result: {
-            type: "tool_result",
-            id: request.id,
-            result: {
-              status: "error",
-              error: "Request was aborted by the user.",
-            },
+            status: "error",
+            error: "Request was aborted by the user.",
           },
-          resultInfo: { toolName: "edl", formattedResult: "" },
         };
       }
 
@@ -114,21 +113,19 @@ export function execute(
         };
 
         return {
+          type: "tool_result",
+          id: request.id,
           result: {
-            type: "tool_result",
-            id: request.id,
-            result: {
-              status: "ok",
-              value: [
-                {
-                  type: "text",
-                  text: `${EDL_DISPLAY_PREFIX}${JSON.stringify(displayData)}`,
-                },
-                { type: "text", text: result.formatted },
-              ],
-            },
+            status: "ok",
+            value: [
+              {
+                type: "text",
+                text: `${EDL_DISPLAY_PREFIX}${JSON.stringify(displayData)}`,
+              },
+              { type: "text", text: result.formatted },
+            ],
           },
-          resultInfo: {
+          structuredResult: {
             toolName: "edl",
             displayData,
             formattedResult: result.formatted,
@@ -136,42 +133,33 @@ export function execute(
         };
       } else {
         return {
+          type: "tool_result",
+          id: request.id,
           result: {
-            type: "tool_result",
-            id: request.id,
-            result: {
-              status: "error",
-              error: result.error,
-            },
+            status: "error",
+            error: result.error,
           },
-          resultInfo: { toolName: "edl", formattedResult: result.error },
         };
       }
     } catch (error) {
       if (aborted) {
         return {
-          result: {
-            type: "tool_result",
-            id: request.id,
-            result: {
-              status: "error",
-              error: "Request was aborted by the user.",
-            },
-          },
-          resultInfo: { toolName: "edl", formattedResult: "" },
-        };
-      }
-      const errorMessage = `Failed to execute EDL script: ${error instanceof Error ? error.message : String(error)}`;
-      return {
-        result: {
           type: "tool_result",
           id: request.id,
           result: {
             status: "error",
-            error: errorMessage,
+            error: "Request was aborted by the user.",
           },
+        };
+      }
+      const errorMessage = `Failed to execute EDL script: ${error instanceof Error ? error.message : String(error)}`;
+      return {
+        type: "tool_result",
+        id: request.id,
+        result: {
+          status: "error",
+          error: errorMessage,
         },
-        resultInfo: { toolName: "edl", formattedResult: errorMessage },
       };
     }
   })();

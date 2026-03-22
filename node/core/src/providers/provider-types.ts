@@ -134,6 +134,7 @@ export type ProviderToolResult = {
   type: "tool_result";
   id: ToolManager.ToolRequestId;
   result: Result<ProviderToolResultContent[]>;
+  structuredResult?: ToolManager.ToolStructuredResult;
 };
 
 export type ProviderToolSpec = {

@@ -151,19 +151,12 @@ export function renderCompletedSummary(
   let effectiveThreadId: ThreadId | undefined;
   let isBlocking: boolean;
 
-  if (info.resultInfo?.toolName === "spawn_subagent") {
-    const ri = info.resultInfo as SpawnSubagent.ResultInfo;
-    effectiveThreadId = ri.threadId;
-    isBlocking = ri.isBlocking;
+  if (info.structuredResult.toolName === "spawn_subagent") {
+    const sr = info.structuredResult as SpawnSubagent.StructuredResult;
+    effectiveThreadId = sr.threadId;
+    isBlocking = sr.isBlocking;
   } else {
-    const resultText =
-      result.value[0]?.type === "text" ? result.value[0].text : "";
-    const match = resultText.match(/threadId: ([a-f0-9-]+)/);
-    const threadId = match ? (match[1] as ThreadId) : undefined;
-    isBlocking = resultText.includes("completed:");
-    const blockingMatch = resultText.match(/Sub-agent \(([a-f0-9-]+)\)/);
-    effectiveThreadId =
-      threadId || (blockingMatch ? (blockingMatch[1] as ThreadId) : undefined);
+    isBlocking = false;
   }
 
   return withBindings(
@@ -190,23 +183,12 @@ export function renderCompletedPreview(info: CompletedToolInfo): VDOMNode {
     return d``;
   }
 
-  if (info.resultInfo?.toolName === "spawn_subagent") {
-    const ri = info.resultInfo as SpawnSubagent.ResultInfo;
-    if (ri.responseBody) {
-      const lineCount = ri.responseBody.split("\n").length;
+  if (info.structuredResult.toolName === "spawn_subagent") {
+    const sr = info.structuredResult as SpawnSubagent.StructuredResult;
+    if (sr.responseBody) {
+      const lineCount = sr.responseBody.split("\n").length;
       return d`${lineCount.toString()} lines`;
     }
-    return d``;
-  }
-
-  const resultText =
-    result.value[0]?.type === "text" ? result.value[0].text : "";
-
-  const completedMatch = resultText.match(/completed:\n([\s\S]*)/);
-  if (completedMatch) {
-    const response = completedMatch[1];
-    const lineCount = response.split("\n").length;
-    return d`${lineCount.toString()} lines`;
   }
 
   return d``;
@@ -222,21 +204,11 @@ export function renderCompletedDetail(info: CompletedToolInfo): VDOMNode {
     return d`${promptSection}\n\n**Error:**\n${result.error}`;
   }
 
-  if (info.resultInfo?.toolName === "spawn_subagent") {
-    const ri = info.resultInfo as SpawnSubagent.ResultInfo;
-    if (ri.responseBody) {
-      return d`${promptSection}\n\n**Response:**\n${ri.responseBody}`;
+  if (info.structuredResult.toolName === "spawn_subagent") {
+    const sr = info.structuredResult as SpawnSubagent.StructuredResult;
+    if (sr.responseBody) {
+      return d`${promptSection}\n\n**Response:**\n${sr.responseBody}`;
     }
-    return d`${promptSection}\n\n**Status:** Started (non-blocking)`;
-  }
-
-  const resultText =
-    result.value[0]?.type === "text" ? result.value[0].text : "";
-
-  const completedMatch = resultText.match(/completed:\n([\s\S]*)/);
-  if (completedMatch) {
-    const response = completedMatch[1];
-    return d`${promptSection}\n\n**Response:**\n${response}`;
   }
 
   return d`${promptSection}\n\n**Status:** Started (non-blocking)`;
