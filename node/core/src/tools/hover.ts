@@ -245,8 +245,11 @@ export function execute(
       return {
         type: "tool_result",
         id: request.id,
-        result: { status: "ok", value: [{ type: "text", text: content }] },
-        structuredResult: { toolName: "hover" },
+        result: {
+          status: "ok",
+          value: [{ type: "text", text: content }],
+          structuredResult: { toolName: "hover" },
+        },
       };
     } catch (error) {
       if (aborted) {

@@ -124,11 +124,11 @@ export function execute(
               },
               { type: "text", text: result.formatted },
             ],
-          },
-          structuredResult: {
-            toolName: "edl",
-            displayData,
-            formattedResult: result.formatted,
+            structuredResult: {
+              toolName: "edl",
+              displayData,
+              formattedResult: result.formatted,
+            },
           },
         };
       } else {

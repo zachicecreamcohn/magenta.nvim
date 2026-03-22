@@ -155,8 +155,8 @@ export function execute(
 You already have the most up-to-date information about the contents of this file.`,
               },
             ],
+            structuredResult: { toolName: "get_file", lineCount: 0 },
           },
-          structuredResult: { toolName: "get_file", lineCount: 0 },
         };
       }
 
@@ -294,8 +294,8 @@ You already have the most up-to-date information about the contents of this file
                     text: `Page ${request.input.pdfPage} of ${filePath} has already been provided to you in this conversation.`,
                   },
                 ],
+                structuredResult: { toolName: "get_file", lineCount: 0 },
               },
-              structuredResult: { toolName: "get_file", lineCount: 0 },
             };
           }
 
@@ -346,8 +346,8 @@ You already have the most up-to-date information about the contents of this file
                     text: `The summary information for ${filePath} has already been provided to you in this conversation.`,
                   },
                 ],
+                structuredResult: { toolName: "get_file", lineCount: 0 },
               },
-              structuredResult: { toolName: "get_file", lineCount: 0 },
             };
           }
 
@@ -413,8 +413,11 @@ You already have the most up-to-date information about the contents of this file
       return {
         type: "tool_result",
         id: request.id,
-        result: { status: "ok", value: result },
-        structuredResult: { toolName: "get_file", lineCount },
+        result: {
+          status: "ok",
+          value: result,
+          structuredResult: { toolName: "get_file", lineCount },
+        },
       };
     } catch (error) {
       if (aborted) return abortResult;

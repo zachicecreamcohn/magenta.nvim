@@ -22,8 +22,8 @@ export function execute(request: ToolRequest): ToolInvocation {
       result: {
         status: "ok" as const,
         value: [{ type: "text" as const, text: request.input.result }],
+        structuredResult: { toolName: "yield_to_parent" as const },
       },
-      structuredResult: { toolName: "yield_to_parent" as const },
     }),
     abort: () => {},
   };

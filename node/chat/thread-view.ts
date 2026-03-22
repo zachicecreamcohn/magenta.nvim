@@ -7,6 +7,7 @@ import {
   type ContextManager,
   renderThreadToMarkdown,
   type ThreadMode,
+  type ToolName,
   type ToolRequestId,
 } from "@magenta/core";
 import {
@@ -553,9 +554,10 @@ function renderMessageContent(
       const completedInfo: CompletedToolInfo = {
         request: request,
         result: toolResult,
-        structuredResult: toolResult.structuredResult ?? {
-          toolName: request.toolName as import("@magenta/core").ToolName,
-        },
+        structuredResult:
+          toolResult.result.status === "ok"
+            ? toolResult.result.structuredResult
+            : { toolName: request.toolName as ToolName },
       };
 
       const renderContext = {

@@ -34,8 +34,8 @@ export function execute(
         result: {
           status: "ok",
           value: [{ type: "text", text: request.input.title }],
+          structuredResult: { toolName: "thread_title" as const },
         },
-        structuredResult: { toolName: "thread_title" as const },
       };
     } catch (error) {
       if (aborted) {

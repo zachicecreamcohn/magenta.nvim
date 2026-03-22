@@ -42,8 +42,8 @@ export function execute(
         result: {
           status: "ok",
           value: [{ type: "text", text: content }],
+          structuredResult: { toolName: "diagnostics" },
         },
-        structuredResult: { toolName: "diagnostics" },
       };
     } catch (error) {
       if (aborted) {

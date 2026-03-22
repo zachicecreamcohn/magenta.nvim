@@ -235,16 +235,17 @@ function buildForeachResult(
     result: {
       status: "ok",
       value: [{ type: "text", text: resultText }],
-    },
-    structuredResult: {
-      toolName: "spawn_foreach" as const,
-      elements: completedElements.map((el) => ({
-        name: el.element as string,
-        ...(el.state.status === "completed" && el.state.threadId
-          ? { threadId: el.state.threadId }
-          : {}),
-        ok: el.state.status === "completed" && el.state.result.status === "ok",
-      })),
+      structuredResult: {
+        toolName: "spawn_foreach" as const,
+        elements: completedElements.map((el) => ({
+          name: el.element as string,
+          ...(el.state.status === "completed" && el.state.threadId
+            ? { threadId: el.state.threadId }
+            : {}),
+          ok:
+            el.state.status === "completed" && el.state.result.status === "ok",
+        })),
+      },
     },
   };
 }

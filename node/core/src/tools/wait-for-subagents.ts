@@ -67,8 +67,8 @@ ${results
         result: {
           status: "ok",
           value: [{ type: "text", text }],
+          structuredResult: { toolName: "wait_for_subagents" },
         },
-        structuredResult: { toolName: "wait_for_subagents" },
       };
     } catch (e) {
       return {

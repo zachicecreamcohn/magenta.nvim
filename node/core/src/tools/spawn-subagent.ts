@@ -134,11 +134,11 @@ export function execute(
                   text: `Docker thread started with threadId: ${threadId} on worker branch: ${provisionResult.workerBranch} (forked from ${input.branch ?? "HEAD"})`,
                 },
               ],
-            },
-            structuredResult: {
-              toolName: "spawn_subagent",
-              threadId,
-              isBlocking: false,
+              structuredResult: {
+                toolName: "spawn_subagent",
+                threadId,
+                isBlocking: false,
+              },
             },
           };
         }
@@ -157,12 +157,12 @@ export function execute(
                   text: `Docker sub-agent (${threadId}) on worker branch ${provisionResult.workerBranch} completed:\n${result.value}`,
                 },
               ],
-            },
-            structuredResult: {
-              toolName: "spawn_subagent",
-              threadId,
-              isBlocking: true,
-              responseBody: result.value,
+              structuredResult: {
+                toolName: "spawn_subagent",
+                threadId,
+                isBlocking: true,
+                responseBody: result.value,
+              },
             },
           };
         } else {
@@ -206,11 +206,11 @@ export function execute(
                 text: `Sub-agent started with threadId: ${threadId}`,
               },
             ],
-          },
-          structuredResult: {
-            toolName: "spawn_subagent",
-            threadId,
-            isBlocking: false,
+            structuredResult: {
+              toolName: "spawn_subagent",
+              threadId,
+              isBlocking: false,
+            },
           },
         };
       }
@@ -229,12 +229,12 @@ export function execute(
                 text: `Sub-agent (${threadId}) completed:\n${result.value}`,
               },
             ],
-          },
-          structuredResult: {
-            toolName: "spawn_subagent",
-            threadId,
-            isBlocking: true,
-            responseBody: result.value,
+            structuredResult: {
+              toolName: "spawn_subagent",
+              threadId,
+              isBlocking: true,
+              responseBody: result.value,
+            },
           },
         };
       } else {

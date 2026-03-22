@@ -303,10 +303,16 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
           for (const content of message.content) {
             if (content.type === "tool_result") {
               const cached = oldResults.get(content.id);
-              if (cached?.structuredResult) {
+              if (
+                cached?.result.status === "ok" &&
+                content.result.status === "ok"
+              ) {
                 results.set(content.id, {
                   ...content,
-                  structuredResult: cached.structuredResult,
+                  result: {
+                    ...content.result,
+                    structuredResult: cached.result.structuredResult,
+                  },
                 });
               } else {
                 results.set(content.id, content);
@@ -747,6 +753,9 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
                     text: "Yield accepted. Your result has been sent to the parent thread.",
                   },
                 ],
+                structuredResult: {
+                  toolName: "yield_to_parent" as ToolName,
+                },
               },
             },
           });

@@ -128,8 +128,8 @@ export function execute(
         result: {
           status: "ok",
           value: [{ type: "text", text: content || "No references found" }],
+          structuredResult: { toolName: "find_references" },
         },
-        structuredResult: { toolName: "find_references" },
       };
     } catch (error) {
       if (aborted) {

@@ -307,19 +307,19 @@ export function execute(
         result: {
           status: "ok",
           value: [{ type: "text", text: formattedOutput }],
-        },
-        structuredResult: {
-          toolName: "bash_command" as const,
-          exitCode: result.exitCode,
-          signal: result.signal ? String(result.signal) : undefined,
-          logFilePath: result.logFilePath,
-          logFileLineCount: result.logFilePath
-            ? result.output.length
-            : undefined,
-          outputText: formattedOutput.replace(
-            /\n?Full output \(\d+ lines\): .+$/m,
-            "",
-          ),
+          structuredResult: {
+            toolName: "bash_command" as const,
+            exitCode: result.exitCode,
+            signal: result.signal ? String(result.signal) : undefined,
+            logFilePath: result.logFilePath,
+            logFileLineCount: result.logFilePath
+              ? result.output.length
+              : undefined,
+            outputText: formattedOutput.replace(
+              /\n?Full output \(\d+ lines\): .+$/m,
+              "",
+            ),
+          },
         },
       };
     })
