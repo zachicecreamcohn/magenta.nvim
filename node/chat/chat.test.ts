@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ThreadId, ToolName, ToolRequestId } from "@magenta/core";
+import type { ToolName, ToolRequestId } from "@magenta/core";
 import { describe, expect, it } from "vitest";
 import { withDriver } from "../test/preamble.ts";
 import { pollUntil } from "../utils/async.ts";
@@ -7,45 +7,21 @@ import { LOGO } from "./thread-view.ts";
 
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
 
-function findToolResult(
-  messages: Anthropic.MessageParam[],
-  toolUseId: string,
-): ToolResultBlockParam | undefined {
-  for (const msg of messages) {
-    if (msg.role === "user" && Array.isArray(msg.content)) {
-      const result = msg.content.find(
-        (block): block is ToolResultBlockParam =>
-          block.type === "tool_result" && block.tool_use_id === toolUseId,
+function hasUserMessageWithText(
+  stream: { messages: Anthropic.MessageParam[] },
+  text: string,
+): boolean {
+  return stream.messages.some((msg) => {
+    if (msg.role !== "user") return false;
+    const content = msg.content;
+    if (typeof content === "string") return content.includes(text);
+    if (Array.isArray(content)) {
+      return content.some(
+        (block) => block.type === "text" && block.text.includes(text),
       );
-      if (result) return result;
     }
-  }
-  return undefined;
-}
-
-function abortThread(
-  driver: Parameters<Parameters<typeof withDriver>[1]>[0],
-  threadId: ThreadId,
-) {
-  driver.magenta.chat.update({
-    type: "thread-msg",
-    id: threadId,
-    msg: { type: "abort" },
+    return false;
   });
-}
-
-async function sendMessageOnThread(
-  driver: Parameters<Parameters<typeof withDriver>[1]>[0],
-  threadId: ThreadId,
-  message: string,
-) {
-  driver.magenta.chat.update({
-    type: "chat-msg",
-    msg: { type: "select-thread", id: threadId },
-  });
-  await pollUntil(() => driver.magenta.chat.getActiveThread().id === threadId);
-  await driver.inputMagentaText(message);
-  await driver.send();
 }
 
 describe("node/chat/chat.test.ts", () => {
@@ -1243,37 +1219,41 @@ describe("node/chat/chat.test.ts", () => {
         });
 
         const childStream = await driver.mockAnthropic.awaitPendingStream({
-          predicate: (stream) =>
-            stream.messages.some((msg) => {
-              if (msg.role !== "user") return false;
-              const content = msg.content;
-              if (typeof content === "string")
-                return content.includes("Do the task");
-              if (Array.isArray(content)) {
-                return content.some(
-                  (block) =>
-                    block.type === "text" && block.text.includes("Do the task"),
-                );
-              }
-              return false;
-            }),
+          predicate: (stream) => hasUserMessageWithText(stream, "Do the task"),
           message: "waiting for blocking subagent stream",
         });
 
         await driver.awaitThreadCount(2);
-        const childThreadId = driver.getThreadId(1);
+        const parentThreadId = driver.getThreadId(0);
+        const childThreadId = driver
+          .getThreadIds()
+          .find((id) => id !== parentThreadId)!;
 
         // Abort the child thread directly
-        abortThread(driver, childThreadId);
+        driver.magenta.chat.update({
+          type: "thread-msg",
+          id: childThreadId,
+          msg: { type: "abort" },
+        });
         expect(childStream.aborted).toBe(true);
 
-        // Verify the parent has NOT received a tool result
-        expect(
-          driver.mockAnthropic.hasPendingStreamWithText("blocking-spawn"),
-        ).toBe(false);
+        // Verify the child shows as aborted in the parent thread view
+        await driver.assertDisplayBufferContains("⏹️ stopped (aborted)");
+        // Verify the parent is still waiting (blocking spawn still pending)
+        await driver.assertDisplayBufferContains(
+          "🚀⏳ spawn_subagent (blocking)",
+        );
 
         // Resume the child: switch to it, send a message
-        await sendMessageOnThread(driver, childThreadId, "Continue the task");
+        driver.magenta.chat.update({
+          type: "chat-msg",
+          msg: { type: "select-thread", id: childThreadId },
+        });
+        await pollUntil(
+          () => driver.magenta.chat.getActiveThread().id === childThreadId,
+        );
+        await driver.inputMagentaText("Continue the task");
+        await driver.send();
 
         const resumedStream =
           await driver.mockAnthropic.awaitPendingStreamWithText(
@@ -1297,17 +1277,40 @@ describe("node/chat/chat.test.ts", () => {
         });
 
         // Parent should now receive a tool result containing the yield
-        const parentResume =
-          await driver.mockAnthropic.awaitPendingStreamWithText(
-            "The answer is 42",
-          );
+        const parentResume = await driver.mockAnthropic.awaitPendingStream({
+          predicate: (stream) =>
+            stream.messages.some(
+              (msg) =>
+                msg.role === "user" &&
+                Array.isArray(msg.content) &&
+                msg.content.some(
+                  (block): block is ToolResultBlockParam =>
+                    block.type === "tool_result" &&
+                    block.tool_use_id === "blocking-spawn",
+                ),
+            ),
+          message: "waiting for parent to receive tool result",
+        });
 
-        const toolResult = findToolResult(
-          parentResume.messages,
-          "blocking-spawn",
-        );
+        let toolResult: ToolResultBlockParam | undefined;
+        for (const msg of parentResume.messages) {
+          if (msg.role === "user" && Array.isArray(msg.content)) {
+            const found = msg.content.find(
+              (block): block is ToolResultBlockParam =>
+                block.type === "tool_result" &&
+                block.tool_use_id === "blocking-spawn",
+            );
+            if (found) {
+              toolResult = found;
+              break;
+            }
+          }
+        }
         expect(toolResult).toBeDefined();
-        expect(toolResult!.is_error).toBeFalsy();
+        expect(toolResult!.is_error).toBe(false);
+        expect(JSON.stringify(toolResult!.content)).toContain(
+          "The answer is 42",
+        );
       });
     });
 
@@ -1341,7 +1344,10 @@ describe("node/chat/chat.test.ts", () => {
 
         await driver.assertDisplayBufferContains("🤖✅ spawn_subagent");
         await driver.awaitThreadCount(2);
-        const childThreadId = driver.getThreadId(1);
+        const parentThreadId = driver.getThreadId(0);
+        const childThreadId = driver
+          .getThreadIds()
+          .find((id) => id !== parentThreadId)!;
 
         // Parent continues and issues wait_for_subagents
         const stream2 = await driver.mockAnthropic.awaitPendingStreamWithText(
@@ -1373,16 +1379,29 @@ describe("node/chat/chat.test.ts", () => {
           await driver.mockAnthropic.awaitPendingStreamWithText(
             "Do the wait task",
           );
-        abortThread(driver, childThreadId);
+        driver.magenta.chat.update({
+          type: "thread-msg",
+          id: childThreadId,
+          msg: { type: "abort" },
+        });
         expect(childStream.aborted).toBe(true);
 
-        // Verify the parent has NOT received a tool result
-        expect(driver.mockAnthropic.hasPendingStreamWithText("wait-tool")).toBe(
-          false,
+        // Verify the child shows as aborted and parent is still waiting
+        await driver.assertDisplayBufferContains("⏹️ stopped (aborted)");
+        await driver.assertDisplayBufferContains(
+          "⏸️⏳ Waiting for 1 subagent(s):",
         );
 
         // Resume the child
-        await sendMessageOnThread(driver, childThreadId, "Continue wait task");
+        driver.magenta.chat.update({
+          type: "chat-msg",
+          msg: { type: "select-thread", id: childThreadId },
+        });
+        await pollUntil(
+          () => driver.magenta.chat.getActiveThread().id === childThreadId,
+        );
+        await driver.inputMagentaText("Continue wait task");
+        await driver.send();
 
         const resumedStream =
           await driver.mockAnthropic.awaitPendingStreamWithText(
@@ -1405,14 +1424,40 @@ describe("node/chat/chat.test.ts", () => {
         });
 
         // Parent should receive the wait_for_subagents result
-        const parentResume =
-          await driver.mockAnthropic.awaitPendingStreamWithText(
-            "Wait task completed",
-          );
+        const parentResume = await driver.mockAnthropic.awaitPendingStream({
+          predicate: (stream) =>
+            stream.messages.some(
+              (msg) =>
+                msg.role === "user" &&
+                Array.isArray(msg.content) &&
+                msg.content.some(
+                  (block): block is ToolResultBlockParam =>
+                    block.type === "tool_result" &&
+                    block.tool_use_id === "wait-tool",
+                ),
+            ),
+          message: "waiting for parent to receive wait_for_subagents result",
+        });
 
-        const toolResult = findToolResult(parentResume.messages, "wait-tool");
+        let toolResult: ToolResultBlockParam | undefined;
+        for (const msg of parentResume.messages) {
+          if (msg.role === "user" && Array.isArray(msg.content)) {
+            const found = msg.content.find(
+              (block): block is ToolResultBlockParam =>
+                block.type === "tool_result" &&
+                block.tool_use_id === "wait-tool",
+            );
+            if (found) {
+              toolResult = found;
+              break;
+            }
+          }
+        }
         expect(toolResult).toBeDefined();
-        expect(toolResult!.is_error).toBeFalsy();
+        expect(toolResult!.is_error).toBe(false);
+        expect(JSON.stringify(toolResult!.content)).toContain(
+          "Wait task completed",
+        );
       });
     });
 
@@ -1451,19 +1496,32 @@ describe("node/chat/chat.test.ts", () => {
             await driver.mockAnthropic.awaitPendingStreamWithText("item1");
 
           await driver.awaitThreadCount(2);
-          const childThreadId = driver.getThreadId(1);
+          const parentThreadId = driver.getThreadId(0);
+          const childThreadId = driver
+            .getThreadIds()
+            .find((id) => id !== parentThreadId)!;
 
           // Abort the child
-          abortThread(driver, childThreadId);
+          driver.magenta.chat.update({
+            type: "thread-msg",
+            id: childThreadId,
+            msg: { type: "abort" },
+          });
           expect(childStream.aborted).toBe(true);
 
-          // Verify the parent has NOT received a tool result
-          expect(
-            driver.mockAnthropic.hasPendingStreamWithText("foreach-tool"),
-          ).toBe(false);
+          // Verify the child shows as aborted in the foreach view
+          await driver.assertDisplayBufferContains("⏹️ item1");
 
           // Resume the child
-          await sendMessageOnThread(driver, childThreadId, "Continue item1");
+          driver.magenta.chat.update({
+            type: "chat-msg",
+            msg: { type: "select-thread", id: childThreadId },
+          });
+          await pollUntil(
+            () => driver.magenta.chat.getActiveThread().id === childThreadId,
+          );
+          await driver.inputMagentaText("Continue item1");
+          await driver.send();
 
           const resumedStream =
             await driver.mockAnthropic.awaitPendingStreamWithText(
@@ -1486,17 +1544,40 @@ describe("node/chat/chat.test.ts", () => {
           });
 
           // Parent should receive the foreach result
-          const parentResume =
-            await driver.mockAnthropic.awaitPendingStreamWithText(
-              "Item1 completed",
-            );
+          const parentResume = await driver.mockAnthropic.awaitPendingStream({
+            predicate: (stream) =>
+              stream.messages.some(
+                (msg) =>
+                  msg.role === "user" &&
+                  Array.isArray(msg.content) &&
+                  msg.content.some(
+                    (block): block is ToolResultBlockParam =>
+                      block.type === "tool_result" &&
+                      block.tool_use_id === "foreach-tool",
+                  ),
+              ),
+            message: "waiting for parent to receive foreach result",
+          });
 
-          const toolResult = findToolResult(
-            parentResume.messages,
-            "foreach-tool",
-          );
+          let toolResult: ToolResultBlockParam | undefined;
+          for (const msg of parentResume.messages) {
+            if (msg.role === "user" && Array.isArray(msg.content)) {
+              const found = msg.content.find(
+                (block): block is ToolResultBlockParam =>
+                  block.type === "tool_result" &&
+                  block.tool_use_id === "foreach-tool",
+              );
+              if (found) {
+                toolResult = found;
+                break;
+              }
+            }
+          }
           expect(toolResult).toBeDefined();
-          expect(toolResult!.is_error).toBeFalsy();
+          expect(toolResult!.is_error).toBe(false);
+          expect(JSON.stringify(toolResult!.content)).toContain(
+            "Item1 completed",
+          );
         },
       );
     });
