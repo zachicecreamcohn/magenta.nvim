@@ -3,7 +3,7 @@ import type { ThreadId, ThreadType } from "../chat-types.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
-} from "../providers/provider.ts";
+} from "../providers/provider-types.ts";
 import { AGENT_TYPES, type AgentType } from "../providers/system-prompt.ts";
 import type {
   GenericToolRequest,
@@ -25,6 +25,10 @@ export type SpawnForeachProgress = {
     element: ForEachElement;
     state: SpawnForeachElementProgress;
   }>;
+};
+export type StructuredResult = {
+  toolName: "spawn_foreach";
+  elements: Array<{ name: string; threadId?: ThreadId; ok: boolean }>;
 };
 
 export function execute(
@@ -231,6 +235,17 @@ function buildForeachResult(
     result: {
       status: "ok",
       value: [{ type: "text", text: resultText }],
+      structuredResult: {
+        toolName: "spawn_foreach" as const,
+        elements: completedElements.map((el) => ({
+          name: el.element as string,
+          ...(el.state.status === "completed" && el.state.threadId
+            ? { threadId: el.state.threadId }
+            : {}),
+          ok:
+            el.state.status === "completed" && el.state.result.status === "ok",
+        })),
+      },
     },
   };
 }

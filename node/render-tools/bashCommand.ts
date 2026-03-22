@@ -101,18 +101,11 @@ export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
 
   let exitCode: number | undefined;
   let signal: string | undefined;
-  if (result.value.length > 0) {
-    const firstValue = result.value[0];
-    if (firstValue.type === "text") {
-      const exitCodeMatch = firstValue.text.match(/exit code (\d+)/);
-      if (exitCodeMatch) {
-        exitCode = parseInt(exitCodeMatch[1], 10);
-      }
-      const signalMatch = firstValue.text.match(/terminated by signal (\w+)/);
-      if (signalMatch) {
-        signal = signalMatch[1];
-      }
-    }
+
+  if (info.structuredResult.toolName === "bash_command") {
+    const sr = info.structuredResult as BashCommand.StructuredResult;
+    exitCode = sr.exitCode;
+    signal = sr.signal;
   }
 
   if (signal) {
@@ -141,12 +134,29 @@ export function renderCompletedPreview(
     return d``;
   }
 
-  const text = firstValue.text;
-  const textWithoutLogLine = text.replace(
-    /\n?Full output \(\d+ lines\): .+$/m,
-    "",
-  );
-  const lines = textWithoutLogLine.split("\n");
+  const outputText =
+    info.structuredResult.toolName === "bash_command"
+      ? (info.structuredResult as BashCommand.StructuredResult).outputText
+      : firstValue.text;
+  const exitCode =
+    info.structuredResult.toolName === "bash_command"
+      ? (info.structuredResult as BashCommand.StructuredResult).exitCode
+      : undefined;
+  const logFileView =
+    info.structuredResult.toolName === "bash_command"
+      ? (() => {
+          const sr = info.structuredResult as BashCommand.StructuredResult;
+          return sr.logFilePath && sr.logFileLineCount !== undefined
+            ? renderLogFileLinkDirect(
+                sr.logFilePath,
+                sr.logFileLineCount,
+                context,
+              )
+            : d``;
+        })()
+      : d``;
+
+  const lines = outputText.split("\n");
   const maxLines = 10;
   const maxLength = context.getDisplayWidth() - 5;
 
@@ -156,11 +166,6 @@ export function renderCompletedPreview(
   );
 
   const previewText = previewLines.join("\n");
-
-  const exitCodeMatch = text.match(/exit code (\d+)/);
-  const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : undefined;
-
-  const logFileView = renderLogFileLink(text, context);
 
   if (exitCode !== undefined && exitCode !== 0) {
     return d`❌ Exit code: ${exitCode.toString()}
@@ -217,28 +222,6 @@ function renderLogFileLinkDirect(
   );
 }
 
-function renderLogFileLink(text: string, context: RenderContext): VDOMNode {
-  const match = text.match(/Full output \((\d+) lines\): (.+)$/m);
-  if (!match) {
-    return d``;
-  }
-
-  const lineCount = match[1];
-  const filePath = match[2];
-
-  return withBindings(
-    d`\nFull output (${lineCount} lines): ${withInlineCode(d`\`${filePath}\``)}`,
-    {
-      "<CR>": () => {
-        openFileInNonMagentaWindow(
-          filePath as UnresolvedFilePath,
-          context,
-        ).catch((e: Error) => context.nvim.logger.error(e.message));
-      },
-    },
-  );
-}
-
 export function renderCompletedDetail(
   info: CompletedToolInfo,
   context: RenderContext,
@@ -255,14 +238,26 @@ export function renderCompletedDetail(
     return d`command: ${withInlineCode(d`\`${input.command}\``)}`;
   }
 
-  const textWithoutLogLine = firstValue.text.replace(
-    /\n?Full output \(\d+ lines\): .+$/m,
-    "",
-  );
-  const logFileView = renderLogFileLink(firstValue.text, context);
+  const outputText =
+    info.structuredResult.toolName === "bash_command"
+      ? (info.structuredResult as BashCommand.StructuredResult).outputText
+      : firstValue.text;
+  const logFileView =
+    info.structuredResult.toolName === "bash_command"
+      ? (() => {
+          const sr = info.structuredResult as BashCommand.StructuredResult;
+          return sr.logFilePath && sr.logFileLineCount !== undefined
+            ? renderLogFileLinkDirect(
+                sr.logFilePath,
+                sr.logFileLineCount,
+                context,
+              )
+            : d``;
+        })()
+      : d``;
 
   return d`command: ${withInlineCode(d`\`${input.command}\``)}
 ${withCode(d`\`\`\`
-${textWithoutLogLine}
+${outputText}
 \`\`\``)}${logFileView}`;
 }

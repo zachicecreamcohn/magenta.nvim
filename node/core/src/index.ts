@@ -167,6 +167,7 @@ export type {
 export type {
   CompletedToolInfo,
   DisplayContext,
+  GenericStructuredResult,
   GenericToolRequest,
   ToolInvocation,
   ToolManagerToolMsg,
@@ -174,6 +175,7 @@ export type {
   ToolName,
   ToolRequest,
   ToolRequestId,
+  ToolStructuredResult,
   ValidateInput,
 } from "./tool-types.ts";
 export * as BashCommand from "./tools/bashCommand.ts";

@@ -32,6 +32,10 @@ import {
 import type { Result } from "../utils/result.ts";
 
 export type ToolRequest = GenericToolRequest<"get_file", Input>;
+export type StructuredResult = {
+  toolName: "get_file";
+  lineCount: number;
+};
 
 const MAX_FILE_CHARACTERS = 40000;
 const MAX_LINE_CHARACTERS = 2000;
@@ -151,6 +155,7 @@ export function execute(
 You already have the most up-to-date information about the contents of this file.`,
               },
             ],
+            structuredResult: { toolName: "get_file", lineCount: 0 },
           },
         };
       }
@@ -209,6 +214,7 @@ You already have the most up-to-date information about the contents of this file
       }
 
       let result: ProviderToolResultContent[];
+      let lineCount = 0;
 
       if (fileTypeInfo.category === FileCategory.TEXT) {
         const rawContent = await context.fileIO.readFile(absFilePath);
@@ -267,6 +273,7 @@ You already have the most up-to-date information about the contents of this file
         }
 
         result = [{ type: "text", text: processedResult.text }];
+        lineCount = processedResult.text.split("\n").length;
       } else if (fileTypeInfo.category === FileCategory.PDF) {
         const existingFileInfo = context.contextTracker.files[absFilePath];
         const agentView = existingFileInfo?.agentView;
@@ -287,6 +294,7 @@ You already have the most up-to-date information about the contents of this file
                     text: `Page ${request.input.pdfPage} of ${filePath} has already been provided to you in this conversation.`,
                   },
                 ],
+                structuredResult: { toolName: "get_file", lineCount: 0 },
               },
             };
           }
@@ -338,6 +346,7 @@ You already have the most up-to-date information about the contents of this file
                     text: `The summary information for ${filePath} has already been provided to you in this conversation.`,
                   },
                 ],
+                structuredResult: { toolName: "get_file", lineCount: 0 },
               },
             };
           }
@@ -404,7 +413,11 @@ You already have the most up-to-date information about the contents of this file
       return {
         type: "tool_result",
         id: request.id,
-        result: { status: "ok", value: result },
+        result: {
+          status: "ok",
+          value: result,
+          structuredResult: { toolName: "get_file", lineCount },
+        },
       };
     } catch (error) {
       if (aborted) return abortResult;

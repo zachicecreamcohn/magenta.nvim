@@ -12,7 +12,18 @@ export type ToolRequest = {
 };
 
 import type { ProviderToolResult } from "./providers/provider-types.ts";
+import type * as BashCommand from "./tools/bashCommand.ts";
+import type * as Diagnostics from "./tools/diagnostics.ts";
+import type * as Edl from "./tools/edl.ts";
+import type * as FindReferences from "./tools/findReferences.ts";
+import type * as GetFile from "./tools/getFile.ts";
+import type * as Hover from "./tools/hover.ts";
+import type * as SpawnForeach from "./tools/spawn-foreach.ts";
+import type * as SpawnSubagent from "./tools/spawn-subagent.ts";
+import type * as ThreadTitle from "./tools/thread-title.ts";
 import type { StaticToolName } from "./tools/tool-registry.ts";
+import type * as WaitForSubagents from "./tools/wait-for-subagents.ts";
+import type * as YieldToParent from "./tools/yield-to-parent.ts";
 import type { HomeDir, NvimCwd } from "./utils/files.ts";
 import type { Result } from "./utils/result.ts";
 
@@ -21,9 +32,26 @@ export type DisplayContext = {
   homeDir: HomeDir;
 };
 
+export type GenericStructuredResult = { toolName: ToolName };
+
+export type ToolStructuredResult =
+  | BashCommand.StructuredResult
+  | Edl.StructuredResult
+  | SpawnSubagent.StructuredResult
+  | SpawnForeach.StructuredResult
+  | GetFile.StructuredResult
+  | Hover.StructuredResult
+  | FindReferences.StructuredResult
+  | Diagnostics.StructuredResult
+  | ThreadTitle.StructuredResult
+  | WaitForSubagents.StructuredResult
+  | YieldToParent.StructuredResult
+  | GenericStructuredResult;
+
 export type CompletedToolInfo = {
   request: ToolRequest;
   result: ProviderToolResult;
+  structuredResult: ToolStructuredResult;
 };
 
 export type GenericToolRequest<K extends StaticToolName, I> = {

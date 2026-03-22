@@ -13,11 +13,11 @@ function createMockProvider(
 async function getResultText(invocation: {
   promise: Promise<ProviderToolResult>;
 }): Promise<string> {
-  const result = await invocation.promise;
-  if (result.result.status === "ok") {
-    return (result.result.value[0] as { type: "text"; text: string }).text;
+  const { result } = await invocation.promise;
+  if (result.status === "ok") {
+    return (result.value[0] as { type: "text"; text: string }).text;
   }
-  return result.result.error;
+  return result.error;
 }
 
 describe("diagnostics unit tests", () => {
@@ -34,8 +34,8 @@ describe("diagnostics unit tests", () => {
       { diagnosticsProvider: provider },
     );
 
-    const result = await invocation.promise;
-    expect(result.result.status).toBe("ok");
+    const { result } = await invocation.promise;
+    expect(result.status).toBe("ok");
     const text = await getResultText(invocation);
     expect(text).toBe(diagnosticText);
   });
@@ -54,10 +54,10 @@ describe("diagnostics unit tests", () => {
       { diagnosticsProvider: provider },
     );
 
-    const result = await invocation.promise;
-    expect(result.result.status).toBe("error");
-    if (result.result.status === "error") {
-      expect(result.result.error).toContain("LSP not ready");
+    const { result } = await invocation.promise;
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("LSP not ready");
     }
   });
 
@@ -82,10 +82,10 @@ describe("diagnostics unit tests", () => {
     invocation.abort();
     resolveProvider!("some diagnostics");
 
-    const result = await invocation.promise;
-    expect(result.result.status).toBe("error");
-    if (result.result.status === "error") {
-      expect(result.result.error).toContain("aborted");
+    const { result } = await invocation.promise;
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("aborted");
     }
   });
 });

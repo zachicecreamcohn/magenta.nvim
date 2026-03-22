@@ -214,6 +214,7 @@ File \`context.md\`
             result: {
               status: "ok",
               value: [{ type: "text", text: "File contents here" }],
+              structuredResult: { toolName: "get_file" as ToolName },
             },
           },
         ],
@@ -367,6 +368,7 @@ File \`context.md\`
                   text: "const x = 1;\nconst y = 2;\n// lots of file content here...",
                 },
               ],
+              structuredResult: { toolName: "get_file" as ToolName },
             },
           },
         ],
@@ -450,6 +452,7 @@ File \`context.md\`
             result: {
               status: "ok",
               value: [{ type: "text", text: "hello" }],
+              structuredResult: { toolName: "get_file" as ToolName },
             },
           },
         ],

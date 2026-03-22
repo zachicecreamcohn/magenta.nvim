@@ -15,6 +15,7 @@ import type { Result } from "../utils/result.ts";
 export type Input = {
   threadIds: ThreadId[];
 };
+export type StructuredResult = { toolName: "wait_for_subagents" };
 
 export type ToolRequest = GenericToolRequest<"wait_for_subagents", Input>;
 
@@ -66,6 +67,7 @@ ${results
         result: {
           status: "ok",
           value: [{ type: "text", text }],
+          structuredResult: { toolName: "wait_for_subagents" },
         },
       };
     } catch (e) {

@@ -50,11 +50,11 @@ function createTool(command: string, shellResult: ShellResult) {
 async function getResultText(invocation: {
   promise: Promise<ProviderToolResult>;
 }): Promise<string> {
-  const result = await invocation.promise;
-  if (result.result.status === "ok") {
-    return (result.result.value[0] as { type: "text"; text: string }).text;
+  const { result } = await invocation.promise;
+  if (result.status === "ok") {
+    return (result.value[0] as { type: "text"; text: string }).text;
   }
-  return result.result.error;
+  return result.error;
 }
 
 describe("bashCommand unit tests", () => {

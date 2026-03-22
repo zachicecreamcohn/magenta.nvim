@@ -212,6 +212,7 @@ describe("toolResult", () => {
       result: {
         status: "ok",
         value: [{ type: "text", text: "Tool output" }],
+        structuredResult: { toolName: "get_file" as ToolName },
       },
     };
 
@@ -248,6 +249,7 @@ describe("toolResult", () => {
       result: {
         status: "ok",
         value: [{ type: "text", text: "Tool output" }],
+        structuredResult: { toolName: "get_file" as ToolName },
       },
     };
 

@@ -27,6 +27,7 @@ import type { PositionString, StringIdx } from "../utils/string-position.ts";
 import { calculateStringPosition } from "../utils/string-position.ts";
 
 export type ToolRequest = GenericToolRequest<"hover", Input>;
+export type StructuredResult = { toolName: "hover" };
 
 export function execute(
   request: ToolRequest,
@@ -244,7 +245,11 @@ export function execute(
       return {
         type: "tool_result",
         id: request.id,
-        result: { status: "ok", value: [{ type: "text", text: content }] },
+        result: {
+          status: "ok",
+          value: [{ type: "text", text: content }],
+          structuredResult: { toolName: "hover" },
+        },
       };
     } catch (error) {
       if (aborted) {

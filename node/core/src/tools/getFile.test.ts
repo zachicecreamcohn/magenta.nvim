@@ -60,8 +60,7 @@ describe("GetFileTool unit tests", () => {
   async function getResult(invocation: {
     promise: Promise<ProviderToolResult>;
   }) {
-    const result = await invocation.promise;
-    return result;
+    return await invocation.promise;
   }
 
   it("returns early when file is already in context", async () => {
