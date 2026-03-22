@@ -554,6 +554,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     }
 
     this.agent.appendUserMessage(contentToSend);
+    this.emit("update");
     this.agent.continueConversation();
   }
 
