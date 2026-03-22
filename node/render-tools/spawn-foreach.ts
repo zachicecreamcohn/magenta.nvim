@@ -1,6 +1,7 @@
 import type {
   CompletedToolInfo,
   DisplayContext,
+  SpawnForeach,
   ThreadId,
   ToolRequest as UnionToolRequest,
 } from "@magenta/core";
@@ -174,27 +175,16 @@ export function renderCompletedPreview(info: CompletedToolInfo): VDOMNode {
     return d``;
   }
 
-  const resultText =
-    result.value[0]?.type === "text" ? result.value[0].text : "";
+  if (info.structuredResult.toolName === "spawn_foreach") {
+    const sr = info.structuredResult as SpawnForeach.StructuredResult;
+    const elementViews = sr.elements.map((el) => {
+      const status = el.ok ? "✅" : "❌";
+      return d`  ${status} ${el.name}\n`;
+    });
+    return d`${elementViews}`;
+  }
 
-  const elementThreadsMatch = resultText.match(
-    /ElementThreads:\n([\s\S]*?)\n\n/,
-  );
-  const elementLines = elementThreadsMatch
-    ? elementThreadsMatch[1].split("\n").filter((line) => line.includes("::"))
-    : [];
-
-  const elementViews = elementLines.map((line) => {
-    const parts = line.split("::");
-    if (parts.length >= 3) {
-      const element = parts[0];
-      const status = parts[2] === "ok" ? "✅" : "❌";
-      return d`  ${status} ${element}\n`;
-    }
-    return d`  - ${line}\n`;
-  });
-
-  return d`${elementViews}`;
+  return d``;
 }
 
 export function renderCompletedDetail(
@@ -207,37 +197,27 @@ export function renderCompletedDetail(
     return d`**Error:**\n${result.error}`;
   }
 
-  const resultText =
-    result.value[0]?.type === "text" ? result.value[0].text : "";
+  if (info.structuredResult.toolName === "spawn_foreach") {
+    const sr = info.structuredResult as SpawnForeach.StructuredResult;
+    const elementViews = sr.elements.map((el) => {
+      const status = el.ok ? "✅" : "❌";
+      if (el.threadId) {
+        return withBindings(d`  ${status} ${el.name}\n`, {
+          "<CR>": () => {
+            dispatch({
+              type: "chat-msg",
+              msg: {
+                type: "select-thread",
+                id: el.threadId!,
+              },
+            });
+          },
+        });
+      }
+      return d`  ${status} ${el.name}\n`;
+    });
+    return d`${elementViews}`;
+  }
 
-  const elementThreadsMatch = resultText.match(
-    /ElementThreads:\n([\s\S]*?)\n\n/,
-  );
-  const elementLines = elementThreadsMatch
-    ? elementThreadsMatch[1].split("\n").filter((line) => line.includes("::"))
-    : [];
-
-  const elementViews = elementLines.map((line) => {
-    const parts = line.split("::");
-    if (parts.length >= 3) {
-      const element = parts[0];
-      const threadId = parts[1] as ThreadId;
-      const status = parts[2] === "ok" ? "✅" : "❌";
-
-      return withBindings(d`  ${status} ${element}\n`, {
-        "<CR>": () => {
-          dispatch({
-            type: "chat-msg",
-            msg: {
-              type: "select-thread",
-              id: threadId,
-            },
-          });
-        },
-      });
-    }
-    return d`  - ${line}\n`;
-  });
-
-  return d`${elementViews}`;
+  return d``;
 }

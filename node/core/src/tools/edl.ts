@@ -36,6 +36,12 @@ export type EdlDisplayData = {
   finalSelectionCount: number | undefined;
 };
 
+export type StructuredResult = {
+  toolName: "edl";
+  displayData?: EdlDisplayData;
+  formattedResult: string;
+};
+
 export const EDL_DISPLAY_PREFIX = "__EDL_DISPLAY__";
 export type ToolRequest = GenericToolRequest<"edl", Input>;
 
@@ -118,6 +124,11 @@ export function execute(
               },
               { type: "text", text: result.formatted },
             ],
+            structuredResult: {
+              toolName: "edl",
+              displayData,
+              formattedResult: result.formatted,
+            },
           },
         };
       } else {
@@ -141,12 +152,13 @@ export function execute(
           },
         };
       }
+      const errorMessage = `Failed to execute EDL script: ${error instanceof Error ? error.message : String(error)}`;
       return {
         type: "tool_result",
         id: request.id,
         result: {
           status: "error",
-          error: `Failed to execute EDL script: ${error instanceof Error ? error.message : String(error)}`,
+          error: errorMessage,
         },
       };
     }

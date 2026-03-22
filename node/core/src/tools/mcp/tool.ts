@@ -59,6 +59,7 @@ export function execute(
         result: {
           status: "ok",
           value: result,
+          structuredResult: { toolName: request.toolName },
         },
       };
     } catch (error) {

@@ -10,6 +10,8 @@ export type Input = {
   result: string;
 };
 
+export type StructuredResult = { toolName: "yield_to_parent" };
+
 export type ToolRequest = GenericToolRequest<"yield_to_parent", Input>;
 
 export function execute(request: ToolRequest): ToolInvocation {
@@ -20,6 +22,7 @@ export function execute(request: ToolRequest): ToolInvocation {
       result: {
         status: "ok" as const,
         value: [{ type: "text" as const, text: request.input.result }],
+        structuredResult: { toolName: "yield_to_parent" as const },
       },
     }),
     abort: () => {},

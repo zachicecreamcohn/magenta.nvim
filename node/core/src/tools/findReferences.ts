@@ -19,6 +19,7 @@ import {
 import type { Result } from "../utils/result.ts";
 import type { PositionString, StringIdx } from "../utils/string-position.ts";
 import { calculateStringPosition } from "../utils/string-position.ts";
+export type StructuredResult = { toolName: "find_references" };
 
 export function execute(
   request: ToolRequest,
@@ -127,6 +128,7 @@ export function execute(
         result: {
           status: "ok",
           value: [{ type: "text", text: content || "No references found" }],
+          structuredResult: { toolName: "find_references" },
         },
       };
     } catch (error) {

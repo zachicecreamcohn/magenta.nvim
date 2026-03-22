@@ -10,6 +10,7 @@ import type {
 } from "../tool-types.ts";
 import type { Result } from "../utils/result.ts";
 
+export type StructuredResult = { toolName: "diagnostics" };
 export type Input = {};
 
 export type ToolRequest = GenericToolRequest<"diagnostics", Input>;
@@ -41,6 +42,7 @@ export function execute(
         result: {
           status: "ok",
           value: [{ type: "text", text: content }],
+          structuredResult: { toolName: "diagnostics" },
         },
       };
     } catch (error) {

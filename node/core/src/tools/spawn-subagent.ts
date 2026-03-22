@@ -31,6 +31,12 @@ export type SpawnSubagentProgress = {
   threadId?: ThreadId;
   provisioningMessage?: string;
 };
+export type StructuredResult = {
+  toolName: "spawn_subagent";
+  threadId?: ThreadId;
+  isBlocking: boolean;
+  responseBody?: string;
+};
 
 export function execute(
   request: ToolRequest,
@@ -128,31 +134,47 @@ export function execute(
                   text: `Docker thread started with threadId: ${threadId} on worker branch: ${provisionResult.workerBranch} (forked from ${input.branch ?? "HEAD"})`,
                 },
               ],
+              structuredResult: {
+                toolName: "spawn_subagent",
+                threadId,
+                isBlocking: false,
+              },
             },
           };
         }
 
         const result = await context.threadManager.waitForThread(threadId);
 
-        return {
-          type: "tool_result",
-          id: request.id,
-          result:
-            result.status === "ok"
-              ? {
-                  status: "ok",
-                  value: [
-                    {
-                      type: "text",
-                      text: `Docker sub-agent (${threadId}) on worker branch ${provisionResult.workerBranch} completed:\n${result.value}`,
-                    },
-                  ],
-                }
-              : {
-                  status: "error",
-                  error: `Docker sub-agent (${threadId}) on worker branch ${provisionResult.workerBranch} failed: ${result.error}`,
+        if (result.status === "ok") {
+          return {
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "ok",
+              value: [
+                {
+                  type: "text",
+                  text: `Docker sub-agent (${threadId}) on worker branch ${provisionResult.workerBranch} completed:\n${result.value}`,
                 },
-        };
+              ],
+              structuredResult: {
+                toolName: "spawn_subagent",
+                threadId,
+                isBlocking: true,
+                responseBody: result.value,
+              },
+            },
+          };
+        } else {
+          return {
+            type: "tool_result",
+            id: request.id,
+            result: {
+              status: "error",
+              error: `Docker sub-agent (${threadId}) on worker branch ${provisionResult.workerBranch} failed: ${result.error}`,
+            },
+          };
+        }
       }
 
       const threadType: ThreadType =
@@ -184,31 +206,47 @@ export function execute(
                 text: `Sub-agent started with threadId: ${threadId}`,
               },
             ],
+            structuredResult: {
+              toolName: "spawn_subagent",
+              threadId,
+              isBlocking: false,
+            },
           },
         };
       }
 
       const result = await context.threadManager.waitForThread(threadId);
 
-      return {
-        type: "tool_result",
-        id: request.id,
-        result:
-          result.status === "ok"
-            ? {
-                status: "ok",
-                value: [
-                  {
-                    type: "text",
-                    text: `Sub-agent (${threadId}) completed:\n${result.value}`,
-                  },
-                ],
-              }
-            : {
-                status: "error",
-                error: `Sub-agent (${threadId}) failed: ${result.error}`,
+      if (result.status === "ok") {
+        return {
+          type: "tool_result",
+          id: request.id,
+          result: {
+            status: "ok",
+            value: [
+              {
+                type: "text",
+                text: `Sub-agent (${threadId}) completed:\n${result.value}`,
               },
-      };
+            ],
+            structuredResult: {
+              toolName: "spawn_subagent",
+              threadId,
+              isBlocking: true,
+              responseBody: result.value,
+            },
+          },
+        };
+      } else {
+        return {
+          type: "tool_result",
+          id: request.id,
+          result: {
+            status: "error",
+            error: `Sub-agent (${threadId}) failed: ${result.error}`,
+          },
+        };
+      }
     } catch (e) {
       return {
         type: "tool_result",

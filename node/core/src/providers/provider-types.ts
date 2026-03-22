@@ -133,7 +133,13 @@ export type ProviderToolResultContent =
 export type ProviderToolResult = {
   type: "tool_result";
   id: ToolManager.ToolRequestId;
-  result: Result<ProviderToolResultContent[]>;
+  result:
+    | {
+        status: "ok";
+        value: ProviderToolResultContent[];
+        structuredResult: ToolManager.ToolStructuredResult;
+      }
+    | { status: "error"; error: string };
 };
 
 export type ProviderToolSpec = {

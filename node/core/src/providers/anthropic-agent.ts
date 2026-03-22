@@ -1057,7 +1057,13 @@ function convertBlockToProvider(
       if (typeof block.content === "string") {
         contents = block.is_error
           ? { status: "error", error: block.content }
-          : { status: "ok", value: [{ type: "text", text: block.content }] };
+          : {
+              status: "ok",
+              value: [{ type: "text", text: block.content }],
+              structuredResult: {
+                toolName: "unknown" as ToolName,
+              },
+            };
       } else if (block.is_error) {
         const textBlock = block.content?.find((c) => c.type === "text") as
           | { type: "text"; text: string }
@@ -1097,6 +1103,9 @@ function convertBlockToProvider(
                 };
               }
             }),
+          structuredResult: {
+            toolName: "unknown" as ToolName,
+          },
         };
       }
 

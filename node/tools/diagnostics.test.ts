@@ -64,6 +64,9 @@ describe("node/tools/diagnostics.test.ts", () => {
               text: `file: <tmpDir>/test.ts source: typescript, severity: 1, message: "Property 'd' does not exist on type '{ c: "test"; }'."`,
             },
           ],
+          structuredResult: {
+            toolName: "unknown",
+          },
         },
       });
     });

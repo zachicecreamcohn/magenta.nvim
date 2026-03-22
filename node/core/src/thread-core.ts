@@ -121,7 +121,11 @@ export type ThreadCoreAction =
   | { type: "set-title"; title: string }
   | { type: "set-mode"; mode: ThreadMode }
   | { type: "rebuild-tool-cache" }
-  | { type: "cache-tool-result"; id: ToolRequestId; result: ProviderToolResult }
+  | {
+      type: "cache-tool-result";
+      id: ToolRequestId;
+      result: ProviderToolResult;
+    }
   | { type: "increment-output-tokens"; tokens: number }
   | { type: "reset-output-tokens" }
   | { type: "set-teardown-message"; message: string }
@@ -293,11 +297,26 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         break;
       case "rebuild-tool-cache": {
         const results = new Map<ToolRequestId, ProviderToolResult>();
+        const oldResults = this.state.toolCache.results;
         for (const message of this.getProviderMessages()) {
           if (message.role !== "user") continue;
           for (const content of message.content) {
             if (content.type === "tool_result") {
-              results.set(content.id, content);
+              const cached = oldResults.get(content.id);
+              if (
+                cached?.result.status === "ok" &&
+                content.result.status === "ok"
+              ) {
+                results.set(content.id, {
+                  ...content,
+                  result: {
+                    ...content.result,
+                    structuredResult: cached.result.structuredResult,
+                  },
+                });
+              } else {
+                results.set(content.id, content);
+              }
             }
           }
         }
@@ -515,7 +534,11 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
 
       void invocation.promise
         .then((result) => {
-          this.update({ type: "cache-tool-result", id: request.id, result });
+          this.update({
+            type: "cache-tool-result",
+            id: request.id,
+            result,
+          });
         })
         .catch((err: Error) => {
           this.update({
@@ -730,6 +753,9 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
                     text: "Yield accepted. Your result has been sent to the parent thread.",
                   },
                 ],
+                structuredResult: {
+                  toolName: "yield_to_parent" as ToolName,
+                },
               },
             },
           });
