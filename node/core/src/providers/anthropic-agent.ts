@@ -302,10 +302,10 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
   }
 
   toolResult(toolUseId: ToolRequestId, result: ProviderToolResult): void {
-    // Validate that we're in the correct state to receive a tool result
     if (
       this.status.type !== "stopped" ||
-      this.status.stopReason !== "tool_use"
+      (this.status.stopReason !== "tool_use" &&
+        this.status.stopReason !== "max_tokens")
     ) {
       throw new Error(
         `Cannot provide tool result: expected status stopped with stopReason tool_use, but got ${JSON.stringify(this.status)}`,

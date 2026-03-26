@@ -91,6 +91,11 @@ export {
 } from "./providers/anthropic-agent.ts";
 export type { BedrockProviderOptions } from "./providers/bedrock.ts";
 export { BedrockProvider } from "./providers/bedrock.ts";
+export {
+  MockAnthropicClient,
+  type MockMessageStream,
+  MockStream,
+} from "./providers/mock-anthropic-client.ts";
 export { getProvider, setMockProvider } from "./providers/provider.ts";
 export type {
   Agent,
