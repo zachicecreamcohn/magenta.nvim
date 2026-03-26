@@ -35,8 +35,11 @@ it("compact flow: user initiates @compact, spawns compact thread, compacts and c
     const originalThread = driver.magenta.chat.getActiveThread();
     const originalThreadId = originalThread.id;
 
-    // Verify we have conversation history before compacting
-    expect(originalThread.getMessages().length).toBeGreaterThanOrEqual(4);
+    // Wait for second response to be fully processed
+    await pollUntil(() => {
+      if (originalThread.getMessages().length >= 4) return true;
+      throw new Error("waiting for messages");
+    });
 
     // User initiates compact with a next prompt
     await driver.inputMagentaText("@compact Now help me with multiplication");

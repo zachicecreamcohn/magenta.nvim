@@ -1,5 +1,1 @@
-export {
-  MockAnthropicClient,
-  type MockMessageStream,
-  MockStream,
-} from "@magenta/core";
+export { MockAnthropicClient, MockStream } from "@magenta/core";

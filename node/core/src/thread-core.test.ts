@@ -140,7 +140,9 @@ describe("ThreadCore.handleProviderStopped", () => {
 
     const toolUseId = "tool-1" as ToolRequestId;
 
-    // Stream a tool_use block with incomplete JSON — no content_block_stop
+    // Stream a tool_use block with incomplete JSON input.
+    // The real API always sends content_block_stop even at max_tokens.
+    // partialParse will produce {} for the truncated JSON, which fails validation.
     const blockIndex = stream.nextBlockIndex();
     stream.emitEvent({
       type: "content_block_start",
@@ -157,7 +159,7 @@ describe("ThreadCore.handleProviderStopped", () => {
       index: blockIndex,
       delta: { type: "input_json_delta", partial_json: '{"filePath":' },
     });
-    // Truncated — no content_block_stop
+    stream.emitEvent({ type: "content_block_stop", index: blockIndex });
     stream.finishResponse("max_tokens");
 
     // The truncated tool_use should be visible and get an error tool_result,
@@ -168,19 +170,32 @@ describe("ThreadCore.handleProviderStopped", () => {
       throw new Error("waiting for next stream");
     });
 
-    // The second stream should contain the tool_result in its messages
+    // The second stream should contain the tool_result in its messages.
+    // It may not be in the very last user message (system reminders follow),
+    // so search backwards for a user message containing tool_result.
     const secondStream = mockClient.streams[1];
-    const lastUserMsg = secondStream.messages[secondStream.messages.length - 1];
-    expect(lastUserMsg.role).toBe("user");
-    const toolResult = (
-      lastUserMsg.content as Anthropic.Messages.ToolResultBlockParam[]
-    ).find(
-      (b): b is Anthropic.Messages.ToolResultBlockParam =>
-        b.type === "tool_result" && b.tool_use_id === toolUseId,
-    );
+    let toolResult: Anthropic.Messages.ToolResultBlockParam | undefined;
+    for (let i = secondStream.messages.length - 1; i >= 0; i--) {
+      const msg = secondStream.messages[i];
+      if (msg.role !== "user" || typeof msg.content === "string") continue;
+      toolResult = (
+        msg.content as Anthropic.Messages.ToolResultBlockParam[]
+      ).find(
+        (b): b is Anthropic.Messages.ToolResultBlockParam =>
+          b.type === "tool_result" && b.tool_use_id === toolUseId,
+      );
+      if (toolResult) break;
+    }
     expect(
       toolResult,
-      `Expected tool_result in: ${JSON.stringify(lastUserMsg.content, null, 2)}`,
+      `Expected tool_result in stream messages: ${JSON.stringify(
+        secondStream.messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+        null,
+        2,
+      )}`,
     ).toBeDefined();
     expect(toolResult!.is_error).toBe(true);
   });

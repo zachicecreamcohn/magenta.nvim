@@ -1,40 +1,43 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolName, ToolRequest, ToolRequestId } from "../tool-types.ts";
+import { MessageStream } from "@anthropic-ai/sdk/lib/MessageStream.mjs";
+import type { ToolName, ToolRequestId } from "../tool-types.ts";
 import { validateInput } from "../tools/helpers.ts";
-import { Defer, pollUntil } from "../utils/async.ts";
+import { pollUntil } from "../utils/async.ts";
 import type { Result } from "../utils/result.ts";
 import { convertAnthropicMessagesToProvider } from "./anthropic-agent.ts";
 import type { ProviderMessage, StopReason, Usage } from "./provider-types.ts";
 
-type StreamEventCallback = (
-  event: Anthropic.Messages.MessageStreamEvent,
-) => void;
-
-/** Minimal interface matching what AnthropicProviderThread uses from the Anthropic SDK */
-export interface MockMessageStream {
-  on(event: "streamEvent", callback: StreamEventCallback): this;
-  finalMessage(): Promise<Anthropic.Message>;
-  abort(): void;
-}
-
-/** A mock stream that tests can control to simulate Anthropic API responses */
-export class MockStream implements MockMessageStream {
-  private streamEventListeners: StreamEventCallback[] = [];
-  private finalMessageDefer = new Defer<Anthropic.Message>();
-  private contentBlocks: Anthropic.Messages.ContentBlock[] = [];
+/** A mock stream that tests can control to simulate Anthropic API responses.
+ *  Drives a real MessageStream via a ReadableStream so all event accumulation,
+ *  partialParse, and finalMessage() assembly use the real SDK code path.
+ */
+export class MockStream {
+  private readableController!: ReadableStreamDefaultController<Uint8Array>;
+  private realStream: MessageStream;
   private blockCounter = 0;
-  private openBlock: Anthropic.Messages.ContentBlock | undefined;
-  private openBlockInputJson = "";
-  public controller = new AbortController();
+  private messageStartEmitted = false;
+  private _resolved = false;
+  private _abortController = new AbortController();
+  private _pushedEventCount = 0;
+  private _processedEventCount = 0;
 
-  constructor(public params: Anthropic.Messages.MessageStreamParams) {}
+  constructor(public params: Anthropic.Messages.MessageStreamParams) {
+    const readable = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        this.readableController = controller;
+      },
+    });
+    this.realStream = MessageStream.fromReadableStream(readable);
 
-  /** Access messages that were sent in the request (raw Anthropic format) */
+    this.realStream.on("streamEvent", () => {
+      this._processedEventCount++;
+    });
+  }
+
   get messages(): Anthropic.MessageParam[] {
     return this.params.messages;
   }
 
-  /** Access messages converted to ProviderMessage format (for easier test assertions) */
   getProviderMessages(): ProviderMessage[] {
     return convertAnthropicMessagesToProvider(
       validateInput,
@@ -42,150 +45,153 @@ export class MockStream implements MockMessageStream {
     );
   }
 
-  /** Access the system prompt that was sent in the request */
   get systemPrompt(): string | undefined {
     const system = this.params.system;
     if (!system) return undefined;
     if (typeof system === "string") return system;
-    // Array of text blocks - concatenate them
     return system
       .map((block) => ("text" in block ? block.text : ""))
       .join("\n");
   }
 
-  on(event: "streamEvent", callback: StreamEventCallback): this {
+  on(
+    event: "streamEvent",
+    callback: (
+      event: Anthropic.Messages.MessageStreamEvent,
+      snapshot: Anthropic.Message,
+    ) => void,
+  ): this {
     if (event === "streamEvent") {
-      this.streamEventListeners.push(callback);
+      this.realStream.on("streamEvent", callback);
     }
     return this;
   }
 
   finalMessage(): Promise<Anthropic.Message> {
-    return this.finalMessageDefer.promise;
+    return this.realStream.finalMessage();
   }
 
   abort(): void {
-    if (!this.finalMessageDefer.resolved) {
-      this.controller.abort();
-      this.finalMessageDefer.reject(new Error("Request aborted"));
+    this._resolved = true;
+    this._abortController.abort();
+    try {
+      this.readableController.close();
+    } catch {
+      // already closed
     }
+    this.realStream.abort();
+  }
+
+  get controller(): AbortController {
+    return this._abortController;
   }
 
   get aborted(): boolean {
-    return this.controller.signal.aborted;
+    return this._abortController.signal.aborted;
   }
 
   get resolved(): boolean {
-    return this.finalMessageDefer.resolved;
+    return this._resolved;
   }
 
-  private emit(event: Anthropic.Messages.MessageStreamEvent): void {
-    if (event.type === "content_block_start") {
-      this.openBlock = event.content_block;
-      this.openBlockInputJson = "";
-    } else if (event.type === "content_block_delta") {
-      if (this.openBlock) {
-        this.applyDeltaToOpenBlock(event.delta);
-      }
-    } else if (event.type === "content_block_stop") {
-      this.openBlock = undefined;
-    }
-    for (const listener of this.streamEventListeners) {
-      listener(event);
+  private pushEvent(event: Anthropic.Messages.MessageStreamEvent): void {
+    this._pushedEventCount++;
+    const json = `${JSON.stringify(event)}\n`;
+    const bytes = new TextEncoder().encode(json);
+    this.readableController.enqueue(bytes);
+  }
+
+  private ensureMessageStart(): void {
+    if (!this.messageStartEmitted) {
+      this.messageStartEmitted = true;
+      this.pushEvent({
+        type: "message_start",
+        message: {
+          id: `msg_mock_${Date.now()}`,
+          type: "message",
+          role: "assistant",
+          content: [],
+          model: "mock-model",
+          stop_reason: null,
+          stop_sequence: null,
+          usage: {
+            input_tokens: 0,
+            output_tokens: 0,
+            cache_creation_input_tokens: null,
+            cache_read_input_tokens: null,
+            cache_creation: null,
+            inference_geo: null,
+            server_tool_use: null,
+            service_tier: null,
+          },
+        },
+      });
     }
   }
 
-  private applyDeltaToOpenBlock(
-    delta: Anthropic.Messages.ContentBlockDeltaEvent["delta"],
-  ): void {
-    if (!this.openBlock) return;
-    if (delta.type === "text_delta" && this.openBlock.type === "text") {
-      this.openBlock.text += delta.text;
-    } else if (
-      delta.type === "input_json_delta" &&
-      this.openBlock.type === "tool_use"
-    ) {
-      this.openBlockInputJson += delta.partial_json;
-    } else if (
-      delta.type === "thinking_delta" &&
-      this.openBlock.type === "thinking"
-    ) {
-      this.openBlock.thinking += delta.thinking;
+  /** Wait for all pushed events to be processed by the real MessageStream. */
+  async settle(): Promise<void> {
+    while (this._processedEventCount < this._pushedEventCount) {
+      await new Promise<void>((resolve) => queueMicrotask(resolve));
     }
   }
 
   // --- Test helper methods ---
 
-  /** Stream a text block */
   streamText(text: string): void {
+    this.ensureMessageStart();
     const index = this.blockCounter++;
 
-    this.emit({
+    this.pushEvent({
       type: "content_block_start",
       index,
       content_block: { type: "text", text: "", citations: null },
     });
-
-    this.emit({
+    this.pushEvent({
       type: "content_block_delta",
       index,
       delta: { type: "text_delta", text },
     });
-
-    this.emit({
-      type: "content_block_stop",
-      index,
-    });
-
-    this.contentBlocks.push({ type: "text", text, citations: null });
+    this.pushEvent({ type: "content_block_stop", index });
   }
 
-  /** Stream a tool use block */
   streamToolUse(
     id: ToolRequestId,
     name: ToolName,
     input: Record<string, unknown>,
   ): void {
+    this.ensureMessageStart();
     const index = this.blockCounter++;
 
-    this.emit({
+    this.pushEvent({
       type: "content_block_start",
       index,
       content_block: { type: "tool_use", id, name, input: {} },
     });
-
-    this.emit({
+    this.pushEvent({
       type: "content_block_delta",
       index,
       delta: { type: "input_json_delta", partial_json: JSON.stringify(input) },
     });
-
-    this.emit({
-      type: "content_block_stop",
-      index,
-    });
-
-    this.contentBlocks.push({ type: "tool_use", id, name, input });
+    this.pushEvent({ type: "content_block_stop", index });
   }
 
-  /** Stream a thinking block */
   streamThinking(thinking: string, signature: string = ""): void {
+    this.ensureMessageStart();
     const index = this.blockCounter++;
 
-    this.emit({
+    this.pushEvent({
       type: "content_block_start",
       index,
       content_block: { type: "thinking", thinking: "", signature: "" },
     });
-
-    this.emit({
+    this.pushEvent({
       type: "content_block_delta",
       index,
       delta: { type: "thinking_delta", thinking },
     });
-
     if (signature) {
-      this.emit({
+      this.pushEvent({
         type: "content_block_delta",
         index,
         delta: {
@@ -194,52 +200,30 @@ export class MockStream implements MockMessageStream {
         } as Anthropic.Messages.ContentBlockDeltaEvent["delta"],
       });
     }
-
-    this.emit({
-      type: "content_block_stop",
-      index,
-    });
-
-    this.contentBlocks.push({ type: "thinking", thinking, signature });
+    this.pushEvent({ type: "content_block_stop", index });
   }
 
-  /** Get the next block index for incremental streaming */
-  nextBlockIndex(): number {
-    return this.blockCounter++;
-  }
-
-  /** Emit a raw stream event for fine-grained control in tests */
-  emitEvent(event: Anthropic.Messages.MessageStreamEvent): void {
-    this.emit(event);
-  }
-
-  /** Stream a redacted thinking block */
   streamRedactedThinking(data: string): void {
+    this.ensureMessageStart();
     const index = this.blockCounter++;
 
-    this.emit({
+    this.pushEvent({
       type: "content_block_start",
       index,
       content_block: { type: "redacted_thinking", data },
     });
-
-    this.emit({
-      type: "content_block_stop",
-      index,
-    });
-
-    this.contentBlocks.push({ type: "redacted_thinking", data });
+    this.pushEvent({ type: "content_block_stop", index });
   }
 
-  /** Stream a server tool use (e.g., web_search) */
   streamServerToolUse(
     id: string,
     name: "web_search",
     input: { query: string },
   ): void {
+    this.ensureMessageStart();
     const index = this.blockCounter++;
 
-    this.emit({
+    this.pushEvent({
       type: "content_block_start",
       index,
       content_block: {
@@ -249,28 +233,16 @@ export class MockStream implements MockMessageStream {
         input: {},
       } as unknown as Anthropic.Messages.ContentBlock,
     });
-
-    this.emit({
+    this.pushEvent({
       type: "content_block_delta",
       index,
       delta: { type: "input_json_delta", partial_json: JSON.stringify(input) },
     });
-
-    this.emit({
-      type: "content_block_stop",
-      index,
-    });
-
-    this.contentBlocks.push({
-      type: "server_tool_use",
-      id,
-      name,
-      input,
-    } as unknown as Anthropic.Messages.ContentBlock);
+    this.pushEvent({ type: "content_block_stop", index });
   }
 
-  /** Stream a web search tool result */
   streamWebSearchToolResult(toolUseId: string, content: unknown): void {
+    this.ensureMessageStart();
     const index = this.blockCounter++;
 
     const block = {
@@ -279,67 +251,67 @@ export class MockStream implements MockMessageStream {
       content,
     } as unknown as Anthropic.Messages.ContentBlock;
 
-    this.emit({
+    this.pushEvent({
       type: "content_block_start",
       index,
       content_block: block,
     });
-
-    this.emit({
-      type: "content_block_stop",
-      index,
-    });
-
-    this.contentBlocks.push(block);
+    this.pushEvent({ type: "content_block_stop", index });
   }
 
-  /** Complete the response with the accumulated content blocks */
+  nextBlockIndex(): number {
+    return this.blockCounter++;
+  }
+
+  emitEvent(event: Anthropic.Messages.MessageStreamEvent): void {
+    if (
+      event.type === "content_block_start" ||
+      event.type === "content_block_delta" ||
+      event.type === "content_block_stop" ||
+      event.type === "message_delta"
+    ) {
+      this.ensureMessageStart();
+    }
+    this.pushEvent(event);
+  }
+
   finishResponse(
     stopReason: StopReason,
     usage: Usage = { inputTokens: 1000, outputTokens: 5000 },
   ): void {
-    const content = [...this.contentBlocks];
-    if (this.openBlock) {
-      if (this.openBlock.type === "tool_use" && this.openBlockInputJson) {
-        try {
-          this.openBlock.input = JSON.parse(this.openBlockInputJson);
-        } catch {
-          // Mimic real SDK behavior: optimistic parse of truncated JSON
-          this.openBlock.input = {};
-        }
-      }
-      content.push(this.openBlock);
-      this.openBlock = undefined;
-    }
-    const message: Anthropic.Message = {
-      id: `msg_mock_${Date.now()}`,
-      type: "message",
-      role: "assistant",
-      content,
-      model: "mock-model",
-      stop_reason: stopReason as Anthropic.Message["stop_reason"],
-      stop_sequence: null,
-      usage: {
-        input_tokens: usage.inputTokens,
-        inference_geo: null,
-        output_tokens: usage.outputTokens,
-        cache_read_input_tokens: usage.cacheHits ?? null,
-        cache_creation_input_tokens: usage.cacheMisses ?? null,
-        cache_creation: null,
-        server_tool_use: null,
-        service_tier: null,
+    this._resolved = true;
+    this.ensureMessageStart();
+    this.pushEvent({
+      type: "message_delta",
+      delta: {
+        stop_reason: stopReason as Anthropic.Message["stop_reason"],
+        stop_sequence: null,
       },
-    };
-
-    this.finalMessageDefer.resolve(message);
+      usage: {
+        output_tokens: usage.outputTokens,
+        input_tokens: usage.inputTokens,
+        cache_creation_input_tokens: usage.cacheMisses ?? null,
+        cache_read_input_tokens: usage.cacheHits ?? null,
+        server_tool_use: null,
+      },
+    });
+    this.pushEvent({ type: "message_stop" });
+    this.readableController.close();
   }
 
-  /** Reject the response with an error */
   respondWithError(error: Error): void {
-    this.finalMessageDefer.reject(error);
+    this._resolved = true;
+    // Push an error event that will cause finalMessage() to reject
+    // but NOT set the abort signal
+    try {
+      // Throw the error into the readable stream without aborting
+      this.readableController.error(error);
+    } catch {
+      // If error fails, abort as fallback
+      this.realStream.abort();
+    }
   }
 
-  /** High-level helper matching the legacy MockRequest interface */
   respond({
     text,
     toolRequests,
@@ -347,7 +319,10 @@ export class MockStream implements MockMessageStream {
     usage,
   }: {
     text: string;
-    toolRequests: Result<ToolRequest, { rawRequest: unknown }>[];
+    toolRequests: Result<
+      { id: ToolRequestId; toolName: ToolName; input: unknown },
+      { rawRequest: unknown }
+    >[];
     stopReason: StopReason;
     usage?: Usage;
   }): void {
@@ -368,8 +343,7 @@ export class MockStream implements MockMessageStream {
             toolRequest.value.input as Record<string, unknown>,
           );
         } else {
-          // For error cases, stream with the raw request
-          const blockId = `block_error_${this.blockCounter++}`;
+          const blockId = `block_error_${this.blockCounter}`;
           this.streamToolUse(
             blockId as ToolRequestId,
             "unknown" as ToolName,
@@ -438,6 +412,7 @@ function validateToolUseConstraint(messages: Anthropic.MessageParam[]): void {
     }
   }
 }
+
 /** Mock Anthropic client that creates MockStreams for testing */
 export class MockAnthropicClient {
   public streams: MockStream[] = [];
@@ -459,12 +434,10 @@ export class MockAnthropicClient {
     },
   };
 
-  /** Get the most recent stream */
   get lastStream(): MockStream | undefined {
     return this.streams[this.streams.length - 1];
   }
 
-  /** Wait for a pending (non-finished) stream */
   async awaitStream(): Promise<MockStream> {
     return pollUntil(() => {
       const stream = this.lastStream;
