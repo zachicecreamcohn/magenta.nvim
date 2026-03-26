@@ -443,6 +443,27 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       return;
     }
 
+    if (stopReason === "max_tokens") {
+      const messages = this.getProviderMessages();
+      const lastMessage = messages[messages.length - 1];
+      const hasToolUse =
+        lastMessage?.role === "assistant" &&
+        lastMessage.content.some((block) => block.type === "tool_use");
+
+      if (hasToolUse) {
+        this.handleProviderStoppedWithToolUse();
+        return;
+      }
+
+      this.sendMessage([
+        {
+          type: "system",
+          text: "Your previous response was truncated due to the output token limit. Please continue where you left off.",
+        },
+      ]).catch(this.handleSendMessageError.bind(this));
+      return;
+    }
+
     this.update({ type: "set-mode", mode: { type: "normal" } });
 
     const autoRespondResult = this.maybeAutoRespond();
