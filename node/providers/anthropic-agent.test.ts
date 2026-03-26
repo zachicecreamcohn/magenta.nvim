@@ -88,6 +88,7 @@ describe("appendUserMessage", () => {
       index: blockIndex,
       content_block: { type: "text", text: "", citations: null },
     });
+    await stream.settle();
 
     // Still only user message - assistant message not added yet
     expect(agent.getState().messages).toHaveLength(1);
@@ -98,6 +99,7 @@ describe("appendUserMessage", () => {
       index: blockIndex,
       delta: { type: "text_delta", text: "Hello world" },
     });
+    await stream.settle();
 
     // Still only user message
     expect(agent.getState().messages).toHaveLength(1);
@@ -107,6 +109,7 @@ describe("appendUserMessage", () => {
       type: "content_block_stop",
       index: blockIndex,
     });
+    await stream.settle();
 
     // Now assistant message should be added
     expect(agent.getState().messages).toHaveLength(2);
@@ -552,6 +555,7 @@ describe("thinking blocks", () => {
       index: blockIndex,
       content_block: { type: "thinking", thinking: "", signature: "" },
     });
+    await stream.settle();
 
     // Check streaming block is exposed
     let streamingBlock = agent.getStreamingBlock();
@@ -564,6 +568,7 @@ describe("thinking blocks", () => {
       index: blockIndex,
       delta: { type: "thinking_delta", thinking: "Let me think about this..." },
     });
+    await stream.settle();
 
     streamingBlock = agent.getStreamingBlock();
     expect(streamingBlock?.type).toBe("thinking");
@@ -581,6 +586,7 @@ describe("thinking blocks", () => {
         signature: "EqQBCgIYAhIM1gbcDa9GJwZA2b3h",
       } as Anthropic.Messages.ContentBlockDeltaEvent["delta"],
     });
+    await stream.settle();
 
     streamingBlock = agent.getStreamingBlock();
     if (streamingBlock?.type === "thinking") {
@@ -593,6 +599,7 @@ describe("thinking blocks", () => {
       type: "content_block_stop",
       index: blockIndex,
     });
+    await stream.settle();
 
     expect(agent.getStreamingBlock()).toBeUndefined();
 
@@ -726,6 +733,7 @@ describe("streaming block", () => {
       index: blockIndex,
       content_block: { type: "text", text: "", citations: null },
     });
+    await stream.settle();
 
     // Check streaming block is exposed
     let streamingBlock = agent.getStreamingBlock();
@@ -738,6 +746,7 @@ describe("streaming block", () => {
       index: blockIndex,
       delta: { type: "text_delta", text: "Hello world" },
     });
+    await stream.settle();
 
     streamingBlock = agent.getStreamingBlock();
     expect(streamingBlock?.type).toBe("text");
@@ -750,6 +759,7 @@ describe("streaming block", () => {
       type: "content_block_stop",
       index: blockIndex,
     });
+    await stream.settle();
 
     // Streaming block should be cleared
     expect(agent.getStreamingBlock()).toBeUndefined();
@@ -783,6 +793,7 @@ describe("streaming block", () => {
         input: {},
       },
     });
+    await stream.settle();
 
     let streamingBlock = agent.getStreamingBlock();
     expect(streamingBlock?.type).toBe("tool_use");
@@ -799,6 +810,7 @@ describe("streaming block", () => {
       index: blockIndex,
       delta: { type: "input_json_delta", partial_json: '"test.ts"}' },
     });
+    await stream.settle();
 
     streamingBlock = agent.getStreamingBlock();
     if (streamingBlock?.type === "tool_use") {
@@ -810,6 +822,7 @@ describe("streaming block", () => {
       type: "content_block_stop",
       index: blockIndex,
     });
+    await stream.settle();
 
     expect(agent.getStreamingBlock()).toBeUndefined();
 
@@ -1038,11 +1051,12 @@ describe("web search result preservation", () => {
       stream.streamToolUse(toolUseId, "get_file" as ToolName, {
         filePath: "test.ts",
       });
+      await stream.settle();
 
       // Simulate a stream error
       stream.respondWithError(new Error("Connection lost"));
 
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await delay(10);
 
       const state = agent.getState();
 
@@ -1080,11 +1094,12 @@ describe("web search result preservation", () => {
       stream.streamServerToolUse("server-tool-2", "web_search", {
         query: "test query",
       });
+      await stream.settle();
 
       // Simulate a stream error
       stream.respondWithError(new Error("API timeout"));
 
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await delay(10);
 
       const state = agent.getState();
 
@@ -1208,10 +1223,11 @@ describe("web search result preservation", () => {
 
       const stream2 = await mockClient.awaitStream();
       stream2.streamText("Starting to respond...");
+      await stream2.settle();
 
       // Simulate an error
       stream2.respondWithError(new Error("Connection lost"));
-      await delay(0);
+      await delay(10);
 
       // latestUsage should still reflect the first successful request
       const state = agent.getState();
@@ -1527,6 +1543,7 @@ File context here
 
       // Finalize a text block
       stream.streamText("Complete text");
+      await stream.settle();
 
       // Start a tool_use block but don't finish it
       const toolIndex = stream.nextBlockIndex();
@@ -1540,6 +1557,7 @@ File context here
           input: {},
         },
       });
+      await stream.settle();
 
       // Clone while tool_use is in-progress (in currentAnthropicBlock)
       const cloned = agent.clone();
@@ -1688,6 +1706,7 @@ File context here
 
       const stream = await mockClient.awaitStream();
       stream.streamText("First part");
+      await stream.settle();
 
       // Clone mid-stream
       const cloned = agent.clone();

@@ -302,10 +302,10 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
   }
 
   toolResult(toolUseId: ToolRequestId, result: ProviderToolResult): void {
-    // Validate that we're in the correct state to receive a tool result
     if (
       this.status.type !== "stopped" ||
-      this.status.stopReason !== "tool_use"
+      (this.status.stopReason !== "tool_use" &&
+        this.status.stopReason !== "max_tokens")
     ) {
       throw new Error(
         `Cannot provide tool result: expected status stopped with stopReason tool_use, but got ${JSON.stringify(this.status)}`,
@@ -1218,7 +1218,12 @@ export function withCacheControl(
   return messages;
 }
 
+function normalizeModelName(model: string): string {
+  const match = model.match(/claude-[a-z0-9.-]+/);
+  return match ? match[0] : model;
+}
 export function getContextWindowForModel(model: string): number {
+  model = normalizeModelName(model);
   // Claude 3+ models all have 200K context windows
   if (model.match(/^claude-(opus-4|sonnet-4|haiku-4|3|4)/)) {
     return 200_000;
@@ -1233,6 +1238,7 @@ export function getContextWindowForModel(model: string): number {
   return 200_000;
 }
 export function getMaxTokensForModel(model: string): number {
+  model = normalizeModelName(model);
   // Claude 4.5 models (Opus, Sonnet, Haiku) - use high limits
   if (model.match(/^claude-(opus-4-5|opus-4-6|sonnet-4-5|haiku-4-5)/)) {
     return 32000;
