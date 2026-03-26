@@ -132,7 +132,7 @@ describe("ThreadCore.handleProviderStopped", () => {
     }
   });
 
-  it("max_tokens with truncated (incomplete) tool_use block sends continuation prompt", async () => {
+  it("max_tokens with truncated (incomplete) tool_use block sends error tool_result and auto-continues", async () => {
     const { core, mockClient } = createThreadCoreWithMock();
 
     core.sendMessage([{ type: "user", text: "hello" }]);
@@ -160,20 +160,29 @@ describe("ThreadCore.handleProviderStopped", () => {
     // Truncated — no content_block_stop
     stream.finishResponse("max_tokens");
 
-    // The incomplete block isn't finalized, so ThreadCore sees text-only
-    // and sends a continuation prompt
-    const nextStream = await pollUntil(() => {
-      const s = mockClient.streams[mockClient.streams.length - 1];
-      if (s && s !== stream) return s;
+    // The truncated tool_use should be visible and get an error tool_result,
+    // then the agent should auto-continue
+    // Wait for at least one more stream to appear
+    await pollUntil(() => {
+      if (mockClient.streams.length > 1) return true;
       throw new Error("waiting for next stream");
     });
 
-    const lastUserMsg = nextStream.messages[nextStream.messages.length - 1];
+    // The second stream should contain the tool_result in its messages
+    const secondStream = mockClient.streams[1];
+    const lastUserMsg = secondStream.messages[secondStream.messages.length - 1];
     expect(lastUserMsg.role).toBe("user");
-    const textBlocks = (
-      lastUserMsg.content as Anthropic.Messages.ContentBlockParam[]
-    ).filter((b): b is Anthropic.Messages.TextBlockParam => b.type === "text");
-    expect(textBlocks.some((b) => b.text.includes("truncated"))).toBe(true);
+    const toolResult = (
+      lastUserMsg.content as Anthropic.Messages.ToolResultBlockParam[]
+    ).find(
+      (b): b is Anthropic.Messages.ToolResultBlockParam =>
+        b.type === "tool_result" && b.tool_use_id === toolUseId,
+    );
+    expect(
+      toolResult,
+      `Expected tool_result in: ${JSON.stringify(lastUserMsg.content, null, 2)}`,
+    ).toBeDefined();
+    expect(toolResult!.is_error).toBe(true);
   });
 
   it("max_tokens with text-only content sends continuation prompt", async () => {

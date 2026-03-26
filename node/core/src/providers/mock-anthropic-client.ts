@@ -23,6 +23,8 @@ export class MockStream implements MockMessageStream {
   private finalMessageDefer = new Defer<Anthropic.Message>();
   private contentBlocks: Anthropic.Messages.ContentBlock[] = [];
   private blockCounter = 0;
+  private openBlock: Anthropic.Messages.ContentBlock | undefined;
+  private openBlockInputJson = "";
   public controller = new AbortController();
 
   constructor(public params: Anthropic.Messages.MessageStreamParams) {}
@@ -78,8 +80,37 @@ export class MockStream implements MockMessageStream {
   }
 
   private emit(event: Anthropic.Messages.MessageStreamEvent): void {
+    if (event.type === "content_block_start") {
+      this.openBlock = event.content_block;
+      this.openBlockInputJson = "";
+    } else if (event.type === "content_block_delta") {
+      if (this.openBlock) {
+        this.applyDeltaToOpenBlock(event.delta);
+      }
+    } else if (event.type === "content_block_stop") {
+      this.openBlock = undefined;
+    }
     for (const listener of this.streamEventListeners) {
       listener(event);
+    }
+  }
+
+  private applyDeltaToOpenBlock(
+    delta: Anthropic.Messages.ContentBlockDeltaEvent["delta"],
+  ): void {
+    if (!this.openBlock) return;
+    if (delta.type === "text_delta" && this.openBlock.type === "text") {
+      this.openBlock.text += delta.text;
+    } else if (
+      delta.type === "input_json_delta" &&
+      this.openBlock.type === "tool_use"
+    ) {
+      this.openBlockInputJson += delta.partial_json;
+    } else if (
+      delta.type === "thinking_delta" &&
+      this.openBlock.type === "thinking"
+    ) {
+      this.openBlock.thinking += delta.thinking;
     }
   }
 
@@ -267,11 +298,24 @@ export class MockStream implements MockMessageStream {
     stopReason: StopReason,
     usage: Usage = { inputTokens: 1000, outputTokens: 5000 },
   ): void {
+    const content = [...this.contentBlocks];
+    if (this.openBlock) {
+      if (this.openBlock.type === "tool_use" && this.openBlockInputJson) {
+        try {
+          this.openBlock.input = JSON.parse(this.openBlockInputJson);
+        } catch {
+          // Mimic real SDK behavior: optimistic parse of truncated JSON
+          this.openBlock.input = {};
+        }
+      }
+      content.push(this.openBlock);
+      this.openBlock = undefined;
+    }
     const message: Anthropic.Message = {
       id: `msg_mock_${Date.now()}`,
       type: "message",
       role: "assistant",
-      content: this.contentBlocks,
+      content,
       model: "mock-model",
       stop_reason: stopReason as Anthropic.Message["stop_reason"],
       stop_sequence: null,
