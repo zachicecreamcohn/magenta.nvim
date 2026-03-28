@@ -192,6 +192,7 @@ When given a task:
 
 To avoid complexity, keep variable names on the lua side camelCase, to match the variables defined in typescript.
 
+Do not use dynamic `import()` expressions. Use static `import` statements at the top of the file instead.
 We only want to use a single bottom value, so use undefined whenever you can and avoid null. When external libraries use null, only use null at the boundary, and convert to undefined as early as possible, so the internals of the plugin only use undefined.
 
 You must **NEVER** introduce new `any` types. Always check with the user if you're thinking about doing so.

@@ -1,5 +1,8 @@
+import type { ClientOptions } from "@anthropic-ai/bedrock-sdk";
 import { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
 import type Anthropic from "@anthropic-ai/sdk";
+import type { DefaultProviderInit } from "@aws-sdk/credential-provider-node";
+import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import type { AnthropicAuth } from "../anthropic-auth.ts";
 import type { Logger } from "../logger.ts";
 import type { ValidateInput } from "../tool-types.ts";
@@ -14,20 +17,37 @@ export class BedrockProvider extends AnthropicProvider {
     logger: Logger,
     validateInput: ValidateInput,
     anthropicAuth: AnthropicAuth | undefined,
-    options?: BedrockProviderOptions,
+    options: BedrockProviderOptions,
   ) {
-    // Apply environment variables before initializing
-    // Supports AWS_PROFILE, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
-    if (options?.env) {
-      for (const [key, value] of Object.entries(options.env)) {
-        process.env[key] = value;
+    super(logger, undefined, validateInput, anthropicAuth, {});
+
+    const env = options.env;
+    const clientOptions: ClientOptions = {};
+
+    if (env) {
+      if (env.AWS_REGION) {
+        clientOptions.awsRegion = env.AWS_REGION;
+      }
+      if (env.AWS_ACCESS_KEY_ID) {
+        clientOptions.awsAccessKey = env.AWS_ACCESS_KEY_ID;
+      }
+      if (env.AWS_SECRET_ACCESS_KEY) {
+        clientOptions.awsSecretKey = env.AWS_SECRET_ACCESS_KEY;
+      }
+      if (env.AWS_SESSION_TOKEN) {
+        clientOptions.awsSessionToken = env.AWS_SESSION_TOKEN;
+      }
+
+      // AWS_PROFILE must go through the credential provider chain since
+      // AnthropicBedrock has no direct constructor option for it.
+      if (env.AWS_PROFILE) {
+        const providerInit: DefaultProviderInit = { profile: env.AWS_PROFILE };
+        clientOptions.providerChainResolver = async () =>
+          fromNodeProviderChain(providerInit);
       }
     }
 
-    super(logger, undefined, validateInput, anthropicAuth, {});
-
-    this.client = new AnthropicBedrock() as unknown as Anthropic;
-    // Bedrock does not support web_search tool
+    this.client = new AnthropicBedrock(clientOptions) as unknown as Anthropic;
     this.includeWebSearch = false;
   }
 }
