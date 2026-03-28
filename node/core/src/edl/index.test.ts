@@ -67,9 +67,7 @@ describe("runScript", () => {
 file \`${filePath}\`
 narrow /world/
 retain_first
-replace <<END
-planet
-END`);
+replace "planet"`);
 
       expect(normalizePaths(result, tmpDir)).toMatchSnapshot();
     });

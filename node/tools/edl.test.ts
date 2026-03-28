@@ -23,9 +23,7 @@ describe("edl tool", () => {
         const filePath = path.join(dirs.tmpDir, "test.txt");
         const script = `file \`${filePath}\`
 narrow /hello/
-replace <<END
-goodbye
-END`;
+replace "goodbye"`;
 
         const stream = await driver.mockAnthropic.awaitPendingStream();
         stream.respond({
@@ -70,9 +68,7 @@ END`;
         const filePath = path.join(dirs.tmpDir, "test.txt");
         const script = `file \`${filePath}\`
 narrow /hello/
-replace <<END
-goodbye
-END`;
+replace "goodbye"`;
 
         const stream = await driver.mockAnthropic.awaitPendingStream();
         stream.respond({
@@ -123,9 +119,7 @@ END`;
         const script = `file \`${filePath}\`
 ${extraLines}
 narrow /hello/
-replace <<END
-goodbye
-END`;
+replace "goodbye"`;
 
         const stream = await driver.mockAnthropic.awaitPendingStream();
         stream.respond({
@@ -229,9 +223,7 @@ describe("edl tool buffer integration", () => {
 
         const script = `file \`${filePath}\`
 narrow /hello/
-replace <<END
-goodbye
-END`;
+replace "goodbye"`;
 
         const stream = await driver.mockAnthropic.awaitPendingStream();
         stream.respond({
@@ -299,9 +291,7 @@ END`;
 
         const script1 = `file \`${filePath}\`
 narrow /original/
-replace <<END
-modified
-END`;
+replace "modified"`;
 
         const stream1 = await driver.mockAnthropic.awaitPendingStream();
         stream1.respond({

@@ -200,10 +200,19 @@ export class Executor {
         const results: Range[] = [];
         let idx = 0;
         while ((idx = text.indexOf(pattern.text, idx)) !== -1) {
-          results.push({
-            start: baseOffset + idx,
-            end: baseOffset + idx + pattern.text.length,
-          });
+          const absStart = baseOffset + idx;
+          const absEnd = absStart + pattern.text.length;
+          const atLineStart =
+            absStart === 0 || doc.content[absStart - 1] === "\n";
+          const atLineEnd =
+            absEnd === doc.content.length || doc.content[absEnd] === "\n";
+          if (atLineStart && atLineEnd) {
+            const end =
+              absEnd < doc.content.length && doc.content[absEnd] === "\n"
+                ? absEnd + 1
+                : absEnd;
+            results.push({ start: absStart, end, isLineSelection: true });
+          }
           idx += pattern.text.length;
         }
         return results;
@@ -368,7 +377,7 @@ export class Executor {
   }
 
   private resolveText(cmd: MutationText): string {
-    if ("text" in cmd) return cmd.text;
+    if ("text" in cmd) return cmd.isHeredoc ? `${cmd.text}\n` : cmd.text;
     const text = this.registers.get(cmd.register);
     if (text === undefined)
       throw new ExecutionError(
@@ -583,7 +592,13 @@ export class Executor {
             `extend_forward: no matches after selection for pattern ${formatPattern(cmd.pattern)}`,
             this.trace,
           );
-        this.selection = [{ start: current.start, end: matches[0].end }];
+        this.selection = [
+          {
+            start: current.start,
+            end: matches[0].end,
+            isLineSelection: matches[0].isLineSelection === true,
+          },
+        ];
         this.addTrace("extend_forward", this.selection, file.doc);
         break;
       }
@@ -603,6 +618,7 @@ export class Executor {
           {
             start: matches[matches.length - 1].start,
             end: current.end,
+            isLineSelection: current.isLineSelection === true,
           },
         ];
         this.addTrace("extend_back", this.selection, file.doc);
@@ -694,7 +710,18 @@ export class Executor {
         const file = this.requireFile();
         if (this.selection.length === 0)
           throw new ExecutionError("insert_after: no selection", this.trace);
-        const text = this.resolveText(cmd);
+        let text = this.resolveText(cmd);
+        const hasLineSelection = this.selection.some((r) => r.isLineSelection);
+        if (
+          hasLineSelection &&
+          this.selection.some(
+            (r) =>
+              r.isLineSelection &&
+              (r.start === r.end || file.doc.content[r.end - 1] !== "\n"),
+          )
+        ) {
+          text = `\n${text}`;
+        }
         const sorted = [...this.selection].sort((a, b) => b.start - a.start);
         for (const range of sorted) {
           this.recordTransform(

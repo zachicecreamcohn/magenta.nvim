@@ -50,7 +50,9 @@ FIND`);
     const cmds = parse(`replace <<END
 new text
 END`);
-    expect(cmds).toEqual([{ type: "replace", text: "new text" }]);
+    expect(cmds).toEqual([
+      { type: "replace", text: "new text", isHeredoc: true },
+    ]);
   });
 
   it("parses delete", () => {
@@ -65,8 +67,8 @@ insert_after <<END
 after
 END`);
     expect(cmds).toEqual([
-      { type: "insert_before", text: "before" },
-      { type: "insert_after", text: "after" },
+      { type: "insert_before", text: "before", isHeredoc: true },
+      { type: "insert_after", text: "after", isHeredoc: true },
     ]);
   });
 
@@ -287,7 +289,9 @@ END`);
     const cmds = parse(`replace <<'DELIM'
 new text
 DELIM`);
-    expect(cmds).toEqual([{ type: "replace", text: "new text" }]);
+    expect(cmds).toEqual([
+      { type: "replace", text: "new text", isHeredoc: true },
+    ]);
   });
 
   it("errors on unterminated single-quoted heredoc marker", () => {

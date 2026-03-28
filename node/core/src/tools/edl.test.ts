@@ -33,9 +33,7 @@ describe("EdlTool unit tests", () => {
 
     const script = `file \`${filePath}\`
 narrow /hello/
-replace <<END
-goodbye
-END`;
+replace "goodbye"`;
 
     const input: Edl.Input = { script };
     const invocation = Edl.execute(
@@ -116,9 +114,7 @@ END`;
 
     const script = `file \`${filePath}\`
 narrow /hello/
-replace <<END
-goodbye
-END`;
+replace "goodbye"`;
 
     const { invocation } = createTool(script);
     const { status, text } = await getResultText(invocation);

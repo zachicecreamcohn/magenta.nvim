@@ -21,40 +21,55 @@ extend_forward <pattern>  # Extend selection forward to include next match
 extend_back <pattern>     # Extend selection backward to include previous match
 
 # mutation commands
-# replace/insert_before/insert_after accept either a heredoc or a register name
-replace <heredoc>        # Replace selection with heredoc text
+# replace/insert_before/insert_after accept a heredoc, quoted string, or register name
+replace <heredoc>        # Replace selection with heredoc text (appends \n)
+replace "text"           # Replace selection with inline text (no \n)
 replace <register_name>  # Replace selection with text from a named register
-insert_before <heredoc>  # Insert text before selection
+insert_before <heredoc>  # Insert heredoc text before selection (appends \n)
+insert_before "text"     # Insert inline text before selection (no \n)
 insert_before <register> # Insert register contents before selection
-insert_after <heredoc>   # Insert text after selection
+insert_after <heredoc>   # Insert heredoc text after selection (appends \n)
+insert_after "text"      # Insert inline text after selection (no \n)
 insert_after <register>  # Insert register contents after selection
 delete                   # Delete selected text
 cut <register_name>      # Cut selection into a named register
 
 ```
 
-**IMPORTANT: Prefer heredoc or regex patterns for selection.** Prefer text matching over line numbers — line numbers are error-prone. Use heredoc patterns as the default since they match exactly. Only use regexes when you need wildcards or character classes. You should only use line numbers when you have verified that they are correct.
+**Heredocs are line-oriented everywhere:**
+
+- **In selections** (`select`, `narrow`, `extend_forward`, etc.) — heredoc patterns match only complete lines. You must specify the **entire line content** (including leading whitespace). The selection automatically includes the trailing `\n` (or extends to EOF for the last line).
+- **In mutations** (`replace`, `insert_before`, `insert_after`) — heredoc text gets a trailing `\n` appended automatically.
+- Use **regex** (`/pattern/`) for partial-line selection and **quoted strings** (`"text"`) for inline mutations.
+
+**Prefer heredoc patterns for selection.** Prefer text matching over line numbers — line numbers are error-prone. Use heredoc patterns as the default since they match complete lines. Only use regexes when you need to match within a line. You should only use line numbers when you have verified that they are correct.
 
 WRONG - using line numbers to select:
 
 ```
-file `src/service.ts`
+file `src/app.test.ts`
 select 42-58
 replace <<END2
-function newImpl() { ... }
+  describe('newTest', () => {
+    it('works', () => { ... });
+  });
 END2
 ```
 
 RIGHT - using text patterns:
 
 ```
-file `src/service.ts`
+file `src/app.test.ts`
 select <<END2
-function oldImpl() {
+  describe('oldTest', () => {
 END2
-extend_forward /^\}/
+extend_forward <<END2
+  });
+END2
 replace <<END2
-function newImpl() { ... }
+  describe('newTest', () => {
+    it('works', () => { ... });
+  });
 END2
 ```
 
@@ -100,7 +115,7 @@ END
 ```
 file `src/file.test`
 select <<END
-describe("test block", () =>
+describe("test block", () => {
 END
 extend_forward eof
 delete
@@ -137,11 +152,10 @@ file `src/config.ts`
 select <<END
 const DEBUG = true;
 END
-extend_forward /$/
 delete
 ```
 
-# Replace part of a line (heredocs don't include surrounding newlines):
+# Replace part of a line (use regex select + quoted string replace):
 
 file contents before:
 const prev = true;
@@ -153,12 +167,8 @@ file `src/config.ts`
 select <<END
 const value = "old-value";
 END
-narrow <<END
-"old-value"
-END
-replace <<END
-"new-value"
-END
+narrow /"old-value"/
+replace "\"new-value\""
 ```
 
 file contents after:
@@ -187,20 +197,18 @@ return newName;
 END2
 ```
 
-# Replace all instances of an identifier in a function body:
+# Replace all instances of an identifier in a block:
 
 ```
-file `src/service.ts`
+file `src/handler.ts`
 select <<FIND
-function myMethod(
+  handleRequest(req: Request) {
 FIND
-extend_forward /^\}/
-narrow_multiple <<FIND
-method
-FIND
-replace <<REPLACE
-this.method
-REPLACE
+extend_forward <<ENDFWD
+  }
+ENDFWD
+narrow_multiple /req/
+replace "request"
 ```
 
 ## Selecting large blocks of text
@@ -210,25 +218,29 @@ REPLACE
 1. **Use beginning of text + extend_forward** to match a block by its boundaries:
 
 ```
-file `src/service.ts`
+file `src/app.test.ts`
 select <<END
-function processRequest(
+  describe('authentication', () => {
 END
-extend_forward /^\}/
+extend_forward <<ENDFWD
+  });
+ENDFWD
 ```
 
-This selects from the function signature through its closing brace, without needing to include the entire function body in the pattern.
+This selects from the describe header through its closing `});`, without needing to include the entire block body in the pattern.
 
 2. **Use select + narrow** to find something within a known region:
 
 ```
-file `src/service.ts`
+file `src/app.test.ts`
 select <<END
-function processRequest(
+  describe('authentication', () => {
 END
-extend_forward /^\}/
+extend_forward <<ENDFWD
+  });
+ENDFWD
 narrow <<END
-return result;
+    expect(result).toBe(true);
 END
 ```
 
@@ -236,12 +248,11 @@ WRONG - using a large heredoc to select a multi-line block:
 
 ```
 select <<END
-function processRequest(req: Request) {
-  const validated = validate(req);
-  const result = transform(validated);
-  logger.info("processed", result);
-  return result;
-}
+    it('should validate input', () => {
+      const validated = validate(input);
+      const result = transform(validated);
+      expect(result).toBeDefined();
+    });
 END
 ```
 
@@ -249,9 +260,11 @@ RIGHT - selecting by boundaries:
 
 ```
 select <<END
-function processRequest(req: Request) {
+    it('should validate input', () => {
 END
-extend_forward /^\}/
+extend_forward <<ENDFWD
+    });
+ENDFWD
 ```
 
 When doing this be careful to make sure that you're still uniquely identifying the location in the doc.
@@ -284,6 +297,7 @@ DELIM
 
 Pick any termination code that does not appear in the text you're matching or inserting.
 
-- Patterns match against raw file bytes. Heredoc patterns are literal text and match exactly.
-- **Prefer heredoc patterns over regexes** - they are easier to read, less error-prone, and match exactly what you write. Only use regexes when you need their power (wildcards, character classes, etc.).
+- **Heredocs are line-oriented everywhere**: in selections they only match complete line(s) and include the trailing `\n`; in mutations they auto-append `\n`.
+- **Quoted strings** (`"text"`) are for inline/raw mutations — no `\n` appended. Use `\"` and `\\` for escapes.
+- **Prefer heredoc patterns over regexes** for selecting whole lines - they are easier to read and less error-prone. Use regexes when you need to match within a line (wildcards, character classes, partial strings).
 - For regex, to match a literal backslash in the file, escape it with another backslash (e.g. /\\/ matches a single backslash).

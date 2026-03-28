@@ -1,5 +1,3 @@
 file `{{FILE}}`
 narrow /\\path/
-replace <<END
-/newpath
-END
+replace "/newpath"
