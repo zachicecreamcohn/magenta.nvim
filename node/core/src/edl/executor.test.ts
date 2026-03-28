@@ -50,9 +50,7 @@ goodbye world
     const script = `\
 file \`${filePath}\`
 narrow_multiple /world/
-replace <<END
-planet
-END`;
+replace "planet"`;
     const commands = parse(script);
     const executor = new Executor();
     const result = await executor.execute(commands);
@@ -75,9 +73,7 @@ describe("selection commands", () => {
       const script = `\
 file \`${filePath}\`
 narrow_multiple /aaa/
-replace <<END
-xxx
-END`;
+replace "xxx"`;
       const commands = parse(script);
       const result = await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -109,9 +105,7 @@ narrow /zzz/`;
 file \`${filePath}\`
 narrow_multiple /aaa/
 retain_first
-replace <<END
-xxx
-END`;
+replace "xxx"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -128,9 +122,7 @@ END`;
 file \`${filePath}\`
 narrow_multiple /aaa/
 retain_last
-replace <<END
-xxx
-END`;
+replace "xxx"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -146,9 +138,7 @@ END`;
       const script = `\
 file \`${filePath}\`
 narrow /bbb/
-replace <<END
-xxx
-END`;
+replace "xxx"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -182,9 +172,7 @@ file \`${filePath}\`
 narrow /aaabbb/
 retain_first
 select_next /bbb/
-replace <<END2
-xxx
-END2`;
+replace "xxx"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -223,9 +211,7 @@ file \`${filePath}\`
 narrow /bbbaaa/
 retain_last
 select_prev /bbb/
-replace <<END2
-xxx
-END2`;
+replace "xxx"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -264,9 +250,7 @@ file \`${filePath}\`
 narrow /aaabbb/
 retain_first
 extend_forward /bbb/
-replace <<END2
-xxx
-END2`;
+replace "xxx"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -286,9 +270,7 @@ file \`${filePath}\`
 narrow /bbbaaa/
 retain_last
 extend_back /bbb/
-replace <<END2
-xxx
-END2`;
+replace "xxx"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -305,9 +287,7 @@ file \`${filePath}\`
 narrow_multiple /bbb/
 retain_first
 select_next /aaa/
-replace <<END
-xxx
-END`;
+replace "xxx"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -325,9 +305,7 @@ file \`${filePath}\`
 narrow_multiple /bbb/
 retain_last
 select_prev /aaa/
-replace <<END
-xxx
-END`;
+replace "xxx"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -349,9 +327,7 @@ file \`${filePath}\`
 narrow /function hello/
 retain_first
 extend_forward /}/
-replace <<END
-function hello() { return 2; }
-END`;
+replace "function hello() { return 2; }"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -373,9 +349,7 @@ file \`${filePath}\`
 narrow /}/
 retain_first
 extend_back /function/
-replace <<END
-function hello() { return 2; }
-END`;
+replace "function hello() { return 2; }"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -392,9 +366,7 @@ END`;
 file \`${filePath}\`
 narrow_multiple /aaa/
 retain_nth 1
-replace <<END
-xxx
-END`;
+replace "xxx"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -411,9 +383,7 @@ END`;
 file \`${filePath}\`
 narrow_multiple /aaa/
 retain_nth -1
-replace <<END
-xxx
-END`;
+replace "xxx"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -435,9 +405,7 @@ retain_first
 file \`${file2}\`
 narrow /two/
 retain_first
-replace <<END
-TWO
-END`;
+replace "TWO"`;
       const commands = parse(script);
       await executor(commands);
       expect(await fs.readFile(file1, "utf-8")).toBe("file one\n");
@@ -453,9 +421,7 @@ END`;
       const script = `\
 file \`${filePath}\`
 narrow 2
-replace <<END
-replaced
-END`;
+replace "replaced"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -517,19 +483,15 @@ END`;
     });
   });
 
-  it("select with literal heredoc pattern", async () => {
+  it("select with literal heredoc pattern (uses regex for partial-line match)", async () => {
     await withTmpDir(async (tmpDir) => {
       const filePath = path.join(tmpDir, "test.txt");
       await fs.writeFile(filePath, "find /pattern/ here\n", "utf-8");
 
       const script = `\
 file \`${filePath}\`
-narrow <<FIND
-/pattern/
-FIND
-replace <<END2
-/replaced/
-END2`;
+narrow /\\/pattern\\//
+replace "/replaced/"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -547,9 +509,7 @@ file \`${filePath}\`
 narrow_multiple /bbb/
 retain_first
 select_multiple /aaa/
-replace <<END2
-xxx
-END2`;
+replace "xxx"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -567,9 +527,7 @@ file \`${filePath}\`
 narrow /aaa/
 retain_first
 select /bbb/
-replace <<END2
-xxx
-END2`;
+replace "xxx"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -603,9 +561,7 @@ select /aaa/`;
       const script = `\
 file \`${filePath}\`
 select 2-3
-replace <<END2
-replaced
-END2`;
+replace "replaced"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -621,9 +577,7 @@ END2`;
       const script = `\
 file \`${filePath}\`
 select bof-eof
-replace <<END2
-new content
-END2`;
+replace "new content"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -643,9 +597,7 @@ END2`;
       const script = `\
 file \`${filePath}\`
 select bof-2
-replace <<END2
-replaced
-END2`;
+replace "replaced"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -665,9 +617,7 @@ END2`;
       const script = `\
 file \`${filePath}\`
 select 3-eof
-replace <<END2
-replaced
-END2`;
+replace "replaced"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -683,9 +633,7 @@ END2`;
       const script = `\
 file \`${filePath}\`
 select 2
-replace <<END2
-xxx
-END2`;
+replace "xxx"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -701,9 +649,7 @@ END2`;
       const script = `\
 file \`${filePath}\`
 select 1:3-2:4
-replace <<END2
-X
-END2`;
+replace "X"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -724,9 +670,7 @@ END2`;
 file \`${filePath}\`
 select 2-4
 narrow /line three/
-replace <<END2
-LINE THREE
-END2`;
+replace "LINE THREE"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -744,9 +688,7 @@ END2`;
       const script = `\
 file \`${filePath}\`
 select 1:5
-insert_after <<END2
- beautiful
-END2`;
+insert_after " beautiful"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -762,9 +704,7 @@ END2`;
       const script = `\
 file \`${filePath}\`
 narrow bof
-insert_after <<END
-prefix
-END`;
+insert_after "prefix"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -801,9 +741,7 @@ delete`;
 file \`${filePath}\`
 narrow /world/
 retain_first
-insert_before <<END
-beautiful_
-END`;
+insert_before "beautiful_"`;
       const commands = parse(script);
       const result = await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -821,9 +759,7 @@ END`;
 file \`${filePath}\`
 narrow /hello/
 retain_first
-insert_after <<END
- beautiful
-END`;
+insert_after " beautiful"`;
       const commands = parse(script);
       const result = await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -840,9 +776,7 @@ END`;
       const script = `\
 file \`${filePath}\`
 narrow_multiple /a/
-insert_before <<END
-[
-END`;
+insert_before "["`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -918,8 +852,9 @@ insert_after noSuchReg`;
 
       const script = `\
 file \`${filePath}\`
-narrow /placeholder/
-retain_first
+select <<SELEND
+placeholder
+SELEND
 replace <<END
 line one
 line two
@@ -1015,9 +950,7 @@ describe("per-file error handling", () => {
 file \`${file1}\`
 narrow /original/
 retain_first
-replace <<REPL
-modified
-REPL
+replace "modified"
 file \`${file2}\`
 narrow /nonexistent_pattern/`;
       const commands = parse(script);
@@ -1044,16 +977,12 @@ narrow /nonexistent_pattern/`;
       const script = `
 file \`${file1}\`
 narrow /aaa/
-replace <<REPL
-AAA
-REPL
+replace "AAA"
 file \`${file2}\`
 narrow /nonexistent/
 file \`${file3}\`
 narrow /ccc/
-replace <<REPL
-CCC
-REPL`;
+replace "CCC"`;
       const commands = parse(script);
       const result = await executor(commands);
 
@@ -1078,14 +1007,10 @@ REPL`;
       const script = `
 file \`${file1}\`
 narrow /aaa/
-replace <<R
-AAA
-R
+replace "AAA"
 file \`${file2}\`
 narrow /ccc/
-replace <<R
-CCC
-R
+replace "CCC"
 file \`${file1}\`
 narrow /nonexistent/`;
       const commands = parse(script);
@@ -1166,9 +1091,7 @@ file \`${file1}\`
 select /nonexistent/
 file \`${file2}\`
 select /world/
-replace <<R
-WORLD
-R`;
+replace "WORLD"`;
       const commands = parse(script);
       const result = await executor(commands);
 
@@ -1194,9 +1117,7 @@ saved content
 R
 file \`${file2}\`
 select /world/
-replace <<R
-WORLD
-R`;
+replace "WORLD"`;
       const commands = parse(script);
       const result = await executor(commands);
 
@@ -1231,9 +1152,7 @@ text for file2
 R
 file \`${file3}\`
 select /ccc/
-replace <<R
-CCC
-R`;
+replace "CCC"`;
       const commands = parse(script);
       const result = await executor(commands);
 
@@ -1273,9 +1192,7 @@ replace text
 R
 file \`${file2}\`
 select /world/
-replace <<R
-WORLD
-R`;
+replace "WORLD"`;
       const commands = parse(script);
       const result = await executor(commands);
 
@@ -1322,9 +1239,7 @@ describe("newfile", () => {
 
       const script = `\
 newfile \`${filePath}\`
-insert_after <<CONTENT
-hello new file
-CONTENT`;
+insert_after "hello new file"`;
       const commands = parse(script);
       const result = await executor(commands);
 
@@ -1382,9 +1297,7 @@ newfile \`${filePath}\``;
 
       const script = `\
 newfile \`${filePath}\`
-insert_after <<CONTENT
-nested file
-CONTENT`;
+insert_after "nested file"`;
       const commands = parse(script);
       await executor(commands);
 
@@ -1453,14 +1366,12 @@ new line two B
 new line two C
 R1
 select 4
-replace <<R2
-FOUR
-R2`;
+replace "FOUR"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
       expect(content).toBe(
-        "line one\nnew line two A\nnew line two B\nnew line two C\nline three\nFOUR\n",
+        "line one\nnew line two A\nnew line two B\nnew line two C\n\nline three\nFOUR\n",
       );
     });
   });
@@ -1479,9 +1390,7 @@ file \`${filePath}\`
 select 2-3
 delete
 select 4
-replace <<R1
-FOUR
-R1`;
+replace "FOUR"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -1497,13 +1406,9 @@ R1`;
       const script = `\
 file \`${filePath}\`
 select 1
-replace <<R1
-ABCDEFGHIJ
-R1
+replace "ABCDEFGHIJ"
 select 3:2
-insert_after <<R2
-XX
-R2`;
+insert_after "XX"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -1525,13 +1430,9 @@ R2`;
       const script = `\
 file \`${filePath}\`
 select 1
-replace <<R1
-LINE ONE LONGER
-R1
+replace "LINE ONE LONGER"
 select 3-4
-replace <<R2
-REPLACED
-R2`;
+replace "REPLACED"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -1547,13 +1448,9 @@ R2`;
       const script = `\
 file \`${filePath}\`
 select 1
-replace <<R1
-AAAA
-R1
+replace "AAAA"
 select 3
-replace <<R2
-CCCC
-R2`;
+replace "CCCC"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -1569,13 +1466,9 @@ R2`;
       const script = `\
 file \`${filePath}\`
 select 1:3
-insert_after <<R1
-XXX
-R1
+insert_after "XXX"
 select 1:7
-insert_after <<R2
-YYY
-R2`;
+insert_after "YYY"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -1597,9 +1490,7 @@ file \`${filePath}\`
 select 1:2-1:5
 delete
 select 1:7
-insert_after <<R1
-YYY
-R1`;
+insert_after "YYY"`;
       const commands = parse(script);
       await executor(commands);
       const content = await fs.readFile(filePath, "utf-8");
@@ -1618,9 +1509,7 @@ R1`;
       const script = `\
 file \`${filePath}\`
 select /hello/
-replace <<R1
-goodbye
-R1`;
+replace "goodbye"`;
       const commands = parse(script);
       const exec = new Executor();
       const result = await exec.execute(commands);
@@ -1643,7 +1532,7 @@ describe("register-based mutation commands", () => {
       const result = await exec.execute(commands);
       expect(result.mutations.size).toBe(1);
       const content = await fs.readFile(filePath, "utf-8");
-      expect(content).toBe("replaced content\n");
+      expect(content).toBe("replaced content");
     });
   });
 
@@ -1670,7 +1559,7 @@ describe("register-based mutation commands", () => {
       await fs.writeFile(filePath, "line1\nline2\n", "utf-8");
 
       const exec = new Executor();
-      exec.registers.set("suffix", "\nAPPENDED");
+      exec.registers.set("suffix", "APPENDED\n");
       const commands = parse(
         `file \`${filePath}\`\nselect <<END\nline1\nEND\ninsert_after suffix\n`,
       );
@@ -1769,6 +1658,187 @@ describe("line number warnings", () => {
       );
       expect(result.warnings).toHaveLength(1);
       expect(result.warnings[0]).toContain("extend_forward");
+    });
+  });
+});
+
+describe("line-oriented heredoc selection", () => {
+  it("regex insert_after on last line (no trailing newline) appends to same line", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "aaa\nbbb", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select /bbb/
+insert_after "text"`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("aaa\nbbbtext");
+    });
+  });
+
+  it("heredoc insert_after on last line without trailing newline creates newline before text", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "aaa\nbbb", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select <<X
+bbb
+X
+insert_after <<Y
+text
+Y`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("aaa\nbbb\ntext\n");
+    });
+  });
+
+  it("heredoc insert_after on last line with trailing newline does NOT double the newline", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "aaa\nbbb\n", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select <<X
+bbb
+X
+insert_after <<Y
+text
+Y`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      expect(content).toBe("aaa\nbbb\ntext\n");
+    });
+  });
+
+  it("heredoc select matches only complete lines, not partial", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "hello world\n", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select <<X
+hello
+X`;
+      const commands = parse(script);
+      const result = await executor(commands);
+      expectFileError(result, "test.txt", "no matches");
+    });
+  });
+
+  it("heredoc select includes trailing newline in selection", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "aaa\nbbb\nccc\n", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select <<X
+bbb
+X
+replace <<Y
+BBB
+Y`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      // heredoc select "bbb\n", heredoc replace "BBB\n" — line-for-line replacement
+      expect(content).toBe("aaa\nBBB\nccc\n");
+    });
+  });
+
+  it("extend_forward with heredoc sets isLineSelection (insert_after adds newline at EOF)", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "aaa\nbbb\nccc", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select /aaa/
+extend_forward <<X
+ccc
+X
+insert_after "text"`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      // extend_forward with heredoc → isLineSelection from match (true)
+      // EOF without trailing \n → insert_after prepends \n
+      expect(content).toBe("aaa\nbbb\nccc\ntext");
+    });
+  });
+
+  it("extend_forward with regex clears isLineSelection (insert_after does NOT add newline at EOF)", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "aaa\nbbb\nccc", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select <<X
+aaa
+X
+extend_forward /ccc/
+insert_after "text"`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      // extend_forward with regex → isLineSelection from match (false)
+      // insert_after does NOT prepend \n
+      expect(content).toBe("aaa\nbbb\nccctext");
+    });
+  });
+
+  it("extend_back with heredoc preserves current isLineSelection (from end boundary)", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "aaa\nbbb\nccc", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select /ccc/
+extend_back <<X
+aaa
+X
+insert_after "text"`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      // extend_back with heredoc, but current (regex) has no isLineSelection
+      // isLineSelection comes from current → false
+      // insert_after does NOT prepend \n
+      expect(content).toBe("aaa\nbbb\nccctext");
+    });
+  });
+
+  it("extend_back with regex preserves current isLineSelection (from end boundary)", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "aaa\nbbb\nccc", "utf-8");
+
+      const script = `\
+file \`${filePath}\`
+select <<X
+ccc
+X
+extend_back /aaa/
+insert_after "text"`;
+      const commands = parse(script);
+      await executor(commands);
+      const content = await fs.readFile(filePath, "utf-8");
+      // extend_back with regex, current (heredoc) has isLineSelection: true
+      // isLineSelection comes from current → true
+      // EOF without trailing \n → insert_after prepends \n
+      expect(content).toBe("aaa\nbbb\nccc\ntext");
     });
   });
 });

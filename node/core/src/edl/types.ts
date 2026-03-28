@@ -2,7 +2,7 @@
 export type Pos = { line: number; col: number };
 
 /** Character offset range, end-exclusive */
-export type Range = { start: number; end: number };
+export type Range = { start: number; end: number; isLineSelection?: boolean };
 
 export type TraceEntry = {
   command: string;

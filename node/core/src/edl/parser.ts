@@ -30,7 +30,9 @@ export type Command =
   | { type: "select_multiple"; pattern: Pattern }
   | { type: "cut"; register: string };
 
-export type MutationText = { text: string } | { register: string };
+export type MutationText =
+  | { text: string; isHeredoc: boolean }
+  | { register: string };
 
 export class ParseError extends Error {}
 
@@ -38,7 +40,8 @@ export type Token =
   | { type: "word"; value: string }
   | { type: "regex"; pattern: string; flags: string }
   | { type: "path"; value: string }
-  | { type: "heredoc"; value: string };
+  | { type: "heredoc"; value: string }
+  | { type: "quoted"; value: string };
 
 const FLAG_CHARS = new Set("gimsuy");
 
@@ -158,6 +161,40 @@ export function* lex(script: string): Generator<Token> {
       continue;
     }
 
+    // quoted string: "text"
+    if (ch === '"') {
+      pos++; // skip opening "
+      let value = "";
+      while (pos < script.length && script[pos] !== '"') {
+        if (script[pos] === "\\") {
+          pos++;
+          if (pos >= script.length) {
+            throw new ParseError("Unterminated quoted string");
+          }
+          const escaped = script[pos];
+          if (escaped === '"' || escaped === "\\") {
+            value += escaped;
+          } else {
+            throw new ParseError(
+              `Invalid escape sequence in quoted string: \\${escaped}`,
+            );
+          }
+        } else if (script[pos] === "\n") {
+          throw new ParseError(
+            "Unterminated quoted string (newline before closing quote)",
+          );
+        } else {
+          value += script[pos];
+        }
+        pos++;
+      }
+      if (pos >= script.length) {
+        throw new ParseError("Unterminated quoted string");
+      }
+      pos++; // skip closing "
+      yield { type: "quoted", value };
+      continue;
+    }
     // word: consume until whitespace
     const start = pos;
     while (pos < script.length && !/\s/.test(script[pos])) pos++;
@@ -210,6 +247,10 @@ function tokenToPattern(tok: Token): Pattern {
     }
     case "path":
       throw new ParseError(`Unexpected path literal in pattern position`);
+    case "quoted":
+      throw new ParseError(
+        `Unexpected quoted string in pattern position. Use a heredoc for line selection or regex for inline selection.`,
+      );
   }
 }
 
@@ -302,14 +343,24 @@ export function parse(script: string): Command[] {
         }
 
         case "replace": {
-          const tok = next("heredoc or register name")!;
+          const tok = next("heredoc, quoted string, or register name")!;
           if (tok.type === "heredoc") {
-            commands.push({ type: "replace", text: tok.value });
+            commands.push({
+              type: "replace",
+              text: tok.value,
+              isHeredoc: true,
+            });
+          } else if (tok.type === "quoted") {
+            commands.push({
+              type: "replace",
+              text: tok.value,
+              isHeredoc: false,
+            });
           } else if (tok.type === "word") {
             commands.push({ type: "replace", register: tok.value });
           } else {
             throw new ParseError(
-              `Expected heredoc or register name after replace, got ${tok.type}`,
+              `Expected heredoc, quoted string, or register name after replace, got ${tok.type}`,
             );
           }
           break;
@@ -324,9 +375,19 @@ export function parse(script: string): Command[] {
 
         case "insert_before":
         case "insert_after": {
-          const tok = next("heredoc or register name")!;
+          const tok = next("heredoc, quoted string, or register name")!;
           if (tok.type === "heredoc") {
-            commands.push({ type: cmdTok.value, text: tok.value } as Command);
+            commands.push({
+              type: cmdTok.value,
+              text: tok.value,
+              isHeredoc: true,
+            } as Command);
+          } else if (tok.type === "quoted") {
+            commands.push({
+              type: cmdTok.value,
+              text: tok.value,
+              isHeredoc: false,
+            } as Command);
           } else if (tok.type === "word") {
             commands.push({
               type: cmdTok.value,
@@ -334,7 +395,7 @@ export function parse(script: string): Command[] {
             } as Command);
           } else {
             throw new ParseError(
-              `Expected heredoc or register name after ${cmdTok.value}, got ${tok.type}`,
+              `Expected heredoc, quoted string, or register name after ${cmdTok.value}, got ${tok.type}`,
             );
           }
           break;
