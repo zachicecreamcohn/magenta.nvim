@@ -221,8 +221,7 @@ export {
   type ServerName,
   validateServerName,
 } from "./tools/mcp/types.ts";
-export * as SpawnForeach from "./tools/spawn-foreach.ts";
-export * as SpawnSubagent from "./tools/spawn-subagent.ts";
+export * as SpawnSubagents from "./tools/spawn-subagents.ts";
 export * as ThreadTitle from "./tools/thread-title.ts";
 export {
   CHAT_STATIC_TOOL_NAMES,
@@ -241,7 +240,7 @@ export {
   type StaticToolMap,
   type StaticToolRequest,
 } from "./tools/toolManager.ts";
-export * as WaitForSubagents from "./tools/wait-for-subagents.ts";
+
 export * as YieldToParent from "./tools/yield-to-parent.ts";
 export { assertUnreachable } from "./utils/assertUnreachable.ts";
 export { Defer, delay, pollUntil, withTimeout } from "./utils/async.ts";

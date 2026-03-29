@@ -3,11 +3,9 @@ import {
   type CompletedToolInfo,
   type DisplayContext,
   isMCPTool,
-  type SpawnForeach,
-  type SpawnSubagent,
+  type SpawnSubagents,
   type StaticToolName,
   type ToolRequest,
-  type WaitForSubagents,
 } from "@magenta/core";
 import type { Chat } from "../chat/chat.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
@@ -25,10 +23,9 @@ import * as FindReferencesRender from "./findReferences.ts";
 import * as GetFileRender from "./getFile.ts";
 import * as HoverRender from "./hover.ts";
 import * as MCPToolRender from "./mcp-tool.ts";
-import * as SpawnForeachRender from "./spawn-foreach.ts";
-import * as SpawnSubagentRender from "./spawn-subagent.ts";
+import * as SpawnSubagentsRender from "./spawn-subagents.ts";
 import * as ThreadTitleRender from "./thread-title.ts";
-import * as WaitForSubagentsRender from "./wait-for-subagents.ts";
+
 import * as YieldToParentRender from "./yield-to-parent.ts";
 
 export type RenderContext = {
@@ -81,12 +78,8 @@ export function renderToolSummary(
       return EdlRender.renderSummary(request, displayContext);
     case "bash_command":
       return BashCommandRender.renderSummary(request, displayContext);
-    case "spawn_subagent":
-      return SpawnSubagentRender.renderSummary(request, displayContext);
-    case "spawn_foreach":
-      return SpawnForeachRender.renderSummary(request, displayContext);
-    case "wait_for_subagents":
-      return WaitForSubagentsRender.renderSummary(request, displayContext);
+    case "spawn_subagents":
+      return SpawnSubagentsRender.renderSummary(request, displayContext);
     case "yield_to_parent":
       return YieldToParentRender.renderSummary(request, displayContext);
     default:
@@ -110,8 +103,12 @@ export function renderToolInput(
       return BashCommandRender.renderInput(request, displayContext, expanded);
     case "edl":
       return EdlRender.renderInput(request, displayContext, expanded);
-    case "spawn_subagent":
-      return SpawnSubagentRender.renderInput(request, displayContext, expanded);
+    case "spawn_subagents":
+      return SpawnSubagentsRender.renderInput(
+        request,
+        displayContext,
+        expanded,
+      );
     default:
       return undefined;
   }
@@ -142,24 +139,10 @@ export function renderToolProgress(
         context,
         expanded,
       );
-    case "spawn_subagent":
-      return SpawnSubagentRender.renderProgress(
+    case "spawn_subagents":
+      return SpawnSubagentsRender.renderProgress(
         request,
-        progress as SpawnSubagent.SpawnSubagentProgress | undefined,
-        context,
-        expanded,
-      );
-    case "spawn_foreach":
-      return SpawnForeachRender.renderProgress(
-        request,
-        progress as SpawnForeach.SpawnForeachProgress | undefined,
-        context,
-        expanded,
-      );
-    case "wait_for_subagents":
-      return WaitForSubagentsRender.renderProgress(
-        request,
-        progress as WaitForSubagents.WaitForSubagentsProgress | undefined,
+        progress as SpawnSubagents.SpawnSubagentsProgress | undefined,
         context,
         expanded,
       );
@@ -192,12 +175,8 @@ export function renderToolResultSummary(
       return d`${statusEmoji} ${FindReferencesRender.renderResultSummary(info, displayContext)} (${tokEst})`;
     case "diagnostics":
       return d`${statusEmoji} ${DiagnosticsRender.renderResultSummary(info)} (${tokEst})`;
-    case "spawn_subagent":
-      return d`${statusEmoji} ${SpawnSubagentRender.renderResultSummary(info)} (${tokEst})`;
-    case "spawn_foreach":
-      return d`${statusEmoji} ${SpawnForeachRender.renderResultSummary(info)} (${tokEst})`;
-    case "wait_for_subagents":
-      return d`${statusEmoji} ${WaitForSubagentsRender.renderResultSummary(info)} (${tokEst})`;
+    case "spawn_subagents":
+      return d`${statusEmoji} ${SpawnSubagentsRender.renderResultSummary(info)} (${tokEst})`;
     case "yield_to_parent":
       return d`${statusEmoji} ${YieldToParentRender.renderResultSummary(info)} (${tokEst})`;
     case "thread_title":
@@ -219,10 +198,8 @@ export function renderToolResult(
   switch (toolName) {
     case "bash_command":
       return BashCommandRender.renderResult(info, context, expanded);
-    case "spawn_subagent":
-      return SpawnSubagentRender.renderResult(info, context, expanded);
-    case "spawn_foreach":
-      return SpawnForeachRender.renderResult(info, context, expanded);
+    case "spawn_subagents":
+      return SpawnSubagentsRender.renderResult(info, context, expanded);
     case "edl":
       return EdlRender.renderResult(info, context, expanded);
     case "get_file":

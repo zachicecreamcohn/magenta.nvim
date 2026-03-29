@@ -11,8 +11,7 @@ import * as Edl from "./edl.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as GetFile from "./getFile.ts";
 import * as Hover from "./hover.ts";
-import * as SpawnForeach from "./spawn-foreach.ts";
-import * as SpawnSubagent from "./spawn-subagent.ts";
+import * as SpawnSubagents from "./spawn-subagents.ts";
 import * as ThreadTitle from "./thread-title.ts";
 import {
   CHAT_STATIC_TOOL_NAMES,
@@ -23,7 +22,7 @@ import {
   TOOL_REQUIRED_CAPABILITIES,
   type ToolCapability,
 } from "./tool-registry.ts";
-import * as WaitForSubagents from "./wait-for-subagents.ts";
+
 import * as YieldToParent from "./yield-to-parent.ts";
 
 export type { CompletedToolInfo, ToolRequestId } from "../tool-types.ts";
@@ -39,9 +38,7 @@ export type StaticToolMap = {
   diagnostics: { input: Diagnostics.Input };
   bash_command: { input: BashCommand.Input };
   thread_title: { input: ThreadTitle.Input };
-  spawn_subagent: { input: SpawnSubagent.Input };
-  spawn_foreach: { input: SpawnForeach.Input };
-  wait_for_subagents: { input: WaitForSubagents.Input };
+  spawn_subagents: { input: SpawnSubagents.Input };
   yield_to_parent: { input: YieldToParent.Input };
   edl: { input: Edl.Input };
 };
@@ -71,10 +68,8 @@ const TOOL_SPEC_MAP: {
   bash_command: BashCommand.spec,
   diagnostics: Diagnostics.spec,
   thread_title: ThreadTitle.spec,
-  spawn_subagent: SpawnSubagent.spec,
-  spawn_foreach: SpawnForeach.spec,
+  spawn_subagents: SpawnSubagents.spec,
   yield_to_parent: YieldToParent.spec,
-  wait_for_subagents: WaitForSubagents.spec,
 
   edl: Edl.spec,
 };

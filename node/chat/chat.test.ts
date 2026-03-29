@@ -149,14 +149,13 @@ describe("node/chat/chat.test.ts", () => {
       const thread1 = driver.getThreadId(0);
 
       await driver.inputMagentaText(
-        "Use spawn_subagent to create a sub-agent that will echo 'Hello from subagent' and then yield that result back to me.",
+        "Use spawn_subagents to create a sub-agent that will echo 'Hello from subagent' and then yield that result back to me.",
       );
       await driver.send();
 
-      const request1 =
-        await driver.mockAnthropic.awaitPendingStreamWithText(
-          "Use spawn_subagent",
-        );
+      const request1 = await driver.mockAnthropic.awaitPendingStreamWithText(
+        "Use spawn_subagents",
+      );
       request1.respond({
         stopReason: "tool_use",
         text: "I'll spawn a sub-agent to handle this task.",
@@ -164,42 +163,22 @@ describe("node/chat/chat.test.ts", () => {
           {
             status: "ok",
             value: {
-              id: "test-spawn-subagent" as ToolRequestId,
-              toolName: "spawn_subagent" as ToolName,
+              id: "test-spawn-subagents" as ToolRequestId,
+              toolName: "spawn_subagents" as ToolName,
               input: {
-                prompt:
-                  "Echo the text 'Hello from subagent' using the bash_command tool, then yield that result back to the parent using yield_to_parent.",
+                agents: [
+                  {
+                    prompt:
+                      "Echo the text 'Hello from subagent' using the bash_command tool, then yield that result back to the parent using yield_to_parent.",
+                  },
+                ],
               },
             },
           },
         ],
       });
 
-      await driver.assertDisplayBufferContains("✅  (~");
-      const thread2 = driver.getThreadId(1);
-
-      const request = await driver.mockAnthropic.awaitPendingStreamWithText(
-        `Sub-agent started with threadId: ${thread2}`,
-      );
-
-      request.respond({
-        stopReason: "tool_use",
-        text: "Now I'll wait for the sub-agent to complete.",
-        toolRequests: [
-          {
-            status: "ok",
-            value: {
-              id: "test-wait-for-subagents" as ToolRequestId,
-              toolName: "wait_for_subagents" as ToolName,
-              input: {
-                threadIds: [thread2],
-              },
-            },
-          },
-        ],
-      });
-
-      // We should stay in the parent thread (thread 1) since switchToThread is now false
+      // We should stay in the parent thread during subagent execution
       await driver.awaitChatState(
         {
           state: "thread-selected",
@@ -208,12 +187,7 @@ describe("node/chat/chat.test.ts", () => {
         `We stay in the parent thread during subagent execution`,
       );
 
-      // Assert we see the waiting state in the parent thread
-      await driver.assertDisplayBufferContains("⏸️ Waiting for 1 subagent(s):");
-      await driver.assertDisplayBufferContains(
-        `- Echo the text 'Hello from subagent' using the bash...: ⏳ streaming response`,
-      );
-
+      // The child subagent runs bash_command
       const request3 =
         await driver.mockAnthropic.awaitPendingStreamWithText("Echo the text");
       request3.respond({
@@ -252,138 +226,51 @@ describe("node/chat/chat.test.ts", () => {
         ],
       });
 
-      await driver.awaitChatState(
-        {
-          state: "thread-selected",
-          id: thread1,
-        },
-        "We remain in the parent thread and see the subagent result",
-      );
-
-      await driver.assertDisplayBufferContains(`✅ 1 threads`);
+      // The parent gets the spawn_subagents result after child yields
+      await driver.assertDisplayBufferContains("✅ ");
     });
   });
 
-  it("wait_for_subagents view handles missing threads gracefully", async () => {
-    await withDriver({}, async (driver) => {
-      await driver.showSidebar();
-
-      await driver.inputMagentaText("Wait for a thread that doesn't exist.");
-      await driver.send();
-
-      const request =
-        await driver.mockAnthropic.awaitPendingStreamWithText(
-          "Wait for a thread",
-        );
-      request.respond({
-        stopReason: "tool_use",
-        text: "I'll wait for a non-existent thread.",
-        toolRequests: [
-          {
-            status: "ok",
-            value: {
-              id: "wait-missing" as ToolRequestId,
-              toolName: "wait_for_subagents" as ToolName,
-              input: {
-                threadIds: ["nonexistent-thread-id"], // Non-existent thread ID
-              },
-            },
-          },
-        ],
-      });
-
-      // Verify we see the missing thread status
-      await driver.assertDisplayBufferContains("⏸️ Waiting for 1 subagent(s):");
-      await driver.assertDisplayBufferContains("- [Untitled]: ❓ not found");
-    });
-  });
-
-  it("wait_for_subagents view updates as threads progress and yield", async () => {
+  it("spawn_subagents view updates as agents progress and yield", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
 
       await driver.inputMagentaText(
-        "Use spawn_subagent to create two sub-agents and wait for both.",
+        "Use spawn_subagents to create two sub-agents and wait for both.",
       );
       await driver.send();
 
-      const request1 =
-        await driver.mockAnthropic.awaitPendingStreamWithText(
-          "Use spawn_subagent",
-        );
+      const request1 = await driver.mockAnthropic.awaitPendingStreamWithText(
+        "Use spawn_subagents",
+      );
       request1.respond({
         stopReason: "tool_use",
-        text: "I'll spawn the first sub-agent.",
+        text: "I'll spawn two sub-agents.",
         toolRequests: [
           {
             status: "ok",
             value: {
-              id: "spawn-1" as ToolRequestId,
-              toolName: "spawn_subagent" as ToolName,
+              id: "spawn-both" as ToolRequestId,
+              toolName: "spawn_subagents" as ToolName,
               input: {
-                prompt: "Echo 'Hello from subagent 1' and yield the result.",
+                agents: [
+                  {
+                    prompt:
+                      "Echo 'Hello from subagent 1' and yield the result.",
+                  },
+                  {
+                    prompt:
+                      "Echo 'Hello from subagent 2' and yield the result.",
+                  },
+                ],
               },
             },
           },
         ],
       });
 
-      await driver.assertDisplayBufferContains("✅  (~");
-      const thread2 = driver.getThreadId(1);
-
-      const request2 = await driver.mockAnthropic.awaitPendingStreamWithText(
-        `Sub-agent started with threadId: ${thread2}`,
-      );
-      request2.respond({
-        stopReason: "tool_use",
-        text: "Now I'll spawn the second sub-agent.",
-        toolRequests: [
-          {
-            status: "ok",
-            value: {
-              id: "spawn-2" as ToolRequestId,
-              toolName: "spawn_subagent" as ToolName,
-              input: {
-                prompt: "Echo 'Hello from subagent 2' and yield the result.",
-              },
-            },
-          },
-        ],
-      });
-
-      await driver.assertDisplayBufferContains("✅  (~");
-      await driver.awaitThreadCount(3);
-      const thread3 = driver.getThreadId(2);
-
-      // Start waiting for both subagents
-      const request3 = await driver.mockAnthropic.awaitPendingStreamWithText(
-        `Sub-agent started with threadId: ${thread3}`,
-      );
-      request3.respond({
-        stopReason: "tool_use",
-        text: "Now I'll wait for both sub-agents to complete.",
-        toolRequests: [
-          {
-            status: "ok",
-            value: {
-              id: "wait-both" as ToolRequestId,
-              toolName: "wait_for_subagents" as ToolName,
-              input: {
-                threadIds: [thread2, thread3],
-              },
-            },
-          },
-        ],
-      });
-
-      // Verify we see both threads in waiting state
-      await driver.assertDisplayBufferContains("⏸️ Waiting for 2 subagent(s):");
-      await driver.assertDisplayBufferContains(
-        `- Echo 'Hello from subagent 1' and yield the result.: ⏳ streaming response`,
-      );
-      await driver.assertDisplayBufferContains(
-        `- Echo 'Hello from subagent 2' and yield the result.: ⏳ streaming response`,
-      );
+      // Verify both agents are shown in progress view
+      await driver.assertDisplayBufferContains("🤖 spawn_subagents");
 
       // First subagent yields successfully
       const subagent1Request =
@@ -407,13 +294,9 @@ describe("node/chat/chat.test.ts", () => {
         ],
       });
 
-      // Verify the first thread shows as yielded
+      // Verify the first agent shows as completed
       await driver.assertDisplayBufferContains(
-        `- Echo 'Hello from subagent 1' and yield the result.: ✅ 1 lines`,
-      );
-      // Second thread should still be running
-      await driver.assertDisplayBufferContains(
-        `- Echo 'Hello from subagent 2' and yield the result.: ⏳ streaming response`,
+        "✅ Echo 'Hello from subagent 1'",
       );
 
       // Second subagent yields successfully
@@ -438,178 +321,24 @@ describe("node/chat/chat.test.ts", () => {
         ],
       });
 
-      // Verify both threads have completed and the wait tool shows final results
-      await driver.assertDisplayBufferContains(`✅ 2 threads`);
+      // Verify both agents have completed
+      await driver.assertDisplayBufferContains("✅ 2/2 agents");
     });
   });
 
-  it("wait_for_subagents view shows stopped state", async () => {
-    await withDriver({}, async (driver) => {
-      await driver.showSidebar();
-
-      await driver.inputMagentaText(
-        "Create two subagents: one will stop normally, one will succeed.",
-      );
-      await driver.send();
-
-      const request1 = await driver.mockAnthropic.awaitPendingStreamWithText(
-        "Create two subagents",
-      );
-      request1.respond({
-        stopReason: "tool_use",
-        text: "I'll spawn two sub-agents to demonstrate different outcomes.",
-        toolRequests: [
-          {
-            status: "ok",
-            value: {
-              id: "spawn-1" as ToolRequestId,
-              toolName: "spawn_subagent" as ToolName,
-              input: {
-                prompt: "Just say something and stop without yielding.",
-              },
-            },
-          },
-        ],
-      });
-
-      await driver.assertDisplayBufferContains("✅  (~");
-      const thread2 = driver.getThreadId(1);
-
-      const request2 = await driver.mockAnthropic.awaitPendingStreamWithText(
-        `Sub-agent started with threadId: ${thread2}`,
-      );
-      request2.respond({
-        stopReason: "tool_use",
-        text: "Now spawning the second sub-agent.",
-        toolRequests: [
-          {
-            status: "ok",
-            value: {
-              id: "spawn-2" as ToolRequestId,
-              toolName: "spawn_subagent" as ToolName,
-              input: {
-                prompt: "Echo 'Success!' and yield the result.",
-              },
-            },
-          },
-        ],
-      });
-
-      await driver.awaitThreadCount(3);
-      const thread3 = driver.getThreadId(2);
-
-      // Start waiting for both subagents
-      const request3 = await driver.mockAnthropic.awaitPendingStreamWithText(
-        `Sub-agent started with threadId: ${thread3}`,
-      );
-      request3.respond({
-        stopReason: "tool_use",
-        text: "Now I'll wait for both sub-agents to complete.",
-        toolRequests: [
-          {
-            status: "ok",
-            value: {
-              id: "wait-both" as ToolRequestId,
-              toolName: "wait_for_subagents" as ToolName,
-              input: {
-                threadIds: [thread2, thread3],
-              },
-            },
-          },
-        ],
-      });
-
-      // Verify we see both threads in waiting state initially
-      await driver.assertDisplayBufferContains("⏸️ Waiting for 2 subagent(s):");
-
-      // First subagent stops without yielding
-      const subagent1Request =
-        await driver.mockAnthropic.awaitPendingStreamWithText(
-          "Just say something and stop",
-        );
-      subagent1Request.respond({
-        stopReason: "end_turn",
-        text: "I'll just say hello and stop here without yielding.",
-        toolRequests: [],
-      });
-
-      // Verify the first thread shows as stopped
-      await driver.assertDisplayBufferContains(
-        `- Just say something and stop without yielding.: ⏹️ stopped (end_turn)`,
-      );
-
-      // Second subagent succeeds and yields
-      const subagent2Request =
-        await driver.mockAnthropic.awaitPendingStreamWithText(
-          "Echo 'Success!'",
-        );
-      subagent2Request.respond({
-        stopReason: "tool_use",
-        text: "I'll echo success and yield the result.",
-        toolRequests: [
-          {
-            status: "ok",
-            value: {
-              id: "success-command" as ToolRequestId,
-              toolName: "bash_command" as ToolName,
-              input: {
-                command: "echo 'Success!'",
-              },
-            },
-          },
-        ],
-      });
-
-      const subagent2Request2 =
-        await driver.mockAnthropic.awaitPendingStreamWithText("exit code 0");
-      subagent2Request2.respond({
-        stopReason: "tool_use",
-        text: "I'll yield this successful result.",
-        toolRequests: [
-          {
-            status: "ok",
-            value: {
-              id: "yield-success" as ToolRequestId,
-              toolName: "yield_to_parent" as ToolName,
-              input: {
-                result: "Success!",
-              },
-            },
-          },
-        ],
-      });
-
-      // Verify the second thread shows as yielded
-      await driver.assertDisplayBufferContains(
-        `- Echo 'Success!' and yield the result.: ✅ 1 lines`,
-      );
-
-      // Verify we can see both final states - one stopped, one yielded
-      // The tool is still waiting because thread 2 stopped without yielding
-      await driver.assertDisplayBufferContains(
-        `- Just say something and stop without yielding.: ⏹️ stopped (end_turn)`,
-      );
-      await driver.assertDisplayBufferContains(
-        `- Echo 'Success!' and yield the result.: ✅ 1 lines`,
-      );
-    });
-  });
-
-  it("wait_for_subagents view allows clicking on thread lines to navigate to them", async () => {
+  it("spawn_subagents progress view allows clicking to navigate to child thread", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
       const thread1 = driver.getThreadId(0);
 
-      // Spawn a subagent to have something to wait for
       await driver.inputMagentaText(
-        "Use spawn_subagent to create a sub-agent that will yield a result.",
+        "Use spawn_subagents to create a sub-agent that will yield a result.",
       );
       await driver.send();
 
-      const request1 =
-        await driver.mockAnthropic.awaitPendingStreamWithText(
-          "Use spawn_subagent",
-        );
+      const request1 = await driver.mockAnthropic.awaitPendingStreamWithText(
+        "Use spawn_subagents",
+      );
       request1.respond({
         stopReason: "tool_use",
         text: "I'll spawn a sub-agent.",
@@ -618,52 +347,29 @@ describe("node/chat/chat.test.ts", () => {
             status: "ok",
             value: {
               id: "spawn-test" as ToolRequestId,
-              toolName: "spawn_subagent" as ToolName,
+              toolName: "spawn_subagents" as ToolName,
               input: {
-                prompt: "Echo 'Test message' and yield the result.",
+                agents: [
+                  { prompt: "Echo 'Test message' and yield the result." },
+                ],
               },
             },
           },
         ],
       });
 
-      await driver.assertDisplayBufferContains("✅  (~");
-      const thread2 = driver.getThreadId(1);
-
-      // Start waiting for the subagent
-      const request2 = await driver.mockAnthropic.awaitPendingStreamWithText(
-        `Sub-agent started with threadId: ${thread2}`,
-      );
-      request2.respond({
-        stopReason: "tool_use",
-        text: "Now I'll wait for the sub-agent to complete.",
-        toolRequests: [
-          {
-            status: "ok",
-            value: {
-              id: "wait-test" as ToolRequestId,
-              toolName: "wait_for_subagents" as ToolName,
-              input: {
-                threadIds: [thread2],
-              },
-            },
-          },
-        ],
-      });
-
-      // Verify we see the waiting state with the thread line
-      await driver.assertDisplayBufferContains("⏸️ Waiting for 1 subagent(s):");
       // We should currently be in thread 1 (the parent)
       await driver.awaitChatState({
         state: "thread-selected",
         id: thread1,
       });
 
-      // Click on the thread line to navigate to thread 2
-      await driver.triggerDisplayBufferKeyOnContent(
-        `- Echo 'Test message' and yield the result.: ⏳ streaming response`,
-        "<CR>",
-      );
+      // Wait for the child thread to be spawned
+      await driver.awaitThreadCount(2);
+      const thread2 = driver.getThreadId(1);
+
+      // Click on the progress view to navigate to the child thread
+      await driver.triggerDisplayBufferKeyOnContent("⏳", "<CR>");
 
       // Verify we switched to thread 2
       await driver.awaitChatState({
@@ -671,15 +377,14 @@ describe("node/chat/chat.test.ts", () => {
         id: thread2,
       });
 
-      // We should now see the subagent thread content
+      // We should see the subagent thread content
       await driver.assertDisplayBufferContains(
-        `Parent thread: Use spawn_subagent to create a sub-agent that will...`,
+        "Parent thread: Use spawn_subagents to create",
       );
-      await driver.assertDisplayBufferContains("# [ Untitled ]");
 
       // Navigate back to thread 1 via the parent thread link
       await driver.triggerDisplayBufferKeyOnContent(
-        `Parent thread: Use spawn_subagent to create a sub-agent that will...`,
+        "Parent thread: Use spawn_subagents to create",
         "<CR>",
       );
 
@@ -688,9 +393,6 @@ describe("node/chat/chat.test.ts", () => {
         state: "thread-selected",
         id: thread1,
       });
-
-      // We should see the wait_for_subagents view again
-      await driver.assertDisplayBufferContains("⏸️ Waiting for 1 subagent(s):");
     });
   });
 
@@ -714,20 +416,18 @@ describe("node/chat/chat.test.ts", () => {
             status: "ok",
             value: {
               id: "spawn-child" as ToolRequestId,
-              toolName: "spawn_subagent" as ToolName,
-              input: {
-                prompt: "This is a child thread task",
-              },
+              toolName: "spawn_subagents" as ToolName,
+              input: { agents: [{ prompt: "This is a child thread task" }] },
             },
           },
         ],
       });
 
-      await driver.assertDisplayBufferContains("✅  (~");
+      // Wait for child thread to be spawned
+      await driver.awaitThreadCount(2);
 
       // Create another parent thread
       await driver.magenta.command("new-thread");
-      // Wait for new thread to be created
       await driver.awaitThreadCount(3);
 
       await driver.inputMagentaText("This is another parent thread");
@@ -745,17 +445,17 @@ describe("node/chat/chat.test.ts", () => {
             status: "ok",
             value: {
               id: "spawn-child2" as ToolRequestId,
-              toolName: "spawn_subagent" as ToolName,
+              toolName: "spawn_subagents" as ToolName,
               input: {
-                prompt: "This is another child thread task",
+                agents: [{ prompt: "This is another child thread task" }],
               },
             },
           },
         ],
       });
 
-      // Wait for the spawn message to appear in the display buffer
-      await driver.assertDisplayBufferContains("✅  (~");
+      // Wait for second child thread to be spawned
+      await driver.awaitThreadCount(4);
 
       // Now view the thread hierarchy
       await driver.magenta.command("threads-overview");
@@ -766,13 +466,13 @@ describe("node/chat/chat.test.ts", () => {
       // Verify hierarchical display with proper indentation
       await driver.assertDisplayBufferContains("# Threads");
       await driver.assertDisplayBufferContains(
-        `- This is the parent thread: ⏳ streaming response`,
+        `- This is the parent thread: ⏳ executing tools`,
       );
       await driver.assertDisplayBufferContains(
         `  - This is a child thread task: ⏳ streaming response`,
       );
       await driver.assertDisplayBufferContains(
-        `* This is another parent thread: ⏳ streaming response`,
+        `* This is another parent thread: ⏳ executing tools`,
       );
       await driver.assertDisplayBufferContains(
         `  - This is another child thread task: ⏳ streaming response`,
@@ -800,17 +500,15 @@ describe("node/chat/chat.test.ts", () => {
             status: "ok",
             value: {
               id: "spawn-yielder" as ToolRequestId,
-              toolName: "spawn_subagent" as ToolName,
-              input: {
-                prompt: "Yield a result back to parent",
-              },
+              toolName: "spawn_subagents" as ToolName,
+              input: { agents: [{ prompt: "Yield a result back to parent" }] },
             },
           },
         ],
       });
 
       // Wait for subagent to be spawned
-      await driver.assertDisplayBufferContains("✅  (~");
+      await driver.awaitThreadCount(2);
 
       // Child thread yields a result
       const childRequest =
@@ -854,17 +552,15 @@ describe("node/chat/chat.test.ts", () => {
             status: "ok",
             value: {
               id: "spawn-stopper" as ToolRequestId,
-              toolName: "spawn_subagent" as ToolName,
-              input: {
-                prompt: "Just stop without yielding",
-              },
+              toolName: "spawn_subagents" as ToolName,
+              input: { agents: [{ prompt: "Just stop without yielding" }] },
             },
           },
         ],
       });
 
       // Wait for subagent to be spawned
-      await driver.assertDisplayBufferContains("✅  (~");
+      await driver.awaitThreadCount(4);
 
       // Child thread stops without yielding
       const child2Request =
@@ -888,7 +584,7 @@ describe("node/chat/chat.test.ts", () => {
         `  - Yield a result back to parent: ✅ yielded`,
       );
       await driver.assertDisplayBufferContains(
-        `* Parent with stopping child: ⏳ streaming response`,
+        `* Parent with stopping child: ⏳ executing tools`,
       );
       await driver.assertDisplayBufferContains(
         `  - Just stop without yielding: ⏹️ stopped (end_turn)`,
@@ -917,17 +613,15 @@ describe("node/chat/chat.test.ts", () => {
             status: "ok",
             value: {
               id: "spawn-test-child" as ToolRequestId,
-              toolName: "spawn_subagent" as ToolName,
-              input: {
-                prompt: "Child thread task",
-              },
+              toolName: "spawn_subagents" as ToolName,
+              input: { agents: [{ prompt: "Child thread task" }] },
             },
           },
         ],
       });
 
       // Wait for the subagent to be spawned
-      await driver.assertDisplayBufferContains("✅  (~");
+      await driver.awaitThreadCount(2);
       const thread2 = driver.getThreadId(1);
 
       await driver.magenta.command("threads-overview");
@@ -947,7 +641,7 @@ describe("node/chat/chat.test.ts", () => {
 
       await driver.magenta.command("threads-overview");
       await driver.triggerDisplayBufferKeyOnContent(
-        `- Parent thread message: ⏳ streaming response`,
+        `- Parent thread message: ⏳ executing tools`,
         "<CR>",
       );
 
@@ -977,12 +671,12 @@ describe("node/chat/chat.test.ts", () => {
       await driver.magenta.command("new-thread");
       await driver.assertDisplayBufferContains("# [ Untitled ]");
       await driver.assertDisplayBufferContains(LOGO);
-      await driver.inputMagentaText("Spawn a subagent");
+      await driver.inputMagentaText("Spawn subagents");
       await driver.send();
 
       const request2 =
         await driver.mockAnthropic.awaitPendingStreamWithText(
-          "Spawn a subagent",
+          "Spawn subagents",
         );
       request2.respond({
         stopReason: "tool_use",
@@ -992,10 +686,8 @@ describe("node/chat/chat.test.ts", () => {
             status: "ok",
             value: {
               id: "spawn-for-status" as ToolRequestId,
-              toolName: "spawn_subagent" as ToolName,
-              input: {
-                prompt: "Child task",
-              },
+              toolName: "spawn_subagents" as ToolName,
+              input: { agents: [{ prompt: "Child task" }] },
             },
           },
         ],
@@ -1011,39 +703,35 @@ describe("node/chat/chat.test.ts", () => {
     });
   });
 
-  it("blocking spawn_subagent shows (blocking) suffix and waits for completion", async () => {
+  it("spawn_subagents waits for completion and returns result", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
 
-      await driver.inputMagentaText(
-        "Use spawn_subagent with blocking=true to get a result.",
-      );
+      await driver.inputMagentaText("Use spawn_subagents to get a result.");
       await driver.send();
 
-      const request1 =
-        await driver.mockAnthropic.awaitPendingStreamWithText(
-          "Use spawn_subagent",
-        );
+      const request1 = await driver.mockAnthropic.awaitPendingStreamWithText(
+        "Use spawn_subagents",
+      );
       request1.respond({
         stopReason: "tool_use",
-        text: "I'll spawn a blocking sub-agent.",
+        text: "I'll spawn a sub-agent.",
         toolRequests: [
           {
             status: "ok",
             value: {
-              id: "test-blocking-spawn" as ToolRequestId,
-              toolName: "spawn_subagent" as ToolName,
+              id: "test-spawn" as ToolRequestId,
+              toolName: "spawn_subagents" as ToolName,
               input: {
-                prompt: "Do a task and yield back the result.",
-                blocking: true,
+                agents: [{ prompt: "Do a task and yield back the result." }],
               },
             },
           },
         ],
       });
 
-      // Verify the blocking spawn_subagent shows waiting state with (blocking) label
-      await driver.assertDisplayBufferContains("🚀 spawn_subagent");
+      // Verify spawn_subagents shows waiting state
+      await driver.assertDisplayBufferContains("🚀 spawn_subagents");
 
       // The subagent should start running
       const subagentRequest =
@@ -1057,85 +745,48 @@ describe("node/chat/chat.test.ts", () => {
           {
             status: "ok",
             value: {
-              id: "yield-blocking" as ToolRequestId,
+              id: "yield-result" as ToolRequestId,
               toolName: "yield_to_parent" as ToolName,
               input: {
-                result: "Task completed with blocking mode",
+                result: "Task completed successfully",
               },
             },
           },
         ],
       });
 
-      // After subagent yields, the blocking spawn should complete with (blocking) suffix
-      await driver.assertDisplayBufferContains("✅  (~");
+      // After subagent yields, the spawn should complete
+      await driver.assertDisplayBufferContains("✅ ");
 
       // The parent thread should continue with the result
       const parentContinue =
         await driver.mockAnthropic.awaitPendingStreamWithText(
-          "Task completed with blocking mode",
+          "Task completed successfully",
         );
       parentContinue.respond({
         stopReason: "end_turn",
-        text: "Great, the blocking subagent returned successfully.",
+        text: "Great, the subagent returned successfully.",
         toolRequests: [],
       });
 
       await driver.assertDisplayBufferContains(
-        "Great, the blocking subagent returned successfully.",
+        "Great, the subagent returned successfully.",
       );
     });
   });
 
-  it("non-blocking spawn_subagent does not show (blocking) suffix", async () => {
+  it("navigates to subagent thread when clicking on spawn_subagents completed summary", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
-
-      await driver.inputMagentaText("Use spawn_subagent without blocking.");
-      await driver.send();
-
-      const request1 =
-        await driver.mockAnthropic.awaitPendingStreamWithText(
-          "Use spawn_subagent",
-        );
-      request1.respond({
-        stopReason: "tool_use",
-        text: "I'll spawn a non-blocking sub-agent.",
-        toolRequests: [
-          {
-            status: "ok",
-            value: {
-              id: "test-nonblocking-spawn" as ToolRequestId,
-              toolName: "spawn_subagent" as ToolName,
-              input: {
-                prompt: "Do something in the background.",
-                // blocking is false by default
-              },
-            },
-          },
-        ],
-      });
-
-      // Non-blocking spawn should show completed immediately without (blocking) suffix
-      await driver.assertDisplayBufferContains("✅  (~");
-      await driver.assertDisplayBufferDoesNotContain("(blocking)");
-    });
-  });
-
-  it("navigates to subagent thread when clicking on spawn_subagent completed summary", async () => {
-    await withDriver({}, async (driver) => {
-      await driver.showSidebar();
-      const thread1 = driver.getThreadId(0);
 
       await driver.inputMagentaText(
-        "Use spawn_subagent to create a sub-agent.",
+        "Use spawn_subagents to create a sub-agent.",
       );
       await driver.send();
 
-      const request1 =
-        await driver.mockAnthropic.awaitPendingStreamWithText(
-          "Use spawn_subagent",
-        );
+      const request1 = await driver.mockAnthropic.awaitPendingStreamWithText(
+        "Use spawn_subagents",
+      );
       request1.respond({
         stopReason: "tool_use",
         text: "I'll spawn a sub-agent.",
@@ -1144,23 +795,36 @@ describe("node/chat/chat.test.ts", () => {
             status: "ok",
             value: {
               id: "test-nav-spawn" as ToolRequestId,
-              toolName: "spawn_subagent" as ToolName,
+              toolName: "spawn_subagents" as ToolName,
               input: {
-                prompt: "Child thread for navigation test.",
+                agents: [{ prompt: "Child thread for navigation test." }],
               },
             },
           },
         ],
       });
 
-      await driver.assertDisplayBufferContains("✅  (~");
-      const thread2 = driver.getThreadId(1);
-
-      // Verify we're in the parent thread
-      await driver.awaitChatState({
-        state: "thread-selected",
-        id: thread1,
+      // Wait for child to start, then have it yield so spawn_subagents completes
+      const childStream = await driver.mockAnthropic.awaitPendingStreamWithText(
+        "Child thread for navigation test",
+      );
+      childStream.respond({
+        stopReason: "tool_use",
+        text: "Done.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "yield-nav" as ToolRequestId,
+              toolName: "yield_to_parent" as ToolName,
+              input: { result: "Navigation test done" },
+            },
+          },
+        ],
       });
+
+      await driver.assertDisplayBufferContains("✅ ");
+      const thread2 = driver.getThreadId(1);
 
       // Click on the result navigation link to navigate to the subagent thread
       await driver.triggerDisplayBufferKeyOnContent("→", "<CR>");
@@ -1172,13 +836,13 @@ describe("node/chat/chat.test.ts", () => {
 
       // We should see the subagent thread content
       await driver.assertDisplayBufferContains(
-        "Parent thread: Use spawn_subagent to create a sub-agent.",
+        "Parent thread: Use spawn_subagents to create a sub-agent.",
       );
     });
   });
 
   describe("abort does not resolve parent tool calls", () => {
-    it("blocking spawn_subagent stays pending when child is aborted, resolves on yield", async () => {
+    it("blocking spawn_subagents stays pending when child is aborted, resolves on yield", async () => {
       await withDriver({}, async (driver) => {
         await driver.showSidebar();
         await driver.inputMagentaText("Use a blocking subagent.");
@@ -1197,10 +861,9 @@ describe("node/chat/chat.test.ts", () => {
               status: "ok",
               value: {
                 id: "blocking-spawn" as ToolRequestId,
-                toolName: "spawn_subagent" as ToolName,
+                toolName: "spawn_subagents" as ToolName,
                 input: {
-                  prompt: "Do the task and yield the result",
-                  blocking: true,
+                  agents: [{ prompt: "Do the task and yield the result" }],
                 },
               },
             },
@@ -1229,7 +892,7 @@ describe("node/chat/chat.test.ts", () => {
         // Verify the child shows as aborted in the parent thread view
         await driver.assertDisplayBufferContains("⏹️ stopped (aborted)");
         // Verify the parent is still waiting (blocking spawn still pending)
-        await driver.assertDisplayBufferContains("🚀 spawn_subagent");
+        await driver.assertDisplayBufferContains("🚀 spawn_subagents");
 
         // Resume the child: switch to it, send a message
         driver.magenta.chat.update({
@@ -1301,154 +964,7 @@ describe("node/chat/chat.test.ts", () => {
       });
     });
 
-    it("wait_for_subagents stays pending when child is aborted, resolves on yield", async () => {
-      await withDriver({}, async (driver) => {
-        await driver.showSidebar();
-        await driver.inputMagentaText("Spawn then wait.");
-        await driver.send();
-
-        // Parent spawns a non-blocking subagent first
-        const stream1 =
-          await driver.mockAnthropic.awaitPendingStreamWithText(
-            "Spawn then wait",
-          );
-        stream1.respond({
-          stopReason: "tool_use",
-          text: "Spawning subagent.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: "spawn-nb" as ToolRequestId,
-                toolName: "spawn_subagent" as ToolName,
-                input: {
-                  prompt: "Do the wait task and yield",
-                },
-              },
-            },
-          ],
-        });
-
-        await driver.assertDisplayBufferContains("✅  (~");
-        await driver.awaitThreadCount(2);
-        const parentThreadId = driver.getThreadId(0);
-        const childThreadId = driver
-          .getThreadIds()
-          .find((id) => id !== parentThreadId)!;
-
-        // Parent continues and issues wait_for_subagents
-        const stream2 = await driver.mockAnthropic.awaitPendingStreamWithText(
-          `threadId: ${childThreadId}`,
-        );
-        stream2.respond({
-          stopReason: "tool_use",
-          text: "Waiting for subagent.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: "wait-tool" as ToolRequestId,
-                toolName: "wait_for_subagents" as ToolName,
-                input: {
-                  threadIds: [childThreadId],
-                },
-              },
-            },
-          ],
-        });
-
-        await driver.assertDisplayBufferContains(
-          "⏸️ Waiting for 1 subagent(s):",
-        );
-
-        // Get the child stream and abort the child
-        const childStream =
-          await driver.mockAnthropic.awaitPendingStreamWithText(
-            "Do the wait task",
-          );
-        driver.magenta.chat.update({
-          type: "thread-msg",
-          id: childThreadId,
-          msg: { type: "abort" },
-        });
-        expect(childStream.aborted).toBe(true);
-
-        // Verify the child shows as aborted and parent is still waiting
-        await driver.assertDisplayBufferContains("⏹️ stopped (aborted)");
-        await driver.assertDisplayBufferContains(
-          "⏸️ Waiting for 1 subagent(s):",
-        );
-
-        // Resume the child
-        driver.magenta.chat.update({
-          type: "chat-msg",
-          msg: { type: "select-thread", id: childThreadId },
-        });
-        await pollUntil(
-          () => driver.magenta.chat.getActiveThread().id === childThreadId,
-        );
-        await driver.inputMagentaText("Continue wait task");
-        await driver.send();
-
-        const resumedStream =
-          await driver.mockAnthropic.awaitPendingStreamWithText(
-            "Continue wait task",
-          );
-
-        resumedStream.respond({
-          stopReason: "tool_use",
-          text: "Done.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: "yield-wait" as ToolRequestId,
-                toolName: "yield_to_parent" as ToolName,
-                input: { result: "Wait task completed" },
-              },
-            },
-          ],
-        });
-
-        // Parent should receive the wait_for_subagents result
-        const parentResume = await driver.mockAnthropic.awaitPendingStream({
-          predicate: (stream) =>
-            stream.messages.some(
-              (msg) =>
-                msg.role === "user" &&
-                Array.isArray(msg.content) &&
-                msg.content.some(
-                  (block): block is ToolResultBlockParam =>
-                    block.type === "tool_result" &&
-                    block.tool_use_id === "wait-tool",
-                ),
-            ),
-          message: "waiting for parent to receive wait_for_subagents result",
-        });
-
-        let toolResult: ToolResultBlockParam | undefined;
-        for (const msg of parentResume.messages) {
-          if (msg.role === "user" && Array.isArray(msg.content)) {
-            const found = msg.content.find(
-              (block): block is ToolResultBlockParam =>
-                block.type === "tool_result" &&
-                block.tool_use_id === "wait-tool",
-            );
-            if (found) {
-              toolResult = found;
-              break;
-            }
-          }
-        }
-        expect(toolResult).toBeDefined();
-        expect(toolResult!.is_error).toBe(false);
-        expect(JSON.stringify(toolResult!.content)).toContain(
-          "Wait task completed",
-        );
-      });
-    });
-
-    it("spawn_foreach stays pending when child is aborted, resolves on yield", async () => {
+    it("spawn_subagents stays pending when child is aborted, resolves on yield", async () => {
       await withDriver(
         { options: { maxConcurrentSubagents: 10 } },
         async (driver) => {
@@ -1467,20 +983,19 @@ describe("node/chat/chat.test.ts", () => {
               {
                 status: "ok",
                 value: {
-                  id: "foreach-tool" as ToolRequestId,
-                  toolName: "spawn_foreach" as ToolName,
-                  input: {
-                    prompt: "Handle this element",
-                    elements: ["item1"],
-                  },
+                  id: "subagents-tool" as ToolRequestId,
+                  toolName: "spawn_subagents" as ToolName,
+                  input: { agents: [{ prompt: "Handle this element" }] },
                 },
               },
             ],
           });
 
-          // Wait for the foreach child stream
+          // Wait for the child stream
           const childStream =
-            await driver.mockAnthropic.awaitPendingStreamWithText("item1");
+            await driver.mockAnthropic.awaitPendingStreamWithText(
+              "Handle this element",
+            );
 
           await driver.awaitThreadCount(2);
           const parentThreadId = driver.getThreadId(0);
@@ -1496,8 +1011,8 @@ describe("node/chat/chat.test.ts", () => {
           });
           expect(childStream.aborted).toBe(true);
 
-          // Verify the child shows as aborted in the foreach view
-          await driver.assertDisplayBufferContains("⏹️ item1");
+          // Verify the child shows as aborted
+          await driver.assertDisplayBufferContains("⏹️ stopped (aborted)");
 
           // Resume the child
           driver.magenta.chat.update({
@@ -1507,12 +1022,12 @@ describe("node/chat/chat.test.ts", () => {
           await pollUntil(
             () => driver.magenta.chat.getActiveThread().id === childThreadId,
           );
-          await driver.inputMagentaText("Continue item1");
+          await driver.inputMagentaText("Continue the element");
           await driver.send();
 
           const resumedStream =
             await driver.mockAnthropic.awaitPendingStreamWithText(
-              "Continue item1",
+              "Continue the element",
             );
 
           resumedStream.respond({
@@ -1522,15 +1037,15 @@ describe("node/chat/chat.test.ts", () => {
               {
                 status: "ok",
                 value: {
-                  id: "yield-foreach" as ToolRequestId,
+                  id: "yield-result" as ToolRequestId,
                   toolName: "yield_to_parent" as ToolName,
-                  input: { result: "Item1 completed" },
+                  input: { result: "Element completed" },
                 },
               },
             ],
           });
 
-          // Parent should receive the foreach result
+          // Parent should receive the result
           const parentResume = await driver.mockAnthropic.awaitPendingStream({
             predicate: (stream) =>
               stream.messages.some(
@@ -1540,10 +1055,10 @@ describe("node/chat/chat.test.ts", () => {
                   msg.content.some(
                     (block): block is ToolResultBlockParam =>
                       block.type === "tool_result" &&
-                      block.tool_use_id === "foreach-tool",
+                      block.tool_use_id === "subagents-tool",
                   ),
               ),
-            message: "waiting for parent to receive foreach result",
+            message: "waiting for parent to receive result",
           });
 
           let toolResult: ToolResultBlockParam | undefined;
@@ -1552,7 +1067,7 @@ describe("node/chat/chat.test.ts", () => {
               const found = msg.content.find(
                 (block): block is ToolResultBlockParam =>
                   block.type === "tool_result" &&
-                  block.tool_use_id === "foreach-tool",
+                  block.tool_use_id === "subagents-tool",
               );
               if (found) {
                 toolResult = found;
@@ -1563,7 +1078,7 @@ describe("node/chat/chat.test.ts", () => {
           expect(toolResult).toBeDefined();
           expect(toolResult!.is_error).toBe(false);
           expect(JSON.stringify(toolResult!.content)).toContain(
-            "Item1 completed",
+            "Element completed",
           );
         },
       );
