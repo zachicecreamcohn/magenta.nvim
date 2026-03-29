@@ -186,11 +186,6 @@ Read a file for me
 I'll read the file for you.
 👀 \`poem.txt\`
 ✅ 5 lines (~43 tok)
-Moonlight whispers through the trees,
-Silver shadows dance with ease.
-Stars above like diamonds bright,
-Paint their stories in the night.
-
 [input: 1000, output: 5000]
 📋 [System Reminder]
 I've read the file. It contains a poem about moonlight.
