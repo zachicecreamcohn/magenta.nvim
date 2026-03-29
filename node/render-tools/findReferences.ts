@@ -15,7 +15,7 @@ type Input = {
   symbol: string;
 };
 
-export function renderInFlightSummary(
+export function renderSummary(
   request: UnionToolRequest,
   displayContext: DisplayContext,
 ): VDOMNode {
@@ -30,24 +30,25 @@ export function renderInFlightSummary(
     absFilePath,
     displayContext.homeDir,
   );
-  return d`🔍⚙️ ${withInlineCode(d`\`${input.symbol}\``)} in ${withInlineCode(d`\`${pathForDisplay}\``)}`;
+  return d`🔍 ${withInlineCode(d`\`${input.symbol}\``)} in ${withInlineCode(d`\`${pathForDisplay}\``)}`;
 }
 
-export function renderCompletedSummary(
+export function renderResultSummary(
   info: CompletedToolInfo,
-  displayContext: DisplayContext,
+  _displayContext: DisplayContext,
 ): VDOMNode {
-  const input = info.request.input as Input;
-  const status = info.result.result.status === "error" ? "❌" : "✅";
-  const absFilePath = resolveFilePath(
-    displayContext.cwd,
-    input.filePath,
-    displayContext.homeDir,
-  );
-  const pathForDisplay = displayPath(
-    displayContext.cwd,
-    absFilePath,
-    displayContext.homeDir,
-  );
-  return d`🔍${status} ${withInlineCode(d`\`${input.symbol}\``)} in ${withInlineCode(d`\`${pathForDisplay}\``)}`;
+  const result = info.result.result;
+  if (result.status === "error") {
+    return d`${result.error}`;
+  }
+
+  let refCount = 0;
+  for (const content of result.value) {
+    if (content.type === "text") {
+      refCount += content.text
+        .split("\n")
+        .filter((l) => l.trim().length > 0).length;
+    }
+  }
+  return d`${refCount.toString()} references`;
 }

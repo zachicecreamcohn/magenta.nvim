@@ -25,12 +25,11 @@ import type {
 } from "../providers/provider.ts";
 import type { SystemPrompt } from "../providers/system-prompt.ts";
 import {
-  renderCompletedToolDetail,
-  renderCompletedToolPreview,
-  renderCompletedToolSummary,
-  renderInFlightToolDetail,
-  renderInFlightToolPreview,
-  renderInFlightToolSummary,
+  renderToolInput,
+  renderToolProgress,
+  renderToolResult,
+  renderToolResultSummary,
+  renderToolSummary,
 } from "../render-tools/index.ts";
 import { renderStreamdedTool } from "../render-tools/streaming.ts";
 import type { Dispatch } from "../tea/tea.ts";
@@ -492,74 +491,11 @@ function renderMessageContent(
 
       const request = content.request.value;
       const toolViewState = thread.state.toolViewState[request.id];
-      const showDetails = toolViewState?.details || false;
 
-      // Show usage in details if this is the last block in the message
-      const usageInDetails =
-        showDetails && isLastBlock && messageUsage
-          ? d`\n${renderUsage(messageUsage)}`
-          : d``;
-
-      // Check if tool is active (still running)
-      const activeEntry =
-        thread.core.state.mode.type === "tool_use" &&
-        thread.core.state.mode.activeTools.get(request.id);
-
-      if (activeEntry) {
-        const displayContext = {
-          cwd: thread.context.cwd,
-          homeDir: thread.context.homeDir,
-        };
-        const renderContext = {
-          getDisplayWidth: thread.context.getDisplayWidth,
-          nvim: thread.context.nvim,
-          cwd: thread.context.cwd,
-          homeDir: thread.context.homeDir,
-          options: thread.context.options,
-          dispatch: thread.context.dispatch,
-          chat: thread.context.chat,
-        };
-
-        const inFlightPreview = renderInFlightToolPreview(
-          activeEntry.request,
-          activeEntry.progress,
-          renderContext,
-        );
-
-        return withBindings(
-          d`${renderInFlightToolSummary(activeEntry.request, displayContext, activeEntry.progress)}${
-            showDetails
-              ? d`\n${renderInFlightToolDetail(activeEntry.request, activeEntry.progress, renderContext)}${usageInDetails}`
-              : inFlightPreview
-                ? d`\n${inFlightPreview}`
-                : d``
-          }\n`,
-          {
-            "<CR>": () =>
-              dispatch({
-                type: "toggle-tool-details",
-                toolRequestId: request.id,
-              }),
-            t: () => activeEntry.handle.abort(),
-          },
-        );
-      }
-
-      // Completed tool - find the result and use tool-renderers
-      const toolResult = findToolResult(thread, request.id);
-      if (!toolResult) {
-        return d`⚠️ tool result for ${request.id} not found\n`;
-      }
-
-      const completedInfo: CompletedToolInfo = {
-        request: request,
-        result: toolResult,
-        structuredResult:
-          toolResult.result.status === "ok"
-            ? toolResult.result.structuredResult
-            : { toolName: request.toolName as ToolName },
+      const displayContext = {
+        cwd: thread.context.cwd,
+        homeDir: thread.context.homeDir,
       };
-
       const renderContext = {
         getDisplayWidth: thread.context.getDisplayWidth,
         nvim: thread.context.nvim,
@@ -567,32 +503,150 @@ function renderMessageContent(
         homeDir: thread.context.homeDir,
         options: thread.context.options,
         dispatch: thread.context.dispatch,
+        chat: thread.context.chat,
       };
 
-      // Get preview content to check if it's empty
-      const previewContent = renderCompletedToolPreview(
-        completedInfo,
-        renderContext,
-      );
+      // Check if tool is active (still running)
+      const activeEntry =
+        thread.core.state.mode.type === "tool_use" &&
+        thread.core.state.mode.activeTools.get(request.id);
 
-      // Don't add trailing newline - let the message template handle it
-      return withBindings(
-        d`${renderCompletedToolSummary(completedInfo, thread.context.dispatch, renderContext, thread.context.chat)}${
-          showDetails
-            ? d`\n${renderCompletedToolDetail(completedInfo, renderContext)}${usageInDetails}`
-            : previewContent
-              ? d`\n${previewContent}`
-              : d``
-        }\n`,
+      const isActive = !!activeEntry;
+      const abortBinding = isActive
+        ? { t: () => activeEntry?.handle.abort() }
+        : {};
+
+      // Show usage in details if this is the last block in the message
+      const usageInDetails =
+        isLastBlock && messageUsage ? d`\n${renderUsage(messageUsage)}` : d``;
+
+      // Section 1: Tool summary (always shown)
+      const summaryView = withBindings(
+        d`${renderToolSummary(request, displayContext)}`,
         {
-          "<CR>": () => {
+          "<CR>": () =>
             dispatch({
-              type: "toggle-tool-details",
+              type: "toggle-tool-input-summary",
               toolRequestId: request.id,
-            });
-          },
+            }),
+          ...abortBinding,
         },
       );
+
+      // Section 2: Input summary expansion (JSON.stringify of input)
+      const inputSummaryView = toolViewState?.inputSummaryExpanded
+        ? withBindings(d`\n${JSON.stringify(request.input, null, 2)}`, {
+            "<CR>": () =>
+              dispatch({
+                type: "toggle-tool-input-summary",
+                toolRequestId: request.id,
+              }),
+          })
+        : d``;
+
+      // Section 3: Tool input (rich preview / detail)
+      const inputContent = renderToolInput(
+        request,
+        displayContext,
+        toolViewState?.inputExpanded || false,
+      );
+      const inputView = inputContent
+        ? withBindings(d`\n${inputContent}`, {
+            "<CR>": () =>
+              dispatch({
+                type: "toggle-tool-input",
+                toolRequestId: request.id,
+              }),
+            ...abortBinding,
+          })
+        : d``;
+
+      // Section 4: Progress (in-flight only)
+      let progressView: VDOMNode = d``;
+      if (activeEntry) {
+        const progressContent = renderToolProgress(
+          activeEntry.request,
+          activeEntry.progress,
+          renderContext,
+          toolViewState?.progressExpanded || false,
+        );
+        if (progressContent) {
+          progressView = withBindings(d`\n${progressContent}`, {
+            "<CR>": () =>
+              dispatch({
+                type: "toggle-tool-progress",
+                toolRequestId: request.id,
+              }),
+            ...abortBinding,
+          });
+        }
+      }
+
+      // Sections 5-7: Result (completed only)
+      let resultSummaryView: VDOMNode = d``;
+      let resultSummaryExpansionView: VDOMNode = d``;
+      let resultView: VDOMNode = d``;
+
+      if (!activeEntry) {
+        const toolResult = findToolResult(thread, request.id);
+        if (!toolResult) {
+          return d`⚠️ tool result for ${request.id} not found\n`;
+        }
+
+        const completedInfo: CompletedToolInfo = {
+          request: request,
+          result: toolResult,
+          structuredResult:
+            toolResult.result.status === "ok"
+              ? toolResult.result.structuredResult
+              : { toolName: request.toolName as ToolName },
+        };
+
+        // Section 5: Result summary
+        resultSummaryView = withBindings(
+          d`\n${renderToolResultSummary(completedInfo, displayContext)}`,
+          {
+            "<CR>": () =>
+              dispatch({
+                type: "toggle-tool-result-summary",
+                toolRequestId: request.id,
+              }),
+          },
+        );
+
+        // Section 6: Result summary expansion (JSON.stringify of result)
+        if (toolViewState?.resultSummaryExpanded) {
+          const resultJson =
+            toolResult.result.status === "ok"
+              ? JSON.stringify(toolResult.result.value, null, 2)
+              : JSON.stringify({ error: toolResult.result.error }, null, 2);
+          resultSummaryExpansionView = withBindings(d`\n${resultJson}`, {
+            "<CR>": () =>
+              dispatch({
+                type: "toggle-tool-result-summary",
+                toolRequestId: request.id,
+              }),
+          });
+        }
+
+        // Section 7: Result detail
+        const resultContent = renderToolResult(
+          completedInfo,
+          renderContext,
+          toolViewState?.resultExpanded || false,
+        );
+        if (resultContent) {
+          resultView = withBindings(d`\n${resultContent}`, {
+            "<CR>": () =>
+              dispatch({
+                type: "toggle-tool-result",
+                toolRequestId: request.id,
+              }),
+          });
+        }
+      }
+
+      return d`${summaryView}${inputSummaryView}${inputView}${progressView}${resultSummaryView}${resultSummaryExpansionView}${resultView}${usageInDetails}\n`;
     }
 
     case "tool_result":

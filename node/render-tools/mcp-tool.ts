@@ -4,29 +4,30 @@ import type {
   MCPProgress,
   ToolRequest as UnionToolRequest,
 } from "@magenta/core";
-import type { ProviderToolResult } from "../providers/provider-types.ts";
 import { d, type VDOMNode, withInlineCode } from "../tea/view.ts";
 export type { MCPProgress };
 
-export function renderInFlightSummary(
+export function renderSummary(
   request: UnionToolRequest,
   _displayContext: DisplayContext,
-  progress?: MCPProgress,
 ): VDOMNode {
-  if (progress) {
-    const runningTime = Math.floor((Date.now() - progress.startTime) / 1000);
-    return d`🔨⚙️ (${String(runningTime)}s) MCP tool ${withInlineCode(d`\`${request.toolName}\``)}`;
-  }
-  return d`🔨⚙️ MCP tool ${withInlineCode(d`\`${request.toolName}\``)} processing...`;
+  return d`🔨 MCP tool ${withInlineCode(d`\`${request.toolName}\``)}`;
 }
 
-function getStatusEmoji(result: ProviderToolResult): string {
-  return result.result.status === "error" ? "❌" : "✅";
+export function renderProgress(
+  _request: UnionToolRequest,
+  progress: MCPProgress,
+  _displayContext: DisplayContext,
+  _expanded: boolean,
+): VDOMNode | undefined {
+  const runningTime = Math.floor((Date.now() - progress.startTime) / 1000);
+  return d`(${String(runningTime)}s) processing...`;
 }
 
-export function renderCompletedSummary(
+export function renderResultSummary(
   info: CompletedToolInfo,
   _displayContext: DisplayContext,
 ): VDOMNode {
-  return d`🔨${getStatusEmoji(info.result)} MCP tool ${withInlineCode(d`\`${info.request.toolName}\``)}`;
+  const suffix = info.result.result.status === "error" ? " error" : "";
+  return d`MCP tool ${withInlineCode(d`\`${info.request.toolName}\``)}${suffix}`;
 }

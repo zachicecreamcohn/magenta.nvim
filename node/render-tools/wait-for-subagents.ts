@@ -16,7 +16,7 @@ type Input = {
   threadIds: ThreadId[];
 };
 
-export function renderInFlightSummary(
+export function renderSummary(
   request: UnionToolRequest,
   _displayContext: DisplayContext,
   progress?: WaitForSubagents.WaitForSubagentsProgress,
@@ -24,18 +24,19 @@ export function renderInFlightSummary(
   const input = request.input as Input;
   const count = input.threadIds.length;
   const completed = progress?.completedThreadIds.length ?? 0;
-  return d`⏸️⏳ Waiting for ${count.toString()} subagent(s): ${completed.toString()}/${count.toString()} done`;
+  return d`⏸️ Waiting for ${count.toString()} subagent(s): ${completed.toString()}/${count.toString()} done`;
 }
 
-export function renderInFlightPreview(
+export function renderProgress(
   request: UnionToolRequest,
   _progress: WaitForSubagents.WaitForSubagentsProgress | undefined,
   context: {
     dispatch: Dispatch<RootMsg>;
     chat?: Chat;
   },
-): VDOMNode {
-  if (!context.chat) return d``;
+  expanded: boolean,
+): VDOMNode | undefined {
+  if (!context.chat) return undefined;
 
   const threadIds = (request.input as Input).threadIds;
   const threadStatusViews: VDOMNode[] = threadIds.map((threadId) => {
@@ -89,24 +90,15 @@ export function renderInFlightPreview(
     );
   });
 
+  if (expanded) {
+    return d`${threadStatusViews}\n${JSON.stringify(request.input, null, 2)}`;
+  }
+
   return d`${threadStatusViews}`;
 }
 
-function isError(info: CompletedToolInfo): boolean {
-  return info.result.result.status === "error";
-}
-
-function getStatusEmoji(info: CompletedToolInfo): string {
-  return isError(info) ? "❌" : "✅";
-}
-
-export function renderCompletedSummary(
-  info: CompletedToolInfo,
-  _dispatch: Dispatch<RootMsg>,
-): VDOMNode {
+export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
   const input = info.request.input as Input;
-  const status = getStatusEmoji(info);
   const count = input.threadIds?.length ?? 0;
-
-  return d`⏳${status} wait_for_subagents (${count.toString()} threads)`;
+  return d`${count.toString()} threads`;
 }

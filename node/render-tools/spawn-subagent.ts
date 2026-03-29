@@ -40,43 +40,44 @@ function isDockerAgentType(
   return agentType === "docker" || agentType === "docker_unsupervised";
 }
 
-export function renderInFlightSummary(
+export function renderSummary(
   request: UnionToolRequest,
   _displayContext: DisplayContext,
-  progress?: SpawnSubagent.SpawnSubagentProgress,
 ): VDOMNode {
   const input = request.input as Input;
   const typeLabel = agentTypeLabel(input.agentType);
-
   const dockerIcon = isDockerAgentType(input.agentType);
-  if (progress?.threadId) {
-    return d`${dockerIcon ? "🐳" : "🚀"}⏳ spawn_subagent${typeLabel} (blocking): spawned ${progress.threadId}`;
-  }
-
-  if (progress?.provisioningMessage) {
-    return d`🐳⚙️ spawn_subagent${typeLabel}: ${progress.provisioningMessage}`;
-  }
-
-  return d`${dockerIcon ? "🐳" : "🚀"}⚙️ spawn_subagent${typeLabel}: ${truncate(input.prompt)}`;
+  return d`${dockerIcon ? "🐳" : "🚀"} spawn_subagent${typeLabel}: ${truncate(input.prompt)}`;
 }
 
-export function renderInFlightPreview(
+export function renderInput(
   _request: UnionToolRequest,
+  _displayContext: DisplayContext,
+  _expanded: boolean,
+): VDOMNode | undefined {
+  return undefined;
+}
+
+export function renderProgress(
+  request: UnionToolRequest,
   progress: SpawnSubagent.SpawnSubagentProgress | undefined,
   context: {
     dispatch: Dispatch<RootMsg>;
     chat?: Chat;
   },
-): VDOMNode {
+  expanded: boolean,
+): VDOMNode | undefined {
+  const input = request.input as Input;
+
   if (!progress?.threadId) {
     if (progress?.provisioningMessage) {
       return d`🐳 ${progress.provisioningMessage}`;
     }
-    return d``;
+    return undefined;
   }
 
   if (!context.chat) {
-    return d``;
+    return undefined;
   }
 
   const threadId = progress.threadId;
@@ -116,6 +117,22 @@ export function renderInFlightPreview(
 
   const pendingApprovals = renderPendingApprovals(context.chat, threadId);
 
+  if (expanded) {
+    return withBindings(
+      d`${displayName}: ${statusText}${pendingApprovals ? d`${pendingApprovals}` : d``}\n\n**Prompt:**\n${input.prompt}`,
+      {
+        "<CR>": () =>
+          context.dispatch({
+            type: "chat-msg",
+            msg: {
+              type: "select-thread",
+              id: threadId,
+            },
+          }),
+      },
+    );
+  }
+
   return withBindings(
     d`${displayName}: ${statusText}${pendingApprovals ? d`${pendingApprovals}` : d``}`,
     {
@@ -131,72 +148,77 @@ export function renderInFlightPreview(
   );
 }
 
-export function renderCompletedSummary(
-  info: CompletedToolInfo,
-  dispatch: Dispatch<RootMsg>,
-  chat?: Chat,
-): VDOMNode {
-  const input = info.request.input as Input;
-  const typeLabel = agentTypeLabel(input.agentType);
+export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
   const result = info.result.result;
+
   if (result.status === "error") {
     const errorPreview =
       result.error.length > 50
         ? `${result.error.substring(0, 50)}...`
         : result.error;
-
-    return d`${isDockerAgentType(input.agentType) ? "🐳" : "🤖"}❌ spawn_subagent${typeLabel}: ${errorPreview}`;
-  }
-
-  let effectiveThreadId: ThreadId | undefined;
-  let isBlocking: boolean;
-
-  if (info.structuredResult.toolName === "spawn_subagent") {
-    const sr = info.structuredResult as SpawnSubagent.StructuredResult;
-    effectiveThreadId = sr.threadId;
-    isBlocking = sr.isBlocking;
-  } else {
-    isBlocking = false;
-  }
-
-  return withBindings(
-    d`${isDockerAgentType(input.agentType) ? "🐳" : "🤖"}✅ spawn_subagent${typeLabel}${isBlocking ? " (blocking)" : ""}: ${effectiveThreadId && chat ? truncate(chat.getThreadDisplayName(effectiveThreadId)) : truncate(input.prompt)}`,
-    {
-      "<CR>": () => {
-        if (effectiveThreadId) {
-          dispatch({
-            type: "chat-msg",
-            msg: {
-              type: "select-thread",
-              id: effectiveThreadId,
-            },
-          });
-        }
-      },
-    },
-  );
-}
-
-export function renderCompletedPreview(info: CompletedToolInfo): VDOMNode {
-  const result = info.result.result;
-  if (result.status === "error") {
-    return d``;
-  }
-
-  if (info.structuredResult.toolName === "spawn_subagent") {
-    const sr = info.structuredResult as SpawnSubagent.StructuredResult;
-    if (sr.responseBody) {
-      const lineCount = sr.responseBody.split("\n").length;
-      return d`${lineCount.toString()} lines`;
-    }
+    return d`${errorPreview}`;
   }
 
   return d``;
 }
 
-export function renderCompletedDetail(info: CompletedToolInfo): VDOMNode {
+export function renderResult(
+  info: CompletedToolInfo,
+  context: {
+    dispatch: Dispatch<RootMsg>;
+    chat?: Chat;
+  },
+  expanded: boolean,
+): VDOMNode | undefined {
   const input = info.request.input as Input;
   const result = info.result.result;
+
+  if (!expanded) {
+    if (result.status === "error") {
+      return undefined;
+    }
+
+    if (info.structuredResult.toolName === "spawn_subagent") {
+      const sr = info.structuredResult as SpawnSubagent.StructuredResult;
+
+      const effectiveThreadId: ThreadId | undefined = sr.threadId;
+
+      const lineInfo = sr.responseBody
+        ? `${sr.responseBody.split("\n").length.toString()} lines`
+        : undefined;
+      const displayName =
+        effectiveThreadId && context.chat
+          ? context.chat.getThreadDisplayName(effectiveThreadId)
+          : undefined;
+      const label = displayName
+        ? d`→ ${displayName}${lineInfo ? ` (${lineInfo})` : ""}`
+        : lineInfo
+          ? d`${lineInfo}`
+          : effectiveThreadId
+            ? d`→ ${effectiveThreadId}`
+            : undefined;
+
+      if (!label) return undefined;
+
+      if (effectiveThreadId) {
+        return withBindings(label, {
+          "<CR>": () => {
+            context.dispatch({
+              type: "chat-msg",
+              msg: {
+                type: "select-thread",
+                id: effectiveThreadId,
+              },
+            });
+          },
+        });
+      }
+
+      return label;
+    }
+
+    return undefined;
+  }
 
   const promptSection = d`**Prompt:**\n${input.prompt}`;
 
@@ -206,9 +228,27 @@ export function renderCompletedDetail(info: CompletedToolInfo): VDOMNode {
 
   if (info.structuredResult.toolName === "spawn_subagent") {
     const sr = info.structuredResult as SpawnSubagent.StructuredResult;
-    if (sr.responseBody) {
-      return d`${promptSection}\n\n**Response:**\n${sr.responseBody}`;
+    const effectiveThreadId = sr.threadId;
+
+    const content = sr.responseBody
+      ? d`${promptSection}\n\n**Response:**\n${sr.responseBody}`
+      : d`${promptSection}\n\n**Status:** Started (non-blocking)`;
+
+    if (effectiveThreadId) {
+      return withBindings(content, {
+        "<CR>": () => {
+          context.dispatch({
+            type: "chat-msg",
+            msg: {
+              type: "select-thread",
+              id: effectiveThreadId,
+            },
+          });
+        },
+      });
     }
+
+    return content;
   }
 
   return d`${promptSection}\n\n**Status:** Started (non-blocking)`;

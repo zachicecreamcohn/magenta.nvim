@@ -69,7 +69,7 @@ it("should call mock tool through chat agent", async () => {
 
       // Verify the tool completion appears in the chat
       await driver.assertDisplayBufferContains(
-        "🔨✅ MCP tool `mcp_test-server_echo_test`",
+        "✅ MCP tool `mcp_test-server_echo_test`",
       );
 
       // Continue the conversation to show the tool result was processed
@@ -149,7 +149,7 @@ it("should handle tool errors gracefully", async () => {
 
       // Verify the error appears in the chat
       await driver.assertDisplayBufferContains(
-        "🔨❌ MCP tool `mcp_test-server_error_test`",
+        "❌ MCP tool `mcp_test-server_error_test`",
       );
 
       // Continue conversation to show error was handled
@@ -212,7 +212,7 @@ it("should handle tools with no input schema", async () => {
 
       // Verify the response appears
       await driver.assertDisplayBufferContains(
-        "🔨✅ MCP tool `mcp_test-server_simple_test`",
+        "✅ MCP tool `mcp_test-server_simple_test`",
       );
     },
   );

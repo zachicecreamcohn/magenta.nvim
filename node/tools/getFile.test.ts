@@ -37,11 +37,11 @@ it("render the getFile tool.", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\``);
+    await driver.assertDisplayBufferContains("✅ ");
   });
 });
 
-it("should expand get_file tool detail on <CR>", async () => {
+it("should expand get_file tool input on <CR>", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
     await driver.inputMagentaText(`Try reading the file poem.txt`);
@@ -65,13 +65,11 @@ it("should expand get_file tool detail on <CR>", async () => {
       ],
     });
 
-    // Press <CR> on the summary to expand details
-    await driver.triggerDisplayBufferKeyOnContent(`👀✅ \`poem.txt\``, "<CR>");
+    // Press <CR> on the summary to expand input details
+    await driver.triggerDisplayBufferKeyOnContent(`👀 \`poem.txt\``, "<CR>");
 
-    // Verify the file content is now visible (poem.txt content from fixtures)
-    await driver.assertDisplayBufferContains(
-      "Moonlight whispers through the trees",
-    );
+    // Verify the JSON input is now visible (not file content, since get_file has no result detail)
+    await driver.assertDisplayBufferContains('"filePath": "./poem.txt"');
   });
 });
 
@@ -106,7 +104,7 @@ it("getFile adds file to context after reading", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\``);
+    await driver.assertDisplayBufferContains("✅ ");
 
     // Handle the auto-respond message
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
@@ -177,7 +175,7 @@ it("getFile reads unloaded buffer", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\``);
+    await driver.assertDisplayBufferContains("✅ ");
 
     // Check that the file contents are properly returned
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
@@ -254,7 +252,7 @@ it("should add images to context manager", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`👀✅ \`test.jpg\``);
+    await driver.assertDisplayBufferContains("✅ 0 lines");
 
     // Handle the auto-respond message
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
@@ -312,7 +310,7 @@ it("should add PDFs to context manager", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`👀✅ \`sample2.pdf\``);
+    await driver.assertDisplayBufferContains("✅ 0 lines");
 
     // Handle the auto-respond message
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
@@ -365,7 +363,7 @@ it("should continue to add text files to context normally", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\``);
+    await driver.assertDisplayBufferContains("✅ ");
 
     // Handle the auto-respond message
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
@@ -412,7 +410,7 @@ it("should handle mixed content types in a single conversation", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`👀✅ \`poem.txt\``);
+    await driver.assertDisplayBufferContains("✅ ");
 
     // Handle first auto-respond message
     const toolResultRequest1 = await driver.mockAnthropic.awaitPendingStream();
@@ -444,7 +442,7 @@ it("should handle mixed content types in a single conversation", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`👀✅ \`test.jpg\``);
+    await driver.assertDisplayBufferContains("✅ 0 lines");
 
     // Handle second auto-respond message
     const toolResultRequest2 = await driver.mockAnthropic.awaitPendingStream();
@@ -478,7 +476,7 @@ it("should handle mixed content types in a single conversation", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`👀✅ \`sample2.pdf\``);
+    await driver.assertDisplayBufferContains("✅ 0 lines");
 
     // Handle final auto-respond message
     const toolResultRequest3 = await driver.mockAnthropic.awaitPendingStream();

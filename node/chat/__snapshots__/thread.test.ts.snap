@@ -184,8 +184,9 @@ Read a file for me
 📋 [System Reminder]
 # assistant:
 I'll read the file for you.
-👀✅ \`poem.txt\` [+ 5]
-
+👀 \`poem.txt\`
+✅ 5 lines (~43 tok)
+[input: 1000, output: 5000]
 📋 [System Reminder]
 I've read the file. It contains a poem about moonlight.
 # user:
@@ -841,12 +842,14 @@ Read two files for me
 📋 [System Reminder]
 # assistant:
 I'll read the first file.
-👀✅ \`poem.txt\` [+ 5]
-
+👀 \`poem.txt\`
+✅ 5 lines (~43 tok)
+[input: 1000, output: 5000]
 📋 [System Reminder]
 💭 [Thinking]
-👀✅ \`poem2.txt\` [+ 5]
-
+👀 \`poem2.txt\`
+✅ 5 lines (~43 tok)
+[input: 1000, output: 5000]
 📋 [System Reminder]
 I've read both files for you.
 

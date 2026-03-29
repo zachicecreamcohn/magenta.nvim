@@ -45,202 +45,191 @@ function isError(result: ProviderToolResult): boolean {
   return result.result.status === "error";
 }
 
-export function renderInFlightToolSummary(
+function formatTokenEstimate(result: ProviderToolResult): string {
+  const content =
+    result.result.status === "error"
+      ? result.result.error
+      : JSON.stringify(result.result.value);
+  const tokens = Math.ceil(content.length / 4);
+  return tokens >= 1000
+    ? `~${(tokens / 1000).toFixed(1)}k tok`
+    : `~${tokens} tok`;
+}
+
+export function renderToolSummary(
   request: ToolRequest,
   displayContext: DisplayContext,
-  progress?: unknown,
 ): VDOMNode {
   const toolName = request.toolName as StaticToolName;
 
   if (isMCPTool(toolName)) {
-    return MCPToolRender.renderInFlightSummary(
+    return MCPToolRender.renderSummary(request, displayContext);
+  }
+
+  switch (toolName) {
+    case "get_file":
+      return GetFileRender.renderSummary(request, displayContext);
+    case "hover":
+      return HoverRender.renderSummary(request, displayContext);
+    case "find_references":
+      return FindReferencesRender.renderSummary(request, displayContext);
+    case "diagnostics":
+      return DiagnosticsRender.renderSummary(request, displayContext);
+    case "thread_title":
+      return ThreadTitleRender.renderSummary(request, displayContext);
+    case "edl":
+      return EdlRender.renderSummary(request, displayContext);
+    case "bash_command":
+      return BashCommandRender.renderSummary(request, displayContext);
+    case "spawn_subagent":
+      return SpawnSubagentRender.renderSummary(request, displayContext);
+    case "spawn_foreach":
+      return SpawnForeachRender.renderSummary(request, displayContext);
+    case "wait_for_subagents":
+      return WaitForSubagentsRender.renderSummary(request, displayContext);
+    case "yield_to_parent":
+      return YieldToParentRender.renderSummary(request, displayContext);
+    default:
+      assertUnreachable(toolName);
+  }
+}
+
+export function renderToolInput(
+  request: ToolRequest,
+  displayContext: DisplayContext,
+  expanded: boolean,
+): VDOMNode | undefined {
+  const toolName = request.toolName as StaticToolName;
+
+  if (isMCPTool(toolName)) {
+    return undefined;
+  }
+
+  switch (toolName) {
+    case "bash_command":
+      return BashCommandRender.renderInput(request, displayContext, expanded);
+    case "edl":
+      return EdlRender.renderInput(request, displayContext, expanded);
+    case "spawn_subagent":
+      return SpawnSubagentRender.renderInput(request, displayContext, expanded);
+    default:
+      return undefined;
+  }
+}
+
+export function renderToolProgress(
+  request: ToolRequest,
+  progress: unknown,
+  context: RenderContext,
+  expanded: boolean,
+): VDOMNode | undefined {
+  const toolName = request.toolName as StaticToolName;
+
+  if (isMCPTool(toolName)) {
+    return MCPToolRender.renderProgress(
       request,
-      displayContext,
-      progress as MCPToolRender.MCPProgress | undefined,
+      progress as MCPToolRender.MCPProgress,
+      context,
+      expanded,
     );
   }
 
   switch (toolName) {
-    case "get_file":
-      return GetFileRender.renderInFlightSummary(request, displayContext);
-    case "hover":
-      return HoverRender.renderInFlightSummary(request, displayContext);
-    case "find_references":
-      return FindReferencesRender.renderInFlightSummary(
-        request,
-        displayContext,
-      );
-    case "diagnostics":
-      return DiagnosticsRender.renderInFlightSummary(request, displayContext);
-    case "thread_title":
-      return ThreadTitleRender.renderInFlightSummary(request, displayContext);
-    case "edl":
-      return EdlRender.renderInFlightSummary(request, displayContext);
     case "bash_command":
-      return BashCommandRender.renderInFlightSummary(
+      return BashCommandRender.renderProgress(
         request,
-        displayContext,
-        progress as BashCommand.BashProgress | undefined,
-      );
-    case "spawn_subagent":
-      return SpawnSubagentRender.renderInFlightSummary(
-        request,
-        displayContext,
-        progress as SpawnSubagent.SpawnSubagentProgress | undefined,
-      );
-    case "spawn_foreach":
-      return SpawnForeachRender.renderInFlightSummary(
-        request,
-        displayContext,
-        progress as SpawnForeach.SpawnForeachProgress | undefined,
-      );
-    case "wait_for_subagents":
-      return WaitForSubagentsRender.renderInFlightSummary(
-        request,
-        displayContext,
-        progress as WaitForSubagents.WaitForSubagentsProgress | undefined,
-      );
-    case "yield_to_parent":
-      return YieldToParentRender.renderInFlightSummary(request, displayContext);
-    default:
-      assertUnreachable(toolName);
-  }
-}
-
-export function renderInFlightToolPreview(
-  request: ToolRequest,
-  progress: unknown,
-  context: RenderContext,
-): VDOMNode {
-  const toolName = request.toolName as StaticToolName;
-  switch (toolName) {
-    case "bash_command":
-      return BashCommandRender.renderInFlightPreview(
         progress as BashCommand.BashProgress,
-        context.getDisplayWidth,
+        context,
+        expanded,
       );
     case "spawn_subagent":
-      return SpawnSubagentRender.renderInFlightPreview(
+      return SpawnSubagentRender.renderProgress(
         request,
         progress as SpawnSubagent.SpawnSubagentProgress | undefined,
         context,
+        expanded,
       );
     case "spawn_foreach":
-      return SpawnForeachRender.renderInFlightPreview(
+      return SpawnForeachRender.renderProgress(
         request,
         progress as SpawnForeach.SpawnForeachProgress | undefined,
         context,
+        expanded,
       );
     case "wait_for_subagents":
-      return WaitForSubagentsRender.renderInFlightPreview(
+      return WaitForSubagentsRender.renderProgress(
         request,
         progress as WaitForSubagents.WaitForSubagentsProgress | undefined,
         context,
+        expanded,
       );
     default:
-      return d``;
+      return undefined;
   }
 }
 
-export function renderInFlightToolDetail(
-  request: ToolRequest,
-  progress: unknown,
-  context: RenderContext,
-): VDOMNode {
-  const toolName = request.toolName as StaticToolName;
-  switch (toolName) {
-    case "bash_command":
-      return BashCommandRender.renderInFlightDetail(
-        progress as BashCommand.BashProgress,
-        context,
-      );
-    default:
-      return d`${JSON.stringify(request.input, null, 2)}`;
-  }
-}
-
-export function renderCompletedToolSummary(
+export function renderToolResultSummary(
   info: CompletedToolInfo,
-  dispatch: Dispatch<RootMsg>,
   displayContext: DisplayContext,
-  chat?: Chat,
 ): VDOMNode {
+  const statusEmoji = isError(info.result) ? "❌" : "✅";
   const toolName = info.request.toolName as StaticToolName;
+
+  const tokEst = formatTokenEstimate(info.result);
 
   if (isMCPTool(toolName)) {
-    return MCPToolRender.renderCompletedSummary(info, displayContext);
+    return d`${statusEmoji} ${MCPToolRender.renderResultSummary(info, displayContext)} (${tokEst})`;
   }
 
   switch (toolName) {
     case "get_file":
-      return GetFileRender.renderCompletedSummary(info, displayContext);
+      return d`${statusEmoji} ${GetFileRender.renderResultSummary(info, displayContext)} (${tokEst})`;
     case "bash_command":
-      return BashCommandRender.renderCompletedSummary(info);
+      return d`${statusEmoji} ${BashCommandRender.renderResultSummary(info)} (${tokEst})`;
     case "hover":
-      return HoverRender.renderCompletedSummary(info, displayContext);
+      return d`${statusEmoji} ${HoverRender.renderResultSummary(info, displayContext)} (${tokEst})`;
     case "find_references":
-      return FindReferencesRender.renderCompletedSummary(info, displayContext);
+      return d`${statusEmoji} ${FindReferencesRender.renderResultSummary(info, displayContext)} (${tokEst})`;
     case "diagnostics":
-      return DiagnosticsRender.renderCompletedSummary(info);
+      return d`${statusEmoji} ${DiagnosticsRender.renderResultSummary(info)} (${tokEst})`;
     case "spawn_subagent":
-      return SpawnSubagentRender.renderCompletedSummary(info, dispatch, chat);
+      return d`${statusEmoji} ${SpawnSubagentRender.renderResultSummary(info)} (${tokEst})`;
     case "spawn_foreach":
-      return SpawnForeachRender.renderCompletedSummary(info, dispatch);
+      return d`${statusEmoji} ${SpawnForeachRender.renderResultSummary(info)} (${tokEst})`;
     case "wait_for_subagents":
-      return WaitForSubagentsRender.renderCompletedSummary(info, dispatch);
+      return d`${statusEmoji} ${WaitForSubagentsRender.renderResultSummary(info)} (${tokEst})`;
     case "yield_to_parent":
-      return YieldToParentRender.renderCompletedSummary(info);
+      return d`${statusEmoji} ${YieldToParentRender.renderResultSummary(info)} (${tokEst})`;
     case "thread_title":
-      return ThreadTitleRender.renderCompletedSummary(info);
+      return d`${statusEmoji} ${ThreadTitleRender.renderResultSummary(info)}`;
     case "edl":
-      return EdlRender.renderCompletedSummary(info);
+      return d`${statusEmoji} ${EdlRender.renderResultSummary(info)} (${tokEst})`;
     default:
       assertUnreachable(toolName);
   }
 }
 
-export function renderCompletedToolPreview(
+export function renderToolResult(
   info: CompletedToolInfo,
   context: RenderContext,
-): VDOMNode {
+  expanded: boolean,
+): VDOMNode | undefined {
   const toolName = info.request.toolName as StaticToolName;
-
-  if (isError(info.result)) {
-    return d``;
-  }
 
   switch (toolName) {
     case "bash_command":
-      return BashCommandRender.renderCompletedPreview(info, context);
+      return BashCommandRender.renderResult(info, context, expanded);
     case "spawn_subagent":
-      return SpawnSubagentRender.renderCompletedPreview(info);
+      return SpawnSubagentRender.renderResult(info, context, expanded);
     case "spawn_foreach":
-      return SpawnForeachRender.renderCompletedPreview(info);
+      return SpawnForeachRender.renderResult(info, context, expanded);
     case "edl":
-      return EdlRender.renderCompletedPreview(info);
-    default:
-      return d``;
-  }
-}
-
-export function renderCompletedToolDetail(
-  info: CompletedToolInfo,
-  context: RenderContext,
-): VDOMNode {
-  const toolName = info.request.toolName as StaticToolName;
-
-  switch (toolName) {
+      return EdlRender.renderResult(info, context, expanded);
     case "get_file":
-      return GetFileRender.renderCompletedDetail(info);
-    case "bash_command":
-      return BashCommandRender.renderCompletedDetail(info, context);
-    case "spawn_subagent":
-      return SpawnSubagentRender.renderCompletedDetail(info);
-    case "spawn_foreach":
-      return SpawnForeachRender.renderCompletedDetail(info, context.dispatch);
-    case "edl":
-      return EdlRender.renderCompletedDetail(info);
+      return undefined;
     default:
-      return d`${JSON.stringify(info.request.input, null, 2)}`;
+      return expanded
+        ? d`${JSON.stringify(info.request.input, null, 2)}`
+        : undefined;
   }
 }

@@ -47,50 +47,27 @@ function formatGetFileDisplay(
   return withInlineCode(d`\`${pathForDisplay}\`${extraInfo}`);
 }
 
-export function renderInFlightSummary(
+export function renderSummary(
   request: UnionToolRequest,
   displayContext: DisplayContext,
 ): VDOMNode {
   const input = request.input as Input;
-  return d`👀⚙️ ${formatGetFileDisplay(input, displayContext)}`;
+  return d`👀 ${formatGetFileDisplay(input, displayContext)}`;
 }
 
-export function renderCompletedSummary(
+export function renderResultSummary(
   info: CompletedToolInfo,
-  displayContext: DisplayContext,
+  _displayContext: DisplayContext,
 ): VDOMNode {
-  const input = info.request.input as Input;
   const result = info.result.result;
 
   if (result.status === "error") {
-    return d`👀❌ ${formatGetFileDisplay(input, displayContext)}`;
+    return d`${result.error}`;
   }
 
   let lineCount = 0;
   if (info.structuredResult.toolName === "get_file") {
     lineCount = (info.structuredResult as GetFile.StructuredResult).lineCount;
   }
-  const lineCountStr = lineCount > 0 ? ` [+ ${lineCount}]` : "";
-  return d`👀✅ ${formatGetFileDisplay(input, displayContext)}${lineCountStr}`;
-}
-
-export function renderCompletedDetail(info: CompletedToolInfo): VDOMNode {
-  const result = info.result.result;
-
-  if (result.status === "error") {
-    return d`Error: ${result.error}`;
-  }
-
-  const parts: VDOMNode[] = [];
-  for (const content of result.value) {
-    if (content.type === "text") {
-      parts.push(d`${content.text}`);
-    } else if (content.type === "image") {
-      parts.push(d`[Image: ${content.source.media_type}]`);
-    } else if (content.type === "document") {
-      parts.push(d`[Document${content.title ? `: ${content.title}` : ""}]`);
-    }
-  }
-
-  return d`${parts}`;
+  return d`${lineCount.toString()} lines`;
 }

@@ -212,9 +212,7 @@ it("aborts tool use when sending new message while tool is executing", async () 
 
     // Verify the aborted tool output is NOT displayed
     const bufferContent = await driver.getDisplayBufferText();
-    expect(bufferContent).toContain(
-      "'This should be aborted'` - Request was aborted",
-    );
+    expect(bufferContent).toContain("❌ Request was aborted by the user.");
 
     // Check the thread message structure
     const thread = driver.magenta.chat.getActiveThread();

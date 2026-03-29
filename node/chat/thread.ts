@@ -61,7 +61,23 @@ export type Msg =
       filePath: string;
     }
   | {
-      type: "toggle-tool-details";
+      type: "toggle-tool-input-summary";
+      toolRequestId: ToolRequestId;
+    }
+  | {
+      type: "toggle-tool-input";
+      toolRequestId: ToolRequestId;
+    }
+  | {
+      type: "toggle-tool-progress";
+      toolRequestId: ToolRequestId;
+    }
+  | {
+      type: "toggle-tool-result-summary";
+      toolRequestId: ToolRequestId;
+    }
+  | {
+      type: "toggle-tool-result";
       toolRequestId: ToolRequestId;
     }
   | {
@@ -99,7 +115,11 @@ export type MessageViewState = {
 
 /** View state for tools, keyed by tool request ID */
 export type ToolViewState = {
-  details: boolean;
+  inputSummaryExpanded: boolean;
+  inputExpanded: boolean;
+  progressExpanded: boolean;
+  resultSummaryExpanded: boolean;
+  resultExpanded: boolean;
 };
 
 export class Thread {
@@ -300,11 +320,27 @@ export class Thread {
         return;
       }
 
-      case "toggle-tool-details": {
+      case "toggle-tool-input-summary":
+      case "toggle-tool-input":
+      case "toggle-tool-progress":
+      case "toggle-tool-result-summary":
+      case "toggle-tool-result": {
+        const field = {
+          "toggle-tool-input-summary": "inputSummaryExpanded",
+          "toggle-tool-input": "inputExpanded",
+          "toggle-tool-progress": "progressExpanded",
+          "toggle-tool-result-summary": "resultSummaryExpanded",
+          "toggle-tool-result": "resultExpanded",
+        } as const;
         const toolState = this.state.toolViewState[msg.toolRequestId] || {
-          details: false,
+          inputSummaryExpanded: false,
+          inputExpanded: false,
+          progressExpanded: false,
+          resultSummaryExpanded: false,
+          resultExpanded: false,
         };
-        toolState.details = !toolState.details;
+        const key = field[msg.type];
+        toolState[key] = !toolState[key];
         this.state.toolViewState[msg.toolRequestId] = toolState;
         return;
       }
