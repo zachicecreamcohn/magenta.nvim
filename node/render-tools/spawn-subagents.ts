@@ -2,10 +2,12 @@ import type {
   CompletedToolInfo,
   DisplayContext,
   SpawnSubagents,
+  ToolRequestId,
   ToolRequest as UnionToolRequest,
 } from "@magenta/core";
 import { renderPendingApprovals } from "../capabilities/render-pending-approvals.ts";
 import type { Chat } from "../chat/chat.ts";
+import type { Msg as ThreadMsg, ToolViewState } from "../chat/thread.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import { d, type VDOMNode, withBindings } from "../tea/view.ts";
@@ -252,15 +254,17 @@ export function renderResult(
   info: CompletedToolInfo,
   context: {
     dispatch: Dispatch<RootMsg>;
+    threadDispatch: Dispatch<ThreadMsg>;
     chat?: Chat;
   },
-  expanded: boolean,
+  toolViewState: ToolViewState,
+  toolRequestId: ToolRequestId,
 ): VDOMNode | undefined {
   const input = info.request.input as Input;
   const result = info.result.result;
 
   if (result.status === "error") {
-    if (expanded) {
+    if (toolViewState.resultExpanded) {
       return d`**Error:**\n${result.error}`;
     }
     return undefined;
@@ -269,84 +273,145 @@ export function renderResult(
   if (info.structuredResult.toolName !== "spawn_subagents") return undefined;
   const sr = info.structuredResult as SpawnSubagents.StructuredResult;
 
-  // Single agent case: show like old spawn_subagent
+  // Single agent case
   if (sr.agents.length === 1) {
-    const agent = sr.agents[0];
-    const threadId = agent.threadId;
-
-    if (!expanded) {
-      const lineInfo = agent.responseBody
-        ? `${agent.responseBody.split("\n").length.toString()} lines`
-        : undefined;
-      const displayName =
-        threadId && context.chat
-          ? context.chat.getThreadDisplayName(threadId)
-          : undefined;
-      const label = displayName
-        ? d`→ ${displayName}${lineInfo ? ` (${lineInfo})` : ""}`
-        : lineInfo
-          ? d`${lineInfo}`
-          : threadId
-            ? d`→ ${threadId}`
-            : undefined;
-
-      if (!label) return undefined;
-
-      if (threadId) {
-        return withBindings(label, {
-          "<CR>": () => {
-            context.dispatch({
-              type: "chat-msg",
-              msg: { type: "select-thread", id: threadId },
-            });
-          },
-        });
-      }
-      return label;
-    }
-
-    const promptSection = d`**Prompt:**\n${input.agents[0].prompt}`;
-    const content = agent.responseBody
-      ? d`${promptSection}\n\n**Response:**\n${agent.responseBody}`
-      : d`${promptSection}`;
-
-    if (threadId) {
-      return withBindings(content, {
-        "<CR>": () => {
-          context.dispatch({
-            type: "chat-msg",
-            msg: { type: "select-thread", id: threadId },
-          });
-        },
-      });
-    }
-    return content;
+    return renderSingleAgentResult(
+      sr.agents[0],
+      input.agents[0],
+      toolViewState,
+      toolRequestId,
+      context,
+    );
   }
 
-  // Multi-agent case: show list like old spawn_foreach
-  if (expanded) {
-    const elementViews = sr.agents.map((agent) => {
-      const status = agent.ok ? "✅" : "❌";
-      const label = truncate(agent.prompt);
-      if (agent.threadId) {
-        const threadId = agent.threadId;
-        return withBindings(d`  ${status} ${label}\n`, {
-          "<CR>": () => {
-            context.dispatch({
-              type: "chat-msg",
-              msg: { type: "select-thread", id: threadId },
-            });
-          },
-        });
-      }
-      return d`  ${status} ${label}\n`;
-    });
-    return d`${elementViews}`;
-  }
-
-  const elementViews = sr.agents.map((agent) => {
-    const status = agent.ok ? "✅" : "❌";
-    return d`  ${status} ${truncate(agent.prompt)}\n`;
+  // Multi-agent case: each agent line has its own bindings
+  const elementViews = sr.agents.map((agent, idx) => {
+    const agentKey = String(idx);
+    const itemExpanded = toolViewState.resultItemExpanded?.[agentKey] || false;
+    return renderAgentResultLine(
+      agent,
+      agentKey,
+      itemExpanded,
+      toolRequestId,
+      context,
+    );
   });
   return d`${elementViews}`;
+}
+
+function renderSingleAgentResult(
+  agent: SpawnSubagents.StructuredResult["agents"][0],
+  inputAgent: Input["agents"][0],
+  toolViewState: ToolViewState,
+  toolRequestId: ToolRequestId,
+  context: {
+    dispatch: Dispatch<RootMsg>;
+    threadDispatch: Dispatch<ThreadMsg>;
+    chat?: Chat;
+  },
+): VDOMNode | undefined {
+  const threadId = agent.threadId;
+  const itemExpanded = toolViewState.resultItemExpanded?.["0"] || false;
+
+  if (!itemExpanded) {
+    const lineInfo = agent.responseBody
+      ? `${agent.responseBody.split("\n").length.toString()} lines`
+      : undefined;
+    const displayName =
+      threadId && context.chat
+        ? context.chat.getThreadDisplayName(threadId)
+        : undefined;
+    const label = displayName
+      ? d`→ ${displayName}${lineInfo ? ` (${lineInfo})` : ""}`
+      : lineInfo
+        ? d`${lineInfo}`
+        : threadId
+          ? d`→ ${threadId}`
+          : undefined;
+
+    if (!label) return undefined;
+
+    return withBindings(label, {
+      ...(threadId
+        ? {
+            "<CR>": () =>
+              context.dispatch({
+                type: "chat-msg",
+                msg: { type: "select-thread", id: threadId },
+              }),
+          }
+        : {}),
+      "=": () =>
+        context.threadDispatch({
+          type: "toggle-tool-result-item",
+          toolRequestId,
+          itemKey: "0",
+        }),
+    });
+  }
+
+  const promptSection = d`**Prompt:**\n${inputAgent.prompt}`;
+  const content = agent.responseBody
+    ? d`${promptSection}\n\n**Response:**\n${agent.responseBody}`
+    : d`${promptSection}`;
+
+  return withBindings(content, {
+    ...(threadId
+      ? {
+          "<CR>": () =>
+            context.dispatch({
+              type: "chat-msg",
+              msg: { type: "select-thread", id: threadId },
+            }),
+        }
+      : {}),
+    "=": () =>
+      context.threadDispatch({
+        type: "toggle-tool-result-item",
+        toolRequestId,
+        itemKey: "0",
+      }),
+  });
+}
+
+function renderAgentResultLine(
+  agent: SpawnSubagents.StructuredResult["agents"][0],
+  agentKey: string,
+  itemExpanded: boolean,
+  toolRequestId: ToolRequestId,
+  context: {
+    dispatch: Dispatch<RootMsg>;
+    threadDispatch: Dispatch<ThreadMsg>;
+    chat?: Chat;
+  },
+): VDOMNode {
+  const status = agent.ok ? "✅" : "❌";
+  const label = truncate(agent.prompt);
+
+  const bindings: Record<string, () => void> = {
+    "=": () =>
+      context.threadDispatch({
+        type: "toggle-tool-result-item",
+        toolRequestId,
+        itemKey: agentKey,
+      }),
+  };
+
+  if (agent.threadId) {
+    const threadId = agent.threadId;
+    bindings["<CR>"] = () =>
+      context.dispatch({
+        type: "chat-msg",
+        msg: { type: "select-thread", id: threadId },
+      });
+  }
+
+  if (itemExpanded && agent.responseBody) {
+    return withBindings(
+      d`  ${status} ${label}\n${agent.responseBody}\n`,
+      bindings,
+    );
+  }
+
+  return withBindings(d`  ${status} ${label}\n`, bindings);
 }

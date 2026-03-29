@@ -80,50 +80,50 @@ Each per-tool renderResult will get the same signature change. The dispatch for 
 
 # implementation
 
-- [ ] **Add `resultItemExpanded` to `ToolViewState` and new message type**
-  - [ ] In `node/chat/thread.ts`, add `resultItemExpanded?: { [key: string]: boolean }` to `ToolViewState`
-  - [ ] Add `toggle-tool-result-item` message variant to `Msg` with `toolRequestId` and `itemKey` fields
-  - [ ] Add handler in `myUpdate` for `toggle-tool-result-item`: get-or-create `toolState`, get-or-create `resultItemExpanded` dict, toggle `resultItemExpanded[itemKey]`
-  - [ ] Check for type errors: `npx tsgo -b`
+- [x] **Add `resultItemExpanded` to `ToolViewState` and new message type**
+  - [x] In `node/chat/thread.ts`, add `resultItemExpanded?: { [key: string]: boolean }` to `ToolViewState`
+  - [x] Add `toggle-tool-result-item` message variant to `Msg` with `toolRequestId` and `itemKey` fields
+  - [x] Add handler in `myUpdate` for `toggle-tool-result-item`: get-or-create `toolState`, get-or-create `resultItemExpanded` dict, toggle `resultItemExpanded[itemKey]`
+  - [x] Check for type errors: `npx tsgo -b`
 
-- [ ] **Change `renderToolResult` signature to pass `ToolViewState`**
-  - [ ] In `node/render-tools/index.ts`, change `renderToolResult` to accept `toolViewState: ToolViewState` instead of `expanded: boolean`
-  - [ ] Import `ToolViewState` from `node/chat/thread.ts` (or re-export it)
-  - [ ] Update the dispatch to each per-tool renderResult to pass `toolViewState`
-  - [ ] Check for type errors: `npx tsgo -b`
+- [x] **Change `renderToolResult` signature to pass `ToolViewState`**
+  - [x] In `node/render-tools/index.ts`, change `renderToolResult` to accept `toolViewState: ToolViewState` instead of `expanded: boolean`
+  - [x] Import `ToolViewState` from `node/chat/thread.ts` (or re-export it)
+  - [x] Update the dispatch to each per-tool renderResult to pass `toolViewState`
+  - [x] Check for type errors: `npx tsgo -b`
 
-- [ ] **Update thread-view to stop wrapping renderToolResult in withBindings**
-  - [ ] In `node/chat/thread-view.ts` Section 7 (~line 632-648): remove the `withBindings` wrapper around `renderToolResult` output. Just pass the result through as `resultView = d`\n${resultContent}``
-  - [ ] Pass the full `toolViewState` (or a default) to `renderToolResult` instead of `toolViewState?.resultExpanded || false`
-  - [ ] Check for type errors: `npx tsgo -b`
+- [x] **Update thread-view to stop wrapping renderToolResult in withBindings**
+  - [x] In `node/chat/thread-view.ts` Section 7 (~line 632-648): remove the `withBindings` wrapper around `renderToolResult` output. Just pass the result through as `resultView = d`\n${resultContent}``
+  - [x] Pass the full `toolViewState` (or a default) to `renderToolResult` instead of `toolViewState?.resultExpanded || false`
+  - [x] Check for type errors: `npx tsgo -b`
 
-- [ ] **Migrate bash_command renderResult to own its bindings**
-  - [ ] In `node/render-tools/bashCommand.ts`, change `renderResult` signature: replace `expanded: boolean` with `toolViewState: ToolViewState`
-  - [ ] Read `toolViewState.resultExpanded` for the expand/collapse logic (same behavior as before)
-  - [ ] Wrap the returned VDOMNode in `withBindings` with `<CR>` dispatching `toggle-tool-result` (needs `toolRequestId` — add it to RenderContext or pass it as an additional param)
-  - [ ] Check for type errors: `npx tsgo -b`
+- [x] **Migrate bash_command renderResult to own its bindings**
+  - [x] In `node/render-tools/bashCommand.ts`, change `renderResult` signature: replace `expanded: boolean` with `toolViewState: ToolViewState`
+  - [x] Read `toolViewState.resultExpanded` for the expand/collapse logic (same behavior as before)
+  - [x] Wrap the returned VDOMNode in `withBindings` with `<CR>` dispatching `toggle-tool-result` (needs `toolRequestId` — add it to RenderContext or pass it as an additional param)
+  - [x] Check for type errors: `npx tsgo -b`
 
-- [ ] **Migrate edl renderResult to own its bindings**
-  - [ ] Same pattern as bash_command: change signature, read `toolViewState.resultExpanded`, wrap in `withBindings`
-  - [ ] Check for type errors: `npx tsgo -b`
+- [x] **Migrate edl renderResult to own its bindings**
+  - [x] Same pattern as bash_command: change signature, read `toolViewState.resultExpanded`, wrap in `withBindings`
+  - [x] Check for type errors: `npx tsgo -b`
 
-- [ ] **Migrate spawn-subagents renderResult to use per-agent expansion**
-  - [ ] Change `renderResult` signature to accept `toolViewState: ToolViewState`
-  - [ ] For each agent in the result, check `toolViewState.resultItemExpanded?.[agentKey]` to decide whether to show yielded text
-  - [ ] Use `agentKey` = agent index as string (e.g. "0", "1", "2")
-  - [ ] Each agent line gets `withBindings` with:
+- [x] **Migrate spawn-subagents renderResult to use per-agent expansion**
+  - [x] Change `renderResult` signature to accept `toolViewState: ToolViewState`
+  - [x] For each agent in the result, check `toolViewState.resultItemExpanded?.[agentKey]` to decide whether to show yielded text
+  - [x] Use `agentKey` = agent index as string (e.g. "0", "1", "2")
+  - [x] Each agent line gets `withBindings` with:
     - `<CR>`: dispatch `chat-msg` → `select-thread` (navigate to subthread) — same as current
     - `=`: dispatch `thread-msg` → `toggle-tool-result-item` with `toolRequestId` and `itemKey`
-  - [ ] When expanded, show the agent's `responseBody` (truncated or full) below the agent summary line
-  - [ ] Check for type errors: `npx tsgo -b`
+  - [x] When expanded, show the agent's `responseBody` (truncated or full) below the agent summary line
+  - [x] Check for type errors: `npx tsgo -b`
 
-- [ ] **Pass `toolRequestId` to renderResult functions**
-  - [ ] Since tools now own their bindings and need to dispatch toggle messages, they need the `toolRequestId`. Add it as a parameter to `renderToolResult` in index.ts and propagate to each tool's renderResult.
-  - [ ] Check for type errors: `npx tsgo -b`
+- [x] **Pass `toolRequestId` to renderResult functions**
+  - [x] Since tools now own their bindings and need to dispatch toggle messages, they need the `toolRequestId`. Add it as a parameter to `renderToolResult` in index.ts and propagate to each tool's renderResult.
+  - [x] Check for type errors: `npx tsgo -b`
 
-- [ ] **Write tests**
-  - [ ] Add a test in `node/tools/spawn-subagents.test.ts` that verifies per-agent expansion state works in the rendered output (check that `=` binding dispatches the right message, and expanded agents show yielded text)
-  - [ ] Run tests: `npx vitest run`
-  - [ ] Iterate until tests pass
+- [x] **Write tests**
+  - [x] Add a test in `node/tools/spawn-subagents.test.ts` that verifies per-agent expansion state works in the rendered output (check that `=` binding dispatches the right message, and expanded agents show yielded text)
+  - [x] Run tests: `npx vitest run`
+  - [x] Iterate until tests pass
 
-- [ ] **Run linting**: `npx biome check --write .`
+- [x] **Run linting**: `npx biome check --write .`

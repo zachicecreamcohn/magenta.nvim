@@ -6,8 +6,10 @@ import {
   type SpawnSubagents,
   type StaticToolName,
   type ToolRequest,
+  type ToolRequestId,
 } from "@magenta/core";
 import type { Chat } from "../chat/chat.ts";
+import type { Msg as ThreadMsg, ToolViewState } from "../chat/thread.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { MagentaOptions } from "../options.ts";
 import type { ProviderToolResult } from "../providers/provider-types.ts";
@@ -35,6 +37,7 @@ export type RenderContext = {
   homeDir: HomeDir;
   options: MagentaOptions;
   dispatch: Dispatch<RootMsg>;
+  threadDispatch: Dispatch<ThreadMsg>;
   chat?: Chat;
 };
 
@@ -191,21 +194,37 @@ export function renderToolResultSummary(
 export function renderToolResult(
   info: CompletedToolInfo,
   context: RenderContext,
-  expanded: boolean,
+  toolViewState: ToolViewState,
+  toolRequestId: ToolRequestId,
 ): VDOMNode | undefined {
   const toolName = info.request.toolName as StaticToolName;
 
   switch (toolName) {
     case "bash_command":
-      return BashCommandRender.renderResult(info, context, expanded);
+      return BashCommandRender.renderResult(
+        info,
+        context,
+        toolViewState,
+        toolRequestId,
+      );
     case "spawn_subagents":
-      return SpawnSubagentsRender.renderResult(info, context, expanded);
+      return SpawnSubagentsRender.renderResult(
+        info,
+        context,
+        toolViewState,
+        toolRequestId,
+      );
     case "edl":
-      return EdlRender.renderResult(info, context, expanded);
+      return EdlRender.renderResult(
+        info,
+        context,
+        toolViewState,
+        toolRequestId,
+      );
     case "get_file":
       return undefined;
     default:
-      return expanded
+      return toolViewState.resultExpanded
         ? d`${JSON.stringify(info.request.input, null, 2)}`
         : undefined;
   }

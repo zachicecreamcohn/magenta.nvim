@@ -41,7 +41,7 @@ import {
   withExtmark,
 } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { Msg, Thread } from "./thread.ts";
+import type { Msg, Thread, ToolViewState } from "./thread.ts";
 
 function contextViewCtx(thread: Thread): ContextViewContext {
   return {
@@ -503,6 +503,7 @@ function renderMessageContent(
         homeDir: thread.context.homeDir,
         options: thread.context.options,
         dispatch: thread.context.dispatch,
+        threadDispatch: dispatch,
         chat: thread.context.chat,
       };
 
@@ -629,20 +630,22 @@ function renderMessageContent(
           });
         }
 
-        // Section 7: Result detail
+        // Section 7: Result detail (each tool owns its own bindings)
+        const effectiveToolViewState: ToolViewState = toolViewState || {
+          inputSummaryExpanded: false,
+          inputExpanded: false,
+          progressExpanded: false,
+          resultSummaryExpanded: false,
+          resultExpanded: false,
+        };
         const resultContent = renderToolResult(
           completedInfo,
           renderContext,
-          toolViewState?.resultExpanded || false,
+          effectiveToolViewState,
+          request.id,
         );
         if (resultContent) {
-          resultView = withBindings(d`\n${resultContent}`, {
-            "<CR>": () =>
-              dispatch({
-                type: "toggle-tool-result",
-                toolRequestId: request.id,
-              }),
-          });
+          resultView = d`\n${resultContent}`;
         }
       }
 
