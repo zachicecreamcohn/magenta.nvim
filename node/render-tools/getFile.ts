@@ -71,29 +71,3 @@ export function renderResultSummary(
   }
   return d`${lineCount.toString()} lines`;
 }
-
-export function renderResult(
-  info: CompletedToolInfo,
-  _displayContext: DisplayContext,
-  _expanded: boolean,
-): VDOMNode | undefined {
-  const result = info.result.result;
-
-  if (result.status === "error") {
-    return d`Error: ${result.error}`;
-  }
-
-  const parts: VDOMNode[] = [];
-  for (const content of result.value) {
-    if (content.type === "text") {
-      parts.push(d`${content.text}`);
-    } else if (content.type === "image") {
-      parts.push(d`[Image: ${content.source.media_type}]`);
-    } else if (content.type === "document") {
-      parts.push(d`[Document${content.title ? `: ${content.title}` : ""}]`);
-    }
-  }
-
-  if (parts.length === 0) return undefined;
-  return d`${parts}`;
-}

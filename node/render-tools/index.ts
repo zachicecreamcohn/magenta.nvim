@@ -226,7 +226,7 @@ export function renderToolResult(
     case "edl":
       return EdlRender.renderResult(info, context, expanded);
     case "get_file":
-      return GetFileRender.renderResult(info, context, expanded);
+      return undefined;
     default:
       return expanded
         ? d`${JSON.stringify(info.request.input, null, 2)}`
