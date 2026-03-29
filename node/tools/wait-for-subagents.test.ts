@@ -33,7 +33,7 @@ it("navigates to subagent thread when pressing Enter on completed summary thread
     });
 
     // Wait for spawn_subagent to complete
-    await driver.assertDisplayBufferContains("🤖✅ spawn_subagent");
+    await driver.assertDisplayBufferContains("✅ spawn_subagent");
 
     // Get the spawned thread id (it's the second thread created)
     const subagentThreadId = driver.getThreadId(1);
@@ -61,7 +61,7 @@ it("navigates to subagent thread when pressing Enter on completed summary thread
     });
 
     // Wait for the waiting state to appear
-    await driver.assertDisplayBufferContains("⏸️⏳ Waiting for 1 subagent(s):");
+    await driver.assertDisplayBufferContains("⏸️ Waiting for 1 subagent(s):");
 
     // Now complete the subagent
     const subagentStream =
@@ -86,13 +86,10 @@ it("navigates to subagent thread when pressing Enter on completed summary thread
     });
 
     // Wait for the completed summary to appear
-    await driver.assertDisplayBufferContains("⏳✅ wait_for_subagents");
+    await driver.assertDisplayBufferContains("✅ wait_for_subagents");
 
     // Press Enter on the spawn_subagent summary to navigate to the subagent thread
-    await driver.triggerDisplayBufferKeyOnContent(
-      "🤖✅ spawn_subagent",
-      "<CR>",
-    );
+    await driver.triggerDisplayBufferKeyOnContent("🚀 spawn_subagent", "<CR>");
 
     // Verify we navigated to the subagent thread
     await pollUntil(

@@ -47,15 +47,15 @@ function formatGetFileDisplay(
   return withInlineCode(d`\`${pathForDisplay}\`${extraInfo}`);
 }
 
-export function renderInFlightSummary(
+export function renderSummary(
   request: UnionToolRequest,
   displayContext: DisplayContext,
 ): VDOMNode {
   const input = request.input as Input;
-  return d`👀⚙️ ${formatGetFileDisplay(input, displayContext)}`;
+  return d`👀 ${formatGetFileDisplay(input, displayContext)}`;
 }
 
-export function renderCompletedSummary(
+export function renderResultSummary(
   info: CompletedToolInfo,
   displayContext: DisplayContext,
 ): VDOMNode {
@@ -63,7 +63,7 @@ export function renderCompletedSummary(
   const result = info.result.result;
 
   if (result.status === "error") {
-    return d`👀❌ ${formatGetFileDisplay(input, displayContext)}`;
+    return d`${formatGetFileDisplay(input, displayContext)}`;
   }
 
   let lineCount = 0;
@@ -71,10 +71,14 @@ export function renderCompletedSummary(
     lineCount = (info.structuredResult as GetFile.StructuredResult).lineCount;
   }
   const lineCountStr = lineCount > 0 ? ` [+ ${lineCount}]` : "";
-  return d`👀✅ ${formatGetFileDisplay(input, displayContext)}${lineCountStr}`;
+  return d`${formatGetFileDisplay(input, displayContext)}${lineCountStr}`;
 }
 
-export function renderCompletedDetail(info: CompletedToolInfo): VDOMNode {
+export function renderResult(
+  info: CompletedToolInfo,
+  _displayContext: DisplayContext,
+  _expanded: boolean,
+): VDOMNode | undefined {
   const result = info.result.result;
 
   if (result.status === "error") {
@@ -92,5 +96,6 @@ export function renderCompletedDetail(info: CompletedToolInfo): VDOMNode {
     }
   }
 
+  if (parts.length === 0) return undefined;
   return d`${parts}`;
 }

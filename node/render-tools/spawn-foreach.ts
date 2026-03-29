@@ -36,10 +36,9 @@ type SpawnForeachProgress = {
   }>;
 };
 
-export function renderInFlightSummary(
+export function renderSummary(
   request: UnionToolRequest,
   _displayContext: DisplayContext,
-  progress?: SpawnForeachProgress,
 ): VDOMNode {
   const input = request.input as Input;
   const agentTypeText =
@@ -47,28 +46,20 @@ export function renderInFlightSummary(
       ? ` (${input.agentType})`
       : "";
 
-  if (!progress || progress.elements.length === 0) {
-    return d`🤖⚙️ Foreach subagents${agentTypeText}: preparing...`;
-  }
-
-  const completed = progress.elements.filter(
-    (el) => el.state.status === "completed",
-  ).length;
-  const total = progress.elements.length;
-
-  return d`🤖⏳ Foreach subagents${agentTypeText} (${completed.toString()}/${total.toString()})`;
+  return d`🤖 Foreach subagents${agentTypeText}`;
 }
 
-export function renderInFlightPreview(
+export function renderProgress(
   _request: UnionToolRequest,
   progress: SpawnForeachProgress | undefined,
   context: {
     dispatch: Dispatch<RootMsg>;
     chat?: Chat;
   },
-): VDOMNode {
+  _expanded: boolean,
+): VDOMNode | undefined {
   if (!context.chat || !progress || progress.elements.length === 0) {
-    return d``;
+    return undefined;
   }
 
   const elementViews = progress.elements.map((entry) => {
@@ -151,10 +142,7 @@ export function renderInFlightPreview(
   return d`${elementViews}`;
 }
 
-export function renderCompletedSummary(
-  info: CompletedToolInfo,
-  _dispatch: Dispatch<RootMsg>,
-): VDOMNode {
+export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
   const input = info.request.input as Input;
   const result = info.result.result;
 
@@ -163,61 +151,56 @@ export function renderCompletedSummary(
       ? ` (${input.agentType})`
       : "";
   const totalElements = input.elements?.length ?? 0;
-  const status = result.status === "error" ? "❌" : "✅";
-
-  return d`🤖${status} Foreach subagents${agentTypeText} (${totalElements.toString()}/${totalElements.toString()})`;
-}
-
-export function renderCompletedPreview(info: CompletedToolInfo): VDOMNode {
-  const result = info.result.result;
 
   if (result.status === "error") {
-    return d``;
+    return d`Foreach subagents${agentTypeText}: error`;
   }
 
-  if (info.structuredResult.toolName === "spawn_foreach") {
-    const sr = info.structuredResult as SpawnForeach.StructuredResult;
-    const elementViews = sr.elements.map((el) => {
-      const status = el.ok ? "✅" : "❌";
-      return d`  ${status} ${el.name}\n`;
-    });
-    return d`${elementViews}`;
-  }
-
-  return d``;
+  return d`Foreach subagents${agentTypeText} (${totalElements.toString()}/${totalElements.toString()})`;
 }
 
-export function renderCompletedDetail(
+export function renderResult(
   info: CompletedToolInfo,
-  dispatch: Dispatch<RootMsg>,
-): VDOMNode {
+  context: { dispatch: Dispatch<RootMsg> },
+  expanded: boolean,
+): VDOMNode | undefined {
   const result = info.result.result;
 
   if (result.status === "error") {
-    return d`**Error:**\n${result.error}`;
+    if (expanded) {
+      return d`**Error:**\n${result.error}`;
+    }
+    return undefined;
   }
 
   if (info.structuredResult.toolName === "spawn_foreach") {
     const sr = info.structuredResult as SpawnForeach.StructuredResult;
+    if (expanded) {
+      const elementViews = sr.elements.map((el) => {
+        const status = el.ok ? "✅" : "❌";
+        if (el.threadId) {
+          return withBindings(d`  ${status} ${el.name}\n`, {
+            "<CR>": () => {
+              context.dispatch({
+                type: "chat-msg",
+                msg: {
+                  type: "select-thread",
+                  id: el.threadId!,
+                },
+              });
+            },
+          });
+        }
+        return d`  ${status} ${el.name}\n`;
+      });
+      return d`${elementViews}`;
+    }
     const elementViews = sr.elements.map((el) => {
       const status = el.ok ? "✅" : "❌";
-      if (el.threadId) {
-        return withBindings(d`  ${status} ${el.name}\n`, {
-          "<CR>": () => {
-            dispatch({
-              type: "chat-msg",
-              msg: {
-                type: "select-thread",
-                id: el.threadId!,
-              },
-            });
-          },
-        });
-      }
       return d`  ${status} ${el.name}\n`;
     });
     return d`${elementViews}`;
   }
 
-  return d``;
+  return undefined;
 }

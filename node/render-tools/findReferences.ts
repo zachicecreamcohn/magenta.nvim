@@ -15,7 +15,7 @@ type Input = {
   symbol: string;
 };
 
-export function renderInFlightSummary(
+export function renderSummary(
   request: UnionToolRequest,
   displayContext: DisplayContext,
 ): VDOMNode {
@@ -30,15 +30,14 @@ export function renderInFlightSummary(
     absFilePath,
     displayContext.homeDir,
   );
-  return d`🔍⚙️ ${withInlineCode(d`\`${input.symbol}\``)} in ${withInlineCode(d`\`${pathForDisplay}\``)}`;
+  return d`🔍 ${withInlineCode(d`\`${input.symbol}\``)} in ${withInlineCode(d`\`${pathForDisplay}\``)}`;
 }
 
-export function renderCompletedSummary(
+export function renderResultSummary(
   info: CompletedToolInfo,
   displayContext: DisplayContext,
 ): VDOMNode {
   const input = info.request.input as Input;
-  const status = info.result.result.status === "error" ? "❌" : "✅";
   const absFilePath = resolveFilePath(
     displayContext.cwd,
     input.filePath,
@@ -49,5 +48,5 @@ export function renderCompletedSummary(
     absFilePath,
     displayContext.homeDir,
   );
-  return d`🔍${status} ${withInlineCode(d`\`${input.symbol}\``)} in ${withInlineCode(d`\`${pathForDisplay}\``)}`;
+  return d`${withInlineCode(d`\`${input.symbol}\``)} in ${withInlineCode(d`\`${pathForDisplay}\``)}`;
 }

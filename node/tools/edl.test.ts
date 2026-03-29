@@ -43,7 +43,7 @@ replace "goodbye"`;
 
         // Summary should show mutation count
         await driver.assertDisplayBufferContains(
-          "📝✅ edl: 1 mutations in 1 file",
+          "✅ edl: 1 mutations in 1 file",
         );
 
         // Preview should show per-file stats
@@ -86,7 +86,7 @@ replace "goodbye"`;
           ],
         });
 
-        await driver.assertDisplayBufferContains("📝✅ edl:");
+        await driver.assertDisplayBufferContains("✅ edl:");
 
         // Toggle to detail view
         await driver.triggerDisplayBufferKeyOnContent("1 replace", "<CR>");
@@ -137,7 +137,7 @@ replace "goodbye"`;
           ],
         });
 
-        await driver.assertDisplayBufferContains("📝✅ edl:");
+        await driver.assertDisplayBufferContains("✅ edl:");
 
         // Preview should show truncated lines (ending with ...)
         await driver.assertDisplayBufferContains("aaa...");
@@ -186,17 +186,20 @@ END`;
           ],
         });
 
-        await driver.assertDisplayBufferContains("📝✅ edl:");
+        await driver.assertDisplayBufferContains("✅ edl:");
 
         // Preview should show the script
         await driver.assertDisplayBufferContains("narrow /hello/");
 
-        // Toggle to detail view
+        // Toggle input to expanded view (shows full script)
         await driver.triggerDisplayBufferKeyOnContent("narrow /hello/", "<CR>");
 
-        // Detail should show full script AND the trace output
+        // Expanded input should show full script
         await driver.assertDisplayBufferContains("narrow /hello/");
         await driver.assertDisplayBufferContains("replace <<END");
+
+        // Toggle result to expanded view to see trace output
+        await driver.triggerDisplayBufferKeyOnContent("1 replace", "<CR>");
         await driver.assertDisplayBufferContains("Trace:");
         await driver.assertDisplayBufferContains("Mutations:");
       },
@@ -241,7 +244,7 @@ replace "goodbye"`;
           ],
         });
 
-        await driver.assertDisplayBufferContains("📝✅ edl:");
+        await driver.assertDisplayBufferContains("✅ edl:");
 
         // Verify the nvim buffer was updated (not just disk)
         const buffers = await getAllBuffers(driver.nvim);
@@ -310,7 +313,7 @@ replace "modified"`;
         });
 
         await driver.assertDisplayBufferContains(
-          "📝✅ edl: 1 mutations in 1 file",
+          "✅ edl: 1 mutations in 1 file",
         );
 
         // End first turn
@@ -373,7 +376,7 @@ END`;
 
         // If EDL succeeds, it read "buffer only" from the buffer (not disk which has "modified")
         await driver.assertDisplayBufferContains(
-          "📝✅ edl: 1 mutations in 1 file",
+          "✅ edl: 1 mutations in 1 file",
         );
       },
     );

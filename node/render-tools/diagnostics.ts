@@ -5,19 +5,19 @@ import type {
 } from "@magenta/core";
 import { d, type VDOMNode } from "../tea/view.ts";
 
-export function renderInFlightSummary(
+export function renderSummary(
   _request: UnionToolRequest,
   _displayContext: DisplayContext,
 ): VDOMNode {
-  return d`🔍⚙️ diagnostics`;
+  return d`🔍 diagnostics`;
 }
 
-export function renderCompletedSummary(info: CompletedToolInfo): VDOMNode {
+export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
   const result = info.result.result;
 
   if (result.status === "error") {
-    return d`🔍❌ diagnostics - ${result.error}`;
+    return d`diagnostics - ${result.error}`;
   }
 
-  return d`🔍✅ diagnostics - Diagnostics retrieved`;
+  return d`Diagnostics retrieved`;
 }

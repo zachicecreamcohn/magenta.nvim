@@ -1366,7 +1366,7 @@ it("handles @async messages by queueing them and sending on next tool response",
     await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");
 
     // Wait for file read to complete
-    await driver.assertDisplayBufferContains("👀✅ `.secret`");
+    await driver.assertDisplayBufferContains("✅ `.secret`");
 
     // Handle the auto-response after tool completion
     const stream2 = await driver.mockAnthropic.awaitPendingStream();
@@ -1479,7 +1479,7 @@ it("renders successive tool uses with single assistant header and inline metadat
     });
 
     // Wait for first tool to complete (auto-approved for poem.txt)
-    await driver.assertDisplayBufferContains("👀✅ `poem.txt`");
+    await driver.assertDisplayBufferContains("✅ `poem.txt`");
 
     // Second request - thinking then another tool use
     const stream2 = await driver.mockAnthropic.awaitPendingStream();
@@ -1500,7 +1500,7 @@ it("renders successive tool uses with single assistant header and inline metadat
     });
 
     // Wait for second tool to complete
-    await driver.assertDisplayBufferContains("👀✅ `poem2.txt`");
+    await driver.assertDisplayBufferContains("✅ `poem2.txt`");
 
     // Third request - final response
     const stream3 = await driver.mockAnthropic.awaitPendingStream();

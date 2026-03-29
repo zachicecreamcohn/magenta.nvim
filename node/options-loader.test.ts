@@ -73,7 +73,7 @@ it("dynamically picks up commandConfig changes from project options.json", async
     });
 
     // Now the command should be auto-approved and run because the options.json was picked up
-    await driver.assertDisplayBufferContains('⚡✅ `true && echo "hello"`');
+    await driver.assertDisplayBufferContains('⚡ `true && echo "hello"`');
     await driver.assertDisplayBufferContains("stdout:");
   });
 });

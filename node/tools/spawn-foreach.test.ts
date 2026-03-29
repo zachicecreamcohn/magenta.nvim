@@ -67,7 +67,7 @@ it("respects maxConcurrentSubagents limit and processes elements in batches", as
         await driver.mockAnthropic.awaitPendingStreamWithText("element3");
 
       // Now we should see 3 running and 1 pending
-      await driver.assertDisplayBufferContains("🤖⏳ Foreach subagents (0/4)");
+      await driver.assertDisplayBufferContains("🤖 Foreach subagents");
       await driver.assertDisplayBufferContains("⏳ element1");
       await driver.assertDisplayBufferContains("⏳ element2");
       await driver.assertDisplayBufferContains("⏳ element3");
@@ -92,7 +92,7 @@ it("respects maxConcurrentSubagents limit and processes elements in batches", as
       });
 
       // After element1 completes, element4 should start and element1 should show as completed
-      await driver.assertDisplayBufferContains("🤖⏳ Foreach subagents (1/4)");
+      await driver.assertDisplayBufferContains("🤖 Foreach subagents");
       await driver.assertDisplayBufferContains("✅ element1");
 
       // The 4th subagent should now start
@@ -155,7 +155,7 @@ it("respects maxConcurrentSubagents limit and processes elements in batches", as
       });
 
       // All elements should now be completed
-      await driver.assertDisplayBufferContains("🤖✅ Foreach subagents (4/4)");
+      await driver.assertDisplayBufferContains("✅ Foreach subagents (4/4)");
 
       // The parent thread should receive the foreach tool result
       const parentStream =
@@ -307,7 +307,7 @@ it("handles subagent errors gracefully and continues processing remaining elemen
         await driver.mockAnthropic.awaitPendingStreamWithText("error_element");
 
       // Verify initial state: 1 running, 1 pending
-      await driver.assertDisplayBufferContains("🤖⏳ Foreach subagents (0/2)");
+      await driver.assertDisplayBufferContains("🤖 Foreach subagents");
       await driver.assertDisplayBufferContains("⏳ error_element");
       await driver.assertDisplayBufferContains("⏸️ success_element");
 
@@ -342,7 +342,7 @@ it("handles subagent errors gracefully and continues processing remaining elemen
       });
 
       // All elements should now be completed (1 success, 1 error)
-      await driver.assertDisplayBufferContains("🤖✅ Foreach subagents (2/2)");
+      await driver.assertDisplayBufferContains("✅ Foreach subagents (2/2)");
 
       // The parent thread should receive the foreach tool result
       const parentStream =
@@ -419,7 +419,7 @@ it("aborts all child threads when the foreach request is aborted", async () => {
         await driver.mockAnthropic.awaitPendingStreamWithText("element2");
 
       // Verify initial state: 2 running, 1 pending
-      await driver.assertDisplayBufferContains("🤖⏳ Foreach subagents (0/3)");
+      await driver.assertDisplayBufferContains("🤖 Foreach subagents");
       await driver.assertDisplayBufferContains("⏳ element1");
       await driver.assertDisplayBufferContains("⏳ element2");
       await driver.assertDisplayBufferContains("⏸️ element3");
@@ -432,7 +432,7 @@ it("aborts all child threads when the foreach request is aborted", async () => {
       expect(subagent2Stream.aborted).toBe(true);
 
       // Verify that the foreach tool shows as aborted/error state
-      await driver.assertDisplayBufferContains("🤖❌ Foreach subagents");
+      await driver.assertDisplayBufferContains("❌ Foreach subagents");
 
       // Verify no third subagent was started for element3
       // (since the foreach was aborted before element3 could start)
@@ -500,14 +500,14 @@ it("navigates to spawned subagent thread when pressing Enter on completed summar
       });
 
       // Wait for the completed summary to appear
-      await driver.assertDisplayBufferContains("🤖✅ Foreach subagents (1/1)");
+      await driver.assertDisplayBufferContains("✅ Foreach subagents (1/1)");
 
       // Get the spawned thread id (it's the second thread created)
       const subagentThreadId = driver.getThreadId(1);
 
       // Press Enter on the Foreach subagents summary to navigate to the subagent thread
       await driver.triggerDisplayBufferKeyOnContent(
-        "🤖✅ Foreach subagents (1/1)",
+        "✅ Foreach subagents (1/1)",
         "<CR>",
       );
 

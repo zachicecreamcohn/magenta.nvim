@@ -126,7 +126,7 @@ describe("pending approvals surfaced in parent thread", () => {
         );
 
       // Verify the parent view shows the completed subagent
-      await driver.assertDisplayBufferContains("🤖✅ spawn_subagent");
+      await driver.assertDisplayBufferContains("✅ spawn_subagent");
 
       parentStream2.respond({
         stopReason: "end_turn",
@@ -166,7 +166,7 @@ describe("pending approvals surfaced in parent thread", () => {
       });
 
       // Wait for spawn_subagent to complete (non-blocking returns immediately)
-      await driver.assertDisplayBufferContains("🤖✅ spawn_subagent");
+      await driver.assertDisplayBufferContains("✅ spawn_subagent");
 
       const subagentThreadId = driver.getThreadId(1);
 
@@ -193,9 +193,7 @@ describe("pending approvals surfaced in parent thread", () => {
       });
 
       // Wait for the waiting state to appear
-      await driver.assertDisplayBufferContains(
-        "⏸️⏳ Waiting for 1 subagent(s):",
-      );
+      await driver.assertDisplayBufferContains("⏸️ Waiting for 1 subagent(s):");
 
       // Now the subagent gets its stream
       const subagentStream =
@@ -266,8 +264,8 @@ describe("pending approvals surfaced in parent thread", () => {
         "Created test-wait-dir",
       );
 
-      // Verify the wait completed
-      await driver.assertDisplayBufferDoesNotContain("⏸️⏳ Waiting");
+      // Verify the wait completed (result summary shown)
+      await driver.assertDisplayBufferContains("✅ wait_for_subagents");
 
       stream3.respond({
         stopReason: "end_turn",
@@ -395,7 +393,7 @@ describe("pending approvals surfaced in parent thread", () => {
           );
 
         // Verify foreach completed
-        await driver.assertDisplayBufferContains("🤖✅ Foreach subagents");
+        await driver.assertDisplayBufferContains("✅ Foreach subagents");
 
         parentStream2.respond({
           stopReason: "end_turn",

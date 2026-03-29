@@ -43,7 +43,7 @@ describe("node/tools/bashCommand.test.ts", () => {
 
       // Verify the command output is displayed
       await driver.assertDisplayBufferContains(
-        "⚡✅ `echo 'Hello from Magenta!'`",
+        "⚡ `echo 'Hello from Magenta!'`",
       );
       await driver.assertDisplayBufferContains("```");
       await driver.assertDisplayBufferContains("stdout:");
@@ -134,7 +134,7 @@ describe("node/tools/bashCommand.test.ts", () => {
 
       // Verify the command format
       await driver.assertDisplayBufferContains(
-        '⚡✅ `true && echo "hello, world"`',
+        '⚡ `true && echo "hello, world"`',
       );
       await driver.assertDisplayBufferContains("```");
     });
@@ -256,11 +256,11 @@ describe("node/tools/bashCommand.test.ts", () => {
       await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");
 
       // Press 't' to abort the command
-      await driver.triggerDisplayBufferKeyOnContent("⚡⚙️ (", "t");
+      await driver.triggerDisplayBufferKeyOnContent("⚡ `sleep 30`", "t");
 
       // Verify that the command was aborted
       await driver.assertDisplayBufferContains(
-        "⚡❌ `sleep 30` - Request was aborted by the user.",
+        "❌ Request was aborted by the user.",
       );
     });
   });
@@ -327,7 +327,7 @@ describe("node/tools/bashCommand.test.ts", () => {
       await driver.assertDisplayBufferContains("Ok, run it again");
       await driver.assertDisplayBufferContains("# assistant:");
       await driver.assertDisplayBufferContains("Running that command again.");
-      await driver.assertDisplayBufferContains("⚡✅ `true && echo 'tada'`");
+      await driver.assertDisplayBufferContains("⚡ `true && echo 'tada'`");
       await driver.assertDisplayBufferContains("stdout:");
       await driver.assertDisplayBufferContains("tada");
     });
@@ -378,7 +378,7 @@ describe("node/tools/bashCommand.test.ts", () => {
       await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");
 
       // Wait for command to complete
-      await driver.assertDisplayBufferContains("⚡✅");
+      await driver.assertDisplayBufferContains("✅");
 
       // Directly check the file content using fs module
       expect(fs.existsSync(uniqueFile)).toBe(true);
@@ -431,7 +431,7 @@ describe("node/tools/bashCommand.test.ts", () => {
           ],
         });
 
-        await driver.assertDisplayBufferContains("⚡✅");
+        await driver.assertDisplayBufferContains("✅");
 
         // Verify display shows truncated text
         const truncatedText = `${"A".repeat(10)}...`;
@@ -513,7 +513,7 @@ describe("node/tools/bashCommand.test.ts", () => {
 
         // Should auto-approve since the stripped command "echo "Hello from cwd"" is in the allowlist
         await driver.assertDisplayBufferContains("Hello from cwd");
-        await driver.assertDisplayBufferContains(`⚡✅ \`${commandWithCd}\``);
+        await driver.assertDisplayBufferContains(`⚡ \`${commandWithCd}\``);
 
         // Should NOT show the approval dialog
         await driver.assertDisplayBufferDoesNotContain("> YES");
@@ -565,7 +565,7 @@ describe("node/tools/bashCommand.test.ts", () => {
           ],
         });
 
-        await driver.assertDisplayBufferContains("⚡✅");
+        await driver.assertDisplayBufferContains("✅");
 
         const toolResultRequest =
           await driver.mockAnthropic.awaitPendingStream();
@@ -635,7 +635,7 @@ describe("commandConfig integration tests", () => {
         });
 
         // Should auto-approve and run without showing approval dialog
-        await driver.assertDisplayBufferContains('⚡✅ `echo "hello world"`');
+        await driver.assertDisplayBufferContains('⚡ `echo "hello world"`');
         await driver.assertDisplayBufferContains("hello world");
         await driver.assertDisplayBufferDoesNotContain("> YES");
       },
@@ -677,7 +677,7 @@ describe("commandConfig integration tests", () => {
         });
 
         // Should auto-approve since args match exactly
-        await driver.assertDisplayBufferContains("⚡✅ `ls -la`");
+        await driver.assertDisplayBufferContains("⚡ `ls -la`");
         await driver.assertDisplayBufferDoesNotContain("> YES");
       },
     );
@@ -772,9 +772,7 @@ describe("commandConfig integration tests", () => {
         });
 
         // Should auto-approve since file is in project
-        await driver.assertDisplayBufferContains(
-          "⚡✅ `cat test-cat-file.txt`",
-        );
+        await driver.assertDisplayBufferContains("⚡ `cat test-cat-file.txt`");
         await driver.assertDisplayBufferContains("test content for cat");
         await driver.assertDisplayBufferDoesNotContain("> YES");
       },
@@ -871,7 +869,7 @@ describe("commandConfig integration tests", () => {
 
         // Should auto-approve since all files are in project
         await driver.assertDisplayBufferContains(
-          "⚡✅ `cat testfile1.txt testfile2.txt`",
+          "⚡ `cat testfile1.txt testfile2.txt`",
         );
         await driver.assertDisplayBufferContains("content of file 1");
         await driver.assertDisplayBufferContains("content of file 2");
@@ -975,7 +973,7 @@ describe("commandConfig integration tests", () => {
 
         // Should auto-approve since file resolves to within project
         await driver.assertDisplayBufferContains(
-          "⚡✅ `cd subdir && cat nested-file.txt`",
+          "⚡ `cd subdir && cat nested-file.txt`",
         );
         await driver.assertDisplayBufferContains("nested content");
         await driver.assertDisplayBufferDoesNotContain("> YES");
@@ -1150,9 +1148,7 @@ describe("commandConfig integration tests", () => {
           ],
         });
 
-        await driver.assertDisplayBufferContains(
-          "⚡✅ `git status --porcelain`",
-        );
+        await driver.assertDisplayBufferContains("⚡ `git status --porcelain`");
         await driver.assertDisplayBufferDoesNotContain("> YES");
       },
     );
@@ -1219,7 +1215,7 @@ describe("bash command output logging", () => {
         });
 
         // Command is auto-approved since both echo commands are allowed
-        await driver.assertDisplayBufferContains("⚡✅");
+        await driver.assertDisplayBufferContains("✅");
 
         // Get the tool result - log file path won't be in output since it fits
         const toolResultRequest =
@@ -1295,7 +1291,7 @@ describe("bash command output logging", () => {
           ],
         });
 
-        await driver.assertDisplayBufferContains("⚡✅");
+        await driver.assertDisplayBufferContains("✅");
 
         const toolResultRequest =
           await driver.mockAnthropic.awaitPendingStream();
@@ -1359,7 +1355,7 @@ describe("bash command output logging", () => {
           ],
         });
 
-        await driver.assertDisplayBufferContains("⚡✅");
+        await driver.assertDisplayBufferContains("✅");
 
         const toolResultRequest =
           await driver.mockAnthropic.awaitPendingStream();
@@ -1418,7 +1414,7 @@ describe("bash command output logging", () => {
         });
 
         // Wait for command to complete
-        await driver.assertDisplayBufferContains('⚡✅ `echo "test output"`');
+        await driver.assertDisplayBufferContains('⚡ `echo "test output"`');
 
         // Initially in preview mode - should show output in code block
         await driver.assertDisplayBufferContains("stdout:");
@@ -1481,7 +1477,7 @@ describe("bash command output logging", () => {
           ],
         });
 
-        await driver.assertDisplayBufferContains("⚡✅");
+        await driver.assertDisplayBufferContains("✅");
 
         // Find and click the "Full output" link
         // Find and click the "Full output" link
@@ -1544,7 +1540,7 @@ describe("bash command output logging", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains("⚡✅ `echo 'test'`");
+      await driver.assertDisplayBufferContains("⚡ `echo 'test'`");
 
       const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
       const toolResultMessage =
@@ -2025,7 +2021,7 @@ describe("bash command filePermissions tests", () => {
 
         // Should auto-approve since filePermissions grants read
         await driver.assertDisplayBufferContains(
-          `⚡✅ \`cat ${outsidePath!}/allowed.txt\``,
+          `⚡ \`cat ${outsidePath!}/allowed.txt\``,
         );
         await driver.assertDisplayBufferContains("external content");
         await driver.assertDisplayBufferDoesNotContain("> YES");
@@ -2138,7 +2134,7 @@ describe("bash command filePermissions tests", () => {
         });
 
         // Should auto-approve since filePermissions grants write
-        await driver.assertDisplayBufferContains(`⚡✅`);
+        await driver.assertDisplayBufferContains(`✅`);
         await driver.assertDisplayBufferDoesNotContain("> YES");
       },
     );
@@ -2323,7 +2319,7 @@ describe("bash command filePermissions tests", () => {
 
         // Should auto-approve since readSecret grants access to hidden files
         await driver.assertDisplayBufferContains(
-          `⚡✅ \`cat ${outsidePath!}/.hidden-file\``,
+          `⚡ \`cat ${outsidePath!}/.hidden-file\``,
         );
         await driver.assertDisplayBufferContains("hidden content");
         await driver.assertDisplayBufferDoesNotContain("> YES");
@@ -2387,7 +2383,7 @@ describe("bash command filePermissions tests", () => {
         });
 
         // Should auto-approve since writeSecret grants access to hidden files
-        await driver.assertDisplayBufferContains(`⚡✅`);
+        await driver.assertDisplayBufferContains(`✅`);
         await driver.assertDisplayBufferDoesNotContain("> YES");
       },
     );
@@ -2506,7 +2502,7 @@ describe("bash command filePermissions tests", () => {
         });
 
         // Should auto-approve since ~/Documents is permitted
-        await driver.assertDisplayBufferContains(`⚡✅`);
+        await driver.assertDisplayBufferContains(`✅`);
         await driver.assertDisplayBufferContains("home document content");
         await driver.assertDisplayBufferDoesNotContain("> YES");
       },
