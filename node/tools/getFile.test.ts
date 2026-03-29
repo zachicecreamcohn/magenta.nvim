@@ -41,7 +41,7 @@ it("render the getFile tool.", async () => {
   });
 });
 
-it("should expand get_file tool detail on <CR>", async () => {
+it("should expand get_file tool input on <CR>", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
     await driver.inputMagentaText(`Try reading the file poem.txt`);
@@ -65,13 +65,11 @@ it("should expand get_file tool detail on <CR>", async () => {
       ],
     });
 
-    // Press <CR> on the summary to expand details
+    // Press <CR> on the summary to expand input details
     await driver.triggerDisplayBufferKeyOnContent(`👀 \`poem.txt\``, "<CR>");
 
-    // Verify the file content is now visible (poem.txt content from fixtures)
-    await driver.assertDisplayBufferContains(
-      "Moonlight whispers through the trees",
-    );
+    // Verify the JSON input is now visible (not file content, since get_file has no result detail)
+    await driver.assertDisplayBufferContains('"filePath": "./poem.txt"');
   });
 });
 
