@@ -18,7 +18,7 @@ When creating a plan for a complex task:
 
 ## Write the plan
 
-Write the plan to `plans/<planName>.md`, then yield to the parent with the location of the plan file.
+Write the plan to `plans/YYYY-MM-DD-<planName>.md` (using the current date), then yield to the parent with the location of the plan file.
 
 - start with a #context section
   - briefly restate the objective
