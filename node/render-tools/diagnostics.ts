@@ -16,8 +16,16 @@ export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
   const result = info.result.result;
 
   if (result.status === "error") {
-    return d`diagnostics - ${result.error}`;
+    return d`${result.error}`;
   }
 
-  return d`Diagnostics retrieved`;
+  let diagCount = 0;
+  for (const content of result.value) {
+    if (content.type === "text") {
+      diagCount += content.text
+        .split("\n")
+        .filter((l) => l.trim().length > 0).length;
+    }
+  }
+  return d`${diagCount.toString()} diagnostics`;
 }

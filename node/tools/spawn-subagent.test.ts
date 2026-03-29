@@ -74,7 +74,7 @@ it("navigates to spawned subagent thread when pressing Enter on completed summar
     });
 
     // Navigate to the subagent thread by pressing Enter on the completed summary
-    await driver.triggerDisplayBufferKeyOnContent("✅ spawn_subagent", "<CR>");
+    await driver.triggerDisplayBufferKeyOnContent("✅  (~", "<CR>");
 
     // Verify we navigated to a different thread (the subagent)
     await pollUntil(

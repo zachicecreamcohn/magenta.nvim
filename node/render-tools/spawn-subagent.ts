@@ -149,8 +149,6 @@ export function renderProgress(
 }
 
 export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
-  const input = info.request.input as Input;
-  const typeLabel = agentTypeLabel(input.agentType);
   const result = info.result.result;
 
   if (result.status === "error") {
@@ -158,19 +156,10 @@ export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
       result.error.length > 50
         ? `${result.error.substring(0, 50)}...`
         : result.error;
-    return d`spawn_subagent${typeLabel}: ${errorPreview}`;
+    return d`${errorPreview}`;
   }
 
-  let isBlocking: boolean;
-
-  if (info.structuredResult.toolName === "spawn_subagent") {
-    const sr = info.structuredResult as SpawnSubagent.StructuredResult;
-    isBlocking = sr.isBlocking;
-  } else {
-    isBlocking = false;
-  }
-
-  return d`spawn_subagent${typeLabel}${isBlocking ? " (blocking)" : ""}: ${truncate(input.prompt)}`;
+  return d``;
 }
 
 export function renderResult(

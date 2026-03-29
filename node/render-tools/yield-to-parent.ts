@@ -21,11 +21,6 @@ export function renderSummary(
   return d`↩️ yield_to_parent: ${resultPreview}`;
 }
 
-export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
-  const input = info.request.input as Input;
-  const resultPreview =
-    input.result?.length > 50
-      ? `${input.result.substring(0, 50)}...`
-      : (input.result ?? "");
-  return d`yield_to_parent: ${resultPreview}`;
+export function renderResultSummary(_info: CompletedToolInfo): VDOMNode {
+  return d``;
 }

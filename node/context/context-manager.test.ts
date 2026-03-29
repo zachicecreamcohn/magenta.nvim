@@ -369,7 +369,7 @@ it("issuing a getFile request adds the file to the context but doesn't send its 
       ],
     });
 
-    await driver.assertDisplayBufferContains(`✅ \`test.jpg\``);
+    await driver.assertDisplayBufferContains("✅ 0 lines");
 
     // Handle the auto-respond message
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();

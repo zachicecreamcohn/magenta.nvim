@@ -126,7 +126,7 @@ it("abort command should stop pending tool use", async () => {
 
     await driver.abort();
 
-    await driver.assertDisplayBufferContains(`❌ \`.secret\``);
+    await driver.assertDisplayBufferContains(`❌ Request was aborted`);
   });
 });
 

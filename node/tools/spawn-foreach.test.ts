@@ -155,7 +155,7 @@ it("respects maxConcurrentSubagents limit and processes elements in batches", as
       });
 
       // All elements should now be completed
-      await driver.assertDisplayBufferContains("✅ Foreach subagents (4/4)");
+      await driver.assertDisplayBufferContains("✅ 4/4 elements");
 
       // The parent thread should receive the foreach tool result
       const parentStream =
@@ -342,7 +342,7 @@ it("handles subagent errors gracefully and continues processing remaining elemen
       });
 
       // All elements should now be completed (1 success, 1 error)
-      await driver.assertDisplayBufferContains("✅ Foreach subagents (2/2)");
+      await driver.assertDisplayBufferContains("✅ 2/2 elements");
 
       // The parent thread should receive the foreach tool result
       const parentStream =
@@ -432,7 +432,7 @@ it("aborts all child threads when the foreach request is aborted", async () => {
       expect(subagent2Stream.aborted).toBe(true);
 
       // Verify that the foreach tool shows as aborted/error state
-      await driver.assertDisplayBufferContains("❌ Foreach subagents");
+      await driver.assertDisplayBufferContains("❌ error");
 
       // Verify no third subagent was started for element3
       // (since the foreach was aborted before element3 could start)
@@ -500,16 +500,13 @@ it("navigates to spawned subagent thread when pressing Enter on completed summar
       });
 
       // Wait for the completed summary to appear
-      await driver.assertDisplayBufferContains("✅ Foreach subagents (1/1)");
+      await driver.assertDisplayBufferContains("✅ 1/1 elements");
 
       // Get the spawned thread id (it's the second thread created)
       const subagentThreadId = driver.getThreadId(1);
 
       // Press Enter on the Foreach subagents summary to navigate to the subagent thread
-      await driver.triggerDisplayBufferKeyOnContent(
-        "✅ Foreach subagents (1/1)",
-        "<CR>",
-      );
+      await driver.triggerDisplayBufferKeyOnContent("✅ 1/1 elements", "<CR>");
 
       // Verify we navigated to the subagent thread
       await pollUntil(

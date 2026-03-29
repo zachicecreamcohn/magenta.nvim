@@ -57,21 +57,19 @@ export function renderSummary(
 
 export function renderResultSummary(
   info: CompletedToolInfo,
-  displayContext: DisplayContext,
+  _displayContext: DisplayContext,
 ): VDOMNode {
-  const input = info.request.input as Input;
   const result = info.result.result;
 
   if (result.status === "error") {
-    return d`${formatGetFileDisplay(input, displayContext)}`;
+    return d`${result.error}`;
   }
 
   let lineCount = 0;
   if (info.structuredResult.toolName === "get_file") {
     lineCount = (info.structuredResult as GetFile.StructuredResult).lineCount;
   }
-  const lineCountStr = lineCount > 0 ? ` [+ ${lineCount}]` : "";
-  return d`${formatGetFileDisplay(input, displayContext)}${lineCountStr}`;
+  return d`${lineCount.toString()} lines`;
 }
 
 export function renderResult(

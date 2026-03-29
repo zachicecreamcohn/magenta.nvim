@@ -93,7 +93,15 @@ export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
       fileErrorCount > 0
         ? ` (${String(fileErrorCount)} file error${fileErrorCount !== 1 ? "s" : ""})`
         : "";
-    return d`edl: ${String(totalMutations)} mutations in ${String(filesCount)} file${filesCount !== 1 ? "s" : ""}${errorSuffix}`;
+    const totalLinesAdded = data.mutations.reduce(
+      (acc, m) => acc + m.summary.linesAdded,
+      0,
+    );
+    const totalLinesRemoved = data.mutations.reduce(
+      (acc, m) => acc + m.summary.linesRemoved,
+      0,
+    );
+    return d`edl: ${String(totalMutations)} mutations in ${String(filesCount)} file${filesCount !== 1 ? "s" : ""}, +${String(totalLinesAdded)}/-${String(totalLinesRemoved)} lines${errorSuffix}`;
   }
 
   return d`edl script`;

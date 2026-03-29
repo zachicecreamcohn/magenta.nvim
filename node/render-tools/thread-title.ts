@@ -19,5 +19,5 @@ export function renderSummary(
 
 export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
   const input = info.request.input as Input;
-  return d`thread_title: ${input.title ?? ""}`;
+  return d`"${input.title ?? ""}"`;
 }

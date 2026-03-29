@@ -100,5 +100,5 @@ export function renderProgress(
 export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
   const input = info.request.input as Input;
   const count = input.threadIds?.length ?? 0;
-  return d`wait_for_subagents (${count.toString()} threads)`;
+  return d`${count.toString()} threads`;
 }

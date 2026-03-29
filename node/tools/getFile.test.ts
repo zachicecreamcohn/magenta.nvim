@@ -37,7 +37,7 @@ it("render the getFile tool.", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`✅ \`poem.txt\``);
+    await driver.assertDisplayBufferContains("✅ ");
   });
 });
 
@@ -106,7 +106,7 @@ it("getFile adds file to context after reading", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`✅ \`poem.txt\``);
+    await driver.assertDisplayBufferContains("✅ ");
 
     // Handle the auto-respond message
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
@@ -177,7 +177,7 @@ it("getFile reads unloaded buffer", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`✅ \`poem.txt\``);
+    await driver.assertDisplayBufferContains("✅ ");
 
     // Check that the file contents are properly returned
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
@@ -254,7 +254,7 @@ it("should add images to context manager", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`✅ \`test.jpg\``);
+    await driver.assertDisplayBufferContains("✅ 0 lines");
 
     // Handle the auto-respond message
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
@@ -312,7 +312,7 @@ it("should add PDFs to context manager", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`✅ \`sample2.pdf\``);
+    await driver.assertDisplayBufferContains("✅ 0 lines");
 
     // Handle the auto-respond message
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
@@ -365,7 +365,7 @@ it("should continue to add text files to context normally", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`✅ \`poem.txt\``);
+    await driver.assertDisplayBufferContains("✅ ");
 
     // Handle the auto-respond message
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
@@ -412,7 +412,7 @@ it("should handle mixed content types in a single conversation", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`✅ \`poem.txt\``);
+    await driver.assertDisplayBufferContains("✅ ");
 
     // Handle first auto-respond message
     const toolResultRequest1 = await driver.mockAnthropic.awaitPendingStream();
@@ -444,7 +444,7 @@ it("should handle mixed content types in a single conversation", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`✅ \`test.jpg\``);
+    await driver.assertDisplayBufferContains("✅ 0 lines");
 
     // Handle second auto-respond message
     const toolResultRequest2 = await driver.mockAnthropic.awaitPendingStream();
@@ -478,7 +478,7 @@ it("should handle mixed content types in a single conversation", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains(`✅ \`sample2.pdf\``);
+    await driver.assertDisplayBufferContains("✅ 0 lines");
 
     // Handle final auto-respond message
     const toolResultRequest3 = await driver.mockAnthropic.awaitPendingStream();

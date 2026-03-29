@@ -84,22 +84,27 @@ export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
 
   let exitCode: number | undefined;
   let signal: string | undefined;
+  let lineCount: number | undefined;
 
   if (info.structuredResult.toolName === "bash_command") {
     const sr = info.structuredResult as BashCommand.StructuredResult;
     exitCode = sr.exitCode;
     signal = sr.signal;
+    lineCount = sr.logFileLineCount;
   }
 
+  const lineCountStr =
+    lineCount !== undefined ? `, ${lineCount.toString()} lines` : "";
+
   if (signal) {
-    return d`Terminated by ${signal}`;
+    return d`Terminated by ${signal}${lineCountStr}`;
   }
 
   if (exitCode !== undefined && exitCode !== 0) {
-    return d`Exit code: ${exitCode.toString()}`;
+    return d`exit ${exitCode.toString()}${lineCountStr}`;
   }
 
-  return d``;
+  return d`exit 0${lineCountStr}`;
 }
 
 export function renderResult(

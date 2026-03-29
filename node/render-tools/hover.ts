@@ -35,19 +35,8 @@ export function renderSummary(
 }
 
 export function renderResultSummary(
-  info: CompletedToolInfo,
-  displayContext: DisplayContext,
+  _info: CompletedToolInfo,
+  _displayContext: DisplayContext,
 ): VDOMNode {
-  const input = info.request.input as Input;
-  const absFilePath = resolveFilePath(
-    displayContext.cwd,
-    input.filePath,
-    displayContext.homeDir,
-  );
-  const pathForDisplay = displayPath(
-    displayContext.cwd,
-    absFilePath,
-    displayContext.homeDir,
-  );
-  return d`hover ${withInlineCode(d`\`${input.symbol}\``)} in ${withInlineCode(d`\`${pathForDisplay}\``)}`;
+  return d``;
 }

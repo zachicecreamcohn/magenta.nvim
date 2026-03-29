@@ -45,6 +45,17 @@ function isError(result: ProviderToolResult): boolean {
   return result.result.status === "error";
 }
 
+function formatTokenEstimate(result: ProviderToolResult): string {
+  const content =
+    result.result.status === "error"
+      ? result.result.error
+      : JSON.stringify(result.result.value);
+  const tokens = Math.ceil(content.length / 4);
+  return tokens >= 1000
+    ? `~${(tokens / 1000).toFixed(1)}k tok`
+    : `~${tokens} tok`;
+}
+
 export function renderToolSummary(
   request: ToolRequest,
   displayContext: DisplayContext,
@@ -164,33 +175,35 @@ export function renderToolResultSummary(
   const statusEmoji = isError(info.result) ? "❌" : "✅";
   const toolName = info.request.toolName as StaticToolName;
 
+  const tokEst = formatTokenEstimate(info.result);
+
   if (isMCPTool(toolName)) {
-    return d`${statusEmoji} ${MCPToolRender.renderResultSummary(info, displayContext)}`;
+    return d`${statusEmoji} ${MCPToolRender.renderResultSummary(info, displayContext)} (${tokEst})`;
   }
 
   switch (toolName) {
     case "get_file":
-      return d`${statusEmoji} ${GetFileRender.renderResultSummary(info, displayContext)}`;
+      return d`${statusEmoji} ${GetFileRender.renderResultSummary(info, displayContext)} (${tokEst})`;
     case "bash_command":
-      return d`${statusEmoji} ${BashCommandRender.renderResultSummary(info)}`;
+      return d`${statusEmoji} ${BashCommandRender.renderResultSummary(info)} (${tokEst})`;
     case "hover":
-      return d`${statusEmoji} ${HoverRender.renderResultSummary(info, displayContext)}`;
+      return d`${statusEmoji} ${HoverRender.renderResultSummary(info, displayContext)} (${tokEst})`;
     case "find_references":
-      return d`${statusEmoji} ${FindReferencesRender.renderResultSummary(info, displayContext)}`;
+      return d`${statusEmoji} ${FindReferencesRender.renderResultSummary(info, displayContext)} (${tokEst})`;
     case "diagnostics":
-      return d`${statusEmoji} ${DiagnosticsRender.renderResultSummary(info)}`;
+      return d`${statusEmoji} ${DiagnosticsRender.renderResultSummary(info)} (${tokEst})`;
     case "spawn_subagent":
-      return d`${statusEmoji} ${SpawnSubagentRender.renderResultSummary(info)}`;
+      return d`${statusEmoji} ${SpawnSubagentRender.renderResultSummary(info)} (${tokEst})`;
     case "spawn_foreach":
-      return d`${statusEmoji} ${SpawnForeachRender.renderResultSummary(info)}`;
+      return d`${statusEmoji} ${SpawnForeachRender.renderResultSummary(info)} (${tokEst})`;
     case "wait_for_subagents":
-      return d`${statusEmoji} ${WaitForSubagentsRender.renderResultSummary(info)}`;
+      return d`${statusEmoji} ${WaitForSubagentsRender.renderResultSummary(info)} (${tokEst})`;
     case "yield_to_parent":
-      return d`${statusEmoji} ${YieldToParentRender.renderResultSummary(info)}`;
+      return d`${statusEmoji} ${YieldToParentRender.renderResultSummary(info)} (${tokEst})`;
     case "thread_title":
       return d`${statusEmoji} ${ThreadTitleRender.renderResultSummary(info)}`;
     case "edl":
-      return d`${statusEmoji} ${EdlRender.renderResultSummary(info)}`;
+      return d`${statusEmoji} ${EdlRender.renderResultSummary(info)} (${tokEst})`;
     default:
       assertUnreachable(toolName);
   }

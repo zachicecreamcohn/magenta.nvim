@@ -28,6 +28,6 @@ export function renderResultSummary(
   info: CompletedToolInfo,
   _displayContext: DisplayContext,
 ): VDOMNode {
-  const status = info.result.result.status === "error" ? "error" : "completed";
-  return d`MCP tool ${withInlineCode(d`\`${info.request.toolName}\``)} ${status}`;
+  const suffix = info.result.result.status === "error" ? " error" : "";
+  return d`MCP tool ${withInlineCode(d`\`${info.request.toolName}\``)}${suffix}`;
 }

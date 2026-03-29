@@ -145,18 +145,13 @@ export function renderProgress(
 export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
   const input = info.request.input as Input;
   const result = info.result.result;
-
-  const agentTypeText =
-    input.agentType && input.agentType !== "default"
-      ? ` (${input.agentType})`
-      : "";
   const totalElements = input.elements?.length ?? 0;
 
   if (result.status === "error") {
-    return d`Foreach subagents${agentTypeText}: error`;
+    return d`error`;
   }
 
-  return d`Foreach subagents${agentTypeText} (${totalElements.toString()}/${totalElements.toString()})`;
+  return d`${totalElements.toString()}/${totalElements.toString()} elements`;
 }
 
 export function renderResult(
