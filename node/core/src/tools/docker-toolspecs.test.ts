@@ -12,9 +12,7 @@ describe("docker_root tool specs", () => {
 
     expect(names).toContain("get_file");
     expect(names).toContain("bash_command");
-    expect(names).toContain("spawn_subagent");
-    expect(names).toContain("spawn_foreach");
-    expect(names).toContain("wait_for_subagents");
+    expect(names).toContain("spawn_subagents");
     expect(names).toContain("edl");
     expect(names).toContain("yield_to_parent");
   });

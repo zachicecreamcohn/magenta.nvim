@@ -2,9 +2,11 @@ import type {
   CompletedToolInfo,
   DisplayContext,
   Edl,
+  ToolRequestId,
   ToolRequest as UnionToolRequest,
 } from "@magenta/core";
-import { d, type VDOMNode, withCode } from "../tea/view.ts";
+import type { ToolViewState } from "../chat/thread.ts";
+import { d, type VDOMNode, withBindings, withCode } from "../tea/view.ts";
 
 type Input = {
   script: string;
@@ -109,11 +111,26 @@ export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
 
 export function renderResult(
   info: CompletedToolInfo,
-  _context: unknown,
-  expanded: boolean,
+  context: {
+    threadDispatch: (msg: {
+      type: "toggle-tool-result";
+      toolRequestId: ToolRequestId;
+    }) => void;
+  },
+  toolViewState: ToolViewState,
+  toolRequestId: ToolRequestId,
 ): VDOMNode | undefined {
+  const expanded = toolViewState.resultExpanded;
+  const toggleBinding = {
+    "<CR>": () =>
+      context.threadDispatch({
+        type: "toggle-tool-result",
+        toolRequestId,
+      }),
+  };
+
   if (expanded) {
-    return d`${extractFormattedResult(info)}`;
+    return withBindings(d`${extractFormattedResult(info)}`, toggleBinding);
   }
 
   const data = extractEdlDisplayData(info);
@@ -139,5 +156,5 @@ export function renderResult(
 
   if (lines.length === 0) return undefined;
 
-  return d`${lines.join("\n")}`;
+  return withBindings(d`${lines.join("\n")}`, toggleBinding);
 }

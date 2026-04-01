@@ -23,11 +23,10 @@ import * as Hover from "./hover.ts";
 import type { MCPToolManager } from "./mcp/manager.ts";
 import * as MCPTool from "./mcp/tool.ts";
 import { parseToolName } from "./mcp/types.ts";
-import * as SpawnForeach from "./spawn-foreach.ts";
-import * as SpawnSubagent from "./spawn-subagent.ts";
+import * as SpawnSubagents from "./spawn-subagents.ts";
 import * as ThreadTitle from "./thread-title.ts";
 import type { StaticToolRequest } from "./toolManager.ts";
-import * as WaitForSubagents from "./wait-for-subagents.ts";
+
 import * as YieldToParent from "./yield-to-parent.ts";
 
 export type CreateToolContext = {
@@ -132,29 +131,14 @@ export function createTool(
       return ThreadTitle.execute(staticRequest, {});
     }
 
-    case "spawn_subagent": {
-      return SpawnSubagent.execute(staticRequest, {
-        threadManager: context.threadManager,
-        threadId: context.threadId,
-        requestRender: context.requestRender,
-        cwd: context.cwd,
-        containerProvisioner: context.containerProvisioner,
-      });
-    }
-
-    case "spawn_foreach": {
-      return SpawnForeach.execute(staticRequest, {
+    case "spawn_subagents": {
+      return SpawnSubagents.execute(staticRequest, {
         threadManager: context.threadManager,
         threadId: context.threadId,
         maxConcurrentSubagents: context.maxConcurrentSubagents,
         requestRender: context.requestRender,
-      });
-    }
-
-    case "wait_for_subagents": {
-      return WaitForSubagents.execute(staticRequest, {
-        threadManager: context.threadManager,
-        requestRender: context.requestRender,
+        cwd: context.cwd,
+        containerProvisioner: context.containerProvisioner,
       });
     }
 

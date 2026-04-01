@@ -102,7 +102,7 @@ export class Chat implements ThreadManager {
   public threadWrappers: { [id: ThreadId]: ThreadWrapper };
   public rememberedCommands: Set<string>;
   private mcpToolManager: MCPToolManagerImpl;
-  private threadWaiters: Map<ThreadId, Array<(result: Result<string>) => void>>;
+  private threadYieldCallbacks: Map<ThreadId, Array<() => void>>;
 
   constructor(
     private context: {
@@ -118,7 +118,7 @@ export class Chat implements ThreadManager {
   ) {
     this.threadWrappers = {};
     this.rememberedCommands = new Set();
-    this.threadWaiters = new Map();
+    this.threadYieldCallbacks = new Map();
     this.state = {
       state: "thread-overview",
       activeThreadId: undefined,
@@ -170,21 +170,8 @@ export class Chat implements ThreadManager {
           }
         }
 
-        // it's ok to do this on every dispatch. After the initial yielded/error message, the thread should be dormant
-        // and should not generate any more thread messages. As such, this won't be terribly inefficient.
-        const agentStatus = thread.agent.getState().status;
-
         if (thread.core.state.mode.type === "yielded") {
-          this.resolveThreadWaiters(thread.id, {
-            status: "ok",
-            value: thread.core.state.mode.response,
-          });
-        } else if (agentStatus.type === "error") {
-          const result: Result<string> = {
-            status: "error",
-            error: agentStatus.error.message,
-          };
-          this.resolveThreadWaiters(thread.id, result);
+          this.fireThreadYieldCallbacks(thread.id);
         }
       }
     }
@@ -239,11 +226,7 @@ export class Chat implements ThreadManager {
         }
 
         if (thread) {
-          const errorResult: Result<string> = {
-            status: "error",
-            error: msg.error.message,
-          };
-          this.resolveThreadWaiters(msg.id, errorResult);
+          this.fireThreadYieldCallbacks(msg.id);
         }
 
         return;
@@ -1003,16 +986,13 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     }
   }
 
-  private resolveThreadWaiters(
-    threadId: ThreadId,
-    result: Result<string>,
-  ): void {
-    const waiters = this.threadWaiters.get(threadId);
-    if (waiters && waiters.length > 0) {
-      for (const resolve of waiters) {
-        resolve(result);
+  private fireThreadYieldCallbacks(threadId: ThreadId): void {
+    const callbacks = this.threadYieldCallbacks.get(threadId);
+    if (callbacks && callbacks.length > 0) {
+      for (const callback of callbacks) {
+        callback();
       }
-      this.threadWaiters.delete(threadId);
+      this.threadYieldCallbacks.delete(threadId);
     }
   }
 
@@ -1068,33 +1048,13 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     return thread.id;
   }
 
-  waitForThread(threadId: ThreadId): Promise<Result<string>> {
-    const threadResult = this.getThreadResult(threadId);
-    if (threadResult.status === "done") {
-      return Promise.resolve(threadResult.result);
+  onThreadYielded(threadId: ThreadId, callback: () => void): void {
+    let callbacks = this.threadYieldCallbacks.get(threadId);
+    if (!callbacks) {
+      callbacks = [];
+      this.threadYieldCallbacks.set(threadId, callbacks);
     }
-
-    return new Promise<Result<string>>((resolve) => {
-      let waiters = this.threadWaiters.get(threadId);
-      if (!waiters) {
-        waiters = [];
-        this.threadWaiters.set(threadId, waiters);
-      }
-      waiters.push(resolve);
-    });
-  }
-
-  yieldResult(threadId: ThreadId, result: Result<string>): void {
-    const threadWrapper = this.threadWrappers[threadId];
-    if (threadWrapper && threadWrapper.state === "initialized") {
-      if (result.status === "ok") {
-        threadWrapper.thread.core.update({
-          type: "set-mode",
-          mode: { type: "yielded", response: result.value },
-        });
-      }
-    }
-    this.resolveThreadWaiters(threadId, result);
+    callbacks.push(callback);
   }
   renderActiveThread() {
     const threadWrapper =

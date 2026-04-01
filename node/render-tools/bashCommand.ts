@@ -2,11 +2,14 @@ import type {
   BashCommand,
   CompletedToolInfo,
   DisplayContext,
+  ToolRequestId,
   ToolRequest as UnionToolRequest,
 } from "@magenta/core";
 import type { OutputLine } from "../capabilities/shell.ts";
+import type { ToolViewState } from "../chat/thread.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { MagentaOptions } from "../options.ts";
+import type { Dispatch } from "../tea/tea.ts";
 import {
   d,
   type VDOMNode,
@@ -30,6 +33,10 @@ export type RenderContext = {
   cwd: NvimCwd;
   homeDir: HomeDir;
   options: MagentaOptions;
+  threadDispatch: Dispatch<{
+    type: "toggle-tool-result";
+    toolRequestId: ToolRequestId;
+  }>;
 };
 
 export function renderSummary(
@@ -110,12 +117,21 @@ export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
 export function renderResult(
   info: CompletedToolInfo,
   context: RenderContext,
-  expanded: boolean,
+  toolViewState: ToolViewState,
+  toolRequestId: ToolRequestId,
 ): VDOMNode | undefined {
-  if (!expanded) {
-    return renderResultPreview(info, context);
-  }
-  return renderResultDetail(info, context);
+  const expanded = toolViewState.resultExpanded;
+  const content = expanded
+    ? renderResultDetail(info, context)
+    : renderResultPreview(info, context);
+  if (!content) return undefined;
+  return withBindings(content, {
+    "<CR>": () =>
+      context.threadDispatch({
+        type: "toggle-tool-result",
+        toolRequestId,
+      }),
+  });
 }
 
 function renderResultPreview(

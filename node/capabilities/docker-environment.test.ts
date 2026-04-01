@@ -232,9 +232,7 @@ describe.skipIf(!dockerAvailable)("Docker Environment", () => {
       expect(toolNames).toContain("get_file");
       expect(toolNames).toContain("edl");
       expect(toolNames).toContain("bash_command");
-      expect(toolNames).toContain("spawn_subagent");
-      expect(toolNames).toContain("spawn_foreach");
-      expect(toolNames).toContain("wait_for_subagents");
+      expect(toolNames).toContain("spawn_subagents");
 
       // Should exclude LSP and diagnostics tools
       expect(toolNames).not.toContain("hover");

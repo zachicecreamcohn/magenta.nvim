@@ -2,7 +2,7 @@ import type { Position0Indexed } from "../nvim/window.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { MountedVDOM } from "./view.ts";
 
-export const BINDING_KEYS = ["<CR>", "t", "dd"] as const;
+export const BINDING_KEYS = ["<CR>", "t", "dd", "="] as const;
 
 export type BindingKey = (typeof BINDING_KEYS)[number];
 export type Bindings = Partial<{

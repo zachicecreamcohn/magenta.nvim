@@ -42,20 +42,6 @@ IMPORTANT: Never include exact copies of file contents or code snippets in your 
 - **A brief description** of what exists at each location and why it's relevant to the question
 - **A summary** that directly answers the question you were asked
 
-# Verifying Line Ranges
-
-CRITICAL: You are bad at counting lines. Before reporting line ranges in your yield, you MUST verify them using the edl tool's select command. This ensures the parent agent gets accurate locations.
-
-Example workflow:
-
-1. You find something interesting around line 55 in src/utils.ts
-2. Use edl to verify: `file `src/utils.ts`\nselect 55-60`
-3. The tool output shows you exactly what's on those lines
-4. Adjust the range if needed and report the verified range
-
-WRONG: Eyeball line numbers from get_file and report them directly
-RIGHT: Use edl select to confirm exact line ranges before yielding
-
 Format your findings clearly:
 
 ```

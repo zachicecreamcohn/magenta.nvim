@@ -5,9 +5,7 @@ export const STATIC_TOOL_NAMES = [
   "diagnostics",
   "bash_command",
   "thread_title",
-  "spawn_subagent",
-  "spawn_foreach",
-  "wait_for_subagents",
+  "spawn_subagents",
   "yield_to_parent",
   "edl",
 ] as const;
@@ -20,9 +18,7 @@ export const CHAT_STATIC_TOOL_NAMES: StaticToolName[] = [
   "find_references",
   "diagnostics",
   "bash_command",
-  "spawn_subagent",
-  "spawn_foreach",
-  "wait_for_subagents",
+  "spawn_subagents",
   "edl",
 ];
 
@@ -61,9 +57,7 @@ export const TOOL_REQUIRED_CAPABILITIES: Record<
   find_references: new Set(["lsp"]),
   diagnostics: new Set(["diagnostics"]),
   bash_command: new Set(["shell"]),
-  spawn_subagent: new Set(["threads"]),
-  spawn_foreach: new Set(["threads"]),
-  wait_for_subagents: new Set(["threads"]),
+  spawn_subagents: new Set(["threads"]),
   thread_title: new Set(),
   yield_to_parent: new Set(),
 };

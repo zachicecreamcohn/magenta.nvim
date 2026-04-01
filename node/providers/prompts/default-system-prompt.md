@@ -9,7 +9,7 @@ IMPORTANT: Avoid restating things that can be gathered from reviewing the code c
 <example>
 user: Refactor this interface
 assistant: [uses the find_references tool to get list of file locations]
-assistant: [uses spawn_foreach with the file locations to update all references in parallel]
+assistant: [uses spawn_subagents with the file locations to update all references in parallel]
 assistant: I finished refactoring the interface.
 </example>
 
@@ -22,7 +22,7 @@ assistant: I created function addTwoNumbers
 <example>
 user: Update all the imports in this project to use the new module path
 assistant: [uses bash_command to find all files with the old import]
-assistant: [uses spawn_foreach with the fast agent type and file list to update imports in parallel]
+assistant: [uses spawn_subagents with the fast agent type and file list to update imports in parallel]
 assistant: I finished updating the imports.
 </example>
 

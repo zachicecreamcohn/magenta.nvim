@@ -4,11 +4,10 @@ import * as Edl from "./edl.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as GetFile from "./getFile.ts";
 import * as Hover from "./hover.ts";
-import * as SpawnForeach from "./spawn-foreach.ts";
-import * as SpawnSubagent from "./spawn-subagent.ts";
+import * as SpawnSubagents from "./spawn-subagents.ts";
 import * as ThreadTitle from "./thread-title.ts";
 import type { StaticToolName } from "./tool-registry.ts";
-import * as WaitForSubagents from "./wait-for-subagents.ts";
+
 import * as YieldToParent from "./yield-to-parent.ts";
 
 export function validateInput(
@@ -37,12 +36,8 @@ export function validateInput(
       return BashCommand.validateInput(input);
     case "thread_title":
       return ThreadTitle.validateInput(input);
-    case "spawn_foreach":
-      return SpawnForeach.validateInput(input);
-    case "spawn_subagent":
-      return SpawnSubagent.validateInput(input);
-    case "wait_for_subagents":
-      return WaitForSubagents.validateInput(input);
+    case "spawn_subagents":
+      return SpawnSubagents.validateInput(input);
     case "yield_to_parent":
       return YieldToParent.validateInput(input);
     case "edl":

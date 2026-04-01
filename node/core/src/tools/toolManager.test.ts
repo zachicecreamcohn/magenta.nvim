@@ -51,7 +51,7 @@ describe("getToolSpecs capability filtering", () => {
     expect(names).toContain("get_file");
     expect(names).toContain("edl");
     expect(names).not.toContain("bash_command");
-    expect(names).not.toContain("spawn_subagent");
+    expect(names).not.toContain("spawn_subagents");
   });
 
   it("works with subagent thread type", () => {
@@ -76,6 +76,6 @@ describe("conductor thread type", () => {
     const rootNames = rootSpecs.map((s) => s.name);
     expect(conductorNames).toEqual(rootNames);
     expect(conductorNames).not.toContain("yield_to_parent");
-    expect(conductorNames).toContain("spawn_subagent");
+    expect(conductorNames).toContain("spawn_subagents");
   });
 });
