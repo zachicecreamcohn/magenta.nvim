@@ -4,7 +4,7 @@ import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Logger } from "../logger.ts";
 import type { ProviderOptions } from "../provider-options.ts";
-import type { AbsFilePath, NvimCwd } from "../utils/files.ts";
+import type { NvimCwd } from "../utils/files.ts";
 import {
   type AgentsMap,
   formatAgentsIntroduction,
@@ -35,7 +35,7 @@ describe("parseAgentFile", () => {
   });
 
   it("parses agent file with frontmatter and body", () => {
-    const agentFile = path.join(tmpDir, "test.md") as AbsFilePath;
+    const agentFile = path.join(tmpDir, "test.md");
     fs.writeFileSync(
       agentFile,
       `---
@@ -50,7 +50,6 @@ You are a test agent.`,
 
     const result = parseAgentFile(agentFile, { logger });
     expect(result).toEqual({
-      agentFile,
       name: "test-agent",
       description: "A test agent",
       systemPrompt: "# Test Agent\n\nYou are a test agent.",
@@ -60,7 +59,7 @@ You are a test agent.`,
   });
 
   it("extracts system_reminder from body", () => {
-    const agentFile = path.join(tmpDir, "reminder.md") as AbsFilePath;
+    const agentFile = path.join(tmpDir, "reminder.md");
     fs.writeFileSync(
       agentFile,
       `---
@@ -87,7 +86,7 @@ Always be concise.
   });
 
   it("parses fastModel boolean field", () => {
-    const agentFile = path.join(tmpDir, "fast.md") as AbsFilePath;
+    const agentFile = path.join(tmpDir, "fast.md");
     fs.writeFileSync(
       agentFile,
       `---
@@ -105,7 +104,7 @@ Fast prompt.`,
   });
 
   it("treats fastModel false correctly", () => {
-    const agentFile = path.join(tmpDir, "slow.md") as AbsFilePath;
+    const agentFile = path.join(tmpDir, "slow.md");
     fs.writeFileSync(
       agentFile,
       `---
@@ -123,7 +122,7 @@ Slow prompt.`,
   });
 
   it("returns undefined for missing frontmatter", () => {
-    const agentFile = path.join(tmpDir, "no-front.md") as AbsFilePath;
+    const agentFile = path.join(tmpDir, "no-front.md");
     fs.writeFileSync(agentFile, "# No frontmatter\n\nJust content.");
 
     const result = parseAgentFile(agentFile, { logger });
@@ -131,7 +130,7 @@ Slow prompt.`,
   });
 
   it("returns undefined for missing name", () => {
-    const agentFile = path.join(tmpDir, "no-name.md") as AbsFilePath;
+    const agentFile = path.join(tmpDir, "no-name.md");
     fs.writeFileSync(
       agentFile,
       `---
@@ -146,7 +145,7 @@ Content.`,
   });
 
   it("returns undefined for missing description", () => {
-    const agentFile = path.join(tmpDir, "no-desc.md") as AbsFilePath;
+    const agentFile = path.join(tmpDir, "no-desc.md");
     fs.writeFileSync(
       agentFile,
       `---
@@ -342,14 +341,13 @@ Prompt.`,
 
 describe("formatAgentsIntroduction", () => {
   it("returns empty string for no agents", () => {
-    const result = formatAgentsIntroduction({}, "/cwd" as NvimCwd);
+    const result = formatAgentsIntroduction({});
     expect(result).toBe("");
   });
 
   it("formats agent list", () => {
     const agents: AgentsMap = {
       explore: {
-        agentFile: "/cwd/agents/explore.md" as AbsFilePath,
         name: "explore",
         description: "Explore the codebase",
         systemPrompt: "prompt",
@@ -358,10 +356,9 @@ describe("formatAgentsIntroduction", () => {
       },
     };
 
-    const result = formatAgentsIntroduction(agents, "/cwd" as NvimCwd);
+    const result = formatAgentsIntroduction(agents);
     expect(result).toContain("Available Agents");
     expect(result).toContain("**explore**");
     expect(result).toContain("Explore the codebase");
-    expect(result).toContain("agents/explore.md");
   });
 });

@@ -52,7 +52,7 @@ export const COMPACT_SYSTEM_PROMPT =
 
 function getBaseSystemPrompt(
   type: ThreadType,
-  opts?: {
+  opts: {
     dockerContext?: DockerContext | undefined;
     subagentConfig?: SubagentConfig | undefined;
   },
@@ -60,7 +60,7 @@ function getBaseSystemPrompt(
   switch (type) {
     case "subagent":
       return (
-        opts?.subagentConfig?.systemPrompt ?? DEFAULT_SUBAGENT_SYSTEM_PROMPT
+        opts.subagentConfig?.systemPrompt ?? DEFAULT_SUBAGENT_SYSTEM_PROMPT
       );
     case "compact":
       return COMPACT_SYSTEM_PROMPT;
@@ -68,13 +68,13 @@ function getBaseSystemPrompt(
       return DEFAULT_SYSTEM_PROMPT;
     case "conductor": {
       const base = CONDUCTOR_SYSTEM_PROMPT;
-      if (opts?.dockerContext) {
+      if (opts.dockerContext) {
         return `${base}\n\n${CONDUCTOR_DOCKER_ADDENDUM}`;
       }
       return base;
     }
     case "docker_root": {
-      const branchInfo = opts?.dockerContext
+      const branchInfo = opts.dockerContext
         ? `\n\nYou are working on branch \`${opts.dockerContext.workerBranch}\` (forked from \`${opts.dockerContext.baseBranch}\`).`
         : "";
       return (

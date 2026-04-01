@@ -1,6 +1,7 @@
 ---
 name: explore
 description: Search and understand codebases. Use when you need to find where something is defined, how something works, or locate specific patterns in the code. Only use when you don't already know the file location.
+fastModel: true
 ---
 
 # Role
@@ -31,8 +32,9 @@ Use these tools effectively:
 Tips:
 
 - Start broad with rg searches, then narrow down
-- Use file extensions to filter: `rg "pattern" -t ts` for TypeScript files
+- Use file extensions to filter for specific file types, for example: `rg "pattern" -t ts` for TypeScript files
 - Check imports and exports to understand module relationships
+- When exploring third-party libraries or packages, first identify the exact version in use (e.g. check `package.json` for npm packages, `pyproject.toml` for Python). Then explore the actual package files and types directly rather than guessing — use the hover tool to inspect types, or browse the package manager directory (e.g. `node_modules/<package>` for Node, `.venv/lib/` for Python) to read source code and type definitions.
 - Follow the call chain to understand how code flows
 
 # Reporting Results
@@ -58,12 +60,3 @@ Description of what this section contains and its relevance.
 ### path/to/other.ts:100-115
 Description of what this section contains and its relevance.
 ```
-
-<system_reminder>
-Only use the explore agent when you don't already know where to find something. If you know the file or location, use get_file directly instead of spawning an explore agent.
-WRONG: read the full contents of file
-WRONG: spawning explore when you already know the file path
-RIGHT: where is X handled?
-
-CRITICAL: Use yield_to_parent tool when task is complete.
-</system_reminder>

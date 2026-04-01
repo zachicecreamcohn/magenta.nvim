@@ -4,10 +4,9 @@ import * as path from "node:path";
 
 import type { Logger } from "../logger.ts";
 import type { ProviderOptions } from "../provider-options.ts";
-import type { AbsFilePath, NvimCwd } from "../utils/files.ts";
+import type { NvimCwd } from "../utils/files.ts";
 
 export type AgentInfo = {
-  agentFile: AbsFilePath;
   name: string;
   description: string;
   systemPrompt: string;
@@ -49,7 +48,7 @@ export function loadAgents(context: {
           if (agentInfo) {
             if (agentInfo.name in agents) {
               context.logger.info(
-                `Agent "${agentInfo.name}" from ${agentFile} overrides agent from ${agents[agentInfo.name].agentFile}`,
+                `Agent "${agentInfo.name}" from ${agentFile} overrides existing agent`,
               );
             }
             agents[agentInfo.name] = agentInfo;
@@ -81,8 +80,8 @@ function findAgentFilesInDirectory(
     cwd: NvimCwd;
     logger: Logger;
   },
-): AbsFilePath[] {
-  const agentFiles: AbsFilePath[] = [];
+): string[] {
+  const agentFiles: string[] = [];
 
   try {
     const expandedDir = expandTilde(agentsDir);
@@ -118,7 +117,7 @@ function findAgentFilesInDirectory(
         continue;
       }
 
-      agentFiles.push(entryPath as AbsFilePath);
+      agentFiles.push(entryPath);
     }
   } catch (err) {
     context.logger.error(
@@ -130,7 +129,7 @@ function findAgentFilesInDirectory(
 }
 
 export function parseAgentFile(
-  agentFile: AbsFilePath,
+  agentFile: string,
   context: { logger: Logger },
 ): AgentInfo | undefined {
   const content = fs.readFileSync(agentFile, "utf8");
@@ -153,7 +152,6 @@ export function parseAgentFile(
   const { systemPrompt, systemReminder } = extractSystemReminder(body);
 
   return {
-    agentFile,
     name: frontmatter.name,
     description: frontmatter.description,
     systemPrompt,
@@ -227,36 +225,70 @@ function extractSystemReminder(body: string): {
   systemPrompt: string;
   systemReminder: string | undefined;
 } {
-  const reminderMatch = body.match(
-    /<system_reminder>\s*\n([\s\S]*?)\n\s*<\/system_reminder>/,
-  );
+  const openTag = "<system_reminder>";
+  const closeTag = "</system_reminder>";
 
-  if (!reminderMatch) {
+  const openIndices: number[] = [];
+  const closeIndices: number[] = [];
+
+  let searchFrom = 0;
+  while (true) {
+    const idx = body.indexOf(openTag, searchFrom);
+    if (idx === -1) break;
+    openIndices.push(idx);
+    searchFrom = idx + openTag.length;
+  }
+
+  searchFrom = 0;
+  while (true) {
+    const idx = body.indexOf(closeTag, searchFrom);
+    if (idx === -1) break;
+    closeIndices.push(idx);
+    searchFrom = idx + closeTag.length;
+  }
+
+  if (openIndices.length === 0) {
     return { systemPrompt: body, systemReminder: undefined };
   }
 
-  const systemReminder = reminderMatch[1].trim();
-  const systemPrompt = body
-    .replace(/<system_reminder>\s*\n[\s\S]*?\n\s*<\/system_reminder>/, "")
-    .trim();
+  if (openIndices.length > 1 || closeIndices.length > 1) {
+    return { systemPrompt: body, systemReminder: undefined };
+  }
 
-  return { systemPrompt, systemReminder };
+  const openIdx = openIndices[0];
+
+  if (closeIndices.length === 0) {
+    const reminderContent = body.slice(openIdx + openTag.length).trim();
+    const systemPrompt = body.slice(0, openIdx).trim();
+    return {
+      systemPrompt,
+      systemReminder: reminderContent || undefined,
+    };
+  }
+
+  const closeIdx = closeIndices[0];
+  if (closeIdx < openIdx) {
+    return { systemPrompt: body, systemReminder: undefined };
+  }
+
+  const reminderContent = body.slice(openIdx + openTag.length, closeIdx).trim();
+  const systemPrompt = (
+    body.slice(0, openIdx) + body.slice(closeIdx + closeTag.length)
+  ).trim();
+
+  return {
+    systemPrompt,
+    systemReminder: reminderContent || undefined,
+  };
 }
 
-export function formatAgentsIntroduction(
-  agents: AgentsMap,
-  cwd: NvimCwd,
-): string {
+export function formatAgentsIntroduction(agents: AgentsMap): string {
   if (Object.keys(agents).length === 0) {
     return "";
   }
 
   const agentsList = Object.values(agents)
-    .map((agent) => {
-      const relPath = path.relative(cwd, agent.agentFile);
-      const displayPath = relPath.startsWith("..") ? agent.agentFile : relPath;
-      return `- **${agent.name}** (\`${displayPath}\`): ${agent.description}`;
-    })
+    .map((agent) => `- ${agent.name}: ${agent.description}`)
     .join("\n");
 
   return `
