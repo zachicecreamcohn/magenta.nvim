@@ -29,9 +29,6 @@ ${EDL_REMINDER}
 ${EXPLORE_REMINDER}
 </system-reminder>`;
 
-const EXPLORE_VERIFY_REMINDER = `\
-You are bad at counting lines. Before yielding, you MUST verify line numbers using the edl tool's select command (e.g. \`file \\\`src/file.ts\\\`\\nselect 55-60\`).`;
-
 const SUBAGENT_REMINDER = `<system-reminder>
 ${SKILLS_REMINDER}
 ${BASH_REMINDER}
@@ -76,7 +73,6 @@ CRITICAL: You MUST write the summary to /summary.md using the edl tool.
 ${SKILLS_REMINDER}
 ${BASH_REMINDER}
 ${EDL_REMINDER}
-${EXPLORE_VERIFY_REMINDER}
 
 CRITICAL: Use yield_to_parent tool when task is complete.
 </system-reminder>`;

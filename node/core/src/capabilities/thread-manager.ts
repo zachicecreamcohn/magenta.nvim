@@ -22,7 +22,9 @@ export interface ThreadManager {
     dockerSpawnConfig?: DockerSpawnConfig;
   }): Promise<ThreadId>;
 
-  waitForThread(threadId: ThreadId): Promise<Result<string>>;
+  onThreadYielded(threadId: ThreadId, callback: () => void): void;
 
-  yieldResult(threadId: ThreadId, result: Result<string>): void;
+  getThreadResult(
+    threadId: ThreadId,
+  ): { status: "done"; result: Result<string> } | { status: "pending" };
 }

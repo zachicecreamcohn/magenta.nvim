@@ -38,7 +38,7 @@ export type RenderContext = {
   options: MagentaOptions;
   dispatch: Dispatch<RootMsg>;
   threadDispatch: Dispatch<ThreadMsg>;
-  chat?: Chat;
+  chat: Chat;
 };
 
 function isError(result: ProviderToolResult): boolean {

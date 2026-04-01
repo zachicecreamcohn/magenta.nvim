@@ -8,15 +8,45 @@ import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
 import * as SpawnSubagents from "./spawn-subagents.ts";
 
+type MockThreadManager = ThreadManager & {
+  simulateYield(threadId: ThreadId, result: Result<string>): void;
+};
+
 function createMockThreadManager(
   overrides: Partial<ThreadManager> = {},
-): ThreadManager {
-  return {
+): MockThreadManager {
+  const results = new Map<string, { status: "done"; result: Result<string> }>();
+  const callbacks = new Map<string, Array<() => void>>();
+
+  const manager: MockThreadManager = {
     spawnThread: vi.fn().mockResolvedValue("thread-1" as ThreadId),
-    waitForThread: vi.fn().mockResolvedValue({ status: "ok", value: "done" }),
-    yieldResult: vi.fn(),
+    onThreadYielded: vi.fn((threadId: ThreadId, callback: () => void) => {
+      let cbs = callbacks.get(threadId);
+      if (!cbs) {
+        cbs = [];
+        callbacks.set(threadId, cbs);
+      }
+      cbs.push(callback);
+      // If already yielded, fire immediately
+      if (results.has(threadId)) {
+        callback();
+      }
+    }),
+    getThreadResult: vi.fn((threadId: ThreadId) => {
+      return results.get(threadId) ?? { status: "pending" as const };
+    }),
+    simulateYield(threadId: ThreadId, result: Result<string>) {
+      results.set(threadId, { status: "done", result });
+      const cbs = callbacks.get(threadId);
+      if (cbs) {
+        for (const cb of cbs) {
+          cb();
+        }
+      }
+    },
     ...overrides,
   };
+  return manager;
 }
 
 function makeRequest(input: SpawnSubagents.Input): SpawnSubagents.ToolRequest {
@@ -39,12 +69,7 @@ async function getResultText(invocation: {
 
 describe("spawn-subagents unit tests", () => {
   it("single agent blocks and returns result", async () => {
-    const threadManager = createMockThreadManager({
-      waitForThread: vi.fn().mockResolvedValue({
-        status: "ok",
-        value: "the answer",
-      }),
-    });
+    const threadManager = createMockThreadManager();
 
     const invocation = SpawnSubagents.execute(
       makeRequest({ agents: [{ prompt: "do something" }] }),
@@ -56,19 +81,22 @@ describe("spawn-subagents unit tests", () => {
         cwd: "/test" as NvimCwd,
       },
     );
+
+    // Wait for spawn, then simulate yield
+    await vi.waitFor(() => {
+      expect(threadManager.spawnThread).toHaveBeenCalled();
+    });
+    threadManager.simulateYield("thread-1" as ThreadId, {
+      status: "ok",
+      value: "the answer",
+    });
 
     const text = await getResultText(invocation);
     expect(text).toContain("the answer");
-    expect(threadManager.waitForThread).toHaveBeenCalled();
   });
 
   it("single agent returns error when thread fails", async () => {
-    const threadManager = createMockThreadManager({
-      waitForThread: vi.fn().mockResolvedValue({
-        status: "error",
-        error: "crashed",
-      }),
-    });
+    const threadManager = createMockThreadManager();
 
     const invocation = SpawnSubagents.execute(
       makeRequest({ agents: [{ prompt: "do something" }] }),
@@ -80,6 +108,14 @@ describe("spawn-subagents unit tests", () => {
         cwd: "/test" as NvimCwd,
       },
     );
+
+    await vi.waitFor(() => {
+      expect(threadManager.spawnThread).toHaveBeenCalled();
+    });
+    threadManager.simulateYield("thread-1" as ThreadId, {
+      status: "error",
+      error: "crashed",
+    });
 
     const text = await getResultText(invocation);
     expect(text).toContain("crashed");
@@ -99,12 +135,21 @@ describe("spawn-subagents unit tests", () => {
       },
     );
 
-    await invocation.promise;
+    await vi.waitFor(() => {
+      expect(threadManager.spawnThread).toHaveBeenCalled();
+    });
+
     const state = invocation.progress.elements[0].state;
-    expect(state.status).toBe("completed");
-    if (state.status === "completed") {
+    expect(state.status).toBe("spawned");
+    if (state.status === "spawned") {
       expect(state.threadId).toBe("thread-1");
     }
+
+    threadManager.simulateYield("thread-1" as ThreadId, {
+      status: "ok",
+      value: "done",
+    });
+    await invocation.promise;
   });
 
   it("returns error when spawnThread throws", async () => {
@@ -168,12 +213,6 @@ describe("spawn-subagents unit tests", () => {
         callCount++;
         return Promise.resolve(`thread_${callCount}` as ThreadId);
       }),
-      waitForThread: vi.fn(() =>
-        Promise.resolve({
-          status: "ok" as const,
-          value: "element completed",
-        }),
-      ),
     });
 
     const invocation = SpawnSubagents.execute(
@@ -188,6 +227,18 @@ describe("spawn-subagents unit tests", () => {
         cwd: "/test" as NvimCwd,
       },
     );
+
+    await vi.waitFor(() => {
+      expect(threadManager.spawnThread).toHaveBeenCalledTimes(2);
+    });
+    threadManager.simulateYield("thread_1" as ThreadId, {
+      status: "ok",
+      value: "element completed",
+    });
+    threadManager.simulateYield("thread_2" as ThreadId, {
+      status: "ok",
+      value: "element completed",
+    });
 
     const text = await getResultText(invocation);
     expect(text).toContain("Total: 2");
@@ -202,15 +253,6 @@ describe("spawn-subagents unit tests", () => {
         callCount++;
         return Promise.resolve(`thread_${callCount}` as ThreadId);
       }),
-      waitForThread: vi.fn((threadId: ThreadId) => {
-        if (threadId === ("thread_1" as ThreadId)) {
-          return Promise.resolve({
-            status: "error" as const,
-            error: "something broke",
-          });
-        }
-        return Promise.resolve({ status: "ok" as const, value: "success" });
-      }),
     });
 
     const invocation = SpawnSubagents.execute(
@@ -226,6 +268,18 @@ describe("spawn-subagents unit tests", () => {
       },
     );
 
+    await vi.waitFor(() => {
+      expect(threadManager.spawnThread).toHaveBeenCalledTimes(2);
+    });
+    threadManager.simulateYield("thread_1" as ThreadId, {
+      status: "error",
+      error: "something broke",
+    });
+    threadManager.simulateYield("thread_2" as ThreadId, {
+      status: "ok",
+      value: "success",
+    });
+
     const text = await getResultText(invocation);
     expect(text).toContain("Successful: 1");
     expect(text).toContain("Failed: 1");
@@ -234,28 +288,26 @@ describe("spawn-subagents unit tests", () => {
   it("respects maxConcurrentSubagents", async () => {
     let concurrent = 0;
     let maxConcurrent = 0;
-    const deferreds: Array<{ resolve: (value: ThreadId) => void }> = [];
-    const waitDeferreds = new Map<
-      string,
-      { resolve: (value: Result<string>) => void }
-    >();
+    const spawnDeferreds: Array<{ resolve: (value: ThreadId) => void }> = [];
+    let spawnCount = 0;
 
     const threadManager = createMockThreadManager({
       spawnThread: vi.fn(() => {
         concurrent++;
+        spawnCount++;
         if (concurrent > maxConcurrent) {
           maxConcurrent = concurrent;
         }
+        const id = `thread_${spawnCount}` as ThreadId;
         return new Promise<ThreadId>((resolve) => {
-          deferreds.push({ resolve });
+          spawnDeferreds.push({
+            resolve: () => {
+              concurrent--;
+              resolve(id);
+            },
+          });
         });
       }),
-      waitForThread: vi.fn(
-        (threadId: ThreadId) =>
-          new Promise<Result<string>>((resolve) => {
-            waitDeferreds.set(threadId as string, { resolve });
-          }),
-      ),
     });
 
     const invocation = SpawnSubagents.execute(
@@ -275,25 +327,34 @@ describe("spawn-subagents unit tests", () => {
       },
     );
 
-    await vi.waitFor(() => expect(deferreds.length).toBe(2));
+    // Only 2 should be in flight at once
+    await vi.waitFor(() => expect(spawnDeferreds.length).toBe(2));
     expect(maxConcurrent).toBe(2);
 
-    concurrent--;
-    deferreds[0].resolve("thread_1" as ThreadId);
-    await vi.waitFor(() => expect(waitDeferreds.has("thread_1")).toBe(true));
-    waitDeferreds.get("thread_1")!.resolve({ status: "ok", value: "done1" });
+    // Resolve first spawn, which should allow 3rd to start
+    spawnDeferreds[0].resolve("thread_1" as ThreadId);
+    await vi.waitFor(() => expect(spawnDeferreds.length).toBe(3));
 
-    await vi.waitFor(() => expect(deferreds.length).toBe(3));
+    // Resolve remaining spawns
+    spawnDeferreds[1].resolve("thread_2" as ThreadId);
+    spawnDeferreds[2].resolve("thread_3" as ThreadId);
 
-    concurrent--;
-    deferreds[1].resolve("thread_2" as ThreadId);
-    await vi.waitFor(() => expect(waitDeferreds.has("thread_2")).toBe(true));
-    waitDeferreds.get("thread_2")!.resolve({ status: "ok", value: "done2" });
-
-    concurrent--;
-    deferreds[2].resolve("thread_3" as ThreadId);
-    await vi.waitFor(() => expect(waitDeferreds.has("thread_3")).toBe(true));
-    waitDeferreds.get("thread_3")!.resolve({ status: "ok", value: "done3" });
+    // Now all 3 are spawned, simulate yields
+    await vi.waitFor(() => {
+      expect(threadManager.spawnThread).toHaveBeenCalledTimes(3);
+    });
+    threadManager.simulateYield("thread_1" as ThreadId, {
+      status: "ok",
+      value: "done1",
+    });
+    threadManager.simulateYield("thread_2" as ThreadId, {
+      status: "ok",
+      value: "done2",
+    });
+    threadManager.simulateYield("thread_3" as ThreadId, {
+      status: "ok",
+      value: "done3",
+    });
 
     const { result } = await invocation.promise;
     expect(result.status).toBe("ok");
@@ -302,22 +363,12 @@ describe("spawn-subagents unit tests", () => {
 
   it("abort stops processing", async () => {
     const spawnDeferreds: Array<{ resolve: (value: ThreadId) => void }> = [];
-    const waitDeferreds = new Map<
-      string,
-      { resolve: (value: Result<string>) => void }
-    >();
 
     const threadManager = createMockThreadManager({
       spawnThread: vi.fn(
         () =>
           new Promise<ThreadId>((resolve) => {
             spawnDeferreds.push({ resolve });
-          }),
-      ),
-      waitForThread: vi.fn(
-        (threadId: ThreadId) =>
-          new Promise<Result<string>>((resolve) => {
-            waitDeferreds.set(threadId as string, { resolve });
           }),
       ),
     });
@@ -341,11 +392,6 @@ describe("spawn-subagents unit tests", () => {
     spawnDeferreds[0].resolve("thread_1" as ThreadId);
     spawnDeferreds[1].resolve("thread_2" as ThreadId);
 
-    await vi.waitFor(() => expect(waitDeferreds.has("thread_1")).toBe(true));
-    waitDeferreds.get("thread_1")!.resolve({ status: "ok", value: "done" });
-    await vi.waitFor(() => expect(waitDeferreds.has("thread_2")).toBe(true));
-    waitDeferreds.get("thread_2")!.resolve({ status: "ok", value: "done" });
-
     const { result } = await invocation.promise;
     expect(result.status).toBe("error");
     if (result.status === "error") {
@@ -357,9 +403,6 @@ describe("spawn-subagents unit tests", () => {
     const spawnThread = vi.fn(() => Promise.resolve("thread_1" as ThreadId));
     const threadManager = createMockThreadManager({
       spawnThread,
-      waitForThread: vi.fn(() =>
-        Promise.resolve({ status: "ok" as const, value: "done" }),
-      ),
     });
 
     const invocation = SpawnSubagents.execute(
@@ -379,6 +422,14 @@ describe("spawn-subagents unit tests", () => {
         cwd: "/test" as NvimCwd,
       },
     );
+
+    await vi.waitFor(() => {
+      expect(spawnThread).toHaveBeenCalled();
+    });
+    threadManager.simulateYield("thread_1" as ThreadId, {
+      status: "ok",
+      value: "done",
+    });
 
     await invocation.promise;
     expect(spawnThread).toHaveBeenCalledWith(
@@ -470,6 +521,14 @@ describe("spawn-subagents docker provisioning", () => {
       },
     );
 
+    await vi.waitFor(() => {
+      expect(threadManager.spawnThread).toHaveBeenCalled();
+    });
+    threadManager.simulateYield("thread-1" as ThreadId, {
+      status: "ok",
+      value: "done",
+    });
+
     await invocation.promise;
     expect(provision).toHaveBeenCalledWith(
       expect.objectContaining({ onProgress: expect.any(Function) }),
@@ -552,6 +611,14 @@ describe("spawn-subagents docker provisioning", () => {
       },
     );
 
+    await vi.waitFor(() => {
+      expect(threadManager.spawnThread).toHaveBeenCalled();
+    });
+    threadManager.simulateYield("thread-1" as ThreadId, {
+      status: "ok",
+      value: "done",
+    });
+
     await invocation.promise;
     expect(threadManager.spawnThread).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -609,9 +676,6 @@ describe("spawn-subagents docker provisioning", () => {
         callCount++;
         return Promise.resolve(`thread_${callCount}` as ThreadId);
       }),
-      waitForThread: vi.fn(() =>
-        Promise.resolve({ status: "ok" as const, value: "done" }),
-      ),
     });
 
     const invocation = SpawnSubagents.execute(
@@ -637,6 +701,18 @@ describe("spawn-subagents docker provisioning", () => {
         },
       },
     );
+
+    await vi.waitFor(() => {
+      expect(threadManager.spawnThread).toHaveBeenCalledTimes(2);
+    });
+    threadManager.simulateYield("thread_1" as ThreadId, {
+      status: "ok",
+      value: "done",
+    });
+    threadManager.simulateYield("thread_2" as ThreadId, {
+      status: "ok",
+      value: "done",
+    });
 
     const text = await getResultText(invocation);
     expect(text).toContain("Total: 2");

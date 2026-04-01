@@ -1,9 +1,9 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { ToolName, ToolRequestId } from "@magenta/core";
 import { describe, expect, it } from "vitest";
+import { LOGO } from "../chat/thread-view.ts";
 import { withDriver } from "../test/preamble.ts";
 import { pollUntil } from "../utils/async.ts";
-import { LOGO } from "../chat/thread-view.ts";
 
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
 
@@ -204,7 +204,7 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
       });
 
       // Verify both agents have completed
-      await driver.assertDisplayBufferContains("✅ 2/2 agents");
+      await driver.assertDisplayBufferContains("✅ 2 agents");
     });
   });
 
@@ -613,7 +613,7 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
       });
 
       // Verify spawn_subagents shows waiting state
-      await driver.assertDisplayBufferContains("🚀 spawn_subagents");
+      await driver.assertDisplayBufferContains("🤖 spawn_subagents");
 
       // The subagent should start running
       const subagentRequest =
@@ -708,8 +708,8 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
       await driver.assertDisplayBufferContains("✅ ");
       const thread2 = driver.getThreadId(1);
 
-      // Click on the result navigation link to navigate to the subagent thread
-      await driver.triggerDisplayBufferKeyOnContent("→", "<CR>");
+      // Click on the result row to navigate to the subagent thread
+      await driver.triggerDisplayBufferKeyOnContent("✅ Child thread", "<CR>");
 
       // Verify we navigated to the subagent thread
       await pollUntil(
@@ -772,9 +772,9 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
         expect(childStream.aborted).toBe(true);
 
         // Verify the child shows as aborted in the parent thread view
-        await driver.assertDisplayBufferContains("⏹️ stopped (aborted)");
-        // Verify the parent is still waiting (blocking spawn still pending)
-        await driver.assertDisplayBufferContains("🚀 spawn_subagents");
+        await driver.assertDisplayBufferContains("stopped (aborted)");
+        // Verify the parent is still waiting (spawn still pending)
+        await driver.assertDisplayBufferContains("🤖 spawn_subagents");
 
         // Resume the child: switch to it, send a message
         driver.magenta.chat.update({
@@ -894,7 +894,7 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
           expect(childStream.aborted).toBe(true);
 
           // Verify the child shows as aborted
-          await driver.assertDisplayBufferContains("⏹️ stopped (aborted)");
+          await driver.assertDisplayBufferContains("stopped (aborted)");
 
           // Resume the child
           driver.magenta.chat.update({

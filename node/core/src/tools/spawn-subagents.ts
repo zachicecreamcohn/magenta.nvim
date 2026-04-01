@@ -49,8 +49,8 @@ export type ToolRequest = GenericToolRequest<"spawn_subagents", Input>;
 export type SubagentElementProgress =
   | { status: "pending" }
   | { status: "provisioning"; message: string }
-  | { status: "running"; threadId: ThreadId }
-  | { status: "completed"; threadId?: ThreadId; result: Result<string> };
+  | { status: "spawned"; threadId: ThreadId }
+  | { status: "spawn-error"; error: string };
 
 export type SpawnSubagentsProgress = {
   elements: Array<{
@@ -100,7 +100,7 @@ export function execute(
 
   const abortController = { aborted: false };
 
-  const processEntry = async (
+  const spawnEntry = async (
     element: SpawnSubagentsProgress["elements"][0],
   ): Promise<void> => {
     if (abortController.aborted) return;
@@ -112,7 +112,7 @@ export function execute(
         entry.agentType === "docker" ||
         entry.agentType === "docker_unsupervised"
       ) {
-        await processDockerEntry(element, entry, context, progress);
+        await spawnDockerEntry(element, entry, context);
         return;
       }
 
@@ -123,9 +123,6 @@ export function execute(
             ? "subagent_explore"
             : "subagent_default";
 
-      element.state = { status: "running", threadId: "" as ThreadId };
-      context.requestRender();
-
       const threadId = await context.threadManager.spawnThread({
         parentThreadId: context.threadId,
         prompt: entry.prompt,
@@ -133,39 +130,27 @@ export function execute(
         ...(entry.contextFiles ? { contextFiles: entry.contextFiles } : {}),
       });
 
-      element.state = { status: "running", threadId };
-      context.requestRender();
-
-      const result = await context.threadManager.waitForThread(threadId);
-
-      element.state = { status: "completed", threadId, result };
+      element.state = { status: "spawned", threadId };
       context.requestRender();
     } catch (e) {
       element.state = {
-        status: "completed",
-        result: {
-          status: "error",
-          error: e instanceof Error ? e.message : String(e),
-        },
+        status: "spawn-error",
+        error: e instanceof Error ? e.message : String(e),
       };
       context.requestRender();
     }
   };
 
-  const processDockerEntry = async (
+  const spawnDockerEntry = async (
     element: SpawnSubagentsProgress["elements"][0],
     entry: SubagentEntry,
     ctx: typeof context,
-    _progress: SpawnSubagentsProgress,
   ): Promise<void> => {
     if (!entry.branch) {
       element.state = {
-        status: "completed",
-        result: {
-          status: "error",
-          error:
-            "branch parameter is required when agentType is 'docker' or 'docker_unsupervised'",
-        },
+        status: "spawn-error",
+        error:
+          "branch parameter is required when agentType is 'docker' or 'docker_unsupervised'",
       };
       ctx.requestRender();
       return;
@@ -173,12 +158,9 @@ export function execute(
 
     if (!ctx.containerProvisioner) {
       element.state = {
-        status: "completed",
-        result: {
-          status: "error",
-          error:
-            "Docker environment is not configured. Set options.container in your magenta config.",
-        },
+        status: "spawn-error",
+        error:
+          "Docker environment is not configured. Set options.container in your magenta config.",
       };
       ctx.requestRender();
       return;
@@ -216,12 +198,7 @@ export function execute(
       },
     });
 
-    element.state = { status: "running", threadId };
-    ctx.requestRender();
-
-    const result = await ctx.threadManager.waitForThread(threadId);
-
-    element.state = { status: "completed", threadId, result };
+    element.state = { status: "spawned", threadId };
     ctx.requestRender();
   };
 
@@ -229,7 +206,7 @@ export function execute(
     try {
       const maxConcurrent = context.maxConcurrentSubagents;
 
-      // Slot-based concurrency: start next element as soon as any slot opens
+      // Phase 1: Spawn all threads with concurrency control
       let nextIdx = 0;
       const inFlight = new Set<Promise<void>>();
 
@@ -237,13 +214,12 @@ export function execute(
         if (nextIdx >= progress.elements.length || abortController.aborted)
           return;
         const element = progress.elements[nextIdx++];
-        const p = processEntry(element).then(() => {
+        const p = spawnEntry(element).then(() => {
           inFlight.delete(p);
         });
         inFlight.add(p);
       };
 
-      // Fill initial slots
       while (
         nextIdx < progress.elements.length &&
         inFlight.size < maxConcurrent
@@ -251,7 +227,6 @@ export function execute(
         startNext();
       }
 
-      // As each completes, start the next
       while (inFlight.size > 0) {
         await Promise.race(inFlight);
         if (!abortController.aborted) {
@@ -270,7 +245,59 @@ export function execute(
         };
       }
 
-      return buildResult(request.id, progress);
+      // Phase 2: Wait for all spawned threads to yield
+      const spawnedElements = progress.elements.filter(
+        (
+          el,
+        ): el is typeof el & {
+          state: { status: "spawned"; threadId: ThreadId };
+        } => el.state.status === "spawned",
+      );
+
+      if (spawnedElements.length === 0) {
+        return buildResult(request.id, progress, context.threadManager);
+      }
+
+      await new Promise<void>((resolve) => {
+        const checkAllYielded = () => {
+          if (abortController.aborted) {
+            resolve();
+            return;
+          }
+          const allDone = spawnedElements.every((el) => {
+            const result = context.threadManager.getThreadResult(
+              el.state.threadId,
+            );
+            return result.status === "done";
+          });
+          if (allDone) {
+            resolve();
+          }
+        };
+
+        for (const el of spawnedElements) {
+          context.threadManager.onThreadYielded(
+            el.state.threadId,
+            checkAllYielded,
+          );
+        }
+
+        // Check immediately in case all threads already yielded
+        checkAllYielded();
+      });
+
+      if (abortController.aborted) {
+        return {
+          type: "tool_result",
+          id: request.id,
+          result: {
+            status: "error",
+            error: "Sub-agent execution was aborted",
+          },
+        };
+      }
+
+      return buildResult(request.id, progress, context.threadManager);
     } catch (e) {
       return {
         type: "tool_result",
@@ -295,47 +322,75 @@ export function execute(
 function buildResult(
   requestId: ToolRequest["id"],
   progress: SpawnSubagentsProgress,
+  threadManager: ThreadManager,
 ): ProviderToolResult {
-  const completedElements = progress.elements.filter(
-    (el) => el.state.status === "completed",
-  );
-  const successful = completedElements.filter(
-    (el) => el.state.status === "completed" && el.state.result.status === "ok",
-  );
-  const failed = completedElements.filter(
-    (el) =>
-      el.state.status === "completed" && el.state.result.status === "error",
-  );
-
   const agents: StructuredResult["agents"] = [];
+  let successCount = 0;
+  let failCount = 0;
 
   let resultText = "All sub-agents completed:\n\n";
-  resultText += `Total: ${progress.elements.length}\n`;
-  resultText += `Successful: ${successful.length}\n`;
-  resultText += `Failed: ${failed.length}\n\n`;
 
-  for (const item of completedElements) {
-    if (item.state.status !== "completed") continue;
-
+  for (const item of progress.elements) {
     const truncatedPrompt = truncatePrompt(item.entry.prompt);
 
-    if (item.state.result.status === "ok") {
-      resultText += `✅ ${truncatedPrompt}:\n${item.state.result.value}\n\n`;
+    if (item.state.status === "spawn-error") {
+      failCount++;
+      resultText += `❌ ${truncatedPrompt}:\n${item.state.error}\n\n`;
       agents.push({
         prompt: item.entry.prompt,
-        ...(item.state.threadId ? { threadId: item.state.threadId } : {}),
+        ok: false,
+      });
+      continue;
+    }
+
+    if (item.state.status !== "spawned") {
+      failCount++;
+      resultText += `❌ ${truncatedPrompt}:\nnever spawned\n\n`;
+      agents.push({
+        prompt: item.entry.prompt,
+        ok: false,
+      });
+      continue;
+    }
+
+    const threadResult = threadManager.getThreadResult(item.state.threadId);
+    if (threadResult.status === "pending") {
+      failCount++;
+      resultText += `❌ ${truncatedPrompt}:\nthread did not complete\n\n`;
+      agents.push({
+        prompt: item.entry.prompt,
+        threadId: item.state.threadId,
+        ok: false,
+      });
+      continue;
+    }
+
+    const result = threadResult.result;
+    if (result.status === "ok") {
+      successCount++;
+      resultText += `✅ ${truncatedPrompt}:\n${result.value}\n\n`;
+      agents.push({
+        prompt: item.entry.prompt,
+        threadId: item.state.threadId,
         ok: true,
-        responseBody: item.state.result.value,
+        responseBody: result.value,
       });
     } else {
-      resultText += `❌ ${truncatedPrompt}:\n${item.state.result.error}\n\n`;
+      failCount++;
+      resultText += `❌ ${truncatedPrompt}:\n${result.error}\n\n`;
       agents.push({
         prompt: item.entry.prompt,
-        ...(item.state.threadId ? { threadId: item.state.threadId } : {}),
+        threadId: item.state.threadId,
         ok: false,
       });
     }
   }
+
+  const totalLine = `Total: ${progress.elements.length}\nSuccessful: ${successCount}\nFailed: ${failCount}\n\n`;
+  resultText =
+    resultText.slice(0, "All sub-agents completed:\n\n".length) +
+    totalLine +
+    resultText.slice("All sub-agents completed:\n\n".length);
 
   return {
     type: "tool_result",

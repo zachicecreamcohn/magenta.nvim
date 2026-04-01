@@ -2,6 +2,7 @@ import type {
   CompletedToolInfo,
   DisplayContext,
   SpawnSubagents,
+  ThreadId,
   ToolRequestId,
   ToolRequest as UnionToolRequest,
 } from "@magenta/core";
@@ -14,6 +15,7 @@ import { d, type VDOMNode, withBindings } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 
 type Input = SpawnSubagents.Input;
+type SubagentEntry = SpawnSubagents.SubagentEntry;
 
 function truncate(text: string, maxLen: number = 50): string {
   const singleLine = text.replace(/\n/g, " ");
@@ -22,22 +24,137 @@ function truncate(text: string, maxLen: number = 50): string {
     : singleLine;
 }
 
+function agentTypeLabel(entry: SubagentEntry): string {
+  const t = entry.agentType;
+  if (!t || t === "default") return "";
+  return ` (${t})`;
+}
+
+type AgentRowRenderInfo = {
+  entry: SubagentEntry;
+  statusIcon: string;
+  statusDetail?: string | undefined;
+  threadId?: ThreadId | undefined;
+  pendingApprovals?: VDOMNode | undefined;
+};
+
+function resolveAgentRowFromProgress(
+  element: SpawnSubagents.SpawnSubagentsProgress["elements"][0],
+  chat: Chat,
+): AgentRowRenderInfo {
+  const entry = element.entry;
+
+  switch (element.state.status) {
+    case "pending":
+      return { entry, statusIcon: "⏸️" };
+    case "provisioning":
+      return { entry, statusIcon: "🐳", statusDetail: element.state.message };
+    case "spawn-error":
+      return { entry, statusIcon: "❌", statusDetail: element.state.error };
+    case "spawned":
+      return resolveAgentRowFromThread(entry, element.state.threadId, chat);
+    default:
+      assertUnreachable(element.state);
+  }
+}
+
+function resolveAgentRowFromThread(
+  entry: SubagentEntry,
+  threadId: ThreadId,
+  chat: Chat,
+): AgentRowRenderInfo {
+  const summary = chat.getThreadSummary(threadId);
+  let statusIcon: string;
+  let statusDetail: string | undefined;
+
+  switch (summary.status.type) {
+    case "missing":
+      statusIcon = "❓";
+      statusDetail = "not found";
+      break;
+    case "pending":
+      statusIcon = "⏳";
+      statusDetail = "initializing";
+      break;
+    case "running":
+      statusIcon = "⏳";
+      statusDetail = summary.status.activity;
+      break;
+    case "stopped":
+      statusIcon = "⏹️";
+      statusDetail = `stopped (${summary.status.reason})`;
+      break;
+    case "yielded": {
+      const lineCount = summary.status.response.split("\n").length;
+      statusIcon = "✅";
+      statusDetail = `${lineCount.toString()} lines`;
+      break;
+    }
+    case "error": {
+      statusIcon = "❌";
+      statusDetail =
+        summary.status.message.length > 50
+          ? `${summary.status.message.substring(0, 47)}...`
+          : summary.status.message;
+      break;
+    }
+    default:
+      assertUnreachable(summary.status);
+  }
+
+  const pendingApprovals = renderPendingApprovals(chat, threadId);
+  return { entry, statusIcon, statusDetail, threadId, pendingApprovals };
+}
+
+function resolveAgentRowFromResult(
+  agent: SpawnSubagents.StructuredResult["agents"][0],
+  entry: SubagentEntry,
+  chat: Chat,
+): AgentRowRenderInfo {
+  if (agent.threadId) {
+    return resolveAgentRowFromThread(entry, agent.threadId, chat);
+  }
+
+  const statusIcon = agent.ok ? "✅" : "❌";
+  const statusDetail = agent.responseBody
+    ? `${agent.responseBody.split("\n").length.toString()} lines`
+    : undefined;
+  return { entry, statusIcon, statusDetail, threadId: agent.threadId };
+}
+
+function renderAgentRowContent(info: AgentRowRenderInfo): VDOMNode {
+  const label = truncate(info.entry.prompt);
+  const typeLabel = agentTypeLabel(info.entry);
+  const detail = info.statusDetail ? `: ${info.statusDetail}` : "";
+  const content = d`${info.statusIcon}${typeLabel} ${label}${detail}`;
+
+  return info.pendingApprovals
+    ? d`${content}\n${info.pendingApprovals}`
+    : content;
+}
+
+function threadBindings(
+  info: AgentRowRenderInfo,
+  dispatch: Dispatch<RootMsg>,
+): Record<string, () => void> {
+  if (!info.threadId) return {};
+  const threadId = info.threadId;
+  return {
+    "<CR>": () =>
+      dispatch({
+        type: "chat-msg",
+        msg: { type: "select-thread", id: threadId },
+      }),
+  };
+}
+
 export function renderSummary(
   request: UnionToolRequest,
   _displayContext: DisplayContext,
 ): VDOMNode {
   const input = request.input as Input;
   const count = input.agents?.length ?? 0;
-  if (count === 1) {
-    const agent = input.agents[0];
-    const agentType = agent.agentType;
-    const isDocker =
-      agentType === "docker" || agentType === "docker_unsupervised";
-    const typeLabel =
-      agentType && agentType !== "default" ? ` (${agentType})` : "";
-    return d`${isDocker ? "🐳" : "🚀"} spawn_subagents${typeLabel}: ${truncate(agent.prompt)}`;
-  }
-  return d`🤖 spawn_subagents: ${count.toString()} agents`;
+  return d`🤖 spawn_subagents: ${count.toString()} agent${count === 1 ? "" : "s"}`;
 }
 
 export function renderInput(
@@ -53,171 +170,24 @@ export function renderProgress(
   progress: SpawnSubagents.SpawnSubagentsProgress | undefined,
   context: {
     dispatch: Dispatch<RootMsg>;
-    chat?: Chat;
+    chat: Chat;
   },
   _expanded: boolean,
 ): VDOMNode | undefined {
-  if (!context.chat || !progress || progress.elements.length === 0) {
+  if (!progress || progress.elements.length === 0) {
     return undefined;
   }
 
-  // Single-agent case: show detailed status like old spawn_subagent
-  if (progress.elements.length === 1) {
-    const element = progress.elements[0];
-    return renderSingleAgentProgress(element, context);
-  }
+  const rows = progress.elements.map((element) => {
+    const info = resolveAgentRowFromProgress(element, context.chat);
+    const row = renderAgentRowContent(info);
+    const bindings = threadBindings(info, context.dispatch);
+    return Object.keys(bindings).length > 0
+      ? withBindings(d`${row}\n`, bindings)
+      : d`${row}\n`;
+  });
 
-  // Multi-agent case: show list like old spawn_foreach
-  const elementViews = progress.elements.map((element) =>
-    renderElementProgress(element, context),
-  );
-
-  return d`${elementViews}`;
-}
-
-function renderSingleAgentProgress(
-  element: SpawnSubagents.SpawnSubagentsProgress["elements"][0],
-  context: {
-    dispatch: Dispatch<RootMsg>;
-    chat?: Chat;
-  },
-): VDOMNode | undefined {
-  switch (element.state.status) {
-    case "pending":
-      return undefined;
-    case "provisioning":
-      return d`🐳 ${element.state.message}`;
-    case "running": {
-      if (!element.state.threadId || !context.chat) return undefined;
-      const threadId = element.state.threadId;
-      const summary = context.chat.getThreadSummary(threadId);
-      const displayName = context.chat.getThreadDisplayName(threadId);
-
-      let statusText: string;
-      switch (summary.status.type) {
-        case "missing":
-          statusText = "❓ not found";
-          break;
-        case "pending":
-          statusText = "⏳ initializing";
-          break;
-        case "running":
-          statusText = `⏳ ${summary.status.activity}`;
-          break;
-        case "stopped":
-          statusText = `⏹️ stopped (${summary.status.reason})`;
-          break;
-        case "yielded": {
-          const lineCount = summary.status.response.split("\n").length;
-          statusText = `✅ ${lineCount.toString()} lines`;
-          break;
-        }
-        case "error": {
-          const truncatedError =
-            summary.status.message.length > 50
-              ? `${summary.status.message.substring(0, 47)}...`
-              : summary.status.message;
-          statusText = `❌ error: ${truncatedError}`;
-          break;
-        }
-        default:
-          return assertUnreachable(summary.status);
-      }
-
-      const pendingApprovals = renderPendingApprovals(context.chat, threadId);
-      return withBindings(
-        d`${displayName}: ${statusText}${pendingApprovals ? d`${pendingApprovals}` : d``}`,
-        {
-          "<CR>": () =>
-            context.dispatch({
-              type: "chat-msg",
-              msg: { type: "select-thread", id: threadId },
-            }),
-        },
-      );
-    }
-    case "completed":
-      return undefined;
-    default:
-      return assertUnreachable(element.state);
-  }
-}
-
-function renderElementProgress(
-  element: SpawnSubagents.SpawnSubagentsProgress["elements"][0],
-  context: {
-    dispatch: Dispatch<RootMsg>;
-    chat?: Chat;
-  },
-): VDOMNode {
-  const label = truncate(element.entry.prompt);
-
-  switch (element.state.status) {
-    case "pending":
-      return d`  ⏸️ ${label}\n`;
-    case "provisioning":
-      return d`  🐳 ${label}\n`;
-    case "running": {
-      if (!element.state.threadId || !context.chat) {
-        return d`  🚀 ${label}\n`;
-      }
-      const summary = context.chat.getThreadSummary(element.state.threadId);
-      let statusIcon: string;
-      switch (summary.status.type) {
-        case "missing":
-          statusIcon = "❓";
-          break;
-        case "pending":
-          statusIcon = "⏳";
-          break;
-        case "running":
-          statusIcon = "⏳";
-          break;
-        case "stopped":
-          statusIcon = "⏹️";
-          break;
-        case "yielded":
-          statusIcon = "✅";
-          break;
-        case "error":
-          statusIcon = "❌";
-          break;
-        default:
-          return assertUnreachable(summary.status);
-      }
-      const pendingApprovals = renderPendingApprovals(
-        context.chat,
-        element.state.threadId,
-      );
-      const threadId = element.state.threadId;
-      return withBindings(
-        d`  ${statusIcon} ${label}\n${pendingApprovals ? d`${pendingApprovals}` : d``}`,
-        {
-          "<CR>": () =>
-            context.dispatch({
-              type: "chat-msg",
-              msg: { type: "select-thread", id: threadId },
-            }),
-        },
-      );
-    }
-    case "completed": {
-      const status = element.state.result.status === "ok" ? "✅" : "❌";
-      if (element.state.threadId) {
-        const threadId = element.state.threadId;
-        return withBindings(d`  ${status} ${label}\n`, {
-          "<CR>": () =>
-            context.dispatch({
-              type: "chat-msg",
-              msg: { type: "select-thread", id: threadId },
-            }),
-        });
-      }
-      return d`  ${status} ${label}\n`;
-    }
-    default:
-      return assertUnreachable(element.state);
-  }
+  return d`${rows}`;
 }
 
 export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
@@ -233,21 +203,7 @@ export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
     return d`${errorPreview}`;
   }
 
-  if (
-    totalAgents === 1 &&
-    info.structuredResult.toolName === "spawn_subagents"
-  ) {
-    const sr = info.structuredResult as SpawnSubagents.StructuredResult;
-    const agent = sr.agents[0];
-    if (agent) {
-      const lineInfo = agent.responseBody
-        ? `${agent.responseBody.split("\n").length.toString()} lines`
-        : undefined;
-      return lineInfo ? d`${lineInfo}` : d``;
-    }
-  }
-
-  return d`${totalAgents.toString()}/${totalAgents.toString()} agents`;
+  return d`${totalAgents.toString()} agent${totalAgents === 1 ? "" : "s"}`;
 }
 
 export function renderResult(
@@ -255,7 +211,7 @@ export function renderResult(
   context: {
     dispatch: Dispatch<RootMsg>;
     threadDispatch: Dispatch<ThreadMsg>;
-    chat?: Chat;
+    chat: Chat;
   },
   toolViewState: ToolViewState,
   toolRequestId: ToolRequestId,
@@ -273,145 +229,28 @@ export function renderResult(
   if (info.structuredResult.toolName !== "spawn_subagents") return undefined;
   const sr = info.structuredResult as SpawnSubagents.StructuredResult;
 
-  // Single agent case
-  if (sr.agents.length === 1) {
-    return renderSingleAgentResult(
-      sr.agents[0],
-      input.agents[0],
-      toolViewState,
-      toolRequestId,
-      context,
-    );
-  }
-
-  // Multi-agent case: each agent line has its own bindings
-  const elementViews = sr.agents.map((agent, idx) => {
+  const rows = sr.agents.map((agent, idx) => {
+    const entry = input.agents[idx] ?? { prompt: agent.prompt };
     const agentKey = String(idx);
     const itemExpanded = toolViewState.resultItemExpanded?.[agentKey] || false;
-    return renderAgentResultLine(
-      agent,
-      agentKey,
-      itemExpanded,
-      toolRequestId,
-      context,
-    );
-  });
-  return d`${elementViews}`;
-}
+    const rowInfo = resolveAgentRowFromResult(agent, entry, context.chat);
+    const row = renderAgentRowContent(rowInfo);
 
-function renderSingleAgentResult(
-  agent: SpawnSubagents.StructuredResult["agents"][0],
-  inputAgent: Input["agents"][0],
-  toolViewState: ToolViewState,
-  toolRequestId: ToolRequestId,
-  context: {
-    dispatch: Dispatch<RootMsg>;
-    threadDispatch: Dispatch<ThreadMsg>;
-    chat?: Chat;
-  },
-): VDOMNode | undefined {
-  const threadId = agent.threadId;
-  const itemExpanded = toolViewState.resultItemExpanded?.["0"] || false;
+    const expandedContent =
+      itemExpanded && agent.responseBody
+        ? d`${row}\n${agent.responseBody}`
+        : row;
 
-  if (!itemExpanded) {
-    const lineInfo = agent.responseBody
-      ? `${agent.responseBody.split("\n").length.toString()} lines`
-      : undefined;
-    const displayName =
-      threadId && context.chat
-        ? context.chat.getThreadDisplayName(threadId)
-        : undefined;
-    const label = displayName
-      ? d`→ ${displayName}${lineInfo ? ` (${lineInfo})` : ""}`
-      : lineInfo
-        ? d`${lineInfo}`
-        : threadId
-          ? d`→ ${threadId}`
-          : undefined;
-
-    if (!label) return undefined;
-
-    return withBindings(label, {
-      ...(threadId
-        ? {
-            "<CR>": () =>
-              context.dispatch({
-                type: "chat-msg",
-                msg: { type: "select-thread", id: threadId },
-              }),
-          }
-        : {}),
+    return withBindings(d`${expandedContent}\n`, {
+      ...threadBindings(rowInfo, context.dispatch),
       "=": () =>
         context.threadDispatch({
           type: "toggle-tool-result-item",
           toolRequestId,
-          itemKey: "0",
+          itemKey: agentKey,
         }),
     });
-  }
-
-  const promptSection = d`**Prompt:**\n${inputAgent.prompt}`;
-  const content = agent.responseBody
-    ? d`${promptSection}\n\n**Response:**\n${agent.responseBody}`
-    : d`${promptSection}`;
-
-  return withBindings(content, {
-    ...(threadId
-      ? {
-          "<CR>": () =>
-            context.dispatch({
-              type: "chat-msg",
-              msg: { type: "select-thread", id: threadId },
-            }),
-        }
-      : {}),
-    "=": () =>
-      context.threadDispatch({
-        type: "toggle-tool-result-item",
-        toolRequestId,
-        itemKey: "0",
-      }),
   });
-}
 
-function renderAgentResultLine(
-  agent: SpawnSubagents.StructuredResult["agents"][0],
-  agentKey: string,
-  itemExpanded: boolean,
-  toolRequestId: ToolRequestId,
-  context: {
-    dispatch: Dispatch<RootMsg>;
-    threadDispatch: Dispatch<ThreadMsg>;
-    chat?: Chat;
-  },
-): VDOMNode {
-  const status = agent.ok ? "✅" : "❌";
-  const label = truncate(agent.prompt);
-
-  const bindings: Record<string, () => void> = {
-    "=": () =>
-      context.threadDispatch({
-        type: "toggle-tool-result-item",
-        toolRequestId,
-        itemKey: agentKey,
-      }),
-  };
-
-  if (agent.threadId) {
-    const threadId = agent.threadId;
-    bindings["<CR>"] = () =>
-      context.dispatch({
-        type: "chat-msg",
-        msg: { type: "select-thread", id: threadId },
-      });
-  }
-
-  if (itemExpanded && agent.responseBody) {
-    return withBindings(
-      d`  ${status} ${label}\n${agent.responseBody}\n`,
-      bindings,
-    );
-  }
-
-  return withBindings(d`  ${status} ${label}\n`, bindings);
+  return d`${rows}`;
 }

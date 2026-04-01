@@ -91,8 +91,8 @@ it("navigates to spawned subagent thread when pressing Enter on completed summar
       ],
     });
 
-    // Navigate to the subagent thread by pressing Enter on the completed summary
-    await driver.triggerDisplayBufferKeyOnContent("→", "<CR>");
+    // Navigate to the subagent thread by pressing Enter on the completed result row
+    await driver.triggerDisplayBufferKeyOnContent("✅ Do the task", "<CR>");
 
     await pollUntil(
       () => driver.magenta.chat.getActiveThread().id !== parentThreadId,
@@ -466,9 +466,10 @@ describe("foreach-style parallel agents", () => {
           await driver.mockAnthropic.awaitPendingStreamWithText("element2");
         const subagent3Stream =
           await driver.mockAnthropic.awaitPendingStreamWithText("element3");
+        const subagent4Stream =
+          await driver.mockAnthropic.awaitPendingStreamWithText("element4");
 
         await driver.assertDisplayBufferContains("🤖 spawn_subagents");
-        await driver.assertDisplayBufferContains("⏸️ Process element4");
 
         subagent1Stream.respond({
           stopReason: "tool_use",
@@ -486,9 +487,6 @@ describe("foreach-style parallel agents", () => {
         });
 
         await driver.assertDisplayBufferContains("✅ Process element1");
-
-        const subagent4Stream =
-          await driver.mockAnthropic.awaitPendingStreamWithText("element4");
 
         subagent2Stream.respond({
           stopReason: "tool_use",
@@ -535,7 +533,7 @@ describe("foreach-style parallel agents", () => {
           ],
         });
 
-        await driver.assertDisplayBufferContains("✅ 4/4 agents");
+        await driver.assertDisplayBufferContains("✅ 4 agents");
 
         const parentStream =
           await driver.mockAnthropic.awaitPendingStreamWithText(
@@ -700,7 +698,7 @@ describe("foreach-style parallel agents", () => {
           ],
         });
 
-        await driver.assertDisplayBufferContains("✅ 2/2 agents");
+        await driver.assertDisplayBufferContains("✅ 2 agents");
 
         const parentStream =
           await driver.mockAnthropic.awaitPendingStreamWithText(
@@ -773,7 +771,7 @@ describe("per-agent expansion", () => {
       });
 
       // Wait for result to appear
-      await driver.assertDisplayBufferContains("→");
+      await driver.assertDisplayBufferContains("✅ Do a task");
 
       // Verify yielded text is NOT shown initially
       const displayBuffer = driver.getDisplayBuffer();
@@ -785,7 +783,7 @@ describe("per-agent expansion", () => {
       expect(contentBefore).not.toContain("The answer is 42");
 
       // Press = to expand the agent detail
-      await driver.triggerDisplayBufferKeyOnContent("→", "=");
+      await driver.triggerDisplayBufferKeyOnContent("✅ Do a task", "=");
 
       // Verify yielded text IS shown after expansion
       await driver.assertDisplayBufferContains("The answer is 42");
