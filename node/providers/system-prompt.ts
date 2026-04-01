@@ -1,15 +1,14 @@
 import { platform } from "node:os";
 import {
-  AGENT_TYPES,
   COMPACT_SYSTEM_PROMPT,
   CONDUCTOR_SYSTEM_PROMPT,
   createSystemPrompt as coreCreateSystemPrompt,
   DEFAULT_SUBAGENT_SYSTEM_PROMPT,
   DEFAULT_SYSTEM_PROMPT,
   type DockerContext,
-  EXPLORE_SUBAGENT_SYSTEM_PROMPT,
   type NvimCwd,
   type ProviderOptions,
+  type SubagentConfig,
   type SystemInfo,
   type SystemPrompt,
   type ThreadType,
@@ -17,15 +16,13 @@ import {
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 
 export {
-  AGENT_TYPES,
   DEFAULT_SYSTEM_PROMPT,
   DEFAULT_SUBAGENT_SYSTEM_PROMPT,
-  EXPLORE_SUBAGENT_SYSTEM_PROMPT,
   COMPACT_SYSTEM_PROMPT,
   CONDUCTOR_SYSTEM_PROMPT,
 };
 
-export type { AgentType, SystemInfo, SystemPrompt } from "@magenta/core";
+export type { SystemInfo, SystemPrompt } from "@magenta/core";
 
 export async function createSystemPrompt(
   type: ThreadType,
@@ -35,6 +32,7 @@ export async function createSystemPrompt(
     options: ProviderOptions;
     systemInfoOverrides?: Partial<SystemInfo>;
     dockerContext?: DockerContext;
+    subagentConfig?: SubagentConfig;
   },
 ): Promise<SystemPrompt> {
   const neovimVersion = (await context.nvim.call("nvim_eval", [
@@ -53,5 +51,8 @@ export async function createSystemPrompt(
     cwd: context.cwd,
     options: context.options,
     ...(context.dockerContext ? { dockerContext: context.dockerContext } : {}),
+    ...(context.subagentConfig
+      ? { subagentConfig: context.subagentConfig }
+      : {}),
   });
 }

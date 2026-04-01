@@ -90,6 +90,7 @@ function createThreadCoreWithMock(overrides?: Partial<ThreadCoreContext>): {
     availableCapabilities: new Set(),
     environmentConfig: { type: "local" },
     maxConcurrentSubagents: 1,
+    getAgents: () => ({}),
     getProvider: () => provider,
     ...overrides,
   };
@@ -103,7 +104,7 @@ function createThreadCoreWithMock(overrides?: Partial<ThreadCoreContext>): {
 describe("ThreadCore.handleProviderStopped", () => {
   it("max_tokens with completed tool_use block routes through handleProviderStoppedWithToolUse", async () => {
     const { core, mockClient } = createThreadCoreWithMock({
-      threadType: "subagent_default" as ThreadType,
+      threadType: "subagent" as ThreadType,
     });
 
     core.sendMessage([{ type: "user", text: "do the task" }]);

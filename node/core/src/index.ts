@@ -1,3 +1,5 @@
+export type { AgentInfo, AgentsMap } from "./agents/agents.ts";
+export { loadAgents } from "./agents/agents.ts";
 export type { AnthropicAuth, OAuthTokens } from "./anthropic-auth.ts";
 export type { AuthUI } from "./auth-ui.ts";
 export type {
@@ -21,7 +23,13 @@ export type {
   DockerSpawnConfig,
   ThreadManager,
 } from "./capabilities/thread-manager.ts";
-export type { MessageIdx, Role, ThreadId, ThreadType } from "./chat-types.ts";
+export type {
+  MessageIdx,
+  Role,
+  SubagentConfig,
+  ThreadId,
+  ThreadType,
+} from "./chat-types.ts";
 export {
   CHARS_PER_TOKEN,
   chunkMessages,
@@ -138,19 +146,16 @@ export { PROVIDER_NAMES } from "./providers/provider-types.ts";
 export type { SkillInfo, SkillsMap } from "./providers/skills.ts";
 export { formatSkillsIntroduction, loadSkills } from "./providers/skills.ts";
 export type {
-  AgentType,
   DockerContext,
   SystemInfo,
   SystemPrompt,
 } from "./providers/system-prompt.ts";
 export {
-  AGENT_TYPES,
   COMPACT_SYSTEM_PROMPT,
   CONDUCTOR_SYSTEM_PROMPT,
   createSystemPrompt,
   DEFAULT_SUBAGENT_SYSTEM_PROMPT,
   DEFAULT_SYSTEM_PROMPT,
-  EXPLORE_SUBAGENT_SYSTEM_PROMPT,
 } from "./providers/system-prompt.ts";
 export { getSubsequentReminder } from "./providers/system-reminders.ts";
 export {

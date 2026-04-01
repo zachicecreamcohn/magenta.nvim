@@ -1,12 +1,22 @@
 Spawn one or more sub-agents that run in parallel, and wait for all of them to complete before returning.
 
-Each sub-agent entry can specify its own agentType, prompt, contextFiles, and branch. All sub-agents run concurrently (subject to the configured concurrency limit) and the tool blocks until every sub-agent has finished.
+Each sub-agent entry can specify its own agentType, prompt, contextFiles, environment, and branch. All sub-agents run concurrently (subject to the configured concurrency limit) and the tool blocks until every sub-agent has finished.
+
+You can also specify `sharedPrompt` and `sharedContextFiles` at the top level — these are prepended/merged into every sub-agent's individual prompt and contextFiles.
 
 ## Agent types
 
+`agentType` selects the agent personality and system prompt:
+
 - **explore** — only when you don't already know where to look. Each explore agent should answer one specific question about the code. It will respond with file paths, line ranges, and descriptions of what's there (never exact code). If you already know the file or location, use get_file directly instead of spawning an explore agent. Never use an explore agent to read or summarize a file's full contents.
-- **fast** — for quick and predictable edit tasks that don't require the full model capabilities, like straightforward refactors.
+- **fast-edit** — for quick and predictable edit tasks that don't require the full model capabilities, like straightforward refactors.
 - **default** — for everything else.
+
+## Environment
+
+`environment` selects where the sub-agent runs (orthogonal to agentType):
+
+- **host** (default) — runs locally on the host machine.
 - **docker** / **docker_unsupervised** — run a sub-agent in an isolated Docker container with full shell access. Requires the `branch` parameter. The container is provisioned with a unique worker branch forked from the specified base branch (or HEAD if not specified).
 
 ## Usage patterns
@@ -37,13 +47,13 @@ assistant -> spawn_subagents with two explore agents:
 
 <example>
 user: I have these quickfix locations that need to be fixed: [file1.ts:10, file2.ts:25, file3.ts:40]
-assistant -> spawn_subagents with 3 fast agents, each processing one location
+assistant -> spawn_subagents with 3 fast-edit agents, each processing one location
 </example>
 
 <example>
 user: refactor this interface
 assistant: [uses find_references tool to get all reference locations]
-assistant -> spawn_subagents with fast agents for each file that needs updating
+assistant -> spawn_subagents with fast-edit agents for each file that needs updating
 </example>
 
 <example>

@@ -384,6 +384,7 @@ export class CompactionManager extends Emitter<CompactionEvents> {
         shell: this.context.shell,
         threadManager: this.context.threadManager,
         requestRender: () => this.context.requestRender(),
+        getAgents: () => ({}),
       };
 
       const invocation = createTool(request, toolContext);

@@ -56,7 +56,7 @@ describe("getToolSpecs capability filtering", () => {
 
   it("works with subagent thread type", () => {
     const caps: Set<ToolCapability> = new Set(["file-io", "shell"]);
-    const specs = getToolSpecs("subagent_default", noopMcpToolManager, caps);
+    const specs = getToolSpecs("subagent", noopMcpToolManager, caps);
     const names = specs.map((s) => s.name);
     expect(names).toContain("get_file");
     expect(names).toContain("bash_command");

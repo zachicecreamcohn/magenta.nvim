@@ -246,7 +246,7 @@ describe.skipIf(!dockerAvailable)("Docker Environment", () => {
         threadId: mockThreadId,
       });
       const specs = getToolSpecs(
-        "subagent_default",
+        "subagent",
         mockMcpToolManager,
         env.availableCapabilities,
       );

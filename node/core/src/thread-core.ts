@@ -1,10 +1,11 @@
+import type { AgentsMap } from "./agents/agents.ts";
 import type { ContextTracker } from "./capabilities/context-tracker.ts";
 import type { DiagnosticsProvider } from "./capabilities/diagnostics-provider.ts";
 import type { FileIO } from "./capabilities/file-io.ts";
 import type { LspClient } from "./capabilities/lsp-client.ts";
 import type { Shell } from "./capabilities/shell.ts";
 import type { ThreadManager } from "./capabilities/thread-manager.ts";
-import type { ThreadId, ThreadType } from "./chat-types.ts";
+import type { SubagentConfig, ThreadId, ThreadType } from "./chat-types.ts";
 import type {
   CompactionRecord,
   CompactionResult,
@@ -99,6 +100,7 @@ export interface ThreadCoreContext {
   cwd: NvimCwd;
   homeDir: HomeDir;
   threadType: ThreadType;
+  subagentConfig?: SubagentConfig;
   systemPrompt: SystemPrompt;
   mcpToolManager: MCPToolManagerImpl;
   threadManager: ThreadManager;
@@ -110,6 +112,7 @@ export interface ThreadCoreContext {
   environmentConfig: EnvironmentConfig;
   maxConcurrentSubagents: number;
   container?: ContainerConfig | undefined;
+  getAgents: () => AgentsMap;
   getProvider: (profile: ProviderProfile) => Provider;
   initialFiles?: Files;
 }
@@ -372,6 +375,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         this.state.threadType,
         this.context.mcpToolManager,
         this.context.availableCapabilities,
+        this.context.getAgents(),
       ),
       ...(this.context.profile.thinking &&
         (this.context.profile.provider === "anthropic" ||
@@ -543,6 +547,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
             }
           : undefined,
         requestRender: () => this.emit("update"),
+        getAgents: () => this.context.getAgents(),
       };
 
       const invocation = createTool(request, toolContext);
@@ -914,7 +919,10 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       this.state.outputTokensSinceLastReminder >=
       SYSTEM_REMINDER_MIN_TOKEN_INTERVAL
     ) {
-      const reminder = getSubsequentReminder(this.state.threadType);
+      const reminder = getSubsequentReminder(
+        this.state.threadType,
+        this.context.subagentConfig,
+      );
       if (reminder) {
         contentToSend.push({
           type: "text",
@@ -958,7 +966,10 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
 
     if (inputMessages?.length) {
       this.update({ type: "reset-output-tokens" }, { silent: true });
-      const reminder = getSubsequentReminder(this.state.threadType);
+      const reminder = getSubsequentReminder(
+        this.state.threadType,
+        this.context.subagentConfig,
+      );
       if (reminder) {
         messageContent.push({
           type: "system_reminder",
