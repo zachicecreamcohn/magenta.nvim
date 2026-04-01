@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  type MagentaOptions,
-  type SandboxConfig,
   DEFAULT_SANDBOX_CONFIG,
+  type MagentaOptions,
   mergeOptions,
   parseOptions,
   parseProjectOptions,
+  type SandboxConfig,
 } from "./options.ts";
 
 function makeBaseOptions(overrides?: Partial<MagentaOptions>): MagentaOptions {
@@ -23,7 +23,7 @@ function makeBaseOptions(overrides?: Partial<MagentaOptions>): MagentaOptions {
       right: { widthPercentage: 0.4, displayHeightPercentage: 0.8 },
     },
     maxConcurrentSubagents: 3,
-    sandbox: { ...DEFAULT_SANDBOX_CONFIG },
+    sandbox: structuredClone(DEFAULT_SANDBOX_CONFIG),
     autoContext: [],
     skillsPaths: [],
     agentsPaths: [],
@@ -44,19 +44,29 @@ describe("parseSandboxConfig", () => {
       profiles: [{ name: "test", provider: "mock" }],
       sandbox: {
         enabled: true,
-        allowedReadPaths: ["/home", "/tmp"],
-        allowedWritePaths: ["/tmp"],
-        allowedCommands: ["ls", "cat"],
-        networkAccess: true,
+        filesystem: {
+          allowWrite: ["/tmp"],
+          denyWrite: [".secret"],
+          denyRead: ["~/.ssh"],
+        },
+        network: {
+          allowedDomains: ["example.com"],
+          deniedDomains: ["evil.com"],
+        },
       },
     };
     const result = parseOptions(input, noopLogger);
     expect(result.sandbox).toEqual({
       enabled: true,
-      allowedReadPaths: ["/home", "/tmp"],
-      allowedWritePaths: ["/tmp"],
-      allowedCommands: ["ls", "cat"],
-      networkAccess: true,
+      filesystem: {
+        allowWrite: ["/tmp"],
+        denyWrite: [".secret"],
+        denyRead: ["~/.ssh"],
+      },
+      network: {
+        allowedDomains: ["example.com"],
+        deniedDomains: ["evil.com"],
+      },
     });
   });
 
@@ -64,17 +74,15 @@ describe("parseSandboxConfig", () => {
     const input = {
       profiles: [{ name: "test", provider: "mock" }],
       sandbox: {
-        enabled: true,
+        enabled: false,
       },
     };
     const result = parseOptions(input, noopLogger);
-    expect(result.sandbox).toEqual({
-      enabled: true,
-      allowedReadPaths: [],
-      allowedWritePaths: [],
-      allowedCommands: [],
-      networkAccess: false,
-    });
+    expect(result.sandbox.enabled).toBe(false);
+    expect(result.sandbox.filesystem).toEqual(
+      DEFAULT_SANDBOX_CONFIG.filesystem,
+    );
+    expect(result.sandbox.network).toEqual(DEFAULT_SANDBOX_CONFIG.network);
   });
 
   it("should use all defaults when sandbox is not provided", () => {
@@ -91,19 +99,17 @@ describe("parseProjectOptions sandbox", () => {
     const result = parseProjectOptions(
       {
         sandbox: {
-          enabled: true,
-          allowedReadPaths: ["/project"],
+          enabled: false,
+          filesystem: { denyRead: ["/secret"] },
         },
       },
       noopLogger,
     );
-    expect(result.sandbox).toEqual({
-      enabled: true,
-      allowedReadPaths: ["/project"],
-      allowedWritePaths: [],
-      allowedCommands: [],
-      networkAccess: false,
-    });
+    expect(result.sandbox?.enabled).toBe(false);
+    expect(result.sandbox?.filesystem.denyRead).toEqual(["/secret"]);
+    expect(result.sandbox?.filesystem.allowWrite).toEqual(
+      DEFAULT_SANDBOX_CONFIG.filesystem.allowWrite,
+    );
   });
 });
 
@@ -111,44 +117,50 @@ describe("mergeOptions", () => {
   it("should concatenate sandbox arrays and overwrite enabled", () => {
     const base = makeBaseOptions({
       sandbox: {
-        enabled: false,
-        allowedReadPaths: ["/home"],
-        allowedWritePaths: ["/tmp"],
-        allowedCommands: ["ls"],
-        networkAccess: false,
+        enabled: true,
+        filesystem: {
+          allowWrite: ["./"],
+          denyWrite: [".env"],
+          denyRead: ["~/.ssh"],
+        },
+        network: {
+          allowedDomains: ["registry.npmjs.org"],
+          deniedDomains: [],
+        },
       },
     });
 
     const merged = mergeOptions(base, {
       sandbox: {
-        enabled: true,
-        allowedReadPaths: ["/project"],
-        allowedWritePaths: ["/project/out"],
-        allowedCommands: ["cat"],
-        networkAccess: true,
+        enabled: false,
+        filesystem: {
+          allowWrite: ["/tmp"],
+          denyWrite: [".git/hooks/"],
+          denyRead: ["~/.aws"],
+        },
+        network: {
+          allowedDomains: ["github.com"],
+          deniedDomains: ["evil.com"],
+        },
       },
     });
 
-    expect(merged.sandbox).toEqual({
-      enabled: true,
-      allowedReadPaths: ["/home", "/project"],
-      allowedWritePaths: ["/tmp", "/project/out"],
-      allowedCommands: ["ls", "cat"],
-      networkAccess: true,
-    });
+    expect(merged.sandbox.enabled).toBe(false);
+    expect(merged.sandbox.filesystem.allowWrite).toEqual(["./", "/tmp"]);
+    expect(merged.sandbox.filesystem.denyWrite).toEqual([
+      ".env",
+      ".git/hooks/",
+    ]);
+    expect(merged.sandbox.filesystem.denyRead).toEqual(["~/.ssh", "~/.aws"]);
+    expect(merged.sandbox.network.allowedDomains).toEqual([
+      "registry.npmjs.org",
+      "github.com",
+    ]);
+    expect(merged.sandbox.network.deniedDomains).toEqual(["evil.com"]);
   });
 
   it("should keep base sandbox when project has no sandbox", () => {
-    const base = makeBaseOptions({
-      sandbox: {
-        enabled: true,
-        allowedReadPaths: ["/home"],
-        allowedWritePaths: [],
-        allowedCommands: ["ls"],
-        networkAccess: false,
-      },
-    });
-
+    const base = makeBaseOptions();
     const merged = mergeOptions(base, {});
     expect(merged.sandbox).toEqual(base.sandbox);
   });

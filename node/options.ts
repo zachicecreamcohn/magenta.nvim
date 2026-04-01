@@ -74,7 +74,6 @@ export type Profile = {
     | undefined;
 };
 
-
 export type MCPMockToolSchemaType = "string" | "number" | "boolean";
 
 export type MCPMockToolConfig = {
@@ -141,18 +140,36 @@ export type SidebarPositionOpts = {
 
 export type SandboxConfig = {
   enabled: boolean;
-  allowedReadPaths: string[];
-  allowedWritePaths: string[];
-  allowedCommands: string[];
-  networkAccess: boolean;
+  filesystem: {
+    allowWrite: string[];
+    denyWrite: string[];
+    denyRead: string[];
+  };
+  network: {
+    allowedDomains: string[];
+    deniedDomains: string[];
+  };
 };
 
 export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
-  enabled: false,
-  allowedReadPaths: [],
-  allowedWritePaths: [],
-  allowedCommands: [],
-  networkAccess: false,
+  enabled: true,
+  filesystem: {
+    allowWrite: ["./"],
+    denyWrite: [".env", ".git/hooks/"],
+    denyRead: ["~/.ssh", "~/.aws", "~/.gnupg"],
+  },
+  network: {
+    allowedDomains: [
+      "registry.npmjs.org",
+      "github.com",
+      "*.github.com",
+      "pypi.org",
+      "files.pythonhosted.org",
+      "rubygems.org",
+      "crates.io",
+    ],
+    deniedDomains: [],
+  },
 };
 
 export type MagentaOptions = {
@@ -562,7 +579,6 @@ function parseMCPServers(
   return servers;
 }
 
-
 function parseCustomCommands(
   input: unknown,
   logger: { warn: (msg: string) => void },
@@ -741,14 +757,11 @@ function parseSidebarPositionOpts(
   return result as SidebarPositionOpts;
 }
 
-
-
-
 function parseSandboxConfig(
   input: unknown,
   logger: { warn: (msg: string) => void },
 ): SandboxConfig {
-  const config: SandboxConfig = { ...DEFAULT_SANDBOX_CONFIG };
+  const config: SandboxConfig = structuredClone(DEFAULT_SANDBOX_CONFIG);
 
   if (typeof input !== "object" || input === null) {
     if (input !== undefined) {
@@ -765,40 +778,51 @@ function parseSandboxConfig(
     logger.warn("sandbox.enabled must be a boolean");
   }
 
-  if (typeof obj.networkAccess === "boolean") {
-    config.networkAccess = obj.networkAccess;
-  } else if ("networkAccess" in obj) {
-    logger.warn("sandbox.networkAccess must be a boolean");
+  if (typeof obj.filesystem === "object" && obj.filesystem !== null) {
+    const fs = obj.filesystem as Record<string, unknown>;
+    if (Array.isArray(fs.allowWrite)) {
+      config.filesystem.allowWrite = parseStringArray(
+        fs.allowWrite,
+        "sandbox.filesystem.allowWrite",
+        logger,
+      );
+    }
+    if (Array.isArray(fs.denyWrite)) {
+      config.filesystem.denyWrite = parseStringArray(
+        fs.denyWrite,
+        "sandbox.filesystem.denyWrite",
+        logger,
+      );
+    }
+    if (Array.isArray(fs.denyRead)) {
+      config.filesystem.denyRead = parseStringArray(
+        fs.denyRead,
+        "sandbox.filesystem.denyRead",
+        logger,
+      );
+    }
+  } else if ("filesystem" in obj) {
+    logger.warn("sandbox.filesystem must be an object");
   }
 
-  if (Array.isArray(obj.allowedReadPaths)) {
-    config.allowedReadPaths = parseStringArray(
-      obj.allowedReadPaths,
-      "sandbox.allowedReadPaths",
-      logger,
-    );
-  } else if ("allowedReadPaths" in obj) {
-    logger.warn("sandbox.allowedReadPaths must be an array of strings");
-  }
-
-  if (Array.isArray(obj.allowedWritePaths)) {
-    config.allowedWritePaths = parseStringArray(
-      obj.allowedWritePaths,
-      "sandbox.allowedWritePaths",
-      logger,
-    );
-  } else if ("allowedWritePaths" in obj) {
-    logger.warn("sandbox.allowedWritePaths must be an array of strings");
-  }
-
-  if (Array.isArray(obj.allowedCommands)) {
-    config.allowedCommands = parseStringArray(
-      obj.allowedCommands,
-      "sandbox.allowedCommands",
-      logger,
-    );
-  } else if ("allowedCommands" in obj) {
-    logger.warn("sandbox.allowedCommands must be an array of strings");
+  if (typeof obj.network === "object" && obj.network !== null) {
+    const net = obj.network as Record<string, unknown>;
+    if (Array.isArray(net.allowedDomains)) {
+      config.network.allowedDomains = parseStringArray(
+        net.allowedDomains,
+        "sandbox.network.allowedDomains",
+        logger,
+      );
+    }
+    if (Array.isArray(net.deniedDomains)) {
+      config.network.deniedDomains = parseStringArray(
+        net.deniedDomains,
+        "sandbox.network.deniedDomains",
+        logger,
+      );
+    }
+  } else if ("network" in obj) {
+    logger.warn("sandbox.network must be an object");
   }
 
   return config;
@@ -908,8 +932,6 @@ export function parseOptions(
       );
       options.agentsPaths = [BUILTIN_AGENTS_PATH, ...userAgentsPaths];
     }
-
-
 
     // Parse max concurrent subagents
     if (
@@ -1074,8 +1096,6 @@ export function parseProjectOptions(
     );
   }
 
-
-
   // Parse max concurrent subagents
   if (
     "maxConcurrentSubagents" in inputOptionsObj &&
@@ -1178,7 +1198,6 @@ export function loadProjectSettings(
   return undefined;
 }
 
-
 export function mergeOptions(
   baseOptions: MagentaOptions,
   projectSettings: Partial<MagentaOptions>,
@@ -1194,19 +1213,30 @@ export function mergeOptions(
   if (projectSettings.sandbox) {
     merged.sandbox = {
       enabled: projectSettings.sandbox.enabled,
-      networkAccess: projectSettings.sandbox.networkAccess,
-      allowedReadPaths: [
-        ...baseOptions.sandbox.allowedReadPaths,
-        ...projectSettings.sandbox.allowedReadPaths,
-      ],
-      allowedWritePaths: [
-        ...baseOptions.sandbox.allowedWritePaths,
-        ...projectSettings.sandbox.allowedWritePaths,
-      ],
-      allowedCommands: [
-        ...baseOptions.sandbox.allowedCommands,
-        ...projectSettings.sandbox.allowedCommands,
-      ],
+      filesystem: {
+        allowWrite: [
+          ...baseOptions.sandbox.filesystem.allowWrite,
+          ...projectSettings.sandbox.filesystem.allowWrite,
+        ],
+        denyWrite: [
+          ...baseOptions.sandbox.filesystem.denyWrite,
+          ...projectSettings.sandbox.filesystem.denyWrite,
+        ],
+        denyRead: [
+          ...baseOptions.sandbox.filesystem.denyRead,
+          ...projectSettings.sandbox.filesystem.denyRead,
+        ],
+      },
+      network: {
+        allowedDomains: [
+          ...baseOptions.sandbox.network.allowedDomains,
+          ...projectSettings.sandbox.network.allowedDomains,
+        ],
+        deniedDomains: [
+          ...baseOptions.sandbox.network.deniedDomains,
+          ...projectSettings.sandbox.network.deniedDomains,
+        ],
+      },
     };
   }
 
@@ -1230,8 +1260,6 @@ export function mergeOptions(
       ...projectSettings.agentsPaths,
     ];
   }
-
-
 
   if (projectSettings.sidebarPosition !== undefined) {
     merged.sidebarPosition = projectSettings.sidebarPosition;
