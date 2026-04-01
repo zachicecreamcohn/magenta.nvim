@@ -466,6 +466,69 @@ describe("spawn-subagents unit tests", () => {
       expect(result.error).toContain("agentType");
     }
   });
+
+  it("validation rejects non-array agents", () => {
+    const result = SpawnSubagents.validateInput({ agents: "not-an-array" });
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("array");
+    }
+  });
+
+  it("validation rejects non-string contextFiles items", () => {
+    const result = SpawnSubagents.validateInput({
+      agents: [{ prompt: "test", contextFiles: [123] }],
+    });
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("contextFiles");
+    }
+  });
+
+  it("validation rejects non-string branch", () => {
+    const result = SpawnSubagents.validateInput({
+      agents: [{ prompt: "test", branch: 123 }],
+    });
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("branch");
+    }
+  });
+
+  it("abort during Phase 2 (waiting for yields) returns aborted error", async () => {
+    const threadManager = createMockThreadManager();
+
+    const invocation = SpawnSubagents.execute(
+      makeRequest({ agents: [{ prompt: "do something" }] }),
+      {
+        threadManager,
+        threadId: "parent-1" as ThreadId,
+        maxConcurrentSubagents: 10,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+      },
+    );
+
+    // Wait for spawn to complete (Phase 1 done)
+    await vi.waitFor(() => {
+      expect(threadManager.spawnThread).toHaveBeenCalled();
+    });
+
+    // Now we're in Phase 2 (waiting for yields). Abort here.
+    invocation.abort();
+
+    // Simulate the yield after abort - it should not matter
+    threadManager.simulateYield("thread-1" as ThreadId, {
+      status: "ok",
+      value: "too late",
+    });
+
+    const { result } = await invocation.promise;
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("aborted");
+    }
+  });
 });
 
 describe("spawn-subagents docker provisioning", () => {
@@ -667,6 +730,45 @@ describe("spawn-subagents docker provisioning", () => {
         dockerSpawnConfig: expect.objectContaining({ supervised: true }),
       }),
     );
+  });
+
+  it("returns spawn-error when provision() rejects", async () => {
+    const threadManager = createMockThreadManager();
+
+    const invocation = SpawnSubagents.execute(
+      makeRequest({
+        agents: [
+          {
+            prompt: "do docker work",
+            agentType: "docker",
+            branch: "feature-branch",
+          },
+        ],
+      }),
+      {
+        threadManager,
+        threadId: "parent-1" as ThreadId,
+        maxConcurrentSubagents: 10,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+        containerProvisioner: {
+          containerConfig,
+          provision: vi
+            .fn()
+            .mockRejectedValue(new Error("Docker daemon not running")),
+        },
+      },
+    );
+
+    const text = await getResultText(invocation);
+    expect(text).toContain("Docker daemon not running");
+    expect(text).toContain("Failed: 1");
+
+    const state = invocation.progress.elements[0].state;
+    expect(state.status).toBe("spawn-error");
+    if (state.status === "spawn-error") {
+      expect(state.error).toContain("Docker daemon not running");
+    }
   });
 
   it("mixed agents: docker and non-docker in parallel", async () => {

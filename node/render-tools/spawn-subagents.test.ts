@@ -109,7 +109,7 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
       });
 
       // The parent gets the spawn_subagents result after child yields
-      await driver.assertDisplayBufferContains("✅ ");
+      await driver.assertDisplayBufferContains("✅ 1 agent");
     });
   });
 
@@ -613,7 +613,7 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
       });
 
       // Verify spawn_subagents shows waiting state
-      await driver.assertDisplayBufferContains("🤖 spawn_subagents");
+      await driver.assertDisplayBufferContains("🤖 spawn_subagents: 1 agent");
 
       // The subagent should start running
       const subagentRequest =
@@ -638,7 +638,7 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
       });
 
       // After subagent yields, the spawn should complete
-      await driver.assertDisplayBufferContains("✅ ");
+      await driver.assertDisplayBufferContains("✅ 1 agent");
 
       // The parent thread should continue with the result
       const parentContinue =
@@ -705,7 +705,7 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
         ],
       });
 
-      await driver.assertDisplayBufferContains("✅ ");
+      await driver.assertDisplayBufferContains("✅ 1 agent");
       const thread2 = driver.getThreadId(1);
 
       // Click on the result row to navigate to the subagent thread
@@ -720,6 +720,67 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
       await driver.assertDisplayBufferContains(
         "Parent thread: Use spawn_subagents to create a sub-agent.",
       );
+    });
+  });
+
+  it("shows pending approvals from subagent in parent progress view", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      const thread1 = driver.getThreadId(0);
+
+      await driver.inputMagentaText(
+        "Use spawn_subagents to read a secret file.",
+      );
+      await driver.send();
+
+      const request1 = await driver.mockAnthropic.awaitPendingStreamWithText(
+        "Use spawn_subagents",
+      );
+      request1.respond({
+        stopReason: "tool_use",
+        text: "I'll spawn a sub-agent to read the file.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "spawn-approval" as ToolRequestId,
+              toolName: "spawn_subagents" as ToolName,
+              input: {
+                agents: [{ prompt: "Read the .secret file and report back." }],
+              },
+            },
+          },
+        ],
+      });
+
+      // Stay in parent thread
+      await driver.awaitChatState({
+        state: "thread-selected",
+        id: thread1,
+      });
+
+      // Child subagent requests get_file on .secret (needs permission)
+      const childStream = await driver.mockAnthropic.awaitPendingStreamWithText(
+        "Read the .secret file",
+      );
+      childStream.respond({
+        stopReason: "tool_use",
+        text: "I'll read the secret file.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "child-get-file" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: { filePath: ".secret" },
+            },
+          },
+        ],
+      });
+
+      // The parent thread's progress view should show the pending approval
+      // from the child thread inline
+      await driver.assertDisplayBufferContains("👀 .secret");
     });
   });
 
@@ -775,6 +836,7 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
         await driver.assertDisplayBufferContains("stopped (aborted)");
         // Verify the parent is still waiting (spawn still pending)
         await driver.assertDisplayBufferContains("🤖 spawn_subagents");
+        await driver.assertDisplayBufferDoesNotContain("✅ 1 agent");
 
         // Resume the child: switch to it, send a message
         driver.magenta.chat.update({
@@ -964,6 +1026,55 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
           );
         },
       );
+    });
+
+    it("aborting parent thread while subagent is running aborts the spawn", async () => {
+      await withDriver({}, async (driver) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText("Use spawn_subagents to do work.");
+        await driver.send();
+
+        const parentStream =
+          await driver.mockAnthropic.awaitPendingStreamWithText(
+            "Use spawn_subagents to do work",
+          );
+
+        parentStream.respond({
+          stopReason: "tool_use",
+          text: "Spawning subagent.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "parent-abort-spawn" as ToolRequestId,
+                toolName: "spawn_subagents" as ToolName,
+                input: {
+                  agents: [{ prompt: "Long running task for parent abort" }],
+                },
+              },
+            },
+          ],
+        });
+
+        // Wait for child to start running
+        await driver.mockAnthropic.awaitPendingStreamWithText(
+          "Long running task for parent abort",
+        );
+        await driver.awaitThreadCount(2);
+
+        const parentThreadId = driver.getThreadId(0);
+
+        // Abort the parent thread
+        driver.magenta.chat.update({
+          type: "thread-msg",
+          id: parentThreadId,
+          msg: { type: "abort" },
+        });
+
+        // The parent should show the aborted state
+        await driver.assertDisplayBufferContains("[ABORTED]");
+        await driver.assertDisplayBufferContains("❌ Request was aborted");
+      });
     });
   });
 });
