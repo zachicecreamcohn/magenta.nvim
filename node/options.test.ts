@@ -19,6 +19,7 @@ describe("mergeOptions", () => {
     commandConfig: { rules: [] },
     autoContext: [],
     skillsPaths: [],
+    agentsPaths: [],
     mcpServers: {},
     getFileAutoAllowGlobs: [],
     filePermissions: [],

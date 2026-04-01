@@ -38,4 +38,5 @@ export type ProviderProfile = {
 
 export type ProviderOptions = {
   skillsPaths: string[];
+  agentsPaths: string[];
 };

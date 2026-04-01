@@ -22,6 +22,12 @@ import type { NvimCwd } from "./utils/files.ts";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 export const BUILTIN_SKILLS_PATH = path.join(__dirname, "skills");
+export const BUILTIN_AGENTS_PATH = path.join(
+  __dirname,
+  "core",
+  "src",
+  "agents",
+);
 
 // Default models by provider
 const DEFAULT_MODELS: Record<
@@ -168,6 +174,7 @@ export type MagentaOptions = {
   commandConfig: CommandPermissionsConfig;
   autoContext: string[];
   skillsPaths: string[];
+  agentsPaths: string[];
   maxConcurrentSubagents: number;
   mcpServers: { [serverName: ServerName]: MCPServerConfig };
   getFileAutoAllowGlobs: string[];
@@ -1288,6 +1295,13 @@ export function parseOptions(
       ".magenta/skills",
       ".claude/skills",
     ],
+    agentsPaths: [
+      BUILTIN_AGENTS_PATH,
+      "~/.claude/agents",
+      "~/.magenta/agents",
+      ".claude/agents",
+      ".magenta/agents",
+    ],
     mcpServers: {},
     getFileAutoAllowGlobs: [],
     filePermissions: [],
@@ -1348,6 +1362,15 @@ export function parseOptions(
         "skillsPaths",
       );
       options.skillsPaths = [BUILTIN_SKILLS_PATH, ...userSkillsPaths];
+    }
+
+    // Parse agents paths - always prepend built-in agents
+    if ("agentsPaths" in inputOptionsObj) {
+      const userAgentsPaths = parseStringArray(
+        inputOptionsObj.agentsPaths,
+        "agentsPaths",
+      );
+      options.agentsPaths = [BUILTIN_AGENTS_PATH, ...userAgentsPaths];
     }
 
     // Parse getFile auto allow globs
@@ -1524,6 +1547,15 @@ export function parseProjectOptions(
     );
   }
 
+  // Parse agents paths
+  if ("agentsPaths" in inputOptionsObj) {
+    options.agentsPaths = parseStringArray(
+      inputOptionsObj.agentsPaths,
+      "agentsPaths",
+      logger,
+    );
+  }
+
   // Parse getFile auto allow globs
   if ("getFileAutoAllowGlobs" in inputOptionsObj) {
     options.getFileAutoAllowGlobs = parseStringArray(
@@ -1683,6 +1715,13 @@ export function mergeOptions(
     merged.skillsPaths = [
       ...baseOptions.skillsPaths,
       ...projectSettings.skillsPaths,
+    ];
+  }
+
+  if (projectSettings.agentsPaths) {
+    merged.agentsPaths = [
+      ...baseOptions.agentsPaths,
+      ...projectSettings.agentsPaths,
     ];
   }
 
