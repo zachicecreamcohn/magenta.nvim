@@ -1,3 +1,5 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import {
   pollUntil,
@@ -871,5 +873,275 @@ describe("per-agent expansion", () => {
         expect(content).not.toContain("Result from second agent");
       },
     );
+  });
+});
+
+describe("custom agent discovery and spawning", () => {
+  it("discovers custom agent, uses its system prompt/reminder, and respects fastModel", async () => {
+    await withDriver(
+      {
+        setupFiles: async (tmpDir) => {
+          const agentsDir = path.join(tmpDir, ".magenta", "agents");
+          await fs.promises.mkdir(agentsDir, { recursive: true });
+          await fs.promises.writeFile(
+            path.join(agentsDir, "code-review.md"),
+            `---
+name: code-review
+description: Reviews code changes for correctness and style
+fastModel: true
+---
+
+You are a code review agent. Examine the provided code and identify issues related to correctness, style, and best practices. Be thorough but concise.
+
+<system_reminder>
+Always check for proper error handling and type safety.
+</system_reminder>
+`,
+          );
+        },
+        options: {
+          agentsPaths: [".magenta/agents"],
+          profiles: [
+            {
+              name: "mock",
+              provider: "mock",
+              model: "mock-full",
+              fastModel: "mock-fast",
+              thinking: {
+                enabled: true,
+                budgetTokens: 1024,
+              },
+            },
+          ],
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+
+        await driver.inputMagentaText("Review my code changes.");
+        await driver.send();
+
+        const parentStream =
+          await driver.mockAnthropic.awaitPendingStreamWithText(
+            "Review my code",
+          );
+
+        // Verify the tool spec includes the custom agent in the enum
+        const spawnTool = parentStream.params.tools?.find(
+          (t) => "name" in t && t.name === "spawn_subagents",
+        );
+        expect(spawnTool).toBeDefined();
+        const toolInput = (
+          spawnTool as unknown as {
+            input_schema: {
+              properties: {
+                agents: {
+                  items: { properties: { agentType: { enum: string[] } } };
+                };
+              };
+            };
+          }
+        ).input_schema;
+        const agentTypeEnum =
+          toolInput.properties.agents.items.properties.agentType.enum;
+        expect(agentTypeEnum).toContain("code-review");
+
+        // Verify the tool description includes the custom agent
+        expect((spawnTool as { description?: string }).description).toContain(
+          "Reviews code changes for correctness and style",
+        );
+
+        // Spawn the custom agent
+        parentStream.respond({
+          stopReason: "tool_use",
+          text: "I'll spawn a code-review agent.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "spawn-review" as ToolRequestId,
+                toolName: "spawn_subagents" as ToolName,
+                input: {
+                  agents: [
+                    {
+                      prompt: "Review the changes in src/main.ts",
+                      agentType: "code-review",
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        });
+
+        // Await the subagent stream and verify system prompt
+        const subagentStream =
+          await driver.mockAnthropic.awaitPendingStreamWithText(
+            "Review the changes",
+          );
+
+        expect(subagentStream.systemPrompt).toContain(
+          "You are a code review agent",
+        );
+        expect(subagentStream.systemPrompt).not.toContain("<system_reminder>");
+
+        // Verify fastModel is used
+        expect(subagentStream.params.model).toBe("mock-fast");
+        // Verify thinking is stripped for fast model
+        expect(
+          (subagentStream.params as Record<string, unknown>).thinking,
+        ).toBeUndefined();
+
+        // Have the subagent do a tool call so we can verify the system reminder
+        subagentStream.respond({
+          stopReason: "tool_use",
+          text: "Let me check the file.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "get-file-1" as ToolRequestId,
+                toolName: "get_file" as ToolName,
+                input: { filePath: "poem.txt" },
+              },
+            },
+          ],
+        });
+
+        // After the tool result, the auto-respond should include the custom system reminder
+        const autoRespondStream = await driver.mockAnthropic.awaitPendingStream(
+          {
+            predicate: (stream) => {
+              // Look for the stream that has the tool result for get-file-1
+              return stream.messages.some((msg) => {
+                if (msg.role !== "user" || !Array.isArray(msg.content))
+                  return false;
+                return (
+                  msg.content as Anthropic.Messages.ContentBlockParam[]
+                ).some(
+                  (block) =>
+                    block.type === "tool_result" &&
+                    block.tool_use_id === "get-file-1",
+                );
+              });
+            },
+            message: "waiting for auto-respond after tool result",
+          },
+        );
+
+        // Find the system reminder text in the auto-respond messages
+        const lastUserMsg =
+          autoRespondStream.messages[autoRespondStream.messages.length - 1];
+        expect(lastUserMsg.role).toBe("user");
+        const lastUserContent =
+          lastUserMsg.content as Anthropic.Messages.ContentBlockParam[];
+        const reminderBlock = lastUserContent.find(
+          (block): block is Anthropic.Messages.TextBlockParam =>
+            block.type === "text" && block.text.includes("<system-reminder>"),
+        );
+        expect(reminderBlock).toBeDefined();
+        // Custom reminder should be appended
+        expect(reminderBlock!.text).toContain(
+          "Always check for proper error handling and type safety",
+        );
+        // Standard subagent reminders should still be present
+        expect(reminderBlock!.text).toContain("yield_to_parent");
+
+        // Yield so test can complete
+        autoRespondStream.respond({
+          stopReason: "tool_use",
+          text: "Review complete.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "yield-review" as ToolRequestId,
+                toolName: "yield_to_parent" as ToolName,
+                input: { result: "Code looks good" },
+              },
+            },
+          ],
+        });
+
+        // Verify parent gets the result
+        await driver.mockAnthropic.awaitPendingStreamWithText(
+          "Code looks good",
+        );
+      },
+    );
+  });
+});
+
+describe("built-in agents", () => {
+  it("built-in explore and plan agents are discoverable in tool spec", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+
+      await driver.inputMagentaText("Hello");
+      await driver.send();
+
+      const stream =
+        await driver.mockAnthropic.awaitPendingStreamWithText("Hello");
+
+      const spawnTool = stream.params.tools?.find(
+        (t) => "name" in t && t.name === "spawn_subagents",
+      );
+      expect(spawnTool).toBeDefined();
+
+      const toolInput = (
+        spawnTool as unknown as {
+          input_schema: {
+            properties: {
+              agents: {
+                items: { properties: { agentType: { enum: string[] } } };
+              };
+            };
+          };
+        }
+      ).input_schema;
+      const agentTypeEnum =
+        toolInput.properties.agents.items.properties.agentType.enum;
+      expect(agentTypeEnum).toContain("explore");
+      expect(agentTypeEnum).toContain("plan");
+
+      // Verify explore description is included
+      expect((spawnTool as { description?: string }).description).toContain(
+        "Search and understand codebases",
+      );
+
+      // Verify explore agent actually works with the correct system prompt
+      stream.respond({
+        stopReason: "tool_use",
+        text: "Let me find that.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "test-builtin-explore" as ToolRequestId,
+              toolName: "spawn_subagents" as ToolName,
+              input: {
+                agents: [
+                  {
+                    prompt: "Where is the main entry point?",
+                    agentType: "explore",
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      });
+
+      const exploreStream = await driver.mockAnthropic.awaitPendingStream({
+        predicate: (s) =>
+          s.systemPrompt?.includes(
+            "specialized in searching and understanding codebases",
+          ) ?? false,
+        message: "waiting for explore subagent",
+      });
+
+      expect(exploreStream.systemPrompt).toContain("explore subagent");
+      expect(exploreStream.systemPrompt).not.toContain("<system_reminder>");
+    });
   });
 });
