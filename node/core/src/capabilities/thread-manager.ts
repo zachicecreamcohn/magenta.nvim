@@ -1,4 +1,4 @@
-import type { ThreadId, ThreadType } from "../chat-types.ts";
+import type { SubagentConfig, ThreadId, ThreadType } from "../chat-types.ts";
 import type { UnresolvedFilePath } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
 
@@ -18,6 +18,7 @@ export interface ThreadManager {
     parentThreadId: ThreadId;
     prompt: string;
     threadType: ThreadType;
+    subagentConfig?: SubagentConfig;
     contextFiles?: UnresolvedFilePath[];
     dockerSpawnConfig?: DockerSpawnConfig;
   }): Promise<ThreadId>;

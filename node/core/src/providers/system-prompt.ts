@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ThreadType } from "../chat-types.ts";
+import type { SubagentConfig, ThreadType } from "../chat-types.ts";
 import type { Logger } from "../logger.ts";
 import type { ProviderOptions } from "../provider-options.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
@@ -11,9 +11,6 @@ import {
   loadSkills,
   type SkillsMap,
 } from "./skills.ts";
-
-export const AGENT_TYPES = ["default", "fast", "explore"] as const;
-export type AgentType = (typeof AGENT_TYPES)[number];
 
 export type SystemPrompt = string & { __systemPrompt: true };
 
@@ -48,7 +45,6 @@ export const DEFAULT_SUBAGENT_SYSTEM_PROMPT =
   "\n" +
   loadPrompt("code-changes.md");
 
-export const EXPLORE_SUBAGENT_SYSTEM_PROMPT = loadPrompt("explore-subagent.md");
 export const CONDUCTOR_SYSTEM_PROMPT = loadPrompt("conductor-system-prompt.md");
 const CONDUCTOR_DOCKER_ADDENDUM = loadPrompt("conductor-docker-addendum.md");
 export const COMPACT_SYSTEM_PROMPT =
@@ -56,29 +52,30 @@ export const COMPACT_SYSTEM_PROMPT =
 
 function getBaseSystemPrompt(
   type: ThreadType,
-  dockerContext?: DockerContext,
+  opts?: {
+    dockerContext?: DockerContext | undefined;
+    subagentConfig?: SubagentConfig | undefined;
+  },
 ): string {
   switch (type) {
-    case "subagent_default":
-      return DEFAULT_SUBAGENT_SYSTEM_PROMPT;
-    case "subagent_fast":
-      return DEFAULT_SUBAGENT_SYSTEM_PROMPT;
-    case "subagent_explore":
-      return EXPLORE_SUBAGENT_SYSTEM_PROMPT;
+    case "subagent":
+      return (
+        opts?.subagentConfig?.systemPrompt ?? DEFAULT_SUBAGENT_SYSTEM_PROMPT
+      );
     case "compact":
       return COMPACT_SYSTEM_PROMPT;
     case "root":
       return DEFAULT_SYSTEM_PROMPT;
     case "conductor": {
       const base = CONDUCTOR_SYSTEM_PROMPT;
-      if (dockerContext) {
+      if (opts?.dockerContext) {
         return `${base}\n\n${CONDUCTOR_DOCKER_ADDENDUM}`;
       }
       return base;
     }
     case "docker_root": {
-      const branchInfo = dockerContext
-        ? `\n\nYou are working on branch \`${dockerContext.workerBranch}\` (forked from \`${dockerContext.baseBranch}\`).`
+      const branchInfo = opts?.dockerContext
+        ? `\n\nYou are working on branch \`${opts.dockerContext.workerBranch}\` (forked from \`${opts.dockerContext.baseBranch}\`).`
         : "";
       return (
         DEFAULT_SYSTEM_PROMPT +
@@ -114,9 +111,13 @@ export function createSystemPrompt(
     cwd: NvimCwd;
     options: ProviderOptions;
     dockerContext?: DockerContext;
+    subagentConfig?: SubagentConfig;
   },
 ): SystemPrompt {
-  const basePrompt = getBaseSystemPrompt(type, context.dockerContext);
+  const basePrompt = getBaseSystemPrompt(type, {
+    dockerContext: context.dockerContext,
+    subagentConfig: context.subagentConfig,
+  });
   const skills = type === "compact" ? ({} as SkillsMap) : loadSkills(context);
   const systemInfo = context.systemInfo;
 

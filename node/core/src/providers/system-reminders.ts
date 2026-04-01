@@ -1,4 +1,4 @@
-import type { ThreadType } from "../chat-types.ts";
+import type { SubagentConfig, ThreadType } from "../chat-types.ts";
 
 const SKILLS_REMINDER = `\
 Remember the skills in <available-skills>.
@@ -29,15 +29,10 @@ ${EDL_REMINDER}
 ${EXPLORE_REMINDER}
 </system-reminder>`;
 
-const SUBAGENT_REMINDER = `<system-reminder>
-${SKILLS_REMINDER}
-${BASH_REMINDER}
-${EDL_REMINDER}
-
-CRITICAL: Use yield_to_parent tool when task is complete.
-</system-reminder>`;
-
-export function getSubsequentReminder(threadType: ThreadType): string {
+export function getSubsequentReminder(
+  threadType: ThreadType,
+  subagentConfig?: SubagentConfig,
+): string {
   switch (threadType) {
     case "conductor":
       return `<system-reminder>
@@ -60,21 +55,22 @@ ${EXPLORE_REMINDER}
 
 CRITICAL: You are in a Docker container. Commit all changes with git and call yield_to_parent when done. Your working tree must be clean before yielding.
 </system-reminder>`;
-    case "subagent_default":
-    case "subagent_fast":
-      return SUBAGENT_REMINDER;
-    case "compact":
-      return `<system-reminder>
-${EDL_REMINDER}
-CRITICAL: You MUST write the summary to /summary.md using the edl tool.
-</system-reminder>`;
-    case "subagent_explore":
+    case "subagent": {
+      const customReminder = subagentConfig?.systemReminder
+        ? `\n${subagentConfig.systemReminder}`
+        : "";
       return `<system-reminder>
 ${SKILLS_REMINDER}
 ${BASH_REMINDER}
 ${EDL_REMINDER}
-
+${customReminder}
 CRITICAL: Use yield_to_parent tool when task is complete.
+</system-reminder>`;
+    }
+    case "compact":
+      return `<system-reminder>
+${EDL_REMINDER}
+CRITICAL: You MUST write the summary to /summary.md using the edl tool.
 </system-reminder>`;
   }
 }

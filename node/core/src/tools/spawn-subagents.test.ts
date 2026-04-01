@@ -79,6 +79,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
+        agents: {},
       },
     );
 
@@ -106,6 +107,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
+        agents: {},
       },
     );
 
@@ -132,6 +134,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
+        agents: {},
       },
     );
 
@@ -165,6 +168,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
+        agents: {},
       },
     );
 
@@ -177,9 +181,9 @@ describe("spawn-subagents unit tests", () => {
       agentType: SpawnSubagents.SubagentEntry["agentType"];
       expectedThreadType: string;
     }> = [
-      { agentType: "fast", expectedThreadType: "subagent_fast" },
-      { agentType: "explore", expectedThreadType: "subagent_explore" },
-      { agentType: undefined, expectedThreadType: "subagent_default" },
+      { agentType: "fast", expectedThreadType: "subagent" },
+      { agentType: "explore", expectedThreadType: "subagent" },
+      { agentType: undefined, expectedThreadType: "subagent" },
     ];
 
     for (const { agentType, expectedThreadType } of cases) {
@@ -194,6 +198,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
+        agents: {},
       });
 
       await vi.waitFor(() => {
@@ -225,6 +230,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
+        agents: {},
       },
     );
 
@@ -265,6 +271,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
+        agents: {},
       },
     );
 
@@ -324,6 +331,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 2,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
+        agents: {},
       },
     );
 
@@ -383,6 +391,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
+        agents: {},
       },
     );
 
@@ -420,6 +429,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
+        agents: {},
       },
     );
 
@@ -457,9 +467,16 @@ describe("spawn-subagents unit tests", () => {
     }
   });
 
-  it("validation rejects invalid agentType", () => {
+  it("validation accepts custom agentType strings", () => {
     const result = SpawnSubagents.validateInput({
-      agents: [{ prompt: "test", agentType: "invalid" }],
+      agents: [{ prompt: "test", agentType: "my-custom-agent" }],
+    });
+    expect(result.status).toBe("ok");
+  });
+
+  it("validation rejects non-string agentType", () => {
+    const result = SpawnSubagents.validateInput({
+      agents: [{ prompt: "test", agentType: 123 }],
     });
     expect(result.status).toBe("error");
     if (result.status === "error") {
@@ -506,6 +523,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
+        agents: {},
       },
     );
 
@@ -580,6 +598,7 @@ describe("spawn-subagents docker provisioning", () => {
         maxConcurrentSubagents: 10,
         requestRender,
         cwd: "/test" as NvimCwd,
+        agents: {},
         containerProvisioner: { containerConfig, provision },
       },
     );
@@ -611,6 +630,7 @@ describe("spawn-subagents docker provisioning", () => {
         maxConcurrentSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
+        agents: {},
         containerProvisioner: {
           containerConfig,
           provision: vi.fn(),
@@ -641,6 +661,7 @@ describe("spawn-subagents docker provisioning", () => {
         maxConcurrentSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
+        agents: {},
       },
     );
 
@@ -667,6 +688,7 @@ describe("spawn-subagents docker provisioning", () => {
         maxConcurrentSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
+        agents: {},
         containerProvisioner: {
           containerConfig,
           provision: vi.fn().mockResolvedValue(provisionResult),
@@ -714,6 +736,7 @@ describe("spawn-subagents docker provisioning", () => {
         maxConcurrentSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
+        agents: {},
         containerProvisioner: {
           containerConfig,
           provision: vi.fn().mockResolvedValue(provisionResult),
@@ -751,6 +774,7 @@ describe("spawn-subagents docker provisioning", () => {
         maxConcurrentSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
+        agents: {},
         containerProvisioner: {
           containerConfig,
           provision: vi
@@ -797,6 +821,7 @@ describe("spawn-subagents docker provisioning", () => {
         maxConcurrentSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
+        agents: {},
         containerProvisioner: {
           containerConfig,
           provision: vi.fn().mockResolvedValue(provisionResult),

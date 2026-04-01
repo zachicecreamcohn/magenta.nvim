@@ -1,14 +1,14 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { type AgentsMap, formatAgentsIntroduction } from "../agents/agents.ts";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
-import type { ThreadId, ThreadType } from "../chat-types.ts";
+import type { SubagentConfig, ThreadId } from "../chat-types.ts";
 import type { ContainerConfig, ProvisionResult } from "../container/types.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider-types.ts";
-import { AGENT_TYPES, type AgentType } from "../providers/system-prompt.ts";
 import type {
   GenericToolRequest,
   ToolInvocation,
@@ -17,7 +17,7 @@ import type {
 import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
 
-const SPAWN_SUBAGENTS_DESCRIPTION = readFileSync(
+const SPAWN_SUBAGENTS_BASE_DESCRIPTION = readFileSync(
   join(
     dirname(fileURLToPath(import.meta.url)),
     "spawn-subagents-description.md",
@@ -25,18 +25,17 @@ const SPAWN_SUBAGENTS_DESCRIPTION = readFileSync(
   "utf-8",
 );
 
-const ALL_AGENT_TYPES = [
-  ...AGENT_TYPES,
+const BASE_AGENT_TYPES = [
+  "default",
+  "fast",
   "docker",
   "docker_unsupervised",
 ] as const;
 
-type ExtendedAgentType = AgentType | "docker" | "docker_unsupervised";
-
 export type SubagentEntry = {
   prompt: string;
   contextFiles?: UnresolvedFilePath[];
-  agentType?: ExtendedAgentType;
+  agentType?: string;
   branch?: string;
 };
 
@@ -69,6 +68,35 @@ export type StructuredResult = {
   }>;
 };
 
+function resolveSubagentConfig(
+  entry: SubagentEntry,
+  agents: AgentsMap,
+): SubagentConfig {
+  const agentType = entry.agentType;
+
+  if (!agentType || agentType === "default") {
+    return {};
+  }
+
+  if (agentType === "fast") {
+    return { fastModel: true };
+  }
+
+  // Look up custom agent by name
+  const agentDef = agents[agentType];
+  if (agentDef) {
+    return {
+      agentName: agentDef.name,
+      fastModel: agentDef.fastModel,
+      systemPrompt: agentDef.systemPrompt,
+      systemReminder: agentDef.systemReminder,
+    };
+  }
+
+  // Unknown agent type — treat as default
+  return { agentName: agentType };
+}
+
 export function execute(
   request: ToolRequest,
   context: {
@@ -77,6 +105,7 @@ export function execute(
     maxConcurrentSubagents: number;
     requestRender: () => void;
     cwd: NvimCwd;
+    agents: AgentsMap;
     containerProvisioner?:
       | {
           containerConfig: ContainerConfig;
@@ -116,17 +145,13 @@ export function execute(
         return;
       }
 
-      const threadType: ThreadType =
-        entry.agentType === "fast"
-          ? "subagent_fast"
-          : entry.agentType === "explore"
-            ? "subagent_explore"
-            : "subagent_default";
+      const subagentConfig = resolveSubagentConfig(entry, context.agents);
 
       const threadId = await context.threadManager.spawnThread({
         parentThreadId: context.threadId,
         prompt: entry.prompt,
-        threadType,
+        threadType: "subagent",
+        subagentConfig,
         ...(entry.contextFiles ? { contextFiles: entry.contextFiles } : {}),
       });
 
@@ -413,51 +438,58 @@ function truncatePrompt(prompt: string, maxLen: number = 80): string {
     : singleLine;
 }
 
-export const spec: ProviderToolSpec = {
-  name: "spawn_subagents" as ToolName,
-  description: SPAWN_SUBAGENTS_DESCRIPTION,
-  input_schema: {
-    type: "object",
-    properties: {
-      agents: {
-        type: "array",
-        description:
-          "Array of sub-agent configurations to run in parallel. Each entry specifies a prompt and optional settings.",
-        items: {
-          type: "object",
-          properties: {
-            prompt: {
-              type: "string",
-              description:
-                "The sub-agent prompt. This should contain a clear question or task description.",
-            },
-            contextFiles: {
-              type: "array",
-              items: { type: "string" },
-              description:
-                "Optional list of file paths to provide as context to this sub-agent.",
-            },
-            agentType: {
-              type: "string",
-              enum: ALL_AGENT_TYPES as unknown as string[],
-              description:
-                "Agent type for this sub-agent. Use 'explore' for codebase questions, 'fast' for simple edits, 'default' for complex tasks, 'docker'/'docker_unsupervised' for isolated container work.",
-            },
-            branch: {
-              type: "string",
-              description:
-                "Base branch to fork from for docker agents. Required when agentType is 'docker' or 'docker_unsupervised'.",
-            },
-          },
-          required: ["prompt"],
-        },
-        minItems: 1,
-      },
-    },
-    required: ["agents"],
-  },
-};
+export function getSpec(agents: AgentsMap): ProviderToolSpec {
+  const agentNames = Object.keys(agents);
+  const allAgentTypes = [...BASE_AGENT_TYPES, ...agentNames];
 
+  const agentsDescription = formatAgentsIntroduction(agents, "" as NvimCwd);
+  const description = SPAWN_SUBAGENTS_BASE_DESCRIPTION + agentsDescription;
+
+  return {
+    name: "spawn_subagents" as ToolName,
+    description,
+    input_schema: {
+      type: "object",
+      properties: {
+        agents: {
+          type: "array",
+          description:
+            "Array of sub-agent configurations to run in parallel. Each entry specifies a prompt and optional settings.",
+          items: {
+            type: "object",
+            properties: {
+              prompt: {
+                type: "string",
+                description:
+                  "The sub-agent prompt. This should contain a clear question or task description.",
+              },
+              contextFiles: {
+                type: "array",
+                items: { type: "string" },
+                description:
+                  "Optional list of file paths to provide as context to this sub-agent.",
+              },
+              agentType: {
+                type: "string",
+                enum: allAgentTypes,
+                description:
+                  "Agent type for this sub-agent. Use custom agent names, 'fast' for quick edits, 'default' for complex tasks, 'docker'/'docker_unsupervised' for isolated container work.",
+              },
+              branch: {
+                type: "string",
+                description:
+                  "Base branch to fork from for docker agents. Required when agentType is 'docker' or 'docker_unsupervised'.",
+              },
+            },
+            required: ["prompt"],
+          },
+          minItems: 1,
+        },
+      },
+      required: ["agents"],
+    },
+  };
+}
 export function validateInput(input: {
   [key: string]: unknown;
 }): Result<Input> {
@@ -507,13 +539,6 @@ export function validateInput(input: {
         return {
           status: "error",
           error: `expected agents[${i}].agentType to be a string but it was ${JSON.stringify(agent.agentType)}`,
-        };
-      }
-      const validTypes: readonly string[] = ALL_AGENT_TYPES;
-      if (!validTypes.includes(agent.agentType)) {
-        return {
-          status: "error",
-          error: `expected agents[${i}].agentType to be one of ${ALL_AGENT_TYPES.join(", ")} but it was ${JSON.stringify(agent.agentType)}`,
         };
       }
     }

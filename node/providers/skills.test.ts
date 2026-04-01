@@ -249,8 +249,8 @@ Content
 
         // Built-in skills should always be present
         expect(systemPrompt).toContain("Available Skills");
-        expect(systemPrompt).toContain("learn");
-        expect(systemPrompt).toContain("plan");
+        expect(systemPrompt).toContain("create-skill");
+        expect(systemPrompt).toContain("update-permissions");
       },
     );
   });
@@ -357,8 +357,8 @@ allowed-tools: Bash(git show:*), Bash(git fetch: *), Bash(git diff:*)
 
         // Built-in skills should still be present even if user skills dir doesn't exist
         expect(systemPrompt).toContain("Available Skills");
-        expect(systemPrompt).toContain("learn");
-        expect(systemPrompt).toContain("plan");
+        expect(systemPrompt).toContain("create-skill");
+        expect(systemPrompt).toContain("update-permissions");
       },
     );
   });

@@ -1,4 +1,10 @@
-import type { FileIO, InputMessage, ThreadId, ThreadType } from "@magenta/core";
+import type {
+  FileIO,
+  InputMessage,
+  SubagentConfig,
+  ThreadId,
+  ThreadType,
+} from "@magenta/core";
 import { MCPToolManagerImpl } from "@magenta/core";
 import { v7 as uuidv7 } from "uuid";
 import type { BufferTracker } from "../buffer-tracker.ts";
@@ -355,6 +361,7 @@ export class Chat implements ThreadManager {
     switchToThread,
     inputMessages,
     threadType,
+    subagentConfig,
     fileIO,
     environmentConfig,
     dockerSpawnConfig,
@@ -366,6 +373,7 @@ export class Chat implements ThreadManager {
     switchToThread: boolean;
     inputMessages?: InputMessage[];
     threadType: ThreadType;
+    subagentConfig?: SubagentConfig;
     fileIO?: FileIO;
     environmentConfig?: EnvironmentConfig;
     dockerSpawnConfig?: DockerSpawnConfig | undefined;
@@ -438,6 +446,7 @@ export class Chat implements ThreadManager {
               : {}),
           }
         : {}),
+      ...(subagentConfig ? { subagentConfig } : {}),
     });
 
     const thread = new Thread(threadId, threadType, systemPrompt, {
@@ -448,6 +457,7 @@ export class Chat implements ThreadManager {
       chat: this,
       environment,
       initialFiles,
+      ...(subagentConfig ? { subagentConfig } : {}),
     });
 
     if (contextFiles.length > 0) {
@@ -1000,6 +1010,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     parentThreadId: ThreadId;
     prompt: string;
     threadType: ThreadType;
+    subagentConfig?: SubagentConfig;
     contextFiles?: UnresolvedFilePath[];
     dockerSpawnConfig?: DockerSpawnConfig;
   }): Promise<ThreadId> {
@@ -1012,15 +1023,14 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const parentThread = parentThreadWrapper.thread;
     const subagentThreadId = uuidv7() as ThreadId;
 
-    const subagentProfile: Profile =
-      opts.threadType === "subagent_fast"
-        ? {
-            ...parentThread.context.profile,
-            model: parentThread.context.profile.fastModel,
-            thinking: undefined,
-            reasoning: undefined,
-          }
-        : parentThread.context.profile;
+    const subagentProfile: Profile = opts.subagentConfig?.fastModel
+      ? {
+          ...parentThread.context.profile,
+          model: parentThread.context.profile.fastModel,
+          thinking: undefined,
+          reasoning: undefined,
+        }
+      : parentThread.context.profile;
 
     let environmentConfig: EnvironmentConfig;
     if (opts.dockerSpawnConfig) {
@@ -1041,6 +1051,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       switchToThread: false,
       inputMessages: [{ type: "system", text: opts.prompt }],
       threadType: opts.threadType,
+      ...(opts.subagentConfig ? { subagentConfig: opts.subagentConfig } : {}),
       environmentConfig,
       dockerSpawnConfig: opts.dockerSpawnConfig,
     });

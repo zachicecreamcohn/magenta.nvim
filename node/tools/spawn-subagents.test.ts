@@ -9,7 +9,6 @@ import {
 } from "@magenta/core";
 import { describe, expect, it } from "vitest";
 import type { Chat } from "../chat/chat.ts";
-import { EXPLORE_SUBAGENT_SYSTEM_PROMPT } from "../providers/system-prompt.ts";
 import { withDriver } from "../test/preamble.ts";
 
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
@@ -101,7 +100,7 @@ it("navigates to spawned subagent thread when pressing Enter on completed summar
 });
 
 describe("explore subagent", () => {
-  it("creates subagent_explore thread with explore system prompt", async () => {
+  it("spawns explore agent with agentType set to explore", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
 
@@ -147,13 +146,7 @@ describe("explore subagent", () => {
       });
 
       expect(subagentStream.systemPrompt).toContain(
-        EXPLORE_SUBAGENT_SYSTEM_PROMPT.substring(0, 100),
-      );
-      expect(subagentStream.systemPrompt).toContain(
-        "explore subagent specialized in searching",
-      );
-      expect(subagentStream.systemPrompt).toContain(
-        "File paths with line ranges",
+        "specialized in searching and understanding codebases",
       );
     });
   });

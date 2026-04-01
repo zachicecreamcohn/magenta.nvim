@@ -1,3 +1,4 @@
+import type { AgentsMap } from "../agents/agents.ts";
 import type {
   ContextTracker,
   OnToolApplied,
@@ -45,6 +46,7 @@ export type CreateToolContext = {
   shell: Shell;
   threadManager: ThreadManager;
   requestRender: () => void;
+  getAgents: () => AgentsMap;
   containerProvisioner?:
     | {
         containerConfig: ContainerConfig;
@@ -138,6 +140,7 @@ export function createTool(
         maxConcurrentSubagents: context.maxConcurrentSubagents,
         requestRender: context.requestRender,
         cwd: context.cwd,
+        agents: context.getAgents(),
         containerProvisioner: context.containerProvisioner,
       });
     }

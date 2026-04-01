@@ -1,3 +1,4 @@
+import type { AgentsMap } from "../agents/agents.ts";
 import type { ThreadId, ThreadType } from "../chat-types.ts";
 import type {
   ProviderToolSpec as MCPProviderToolSpec,
@@ -57,9 +58,7 @@ export type Msg = {
   request: ToolRequest;
 };
 
-const TOOL_SPEC_MAP: {
-  [K in StaticToolName]: ProviderToolSpec;
-} = {
+const TOOL_SPEC_MAP: Partial<Record<StaticToolName, ProviderToolSpec>> = {
   get_file: GetFile.spec,
 
   hover: Hover.spec,
@@ -68,7 +67,6 @@ const TOOL_SPEC_MAP: {
   bash_command: BashCommand.spec,
   diagnostics: Diagnostics.spec,
   thread_title: ThreadTitle.spec,
-  spawn_subagents: SpawnSubagents.spec,
   yield_to_parent: YieldToParent.spec,
 
   edl: Edl.spec,
@@ -78,12 +76,11 @@ export function getToolSpecs(
   threadType: ThreadType,
   mcpToolManager: MCPToolManager,
   availableCapabilities?: Set<ToolCapability>,
+  agents?: AgentsMap,
 ): ProviderToolSpec[] {
   let staticToolNames: StaticToolName[] = [];
   switch (threadType) {
-    case "subagent_default":
-    case "subagent_fast":
-    case "subagent_explore":
+    case "subagent":
       staticToolNames = SUBAGENT_STATIC_TOOL_NAMES;
       break;
     case "compact":
@@ -111,8 +108,16 @@ export function getToolSpecs(
           return true;
         })
       : staticToolNames;
-  return [
-    ...filteredToolNames.map((toolName) => TOOL_SPEC_MAP[toolName]),
-    ...mcpToolManager.getToolSpecs(),
-  ];
+  const specs: ProviderToolSpec[] = [];
+  for (const toolName of filteredToolNames) {
+    if (toolName === "spawn_subagents") {
+      specs.push(SpawnSubagents.getSpec(agents ?? {}));
+    } else {
+      const spec = TOOL_SPEC_MAP[toolName];
+      if (spec) {
+        specs.push(spec);
+      }
+    }
+  }
+  return [...specs, ...mcpToolManager.getToolSpecs()];
 }

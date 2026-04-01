@@ -32,7 +32,10 @@ export function loadAgents(context: {
 }): AgentsMap {
   const agents: AgentsMap = {};
 
-  if (!context.options.agentsPaths || context.options.agentsPaths.length === 0) {
+  if (
+    !context.options.agentsPaths ||
+    context.options.agentsPaths.length === 0
+  ) {
     return agents;
   }
 
@@ -135,9 +138,7 @@ export function parseAgentFile(
   const frontmatter = extractAgentFrontmatter(content);
 
   if (!frontmatter) {
-    context.logger.warn(
-      `Agent file ${agentFile} is missing YAML frontmatter`,
-    );
+    context.logger.warn(`Agent file ${agentFile} is missing YAML frontmatter`);
     return undefined;
   }
 
@@ -216,7 +217,10 @@ function extractBody(content: string): string {
     return content;
   }
 
-  return lines.slice(endIndex + 1).join("\n").trim();
+  return lines
+    .slice(endIndex + 1)
+    .join("\n")
+    .trim();
 }
 
 function extractSystemReminder(body: string): {

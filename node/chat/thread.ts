@@ -1,10 +1,11 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ThreadSupervisor } from "@magenta/core";
+import type { SubagentConfig, ThreadSupervisor } from "@magenta/core";
 import {
   type ContextFiles,
   type ContextManager,
   type InputMessage,
+  loadAgents,
   type MCPToolManagerImpl,
   ThreadCore,
   type ThreadId,
@@ -178,6 +179,7 @@ export class Thread {
       getDisplayWidth: () => number;
       environment: Environment;
       initialFiles?: ContextFiles;
+      subagentConfig?: SubagentConfig;
     },
     clonedAgent?: Agent,
   ) {
@@ -209,6 +211,9 @@ export class Thread {
         cwd: isDocker ? env.cwd : context.cwd,
         homeDir: isDocker ? env.homeDir : context.homeDir,
         threadType,
+        ...(context.subagentConfig
+          ? { subagentConfig: context.subagentConfig }
+          : {}),
         systemPrompt,
         mcpToolManager: context.mcpToolManager,
         threadManager: context.chat,
@@ -220,6 +225,12 @@ export class Thread {
         environmentConfig: env.environmentConfig,
         maxConcurrentSubagents: context.options.maxConcurrentSubagents || 3,
         container: context.options.container,
+        getAgents: () =>
+          loadAgents({
+            cwd: isDocker ? env.cwd : context.cwd,
+            logger: context.nvim.logger,
+            options: context.options,
+          }),
         getProvider: (profile) => getProvider(context.nvim, profile),
         ...(context.initialFiles ? { initialFiles: context.initialFiles } : {}),
       },
