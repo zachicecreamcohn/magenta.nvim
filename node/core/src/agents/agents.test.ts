@@ -358,7 +358,7 @@ describe("formatAgentsIntroduction", () => {
 
     const result = formatAgentsIntroduction(agents);
     expect(result).toContain("Available Agents");
-    expect(result).toContain("**explore**");
+    expect(result).toContain("- explore:");
     expect(result).toContain("Explore the codebase");
   });
 });
