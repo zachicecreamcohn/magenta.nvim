@@ -123,7 +123,7 @@ function resolveAgentRowFromResult(
 }
 
 function renderAgentRowContent(info: AgentRowRenderInfo): VDOMNode {
-  const label = truncate(info.entry.prompt);
+  const label = truncate(info.entry.prompt ?? "");
   const typeLabel = agentTypeLabel(info.entry);
   const detail = info.statusDetail ? `: ${info.statusDetail}` : "";
   const content = d`${info.statusIcon}${typeLabel} ${label}${detail}`;

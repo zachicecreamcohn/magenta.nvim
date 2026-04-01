@@ -25,21 +25,17 @@ const SPAWN_SUBAGENTS_BASE_DESCRIPTION = readFileSync(
   "utf-8",
 );
 
-const BASE_AGENT_TYPES = [
-  "default",
-  "fast",
-  "docker",
-  "docker_unsupervised",
-] as const;
-
 export type SubagentEntry = {
-  prompt: string;
+  prompt?: string;
   contextFiles?: UnresolvedFilePath[];
   agentType?: string;
+  environment?: "host" | "docker" | "docker_unsupervised";
   branch?: string;
 };
 
 export type Input = {
+  sharedPrompt?: string;
+  sharedContextFiles?: UnresolvedFilePath[];
   agents: SubagentEntry[];
 };
 
@@ -76,10 +72,6 @@ function resolveSubagentConfig(
 
   if (!agentType || agentType === "default") {
     return {};
-  }
-
-  if (agentType === "fast") {
-    return { fastModel: true };
   }
 
   // Look up custom agent by name
@@ -120,8 +112,36 @@ export function execute(
   },
 ): ToolInvocation & { progress: SpawnSubagentsProgress } {
   const input = request.input;
+
+  // Merge sharedPrompt and sharedContextFiles into each entry
+  const mergedAgents: SubagentEntry[] = input.agents.map((entry) => {
+    const merged: SubagentEntry = {};
+
+    const mergedPrompt = input.sharedPrompt
+      ? entry.prompt
+        ? `${input.sharedPrompt}\n\n${entry.prompt}`
+        : input.sharedPrompt
+      : entry.prompt;
+    if (mergedPrompt !== undefined) {
+      merged.prompt = mergedPrompt;
+    }
+
+    if (input.sharedContextFiles || entry.contextFiles) {
+      merged.contextFiles = [
+        ...((input.sharedContextFiles ?? []) as UnresolvedFilePath[]),
+        ...((entry.contextFiles ?? []) as UnresolvedFilePath[]),
+      ];
+    }
+
+    if (entry.agentType !== undefined) merged.agentType = entry.agentType;
+    if (entry.environment !== undefined) merged.environment = entry.environment;
+    if (entry.branch !== undefined) merged.branch = entry.branch;
+
+    return merged;
+  });
+
   const progress: SpawnSubagentsProgress = {
-    elements: input.agents.map((entry) => ({
+    elements: mergedAgents.map((entry) => ({
       entry,
       state: { status: "pending" as const },
     })),
@@ -138,8 +158,8 @@ export function execute(
 
     try {
       if (
-        entry.agentType === "docker" ||
-        entry.agentType === "docker_unsupervised"
+        entry.environment === "docker" ||
+        entry.environment === "docker_unsupervised"
       ) {
         await spawnDockerEntry(element, entry, context);
         return;
@@ -149,7 +169,7 @@ export function execute(
 
       const threadId = await context.threadManager.spawnThread({
         parentThreadId: context.threadId,
-        prompt: entry.prompt,
+        prompt: entry.prompt ?? "",
         threadType: "subagent",
         subagentConfig,
         ...(entry.contextFiles ? { contextFiles: entry.contextFiles } : {}),
@@ -175,7 +195,7 @@ export function execute(
       element.state = {
         status: "spawn-error",
         error:
-          "branch parameter is required when agentType is 'docker' or 'docker_unsupervised'",
+          "branch parameter is required when environment is 'docker' or 'docker_unsupervised'",
       };
       ctx.requestRender();
       return;
@@ -208,7 +228,7 @@ export function execute(
 
     const threadId = await ctx.threadManager.spawnThread({
       parentThreadId: ctx.threadId,
-      prompt: entry.prompt,
+      prompt: entry.prompt ?? "",
       threadType: "docker_root",
       ...(entry.contextFiles ? { contextFiles: entry.contextFiles } : {}),
       dockerSpawnConfig: {
@@ -219,7 +239,7 @@ export function execute(
         imageName: provisionResult.imageName,
         startSha: provisionResult.startSha,
         workspacePath: provisioner.containerConfig.workspacePath,
-        supervised: entry.agentType === "docker_unsupervised",
+        supervised: entry.environment === "docker_unsupervised",
       },
     });
 
@@ -356,13 +376,13 @@ function buildResult(
   let resultText = "All sub-agents completed:\n\n";
 
   for (const item of progress.elements) {
-    const truncatedPrompt = truncatePrompt(item.entry.prompt);
+    const truncatedPrompt = truncatePrompt(item.entry.prompt ?? "(no prompt)");
 
     if (item.state.status === "spawn-error") {
       failCount++;
       resultText += `❌ ${truncatedPrompt}:\n${item.state.error}\n\n`;
       agents.push({
-        prompt: item.entry.prompt,
+        prompt: item.entry.prompt ?? "",
         ok: false,
       });
       continue;
@@ -372,7 +392,7 @@ function buildResult(
       failCount++;
       resultText += `❌ ${truncatedPrompt}:\nnever spawned\n\n`;
       agents.push({
-        prompt: item.entry.prompt,
+        prompt: item.entry.prompt ?? "",
         ok: false,
       });
       continue;
@@ -383,7 +403,7 @@ function buildResult(
       failCount++;
       resultText += `❌ ${truncatedPrompt}:\nthread did not complete\n\n`;
       agents.push({
-        prompt: item.entry.prompt,
+        prompt: item.entry.prompt ?? "",
         threadId: item.state.threadId,
         ok: false,
       });
@@ -395,7 +415,7 @@ function buildResult(
       successCount++;
       resultText += `✅ ${truncatedPrompt}:\n${result.value}\n\n`;
       agents.push({
-        prompt: item.entry.prompt,
+        prompt: item.entry.prompt ?? "",
         threadId: item.state.threadId,
         ok: true,
         responseBody: result.value,
@@ -404,7 +424,7 @@ function buildResult(
       failCount++;
       resultText += `❌ ${truncatedPrompt}:\n${result.error}\n\n`;
       agents.push({
-        prompt: item.entry.prompt,
+        prompt: item.entry.prompt ?? "",
         threadId: item.state.threadId,
         ok: false,
       });
@@ -440,9 +460,9 @@ function truncatePrompt(prompt: string, maxLen: number = 80): string {
 
 export function getSpec(agents: AgentsMap): ProviderToolSpec {
   const agentNames = Object.keys(agents);
-  const allAgentTypes = [...BASE_AGENT_TYPES, ...agentNames];
+  const allAgentTypes = ["default", ...agentNames];
 
-  const agentsDescription = formatAgentsIntroduction(agents, "" as NvimCwd);
+  const agentsDescription = formatAgentsIntroduction(agents);
   const description = SPAWN_SUBAGENTS_BASE_DESCRIPTION + agentsDescription;
 
   return {
@@ -451,6 +471,17 @@ export function getSpec(agents: AgentsMap): ProviderToolSpec {
     input_schema: {
       type: "object",
       properties: {
+        sharedPrompt: {
+          type: "string",
+          description:
+            "Optional prompt text prepended to every sub-agent's individual prompt. When provided, per-agent prompt becomes optional.",
+        },
+        sharedContextFiles: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Optional list of file paths provided as context to every sub-agent, merged with per-agent contextFiles.",
+        },
         agents: {
           type: "array",
           description:
@@ -461,7 +492,7 @@ export function getSpec(agents: AgentsMap): ProviderToolSpec {
               prompt: {
                 type: "string",
                 description:
-                  "The sub-agent prompt. This should contain a clear question or task description.",
+                  "The sub-agent prompt. Optional if sharedPrompt is provided.",
               },
               contextFiles: {
                 type: "array",
@@ -473,15 +504,20 @@ export function getSpec(agents: AgentsMap): ProviderToolSpec {
                 type: "string",
                 enum: allAgentTypes,
                 description:
-                  "Agent type for this sub-agent. Use custom agent names, 'fast' for quick edits, 'default' for complex tasks, 'docker'/'docker_unsupervised' for isolated container work.",
+                  "Agent type for this sub-agent. Selects the agent personality/system-prompt. Use 'default' for general tasks, or a custom agent name.",
+              },
+              environment: {
+                type: "string",
+                enum: ["host", "docker", "docker_unsupervised"],
+                description:
+                  "Where the sub-agent runs. 'host' (default) runs locally, 'docker'/'docker_unsupervised' runs in an isolated container. Requires the 'branch' parameter for docker environments.",
               },
               branch: {
                 type: "string",
                 description:
-                  "Base branch to fork from for docker agents. Required when agentType is 'docker' or 'docker_unsupervised'.",
+                  "Base branch to fork from for docker environments. Required when environment is 'docker' or 'docker_unsupervised'.",
               },
             },
-            required: ["prompt"],
           },
           minItems: 1,
         },
@@ -490,9 +526,39 @@ export function getSpec(agents: AgentsMap): ProviderToolSpec {
     },
   };
 }
+const VALID_ENVIRONMENTS = ["host", "docker", "docker_unsupervised"] as const;
+
 export function validateInput(input: {
   [key: string]: unknown;
 }): Result<Input> {
+  if (input.sharedPrompt !== undefined) {
+    if (typeof input.sharedPrompt !== "string") {
+      return {
+        status: "error",
+        error: `expected sharedPrompt to be a string but it was ${JSON.stringify(input.sharedPrompt)}`,
+      };
+    }
+  }
+
+  if (input.sharedContextFiles !== undefined) {
+    if (!Array.isArray(input.sharedContextFiles)) {
+      return {
+        status: "error",
+        error: `expected sharedContextFiles to be an array but it was ${JSON.stringify(input.sharedContextFiles)}`,
+      };
+    }
+    if (
+      !input.sharedContextFiles.every(
+        (item: unknown) => typeof item === "string",
+      )
+    ) {
+      return {
+        status: "error",
+        error: "expected all items in sharedContextFiles to be strings",
+      };
+    }
+  }
+
   if (!Array.isArray(input.agents)) {
     return {
       status: "error",
@@ -507,13 +573,23 @@ export function validateInput(input: {
     };
   }
 
+  const hasSharedPrompt =
+    typeof input.sharedPrompt === "string" && input.sharedPrompt.length > 0;
+
   for (let i = 0; i < input.agents.length; i++) {
     const agent = input.agents[i] as Record<string, unknown>;
 
-    if (typeof agent.prompt !== "string") {
+    if (agent.prompt !== undefined && typeof agent.prompt !== "string") {
       return {
         status: "error",
         error: `expected agents[${i}].prompt to be a string but it was ${JSON.stringify(agent.prompt)}`,
+      };
+    }
+
+    if (!hasSharedPrompt && typeof agent.prompt !== "string") {
+      return {
+        status: "error",
+        error: `expected agents[${i}].prompt to be a string (or provide sharedPrompt) but it was ${JSON.stringify(agent.prompt)}`,
       };
     }
 
@@ -543,6 +619,20 @@ export function validateInput(input: {
       }
     }
 
+    if (agent.environment !== undefined) {
+      if (
+        typeof agent.environment !== "string" ||
+        !VALID_ENVIRONMENTS.includes(
+          agent.environment as (typeof VALID_ENVIRONMENTS)[number],
+        )
+      ) {
+        return {
+          status: "error",
+          error: `expected agents[${i}].environment to be one of ${VALID_ENVIRONMENTS.join(", ")} but it was ${JSON.stringify(agent.environment)}`,
+        };
+      }
+    }
+
     if (agent.branch !== undefined) {
       if (typeof agent.branch !== "string") {
         return {
@@ -556,6 +646,15 @@ export function validateInput(input: {
   return {
     status: "ok",
     value: {
+      ...(typeof input.sharedPrompt === "string"
+        ? { sharedPrompt: input.sharedPrompt }
+        : {}),
+      ...(Array.isArray(input.sharedContextFiles)
+        ? {
+            sharedContextFiles:
+              input.sharedContextFiles as UnresolvedFilePath[],
+          }
+        : {}),
       agents: input.agents as SubagentEntry[],
     },
   };

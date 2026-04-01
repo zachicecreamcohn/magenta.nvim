@@ -557,7 +557,7 @@ describe("foreach-style parallel agents", () => {
     );
   });
 
-  it("uses fast model for subagents when agentType is 'fast'", async () => {
+  it("uses fast model for subagents when agentType is 'fast-edit'", async () => {
     await withDriver(
       {
         options: {
@@ -612,7 +612,7 @@ describe("foreach-style parallel agents", () => {
                   agents: [
                     {
                       prompt: "Process this element quickly",
-                      agentType: "fast",
+                      agentType: "fast-edit",
                     },
                   ],
                 },

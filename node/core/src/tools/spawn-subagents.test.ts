@@ -181,7 +181,7 @@ describe("spawn-subagents unit tests", () => {
       agentType: SpawnSubagents.SubagentEntry["agentType"];
       expectedThreadType: string;
     }> = [
-      { agentType: "fast", expectedThreadType: "subagent" },
+      { agentType: "fast-edit", expectedThreadType: "subagent" },
       { agentType: "explore", expectedThreadType: "subagent" },
       { agentType: undefined, expectedThreadType: "subagent" },
     ];
@@ -587,7 +587,7 @@ describe("spawn-subagents docker provisioning", () => {
         agents: [
           {
             prompt: "do docker work",
-            agentType: "docker",
+            environment: "docker",
             branch: "feature-branch",
           },
         ],
@@ -617,12 +617,12 @@ describe("spawn-subagents docker provisioning", () => {
     );
   });
 
-  it("returns error when branch is missing for docker agentType", async () => {
+  it("returns error when branch is missing for docker environment", async () => {
     const threadManager = createMockThreadManager();
 
     const invocation = SpawnSubagents.execute(
       makeRequest({
-        agents: [{ prompt: "do docker work", agentType: "docker" }],
+        agents: [{ prompt: "do docker work", environment: "docker" }],
       }),
       {
         threadManager,
@@ -650,7 +650,7 @@ describe("spawn-subagents docker provisioning", () => {
         agents: [
           {
             prompt: "do docker work",
-            agentType: "docker",
+            environment: "docker",
             branch: "feature-branch",
           },
         ],
@@ -677,7 +677,7 @@ describe("spawn-subagents docker provisioning", () => {
         agents: [
           {
             prompt: "do docker work",
-            agentType: "docker",
+            environment: "docker",
             branch: "feature-branch",
           },
         ],
@@ -717,7 +717,7 @@ describe("spawn-subagents docker provisioning", () => {
     );
   });
 
-  it("docker_unsupervised agentType sets supervised=true", async () => {
+  it("docker_unsupervised environment sets supervised=true", async () => {
     const threadManager = createMockThreadManager();
 
     SpawnSubagents.execute(
@@ -725,7 +725,7 @@ describe("spawn-subagents docker provisioning", () => {
         agents: [
           {
             prompt: "do docker work",
-            agentType: "docker_unsupervised",
+            environment: "docker_unsupervised",
             branch: "feature-branch",
           },
         ],
@@ -763,7 +763,7 @@ describe("spawn-subagents docker provisioning", () => {
         agents: [
           {
             prompt: "do docker work",
-            agentType: "docker",
+            environment: "docker",
             branch: "feature-branch",
           },
         ],
@@ -807,10 +807,10 @@ describe("spawn-subagents docker provisioning", () => {
     const invocation = SpawnSubagents.execute(
       makeRequest({
         agents: [
-          { prompt: "non-docker task", agentType: "fast" },
+          { prompt: "non-docker task", agentType: "fast-edit" },
           {
             prompt: "docker task",
-            agentType: "docker",
+            environment: "docker",
             branch: "main",
           },
         ],
@@ -844,5 +844,385 @@ describe("spawn-subagents docker provisioning", () => {
     const text = await getResultText(invocation);
     expect(text).toContain("Total: 2");
     expect(text).toContain("Successful: 2");
+  });
+});
+
+describe("sharedPrompt and sharedContextFiles", () => {
+  it("sharedPrompt is prepended to each agent's prompt", async () => {
+    const spawnThread = vi.fn(() => Promise.resolve("thread_1" as ThreadId));
+    const threadManager = createMockThreadManager({ spawnThread });
+
+    const invocation = SpawnSubagents.execute(
+      makeRequest({
+        sharedPrompt: "You are a helpful assistant.",
+        agents: [{ prompt: "Do task 1" }, { prompt: "Do task 2" }],
+      }),
+      {
+        threadManager,
+        threadId: "parent-1" as ThreadId,
+        maxConcurrentSubagents: 10,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+        agents: {},
+      },
+    );
+
+    await vi.waitFor(() => {
+      expect(spawnThread).toHaveBeenCalledTimes(2);
+    });
+
+    expect(spawnThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: "You are a helpful assistant.\n\nDo task 1",
+      }),
+    );
+    expect(spawnThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: "You are a helpful assistant.\n\nDo task 2",
+      }),
+    );
+
+    threadManager.simulateYield("thread_1" as ThreadId, {
+      status: "ok",
+      value: "done",
+    });
+    await invocation.promise;
+  });
+
+  it("sharedPrompt used alone when per-agent prompt is missing", async () => {
+    const spawnThread = vi.fn(() => Promise.resolve("thread_1" as ThreadId));
+    const threadManager = createMockThreadManager({ spawnThread });
+
+    const invocation = SpawnSubagents.execute(
+      makeRequest({
+        sharedPrompt: "Shared instructions",
+        agents: [{ agentType: "explore" }],
+      }),
+      {
+        threadManager,
+        threadId: "parent-1" as ThreadId,
+        maxConcurrentSubagents: 10,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+        agents: {},
+      },
+    );
+
+    await vi.waitFor(() => {
+      expect(spawnThread).toHaveBeenCalled();
+    });
+
+    expect(spawnThread).toHaveBeenCalledWith(
+      expect.objectContaining({ prompt: "Shared instructions" }),
+    );
+
+    threadManager.simulateYield("thread_1" as ThreadId, {
+      status: "ok",
+      value: "done",
+    });
+    await invocation.promise;
+  });
+
+  it("sharedContextFiles merge with per-agent contextFiles", async () => {
+    const spawnThread = vi.fn(() => Promise.resolve("thread_1" as ThreadId));
+    const threadManager = createMockThreadManager({ spawnThread });
+
+    const invocation = SpawnSubagents.execute(
+      makeRequest({
+        sharedContextFiles: [
+          "/shared/a.ts" as UnresolvedFilePath,
+          "/shared/b.ts" as UnresolvedFilePath,
+        ],
+        agents: [
+          {
+            prompt: "task",
+            contextFiles: ["/local/c.ts" as UnresolvedFilePath],
+          },
+        ],
+      }),
+      {
+        threadManager,
+        threadId: "parent-1" as ThreadId,
+        maxConcurrentSubagents: 10,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+        agents: {},
+      },
+    );
+
+    await vi.waitFor(() => {
+      expect(spawnThread).toHaveBeenCalled();
+    });
+
+    expect(spawnThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contextFiles: ["/shared/a.ts", "/shared/b.ts", "/local/c.ts"],
+      }),
+    );
+
+    threadManager.simulateYield("thread_1" as ThreadId, {
+      status: "ok",
+      value: "done",
+    });
+    await invocation.promise;
+  });
+
+  it("sharedContextFiles used alone when per-agent has none", async () => {
+    const spawnThread = vi.fn(() => Promise.resolve("thread_1" as ThreadId));
+    const threadManager = createMockThreadManager({ spawnThread });
+
+    const invocation = SpawnSubagents.execute(
+      makeRequest({
+        sharedContextFiles: ["/shared/a.ts" as UnresolvedFilePath],
+        agents: [{ prompt: "task" }],
+      }),
+      {
+        threadManager,
+        threadId: "parent-1" as ThreadId,
+        maxConcurrentSubagents: 10,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+        agents: {},
+      },
+    );
+
+    await vi.waitFor(() => {
+      expect(spawnThread).toHaveBeenCalled();
+    });
+
+    expect(spawnThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contextFiles: ["/shared/a.ts"],
+      }),
+    );
+
+    threadManager.simulateYield("thread_1" as ThreadId, {
+      status: "ok",
+      value: "done",
+    });
+    await invocation.promise;
+  });
+});
+
+describe("environment routing", () => {
+  it("environment: 'host' (or omitted) goes through non-docker path", async () => {
+    const threadManager = createMockThreadManager();
+
+    SpawnSubagents.execute(
+      makeRequest({
+        agents: [{ prompt: "task", environment: "host" }],
+      }),
+      {
+        threadManager,
+        threadId: "parent-1" as ThreadId,
+        maxConcurrentSubagents: 10,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+        agents: {},
+      },
+    );
+
+    await vi.waitFor(() => {
+      expect(threadManager.spawnThread).toHaveBeenCalled();
+    });
+
+    expect(threadManager.spawnThread).toHaveBeenCalledWith(
+      expect.objectContaining({ threadType: "subagent" }),
+    );
+  });
+
+  it("environment + agentType are orthogonal: explore in docker", async () => {
+    const containerConfig = {
+      dockerfile: "Dockerfile",
+      workspacePath: "/workspace",
+      installCommand: "npm install",
+    };
+    const provisionResult = {
+      containerName: "magenta-test-abc123",
+      tempDir: "/tmp/magenta-dev-containers/magenta-test-abc123",
+      imageName: "magenta-dev-test",
+      startSha: "abc123",
+      workerBranch: "magenta/worker-abc123",
+    };
+
+    const threadManager = createMockThreadManager();
+
+    SpawnSubagents.execute(
+      makeRequest({
+        agents: [
+          {
+            prompt: "find something",
+            agentType: "explore",
+            environment: "docker",
+            branch: "main",
+          },
+        ],
+      }),
+      {
+        threadManager,
+        threadId: "parent-1" as ThreadId,
+        maxConcurrentSubagents: 10,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+        agents: {},
+        containerProvisioner: {
+          containerConfig,
+          provision: vi.fn().mockResolvedValue(provisionResult),
+        },
+      },
+    );
+
+    await vi.waitFor(() => {
+      expect(threadManager.spawnThread).toHaveBeenCalled();
+    });
+
+    expect(threadManager.spawnThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadType: "docker_root",
+        dockerSpawnConfig: expect.objectContaining({
+          containerName: "magenta-test-abc123",
+        }),
+      }),
+    );
+  });
+});
+
+describe("validation: new fields", () => {
+  it("rejects non-string sharedPrompt", () => {
+    const result = SpawnSubagents.validateInput({
+      sharedPrompt: 123,
+      agents: [{ prompt: "test" }],
+    });
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("sharedPrompt");
+    }
+  });
+
+  it("rejects non-array sharedContextFiles", () => {
+    const result = SpawnSubagents.validateInput({
+      sharedContextFiles: "file.ts",
+      agents: [{ prompt: "test" }],
+    });
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("sharedContextFiles");
+    }
+  });
+
+  it("rejects non-string items in sharedContextFiles", () => {
+    const result = SpawnSubagents.validateInput({
+      sharedContextFiles: [123],
+      agents: [{ prompt: "test" }],
+    });
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("sharedContextFiles");
+    }
+  });
+
+  it("rejects invalid environment value", () => {
+    const result = SpawnSubagents.validateInput({
+      agents: [{ prompt: "test", environment: "invalid" }],
+    });
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("environment");
+    }
+  });
+
+  it("rejects missing prompt when no sharedPrompt", () => {
+    const result = SpawnSubagents.validateInput({
+      agents: [{ agentType: "explore" }],
+    });
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("prompt");
+    }
+  });
+
+  it("accepts missing per-agent prompt when sharedPrompt provided", () => {
+    const result = SpawnSubagents.validateInput({
+      sharedPrompt: "do stuff",
+      agents: [{ agentType: "explore" }],
+    });
+    expect(result.status).toBe("ok");
+  });
+
+  it("accepts valid environment values", () => {
+    for (const env of ["host", "docker", "docker_unsupervised"]) {
+      const result = SpawnSubagents.validateInput({
+        agents: [{ prompt: "test", environment: env }],
+      });
+      expect(result.status).toBe("ok");
+    }
+  });
+});
+
+describe("getSpec", () => {
+  it("does not include fast, docker, docker_unsupervised in agentType enum", () => {
+    const spec = SpawnSubagents.getSpec({});
+    const schema = spec.input_schema as {
+      properties: {
+        agents: { items: { properties: { agentType: { enum: string[] } } } };
+      };
+    };
+    const agentTypeEnum =
+      schema.properties.agents.items.properties.agentType.enum;
+    expect(agentTypeEnum).not.toContain("fast");
+    expect(agentTypeEnum).not.toContain("docker");
+    expect(agentTypeEnum).not.toContain("docker_unsupervised");
+  });
+
+  it("includes default and custom agent names in agentType enum", () => {
+    const agents = {
+      explore: {
+        name: "explore",
+        description: "explore",
+        systemPrompt: "",
+        systemReminder: undefined,
+        fastModel: true,
+      },
+      "my-agent": {
+        name: "my-agent",
+        description: "custom",
+        systemPrompt: "",
+        systemReminder: undefined,
+        fastModel: undefined,
+      },
+    };
+    const spec = SpawnSubagents.getSpec(agents);
+    const schema = spec.input_schema as {
+      properties: {
+        agents: { items: { properties: { agentType: { enum: string[] } } } };
+      };
+    };
+    const agentTypeEnum =
+      schema.properties.agents.items.properties.agentType.enum;
+    expect(agentTypeEnum).toContain("default");
+    expect(agentTypeEnum).toContain("explore");
+    expect(agentTypeEnum).toContain("my-agent");
+  });
+
+  it("includes environment property with correct enum", () => {
+    const spec = SpawnSubagents.getSpec({});
+    const schema = spec.input_schema as {
+      properties: {
+        agents: {
+          items: { properties: { environment: { enum: string[] } } };
+        };
+      };
+    };
+    const envEnum = schema.properties.agents.items.properties.environment.enum;
+    expect(envEnum).toEqual(["host", "docker", "docker_unsupervised"]);
+  });
+
+  it("includes top-level sharedPrompt and sharedContextFiles properties", () => {
+    const spec = SpawnSubagents.getSpec({});
+    const schema = spec.input_schema as {
+      properties: Record<string, unknown>;
+    };
+    expect(schema.properties).toHaveProperty("sharedPrompt");
+    expect(schema.properties).toHaveProperty("sharedContextFiles");
   });
 });
