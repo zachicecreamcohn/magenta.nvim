@@ -62,19 +62,6 @@ describe("sandbox-manager", () => {
   const logger = { warn: vi.fn() };
 
   describe("initializeSandbox", () => {
-    it("disabled config returns disabled sandbox", async () => {
-      const config = makeConfig({ enabled: false });
-      const sandbox = await initializeSandbox(
-        config,
-        cwd,
-        homeDir,
-        undefined,
-        logger,
-      );
-      expect(sandbox.getState()).toEqual({ status: "disabled" });
-      expect(mockInitialize).not.toHaveBeenCalled();
-    });
-
     it("unsupported platform returns unsupported sandbox", async () => {
       mockIsSupportedPlatform.mockReturnValue(false);
       const config = makeConfig();
@@ -163,7 +150,12 @@ describe("sandbox-manager", () => {
   describe("resolveConfigPaths", () => {
     it("expands ~/ to homeDir", () => {
       const config = makeConfig({
-        filesystem: { allowWrite: [], denyWrite: [], denyRead: ["~/.ssh"] },
+        filesystem: {
+          allowWrite: [],
+          denyWrite: [],
+          denyRead: ["~/.ssh"],
+          allowRead: [],
+        },
       });
       const resolved = resolveConfigPaths(config, cwd, homeDir);
       expect(resolved.filesystem.denyRead).toEqual(["/home/user/.ssh"]);
@@ -171,7 +163,12 @@ describe("sandbox-manager", () => {
 
     it("expands ./ to cwd", () => {
       const config = makeConfig({
-        filesystem: { allowWrite: ["./"], denyWrite: [], denyRead: [] },
+        filesystem: {
+          allowWrite: ["./"],
+          denyWrite: [],
+          denyRead: [],
+          allowRead: [],
+        },
       });
       const resolved = resolveConfigPaths(config, cwd, homeDir);
       expect(resolved.filesystem.allowWrite).toEqual(["/home/user/project"]);
@@ -179,7 +176,12 @@ describe("sandbox-manager", () => {
 
     it("leaves absolute paths unchanged", () => {
       const config = makeConfig({
-        filesystem: { allowWrite: ["/tmp/build"], denyWrite: [], denyRead: [] },
+        filesystem: {
+          allowWrite: ["/tmp/build"],
+          denyWrite: [],
+          denyRead: [],
+          allowRead: [],
+        },
       });
       const resolved = resolveConfigPaths(config, cwd, homeDir);
       expect(resolved.filesystem.allowWrite).toEqual(["/tmp/build"]);
@@ -187,7 +189,12 @@ describe("sandbox-manager", () => {
 
     it("resolves relative paths to cwd-relative", () => {
       const config = makeConfig({
-        filesystem: { allowWrite: ["src/output"], denyWrite: [], denyRead: [] },
+        filesystem: {
+          allowWrite: ["src/output"],
+          denyWrite: [],
+          denyRead: [],
+          allowRead: [],
+        },
       });
       const resolved = resolveConfigPaths(config, cwd, homeDir);
       expect(resolved.filesystem.allowWrite).toEqual([
@@ -240,6 +247,7 @@ describe("sandbox-manager", () => {
           allowWrite: ["./", "/tmp"],
           denyWrite: [".env"],
           denyRead: [],
+          allowRead: [],
         },
       });
       sandbox.updateConfigIfChanged(changedConfig, cwd, homeDir);

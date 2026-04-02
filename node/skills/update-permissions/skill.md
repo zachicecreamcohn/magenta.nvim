@@ -27,18 +27,14 @@ User-level settings apply across all projects. Project-level settings are merged
 ```json
 {
   "sandbox": {
-    "enabled": true,
     "filesystem": {
       "allowWrite": ["./"],
       "denyWrite": [".env", ".git/hooks/"],
-      "denyRead": ["~/.ssh", "~/.aws", "~/.gnupg"]
+      "denyRead": ["~/.*"],
+      "allowRead": ["~/.magenta", "~/.claude"]
     },
     "network": {
-      "allowedDomains": [
-        "registry.npmjs.org",
-        "github.com",
-        "*.github.com"
-      ],
+      "allowedDomains": ["registry.npmjs.org", "github.com", "*.github.com"],
       "deniedDomains": []
     }
   }
@@ -47,11 +43,11 @@ User-level settings apply across all projects. Project-level settings are merged
 
 ### Fields
 
-- **`enabled`** (boolean): Whether sandboxing is active. Default: `true`.
 - **`filesystem.allowWrite`**: Paths where writing is allowed. Default: `["./"]` (current working directory).
 - **`filesystem.denyWrite`**: Paths within allowed areas where writing is denied. Default: `[".env", ".git/hooks/"]`.
-- **`filesystem.denyRead`**: Paths where reading is denied. Default: `["~/.ssh", "~/.aws", "~/.gnupg"]`.
+- **`filesystem.denyRead`**: Paths/patterns where reading is denied. User config is concatenated to `["~/.*"]` (all hidden files/folders in home).
 - **`network.allowedDomains`**: Domains that commands can access. Supports wildcards (e.g., `"*.github.com"`).
+- **`filesystem.allowRead`**: Paths to re-allow reading within denied regions. Default: `["~/.magenta", "~/.claude"]`. Takes precedence over `denyRead`.
 - **`network.deniedDomains`**: Domains that are explicitly blocked.
 
 ### Path Resolution
@@ -101,17 +97,13 @@ Add the path to `filesystem.allowWrite`:
 
 ### Sandbox blocked reading a config file
 
-Remove the path from `filesystem.denyRead`, or if a specific file within a denied directory should be readable, this requires removing the parent deny rule and adding more specific deny rules for the parts that should stay blocked.
-
-### Allow writing to a dotfile that's currently denied
-
-Remove the specific entry from `filesystem.denyWrite`:
+Add the path to `filesystem.allowRead`:
 
 ```json
 {
   "sandbox": {
     "filesystem": {
-      "denyWrite": []
+      "allowRead": ["~/.config/myapp"]
     }
   }
 }
@@ -122,19 +114,7 @@ Note: Since project settings merge by concatenating arrays, you cannot remove a 
 ## Merging Behavior
 
 When project settings are merged with user settings:
-- **Arrays concatenate**: project `allowWrite` is appended to user `allowWrite`
-- **`enabled` overwrites**: project can disable sandbox even if user enables it
 
-## Disabling the Sandbox
-
-To disable sandboxing entirely:
-
-```json
-{
-  "sandbox": {
-    "enabled": false
-  }
-}
-```
-
-When disabled, every shell command and file write will prompt the user for approval (no auto-allow rules).
+- **Arrays concatenate**: project `allowWrite` is appended to user `allowWrite`, project `denyRead` is appended to user `denyRead`, and project `allowRead` is appended to user `allowRead`
+- **`denyRead` always includes defaults**: the mandatory defaults (`~/.*`) are always enforced; user config can only add more deny rules, never remove them
+- **`allowRead` takes precedence**: if a path appears in both `denyRead` and `allowRead`, the allow rule wins

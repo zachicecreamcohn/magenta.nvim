@@ -23,18 +23,45 @@ export class SandboxFileIO implements FileIO {
       this.context.homeDir,
     );
   }
+  private hasGlobChars(pattern: string): boolean {
+    return (
+      pattern.includes("*") || pattern.includes("?") || pattern.includes("[")
+    );
+  }
 
+  private globToRegex(pattern: string): RegExp {
+    const regexStr =
+      "^" +
+      pattern
+        .replace(/[.^$+{}()|\\]/g, "\\$&")
+        .replace(/\[([^\]]*?)$/g, "\\[$1")
+        .replace(/\*\*\//g, "__GLOBSTAR_SLASH__")
+        .replace(/\*\*/g, "__GLOBSTAR__")
+        .replace(/\*/g, "[^/]*")
+        .replace(/\?/g, "[^/]")
+        .replace(/__GLOBSTAR_SLASH__/g, "(.*/)?")
+        .replace(/__GLOBSTAR__/g, ".*") +
+      "$";
+    return new RegExp(regexStr);
+  }
+
+  private pathMatchesDeny(absPath: string, pattern: string): boolean {
+    if (this.hasGlobChars(pattern)) {
+      return this.globToRegex(pattern).test(absPath);
+    }
+    return absPath === pattern || absPath.startsWith(`${pattern}/`);
+  }
   isReadBlocked(absPath: string): boolean {
     if (this.sandbox.getState().status !== "ready") return false;
     const readConfig = this.sandbox.getFsReadConfig();
-    return (
-      readConfig.denyOnly.some(
-        (denied) => absPath === denied || absPath.startsWith(`${denied}/`),
-      ) &&
-      !(readConfig.allowWithinDeny ?? []).some(
-        (allowed) => absPath === allowed || absPath.startsWith(`${allowed}/`),
-      )
+    const isDenied = readConfig.denyOnly.some((pattern) =>
+      this.pathMatchesDeny(absPath, pattern),
     );
+    if (!isDenied) return false;
+    const isAllowed = (readConfig.allowWithinDeny ?? []).some(
+      (allowed) => absPath === allowed || absPath.startsWith(`${allowed}/`),
+    );
+    return !isAllowed;
   }
 
   isWriteBlocked(absPath: string): boolean {

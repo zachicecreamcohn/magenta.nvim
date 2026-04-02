@@ -93,7 +93,7 @@ it("abort command should work when response is in progress", async () => {
 
 it("abort command should stop pending tool use", async () => {
   await withDriver({}, async (driver) => {
-    driver.mockSandbox.setState({ status: "disabled" });
+    driver.mockSandbox.setState({ status: "unsupported", reason: "disabled" });
     await driver.showSidebar();
     await driver.inputMagentaText(`hello`);
     await driver.send();

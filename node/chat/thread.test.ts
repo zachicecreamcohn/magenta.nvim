@@ -1327,7 +1327,7 @@ it("shows EDL script preview while streaming", async () => {
 });
 it("handles @async messages by queueing them and sending on next tool response", async () => {
   await withDriver({}, async (driver) => {
-    driver.mockSandbox.setState({ status: "disabled" });
+    driver.mockSandbox.setState({ status: "unsupported", reason: "disabled" });
     await driver.showSidebar();
 
     // First, send a regular message that will use a bash command

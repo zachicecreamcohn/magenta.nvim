@@ -725,7 +725,10 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
 
   it("shows pending approvals from subagent in parent progress view", async () => {
     await withDriver({}, async (driver) => {
-      driver.mockSandbox.setState({ status: "disabled" });
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
       await driver.showSidebar();
       const thread1 = driver.getThreadId(0);
 

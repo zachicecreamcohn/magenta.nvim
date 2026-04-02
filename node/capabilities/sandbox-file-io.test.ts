@@ -249,7 +249,7 @@ describe("SandboxFileIO", () => {
 
   describe("when sandbox is disabled", () => {
     beforeEach(() => {
-      currentSandboxState = { status: "disabled" };
+      currentSandboxState = { status: "unsupported", reason: "disabled" };
     });
 
     test("reads are allowed without prompt", async () => {

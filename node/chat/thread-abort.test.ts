@@ -58,7 +58,7 @@ it("forks a thread while streaming by aborting the stream first", async () => {
 
 it("forks a thread while waiting for tool use by aborting pending tools first", async () => {
   await withDriver({}, async (driver) => {
-    driver.mockSandbox.setState({ status: "disabled" });
+    driver.mockSandbox.setState({ status: "unsupported", reason: "disabled" });
     await driver.showSidebar();
 
     // Start a conversation
@@ -220,7 +220,7 @@ it("aborts tool use when sending new message while tool is executing", async () 
 
 it("inserts error tool results when aborting while stopped waiting for tool use", async () => {
   await withDriver({}, async (driver) => {
-    driver.mockSandbox.setState({ status: "disabled" });
+    driver.mockSandbox.setState({ status: "unsupported", reason: "disabled" });
     await driver.showSidebar();
     await driver.inputMagentaText("Read my secret file");
     await driver.send();
@@ -296,7 +296,7 @@ it("inserts error tool results when aborting while stopped waiting for tool use"
 
 it("clears pending file permission checks when aborting", async () => {
   await withDriver({}, async (driver) => {
-    driver.mockSandbox.setState({ status: "disabled" });
+    driver.mockSandbox.setState({ status: "unsupported", reason: "disabled" });
     await driver.showSidebar();
     await driver.inputMagentaText("Run a command");
     await driver.send();
@@ -342,7 +342,7 @@ it("clears pending file permission checks when aborting", async () => {
 
 it("clears pending permissions when sending a new message during tool_use", async () => {
   await withDriver({}, async (driver) => {
-    driver.mockSandbox.setState({ status: "disabled" });
+    driver.mockSandbox.setState({ status: "unsupported", reason: "disabled" });
     await driver.showSidebar();
     await driver.inputMagentaText("Run a command");
     await driver.send();

@@ -103,11 +103,11 @@ function createMockViolationHandler(): SandboxViolationHandler & {
 }
 
 const defaultSandboxConfig: SandboxConfig = {
-  enabled: true,
   filesystem: {
     allowWrite: ["./"],
     denyWrite: [],
     denyRead: [],
+    allowRead: [],
   },
   network: {
     allowedDomains: [],
@@ -188,7 +188,10 @@ describe("SandboxShell", () => {
   });
 
   test("prompts when disabled", async () => {
-    mockGetSandboxState.mockReturnValue({ status: "disabled" });
+    mockGetSandboxState.mockReturnValue({
+      status: "unsupported",
+      reason: "disabled",
+    });
     const handler = createMockViolationHandler();
     const expectedResult: ShellResult = {
       exitCode: 0,
@@ -378,7 +381,10 @@ describe("SandboxShell", () => {
   });
 
   test("execute callback in promptForApproval spawns command directly", async () => {
-    mockGetSandboxState.mockReturnValue({ status: "disabled" });
+    mockGetSandboxState.mockReturnValue({
+      status: "unsupported",
+      reason: "disabled",
+    });
     const handler = createMockViolationHandler();
 
     handler.promptForApproval.mockImplementation(

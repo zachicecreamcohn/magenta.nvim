@@ -11,8 +11,7 @@ import type { HomeDir, NvimCwd } from "./utils/files.ts";
 export type SandboxState =
   | { status: "uninitialized" }
   | { status: "ready" }
-  | { status: "unsupported"; reason: string }
-  | { status: "disabled" };
+  | { status: "unsupported"; reason: string };
 
 export type FsReadConfig = { denyOnly: string[]; allowWithinDeny?: string[] };
 export type FsWriteConfig = { allowOnly: string[]; denyWithinAllow: string[] };
@@ -68,6 +67,7 @@ export function resolveConfigPaths(
       allowWrite: resolvePaths(config.filesystem.allowWrite, cwd, homeDir),
       denyWrite: resolvePaths(config.filesystem.denyWrite, cwd, homeDir),
       denyRead: resolvePaths(config.filesystem.denyRead, cwd, homeDir),
+      allowRead: resolvePaths(config.filesystem.allowRead, cwd, homeDir),
     },
     network: {
       allowedDomains: config.network.allowedDomains,
@@ -139,10 +139,6 @@ export async function initializeSandbox(
   askCallback: SandboxAskCallback | undefined,
   logger: { warn(msg: string): void },
 ): Promise<Sandbox> {
-  if (!config.enabled) {
-    return new RealSandbox({ status: "disabled" });
-  }
-
   if (!SandboxManager.isSupportedPlatform()) {
     const reason = "Sandbox is not supported on this platform";
     logger.warn(reason);

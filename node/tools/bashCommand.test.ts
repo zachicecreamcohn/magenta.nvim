@@ -55,7 +55,10 @@ describe("node/tools/bashCommand.test.ts", () => {
   it("handles command errors gracefully after approval", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
-      driver.mockSandbox.setState({ status: "disabled" });
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
       await driver.inputMagentaText(`Run this command: nonexistentcommand`);
       await driver.send();
 
@@ -94,7 +97,10 @@ describe("node/tools/bashCommand.test.ts", () => {
   it("requires approval for a command not in the allowlist", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
-      driver.mockSandbox.setState({ status: "disabled" });
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
       await driver.inputMagentaText(
         `Run this command: true && echo "hello, world"`,
       );
@@ -145,7 +151,10 @@ describe("node/tools/bashCommand.test.ts", () => {
   it("handles user rejection of command", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
-      driver.mockSandbox.setState({ status: "disabled" });
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
       await driver.inputMagentaText(`Run this command: true && ls -la`);
       await driver.send();
 
@@ -185,7 +194,10 @@ describe("node/tools/bashCommand.test.ts", () => {
   it("displays approval dialog with proper box formatting", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
-      driver.mockSandbox.setState({ status: "disabled" });
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
       await driver.inputMagentaText(`Run this command: dangerous-command`);
       await driver.send();
 
@@ -229,7 +241,10 @@ describe("node/tools/bashCommand.test.ts", () => {
   it("terminates a long-running command with 't' key", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
-      driver.mockSandbox.setState({ status: "disabled" });
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
       // Use a command that will run until terminated
       await driver.inputMagentaText(`Run this command: sleep 30`);
       await driver.send();
@@ -272,7 +287,10 @@ describe("node/tools/bashCommand.test.ts", () => {
   it("ensures a command is executed only once", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
-      driver.mockSandbox.setState({ status: "disabled" });
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
 
       // Create a unique filename for this test
       const cwd = await getcwd(driver.nvim);
@@ -877,7 +895,10 @@ describe("bash command output logging", () => {
   it("includes duration in the tool result for failed commands", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
-      driver.mockSandbox.setState({ status: "disabled" });
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
       await driver.inputMagentaText(`Run this command: exit 1`);
       await driver.send();
 

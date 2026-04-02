@@ -564,9 +564,12 @@ ${lines.join("\n")}
         nvim.logger.error(
           `Failed to initialize sandbox: ${err instanceof Error ? err.message : String(err)}`,
         );
-        // Return a disabled sandbox on failure
+        // Return an unsupported sandbox on failure
         return {
-          getState: () => ({ status: "disabled" }) as const,
+          getState: () => ({
+            status: "unsupported" as const,
+            reason: "initialization failed",
+          }),
           wrapWithSandbox: (cmd: string) => Promise.resolve(cmd),
           getViolationStore: () => ({
             getTotalCount: () => 0,

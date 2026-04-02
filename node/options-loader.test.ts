@@ -10,11 +10,8 @@ it("dynamically picks up sandbox config changes from project options.json", asyn
     const cwd = await getcwd(driver.nvim);
 
     // Verify default sandbox config
-    expect(driver.magenta.options.sandbox.enabled).toBe(true);
     expect(driver.magenta.options.sandbox.filesystem.denyRead).toEqual([
-      "~/.ssh",
-      "~/.aws",
-      "~/.gnupg",
+      "~/.*",
     ]);
 
     // Write a project options.json that changes sandbox config

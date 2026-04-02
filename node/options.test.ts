@@ -42,7 +42,6 @@ describe("parseSandboxConfig", () => {
     const input = {
       profiles: [{ name: "test", provider: "mock" }],
       sandbox: {
-        enabled: true,
         filesystem: {
           allowWrite: ["/tmp"],
           denyWrite: [".secret"],
@@ -56,11 +55,11 @@ describe("parseSandboxConfig", () => {
     };
     const result = parseOptions(input, noopLogger);
     expect(result.sandbox).toEqual({
-      enabled: true,
       filesystem: {
         allowWrite: ["/tmp"],
         denyWrite: [".secret"],
-        denyRead: ["~/.ssh"],
+        denyRead: [...DEFAULT_SANDBOX_CONFIG.filesystem.denyRead, "~/.ssh"],
+        allowRead: DEFAULT_SANDBOX_CONFIG.filesystem.allowRead,
       },
       network: {
         allowedDomains: ["example.com"],
@@ -72,12 +71,9 @@ describe("parseSandboxConfig", () => {
   it("should fill defaults for missing fields", () => {
     const input = {
       profiles: [{ name: "test", provider: "mock" }],
-      sandbox: {
-        enabled: false,
-      },
+      sandbox: {},
     };
     const result = parseOptions(input, noopLogger);
-    expect(result.sandbox.enabled).toBe(false);
     expect(result.sandbox.filesystem).toEqual(
       DEFAULT_SANDBOX_CONFIG.filesystem,
     );
@@ -98,14 +94,15 @@ describe("parseProjectOptions sandbox", () => {
     const result = parseProjectOptions(
       {
         sandbox: {
-          enabled: false,
           filesystem: { denyRead: ["/secret"] },
         },
       },
       noopLogger,
     );
-    expect(result.sandbox?.enabled).toBe(false);
-    expect(result.sandbox?.filesystem.denyRead).toEqual(["/secret"]);
+    expect(result.sandbox?.filesystem.denyRead).toEqual([
+      ...DEFAULT_SANDBOX_CONFIG.filesystem.denyRead,
+      "/secret",
+    ]);
     expect(result.sandbox?.filesystem.allowWrite).toEqual(
       DEFAULT_SANDBOX_CONFIG.filesystem.allowWrite,
     );
@@ -113,14 +110,14 @@ describe("parseProjectOptions sandbox", () => {
 });
 
 describe("mergeOptions", () => {
-  it("should concatenate sandbox arrays and overwrite enabled", () => {
+  it("should concatenate sandbox arrays", () => {
     const base = makeBaseOptions({
       sandbox: {
-        enabled: true,
         filesystem: {
           allowWrite: ["./"],
           denyWrite: [".env"],
           denyRead: ["~/.ssh"],
+          allowRead: [],
         },
         network: {
           allowedDomains: ["registry.npmjs.org"],
@@ -131,11 +128,11 @@ describe("mergeOptions", () => {
 
     const merged = mergeOptions(base, {
       sandbox: {
-        enabled: false,
         filesystem: {
           allowWrite: ["/tmp"],
           denyWrite: [".git/hooks/"],
           denyRead: ["~/.aws"],
+          allowRead: [],
         },
         network: {
           allowedDomains: ["github.com"],
@@ -144,7 +141,6 @@ describe("mergeOptions", () => {
       },
     });
 
-    expect(merged.sandbox.enabled).toBe(false);
     expect(merged.sandbox.filesystem.allowWrite).toEqual(["./", "/tmp"]);
     expect(merged.sandbox.filesystem.denyWrite).toEqual([
       ".env",

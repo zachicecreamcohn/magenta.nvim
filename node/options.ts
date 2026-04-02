@@ -139,11 +139,11 @@ export type SidebarPositionOpts = {
 };
 
 export type SandboxConfig = {
-  enabled: boolean;
   filesystem: {
     allowWrite: string[];
     denyWrite: string[];
     denyRead: string[];
+    allowRead: string[];
   };
   network: {
     allowedDomains: string[];
@@ -152,11 +152,11 @@ export type SandboxConfig = {
 };
 
 export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
-  enabled: true,
   filesystem: {
     allowWrite: ["./"],
     denyWrite: [".env", ".git/hooks/"],
-    denyRead: ["~/.ssh", "~/.aws", "~/.gnupg"],
+    denyRead: ["~/.*"],
+    allowRead: ["~/.magenta", "~/.claude"],
   },
   network: {
     allowedDomains: [
@@ -772,12 +772,6 @@ function parseSandboxConfig(
 
   const obj = input as Record<string, unknown>;
 
-  if (typeof obj.enabled === "boolean") {
-    config.enabled = obj.enabled;
-  } else if ("enabled" in obj) {
-    logger.warn("sandbox.enabled must be a boolean");
-  }
-
   if (typeof obj.filesystem === "object" && obj.filesystem !== null) {
     const fs = obj.filesystem as Record<string, unknown>;
     if (Array.isArray(fs.allowWrite)) {
@@ -795,10 +789,17 @@ function parseSandboxConfig(
       );
     }
     if (Array.isArray(fs.denyRead)) {
-      config.filesystem.denyRead = parseStringArray(
-        fs.denyRead,
-        "sandbox.filesystem.denyRead",
-        logger,
+      config.filesystem.denyRead.push(
+        ...parseStringArray(fs.denyRead, "sandbox.filesystem.denyRead", logger),
+      );
+    }
+    if (Array.isArray(fs.allowRead)) {
+      config.filesystem.allowRead.push(
+        ...parseStringArray(
+          fs.allowRead,
+          "sandbox.filesystem.allowRead",
+          logger,
+        ),
       );
     }
   } else if ("filesystem" in obj) {
@@ -1209,10 +1210,9 @@ export function mergeOptions(
     merged.activeProfile = projectSettings.profiles[0].name;
   }
 
-  // Merge sandbox config - arrays concatenate, enabled overwrites
+  // Merge sandbox config - arrays concatenate
   if (projectSettings.sandbox) {
     merged.sandbox = {
-      enabled: projectSettings.sandbox.enabled,
       filesystem: {
         allowWrite: [
           ...baseOptions.sandbox.filesystem.allowWrite,
@@ -1225,6 +1225,10 @@ export function mergeOptions(
         denyRead: [
           ...baseOptions.sandbox.filesystem.denyRead,
           ...projectSettings.sandbox.filesystem.denyRead,
+        ],
+        allowRead: [
+          ...baseOptions.sandbox.filesystem.allowRead,
+          ...projectSettings.sandbox.filesystem.allowRead,
         ],
       },
       network: {
