@@ -21,13 +21,13 @@ import * as Edl from "./edl.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as GetFile from "./getFile.ts";
 import * as Hover from "./hover.ts";
+import * as Learn from "./learn.ts";
 import type { MCPToolManager } from "./mcp/manager.ts";
 import * as MCPTool from "./mcp/tool.ts";
 import { parseToolName } from "./mcp/types.ts";
 import * as SpawnSubagents from "./spawn-subagents.ts";
 import * as ThreadTitle from "./thread-title.ts";
 import type { StaticToolRequest } from "./toolManager.ts";
-
 import * as YieldToParent from "./yield-to-parent.ts";
 
 export type CreateToolContext = {
@@ -157,6 +157,10 @@ export function createTool(
         edlRegisters: context.edlRegisters,
         onToolApplied: context.onToolApplied,
       });
+    }
+
+    case "learn": {
+      return Learn.execute(staticRequest, {});
     }
 
     default:

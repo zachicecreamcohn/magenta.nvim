@@ -1,8 +1,3 @@
----
-name: update-permissions
-description: Configure sandbox permissions for filesystem access and network domains in magenta options. Use when sandbox violations occur and paths or domains need to be permanently allowed.
----
-
 # Updating Sandbox Permissions
 
 This skill guides you to update magenta's sandbox configuration when the user encounters sandbox violations.

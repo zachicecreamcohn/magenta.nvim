@@ -12,6 +12,7 @@ import * as Edl from "./edl.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as GetFile from "./getFile.ts";
 import * as Hover from "./hover.ts";
+import * as Learn from "./learn.ts";
 import * as SpawnSubagents from "./spawn-subagents.ts";
 import * as ThreadTitle from "./thread-title.ts";
 import {
@@ -23,7 +24,6 @@ import {
   TOOL_REQUIRED_CAPABILITIES,
   type ToolCapability,
 } from "./tool-registry.ts";
-
 import * as YieldToParent from "./yield-to-parent.ts";
 
 export type { CompletedToolInfo, ToolRequestId } from "../tool-types.ts";
@@ -42,6 +42,7 @@ export type StaticToolMap = {
   spawn_subagents: { input: SpawnSubagents.Input };
   yield_to_parent: { input: YieldToParent.Input };
   edl: { input: Edl.Input };
+  learn: { input: Learn.Input };
 };
 
 export type StaticToolRequest = {
@@ -70,6 +71,7 @@ const TOOL_SPEC_MAP: Partial<Record<StaticToolName, ProviderToolSpec>> = {
   yield_to_parent: YieldToParent.spec,
 
   edl: Edl.spec,
+  learn: Learn.spec,
 };
 
 export function getToolSpecs(

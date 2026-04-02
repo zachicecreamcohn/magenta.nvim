@@ -1073,7 +1073,7 @@ Always check for proper error handling and type safety.
 });
 
 describe("built-in agents", () => {
-  it("built-in explore and plan agents are discoverable in tool spec", async () => {
+  it("built-in explore agent is discoverable in tool spec", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
 
@@ -1102,46 +1102,7 @@ describe("built-in agents", () => {
       const agentTypeEnum =
         toolInput.properties.agents.items.properties.agentType.enum;
       expect(agentTypeEnum).toContain("explore");
-      expect(agentTypeEnum).toContain("plan");
-
-      // Verify explore description is included
-      expect((spawnTool as { description?: string }).description).toContain(
-        "Search and understand codebases",
-      );
-
-      // Verify explore agent actually works with the correct system prompt
-      stream.respond({
-        stopReason: "tool_use",
-        text: "Let me find that.",
-        toolRequests: [
-          {
-            status: "ok",
-            value: {
-              id: "test-builtin-explore" as ToolRequestId,
-              toolName: "spawn_subagents" as ToolName,
-              input: {
-                agents: [
-                  {
-                    prompt: "Where is the main entry point?",
-                    agentType: "explore",
-                  },
-                ],
-              },
-            },
-          },
-        ],
-      });
-
-      const exploreStream = await driver.mockAnthropic.awaitPendingStream({
-        predicate: (s) =>
-          s.systemPrompt?.includes(
-            "specialized in searching and understanding codebases",
-          ) ?? false,
-        message: "waiting for explore subagent",
-      });
-
-      expect(exploreStream.systemPrompt).toContain("explore subagent");
-      expect(exploreStream.systemPrompt).not.toContain("<system_reminder>");
+      expect(agentTypeEnum).not.toContain("plan");
     });
   });
 });

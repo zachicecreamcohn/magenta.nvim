@@ -38,7 +38,7 @@ I sometimes write about AI, neovim and magenta specifically:
 - Web search server_tool_use with citations
 - MCP (Model Context Protocol) tools
 - Smart context tracking with automatic diffing
-- Claude skills
+- Claude skills and built-in learn tool
 - Progressive disclosure for large files and bash outputs
 - Prompt caching
 - OS-level sandboxing for shell and file operations

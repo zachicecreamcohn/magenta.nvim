@@ -1,7 +1,7 @@
 import type { SubagentConfig, ThreadType } from "../chat-types.ts";
 
 const SKILLS_REMINDER = `\
-Remember the skills in <available-skills>.
+Remember the skills in <available-skills> and the learn tool for built-in documentation.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.`;
 
 const EDL_REMINDER = `\

@@ -12,7 +12,6 @@ import type { NvimCwd } from "./utils/files.ts";
 // Get the path to the built-in skills directory
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-export const BUILTIN_SKILLS_PATH = path.join(__dirname, "skills");
 export const BUILTIN_AGENTS_PATH = path.join(
   __dirname,
   "core",
@@ -949,7 +948,6 @@ export function parseOptions(
     sandbox: { ...DEFAULT_SANDBOX_CONFIG },
     autoContext: [],
     skillsPaths: [
-      BUILTIN_SKILLS_PATH,
       "~/.claude/skills",
       "~/.magenta/skills",
       ".magenta/skills",
@@ -1014,7 +1012,7 @@ export function parseOptions(
         inputOptionsObj.skillsPaths,
         "skillsPaths",
       );
-      options.skillsPaths = [BUILTIN_SKILLS_PATH, ...userSkillsPaths];
+      options.skillsPaths = userSkillsPaths;
     }
 
     // Parse agents paths - always prepend built-in agents
