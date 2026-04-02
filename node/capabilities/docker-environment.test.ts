@@ -205,13 +205,12 @@ describe.skipIf(!dockerAvailable)("Docker Environment", () => {
       });
     });
 
-    it("has no permission wrappers", async () => {
+    it("has no sandbox violation handler", async () => {
       const env = await createDockerEnvironment({
         container: containerId,
         threadId: mockThreadId,
       });
-      expect(env.permissionFileIO).toBeUndefined();
-      expect(env.permissionShell).toBeUndefined();
+      expect(env.sandboxViolationHandler).toBeUndefined();
     });
   });
 

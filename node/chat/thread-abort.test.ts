@@ -1,8 +1,4 @@
-import type {
-  ToolName,
-  ToolRequestId,
-  UnresolvedFilePath,
-} from "@magenta/core";
+import type { ToolName, ToolRequestId } from "@magenta/core";
 import { expect, it } from "vitest";
 import { withDriver } from "../test/preamble.ts";
 import { delay, pollUntil } from "../utils/async.ts";
@@ -62,6 +58,7 @@ it("forks a thread while streaming by aborting the stream first", async () => {
 
 it("forks a thread while waiting for tool use by aborting pending tools first", async () => {
   await withDriver({}, async (driver) => {
+    driver.mockSandbox.setState({ status: "unsupported", reason: "disabled" });
     await driver.showSidebar();
 
     // Start a conversation
@@ -70,7 +67,7 @@ it("forks a thread while waiting for tool use by aborting pending tools first", 
 
     const request1 = await driver.mockAnthropic.awaitPendingStream();
 
-    // Respond with get_file tool use - this will block on user approval
+    // Respond with bash_command tool use - this will block on user approval (sandbox disabled)
     request1.respond({
       stopReason: "tool_use",
       text: "I'll read your secret file.",
@@ -78,16 +75,16 @@ it("forks a thread while waiting for tool use by aborting pending tools first", 
         {
           status: "ok",
           value: {
-            id: "get-file-tool" as ToolRequestId,
-            toolName: "get_file" as ToolName,
-            input: { filePath: ".secret" as UnresolvedFilePath },
+            id: "bash-tool" as ToolRequestId,
+            toolName: "bash_command" as ToolName,
+            input: { command: "cat .secret" },
           },
         },
       ],
     });
 
     // Wait for approval dialog - we're now stopped waiting for tool use
-    await driver.assertDisplayBufferContains("👀 .secret");
+    await driver.assertDisplayBufferContains("May I run command");
 
     const originalThread = driver.magenta.chat.getActiveThread();
     const originalThreadId = originalThread.id;
@@ -223,14 +220,15 @@ it("aborts tool use when sending new message while tool is executing", async () 
 
 it("inserts error tool results when aborting while stopped waiting for tool use", async () => {
   await withDriver({}, async (driver) => {
+    driver.mockSandbox.setState({ status: "unsupported", reason: "disabled" });
     await driver.showSidebar();
     await driver.inputMagentaText("Read my secret file");
     await driver.send();
 
     const request1 = await driver.mockAnthropic.awaitPendingStream();
-    const toolRequestId = "get-file-tool" as ToolRequestId;
+    const toolRequestId = "bash-tool" as ToolRequestId;
 
-    // Respond with get_file tool use - this will block on user approval
+    // Respond with bash_command tool use - this will block on user approval (sandbox disabled)
     request1.respond({
       stopReason: "tool_use",
       text: "I'll read your secret file.",
@@ -239,15 +237,15 @@ it("inserts error tool results when aborting while stopped waiting for tool use"
           status: "ok",
           value: {
             id: toolRequestId,
-            toolName: "get_file" as ToolName,
-            input: { filePath: ".secret" as UnresolvedFilePath },
+            toolName: "bash_command" as ToolName,
+            input: { command: "cat .secret" },
           },
         },
       ],
     });
 
     // Wait for approval dialog to appear - we're now stopped waiting for tool use
-    await driver.assertDisplayBufferContains("👀 .secret");
+    await driver.assertDisplayBufferContains("May I run command");
 
     // Send a new message to abort - this should insert error tool result
     await driver.inputMagentaText("Never mind, do something else");
@@ -298,80 +296,82 @@ it("inserts error tool results when aborting while stopped waiting for tool use"
 
 it("clears pending file permission checks when aborting", async () => {
   await withDriver({}, async (driver) => {
+    driver.mockSandbox.setState({ status: "unsupported", reason: "disabled" });
     await driver.showSidebar();
-    await driver.inputMagentaText("Read my secret file");
+    await driver.inputMagentaText("Run a command");
     await driver.send();
 
     const request1 = await driver.mockAnthropic.awaitPendingStream();
-    const toolRequestId = "get-file-tool" as ToolRequestId;
+    const toolRequestId = "bash-tool" as ToolRequestId;
 
-    // Respond with get_file tool use - this will block on user approval
+    // Respond with bash_command tool use - this will block on user approval (sandbox disabled)
     request1.respond({
       stopReason: "tool_use",
-      text: "I'll read your secret file.",
+      text: "I'll run the command.",
       toolRequests: [
         {
           status: "ok",
           value: {
             id: toolRequestId,
-            toolName: "get_file" as ToolName,
-            input: { filePath: ".secret" as UnresolvedFilePath },
+            toolName: "bash_command" as ToolName,
+            input: { command: "cat .secret" },
           },
         },
       ],
     });
 
     // Wait for approval dialog to appear
-    await driver.assertDisplayBufferContains("👀 .secret");
+    await driver.assertDisplayBufferContains("May I run command");
 
     const thread = driver.magenta.chat.getActiveThread();
 
     // Verify we have a pending permission
-    expect(thread.permissionFileIO!.getPendingPermissions().size).toBe(1);
+    expect(thread.sandboxViolationHandler!.getPendingViolations().size).toBe(1);
 
     // Abort the thread
     await driver.abort();
     await delay(0);
 
     // Verify pending permissions are cleared
-    expect(thread.permissionFileIO!.getPendingPermissions().size).toBe(0);
+    expect(thread.sandboxViolationHandler!.getPendingViolations().size).toBe(0);
 
     // Verify the approval dialog is no longer displayed
-    await driver.assertDisplayBufferDoesNotContain("👀 .secret");
+    await driver.assertDisplayBufferDoesNotContain("May I run command");
   });
 });
 
 it("clears pending permissions when sending a new message during tool_use", async () => {
   await withDriver({}, async (driver) => {
+    driver.mockSandbox.setState({ status: "unsupported", reason: "disabled" });
     await driver.showSidebar();
-    await driver.inputMagentaText("Read my secret file");
+    await driver.inputMagentaText("Run a command");
     await driver.send();
 
     const request1 = await driver.mockAnthropic.awaitPendingStream();
 
-    // Respond with get_file tool use - this will block on user approval
+    // Respond with bash_command tool use - this will block on user approval (sandbox disabled)
     request1.respond({
       stopReason: "tool_use",
-      text: "I'll read your secret file.",
+      text: "I'll run the command.",
       toolRequests: [
         {
           status: "ok",
           value: {
-            id: "get-file-tool" as ToolRequestId,
-            toolName: "get_file" as ToolName,
-            input: { filePath: ".secret" as UnresolvedFilePath },
+            id: "bash-tool" as ToolRequestId,
+            toolName: "bash_command" as ToolName,
+            input: { command: "cat .secret" },
           },
         },
       ],
     });
 
     // Wait for approval dialog to appear
-    await driver.assertDisplayBufferContains("👀 .secret");
+    await driver.assertDisplayBufferContains("May I run command");
 
     const thread = driver.magenta.chat.getActiveThread();
 
     // Verify we have a pending permission
-    expect(thread.permissionFileIO!.getPendingPermissions().size).toBe(1);
+    expect(thread.sandboxViolationHandler!.getPendingViolations().size).toBe(1);
 
     // Send a new message instead of explicitly aborting — this triggers
     // an implicit abort via handleSendMessageRequest
@@ -380,12 +380,12 @@ it("clears pending permissions when sending a new message during tool_use", asyn
 
     // The implicit abort should clear pending permissions
     await pollUntil(
-      () => thread.permissionFileIO!.getPendingPermissions().size === 0,
+      () => thread.sandboxViolationHandler!.getPendingViolations().size === 0,
       { timeout: 2000, message: "waiting for pending permissions to clear" },
     );
 
     // Verify the approval dialog is no longer displayed
-    await driver.assertDisplayBufferDoesNotContain("👀 .secret");
+    await driver.assertDisplayBufferDoesNotContain("May I run command");
 
     // Handle the second request to confirm flow continues
     const request2 = await driver.mockAnthropic.awaitPendingStream();

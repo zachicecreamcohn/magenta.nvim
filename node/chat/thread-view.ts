@@ -287,17 +287,10 @@ ${contextView(thread.contextManager, contextViewCtx(thread))}`;
     ? d`\n${contextView(thread.contextManager, contextViewCtx(thread))}`
     : d``;
 
-  const filePermissionView =
-    thread.permissionFileIO &&
-    thread.permissionFileIO.getPendingPermissions().size > 0
-      ? d`\n${thread.permissionFileIO.view()}`
-      : d``;
-  const shellPermissionView =
-    thread.permissionShell &&
-    thread.permissionShell.getPendingPermissions().size > 0
-      ? d`\n${thread.permissionShell.view()}`
-      : d``;
-  const permissionView = d`${filePermissionView}${shellPermissionView}`;
+  const sandboxView = thread.sandboxViolationHandler?.getPendingViolations()
+    .size
+    ? d`\n${thread.sandboxViolationHandler.view()}`
+    : d``;
   const compactionHistoryView = renderCompactionHistory(
     thread.core.state.compactionHistory,
     thread.state.compactionViewState,
@@ -393,7 +386,7 @@ ${compactionHistoryView}
 ${messagesView}\
 ${streamingBlockView}\
 ${contextManagerView}\
-${permissionView}\
+${sandboxView}\
 ${pendingMessagesView}
 ${statusView}`;
 };

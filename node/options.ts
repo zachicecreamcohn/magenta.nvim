@@ -6,15 +6,6 @@ import {
   type ServerName,
   validateServerName,
 } from "@magenta/core";
-import {
-  type ArgSpec,
-  type ArgType,
-  type CommandPermissions,
-  type CommandPermissionsConfig,
-  type CommandRule,
-  getBuiltinPermissions,
-  type OptionValueType,
-} from "./capabilities/bash-parser/permissions.ts";
 import { PROVIDER_NAMES, type ProviderName } from "./providers/provider.ts";
 import type { NvimCwd } from "./utils/files.ts";
 
@@ -83,17 +74,6 @@ export type Profile = {
     | undefined;
 };
 
-// Re-export permission types for convenience
-export type {
-  ArgSpec,
-  CommandPermissions,
-  CommandPermissionsConfig,
-  CommandRule,
-  ArgType,
-  OptionValueType,
-};
-export { getBuiltinPermissions };
-
 export type MCPMockToolSchemaType = "string" | "number" | "boolean";
 
 export type MCPMockToolConfig = {
@@ -158,12 +138,69 @@ export type SidebarPositionOpts = {
   tab: TabWindowDimensions;
 };
 
-export type FilePermission = {
-  path: string; // e.g. "~/src", "/tmp", "."
-  read?: true;
-  write?: true;
-  readSecret?: true; // Superset of read - allows reading hidden files
-  writeSecret?: true; // Superset of write - allows writing hidden files
+export type SandboxConfig = {
+  filesystem: {
+    allowWrite: string[];
+    denyWrite: string[];
+    denyRead: string[];
+    allowRead: string[];
+  };
+  network: {
+    allowedDomains: string[];
+    deniedDomains: string[];
+    allowUnixSockets: string[];
+    allowAllUnixSockets: boolean;
+  };
+};
+
+export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
+  filesystem: {
+    allowWrite: ["./"],
+    denyWrite: [".env", ".git/hooks/", ".magenta"],
+    denyRead: [
+      // Credentials and keys (literal paths → subpath matching blocks dir + all contents)
+      "~/.ssh",
+      "~/.gnupg",
+      "~/.aws",
+      "~/.azure",
+      "~/.config/gcloud",
+      "~/.docker",
+      "~/.kube",
+      "~/.password-store",
+      "~/.netrc",
+      "~/.npmrc",
+      "~/.pypirc",
+      "~/.gem",
+      "~/.config/gh",
+      // Shell configs (can execute code on shell startup)
+      "~/.bashrc",
+      "~/.bash_profile",
+      "~/.bash_login",
+      "~/.bash_logout",
+      "~/.zshrc",
+      "~/.zprofile",
+      "~/.zshenv",
+      "~/.zlogin",
+      "~/.zlogout",
+      "~/.profile",
+      "~/.config/fish",
+    ],
+    allowRead: [],
+  },
+  network: {
+    allowedDomains: [
+      "registry.npmjs.org",
+      "github.com",
+      "*.github.com",
+      "pypi.org",
+      "files.pythonhosted.org",
+      "rubygems.org",
+      "crates.io",
+    ],
+    deniedDomains: [],
+    allowUnixSockets: [],
+    allowAllUnixSockets: false,
+  },
 };
 
 export type MagentaOptions = {
@@ -171,14 +208,12 @@ export type MagentaOptions = {
   activeProfile: string;
   sidebarPosition: SidebarPositions;
   sidebarPositionOpts: SidebarPositionOpts;
-  commandConfig: CommandPermissionsConfig;
+  sandbox: SandboxConfig;
   autoContext: string[];
   skillsPaths: string[];
   agentsPaths: string[];
   maxConcurrentSubagents: number;
   mcpServers: { [serverName: ServerName]: MCPServerConfig };
-  getFileAutoAllowGlobs: string[];
-  filePermissions: FilePermission[];
   customCommands: CustomCommand[];
   lspDebounceMs?: number;
   debug?: boolean;
@@ -575,95 +610,6 @@ function parseMCPServers(
   return servers;
 }
 
-function parseFilePermissions(
-  input: unknown,
-  logger: { warn: (msg: string) => void },
-): FilePermission[] {
-  if (!Array.isArray(input)) {
-    logger.warn("filePermissions must be an array");
-    return [];
-  }
-
-  const permissions: FilePermission[] = [];
-
-  for (const item of input) {
-    try {
-      if (typeof item !== "object" || item === null) {
-        logger.warn(
-          `Skipping invalid file permission: ${JSON.stringify(item)}`,
-        );
-        continue;
-      }
-
-      const p = item as { [key: string]: unknown };
-
-      if (typeof p.path !== "string" || p.path.trim() === "") {
-        logger.warn(
-          `File permission must have a non-empty 'path' field: ${JSON.stringify(p)}`,
-        );
-        continue;
-      }
-
-      const permission: FilePermission = {
-        path: p.path,
-      };
-
-      // Parse boolean permission flags - they must be `true` if present
-      if (p.read === true) {
-        permission.read = true;
-      } else if ("read" in p && p.read !== undefined) {
-        logger.warn(
-          `Invalid 'read' value in file permission for path "${p.path}", must be true or omitted`,
-        );
-      }
-
-      if (p.write === true) {
-        permission.write = true;
-      } else if ("write" in p && p.write !== undefined) {
-        logger.warn(
-          `Invalid 'write' value in file permission for path "${p.path}", must be true or omitted`,
-        );
-      }
-
-      if (p.readSecret === true) {
-        permission.readSecret = true;
-      } else if ("readSecret" in p && p.readSecret !== undefined) {
-        logger.warn(
-          `Invalid 'readSecret' value in file permission for path "${p.path}", must be true or omitted`,
-        );
-      }
-
-      if (p.writeSecret === true) {
-        permission.writeSecret = true;
-      } else if ("writeSecret" in p && p.writeSecret !== undefined) {
-        logger.warn(
-          `Invalid 'writeSecret' value in file permission for path "${p.path}", must be true or omitted`,
-        );
-      }
-
-      // Only add if at least one permission is set
-      if (
-        permission.read ||
-        permission.write ||
-        permission.readSecret ||
-        permission.writeSecret
-      ) {
-        permissions.push(permission);
-      } else {
-        logger.warn(
-          `File permission for path "${p.path}" has no permissions set, skipping`,
-        );
-      }
-    } catch (error) {
-      logger.warn(
-        `Error parsing file permission: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
-
-  return permissions;
-}
-
 function parseCustomCommands(
   input: unknown,
   logger: { warn: (msg: string) => void },
@@ -842,419 +788,133 @@ function parseSidebarPositionOpts(
   return result as SidebarPositionOpts;
 }
 
-function parseArgSpec(
-  argSpec: unknown,
-  logger: { warn: (msg: string) => void },
-  path: string,
-): ArgSpec | undefined {
-  if (typeof argSpec === "string") {
-    return argSpec;
-  }
-  if (typeof argSpec === "object" && argSpec !== null) {
-    const spec = argSpec as Record<string, unknown>;
-
-    // Check for type-based discriminated union
-    if (typeof spec.type === "string") {
-      switch (spec.type) {
-        case "file":
-          return { type: "file" };
-        case "readFile":
-          return { type: "readFile" };
-        case "writeFile":
-          return { type: "writeFile" };
-        case "restFiles":
-          return { type: "restFiles" };
-        case "restAny":
-          return { type: "restAny" };
-        case "any":
-          return { type: "any" };
-        case "pattern":
-          if (typeof spec.pattern === "string") {
-            return { type: "pattern", pattern: spec.pattern };
-          }
-          logger.warn(
-            `Invalid pattern ArgSpec at ${path}: missing pattern string`,
-          );
-          return undefined;
-        case "group":
-          if (Array.isArray(spec.args)) {
-            const groupArgs: ArgSpec[] = [];
-            const argsArray = spec.args as Array<unknown>;
-            for (let i = 0; i < argsArray.length; i++) {
-              const parsed = parseArgSpec(
-                argsArray[i],
-                logger,
-                `${path}.args[${i}]`,
-              );
-              if (parsed === undefined) {
-                return undefined;
-              }
-              groupArgs.push(parsed);
-            }
-            const result: ArgSpec = { type: "group", args: groupArgs };
-            if (spec.optional === true) {
-              result.optional = true;
-            }
-            if (spec.anyOrder === true) {
-              result.anyOrder = true;
-            }
-            return result;
-          }
-          logger.warn(`Invalid group ArgSpec at ${path}: missing args array`);
-          return undefined;
-        default:
-          logger.warn(`Invalid ArgSpec type at ${path}: "${spec.type}"`);
-          return undefined;
-      }
-    }
-
-    // Legacy support for old format
-    if (spec.file === true && Object.keys(spec).length === 1) {
-      return { type: "file" };
-    }
-    if (spec.restFiles === true && Object.keys(spec).length === 1) {
-      return { type: "restFiles" };
-    }
-    if (spec.any === true && Object.keys(spec).length === 1) {
-      return { type: "any" };
-    }
-    if (
-      "pattern" in spec &&
-      typeof spec.pattern === "string" &&
-      Object.keys(spec).length === 1
-    ) {
-      return { type: "pattern", pattern: spec.pattern };
-    }
-    if (Array.isArray(spec.optional)) {
-      const optionalSpecs: ArgSpec[] = [];
-      const optionalArray = spec.optional as Array<unknown>;
-      for (let i = 0; i < optionalArray.length; i++) {
-        const parsed = parseArgSpec(
-          optionalArray[i],
-          logger,
-          `${path}.optional[${i}]`,
-        );
-        if (parsed === undefined) {
-          return undefined;
-        }
-        optionalSpecs.push(parsed);
-      }
-      return { type: "group", args: optionalSpecs, optional: true };
-    }
-
-    logger.warn(
-      `Invalid ArgSpec at ${path}: must be string or object with type field`,
-    );
-    return undefined;
-  }
-  logger.warn(
-    `Invalid ArgSpec at ${path}: expected string or object, got ${typeof argSpec}`,
-  );
-  return undefined;
+function mergeSandboxConfigs(
+  base: SandboxConfig,
+  overlay: SandboxConfig,
+): SandboxConfig {
+  return {
+    filesystem: {
+      allowWrite: [
+        ...base.filesystem.allowWrite,
+        ...overlay.filesystem.allowWrite,
+      ],
+      denyWrite: [
+        ...base.filesystem.denyWrite,
+        ...overlay.filesystem.denyWrite,
+      ],
+      denyRead: [...base.filesystem.denyRead, ...overlay.filesystem.denyRead],
+      allowRead: [
+        ...base.filesystem.allowRead,
+        ...overlay.filesystem.allowRead,
+      ],
+    },
+    network: {
+      allowedDomains: [
+        ...base.network.allowedDomains,
+        ...overlay.network.allowedDomains,
+      ],
+      deniedDomains: [
+        ...base.network.deniedDomains,
+        ...overlay.network.deniedDomains,
+      ],
+      allowUnixSockets: [
+        ...base.network.allowUnixSockets,
+        ...overlay.network.allowUnixSockets,
+      ],
+      allowAllUnixSockets:
+        overlay.network.allowAllUnixSockets || base.network.allowAllUnixSockets,
+    },
+  };
 }
 
-function parseCommandPatterns(
+function parseSandboxConfig(
   input: unknown,
   logger: { warn: (msg: string) => void },
-  path: string,
-): ArgSpec[][] {
-  if (!Array.isArray(input)) {
-    logger.warn(`${path} must be an array`);
-    return [];
-  }
-
-  const patterns: ArgSpec[][] = [];
-  for (let i = 0; i < input.length; i++) {
-    const pattern: unknown = input[i];
-    if (Array.isArray(pattern)) {
-      const parsedPattern: ArgSpec[] = [];
-      let valid = true;
-      for (let j = 0; j < pattern.length; j++) {
-        const parsed = parseArgSpec(pattern[j], logger, `${path}[${i}][${j}]`);
-        if (parsed) {
-          parsedPattern.push(parsed);
-        } else {
-          valid = false;
-        }
-      }
-      if (valid && parsedPattern.length > 0) {
-        patterns.push(parsedPattern);
-      }
-    } else {
-      logger.warn(`${path}[${i}] must be an array`);
-    }
-  }
-
-  return patterns;
-}
-
-function parseCommandConfig(
-  input: unknown,
-  logger: { warn: (msg: string) => void },
-): CommandPermissions | undefined {
-  if (input === undefined) {
-    return undefined;
-  }
-
-  if (typeof input !== "object" || input === null) {
-    logger.warn("commandConfig must be an object");
-    return undefined;
-  }
-
-  const inputObj = input as Record<string, unknown>;
-  const result: CommandPermissions = {
-    commands: [],
-    pipeCommands: [],
+): SandboxConfig {
+  const config: SandboxConfig = {
+    filesystem: { allowWrite: [], denyWrite: [], denyRead: [], allowRead: [] },
+    network: {
+      allowedDomains: [],
+      deniedDomains: [],
+      allowUnixSockets: [],
+      allowAllUnixSockets: false,
+    },
   };
 
-  if ("commands" in inputObj) {
-    result.commands = parseCommandPatterns(
-      inputObj.commands,
-      logger,
-      "commandConfig.commands",
-    );
-  }
-
-  if ("pipeCommands" in inputObj) {
-    result.pipeCommands = parseCommandPatterns(
-      inputObj.pipeCommands,
-      logger,
-      "commandConfig.pipeCommands",
-    );
-  }
-
-  if (result.commands.length === 0 && result.pipeCommands.length === 0) {
-    return undefined;
-  }
-
-  return result;
-}
-
-function parseOptionValueType(
-  input: unknown,
-  logger: { warn: (msg: string) => void },
-  loc: string,
-): OptionValueType | undefined {
-  if (input === "any" || input === "readFile" || input === "writeFile") {
-    return input;
-  }
-  if (typeof input === "object" && input !== null) {
-    const obj = input as Record<string, unknown>;
-    if (typeof obj.pattern === "string") {
-      return { pattern: obj.pattern };
-    }
-  }
-  logger.warn(`Invalid OptionValueType at ${loc}`);
-  return undefined;
-}
-
-function parseArgType(
-  input: unknown,
-  logger: { warn: (msg: string) => void },
-  loc: string,
-): ArgType | undefined {
-  if (input === "any" || input === "readFile" || input === "writeFile") {
-    return input;
-  }
-  if (typeof input === "object" && input !== null) {
-    const obj = input as Record<string, unknown>;
-    if (typeof obj.pattern === "string") {
-      return { pattern: obj.pattern };
-    }
-    if (
-      typeof obj.type === "string" &&
-      (obj.type === "any" ||
-        obj.type === "readFile" ||
-        obj.type === "writeFile")
-    ) {
-      const result: {
-        type: "any" | "readFile" | "writeFile";
-        optional?: boolean;
-      } = {
-        type: obj.type,
-      };
-      if (obj.optional === true) {
-        result.optional = true;
-      }
-      return result;
-    }
-  }
-  logger.warn(`Invalid ArgType at ${loc}`);
-  return undefined;
-}
-
-function parseCommandRule(
-  input: unknown,
-  logger: { warn: (msg: string) => void },
-  loc: string,
-): CommandRule | undefined {
   if (typeof input !== "object" || input === null) {
-    logger.warn(`${loc}: must be an object`);
-    return undefined;
+    if (input !== undefined) {
+      logger.warn("sandbox config must be an object");
+    }
+    return config;
   }
+
   const obj = input as Record<string, unknown>;
 
-  if (typeof obj.cmd !== "string") {
-    logger.warn(`${loc}: cmd must be a string`);
-    return undefined;
-  }
-
-  const rule: CommandRule = { cmd: obj.cmd };
-
-  if (Array.isArray(obj.flags)) {
-    const flags: string[] = [];
-    for (const f of obj.flags) {
-      if (typeof f === "string") {
-        flags.push(f);
-      } else {
-        logger.warn(`${loc}.flags: each flag must be a string`);
-        return undefined;
-      }
-    }
-    rule.flags = flags;
-  }
-
-  if (
-    typeof obj.options === "object" &&
-    obj.options !== null &&
-    !Array.isArray(obj.options)
-  ) {
-    const options: Record<string, OptionValueType> = {};
-    for (const [key, val] of Object.entries(
-      obj.options as Record<string, unknown>,
-    )) {
-      const parsed = parseOptionValueType(val, logger, `${loc}.options.${key}`);
-      if (parsed === undefined) return undefined;
-      options[key] = parsed;
-    }
-    rule.options = options;
-  }
-
-  if (Array.isArray(obj.subcommands)) {
-    const subcommands: CommandRule[] = [];
-    for (let i = 0; i < obj.subcommands.length; i++) {
-      const sub = parseCommandRule(
-        obj.subcommands[i],
+  if (typeof obj.filesystem === "object" && obj.filesystem !== null) {
+    const fs = obj.filesystem as Record<string, unknown>;
+    if (Array.isArray(fs.allowWrite)) {
+      config.filesystem.allowWrite = parseStringArray(
+        fs.allowWrite,
+        "sandbox.filesystem.allowWrite",
         logger,
-        `${loc}.subcommands[${i}]`,
       );
-      if (sub === undefined) return undefined;
-      subcommands.push(sub);
     }
-    rule.subcommands = subcommands;
-  }
-
-  if (Array.isArray(obj.args)) {
-    const args: ArgType[] = [];
-    for (let i = 0; i < obj.args.length; i++) {
-      const parsed = parseArgType(obj.args[i], logger, `${loc}.args[${i}]`);
-      if (parsed === undefined) return undefined;
-      args.push(parsed);
-    }
-    rule.args = args;
-  }
-
-  if (obj.rest !== undefined) {
-    if (
-      obj.rest === "any" ||
-      obj.rest === "readFiles" ||
-      obj.rest === "writeFiles"
-    ) {
-      rule.rest = obj.rest;
-    } else {
-      logger.warn(`${loc}.rest: must be "any", "readFiles", or "writeFiles"`);
-      return undefined;
-    }
-  }
-
-  if (obj.pipe === true) {
-    rule.pipe = true;
-  }
-
-  return rule;
-}
-
-function parseCommandRulesConfig(
-  input: unknown,
-  logger: { warn: (msg: string) => void },
-): CommandPermissionsConfig | undefined {
-  if (input === undefined) {
-    return undefined;
-  }
-  if (typeof input !== "object" || input === null) {
-    logger.warn("commandConfig must be an object");
-    return undefined;
-  }
-  const obj = input as Record<string, unknown>;
-
-  // New format: { rules: [...] }
-  if (Array.isArray(obj.rules)) {
-    const rules: CommandRule[] = [];
-    for (let i = 0; i < obj.rules.length; i++) {
-      const parsed = parseCommandRule(
-        obj.rules[i],
+    if (Array.isArray(fs.denyWrite)) {
+      config.filesystem.denyWrite = parseStringArray(
+        fs.denyWrite,
+        "sandbox.filesystem.denyWrite",
         logger,
-        `commandConfig.rules[${i}]`,
       );
-      if (parsed === undefined) return undefined;
-      rules.push(parsed);
     }
-    if (rules.length === 0) return undefined;
-    return { rules };
-  }
-
-  // Old format: { commands: [...], pipeCommands: [...] }
-  // Parse with old parser, then convert
-  const oldConfig = parseCommandConfig(input, logger);
-  if (oldConfig === undefined) return undefined;
-  return convertOldConfigToRules(oldConfig);
-}
-
-function convertOldConfigToRules(
-  config: CommandPermissions,
-): CommandPermissionsConfig {
-  const rules: CommandRule[] = [];
-
-  for (const pattern of config.commands) {
-    const rule = convertArgSpecPatternToRule(pattern, false);
-    if (rule) rules.push(rule);
-  }
-
-  for (const pattern of config.pipeCommands) {
-    const rule = convertArgSpecPatternToRule(pattern, true);
-    if (rule) rules.push(rule);
-  }
-
-  return { rules };
-}
-
-function convertArgSpecPatternToRule(
-  pattern: ArgSpec[],
-  pipe: boolean,
-): CommandRule | undefined {
-  if (pattern.length === 0) return undefined;
-
-  const first = pattern[0];
-  if (typeof first !== "string") return undefined;
-
-  const rule: CommandRule = { cmd: first };
-  if (pipe) rule.pipe = true;
-
-  // Simple heuristic: remaining args become rest: "any" (safe fallback for old patterns)
-  if (pattern.length > 1) {
-    const last = pattern[pattern.length - 1];
-    if (typeof last === "object" && "type" in last && last.type === "restAny") {
-      rule.rest = "any";
-    } else if (
-      typeof last === "object" &&
-      "type" in last &&
-      last.type === "restFiles"
-    ) {
-      rule.rest = "readFiles";
+    if (Array.isArray(fs.denyRead)) {
+      config.filesystem.denyRead = parseStringArray(
+        fs.denyRead,
+        "sandbox.filesystem.denyRead",
+        logger,
+      );
     }
+    if (Array.isArray(fs.allowRead)) {
+      config.filesystem.allowRead = parseStringArray(
+        fs.allowRead,
+        "sandbox.filesystem.allowRead",
+        logger,
+      );
+    }
+  } else if ("filesystem" in obj) {
+    logger.warn("sandbox.filesystem must be an object");
   }
 
-  return rule;
+  if (typeof obj.network === "object" && obj.network !== null) {
+    const net = obj.network as Record<string, unknown>;
+    if (Array.isArray(net.allowedDomains)) {
+      config.network.allowedDomains = parseStringArray(
+        net.allowedDomains,
+        "sandbox.network.allowedDomains",
+        logger,
+      );
+    }
+    if (Array.isArray(net.deniedDomains)) {
+      config.network.deniedDomains = parseStringArray(
+        net.deniedDomains,
+        "sandbox.network.deniedDomains",
+        logger,
+      );
+    }
+    if (Array.isArray(net.allowUnixSockets)) {
+      config.network.allowUnixSockets = parseStringArray(
+        net.allowUnixSockets,
+        "sandbox.network.allowUnixSockets",
+        logger,
+      );
+    }
+    if (typeof net.allowAllUnixSockets === "boolean") {
+      config.network.allowAllUnixSockets = net.allowAllUnixSockets;
+    }
+  } else if ("network" in obj) {
+    logger.warn("sandbox.network must be an object");
+  }
+
+  return config;
 }
 export function parseOptions(
   inputOptions: unknown,
@@ -1286,7 +946,7 @@ export function parseOptions(
       },
     },
     maxConcurrentSubagents: 3,
-    commandConfig: getBuiltinPermissions(),
+    sandbox: { ...DEFAULT_SANDBOX_CONFIG },
     autoContext: [],
     skillsPaths: [
       BUILTIN_SKILLS_PATH,
@@ -1303,8 +963,6 @@ export function parseOptions(
       ".magenta/agents",
     ],
     mcpServers: {},
-    getFileAutoAllowGlobs: [],
-    filePermissions: [],
     customCommands: [],
   };
 
@@ -1327,18 +985,13 @@ export function parseOptions(
       options.sidebarPositionOpts = sidebarPositionOpts;
     }
 
-    // Parse command config - merge with builtins
-    if ("commandConfig" in inputOptionsObj) {
-      const commandConfig = parseCommandRulesConfig(
-        inputOptionsObj.commandConfig,
-        logger,
+    // Parse sandbox config — merge user values onto defaults
+    if ("sandbox" in inputOptionsObj) {
+      const parsedSandbox = parseSandboxConfig(inputOptionsObj.sandbox, logger);
+      options.sandbox = mergeSandboxConfigs(
+        structuredClone(DEFAULT_SANDBOX_CONFIG),
+        parsedSandbox,
       );
-      if (commandConfig) {
-        options.commandConfig = mergeCommandRulesConfig(
-          getBuiltinPermissions(),
-          commandConfig,
-        );
-      }
     }
 
     // Parse profiles (throw errors for invalid profiles in main config)
@@ -1371,20 +1024,6 @@ export function parseOptions(
         "agentsPaths",
       );
       options.agentsPaths = [BUILTIN_AGENTS_PATH, ...userAgentsPaths];
-    }
-
-    // Parse getFile auto allow globs
-    options.getFileAutoAllowGlobs = parseStringArray(
-      inputOptionsObj.getFileAutoAllowGlobs,
-      "getFileAutoAllowGlobs",
-    );
-
-    // Parse file permissions
-    if ("filePermissions" in inputOptionsObj) {
-      options.filePermissions = parseFilePermissions(
-        inputOptionsObj.filePermissions,
-        logger,
-      );
     }
 
     // Parse max concurrent subagents
@@ -1497,15 +1136,9 @@ export function parseProjectOptions(
     options.sidebarPosition = sidebarPosition;
   }
 
-  // Parse command config
-  if ("commandConfig" in inputOptionsObj) {
-    const commandConfig = parseCommandRulesConfig(
-      inputOptionsObj.commandConfig,
-      logger,
-    );
-    if (commandConfig) {
-      options.commandConfig = commandConfig;
-    }
+  // Parse sandbox config
+  if ("sandbox" in inputOptionsObj) {
+    options.sandbox = parseSandboxConfig(inputOptionsObj.sandbox, logger);
   }
 
   // Parse profiles
@@ -1552,23 +1185,6 @@ export function parseProjectOptions(
     options.agentsPaths = parseStringArray(
       inputOptionsObj.agentsPaths,
       "agentsPaths",
-      logger,
-    );
-  }
-
-  // Parse getFile auto allow globs
-  if ("getFileAutoAllowGlobs" in inputOptionsObj) {
-    options.getFileAutoAllowGlobs = parseStringArray(
-      inputOptionsObj.getFileAutoAllowGlobs,
-      "getFileAutoAllowGlobs",
-      logger,
-    );
-  }
-
-  // Parse file permissions
-  if ("filePermissions" in inputOptionsObj) {
-    options.filePermissions = parseFilePermissions(
-      inputOptionsObj.filePermissions,
       logger,
     );
   }
@@ -1675,16 +1291,6 @@ export function loadProjectSettings(
   return undefined;
 }
 
-/** Merge two CommandPermissionsConfig objects - combines rules arrays */
-function mergeCommandRulesConfig(
-  base: CommandPermissionsConfig,
-  project: CommandPermissionsConfig,
-): CommandPermissionsConfig {
-  return {
-    rules: [...base.rules, ...project.rules],
-  };
-}
-
 export function mergeOptions(
   baseOptions: MagentaOptions,
   projectSettings: Partial<MagentaOptions>,
@@ -1696,11 +1302,10 @@ export function mergeOptions(
     merged.activeProfile = projectSettings.profiles[0].name;
   }
 
-  // Deep merge commandConfig - command is allowed if it matches either config
-  if (projectSettings.commandConfig) {
-    merged.commandConfig = mergeCommandRulesConfig(
-      baseOptions.commandConfig,
-      projectSettings.commandConfig,
+  if (projectSettings.sandbox) {
+    merged.sandbox = mergeSandboxConfigs(
+      baseOptions.sandbox,
+      projectSettings.sandbox,
     );
   }
 
@@ -1722,20 +1327,6 @@ export function mergeOptions(
     merged.agentsPaths = [
       ...baseOptions.agentsPaths,
       ...projectSettings.agentsPaths,
-    ];
-  }
-
-  if (projectSettings.getFileAutoAllowGlobs) {
-    merged.getFileAutoAllowGlobs = [
-      ...baseOptions.getFileAutoAllowGlobs,
-      ...projectSettings.getFileAutoAllowGlobs,
-    ];
-  }
-
-  if (projectSettings.filePermissions) {
-    merged.filePermissions = [
-      ...baseOptions.filePermissions,
-      ...projectSettings.filePermissions,
     ];
   }
 

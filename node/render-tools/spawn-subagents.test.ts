@@ -725,6 +725,10 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
 
   it("shows pending approvals from subagent in parent progress view", async () => {
     await withDriver({}, async (driver) => {
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
       await driver.showSidebar();
       const thread1 = driver.getThreadId(0);
 
@@ -759,7 +763,7 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
         id: thread1,
       });
 
-      // Child subagent requests get_file on .secret (needs permission)
+      // Child subagent requests bash_command (needs approval when sandbox disabled)
       const childStream = await driver.mockAnthropic.awaitPendingStreamWithText(
         "Read the .secret file",
       );
@@ -770,9 +774,9 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
           {
             status: "ok",
             value: {
-              id: "child-get-file" as ToolRequestId,
-              toolName: "get_file" as ToolName,
-              input: { filePath: ".secret" },
+              id: "child-bash" as ToolRequestId,
+              toolName: "bash_command" as ToolName,
+              input: { command: "cat .secret" },
             },
           },
         ],
@@ -780,7 +784,7 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
 
       // The parent thread's progress view should show the pending approval
       // from the child thread inline
-      await driver.assertDisplayBufferContains("👀 .secret");
+      await driver.assertDisplayBufferContains("May I run command");
     });
   });
 

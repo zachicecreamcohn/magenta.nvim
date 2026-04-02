@@ -7,7 +7,7 @@ CONTENTS                                             *magenta-tools-contents*
     2. Sub-agents .............................. |magenta-subagents|
     3. Dev Containers .......................... |magenta-dev-containers|
     4. MCP Support ............................. |magenta-mcp|
-    5. Command Permissions ..................... |magenta-permissions|
+    5. Sandbox & Permissions ................... |magenta-sandbox-permissions|
 
 ==============================================================================
 AVAILABLE TOOLS                                      *magenta-available-tools*
@@ -247,22 +247,69 @@ Add MCP servers in `.magenta/options.json`:
 <
 
 ==============================================================================
-COMMAND PERMISSIONS                                     *magenta-permissions*
+SANDBOX & PERMISSIONS                 *magenta-sandbox-permissions* *magenta-permissions*
 
-The bash_command tool requires user approval before running shell
-commands. Many common commands are pre-approved by default.
+Magenta uses OS-level sandboxing to restrict shell commands and file I/O.
 
-Configure additional allowed commands in:
+How it works:~
+
+  • Shell commands run inside an OS-level sandbox:
+    - macOS: Apple sandbox (seatbelt)
+    - Linux: bubblewrap (bwrap)
+  • File I/O uses application-level pre-flight checks against the same
+    sandbox configuration
+  • When sandbox is available: Commands run sandboxed automatically,
+    without requiring per-command approval
+  • When sandbox is unavailable (unsupported platform or missing deps):
+    All shell commands and file writes prompt for user approval with an
+    inline APPROVE/REJECT UI
+
+Sandbox violations:~
+
+When a command violates the sandbox policy (e.g., attempts to read
+~/.ssh or write outside allowed paths), the agent receives an inline
+prompt showing the blocked command and stderr. The user can then:
+  • APPROVE: Run the command without the sandbox (only if sandbox
+    available; requires user interaction)
+  • REJECT: Fail the command and let the agent try a different approach
+
+Configuration:~
+
+Configure filesystem and network restrictions in:
   - Project: `.magenta/options.json`
   - User: `~/.magenta/options.json`
 
-See the `update-permissions` skill at:
-    `node/skills/update-permissions/skill.md`
+Configuration structure:
+>json
+    {
+      "sandbox": {
+        "filesystem": {
+          "allowWrite": ["./"],
+          "denyWrite": [".env", ".git/hooks/"],
+          "denyRead": ["~/.ssh", "~/.gnupg", "~/.aws"],
+          "allowRead": []
+        },
+        "network": {
+          "allowedDomains": ["registry.npmjs.org", "github.com"],
+          "deniedDomains": []
+        }
+      }
+    }
+<
 
-⚠️ Security Warning:~
-Be careful when expanding command permissions. Malicious actors can use
-prompt injection attacks to manipulate the LLM into executing commands
-that exfiltrate sensitive data. The default allowlist is conservative
-by design.
+For detailed documentation including:
+  • Path matching (literal vs glob patterns)
+  • Default sandbox configuration
+  • Common scenarios (e.g., allowing npm installs, project-specific paths)
+  • Merging behavior
+
+See: `:help magenta-sandbox` or `node/skills/update-permissions/skill.md`
+
+⚠️ Security Note:~
+The sandbox provides OS-level isolation of shell commands. However, be
+cautious when approving sandbox violations to allow running commands
+outside the sandbox. Malicious actors can use prompt injection to
+manipulate the LLM into executing commands that exfiltrate sensitive
+data. Only approve violations for commands you understand and trust.
 
 vim:tw=78:ts=8:noet:ft=help:norl:

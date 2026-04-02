@@ -319,11 +319,11 @@ RIGHT: where is X handled?
         "type": "text",
       },
       {
-        "id": "get-file-tool",
+        "id": "bash-tool",
         "input": {
-          "filePath": ".secret",
+          "command": "cat .secret",
         },
-        "name": "get_file",
+        "name": "bash_command",
         "type": "tool_use",
       },
     ],
@@ -334,7 +334,7 @@ RIGHT: where is X handled?
       {
         "content": "Request was aborted by the user.",
         "is_error": true,
-        "tool_use_id": "get-file-tool",
+        "tool_use_id": "bash-tool",
         "type": "tool_result",
       },
     ],

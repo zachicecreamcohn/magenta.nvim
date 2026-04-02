@@ -1,7 +1,10 @@
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import type { ThreadId } from "@magenta/core";
+import type { MagentaOptions } from "../options.ts";
+import type { Sandbox } from "../sandbox-manager.ts";
 import { withTimeout } from "../utils/async.ts";
-import type { NvimCwd } from "../utils/files.ts";
+import type { HomeDir, NvimCwd } from "../utils/files.ts";
+import type { SandboxViolationHandler } from "./sandbox-violation-handler.ts";
 import type { OutputLine, Shell, ShellResult } from "./shell.ts";
 import {
   createLogWriter,
@@ -10,14 +13,18 @@ import {
   terminateProcess,
 } from "./shell-utils.ts";
 
-export class BaseShell implements Shell {
-  private runningProcess: ReturnType<typeof spawn> | undefined;
+export class SandboxShell implements Shell {
+  private runningProcess: ChildProcess | undefined;
 
   constructor(
     private context: {
       cwd: NvimCwd;
+      homeDir: HomeDir;
       threadId: ThreadId;
+      getOptions: () => MagentaOptions;
     },
+    private sandbox: Sandbox,
+    private violationHandler: SandboxViolationHandler,
   ) {}
 
   terminate(): void {
@@ -26,7 +33,6 @@ export class BaseShell implements Shell {
 
     terminateProcess(childProcess);
 
-    // Escalate to SIGKILL after 1 second
     setTimeout(() => {
       if (this.runningProcess === childProcess) {
         escalateToSigkill(childProcess);
@@ -34,7 +40,7 @@ export class BaseShell implements Shell {
     }, 1000);
   }
 
-  async execute(
+  private async spawnCommand(
     command: string,
     opts: {
       toolRequestId: string;
@@ -54,8 +60,8 @@ export class BaseShell implements Shell {
     try {
       const result = await withTimeout(
         new Promise<{
-          code: number | null;
-          signal: NodeJS.Signals | null;
+          code: number | undefined;
+          signal: NodeJS.Signals | undefined;
         }>((resolve, reject) => {
           const childProcess = spawn("bash", ["-c", command], {
             stdio: ["ignore", "pipe", "pipe"],
@@ -77,7 +83,10 @@ export class BaseShell implements Shell {
           childProcess.on(
             "close",
             (code: number | null, signal: NodeJS.Signals | null) => {
-              resolve({ code, signal });
+              resolve({
+                code: code ?? undefined,
+                signal: signal ?? undefined,
+              });
             },
           );
 
@@ -100,7 +109,7 @@ export class BaseShell implements Shell {
 
       return {
         exitCode: result.code ?? -1,
-        signal: result.signal ?? undefined,
+        signal: result.signal,
         output,
         logFilePath: logWriter.filePath,
         durationMs,
@@ -118,7 +127,7 @@ export class BaseShell implements Shell {
 
       output.push({ stream: "stderr", text: errorMessage });
       logWriter.write("stderr", errorMessage);
-      logWriter.writeRaw(`exit code 1\n`);
+      logWriter.writeRaw("exit code 1\n");
       logWriter.end();
 
       return {
@@ -129,5 +138,63 @@ export class BaseShell implements Shell {
         durationMs,
       };
     }
+  }
+
+  async execute(
+    command: string,
+    opts: {
+      toolRequestId: string;
+      onOutput?: (line: OutputLine) => void;
+      onStart?: () => void;
+    },
+  ): Promise<ShellResult> {
+    if (this.sandbox.getState().status !== "ready") {
+      return this.violationHandler.promptForApproval(command, () =>
+        this.spawnCommand(command, opts),
+      );
+    }
+
+    const options = this.context.getOptions();
+    this.sandbox.updateConfigIfChanged(
+      options.sandbox,
+      this.context.cwd,
+      this.context.homeDir,
+    );
+
+    const store = this.sandbox.getViolationStore();
+    const preCount = store.getTotalCount();
+
+    const wrapped = await this.sandbox.wrapWithSandbox(command);
+    const result = await this.spawnCommand(wrapped, opts);
+
+    // When a command fails, poll briefly for sandbox violation events which
+    // arrive asynchronously via the macOS `log stream` monitor
+    if (result.exitCode !== 0) {
+      const deadline = Date.now() + 100;
+      while (store.getTotalCount() === preCount && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+    }
+
+    const postCount = store.getTotalCount();
+    if (postCount > preCount && result.exitCode !== 0) {
+      const newViolations = store.getViolations(postCount - preCount);
+      const stderr = result.output
+        .filter((l) => l.stream === "stderr")
+        .map((l) => l.text)
+        .join("\n");
+      const annotated = this.sandbox.annotateStderrWithSandboxFailures(
+        command,
+        stderr,
+      );
+
+      return this.violationHandler.addViolation(
+        { command, violations: newViolations, stderr: annotated },
+        () => this.spawnCommand(command, opts),
+      );
+    }
+
+    this.sandbox.cleanupAfterCommand();
+    return result;
   }
 }

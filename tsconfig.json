@@ -29,6 +29,7 @@
     "**/test/fixtures/**",
     "**/test/tmp",
     "node/nvim/nvim-node/cli/**",
-    "node/core/**"
+    "node/core/**",
+    "node/packages/**"
   ]
 }

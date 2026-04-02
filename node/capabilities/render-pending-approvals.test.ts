@@ -5,6 +5,10 @@ import { withDriver } from "../test/preamble.ts";
 describe("pending approvals surfaced in parent thread", () => {
   it("spawn_subagents surfaces bash_command approval in parent view", async () => {
     await withDriver({}, async (driver) => {
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
       await driver.showSidebar();
 
       await driver.inputMagentaText("Spawn a subagent to run a command.");
@@ -135,6 +139,10 @@ describe("pending approvals surfaced in parent thread", () => {
     await withDriver(
       { options: { maxConcurrentSubagents: 1 } },
       async (driver) => {
+        driver.mockSandbox.setState({
+          status: "unsupported",
+          reason: "disabled",
+        });
         await driver.showSidebar();
 
         await driver.inputMagentaText("Run mkdir in parallel for me.");

@@ -3,11 +3,23 @@
     "dockerfile": "docker/Dockerfile",
     "workspacePath": "/workspace"
   },
-  "commandConfig": {
-    "commands": [
-      ["npx", "tsc", "--noEmit"],
-      ["npx", "tsgo", { "type": "restAny" }],
-      ["npx", "vitest", "run", { "type": "restAny" }]
-    ]
+  "sandbox": {
+    "network": {
+      "allowUnixSockets": ["/private/tmp"]
+    },
+    "filesystem": {
+      "allowRead": [
+        "./.github",
+        "./.magenta",
+        "./.vscode",
+        "./test-plugins/nvim-cmp/.githooks",
+        "./test-plugins/nvim-cmp/.github",
+        "./node/packages/sandbox-runtime/.github",
+        "./node/packages/sandbox-runtime/.vscode"
+      ],
+      "allowWrite": [
+        "/private/tmp/magenta/"
+      ]
+    }
   }
 }

@@ -6,24 +6,13 @@ export function renderPendingApprovals(
   chat: Chat,
   threadId: ThreadId,
 ): VDOMNode | undefined {
-  const parts: VDOMNode[] = [];
-
   const wrapper = chat.threadWrappers[threadId];
   if (wrapper?.state === "initialized") {
-    if (
-      wrapper.thread.permissionFileIO &&
-      wrapper.thread.permissionFileIO.getPendingPermissions().size > 0
-    ) {
-      parts.push(d`\n${wrapper.thread.permissionFileIO.view()}`);
-    }
-    if (
-      wrapper.thread.permissionShell &&
-      wrapper.thread.permissionShell.getPendingPermissions().size > 0
-    ) {
-      parts.push(d`\n${wrapper.thread.permissionShell.view()}`);
+    const handler = wrapper.thread.sandboxViolationHandler;
+    if (handler && handler.getPendingViolations().size > 0) {
+      return d`\n${handler.view()}`;
     }
   }
 
-  if (parts.length === 0) return undefined;
-  return d`${parts}`;
+  return undefined;
 }

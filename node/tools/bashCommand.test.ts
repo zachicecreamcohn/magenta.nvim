@@ -55,6 +55,10 @@ describe("node/tools/bashCommand.test.ts", () => {
   it("handles command errors gracefully after approval", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
       await driver.inputMagentaText(`Run this command: nonexistentcommand`);
       await driver.send();
 
@@ -93,6 +97,10 @@ describe("node/tools/bashCommand.test.ts", () => {
   it("requires approval for a command not in the allowlist", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
       await driver.inputMagentaText(
         `Run this command: true && echo "hello, world"`,
       );
@@ -143,6 +151,10 @@ describe("node/tools/bashCommand.test.ts", () => {
   it("handles user rejection of command", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
       await driver.inputMagentaText(`Run this command: true && ls -la`);
       await driver.send();
 
@@ -182,6 +194,10 @@ describe("node/tools/bashCommand.test.ts", () => {
   it("displays approval dialog with proper box formatting", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
       await driver.inputMagentaText(`Run this command: dangerous-command`);
       await driver.send();
 
@@ -213,7 +229,6 @@ describe("node/tools/bashCommand.test.ts", () => {
       // Verify the vertical button layout is displayed correctly
       await driver.assertDisplayBufferContains("> NO");
       await driver.assertDisplayBufferContains("> YES");
-      await driver.assertDisplayBufferContains("> ALWAYS");
 
       // Test that clicking YES works
       await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");
@@ -226,6 +241,10 @@ describe("node/tools/bashCommand.test.ts", () => {
   it("terminates a long-running command with 't' key", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
       // Use a command that will run until terminated
       await driver.inputMagentaText(`Run this command: sleep 30`);
       await driver.send();
@@ -265,77 +284,13 @@ describe("node/tools/bashCommand.test.ts", () => {
     });
   });
 
-  it("allows subsequent runs of a command after selecting ALWAYS", async () => {
-    await withDriver({}, async (driver) => {
-      await driver.showSidebar();
-
-      // First run of the command requiring approval
-      await driver.inputMagentaText(`Run this command: "true && echo 'tada'`);
-      await driver.send();
-
-      const request1 = await driver.mockAnthropic.awaitPendingStream();
-      const toolRequestId1 = "test-remembered-command-1" as ToolRequestId;
-
-      request1.respond({
-        stopReason: "tool_use",
-        text: "I'll run that command for you.",
-        toolRequests: [
-          {
-            status: "ok",
-            value: {
-              id: toolRequestId1,
-              toolName: "bash_command" as ToolName,
-              input: {
-                command: `true && echo 'tada'`,
-              },
-            },
-          },
-        ],
-      });
-
-      await driver.assertDisplayBufferContains(
-        "⚡ May I run command `true && echo 'tada'`?",
-      );
-
-      await driver.triggerDisplayBufferKeyOnContent("> ALWAYS", "<CR>");
-
-      await driver.inputMagentaText(`Ok, run it again`);
-      await driver.send();
-
-      const request2 = await driver.mockAnthropic.awaitPendingStream();
-      const toolRequestId2 = "test-remembered-command-2" as ToolRequestId;
-
-      request2.respond({
-        stopReason: "tool_use",
-        text: "Running that command again.",
-        toolRequests: [
-          {
-            status: "ok",
-            value: {
-              id: toolRequestId2,
-              toolName: "bash_command" as ToolName,
-              input: {
-                command: `true && echo 'tada'`,
-              },
-            },
-          },
-        ],
-      });
-
-      // Verify content pieces separately to allow for system reminder
-      await driver.assertDisplayBufferContains("# user:");
-      await driver.assertDisplayBufferContains("Ok, run it again");
-      await driver.assertDisplayBufferContains("# assistant:");
-      await driver.assertDisplayBufferContains("Running that command again.");
-      await driver.assertDisplayBufferContains("⚡ `true && echo 'tada'`");
-      await driver.assertDisplayBufferContains("stdout:");
-      await driver.assertDisplayBufferContains("tada");
-    });
-  });
-
   it("ensures a command is executed only once", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
 
       // Create a unique filename for this test
       const cwd = await getcwd(driver.nvim);
@@ -396,648 +351,19 @@ describe("node/tools/bashCommand.test.ts", () => {
   });
 
   it("truncates display preview but preserves full output for agent", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "echo", rest: "any" }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-
-        const longText = "A".repeat(200); // 200 characters, much longer than WIDTH-5 (95)
-        await driver.inputMagentaText(`Run this command: echo "${longText}"`);
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-truncation" as ToolRequestId;
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "I'll run that command for you.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: `echo "${longText}"`,
-                },
-              },
-            },
-          ],
-        });
-
-        await driver.assertDisplayBufferContains("✅");
-
-        // Verify display shows truncated text
-        const truncatedText = `${"A".repeat(10)}...`;
-        await driver.assertDisplayBufferContains(truncatedText);
-
-        // Verify the full output is preserved for the agent
-        const toolResultRequest =
-          await driver.mockAnthropic.awaitPendingStream();
-        const toolResultMessage =
-          toolResultRequest.messages[toolResultRequest.messages.length - 1];
-
-        if (
-          toolResultMessage.role === "user" &&
-          Array.isArray(toolResultMessage.content)
-        ) {
-          const toolResult = toolResultMessage.content[0];
-          if (toolResult.type === "tool_result") {
-            expect(toolResult.is_error).toBeFalsy();
-            const content = toolResult.content;
-            const resultText =
-              typeof content === "string"
-                ? content
-                : Array.isArray(content)
-                  ? content
-                      .filter(
-                        (item): item is { type: "text"; text: string } =>
-                          item.type === "text",
-                      )
-                      .map((item) => item.text)
-                      .join("")
-                  : "";
-
-            // Verify the full 200-character string is preserved for the agent
-            expect(resultText).toContain(longText);
-            expect(resultText).toContain("exit code 0");
-          }
-        }
-      },
-    );
-  });
-
-  it("auto-approves commands with redundant cd <cwd> && prefix", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "echo", rest: "any" }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-
-        const cwd = await getcwd(driver.nvim);
-        const commandWithCd = `cd ${cwd} && echo "Hello from cwd"`;
-
-        await driver.inputMagentaText(`Run this command: ${commandWithCd}`);
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-cd-prefix" as ToolRequestId;
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "I'll run that command for you.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: commandWithCd,
-                },
-              },
-            },
-          ],
-        });
-
-        // Should auto-approve since the stripped command "echo "Hello from cwd"" is in the allowlist
-        await driver.assertDisplayBufferContains("Hello from cwd");
-        await driver.assertDisplayBufferContains(`⚡ \`${commandWithCd}\``);
-
-        // Should NOT show the approval dialog
-        await driver.assertDisplayBufferDoesNotContain("> YES");
-      },
-    );
-  });
-
-  it("abbreviates long lines and trims output to token limit", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [
-              { cmd: "yes", rest: "any" },
-              { cmd: "head", rest: "any" },
-              { cmd: "head", rest: "any", pipe: true },
-            ],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-
-        // Generate output with very long lines (5000 chars each)
-        // Lines longer than MAX_OUTPUT_TOKENS_FOR_ONE_LINE * 4 (800 chars) will be abbreviated
-        const longString = "A".repeat(5000);
-        await driver.inputMagentaText(
-          `Run this command: yes "${longString}" | head -50`,
-        );
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-token-limit" as ToolRequestId;
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "I'll run that command for you.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: `yes "${longString}" | head -50`,
-                },
-              },
-            },
-          ],
-        });
-
-        await driver.assertDisplayBufferContains("✅");
-
-        const toolResultRequest =
-          await driver.mockAnthropic.awaitPendingStream();
-        const toolResultMessage = MockProvider.findLastToolResultMessage(
-          toolResultRequest.messages,
-        )!;
-
-        const content = extractToolResultText(toolResultMessage);
-
-        // Verify the output is limited by token count (8000 characters max for 2000 tokens)
-        expect(content.length).toBeLessThan(9000);
-
-        // Should contain exit code
-        expect(content).toContain("exit code 0");
-
-        // Long lines should be abbreviated with "..." in the middle
-        // The full 5000-char string should NOT be present
-        expect(content).not.toContain(longString);
-
-        // But abbreviated lines should contain the "..." marker
-        expect(content).toContain("AAA...AAA");
-
-        // Should contain omission marker due to token trimming (50 lines don't all fit)
-        expect(content).toContain("lines omitted");
-
-        // Should have log file reference
-        expect(content).toMatch(/Full output \(\d+ lines\):/);
-        expect(content).toContain("bashCommand.log");
-      },
-    );
-  });
-});
-
-describe("commandConfig integration tests", () => {
-  it("auto-approves commands with restAny option", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "echo", rest: "any" }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        await driver.inputMagentaText(`Run this command: echo "hello world"`);
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-restAny" as ToolRequestId;
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Running echo command.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: 'echo "hello world"',
-                },
-              },
-            },
-          ],
-        });
-
-        // Should auto-approve and run without showing approval dialog
-        await driver.assertDisplayBufferContains('⚡ `echo "hello world"`');
-        await driver.assertDisplayBufferContains("hello world");
-        await driver.assertDisplayBufferDoesNotContain("> YES");
-      },
-    );
-  });
-
-  it("auto-approves commands with exact arg patterns", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "ls", rest: "any" }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        await driver.inputMagentaText(`Run this command: ls -la`);
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-subcommand" as ToolRequestId;
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Listing files.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: "ls -la",
-                },
-              },
-            },
-          ],
-        });
-
-        // Should auto-approve since args match exactly
-        await driver.assertDisplayBufferContains("⚡ `ls -la`");
-        await driver.assertDisplayBufferDoesNotContain("> YES");
-      },
-    );
-  });
-
-  it("requires approval for commands with non-matching args", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "npx", args: ["any", "any"] }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        // --watch is not in the allowed args (rule only allows 2 positionals)
-        await driver.inputMagentaText(
-          `Run this command: npx tsc --watch --noEmit`,
-        );
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-wrong-args" as ToolRequestId;
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Running tsc.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: "npx tsc --watch --noEmit",
-                },
-              },
-            },
-          ],
-        });
-
-        // Should require approval since args don't match
-        await driver.assertDisplayBufferContains(
-          "⚡ May I run command `npx tsc --watch --noEmit`?",
-        );
-        await driver.assertDisplayBufferContains("> YES");
-      },
-    );
-  });
-
-  it("auto-approves cat with valid file path", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "cat", args: ["readFile"] }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        const cwd = await getcwd(driver.nvim);
-
-        // Create a test file in the project
-        const testFile = path.join(cwd, "test-cat-file.txt");
-        fs.writeFileSync(testFile, "test content for cat");
-
-        await driver.inputMagentaText(
-          `Run this command: cat test-cat-file.txt`,
-        );
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-cat-file" as ToolRequestId;
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Reading file.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: "cat test-cat-file.txt",
-                },
-              },
-            },
-          ],
-        });
-
-        // Should auto-approve since file is in project
-        await driver.assertDisplayBufferContains("⚡ `cat test-cat-file.txt`");
-        await driver.assertDisplayBufferContains("test content for cat");
-        await driver.assertDisplayBufferDoesNotContain("> YES");
-      },
-    );
-  });
-
-  it("requires approval for cat with file outside project", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "cat", args: ["readFile"] }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-
-        await driver.inputMagentaText(`Run this command: cat /etc/passwd`);
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-cat-outside" as ToolRequestId;
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Reading file.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: "cat /etc/passwd",
-                },
-              },
-            },
-          ],
-        });
-
-        // Should require approval since file is outside project
-        await driver.assertDisplayBufferContains(
-          "⚡ May I run command `cat /etc/passwd`?",
-        );
-        await driver.assertDisplayBufferContains("> YES");
-      },
-    );
-  });
-
-  it("auto-approves command with restFiles pattern", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "cat", rest: "readFiles" }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        const cwd = await getcwd(driver.nvim);
-
-        // Create test files in the project
-        const testFile1 = path.join(cwd, "testfile1.txt");
-        const testFile2 = path.join(cwd, "testfile2.txt");
-        fs.writeFileSync(testFile1, "content of file 1");
-        fs.writeFileSync(testFile2, "content of file 2");
-
-        await driver.inputMagentaText(
-          `Run this command: cat testfile1.txt testfile2.txt`,
-        );
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-restfiles" as ToolRequestId;
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Reading files.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: "cat testfile1.txt testfile2.txt",
-                },
-              },
-            },
-          ],
-        });
-
-        // Should auto-approve since all files are in project
-        await driver.assertDisplayBufferContains(
-          "⚡ `cat testfile1.txt testfile2.txt`",
-        );
-        await driver.assertDisplayBufferContains("content of file 1");
-        await driver.assertDisplayBufferContains("content of file 2");
-        await driver.assertDisplayBufferDoesNotContain("> YES");
-      },
-    );
-  });
-
-  it("requires approval for restFiles with file outside project", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "cat", rest: "readFiles" }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        const cwd = await getcwd(driver.nvim);
-
-        // Create a valid test file
-        const testFile = path.join(cwd, "valid-file.txt");
-        fs.writeFileSync(testFile, "valid content");
-
-        await driver.inputMagentaText(
-          `Run this command: cat valid-file.txt /etc/passwd`,
-        );
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-restfiles-outside" as ToolRequestId;
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Reading files.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: "cat valid-file.txt /etc/passwd",
-                },
-              },
-            },
-          ],
-        });
-
-        // Should require approval since one file is outside project
-        await driver.assertDisplayBufferContains("⚡ May I run command");
-        await driver.assertDisplayBufferContains("> YES");
-      },
-    );
-  });
-
-  it("handles chained commands with cd", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "cat", args: ["readFile"] }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        const cwd = await getcwd(driver.nvim);
-
-        // Create a subdirectory with a file
-        const subDir = path.join(cwd, "subdir");
-        fs.mkdirSync(subDir, { recursive: true });
-        const testFile = path.join(subDir, "nested-file.txt");
-        fs.writeFileSync(testFile, "nested content");
-
-        await driver.inputMagentaText(
-          `Run this command: cd subdir && cat nested-file.txt`,
-        );
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-cd-chain" as ToolRequestId;
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Reading nested file.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: "cd subdir && cat nested-file.txt",
-                },
-              },
-            },
-          ],
-        });
-
-        // Should auto-approve since file resolves to within project
-        await driver.assertDisplayBufferContains(
-          "⚡ `cd subdir && cat nested-file.txt`",
-        );
-        await driver.assertDisplayBufferContains("nested content");
-        await driver.assertDisplayBufferDoesNotContain("> YES");
-      },
-    );
-  });
-
-  it("requires approval when cd navigates outside project", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "cat", args: ["readFile"] }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-
-        await driver.inputMagentaText(
-          `Run this command: cd /tmp && cat somefile.txt`,
-        );
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-cd-outside" as ToolRequestId;
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Reading file.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: "cd /tmp && cat somefile.txt",
-                },
-              },
-            },
-          ],
-        });
-
-        // Should require approval since cd navigates outside project
-        await driver.assertDisplayBufferContains("⚡ May I run command");
-        await driver.assertDisplayBufferContains("> YES");
-      },
-    );
-  });
-
-  it("requires approval for command not in config", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
 
-      await driver.inputMagentaText(`Run this command: rm -rf /tmp/test`);
+      const longText = "A".repeat(200); // 200 characters, much longer than WIDTH-5 (95)
+      await driver.inputMagentaText(`Run this command: echo "${longText}"`);
       await driver.send();
 
       const request = await driver.mockAnthropic.awaitPendingStream();
-      const toolRequestId = "test-not-in-config" as ToolRequestId;
+      const toolRequestId = "test-truncation" as ToolRequestId;
 
       request.respond({
         stopReason: "tool_use",
-        text: "Removing files.",
+        text: "I'll run that command for you.",
         toolRequests: [
           {
             status: "ok",
@@ -1045,113 +371,153 @@ describe("commandConfig integration tests", () => {
               id: toolRequestId,
               toolName: "bash_command" as ToolName,
               input: {
-                command: "rm -rf /tmp/test",
+                command: `echo "${longText}"`,
               },
             },
           },
         ],
       });
 
-      // Should require approval since rm is not in builtin config
-      await driver.assertDisplayBufferContains(
-        "⚡ May I run command `rm -rf /tmp/test`?",
-      );
-      await driver.assertDisplayBufferContains("> YES");
+      await driver.assertDisplayBufferContains("✅");
+
+      // Verify display shows truncated text
+      const truncatedText = `${"A".repeat(10)}...`;
+      await driver.assertDisplayBufferContains(truncatedText);
+
+      // Verify the full output is preserved for the agent
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+      const toolResultMessage =
+        toolResultRequest.messages[toolResultRequest.messages.length - 1];
+
+      if (
+        toolResultMessage.role === "user" &&
+        Array.isArray(toolResultMessage.content)
+      ) {
+        const toolResult = toolResultMessage.content[0];
+        if (toolResult.type === "tool_result") {
+          expect(toolResult.is_error).toBeFalsy();
+          const content = toolResult.content;
+          const resultText =
+            typeof content === "string"
+              ? content
+              : Array.isArray(content)
+                ? content
+                    .filter(
+                      (item): item is { type: "text"; text: string } =>
+                        item.type === "text",
+                    )
+                    .map((item) => item.text)
+                    .join("")
+                : "";
+
+          // Verify the full 200-character string is preserved for the agent
+          expect(resultText).toContain(longText);
+          expect(resultText).toContain("exit code 0");
+        }
+      }
     });
   });
 
-  it("requires approval for hidden files", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "cat", args: ["readFile"] }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        const cwd = await getcwd(driver.nvim);
+  it("auto-approves commands with redundant cd <cwd> && prefix", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
 
-        // Create a hidden file
-        const hiddenFile = path.join(cwd, ".hidden-file.txt");
-        fs.writeFileSync(hiddenFile, "hidden content");
+      const cwd = await getcwd(driver.nvim);
+      const commandWithCd = `cd ${cwd} && echo "Hello from cwd"`;
 
-        await driver.inputMagentaText(`Run this command: cat .hidden-file.txt`);
-        await driver.send();
+      await driver.inputMagentaText(`Run this command: ${commandWithCd}`);
+      await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-hidden-file" as ToolRequestId;
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      const toolRequestId = "test-cd-prefix" as ToolRequestId;
 
-        request.respond({
-          stopReason: "tool_use",
-          text: "Reading hidden file.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: "cat .hidden-file.txt",
-                },
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll run that command for you.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: toolRequestId,
+              toolName: "bash_command" as ToolName,
+              input: {
+                command: commandWithCd,
               },
             },
-          ],
-        });
+          },
+        ],
+      });
 
-        // Should require approval for hidden files
-        await driver.assertDisplayBufferContains("⚡ May I run command");
-        await driver.assertDisplayBufferContains("> YES");
-      },
-    );
+      // Should auto-approve since the stripped command "echo "Hello from cwd"" is in the allowlist
+      await driver.assertDisplayBufferContains("Hello from cwd");
+      await driver.assertDisplayBufferContains(`⚡ \`${commandWithCd}\``);
+
+      // Should NOT show the approval dialog
+      await driver.assertDisplayBufferDoesNotContain("> YES");
+    });
   });
 
-  it("allows specific subcommand with restAny while restricting other patterns", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [
-              { cmd: "git", subcommands: [{ cmd: "status", rest: "any" }] },
-              { cmd: "git", subcommands: [{ cmd: "log", rest: "any" }] },
-            ],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
+  it("abbreviates long lines and trims output to token limit", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
 
-        // git status with any args should be allowed
-        await driver.inputMagentaText(
-          `Run this command: git status --porcelain`,
-        );
-        await driver.send();
+      // Generate output with very long lines (5000 chars each)
+      // Lines longer than MAX_OUTPUT_TOKENS_FOR_ONE_LINE * 4 (800 chars) will be abbreviated
+      const longString = "A".repeat(5000);
+      await driver.inputMagentaText(
+        `Run this command: yes "${longString}" | head -50`,
+      );
+      await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-git-status" as ToolRequestId;
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      const toolRequestId = "test-token-limit" as ToolRequestId;
 
-        request.respond({
-          stopReason: "tool_use",
-          text: "Checking status.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: "git status --porcelain",
-                },
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll run that command for you.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: toolRequestId,
+              toolName: "bash_command" as ToolName,
+              input: {
+                command: `yes "${longString}" | head -50`,
               },
             },
-          ],
-        });
+          },
+        ],
+      });
 
-        await driver.assertDisplayBufferContains("⚡ `git status --porcelain`");
-        await driver.assertDisplayBufferDoesNotContain("> YES");
-      },
-    );
+      await driver.assertDisplayBufferContains("✅");
+
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+      const toolResultMessage = MockProvider.findLastToolResultMessage(
+        toolResultRequest.messages,
+      )!;
+
+      const content = extractToolResultText(toolResultMessage);
+
+      // Verify the output is limited by token count (8000 characters max for 2000 tokens)
+      expect(content.length).toBeLessThan(9000);
+
+      // Should contain exit code
+      expect(content).toContain("exit code 0");
+
+      // Long lines should be abbreviated with "..." in the middle
+      // The full 5000-char string should NOT be present
+      expect(content).not.toContain(longString);
+
+      // But abbreviated lines should contain the "..." marker
+      expect(content).toContain("AAA...AAA");
+
+      // Should contain omission marker due to token trimming (50 lines don't all fit)
+      expect(content).toContain("lines omitted");
+
+      // Should have log file reference
+      expect(content).toMatch(/Full output \(\d+ lines\):/);
+      expect(content).toContain("bashCommand.log");
+    });
   });
 });
 
@@ -1181,337 +547,289 @@ function extractToolResultText(toolResultMessage: {
 
 describe("bash command output logging", () => {
   it("creates log file with command and output", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "echo", rest: "any" }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        await driver.inputMagentaText(`Run: echo "line1" && echo "line2"`);
-        await driver.send();
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(`Run: echo "line1" && echo "line2"`);
+      await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-log-file" as ToolRequestId;
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      const toolRequestId = "test-log-file" as ToolRequestId;
 
-        request.respond({
-          stopReason: "tool_use",
-          text: "Running command.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: 'echo "line1" && echo "line2"',
-                },
+      request.respond({
+        stopReason: "tool_use",
+        text: "Running command.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: toolRequestId,
+              toolName: "bash_command" as ToolName,
+              input: {
+                command: 'echo "line1" && echo "line2"',
               },
             },
-          ],
-        });
+          },
+        ],
+      });
 
-        // Command is auto-approved since both echo commands are allowed
-        await driver.assertDisplayBufferContains("✅");
+      // Command is auto-approved since both echo commands are allowed
+      await driver.assertDisplayBufferContains("✅");
 
-        // Get the tool result - log file path won't be in output since it fits
-        const toolResultRequest =
-          await driver.mockAnthropic.awaitPendingStream();
-        const toolResultMessage = MockProvider.findLastToolResultMessage(
-          toolResultRequest.messages,
-        )!;
+      // Get the tool result - log file path won't be in output since it fits
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+      const toolResultMessage = MockProvider.findLastToolResultMessage(
+        toolResultRequest.messages,
+      )!;
 
-        expect(toolResultMessage.role).toBe("user");
-        expect(Array.isArray(toolResultMessage.content)).toBe(true);
+      expect(toolResultMessage.role).toBe("user");
+      expect(Array.isArray(toolResultMessage.content)).toBe(true);
 
-        const content = extractToolResultText(toolResultMessage);
-        // Log file path should always be in the result
-        expect(content).toContain("Full output");
+      const content = extractToolResultText(toolResultMessage);
+      // Log file path should always be in the result
+      expect(content).toContain("Full output");
 
-        // But we can verify the log file exists by getting the thread id and constructing the path
-        const thread = driver.magenta.chat.getActiveThread();
-        const logPath = path.join(
-          "/tmp/magenta/threads",
-          thread.id,
-          "tools",
-          toolRequestId,
-          "bashCommand.log",
-        );
-        expect(fs.existsSync(logPath)).toBe(true);
+      // But we can verify the log file exists by getting the thread id and constructing the path
+      const thread = driver.magenta.chat.getActiveThread();
+      const logPath = path.join(
+        "/tmp/magenta/threads",
+        thread.id,
+        "tools",
+        toolRequestId,
+        "bashCommand.log",
+      );
+      expect(fs.existsSync(logPath)).toBe(true);
 
-        const logContent = fs.readFileSync(logPath, "utf8");
-        expect(logContent).toContain('$ echo "line1" && echo "line2"');
-        expect(logContent).toContain("stdout:");
-        expect(logContent).toContain("line1");
-        expect(logContent).toContain("line2");
-        expect(logContent).toContain("exit code 0");
-      },
-    );
+      const logContent = fs.readFileSync(logPath, "utf8");
+      expect(logContent).toContain('$ echo "line1" && echo "line2"');
+      expect(logContent).toContain("stdout:");
+      expect(logContent).toContain("line1");
+      expect(logContent).toContain("line2");
+      expect(logContent).toContain("exit code 0");
+    });
   });
 
   it("abbreviates output when it exceeds token budget", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "bash", rest: "any" }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        // Generate output that exceeds token budget (2000 tokens = 8000 chars)
-        // Each line is ~200 chars, 100 lines = 20000 chars (exceeds budget)
-        const lineContent = "X".repeat(200);
-        await driver.inputMagentaText(
-          `Run: bash -c 'for i in $(seq 1 100); do echo "LINE$i:${lineContent}"; done'`,
-        );
-        await driver.send();
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      // Generate output that exceeds token budget (2000 tokens = 8000 chars)
+      // Each line is ~200 chars, 100 lines = 20000 chars (exceeds budget)
+      const lineContent = "X".repeat(200);
+      await driver.inputMagentaText(
+        `Run: bash -c 'for i in $(seq 1 100); do echo "LINE$i:${lineContent}"; done'`,
+      );
+      await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-abbreviated" as ToolRequestId;
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      const toolRequestId = "test-abbreviated" as ToolRequestId;
 
-        request.respond({
-          stopReason: "tool_use",
-          text: "Running command.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: `bash -c 'for i in $(seq 1 100); do echo "LINE$i:${lineContent}"; done'`,
-                },
+      request.respond({
+        stopReason: "tool_use",
+        text: "Running command.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: toolRequestId,
+              toolName: "bash_command" as ToolName,
+              input: {
+                command: `bash -c 'for i in $(seq 1 100); do echo "LINE$i:${lineContent}"; done'`,
               },
             },
-          ],
-        });
+          },
+        ],
+      });
 
-        await driver.assertDisplayBufferContains("✅");
+      await driver.assertDisplayBufferContains("✅");
 
-        const toolResultRequest =
-          await driver.mockAnthropic.awaitPendingStream();
-        const toolResultMessage = MockProvider.findLastToolResultMessage(
-          toolResultRequest.messages,
-        )!;
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+      const toolResultMessage = MockProvider.findLastToolResultMessage(
+        toolResultRequest.messages,
+      )!;
 
-        const content = extractToolResultText(toolResultMessage);
+      const content = extractToolResultText(toolResultMessage);
 
-        // Should contain exit code
-        expect(content).toContain("exit code 0");
+      // Should contain exit code
+      expect(content).toContain("exit code 0");
 
-        // Should contain omission marker since output exceeds budget
-        expect(content).toContain("lines omitted");
+      // Should contain omission marker since output exceeds budget
+      expect(content).toContain("lines omitted");
 
-        // Should contain some head lines (early LINE numbers)
-        expect(content).toContain("LINE1:");
+      // Should contain some head lines (early LINE numbers)
+      expect(content).toContain("LINE1:");
 
-        // Should contain some tail lines (later LINE numbers)
-        expect(content).toContain("LINE100:");
+      // Should contain some tail lines (later LINE numbers)
+      expect(content).toContain("LINE100:");
 
-        // Should contain log file reference
-        expect(content).toContain("Full output (100 lines):");
-        expect(content).toContain("bashCommand.log");
-      },
-    );
+      // Should contain log file reference
+      expect(content).toContain("Full output (100 lines):");
+      expect(content).toContain("bashCommand.log");
+    });
   });
 
   it("includes full output when 30 lines or fewer", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "seq", rest: "any" }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        // Generate exactly 30 lines
-        await driver.inputMagentaText(`Run: seq 1 30`);
-        await driver.send();
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      // Generate exactly 30 lines
+      await driver.inputMagentaText(`Run: seq 1 30`);
+      await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-full-output" as ToolRequestId;
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      const toolRequestId = "test-full-output" as ToolRequestId;
 
-        request.respond({
-          stopReason: "tool_use",
-          text: "Running seq.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: "seq 1 30",
-                },
+      request.respond({
+        stopReason: "tool_use",
+        text: "Running seq.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: toolRequestId,
+              toolName: "bash_command" as ToolName,
+              input: {
+                command: "seq 1 30",
               },
             },
-          ],
-        });
+          },
+        ],
+      });
 
-        await driver.assertDisplayBufferContains("✅");
+      await driver.assertDisplayBufferContains("✅");
 
-        const toolResultRequest =
-          await driver.mockAnthropic.awaitPendingStream();
-        const toolResultMessage = MockProvider.findLastToolResultMessage(
-          toolResultRequest.messages,
-        )!;
+      const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
+      const toolResultMessage = MockProvider.findLastToolResultMessage(
+        toolResultRequest.messages,
+      )!;
 
-        const content = extractToolResultText(toolResultMessage);
+      const content = extractToolResultText(toolResultMessage);
 
-        // Should contain all lines 1-30
-        for (let i = 1; i <= 30; i++) {
-          expect(content).toContain(`${i}\n`);
-        }
+      // Should contain all lines 1-30
+      for (let i = 1; i <= 30; i++) {
+        expect(content).toContain(`${i}\n`);
+      }
 
-        // Should NOT contain omission marker
-        expect(content).not.toContain("lines omitted");
+      // Should NOT contain omission marker
+      expect(content).not.toContain("lines omitted");
 
-        // Should always have log file reference
-        expect(content).toContain("Full output");
-      },
-    );
+      // Should always have log file reference
+      expect(content).toContain("Full output");
+    });
   });
 
   it("toggles between preview and detail view with Enter key", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "echo", rest: "any" }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        await driver.inputMagentaText(`Run: echo "test output"`);
-        await driver.send();
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText(`Run: echo "test output"`);
+      await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-toggle-detail" as ToolRequestId;
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      const toolRequestId = "test-toggle-detail" as ToolRequestId;
 
-        request.respond({
-          stopReason: "tool_use",
-          text: "Running echo.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: 'echo "test output"',
-                },
+      request.respond({
+        stopReason: "tool_use",
+        text: "Running echo.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: toolRequestId,
+              toolName: "bash_command" as ToolName,
+              input: {
+                command: 'echo "test output"',
               },
             },
-          ],
-        });
+          },
+        ],
+      });
 
-        // Wait for command to complete
-        await driver.assertDisplayBufferContains('⚡ `echo "test output"`');
+      // Wait for command to complete
+      await driver.assertDisplayBufferContains('⚡ `echo "test output"`');
 
-        // Initially in preview mode - should show output in code block
-        await driver.assertDisplayBufferContains("stdout:");
-        await driver.assertDisplayBufferContains("test output");
+      // Initially in preview mode - should show output in code block
+      await driver.assertDisplayBufferContains("stdout:");
+      await driver.assertDisplayBufferContains("test output");
 
-        // Detail view should NOT be shown yet (no command: header)
-        await driver.assertDisplayBufferDoesNotContain("command:");
+      // Detail view should NOT be shown yet (no command: header)
+      await driver.assertDisplayBufferDoesNotContain("command:");
 
-        // Toggle to detail view by pressing Enter on the output preview
-        await driver.triggerDisplayBufferKeyOnContent("stdout:", "<CR>");
+      // Toggle to detail view by pressing Enter on the output preview
+      await driver.triggerDisplayBufferKeyOnContent("stdout:", "<CR>");
 
-        // After toggling, should show full detail with command header
-        await driver.assertDisplayBufferContains("command:");
+      // After toggling, should show full detail with command header
+      await driver.assertDisplayBufferContains("command:");
 
-        // Toggle back to preview view
-        await driver.triggerDisplayBufferKeyOnContent("command:", "<CR>");
+      // Toggle back to preview view
+      await driver.triggerDisplayBufferKeyOnContent("command:", "<CR>");
 
-        // Should be back in preview mode (no command header)
-        await driver.assertDisplayBufferDoesNotContain("command:");
-        await driver.assertDisplayBufferContains("stdout:");
-      },
-    );
+      // Should be back in preview mode (no command header)
+      await driver.assertDisplayBufferDoesNotContain("command:");
+      await driver.assertDisplayBufferContains("stdout:");
+    });
   });
 
   it("opens log file in non-magenta window when clicking Full output link", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "bash", rest: "any" }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        // Generate output that exceeds token budget to show log file link
-        // Each line is ~200 chars, 100 lines = 20000 chars (exceeds 8000 char budget)
-        const lineContent = "X".repeat(200);
-        const command = `bash -c 'for i in $(seq 1 100); do echo "LINE$i:${lineContent}"; done'`;
-        await driver.inputMagentaText(`Run: ${command}`);
-        await driver.send();
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      // Generate output that exceeds token budget to show log file link
+      // Each line is ~200 chars, 100 lines = 20000 chars (exceeds 8000 char budget)
+      const lineContent = "X".repeat(200);
+      const command = `bash -c 'for i in $(seq 1 100); do echo "LINE$i:${lineContent}"; done'`;
+      await driver.inputMagentaText(`Run: ${command}`);
+      await driver.send();
 
-        const request = await driver.mockAnthropic.awaitPendingStream();
-        const toolRequestId = "test-open-log" as ToolRequestId;
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      const toolRequestId = "test-open-log" as ToolRequestId;
 
-        request.respond({
-          stopReason: "tool_use",
-          text: "Running command.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: toolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command,
-                },
+      request.respond({
+        stopReason: "tool_use",
+        text: "Running command.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: toolRequestId,
+              toolName: "bash_command" as ToolName,
+              input: {
+                command,
               },
             },
-          ],
-        });
+          },
+        ],
+      });
 
-        await driver.assertDisplayBufferContains("✅");
+      await driver.assertDisplayBufferContains("✅");
 
-        // Find and click the "Full output" link
-        // Find and click the "Full output" link
-        await driver.triggerDisplayBufferKeyOnContent(
-          "Full output (100 lines):",
-          "<CR>",
-        );
+      // Find and click the "Full output" link
+      // Find and click the "Full output" link
+      await driver.triggerDisplayBufferKeyOnContent(
+        "Full output (100 lines):",
+        "<CR>",
+      );
 
-        // Verify a new window was opened with the log file
-        const logWindow = await driver.findWindow(async (w) => {
-          const buf = await w.buffer();
-          const name = await buf.getName();
-          return name.includes("bashCommand.log");
-        });
+      // Verify a new window was opened with the log file
+      const logWindow = await driver.findWindow(async (w) => {
+        const buf = await w.buffer();
+        const name = await buf.getName();
+        return name.includes("bashCommand.log");
+      });
 
-        expect(logWindow).toBeDefined();
+      expect(logWindow).toBeDefined();
 
-        // Verify the window is not a magenta window
-        const isMagenta = await logWindow.getVar("magenta");
-        expect(isMagenta).toBeFalsy();
+      // Verify the window is not a magenta window
+      const isMagenta = await logWindow.getVar("magenta");
+      expect(isMagenta).toBeFalsy();
 
-        // Verify the log file contains the expected content
-        const logBuffer = await logWindow.buffer();
-        const lines = await logBuffer.getLines({
-          start: 0 as Row0Indexed,
-          end: -1 as Row0Indexed,
-        });
-        const content = lines.join("\n");
-        expect(content).toContain("$ bash -c");
-        expect(content).toContain("stdout:");
-        expect(content).toContain("LINE1:");
-        expect(content).toContain("LINE100:");
-      },
-    );
+      // Verify the log file contains the expected content
+      const logBuffer = await logWindow.buffer();
+      const lines = await logBuffer.getLines({
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
+      });
+      const content = lines.join("\n");
+      expect(content).toContain("$ bash -c");
+      expect(content).toContain("stdout:");
+      expect(content).toContain("LINE1:");
+      expect(content).toContain("LINE100:");
+    });
   });
 
   it("includes duration in the tool result for successful commands", async () => {
@@ -1577,6 +895,10 @@ describe("bash command output logging", () => {
   it("includes duration in the tool result for failed commands", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
       await driver.inputMagentaText(`Run this command: exit 1`);
       await driver.send();
 
@@ -1639,873 +961,291 @@ describe("bash command output logging", () => {
   });
 
   it("terminates process with SIGTERM", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [
-              { cmd: "echo", rest: "any" },
-              { cmd: "sleep", rest: "any" },
-            ],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
 
-        await driver.inputMagentaText("Run a bash command that sleeps");
-        await driver.send();
+      await driver.inputMagentaText("Run a bash command that sleeps");
+      await driver.send();
 
-        const request =
-          await driver.mockAnthropic.awaitPendingStreamWithText(
-            "Run a bash command",
-          );
+      const request =
+        await driver.mockAnthropic.awaitPendingStreamWithText(
+          "Run a bash command",
+        );
 
-        // Command that outputs its PID then sleeps
-        const command = `echo "pid: $$" && sleep 60`;
+      // Command that outputs its PID then sleeps
+      const command = `echo "pid: $$" && sleep 60`;
 
-        request.respond({
-          stopReason: "tool_use",
-          text: "I'll run that command for you.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: "test-bash-sigterm" as ToolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command,
-                },
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll run that command for you.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "test-bash-sigterm" as ToolRequestId,
+              toolName: "bash_command" as ToolName,
+              input: {
+                command,
               },
             },
-          ],
+          },
+        ],
+      });
+
+      // Wait for PID number to appear in output
+      let pid = 0;
+      await pollUntil(
+        async () => {
+          const text = await driver.getDisplayBufferText();
+          const match = text.match(/pid: (\d+)/);
+          if (match) {
+            pid = parseInt(match[1], 10);
+            return true;
+          }
+          throw new Error("PID not found in display buffer");
+        },
+        { timeout: 5000 },
+      );
+
+      // Verify process is running
+      const isRunning = (p: number) => {
+        const result = spawnSync("kill", ["-0", p.toString()], {
+          stdio: "pipe",
         });
+        return result.status === 0;
+      };
+      expect(isRunning(pid)).toBe(true);
 
-        // Wait for PID number to appear in output
-        let pid = 0;
-        await pollUntil(
-          async () => {
-            const text = await driver.getDisplayBufferText();
-            const match = text.match(/pid: (\d+)/);
-            if (match) {
-              pid = parseInt(match[1], 10);
-              return true;
-            }
-            throw new Error("PID not found in display buffer");
-          },
-          { timeout: 5000 },
-        );
+      // Get the tool instance and trigger termination
+      const thread = driver.magenta.chat.getActiveThread();
+      const { mode } = thread.core.state;
+      if (mode.type !== "tool_use") {
+        throw new Error(`Expected tool_use mode, got ${mode.type}`);
+      }
+      const entry = mode.activeTools.get("test-bash-sigterm" as ToolRequestId);
+      if (!entry) {
+        throw new Error("Expected tool entry");
+      }
 
-        // Verify process is running
-        const isRunning = (p: number) => {
-          const result = spawnSync("kill", ["-0", p.toString()], {
-            stdio: "pipe",
-          });
-          return result.status === 0;
-        };
-        expect(isRunning(pid)).toBe(true);
+      // Abort the tool execution
+      entry.handle.abort();
 
-        // Get the tool instance and trigger termination
-        const thread = driver.magenta.chat.getActiveThread();
-        const { mode } = thread.core.state;
-        if (mode.type !== "tool_use") {
-          throw new Error(`Expected tool_use mode, got ${mode.type}`);
-        }
-        const entry = mode.activeTools.get(
-          "test-bash-sigterm" as ToolRequestId,
-        );
-        if (!entry) {
-          throw new Error("Expected tool entry");
-        }
+      // Wait for process to be gone
+      await pollUntil(
+        () => {
+          if (isRunning(pid)) {
+            throw new Error(`Process ${pid} still running`);
+          }
+        },
+        { timeout: 3000 },
+      );
 
-        // Abort the tool execution
-        entry.handle.abort();
-
-        // Wait for process to be gone
-        await pollUntil(
-          () => {
-            if (isRunning(pid)) {
-              throw new Error(`Process ${pid} still running`);
-            }
-          },
-          { timeout: 3000 },
-        );
-
-        // Verify the request was aborted
-        await driver.assertDisplayBufferContains(
-          "Request was aborted by the user.",
-        );
-      },
-    );
+      // Verify the request was aborted
+      await driver.assertDisplayBufferContains(
+        "Request was aborted by the user.",
+      );
+    });
   });
 
   it("escalates to SIGKILL when process ignores SIGTERM", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "bash", rest: "any" }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
 
-        await driver.inputMagentaText(
-          "Run a bash command that ignores SIGTERM",
+      await driver.inputMagentaText("Run a bash command that ignores SIGTERM");
+      await driver.send();
+
+      const request =
+        await driver.mockAnthropic.awaitPendingStreamWithText(
+          "Run a bash command",
         );
-        await driver.send();
 
-        const request =
-          await driver.mockAnthropic.awaitPendingStreamWithText(
-            "Run a bash command",
-          );
+      // Command that traps SIGTERM and ignores it, only SIGKILL can kill it
+      const command = `bash -c 'trap "" TERM; echo "pid: $$"; while true; do sleep 1; done'`;
 
-        // Command that traps SIGTERM and ignores it, only SIGKILL can kill it
-        const command = `bash -c 'trap "" TERM; echo "pid: $$"; while true; do sleep 1; done'`;
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "I'll run that command for you.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: "test-bash-sigkill" as ToolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command,
-                },
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll run that command for you.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "test-bash-sigkill" as ToolRequestId,
+              toolName: "bash_command" as ToolName,
+              input: {
+                command,
               },
             },
-          ],
+          },
+        ],
+      });
+
+      // Wait for PID number to appear in output
+      let pid = 0;
+      await pollUntil(
+        async () => {
+          const text = await driver.getDisplayBufferText();
+          const match = text.match(/pid: (\d+)/);
+          if (match) {
+            pid = parseInt(match[1], 10);
+            return true;
+          }
+          throw new Error("PID not found in display buffer");
+        },
+        { timeout: 5000 },
+      );
+
+      // Verify process is running
+      const isRunning = (p: number) => {
+        const result = spawnSync("kill", ["-0", p.toString()], {
+          stdio: "pipe",
         });
+        return result.status === 0;
+      };
+      expect(isRunning(pid)).toBe(true);
 
-        // Wait for PID number to appear in output
-        let pid = 0;
-        await pollUntil(
-          async () => {
-            const text = await driver.getDisplayBufferText();
-            const match = text.match(/pid: (\d+)/);
-            if (match) {
-              pid = parseInt(match[1], 10);
-              return true;
-            }
-            throw new Error("PID not found in display buffer");
-          },
-          { timeout: 5000 },
-        );
+      // Get the tool instance and trigger termination
+      const thread = driver.magenta.chat.getActiveThread();
+      const { mode } = thread.core.state;
+      if (mode.type !== "tool_use") {
+        throw new Error(`Expected tool_use mode, got ${mode.type}`);
+      }
+      const entry = mode.activeTools.get("test-bash-sigkill" as ToolRequestId);
+      if (!entry) {
+        throw new Error("Expected tool entry");
+      }
 
-        // Verify process is running
-        const isRunning = (p: number) => {
-          const result = spawnSync("kill", ["-0", p.toString()], {
-            stdio: "pipe",
-          });
-          return result.status === 0;
-        };
-        expect(isRunning(pid)).toBe(true);
+      // Abort the invocation
+      entry.handle.abort();
 
-        // Get the tool instance and trigger termination
-        const thread = driver.magenta.chat.getActiveThread();
-        const { mode } = thread.core.state;
-        if (mode.type !== "tool_use") {
-          throw new Error(`Expected tool_use mode, got ${mode.type}`);
-        }
-        const entry = mode.activeTools.get(
-          "test-bash-sigkill" as ToolRequestId,
-        );
-        if (!entry) {
-          throw new Error("Expected tool entry");
-        }
+      // Process should survive SIGTERM (for ~1 second) then die from SIGKILL
+      // Wait a bit and verify process is still running (SIGTERM ignored)
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Process might still be running at this point since it ignores SIGTERM
 
-        // Abort the invocation
-        entry.handle.abort();
+      // Wait for process to be gone after SIGKILL (after 1s timeout + some buffer)
+      await pollUntil(
+        () => {
+          if (isRunning(pid)) {
+            throw new Error(`Process ${pid} still running`);
+          }
+        },
+        { timeout: 5000 },
+      );
 
-        // Process should survive SIGTERM (for ~1 second) then die from SIGKILL
-        // Wait a bit and verify process is still running (SIGTERM ignored)
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        // Process might still be running at this point since it ignores SIGTERM
-
-        // Wait for process to be gone after SIGKILL (after 1s timeout + some buffer)
-        await pollUntil(
-          () => {
-            if (isRunning(pid)) {
-              throw new Error(`Process ${pid} still running`);
-            }
-          },
-          { timeout: 5000 },
-        );
-
-        // Verify the request was aborted
-        await driver.assertDisplayBufferContains(
-          "Request was aborted by the user.",
-        );
-      },
-    );
+      // Verify the request was aborted
+      await driver.assertDisplayBufferContains(
+        "Request was aborted by the user.",
+      );
+    });
   });
 
   it("kills entire process tree including child processes", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "bash", rest: "any" }],
-          },
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
 
-        await driver.inputMagentaText(
-          "Run a bash command that spawns child processes",
+      await driver.inputMagentaText(
+        "Run a bash command that spawns child processes",
+      );
+      await driver.send();
+
+      const request =
+        await driver.mockAnthropic.awaitPendingStreamWithText(
+          "Run a bash command",
         );
-        await driver.send();
 
-        const request =
-          await driver.mockAnthropic.awaitPendingStreamWithText(
-            "Run a bash command",
-          );
-
-        // Command that spawns child processes that output their PIDs
-        // The parent spawns two children, each outputs its PID and sleeps
-        const command = `bash -c '
+      // Command that spawns child processes that output their PIDs
+      // The parent spawns two children, each outputs its PID and sleeps
+      const command = `bash -c '
 echo "parent: $$"
 bash -c "echo child1: \\$\\$; sleep 60" &
 bash -c "echo child2: \\$\\$; sleep 60" &
 wait
 '`;
 
-        request.respond({
-          stopReason: "tool_use",
-          text: "I'll run that command for you.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: "test-bash-tree" as ToolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command,
-                },
+      request.respond({
+        stopReason: "tool_use",
+        text: "I'll run that command for you.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "test-bash-tree" as ToolRequestId,
+              toolName: "bash_command" as ToolName,
+              input: {
+                command,
               },
             },
-          ],
+          },
+        ],
+      });
+
+      // Wait for all PIDs to appear in output
+      let parentPid = 0;
+      let child1Pid = 0;
+      let child2Pid = 0;
+      await pollUntil(
+        async () => {
+          const text = await driver.getDisplayBufferText();
+          const pm = text.match(/parent: (\d+)/);
+          const c1 = text.match(/child1: (\d+)/);
+          const c2 = text.match(/child2: (\d+)/);
+          if (pm && c1 && c2) {
+            parentPid = parseInt(pm[1], 10);
+            child1Pid = parseInt(c1[1], 10);
+            child2Pid = parseInt(c2[1], 10);
+            return true;
+          }
+          throw new Error("PID not found in display buffer");
+        },
+        { timeout: 5000 },
+      );
+
+      // Verify all processes are running
+      const isRunning = (p: number) => {
+        const result = spawnSync("kill", ["-0", p.toString()], {
+          stdio: "pipe",
         });
+        return result.status === 0;
+      };
 
-        // Wait for all PIDs to appear in output
-        let parentPid = 0;
-        let child1Pid = 0;
-        let child2Pid = 0;
-        await pollUntil(
-          async () => {
-            const text = await driver.getDisplayBufferText();
-            const pm = text.match(/parent: (\d+)/);
-            const c1 = text.match(/child1: (\d+)/);
-            const c2 = text.match(/child2: (\d+)/);
-            if (pm && c1 && c2) {
-              parentPid = parseInt(pm[1], 10);
-              child1Pid = parseInt(c1[1], 10);
-              child2Pid = parseInt(c2[1], 10);
-              return true;
-            }
-            throw new Error("PID not found in display buffer");
-          },
-          { timeout: 5000 },
-        );
+      expect(isRunning(parentPid)).toBe(true);
+      expect(isRunning(child1Pid)).toBe(true);
+      expect(isRunning(child2Pid)).toBe(true);
 
-        // Verify all processes are running
-        const isRunning = (p: number) => {
-          const result = spawnSync("kill", ["-0", p.toString()], {
-            stdio: "pipe",
-          });
-          return result.status === 0;
-        };
+      // Get the tool instance and trigger termination
+      const thread = driver.magenta.chat.getActiveThread();
+      const { mode } = thread.core.state;
+      if (mode.type !== "tool_use") {
+        throw new Error(`Expected tool_use mode, got ${mode.type}`);
+      }
+      const entry = mode.activeTools.get("test-bash-tree" as ToolRequestId);
+      if (!entry) {
+        throw new Error("Expected tool entry");
+      }
 
-        expect(isRunning(parentPid)).toBe(true);
-        expect(isRunning(child1Pid)).toBe(true);
-        expect(isRunning(child2Pid)).toBe(true);
+      // Abort the command
+      entry.handle.abort();
 
-        // Get the tool instance and trigger termination
-        const thread = driver.magenta.chat.getActiveThread();
-        const { mode } = thread.core.state;
-        if (mode.type !== "tool_use") {
-          throw new Error(`Expected tool_use mode, got ${mode.type}`);
-        }
-        const entry = mode.activeTools.get("test-bash-tree" as ToolRequestId);
-        if (!entry) {
-          throw new Error("Expected tool entry");
-        }
+      // Wait for ALL processes to be gone
+      await pollUntil(
+        () => {
+          const parentRunning = isRunning(parentPid);
+          const child1Running = isRunning(child1Pid);
+          const child2Running = isRunning(child2Pid);
 
-        // Abort the command
-        entry.handle.abort();
-
-        // Wait for ALL processes to be gone
-        await pollUntil(
-          () => {
-            const parentRunning = isRunning(parentPid);
-            const child1Running = isRunning(child1Pid);
-            const child2Running = isRunning(child2Pid);
-
-            if (parentRunning || child1Running || child2Running) {
-              throw new Error(
-                `Processes still running: parent=${parentRunning}, child1=${child1Running}, child2=${child2Running}`,
-              );
-            }
-          },
-          { timeout: 5000 },
-        );
-
-        // Verify the request was aborted
-        await driver.assertDisplayBufferContains(
-          "Request was aborted by the user.",
-        );
-      },
-    );
-  });
-});
-
-describe("bash command filePermissions tests", () => {
-  it("auto-approves read command on external directory with read permission", async () => {
-    let outsidePath: string;
-
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "cat", args: ["readFile"] }],
-          },
+          if (parentRunning || child1Running || child2Running) {
+            throw new Error(
+              `Processes still running: parent=${parentRunning}, child1=${child1Running}, child2=${child2Running}`,
+            );
+          }
         },
-        setupExtraDirs: async (baseDir) => {
-          outsidePath = path.join(baseDir, "external-data");
-          await fs.promises.mkdir(outsidePath, { recursive: true });
-          await fs.promises.writeFile(
-            path.join(outsidePath, "allowed.txt"),
-            "external content",
-          );
+        { timeout: 5000 },
+      );
 
-          // Write ~/.magenta/options.json with filePermissions
-          const homeDir = path.join(baseDir, "home");
-          const magentaDir = path.join(homeDir, ".magenta");
-          await fs.promises.mkdir(magentaDir, { recursive: true });
-          await fs.promises.writeFile(
-            path.join(magentaDir, "options.json"),
-            JSON.stringify({
-              filePermissions: [{ path: outsidePath, read: true }],
-            }),
-          );
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        await driver.inputMagentaText(`cat the external file`);
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Reading external file.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: "test-external-read" as ToolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: `cat ${outsidePath!}/allowed.txt`,
-                },
-              },
-            },
-          ],
-        });
-
-        // Should auto-approve since filePermissions grants read
-        await driver.assertDisplayBufferContains(
-          `⚡ \`cat ${outsidePath!}/allowed.txt\``,
-        );
-        await driver.assertDisplayBufferContains("external content");
-        await driver.assertDisplayBufferDoesNotContain("> YES");
-      },
-    );
-  });
-
-  it("requires approval for read command on external directory without permission", async () => {
-    let outsidePath: string;
-
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "cat", args: ["readFile"] }],
-          },
-        },
-        setupExtraDirs: async (baseDir) => {
-          outsidePath = path.join(baseDir, "external-data");
-          await fs.promises.mkdir(outsidePath, { recursive: true });
-          await fs.promises.writeFile(
-            path.join(outsidePath, "secret.txt"),
-            "secret content",
-          );
-          // No filePermissions configured
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        await driver.inputMagentaText(`cat the external file`);
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Reading external file.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: "test-external-no-perm" as ToolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: `cat ${outsidePath!}/secret.txt`,
-                },
-              },
-            },
-          ],
-        });
-
-        // Should require approval since no filePermissions for this path
-        await driver.assertDisplayBufferContains("⚡ May I run command");
-        await driver.assertDisplayBufferContains("> YES");
-      },
-    );
-  });
-
-  it("auto-approves write command on external directory with write permission", async () => {
-    let outsidePath: string;
-
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [
-              { cmd: "echo", rest: "any" },
-              { cmd: "tee", args: ["writeFile"], pipe: true },
-            ],
-          },
-        },
-        setupExtraDirs: async (baseDir) => {
-          outsidePath = path.join(baseDir, "external-data");
-          await fs.promises.mkdir(outsidePath, { recursive: true });
-
-          // Write ~/.magenta/options.json with write permission
-          const homeDir = path.join(baseDir, "home");
-          const magentaDir = path.join(homeDir, ".magenta");
-          await fs.promises.mkdir(magentaDir, { recursive: true });
-          await fs.promises.writeFile(
-            path.join(magentaDir, "options.json"),
-            JSON.stringify({
-              filePermissions: [{ path: outsidePath, write: true }],
-            }),
-          );
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        await driver.inputMagentaText(`write to external file`);
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Writing to external file.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: "test-external-write" as ToolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: `echo "written content" | tee ${outsidePath!}/output.txt`,
-                },
-              },
-            },
-          ],
-        });
-
-        // Should auto-approve since filePermissions grants write
-        await driver.assertDisplayBufferContains(`✅`);
-        await driver.assertDisplayBufferDoesNotContain("> YES");
-      },
-    );
-  });
-
-  it("requires approval for write command on external directory with only read permission", async () => {
-    let outsidePath: string;
-
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [
-              { cmd: "echo", rest: "any" },
-              { cmd: "tee", args: ["writeFile"], pipe: true },
-            ],
-          },
-        },
-        setupExtraDirs: async (baseDir) => {
-          outsidePath = path.join(baseDir, "external-data");
-          await fs.promises.mkdir(outsidePath, { recursive: true });
-
-          // Write ~/.magenta/options.json with only read permission
-          const homeDir = path.join(baseDir, "home");
-          const magentaDir = path.join(homeDir, ".magenta");
-          await fs.promises.mkdir(magentaDir, { recursive: true });
-          await fs.promises.writeFile(
-            path.join(magentaDir, "options.json"),
-            JSON.stringify({
-              filePermissions: [{ path: outsidePath, read: true }],
-            }),
-          );
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        await driver.inputMagentaText(`write to external file`);
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Writing to external file.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: "test-write-readonly" as ToolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: `echo "content" | tee ${outsidePath!}/output.txt`,
-                },
-              },
-            },
-          ],
-        });
-
-        // Should require approval since only read permission, not write
-        await driver.assertDisplayBufferContains("⚡ May I run command");
-        await driver.assertDisplayBufferContains("> YES");
-      },
-    );
-  });
-
-  it("requires approval for hidden file even in read:true directory", async () => {
-    let outsidePath: string;
-
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "cat", args: ["readFile"] }],
-          },
-        },
-        setupExtraDirs: async (baseDir) => {
-          outsidePath = path.join(baseDir, "external-data");
-          await fs.promises.mkdir(outsidePath, { recursive: true });
-          await fs.promises.writeFile(
-            path.join(outsidePath, ".hidden-file"),
-            "hidden content",
-          );
-
-          // Write ~/.magenta/options.json with read permission (but not readSecret)
-          const homeDir = path.join(baseDir, "home");
-          const magentaDir = path.join(homeDir, ".magenta");
-          await fs.promises.mkdir(magentaDir, { recursive: true });
-          await fs.promises.writeFile(
-            path.join(magentaDir, "options.json"),
-            JSON.stringify({
-              filePermissions: [{ path: outsidePath, read: true }],
-            }),
-          );
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        await driver.inputMagentaText(`cat the hidden file`);
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Reading hidden file.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: "test-hidden-no-secret" as ToolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: `cat ${outsidePath!}/.hidden-file`,
-                },
-              },
-            },
-          ],
-        });
-
-        // Should require approval since hidden file needs readSecret
-        await driver.assertDisplayBufferContains("⚡ May I run command");
-        await driver.assertDisplayBufferContains("> YES");
-      },
-    );
-  });
-
-  it("auto-approves hidden file read with readSecret permission", async () => {
-    let outsidePath: string;
-
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "cat", args: ["readFile"] }],
-          },
-        },
-        setupExtraDirs: async (baseDir) => {
-          outsidePath = path.join(baseDir, "external-data");
-          await fs.promises.mkdir(outsidePath, { recursive: true });
-          await fs.promises.writeFile(
-            path.join(outsidePath, ".hidden-file"),
-            "hidden content",
-          );
-
-          // Write ~/.magenta/options.json with readSecret permission
-          const homeDir = path.join(baseDir, "home");
-          const magentaDir = path.join(homeDir, ".magenta");
-          await fs.promises.mkdir(magentaDir, { recursive: true });
-          await fs.promises.writeFile(
-            path.join(magentaDir, "options.json"),
-            JSON.stringify({
-              filePermissions: [
-                { path: outsidePath, read: true, readSecret: true },
-              ],
-            }),
-          );
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        await driver.inputMagentaText(`cat the hidden file`);
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Reading hidden file.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: "test-hidden-with-secret" as ToolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: `cat ${outsidePath!}/.hidden-file`,
-                },
-              },
-            },
-          ],
-        });
-
-        // Should auto-approve since readSecret grants access to hidden files
-        await driver.assertDisplayBufferContains(
-          `⚡ \`cat ${outsidePath!}/.hidden-file\``,
-        );
-        await driver.assertDisplayBufferContains("hidden content");
-        await driver.assertDisplayBufferDoesNotContain("> YES");
-      },
-    );
-  });
-
-  it("auto-approves hidden file write with writeSecret permission", async () => {
-    let outsidePath: string;
-
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [
-              { cmd: "echo", rest: "any" },
-              { cmd: "tee", args: ["writeFile"], pipe: true },
-            ],
-          },
-        },
-        setupExtraDirs: async (baseDir) => {
-          outsidePath = path.join(baseDir, "external-data");
-          await fs.promises.mkdir(outsidePath, { recursive: true });
-
-          // Write ~/.magenta/options.json with writeSecret permission
-          const homeDir = path.join(baseDir, "home");
-          const magentaDir = path.join(homeDir, ".magenta");
-          await fs.promises.mkdir(magentaDir, { recursive: true });
-          await fs.promises.writeFile(
-            path.join(magentaDir, "options.json"),
-            JSON.stringify({
-              filePermissions: [
-                { path: outsidePath, write: true, writeSecret: true },
-              ],
-            }),
-          );
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        await driver.inputMagentaText(`write to hidden file`);
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Writing to hidden file.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: "test-hidden-write-secret" as ToolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: `echo "secret content" | tee ${outsidePath!}/.hidden-output`,
-                },
-              },
-            },
-          ],
-        });
-
-        // Should auto-approve since writeSecret grants access to hidden files
-        await driver.assertDisplayBufferContains(`✅`);
-        await driver.assertDisplayBufferDoesNotContain("> YES");
-      },
-    );
-  });
-
-  it("requires approval for hidden file write with only write permission", async () => {
-    let outsidePath: string;
-
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [
-              { cmd: "echo", rest: "any" },
-              { cmd: "tee", args: ["writeFile"], pipe: true },
-            ],
-          },
-        },
-        setupExtraDirs: async (baseDir) => {
-          outsidePath = path.join(baseDir, "external-data");
-          await fs.promises.mkdir(outsidePath, { recursive: true });
-
-          // Write ~/.magenta/options.json with write permission (but not writeSecret)
-          const homeDir = path.join(baseDir, "home");
-          const magentaDir = path.join(homeDir, ".magenta");
-          await fs.promises.mkdir(magentaDir, { recursive: true });
-          await fs.promises.writeFile(
-            path.join(magentaDir, "options.json"),
-            JSON.stringify({
-              filePermissions: [{ path: outsidePath, write: true }],
-            }),
-          );
-        },
-      },
-      async (driver) => {
-        await driver.showSidebar();
-        await driver.inputMagentaText(`write to hidden file`);
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Writing to hidden file.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: "test-hidden-write-no-secret" as ToolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: `echo "content" | tee ${outsidePath!}/.hidden-output`,
-                },
-              },
-            },
-          ],
-        });
-
-        // Should require approval since hidden file needs writeSecret
-        await driver.assertDisplayBufferContains("⚡ May I run command");
-        await driver.assertDisplayBufferContains("> YES");
-      },
-    );
-  });
-
-  it("respects tilde expansion in filePermissions paths", async () => {
-    await withDriver(
-      {
-        options: {
-          commandConfig: {
-            rules: [{ cmd: "cat", args: ["readFile"] }],
-          },
-        },
-        setupHome: async (homeDir) => {
-          // Create ~/Documents directory with a file
-          const docsDir = path.join(homeDir, "Documents");
-          await fs.promises.mkdir(docsDir, { recursive: true });
-          await fs.promises.writeFile(
-            path.join(docsDir, "notes.txt"),
-            "home document content",
-          );
-
-          // Write ~/.magenta/options.json with tilde path
-          const magentaDir = path.join(homeDir, ".magenta");
-          await fs.promises.mkdir(magentaDir, { recursive: true });
-          await fs.promises.writeFile(
-            path.join(magentaDir, "options.json"),
-            JSON.stringify({
-              filePermissions: [{ path: "~/Documents", read: true }],
-            }),
-          );
-        },
-      },
-      async (driver, dirs) => {
-        await driver.showSidebar();
-        await driver.inputMagentaText(`cat the home file`);
-        await driver.send();
-
-        const request = await driver.mockAnthropic.awaitPendingStream();
-
-        request.respond({
-          stopReason: "tool_use",
-          text: "Reading home file.",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: "test-tilde-read" as ToolRequestId,
-                toolName: "bash_command" as ToolName,
-                input: {
-                  command: `cat ${dirs.homeDir}/Documents/notes.txt`,
-                },
-              },
-            },
-          ],
-        });
-
-        // Should auto-approve since ~/Documents is permitted
-        await driver.assertDisplayBufferContains(`✅`);
-        await driver.assertDisplayBufferContains("home document content");
-        await driver.assertDisplayBufferDoesNotContain("> YES");
-      },
-    );
+      // Verify the request was aborted
+      await driver.assertDisplayBufferContains(
+        "Request was aborted by the user.",
+      );
+    });
   });
 });
