@@ -426,7 +426,7 @@ exports[`forks a thread with multiple messages into a new thread > fork-cloned-m
       },
       {
         "text": "<system-reminder>
-Remember the skills in <available-skills> and the docs tool for built-in documentation.
+Remember the skills in <available-skills> and the learn tool for built-in documentation.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
 WRONG: \`command 2>&1 | tail -50\`
@@ -464,7 +464,7 @@ RIGHT: where is X handled?
       },
       {
         "text": "<system-reminder>
-Remember the skills in <available-skills> and the docs tool for built-in documentation.
+Remember the skills in <available-skills> and the learn tool for built-in documentation.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
 WRONG: \`command 2>&1 | tail -50\`
@@ -505,7 +505,7 @@ RIGHT: where is X handled?
           "type": "ephemeral",
         },
         "text": "<system-reminder>
-Remember the skills in <available-skills> and the docs tool for built-in documentation.
+Remember the skills in <available-skills> and the learn tool for built-in documentation.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
 WRONG: \`command 2>&1 | tail -50\`
@@ -539,7 +539,7 @@ exports[`forks a thread with multiple messages into a new thread > forked-thread
       },
       {
         "text": "<system-reminder>
-Remember the skills in <available-skills> and the docs tool for built-in documentation.
+Remember the skills in <available-skills> and the learn tool for built-in documentation.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
 WRONG: \`command 2>&1 | tail -50\`
@@ -583,7 +583,7 @@ RIGHT: where is X handled?
       },
       {
         "text": "<system-reminder>
-Remember the skills in <available-skills> and the docs tool for built-in documentation.
+Remember the skills in <available-skills> and the learn tool for built-in documentation.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
 WRONG: \`command 2>&1 | tail -50\`
@@ -627,7 +627,7 @@ RIGHT: where is X handled?
       },
       {
         "text": "<system-reminder>
-Remember the skills in <available-skills> and the docs tool for built-in documentation.
+Remember the skills in <available-skills> and the learn tool for built-in documentation.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
 WRONG: \`command 2>&1 | tail -50\`
@@ -670,7 +670,7 @@ exports[`handles @async messages and sends them on end turn 1`] = `
       },
       {
         "text": "<system-reminder>
-Remember the skills in <available-skills> and the docs tool for built-in documentation.
+Remember the skills in <available-skills> and the learn tool for built-in documentation.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
 WRONG: \`command 2>&1 | tail -50\`
@@ -711,7 +711,7 @@ RIGHT: where is X handled?
           "type": "ephemeral",
         },
         "text": "<system-reminder>
-Remember the skills in <available-skills> and the docs tool for built-in documentation.
+Remember the skills in <available-skills> and the learn tool for built-in documentation.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
 WRONG: \`command 2>&1 | tail -50\`
@@ -744,7 +744,7 @@ exports[`handles @async messages by queueing them and sending on next tool respo
       },
       {
         "text": "<system-reminder>
-Remember the skills in <available-skills> and the docs tool for built-in documentation.
+Remember the skills in <available-skills> and the learn tool for built-in documentation.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
 WRONG: \`command 2>&1 | tail -50\`
@@ -813,7 +813,7 @@ Full output (1 lines): /tmp/magenta/threads/<thread-id>/tools/bash-tool/bashComm
           "type": "ephemeral",
         },
         "text": "<system-reminder>
-Remember the skills in <available-skills> and the docs tool for built-in documentation.
+Remember the skills in <available-skills> and the learn tool for built-in documentation.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
 When using bash_command, output is AUTOMATICALLY trimmed and saved. NEVER use head, tail, or 2>&1 - they break output handling.
 WRONG: \`command 2>&1 | tail -50\`
