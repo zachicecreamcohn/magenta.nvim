@@ -29,10 +29,10 @@ export class SandboxFileIO implements FileIO {
     const readConfig = this.sandbox.getFsReadConfig();
     return (
       readConfig.denyOnly.some(
-        (denied) => absPath === denied || absPath.startsWith(denied + "/"),
+        (denied) => absPath === denied || absPath.startsWith(`${denied}/`),
       ) &&
       !(readConfig.allowWithinDeny ?? []).some(
-        (allowed) => absPath === allowed || absPath.startsWith(allowed + "/"),
+        (allowed) => absPath === allowed || absPath.startsWith(`${allowed}/`),
       )
     );
   }
@@ -44,14 +44,14 @@ export class SandboxFileIO implements FileIO {
       (allowed) =>
         absPath === allowed ||
         allowed === "/" ||
-        absPath.startsWith(allowed + "/"),
+        absPath.startsWith(`${allowed}/`),
     );
     if (!inAllowed) return true;
     const inDeny = writeConfig.denyWithinAllow.some(
       (denied) =>
         absPath === denied ||
         denied === "/" ||
-        absPath.startsWith(denied + "/"),
+        absPath.startsWith(`${denied}/`),
     );
     return inDeny;
   }

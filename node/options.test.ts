@@ -5,7 +5,6 @@ import {
   mergeOptions,
   parseOptions,
   parseProjectOptions,
-  type SandboxConfig,
 } from "./options.ts";
 
 function makeBaseOptions(overrides?: Partial<MagentaOptions>): MagentaOptions {
