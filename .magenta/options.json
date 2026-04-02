@@ -4,6 +4,9 @@
     "workspacePath": "/workspace"
   },
   "sandbox": {
+    "network": {
+      "allowUnixSockets": ["/private/tmp"]
+    },
     "filesystem": {
       "allowRead": [
         "./.github",

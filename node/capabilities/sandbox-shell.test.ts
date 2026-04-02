@@ -112,6 +112,8 @@ const defaultSandboxConfig: SandboxConfig = {
   network: {
     allowedDomains: [],
     deniedDomains: [],
+    allowUnixSockets: [],
+    allowAllUnixSockets: false,
   },
 };
 

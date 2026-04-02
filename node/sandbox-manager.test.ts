@@ -207,6 +207,8 @@ describe("sandbox-manager", () => {
         network: {
           allowedDomains: ["example.com"],
           deniedDomains: ["evil.com"],
+          allowUnixSockets: [],
+          allowAllUnixSockets: false,
         },
       });
       const resolved = resolveConfigPaths(config, cwd, homeDir);

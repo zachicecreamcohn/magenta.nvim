@@ -50,6 +50,8 @@ describe("parseSandboxConfig", () => {
         network: {
           allowedDomains: ["example.com"],
           deniedDomains: ["evil.com"],
+          allowUnixSockets: [],
+          allowAllUnixSockets: false,
         },
       },
     };
@@ -70,6 +72,8 @@ describe("parseSandboxConfig", () => {
           ...DEFAULT_SANDBOX_CONFIG.network.deniedDomains,
           "evil.com",
         ],
+        allowUnixSockets: [...DEFAULT_SANDBOX_CONFIG.network.allowUnixSockets],
+        allowAllUnixSockets: DEFAULT_SANDBOX_CONFIG.network.allowAllUnixSockets,
       },
     });
   });
@@ -123,6 +127,8 @@ describe("mergeOptions", () => {
         network: {
           allowedDomains: ["registry.npmjs.org"],
           deniedDomains: [],
+          allowUnixSockets: [],
+          allowAllUnixSockets: false,
         },
       },
     });
@@ -138,6 +144,8 @@ describe("mergeOptions", () => {
         network: {
           allowedDomains: ["github.com"],
           deniedDomains: ["evil.com"],
+          allowUnixSockets: [],
+          allowAllUnixSockets: false,
         },
       },
     });

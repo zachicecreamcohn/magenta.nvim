@@ -78,6 +78,10 @@ export function resolveConfigPaths(
     network: {
       allowedDomains: dedup(config.network.allowedDomains),
       deniedDomains: dedup(config.network.deniedDomains),
+      allowUnixSockets: dedup(
+        resolvePaths(config.network.allowUnixSockets, cwd, homeDir),
+      ),
+      allowAllUnixSockets: config.network.allowAllUnixSockets,
     },
   };
 }

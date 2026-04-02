@@ -148,6 +148,8 @@ export type SandboxConfig = {
   network: {
     allowedDomains: string[];
     deniedDomains: string[];
+    allowUnixSockets: string[];
+    allowAllUnixSockets: boolean;
   };
 };
 
@@ -196,6 +198,8 @@ export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
       "crates.io",
     ],
     deniedDomains: [],
+    allowUnixSockets: [],
+    allowAllUnixSockets: false,
   },
 };
 
@@ -813,6 +817,12 @@ function mergeSandboxConfigs(
         ...base.network.deniedDomains,
         ...overlay.network.deniedDomains,
       ],
+      allowUnixSockets: [
+        ...base.network.allowUnixSockets,
+        ...overlay.network.allowUnixSockets,
+      ],
+      allowAllUnixSockets:
+        overlay.network.allowAllUnixSockets || base.network.allowAllUnixSockets,
     },
   };
 }
@@ -823,7 +833,12 @@ function parseSandboxConfig(
 ): SandboxConfig {
   const config: SandboxConfig = {
     filesystem: { allowWrite: [], denyWrite: [], denyRead: [], allowRead: [] },
-    network: { allowedDomains: [], deniedDomains: [] },
+    network: {
+      allowedDomains: [],
+      deniedDomains: [],
+      allowUnixSockets: [],
+      allowAllUnixSockets: false,
+    },
   };
 
   if (typeof input !== "object" || input === null) {
@@ -884,6 +899,16 @@ function parseSandboxConfig(
         "sandbox.network.deniedDomains",
         logger,
       );
+    }
+    if (Array.isArray(net.allowUnixSockets)) {
+      config.network.allowUnixSockets = parseStringArray(
+        net.allowUnixSockets,
+        "sandbox.network.allowUnixSockets",
+        logger,
+      );
+    }
+    if (typeof net.allowAllUnixSockets === "boolean") {
+      config.network.allowAllUnixSockets = net.allowAllUnixSockets;
     }
   } else if ("network" in obj) {
     logger.warn("sandbox.network must be an object");
