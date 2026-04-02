@@ -234,7 +234,7 @@ Content
     );
   });
 
-  it("includes built-in skills even when no user skills are configured", async () => {
+  it("shows no skills section when no user skills are configured", async () => {
     await withDriver(
       {
         options: {
@@ -247,10 +247,8 @@ Content
         const thread = driver.magenta.chat.getActiveThread();
         const systemPrompt = thread.core.state.systemPrompt;
 
-        // Built-in skills should always be present
-        expect(systemPrompt).toContain("Available Skills");
-        expect(systemPrompt).toContain("create-skill");
-        expect(systemPrompt).toContain("update-permissions");
+        // Built-in skills are now served via the learn tool, not the skills section
+        expect(systemPrompt).not.toContain("Available Skills");
       },
     );
   });
@@ -355,10 +353,8 @@ allowed-tools: Bash(git show:*), Bash(git fetch: *), Bash(git diff:*)
         const thread = driver.magenta.chat.getActiveThread();
         const systemPrompt = thread.core.state.systemPrompt;
 
-        // Built-in skills should still be present even if user skills dir doesn't exist
-        expect(systemPrompt).toContain("Available Skills");
-        expect(systemPrompt).toContain("create-skill");
-        expect(systemPrompt).toContain("update-permissions");
+        // No user skills exist and built-in skills are now served via the learn tool
+        expect(systemPrompt).not.toContain("Available Skills");
       },
     );
   });

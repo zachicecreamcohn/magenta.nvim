@@ -12,6 +12,6 @@ You have access to `docker_unsupervised` subagents for all implementation work. 
 ## Guidelines
 
 - Always use `docker_unsupervised` for implementation — you are a pure orchestrator.
-- For planning, spawn a subagent to explore the codebase and write a plan to `plans/`.
+- For planning, use the `learn` tool with `name: "plan"` to learn the planning process, then spawn a subagent to explore the codebase and write a plan to `plans/`.
 - For execution, spawn a subagent with the plan location so it knows what to implement.
 - Each subagent should commit all changes and yield when done.

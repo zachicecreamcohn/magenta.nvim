@@ -1,8 +1,3 @@
----
-name: create-skill
-description: Guide for creating new skills in magenta.nvim, including file structure, frontmatter format, and TypeScript script execution
----
-
 # Creating Skills for magenta.nvim
 
 This guide explains how to create custom skills that extend Claude's capabilities in magenta.nvim.

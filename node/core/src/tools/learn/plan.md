@@ -1,8 +1,3 @@
----
-name: plan
-description: Guide for creating implementation plans. Use when breaking down complex work into actionable steps.
----
-
 # Planning Process
 
 When creating a plan for a complex task:

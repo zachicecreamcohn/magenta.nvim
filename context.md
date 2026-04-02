@@ -60,6 +60,13 @@ Key files:
 - [tea/tea.ts](https://github.com/dlants/magenta.nvim/blob/main/node/tea/tea.ts) — render cycle
 - [tea/view.ts](https://github.com/dlants/magenta.nvim/blob/main/node/tea/view.ts) — declarative TUI template
 
+# Available Skills
+
+When a skill is relevant to a task, use the `get_file` tool to read the skill.md file. Built-in docs (create-skill, update-permissions, plan) are also available via the `learn` tool.
+
+- **doc-testing** (`.magenta/skills/doc-testing/skill.md`): Comprehensive guide for writing tests in magenta.nvim, including test environment setup, mock providers, driver interactions, and best practices
+- **doc-views** (`.magenta/skills/doc-views/skill.md`): Comprehensive guide for the view system in magenta.nvim, including template literal syntax, component composition, interactive bindings, and TUI-specific rendering patterns
+
 # View System
 
 For comprehensive view system documentation and templating patterns, use `get_file` to access the `doc-views` skill at `.claude/skills/doc-views/skill.md`.

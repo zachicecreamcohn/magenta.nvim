@@ -18,10 +18,10 @@ import type * as Edl from "./tools/edl.ts";
 import type * as FindReferences from "./tools/findReferences.ts";
 import type * as GetFile from "./tools/getFile.ts";
 import type * as Hover from "./tools/hover.ts";
+import type * as Learn from "./tools/learn.ts";
 import type * as SpawnSubagents from "./tools/spawn-subagents.ts";
 import type * as ThreadTitle from "./tools/thread-title.ts";
 import type { StaticToolName } from "./tools/tool-registry.ts";
-
 import type * as YieldToParent from "./tools/yield-to-parent.ts";
 import type { HomeDir, NvimCwd } from "./utils/files.ts";
 import type { Result } from "./utils/result.ts";
@@ -43,6 +43,7 @@ export type ToolStructuredResult =
   | Diagnostics.StructuredResult
   | ThreadTitle.StructuredResult
   | YieldToParent.StructuredResult
+  | Learn.StructuredResult
   | GenericStructuredResult;
 
 export type CompletedToolInfo = {
