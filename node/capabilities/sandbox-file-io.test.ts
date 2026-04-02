@@ -1,8 +1,14 @@
 import type { FileIO } from "@magenta/core";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
-import { setSandboxState } from "../sandbox-manager.ts";
+import type { SandboxState } from "../sandbox-manager.ts";
 import { SandboxFileIO } from "./sandbox-file-io.ts";
+
+let currentSandboxState: SandboxState = { status: "uninitialized" };
+
+vi.mock("../sandbox-manager.ts", () => ({
+  getSandboxState: () => currentSandboxState,
+}));
 
 vi.mock("@anthropic-ai/sandbox-runtime", () => {
   return {
@@ -56,7 +62,7 @@ describe("SandboxFileIO", () => {
 
   describe("when sandbox is ready", () => {
     beforeEach(() => {
-      setSandboxState({ status: "ready" });
+      currentSandboxState = ({ status: "ready" });
     });
 
     describe("reads", () => {
@@ -230,7 +236,7 @@ describe("SandboxFileIO", () => {
 
   describe("when sandbox is disabled", () => {
     beforeEach(() => {
-      setSandboxState({ status: "disabled" });
+      currentSandboxState = ({ status: "disabled" });
     });
 
     test("reads are allowed without prompt", async () => {
@@ -262,7 +268,7 @@ describe("SandboxFileIO", () => {
 
   describe("when sandbox is unsupported", () => {
     beforeEach(() => {
-      setSandboxState({ status: "unsupported", reason: "Linux not supported" });
+      currentSandboxState = ({ status: "unsupported", reason: "Linux not supported" });
     });
 
     test("reads are allowed without prompt", async () => {
@@ -281,7 +287,7 @@ describe("SandboxFileIO", () => {
 
   describe("when sandbox is uninitialized", () => {
     beforeEach(() => {
-      setSandboxState({ status: "uninitialized" });
+      currentSandboxState = ({ status: "uninitialized" });
     });
 
     test("reads are allowed without prompt", async () => {
@@ -300,7 +306,7 @@ describe("SandboxFileIO", () => {
 
   describe("passthrough methods", () => {
     test("fileExists passes through without checks", async () => {
-      setSandboxState({ status: "ready" });
+      currentSandboxState = ({ status: "ready" });
       const sio = createSandboxIO(mockIO);
       const result = await sio.fileExists("/anywhere/file.txt");
       expect(result).toBe(true);
@@ -308,14 +314,14 @@ describe("SandboxFileIO", () => {
     });
 
     test("mkdir passes through without checks", async () => {
-      setSandboxState({ status: "ready" });
+      currentSandboxState = ({ status: "ready" });
       const sio = createSandboxIO(mockIO);
       await sio.mkdir("/anywhere/dir");
       expect(mockIO.mkdir).toHaveBeenCalledWith("/anywhere/dir");
     });
 
     test("stat passes through without checks", async () => {
-      setSandboxState({ status: "ready" });
+      currentSandboxState = ({ status: "ready" });
       const sio = createSandboxIO(mockIO);
       const result = await sio.stat("/anywhere/file.txt");
       expect(result).toEqual({ mtimeMs: 1000, size: 42 });
@@ -325,7 +331,7 @@ describe("SandboxFileIO", () => {
 
   describe("path resolution", () => {
     test("resolves relative paths before checking", async () => {
-      setSandboxState({ status: "ready" });
+      currentSandboxState = ({ status: "ready" });
       mockedGetFsReadConfig.mockReturnValue({
         denyOnly: ["/test/home/.ssh"],
       });
@@ -337,7 +343,7 @@ describe("SandboxFileIO", () => {
     });
 
     test("resolves tilde paths before checking", async () => {
-      setSandboxState({ status: "ready" });
+      currentSandboxState = ({ status: "ready" });
       mockedGetFsReadConfig.mockReturnValue({
         denyOnly: ["/test/home/.ssh"],
       });
