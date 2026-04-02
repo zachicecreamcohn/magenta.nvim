@@ -5,10 +5,10 @@ import {
 } from "@anthropic-ai/sandbox-runtime/dist/sandbox/sandbox-utils.js";
 import type { FileIO } from "@magenta/core";
 import type { BufferTracker } from "../buffer-tracker.ts";
-import type { Line, NvimBuffer } from "../nvim/buffer.ts";
+import { type Line, NvimBuffer } from "../nvim/buffer.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { Row0Indexed } from "../nvim/window.ts";
-import type { FsReadConfig, Sandbox } from "../sandbox-manager.ts";
+import type { Sandbox } from "../sandbox-manager.ts";
 import { getBufferIfOpen } from "../utils/buffers.ts";
 import {
   type AbsFilePath,
@@ -46,6 +46,9 @@ export class SandboxFileIO implements FileIO {
     if (containsGlobChars(pattern)) {
       return new RegExp(globToRegex(pattern)).test(absPath);
     }
+    if (pattern === "/") {
+      return absPath.startsWith("/");
+    }
     return absPath === pattern || absPath.startsWith(`${pattern}/`);
   }
 
@@ -67,6 +70,40 @@ export class SandboxFileIO implements FileIO {
     if (this.isReadBlocked(abs)) {
       throw new Error(`Sandbox: read access denied for ${path}`);
     }
+
+    const syncInfo = this.context.bufferTracker.getSyncInfo(abs);
+    if (syncInfo) {
+      const buffer = new NvimBuffer(syncInfo.bufnr, this.context.nvim);
+      const currentChangeTick = await buffer.getChangeTick();
+      const bufferChanged = syncInfo.changeTick !== currentChangeTick;
+
+      let fileChanged = false;
+      try {
+        const stats = await fs.stat(abs);
+        const diskMtime = stats.mtime.getTime();
+        fileChanged = syncInfo.mtime < diskMtime;
+      } catch {
+        // If we can't stat, treat as unchanged
+      }
+
+      if (bufferChanged && fileChanged) {
+        throw new Error(
+          `Both the buffer ${syncInfo.bufnr} and the file on disk for ${abs} have changed. Cannot determine which version to use.`,
+        );
+      }
+
+      if (fileChanged && !bufferChanged) {
+        await buffer.attemptEdit();
+        await this.context.bufferTracker.trackBufferSync(abs, syncInfo.bufnr);
+      }
+
+      const lines = await buffer.getLines({
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
+      });
+      return lines.join("\n");
+    }
+
     return fs.readFile(abs, "utf-8");
   }
 

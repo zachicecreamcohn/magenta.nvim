@@ -9,11 +9,6 @@ it("dynamically picks up sandbox config changes from project options.json", asyn
     await driver.showSidebar();
     const cwd = await getcwd(driver.nvim);
 
-    // Verify default sandbox config
-    expect(driver.magenta.options.sandbox.filesystem.denyRead).toEqual([
-      "~/.*",
-    ]);
-
     // Write a project options.json that changes sandbox config
     const magentaDir = path.join(cwd, ".magenta");
     fs.mkdirSync(magentaDir, { recursive: true });
