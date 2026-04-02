@@ -1,8 +1,7 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import type { ThreadId } from "@magenta/core";
-import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
 import type { MagentaOptions } from "../options.ts";
-import { getSandboxState, updateSandboxConfigIfChanged } from "../sandbox-manager.ts";
+import type { Sandbox } from "../sandbox-manager.ts";
 import { withTimeout } from "../utils/async.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import type { SandboxViolationHandler } from "./sandbox-violation-handler.ts";
@@ -24,6 +23,7 @@ export class SandboxShell implements Shell {
       threadId: ThreadId;
       getOptions: () => MagentaOptions;
     },
+    private sandbox: Sandbox,
     private violationHandler: SandboxViolationHandler,
   ) {}
 
@@ -148,25 +148,23 @@ export class SandboxShell implements Shell {
       onStart?: () => void;
     },
   ): Promise<ShellResult> {
-    const sandboxState = getSandboxState();
-
-    if (sandboxState.status !== "ready") {
+    if (this.sandbox.getState().status !== "ready") {
       return this.violationHandler.promptForApproval(command, () =>
         this.spawnCommand(command, opts),
       );
     }
 
     const options = this.context.getOptions();
-    updateSandboxConfigIfChanged(
+    this.sandbox.updateConfigIfChanged(
       options.sandbox,
       this.context.cwd,
       this.context.homeDir,
     );
 
-    const store = SandboxManager.getSandboxViolationStore();
+    const store = this.sandbox.getViolationStore();
     const preCount = store.getTotalCount();
 
-    const wrapped = await SandboxManager.wrapWithSandbox(command);
+    const wrapped = await this.sandbox.wrapWithSandbox(command);
     const result = await this.spawnCommand(wrapped, opts);
 
     const postCount = store.getTotalCount();
@@ -176,7 +174,7 @@ export class SandboxShell implements Shell {
         .filter((l) => l.stream === "stderr")
         .map((l) => l.text)
         .join("\n");
-      const annotated = SandboxManager.annotateStderrWithSandboxFailures(
+      const annotated = this.sandbox.annotateStderrWithSandboxFailures(
         command,
         stderr,
       );
@@ -187,7 +185,7 @@ export class SandboxShell implements Shell {
       );
     }
 
-    SandboxManager.cleanupAfterCommand();
+    this.sandbox.cleanupAfterCommand();
     return result;
   }
 }

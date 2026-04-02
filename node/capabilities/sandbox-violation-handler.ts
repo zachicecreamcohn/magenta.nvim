@@ -21,10 +21,21 @@ type PendingViolationPrompt = {
   retryUnsandboxed: () => Promise<ShellResult>;
 };
 
+type PendingWriteApprovalPrompt = {
+  kind: "write-approval";
+  absPath: string;
+};
+
+type PendingPrompt =
+  | PendingApprovalPrompt
+  | PendingViolationPrompt
+  | PendingWriteApprovalPrompt;
+
 export type PendingViolation = {
   id: string;
-  prompt: PendingApprovalPrompt | PendingViolationPrompt;
-  resolve: (result: ShellResult) => void;
+  prompt: PendingPrompt;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  resolve: (result: any) => void;
   reject: (err: Error) => void;
 };
 
@@ -66,18 +77,34 @@ export class SandboxViolationHandler {
     });
   }
 
+  promptForWriteApproval(absPath: string): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const id = String(this.nextId++);
+      this.pending.set(id, {
+        id,
+        prompt: { kind: "write-approval", absPath },
+        resolve,
+        reject,
+      });
+      this.onPendingChange();
+    });
+  }
+
   approve(id: string): void {
     const entry = this.pending.get(id);
     if (!entry) return;
 
     this.pending.delete(id);
 
-    const executeFn =
-      entry.prompt.kind === "violation"
-        ? entry.prompt.retryUnsandboxed
-        : entry.prompt.execute;
-
-    executeFn().then(entry.resolve).catch(entry.reject);
+    if (entry.prompt.kind === "write-approval") {
+      entry.resolve(undefined);
+    } else {
+      const executeFn =
+        entry.prompt.kind === "violation"
+          ? entry.prompt.retryUnsandboxed
+          : entry.prompt.execute;
+      executeFn().then(entry.resolve).catch(entry.reject);
+    }
 
     this.onPendingChange();
   }
@@ -87,7 +114,11 @@ export class SandboxViolationHandler {
     if (!entry) return;
 
     this.pending.delete(id);
-    entry.reject(new Error("The user did not allow running this command."));
+    const message =
+      entry.prompt.kind === "write-approval"
+        ? `The user did not allow writing to ${entry.prompt.absPath}.`
+        : "The user did not allow running this command.";
+    entry.reject(new Error(message));
     this.onPendingChange();
   }
 
@@ -139,6 +170,26 @@ ${withBindings(
 )}
 `;
   }
+  if (entry.prompt.kind === "write-approval") {
+    return d`📝 May I write to ${withInlineCode(d`\`${entry.prompt.absPath}\``)}?
+${withBindings(
+  withExtmark(d`> NO`, {
+    hl_group: ["ErrorMsg", "@markup.strong.markdown"],
+  }),
+  {
+    "<CR>": () => this.reject(id),
+  },
+)}
+${withBindings(
+  withExtmark(d`> YES`, {
+    hl_group: ["String", "@markup.strong.markdown"],
+  }),
+  {
+    "<CR>": () => this.approve(id),
+  },
+)}
+`;
+  }
   return d`⚡ May I run command ${withInlineCode(d`\`${entry.prompt.command}\``)}?
 ${withBindings(
   withExtmark(d`> NO`, {
@@ -158,15 +209,15 @@ ${withBindings(
 )}
 `;
 })}${
-      entries.length > 1
-        ? d`${withBindings(
-            withExtmark(d`> REJECT ALL`, {
-              hl_group: ["ErrorMsg", "@markup.strong.markdown"],
-            }),
-            {
-              "<CR>": () => this.rejectAll(),
-            },
-          )}
+  entries.length > 1
+    ? d`${withBindings(
+        withExtmark(d`> REJECT ALL`, {
+          hl_group: ["ErrorMsg", "@markup.strong.markdown"],
+        }),
+        {
+          "<CR>": () => this.rejectAll(),
+        },
+      )}
 ${withBindings(
   withExtmark(d`> APPROVE ALL`, {
     hl_group: ["String", "@markup.strong.markdown"],
@@ -176,7 +227,7 @@ ${withBindings(
   },
 )}
 `
-        : d``
-    }`;
+    : d``
+}`;
   }
 }

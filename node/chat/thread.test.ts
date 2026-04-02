@@ -1327,26 +1327,27 @@ it("shows EDL script preview while streaming", async () => {
 });
 it("handles @async messages by queueing them and sending on next tool response", async () => {
   await withDriver({}, async (driver) => {
+    driver.mockSandbox.setState({ status: "disabled" });
     await driver.showSidebar();
 
-    // First, send a regular message that will use a secret file read
-    await driver.inputMagentaText("Can you read my secret file?");
+    // First, send a regular message that will use a bash command
+    await driver.inputMagentaText("Can you run a command?");
     await driver.send();
 
     const request1 = await driver.mockAnthropic.awaitPendingStream();
-    const toolRequestId = "secret-file-tool" as ToolRequestId;
+    const toolRequestId = "bash-tool" as ToolRequestId;
 
-    // Respond with get_file tool use - this will block on user approval
+    // Respond with bash_command tool use - this will block on user approval (sandbox disabled)
     request1.respond({
       stopReason: "tool_use",
-      text: "I'll read your secret file.",
+      text: "I'll run the command.",
       toolRequests: [
         {
           status: "ok",
           value: {
             id: toolRequestId,
-            toolName: "get_file" as ToolName,
-            input: { filePath: ".secret" as UnresolvedFilePath },
+            toolName: "bash_command" as ToolName,
+            input: { command: "cat .secret" },
           },
         },
       ],
@@ -1390,7 +1391,7 @@ it("handles @async messages by queueing them and sending on next tool response",
       "user:text",
       "user:text", // system_reminder converted to text
     ]);
-    expect(stream2.messages).toMatchSnapshot();
+    expect(sanitizeMessagesForSnapshot(stream2.messages)).toMatchSnapshot();
   });
 });
 

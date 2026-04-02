@@ -739,7 +739,7 @@ exports[`handles @async messages by queueing them and sending on next tool respo
   {
     "content": [
       {
-        "text": "Can you read my secret file?",
+        "text": "Can you run a command?",
         "type": "text",
       },
       {
@@ -768,15 +768,15 @@ RIGHT: where is X handled?
     "content": [
       {
         "citations": null,
-        "text": "I'll read your secret file.",
+        "text": "I'll run the command.",
         "type": "text",
       },
       {
-        "id": "secret-file-tool",
+        "id": "bash-tool",
         "input": {
-          "filePath": ".secret",
+          "command": "cat .secret",
         },
-        "name": "get_file",
+        "name": "bash_command",
         "type": "tool_use",
       },
     ],
@@ -787,13 +787,16 @@ RIGHT: where is X handled?
       {
         "content": [
           {
-            "text": "secret secrets are no fun
-",
+            "text": "stdout:
+secret secrets are no fun
+exit code 0 (<timing>ms)
+
+Full output (1 lines): /tmp/magenta/threads/<thread-id>/tools/bash-tool/bashCommand.log",
             "type": "text",
           },
         ],
         "is_error": false,
-        "tool_use_id": "secret-file-tool",
+        "tool_use_id": "bash-tool",
         "type": "tool_result",
       },
     ],

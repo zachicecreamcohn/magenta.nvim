@@ -6,7 +6,6 @@ import { LOGO } from "./chat/thread-view.ts";
 import type { Position0Indexed } from "./nvim/window.ts";
 import { withDriver } from "./test/preamble.ts";
 import { pollUntil } from "./utils/async.ts";
-import type { UnresolvedFilePath } from "./utils/files.ts";
 
 it("new-thread command should work", async () => {
   await withDriver({}, async (driver) => {
@@ -94,6 +93,7 @@ it("abort command should work when response is in progress", async () => {
 
 it("abort command should stop pending tool use", async () => {
   await withDriver({}, async (driver) => {
+    driver.mockSandbox.setState({ status: "disabled" });
     await driver.showSidebar();
     await driver.inputMagentaText(`hello`);
     await driver.send();
@@ -107,10 +107,9 @@ it("abort command should stop pending tool use", async () => {
           status: "ok",
           value: {
             id: "request_id" as ToolRequestId,
-            toolName: "get_file" as ToolName,
+            toolName: "bash_command" as ToolName,
             input: {
-              // secret file should trigger user permission check
-              filePath: ".secret" as UnresolvedFilePath,
+              command: "cat .secret",
             },
           },
         },
@@ -122,7 +121,7 @@ it("abort command should stop pending tool use", async () => {
     await driver.assertDisplayBufferContains("hello");
     await driver.assertDisplayBufferContains("# assistant:");
     await driver.assertDisplayBufferContains("ok, here goes");
-    await driver.assertDisplayBufferContains("👀 .secret");
+    await driver.assertDisplayBufferContains("May I run command");
 
     await driver.abort();
 

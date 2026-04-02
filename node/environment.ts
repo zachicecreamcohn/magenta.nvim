@@ -5,9 +5,9 @@ import type {
   ThreadId,
   ToolCapability,
 } from "@magenta/core";
-import type { PermissionCheckingFileIO } from "./capabilities/permission-file-io.ts";
-import type { PermissionCheckingShell } from "./capabilities/permission-shell.ts";
+import type { SandboxViolationHandler } from "./capabilities/sandbox-violation-handler.ts";
 import type { Shell } from "./capabilities/shell.ts";
+import type { Sandbox } from "./sandbox-manager.ts";
 import type { HomeDir, NvimCwd } from "./utils/files.ts";
 
 export type EnvironmentConfig =
@@ -16,9 +16,8 @@ export type EnvironmentConfig =
 
 export interface Environment {
   fileIO: FileIO;
-  permissionFileIO?: PermissionCheckingFileIO | undefined;
   shell: Shell;
-  permissionShell?: PermissionCheckingShell | undefined;
+  sandboxViolationHandler?: SandboxViolationHandler | undefined;
   lspClient: LspClient;
   diagnosticsProvider: DiagnosticsProvider;
   cwd: NvimCwd;
@@ -30,7 +29,6 @@ export interface Environment {
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 import type { BufferTracker } from "./buffer-tracker.ts";
-import { BaseShell } from "./capabilities/base-shell.ts";
 import { BufferAwareFileIO } from "./capabilities/buffer-file-io.ts";
 import { DockerFileIO } from "./capabilities/docker-file-io.ts";
 import { DockerShell } from "./capabilities/docker-shell.ts";
@@ -38,8 +36,9 @@ import type { Lsp } from "./capabilities/lsp.ts";
 import { NvimLspClient } from "./capabilities/lsp-client-adapter.ts";
 import { NoopDiagnosticsProvider } from "./capabilities/noop-diagnostics-provider.ts";
 import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
-import { PermissionCheckingFileIO as PermissionCheckingFileIOImpl } from "./capabilities/permission-file-io.ts";
-import { PermissionCheckingShell as PermissionCheckingShellImpl } from "./capabilities/permission-shell.ts";
+import { SandboxFileIO } from "./capabilities/sandbox-file-io.ts";
+import { SandboxShell } from "./capabilities/sandbox-shell.ts";
+import { SandboxViolationHandler as SandboxViolationHandlerImpl } from "./capabilities/sandbox-violation-handler.ts";
 import type { Nvim } from "./nvim/nvim-node/index.ts";
 import type { MagentaOptions } from "./options.ts";
 import { getDiagnostics } from "./utils/diagnostics.ts";
@@ -52,7 +51,7 @@ export function createLocalEnvironment({
   homeDir,
   getOptions,
   threadId,
-  rememberedCommands,
+  sandbox,
   onPendingChange,
 }: {
   nvim: Nvim;
@@ -62,26 +61,28 @@ export function createLocalEnvironment({
   homeDir: HomeDir;
   getOptions: () => MagentaOptions;
   threadId: ThreadId;
-  rememberedCommands: Set<string>;
+  sandbox: Sandbox;
   onPendingChange: () => void;
 }): Environment {
+  const violationHandler = new SandboxViolationHandlerImpl(onPendingChange);
+
   const bufferFileIO = new BufferAwareFileIO({
     nvim,
     bufferTracker,
     cwd,
     homeDir,
   });
-  const permissionFileIO = new PermissionCheckingFileIOImpl(
+  const sandboxFileIO = new SandboxFileIO(
     bufferFileIO,
-    { cwd, homeDir, getOptions, nvim },
-    onPendingChange,
+    { cwd, homeDir },
+    sandbox,
+    (absPath) => violationHandler.promptForWriteApproval(absPath),
   );
 
-  const baseShell = new BaseShell({ cwd, threadId });
-  const permissionShell = new PermissionCheckingShellImpl(
-    baseShell,
-    { cwd, homeDir, getOptions, nvim, rememberedCommands },
-    onPendingChange,
+  const sandboxShell = new SandboxShell(
+    { cwd, homeDir, threadId, getOptions },
+    sandbox,
+    violationHandler,
   );
 
   const lspClient = new NvimLspClient(lsp, nvim, cwd, homeDir);
@@ -90,10 +91,9 @@ export function createLocalEnvironment({
   };
 
   return {
-    fileIO: permissionFileIO,
-    permissionFileIO,
-    shell: permissionShell,
-    permissionShell,
+    fileIO: sandboxFileIO,
+    shell: sandboxShell,
+    sandboxViolationHandler: violationHandler,
     lspClient,
     diagnosticsProvider,
     cwd,
@@ -139,9 +139,8 @@ export async function createDockerEnvironment({
 
   return {
     fileIO,
-    permissionFileIO: undefined,
     shell,
-    permissionShell: undefined,
+    sandboxViolationHandler: undefined,
     lspClient,
     diagnosticsProvider,
     cwd: resolvedCwd as NvimCwd,

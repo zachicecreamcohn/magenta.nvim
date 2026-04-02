@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ShellResult } from "./shell.ts";
 import {
-  SandboxViolationHandler,
   type SandboxViolation,
+  SandboxViolationHandler,
 } from "./sandbox-violation-handler.ts";
+import type { ShellResult } from "./shell.ts";
 
 function makeShellResult(overrides?: Partial<ShellResult>): ShellResult {
   return {
@@ -26,7 +26,8 @@ function makeViolation(command = "cat ~/.ssh/id_rsa"): SandboxViolation {
         timestamp: new Date("2026-01-01T00:00:00Z"),
       },
     ],
-    stderr: "Operation not permitted: read access denied for /Users/me/.ssh/id_rsa",
+    stderr:
+      "Operation not permitted: read access denied for /Users/me/.ssh/id_rsa",
   };
 }
 
@@ -253,7 +254,11 @@ function serializeVDOM(node: { type: string; [key: string]: unknown }): string {
     return (node as { type: "string"; content: string }).content;
   }
   if (node.type === "node" || node.type === "array") {
-        const children = (node as unknown as { children: Array<{ type: string; [key: string]: unknown }> }).children;
+    const children = (
+      node as unknown as {
+        children: Array<{ type: string; [key: string]: unknown }>;
+      }
+    ).children;
     return children.map(serializeVDOM).join("");
   }
   return "";

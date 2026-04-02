@@ -1,25 +1,41 @@
 import * as path from "node:path";
-import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
 import type {
-  SandboxRuntimeConfig,
   SandboxAskCallback,
+  SandboxRuntimeConfig,
+  SandboxViolationEvent,
 } from "@anthropic-ai/sandbox-runtime";
+import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
 import type { SandboxConfig } from "./options.ts";
-import type { NvimCwd, HomeDir } from "./utils/files.ts";
+import type { HomeDir, NvimCwd } from "./utils/files.ts";
 
 export type SandboxState =
   | { status: "uninitialized" }
-  | { status: "initializing" }
   | { status: "ready" }
   | { status: "unsupported"; reason: string }
   | { status: "disabled" };
 
-let state: SandboxState = { status: "uninitialized" };
-let lastConfigJson: string | undefined;
+export type FsReadConfig = { denyOnly: string[]; allowWithinDeny?: string[] };
+export type FsWriteConfig = { allowOnly: string[]; denyWithinAllow: string[] };
 
-export function getSandboxState(): SandboxState {
-  return state;
+export interface Sandbox {
+  getState(): SandboxState;
+  wrapWithSandbox(command: string): Promise<string>;
+  getViolationStore(): {
+    getTotalCount(): number;
+    getViolations(count: number): SandboxViolationEvent[];
+  };
+  annotateStderrWithSandboxFailures(command: string, stderr: string): string;
+  getFsReadConfig(): FsReadConfig;
+  getFsWriteConfig(): FsWriteConfig;
+  updateConfigIfChanged(
+    config: SandboxConfig,
+    cwd: NvimCwd,
+    homeDir: HomeDir,
+  ): void;
+  cleanupAfterCommand(): void;
 }
+
+// -- Path resolution helpers --
 
 function resolvePath(p: string, cwd: NvimCwd, homeDir: HomeDir): string {
   if (p.startsWith("~/")) {
@@ -60,31 +76,84 @@ export function resolveConfigPaths(
   };
 }
 
+// -- Real implementation wrapping @anthropic-ai/sandbox-runtime --
+
+class RealSandbox implements Sandbox {
+  private state: SandboxState;
+  private lastConfigJson: string | undefined;
+
+  constructor(state: SandboxState, lastConfigJson?: string) {
+    this.state = state;
+    this.lastConfigJson = lastConfigJson;
+  }
+
+  getState(): SandboxState {
+    return this.state;
+  }
+
+  wrapWithSandbox(command: string): Promise<string> {
+    return SandboxManager.wrapWithSandbox(command);
+  }
+
+  getViolationStore() {
+    return SandboxManager.getSandboxViolationStore();
+  }
+
+  annotateStderrWithSandboxFailures(command: string, stderr: string): string {
+    return SandboxManager.annotateStderrWithSandboxFailures(command, stderr);
+  }
+
+  getFsReadConfig(): FsReadConfig {
+    return SandboxManager.getFsReadConfig();
+  }
+
+  getFsWriteConfig(): FsWriteConfig {
+    return SandboxManager.getFsWriteConfig();
+  }
+
+  updateConfigIfChanged(
+    config: SandboxConfig,
+    cwd: NvimCwd,
+    homeDir: HomeDir,
+  ): void {
+    const runtimeConfig = resolveConfigPaths(config, cwd, homeDir);
+    const configJson = JSON.stringify(runtimeConfig);
+    if (configJson === this.lastConfigJson) {
+      return;
+    }
+    this.lastConfigJson = configJson;
+    SandboxManager.updateConfig(runtimeConfig);
+  }
+
+  cleanupAfterCommand(): void {
+    SandboxManager.cleanupAfterCommand();
+  }
+}
+
+// -- Factory --
+
 export async function initializeSandbox(
   config: SandboxConfig,
   cwd: NvimCwd,
   homeDir: HomeDir,
   askCallback: SandboxAskCallback | undefined,
   logger: { warn(msg: string): void },
-): Promise<SandboxState> {
+): Promise<Sandbox> {
   if (!config.enabled) {
-    state = { status: "disabled" };
-    return state;
+    return new RealSandbox({ status: "disabled" });
   }
 
   if (!SandboxManager.isSupportedPlatform()) {
     const reason = "Sandbox is not supported on this platform";
     logger.warn(reason);
-    state = { status: "unsupported", reason };
-    return state;
+    return new RealSandbox({ status: "unsupported", reason });
   }
 
   const depCheck = SandboxManager.checkDependencies();
   if (depCheck.errors.length > 0) {
     const reason = `Sandbox dependencies missing: ${depCheck.errors.join(", ")}`;
     logger.warn(reason);
-    state = { status: "unsupported", reason };
-    return state;
+    return new RealSandbox({ status: "unsupported", reason });
   }
 
   if (depCheck.warnings.length > 0) {
@@ -93,32 +162,9 @@ export async function initializeSandbox(
     }
   }
 
-  state = { status: "initializing" };
-
   const runtimeConfig = resolveConfigPaths(config, cwd, homeDir);
   await SandboxManager.initialize(runtimeConfig, askCallback, true);
-  lastConfigJson = JSON.stringify(runtimeConfig);
+  const lastConfigJson = JSON.stringify(runtimeConfig);
 
-  state = { status: "ready" };
-  return state;
-}
-
-export function updateSandboxConfigIfChanged(
-  config: SandboxConfig,
-  cwd: NvimCwd,
-  homeDir: HomeDir,
-): void {
-  const runtimeConfig = resolveConfigPaths(config, cwd, homeDir);
-  const configJson = JSON.stringify(runtimeConfig);
-  if (configJson === lastConfigJson) {
-    return;
-  }
-  lastConfigJson = configJson;
-  SandboxManager.updateConfig(runtimeConfig);
-}
-
-export async function resetSandbox(): Promise<void> {
-  await SandboxManager.reset();
-  state = { status: "uninitialized" };
-  lastConfigJson = undefined;
+  return new RealSandbox({ status: "ready" }, lastConfigJson);
 }

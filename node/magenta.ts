@@ -17,6 +17,7 @@ import {
 } from "./options.ts";
 import { DynamicOptionsLoader } from "./options-loader.ts";
 import type { RootMsg, SidebarMsg } from "./root-msg.ts";
+import { initializeSandbox, type Sandbox } from "./sandbox-manager.ts";
 import { Sidebar } from "./sidebar.ts";
 import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
 import type { Dispatch } from "./tea/tea.ts";
@@ -57,6 +58,7 @@ export class Magenta {
     public cwd: NvimCwd,
     public homeDir: HomeDir,
     optionsLoader: DynamicOptionsLoader,
+    private sandbox: Sandbox,
   ) {
     this.optionsLoader = optionsLoader;
     this.bufferTracker = new BufferTracker(this.nvim);
@@ -104,6 +106,7 @@ export class Magenta {
       nvim: this.nvim,
       getOptions: () => this.options,
       lsp: this.lsp,
+      sandbox: this.sandbox,
     });
 
     this.sidebar = new Sidebar(
@@ -452,7 +455,7 @@ ${lines.join("\n")}
     }
   }
 
-  static async start(nvim: Nvim, homeDir?: HomeDir) {
+  static async start(nvim: Nvim, homeDir?: HomeDir, sandboxOverride?: Sandbox) {
     const lsp = new Lsp(nvim);
     nvim.onNotification(MAGENTA_COMMAND, async (args: unknown[]) => {
       try {
@@ -548,7 +551,44 @@ ${lines.join("\n")}
       { warn: (msg) => nvim.logger.warn(`Settings: ${msg}`) },
     );
     const parsedOptions = optionsLoader.getOptions();
-    const magenta = new Magenta(nvim, lsp, cwd, resolvedHomeDir, optionsLoader);
+
+    const sandbox =
+      sandboxOverride ??
+      (await initializeSandbox(
+        parsedOptions.sandbox,
+        cwd,
+        resolvedHomeDir,
+        undefined,
+        { warn: (msg) => nvim.logger.warn(`Sandbox: ${msg}`) },
+      ).catch((err) => {
+        nvim.logger.error(
+          `Failed to initialize sandbox: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        // Return a disabled sandbox on failure
+        return {
+          getState: () => ({ status: "disabled" }) as const,
+          wrapWithSandbox: (cmd: string) => Promise.resolve(cmd),
+          getViolationStore: () => ({
+            getTotalCount: () => 0,
+            getViolations: () => [],
+          }),
+          annotateStderrWithSandboxFailures: (_cmd: string, stderr: string) =>
+            stderr,
+          getFsReadConfig: () => ({ denyOnly: [] }),
+          getFsWriteConfig: () => ({ allowOnly: [], denyWithinAllow: [] }),
+          updateConfigIfChanged: () => {},
+          cleanupAfterCommand: () => {},
+        } satisfies Sandbox;
+      }));
+
+    const magenta = new Magenta(
+      nvim,
+      lsp,
+      cwd,
+      resolvedHomeDir,
+      optionsLoader,
+      sandbox,
+    );
 
     // Initialize highlight groups in the magenta namespace
     try {

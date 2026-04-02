@@ -13,8 +13,7 @@ import {
   type ToolRequestId,
 } from "@magenta/core";
 import player from "play-sound";
-import type { PermissionCheckingFileIO } from "../capabilities/permission-file-io.ts";
-import type { PermissionCheckingShell } from "../capabilities/permission-shell.ts";
+import type { SandboxViolationHandler } from "../capabilities/sandbox-violation-handler.ts";
 import type { FileUpdates } from "../context/context-manager.ts";
 import type { Environment } from "../environment.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
@@ -144,8 +143,7 @@ export class Thread {
 
   public core: ThreadCore;
   private myDispatch: Dispatch<Msg>;
-  public permissionFileIO: PermissionCheckingFileIO | undefined;
-  public permissionShell: PermissionCheckingShell | undefined;
+  public sandboxViolationHandler: SandboxViolationHandler | undefined;
 
   get contextManager(): ContextManager {
     return this.core.contextManager;
@@ -191,8 +189,7 @@ export class Thread {
       });
 
     const env = this.context.environment;
-    this.permissionFileIO = env.permissionFileIO;
-    this.permissionShell = env.permissionShell;
+    this.sandboxViolationHandler = env.sandboxViolationHandler;
 
     this.state = {
       showSystemPrompt: false,
@@ -253,8 +250,7 @@ export class Thread {
     );
 
     this.core.on("aborting", () => {
-      this.permissionFileIO?.denyAll();
-      this.permissionShell?.denyAll();
+      this.sandboxViolationHandler?.rejectAll();
     });
     this.core.on("contextUpdatesSent", (updates) => {
       const messageCount = this.core.getProviderMessages().length;

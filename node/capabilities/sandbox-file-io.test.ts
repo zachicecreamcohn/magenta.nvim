@@ -1,28 +1,36 @@
 import type { FileIO } from "@magenta/core";
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import type {
+  FsReadConfig,
+  FsWriteConfig,
+  Sandbox,
+  SandboxState,
+} from "../sandbox-manager.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
-import type { SandboxState } from "../sandbox-manager.ts";
 import { SandboxFileIO } from "./sandbox-file-io.ts";
 
 let currentSandboxState: SandboxState = { status: "uninitialized" };
+let mockFsReadConfig: FsReadConfig = { denyOnly: [] };
+let mockFsWriteConfig: FsWriteConfig = {
+  allowOnly: ["/"],
+  denyWithinAllow: [],
+};
 
-vi.mock("../sandbox-manager.ts", () => ({
-  getSandboxState: () => currentSandboxState,
-}));
-
-vi.mock("@anthropic-ai/sandbox-runtime", () => {
+function createMockSandbox(): Sandbox {
   return {
-    SandboxManager: {
-      getFsReadConfig: vi.fn(),
-      getFsWriteConfig: vi.fn(),
-    },
+    getState: () => currentSandboxState,
+    getFsReadConfig: () => mockFsReadConfig,
+    getFsWriteConfig: () => mockFsWriteConfig,
+    wrapWithSandbox: (cmd: string) => Promise.resolve(cmd),
+    getViolationStore: () => ({
+      getTotalCount: () => 0,
+      getViolations: () => [],
+    }),
+    annotateStderrWithSandboxFailures: (_cmd: string, stderr: string) => stderr,
+    updateConfigIfChanged: () => {},
+    cleanupAfterCommand: () => {},
   };
-});
-
-import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
-
-const mockedGetFsReadConfig = vi.mocked(SandboxManager.getFsReadConfig);
-const mockedGetFsWriteConfig = vi.mocked(SandboxManager.getFsWriteConfig);
+}
 
 function createMockFileIO(): FileIO & {
   readFile: ReturnType<typeof vi.fn>;
@@ -49,7 +57,12 @@ function createSandboxIO(
   inner: FileIO,
   promptForWriteApproval: (absPath: string) => Promise<void> = vi.fn(),
 ) {
-  return new SandboxFileIO(inner, { cwd, homeDir }, promptForWriteApproval);
+  return new SandboxFileIO(
+    inner,
+    { cwd, homeDir },
+    createMockSandbox(),
+    promptForWriteApproval,
+  );
 }
 
 describe("SandboxFileIO", () => {
@@ -62,14 +75,14 @@ describe("SandboxFileIO", () => {
 
   describe("when sandbox is ready", () => {
     beforeEach(() => {
-      currentSandboxState = ({ status: "ready" });
+      currentSandboxState = { status: "ready" };
     });
 
     describe("reads", () => {
       test("read allowed path delegates to inner", async () => {
-        mockedGetFsReadConfig.mockReturnValue({
+        mockFsReadConfig = {
           denyOnly: ["/test/home/.ssh"],
-        });
+        };
 
         const sio = createSandboxIO(mockIO);
         const result = await sio.readFile("/test/cwd/src/file.ts");
@@ -78,32 +91,32 @@ describe("SandboxFileIO", () => {
       });
 
       test("read denied path throws", async () => {
-        mockedGetFsReadConfig.mockReturnValue({
+        mockFsReadConfig = {
           denyOnly: ["/test/home/.ssh"],
-        });
+        };
 
         const sio = createSandboxIO(mockIO);
-        await expect(
-          sio.readFile("/test/home/.ssh/id_rsa"),
-        ).rejects.toThrow("Sandbox: read access denied");
+        await expect(sio.readFile("/test/home/.ssh/id_rsa")).rejects.toThrow(
+          "Sandbox: read access denied",
+        );
         expect(mockIO.readFile).not.toHaveBeenCalled();
       });
 
       test("read deny exact path match", async () => {
-        mockedGetFsReadConfig.mockReturnValue({
+        mockFsReadConfig = {
           denyOnly: ["/test/home/.ssh"],
-        });
+        };
 
         const sio = createSandboxIO(mockIO);
-        await expect(
-          sio.readFile("/test/home/.ssh"),
-        ).rejects.toThrow("Sandbox: read access denied");
+        await expect(sio.readFile("/test/home/.ssh")).rejects.toThrow(
+          "Sandbox: read access denied",
+        );
       });
 
       test("read deny prefix does not match non-child paths", async () => {
-        mockedGetFsReadConfig.mockReturnValue({
+        mockFsReadConfig = {
           denyOnly: ["/test/home/.ssh"],
-        });
+        };
 
         const sio = createSandboxIO(mockIO);
         const result = await sio.readFile("/test/home/.sshrc");
@@ -112,9 +125,9 @@ describe("SandboxFileIO", () => {
       });
 
       test("readBinaryFile denied path throws", async () => {
-        mockedGetFsReadConfig.mockReturnValue({
+        mockFsReadConfig = {
           denyOnly: ["/test/home/.aws"],
-        });
+        };
 
         const sio = createSandboxIO(mockIO);
         await expect(
@@ -124,9 +137,9 @@ describe("SandboxFileIO", () => {
       });
 
       test("readBinaryFile allowed path delegates to inner", async () => {
-        mockedGetFsReadConfig.mockReturnValue({
+        mockFsReadConfig = {
           denyOnly: ["/test/home/.ssh"],
-        });
+        };
 
         const sio = createSandboxIO(mockIO);
         const result = await sio.readBinaryFile("/test/cwd/image.png");
@@ -137,10 +150,10 @@ describe("SandboxFileIO", () => {
       });
 
       test("allowWithinDeny re-allows denied paths", async () => {
-        mockedGetFsReadConfig.mockReturnValue({
+        mockFsReadConfig = {
           denyOnly: ["/test/home/.config"],
           allowWithinDeny: ["/test/home/.config/nvim"],
-        });
+        };
 
         const sio = createSandboxIO(mockIO);
         const result = await sio.readFile("/test/home/.config/nvim/init.lua");
@@ -149,10 +162,10 @@ describe("SandboxFileIO", () => {
       });
 
       test("allowWithinDeny does not re-allow sibling paths", async () => {
-        mockedGetFsReadConfig.mockReturnValue({
+        mockFsReadConfig = {
           denyOnly: ["/test/home/.config"],
           allowWithinDeny: ["/test/home/.config/nvim"],
-        });
+        };
 
         const sio = createSandboxIO(mockIO);
         await expect(
@@ -163,10 +176,10 @@ describe("SandboxFileIO", () => {
 
     describe("writes", () => {
       test("write to allowed path delegates to inner", async () => {
-        mockedGetFsWriteConfig.mockReturnValue({
+        mockFsWriteConfig = {
           allowOnly: ["/test/cwd"],
           denyWithinAllow: [],
-        });
+        };
 
         const sio = createSandboxIO(mockIO);
         await sio.writeFile("/test/cwd/src/file.ts", "content");
@@ -177,10 +190,10 @@ describe("SandboxFileIO", () => {
       });
 
       test("write outside allowOnly prompts", async () => {
-        mockedGetFsWriteConfig.mockReturnValue({
+        mockFsWriteConfig = {
           allowOnly: ["/test/cwd"],
           denyWithinAllow: [],
-        });
+        };
 
         const prompt = vi.fn().mockResolvedValue(undefined);
         const sio = createSandboxIO(mockIO, prompt);
@@ -193,10 +206,10 @@ describe("SandboxFileIO", () => {
       });
 
       test("write to denyWithinAllow prompts", async () => {
-        mockedGetFsWriteConfig.mockReturnValue({
+        mockFsWriteConfig = {
           allowOnly: ["/test/cwd"],
           denyWithinAllow: ["/test/cwd/.env"],
-        });
+        };
 
         const prompt = vi.fn().mockResolvedValue(undefined);
         const sio = createSandboxIO(mockIO, prompt);
@@ -206,10 +219,10 @@ describe("SandboxFileIO", () => {
       });
 
       test("write denied when prompt rejects", async () => {
-        mockedGetFsWriteConfig.mockReturnValue({
+        mockFsWriteConfig = {
           allowOnly: ["/test/cwd"],
           denyWithinAllow: [],
-        });
+        };
 
         const prompt = vi
           .fn()
@@ -222,10 +235,10 @@ describe("SandboxFileIO", () => {
       });
 
       test("write denyWithinAllow prefix does not match non-child", async () => {
-        mockedGetFsWriteConfig.mockReturnValue({
+        mockFsWriteConfig = {
           allowOnly: ["/test/cwd"],
           denyWithinAllow: ["/test/cwd/.env"],
-        });
+        };
 
         const sio = createSandboxIO(mockIO);
         await sio.writeFile("/test/cwd/.environment", "data");
@@ -236,7 +249,7 @@ describe("SandboxFileIO", () => {
 
   describe("when sandbox is disabled", () => {
     beforeEach(() => {
-      currentSandboxState = ({ status: "disabled" });
+      currentSandboxState = { status: "disabled" };
     });
 
     test("reads are allowed without prompt", async () => {
@@ -255,20 +268,21 @@ describe("SandboxFileIO", () => {
     });
 
     test("write denied when prompt rejects", async () => {
-      const prompt = vi
-        .fn()
-        .mockRejectedValue(new Error("User denied write"));
+      const prompt = vi.fn().mockRejectedValue(new Error("User denied write"));
       const sio = createSandboxIO(mockIO, prompt);
-      await expect(
-        sio.writeFile("/test/cwd/file.ts", "data"),
-      ).rejects.toThrow("User denied write");
+      await expect(sio.writeFile("/test/cwd/file.ts", "data")).rejects.toThrow(
+        "User denied write",
+      );
       expect(mockIO.writeFile).not.toHaveBeenCalled();
     });
   });
 
   describe("when sandbox is unsupported", () => {
     beforeEach(() => {
-      currentSandboxState = ({ status: "unsupported", reason: "Linux not supported" });
+      currentSandboxState = {
+        status: "unsupported",
+        reason: "Linux not supported",
+      };
     });
 
     test("reads are allowed without prompt", async () => {
@@ -287,7 +301,7 @@ describe("SandboxFileIO", () => {
 
   describe("when sandbox is uninitialized", () => {
     beforeEach(() => {
-      currentSandboxState = ({ status: "uninitialized" });
+      currentSandboxState = { status: "uninitialized" };
     });
 
     test("reads are allowed without prompt", async () => {
@@ -306,7 +320,7 @@ describe("SandboxFileIO", () => {
 
   describe("passthrough methods", () => {
     test("fileExists passes through without checks", async () => {
-      currentSandboxState = ({ status: "ready" });
+      currentSandboxState = { status: "ready" };
       const sio = createSandboxIO(mockIO);
       const result = await sio.fileExists("/anywhere/file.txt");
       expect(result).toBe(true);
@@ -314,14 +328,14 @@ describe("SandboxFileIO", () => {
     });
 
     test("mkdir passes through without checks", async () => {
-      currentSandboxState = ({ status: "ready" });
+      currentSandboxState = { status: "ready" };
       const sio = createSandboxIO(mockIO);
       await sio.mkdir("/anywhere/dir");
       expect(mockIO.mkdir).toHaveBeenCalledWith("/anywhere/dir");
     });
 
     test("stat passes through without checks", async () => {
-      currentSandboxState = ({ status: "ready" });
+      currentSandboxState = { status: "ready" };
       const sio = createSandboxIO(mockIO);
       const result = await sio.stat("/anywhere/file.txt");
       expect(result).toEqual({ mtimeMs: 1000, size: 42 });
@@ -331,10 +345,10 @@ describe("SandboxFileIO", () => {
 
   describe("path resolution", () => {
     test("resolves relative paths before checking", async () => {
-      currentSandboxState = ({ status: "ready" });
-      mockedGetFsReadConfig.mockReturnValue({
+      currentSandboxState = { status: "ready" };
+      mockFsReadConfig = {
         denyOnly: ["/test/home/.ssh"],
-      });
+      };
 
       const sio = createSandboxIO(mockIO);
       // "src/file.ts" resolves to "/test/cwd/src/file.ts"
@@ -343,10 +357,10 @@ describe("SandboxFileIO", () => {
     });
 
     test("resolves tilde paths before checking", async () => {
-      currentSandboxState = ({ status: "ready" });
-      mockedGetFsReadConfig.mockReturnValue({
+      currentSandboxState = { status: "ready" };
+      mockFsReadConfig = {
         denyOnly: ["/test/home/.ssh"],
-      });
+      };
 
       const sio = createSandboxIO(mockIO);
       await expect(sio.readFile("~/.ssh/id_rsa")).rejects.toThrow(

@@ -8,40 +8,32 @@ import { SandboxShell } from "./sandbox-shell.ts";
 import type { SandboxViolationHandler } from "./sandbox-violation-handler.ts";
 import type { ShellResult } from "./shell.ts";
 
-// Mock sandbox-runtime
+// Mock sandbox object (implements Sandbox interface via DI)
 const mockWrapWithSandbox = vi.fn<(command: string) => Promise<string>>();
 const mockGetSandboxViolationStore = vi.fn();
-const mockAnnotateStderrWithSandboxFailures = vi.fn<
-  (command: string, stderr: string) => string
->();
+const mockAnnotateStderrWithSandboxFailures =
+  vi.fn<(command: string, stderr: string) => string>();
 const mockCleanupAfterCommand = vi.fn();
-
-vi.mock("@anthropic-ai/sandbox-runtime", () => ({
-  SandboxManager: {
-    wrapWithSandbox: (...args: [string]) => mockWrapWithSandbox(...args),
-    getSandboxViolationStore: () => mockGetSandboxViolationStore(),
-    annotateStderrWithSandboxFailures: (...args: [string, string]) =>
-      mockAnnotateStderrWithSandboxFailures(...args),
-    cleanupAfterCommand: () => mockCleanupAfterCommand(),
-  },
-}));
-
-// Mock sandbox-manager
 const mockGetSandboxState = vi.fn<() => SandboxState>();
-const mockUpdateSandboxConfigIfChanged = vi.fn();
+const mockUpdateConfigIfChanged = vi.fn();
 
-vi.mock("../sandbox-manager.ts", () => ({
-  getSandboxState: () => mockGetSandboxState(),
-  updateSandboxConfigIfChanged: (
-    ...args: [SandboxConfig, NvimCwd, HomeDir]
-  ) => mockUpdateSandboxConfigIfChanged(...args),
-}));
+const mockSandbox = {
+  getState: () => mockGetSandboxState(),
+  wrapWithSandbox: (...args: [string]) => mockWrapWithSandbox(...args),
+  getViolationStore: () => mockGetSandboxViolationStore(),
+  annotateStderrWithSandboxFailures: (...args: [string, string]) =>
+    mockAnnotateStderrWithSandboxFailures(...args),
+  cleanupAfterCommand: () => mockCleanupAfterCommand(),
+  getFsReadConfig: () => ({ denyOnly: [] }),
+  getFsWriteConfig: () => ({ allowOnly: ["/"], denyWithinAllow: [] }),
+  updateConfigIfChanged: (...args: [SandboxConfig, NvimCwd, HomeDir]) =>
+    mockUpdateConfigIfChanged(...args),
+};
 
 // Mock child_process
 const mockSpawn = vi.fn();
 vi.mock("node:child_process", async (importOriginal) => {
-  const original =
-    await importOriginal<typeof import("node:child_process")>();
+  const original = await importOriginal<typeof import("node:child_process")>();
   return {
     ...original,
     spawn: (...args: Parameters<typeof original.spawn>) => mockSpawn(...args),
@@ -56,27 +48,21 @@ function createMockChildProcess(): ChildProcess & {
   const proc = {
     pid: 1234,
     stdout: {
-      on: vi.fn(
-        (event: string, handler: (...args: unknown[]) => void) => {
-          listeners[`stdout:${event}`] = listeners[`stdout:${event}`] || [];
-          listeners[`stdout:${event}`].push(handler);
-        },
-      ),
+      on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        listeners[`stdout:${event}`] = listeners[`stdout:${event}`] || [];
+        listeners[`stdout:${event}`].push(handler);
+      }),
     },
     stderr: {
-      on: vi.fn(
-        (event: string, handler: (...args: unknown[]) => void) => {
-          listeners[`stderr:${event}`] = listeners[`stderr:${event}`] || [];
-          listeners[`stderr:${event}`].push(handler);
-        },
-      ),
+      on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        listeners[`stderr:${event}`] = listeners[`stderr:${event}`] || [];
+        listeners[`stderr:${event}`].push(handler);
+      }),
     },
-    on: vi.fn(
-      (event: string, handler: (...args: unknown[]) => void) => {
-        listeners[event] = listeners[event] || [];
-        listeners[event].push(handler);
-      },
-    ),
+    on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+      listeners[event] = listeners[event] || [];
+      listeners[event].push(handler);
+    }),
     kill: vi.fn(),
     _listeners: listeners,
     _emit: (event: string, ...args: unknown[]) => {
@@ -95,11 +81,25 @@ function createMockChildProcess(): ChildProcess & {
 function createMockViolationHandler(): SandboxViolationHandler & {
   promptForApproval: ReturnType<typeof vi.fn>;
   addViolation: ReturnType<typeof vi.fn>;
+  promptForWriteApproval: ReturnType<typeof vi.fn>;
+  approve: ReturnType<typeof vi.fn>;
+  reject: ReturnType<typeof vi.fn>;
+  approveAll: ReturnType<typeof vi.fn>;
+  rejectAll: ReturnType<typeof vi.fn>;
+  getPendingViolations: ReturnType<typeof vi.fn>;
+  view: ReturnType<typeof vi.fn>;
 } {
   return {
     promptForApproval: vi.fn(),
     addViolation: vi.fn(),
-  };
+    promptForWriteApproval: vi.fn(),
+    approve: vi.fn(),
+    reject: vi.fn(),
+    approveAll: vi.fn(),
+    rejectAll: vi.fn(),
+    getPendingViolations: vi.fn(),
+    view: vi.fn(),
+  } as unknown as ReturnType<typeof createMockViolationHandler>;
 }
 
 const defaultSandboxConfig: SandboxConfig = {
@@ -172,7 +172,7 @@ describe("SandboxShell", () => {
   test("command wrapped when sandbox ready", async () => {
     setupSpawnSuccess("output", 0);
     const handler = createMockViolationHandler();
-    const shell = new SandboxShell(createContext(), handler);
+    const shell = new SandboxShell(createContext(), mockSandbox, handler);
 
     const result = await shell.execute("echo hello", createOpts());
 
@@ -199,7 +199,7 @@ describe("SandboxShell", () => {
     };
     handler.promptForApproval.mockResolvedValue(expectedResult);
 
-    const shell = new SandboxShell(createContext(), handler);
+    const shell = new SandboxShell(createContext(), mockSandbox, handler);
     const result = await shell.execute("rm -rf /", createOpts());
 
     expect(handler.promptForApproval).toHaveBeenCalledWith(
@@ -225,7 +225,7 @@ describe("SandboxShell", () => {
     };
     handler.promptForApproval.mockResolvedValue(expectedResult);
 
-    const shell = new SandboxShell(createContext(), handler);
+    const shell = new SandboxShell(createContext(), mockSandbox, handler);
     const result = await shell.execute("cat /etc/passwd", createOpts());
 
     expect(handler.promptForApproval).toHaveBeenCalledWith(
@@ -248,7 +248,7 @@ describe("SandboxShell", () => {
     };
     handler.promptForApproval.mockResolvedValue(expectedResult);
 
-    const shell = new SandboxShell(createContext(), handler);
+    const shell = new SandboxShell(createContext(), mockSandbox, handler);
     await shell.execute("ls", createOpts());
 
     expect(handler.promptForApproval).toHaveBeenCalled();
@@ -262,18 +262,19 @@ describe("SandboxShell", () => {
         // First call returns 0 (pre-count), second returns 2 (post-count)
         return preCountCalls === 1 ? 0 : 2;
       },
-      getViolations: (limit: number) => [
-        {
-          line: "sandbox deny read",
-          command: "cat ~/.ssh/id_rsa",
-          timestamp: new Date(),
-        },
-        {
-          line: "sandbox deny read 2",
-          command: "cat ~/.ssh/id_rsa",
-          timestamp: new Date(),
-        },
-      ].slice(0, limit),
+      getViolations: (limit: number) =>
+        [
+          {
+            line: "sandbox deny read",
+            command: "cat ~/.ssh/id_rsa",
+            timestamp: new Date(),
+          },
+          {
+            line: "sandbox deny read 2",
+            command: "cat ~/.ssh/id_rsa",
+            timestamp: new Date(),
+          },
+        ].slice(0, limit),
     });
     mockAnnotateStderrWithSandboxFailures.mockReturnValue(
       "Operation not permitted",
@@ -290,7 +291,7 @@ describe("SandboxShell", () => {
     };
     handler.addViolation.mockResolvedValue(violationResult);
 
-    const shell = new SandboxShell(createContext(), handler);
+    const shell = new SandboxShell(createContext(), mockSandbox, handler);
     const result = await shell.execute("cat ~/.ssh/id_rsa", createOpts());
 
     expect(handler.addViolation).toHaveBeenCalledWith(
@@ -317,7 +318,7 @@ describe("SandboxShell", () => {
 
     setupSpawnSuccess("output", 0);
     const handler = createMockViolationHandler();
-    const shell = new SandboxShell(createContext(), handler);
+    const shell = new SandboxShell(createContext(), mockSandbox, handler);
 
     const result = await shell.execute("echo hi", createOpts());
 
@@ -334,7 +335,7 @@ describe("SandboxShell", () => {
 
     setupSpawnSuccess("command failed", 1);
     const handler = createMockViolationHandler();
-    const shell = new SandboxShell(createContext(), handler);
+    const shell = new SandboxShell(createContext(), mockSandbox, handler);
 
     const result = await shell.execute("false", createOpts());
 
@@ -347,11 +348,11 @@ describe("SandboxShell", () => {
     setupSpawnSuccess("ok", 0);
     const handler = createMockViolationHandler();
     const context = createContext();
-    const shell = new SandboxShell(context, handler);
+    const shell = new SandboxShell(context, mockSandbox, handler);
 
     await shell.execute("ls", createOpts());
 
-    expect(mockUpdateSandboxConfigIfChanged).toHaveBeenCalledWith(
+    expect(mockUpdateConfigIfChanged).toHaveBeenCalledWith(
       defaultSandboxConfig,
       context.cwd,
       context.homeDir,
@@ -363,7 +364,7 @@ describe("SandboxShell", () => {
     mockSpawn.mockReturnValue(proc);
 
     const handler = createMockViolationHandler();
-    const shell = new SandboxShell(createContext(), handler);
+    const shell = new SandboxShell(createContext(), mockSandbox, handler);
 
     // Start a command without awaiting
     shell.execute("sleep 100", createOpts());
@@ -381,17 +382,14 @@ describe("SandboxShell", () => {
     const handler = createMockViolationHandler();
 
     handler.promptForApproval.mockImplementation(
-      async (
-        _command: string,
-        execute: () => Promise<ShellResult>,
-      ) => {
+      async (_command: string, execute: () => Promise<ShellResult>) => {
         // Simulate the handler calling the execute callback
         setupSpawnSuccess("direct output", 0);
         return execute();
       },
     );
 
-    const shell = new SandboxShell(createContext(), handler);
+    const shell = new SandboxShell(createContext(), mockSandbox, handler);
     const result = await shell.execute("echo test", createOpts());
 
     // The command should be spawned directly (not wrapped)

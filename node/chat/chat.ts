@@ -26,6 +26,7 @@ import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { MagentaOptions, Profile } from "../options.ts";
 import { createSystemPrompt } from "../providers/system-prompt.ts";
 import type { RootMsg } from "../root-msg.ts";
+import type { Sandbox } from "../sandbox-manager.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import { d, type VDOMNode, withBindings } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
@@ -106,7 +107,6 @@ export type ChatMsg = {
 export class Chat implements ThreadManager {
   state: ChatState;
   public threadWrappers: { [id: ThreadId]: ThreadWrapper };
-  public rememberedCommands: Set<string>;
   private mcpToolManager: MCPToolManagerImpl;
   private threadYieldCallbacks: Map<ThreadId, Array<() => void>>;
 
@@ -120,10 +120,10 @@ export class Chat implements ThreadManager {
       homeDir: HomeDir;
       nvim: Nvim;
       lsp: Lsp;
+      sandbox: Sandbox;
     },
   ) {
     this.threadWrappers = {};
-    this.rememberedCommands = new Set();
     this.threadYieldCallbacks = new Map();
     this.state = {
       state: "thread-overview",
@@ -408,7 +408,7 @@ export class Chat implements ThreadManager {
               homeDir: this.context.homeDir,
               getOptions: this.context.getOptions,
               threadId,
-              rememberedCommands: this.rememberedCommands,
+              sandbox: this.context.sandbox,
               onPendingChange: () =>
                 this.context.dispatch({
                   type: "thread-msg",
@@ -423,7 +423,7 @@ export class Chat implements ThreadManager {
 
     if (fileIO) {
       environment.fileIO = fileIO;
-      environment.permissionFileIO = undefined;
+      environment.sandboxViolationHandler = undefined;
     }
 
     const systemPrompt = await createSystemPrompt(threadType, {
@@ -781,7 +781,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       homeDir: this.context.homeDir,
       getOptions: this.context.getOptions,
       threadId: newThreadId,
-      rememberedCommands: this.rememberedCommands,
+      sandbox: this.context.sandbox,
       onPendingChange: () =>
         this.context.dispatch({
           type: "thread-msg",
@@ -890,8 +890,8 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const wrapper = this.threadWrappers[threadId];
     if (!wrapper || wrapper.state !== "initialized") return false;
     return (
-      (wrapper.thread.permissionShell?.getPendingPermissions().size ?? 0) > 0 ||
-      (wrapper.thread.permissionFileIO?.getPendingPermissions().size ?? 0) > 0
+      (wrapper.thread.sandboxViolationHandler?.getPendingViolations().size ??
+        0) > 0
     );
   }
   getThreadPendingApprovalTools(_threadId: ThreadId): never[] {

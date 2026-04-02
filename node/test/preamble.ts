@@ -17,6 +17,7 @@ import type { MountedVDOM } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { pollUntil } from "../utils/async.ts";
 import { NvimDriver } from "./driver.ts";
+import { MockSandboxManager } from "./mock-sandbox-manager.ts";
 
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
 
@@ -464,9 +465,11 @@ export async function withDriver(
       }
 
       await withMockClient(async (mockAnthropic) => {
+        const mockSandbox = new MockSandboxManager();
         const magenta = await Magenta.start(
           nvim,
           dirs.homeDir as import("../utils/files.ts").HomeDir,
+          mockSandbox,
         );
         await nvim.call("nvim_exec_lua", [
           `\
@@ -495,7 +498,10 @@ end
         }
 
         try {
-          await fn(new NvimDriver(nvim, magenta, mockAnthropic), dirs);
+          await fn(
+            new NvimDriver(nvim, magenta, mockAnthropic, mockSandbox),
+            dirs,
+          );
         } finally {
           magenta.destroy();
           nvim.detach();

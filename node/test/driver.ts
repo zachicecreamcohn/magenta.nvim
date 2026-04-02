@@ -17,18 +17,22 @@ import { calculatePosition } from "../tea/util.ts";
 import { Defer, pollUntil } from "../utils/async.ts";
 import { CompletionsInteraction } from "./driver/completions.ts";
 import { SidebarInteraction } from "./driver/sidebar.ts";
+import type { MockSandboxManager } from "./mock-sandbox-manager.ts";
 
 export class NvimDriver {
   public completions: CompletionsInteraction;
   public sidebar: SidebarInteraction;
+  public mockSandbox: MockSandboxManager;
 
   constructor(
     public nvim: Nvim,
     public magenta: Magenta,
     public mockAnthropic: MockProvider,
+    mockSandbox: MockSandboxManager,
   ) {
     this.completions = new CompletionsInteraction(nvim);
     this.sidebar = new SidebarInteraction(nvim, magenta);
+    this.mockSandbox = mockSandbox;
   }
 
   async wait(ms: number) {

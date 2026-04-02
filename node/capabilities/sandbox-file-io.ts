@@ -1,5 +1,5 @@
 import type { FileIO } from "@magenta/core";
-import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
+import type { Sandbox } from "../sandbox-manager.ts";
 import {
   type AbsFilePath,
   type HomeDir,
@@ -7,12 +7,12 @@ import {
   resolveFilePath,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
-import { getSandboxState } from "../sandbox-manager.ts";
 
 export class SandboxFileIO implements FileIO {
   constructor(
     private inner: FileIO,
     private context: { cwd: NvimCwd; homeDir: HomeDir },
+    private sandbox: Sandbox,
     private promptForWriteApproval: (absPath: string) => Promise<void>,
   ) {}
 
@@ -25,31 +25,33 @@ export class SandboxFileIO implements FileIO {
   }
 
   isReadBlocked(absPath: string): boolean {
-    if (getSandboxState().status !== "ready") return false;
-    const readConfig = SandboxManager.getFsReadConfig();
+    if (this.sandbox.getState().status !== "ready") return false;
+    const readConfig = this.sandbox.getFsReadConfig();
     return (
       readConfig.denyOnly.some(
-        (denied) =>
-          absPath === denied || absPath.startsWith(denied + "/"),
+        (denied) => absPath === denied || absPath.startsWith(denied + "/"),
       ) &&
       !(readConfig.allowWithinDeny ?? []).some(
-        (allowed) =>
-          absPath === allowed || absPath.startsWith(allowed + "/"),
+        (allowed) => absPath === allowed || absPath.startsWith(allowed + "/"),
       )
     );
   }
 
   isWriteBlocked(absPath: string): boolean {
-    if (getSandboxState().status !== "ready") return true;
-    const writeConfig = SandboxManager.getFsWriteConfig();
+    if (this.sandbox.getState().status !== "ready") return true;
+    const writeConfig = this.sandbox.getFsWriteConfig();
     const inAllowed = writeConfig.allowOnly.some(
       (allowed) =>
-        absPath === allowed || absPath.startsWith(allowed + "/"),
+        absPath === allowed ||
+        allowed === "/" ||
+        absPath.startsWith(allowed + "/"),
     );
     if (!inAllowed) return true;
     const inDeny = writeConfig.denyWithinAllow.some(
       (denied) =>
-        absPath === denied || absPath.startsWith(denied + "/"),
+        absPath === denied ||
+        denied === "/" ||
+        absPath.startsWith(denied + "/"),
     );
     return inDeny;
   }
