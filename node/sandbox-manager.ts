@@ -57,6 +57,10 @@ function resolvePaths(
   return paths.map((p) => resolvePath(p, cwd, homeDir));
 }
 
+function dedup(arr: string[]): string[] {
+  return [...new Set(arr)];
+}
+
 export function resolveConfigPaths(
   config: SandboxConfig,
   cwd: NvimCwd,
@@ -64,14 +68,16 @@ export function resolveConfigPaths(
 ): SandboxRuntimeConfig {
   return {
     filesystem: {
-      allowWrite: resolvePaths(config.filesystem.allowWrite, cwd, homeDir),
-      denyWrite: resolvePaths(config.filesystem.denyWrite, cwd, homeDir),
-      denyRead: resolvePaths(config.filesystem.denyRead, cwd, homeDir),
-      allowRead: resolvePaths(config.filesystem.allowRead, cwd, homeDir),
+      allowWrite: dedup(
+        resolvePaths(config.filesystem.allowWrite, cwd, homeDir),
+      ),
+      denyWrite: dedup(resolvePaths(config.filesystem.denyWrite, cwd, homeDir)),
+      denyRead: dedup(resolvePaths(config.filesystem.denyRead, cwd, homeDir)),
+      allowRead: dedup(resolvePaths(config.filesystem.allowRead, cwd, homeDir)),
     },
     network: {
-      allowedDomains: config.network.allowedDomains,
-      deniedDomains: config.network.deniedDomains,
+      allowedDomains: dedup(config.network.allowedDomains),
+      deniedDomains: dedup(config.network.deniedDomains),
     },
   };
 }

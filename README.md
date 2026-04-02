@@ -41,6 +41,7 @@ I sometimes write about AI, neovim and magenta specifically:
 - Claude skills
 - Progressive disclosure for large files and bash outputs
 - Prompt caching
+- OS-level sandboxing for shell and file operations
 - Dev containers for isolated agent work (Docker)
 
 ## Dev Containers
@@ -81,6 +82,7 @@ magenta-dev-containers` for details.
 
 - Type-checking now uses `tsgo` (TypeScript native Go compiler from `@typescript/native-preview`) for ~5x faster checks.
 - Refactored tool architecture: separated tool execution from rendering, extracted shared capabilities (permissions, file I/O, shell) into a `capabilities/` layer. This decouples tools from neovim, moving towards being able to run it via server/client architecture, and dev container support.
+- New sandbox permission system: OS-level sandboxing via `@anthropic-ai/sandbox-runtime` for shell commands, with application-level pre-flight checks for file I/O. Configurable via `sandbox` config (filesystem and network restrictions). Graceful fallback on unsupported platforms.
 - Auto-compaction with chunked incremental summarization and accurate token counting via `countTokens` API.
 - Introduced the edit description language (edl) tool, which subsumes the insert and replace tools.
 - Introduced explore subagent, blocking subagents for better token economy and exploration speed.
@@ -217,6 +219,43 @@ Create `.magenta/options.json` for project-specific configuration:
 ```
 
 See `:help magenta-project-settings` for details.
+
+## Sandbox
+
+Magenta uses OS-level sandboxing to restrict shell commands and file I/O access:
+
+- **Shell commands** run inside a macOS/Linux sandbox (seatbelt on macOS, bubblewrap on Linux) that restricts filesystem and network access
+- **File I/O** uses application-level pre-flight checks against the sandbox config
+- **Fallback** on unsupported platforms: all shell commands and file writes prompt for approval
+
+### Configuration
+
+Configure sandbox permissions in `.magenta/options.json` (project) or `~/.magenta/options.json` (user):
+
+```json
+{
+  "sandbox": {
+    "filesystem": {
+      "allowWrite": ["./"],
+      "denyWrite": [".env", ".git/hooks/"],
+      "denyRead": ["~/.ssh", "~/.gnupg", "~/.aws"],
+      "allowRead": ["~/.magenta"]
+    },
+    "network": {
+      "allowedDomains": ["registry.npmjs.org", "github.com"],
+      "deniedDomains": []
+    }
+  }
+}
+```
+
+**Path matching**: Literal paths (e.g., `~/.ssh`) use subpath matching and block the path plus all children. Glob patterns (e.g., `~/*.rc`) use regex matching.
+
+**Network**: Supports domain wildcards (e.g., `*.github.com`).
+
+**Defaults**: Conservative defaults protect credentials (`~/.ssh`, `~/.gnupg`, `~/.aws`, etc.) and shell configs (`~/.bashrc`, `~/.zshrc`, etc.).
+
+See `:help magenta-sandbox` for complete documentation.
 
 # Usage
 

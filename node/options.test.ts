@@ -56,14 +56,20 @@ describe("parseSandboxConfig", () => {
     const result = parseOptions(input, noopLogger);
     expect(result.sandbox).toEqual({
       filesystem: {
-        allowWrite: ["/tmp"],
-        denyWrite: [".secret"],
+        allowWrite: [...DEFAULT_SANDBOX_CONFIG.filesystem.allowWrite, "/tmp"],
+        denyWrite: [...DEFAULT_SANDBOX_CONFIG.filesystem.denyWrite, ".secret"],
         denyRead: [...DEFAULT_SANDBOX_CONFIG.filesystem.denyRead, "~/.ssh"],
-        allowRead: DEFAULT_SANDBOX_CONFIG.filesystem.allowRead,
+        allowRead: [...DEFAULT_SANDBOX_CONFIG.filesystem.allowRead],
       },
       network: {
-        allowedDomains: ["example.com"],
-        deniedDomains: ["evil.com"],
+        allowedDomains: [
+          ...DEFAULT_SANDBOX_CONFIG.network.allowedDomains,
+          "example.com",
+        ],
+        deniedDomains: [
+          ...DEFAULT_SANDBOX_CONFIG.network.deniedDomains,
+          "evil.com",
+        ],
       },
     });
   });
@@ -99,13 +105,8 @@ describe("parseProjectOptions sandbox", () => {
       },
       noopLogger,
     );
-    expect(result.sandbox?.filesystem.denyRead).toEqual([
-      ...DEFAULT_SANDBOX_CONFIG.filesystem.denyRead,
-      "/secret",
-    ]);
-    expect(result.sandbox?.filesystem.allowWrite).toEqual(
-      DEFAULT_SANDBOX_CONFIG.filesystem.allowWrite,
-    );
+    expect(result.sandbox?.filesystem.denyRead).toEqual(["/secret"]);
+    expect(result.sandbox?.filesystem.allowWrite).toEqual([]);
   });
 });
 

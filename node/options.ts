@@ -154,14 +154,9 @@ export type SandboxConfig = {
 export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
   filesystem: {
     allowWrite: ["./"],
-    denyWrite: [".env", ".git/hooks/"],
+    denyWrite: [".env", ".git/hooks/", ".magenta"],
     denyRead: [
-      // Block all hidden files/dirs in home (glob only matches the entry itself,
-      // not children — use explicit literal paths below for sensitive dirs)
-      "~/.*",
-      "~/**/.*",
-      // Sensitive directories — literal paths get subpath matching, which blocks
-      // the dir and everything under it (e.g. ~/.ssh/id_rsa)
+      // Credentials and keys (literal paths → subpath matching blocks dir + all contents)
       "~/.ssh",
       "~/.gnupg",
       "~/.aws",
@@ -171,8 +166,24 @@ export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
       "~/.kube",
       "~/.password-store",
       "~/.netrc",
+      "~/.npmrc",
+      "~/.pypirc",
+      "~/.gem",
+      "~/.config/gh",
+      // Shell configs (can execute code on shell startup)
+      "~/.bashrc",
+      "~/.bash_profile",
+      "~/.bash_login",
+      "~/.bash_logout",
+      "~/.zshrc",
+      "~/.zprofile",
+      "~/.zshenv",
+      "~/.zlogin",
+      "~/.zlogout",
+      "~/.profile",
+      "~/.config/fish",
     ],
-    allowRead: ["~/.magenta", "~/.claude"],
+    allowRead: [],
   },
   network: {
     allowedDomains: [
@@ -773,11 +784,47 @@ function parseSidebarPositionOpts(
   return result as SidebarPositionOpts;
 }
 
+function mergeSandboxConfigs(
+  base: SandboxConfig,
+  overlay: SandboxConfig,
+): SandboxConfig {
+  return {
+    filesystem: {
+      allowWrite: [
+        ...base.filesystem.allowWrite,
+        ...overlay.filesystem.allowWrite,
+      ],
+      denyWrite: [
+        ...base.filesystem.denyWrite,
+        ...overlay.filesystem.denyWrite,
+      ],
+      denyRead: [...base.filesystem.denyRead, ...overlay.filesystem.denyRead],
+      allowRead: [
+        ...base.filesystem.allowRead,
+        ...overlay.filesystem.allowRead,
+      ],
+    },
+    network: {
+      allowedDomains: [
+        ...base.network.allowedDomains,
+        ...overlay.network.allowedDomains,
+      ],
+      deniedDomains: [
+        ...base.network.deniedDomains,
+        ...overlay.network.deniedDomains,
+      ],
+    },
+  };
+}
+
 function parseSandboxConfig(
   input: unknown,
   logger: { warn: (msg: string) => void },
 ): SandboxConfig {
-  const config: SandboxConfig = structuredClone(DEFAULT_SANDBOX_CONFIG);
+  const config: SandboxConfig = {
+    filesystem: { allowWrite: [], denyWrite: [], denyRead: [], allowRead: [] },
+    network: { allowedDomains: [], deniedDomains: [] },
+  };
 
   if (typeof input !== "object" || input === null) {
     if (input !== undefined) {
@@ -805,17 +852,17 @@ function parseSandboxConfig(
       );
     }
     if (Array.isArray(fs.denyRead)) {
-      config.filesystem.denyRead.push(
-        ...parseStringArray(fs.denyRead, "sandbox.filesystem.denyRead", logger),
+      config.filesystem.denyRead = parseStringArray(
+        fs.denyRead,
+        "sandbox.filesystem.denyRead",
+        logger,
       );
     }
     if (Array.isArray(fs.allowRead)) {
-      config.filesystem.allowRead.push(
-        ...parseStringArray(
-          fs.allowRead,
-          "sandbox.filesystem.allowRead",
-          logger,
-        ),
+      config.filesystem.allowRead = parseStringArray(
+        fs.allowRead,
+        "sandbox.filesystem.allowRead",
+        logger,
       );
     }
   } else if ("filesystem" in obj) {
@@ -913,9 +960,13 @@ export function parseOptions(
       options.sidebarPositionOpts = sidebarPositionOpts;
     }
 
-    // Parse sandbox config
+    // Parse sandbox config — merge user values onto defaults
     if ("sandbox" in inputOptionsObj) {
-      options.sandbox = parseSandboxConfig(inputOptionsObj.sandbox, logger);
+      const parsedSandbox = parseSandboxConfig(inputOptionsObj.sandbox, logger);
+      options.sandbox = mergeSandboxConfigs(
+        structuredClone(DEFAULT_SANDBOX_CONFIG),
+        parsedSandbox,
+      );
     }
 
     // Parse profiles (throw errors for invalid profiles in main config)
@@ -1226,38 +1277,11 @@ export function mergeOptions(
     merged.activeProfile = projectSettings.profiles[0].name;
   }
 
-  // Merge sandbox config - arrays concatenate
   if (projectSettings.sandbox) {
-    merged.sandbox = {
-      filesystem: {
-        allowWrite: [
-          ...baseOptions.sandbox.filesystem.allowWrite,
-          ...projectSettings.sandbox.filesystem.allowWrite,
-        ],
-        denyWrite: [
-          ...baseOptions.sandbox.filesystem.denyWrite,
-          ...projectSettings.sandbox.filesystem.denyWrite,
-        ],
-        denyRead: [
-          ...baseOptions.sandbox.filesystem.denyRead,
-          ...projectSettings.sandbox.filesystem.denyRead,
-        ],
-        allowRead: [
-          ...baseOptions.sandbox.filesystem.allowRead,
-          ...projectSettings.sandbox.filesystem.allowRead,
-        ],
-      },
-      network: {
-        allowedDomains: [
-          ...baseOptions.sandbox.network.allowedDomains,
-          ...projectSettings.sandbox.network.allowedDomains,
-        ],
-        deniedDomains: [
-          ...baseOptions.sandbox.network.deniedDomains,
-          ...projectSettings.sandbox.network.deniedDomains,
-        ],
-      },
-    };
+    merged.sandbox = mergeSandboxConfigs(
+      baseOptions.sandbox,
+      projectSettings.sandbox,
+    );
   }
 
   if (projectSettings.autoContext) {
