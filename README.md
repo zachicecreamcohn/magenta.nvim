@@ -270,11 +270,11 @@ That said, I've spent a lot of time building magenta's abstractions around agent
 - **System reminders**: Automatic reminders injected after each message to keep the agent on track with skills and project conventions
 - **Progressive disclosure**: Tree-sitter minimaps for large files, bash summarization, claude skills, context tracking that only sends diffs of changed files
 
-**Permissions system**
+**OS-level sandboxing**
 
-- Configurable file permissions via `filePermissions` option—control which directories can be read/written without confirmation, including support for hidden/secret files
-- Fine-grained bash command permissions with argument validation, subcommand support, and path checking
-- Per-command configuration rather than just approve/deny-all
+- Shell commands run inside a macOS/Linux sandbox that restricts filesystem and network access — no approval fatigue
+- Configurable sandbox policy: `filesystem.allowWrite`, `filesystem.denyRead`, `network.allowedDomains`
+- Graceful fallback: on unsupported platforms, all commands and writes prompt for approval
 
 **Provider features**
 
