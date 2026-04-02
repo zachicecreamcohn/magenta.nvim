@@ -30,7 +30,7 @@ User-level settings apply across all projects. Project-level settings are merged
     "filesystem": {
       "allowWrite": ["./"],
       "denyWrite": [".env", ".git/hooks/"],
-      "denyRead": ["~/.*"],
+      "denyRead": ["~/.*", "~/**/.*", "~/.ssh", "~/.gnupg", "~/.aws"],
       "allowRead": ["~/.magenta", "~/.claude"]
     },
     "network": {
@@ -45,10 +45,19 @@ User-level settings apply across all projects. Project-level settings are merged
 
 - **`filesystem.allowWrite`**: Paths where writing is allowed. Default: `["./"]` (current working directory).
 - **`filesystem.denyWrite`**: Paths within allowed areas where writing is denied. Default: `[".env", ".git/hooks/"]`.
-- **`filesystem.denyRead`**: Paths/patterns where reading is denied. User config is concatenated to `["~/.*"]` (all hidden files/folders in home).
-- **`network.allowedDomains`**: Domains that commands can access. Supports wildcards (e.g., `"*.github.com"`).
+- **`filesystem.denyRead`**: Paths/patterns where reading is denied. Default includes glob patterns for hidden files plus explicit literal paths for sensitive directories (see below).
 - **`filesystem.allowRead`**: Paths to re-allow reading within denied regions. Default: `["~/.magenta", "~/.claude"]`. Takes precedence over `denyRead`.
+- **`network.allowedDomains`**: Domains that commands can access. Supports wildcards (e.g., `"*.github.com"`).
 - **`network.deniedDomains`**: Domains that are explicitly blocked.
+
+### Path Matching
+
+There are two matching modes depending on whether a path contains glob characters (`*`, `?`, `[`):
+
+- **Literal paths** (e.g., `~/.ssh`): Use **subpath matching** — blocks the path itself AND everything under it. So `~/.ssh` blocks `~/.ssh`, `~/.ssh/id_rsa`, `~/.ssh/keys/foo`, etc.
+- **Glob patterns** (e.g., `~/.*`): Use **regex matching** where `*` matches any characters except `/` (single directory level) and `**` matches across directory boundaries. So `~/.*` blocks `~/.ssh` and `~/.bashrc` but NOT `~/.ssh/id_rsa`.
+
+**Important**: Because glob `*` does not cross `/` boundaries, glob-only deny rules may leave sensitive file contents accessible. Use explicit literal paths for directories containing secrets (like `~/.ssh`, `~/.aws`). The defaults include both globs (broad coverage) and explicit paths (deep protection for known sensitive dirs).
 
 ### Path Resolution
 
@@ -116,5 +125,5 @@ Note: Since project settings merge by concatenating arrays, you cannot remove a 
 When project settings are merged with user settings:
 
 - **Arrays concatenate**: project `allowWrite` is appended to user `allowWrite`, project `denyRead` is appended to user `denyRead`, and project `allowRead` is appended to user `allowRead`
-- **`denyRead` always includes defaults**: the mandatory defaults (`~/.*`) are always enforced; user config can only add more deny rules, never remove them
+- **`denyRead` always includes defaults**: the mandatory defaults (`~/.*`, `~/**/.*`, `~/.ssh`, `~/.gnupg`, etc.) are always enforced; user config can only add more deny rules, never remove them
 - **`allowRead` takes precedence**: if a path appears in both `denyRead` and `allowRead`, the allow rule wins

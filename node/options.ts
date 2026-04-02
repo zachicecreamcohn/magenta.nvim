@@ -155,7 +155,23 @@ export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
   filesystem: {
     allowWrite: ["./"],
     denyWrite: [".env", ".git/hooks/"],
-    denyRead: ["~/.*", "~/**/.*"],
+    denyRead: [
+      // Block all hidden files/dirs in home (glob only matches the entry itself,
+      // not children — use explicit literal paths below for sensitive dirs)
+      "~/.*",
+      "~/**/.*",
+      // Sensitive directories — literal paths get subpath matching, which blocks
+      // the dir and everything under it (e.g. ~/.ssh/id_rsa)
+      "~/.ssh",
+      "~/.gnupg",
+      "~/.aws",
+      "~/.azure",
+      "~/.config/gcloud",
+      "~/.docker",
+      "~/.kube",
+      "~/.password-store",
+      "~/.netrc",
+    ],
     allowRead: ["~/.magenta", "~/.claude"],
   },
   network: {
