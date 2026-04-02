@@ -155,7 +155,7 @@ export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
   filesystem: {
     allowWrite: ["./"],
     denyWrite: [".env", ".git/hooks/"],
-    denyRead: ["~/.*"],
+    denyRead: ["~/.*", "~/**/.*"],
     allowRead: ["~/.magenta", "~/.claude"],
   },
   network: {

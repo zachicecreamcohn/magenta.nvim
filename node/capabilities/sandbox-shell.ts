@@ -167,6 +167,15 @@ export class SandboxShell implements Shell {
     const wrapped = await this.sandbox.wrapWithSandbox(command);
     const result = await this.spawnCommand(wrapped, opts);
 
+    // When a command fails, poll briefly for sandbox violation events which
+    // arrive asynchronously via the macOS `log stream` monitor
+    if (result.exitCode !== 0) {
+      const deadline = Date.now() + 100;
+      while (store.getTotalCount() === preCount && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+    }
+
     const postCount = store.getTotalCount();
     if (postCount > preCount && result.exitCode !== 0) {
       const newViolations = store.getViolations(postCount - preCount);

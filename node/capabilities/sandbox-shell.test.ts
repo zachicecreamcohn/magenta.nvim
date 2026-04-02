@@ -407,4 +407,154 @@ describe("SandboxShell", () => {
     expect(mockWrapWithSandbox).not.toHaveBeenCalled();
     expect(result.exitCode).toBe(0);
   });
+
+  describe("violation polling", () => {
+    test("polls for violations arriving after command exits", async () => {
+      let totalCount = 0;
+
+      mockGetSandboxViolationStore.mockReturnValue({
+        getTotalCount: () => totalCount,
+        getViolations: (limit: number) =>
+          [
+            {
+              line: "sandbox deny read /home/.ssh/id_rsa",
+              command: "cat ~/.ssh/id_rsa",
+              timestamp: new Date(),
+            },
+          ].slice(0, limit),
+      });
+      mockAnnotateStderrWithSandboxFailures.mockReturnValue(
+        "Operation not permitted\n<sandbox_violations>\nsandbox deny read\n</sandbox_violations>",
+      );
+
+      // Simulate violation arriving 30ms after command exits
+      const proc = createMockChildProcess();
+      mockSpawn.mockReturnValue(proc);
+      setTimeout(() => {
+        proc._emit("stderr:data", Buffer.from("Operation not permitted"));
+        proc._emit("close", 1, null);
+      }, 0);
+      // Violation arrives asynchronously after process closes
+      setTimeout(() => {
+        totalCount = 1;
+      }, 30);
+
+      const handler = createMockViolationHandler();
+      const violationResult: ShellResult = {
+        exitCode: 0,
+        signal: undefined,
+        output: [],
+        logFilePath: undefined,
+        durationMs: 100,
+      };
+      handler.addViolation.mockResolvedValue(violationResult);
+
+      const shell = new SandboxShell(createContext(), mockSandbox, handler);
+      const result = await shell.execute("cat ~/.ssh/id_rsa", createOpts());
+
+      expect(handler.addViolation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          command: "cat ~/.ssh/id_rsa",
+        }),
+        expect.any(Function),
+      );
+      expect(result).toBe(violationResult);
+    });
+
+    test("stops polling once violation is detected", async () => {
+      let totalCount = 0;
+      let getTotalCountCalls = 0;
+
+      mockGetSandboxViolationStore.mockReturnValue({
+        getTotalCount: () => {
+          getTotalCountCalls++;
+          return totalCount;
+        },
+        getViolations: () => [
+          {
+            line: "sandbox deny",
+            command: "test",
+            timestamp: new Date(),
+          },
+        ],
+      });
+      mockAnnotateStderrWithSandboxFailures.mockReturnValue("denied");
+
+      const proc = createMockChildProcess();
+      mockSpawn.mockReturnValue(proc);
+      setTimeout(() => {
+        proc._emit("close", 1, null);
+      }, 0);
+      // Violation arrives on first poll iteration
+      setTimeout(() => {
+        totalCount = 1;
+      }, 5);
+
+      const handler = createMockViolationHandler();
+      handler.addViolation.mockResolvedValue({
+        exitCode: 0,
+        signal: undefined,
+        output: [],
+        logFilePath: undefined,
+        durationMs: 50,
+      } as ShellResult);
+
+      const shell = new SandboxShell(createContext(), mockSandbox, handler);
+      await shell.execute("test", createOpts());
+
+      // Should have polled a few times, not the full ~10 iterations
+      // First call is the pre-count, then a few polls before violation arrives
+      expect(getTotalCountCalls).toBeLessThan(15);
+      expect(handler.addViolation).toHaveBeenCalled();
+    });
+
+    test("gives up polling after 100ms deadline", async () => {
+      // Violation never arrives — totalCount stays at 0
+      mockGetSandboxViolationStore.mockReturnValue({
+        getTotalCount: () => 0,
+        getViolations: () => [],
+      });
+
+      setupSpawnSuccess("error output", 1);
+      const handler = createMockViolationHandler();
+      const shell = new SandboxShell(createContext(), mockSandbox, handler);
+
+      const startTime = Date.now();
+      const result = await shell.execute("bad-command", createOpts());
+      const elapsed = Date.now() - startTime;
+
+      // Should not have called addViolation since no new violations appeared
+      expect(handler.addViolation).not.toHaveBeenCalled();
+      // Should have waited roughly 100ms polling, not much longer
+      expect(elapsed).toBeGreaterThanOrEqual(90);
+      expect(elapsed).toBeLessThan(300);
+      expect(result.exitCode).toBe(1);
+      expect(mockCleanupAfterCommand).toHaveBeenCalled();
+    });
+
+    test("skips polling when exit code is 0", async () => {
+      let getTotalCountCalls = 0;
+      mockGetSandboxViolationStore.mockReturnValue({
+        getTotalCount: () => {
+          getTotalCountCalls++;
+          return 0;
+        },
+        getViolations: () => [],
+      });
+
+      setupSpawnSuccess("ok", 0);
+      const handler = createMockViolationHandler();
+      const shell = new SandboxShell(createContext(), mockSandbox, handler);
+
+      const startTime = Date.now();
+      await shell.execute("echo ok", createOpts());
+      const elapsed = Date.now() - startTime;
+
+      // 2 calls: pre-count before execution, post-count after (no polling since exit 0)
+      expect(getTotalCountCalls).toBe(2);
+      // Should complete quickly without any polling delay
+      expect(elapsed).toBeLessThan(90);
+      expect(handler.addViolation).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -2,5 +2,21 @@
   "container": {
     "dockerfile": "docker/Dockerfile",
     "workspacePath": "/workspace"
+  },
+  "sandbox": {
+    "filesystem": {
+      "allowRead": [
+        "./.github",
+        "./.magenta",
+        "./.vscode",
+        "./test-plugins/nvim-cmp/.githooks",
+        "./test-plugins/nvim-cmp/.github",
+        "./node/packages/sandbox-runtime/.github",
+        "./node/packages/sandbox-runtime/.vscode"
+      ],
+      "allowWrite": [
+        "/private/tmp/magenta/"
+      ]
+    }
   }
 }

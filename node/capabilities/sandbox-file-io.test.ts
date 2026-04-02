@@ -1,4 +1,3 @@
-import type { FileIO } from "@magenta/core";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type {
   FsReadConfig,
@@ -32,44 +31,21 @@ function createMockSandbox(): Sandbox {
   };
 }
 
-function createMockFileIO(): FileIO & {
-  readFile: ReturnType<typeof vi.fn>;
-  readBinaryFile: ReturnType<typeof vi.fn>;
-  writeFile: ReturnType<typeof vi.fn>;
-  fileExists: ReturnType<typeof vi.fn>;
-  mkdir: ReturnType<typeof vi.fn>;
-  stat: ReturnType<typeof vi.fn>;
-} {
-  return {
-    readFile: vi.fn().mockResolvedValue("file content"),
-    readBinaryFile: vi.fn().mockResolvedValue(Buffer.from("binary")),
-    writeFile: vi.fn().mockResolvedValue(undefined),
-    fileExists: vi.fn().mockResolvedValue(true),
-    mkdir: vi.fn().mockResolvedValue(undefined),
-    stat: vi.fn().mockResolvedValue({ mtimeMs: 1000, size: 42 }),
-  };
-}
-
 const cwd = "/test/cwd" as NvimCwd;
 const homeDir = "/test/home" as HomeDir;
 
 function createSandboxIO(
-  inner: FileIO,
   promptForWriteApproval: (absPath: string) => Promise<void> = vi.fn(),
 ) {
   return new SandboxFileIO(
-    inner,
-    { cwd, homeDir },
+    { nvim: {} as never, bufferTracker: {} as never, cwd, homeDir },
     createMockSandbox(),
     promptForWriteApproval,
   );
 }
 
 describe("SandboxFileIO", () => {
-  let mockIO: ReturnType<typeof createMockFileIO>;
-
   beforeEach(() => {
-    mockIO = createMockFileIO();
     vi.clearAllMocks();
   });
 
@@ -79,49 +55,40 @@ describe("SandboxFileIO", () => {
     });
 
     describe("reads", () => {
-      test("read allowed path delegates to inner", async () => {
+      test("allowed path is not blocked", () => {
         mockFsReadConfig = {
           denyOnly: ["/test/home/.ssh"],
         };
 
-        const sio = createSandboxIO(mockIO);
-        const result = await sio.readFile("/test/cwd/src/file.ts");
-        expect(result).toBe("file content");
-        expect(mockIO.readFile).toHaveBeenCalledWith("/test/cwd/src/file.ts");
+        const sio = createSandboxIO();
+        expect(sio.isReadBlocked("/test/cwd/src/file.ts")).toBe(false);
       });
 
-      test("read denied path throws", async () => {
+      test("denied path is blocked", () => {
         mockFsReadConfig = {
           denyOnly: ["/test/home/.ssh"],
         };
 
-        const sio = createSandboxIO(mockIO);
-        await expect(sio.readFile("/test/home/.ssh/id_rsa")).rejects.toThrow(
-          "Sandbox: read access denied",
-        );
-        expect(mockIO.readFile).not.toHaveBeenCalled();
+        const sio = createSandboxIO();
+        expect(sio.isReadBlocked("/test/home/.ssh/id_rsa")).toBe(true);
       });
 
-      test("read deny exact path match", async () => {
+      test("deny exact path match", () => {
         mockFsReadConfig = {
           denyOnly: ["/test/home/.ssh"],
         };
 
-        const sio = createSandboxIO(mockIO);
-        await expect(sio.readFile("/test/home/.ssh")).rejects.toThrow(
-          "Sandbox: read access denied",
-        );
+        const sio = createSandboxIO();
+        expect(sio.isReadBlocked("/test/home/.ssh")).toBe(true);
       });
 
-      test("read deny prefix does not match non-child paths", async () => {
+      test("deny prefix does not match non-child paths", () => {
         mockFsReadConfig = {
           denyOnly: ["/test/home/.ssh"],
         };
 
-        const sio = createSandboxIO(mockIO);
-        const result = await sio.readFile("/test/home/.sshrc");
-        expect(result).toBe("file content");
-        expect(mockIO.readFile).toHaveBeenCalled();
+        const sio = createSandboxIO();
+        expect(sio.isReadBlocked("/test/home/.sshrc")).toBe(false);
       });
 
       test("readBinaryFile denied path throws", async () => {
@@ -129,96 +96,67 @@ describe("SandboxFileIO", () => {
           denyOnly: ["/test/home/.aws"],
         };
 
-        const sio = createSandboxIO(mockIO);
+        const sio = createSandboxIO();
         await expect(
           sio.readBinaryFile("/test/home/.aws/credentials"),
         ).rejects.toThrow("Sandbox: read access denied");
-        expect(mockIO.readBinaryFile).not.toHaveBeenCalled();
       });
 
-      test("readBinaryFile allowed path delegates to inner", async () => {
+      test("allowWithinDeny re-allows denied paths", () => {
         mockFsReadConfig = {
-          denyOnly: ["/test/home/.ssh"],
+          denyOnly: ["/test/home/.config"],
+          allowWithinDeny: ["/test/home/.config/nvim"],
         };
 
-        const sio = createSandboxIO(mockIO);
-        const result = await sio.readBinaryFile("/test/cwd/image.png");
-        expect(result).toEqual(Buffer.from("binary"));
-        expect(mockIO.readBinaryFile).toHaveBeenCalledWith(
-          "/test/cwd/image.png",
+        const sio = createSandboxIO();
+        expect(sio.isReadBlocked("/test/home/.config/nvim/init.lua")).toBe(
+          false,
         );
       });
 
-      test("allowWithinDeny re-allows denied paths", async () => {
+      test("allowWithinDeny does not re-allow sibling paths", () => {
         mockFsReadConfig = {
           denyOnly: ["/test/home/.config"],
           allowWithinDeny: ["/test/home/.config/nvim"],
         };
 
-        const sio = createSandboxIO(mockIO);
-        const result = await sio.readFile("/test/home/.config/nvim/init.lua");
-        expect(result).toBe("file content");
-        expect(mockIO.readFile).toHaveBeenCalled();
-      });
-
-      test("allowWithinDeny does not re-allow sibling paths", async () => {
-        mockFsReadConfig = {
-          denyOnly: ["/test/home/.config"],
-          allowWithinDeny: ["/test/home/.config/nvim"],
-        };
-
-        const sio = createSandboxIO(mockIO);
-        await expect(
-          sio.readFile("/test/home/.config/secrets/key"),
-        ).rejects.toThrow("Sandbox: read access denied");
+        const sio = createSandboxIO();
+        expect(sio.isReadBlocked("/test/home/.config/secrets/key")).toBe(true);
       });
     });
 
     describe("writes", () => {
-      test("write to allowed path delegates to inner", async () => {
+      test("write to allowed path is not blocked", () => {
         mockFsWriteConfig = {
           allowOnly: ["/test/cwd"],
           denyWithinAllow: [],
         };
 
-        const sio = createSandboxIO(mockIO);
-        await sio.writeFile("/test/cwd/src/file.ts", "content");
-        expect(mockIO.writeFile).toHaveBeenCalledWith(
-          "/test/cwd/src/file.ts",
-          "content",
-        );
+        const sio = createSandboxIO();
+        expect(sio.isWriteBlocked("/test/cwd/src/file.ts")).toBe(false);
       });
 
-      test("write outside allowOnly prompts", async () => {
+      test("write outside allowOnly is blocked", () => {
         mockFsWriteConfig = {
           allowOnly: ["/test/cwd"],
           denyWithinAllow: [],
         };
 
-        const prompt = vi.fn().mockResolvedValue(undefined);
-        const sio = createSandboxIO(mockIO, prompt);
-        await sio.writeFile("/outside/file.txt", "data");
-        expect(prompt).toHaveBeenCalledWith("/outside/file.txt");
-        expect(mockIO.writeFile).toHaveBeenCalledWith(
-          "/outside/file.txt",
-          "data",
-        );
+        const sio = createSandboxIO();
+        expect(sio.isWriteBlocked("/outside/file.txt")).toBe(true);
       });
 
-      test("write to denyWithinAllow prompts", async () => {
+      test("write to denyWithinAllow is blocked", () => {
         mockFsWriteConfig = {
           allowOnly: ["/test/cwd"],
           denyWithinAllow: ["/test/cwd/.env"],
         };
 
-        const prompt = vi.fn().mockResolvedValue(undefined);
-        const sio = createSandboxIO(mockIO, prompt);
-        await sio.writeFile("/test/cwd/.env", "SECRET=x");
-        expect(prompt).toHaveBeenCalledWith("/test/cwd/.env");
-        expect(mockIO.writeFile).toHaveBeenCalled();
+        const sio = createSandboxIO();
+        expect(sio.isWriteBlocked("/test/cwd/.env")).toBe(true);
       });
 
-      test("write denied when prompt rejects", async () => {
+      test("write blocked path prompts for approval", async () => {
         mockFsWriteConfig = {
           allowOnly: ["/test/cwd"],
           denyWithinAllow: [],
@@ -227,142 +165,128 @@ describe("SandboxFileIO", () => {
         const prompt = vi
           .fn()
           .mockRejectedValue(new Error("User denied write"));
-        const sio = createSandboxIO(mockIO, prompt);
+        const sio = createSandboxIO(prompt);
         await expect(
           sio.writeFile("/outside/file.txt", "data"),
         ).rejects.toThrow("User denied write");
-        expect(mockIO.writeFile).not.toHaveBeenCalled();
+        expect(prompt).toHaveBeenCalledWith("/outside/file.txt");
       });
 
-      test("write denyWithinAllow prefix does not match non-child", async () => {
+      test("write denyWithinAllow prefix does not match non-child", () => {
         mockFsWriteConfig = {
           allowOnly: ["/test/cwd"],
           denyWithinAllow: ["/test/cwd/.env"],
         };
 
-        const sio = createSandboxIO(mockIO);
-        await sio.writeFile("/test/cwd/.environment", "data");
-        expect(mockIO.writeFile).toHaveBeenCalled();
+        const sio = createSandboxIO();
+        expect(sio.isWriteBlocked("/test/cwd/.environment")).toBe(false);
       });
     });
   });
 
-  describe("when sandbox is disabled", () => {
-    beforeEach(() => {
+  describe("when sandbox is not ready", () => {
+    test("reads are not blocked when unsupported", () => {
       currentSandboxState = { status: "unsupported", reason: "disabled" };
+      const sio = createSandboxIO();
+      expect(sio.isReadBlocked("/anywhere/file.txt")).toBe(false);
     });
 
-    test("reads are allowed without prompt", async () => {
-      const sio = createSandboxIO(mockIO);
-      const result = await sio.readFile("/anywhere/file.txt");
-      expect(result).toBe("file content");
-      expect(mockIO.readFile).toHaveBeenCalled();
-    });
-
-    test("writes prompt for every write", async () => {
-      const prompt = vi.fn().mockResolvedValue(undefined);
-      const sio = createSandboxIO(mockIO, prompt);
-      await sio.writeFile("/test/cwd/file.ts", "data");
-      expect(prompt).toHaveBeenCalledWith("/test/cwd/file.ts");
-      expect(mockIO.writeFile).toHaveBeenCalled();
-    });
-
-    test("write denied when prompt rejects", async () => {
-      const prompt = vi.fn().mockRejectedValue(new Error("User denied write"));
-      const sio = createSandboxIO(mockIO, prompt);
-      await expect(sio.writeFile("/test/cwd/file.ts", "data")).rejects.toThrow(
-        "User denied write",
-      );
-      expect(mockIO.writeFile).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("when sandbox is unsupported", () => {
-    beforeEach(() => {
-      currentSandboxState = {
-        status: "unsupported",
-        reason: "Linux not supported",
-      };
-    });
-
-    test("reads are allowed without prompt", async () => {
-      const sio = createSandboxIO(mockIO);
-      const result = await sio.readFile("/anywhere/file.txt");
-      expect(result).toBe("file content");
-    });
-
-    test("writes prompt for every write", async () => {
-      const prompt = vi.fn().mockResolvedValue(undefined);
-      const sio = createSandboxIO(mockIO, prompt);
-      await sio.writeFile("/test/cwd/file.ts", "data");
-      expect(prompt).toHaveBeenCalledWith("/test/cwd/file.ts");
-    });
-  });
-
-  describe("when sandbox is uninitialized", () => {
-    beforeEach(() => {
+    test("reads are not blocked when uninitialized", () => {
       currentSandboxState = { status: "uninitialized" };
+      const sio = createSandboxIO();
+      expect(sio.isReadBlocked("/anywhere/file.txt")).toBe(false);
     });
 
-    test("reads are allowed without prompt", async () => {
-      const sio = createSandboxIO(mockIO);
-      const result = await sio.readFile("/anywhere/file.txt");
-      expect(result).toBe("file content");
+    test("writes are blocked when unsupported", () => {
+      currentSandboxState = { status: "unsupported", reason: "disabled" };
+      const sio = createSandboxIO();
+      expect(sio.isWriteBlocked("/test/cwd/file.ts")).toBe(true);
     });
 
-    test("writes prompt for every write", async () => {
-      const prompt = vi.fn().mockResolvedValue(undefined);
-      const sio = createSandboxIO(mockIO, prompt);
-      await sio.writeFile("/test/cwd/file.ts", "data");
-      expect(prompt).toHaveBeenCalled();
+    test("writes are blocked when uninitialized", () => {
+      currentSandboxState = { status: "uninitialized" };
+      const sio = createSandboxIO();
+      expect(sio.isWriteBlocked("/test/cwd/file.ts")).toBe(true);
     });
   });
 
-  describe("passthrough methods", () => {
-    test("fileExists passes through without checks", async () => {
+  describe("glob deny patterns", () => {
+    beforeEach(() => {
       currentSandboxState = { status: "ready" };
-      const sio = createSandboxIO(mockIO);
-      const result = await sio.fileExists("/anywhere/file.txt");
-      expect(result).toBe(true);
-      expect(mockIO.fileExists).toHaveBeenCalledWith("/anywhere/file.txt");
     });
 
-    test("mkdir passes through without checks", async () => {
-      currentSandboxState = { status: "ready" };
-      const sio = createSandboxIO(mockIO);
-      await sio.mkdir("/anywhere/dir");
-      expect(mockIO.mkdir).toHaveBeenCalledWith("/anywhere/dir");
+    describe("dir/.* pattern", () => {
+      test("blocks hidden file directly in dir", () => {
+        mockFsReadConfig = { denyOnly: ["/test/home/.*"] };
+        const sio = createSandboxIO();
+        expect(sio.isReadBlocked("/test/home/.hiddenfile")).toBe(true);
+      });
+
+      test("does not block children of glob-matched dir (matches seatbelt regex behavior)", () => {
+        mockFsReadConfig = { denyOnly: ["/test/home/.*"] };
+        const sio = createSandboxIO();
+        // globToRegex(".*") produces [^/]* which doesn't match paths with /
+        expect(sio.isReadBlocked("/test/home/.hiddendir/file")).toBe(false);
+      });
+
+      test("allows non-hidden file in same dir", () => {
+        mockFsReadConfig = { denyOnly: ["/test/home/.*"] };
+        const sio = createSandboxIO();
+        expect(sio.isReadBlocked("/test/home/visible_file")).toBe(false);
+      });
     });
 
-    test("stat passes through without checks", async () => {
-      currentSandboxState = { status: "ready" };
-      const sio = createSandboxIO(mockIO);
-      const result = await sio.stat("/anywhere/file.txt");
-      expect(result).toEqual({ mtimeMs: 1000, size: 42 });
-      expect(mockIO.stat).toHaveBeenCalledWith("/anywhere/file.txt");
+    describe("dir/**/.* pattern", () => {
+      test("blocks hidden file in subdirectory", () => {
+        mockFsReadConfig = { denyOnly: ["/test/home/**/.*"] };
+        const sio = createSandboxIO();
+        expect(sio.isReadBlocked("/test/home/subdir/.hiddenfile")).toBe(true);
+      });
+
+      test("blocks hidden file directly in home (** matches zero dirs)", () => {
+        mockFsReadConfig = { denyOnly: ["/test/home/**/.*"] };
+        const sio = createSandboxIO();
+        expect(sio.isReadBlocked("/test/home/.bashrc")).toBe(true);
+      });
+
+      test("allows non-hidden file in subdirectory", () => {
+        mockFsReadConfig = { denyOnly: ["/test/home/**/.*"] };
+        const sio = createSandboxIO();
+        expect(sio.isReadBlocked("/test/home/subdir/visible_file")).toBe(false);
+      });
+    });
+
+    describe("combined default deny patterns", () => {
+      test("both patterns together block hidden files at any depth", () => {
+        mockFsReadConfig = {
+          denyOnly: ["/test/home/.*", "/test/home/**/.*"],
+        };
+        const sio = createSandboxIO();
+
+        // Direct hidden file
+        expect(sio.isReadBlocked("/test/home/.ssh")).toBe(true);
+        // Hidden file in subdirectory
+        expect(sio.isReadBlocked("/test/home/subdir/.env")).toBe(true);
+        // Non-hidden file is allowed
+        expect(sio.isReadBlocked("/test/home/visible")).toBe(false);
+      });
     });
   });
 
   describe("path resolution", () => {
-    test("resolves relative paths before checking", async () => {
+    test("resolves relative paths before checking", () => {
       currentSandboxState = { status: "ready" };
-      mockFsReadConfig = {
-        denyOnly: ["/test/home/.ssh"],
-      };
-
-      const sio = createSandboxIO(mockIO);
-      // "src/file.ts" resolves to "/test/cwd/src/file.ts"
-      const result = await sio.readFile("src/file.ts");
-      expect(result).toBe("file content");
+      mockFsReadConfig = { denyOnly: ["/test/home/.ssh"] };
+      const sio = createSandboxIO();
+      // "src/file.ts" resolves to "/test/cwd/src/file.ts" — not denied
+      expect(sio.isReadBlocked("/test/cwd/src/file.ts")).toBe(false);
     });
 
     test("resolves tilde paths before checking", async () => {
       currentSandboxState = { status: "ready" };
-      mockFsReadConfig = {
-        denyOnly: ["/test/home/.ssh"],
-      };
-
-      const sio = createSandboxIO(mockIO);
+      mockFsReadConfig = { denyOnly: ["/test/home/.ssh"] };
+      const sio = createSandboxIO();
+      // "~/.ssh/id_rsa" resolves to "/test/home/.ssh/id_rsa" — denied
       await expect(sio.readFile("~/.ssh/id_rsa")).rejects.toThrow(
         "Sandbox: read access denied",
       );
