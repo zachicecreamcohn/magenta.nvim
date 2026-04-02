@@ -34,8 +34,7 @@ type PendingPrompt =
 export type PendingViolation = {
   id: string;
   prompt: PendingPrompt;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  resolve: (result: any) => void;
+  resolve: (result: ShellResult) => void;
   reject: (err: Error) => void;
 };
 
@@ -83,7 +82,7 @@ export class SandboxViolationHandler {
       this.pending.set(id, {
         id,
         prompt: { kind: "write-approval", absPath },
-        resolve,
+        resolve: resolve as unknown as (result: ShellResult) => void,
         reject,
       });
       this.onPendingChange();
@@ -97,7 +96,7 @@ export class SandboxViolationHandler {
     this.pending.delete(id);
 
     if (entry.prompt.kind === "write-approval") {
-      entry.resolve(undefined);
+      entry.resolve(undefined as unknown as ShellResult);
     } else {
       const executeFn =
         entry.prompt.kind === "violation"
