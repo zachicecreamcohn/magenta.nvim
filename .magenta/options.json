@@ -2,12 +2,5 @@
   "container": {
     "dockerfile": "docker/Dockerfile",
     "workspacePath": "/workspace"
-  },
-  "commandConfig": {
-    "commands": [
-      ["npx", "tsc", "--noEmit"],
-      ["npx", "tsgo", { "type": "restAny" }],
-      ["npx", "vitest", "run", { "type": "restAny" }]
-    ]
   }
 }
