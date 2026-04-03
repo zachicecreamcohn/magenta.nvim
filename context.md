@@ -207,8 +207,20 @@ When given a task:
    - All implementation work must be done in `docker_unsupervised` subagents.
    - Pass the branch name and have the prompt include the plan location to the docker subagent so it checks out the correct branch.
    - **CRITICAL**: The docker subagent will not have access to your file system. So make sure anything you want the agent to see is committed to the subagent's base branch!
-4. **Run tests** — Run `TEST_MODE=sandbox npx vitest run` locally for quick feedback. For the full suite (including docker/process tests), use the `tests-in-docker` subagent:
+4. **Run tests** — Use test subagents to run tests and report results:
+   - **Sandbox (local, fast):** Use `tests-in-sandbox` for quick local feedback. Skips docker/process tests.
+   - **Full suite (docker):** Use `tests-in-docker` for the complete test suite including privileged tests.
+
    ```
+   // Sandbox (default for local dev)
+   spawn_subagents({
+     agents: [{
+       prompt: "Run the full test suite and fix any failures.",
+       agentType: "tests-in-sandbox",
+     }]
+   })
+
+   // Full capabilities (in docker)
    spawn_subagents({
      agents: [{
        prompt: "Run the full test suite and fix any failures.",
