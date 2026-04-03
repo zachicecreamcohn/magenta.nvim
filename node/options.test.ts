@@ -99,6 +99,13 @@ describe("parseSandboxConfig", () => {
   });
 });
 
+describe("DEFAULT_SANDBOX_CONFIG security", () => {
+  it("should deny writes to both project and home .magenta directories", () => {
+    expect(DEFAULT_SANDBOX_CONFIG.filesystem.denyWrite).toContain(".magenta");
+    expect(DEFAULT_SANDBOX_CONFIG.filesystem.denyWrite).toContain("~/.magenta");
+  });
+});
+
 describe("parseProjectOptions sandbox", () => {
   it("should parse sandbox from project options", () => {
     const result = parseProjectOptions(

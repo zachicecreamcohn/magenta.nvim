@@ -14,6 +14,8 @@ You are running inside a Docker container with full test capabilities. The proje
 
 Tests run with `TEST_MODE=all` by default, meaning all tests execute including those gated behind `FULL_CAPABILITIES` (docker, process management). This is the complement to running `TEST_MODE=sandbox npx vitest run` locally on the host, which skips those privileged tests.
 
+**Note:** Tests gated behind `HOST_DOCKER_AVAILABLE` (e.g. docker-sync tests) are skipped in this container. Docker-in-Docker doesn't work because `docker cp` writes to the host filesystem while `rsync` runs inside the container, causing path mismatches. These tests must be run directly on the host with `npx vitest run`.
+
 # Commands
 
 - **Run all tests:** `cd /workspace && npx vitest run`

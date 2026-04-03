@@ -180,9 +180,11 @@ Tests are segmented by the `TEST_MODE` env var (`"all"` | `"sandbox"`). Default 
 
 Tests that need elevated privileges use `describe.runIf(FULL_CAPABILITIES)` or `it.runIf(FULL_CAPABILITIES)`, where `FULL_CAPABILITIES` is exported from `node/core/src/test/capabilities.ts` (re-exported from `node/test/capabilities.ts` for root project tests).
 
+Tests that require a working Docker daemon on the same filesystem (e.g. docker-sync tests) use `HOST_DOCKER_AVAILABLE`, which is true only when `FULL_CAPABILITIES` is true AND the process is NOT inside a Docker container. These tests must be run directly on the host (`npx vitest run`), not via the `tests-in-docker` subagent.
+
 **Local development**: Run `TEST_MODE=sandbox npx vitest run` on the host. This skips docker and process-management tests that can't run locally.
 
-**Full test suite**: Use the `tests-in-docker` subagent, which runs inside a docker container with `TEST_MODE=all` (the default) and has access to docker and full process management.
+**Full test suite**: Use the `tests-in-docker` subagent, which runs inside a docker container with `TEST_MODE=all` (the default) and has access to docker and full process management. Note: `HOST_DOCKER_AVAILABLE` tests (docker-sync) are skipped in docker — run those on the host directly.
 
 # Type checks
 

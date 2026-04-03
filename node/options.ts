@@ -155,7 +155,7 @@ export type SandboxConfig = {
 export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
   filesystem: {
     allowWrite: ["./"],
-    denyWrite: [".env", ".git/hooks/", ".magenta"],
+    denyWrite: [".env", ".git/hooks/", ".magenta", "~/.magenta"],
     denyRead: [
       // Credentials and keys (literal paths → subpath matching blocks dir + all contents)
       "~/.ssh",
