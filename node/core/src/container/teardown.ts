@@ -1,5 +1,6 @@
 import { execFile as execFileCb } from "node:child_process";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { promisify } from "node:util";
 import type { TeardownResult } from "./types.ts";
@@ -8,83 +9,55 @@ const execFile = promisify(execFileCb);
 
 export async function teardownContainer({
   containerName,
-  repoPath,
-  baseBranch,
-  workerBranch,
-  startSha,
   workspacePath,
-  tempDir,
+  hostDir,
   onProgress,
 }: {
   containerName: string;
-  repoPath: string;
-  baseBranch: string;
-  workerBranch: string;
-  startSha: string;
   workspacePath: string;
-  tempDir: string;
+  hostDir: string;
   onProgress?: (message: string) => void;
 }): Promise<TeardownResult> {
   const progress = onProgress ?? (() => {});
 
-  // Count commits the agent made
-  progress("Extracting commits from container...");
-  const { stdout: commitCountStr } = await execFile("docker", [
-    "exec",
-    "-w",
-    workspacePath,
-    containerName,
-    "git",
-    "rev-list",
-    "--count",
-    `${startSha}..HEAD`,
-  ]).catch(() => ({ stdout: "0" }));
+  const tempDir = await fs.promises.mkdtemp(
+    path.join(os.tmpdir(), "magenta-teardown-"),
+  );
 
-  const commitCount = parseInt(commitCountStr.trim(), 10);
+  try {
+    progress("Copying files from container...");
+    const containerSrc = `${containerName}:${workspacePath}/.`;
+    const tempDest = path.join(tempDir, "workspace");
+    await fs.promises.mkdir(tempDest, { recursive: true });
+    await execFile("docker", ["cp", containerSrc, tempDest]);
 
-  if (commitCount > 0) {
-    // Create a git bundle of the worker branch
-    const bundlePath = path.join(workspacePath, "worker.bundle");
-    await execFile("docker", [
-      "exec",
-      "-w",
-      workspacePath,
-      containerName,
-      "git",
-      "bundle",
-      "create",
-      bundlePath,
-      workerBranch,
-    ]);
+    progress("Syncing files to host directory...");
+    const rsyncArgs = [
+      "-a",
+      "--delete",
+    ];
 
-    // Copy the bundle out of the container
-    const hostBundlePath = path.join(tempDir, "worker.bundle");
-    await execFile("docker", [
-      "cp",
-      `${containerName}:${bundlePath}`,
-      hostBundlePath,
-    ]);
+    const dockerignorePath = path.join(hostDir, ".dockerignore");
+    try {
+      await fs.promises.access(dockerignorePath);
+      rsyncArgs.push(`--exclude-from=${dockerignorePath}`);
+    } catch {
+      // no .dockerignore, sync everything
+    }
 
-    // Import the branch into the host repo
-    progress("Importing commits to host repo...");
-    await execFile("git", [
-      "-C",
-      repoPath,
-      "fetch",
-      hostBundlePath,
-      `${workerBranch}:${workerBranch}`,
-    ]);
+    // trailing slash on source is important for rsync
+    rsyncArgs.push(`${tempDest}/`, `${hostDir}/`);
+
+    const { stdout } = await execFile("rsync", rsyncArgs);
+    const syncedFiles = stdout
+      .split("\n")
+      .filter((line) => line.length > 0).length;
+
+    progress("Removing container...");
+    await execFile("docker", ["rm", "-f", containerName]).catch(() => {});
+
+    return { syncedFiles };
+  } finally {
+    await fs.promises.rm(tempDir, { recursive: true, force: true });
   }
-
-  progress("Stopping container...");
-  await execFile("docker", ["rm", "-f", containerName]).catch(() => {});
-
-  progress("Cleaning up...");
-  await fs.promises.rm(tempDir, { recursive: true, force: true });
-
-  return {
-    workerBranch,
-    baseBranch,
-    commitCount,
-  };
 }
