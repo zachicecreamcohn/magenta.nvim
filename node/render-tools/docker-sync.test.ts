@@ -1,18 +1,9 @@
-import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ToolName, ToolRequestId } from "@magenta/core";
 import { describe, expect, it } from "vitest";
+import { FULL_CAPABILITIES } from "../test/capabilities.ts";
 import { withDriver } from "../test/preamble.ts";
-
-const DOCKER_AVAILABLE = (() => {
-  try {
-    execFileSync("docker", ["info"], { timeout: 5000, stdio: "pipe" });
-    return true;
-  } catch {
-    return false;
-  }
-})();
 
 const MINIMAL_DOCKERFILE = `\
 FROM node:24-bookworm-slim
@@ -21,7 +12,7 @@ COPY . .
 CMD ["tail", "-f", "/dev/null"]
 `;
 
-describe.skipIf(!DOCKER_AVAILABLE)("docker subagent file sync", () => {
+describe.runIf(FULL_CAPABILITIES)("docker subagent file sync", () => {
   it(
     "files edited and created in docker container are synced back to host on yield",
     async () => {
