@@ -74,6 +74,14 @@ magenta-dev-containers` for details.
 <details>
 <summary>Recent updates (click to expand)</summary>
 
+## Apr 2026
+
+- OS-level sandboxing: integrated `@anthropic-ai/sandbox-runtime` (seatbelt on macOS, bubblewrap on Linux) for shell commands and file I/O pre-flight checks. Configurable sandbox policy with sensible defaults that protect credentials and dotfiles.
+- Security: `.magenta/options.json` is now protected from agent tampering.
+- Branchless docker: simplified container provisioning to directory-based (no git branches), with rsync-based file sync on teardown.
+- Test segmentation: `TEST_MODE` env var splits tests into sandbox (local) and full-capabilities (docker) modes. New `tests-in-sandbox` subagent for fast local feedback.
+- Renamed the `docs` tool to `learn` tool.
+
 ## Mar 2026
 
 - Dev containers: spawn Docker sub-agents that work on isolated branches in containers. Dockerfile-based, no bind mounts, Docker layer caching for fast startup.
