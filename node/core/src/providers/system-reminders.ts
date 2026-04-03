@@ -53,7 +53,7 @@ ${BASH_REMINDER}
 ${EDL_REMINDER}
 ${EXPLORE_REMINDER}
 
-CRITICAL: You are in a Docker container. Commit all changes with git and call yield_to_parent when done. Your working tree must be clean before yielding.
+CRITICAL: You are in a Docker container. Call yield_to_parent when done. Your changes will be synced back automatically.
 </system-reminder>`;
     case "subagent": {
       const customReminder = subagentConfig?.systemReminder

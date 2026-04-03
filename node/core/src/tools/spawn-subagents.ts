@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type AgentsMap, formatAgentsIntroduction } from "../agents/agents.ts";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
 import type { SubagentConfig, ThreadId } from "../chat-types.ts";
-import type { ContainerConfig, ProvisionResult } from "../container/types.ts";
+import { provisionContainer } from "../container/provision.ts";
+import type { ContainerConfig } from "../container/types.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
@@ -30,7 +31,7 @@ export type SubagentEntry = {
   contextFiles?: UnresolvedFilePath[];
   agentType?: string;
   environment?: "host" | "docker" | "docker_unsupervised";
-  branch?: string;
+  directory?: string;
 };
 
 export type Input = {
@@ -98,17 +99,6 @@ export function execute(
     requestRender: () => void;
     cwd: NvimCwd;
     agents: AgentsMap;
-    containerProvisioner?:
-      | {
-          containerConfig: ContainerConfig;
-          provision: (opts: {
-            repoPath: string;
-            baseBranch?: string;
-            containerConfig: ContainerConfig;
-            onProgress?: (message: string) => void;
-          }) => Promise<ProvisionResult>;
-        }
-      | undefined;
   },
 ): ToolInvocation & { progress: SpawnSubagentsProgress } {
   const input = request.input;
@@ -135,7 +125,7 @@ export function execute(
 
     if (entry.agentType !== undefined) merged.agentType = entry.agentType;
     if (entry.environment !== undefined) merged.environment = entry.environment;
-    if (entry.branch !== undefined) merged.branch = entry.branch;
+    if (entry.directory !== undefined) merged.directory = entry.directory;
 
     return merged;
   });
@@ -191,35 +181,51 @@ export function execute(
     entry: SubagentEntry,
     ctx: typeof context,
   ): Promise<void> => {
-    if (!entry.branch) {
+    const hostDir = resolve(ctx.cwd, entry.directory ?? ".");
+
+    let containerConfig: ContainerConfig;
+    try {
+      const optionsPath = join(hostDir, ".magenta", "options.json");
+      const optionsJson = JSON.parse(
+        readFileSync(optionsPath, "utf-8"),
+      ) as Record<string, unknown>;
+      const container = optionsJson.container;
+      if (
+        typeof container !== "object" ||
+        container === undefined ||
+        container === null ||
+        !("dockerfile" in container) ||
+        !("workspacePath" in container) ||
+        typeof (container as Record<string, unknown>).dockerfile !== "string" ||
+        typeof (container as Record<string, unknown>).workspacePath !== "string"
+      ) {
+        throw new Error(
+          "container config must have dockerfile and workspacePath strings",
+        );
+      }
+      const c = container as Record<string, unknown>;
+      containerConfig = {
+        dockerfile: c.dockerfile as string,
+        workspacePath: c.workspacePath as string,
+        ...(typeof c.installCommand === "string"
+          ? { installCommand: c.installCommand }
+          : {}),
+      };
+    } catch (e) {
       element.state = {
         status: "spawn-error",
-        error:
-          "branch parameter is required when environment is 'docker' or 'docker_unsupervised'",
+        error: `Failed to read container config from ${hostDir}/.magenta/options.json: ${e instanceof Error ? e.message : String(e)}`,
       };
       ctx.requestRender();
       return;
     }
-
-    if (!ctx.containerProvisioner) {
-      element.state = {
-        status: "spawn-error",
-        error:
-          "Docker environment is not configured. Set options.container in your magenta config.",
-      };
-      ctx.requestRender();
-      return;
-    }
-
-    const provisioner = ctx.containerProvisioner;
 
     element.state = { status: "provisioning", message: "Starting..." };
     ctx.requestRender();
 
-    const provisionResult = await provisioner.provision({
-      repoPath: ctx.cwd,
-      baseBranch: entry.branch,
-      containerConfig: provisioner.containerConfig,
+    const provisionResult = await provisionContainer({
+      hostDir,
+      containerConfig,
       onProgress: (message) => {
         element.state = { status: "provisioning", message };
         ctx.requestRender();
@@ -232,13 +238,10 @@ export function execute(
       threadType: "docker_root",
       ...(entry.contextFiles ? { contextFiles: entry.contextFiles } : {}),
       dockerSpawnConfig: {
-        baseBranch: entry.branch ?? "HEAD",
-        workerBranch: provisionResult.workerBranch,
         containerName: provisionResult.containerName,
-        tempDir: provisionResult.tempDir,
         imageName: provisionResult.imageName,
-        startSha: provisionResult.startSha,
-        workspacePath: provisioner.containerConfig.workspacePath,
+        workspacePath: containerConfig.workspacePath,
+        hostDir,
         supervised: entry.environment === "docker_unsupervised",
       },
     });
@@ -510,12 +513,12 @@ export function getSpec(agents: AgentsMap): ProviderToolSpec {
                 type: "string",
                 enum: ["host", "docker", "docker_unsupervised"],
                 description:
-                  "Where the sub-agent runs. 'host' (default) runs locally, 'docker'/'docker_unsupervised' runs in an isolated container. Requires the 'branch' parameter for docker environments.",
+                  "Where the sub-agent runs. 'host' (default) runs locally, 'docker'/'docker_unsupervised' runs in an isolated container. The directory must contain .magenta/options.json with container config.",
               },
-              branch: {
+              directory: {
                 type: "string",
                 description:
-                  "Base branch to fork from for docker environments. Required when environment is 'docker' or 'docker_unsupervised'.",
+                  "Host directory to spawn the docker container from. Defaults to '.' (current working directory). The directory must contain .magenta/options.json with a container config.",
               },
             },
           },
@@ -633,11 +636,11 @@ export function validateInput(input: {
       }
     }
 
-    if (agent.branch !== undefined) {
-      if (typeof agent.branch !== "string") {
+    if (agent.directory !== undefined) {
+      if (typeof agent.directory !== "string") {
         return {
           status: "error",
-          error: `expected agents[${i}].branch to be a string but it was ${JSON.stringify(agent.branch)}`,
+          error: `expected agents[${i}].directory to be a string but it was ${JSON.stringify(agent.directory)}`,
         };
       }
     }

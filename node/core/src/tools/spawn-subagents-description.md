@@ -1,6 +1,6 @@
 Spawn one or more sub-agents that run in parallel, and wait for all of them to complete before returning.
 
-Each sub-agent entry can specify its own agentType, prompt, contextFiles, environment, and branch. All sub-agents run concurrently (subject to the configured concurrency limit) and the tool blocks until every sub-agent has finished.
+Each sub-agent entry can specify its own agentType, prompt, contextFiles, environment, and directory. All sub-agents run concurrently (subject to the configured concurrency limit) and the tool blocks until every sub-agent has finished.
 
 You can also specify `sharedPrompt` and `sharedContextFiles` at the top level — these are prepended/merged into every sub-agent's individual prompt and contextFiles.
 
@@ -17,7 +17,7 @@ You can also specify `sharedPrompt` and `sharedContextFiles` at the top level �
 `environment` selects where the sub-agent runs (orthogonal to agentType):
 
 - **host** (default) — runs locally on the host machine.
-- **docker** / **docker_unsupervised** — run a sub-agent in an isolated Docker container with full shell access. Requires the `branch` parameter. The container is provisioned with a unique worker branch forked from the specified base branch (or HEAD if not specified).
+- **docker** / **docker_unsupervised** — run a sub-agent in an isolated Docker container with full shell access. The container is built from a host directory (default: current working directory) which must contain `.magenta/options.json` with a `container` config. When the agent yields, file changes are automatically rsynced back to the host directory.
 
 ## Usage patterns
 

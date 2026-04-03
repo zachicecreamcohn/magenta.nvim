@@ -20,25 +20,7 @@ it("applies systemInfoOverrides for docker environments", async () => {
   });
 });
 
-it("includes worker branch info in docker system prompt when dockerContext is provided", async () => {
-  await withDriver({}, async (driver) => {
-    const systemPrompt = await createSystemPrompt("docker_root", {
-      nvim: driver.magenta.nvim,
-      cwd: driver.magenta.cwd,
-      options: driver.magenta.options,
-      dockerContext: {
-        workerBranch: "magenta/worker-abcd1234",
-        baseBranch: "my-feature",
-      },
-    });
-
-    expect(systemPrompt).toContain("`magenta/worker-abcd1234`");
-    expect(systemPrompt).toContain("`my-feature`");
-    expect(systemPrompt).toContain("# Docker Environment");
-  });
-});
-
-it("does not include branch info in docker prompt without dockerContext", async () => {
+it("docker_root prompt mentions syncing and yield_to_parent", async () => {
   await withDriver({}, async (driver) => {
     const systemPrompt = await createSystemPrompt("docker_root", {
       nvim: driver.magenta.nvim,
@@ -47,11 +29,13 @@ it("does not include branch info in docker prompt without dockerContext", async 
     });
 
     expect(systemPrompt).toContain("# Docker Environment");
-    expect(systemPrompt).not.toContain("magenta/worker-");
-    expect(systemPrompt).not.toContain("forked from");
+    expect(systemPrompt).toContain("yield_to_parent");
+    expect(systemPrompt).toContain("synced back");
+    expect(systemPrompt).not.toContain("commit");
+    expect(systemPrompt).not.toContain("worker branch");
   });
 });
-it("returns conductor base prompt without docker addendum when no dockerContext", async () => {
+it("returns conductor base prompt without docker addendum when dockerAvailable is false", async () => {
   await withDriver({}, async (driver) => {
     const systemPrompt = await createSystemPrompt("conductor", {
       nvim: driver.magenta.nvim,
@@ -65,16 +49,13 @@ it("returns conductor base prompt without docker addendum when no dockerContext"
   });
 });
 
-it("includes docker addendum in conductor prompt when dockerContext is provided", async () => {
+it("includes docker addendum in conductor prompt when dockerAvailable is true", async () => {
   await withDriver({}, async (driver) => {
     const systemPrompt = await createSystemPrompt("conductor", {
       nvim: driver.magenta.nvim,
       cwd: driver.magenta.cwd,
       options: driver.magenta.options,
-      dockerContext: {
-        workerBranch: "magenta/worker-test",
-        baseBranch: "main",
-      },
+      dockerAvailable: true,
     });
 
     expect(systemPrompt).toContain("You are a conductor");

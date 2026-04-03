@@ -53,7 +53,7 @@ export const COMPACT_SYSTEM_PROMPT =
 function getBaseSystemPrompt(
   type: ThreadType,
   opts: {
-    dockerContext?: DockerContext | undefined;
+    dockerAvailable?: boolean;
     subagentConfig?: SubagentConfig | undefined;
   },
 ): string {
@@ -68,39 +68,26 @@ function getBaseSystemPrompt(
       return DEFAULT_SYSTEM_PROMPT;
     case "conductor": {
       const base = CONDUCTOR_SYSTEM_PROMPT;
-      if (opts.dockerContext) {
+      if (opts.dockerAvailable) {
         return `${base}\n\n${CONDUCTOR_DOCKER_ADDENDUM}`;
       }
       return base;
     }
     case "docker_root": {
-      const branchInfo = opts.dockerContext
-        ? `\n\nYou are working on branch \`${opts.dockerContext.workerBranch}\` (forked from \`${opts.dockerContext.baseBranch}\`).`
-        : "";
       return (
         DEFAULT_SYSTEM_PROMPT +
         "\n\n# Docker Environment\n\n" +
         "You are running inside an isolated Docker container. " +
-        "You have full shell access and can install packages, run builds, and execute tests freely." +
-        branchInfo +
-        "\n\n**Important rules:**\n" +
-        "- Commit all your changes to the current branch with `git commit` before finishing.\n" +
-        "- Do NOT use `git push` — there is no remote configured inside the container.\n" +
-        "- When your task is complete and all changes are committed, call `yield_to_parent` with a summary of what you did.\n" +
-        "- Your git working tree must be clean (no uncommitted changes) when you yield.\n" +
-        "- When you yield, your commits will be automatically synced back to the host repository. " +
-        "The parent agent will see your changes on the worker branch.\n" +
+        "You have full shell access and can install packages, run builds, and execute tests freely. " +
+        "When your task is complete, call `yield_to_parent` with a summary of what you did. " +
+        "Your file changes will be automatically synced back to the host.\n\n" +
+        "**Important rules:**\n" +
         "- Do NOT stop without yielding. If you need to pause, explain why in your yield message."
       );
     }
     default:
       assertUnreachable(type);
   }
-}
-
-export interface DockerContext {
-  workerBranch: string;
-  baseBranch: string;
 }
 
 export function createSystemPrompt(
@@ -110,12 +97,12 @@ export function createSystemPrompt(
     logger: Logger;
     cwd: NvimCwd;
     options: ProviderOptions;
-    dockerContext?: DockerContext;
+    dockerAvailable?: boolean;
     subagentConfig?: SubagentConfig;
   },
 ): SystemPrompt {
   const basePrompt = getBaseSystemPrompt(type, {
-    dockerContext: context.dockerContext,
+    ...(context.dockerAvailable ? { dockerAvailable: true } : {}),
     subagentConfig: context.subagentConfig,
   });
   const skills = type === "compact" ? ({} as SkillsMap) : loadSkills(context);

@@ -32,10 +32,7 @@ export async function teardownContainer({
     await execFile("docker", ["cp", containerSrc, tempDest]);
 
     progress("Syncing files to host directory...");
-    const rsyncArgs = [
-      "-a",
-      "--delete",
-    ];
+    const rsyncArgs = ["-a", "--delete"];
 
     const dockerignorePath = path.join(hostDir, ".dockerignore");
     try {

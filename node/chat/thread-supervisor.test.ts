@@ -5,56 +5,21 @@ vi.mock("@magenta/core", async (importOriginal) => {
   return {
     ...orig,
     teardownContainer: vi.fn().mockResolvedValue({
-      workerBranch: "magenta/worker-abc123",
-      baseBranch: "feature-branch",
-      commitCount: 1,
+      syncedFiles: 5,
     }),
   };
 });
 
-import type { ContainerConfig, ProvisionResult } from "@magenta/core";
 import { teardownContainer } from "@magenta/core";
-import type { Shell, ShellResult } from "../capabilities/shell.ts";
-import type { NvimCwd } from "../utils/files.ts";
 import { DockerSupervisor } from "./thread-supervisor.ts";
-
-function createMockShell(execResult?: Partial<ShellResult>): Shell {
-  return {
-    execute: vi.fn().mockResolvedValue({
-      exitCode: 0,
-      signal: undefined,
-      output: [],
-      logFilePath: undefined,
-      durationMs: 10,
-      ...execResult,
-    }),
-    terminate: vi.fn(),
-  };
-}
-
-const mockProvisionResult: ProvisionResult = {
-  containerName: "test-container",
-  tempDir: "/tmp/test-dir",
-  imageName: "test-image",
-  startSha: "abc123",
-  workerBranch: "magenta/worker-abc123",
-};
-
-const mockContainerConfig: ContainerConfig = {
-  dockerfile: ".devcontainer",
-  workspacePath: "/workspace",
-  installCommand: "npm install",
-};
 
 describe("DockerSupervisor", () => {
   describe("onEndTurnWithoutYield", () => {
     it("returns send-message for auto-restart", () => {
       const supervisor = new DockerSupervisor(
-        createMockShell(),
-        mockProvisionResult,
-        mockContainerConfig,
-        "feature-branch",
-        "/repo" as NvimCwd,
+        "test-container",
+        "/workspace",
+        "/host/dir",
       );
 
       const action = supervisor.onEndTurnWithoutYield("end_turn");
@@ -67,11 +32,9 @@ describe("DockerSupervisor", () => {
 
     it("stops auto-restarting after max retries", () => {
       const supervisor = new DockerSupervisor(
-        createMockShell(),
-        mockProvisionResult,
-        mockContainerConfig,
-        "feature-branch",
-        "/repo" as NvimCwd,
+        "test-container",
+        "/workspace",
+        "/host/dir",
         { maxRestarts: 2 },
       );
 
@@ -86,11 +49,9 @@ describe("DockerSupervisor", () => {
 
     it("does not restart when stop reason is aborted", () => {
       const supervisor = new DockerSupervisor(
-        createMockShell(),
-        mockProvisionResult,
-        mockContainerConfig,
-        "feature-branch",
-        "/repo" as NvimCwd,
+        "test-container",
+        "/workspace",
+        "/host/dir",
       );
 
       const action = supervisor.onEndTurnWithoutYield("aborted");
@@ -99,62 +60,33 @@ describe("DockerSupervisor", () => {
   });
 
   describe("onYield", () => {
-    it("rejects yield when git status is dirty", async () => {
-      const shell = createMockShell({
-        output: [{ stream: "stdout", text: " M dirty-file.ts" }],
-      });
+    it("calls teardownContainer and returns accept", async () => {
       const supervisor = new DockerSupervisor(
-        shell,
-        mockProvisionResult,
-        mockContainerConfig,
-        "feature-branch",
-        "/repo" as NvimCwd,
+        "test-container",
+        "/workspace",
+        "/host/dir",
       );
 
       const action = await supervisor.onYield("done");
-      expect(action.type).toBe("reject");
-      if (action.type === "reject") {
-        expect(action.message).toContain("dirty");
-        expect(action.message).toContain("dirty-file.ts");
-      }
-    });
-
-    it("accepts yield when git status is clean", async () => {
-      const shell = createMockShell({ output: [] });
-      const supervisor = new DockerSupervisor(
-        shell,
-        mockProvisionResult,
-        mockContainerConfig,
-        "feature-branch",
-        "/repo" as NvimCwd,
-      );
-
-      const action = await supervisor.onYield("done");
-
       expect(action.type).toBe("accept");
       if (action.type === "accept") {
-        expect(action.resultPrefix).toContain("magenta/worker-abc123");
-        expect(action.resultPrefix).toContain("feature-branch");
-        expect(action.resultPrefix).toContain("1 commit(s)");
+        expect(action.resultPrefix).toContain("/host/dir");
       }
       expect(teardownContainer).toHaveBeenCalledWith(
         expect.objectContaining({
           containerName: "test-container",
-          baseBranch: "feature-branch",
-          workerBranch: "magenta/worker-abc123",
+          workspacePath: "/workspace",
+          hostDir: "/host/dir",
         }),
       );
     });
 
     it("forwards onProgress to teardownContainer", async () => {
-      const shell = createMockShell({ output: [] });
       const onProgress = vi.fn();
       const supervisor = new DockerSupervisor(
-        shell,
-        mockProvisionResult,
-        mockContainerConfig,
-        "feature-branch",
-        "/repo" as NvimCwd,
+        "test-container",
+        "/workspace",
+        "/host/dir",
         { onProgress },
       );
 
@@ -162,21 +94,16 @@ describe("DockerSupervisor", () => {
 
       expect(teardownContainer).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseBranch: "feature-branch",
-          workerBranch: "magenta/worker-abc123",
           onProgress,
         }),
       );
     });
 
     it("does not pass onProgress when not provided", async () => {
-      const shell = createMockShell({ output: [] });
       const supervisor = new DockerSupervisor(
-        shell,
-        mockProvisionResult,
-        mockContainerConfig,
-        "feature-branch",
-        "/repo" as NvimCwd,
+        "test-container",
+        "/workspace",
+        "/host/dir",
       );
 
       await supervisor.onYield("done");
@@ -189,11 +116,9 @@ describe("DockerSupervisor", () => {
   describe("onAbort", () => {
     it("returns none", () => {
       const supervisor = new DockerSupervisor(
-        createMockShell(),
-        mockProvisionResult,
-        mockContainerConfig,
-        "feature-branch",
-        "/repo" as NvimCwd,
+        "test-container",
+        "/workspace",
+        "/host/dir",
       );
 
       expect(supervisor.onAbort()).toEqual({ type: "none" });

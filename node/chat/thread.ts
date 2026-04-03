@@ -221,7 +221,6 @@ export class Thread {
         availableCapabilities: env.availableCapabilities,
         environmentConfig: env.environmentConfig,
         maxConcurrentSubagents: context.options.maxConcurrentSubagents || 3,
-        container: context.options.container,
         getAgents: () =>
           loadAgents({
             cwd: isDocker ? env.cwd : context.cwd,
