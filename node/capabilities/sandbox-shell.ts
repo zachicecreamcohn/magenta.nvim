@@ -13,8 +13,15 @@ import {
   terminateProcess,
 } from "./shell-utils.ts";
 
+/** Grace period (ms) after first violation before terminating the process */
+export const VIOLATION_GRACE_PERIOD_MS = 5000;
+/** Interval (ms) between violation store polls during execution */
+export const VIOLATION_POLL_INTERVAL_MS = 100;
+
 export class SandboxShell implements Shell {
   private runningProcess: ChildProcess | undefined;
+  private violationGracePeriodMs: number;
+  private violationPollIntervalMs: number;
 
   constructor(
     private context: {
@@ -25,7 +32,16 @@ export class SandboxShell implements Shell {
     },
     private sandbox: Sandbox,
     private violationHandler: SandboxViolationHandler,
-  ) {}
+    opts?: {
+      violationGracePeriodMs?: number;
+      violationPollIntervalMs?: number;
+    },
+  ) {
+    this.violationGracePeriodMs =
+      opts?.violationGracePeriodMs ?? VIOLATION_GRACE_PERIOD_MS;
+    this.violationPollIntervalMs =
+      opts?.violationPollIntervalMs ?? VIOLATION_POLL_INTERVAL_MS;
+  }
 
   terminate(): void {
     const childProcess = this.runningProcess;
@@ -165,11 +181,18 @@ export class SandboxShell implements Shell {
     const preCount = store.getTotalCount();
 
     const wrapped = await this.sandbox.wrapWithSandbox(command);
-    const result = await this.spawnCommand(wrapped, opts);
 
-    // When a command fails, poll briefly for sandbox violation events which
-    // arrive asynchronously via the macOS `log stream` monitor
-    if (result.exitCode !== 0) {
+    // Monitor violations during execution and terminate early if a violation
+    // is detected and the process doesn't finish within the grace period.
+    // This prevents commands from spinning for minutes hitting the same
+    // denied syscall repeatedly.
+    const monitor = this.startViolationMonitor(store, preCount);
+    const result = await this.spawnCommand(wrapped, opts);
+    monitor.stop();
+
+    // If the monitor didn't catch a violation during execution, poll briefly
+    // for late-arriving violation events from the macOS `log stream` monitor
+    if (result.exitCode !== 0 && !monitor.violationDetected) {
       const deadline = Date.now() + 100;
       while (store.getTotalCount() === preCount && Date.now() < deadline) {
         await new Promise((resolve) => setTimeout(resolve, 10));
@@ -196,5 +219,37 @@ export class SandboxShell implements Shell {
 
     this.sandbox.cleanupAfterCommand();
     return result;
+  }
+
+  private startViolationMonitor(
+    store: ReturnType<Sandbox["getViolationStore"]>,
+    preCount: number,
+  ): { stop: () => void; violationDetected: boolean } {
+    let stopped = false;
+    let violationDetected = false;
+    let graceTimeout: ReturnType<typeof setTimeout> | undefined;
+
+    const pollInterval = setInterval(() => {
+      if (stopped) return;
+      if (store.getTotalCount() > preCount && !graceTimeout) {
+        violationDetected = true;
+        graceTimeout = setTimeout(() => {
+          if (!stopped) {
+            this.terminate();
+          }
+        }, this.violationGracePeriodMs);
+      }
+    }, this.violationPollIntervalMs);
+
+    return {
+      get violationDetected() {
+        return violationDetected;
+      },
+      stop: () => {
+        stopped = true;
+        clearInterval(pollInterval);
+        if (graceTimeout) clearTimeout(graceTimeout);
+      },
+    };
   }
 }

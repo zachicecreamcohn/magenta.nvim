@@ -559,4 +559,154 @@ describe("SandboxShell", () => {
       expect(handler.addViolation).not.toHaveBeenCalled();
     });
   });
+
+  describe("early termination on violation", () => {
+    test("terminates long-running command after grace period when violation detected during execution", async () => {
+      let totalCount = 0;
+
+      mockGetSandboxViolationStore.mockReturnValue({
+        getTotalCount: () => totalCount,
+        getViolations: (limit: number) =>
+          [
+            {
+              line: "sandbox deny write /etc/passwd",
+              command: "long-running-cmd",
+              timestamp: new Date(),
+            },
+          ].slice(0, limit),
+      });
+      mockAnnotateStderrWithSandboxFailures.mockReturnValue(
+        "Operation not permitted",
+      );
+
+      // Process that runs until killed
+      const proc = createMockChildProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      // Violation arrives 20ms into execution
+      setTimeout(() => {
+        totalCount = 1;
+      }, 20);
+
+      // When kill is called (by terminate after grace period), close the process
+      proc.kill = vi.fn(() => {
+        setTimeout(() => {
+          proc._emit("close", null, "SIGTERM");
+        }, 10);
+        return true;
+      });
+
+      const handler = createMockViolationHandler();
+      const violationResult: ShellResult = {
+        exitCode: 0,
+        signal: undefined,
+        output: [],
+        logFilePath: undefined,
+        durationMs: 100,
+      };
+      handler.addViolation.mockResolvedValue(violationResult);
+
+      // Use short timings so the test completes quickly
+      const shell = new SandboxShell(createContext(), mockSandbox, handler, {
+        violationGracePeriodMs: 100,
+        violationPollIntervalMs: 10,
+      });
+
+      const result = await shell.execute("long-running-cmd", createOpts());
+
+      expect(proc.kill).toHaveBeenCalled();
+      expect(handler.addViolation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          command: "long-running-cmd",
+        }),
+        expect.any(Function),
+      );
+      expect(result).toBe(violationResult);
+    });
+
+    test("does not terminate if command finishes within grace period", async () => {
+      let totalCount = 0;
+
+      mockGetSandboxViolationStore.mockReturnValue({
+        getTotalCount: () => totalCount,
+        getViolations: (limit: number) =>
+          [
+            {
+              line: "sandbox deny read /secret",
+              command: "quick-cmd",
+              timestamp: new Date(),
+            },
+          ].slice(0, limit),
+      });
+      mockAnnotateStderrWithSandboxFailures.mockReturnValue("denied");
+
+      const proc = createMockChildProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      // Violation arrives at 50ms
+      setTimeout(() => {
+        totalCount = 1;
+      }, 50);
+
+      // But the process finishes at 200ms (well within 5s grace period)
+      setTimeout(() => {
+        proc._emit("stderr:data", Buffer.from("denied"));
+        proc._emit("close", 1, null);
+      }, 200);
+
+      const handler = createMockViolationHandler();
+      handler.addViolation.mockResolvedValue({
+        exitCode: 0,
+        signal: undefined,
+        output: [],
+        logFilePath: undefined,
+        durationMs: 200,
+      } as ShellResult);
+
+      const shell = new SandboxShell(createContext(), mockSandbox, handler);
+      await shell.execute("quick-cmd", createOpts());
+
+      // Process was NOT killed - it exited naturally
+      expect(proc.kill).not.toHaveBeenCalled();
+      // But violation was still detected and reported
+      expect(handler.addViolation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          command: "quick-cmd",
+        }),
+        expect.any(Function),
+      );
+    });
+
+    test("does not terminate when command succeeds despite violation during execution", async () => {
+      let totalCount = 0;
+
+      mockGetSandboxViolationStore.mockReturnValue({
+        getTotalCount: () => totalCount,
+        getViolations: () => [],
+      });
+
+      const proc = createMockChildProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      // Violation arrives during execution
+      setTimeout(() => {
+        totalCount = 1;
+      }, 50);
+
+      // But process exits successfully
+      setTimeout(() => {
+        proc._emit("stdout:data", Buffer.from("ok"));
+        proc._emit("close", 0, null);
+      }, 100);
+
+      const handler = createMockViolationHandler();
+      const shell = new SandboxShell(createContext(), mockSandbox, handler);
+      const result = await shell.execute("resilient-cmd", createOpts());
+
+      // Violations are ignored for successful commands
+      expect(handler.addViolation).not.toHaveBeenCalled();
+      expect(result.exitCode).toBe(0);
+      expect(mockCleanupAfterCommand).toHaveBeenCalled();
+    });
+  });
 });
