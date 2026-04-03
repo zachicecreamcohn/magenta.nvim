@@ -4,6 +4,7 @@ We patch `@anthropic-ai/sandbox-runtime` to add missing macOS Seatbelt allowlist
 
 - `com.apple.FSEvents` (mach-lookup) — needed for Node.js file watching (fsevents)
 - `sysctl.oidfmt.*` (sysctl-read) — needed for sysctl OID format metadata lookups
+- `sysctl.name.*` (sysctl-read) — needed for sysctl numeric OID name lookups (e.g. `sysctl.name.6.105`)
 
 The patch lives in `patches/@anthropic-ai+sandbox-runtime+<version>.patch` and is applied automatically on `npm install` via the `postinstall` script (using `patch-package`).
 
