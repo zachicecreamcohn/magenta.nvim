@@ -39,8 +39,6 @@ export type PendingViolation = {
   reject: (err: Error) => void;
 };
 
-const TRUNCATED_OUTPUT_LINES = 30;
-
 function normalizeViolationLine(line: string): string {
   // Strip process-specific PIDs so e.g. "sysctl(77444)" and "sysctl(77445)"
   // are treated as the same violation.
@@ -58,24 +56,8 @@ function deduplicateViolations(
   return [...counts.entries()].map(([line, count]) => ({ line, count }));
 }
 
-function truncateOutput(
-  text: string,
-  maxLines: number,
-): { truncated: string; totalLines: number; wasTruncated: boolean } {
-  const lines = text.split("\n");
-  if (lines.length <= maxLines) {
-    return { truncated: text, totalLines: lines.length, wasTruncated: false };
-  }
-  return {
-    truncated: lines.slice(-maxLines).join("\n"),
-    totalLines: lines.length,
-    wasTruncated: true,
-  };
-}
-
 export class SandboxViolationHandler {
   private pending: Map<string, PendingViolation> = new Map();
-  private expandedOutputs: Set<string> = new Set();
   private nextId = 0;
 
   constructor(private onPendingChange: () => void) {}
@@ -197,36 +179,10 @@ export class SandboxViolationHandler {
     return d`
 ${entries.map(([id, entry]) => {
   if (entry.prompt.kind === "violation") {
-    const isExpanded = this.expandedOutputs.has(id);
-    const { truncated, totalLines, wasTruncated } = truncateOutput(
-      entry.prompt.violation.stderr,
-      TRUNCATED_OUTPUT_LINES,
-    );
-    const displayedOutput = isExpanded
-      ? entry.prompt.violation.stderr
-      : truncated;
     const dedupedViolations = deduplicateViolations(
       entry.prompt.violation.violations,
     );
     return d`🔒 Sandbox blocked: ${withInlineCode(d`\`${entry.prompt.violation.command}\``)}
-${
-  wasTruncated && !isExpanded
-    ? withBindings(
-        withExtmark(
-          d`> ... ${String(totalLines - TRUNCATED_OUTPUT_LINES)} lines hidden\n> ${displayedOutput}`,
-          { hl_group: "Comment" },
-        ),
-        {
-          "<CR>": () => {
-            this.expandedOutputs.add(id);
-            this.onPendingChange();
-          },
-        },
-      )
-    : withExtmark(d`> ${displayedOutput}`, {
-        hl_group: "Comment",
-      })
-}
 ${dedupedViolations.map(
   (v) =>
     d`${withExtmark(d`> ${v.line}${v.count > 1 ? ` (x${v.count})` : ""}`, {
