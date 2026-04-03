@@ -171,6 +171,17 @@ Quick reference:
 - Prefer realistic nvim interactions over internal API access for integration tests
 - Prefer unit tests over core classes for things that don't require neovim / UX interaction
 
+## Test Modes
+
+Tests are segmented by the `TEST_MODE` env var (`"all"` | `"sandbox"`). Default is `"all"`.
+
+- `npx vitest run` — runs all tests (default, `TEST_MODE=all`)
+- `TEST_MODE=sandbox npx vitest run` — skips tests requiring docker or process tree management
+
+Tests that need elevated privileges use `describe.runIf(FULL_CAPABILITIES)` or `it.runIf(FULL_CAPABILITIES)`, where `FULL_CAPABILITIES` is exported from `node/core/src/test/capabilities.ts` (re-exported from `node/test/capabilities.ts` for root project tests).
+
+When running locally on host without docker, use `TEST_MODE=sandbox`. For full test suite, use the `tests-in-docker` subagent which runs with `TEST_MODE=all` (the default).
+
 # Type checks
 
 Use `npx tsgo -b` to run type checking, from the project root. This uses build mode which handles the workspace project references (building `node/core` declarations first, then checking the root project). You do not need to cd into any subdirectory.

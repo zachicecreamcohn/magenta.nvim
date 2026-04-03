@@ -18,21 +18,11 @@ import {
 } from "@magenta/core";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createDockerEnvironment } from "../environment.ts";
+import { FULL_CAPABILITIES } from "../test/capabilities.ts";
 import { DockerFileIO } from "./docker-file-io.ts";
 import { DockerShell } from "./docker-shell.ts";
 
 const execFile = promisify(execFileCb);
-
-async function isDockerAvailable(): Promise<boolean> {
-  try {
-    await execFile("docker", ["info"]);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const dockerAvailable = await isDockerAvailable();
 
 const mockThreadId = "test-thread-docker" as ThreadId;
 
@@ -40,7 +30,7 @@ const mockMcpToolManager: MCPToolManager = {
   getToolSpecs: () => [],
 };
 
-describe.skipIf(!dockerAvailable)("Docker Environment", () => {
+describe.runIf(FULL_CAPABILITIES)("Docker Environment", () => {
   let containerId: string;
 
   beforeAll(async () => {
