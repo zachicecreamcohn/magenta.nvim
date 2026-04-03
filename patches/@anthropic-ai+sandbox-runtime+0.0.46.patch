@@ -1,16 +1,17 @@
 diff --git a/node_modules/@anthropic-ai/sandbox-runtime/dist/sandbox/macos-sandbox-utils.js b/node_modules/@anthropic-ai/sandbox-runtime/dist/sandbox/macos-sandbox-utils.js
-index 3f3471e..7eb36dd 100644
+index 3f3471e..179b9fc 100644
 --- a/node_modules/@anthropic-ai/sandbox-runtime/dist/sandbox/macos-sandbox-utils.js
 +++ b/node_modules/@anthropic-ai/sandbox-runtime/dist/sandbox/macos-sandbox-utils.js
-@@ -248,6 +248,7 @@ function generateSandboxProfile({ readConfig, writeConfig, httpProxyPort, socksP
+@@ -248,6 +248,8 @@ function generateSandboxProfile({ readConfig, writeConfig, httpProxyPort, socksP
          '  (global-name "com.apple.system.opendirectoryd.membership")',
          '  (global-name "com.apple.bsd.dirhelper")',
          '  (global-name "com.apple.securityd.xpc")',
 +        '  (global-name "com.apple.FSEvents")',
++        '  (global-name "com.apple.SystemConfiguration.DNSConfiguration")',
          '  (global-name "com.apple.coreservices.launchservicesd")',
          ')',
          '',
-@@ -337,6 +338,8 @@ function generateSandboxProfile({ readConfig, writeConfig, httpProxyPort, socksP
+@@ -337,6 +339,8 @@ function generateSandboxProfile({ readConfig, writeConfig, httpProxyPort, socksP
          '  (sysctl-name-prefix "kern.proc.pid.")',
          '  (sysctl-name-prefix "machdep.cpu.")',
          '  (sysctl-name-prefix "net.routetable.")',
