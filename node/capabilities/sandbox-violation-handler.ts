@@ -1,12 +1,13 @@
 import type { SandboxViolationEvent } from "@anthropic-ai/sandbox-runtime";
 import type { VDOMNode } from "../tea/view.ts";
 import { d, withBindings, withExtmark, withInlineCode } from "../tea/view.ts";
-import type { ShellResult } from "./shell.ts";
+import type { OutputLine, ShellResult } from "./shell.ts";
 
 export type SandboxViolation = {
   command: string;
   violations: SandboxViolationEvent[];
   stderr: string;
+  result: ShellResult;
 };
 
 type PendingApprovalPrompt = {
@@ -40,12 +41,19 @@ export type PendingViolation = {
 
 const TRUNCATED_OUTPUT_LINES = 30;
 
+function normalizeViolationLine(line: string): string {
+  // Strip process-specific PIDs so e.g. "sysctl(77444)" and "sysctl(77445)"
+  // are treated as the same violation.
+  return line.replace(/\(\d+\)/g, "(*)");
+}
+
 function deduplicateViolations(
   violations: SandboxViolationEvent[],
 ): { line: string; count: number }[] {
   const counts = new Map<string, number>();
   for (const v of violations) {
-    counts.set(v.line, (counts.get(v.line) ?? 0) + 1);
+    const key = normalizeViolationLine(v.line);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return [...counts.entries()].map(([line, count]) => ({ line, count }));
 }
@@ -141,11 +149,25 @@ export class SandboxViolationHandler {
     if (!entry) return;
 
     this.pending.delete(id);
-    const message =
-      entry.prompt.kind === "write-approval"
-        ? `The user did not allow writing to ${entry.prompt.absPath}.`
-        : "The user did not allow running this command.";
-    entry.reject(new Error(message));
+
+    if (entry.prompt.kind === "violation") {
+      const { result } = entry.prompt.violation;
+      const rejectionNote: OutputLine = {
+        stream: "stderr",
+        text: "The user rejected re-running this command outside the sandbox.",
+      };
+      entry.resolve({
+        ...result,
+        output: [...result.output, rejectionNote],
+      });
+    } else if (entry.prompt.kind === "write-approval") {
+      entry.reject(
+        new Error(`The user did not allow writing to ${entry.prompt.absPath}.`),
+      );
+    } else {
+      entry.reject(new Error("The user did not allow running this command."));
+    }
+
     this.onPendingChange();
   }
 
