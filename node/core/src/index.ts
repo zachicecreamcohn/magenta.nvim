@@ -146,7 +146,6 @@ export { PROVIDER_NAMES } from "./providers/provider-types.ts";
 export type { SkillInfo, SkillsMap } from "./providers/skills.ts";
 export { formatSkillsIntroduction, loadSkills } from "./providers/skills.ts";
 export type {
-  DockerContext,
   SystemInfo,
   SystemPrompt,
 } from "./providers/system-prompt.ts";

@@ -9,7 +9,6 @@ import type { LspClient } from "../capabilities/lsp-client.ts";
 import type { Shell } from "../capabilities/shell.ts";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
 import type { ThreadId } from "../chat-types.ts";
-import type { ContainerConfig, ProvisionResult } from "../container/types.ts";
 import type { EdlRegisters } from "../edl/index.ts";
 import type { Logger } from "../logger.ts";
 import type { ToolInvocation, ToolRequest } from "../tool-types.ts";
@@ -47,17 +46,6 @@ export type CreateToolContext = {
   threadManager: ThreadManager;
   requestRender: () => void;
   getAgents: () => AgentsMap;
-  containerProvisioner?:
-    | {
-        containerConfig: ContainerConfig;
-        provision: (opts: {
-          repoPath: string;
-          baseBranch?: string;
-          containerConfig: ContainerConfig;
-          onProgress?: (message: string) => void;
-        }) => Promise<ProvisionResult>;
-      }
-    | undefined;
 };
 
 export function createTool(
@@ -141,7 +129,6 @@ export function createTool(
         requestRender: context.requestRender,
         cwd: context.cwd,
         agents: context.getAgents(),
-        containerProvisioner: context.containerProvisioner,
       });
     }
 

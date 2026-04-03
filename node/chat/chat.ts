@@ -436,14 +436,6 @@ export class Chat implements ThreadManager {
               platform: "linux (docker)",
               cwd: environment.cwd,
             },
-            ...(dockerSpawnConfig
-              ? {
-                  dockerContext: {
-                    workerBranch: dockerSpawnConfig.workerBranch,
-                    baseBranch: dockerSpawnConfig.baseBranch,
-                  },
-                }
-              : {}),
           }
         : {}),
       ...(subagentConfig ? { subagentConfig } : {}),
@@ -464,19 +456,11 @@ export class Chat implements ThreadManager {
       await thread.contextManager.addFiles(contextFiles);
     }
 
-    if (dockerSpawnConfig?.supervised && this.context.getOptions().container) {
+    if (dockerSpawnConfig?.supervised) {
       thread.supervisor = new DockerSupervisor(
-        environment.shell,
-        {
-          containerName: dockerSpawnConfig.containerName,
-          tempDir: dockerSpawnConfig.tempDir,
-          imageName: dockerSpawnConfig.imageName,
-          startSha: dockerSpawnConfig.startSha,
-          workerBranch: dockerSpawnConfig.workerBranch,
-        },
-        this.context.getOptions().container!,
-        dockerSpawnConfig.baseBranch,
-        this.context.cwd,
+        dockerSpawnConfig.containerName,
+        dockerSpawnConfig.workspacePath,
+        dockerSpawnConfig.hostDir,
         {
           onProgress: (message) => {
             thread.core.update({

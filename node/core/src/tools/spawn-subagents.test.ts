@@ -1,11 +1,23 @@
-import { describe, expect, it, vi } from "vitest";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
 import type { ThreadId } from "../chat-types.ts";
-import type { ContainerConfig, ProvisionResult } from "../container/types.ts";
+import type { ProvisionResult } from "../container/types.ts";
 import type { ProviderToolResult } from "../providers/provider-types.ts";
 import type { ToolRequestId } from "../tool-types.ts";
 import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
+
+vi.mock("../container/provision.ts", () => ({
+  provisionContainer: vi.fn().mockResolvedValue({
+    containerName: "magenta-test-abc123",
+    imageName: "magenta-dev-test",
+  } satisfies ProvisionResult),
+}));
+
+import { provisionContainer } from "../container/provision.ts";
 import * as SpawnSubagents from "./spawn-subagents.ts";
 
 type MockThreadManager = ThreadManager & {
@@ -502,13 +514,13 @@ describe("spawn-subagents unit tests", () => {
     }
   });
 
-  it("validation rejects non-string branch", () => {
+  it("validation rejects non-string directory", () => {
     const result = SpawnSubagents.validateInput({
-      agents: [{ prompt: "test", branch: 123 }],
+      agents: [{ prompt: "test", directory: 123 }],
     });
     expect(result.status).toBe("error");
     if (result.status === "error") {
-      expect(result.error).toContain("branch");
+      expect(result.error).toContain("directory");
     }
   });
 
@@ -550,37 +562,39 @@ describe("spawn-subagents unit tests", () => {
 });
 
 describe("spawn-subagents docker provisioning", () => {
-  const containerConfig: ContainerConfig = {
-    dockerfile: "Dockerfile",
-    workspacePath: "/workspace",
-    installCommand: "npm install",
-  };
+  let tempDir: string;
 
-  const provisionResult: ProvisionResult = {
-    containerName: "magenta-test-abc123",
-    tempDir: "/tmp/magenta-dev-containers/magenta-test-abc123",
-    imageName: "magenta-dev-test",
-    startSha: "abc123",
-    workerBranch: "magenta/worker-abc123",
-  };
-
-  it("updates provisioning progress during docker provisioning", async () => {
-    const threadManager = createMockThreadManager();
-    const requestRender = vi.fn();
-
-    const provision = vi.fn(
-      (opts: {
-        repoPath: string;
-        baseBranch?: string;
-        containerConfig: ContainerConfig;
-        onProgress?: (message: string) => void;
-      }) => {
-        opts.onProgress?.("Cloning repository...");
-        opts.onProgress?.("Building Docker image...");
-        opts.onProgress?.("Starting container...");
-        return Promise.resolve(provisionResult);
-      },
+  beforeEach(async () => {
+    tempDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "magenta-spawn-test-"),
     );
+    // Create .magenta/options.json with container config
+    await fs.promises.mkdir(path.join(tempDir, ".magenta"), {
+      recursive: true,
+    });
+    await fs.promises.writeFile(
+      path.join(tempDir, ".magenta", "options.json"),
+      JSON.stringify({
+        container: {
+          dockerfile: "Dockerfile",
+          workspacePath: "/workspace",
+        },
+      }),
+    );
+    vi.mocked(provisionContainer).mockReset().mockResolvedValue({
+      containerName: "magenta-test-abc123",
+      imageName: "magenta-dev-test",
+    });
+  });
+
+  afterEach(async () => {
+    if (tempDir) {
+      await fs.promises.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads container config from directory and provisions", async () => {
+    const threadManager = createMockThreadManager();
 
     const invocation = SpawnSubagents.execute(
       makeRequest({
@@ -588,7 +602,7 @@ describe("spawn-subagents docker provisioning", () => {
           {
             prompt: "do docker work",
             environment: "docker",
-            branch: "feature-branch",
+            directory: tempDir,
           },
         ],
       }),
@@ -596,10 +610,9 @@ describe("spawn-subagents docker provisioning", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
-        requestRender,
+        requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
-        containerProvisioner: { containerConfig, provision },
       },
     );
 
@@ -612,37 +625,52 @@ describe("spawn-subagents docker provisioning", () => {
     });
 
     await invocation.promise;
-    expect(provision).toHaveBeenCalledWith(
-      expect.objectContaining({ onProgress: expect.any(Function) }),
-    );
-  });
-
-  it("returns error when branch is missing for docker environment", async () => {
-    const threadManager = createMockThreadManager();
-
-    const invocation = SpawnSubagents.execute(
-      makeRequest({
-        agents: [{ prompt: "do docker work", environment: "docker" }],
-      }),
-      {
-        threadManager,
-        threadId: "parent-1" as ThreadId,
-        maxConcurrentSubagents: 10,
-        requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
-        agents: {},
-        containerProvisioner: {
-          containerConfig,
-          provision: vi.fn(),
+    expect(provisionContainer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hostDir: tempDir,
+        containerConfig: {
+          dockerfile: "Dockerfile",
+          workspacePath: "/workspace",
         },
-      },
+      }),
     );
-
-    const text = await getResultText(invocation);
-    expect(text).toContain("branch parameter is required");
   });
 
-  it("returns error when containerProvisioner is not configured", async () => {
+  it("returns error when .magenta/options.json is missing", async () => {
+    const threadManager = createMockThreadManager();
+    const emptyDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "magenta-spawn-empty-"),
+    );
+
+    try {
+      const invocation = SpawnSubagents.execute(
+        makeRequest({
+          agents: [
+            {
+              prompt: "do docker work",
+              environment: "docker",
+              directory: emptyDir,
+            },
+          ],
+        }),
+        {
+          threadManager,
+          threadId: "parent-1" as ThreadId,
+          maxConcurrentSubagents: 10,
+          requestRender: vi.fn(),
+          cwd: "/test" as NvimCwd,
+          agents: {},
+        },
+      );
+
+      const text = await getResultText(invocation);
+      expect(text).toContain("Failed to read container config");
+    } finally {
+      await fs.promises.rm(emptyDir, { recursive: true, force: true });
+    }
+  });
+
+  it("spawns docker_root thread with correct dockerSpawnConfig", async () => {
     const threadManager = createMockThreadManager();
 
     const invocation = SpawnSubagents.execute(
@@ -651,7 +679,7 @@ describe("spawn-subagents docker provisioning", () => {
           {
             prompt: "do docker work",
             environment: "docker",
-            branch: "feature-branch",
+            directory: tempDir,
           },
         ],
       }),
@@ -662,37 +690,6 @@ describe("spawn-subagents docker provisioning", () => {
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
-      },
-    );
-
-    const text = await getResultText(invocation);
-    expect(text).toContain("Docker environment is not configured");
-  });
-
-  it("spawns docker_root thread with provision result", async () => {
-    const threadManager = createMockThreadManager();
-
-    const invocation = SpawnSubagents.execute(
-      makeRequest({
-        agents: [
-          {
-            prompt: "do docker work",
-            environment: "docker",
-            branch: "feature-branch",
-          },
-        ],
-      }),
-      {
-        threadManager,
-        threadId: "parent-1" as ThreadId,
-        maxConcurrentSubagents: 10,
-        requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
-        agents: {},
-        containerProvisioner: {
-          containerConfig,
-          provision: vi.fn().mockResolvedValue(provisionResult),
-        },
       },
     );
 
@@ -709,9 +706,10 @@ describe("spawn-subagents docker provisioning", () => {
       expect.objectContaining({
         threadType: "docker_root",
         dockerSpawnConfig: expect.objectContaining({
-          baseBranch: "feature-branch",
-          containerName: provisionResult.containerName,
-          workerBranch: provisionResult.workerBranch,
+          containerName: "magenta-test-abc123",
+          imageName: "magenta-dev-test",
+          workspacePath: "/workspace",
+          hostDir: tempDir,
         }),
       }),
     );
@@ -726,7 +724,7 @@ describe("spawn-subagents docker provisioning", () => {
           {
             prompt: "do docker work",
             environment: "docker_unsupervised",
-            branch: "feature-branch",
+            directory: tempDir,
           },
         ],
       }),
@@ -737,10 +735,6 @@ describe("spawn-subagents docker provisioning", () => {
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
-        containerProvisioner: {
-          containerConfig,
-          provision: vi.fn().mockResolvedValue(provisionResult),
-        },
       },
     );
 
@@ -756,6 +750,9 @@ describe("spawn-subagents docker provisioning", () => {
   });
 
   it("returns spawn-error when provision() rejects", async () => {
+    vi.mocked(provisionContainer).mockRejectedValue(
+      new Error("Docker daemon not running"),
+    );
     const threadManager = createMockThreadManager();
 
     const invocation = SpawnSubagents.execute(
@@ -764,7 +761,7 @@ describe("spawn-subagents docker provisioning", () => {
           {
             prompt: "do docker work",
             environment: "docker",
-            branch: "feature-branch",
+            directory: tempDir,
           },
         ],
       }),
@@ -775,24 +772,43 @@ describe("spawn-subagents docker provisioning", () => {
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
-        containerProvisioner: {
-          containerConfig,
-          provision: vi
-            .fn()
-            .mockRejectedValue(new Error("Docker daemon not running")),
-        },
       },
     );
 
     const text = await getResultText(invocation);
     expect(text).toContain("Docker daemon not running");
     expect(text).toContain("Failed: 1");
+  });
 
-    const state = invocation.progress.elements[0].state;
-    expect(state.status).toBe("spawn-error");
-    if (state.status === "spawn-error") {
-      expect(state.error).toContain("Docker daemon not running");
-    }
+  it("defaults directory to cwd when not specified", async () => {
+    const threadManager = createMockThreadManager();
+
+    SpawnSubagents.execute(
+      makeRequest({
+        agents: [
+          {
+            prompt: "do docker work",
+            environment: "docker",
+          },
+        ],
+      }),
+      {
+        threadManager,
+        threadId: "parent-1" as ThreadId,
+        maxConcurrentSubagents: 10,
+        requestRender: vi.fn(),
+        cwd: tempDir as NvimCwd,
+        agents: {},
+      },
+    );
+
+    await vi.waitFor(() => {
+      expect(threadManager.spawnThread).toHaveBeenCalled();
+    });
+
+    expect(provisionContainer).toHaveBeenCalledWith(
+      expect.objectContaining({ hostDir: tempDir }),
+    );
   });
 
   it("mixed agents: docker and non-docker in parallel", async () => {
@@ -811,7 +827,7 @@ describe("spawn-subagents docker provisioning", () => {
           {
             prompt: "docker task",
             environment: "docker",
-            branch: "main",
+            directory: tempDir,
           },
         ],
       }),
@@ -822,10 +838,6 @@ describe("spawn-subagents docker provisioning", () => {
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
-        containerProvisioner: {
-          containerConfig,
-          provision: vi.fn().mockResolvedValue(provisionResult),
-        },
       },
     );
 
@@ -1032,58 +1044,59 @@ describe("environment routing", () => {
   });
 
   it("environment + agentType are orthogonal: explore in docker", async () => {
-    const containerConfig = {
-      dockerfile: "Dockerfile",
-      workspacePath: "/workspace",
-      installCommand: "npm install",
-    };
-    const provisionResult = {
-      containerName: "magenta-test-abc123",
-      tempDir: "/tmp/magenta-dev-containers/magenta-test-abc123",
-      imageName: "magenta-dev-test",
-      startSha: "abc123",
-      workerBranch: "magenta/worker-abc123",
-    };
-
-    const threadManager = createMockThreadManager();
-
-    SpawnSubagents.execute(
-      makeRequest({
-        agents: [
-          {
-            prompt: "find something",
-            agentType: "explore",
-            environment: "docker",
-            branch: "main",
-          },
-        ],
-      }),
-      {
-        threadManager,
-        threadId: "parent-1" as ThreadId,
-        maxConcurrentSubagents: 10,
-        requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
-        agents: {},
-        containerProvisioner: {
-          containerConfig,
-          provision: vi.fn().mockResolvedValue(provisionResult),
-        },
-      },
+    // Create temp dir with .magenta/options.json
+    const dockerTempDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "magenta-spawn-explore-"),
     );
-
-    await vi.waitFor(() => {
-      expect(threadManager.spawnThread).toHaveBeenCalled();
-    });
-
-    expect(threadManager.spawnThread).toHaveBeenCalledWith(
-      expect.objectContaining({
-        threadType: "docker_root",
-        dockerSpawnConfig: expect.objectContaining({
-          containerName: "magenta-test-abc123",
+    try {
+      await fs.promises.mkdir(path.join(dockerTempDir, ".magenta"), {
+        recursive: true,
+      });
+      await fs.promises.writeFile(
+        path.join(dockerTempDir, ".magenta", "options.json"),
+        JSON.stringify({
+          container: { dockerfile: "Dockerfile", workspacePath: "/workspace" },
         }),
-      }),
-    );
+      );
+
+      const threadManager = createMockThreadManager();
+
+      SpawnSubagents.execute(
+        makeRequest({
+          agents: [
+            {
+              prompt: "find something",
+              agentType: "explore",
+              environment: "docker",
+              directory: dockerTempDir,
+            },
+          ],
+        }),
+        {
+          threadManager,
+          threadId: "parent-1" as ThreadId,
+          maxConcurrentSubagents: 10,
+          requestRender: vi.fn(),
+          cwd: "/test" as NvimCwd,
+          agents: {},
+        },
+      );
+
+      await vi.waitFor(() => {
+        expect(threadManager.spawnThread).toHaveBeenCalled();
+      });
+
+      expect(threadManager.spawnThread).toHaveBeenCalledWith(
+        expect.objectContaining({
+          threadType: "docker_root",
+          dockerSpawnConfig: expect.objectContaining({
+            containerName: "magenta-test-abc123",
+          }),
+        }),
+      );
+    } finally {
+      await fs.promises.rm(dockerTempDir, { recursive: true, force: true });
+    }
   });
 });
 

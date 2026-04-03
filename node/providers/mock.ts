@@ -149,26 +149,30 @@ export class MockProvider implements Provider {
   async awaitPendingStream(options?: {
     predicate?: (request: MockStream) => boolean;
     message?: string;
+    timeout?: number;
   }): Promise<MockStream> {
-    return pollUntil(() => {
-      // Check mock client streams first (new API) - find the latest unresolved stream
-      for (let i = this.mockClient.streams.length - 1; i >= 0; i--) {
-        const stream = this.mockClient.streams[i];
-        if (stream && !stream.aborted && !stream.resolved) {
-          if (!options?.predicate || options.predicate(stream)) {
-            return stream;
+    return pollUntil(
+      () => {
+        // Check mock client streams first (new API) - find the latest unresolved stream
+        for (let i = this.mockClient.streams.length - 1; i >= 0; i--) {
+          const stream = this.mockClient.streams[i];
+          if (stream && !stream.aborted && !stream.resolved) {
+            if (!options?.predicate || options.predicate(stream)) {
+              return stream;
+            }
           }
         }
-      }
-      // Fall back to legacy requests
-      throw new Error(`No pending streams${options?.predicate ? " matching predicate" : ""}! ${options?.message ?? ""}
+        // Fall back to legacy requests
+        throw new Error(`No pending streams${options?.predicate ? " matching predicate" : ""}! ${options?.message ?? ""}
 Streams: ${this.mockClient.streams.length}`);
-    });
+      },
+      { timeout: options?.timeout ?? 1000 },
+    );
   }
 
   async awaitPendingStreamWithText(
     text: string,
-    message?: string,
+    options?: { message?: string; timeout?: number },
   ): Promise<MockStream> {
     return this.awaitPendingStream({
       predicate: (stream) => {
@@ -195,7 +199,8 @@ Streams: ${this.mockClient.streams.length}`);
         }
         return false;
       },
-      message: message ?? `recent messages contain "${text}"`,
+      message: options?.message ?? `recent messages contain "${text}"`,
+      ...(options?.timeout !== undefined ? { timeout: options.timeout } : {}),
     });
   }
 

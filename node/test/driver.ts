@@ -235,6 +235,7 @@ export class NvimDriver {
   async assertDisplayBufferContains(
     text: string,
     start: number = 0,
+    timeout: number = 2000,
   ): Promise<Position0Indexed> {
     let latestContent;
     try {
@@ -259,7 +260,7 @@ export class NvimDriver {
             index,
           );
         },
-        { timeout: 2000 },
+        { timeout },
       );
     } catch (e) {
       expect(latestContent, (e as Error).message).toContain(text);

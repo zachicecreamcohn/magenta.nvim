@@ -22,56 +22,36 @@ async function isDockerAvailable(): Promise<boolean> {
 const dockerAvailable = await isDockerAvailable();
 
 describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
-  let sourceRepo: string;
-  let result:
-    | {
-        containerName: string;
-        tempDir: string;
-        imageName: string;
-        startSha: string;
-        workerBranch: string;
-      }
-    | undefined;
+  let hostDir: string;
+  let result: { containerName: string; imageName: string } | undefined;
 
   const containerConfig: ContainerConfig = {
     dockerfile: "Dockerfile",
     workspacePath: "/workspace",
-    installCommand: "echo install-done",
   };
 
   beforeAll(async () => {
-    sourceRepo = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), "magenta-test-repo-"),
+    hostDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "magenta-test-host-"),
     );
-    await execFile("git", ["-C", sourceRepo, "init", "-b", "main"]);
-    await execFile("git", ["-C", sourceRepo, "config", "user.name", "test"]);
-    await execFile("git", [
-      "-C",
-      sourceRepo,
-      "config",
-      "user.email",
-      "test@test.com",
-    ]);
 
     const dockerfile = [
       "FROM alpine:latest",
-      "RUN apk add --no-cache git",
-      'RUN git config --global user.name "test" && git config --global user.email "test@test"',
       "WORKDIR /workspace",
       "COPY . .",
       'CMD ["tail", "-f", "/dev/null"]',
     ].join("\n");
+    await fs.promises.writeFile(path.join(hostDir, "Dockerfile"), dockerfile);
     await fs.promises.writeFile(
-      path.join(sourceRepo, "Dockerfile"),
-      dockerfile,
-    );
-    await fs.promises.writeFile(
-      path.join(sourceRepo, "hello.txt"),
-      "hello from source",
+      path.join(hostDir, "hello.txt"),
+      "hello from host",
     );
 
-    await execFile("git", ["-C", sourceRepo, "add", "."]);
-    await execFile("git", ["-C", sourceRepo, "commit", "-m", "initial commit"]);
+    // Create a .dockerignore to test exclusion
+    await fs.promises.writeFile(
+      path.join(hostDir, ".dockerignore"),
+      "node_modules\n.git\n",
+    );
   }, 30_000);
 
   afterAll(async () => {
@@ -79,23 +59,20 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
       await execFile("docker", ["rm", "-f", result.containerName]).catch(
         () => {},
       );
-      await fs.promises.rm(result.tempDir, { recursive: true, force: true });
     }
-    if (sourceRepo) {
-      await fs.promises.rm(sourceRepo, { recursive: true, force: true });
+    if (hostDir) {
+      await fs.promises.rm(hostDir, { recursive: true, force: true });
     }
   });
 
   it("provisions a container with project files baked in", async () => {
     result = await provisionContainer({
-      repoPath: sourceRepo,
+      hostDir,
       containerConfig,
     });
 
     expect(result.containerName).toMatch(/^magenta-worker-/);
-    expect(result.tempDir).toContain("magenta-dev-containers");
-    expect(result.startSha).toMatch(/^[0-9a-f]{40}$/);
-    expect(result.workerBranch).toMatch(/^magenta\/worker-/);
+    expect(result.imageName).toMatch(/^magenta-dev-/);
 
     // Container should be running
     const { stdout: status } = await execFile("docker", [
@@ -106,33 +83,21 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
     ]);
     expect(status.trim()).toBe("true");
 
-    // Project files should be baked into the image (not bind-mounted)
+    // Project files should be baked into the image
     const { stdout: content } = await execFile("docker", [
       "exec",
       result.containerName,
       "cat",
       "/workspace/hello.txt",
     ]);
-    expect(content.trim()).toBe("hello from source");
-
-    // Branch should match the workerBranch from provision result
-    const { stdout: branchOutput } = await execFile("docker", [
-      "exec",
-      "-w",
-      "/workspace",
-      result.containerName,
-      "git",
-      "branch",
-      "--show-current",
-    ]);
-    expect(branchOutput.trim()).toBe(result.workerBranch);
+    expect(content.trim()).toBe("hello from host");
   }, 120_000);
 
-  it("tears down and applies patches back", async () => {
+  it("tears down and syncs changed files back", async () => {
     expect(result).toBeDefined();
     const r = result!;
 
-    // Make a commit inside the container
+    // Make changes inside the container
     await execFile("docker", [
       "exec",
       "-w",
@@ -140,27 +105,20 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
       r.containerName,
       "sh",
       "-c",
-      'echo "agent change" > agent.txt && git add . && git commit -m "agent commit"',
+      'echo "new file from agent" > agent.txt && echo "modified" > hello.txt && mkdir -p node_modules && echo "should be excluded" > node_modules/foo.js',
     ]);
 
     const containerName = r.containerName;
-    const tempDir = r.tempDir;
 
     const teardownResult = await teardownContainer({
       containerName,
-      repoPath: sourceRepo,
-      baseBranch: "main",
-      workerBranch: r.workerBranch,
-      startSha: r.startSha,
       workspacePath: containerConfig.workspacePath,
-      tempDir,
+      hostDir,
     });
 
     result = undefined;
 
-    expect(teardownResult.workerBranch).toBe(r.workerBranch);
-    expect(teardownResult.baseBranch).toBe("main");
-    expect(teardownResult.commitCount).toBe(1);
+    expect(teardownResult.syncedFiles).toBeGreaterThanOrEqual(0);
 
     // Container should be gone
     const inspectResult = await execFile("docker", [
@@ -172,17 +130,23 @@ describe.skipIf(!dockerAvailable)("Container Provisioning", () => {
     );
     expect(inspectResult).toBe("gone");
 
-    // Worker branch should exist in source repo with the agent's commit
-    const { stdout: logOutput } = await execFile("git", [
-      "-C",
-      sourceRepo,
-      "log",
-      "--oneline",
-      r.workerBranch,
-    ]);
-    expect(logOutput).toContain("agent commit");
+    // New file should appear on host
+    const agentContent = await fs.promises.readFile(
+      path.join(hostDir, "agent.txt"),
+      "utf-8",
+    );
+    expect(agentContent.trim()).toBe("new file from agent");
 
-    // Temp directory should be gone
-    expect(fs.existsSync(tempDir)).toBe(false);
+    // Modified file should be updated
+    const helloContent = await fs.promises.readFile(
+      path.join(hostDir, "hello.txt"),
+      "utf-8",
+    );
+    expect(helloContent.trim()).toBe("modified");
+
+    // node_modules should NOT be synced back (excluded by .dockerignore)
+    expect(fs.existsSync(path.join(hostDir, "node_modules", "foo.js"))).toBe(
+      false,
+    );
   }, 60_000);
 });

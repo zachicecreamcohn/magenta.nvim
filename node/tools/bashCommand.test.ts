@@ -1200,12 +1200,22 @@ wait
         { timeout: 5000 },
       );
 
-      // Verify all processes are running
+      // Verify all processes are running (not zombie/dead)
       const isRunning = (p: number) => {
-        const result = spawnSync("kill", ["-0", p.toString()], {
-          stdio: "pipe",
-        });
-        return result.status === 0;
+        try {
+          const stat = spawnSync("cat", [`/proc/${p}/status`], {
+            encoding: "utf-8",
+            stdio: "pipe",
+          });
+          if (stat.status !== 0) return false;
+          const stateMatch = stat.stdout.match(/State:\s+(\S)/);
+          // Z = zombie, X = dead — these are not truly running
+          return stateMatch
+            ? stateMatch[1] !== "Z" && stateMatch[1] !== "X"
+            : false;
+        } catch {
+          return false;
+        }
       };
 
       expect(isRunning(parentPid)).toBe(true);

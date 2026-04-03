@@ -12,8 +12,6 @@ import type {
   CompactionStep,
 } from "./compaction-controller.ts";
 import { CompactionManager } from "./compaction-manager.ts";
-import { provisionContainer } from "./container/provision.ts";
-import type { ContainerConfig } from "./container/types.ts";
 import { ContextManager, type Files } from "./context/context-manager.ts";
 import type { EdlRegisters } from "./edl/index.ts";
 import { Emitter } from "./emitter.ts";
@@ -111,7 +109,6 @@ export interface ThreadCoreContext {
   availableCapabilities: Set<ToolCapability>;
   environmentConfig: EnvironmentConfig;
   maxConcurrentSubagents: number;
-  container?: ContainerConfig | undefined;
   getAgents: () => AgentsMap;
   getProvider: (profile: ProviderProfile) => Provider;
   initialFiles?: Files;
@@ -535,17 +532,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         fileIO: this.context.fileIO,
         shell: this.context.shell,
         threadManager: this.context.threadManager,
-        containerProvisioner: this.context.container
-          ? {
-              containerConfig: this.context.container,
-              provision: (opts: {
-                repoPath: string;
-                baseBranch?: string;
-                containerConfig: ContainerConfig;
-                onProgress?: (message: string) => void;
-              }) => provisionContainer(opts),
-            }
-          : undefined,
         requestRender: () => this.emit("update"),
         getAgents: () => this.context.getAgents(),
       };

@@ -5,7 +5,6 @@ import {
   createSystemPrompt as coreCreateSystemPrompt,
   DEFAULT_SUBAGENT_SYSTEM_PROMPT,
   DEFAULT_SYSTEM_PROMPT,
-  type DockerContext,
   type NvimCwd,
   type ProviderOptions,
   type SubagentConfig,
@@ -31,7 +30,7 @@ export async function createSystemPrompt(
     cwd: NvimCwd;
     options: ProviderOptions;
     systemInfoOverrides?: Partial<SystemInfo>;
-    dockerContext?: DockerContext;
+    dockerAvailable?: boolean;
     subagentConfig?: SubagentConfig;
   },
 ): Promise<SystemPrompt> {
@@ -50,7 +49,9 @@ export async function createSystemPrompt(
     logger: context.nvim.logger,
     cwd: context.cwd,
     options: context.options,
-    ...(context.dockerContext ? { dockerContext: context.dockerContext } : {}),
+    ...(context.dockerAvailable
+      ? { dockerAvailable: context.dockerAvailable }
+      : {}),
     ...(context.subagentConfig
       ? { subagentConfig: context.subagentConfig }
       : {}),

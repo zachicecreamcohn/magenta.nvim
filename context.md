@@ -194,6 +194,16 @@ When given a task:
    - All implementation work must be done in `docker_unsupervised` subagents.
    - Pass the branch name and have the prompt include the plan location to the docker subagent so it checks out the correct branch.
    - **CRITICAL**: The docker subagent will not have access to your file system. So make sure anything you want the agent to see is committed to the subagent's base branch!
+4. **Run tests in docker** — Use the `test` agent with `docker_unsupervised` environment to run tests, type-checks, or linting:
+   ```
+   spawn_subagents({
+     agents: [{
+       prompt: "Run the full test suite and fix any failures.",
+       agentType: "test-in-docker",
+       environment: "docker_unsupervised"
+     }]
+   })
+   ```
 
 # Notes
 

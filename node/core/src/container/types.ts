@@ -6,14 +6,9 @@ export interface ContainerConfig {
 
 export interface ProvisionResult {
   containerName: string;
-  tempDir: string;
   imageName: string;
-  startSha: string;
-  workerBranch: string;
 }
 
 export interface TeardownResult {
-  workerBranch: string;
-  baseBranch: string;
-  commitCount: number;
+  syncedFiles: number;
 }
