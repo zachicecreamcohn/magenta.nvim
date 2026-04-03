@@ -1,10 +1,9 @@
+import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ToolName, ToolRequestId } from "@magenta/core";
 import { describe, expect, it } from "vitest";
 import { withDriver } from "../test/preamble.ts";
-
-import { execFileSync } from "node:child_process";
 
 const DOCKER_AVAILABLE = (() => {
   try {
