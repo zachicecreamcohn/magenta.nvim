@@ -212,7 +212,7 @@ export class SandboxShell implements Shell {
       );
 
       return this.violationHandler.addViolation(
-        { command, violations: newViolations, stderr: annotated },
+        { command, violations: newViolations, stderr: annotated, result },
         () => this.spawnCommand(command, opts),
       );
     }
