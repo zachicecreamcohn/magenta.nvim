@@ -69,7 +69,7 @@ When a skill is relevant to a task, use the `get_file` tool to read the skill.md
 
 # View System
 
-For comprehensive view system documentation and templating patterns, use `get_file` to access the `doc-views` skill at `.claude/skills/doc-views/skill.md`.
+For comprehensive view system documentation and templating patterns, use `get_file` to access the `doc-views` skill at `.magenta/skills/doc-views/skill.md`.
 
 **Important**: This is NOT React - it's a TUI templating system for neovim buffers.
 
@@ -161,12 +161,12 @@ ${withBindings(d`[Toggle]`, {
 
 # Testing
 
-For comprehensive testing documentation, patterns, and best practices, use `get_file` to access the `doc-testing` skill at `.claude/skills/doc-testing/skill.md`.
+For comprehensive testing documentation, patterns, and best practices, use `get_file` to access the `doc-testing` skill at `.magenta/skills/doc-testing/skill.md`.
 
 Quick reference:
 
-- Run tests: `npx vitest run` (from project root)
-- Run specific test: `npx vitest run <file>`
+- Run tests: `TEST_MODE=sandbox npx vitest run` (from project root, for local development)
+- Run specific test: `TEST_MODE=sandbox npx vitest run <file>`
 - Use `withDriver()` helper for integration tests
 - Prefer realistic nvim interactions over internal API access for integration tests
 - Prefer unit tests over core classes for things that don't require neovim / UX interaction
@@ -175,12 +175,14 @@ Quick reference:
 
 Tests are segmented by the `TEST_MODE` env var (`"all"` | `"sandbox"`). Default is `"all"`.
 
-- `npx vitest run` — runs all tests (default, `TEST_MODE=all`)
-- `TEST_MODE=sandbox npx vitest run` — skips tests requiring docker or process tree management
+- `TEST_MODE=sandbox npx vitest run` — the default for local development. Skips tests requiring docker or process tree management.
+- `npx vitest run` — runs all tests including privileged ones (default `TEST_MODE=all`). Use via the `tests-in-docker` subagent.
 
 Tests that need elevated privileges use `describe.runIf(FULL_CAPABILITIES)` or `it.runIf(FULL_CAPABILITIES)`, where `FULL_CAPABILITIES` is exported from `node/core/src/test/capabilities.ts` (re-exported from `node/test/capabilities.ts` for root project tests).
 
-When running locally on host without docker, use `TEST_MODE=sandbox`. For full test suite, use the `tests-in-docker` subagent which runs with `TEST_MODE=all` (the default).
+**Local development**: Run `TEST_MODE=sandbox npx vitest run` on the host. This skips docker and process-management tests that can't run locally.
+
+**Full test suite**: Use the `tests-in-docker` subagent, which runs inside a docker container with `TEST_MODE=all` (the default) and has access to docker and full process management.
 
 # Type checks
 
@@ -205,12 +207,12 @@ When given a task:
    - All implementation work must be done in `docker_unsupervised` subagents.
    - Pass the branch name and have the prompt include the plan location to the docker subagent so it checks out the correct branch.
    - **CRITICAL**: The docker subagent will not have access to your file system. So make sure anything you want the agent to see is committed to the subagent's base branch!
-4. **Run tests in docker** — Use the `test` agent with `docker_unsupervised` environment to run tests, type-checks, or linting:
+4. **Run tests** — Run `TEST_MODE=sandbox npx vitest run` locally for quick feedback. For the full suite (including docker/process tests), use the `tests-in-docker` subagent:
    ```
    spawn_subagents({
      agents: [{
        prompt: "Run the full test suite and fix any failures.",
-       agentType: "test-in-docker",
+       agentType: "tests-in-docker",
        environment: "docker_unsupervised"
      }]
    })

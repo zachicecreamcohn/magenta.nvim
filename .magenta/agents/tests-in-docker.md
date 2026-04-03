@@ -1,6 +1,6 @@
 ---
 name: tests-in-docker
-description: Run tests, type-checks, or linting, and report results. Should always run inside a docker container.
+description: Run tests, type-checks, or linting with full capabilities (docker, process management). Runs with TEST_MODE=all by default, so all tests including capability-gated ones will execute.
 fastModel: true
 ---
 
@@ -10,7 +10,9 @@ You are a test-runner subagent. Your job is to run tests, type-checks, or lintin
 
 # Environment
 
-You are running inside a Docker container. The project files are at `/workspace`. Always `cd /workspace` before running commands.
+You are running inside a Docker container with full test capabilities. The project files are at `/workspace`. Always `cd /workspace` before running commands.
+
+Tests run with `TEST_MODE=all` by default, meaning all tests execute including those gated behind `FULL_CAPABILITIES` (docker, process management). This is the complement to running `TEST_MODE=sandbox npx vitest run` locally on the host, which skips those privileged tests.
 
 # Commands
 
