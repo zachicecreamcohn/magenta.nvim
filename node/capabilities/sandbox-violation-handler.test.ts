@@ -28,6 +28,15 @@ function makeViolation(command = "cat ~/.ssh/id_rsa"): SandboxViolation {
     ],
     stderr:
       "Operation not permitted: read access denied for /Users/me/.ssh/id_rsa",
+    result: makeShellResult({
+      exitCode: 1,
+      output: [
+        {
+          stream: "stderr",
+          text: "Operation not permitted: read access denied for /Users/me/.ssh/id_rsa",
+        },
+      ],
+    }),
   };
 }
 
@@ -64,18 +73,53 @@ describe("SandboxViolationHandler", () => {
   });
 
   describe("reject", () => {
-    it("rejects promise with error", async () => {
+    it("resolves with original result plus rejection note for violations", async () => {
+      const retryFn = vi.fn().mockResolvedValue(makeShellResult());
+      const violation = makeViolation();
+      const promise = handler.addViolation(violation, retryFn);
+
+      const [[id]] = [...handler.getPendingViolations().entries()];
+      handler.reject(id);
+
+      const result = await promise;
+      expect(result.exitCode).toBe(1);
+      expect(result.output.at(-1)).toEqual({
+        stream: "stderr",
+        text: "The user rejected re-running this command outside the sandbox.",
+      });
+      expect(handler.getPendingViolations().size).toBe(0);
+      expect(onPendingChange).toHaveBeenCalledTimes(2);
+    });
+
+    it("preserves original stdout and stderr in resolved result", async () => {
+      const retryFn = vi.fn().mockResolvedValue(makeShellResult());
+      const violation = makeViolation();
+      const promise = handler.addViolation(violation, retryFn);
+
+      const [[id]] = [...handler.getPendingViolations().entries()];
+      handler.reject(id);
+
+      const result = await promise;
+      // Original stderr from the sandboxed command is preserved
+      expect(result.output[0]).toEqual({
+        stream: "stderr",
+        text: "Operation not permitted: read access denied for /Users/me/.ssh/id_rsa",
+      });
+      // Rejection note is appended after original output
+      expect(result.output).toHaveLength(2);
+      expect(result.output[1].stream).toBe("stderr");
+      expect(result.output[1].text).toContain("rejected");
+    });
+
+    it("does not call retry function when rejected", async () => {
       const retryFn = vi.fn().mockResolvedValue(makeShellResult());
       const promise = handler.addViolation(makeViolation(), retryFn);
 
       const [[id]] = [...handler.getPendingViolations().entries()];
       handler.reject(id);
 
-      await expect(promise).rejects.toThrow(
-        "The user did not allow running this command.",
-      );
-      expect(handler.getPendingViolations().size).toBe(0);
-      expect(onPendingChange).toHaveBeenCalledTimes(2);
+      await promise;
+      expect(retryFn).not.toHaveBeenCalled();
     });
   });
 
@@ -136,8 +180,9 @@ describe("SandboxViolationHandler", () => {
 
       handler.rejectAll();
 
-      await expect(promise1).rejects.toThrow();
-      await expect(promise2).rejects.toThrow();
+      const [r1, r2] = await Promise.all([promise1, promise2]);
+      expect(r1.output.at(-1)?.text).toContain("rejected");
+      expect(r2.output.at(-1)?.text).toContain("rejected");
       expect(handler.getPendingViolations().size).toBe(0);
     });
   });
