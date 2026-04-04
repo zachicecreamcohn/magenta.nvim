@@ -414,10 +414,11 @@ it("compact flow does not process @file commands in subagent or summary", async 
       .join("\n");
     expect(promptText).toContain("Now read @file:poem.txt and summarize");
 
-    // The @file:poem.txt in the nextPrompt should have been processed,
-    // adding poem.txt to the context manager
+    // The @file:poem.txt was processed before compaction (adding poem.txt to
+    // context), but since the summary doesn't mention poem.txt, it is not
+    // retained after compaction.
     const contextFiles = Object.keys(thread.contextManager.files);
-    expect(contextFiles.some((f) => f.includes("poem.txt"))).toBe(true);
+    expect(contextFiles.some((f) => f.includes("poem.txt"))).toBe(false);
 
     afterCompactStream.respond({
       stopReason: "end_turn",
@@ -995,4 +996,107 @@ it("auto-compact does not trigger on compact threads", async () => {
 
     await driver.assertDisplayBufferContains("Continuing!");
   });
+});
+
+it("compact drops all context files after compaction", async () => {
+  await withDriver(
+    {
+      setupFiles: async (tmpDir) => {
+        const fs = await import("node:fs/promises");
+        const path = await import("node:path");
+        await fs.writeFile(
+          path.join(tmpDir, "context-file.ts"),
+          "export const x = 1;",
+        );
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+
+      // Add a context file
+      await driver.inputMagentaText("@file:context-file.ts Hello");
+      await driver.send();
+
+      const request1 = await driver.mockAnthropic.awaitPendingStream({
+        message: "initial request",
+      });
+      request1.respond({
+        stopReason: "end_turn",
+        text: "I see the file.",
+        toolRequests: [],
+      });
+
+      const thread = driver.magenta.chat.getActiveThread();
+
+      await pollUntil(() => {
+        const files = Object.keys(thread.contextManager.files);
+        if (files.length < 1) throw new Error("expected 1 file");
+      });
+
+      expect(Object.keys(thread.contextManager.files)).toHaveLength(1);
+
+      // Trigger compaction
+      await driver.inputMagentaText("@compact Continue working");
+      await driver.send();
+
+      await pollUntil(
+        () => {
+          if (thread.core.state.mode.type !== "compacting")
+            throw new Error("expected compacting");
+        },
+        { timeout: 2000 },
+      );
+
+      const compactStream = await driver.mockAnthropic.awaitPendingStream({
+        message: "compact subagent",
+      });
+
+      const edlScript = [
+        "file `/summary.md`",
+        "select bof-eof",
+        "replace <<COMPACT_SUMMARY",
+        "# Summary",
+        "User added context-file.ts and asked hello.",
+        "COMPACT_SUMMARY",
+      ].join("\n");
+
+      compactStream.respond({
+        stopReason: "tool_use",
+        text: "Compacting.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "edl_1" as ToolRequestId,
+              toolName: "edl" as ToolName,
+              input: { script: edlScript },
+            },
+          },
+        ],
+      });
+
+      const afterEdlStream = await driver.mockAnthropic.awaitPendingStream({
+        message: "after EDL",
+      });
+      afterEdlStream.respond({
+        stopReason: "end_turn",
+        text: "Done.",
+        toolRequests: [],
+      });
+
+      const afterCompactStream = await driver.mockAnthropic.awaitPendingStream({
+        message: "after compact",
+      });
+      afterCompactStream.respond({
+        stopReason: "end_turn",
+        text: "Starting fresh!",
+        toolRequests: [],
+      });
+
+      await driver.assertDisplayBufferContains("Starting fresh!");
+
+      // Context files should always be empty after compaction
+      expect(Object.keys(thread.contextManager.files)).toHaveLength(0);
+    },
+  );
 });

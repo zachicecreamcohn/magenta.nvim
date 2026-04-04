@@ -45,7 +45,6 @@ export type Msg =
   | {
       type: "start-compaction";
       nextPrompt?: string;
-      contextFiles?: string[];
     }
   | {
       type: "toggle-system-prompt";
@@ -297,7 +296,7 @@ export class Thread {
         return;
 
       case "start-compaction":
-        this.core.startCompaction(msg.nextPrompt, msg.contextFiles);
+        this.core.startCompaction(msg.nextPrompt);
         return;
 
       case "abort": {

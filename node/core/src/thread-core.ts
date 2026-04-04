@@ -982,7 +982,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     this.agent.continueConversation();
   }
 
-  startCompaction(nextPrompt?: string, contextFiles?: string[]): void {
+  startCompaction(nextPrompt?: string): void {
     const manager = new CompactionManager({
       logger: this.context.logger,
       profile: this.context.profile,
@@ -1002,12 +1002,9 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     });
     manager.on("transition", (_prev, next) => {
       if (next.type === "complete") {
-        this.handleCompactionResult(next.result, contextFiles);
+        this.handleCompactionResult(next.result);
       } else if (next.type === "error") {
-        this.handleCompactionResult(
-          { type: "error", steps: next.steps },
-          contextFiles,
-        );
+        this.handleCompactionResult({ type: "error", steps: next.steps });
       }
     });
     this.compactionController = manager;
@@ -1015,10 +1012,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     manager.start(this.getProviderMessages(), nextPrompt);
   }
 
-  private handleCompactionResult(
-    result: CompactionResult,
-    contextFiles?: string[],
-  ): void {
+  private handleCompactionResult(result: CompactionResult): void {
     this.compactionController = undefined;
     this.update({ type: "set-mode", mode: { type: "normal" } });
 
@@ -1027,7 +1021,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         result.summary,
         result.nextPrompt,
         result.steps,
-        contextFiles,
       ).catch((e: Error) => {
         this.context.logger.error(
           `Failed during compact-complete: ${e.message}`,
@@ -1045,7 +1038,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     summary: string,
     nextPrompt: string | undefined,
     steps: CompactionStep[],
-    contextFiles?: string[],
   ): Promise<void> {
     this.update({
       type: "push-compaction-record",
@@ -1060,9 +1052,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       this.context.homeDir,
     );
     this.listenToContextManager();
-    if (contextFiles && contextFiles.length > 0) {
-      await this.contextManager.addFiles(contextFiles as UnresolvedFilePath[]);
-    }
 
     this.agent = this.createFreshAgent();
 

@@ -634,15 +634,12 @@ ${lines.join("\n")}
         ? await this.processCommands(rawNextPrompt, thread)
         : undefined;
       const nextPrompt = nextMessages?.map((m) => m.text).join("\n");
-      // Preserve all current context files across compaction reset
-      const contextFiles = Object.keys(thread.contextManager.files);
       this.dispatch({
         type: "thread-msg",
         id: thread.id,
         msg: {
           type: "start-compaction",
           ...(nextPrompt ? { nextPrompt } : {}),
-          ...(contextFiles.length > 0 ? { contextFiles } : {}),
         },
       });
       return;
