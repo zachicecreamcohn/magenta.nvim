@@ -124,6 +124,8 @@ export function renderToolProgress(
   progress: unknown,
   context: RenderContext,
   expanded: boolean,
+  toolViewState: ToolViewState,
+  toolRequestId: ToolRequestId,
 ): VDOMNode | undefined {
   const toolName = request.toolName as StaticToolName;
 
@@ -150,6 +152,8 @@ export function renderToolProgress(
         progress as SpawnSubagents.SpawnSubagentsProgress | undefined,
         context,
         expanded,
+        toolViewState,
+        toolRequestId,
       );
     default:
       return undefined;

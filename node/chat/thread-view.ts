@@ -563,6 +563,14 @@ function renderMessageContent(
           activeEntry.progress,
           renderContext,
           toolViewState?.progressExpanded || false,
+          toolViewState || {
+            inputSummaryExpanded: false,
+            inputExpanded: false,
+            progressExpanded: false,
+            resultSummaryExpanded: false,
+            resultExpanded: false,
+          },
+          request.id,
         );
         if (progressContent) {
           progressView = withBindings(d`\n${progressContent}`, {

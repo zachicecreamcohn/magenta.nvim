@@ -86,6 +86,11 @@ export type Msg =
       itemKey: string;
     }
   | {
+      type: "toggle-tool-progress-item";
+      toolRequestId: ToolRequestId;
+      itemKey: string;
+    }
+  | {
       type: "open-edit-file";
       filePath: UnresolvedFilePath;
     }
@@ -126,6 +131,7 @@ export type ToolViewState = {
   resultSummaryExpanded: boolean;
   resultExpanded: boolean;
   resultItemExpanded?: { [key: string]: boolean };
+  progressItemExpanded?: { [key: string]: boolean };
 };
 
 export class Thread {
@@ -353,6 +359,21 @@ export class Thread {
         };
         const key = field[msg.type];
         toolState[key] = !toolState[key];
+        this.state.toolViewState[msg.toolRequestId] = toolState;
+        return;
+      }
+
+      case "toggle-tool-progress-item": {
+        const toolState = this.state.toolViewState[msg.toolRequestId] || {
+          inputSummaryExpanded: false,
+          inputExpanded: false,
+          progressExpanded: false,
+          resultSummaryExpanded: false,
+          resultExpanded: false,
+        };
+        const itemExpanded = toolState.progressItemExpanded || {};
+        itemExpanded[msg.itemKey] = !itemExpanded[msg.itemKey];
+        toolState.progressItemExpanded = itemExpanded;
         this.state.toolViewState[msg.toolRequestId] = toolState;
         return;
       }

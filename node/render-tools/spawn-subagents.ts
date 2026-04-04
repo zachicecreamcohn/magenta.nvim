@@ -178,21 +178,36 @@ export function renderProgress(
   progress: SpawnSubagents.SpawnSubagentsProgress | undefined,
   context: {
     dispatch: Dispatch<RootMsg>;
+    threadDispatch: Dispatch<ThreadMsg>;
     chat: Chat;
   },
   _expanded: boolean,
+  toolViewState: ToolViewState,
+  toolRequestId: ToolRequestId,
 ): VDOMNode | undefined {
   if (!progress || progress.elements.length === 0) {
     return undefined;
   }
 
-  const rows = progress.elements.map((element) => {
+  const rows = progress.elements.map((element, idx) => {
     const info = resolveAgentRowFromProgress(element, context.chat);
     const row = renderAgentRowContent(info);
-    const bindings = threadBindings(info, context.dispatch);
-    return Object.keys(bindings).length > 0
-      ? withBindings(d`${row}\n`, bindings)
-      : d`${row}\n`;
+    const agentKey = String(idx);
+    const itemExpanded =
+      toolViewState.progressItemExpanded?.[agentKey] || false;
+
+    const expandedContent =
+      itemExpanded && info.entry.prompt ? d`${row}\n${info.entry.prompt}` : row;
+
+    return withBindings(d`${expandedContent}\n`, {
+      ...threadBindings(info, context.dispatch),
+      "=": () =>
+        context.threadDispatch({
+          type: "toggle-tool-progress-item",
+          toolRequestId,
+          itemKey: agentKey,
+        }),
+    });
   });
 
   return d`${rows}`;
@@ -244,10 +259,18 @@ export function renderResult(
     const rowInfo = resolveAgentRowFromResult(agent, entry, context.chat);
     const row = renderAgentRowContent(rowInfo);
 
-    const expandedContent =
-      itemExpanded && agent.responseBody
-        ? d`${row}\n${agent.responseBody}`
-        : row;
+    let expandedContent: VDOMNode = row;
+    if (itemExpanded) {
+      const promptText = entry.prompt ?? agent.prompt;
+      const responseText = agent.responseBody;
+      if (promptText && responseText) {
+        expandedContent = d`${row}\n**Prompt:**\n${promptText}\n\n**Response:**\n${responseText}`;
+      } else if (promptText) {
+        expandedContent = d`${row}\n**Prompt:**\n${promptText}`;
+      } else if (responseText) {
+        expandedContent = d`${row}\n${responseText}`;
+      }
+    }
 
     return withBindings(d`${expandedContent}\n`, {
       ...threadBindings(rowInfo, context.dispatch),
