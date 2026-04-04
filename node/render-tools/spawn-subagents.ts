@@ -30,6 +30,13 @@ function agentTypeLabel(entry: SubagentEntry): string {
   return ` (${t})`;
 }
 
+function isDockerEntry(entry: SubagentEntry): boolean {
+  return (
+    entry.environment === "docker" ||
+    entry.environment === "docker_unsupervised"
+  );
+}
+
 type AgentRowRenderInfo = {
   entry: SubagentEntry;
   statusIcon: string;
@@ -48,7 +55,7 @@ function resolveAgentRowFromProgress(
     case "pending":
       return { entry, statusIcon: "⏸️" };
     case "provisioning":
-      return { entry, statusIcon: "🐳", statusDetail: element.state.message };
+      return { entry, statusIcon: "📦", statusDetail: element.state.message };
     case "spawn-error":
       return { entry, statusIcon: "❌", statusDetail: element.state.error };
     case "spawned":
@@ -126,7 +133,8 @@ function renderAgentRowContent(info: AgentRowRenderInfo): VDOMNode {
   const label = truncate(info.entry.prompt ?? "");
   const typeLabel = agentTypeLabel(info.entry);
   const detail = info.statusDetail ? `: ${info.statusDetail}` : "";
-  const content = d`${info.statusIcon}${typeLabel} ${label}${detail}`;
+  const dockerPrefix = isDockerEntry(info.entry) ? "🐳 " : "";
+  const content = d`${dockerPrefix}${info.statusIcon}${typeLabel} ${label}${detail}`;
 
   return info.pendingApprovals
     ? d`${content}\n${info.pendingApprovals}`
