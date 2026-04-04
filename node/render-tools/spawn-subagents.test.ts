@@ -788,6 +788,152 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
     });
   });
 
+  it("pressing = on a progress row expands to show the full prompt, pressing again collapses", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+
+      await driver.inputMagentaText(
+        "Use spawn_subagents to create a sub-agent.",
+      );
+      await driver.send();
+
+      const request1 = await driver.mockAnthropic.awaitPendingStreamWithText(
+        "Use spawn_subagents",
+      );
+      request1.respond({
+        stopReason: "tool_use",
+        text: "I'll spawn a sub-agent.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "spawn-expand-test" as ToolRequestId,
+              toolName: "spawn_subagents" as ToolName,
+              input: {
+                agents: [
+                  {
+                    prompt:
+                      "This is a long prompt that should appear when expanded but not in the truncated progress row.",
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      });
+
+      // Wait for the child thread to be spawned and progress to show
+      await driver.awaitThreadCount(2);
+      await driver.assertDisplayBufferContains("⏳");
+
+      // The full prompt should NOT be visible yet (it's truncated)
+      await driver.assertDisplayBufferDoesNotContain(
+        "should appear when expanded",
+      );
+
+      // Press = on the progress row to expand it
+      await driver.triggerDisplayBufferKeyOnContent("⏳", "=");
+
+      // Now the full prompt should be visible
+      await driver.assertDisplayBufferContains("should appear when expanded");
+
+      // Press = again to collapse
+      await driver.triggerDisplayBufferKeyOnContent("⏳", "=");
+
+      // The full prompt should be hidden again
+      await driver.assertDisplayBufferDoesNotContain(
+        "should appear when expanded",
+      );
+    });
+  });
+
+  it("pressing = on a completed result row expands to show prompt and response", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+
+      await driver.inputMagentaText(
+        "Use spawn_subagents to create a sub-agent.",
+      );
+      await driver.send();
+
+      const request1 = await driver.mockAnthropic.awaitPendingStreamWithText(
+        "Use spawn_subagents",
+      );
+      request1.respond({
+        stopReason: "tool_use",
+        text: "I'll spawn a sub-agent.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "spawn-result-expand" as ToolRequestId,
+              toolName: "spawn_subagents" as ToolName,
+              input: {
+                agents: [
+                  {
+                    prompt:
+                      "This is the full prompt text that should show when result is expanded.",
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      });
+
+      // Child yields
+      const childStream =
+        await driver.mockAnthropic.awaitPendingStreamWithText(
+          "full prompt text",
+        );
+      childStream.respond({
+        stopReason: "tool_use",
+        text: "Done with the task.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "yield-expand" as ToolRequestId,
+              toolName: "yield_to_parent" as ToolName,
+              input: {
+                result: "This is the yielded response body from the subagent.",
+              },
+            },
+          },
+        ],
+      });
+
+      // Wait for completion
+      await driver.assertDisplayBufferContains("✅ 1 agent");
+
+      // Neither the full prompt nor the response body should be visible yet
+      await driver.assertDisplayBufferDoesNotContain("**Prompt:**");
+      await driver.assertDisplayBufferDoesNotContain(
+        "yielded response body from the subagent",
+      );
+
+      // Press = on the result row to expand
+      await driver.triggerDisplayBufferKeyOnContent("✅ This is the full", "=");
+
+      // Now both prompt and response should be visible
+      await driver.assertDisplayBufferContains("**Prompt:**");
+      await driver.assertDisplayBufferContains(
+        "full prompt text that should show when result is expanded",
+      );
+      await driver.assertDisplayBufferContains("**Response:**");
+      await driver.assertDisplayBufferContains(
+        "yielded response body from the subagent",
+      );
+
+      // Press = again to collapse
+      await driver.triggerDisplayBufferKeyOnContent("✅ This is the full", "=");
+
+      // Prompt and response should be hidden
+      await driver.assertDisplayBufferDoesNotContain("**Prompt:**");
+      await driver.assertDisplayBufferDoesNotContain("**Response:**");
+    });
+  });
+
   describe("abort does not resolve parent tool calls", () => {
     it("blocking spawn_subagents stays pending when child is aborted, resolves on yield", async () => {
       await withDriver({}, async (driver) => {
