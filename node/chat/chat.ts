@@ -7,7 +7,6 @@ import type {
 } from "@magenta/core";
 import { MCPToolManagerImpl } from "@magenta/core";
 import { v7 as uuidv7 } from "uuid";
-import type { BufferTracker } from "../buffer-tracker.ts";
 import type { Lsp } from "../capabilities/lsp.ts";
 import type {
   DockerSpawnConfig,
@@ -114,7 +113,6 @@ export class Chat implements ThreadManager {
     private context: {
       dispatch: Dispatch<RootMsg>;
       getDisplayWidth: () => number;
-      bufferTracker: BufferTracker;
       getOptions: () => MagentaOptions;
       cwd: NvimCwd;
       homeDir: HomeDir;
@@ -403,7 +401,7 @@ export class Chat implements ThreadManager {
             createLocalEnvironment({
               nvim: this.context.nvim,
               lsp: this.context.lsp,
-              bufferTracker: this.context.bufferTracker,
+
               cwd: this.context.cwd,
               homeDir: this.context.homeDir,
               getOptions: this.context.getOptions,
@@ -760,7 +758,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const forkEnvironment = createLocalEnvironment({
       nvim: this.context.nvim,
       lsp: this.context.lsp,
-      bufferTracker: this.context.bufferTracker,
+
       cwd: this.context.cwd,
       homeDir: this.context.homeDir,
       getOptions: this.context.getOptions,

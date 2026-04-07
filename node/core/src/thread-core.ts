@@ -44,7 +44,7 @@ import * as ThreadTitle from "./tools/thread-title.ts";
 import type { ToolCapability } from "./tools/tool-registry.ts";
 import { getToolSpecs } from "./tools/toolManager.ts";
 import { assertUnreachable } from "./utils/assertUnreachable.ts";
-import type { HomeDir, NvimCwd, UnresolvedFilePath } from "./utils/files.ts";
+import type { HomeDir, NvimCwd } from "./utils/files.ts";
 
 export type InputMessage =
   | {

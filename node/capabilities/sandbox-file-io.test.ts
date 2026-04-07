@@ -38,7 +38,7 @@ function createSandboxIO(
   promptForWriteApproval: (absPath: string) => Promise<void> = vi.fn(),
 ) {
   return new SandboxFileIO(
-    { nvim: {} as never, bufferTracker: {} as never, cwd, homeDir },
+    { nvim: {} as never, cwd, homeDir },
     createMockSandbox(),
     promptForWriteApproval,
   );

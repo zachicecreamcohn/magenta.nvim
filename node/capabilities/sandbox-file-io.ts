@@ -4,10 +4,7 @@ import {
   globToRegex,
 } from "@anthropic-ai/sandbox-runtime/dist/sandbox/sandbox-utils.js";
 import type { FileIO } from "@magenta/core";
-import type { BufferTracker } from "../buffer-tracker.ts";
-import { type Line, NvimBuffer } from "../nvim/buffer.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
-import type { Row0Indexed } from "../nvim/window.ts";
 import type { Sandbox } from "../sandbox-manager.ts";
 import { getBufferIfOpen } from "../utils/buffers.ts";
 import {
@@ -22,7 +19,6 @@ export class SandboxFileIO implements FileIO {
   constructor(
     private context: {
       nvim: Nvim;
-      bufferTracker: BufferTracker;
       cwd: NvimCwd;
       homeDir: HomeDir;
     },
@@ -71,39 +67,6 @@ export class SandboxFileIO implements FileIO {
       throw new Error(`Sandbox: read access denied for ${path}`);
     }
 
-    const syncInfo = this.context.bufferTracker.getSyncInfo(abs);
-    if (syncInfo) {
-      const buffer = new NvimBuffer(syncInfo.bufnr, this.context.nvim);
-      const currentChangeTick = await buffer.getChangeTick();
-      const bufferChanged = syncInfo.changeTick !== currentChangeTick;
-
-      let fileChanged = false;
-      try {
-        const stats = await fs.stat(abs);
-        const diskMtime = stats.mtime.getTime();
-        fileChanged = syncInfo.mtime < diskMtime;
-      } catch {
-        // If we can't stat, treat as unchanged
-      }
-
-      if (bufferChanged && fileChanged) {
-        throw new Error(
-          `Both the buffer ${syncInfo.bufnr} and the file on disk for ${abs} have changed. Cannot determine which version to use.`,
-        );
-      }
-
-      if (fileChanged && !bufferChanged) {
-        await buffer.attemptEdit();
-        await this.context.bufferTracker.trackBufferSync(abs, syncInfo.bufnr);
-      }
-
-      const lines = await buffer.getLines({
-        start: 0 as Row0Indexed,
-        end: -1 as Row0Indexed,
-      });
-      return lines.join("\n");
-    }
-
     return fs.readFile(abs, "utf-8");
   }
 
@@ -128,41 +91,38 @@ export class SandboxFileIO implements FileIO {
     return inDeny;
   }
 
-  private async findOpenBuffer(
-    absPath: AbsFilePath,
-  ): Promise<NvimBuffer | undefined> {
-    const result = await getBufferIfOpen({
-      unresolvedPath: absPath,
-      context: this.context,
-    });
-    if (result.status === "ok") {
-      return result.buffer;
-    }
-    return undefined;
-  }
-
   async writeFile(path: string, content: string): Promise<void> {
     const abs = this.resolvePath(path);
     if (this.isWriteBlocked(abs)) {
       await this.promptForWriteApproval(abs);
     }
 
-    const buffer = await this.findOpenBuffer(abs);
-    if (buffer) {
-      const lines = content.split("\n") as Line[];
-      if (lines.length > 0 && lines[lines.length - 1] === "") {
-        lines.pop();
-      }
-      await buffer.setLines({
-        start: 0 as Row0Indexed,
-        end: -1 as Row0Indexed,
-        lines,
-      });
-      await buffer.attemptWrite();
-      await this.context.bufferTracker.trackBufferSync(abs, buffer.id);
-    } else {
-      await fs.writeFile(abs, content, "utf-8");
+    await fs.writeFile(abs, content, "utf-8");
+
+    this.reloadBufferIfOpen(abs).catch((err) => {
+      this.context.nvim.logger.warn(
+        `Failed to reload buffer for ${abs}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
+  }
+
+  private async reloadBufferIfOpen(absPath: AbsFilePath): Promise<void> {
+    const result = await getBufferIfOpen({
+      unresolvedPath: absPath,
+      context: this.context,
+    });
+    if (result.status !== "ok") {
+      return;
     }
+    const buffer = result.buffer;
+    const modified = await buffer.getOption("modified");
+    if (modified) {
+      this.context.nvim.logger.warn(
+        `Buffer for ${absPath} has unsaved changes; disk was updated by agent but buffer was not reloaded`,
+      );
+      return;
+    }
+    await buffer.attemptEdit();
   }
 
   async fileExists(path: string): Promise<boolean> {
