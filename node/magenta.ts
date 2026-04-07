@@ -292,7 +292,9 @@ export class Magenta {
       case "agent": {
         const agentName = rest[0];
         if (!agentName) {
-          await this.nvim.call("nvim_err_writeln", ["Usage: :Magenta agent <name>"]);
+          await this.nvim.call("nvim_err_writeln", [
+            "Usage: :Magenta agent <name>",
+          ]);
           break;
         }
 

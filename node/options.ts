@@ -1,10 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  type ServerName,
-  validateServerName,
-} from "@magenta/core";
+import { type ServerName, validateServerName } from "@magenta/core";
 import { PROVIDER_NAMES, type ProviderName } from "./providers/provider.ts";
 import type { NvimCwd } from "./utils/files.ts";
 
@@ -1198,7 +1195,6 @@ export function parseProjectOptions(
     );
   }
 
-
   return options;
 }
 
@@ -1320,7 +1316,6 @@ export function mergeOptions(
       ...projectSettings.customCommands,
     ];
   }
-
 
   return merged;
 }

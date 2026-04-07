@@ -6,11 +6,7 @@ export type ThreadId = string & { __threadId: true };
 
 export type MessageIdx = number & { __messageIdx: true };
 
-export type ThreadType =
-  | "subagent"
-  | "compact"
-  | "root"
-  | "docker_root";
+export type ThreadType = "subagent" | "compact" | "root" | "docker_root";
 
 export type SubagentConfig = {
   agentName?: string | undefined;

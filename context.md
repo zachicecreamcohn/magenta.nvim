@@ -159,6 +159,21 @@ ${withBindings(d`[Toggle]`, {
 }
 ```
 
+# Docker Environment
+
+The project includes a Dockerfile at `docker/Dockerfile` for running subagents in isolated containers. It's based on `node:24-bookworm` and includes git, neovim, Docker CLI (for docker-in-docker via socket mount), and the TypeScript language server.
+
+Docker subagents are launched via the `spawn_subagents` tool. When `environment` is `"docker"` or `"docker_unsupervised"`, the caller must provide:
+- `dockerfile` — path to the Dockerfile relative to `directory` (e.g. `"docker/Dockerfile"`)
+- `workspacePath` — the working directory inside the container (e.g. `"/workspace"`)
+- `directory` (optional) — host directory to build from, defaults to cwd
+
+These fields are passed inline in the tool call. There is no separate config file for container setup.
+
+Key files:
+- `docker/Dockerfile` — container image definition
+- `node/core/src/tools/spawn-subagents.ts` — docker provisioning and validation logic
+
 # Testing
 
 For comprehensive testing documentation, patterns, and best practices, use `get_file` to access the `doc-testing` skill at `.magenta/skills/doc-testing/skill.md`.

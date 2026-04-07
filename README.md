@@ -46,24 +46,17 @@ I sometimes write about AI, neovim and magenta specifically:
 
 ## Dev Containers
 
-Magenta can spawn Docker sub-agents that work in isolated containers on
-their own branch. This enables safe, unsupervised parallel work — the agent
-can edit files, run tests, and make commits without touching your local setup.
+Magenta can spawn Docker sub-agents that work in isolated containers.
+This enables safe, unsupervised parallel work — the agent can edit files,
+run tests, and make commits without touching your local setup.
 
-Add a `container` section to `.magenta/options.json`:
+Docker config is specified inline when spawning sub-agents via the
+`spawn_subagents` tool. The agent provides:
+- `dockerfile` — path to a Dockerfile relative to the working directory
+- `workspacePath` — the working directory inside the container
 
-```json
-{
-  "container": {
-    "dockerfile": "docker/Dockerfile",
-    "workspacePath": "/workspace"
-  }
-}
-```
-
-The Dockerfile should install your project's toolchain and dependencies,
-using Docker layer caching to keep rebuilds fast. See `:help
-magenta-dev-containers` for details.
+The project includes a sample Dockerfile at `docker/Dockerfile`. See
+`:help magenta-dev-containers` for details.
 
 ## Roadmap
 
@@ -78,7 +71,8 @@ magenta-dev-containers` for details.
 
 - OS-level sandboxing: integrated `@anthropic-ai/sandbox-runtime` (seatbelt on macOS, bubblewrap on Linux) for shell commands and file I/O pre-flight checks. Configurable sandbox policy with sensible defaults that protect credentials and dotfiles.
 - Security: `.magenta/options.json` is now protected from agent tampering.
-- Branchless docker: simplified container provisioning to directory-based (no git branches), with rsync-based file sync on teardown.
+- Branchless docker: simplified container provisioning to directory-based (no git branches), with rsync-based file sync on teardown. Docker config is now specified inline in `spawn_subagents` tool calls instead of `.magenta/options.json`.
+- Agent tier system: agents have `leaf`, `thread`, or `orchestrator` tiers that control spawn permissions. New `worktree` orchestrator agent replaces the conductor. New `:Magenta agent <name>` command.
 - Test segmentation: `TEST_MODE` env var splits tests into sandbox (local) and full-capabilities (docker) modes. New `tests-in-sandbox` subagent for fast local feedback.
 - Renamed the `docs` tool to `learn` tool.
 

@@ -70,27 +70,45 @@ describe("getToolSpecs capability filtering", () => {
 
 describe("tier-based spawn_subagents control", () => {
   it("leaf subagent does not get spawn_subagents", () => {
-    const specs = getToolSpecs("subagent", noopMcpToolManager, undefined, {}, {
-      tier: "leaf",
-    });
+    const specs = getToolSpecs(
+      "subagent",
+      noopMcpToolManager,
+      undefined,
+      {},
+      {
+        tier: "leaf",
+      },
+    );
     const names = specs.map((s) => s.name);
     expect(names).not.toContain("spawn_subagents");
     expect(names).toContain("yield_to_parent");
   });
 
   it("thread subagent gets spawn_subagents", () => {
-    const specs = getToolSpecs("subagent", noopMcpToolManager, undefined, {}, {
-      tier: "thread",
-    });
+    const specs = getToolSpecs(
+      "subagent",
+      noopMcpToolManager,
+      undefined,
+      {},
+      {
+        tier: "thread",
+      },
+    );
     const names = specs.map((s) => s.name);
     expect(names).toContain("spawn_subagents");
     expect(names).toContain("yield_to_parent");
   });
 
   it("orchestrator subagent gets spawn_subagents", () => {
-    const specs = getToolSpecs("subagent", noopMcpToolManager, undefined, {}, {
-      tier: "orchestrator",
-    });
+    const specs = getToolSpecs(
+      "subagent",
+      noopMcpToolManager,
+      undefined,
+      {},
+      {
+        tier: "orchestrator",
+      },
+    );
     const names = specs.map((s) => s.name);
     expect(names).toContain("spawn_subagents");
     expect(names).toContain("yield_to_parent");
@@ -122,4 +140,3 @@ describe("tier-based spawn_subagents control", () => {
     expect(names).toContain("yield_to_parent");
   });
 });
-

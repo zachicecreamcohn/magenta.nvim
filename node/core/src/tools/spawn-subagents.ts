@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  type AgentTier,
   type AgentsMap,
+  type AgentTier,
   formatAgentsIntroduction,
 } from "../agents/agents.ts";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
@@ -134,7 +134,8 @@ export function execute(
     if (entry.environment !== undefined) merged.environment = entry.environment;
     if (entry.directory !== undefined) merged.directory = entry.directory;
     if (entry.dockerfile !== undefined) merged.dockerfile = entry.dockerfile;
-    if (entry.workspacePath !== undefined) merged.workspacePath = entry.workspacePath;
+    if (entry.workspacePath !== undefined)
+      merged.workspacePath = entry.workspacePath;
 
     return merged;
   });
@@ -198,10 +199,14 @@ export function execute(
     const hostDir = resolve(ctx.cwd, entry.directory ?? ".");
 
     // Check if dockerfile and workspacePath are defined
-    if (typeof entry.dockerfile !== "string" || typeof entry.workspacePath !== "string") {
+    if (
+      typeof entry.dockerfile !== "string" ||
+      typeof entry.workspacePath !== "string"
+    ) {
       element.state = {
         status: "spawn-error",
-        error: "Docker environment requires 'dockerfile' and 'workspacePath' fields",
+        error:
+          "Docker environment requires 'dockerfile' and 'workspacePath' fields",
       };
       ctx.requestRender();
       return;
@@ -539,11 +544,13 @@ export function getSpec(
               },
               dockerfile: {
                 type: "string",
-                description: "Path to the Dockerfile, relative to directory. Required for docker/docker_unsupervised environments.",
+                description:
+                  "Path to the Dockerfile, relative to directory. Required for docker/docker_unsupervised environments.",
               },
               workspacePath: {
                 type: "string",
-                description: "Working directory for the agent inside the container. Required for docker/docker_unsupervised environments.",
+                description:
+                  "Working directory for the agent inside the container. Required for docker/docker_unsupervised environments.",
               },
             },
           },
@@ -692,7 +699,10 @@ export function validateInput(input: {
       agent.environment === "docker" ||
       agent.environment === "docker_unsupervised"
     ) {
-      if (typeof agent.dockerfile !== "string" || typeof agent.workspacePath !== "string") {
+      if (
+        typeof agent.dockerfile !== "string" ||
+        typeof agent.workspacePath !== "string"
+      ) {
         return {
           status: "error",
           error: `agents[${i}] with docker environment requires 'dockerfile' and 'workspacePath' fields`,

@@ -730,7 +730,9 @@ describe("spawn-subagents docker provisioning", () => {
     );
 
     const text = await getResultText(invocation);
-    expect(text).toContain("Docker environment requires 'dockerfile' and 'workspacePath' fields");
+    expect(text).toContain(
+      "Docker environment requires 'dockerfile' and 'workspacePath' fields",
+    );
   });
 
   it("spawns docker_root thread with correct dockerSpawnConfig", async () => {
@@ -1238,7 +1240,9 @@ describe("validation: new fields", () => {
 
   it("rejects docker environment without dockerfile", () => {
     const result = SpawnSubagents.validateInput({
-      agents: [{ prompt: "test", environment: "docker", workspacePath: "/workspace" }],
+      agents: [
+        { prompt: "test", environment: "docker", workspacePath: "/workspace" },
+      ],
     });
     expect(result.status).toBe("error");
     if (result.status === "error") {
@@ -1249,7 +1253,13 @@ describe("validation: new fields", () => {
 
   it("rejects docker_unsupervised environment without workspacePath", () => {
     const result = SpawnSubagents.validateInput({
-      agents: [{ prompt: "test", environment: "docker_unsupervised", dockerfile: "Dockerfile" }],
+      agents: [
+        {
+          prompt: "test",
+          environment: "docker_unsupervised",
+          dockerfile: "Dockerfile",
+        },
+      ],
     });
     expect(result.status).toBe("error");
     if (result.status === "error") {
@@ -1303,7 +1313,6 @@ describe("getSpec", () => {
         systemReminder: undefined,
         fastModel: true,
         tier: "leaf" as const,
-
       },
       "my-agent": {
         name: "my-agent",
@@ -1312,7 +1321,6 @@ describe("getSpec", () => {
         systemReminder: undefined,
         fastModel: undefined,
         tier: "leaf" as const,
-
       },
     };
     const spec = SpawnSubagents.getSpec(agents);

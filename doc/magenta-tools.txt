@@ -51,25 +51,44 @@ effectively. Sub-agents:
 
 Agent types:~
 
-  `learn`     Focused on code discovery, analyzing APIs, understanding
-              existing implementations
+Agents have a `tier` that controls their spawning ability:
 
-  `plan`      Specialized for strategic planning and breaking down
-              complex implementations
+  `leaf`          Cannot spawn sub-agents. Examples: explore, fast-edit,
+                  tests-in-sandbox, tests-in-docker
 
-  `fast`      Lightweight, uses fast model for quick transformations
+  `thread`        Can spawn leaf agents (any environment) and thread
+                  agents (docker only). Example: default
 
-  `default`   General-purpose coding assistant behavior
-  `docker`    Runs in an isolated Docker container on a specified branch.
-              Requires a Dockerfile configured in `.magenta/options.json`.
-              The agent can edit files, run tests, and make commits.
-              On completion, the branch (with commits) is fetched back
-              to the host repo.
+  `orchestrator`  Can spawn leaf and thread agents (any environment),
+                  and orchestrator agents (docker only). Example: worktree
 
+Built-in agents:~
+
+  `explore`   Focused on code discovery and finding where things are
+              defined or used. Tier: leaf.
+
+  `fast-edit` Lightweight, uses fast model for quick transformations.
+              Tier: leaf.
+
+  `default`   General-purpose coding assistant behavior. Tier: thread.
+Project agents:~
+
+  Additional agents can be defined in `.magenta/agents/` (project) or
+  `~/.magenta/agents/` (user) as markdown files with YAML frontmatter.
+
+  `tests-in-sandbox`  Run tests locally in sandbox mode. Tier: leaf.
+  `tests-in-docker`   Run tests in Docker with full capabilities. Tier: leaf.
+  `worktree`          Orchestrate work across worktrees, delegating to
+                      docker subagents. Tier: orchestrator.
+
+Environments:~
+
+  `host` (default)    Runs locally on the host machine.
+  `docker`            Runs in an isolated Docker container. Requires
+                      `dockerfile` and `workspacePath` fields.
   `docker_unsupervised`
-              Same as `docker`, but runs autonomously without user
-              approval for tool use. Suited for well-scoped tasks on
-              isolated branches.
+                      Same as `docker`, but runs autonomously without
+                      user approval for tool use.
 
 Example workflows:~
 
@@ -94,12 +113,10 @@ Planning workflow:
 Docker workflow:
 >
     user: Fix the flaky test in auth.test.ts
-    → Coordinator creates branch: git branch fix-auth-test main
-    → Spawns docker sub-agent on branch 'fix-auth-test'
-    → Container provisioned: clone, docker build, docker run
-    → Agent edits files, runs tests, commits inside container
-    → On completion: branch fetched back to host repo
-    → Coordinator reviews commits on fix-auth-test branch
+    → Agent spawns docker_unsupervised sub-agent with task description
+    → Container built from project's Dockerfile, files copied in
+    → Agent edits files, runs tests, makes changes inside container
+    → On completion: changed files rsynced back to host directory
 <
 Parallel processing:
 >
@@ -118,40 +135,34 @@ Configuration:~
 ==============================================================================
 DEV CONTAINERS                                        *magenta-dev-containers*
 
-Docker sub-agents run in isolated containers, each working on a single
-branch. This provides a safe environment for unsupervised agent work —
-the agent cannot affect your local files or other branches.
+Docker sub-agents run in isolated containers, providing a safe environment
+for unsupervised agent work — the agent cannot affect your local files
+until it yields, at which point changed files are rsynced back.
 
 Requirements:~
   - Docker installed and running
-  - A Dockerfile in your project (configured in `.magenta/options.json`)
+  - A Dockerfile in your project (e.g. `docker/Dockerfile`)
 
 Configuration:~
 
-Add a `container` section to `.magenta/options.json`:
->json
-    {
-      "container": {
-        "dockerfile": "docker/Dockerfile",
-        "workspacePath": "/workspace"
-      }
-    }
-<
+Docker config is specified inline when spawning sub-agents. The agent
+provides two fields in the `spawn_subagents` tool call:
 
-  `dockerfile`      Path to a Dockerfile relative to the repo root.
-                    The Dockerfile receives the repo as build context and
-                    should produce a ready-to-work-in container with all
-                    toolchain dependencies installed.
+  `dockerfile`      Path to a Dockerfile relative to the working
+                    directory (e.g. `"docker/Dockerfile"`). The directory
+                    is used as the Docker build context.
 
   `workspacePath`   Where the project lives inside the container
                     (should match WORKDIR in the Dockerfile).
 
+There is no separate config file for container setup.
+
 Writing a Dockerfile:~
 
 The Dockerfile should install your project's toolchain and dependencies.
-The repo is provided as the Docker build context, so you can COPY files
-and run install commands. Use Docker's layer caching to keep rebuilds
-fast:
+The working directory is provided as the Docker build context, so you can
+COPY files and run install commands. Use Docker's layer caching to keep
+rebuilds fast:
 >dockerfile
     FROM node:24-bookworm
     # Install system deps
@@ -170,17 +181,12 @@ fast:
 
 Lifecycle:~
 
-  1. Caller creates a branch for the agent to work on
-  2. Repo is cloned to a temp directory, branch checked out, remote
-     removed (agent cannot push or access other refs)
-  3. Docker image is built from the clone (layer cache reused)
-  4. Container started; agent works via `docker exec`
-  5. Agent can edit files, run tests, and make commits
-  6. On teardown: branch (with commits) is fetched back to host repo,
-     container and temp directory are cleaned up
-
-The agent only has access to the single branch it was given. On
-teardown, only that branch is fetched back — no other refs are trusted.
+  1. The working directory is copied into a temp location
+  2. Docker image is built from the copy (layer cache reused)
+  3. Container started; agent works via `docker exec`
+  4. Agent can edit files, run tests, and make commits
+  5. On teardown: changed files are rsynced back to the host
+     directory, container and temp directory are cleaned up
 ==============================================================================
 MCP SUPPORT                                                    *magenta-mcp*
 
