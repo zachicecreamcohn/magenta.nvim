@@ -2,6 +2,7 @@
 name: tests-in-sandbox
 description: Run tests locally in sandbox mode (TEST_MODE=sandbox), skipping docker/process tests. Analyzes output and reports only failures with stack traces.
 fastModel: true
+tier: leaf
 ---
 
 # Role

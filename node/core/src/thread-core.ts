@@ -373,6 +373,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         this.context.mcpToolManager,
         this.context.availableCapabilities,
         this.context.getAgents(),
+        this.context.subagentConfig,
       ),
       ...(this.context.profile.thinking &&
         (this.context.profile.provider === "anthropic" ||

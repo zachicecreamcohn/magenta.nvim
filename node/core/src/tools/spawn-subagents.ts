@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type AgentsMap, formatAgentsIntroduction } from "../agents/agents.ts";
+import {
+  type AgentTier,
+  type AgentsMap,
+  formatAgentsIntroduction,
+} from "../agents/agents.ts";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
 import type { SubagentConfig, ThreadId } from "../chat-types.ts";
 import { provisionContainer } from "../container/provision.ts";
@@ -74,7 +78,7 @@ function resolveSubagentConfig(
   const agentType = entry.agentType;
 
   if (!agentType || agentType === "default") {
-    return {};
+    return { tier: "thread" as AgentTier };
   }
 
   // Look up custom agent by name
@@ -85,11 +89,12 @@ function resolveSubagentConfig(
       fastModel: agentDef.fastModel,
       systemPrompt: agentDef.systemPrompt,
       systemReminder: agentDef.systemReminder,
+      tier: agentDef.tier,
     };
   }
 
   // Unknown agent type — treat as default
-  return { agentName: agentType };
+  return { agentName: agentType, tier: "leaf" as AgentTier };
 }
 
 export function execute(
@@ -451,9 +456,31 @@ function truncatePrompt(prompt: string, maxLen: number = 80): string {
     : singleLine;
 }
 
-export function getSpec(agents: AgentsMap): ProviderToolSpec {
+export function getSpec(
+  agents: AgentsMap,
+  currentTier?: AgentTier,
+): ProviderToolSpec {
   const agentNames = Object.keys(agents);
-  const allAgentTypes = ["default", ...agentNames];
+  let filteredAgentNames: string[];
+
+  if (currentTier === undefined) {
+    // Root/conductor: show all agents
+    filteredAgentNames = agentNames;
+  } else if (currentTier === "thread") {
+    // Thread: show leaf agents + thread agents (thread agents need docker)
+    filteredAgentNames = agentNames.filter((name) => {
+      const tier = agents[name].tier;
+      return tier === "leaf" || tier === "thread";
+    });
+  } else if (currentTier === "orchestrator") {
+    // Orchestrator: show all agents
+    filteredAgentNames = agentNames;
+  } else {
+    // leaf shouldn't have spawn_subagents, but if it does, show nothing
+    filteredAgentNames = [];
+  }
+
+  const allAgentTypes = ["default", ...filteredAgentNames];
 
   const agentsDescription = formatAgentsIntroduction(agents);
   const description = SPAWN_SUBAGENTS_BASE_DESCRIPTION + agentsDescription;

@@ -1,5 +1,5 @@
 import type { AgentsMap } from "../agents/agents.ts";
-import type { ThreadId, ThreadType } from "../chat-types.ts";
+import type { SubagentConfig, ThreadId, ThreadType } from "../chat-types.ts";
 import type {
   ProviderToolSpec as MCPProviderToolSpec,
   ProviderToolSpec,
@@ -79,18 +79,33 @@ export function getToolSpecs(
   mcpToolManager: MCPToolManager,
   availableCapabilities?: Set<ToolCapability>,
   agents?: AgentsMap,
+  subagentConfig?: SubagentConfig,
 ): ProviderToolSpec[] {
   let staticToolNames: StaticToolName[] = [];
   switch (threadType) {
-    case "subagent":
-      staticToolNames = SUBAGENT_STATIC_TOOL_NAMES;
+    case "subagent": {
+      const tier = subagentConfig?.tier;
+      if (tier === "thread" || tier === "orchestrator") {
+        staticToolNames = [...SUBAGENT_STATIC_TOOL_NAMES, "spawn_subagents"];
+      } else {
+        staticToolNames = SUBAGENT_STATIC_TOOL_NAMES;
+      }
       break;
+    }
     case "compact":
       staticToolNames = COMPACT_STATIC_TOOL_NAMES;
       break;
-    case "docker_root":
-      staticToolNames = DOCKER_ROOT_STATIC_TOOL_NAMES;
+    case "docker_root": {
+      const tier = subagentConfig?.tier;
+      if (tier === "leaf" || tier === undefined) {
+        staticToolNames = DOCKER_ROOT_STATIC_TOOL_NAMES.filter(
+          (t) => t !== "spawn_subagents",
+        );
+      } else {
+        staticToolNames = DOCKER_ROOT_STATIC_TOOL_NAMES;
+      }
       break;
+    }
     case "root":
     case "conductor":
       staticToolNames = CHAT_STATIC_TOOL_NAMES;
@@ -113,7 +128,7 @@ export function getToolSpecs(
   const specs: ProviderToolSpec[] = [];
   for (const toolName of filteredToolNames) {
     if (toolName === "spawn_subagents") {
-      specs.push(SpawnSubagents.getSpec(agents ?? {}));
+      specs.push(SpawnSubagents.getSpec(agents ?? {}, subagentConfig?.tier));
     } else {
       const spec = TOOL_SPEC_MAP[toolName];
       if (spec) {

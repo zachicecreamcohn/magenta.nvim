@@ -1302,6 +1302,8 @@ describe("getSpec", () => {
         systemPrompt: "",
         systemReminder: undefined,
         fastModel: true,
+        tier: "leaf" as const,
+
       },
       "my-agent": {
         name: "my-agent",
@@ -1309,6 +1311,8 @@ describe("getSpec", () => {
         systemPrompt: "",
         systemReminder: undefined,
         fastModel: undefined,
+        tier: "leaf" as const,
+
       },
     };
     const spec = SpawnSubagents.getSpec(agents);

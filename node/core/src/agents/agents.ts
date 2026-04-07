@@ -12,7 +12,9 @@ export type AgentInfo = {
   systemPrompt: string;
   systemReminder: string | undefined;
   fastModel: boolean | undefined;
+  tier: AgentTier;
 };
+export type AgentTier = "leaf" | "thread" | "orchestrator";
 
 export type AgentsMap = {
   [agentName: string]: AgentInfo;
@@ -22,6 +24,7 @@ type AgentFrontmatter = {
   name?: string;
   description?: string;
   fastModel?: boolean;
+  tier?: AgentTier;
 };
 
 export function loadAgents(context: {
@@ -157,6 +160,7 @@ export function parseAgentFile(
     systemPrompt,
     systemReminder,
     fastModel: frontmatter.fastModel,
+    tier: frontmatter.tier ?? "leaf",
   };
 }
 
@@ -191,6 +195,10 @@ function extractAgentFrontmatter(
       result[key] = value;
     } else if (key === "fastModel") {
       result.fastModel = value === "true";
+    } else if (key === "tier") {
+      if (value === "leaf" || value === "thread" || value === "orchestrator") {
+        result.tier = value;
+      }
     }
   }
   return result;

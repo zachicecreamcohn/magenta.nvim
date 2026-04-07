@@ -2,6 +2,7 @@
 name: tests-in-docker
 description: Run tests, type-checks, or linting with full capabilities (docker, process management). Runs with TEST_MODE=all by default, so all tests including capability-gated ones will execute.
 fastModel: true
+tier: leaf
 ---
 
 # Role

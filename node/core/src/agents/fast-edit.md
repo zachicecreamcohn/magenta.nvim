@@ -2,6 +2,7 @@
 name: fast-edit
 description: Quick, predictable edit tasks that don't require full model capabilities, like straightforward refactors.
 fastModel: true
+tier: leaf
 ---
 
 # Role

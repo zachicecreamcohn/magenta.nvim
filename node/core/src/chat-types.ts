@@ -1,3 +1,5 @@
+import type { AgentTier } from "./agents/agents.ts";
+
 export type Role = "user" | "assistant";
 
 export type ThreadId = string & { __threadId: true };
@@ -16,4 +18,5 @@ export type SubagentConfig = {
   fastModel?: boolean | undefined;
   systemPrompt?: string | undefined;
   systemReminder?: string | undefined;
+  tier?: AgentTier | undefined;
 };
