@@ -27,9 +27,10 @@ export function getProvider(
   const clientKey = profile.name;
 
   if (!clients[clientKey]) {
+    let provider: Provider;
     switch (profile.provider) {
       case "anthropic":
-        return new AnthropicProvider(
+        provider = new AnthropicProvider(
           logger,
           authUI,
           validateInput,
@@ -40,27 +41,24 @@ export function getProvider(
             authType: profile.authType,
           },
         );
+        break;
       case "bedrock":
-        return new BedrockProvider(logger, validateInput, anthropicAuth, {
+        provider = new BedrockProvider(logger, validateInput, anthropicAuth, {
           env: profile.env,
         });
+        break;
       case "openai":
-        // return new OpenAIProvider(nvim, {
-        //   baseUrl: profile.baseUrl,
-        //   apiKeyEnvVar: profile.apiKeyEnvVar,
-        // });
         throw new Error("Not implemented");
       case "ollama":
-        // return new OllamaProvider(nvim);
         throw new Error("Not implemented");
       case "copilot":
-        // return new CopilotProvider(nvim);
         throw new Error("Not implemented");
       case "mock":
         return mockProvider!;
       default:
         assertUnreachable(profile.provider);
     }
+    clients[clientKey] = provider;
   }
 
   return clients[clientKey];
