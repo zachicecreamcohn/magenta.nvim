@@ -45,8 +45,6 @@ export const DEFAULT_SUBAGENT_SYSTEM_PROMPT =
   "\n" +
   loadPrompt("code-changes.md");
 
-export const CONDUCTOR_SYSTEM_PROMPT = loadPrompt("conductor-system-prompt.md");
-const CONDUCTOR_DOCKER_ADDENDUM = loadPrompt("conductor-docker-addendum.md");
 export const COMPACT_SYSTEM_PROMPT =
   "You are a compaction agent that reduces conversation transcripts using the edl tool. You MUST write your summary to the `/summary.md` file using the edl tool. Do NOT place the summary in your text response — only the contents of `/summary.md` are captured.";
 
@@ -66,13 +64,6 @@ function getBaseSystemPrompt(
       return COMPACT_SYSTEM_PROMPT;
     case "root":
       return DEFAULT_SYSTEM_PROMPT;
-    case "conductor": {
-      const base = CONDUCTOR_SYSTEM_PROMPT;
-      if (opts.dockerAvailable) {
-        return `${base}\n\n${CONDUCTOR_DOCKER_ADDENDUM}`;
-      }
-      return base;
-    }
     case "docker_root": {
       return (
         DEFAULT_SYSTEM_PROMPT +

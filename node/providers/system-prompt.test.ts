@@ -35,34 +35,7 @@ it("docker_root prompt mentions syncing and yield_to_parent", async () => {
     expect(systemPrompt).not.toContain("worker branch");
   });
 });
-it("returns conductor base prompt without docker addendum when dockerAvailable is false", async () => {
-  await withDriver({}, async (driver) => {
-    const systemPrompt = await createSystemPrompt("conductor", {
-      nvim: driver.magenta.nvim,
-      cwd: driver.magenta.cwd,
-      options: driver.magenta.options,
-    });
 
-    expect(systemPrompt).toContain("You are a conductor");
-    expect(systemPrompt).toContain("~/.magenta/tasks/");
-    expect(systemPrompt).not.toContain("# Docker Subagents");
-  });
-});
-
-it("includes docker addendum in conductor prompt when dockerAvailable is true", async () => {
-  await withDriver({}, async (driver) => {
-    const systemPrompt = await createSystemPrompt("conductor", {
-      nvim: driver.magenta.nvim,
-      cwd: driver.magenta.cwd,
-      options: driver.magenta.options,
-      dockerAvailable: true,
-    });
-
-    expect(systemPrompt).toContain("You are a conductor");
-    expect(systemPrompt).toContain("# Docker Subagents");
-    expect(systemPrompt).toContain("docker_unsupervised");
-  });
-});
 it("includes system information in the prompt", async () => {
   await withDriver({}, async (driver) => {
     const systemPrompt = await createSystemPrompt("root", {

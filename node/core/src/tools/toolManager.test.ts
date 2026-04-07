@@ -123,14 +123,3 @@ describe("tier-based spawn_subagents control", () => {
   });
 });
 
-describe("conductor thread type", () => {
-  it("returns same tools as root (CHAT_STATIC_TOOL_NAMES)", () => {
-    const conductorSpecs = getToolSpecs("conductor", noopMcpToolManager);
-    const rootSpecs = getToolSpecs("root", noopMcpToolManager);
-    const conductorNames = conductorSpecs.map((s) => s.name);
-    const rootNames = rootSpecs.map((s) => s.name);
-    expect(conductorNames).toEqual(rootNames);
-    expect(conductorNames).not.toContain("yield_to_parent");
-    expect(conductorNames).toContain("spawn_subagents");
-  });
-});

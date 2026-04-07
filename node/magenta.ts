@@ -289,7 +289,13 @@ export class Magenta {
 
         break;
       }
-      case "new-conductor-thread": {
+      case "agent": {
+        const agentName = rest[0];
+        if (!agentName) {
+          await this.nvim.call("nvim_err_writeln", ["Usage: :Magenta agent <name>"]);
+          break;
+        }
+
         if (!this.sidebar.isVisible()) {
           await this.command("toggle");
         }
@@ -297,10 +303,10 @@ export class Magenta {
         this.dispatch({
           type: "chat-msg",
           msg: {
-            type: "new-conductor-thread",
+            type: "new-agent-thread",
+            agentName,
           },
         });
-
         break;
       }
 

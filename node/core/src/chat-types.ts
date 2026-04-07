@@ -10,8 +10,7 @@ export type ThreadType =
   | "subagent"
   | "compact"
   | "root"
-  | "docker_root"
-  | "conductor";
+  | "docker_root";
 
 export type SubagentConfig = {
   agentName?: string | undefined;

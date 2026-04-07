@@ -107,7 +107,6 @@ export function getToolSpecs(
       break;
     }
     case "root":
-    case "conductor":
       staticToolNames = CHAT_STATIC_TOOL_NAMES;
       break;
     default:

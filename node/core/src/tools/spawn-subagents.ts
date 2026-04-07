@@ -464,7 +464,7 @@ export function getSpec(
   let filteredAgentNames: string[];
 
   if (currentTier === undefined) {
-    // Root/conductor: show all agents
+    // Root: show all agents
     filteredAgentNames = agentNames;
   } else if (currentTier === "thread") {
     // Thread: show leaf agents + thread agents (thread agents need docker)
