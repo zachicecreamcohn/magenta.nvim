@@ -22,6 +22,7 @@ export interface Sandbox {
   getViolationStore(): {
     getTotalCount(): number;
     getViolations(count: number): SandboxViolationEvent[];
+    addViolation(violation: SandboxViolationEvent): void;
   };
   annotateStderrWithSandboxFailures(command: string, stderr: string): string;
   getFsReadConfig(): FsReadConfig;

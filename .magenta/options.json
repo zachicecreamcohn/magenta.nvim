@@ -1,7 +1,9 @@
 {
   "sandbox": {
     "network": {
-      "allowUnixSockets": ["/private/tmp"]
+      "allowUnixSockets": ["/private/tmp", "/tmp/claude"],
+      "allowAllUnixSockets": true,
+      "allowedDomains": ["mcp.slack.com"]
     },
     "filesystem": {
       "allowRead": [
@@ -11,10 +13,12 @@
         "./test-plugins/nvim-cmp/.githooks",
         "./test-plugins/nvim-cmp/.github",
         "./node/packages/sandbox-runtime/.github",
-        "./node/packages/sandbox-runtime/.vscode"
+        "./node/packages/sandbox-runtime/.vscode",
+        "~/.config/slack-skill"
       ],
       "allowWrite": [
-        "/private/tmp/magenta/"
+        "/private/tmp/magenta/",
+        "/tmp/claude"
       ]
     }
   }

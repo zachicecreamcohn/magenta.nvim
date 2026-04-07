@@ -21,6 +21,7 @@ export class MockSandboxManager implements Sandbox {
     return {
       getTotalCount: () => this.violationCount,
       getViolations: (count: number) => this.pendingViolations.splice(0, count),
+      addViolation: () => {},
     };
   }
 

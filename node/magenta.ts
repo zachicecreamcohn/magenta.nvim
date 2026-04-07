@@ -731,6 +731,7 @@ ${lines.join("\n")}
           getViolationStore: () => ({
             getTotalCount: () => 0,
             getViolations: () => [],
+            addViolation: () => {},
           }),
           annotateStderrWithSandboxFailures: (_cmd: string, stderr: string) =>
             stderr,

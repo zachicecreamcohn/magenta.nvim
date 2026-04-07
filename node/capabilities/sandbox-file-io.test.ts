@@ -24,6 +24,7 @@ function createMockSandbox(): Sandbox {
     getViolationStore: () => ({
       getTotalCount: () => 0,
       getViolations: () => [],
+      addViolation: () => {},
     }),
     annotateStderrWithSandboxFailures: (_cmd: string, stderr: string) => stderr,
     updateConfigIfChanged: () => {},

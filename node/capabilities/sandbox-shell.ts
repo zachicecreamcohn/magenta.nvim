@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import type { SandboxViolationEvent } from "@anthropic-ai/sandbox-runtime";
 import type { ThreadId } from "@magenta/core";
 import type { MagentaOptions } from "../options.ts";
 import type { Sandbox } from "../sandbox-manager.ts";
@@ -211,7 +212,24 @@ export class SandboxShell implements Shell {
       }
     }
 
-    const postCount = store.getTotalCount();
+    let postCount = store.getTotalCount();
+
+    // On Linux (bubblewrap), the sandbox has no log monitor to populate the
+    // violation store. Violations manifest only as EPERM / "Permission denied"
+    // errors in stderr. Detect these heuristically and synthesize violation
+    // events so the user gets the same approval prompt as on macOS.
+    if (
+      result.exitCode !== 0 &&
+      postCount === preCount &&
+      process.platform === "linux"
+    ) {
+      const synthetic = detectLinuxSandboxViolations(command, result);
+      for (const v of synthetic) {
+        store.addViolation(v);
+      }
+      postCount = store.getTotalCount();
+    }
+
     if (postCount > preCount && result.exitCode !== 0) {
       const newViolations = store.getViolations(postCount - preCount);
       const stderr = result.output
@@ -285,4 +303,41 @@ export class SandboxShell implements Shell {
       },
     };
   }
+}
+
+const LINUX_SANDBOX_VIOLATION_PATTERNS = [
+  /Permission denied/i,
+  /EPERM/,
+  /Operation not permitted/i,
+  /Read-only file system/i,
+  /EROFS/,
+  /EACCES/,
+];
+
+function detectLinuxSandboxViolations(
+  command: string,
+  result: ShellResult,
+): SandboxViolationEvent[] {
+  const stderrLines = result.output
+    .filter((l) => l.stream === "stderr")
+    .flatMap((l) => l.text.split("\n"))
+    .filter((line) => line.trim().length > 0);
+
+  const violations: SandboxViolationEvent[] = [];
+  const seen = new Set<string>();
+
+  for (const line of stderrLines) {
+    if (LINUX_SANDBOX_VIOLATION_PATTERNS.some((p) => p.test(line))) {
+      if (!seen.has(line)) {
+        seen.add(line);
+        violations.push({
+          line,
+          command,
+          timestamp: new Date(),
+        });
+      }
+    }
+  }
+
+  return violations;
 }
