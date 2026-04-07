@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { APIError } from "@anthropic-ai/sdk";
 import type { MessageStream } from "@anthropic-ai/sdk/lib/MessageStream.mjs";
 import { Emitter } from "../emitter.ts";
 import type { Logger } from "../logger.ts";
@@ -67,6 +68,21 @@ type Action =
   | { type: "stream-error"; error: Error }
   | { type: "stream-aborted" };
 
+export const RETRY_DELAYS = [1000, 5000, 10000, 30000];
+export const MAX_RETRY_DURATION = 300_000;
+
+export function isRetryableError(error: Error): boolean {
+  return (
+    error instanceof APIError && (error.status === 429 || error.status === 529)
+  );
+}
+
+export function getRetryDelay(attempt: number): number {
+  return attempt < RETRY_DELAYS.length
+    ? RETRY_DELAYS[attempt]
+    : RETRY_DELAYS[RETRY_DELAYS.length - 1];
+}
+
 export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
   private messages: Anthropic.MessageParam[] = [];
   private currentRequest: MessageStream | undefined;
@@ -89,6 +105,7 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
   private inputTokenCount: number | undefined;
   private streamingEndPromise: Promise<void> | undefined;
   private streamingEndResolver: (() => void) | undefined;
+  private retryAbortController: AbortController | undefined;
 
   constructor(
     private options: AgentOptions,
@@ -346,13 +363,15 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
   }
 
   abort(): Promise<void> {
+    // Cancel any pending retry wait
+    if (this.retryAbortController) {
+      this.retryAbortController.abort();
+    }
     if (this.currentRequest) {
       this.currentRequest.abort();
-      // The catch block in continueConversation will handle the status update
-      // Return the promise that will resolve when streaming ends
       return this.streamingEndPromise || Promise.resolve();
     }
-    return Promise.resolve();
+    return this.streamingEndPromise || Promise.resolve();
   }
 
   abortToolUse(): void {
@@ -378,50 +397,122 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
 
   continueConversation(): void {
     this.update({ type: "start-streaming" });
+    const startTime = (this.status as { startTime: Date }).startTime;
 
-    const messagesWithCache = withCacheControl(this.messages);
-    this.currentRequest = this.client.messages.stream({
-      ...this.params,
-      messages: messagesWithCache,
-    });
+    const attemptStream = (): Promise<
+      | { type: "completed"; response: Anthropic.Message }
+      | { type: "aborted" }
+      | { type: "error"; error: Error }
+    > => {
+      const messagesWithCache = withCacheControl(this.messages);
+      this.currentRequest = this.client.messages.stream({
+        ...this.params,
+        messages: messagesWithCache,
+      });
 
-    this.currentRequest.on("streamEvent", (event) => {
-      switch (event.type) {
-        case "content_block_start":
-          this.update({
-            type: "block-started",
-            index: event.index,
-            block: event.content_block,
-          });
-          break;
+      this.currentRequest.on("streamEvent", (event) => {
+        switch (event.type) {
+          case "content_block_start":
+            this.update({
+              type: "block-started",
+              index: event.index,
+              block: event.content_block,
+            });
+            break;
 
-        case "content_block_delta":
-          this.update({
-            type: "block-delta",
-            index: event.index,
-            delta: event.delta,
-          });
-          break;
+          case "content_block_delta":
+            this.update({
+              type: "block-delta",
+              index: event.index,
+              delta: event.delta,
+            });
+            break;
 
-        case "content_block_stop":
-          this.update({ type: "block-finished", index: event.index });
-          break;
-      }
-    });
-
-    this.currentRequest
-      .finalMessage()
-      .then((response) => {
-        this.update({ type: "stream-completed", response });
-      })
-      .catch((error: Error) => {
-        const aborted = this.currentRequest?.controller.signal.aborted;
-        if (aborted) {
-          this.update({ type: "stream-aborted" });
-        } else {
-          this.update({ type: "stream-error", error });
+          case "content_block_stop":
+            this.update({ type: "block-finished", index: event.index });
+            break;
         }
       });
+
+      return this.currentRequest
+        .finalMessage()
+        .then((response) => ({ type: "completed" as const, response }))
+        .catch((error: Error) => {
+          const aborted = this.currentRequest?.controller.signal.aborted;
+          if (aborted) {
+            return { type: "aborted" as const };
+          }
+          return { type: "error" as const, error };
+        });
+    };
+
+    const runWithRetry = async () => {
+      let attempt = 0;
+      while (true) {
+        // Clear retryStatus when starting a new attempt
+        this.status = { type: "streaming", startTime };
+        if (attempt > 0) {
+          this.emit("didUpdate");
+        }
+
+        const result = await attemptStream();
+
+        if (result.type === "completed") {
+          this.update({ type: "stream-completed", response: result.response });
+          return;
+        }
+        if (result.type === "aborted") {
+          this.update({ type: "stream-aborted" });
+          return;
+        }
+
+        // result.type === "error"
+        const elapsed = Date.now() - startTime.getTime();
+        if (!isRetryableError(result.error) || elapsed >= MAX_RETRY_DURATION) {
+          this.update({ type: "stream-error", error: result.error });
+          return;
+        }
+
+        const delay = getRetryDelay(attempt);
+        const nextRetryAt = new Date(Date.now() + delay);
+        this.status = {
+          type: "streaming",
+          startTime,
+          retryStatus: {
+            attempt: attempt + 1,
+            nextRetryAt,
+            error: result.error,
+          },
+        };
+        this.emit("didUpdate");
+
+        // Wait for the delay, but allow abort to cancel
+        this.retryAbortController = new AbortController();
+        const abortSignal = this.retryAbortController.signal;
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(resolve, delay);
+            abortSignal.addEventListener(
+              "abort",
+              () => {
+                clearTimeout(timer);
+                reject(new DOMException("Aborted", "AbortError"));
+              },
+              { once: true },
+            );
+          });
+        } catch {
+          // Abort during retry wait
+          this.retryAbortController = undefined;
+          this.update({ type: "stream-aborted" });
+          return;
+        }
+        this.retryAbortController = undefined;
+        attempt++;
+      }
+    };
+
+    runWithRetry();
   }
 
   private countTokensPostFlight(): void {

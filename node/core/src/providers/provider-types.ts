@@ -218,8 +218,14 @@ export interface ProviderToolUseRequest {
 // Agent - Stateful conversation agent interface
 // ============================================================================
 
+export type RetryStatus = {
+  attempt: number;
+  nextRetryAt: Date;
+  error: Error;
+};
+
 export type AgentStatus =
-  | { type: "streaming"; startTime: Date }
+  | { type: "streaming"; startTime: Date; retryStatus?: RetryStatus }
   | { type: "stopped"; stopReason: StopReason }
   | { type: "error"; error: Error };
 

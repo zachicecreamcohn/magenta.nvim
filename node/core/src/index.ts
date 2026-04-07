@@ -139,6 +139,7 @@ export type {
   ProviderToolUseResponse,
   ProviderWebSearchCitation,
   ProviderWebSearchToolResult,
+  RetryStatus,
   StopReason,
   Usage,
 } from "./providers/provider-types.ts";
