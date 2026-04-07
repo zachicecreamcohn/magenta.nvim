@@ -3,7 +3,6 @@ import * as os from "node:os";
 import type {
   ProviderMessage,
   ProviderMessageContent,
-  Row0Indexed,
   ToolName,
   ToolRequestId,
 } from "@magenta/core";
@@ -14,12 +13,11 @@ import {
   type UnresolvedFilePath,
 } from "@magenta/core";
 import { describe, expect, it } from "vitest";
-import type { Line } from "../nvim/buffer.ts";
 import { getAllWindows, getcwd } from "../nvim/nvim.ts";
 import { withDriver } from "../test/preamble.ts";
 import type { DiffUpdate } from "./context-manager.ts";
 
-it("returns diff when file is edited in a buffer", async () => {
+it("returns diff when file is edited on disk", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
 
@@ -36,21 +34,18 @@ it("returns diff when file is edited in a buffer", async () => {
     // Add file to context using the helper method
     await driver.addContextFiles("poem.txt");
 
-    // First, edit the file to track the buffer
+    // Open the file to track the buffer
     await driver.editFile("poem.txt");
     await contextManager.getContextUpdate();
 
-    const window = await driver.findWindow(async (w) => {
-      const buffer = await w.buffer();
-      const bufName = await buffer.getName();
-      return bufName.indexOf("poem.txt") > -1;
-    });
-    const buffer = await window.buffer();
-    await buffer.setLines({
-      start: 0 as Row0Indexed,
-      end: 1 as Row0Indexed,
-      lines: ["Edited moonlight dances through the trees," as Line],
-    });
+    // Edit the file on disk (disk-first approach means agent reads from disk)
+    const filePath = `${cwd}/poem.txt`;
+    const original = fs.readFileSync(filePath, "utf-8");
+    const edited = original.replace(
+      /^.*$/m,
+      "Edited moonlight dances through the trees,",
+    );
+    fs.writeFileSync(filePath, edited);
 
     // Get context updates after the edit
     const updates = await contextManager.getContextUpdate();
@@ -65,14 +60,11 @@ it("returns diff when file is edited in a buffer", async () => {
       expect((update.update.value as DiffUpdate).patch).toContain(
         "Edited moonlight",
       );
-      expect((update.update.value as DiffUpdate).patch).toContain(
-        "Moonlight whispers",
-      );
     }
   });
 });
 
-it("returns error when both buffer and disk change after agentView set", async () => {
+it("returns diff when disk changes even if buffer has unsaved changes", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
 
@@ -88,33 +80,20 @@ it("returns error when both buffer and disk change after agentView set", async (
     await driver.addContextFiles("poem.txt");
     await driver.editFile("poem.txt");
 
-    // Initial read to establish agentView and buffer tracking
+    // Initial read to establish agentView
     await contextManager.getContextUpdate();
 
-    // Edit the buffer (without saving)
-    const window = await driver.findWindow(async (w) => {
-      const buffer = await w.buffer();
-      const bufName = await buffer.getName();
-      return bufName.indexOf("poem.txt") > -1;
-    });
-    const buffer = await window.buffer();
-    await buffer.setLines({
-      start: 0 as Row0Indexed,
-      end: 1 as Row0Indexed,
-      lines: ["Buffer edit" as Line],
-    });
-
-    // Also modify the file on disk directly
+    // Modify the file on disk directly (agent reads from disk)
     const filePath = `${cwd}/poem.txt`;
     fs.writeFileSync(filePath, "Disk edit\n");
 
-    // Context update should return an error for this file
+    // Context update should return a diff (disk-first reads from disk)
     const updates = await contextManager.getContextUpdate();
     const update = updates[absFilePath];
     expect(update).toBeDefined();
-    expect(update.update.status).toBe("error");
-    if (update.update.status === "error") {
-      expect(update.update.error).toContain("Both");
+    expect(update.update.status).toBe("ok");
+    if (update.update.status === "ok") {
+      expect(update.update.value.type).toBe("diff");
     }
   });
 });

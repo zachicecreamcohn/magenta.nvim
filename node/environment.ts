@@ -28,7 +28,6 @@ export interface Environment {
 
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
-import type { BufferTracker } from "./buffer-tracker.ts";
 import { DockerFileIO } from "./capabilities/docker-file-io.ts";
 import { DockerShell } from "./capabilities/docker-shell.ts";
 import type { Lsp } from "./capabilities/lsp.ts";
@@ -45,7 +44,6 @@ import { getDiagnostics } from "./utils/diagnostics.ts";
 export function createLocalEnvironment({
   nvim,
   lsp,
-  bufferTracker,
   cwd,
   homeDir,
   getOptions,
@@ -55,7 +53,6 @@ export function createLocalEnvironment({
 }: {
   nvim: Nvim;
   lsp: Lsp;
-  bufferTracker: BufferTracker;
   cwd: NvimCwd;
   homeDir: HomeDir;
   getOptions: () => MagentaOptions;
@@ -66,7 +63,7 @@ export function createLocalEnvironment({
   const violationHandler = new SandboxViolationHandlerImpl(onPendingChange);
 
   const sandboxFileIO = new SandboxFileIO(
-    { nvim, bufferTracker, cwd, homeDir },
+    { nvim, cwd, homeDir },
     sandbox,
     (absPath) => violationHandler.promptForWriteApproval(absPath),
   );

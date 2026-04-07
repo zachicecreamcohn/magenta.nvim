@@ -1,10 +1,9 @@
 import * as os from "node:os";
 import type { InputMessage } from "@magenta/core";
-import { BufferTracker } from "./buffer-tracker.ts";
 import { Lsp } from "./capabilities/lsp.ts";
 import { Chat } from "./chat/chat.ts";
 import { CommandRegistry } from "./chat/commands/registry.ts";
-import type { BufNr, Line } from "./nvim/buffer.ts";
+import type { Line } from "./nvim/buffer.ts";
 import { MAGENTA_HIGHLIGHT_NAMESPACE } from "./nvim/buffer.ts";
 import { initializeMagentaHighlightGroups } from "./nvim/extmarks.ts";
 import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
@@ -26,7 +25,6 @@ import { pos } from "./tea/view.ts";
 import { assertUnreachable } from "./utils/assertUnreachable.ts";
 import type { HomeDir } from "./utils/files.ts";
 import {
-  type AbsFilePath,
   detectFileType,
   type NvimCwd,
   relativePath,
@@ -40,7 +38,6 @@ const MAGENTA_COMMAND = "magentaCommand";
 const MAGENTA_ON_WINDOW_CLOSED = "magentaWindowClosed";
 const MAGENTA_KEY = "magentaKey";
 const MAGENTA_LSP_RESPONSE = "magentaLspResponse";
-const MAGENTA_BUFFER_TRACKER = "magentaBufferTracker";
 
 export class Magenta {
   public sidebar: Sidebar;
@@ -48,7 +45,6 @@ export class Magenta {
   public mountedChatApp: TEA.MountedApp | undefined;
   public chat: Chat;
   public dispatch: Dispatch<RootMsg>;
-  public bufferTracker: BufferTracker;
   public commandRegistry: CommandRegistry;
   public optionsLoader: DynamicOptionsLoader;
 
@@ -61,7 +57,6 @@ export class Magenta {
     private sandbox: Sandbox,
   ) {
     this.optionsLoader = optionsLoader;
-    this.bufferTracker = new BufferTracker(this.nvim);
     this.commandRegistry = new CommandRegistry();
     if (this.options.customCommands) {
       for (const customCommand of this.options.customCommands) {
@@ -100,7 +95,6 @@ export class Magenta {
           return 100;
         }
       },
-      bufferTracker: this.bufferTracker,
       cwd: this.cwd,
       homeDir: this.homeDir,
       nvim: this.nvim,
@@ -424,30 +418,6 @@ ${lines.join("\n")}
     await this.sidebar.onWinClosed();
   }
 
-  onBufferTrackerEvent(
-    eventType: "read" | "write" | "close",
-    absFilePath: AbsFilePath,
-    bufnr: BufNr,
-  ) {
-    // Handle buffer events in our tracker
-    switch (eventType) {
-      case "read":
-      case "write":
-        this.bufferTracker.trackBufferSync(absFilePath, bufnr).catch((err) => {
-          this.nvim.logger.error(
-            `Error tracking buffer sync for ${absFilePath}: ${err}`,
-          );
-        });
-
-        break;
-      case "close":
-        this.bufferTracker.clearFileTracking(absFilePath);
-        break;
-      default:
-        assertUnreachable(eventType);
-    }
-  }
-
   destroy() {
     if (this.mountedChatApp) {
       this.mountedChatApp.unmount();
@@ -491,42 +461,6 @@ ${lines.join("\n")}
         lsp.onLspResponse(args);
       } catch (err) {
         nvim.logger.error(JSON.stringify(err));
-      }
-    });
-
-    nvim.onNotification(MAGENTA_BUFFER_TRACKER, (args) => {
-      try {
-        if (
-          args.length < 3 ||
-          typeof args[0] !== "string" ||
-          typeof args[1] !== "string" ||
-          typeof args[2] !== "number"
-        ) {
-          throw new Error(
-            `Expected buffer tracker args to be [eventType, filePath, bufnr]`,
-          );
-        }
-
-        const eventType = args[0];
-        // Validate that eventType is one of the expected values
-        if (
-          eventType !== "read" &&
-          eventType !== "write" &&
-          eventType !== "close"
-        ) {
-          throw new Error(
-            `Invalid eventType: ${eventType}. Expected 'read', 'write', or 'close'`,
-          );
-        }
-
-        const absFilePath = args[1] as AbsFilePath;
-        const bufnr = args[2] as BufNr;
-
-        magenta.onBufferTrackerEvent(eventType, absFilePath, bufnr);
-      } catch (err) {
-        nvim.logger.error(
-          `Error handling buffer tracker event for ${JSON.stringify(args)}: ${err instanceof Error ? `${err.message}\n${err.stack}` : JSON.stringify(err)}`,
-        );
       }
     });
 

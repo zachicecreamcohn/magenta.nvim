@@ -272,7 +272,7 @@ replace "goodbye"`;
     );
   });
 
-  test("edl reads from buffer when buffer has unsaved changes", async () => {
+  test("edl reads from disk even when buffer has unsaved changes", async () => {
     await withDriver(
       {
         setupFiles: async (tmpDir) => {
@@ -288,44 +288,7 @@ replace "goodbye"`;
 
         const filePath = path.join(dirs.tmpDir, "test.txt");
 
-        // Step 1: Run EDL to write to the file (this tracks the buffer in bufferTracker)
-        await driver.inputMagentaText("edit file");
-        await driver.send();
-
-        const script1 = `file \`${filePath}\`
-narrow /original/
-replace "modified"`;
-
-        const stream1 = await driver.mockAnthropic.awaitPendingStream();
-        stream1.respond({
-          stopReason: "tool_use",
-          text: "editing",
-          toolRequests: [
-            {
-              status: "ok",
-              value: {
-                id: "tool_1" as ToolRequestId,
-                toolName: "edl" as ToolName,
-                input: { script: script1 },
-              },
-            },
-          ],
-        });
-
-        await driver.assertDisplayBufferContains(
-          "✅ edl: 1 mutations in 1 file",
-        );
-
-        // End first turn
-        const autoStream = await driver.mockAnthropic.awaitPendingStream();
-        autoStream.respond({
-          stopReason: "end_turn",
-          text: "Done!",
-          toolRequests: [],
-        });
-        await driver.mockAnthropic.awaitStopped();
-
-        // Step 2: Edit buffer without saving (simulating user edit)
+        // Modify buffer without saving so buffer and disk differ
         const buffers = await getAllBuffers(driver.nvim);
         let testBuffer;
         for (const buf of buffers) {
@@ -344,40 +307,42 @@ replace "modified"`;
           lines: ["buffer only content" as Line],
         });
 
-        // Disk still has old content
+        // Disk still has original content
         const diskContent = await fs.readFile(filePath, "utf-8");
-        expect(diskContent).toBe("modified content\n");
+        expect(diskContent).toBe("original content\n");
 
-        // Step 3: Run EDL that searches for content only present in the buffer
-        await driver.inputMagentaText("edit again");
+        // Run EDL that searches for content on disk (not in buffer)
+        await driver.inputMagentaText("edit the file");
         await driver.send();
 
-        const script2 = `file \`${filePath}\`
-narrow /buffer only/
-replace <<END
-replaced
-END`;
+        const script = `file \`${filePath}\`
+narrow /original/
+replace "disk-based"`;
 
-        const stream2 = await driver.mockAnthropic.awaitPendingStream();
-        stream2.respond({
+        const stream = await driver.mockAnthropic.awaitPendingStream();
+        stream.respond({
           stopReason: "tool_use",
-          text: "editing again",
+          text: "editing",
           toolRequests: [
             {
               status: "ok",
               value: {
-                id: "tool_2" as ToolRequestId,
+                id: "tool_1" as ToolRequestId,
                 toolName: "edl" as ToolName,
-                input: { script: script2 },
+                input: { script },
               },
             },
           ],
         });
 
-        // If EDL succeeds, it read "buffer only" from the buffer (not disk which has "modified")
+        // EDL should succeed because it reads from disk where "original" exists
         await driver.assertDisplayBufferContains(
           "✅ edl: 1 mutations in 1 file",
         );
+
+        // Verify disk was updated
+        const updatedDisk = await fs.readFile(filePath, "utf-8");
+        expect(updatedDisk).toBe("disk-based content\n");
       },
     );
   });
