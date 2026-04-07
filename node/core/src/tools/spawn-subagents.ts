@@ -157,12 +157,17 @@ export function execute(
 
       const subagentConfig = resolveSubagentConfig(entry, context.agents);
 
+      const resolvedCwd = entry.directory
+        ? resolve(context.cwd, entry.directory)
+        : undefined;
+
       const threadId = await context.threadManager.spawnThread({
         parentThreadId: context.threadId,
         prompt: entry.prompt ?? "",
         threadType: "subagent",
         subagentConfig,
         ...(entry.contextFiles ? { contextFiles: entry.contextFiles } : {}),
+        ...(resolvedCwd ? { cwd: resolvedCwd } : {}),
       });
 
       element.state = { status: "spawned", threadId };
@@ -513,12 +518,12 @@ export function getSpec(agents: AgentsMap): ProviderToolSpec {
                 type: "string",
                 enum: ["host", "docker", "docker_unsupervised"],
                 description:
-                  "Where the sub-agent runs. 'host' (default) runs locally, 'docker'/'docker_unsupervised' runs in an isolated container. The directory must contain .magenta/options.json with container config.",
+                  "Where the sub-agent runs. 'host' (default) runs locally on the host machine, 'docker'/'docker_unsupervised' runs in an isolated Docker container with full shell access.",
               },
               directory: {
                 type: "string",
                 description:
-                  "Host directory to spawn the docker container from. Defaults to '.' (current working directory). The directory must contain .magenta/options.json with a container config.",
+                  "Host directory to spawn the docker container from. Defaults to '.' (current working directory). For docker environments, the directory must contain .magenta/options.json with a container config. For host environments, sets the working directory for the sub-agent.",
               },
             },
           },

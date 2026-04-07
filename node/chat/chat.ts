@@ -402,7 +402,7 @@ export class Chat implements ThreadManager {
               nvim: this.context.nvim,
               lsp: this.context.lsp,
 
-              cwd: this.context.cwd,
+              cwd: resolvedConfig.cwd ?? this.context.cwd,
               homeDir: this.context.homeDir,
               getOptions: this.context.getOptions,
               threadId,
@@ -995,6 +995,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     subagentConfig?: SubagentConfig;
     contextFiles?: UnresolvedFilePath[];
     dockerSpawnConfig?: DockerSpawnConfig;
+    cwd?: string;
   }): Promise<ThreadId> {
     const parentThreadId = opts.parentThreadId;
     const parentThreadWrapper = this.threadWrappers[parentThreadId];
@@ -1020,6 +1021,11 @@ ${threadViews.map((view) => d`${view}\n`)}`;
         type: "docker",
         container: opts.dockerSpawnConfig.containerName,
         cwd: opts.dockerSpawnConfig.workspacePath,
+      };
+    } else if (opts.cwd) {
+      environmentConfig = {
+        type: "local",
+        cwd: opts.cwd as NvimCwd,
       };
     } else {
       environmentConfig = parentThread.context.environment.environmentConfig;

@@ -79,7 +79,7 @@ export type ThreadMode =
     };
 
 export type EnvironmentConfig =
-  | { type: "local" }
+  | { type: "local"; cwd?: NvimCwd }
   | { type: "docker"; container: string; cwd: string };
 
 export type ThreadCoreEvents = {

@@ -11,7 +11,7 @@ import type { Sandbox } from "./sandbox-manager.ts";
 import type { HomeDir, NvimCwd } from "./utils/files.ts";
 
 export type EnvironmentConfig =
-  | { type: "local" }
+  | { type: "local"; cwd?: NvimCwd }
   | { type: "docker"; container: string; cwd: string };
 
 export interface Environment {

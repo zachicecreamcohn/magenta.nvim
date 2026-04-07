@@ -461,6 +461,87 @@ describe("spawn-subagents unit tests", () => {
     );
   });
 
+  it("passes resolved cwd to spawnThread when directory is provided", async () => {
+    const spawnThread = vi.fn(() => Promise.resolve("thread_1" as ThreadId));
+    const threadManager = createMockThreadManager({
+      spawnThread,
+    });
+
+    const invocation = SpawnSubagents.execute(
+      makeRequest({
+        agents: [
+          {
+            prompt: "task 1",
+            directory: "some/subdir",
+          },
+        ],
+      }),
+      {
+        threadManager,
+        threadId: "parent_thread" as ThreadId,
+        maxConcurrentSubagents: 10,
+        requestRender: vi.fn(),
+        cwd: "/project/root" as NvimCwd,
+        agents: {},
+      },
+    );
+
+    await vi.waitFor(() => {
+      expect(spawnThread).toHaveBeenCalled();
+    });
+    threadManager.simulateYield("thread_1" as ThreadId, {
+      status: "ok",
+      value: "done",
+    });
+
+    await invocation.promise;
+    expect(spawnThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cwd: path.resolve("/project/root", "some/subdir"),
+      }),
+    );
+  });
+
+  it("does not pass cwd to spawnThread when directory is not provided", async () => {
+    const spawnThread = vi.fn(() => Promise.resolve("thread_1" as ThreadId));
+    const threadManager = createMockThreadManager({
+      spawnThread,
+    });
+
+    const invocation = SpawnSubagents.execute(
+      makeRequest({
+        agents: [
+          {
+            prompt: "task 1",
+          },
+        ],
+      }),
+      {
+        threadManager,
+        threadId: "parent_thread" as ThreadId,
+        maxConcurrentSubagents: 10,
+        requestRender: vi.fn(),
+        cwd: "/project/root" as NvimCwd,
+        agents: {},
+      },
+    );
+
+    await vi.waitFor(() => {
+      expect(spawnThread).toHaveBeenCalled();
+    });
+    threadManager.simulateYield("thread_1" as ThreadId, {
+      status: "ok",
+      value: "done",
+    });
+
+    await invocation.promise;
+    expect(spawnThread).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        cwd: expect.anything(),
+      }),
+    );
+  });
+
   it("validation rejects empty agents array", () => {
     const result = SpawnSubagents.validateInput({ agents: [] });
     expect(result.status).toBe("error");
