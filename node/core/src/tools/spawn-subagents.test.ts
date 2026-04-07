@@ -649,19 +649,6 @@ describe("spawn-subagents docker provisioning", () => {
     tempDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), "magenta-spawn-test-"),
     );
-    // Create .magenta/options.json with container config
-    await fs.promises.mkdir(path.join(tempDir, ".magenta"), {
-      recursive: true,
-    });
-    await fs.promises.writeFile(
-      path.join(tempDir, ".magenta", "options.json"),
-      JSON.stringify({
-        container: {
-          dockerfile: "Dockerfile",
-          workspacePath: "/workspace",
-        },
-      }),
-    );
     vi.mocked(provisionContainer).mockReset().mockResolvedValue({
       containerName: "magenta-test-abc123",
       imageName: "magenta-dev-test",
@@ -674,7 +661,7 @@ describe("spawn-subagents docker provisioning", () => {
     }
   });
 
-  it("reads container config from directory and provisions", async () => {
+  it("uses inline dockerfile and workspacePath for provisioning", async () => {
     const threadManager = createMockThreadManager();
 
     const invocation = SpawnSubagents.execute(
@@ -684,6 +671,8 @@ describe("spawn-subagents docker provisioning", () => {
             prompt: "do docker work",
             environment: "docker",
             directory: tempDir,
+            dockerfile: "Dockerfile",
+            workspacePath: "/workspace",
           },
         ],
       }),
@@ -717,38 +706,31 @@ describe("spawn-subagents docker provisioning", () => {
     );
   });
 
-  it("returns error when .magenta/options.json is missing", async () => {
+  it("returns error when dockerfile/workspacePath missing for docker env", async () => {
     const threadManager = createMockThreadManager();
-    const emptyDir = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), "magenta-spawn-empty-"),
+
+    const invocation = SpawnSubagents.execute(
+      makeRequest({
+        agents: [
+          {
+            prompt: "do docker work",
+            environment: "docker",
+            directory: tempDir,
+          } as SpawnSubagents.SubagentEntry,
+        ],
+      }),
+      {
+        threadManager,
+        threadId: "parent-1" as ThreadId,
+        maxConcurrentSubagents: 10,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+        agents: {},
+      },
     );
 
-    try {
-      const invocation = SpawnSubagents.execute(
-        makeRequest({
-          agents: [
-            {
-              prompt: "do docker work",
-              environment: "docker",
-              directory: emptyDir,
-            },
-          ],
-        }),
-        {
-          threadManager,
-          threadId: "parent-1" as ThreadId,
-          maxConcurrentSubagents: 10,
-          requestRender: vi.fn(),
-          cwd: "/test" as NvimCwd,
-          agents: {},
-        },
-      );
-
-      const text = await getResultText(invocation);
-      expect(text).toContain("Failed to read container config");
-    } finally {
-      await fs.promises.rm(emptyDir, { recursive: true, force: true });
-    }
+    const text = await getResultText(invocation);
+    expect(text).toContain("Docker environment requires 'dockerfile' and 'workspacePath' fields");
   });
 
   it("spawns docker_root thread with correct dockerSpawnConfig", async () => {
@@ -761,6 +743,8 @@ describe("spawn-subagents docker provisioning", () => {
             prompt: "do docker work",
             environment: "docker",
             directory: tempDir,
+            dockerfile: "Dockerfile",
+            workspacePath: "/workspace",
           },
         ],
       }),
@@ -806,6 +790,8 @@ describe("spawn-subagents docker provisioning", () => {
             prompt: "do docker work",
             environment: "docker_unsupervised",
             directory: tempDir,
+            dockerfile: "Dockerfile",
+            workspacePath: "/workspace",
           },
         ],
       }),
@@ -843,6 +829,8 @@ describe("spawn-subagents docker provisioning", () => {
             prompt: "do docker work",
             environment: "docker",
             directory: tempDir,
+            dockerfile: "Dockerfile",
+            workspacePath: "/workspace",
           },
         ],
       }),
@@ -870,6 +858,8 @@ describe("spawn-subagents docker provisioning", () => {
           {
             prompt: "do docker work",
             environment: "docker",
+            dockerfile: "Dockerfile",
+            workspacePath: "/workspace",
           },
         ],
       }),
@@ -909,6 +899,8 @@ describe("spawn-subagents docker provisioning", () => {
             prompt: "docker task",
             environment: "docker",
             directory: tempDir,
+            dockerfile: "Dockerfile",
+            workspacePath: "/workspace",
           },
         ],
       }),
@@ -1125,59 +1117,43 @@ describe("environment routing", () => {
   });
 
   it("environment + agentType are orthogonal: explore in docker", async () => {
-    // Create temp dir with .magenta/options.json
-    const dockerTempDir = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), "magenta-spawn-explore-"),
+    const threadManager = createMockThreadManager();
+
+    SpawnSubagents.execute(
+      makeRequest({
+        agents: [
+          {
+            prompt: "find something",
+            agentType: "explore",
+            environment: "docker",
+            directory: "/some/dir",
+            dockerfile: "Dockerfile",
+            workspacePath: "/workspace",
+          },
+        ],
+      }),
+      {
+        threadManager,
+        threadId: "parent-1" as ThreadId,
+        maxConcurrentSubagents: 10,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+        agents: {},
+      },
     );
-    try {
-      await fs.promises.mkdir(path.join(dockerTempDir, ".magenta"), {
-        recursive: true,
-      });
-      await fs.promises.writeFile(
-        path.join(dockerTempDir, ".magenta", "options.json"),
-        JSON.stringify({
-          container: { dockerfile: "Dockerfile", workspacePath: "/workspace" },
+
+    await vi.waitFor(() => {
+      expect(threadManager.spawnThread).toHaveBeenCalled();
+    });
+
+    expect(threadManager.spawnThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadType: "docker_root",
+        dockerSpawnConfig: expect.objectContaining({
+          containerName: "magenta-test-abc123",
         }),
-      );
-
-      const threadManager = createMockThreadManager();
-
-      SpawnSubagents.execute(
-        makeRequest({
-          agents: [
-            {
-              prompt: "find something",
-              agentType: "explore",
-              environment: "docker",
-              directory: dockerTempDir,
-            },
-          ],
-        }),
-        {
-          threadManager,
-          threadId: "parent-1" as ThreadId,
-          maxConcurrentSubagents: 10,
-          requestRender: vi.fn(),
-          cwd: "/test" as NvimCwd,
-          agents: {},
-        },
-      );
-
-      await vi.waitFor(() => {
-        expect(threadManager.spawnThread).toHaveBeenCalled();
-      });
-
-      expect(threadManager.spawnThread).toHaveBeenCalledWith(
-        expect.objectContaining({
-          threadType: "docker_root",
-          dockerSpawnConfig: expect.objectContaining({
-            containerName: "magenta-test-abc123",
-          }),
-        }),
-      );
-    } finally {
-      await fs.promises.rm(dockerTempDir, { recursive: true, force: true });
-    }
+      }),
+    );
   });
 });
 
@@ -1246,9 +1222,59 @@ describe("validation: new fields", () => {
   it("accepts valid environment values", () => {
     for (const env of ["host", "docker", "docker_unsupervised"]) {
       const result = SpawnSubagents.validateInput({
-        agents: [{ prompt: "test", environment: env }],
+        agents: [
+          {
+            prompt: "test",
+            environment: env,
+            ...(env !== "host"
+              ? { dockerfile: "Dockerfile", workspacePath: "/workspace" }
+              : {}),
+          },
+        ],
       });
       expect(result.status).toBe("ok");
+    }
+  });
+
+  it("rejects docker environment without dockerfile", () => {
+    const result = SpawnSubagents.validateInput({
+      agents: [{ prompt: "test", environment: "docker", workspacePath: "/workspace" }],
+    });
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("dockerfile");
+      expect(result.error).toContain("workspacePath");
+    }
+  });
+
+  it("rejects docker_unsupervised environment without workspacePath", () => {
+    const result = SpawnSubagents.validateInput({
+      agents: [{ prompt: "test", environment: "docker_unsupervised", dockerfile: "Dockerfile" }],
+    });
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("dockerfile");
+      expect(result.error).toContain("workspacePath");
+    }
+  });
+
+  it("rejects non-string dockerfile", () => {
+    const result = SpawnSubagents.validateInput({
+      agents: [{ prompt: "test", dockerfile: 123 }],
+    });
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("dockerfile");
+    }
+  });
+
+  it("rejects non-string workspacePath", () => {
+    const result = SpawnSubagents.validateInput({
+      agents: [{ prompt: "test", workspacePath: true }],
+    });
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.error).toContain("workspacePath");
     }
   });
 });

@@ -2,7 +2,6 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  type ContainerConfig,
   type ServerName,
   validateServerName,
 } from "@magenta/core";
@@ -217,7 +216,6 @@ export type MagentaOptions = {
   lspDebounceMs?: number;
   debug?: boolean;
   chimeVolume?: number;
-  container?: ContainerConfig | undefined;
 };
 
 // Reusable parsing helpers
@@ -1076,42 +1074,6 @@ export function parseOptions(
   return options;
 }
 
-function parseContainerConfig(
-  input: unknown,
-  logger: { warn: (msg: string) => void },
-): ContainerConfig | undefined {
-  if (typeof input !== "object" || input === null) {
-    logger.warn("container config must be an object");
-    return undefined;
-  }
-  const obj = input as { [key: string]: unknown };
-
-  if (typeof obj.dockerfile !== "string") {
-    logger.warn("container.dockerfile must be a string");
-    return undefined;
-  }
-  if (typeof obj.workspacePath !== "string") {
-    logger.warn("container.workspacePath must be a string");
-    return undefined;
-  }
-  if (
-    obj.installCommand !== undefined &&
-    typeof obj.installCommand !== "string"
-  ) {
-    logger.warn("container.installCommand must be a string");
-    return undefined;
-  }
-
-  const config: ContainerConfig = {
-    dockerfile: obj.dockerfile,
-    workspacePath: obj.workspacePath,
-    ...(typeof obj.installCommand === "string"
-      ? { installCommand: obj.installCommand }
-      : {}),
-  };
-
-  return config;
-}
 export function parseProjectOptions(
   inputOptions: unknown,
   logger: { warn: (msg: string) => void },
@@ -1236,9 +1198,6 @@ export function parseProjectOptions(
     );
   }
 
-  if ("container" in inputOptionsObj) {
-    options.container = parseContainerConfig(inputOptionsObj.container, logger);
-  }
 
   return options;
 }
@@ -1362,9 +1321,6 @@ export function mergeOptions(
     ];
   }
 
-  if (projectSettings.container !== undefined) {
-    merged.container = projectSettings.container;
-  }
 
   return merged;
 }

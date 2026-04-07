@@ -1,8 +1,4 @@
 {
-  "container": {
-    "dockerfile": "docker/Dockerfile",
-    "workspacePath": "/workspace"
-  },
   "sandbox": {
     "network": {
       "allowUnixSockets": ["/private/tmp"]
