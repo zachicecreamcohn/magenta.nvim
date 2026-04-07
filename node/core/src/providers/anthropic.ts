@@ -13,6 +13,9 @@ import {
   AnthropicAgent,
   CLAUDE_CODE_SPOOF_PROMPT,
   getMaxTokensForModel,
+  getRetryDelay,
+  isRetryableError,
+  MAX_RETRY_DURATION,
   withCacheControl,
 } from "./anthropic-agent.ts";
 import type {
@@ -489,7 +492,8 @@ export class AnthropicProvider implements Provider {
       });
     }
 
-    const request = this.client.messages.stream({
+    let retryAbortController: AbortController | undefined;
+    const streamParams = {
       model,
       max_tokens: getMaxTokensForModel(model),
       system: systemBlocks,
@@ -502,15 +506,14 @@ export class AnthropicProvider implements Provider {
         },
       ],
       tool_choice: {
-        type: "tool",
+        type: "tool" as const,
         name: spec.name,
         disable_parallel_tool_use: this.disableParallelToolUseFlag,
       },
-    });
+    };
+    let currentRequest = this.client.messages.stream(streamParams);
 
-    const promise = (async () => {
-      const response: Anthropic.Message = await request.finalMessage();
-
+    const processResponse = (response: Anthropic.Message) => {
       if (response.stop_reason === "max_tokens") {
         throw new Error("Response exceeded max_tokens limit");
       }
@@ -603,9 +606,52 @@ export class AnthropicProvider implements Provider {
 
       return {
         toolRequest,
-        stopReason: response.stop_reason || "end_turn",
+        stopReason: (response.stop_reason ||
+          "end_turn") as import("./provider-types.ts").StopReason,
         usage,
       };
+    };
+
+    const promise = (async () => {
+      const retryStart = Date.now();
+      let attempt = 0;
+      while (true) {
+        try {
+          const response: Anthropic.Message =
+            await currentRequest.finalMessage();
+          return processResponse(response);
+        } catch (error) {
+          if (
+            aborted ||
+            !(error instanceof Error) ||
+            !isRetryableError(error) ||
+            Date.now() - retryStart >= MAX_RETRY_DURATION
+          ) {
+            throw error;
+          }
+          const delay = getRetryDelay(attempt);
+          retryAbortController = new AbortController();
+          const signal = retryAbortController.signal;
+          try {
+            await new Promise<void>((resolve, reject) => {
+              const timer = setTimeout(resolve, delay);
+              signal.addEventListener(
+                "abort",
+                () => {
+                  clearTimeout(timer);
+                  reject(new DOMException("Aborted", "AbortError"));
+                },
+                { once: true },
+              );
+            });
+          } catch {
+            throw error;
+          }
+          retryAbortController = undefined;
+          attempt++;
+          currentRequest = this.client.messages.stream(streamParams);
+        }
+      }
     })();
 
     return {
@@ -613,7 +659,10 @@ export class AnthropicProvider implements Provider {
       aborted,
       abort: () => {
         aborted = true;
-        request.abort();
+        if (retryAbortController) {
+          retryAbortController.abort();
+        }
+        currentRequest.abort();
       },
     };
   }

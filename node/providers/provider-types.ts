@@ -34,6 +34,7 @@ export type {
   ProviderToolUseResponse,
   ProviderWebSearchCitation,
   ProviderWebSearchToolResult,
+  RetryStatus,
   StopReason,
   Usage,
 } from "@magenta/core";

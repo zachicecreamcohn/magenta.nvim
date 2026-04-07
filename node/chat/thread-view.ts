@@ -87,6 +87,15 @@ const renderStatus = (
   // Then render based on agent status
   switch (agentStatus.type) {
     case "streaming":
+      if (agentStatus.retryStatus) {
+        const secsLeft = Math.max(
+          1,
+          Math.ceil(
+            (agentStatus.retryStatus.nextRetryAt.getTime() - Date.now()) / 1000,
+          ),
+        );
+        return d`⏳ Server overloaded, retrying in ${String(secsLeft)}s... (attempt ${String(agentStatus.retryStatus.attempt)})`;
+      }
       return d`Streaming response ${getAnimationFrame(agentStatus.startTime)}`;
     case "stopped":
       return renderStopReason(agentStatus.stopReason, latestUsage);

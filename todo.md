@@ -35,9 +35,7 @@
 
 # bug fixes, misc
 
-- there's an annoying issue where buffers get corrupted. Maybe we just drop buffer support or simplify it? Maybe the agent works directly with disk, and the nvim buffer attemtps to sync with that, but just gives a warning if it doesn't sync successfully? (so disk is given priority)
 - there's errors/warnings when we switch threads during streaming
-- did we ever implement exponential backoff on overloaded errors?
 - let's drop the compose mode to just be a special subagent. We should just create a way to start a new (root) thread from one of the subagents
 - fork a conversation from any previous message
 
