@@ -80,6 +80,7 @@ export class AnthropicProvider implements Provider {
     this.validateInput = _validateInput;
     this.auth = anthropicAuth;
     this.authType = options?.authType || "key";
+    this.includeWebSearch = !options?.baseUrl;
 
     if (this.authType === "max") {
       this.client = new Anthropic({
@@ -99,7 +100,10 @@ export class AnthropicProvider implements Provider {
   }
 
   private disableParallelToolUseFlag = true;
-  protected includeWebSearch = true;
+  // web_search_20250305 is an Anthropic server tool with no input_schema.
+  // Third-party Anthropic-compatible APIs (e.g. MiniMax) reject it, so only
+  // enable web search when hitting the real Anthropic endpoint (no custom baseUrl).
+  protected includeWebSearch: boolean;
 
   private createOAuthFetch() {
     return async (
