@@ -30,4 +30,15 @@ export class NvimAuthUI implements AuthUI {
 
     return code.trim();
   }
+
+  showError(message: string): void {
+    this.nvim
+      .call("nvim_exec_lua", [
+        `vim.notify((...), vim.log.levels.ERROR)`,
+        [message],
+      ])
+      .catch((err: unknown) => {
+        this.nvim.logger.error(`Failed to show auth error notification: ${err}`);
+      });
+  }
 }

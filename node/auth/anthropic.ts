@@ -17,8 +17,8 @@ interface AuthData {
 }
 
 export class ExchangeFailed extends Error {
-  constructor() {
-    super("Exchange failed");
+  constructor(detail?: string) {
+    super(detail ? `Exchange failed: ${detail}` : "Exchange failed");
   }
 }
 
@@ -133,7 +133,16 @@ export async function exchange(
   });
 
   if (!result.ok) {
-    throw new ExchangeFailed();
+    let detail = `HTTP ${result.status}`;
+    try {
+      const body = await result.text();
+      if (body) {
+        detail += `: ${body.slice(0, 200)}`;
+      }
+    } catch {
+      // ignore body read errors
+    }
+    throw new ExchangeFailed(detail);
   }
 
   const json = (await result.json()) as {
@@ -163,7 +172,16 @@ export async function refresh(refreshToken: string): Promise<OAuthTokens> {
   });
 
   if (!response.ok) {
-    throw new ExchangeFailed();
+    let detail = `HTTP ${response.status}`;
+    try {
+      const body = await response.text();
+      if (body) {
+        detail += `: ${body.slice(0, 200)}`;
+      }
+    } catch {
+      // ignore body read errors
+    }
+    throw new ExchangeFailed(detail);
   }
 
   const json = (await response.json()) as {

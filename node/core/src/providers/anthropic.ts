@@ -64,6 +64,7 @@ export class AnthropicProvider implements Provider {
   private authType: "key" | "max";
   private validateInput: ValidateInput;
   private auth: AnthropicAuth | undefined;
+  private pendingOAuthFlow: Promise<void> | undefined;
 
   constructor(
     protected logger: Logger,
@@ -139,7 +140,13 @@ export class AnthropicProvider implements Provider {
   private async ensureValidToken(): Promise<void> {
     const isAuthenticated = await this.auth!.isAuthenticated();
     if (!isAuthenticated) {
-      await this.triggerOAuthFlow();
+      // Coalesce concurrent auth attempts into a single OAuth flow
+      if (!this.pendingOAuthFlow) {
+        this.pendingOAuthFlow = this.triggerOAuthFlow().finally(() => {
+          this.pendingOAuthFlow = undefined;
+        });
+      }
+      await this.pendingOAuthFlow;
     }
   }
 
@@ -161,7 +168,9 @@ export class AnthropicProvider implements Provider {
       this.logger.info("OAuth authentication successful");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`OAuth authentication failed: ${message}`);
+      const fullMessage = `OAuth authentication failed: ${message}`;
+      this.authUI.showError(fullMessage);
+      throw new Error(fullMessage);
     }
   }
 
