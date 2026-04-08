@@ -274,6 +274,8 @@ export function execute(
         context.requestRender();
       },
       onStart: () => {
+        stopTickInterval();
+        progress.liveOutput.length = 0;
         progress.startTime = Date.now();
         tickInterval = setInterval(() => {
           context.requestRender();

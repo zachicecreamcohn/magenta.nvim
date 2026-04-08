@@ -146,6 +146,7 @@ export type SandboxConfig = {
     allowUnixSockets: string[];
     allowAllUnixSockets: boolean;
   };
+  requireApprovalPatterns: string[];
 };
 
 export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
@@ -196,6 +197,7 @@ export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
     allowUnixSockets: [],
     allowAllUnixSockets: false,
   },
+  requireApprovalPatterns: [],
 };
 
 export type MagentaOptions = {
@@ -818,6 +820,10 @@ function mergeSandboxConfigs(
       allowAllUnixSockets:
         overlay.network.allowAllUnixSockets || base.network.allowAllUnixSockets,
     },
+    requireApprovalPatterns: [
+      ...base.requireApprovalPatterns,
+      ...overlay.requireApprovalPatterns,
+    ],
   };
 }
 
@@ -833,6 +839,7 @@ function parseSandboxConfig(
       allowUnixSockets: [],
       allowAllUnixSockets: false,
     },
+    requireApprovalPatterns: [],
   };
 
   if (typeof input !== "object" || input === null) {
@@ -906,6 +913,16 @@ function parseSandboxConfig(
     }
   } else if ("network" in obj) {
     logger.warn("sandbox.network must be an object");
+  }
+
+  if (Array.isArray(obj.requireApprovalPatterns)) {
+    config.requireApprovalPatterns = parseStringArray(
+      obj.requireApprovalPatterns,
+      "sandbox.requireApprovalPatterns",
+      logger,
+    );
+  } else if ("requireApprovalPatterns" in obj) {
+    logger.warn("sandbox.requireApprovalPatterns must be an array of strings");
   }
 
   return config;
