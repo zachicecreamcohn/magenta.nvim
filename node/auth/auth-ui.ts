@@ -38,7 +38,9 @@ export class NvimAuthUI implements AuthUI {
         [message],
       ])
       .catch((err: unknown) => {
-        this.nvim.logger.error(`Failed to show auth error notification: ${err}`);
+        this.nvim.logger.error(
+          `Failed to show auth error notification: ${err}`,
+        );
       });
   }
 }

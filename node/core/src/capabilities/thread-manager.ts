@@ -18,6 +18,7 @@ export interface ThreadManager {
     subagentConfig?: SubagentConfig;
     contextFiles?: UnresolvedFilePath[];
     dockerSpawnConfig?: DockerSpawnConfig;
+    cwd?: string;
   }): Promise<ThreadId>;
 
   onThreadYielded(threadId: ThreadId, callback: () => void): void;

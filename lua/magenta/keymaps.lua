@@ -61,9 +61,9 @@ M.default_keymaps = function()
   )
   vim.keymap.set(
     "n",
-    "<leader>mc",
-    ":Magenta new-conductor-thread<CR>",
-    { silent = true, noremap = true, desc = "Create a new conductor thread" }
+    "<leader>mw",
+    ":Magenta agent worktree<CR>",
+    { silent = true, noremap = true, desc = "Create a new worktree orchestrator thread" }
   )
 
 end

@@ -5,7 +5,7 @@ import type {
   ThreadId,
   ThreadType,
 } from "@magenta/core";
-import { MCPToolManagerImpl } from "@magenta/core";
+import { loadAgents, MCPToolManagerImpl } from "@magenta/core";
 import { v7 as uuidv7 } from "uuid";
 import type { Lsp } from "../capabilities/lsp.ts";
 import type {
@@ -81,7 +81,8 @@ export type Msg =
       type: "new-thread";
     }
   | {
-      type: "new-conductor-thread";
+      type: "new-agent-thread";
+      agentName: string;
     }
   | {
       type: "fork-thread";
@@ -246,11 +247,11 @@ export class Chat implements ThreadManager {
           });
         });
         return;
-      case "new-conductor-thread":
+      case "new-agent-thread":
         setTimeout(() => {
-          this.createNewConductorThread().catch((e: Error) => {
+          this.createNewAgentThread(msg.agentName).catch((e: Error) => {
             this.context.nvim.logger.error(
-              `Failed to create conductor thread: ${e.message}\n${e.stack}`,
+              `Failed to create agent thread: ${e.message}\n${e.stack}`,
             );
           });
         });
@@ -402,7 +403,7 @@ export class Chat implements ThreadManager {
               nvim: this.context.nvim,
               lsp: this.context.lsp,
 
-              cwd: this.context.cwd,
+              cwd: resolvedConfig.cwd ?? this.context.cwd,
               homeDir: this.context.homeDir,
               getOptions: this.context.getOptions,
               threadId,
@@ -521,8 +522,26 @@ export class Chat implements ThreadManager {
     });
   }
 
-  async createNewConductorThread() {
+  async createNewAgentThread(agentName: string) {
+    const agents = loadAgents({
+      cwd: this.context.cwd,
+      logger: this.context.nvim.logger,
+      options: this.context.getOptions(),
+    });
+    const agentDef = agents[agentName];
+    if (!agentDef) {
+      throw new Error(
+        `Agent "${agentName}" not found. Available agents: ${Object.keys(agents).join(", ")}`,
+      );
+    }
+
     const id = uuidv7() as ThreadId;
+    const subagentConfig: SubagentConfig = {
+      agentName: agentDef.name,
+      systemPrompt: agentDef.systemPrompt,
+      systemReminder: agentDef.systemReminder,
+      tier: agentDef.tier,
+    };
 
     await this.createThreadWithContext({
       threadId: id,
@@ -531,7 +550,8 @@ export class Chat implements ThreadManager {
         this.context.getOptions().activeProfile,
       ),
       switchToThread: true,
-      threadType: "conductor",
+      threadType: "root",
+      subagentConfig,
     });
   }
 
@@ -622,12 +642,7 @@ export class Chat implements ThreadManager {
       threadWrapper?.state === "initialized"
         ? threadWrapper.thread.core.state.threadType
         : undefined;
-    const icon =
-      threadType === "docker_root"
-        ? "🐳 "
-        : threadType === "conductor"
-          ? "🎼 "
-          : "";
+    const icon = threadType === "docker_root" ? "🐳 " : "";
 
     const displayLine = `${indent}${marker} ${icon}${displayName}: ${status}`;
 
@@ -995,6 +1010,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     subagentConfig?: SubagentConfig;
     contextFiles?: UnresolvedFilePath[];
     dockerSpawnConfig?: DockerSpawnConfig;
+    cwd?: string;
   }): Promise<ThreadId> {
     const parentThreadId = opts.parentThreadId;
     const parentThreadWrapper = this.threadWrappers[parentThreadId];
@@ -1020,6 +1036,11 @@ ${threadViews.map((view) => d`${view}\n`)}`;
         type: "docker",
         container: opts.dockerSpawnConfig.containerName,
         cwd: opts.dockerSpawnConfig.workspacePath,
+      };
+    } else if (opts.cwd) {
+      environmentConfig = {
+        type: "local",
+        cwd: opts.cwd as NvimCwd,
       };
     } else {
       environmentConfig = parentThread.context.environment.environmentConfig;

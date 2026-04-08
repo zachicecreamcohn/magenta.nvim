@@ -55,6 +55,7 @@ You are a test agent.`,
       systemPrompt: "# Test Agent\n\nYou are a test agent.",
       systemReminder: undefined,
       fastModel: undefined,
+      tier: "leaf",
     });
   });
 
@@ -157,6 +158,59 @@ Content.`,
 
     const result = parseAgentFile(agentFile, { logger });
     expect(result).toBeUndefined();
+  });
+
+  it("parses tier: leaf from frontmatter", () => {
+    const agentFile = path.join(tmpDir, "leaf.md");
+    fs.writeFileSync(
+      agentFile,
+      `---
+name: leaf-agent
+description: A leaf agent
+tier: leaf
+---
+
+Leaf prompt.`,
+    );
+
+    const result = parseAgentFile(agentFile, { logger });
+    expect(result).toBeDefined();
+    expect(result!.tier).toBe("leaf");
+  });
+
+  it("parses tier: orchestrator from frontmatter", () => {
+    const agentFile = path.join(tmpDir, "orch.md");
+    fs.writeFileSync(
+      agentFile,
+      `---
+name: orch-agent
+description: An orchestrator agent
+tier: orchestrator
+---
+
+Orchestrator prompt.`,
+    );
+
+    const result = parseAgentFile(agentFile, { logger });
+    expect(result).toBeDefined();
+    expect(result!.tier).toBe("orchestrator");
+  });
+
+  it("defaults tier to leaf when not specified", () => {
+    const agentFile = path.join(tmpDir, "notier.md");
+    fs.writeFileSync(
+      agentFile,
+      `---
+name: notier-agent
+description: No tier specified
+---
+
+No tier prompt.`,
+    );
+
+    const result = parseAgentFile(agentFile, { logger });
+    expect(result).toBeDefined();
+    expect(result!.tier).toBe("leaf");
   });
 });
 
@@ -353,6 +407,7 @@ describe("formatAgentsIntroduction", () => {
         systemPrompt: "prompt",
         systemReminder: undefined,
         fastModel: undefined,
+        tier: "leaf" as const,
       },
     };
 

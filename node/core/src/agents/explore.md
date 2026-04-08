@@ -2,6 +2,7 @@
 name: explore
 description: Search and understand codebases. Use when you need to find where something is defined, how something works, or locate specific patterns in the code. Only use when you don't already know the file location.
 fastModel: true
+tier: leaf
 ---
 
 # Role

@@ -60,12 +60,12 @@ end
 
 local normal_commands = {
   "abort",
+  "agent",
   "clear",
   "context-files",
   "profile",
   "toggle",
   "new-thread",
-  "new-conductor-thread",
   "threads-overview",
 }
 

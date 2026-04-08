@@ -1,7 +1,6 @@
 import { platform } from "node:os";
 import {
   COMPACT_SYSTEM_PROMPT,
-  CONDUCTOR_SYSTEM_PROMPT,
   createSystemPrompt as coreCreateSystemPrompt,
   DEFAULT_SUBAGENT_SYSTEM_PROMPT,
   DEFAULT_SYSTEM_PROMPT,
@@ -18,7 +17,6 @@ export {
   DEFAULT_SYSTEM_PROMPT,
   DEFAULT_SUBAGENT_SYSTEM_PROMPT,
   COMPACT_SYSTEM_PROMPT,
-  CONDUCTOR_SYSTEM_PROMPT,
 };
 
 export type { SystemInfo, SystemPrompt } from "@magenta/core";

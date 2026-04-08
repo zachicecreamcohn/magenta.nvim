@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type AgentsMap, formatAgentsIntroduction } from "../agents/agents.ts";
+import {
+  type AgentsMap,
+  type AgentTier,
+  formatAgentsIntroduction,
+} from "../agents/agents.ts";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
 import type { SubagentConfig, ThreadId } from "../chat-types.ts";
 import { provisionContainer } from "../container/provision.ts";
@@ -32,6 +36,8 @@ export type SubagentEntry = {
   agentType?: string;
   environment?: "host" | "docker" | "docker_unsupervised";
   directory?: string;
+  dockerfile?: string;
+  workspacePath?: string;
 };
 
 export type Input = {
@@ -72,7 +78,7 @@ function resolveSubagentConfig(
   const agentType = entry.agentType;
 
   if (!agentType || agentType === "default") {
-    return {};
+    return { tier: "thread" as AgentTier };
   }
 
   // Look up custom agent by name
@@ -83,11 +89,12 @@ function resolveSubagentConfig(
       fastModel: agentDef.fastModel,
       systemPrompt: agentDef.systemPrompt,
       systemReminder: agentDef.systemReminder,
+      tier: agentDef.tier,
     };
   }
 
   // Unknown agent type — treat as default
-  return { agentName: agentType };
+  return { agentName: agentType, tier: "leaf" as AgentTier };
 }
 
 export function execute(
@@ -126,6 +133,9 @@ export function execute(
     if (entry.agentType !== undefined) merged.agentType = entry.agentType;
     if (entry.environment !== undefined) merged.environment = entry.environment;
     if (entry.directory !== undefined) merged.directory = entry.directory;
+    if (entry.dockerfile !== undefined) merged.dockerfile = entry.dockerfile;
+    if (entry.workspacePath !== undefined)
+      merged.workspacePath = entry.workspacePath;
 
     return merged;
   });
@@ -157,12 +167,17 @@ export function execute(
 
       const subagentConfig = resolveSubagentConfig(entry, context.agents);
 
+      const resolvedCwd = entry.directory
+        ? resolve(context.cwd, entry.directory)
+        : undefined;
+
       const threadId = await context.threadManager.spawnThread({
         parentThreadId: context.threadId,
         prompt: entry.prompt ?? "",
         threadType: "subagent",
         subagentConfig,
         ...(entry.contextFiles ? { contextFiles: entry.contextFiles } : {}),
+        ...(resolvedCwd ? { cwd: resolvedCwd } : {}),
       });
 
       element.state = { status: "spawned", threadId };
@@ -183,45 +198,29 @@ export function execute(
   ): Promise<void> => {
     const hostDir = resolve(ctx.cwd, entry.directory ?? ".");
 
-    let containerConfig: ContainerConfig;
-    try {
-      const optionsPath = join(hostDir, ".magenta", "options.json");
-      const optionsJson = JSON.parse(
-        readFileSync(optionsPath, "utf-8"),
-      ) as Record<string, unknown>;
-      const container = optionsJson.container;
-      if (
-        typeof container !== "object" ||
-        container === undefined ||
-        container === null ||
-        !("dockerfile" in container) ||
-        !("workspacePath" in container) ||
-        typeof (container as Record<string, unknown>).dockerfile !== "string" ||
-        typeof (container as Record<string, unknown>).workspacePath !== "string"
-      ) {
-        throw new Error(
-          "container config must have dockerfile and workspacePath strings",
-        );
-      }
-      const c = container as Record<string, unknown>;
-      containerConfig = {
-        dockerfile: c.dockerfile as string,
-        workspacePath: c.workspacePath as string,
-        ...(typeof c.installCommand === "string"
-          ? { installCommand: c.installCommand }
-          : {}),
-      };
-    } catch (e) {
+    // Check if dockerfile and workspacePath are defined
+    if (
+      typeof entry.dockerfile !== "string" ||
+      typeof entry.workspacePath !== "string"
+    ) {
       element.state = {
         status: "spawn-error",
-        error: `Failed to read container config from ${hostDir}/.magenta/options.json: ${e instanceof Error ? e.message : String(e)}`,
+        error:
+          "Docker environment requires 'dockerfile' and 'workspacePath' fields",
       };
       ctx.requestRender();
       return;
     }
 
+    const containerConfig: ContainerConfig = {
+      dockerfile: entry.dockerfile,
+      workspacePath: entry.workspacePath,
+    };
+
     element.state = { status: "provisioning", message: "Starting..." };
     ctx.requestRender();
+
+    const subagentConfig = resolveSubagentConfig(entry, ctx.agents);
 
     const provisionResult = await provisionContainer({
       hostDir,
@@ -236,6 +235,7 @@ export function execute(
       parentThreadId: ctx.threadId,
       prompt: entry.prompt ?? "",
       threadType: "docker_root",
+      subagentConfig,
       ...(entry.contextFiles ? { contextFiles: entry.contextFiles } : {}),
       dockerSpawnConfig: {
         containerName: provisionResult.containerName,
@@ -461,9 +461,31 @@ function truncatePrompt(prompt: string, maxLen: number = 80): string {
     : singleLine;
 }
 
-export function getSpec(agents: AgentsMap): ProviderToolSpec {
+export function getSpec(
+  agents: AgentsMap,
+  currentTier?: AgentTier,
+): ProviderToolSpec {
   const agentNames = Object.keys(agents);
-  const allAgentTypes = ["default", ...agentNames];
+  let filteredAgentNames: string[];
+
+  if (currentTier === undefined) {
+    // Root: show all agents
+    filteredAgentNames = agentNames;
+  } else if (currentTier === "thread") {
+    // Thread: show leaf agents + thread agents (thread agents need docker)
+    filteredAgentNames = agentNames.filter((name) => {
+      const tier = agents[name].tier;
+      return tier === "leaf" || tier === "thread";
+    });
+  } else if (currentTier === "orchestrator") {
+    // Orchestrator: show all agents
+    filteredAgentNames = agentNames;
+  } else {
+    // leaf shouldn't have spawn_subagents, but if it does, show nothing
+    filteredAgentNames = [];
+  }
+
+  const allAgentTypes = ["default", ...filteredAgentNames];
 
   const agentsDescription = formatAgentsIntroduction(agents);
   const description = SPAWN_SUBAGENTS_BASE_DESCRIPTION + agentsDescription;
@@ -513,12 +535,22 @@ export function getSpec(agents: AgentsMap): ProviderToolSpec {
                 type: "string",
                 enum: ["host", "docker", "docker_unsupervised"],
                 description:
-                  "Where the sub-agent runs. 'host' (default) runs locally, 'docker'/'docker_unsupervised' runs in an isolated container. The directory must contain .magenta/options.json with container config.",
+                  "Where the sub-agent runs. 'host' (default) runs locally on the host machine, 'docker'/'docker_unsupervised' runs in an isolated container. Requires 'dockerfile' and 'workspacePath' fields.",
               },
               directory: {
                 type: "string",
                 description:
-                  "Host directory to spawn the docker container from. Defaults to '.' (current working directory). The directory must contain .magenta/options.json with a container config.",
+                  "Host directory to spawn the docker container from. Defaults to '.' (current working directory). The directory must contain a Dockerfile (at the path specified by 'dockerfile'). For host environments, sets the working directory for the sub-agent.",
+              },
+              dockerfile: {
+                type: "string",
+                description:
+                  "Path to the Dockerfile, relative to directory. Required for docker/docker_unsupervised environments.",
+              },
+              workspacePath: {
+                type: "string",
+                description:
+                  "Working directory for the agent inside the container. Required for docker/docker_unsupervised environments.",
               },
             },
           },
@@ -641,6 +673,39 @@ export function validateInput(input: {
         return {
           status: "error",
           error: `expected agents[${i}].directory to be a string but it was ${JSON.stringify(agent.directory)}`,
+        };
+      }
+    }
+
+    if (agent.dockerfile !== undefined) {
+      if (typeof agent.dockerfile !== "string") {
+        return {
+          status: "error",
+          error: `expected agents[${i}].dockerfile to be a string but it was ${JSON.stringify(agent.dockerfile)}`,
+        };
+      }
+    }
+
+    if (agent.workspacePath !== undefined) {
+      if (typeof agent.workspacePath !== "string") {
+        return {
+          status: "error",
+          error: `expected agents[${i}].workspacePath to be a string but it was ${JSON.stringify(agent.workspacePath)}`,
+        };
+      }
+    }
+
+    if (
+      agent.environment === "docker" ||
+      agent.environment === "docker_unsupervised"
+    ) {
+      if (
+        typeof agent.dockerfile !== "string" ||
+        typeof agent.workspacePath !== "string"
+      ) {
+        return {
+          status: "error",
+          error: `agents[${i}] with docker environment requires 'dockerfile' and 'workspacePath' fields`,
         };
       }
     }

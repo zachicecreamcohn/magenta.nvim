@@ -25,19 +25,6 @@ describe.runIf(HOST_DOCKER_AVAILABLE)("docker subagent file sync", () => {
               "original",
             );
 
-            // Create .magenta/options.json with container config
-            const magentaDir = path.join(tmpDir, ".magenta");
-            await fs.promises.mkdir(magentaDir, { recursive: true });
-            await fs.promises.writeFile(
-              path.join(magentaDir, "options.json"),
-              JSON.stringify({
-                container: {
-                  dockerfile: "Dockerfile",
-                  workspacePath: "/workspace",
-                },
-              }),
-            );
-
             // Create a minimal Dockerfile
             await fs.promises.writeFile(
               path.join(tmpDir, "Dockerfile"),
@@ -73,6 +60,8 @@ describe.runIf(HOST_DOCKER_AVAILABLE)("docker subagent file sync", () => {
                         prompt:
                           "Edit test-file.txt and create new-file.txt, then yield.",
                         environment: "docker_unsupervised",
+                        dockerfile: "Dockerfile",
+                        workspacePath: "/workspace",
                       },
                     ],
                   },
@@ -157,16 +146,12 @@ describe.runIf(HOST_DOCKER_AVAILABLE)("docker subagent file sync", () => {
       await withDriver(
         {
           setupFiles: async (tmpDir: string) => {
+            // Create .magenta/options.json so we can verify it's not overwritten
             const magentaDir = path.join(tmpDir, ".magenta");
             await fs.promises.mkdir(magentaDir, { recursive: true });
             await fs.promises.writeFile(
               path.join(magentaDir, "options.json"),
-              JSON.stringify({
-                container: {
-                  dockerfile: "Dockerfile",
-                  workspacePath: "/workspace",
-                },
-              }),
+              JSON.stringify({ sandbox: {} }),
             );
 
             await fs.promises.writeFile(
@@ -205,6 +190,8 @@ describe.runIf(HOST_DOCKER_AVAILABLE)("docker subagent file sync", () => {
                       {
                         prompt: "Tamper with options.json then yield.",
                         environment: "docker_unsupervised",
+                        dockerfile: "Dockerfile",
+                        workspacePath: "/workspace",
                       },
                     ],
                   },

@@ -152,7 +152,6 @@ export type {
 } from "./providers/system-prompt.ts";
 export {
   COMPACT_SYSTEM_PROMPT,
-  CONDUCTOR_SYSTEM_PROMPT,
   createSystemPrompt,
   DEFAULT_SUBAGENT_SYSTEM_PROMPT,
   DEFAULT_SYSTEM_PROMPT,
