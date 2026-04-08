@@ -197,7 +197,7 @@ export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
     allowUnixSockets: [],
     allowAllUnixSockets: false,
   },
-  requireApprovalPatterns: [],
+  requireApprovalPatterns: ["git\\s+push"],
 };
 
 export type MagentaOptions = {
