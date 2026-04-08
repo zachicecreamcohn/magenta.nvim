@@ -172,7 +172,12 @@ export class SandboxShell implements Shell {
 
     const options = this.context.getOptions();
 
-    if (this.matchesApprovalPattern(command, options.sandbox.requireApprovalPatterns)) {
+    if (
+      this.matchesApprovalPattern(
+        command,
+        options.sandbox.requireApprovalPatterns,
+      )
+    ) {
       return this.violationHandler.promptForApproval(command, () =>
         this.spawnCommand(command, opts),
       );
@@ -228,7 +233,9 @@ export class SandboxShell implements Shell {
     return result;
   }
 
-  private compiledPatterns: { source: string[]; compiled: RegExp[] } | undefined;
+  private compiledPatterns:
+    | { source: string[]; compiled: RegExp[] }
+    | undefined;
 
   private matchesApprovalPattern(command: string, patterns: string[]): boolean {
     if (patterns.length === 0) return false;
