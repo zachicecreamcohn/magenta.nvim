@@ -171,6 +171,18 @@ export class SandboxShell implements Shell {
     }
 
     const options = this.context.getOptions();
+
+    if (
+      this.matchesApprovalPattern(
+        command,
+        options.sandbox.requireApprovalPatterns,
+      )
+    ) {
+      return this.violationHandler.promptForApproval(command, () =>
+        this.spawnCommand(command, opts),
+      );
+    }
+
     this.sandbox.updateConfigIfChanged(
       options.sandbox,
       this.context.cwd,
@@ -219,6 +231,27 @@ export class SandboxShell implements Shell {
 
     this.sandbox.cleanupAfterCommand();
     return result;
+  }
+
+  private compiledPatterns:
+    | { source: string[]; compiled: RegExp[] }
+    | undefined;
+
+  private matchesApprovalPattern(command: string, patterns: string[]): boolean {
+    if (patterns.length === 0) return false;
+
+    if (
+      !this.compiledPatterns ||
+      this.compiledPatterns.source.length !== patterns.length ||
+      this.compiledPatterns.source.some((s, i) => s !== patterns[i])
+    ) {
+      this.compiledPatterns = {
+        source: patterns,
+        compiled: patterns.map((p) => new RegExp(p)),
+      };
+    }
+
+    return this.compiledPatterns.compiled.some((re) => re.test(command));
   }
 
   private startViolationMonitor(

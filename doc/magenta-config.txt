@@ -149,7 +149,8 @@ sandbox ~
             "crates.io"
           ],
           "deniedDomains": []
-        }
+        },
+        "requireApprovalPatterns": ["git\\s+push"]
       }
     }
 <
@@ -170,6 +171,11 @@ sandbox ~
       - `network.allowedDomains`: Domains that commands can access.
         Supports wildcards (e.g., `"*.github.com"`).
       - `network.deniedDomains`: Domains that are explicitly blocked.
+      - `requireApprovalPatterns`: Regex patterns that trigger an
+        approval prompt before the command runs. If a command matches
+        any pattern, the user is prompted before execution — the command
+        is never sandboxed. Prevents partial execution of compound
+        commands (e.g., `git commit && git push`). Default: `[]`.
 
     Path Matching:~
       Paths without glob characters (`*`, `?`, `[`) use subpath matching:
@@ -190,8 +196,10 @@ sandbox ~
     Project vs. Global Merging:~
       When project-level sandbox settings merge with global settings,
       all arrays concatenate. For example, `allowWrite` paths from project
-      are appended to global `allowWrite` paths. This allows projects to
-      extend permissions without replacing the global baseline.
+      are appended to global `allowWrite` paths. This includes
+      `requireApprovalPatterns`, which also concatenate. This allows
+      projects to extend permissions without replacing the global
+      baseline.
 <
                                                       *magenta-skillsPaths*
 skillsPaths ~

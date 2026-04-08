@@ -246,7 +246,8 @@ Configure sandbox permissions in `.magenta/options.json` (project) or `~/.magent
     "network": {
       "allowedDomains": ["registry.npmjs.org", "github.com"],
       "deniedDomains": []
-    }
+    },
+    "requireApprovalPatterns": ["git\\s+push"]
   }
 }
 ```
@@ -256,6 +257,7 @@ Configure sandbox permissions in `.magenta/options.json` (project) or `~/.magent
 **Network**: Supports domain wildcards (e.g., `*.github.com`).
 
 **Defaults**: Conservative defaults protect credentials (`~/.ssh`, `~/.gnupg`, `~/.aws`, etc.) and shell configs (`~/.bashrc`, `~/.zshrc`, etc.).
+**Pre-check patterns**: `requireApprovalPatterns` accepts regex patterns that trigger an approval prompt _before_ running a command, bypassing the sandbox entirely. Useful for commands like `git push` that should always require explicit approval.
 
 See `:help magenta-sandbox` for complete documentation.
 

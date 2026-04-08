@@ -115,6 +115,7 @@ const defaultSandboxConfig: SandboxConfig = {
     allowUnixSockets: [],
     allowAllUnixSockets: false,
   },
+  requireApprovalPatterns: [],
 };
 
 function createContext() {
@@ -707,6 +708,111 @@ describe("SandboxShell", () => {
       expect(handler.addViolation).not.toHaveBeenCalled();
       expect(result.exitCode).toBe(0);
       expect(mockCleanupAfterCommand).toHaveBeenCalled();
+    });
+  });
+
+  describe("requireApprovalPatterns pre-check", () => {
+    test("command matching a pattern triggers immediate approval prompt", async () => {
+      const handler = createMockViolationHandler();
+      const expectedResult: ShellResult = {
+        exitCode: 0,
+        signal: undefined,
+        output: [{ stream: "stdout", text: "pushed" }],
+        logFilePath: undefined,
+        durationMs: 100,
+      };
+      handler.promptForApproval.mockResolvedValue(expectedResult);
+
+      const context = {
+        ...createContext(),
+        getOptions: () =>
+          ({
+            sandbox: {
+              ...defaultSandboxConfig,
+              requireApprovalPatterns: ["git\\s+push"],
+            },
+          }) as MagentaOptions,
+      };
+
+      const shell = new SandboxShell(context, mockSandbox, handler);
+      const result = await shell.execute(
+        "git commit -m 'test' && git push",
+        createOpts(),
+      );
+
+      expect(handler.promptForApproval).toHaveBeenCalledWith(
+        "git commit -m 'test' && git push",
+        expect.any(Function),
+      );
+      expect(mockWrapWithSandbox).not.toHaveBeenCalled();
+      expect(result).toBe(expectedResult);
+    });
+
+    test("command not matching any pattern proceeds through sandbox normally", async () => {
+      setupSpawnSuccess("output", 0);
+      const handler = createMockViolationHandler();
+
+      const context = {
+        ...createContext(),
+        getOptions: () =>
+          ({
+            sandbox: {
+              ...defaultSandboxConfig,
+              requireApprovalPatterns: ["git\\s+push", "rm\\s+-rf"],
+            },
+          }) as MagentaOptions,
+      };
+
+      const shell = new SandboxShell(context, mockSandbox, handler);
+      const result = await shell.execute("ls -la", createOpts());
+
+      expect(handler.promptForApproval).not.toHaveBeenCalled();
+      expect(mockWrapWithSandbox).toHaveBeenCalledWith("ls -la");
+      expect(result.exitCode).toBe(0);
+    });
+
+    test("empty requireApprovalPatterns does not trigger pre-check", async () => {
+      setupSpawnSuccess("output", 0);
+      const handler = createMockViolationHandler();
+      const shell = new SandboxShell(createContext(), mockSandbox, handler);
+      const result = await shell.execute("git push", createOpts());
+
+      expect(handler.promptForApproval).not.toHaveBeenCalled();
+      expect(mockWrapWithSandbox).toHaveBeenCalled();
+      expect(result.exitCode).toBe(0);
+    });
+
+    test("approval prompt callback runs command unsandboxed", async () => {
+      const handler = createMockViolationHandler();
+
+      handler.promptForApproval.mockImplementation(
+        async (_command: string, execute: () => Promise<ShellResult>) => {
+          setupSpawnSuccess("direct output", 0);
+          return execute();
+        },
+      );
+
+      const context = {
+        ...createContext(),
+        getOptions: () =>
+          ({
+            sandbox: {
+              ...defaultSandboxConfig,
+              requireApprovalPatterns: ["git\\s+push"],
+            },
+          }) as MagentaOptions,
+      };
+
+      const shell = new SandboxShell(context, mockSandbox, handler);
+      const result = await shell.execute("git push origin main", createOpts());
+
+      expect(mockSpawn).toHaveBeenCalledWith(
+        "bash",
+        ["-c", "git push origin main"],
+        expect.objectContaining({ cwd: "/test/cwd" }),
+      );
+      expect(mockWrapWithSandbox).not.toHaveBeenCalled();
+      expect(result.exitCode).toBe(0);
     });
   });
 });

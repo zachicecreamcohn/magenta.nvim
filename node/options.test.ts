@@ -75,6 +75,9 @@ describe("parseSandboxConfig", () => {
         allowUnixSockets: [...DEFAULT_SANDBOX_CONFIG.network.allowUnixSockets],
         allowAllUnixSockets: DEFAULT_SANDBOX_CONFIG.network.allowAllUnixSockets,
       },
+      requireApprovalPatterns: [
+        ...DEFAULT_SANDBOX_CONFIG.requireApprovalPatterns,
+      ],
     });
   });
 
@@ -137,6 +140,7 @@ describe("mergeOptions", () => {
           allowUnixSockets: [],
           allowAllUnixSockets: false,
         },
+        requireApprovalPatterns: [],
       },
     });
 
@@ -154,6 +158,7 @@ describe("mergeOptions", () => {
           allowUnixSockets: [],
           allowAllUnixSockets: false,
         },
+        requireApprovalPatterns: [],
       },
     });
 

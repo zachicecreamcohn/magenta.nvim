@@ -31,7 +31,8 @@ User-level settings apply across all projects. Project-level settings are merged
     "network": {
       "allowedDomains": ["registry.npmjs.org", "github.com", "*.github.com"],
       "deniedDomains": []
-    }
+    },
+    "requireApprovalPatterns": ["git\\s+push", "rm\\s+-rf"]
   }
 }
 ```
@@ -44,6 +45,7 @@ User-level settings apply across all projects. Project-level settings are merged
 - **`filesystem.allowRead`**: Paths to re-allow reading within denied regions. Default: `["~/.magenta", "~/.claude"]`. Takes precedence over `denyRead`.
 - **`network.allowedDomains`**: Domains that commands can access. Supports wildcards (e.g., `"*.github.com"`).
 - **`network.deniedDomains`**: Domains that are explicitly blocked.
+- **`requireApprovalPatterns`**: Regex patterns that trigger an approval prompt before the command runs. If a command matches any pattern, the user is prompted to approve it before execution — the command is never sandboxed. This prevents partial execution of compound commands (e.g., `git commit && git push` where `git commit` runs before the sandbox blocks `git push`). Default: `[]`.
 
 ### Path Matching
 
@@ -114,6 +116,20 @@ Add the path to `filesystem.allowRead`:
 ```
 
 Note: Since project settings merge by concatenating arrays, you cannot remove a user-level deny from project settings. Instead, update the user-level config directly.
+
+### Command should always require approval
+
+Add a regex pattern to `requireApprovalPatterns`:
+
+```json
+{
+  "sandbox": {
+    "requireApprovalPatterns": ["git\\s+push", "rm\\s+-rf"]
+  }
+}
+```
+
+This prompts for approval before running the command — no sandboxed execution occurs first.
 
 ## Merging Behavior
 
