@@ -439,8 +439,20 @@ export class Thread {
       agentStatus.stopReason === "end_turn"
     ) {
       this.playChimeSound();
+      this.sendTerminalBell();
       return;
     }
+  }
+
+  private sendTerminalBell(): void {
+    if (this.context.options.bellOnNotify === false) {
+      return;
+    }
+    this.context.nvim.call("nvim_chan_send", [2, "\x07"]).catch((err) => {
+      this.context.nvim.logger.error(
+        `Failed to send terminal bell: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
   }
 
   private playChimeSound(): void {

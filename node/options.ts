@@ -215,6 +215,7 @@ export type MagentaOptions = {
   lspDebounceMs?: number;
   debug?: boolean;
   chimeVolume?: number;
+  bellOnNotify?: boolean;
 };
 
 // Reusable parsing helpers
@@ -1200,6 +1201,13 @@ export function parseProjectOptions(
     logger.warn("chimeVolume must be a number between 0.0 and 1.0");
   }
 
+  if (
+    "bellOnNotify" in inputOptionsObj &&
+    typeof inputOptionsObj.bellOnNotify === "boolean"
+  ) {
+    options.bellOnNotify = inputOptionsObj.bellOnNotify;
+  }
+
   // Parse MCP servers
   if ("mcpServers" in inputOptionsObj) {
     options.mcpServers = parseMCPServers(inputOptionsObj.mcpServers, logger);
@@ -1318,6 +1326,10 @@ export function mergeOptions(
 
   if (projectSettings.chimeVolume !== undefined) {
     merged.chimeVolume = projectSettings.chimeVolume;
+  }
+
+  if (projectSettings.bellOnNotify !== undefined) {
+    merged.bellOnNotify = projectSettings.bellOnNotify;
   }
 
   if (projectSettings.mcpServers) {
