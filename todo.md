@@ -28,7 +28,11 @@
 - drop the full context listing, instead just show the pending context updates
 - when the AI ends its turn, show a summary of all the edited files, so we can easily navigate to them
 - when we have pending @async messages, we should show the text of the message instead of just the message count
+
+# features
+
 - fork a conversation from any previous message
+- add context tracking for the state of git. When we change branches, commit, etc...
 
 # bug fixes, misc
 
