@@ -1,5 +1,5 @@
 import type { ThreadId } from "@magenta/core";
-import { type Line, NvimBuffer } from "./nvim/buffer.ts";
+import { type BufNr, type Line, NvimBuffer } from "./nvim/buffer.ts";
 import type { Nvim } from "./nvim/nvim-node/index.ts";
 import type { NvimWindow, Row0Indexed } from "./nvim/window.ts";
 import type * as TEA from "./tea/tea.ts";
@@ -24,9 +24,18 @@ type BufferEntry =
       mountedApp: TEA.MountedApp;
     };
 
+export type BufferRole = "display" | "input";
+
+export type BufferInfo = {
+  key: ThreadId | "overview";
+  role: BufferRole;
+};
+
 export class BufferManager {
   private threadEntries: Map<ThreadId, BufferEntry> = new Map();
   private overviewEntry: BufferEntry;
+  /** Reverse lookup: buffer id → { key, role } */
+  private bufNrToInfo: Map<BufNr, BufferInfo> = new Map();
 
   private createThreadApp!: (threadId: ThreadId) => TEA.App<unknown>;
   private createOverviewApp!: () => TEA.App<unknown>;
@@ -56,12 +65,21 @@ export class BufferManager {
       buffer,
       inputBuffer,
     };
-    return new BufferManager(nvim, overviewEntry);
+    const manager = new BufferManager(nvim, overviewEntry);
+    manager.bufNrToInfo.set(buffer.id, { key: "overview", role: "display" });
+    manager.bufNrToInfo.set(inputBuffer.id, { key: "overview", role: "input" });
+    return manager;
   }
 
-  async registerThread(threadId: ThreadId): Promise<{ displayBuffer: NvimBuffer; inputBuffer: NvimBuffer }> {
+  async registerThread(
+    threadId: ThreadId,
+  ): Promise<{ displayBuffer: NvimBuffer; inputBuffer: NvimBuffer }> {
     const existing = this.threadEntries.get(threadId);
-    if (existing) return { displayBuffer: existing.buffer, inputBuffer: existing.inputBuffer };
+    if (existing)
+      return {
+        displayBuffer: existing.buffer,
+        inputBuffer: existing.inputBuffer,
+      };
 
     const bufferId = threadId.replace(/-/g, "");
     const [buffer, inputBuffer] = await Promise.all([
@@ -69,7 +87,10 @@ export class BufferManager {
         this.nvim,
         `[Magenta Thread ${bufferId}]`,
       ),
-      BufferManager.createInputBuffer(this.nvim, `[${MAGENTA_INPUT_BUFFER_PREFIX} ${bufferId}]`),
+      BufferManager.createInputBuffer(
+        this.nvim,
+        `[${MAGENTA_INPUT_BUFFER_PREFIX} ${bufferId}]`,
+      ),
     ]);
 
     const entry: BufferEntry = {
@@ -78,6 +99,8 @@ export class BufferManager {
       inputBuffer,
     };
     this.threadEntries.set(threadId, entry);
+    this.bufNrToInfo.set(buffer.id, { key: threadId, role: "display" });
+    this.bufNrToInfo.set(inputBuffer.id, { key: threadId, role: "input" });
     return { displayBuffer: buffer, inputBuffer };
   }
 
@@ -139,7 +162,28 @@ export class BufferManager {
   }
 
   getOverviewBuffers(): { displayBuffer: NvimBuffer; inputBuffer: NvimBuffer } {
-    return { displayBuffer: this.overviewEntry.buffer, inputBuffer: this.overviewEntry.inputBuffer };
+    return {
+      displayBuffer: this.overviewEntry.buffer,
+      inputBuffer: this.overviewEntry.inputBuffer,
+    };
+  }
+
+  getThreadBuffers(
+    threadId: ThreadId,
+  ): { displayBuffer: NvimBuffer; inputBuffer: NvimBuffer } | undefined {
+    const entry = this.threadEntries.get(threadId);
+    if (!entry) return undefined;
+    return { displayBuffer: entry.buffer, inputBuffer: entry.inputBuffer };
+  }
+
+  /** Look up which thread/overview a buffer belongs to and its role. */
+  lookupBuffer(bufNr: BufNr): BufferInfo | undefined {
+    return this.bufNrToInfo.get(bufNr);
+  }
+
+  /** Check if a buffer id belongs to any magenta buffer. */
+  isMagentaBuffer(bufNr: BufNr): boolean {
+    return this.bufNrToInfo.has(bufNr);
   }
 
   getMountedApp(activeKey: ThreadId | "overview"): TEA.MountedApp | undefined {
@@ -152,9 +196,10 @@ export class BufferManager {
     return entry?.state === "mounted" ? entry.mountedApp : undefined;
   }
 
-
   /** Ensure the active view is mounted and return its buffers. */
-  async ensureActiveIsMounted(activeKey: ThreadId | "overview"): Promise<{ displayBuffer: NvimBuffer; inputBuffer: NvimBuffer }> {
+  async ensureActiveIsMounted(
+    activeKey: ThreadId | "overview",
+  ): Promise<{ displayBuffer: NvimBuffer; inputBuffer: NvimBuffer }> {
     if (activeKey === "overview") {
       await this.ensureOverviewMounted();
       return this.getOverviewBuffers();

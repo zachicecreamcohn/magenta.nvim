@@ -1,15 +1,25 @@
 import * as os from "node:os";
 import type { InputMessage, ThreadId } from "@magenta/core";
-import { BufferManager } from "./buffer-manager.ts";
+import { type BufferInfo, BufferManager } from "./buffer-manager.ts";
 import { Lsp } from "./capabilities/lsp.ts";
 import { Chat } from "./chat/chat.ts";
 import { CommandRegistry } from "./chat/commands/registry.ts";
-import type { Line, NvimBuffer } from "./nvim/buffer.ts";
-import { MAGENTA_HIGHLIGHT_NAMESPACE } from "./nvim/buffer.ts";
+import {
+  type BufNr,
+  type Line,
+  MAGENTA_HIGHLIGHT_NAMESPACE,
+  NvimBuffer,
+} from "./nvim/buffer.ts";
 import { initializeMagentaHighlightGroups } from "./nvim/extmarks.ts";
 import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
 import type { Nvim } from "./nvim/nvim-node/index.ts";
-import { pos1col1to0, type Row0Indexed } from "./nvim/window.ts";
+import { findOrCreateNonMagentaWindow } from "./nvim/openFileInNonMagentaWindow.ts";
+import {
+  NvimWindow,
+  pos1col1to0,
+  type Row0Indexed,
+  type WindowId,
+} from "./nvim/window.ts";
 import {
   getActiveProfile,
   type MagentaOptions,
@@ -38,6 +48,7 @@ const MAGENTA_COMMAND = "magentaCommand";
 const MAGENTA_ON_WINDOW_CLOSED = "magentaWindowClosed";
 const MAGENTA_KEY = "magentaKey";
 const MAGENTA_LSP_RESPONSE = "magentaLspResponse";
+const MAGENTA_BUF_ENTER = "magentaBufEnter";
 
 export class Magenta {
   public sidebar: Sidebar;
@@ -285,6 +296,8 @@ export class Magenta {
         );
       }
     }
+    // Step 7: update input window title (profile + token count) after switching threads
+    await this.sidebar.renderInputHeader();
   }
 
   async command(input: string): Promise<void> {
@@ -493,6 +506,105 @@ ${lines.join("\n")}
     }
   }
 
+  private handlingBufEnter = false;
+
+  /** Handle BufEnter events. Ensures magenta buffers stay in magenta windows
+   * and non-magenta buffers don't take over magenta windows.
+   */
+  async onBufEnter(bufNr: BufNr, winId: WindowId): Promise<void> {
+    if (this.handlingBufEnter) return;
+    if (this.sidebar.state.state !== "visible") return;
+
+    const { displayWindow, inputWindow } = this.sidebar.state;
+    const isMagentaWindow =
+      winId === displayWindow.id || winId === inputWindow.id;
+    const bufInfo = this.bufferManager.lookupBuffer(bufNr);
+
+    this.handlingBufEnter = true;
+    try {
+      if (bufInfo && !isMagentaWindow) {
+        // Magenta buffer opened in a non-magenta window → coerce it into the correct magenta window
+        await this.handleMagentaBufInWrongWindow(bufNr, bufInfo, winId);
+      } else if (!bufInfo && isMagentaWindow) {
+        // Non-magenta buffer opened in a magenta window → eject it
+        await this.handleNonMagentaBufInMagentaWindow(bufNr, winId);
+      }
+    } finally {
+      this.handlingBufEnter = false;
+    }
+  }
+
+  /** A magenta buffer was opened in a non-magenta window (e.g. via :b or ctrl-o).
+   * Move it back to the correct magenta window and restore the non-magenta window.
+   */
+  private async handleMagentaBufInWrongWindow(
+    _bufNr: BufNr,
+    bufInfo: BufferInfo,
+    winId: WindowId,
+  ): Promise<void> {
+    const win = new NvimWindow(winId, this.nvim);
+
+    // Restore the non-magenta window to its alternate buffer or a new empty buffer
+    const altBufNr = (await this.nvim.call("nvim_exec2", [
+      `echo bufnr('#', ${winId})`,
+      { output: true },
+    ])) as { output: string };
+    const altNr = Number(altBufNr.output);
+
+    if (altNr > 0 && !this.bufferManager.isMagentaBuffer(altNr as BufNr)) {
+      await this.nvim.call("nvim_win_set_buf", [winId, altNr]);
+    } else {
+      const emptyBuf = await NvimBuffer.create(false, true, this.nvim);
+      await win.setBuffer(emptyBuf);
+    }
+
+    // Switch the sidebar to the thread/overview this buffer belongs to
+    const targetKey = bufInfo.key;
+    if (targetKey === "overview") {
+      this.dispatch({
+        type: "chat-msg",
+        msg: { type: "threads-overview" },
+      });
+      await this.syncActiveView();
+    } else {
+      await this.selectThreadEffect(targetKey);
+    }
+  }
+
+  /** A non-magenta buffer was opened in a magenta window (e.g. via :e or :b).
+   * Restore the magenta window and open the buffer in a non-magenta window instead.
+   */
+  private async handleNonMagentaBufInMagentaWindow(
+    bufNr: BufNr,
+    winId: WindowId,
+  ): Promise<void> {
+    const { displayWindow, inputWindow } = this.sidebar.state as {
+      state: "visible";
+      displayWindow: NvimWindow;
+      inputWindow: NvimWindow;
+    };
+
+    // Determine which magenta buffer should be in this window and restore it
+    const activeKey = this.getActiveKey();
+    if (winId === displayWindow.id) {
+      const { displayBuffer } =
+        await this.bufferManager.ensureActiveIsMounted(activeKey);
+      await displayWindow.setBuffer(displayBuffer);
+    } else {
+      const { inputBuffer } =
+        await this.bufferManager.ensureActiveIsMounted(activeKey);
+      await inputWindow.setBuffer(inputBuffer);
+    }
+
+    // Move the non-magenta buffer to a non-magenta window
+    const foreignBuffer = new NvimBuffer(bufNr, this.nvim);
+    const targetWindow = await findOrCreateNonMagentaWindow({
+      nvim: this.nvim,
+      options: this.options,
+    });
+    await targetWindow.setBuffer(foreignBuffer);
+  }
+
   async onWinClosed() {
     await this.sidebar.onWinClosed();
   }
@@ -537,6 +649,19 @@ ${lines.join("\n")}
         lsp.onLspResponse(args);
       } catch (err) {
         nvim.logger.error(JSON.stringify(err));
+      }
+    });
+
+    nvim.onNotification(MAGENTA_BUF_ENTER, async (args) => {
+      try {
+        const data = (args as unknown as { bufnr: number; winid: number }[])[0];
+        await magenta.onBufEnter(data.bufnr as BufNr, data.winid as WindowId);
+      } catch (err) {
+        nvim.logger.error(
+          err instanceof Error
+            ? `Error in BufEnter handler: ${err.message}\n${err.stack}`
+            : JSON.stringify(err),
+        );
       }
     });
 
