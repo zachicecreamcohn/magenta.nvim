@@ -149,6 +149,250 @@ describe("node/buf-enter.test.ts", () => {
     });
   });
 
+  describe("magenta buffer navigation within magenta windows", () => {
+    it("should sync input buffer when ctrl-o navigates to a different thread's display buffer", async () => {
+      await withDriver({}, async (driver) => {
+        await driver.editFile("poem.txt");
+        await driver.showSidebar();
+        const { displayWindow, inputWindow } = driver.getVisibleState();
+
+        const thread1Id = driver.getThreadId(0);
+        await driver.magenta.command("new-thread");
+        await driver.awaitThreadCount(2);
+        const thread2Id = driver.getThreadId(1);
+
+        await driver.awaitChatState({
+          state: "thread-selected",
+          id: thread2Id,
+        });
+
+        // Get thread 1's buffers
+        const thread1Buffers =
+          driver.magenta.bufferManager.getThreadBuffers(thread1Id);
+        expect(thread1Buffers).toBeDefined();
+        const thread1DisplayBufId = thread1Buffers!.displayBuffer.id;
+        const thread1InputBufId = thread1Buffers!.inputBuffer.id;
+
+        // Simulate ctrl-o navigating the display window to thread 1's display buffer
+        await driver.nvim.call("nvim_set_current_win", [displayWindow.id]);
+        await driver.nvim.call("nvim_win_set_buf", [
+          displayWindow.id,
+          thread1DisplayBufId,
+        ]);
+
+        // Wait for state to switch to thread 1
+        await driver.awaitChatState({
+          state: "thread-selected",
+          id: thread1Id,
+        });
+
+        // Input window should now show thread 1's input buffer
+        await pollUntil(async () => {
+          const inputBufId = (await driver.nvim.call("nvim_win_get_buf", [
+            inputWindow.id,
+          ])) as BufNr;
+          if (inputBufId !== thread1InputBufId) {
+            throw new Error(
+              `Input window has buffer ${inputBufId}, expected thread 1's input buffer ${thread1InputBufId}`,
+            );
+          }
+        });
+
+        // Display window should have thread 1's display buffer
+        const displayBufId = (await driver.nvim.call("nvim_win_get_buf", [
+          displayWindow.id,
+        ])) as BufNr;
+        expect(displayBufId).toBe(thread1DisplayBufId);
+      });
+    });
+
+    it("should sync display buffer when an input buffer appears in the input window for a different thread", async () => {
+      await withDriver({}, async (driver) => {
+        await driver.editFile("poem.txt");
+        await driver.showSidebar();
+        const { displayWindow, inputWindow } = driver.getVisibleState();
+
+        const thread1Id = driver.getThreadId(0);
+        await driver.magenta.command("new-thread");
+        await driver.awaitThreadCount(2);
+        const thread2Id = driver.getThreadId(1);
+
+        await driver.awaitChatState({
+          state: "thread-selected",
+          id: thread2Id,
+        });
+
+        // Get thread 1's buffers
+        const thread1Buffers =
+          driver.magenta.bufferManager.getThreadBuffers(thread1Id);
+        expect(thread1Buffers).toBeDefined();
+        const thread1DisplayBufId = thread1Buffers!.displayBuffer.id;
+        const thread1InputBufId = thread1Buffers!.inputBuffer.id;
+
+        // Navigate the input window to thread 1's input buffer
+        await driver.nvim.call("nvim_set_current_win", [inputWindow.id]);
+        await driver.nvim.call("nvim_win_set_buf", [
+          inputWindow.id,
+          thread1InputBufId,
+        ]);
+
+        // Wait for state to switch to thread 1
+        await driver.awaitChatState({
+          state: "thread-selected",
+          id: thread1Id,
+        });
+
+        // Display window should now show thread 1's display buffer
+        await pollUntil(async () => {
+          const displayBufId = (await driver.nvim.call("nvim_win_get_buf", [
+            displayWindow.id,
+          ])) as BufNr;
+          if (displayBufId !== thread1DisplayBufId) {
+            throw new Error(
+              `Display window has buffer ${displayBufId}, expected thread 1's display buffer ${thread1DisplayBufId}`,
+            );
+          }
+        });
+      });
+    });
+  });
+
+  it("should coerce an input buffer opened in the display window to the correct windows", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.editFile("poem.txt");
+      await driver.showSidebar();
+      const { displayWindow, inputWindow } = driver.getVisibleState();
+
+      const threadId = driver.getThreadId(0);
+      const threadBuffers =
+        driver.magenta.bufferManager.getThreadBuffers(threadId);
+      expect(threadBuffers).toBeDefined();
+      const expectedDisplayBufId = threadBuffers!.displayBuffer.id;
+      const expectedInputBufId = threadBuffers!.inputBuffer.id;
+
+      // Open the input buffer in the display window (wrong role)
+      await driver.nvim.call("nvim_set_current_win", [displayWindow.id]);
+      await driver.nvim.call("nvim_win_set_buf", [
+        displayWindow.id,
+        expectedInputBufId,
+      ]);
+
+      // Display window should be restored to the display buffer
+      await pollUntil(async () => {
+        const displayBufId = (await driver.nvim.call("nvim_win_get_buf", [
+          displayWindow.id,
+        ])) as BufNr;
+        if (displayBufId !== expectedDisplayBufId) {
+          throw new Error(
+            `Display window has buffer ${displayBufId}, expected display buffer ${expectedDisplayBufId}`,
+          );
+        }
+      });
+
+      // Input window should still have the input buffer
+      const inputBufId = (await driver.nvim.call("nvim_win_get_buf", [
+        inputWindow.id,
+      ])) as BufNr;
+      expect(inputBufId).toBe(expectedInputBufId);
+    });
+  });
+
+  it("should coerce a different thread's input buffer opened in the display window", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.editFile("poem.txt");
+      await driver.showSidebar();
+      const { displayWindow, inputWindow } = driver.getVisibleState();
+
+      const thread1Id = driver.getThreadId(0);
+      await driver.magenta.command("new-thread");
+      await driver.awaitThreadCount(2);
+      const thread2Id = driver.getThreadId(1);
+
+      await driver.awaitChatState({
+        state: "thread-selected",
+        id: thread2Id,
+      });
+
+      // Get thread 1's buffers
+      const thread1Buffers =
+        driver.magenta.bufferManager.getThreadBuffers(thread1Id);
+      expect(thread1Buffers).toBeDefined();
+      const thread1DisplayBufId = thread1Buffers!.displayBuffer.id;
+      const thread1InputBufId = thread1Buffers!.inputBuffer.id;
+
+      // Open thread 1's INPUT buffer in the DISPLAY window (wrong thread + wrong role)
+      await driver.nvim.call("nvim_set_current_win", [displayWindow.id]);
+      await driver.nvim.call("nvim_win_set_buf", [
+        displayWindow.id,
+        thread1InputBufId,
+      ]);
+
+      // Should switch to thread 1
+      await driver.awaitChatState({
+        state: "thread-selected",
+        id: thread1Id,
+      });
+
+      // Display window should show thread 1's display buffer (not the input buffer)
+      await pollUntil(async () => {
+        const displayBufId = (await driver.nvim.call("nvim_win_get_buf", [
+          displayWindow.id,
+        ])) as BufNr;
+        if (displayBufId !== thread1DisplayBufId) {
+          throw new Error(
+            `Display window has buffer ${displayBufId}, expected thread 1's display buffer ${thread1DisplayBufId}`,
+          );
+        }
+      });
+
+      // Input window should show thread 1's input buffer
+      const inputBufId = (await driver.nvim.call("nvim_win_get_buf", [
+        inputWindow.id,
+      ])) as BufNr;
+      expect(inputBufId).toBe(thread1InputBufId);
+    });
+  });
+
+  it("should coerce a display buffer opened in the input window to the correct windows", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.editFile("poem.txt");
+      await driver.showSidebar();
+      const { displayWindow, inputWindow } = driver.getVisibleState();
+
+      const threadId = driver.getThreadId(0);
+      const threadBuffers =
+        driver.magenta.bufferManager.getThreadBuffers(threadId);
+      expect(threadBuffers).toBeDefined();
+      const expectedDisplayBufId = threadBuffers!.displayBuffer.id;
+      const expectedInputBufId = threadBuffers!.inputBuffer.id;
+
+      // Open the display buffer in the input window (wrong role)
+      await driver.nvim.call("nvim_set_current_win", [inputWindow.id]);
+      await driver.nvim.call("nvim_win_set_buf", [
+        inputWindow.id,
+        expectedDisplayBufId,
+      ]);
+
+      // Input window should be restored to the input buffer
+      await pollUntil(async () => {
+        const inputBufId = (await driver.nvim.call("nvim_win_get_buf", [
+          inputWindow.id,
+        ])) as BufNr;
+        if (inputBufId !== expectedInputBufId) {
+          throw new Error(
+            `Input window has buffer ${inputBufId}, expected input buffer ${expectedInputBufId}`,
+          );
+        }
+      });
+
+      // Display window should still have the display buffer
+      const displayBufId = (await driver.nvim.call("nvim_win_get_buf", [
+        displayWindow.id,
+      ])) as BufNr;
+      expect(displayBufId).toBe(expectedDisplayBufId);
+    });
+  });
+
   describe("magenta buffer in non-magenta window", () => {
     it("should switch sidebar to the correct thread when a magenta display buffer is opened in a code window", async () => {
       await withDriver({}, async (driver) => {

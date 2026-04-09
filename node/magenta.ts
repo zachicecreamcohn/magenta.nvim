@@ -522,9 +522,9 @@ ${lines.join("\n")}
 
     this.handlingBufEnter = true;
     try {
-      if (bufInfo && !isMagentaWindow) {
-        // Magenta buffer opened in a non-magenta window → coerce it into the correct magenta window
-        await this.handleMagentaBufInWrongWindow(bufNr, bufInfo, winId);
+      if (bufInfo) {
+        // Magenta buffer opened anywhere → treat as "select thread" action
+        await this.handleMagentaBufOpened(bufNr, bufInfo, winId);
       } else if (!bufInfo && isMagentaWindow) {
         // Non-magenta buffer opened in a magenta window → eject it
         await this.handleNonMagentaBufInMagentaWindow(bufNr, winId);
@@ -534,32 +534,54 @@ ${lines.join("\n")}
     }
   }
 
-  /** A magenta buffer was opened in a non-magenta window (e.g. via :b or ctrl-o).
-   * Move it back to the correct magenta window and restore the non-magenta window.
+  /** Any magenta buffer was opened (in any window). Treat as a "select thread" action.
+   * If it was in a non-magenta window, revert the open first.
+   * Then switch the sidebar to show the correct thread/overview.
    */
-  private async handleMagentaBufInWrongWindow(
+  private async handleMagentaBufOpened(
     _bufNr: BufNr,
     bufInfo: BufferInfo,
     winId: WindowId,
   ): Promise<void> {
-    const win = new NvimWindow(winId, this.nvim);
+    const { displayWindow, inputWindow } = this.sidebar.state as {
+      state: "visible";
+      displayWindow: NvimWindow;
+      inputWindow: NvimWindow;
+    };
 
-    // Restore the non-magenta window to its alternate buffer or a new empty buffer
-    const altBufNr = (await this.nvim.call("nvim_exec2", [
-      `echo bufnr('#', ${winId})`,
-      { output: true },
-    ])) as { output: string };
-    const altNr = Number(altBufNr.output);
+    const isMagentaWindow =
+      winId === displayWindow.id || winId === inputWindow.id;
 
-    if (altNr > 0 && !this.bufferManager.isMagentaBuffer(altNr as BufNr)) {
-      await this.nvim.call("nvim_win_set_buf", [winId, altNr]);
-    } else {
-      const emptyBuf = await NvimBuffer.create(false, true, this.nvim);
-      await win.setBuffer(emptyBuf);
+    // If this is a non-magenta window, revert it to its previous buffer
+    if (!isMagentaWindow) {
+      const win = new NvimWindow(winId, this.nvim);
+      const altBufNr = (await this.nvim.call("nvim_exec2", [
+        `echo bufnr('#', ${winId})`,
+        { output: true },
+      ])) as { output: string };
+      const altNr = Number(altBufNr.output);
+
+      if (altNr > 0 && !this.bufferManager.isMagentaBuffer(altNr as BufNr)) {
+        await this.nvim.call("nvim_win_set_buf", [winId, altNr]);
+      } else {
+        const emptyBuf = await NvimBuffer.create(false, true, this.nvim);
+        await win.setBuffer(emptyBuf);
+      }
     }
 
-    // Switch the sidebar to the thread/overview this buffer belongs to
     const targetKey = bufInfo.key;
+    const currentKey = this.getActiveKey();
+
+    // If already showing the correct thread in the correct role, nothing to do
+    if (isMagentaWindow && targetKey === currentKey) {
+      const isDisplayWindow = winId === displayWindow.id;
+      const isCorrectRole =
+        (isDisplayWindow && bufInfo.role === "display") ||
+        (!isDisplayWindow && bufInfo.role === "input");
+      if (isCorrectRole) return;
+    }
+
+    // Select the target thread/overview — syncActiveView sets both windows
     if (targetKey === "overview") {
       this.dispatch({
         type: "chat-msg",
