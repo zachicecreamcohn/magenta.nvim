@@ -85,6 +85,7 @@ local defaults = {
   },
   maxConcurrentSubagents = 3,
   chimeVolume = 0.3,
+  bellOnNotify = true,
   getFileAutoAllowGlobs = {
     "node_modules/**/*"
   },
