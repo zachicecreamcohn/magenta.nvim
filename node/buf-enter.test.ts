@@ -90,6 +90,65 @@ describe("node/buf-enter.test.ts", () => {
     });
   });
 
+  it("should create a new window when ejecting a buffer with only magenta windows visible", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+      const { displayWindow, inputWindow } = driver.getVisibleState();
+      const expectedDisplayBufId = driver.getDisplayBuffer().id;
+
+      // Close all non-magenta windows so only magenta windows remain
+      const allWindows = (await driver.nvim.call(
+        "nvim_list_wins",
+        [],
+      )) as WindowId[];
+      for (const winId of allWindows) {
+        if (winId === displayWindow.id || winId === inputWindow.id) continue;
+        await driver.nvim.call("nvim_win_close", [winId, true]);
+      }
+      await driver.assertWindowCount(2);
+
+      // Open a file in the display window — the only place nvim can put it
+      await driver.nvim.call("nvim_set_current_win", [displayWindow.id]);
+      await driver.command("edit poem.txt");
+
+      // Wait for the handler to restore the magenta buffer in the display window
+      await pollUntil(async () => {
+        const currentBufId = (await driver.nvim.call("nvim_win_get_buf", [
+          displayWindow.id,
+        ])) as BufNr;
+        if (currentBufId !== expectedDisplayBufId) {
+          throw new Error(
+            `Display window has buffer ${currentBufId}, expected magenta buffer ${expectedDisplayBufId}`,
+          );
+        }
+      });
+
+      // A new non-magenta window should have been created with poem.txt
+      await driver.assertWindowCount(
+        3,
+        "Expected a new non-magenta window to be created for poem.txt",
+      );
+      const windowsAfter = (await driver.nvim.call(
+        "nvim_list_wins",
+        [],
+      )) as WindowId[];
+
+      // Find the new window and verify it has poem.txt
+      let poemWindowFound = false;
+      for (const winId of windowsAfter) {
+        if (winId === displayWindow.id || winId === inputWindow.id) continue;
+        const bufId = await driver.nvim.call("nvim_win_get_buf", [winId]);
+        const bufName = (await driver.nvim.call("nvim_buf_get_name", [
+          bufId,
+        ])) as string;
+        if (bufName.includes("poem.txt")) {
+          poemWindowFound = true;
+        }
+      }
+      expect(poemWindowFound).toBe(true);
+    });
+  });
+
   describe("magenta buffer in non-magenta window", () => {
     it("should switch sidebar to the correct thread when a magenta display buffer is opened in a code window", async () => {
       await withDriver({}, async (driver) => {
