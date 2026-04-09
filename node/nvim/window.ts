@@ -138,6 +138,10 @@ export class NvimWindow {
     return await this.nvim.call("nvim_win_get_position", [this.id]);
   }
 
+  async setBuffer(buffer: NvimBuffer): Promise<void> {
+    await this.nvim.call("nvim_win_set_buf", [this.id, buffer.id]);
+  }
+
   async topLine(): Promise<number> {
     const res = await this.nvim.call("nvim_exec2", [
       `echo line('w0', "${this.id}")`,

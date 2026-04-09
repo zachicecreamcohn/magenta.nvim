@@ -116,6 +116,18 @@ M.bridge = function(channelId)
     }
   )
 
+  vim.api.nvim_create_autocmd(
+    "BufEnter",
+    {
+      pattern = "*",
+      callback = function()
+        local bufnr = vim.api.nvim_get_current_buf()
+        local winid = vim.api.nvim_get_current_win()
+        vim.rpcnotify(channelId, "magentaBufEnter", { bufnr = bufnr, winid = winid })
+      end
+    }
+  )
+
   M.listenToBufKey = function(bufnr, vimKey)
     vim.keymap.set(
       "n",

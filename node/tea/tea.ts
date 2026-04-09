@@ -28,7 +28,7 @@ type AppState<Model> =
 
 export type MountedApp = {
   onKey(key: BindingKey): Promise<void>;
-  render(msg: unknown): void;
+  render(): void;
   unmount(): void;
   getMountedNode(): MountedVDOM;
   waitForRender(): Promise<void>;
@@ -58,16 +58,13 @@ export function createApp<Model>({
 
   let renderDefer: Defer<void> | undefined;
   let renderPromise: Promise<void> | undefined;
-  let pendingMessages: unknown[] = [];
+  let pendingRender = false;
   let mountPoint: MountPoint | undefined;
   let renderVersion = 0;
 
-  function render(msg: unknown) {
+  function render() {
     if (renderPromise) {
-      pendingMessages.push(msg);
-      if (pendingMessages.length > 3) {
-        pendingMessages.shift();
-      }
+      pendingRender = true;
     } else {
       if (!renderDefer) {
         renderDefer = new Defer();
@@ -89,7 +86,6 @@ export function createApp<Model>({
                 `mounted view: ${prettyPrintMountedNode(root._getMountedNode())}`,
               );
             }
-            nvim.logger.error(`msg: ${JSON.stringify(msg)}`);
 
             // attempt to recover by re-mounting
             if (mountPoint) {
@@ -130,13 +126,9 @@ export function createApp<Model>({
           }
 
           renderPromise = undefined;
-          if (pendingMessages.length > 0) {
-            const msgs = pendingMessages;
-            pendingMessages = [];
-            nvim.logger.debug(
-              `followup render triggered with ${msgs.length} pending messages`,
-            );
-            render(msgs);
+          if (pendingRender) {
+            pendingRender = false;
+            render();
           } else {
             if (renderDefer) {
               renderDefer.resolve();
@@ -188,8 +180,8 @@ export function createApp<Model>({
           }
         },
 
-        render(msg: unknown) {
-          render(msg);
+        render() {
+          render();
         },
 
         async waitForRender() {

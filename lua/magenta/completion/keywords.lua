@@ -4,6 +4,7 @@ local has_cmp, cmp = pcall(require, 'cmp')
 if not has_cmp then
   return M
 end
+local constants = require('magenta.completion.constants')
 
 -- Keywords completion source
 local source = {}
@@ -42,7 +43,7 @@ end
 function source:is_available()
   local bufnr = vim.api.nvim_get_current_buf()
   local buf_name = vim.api.nvim_buf_get_name(bufnr)
-  return buf_name:match('%[Magenta Input%]') ~= nil
+  return constants.is_magenta_input_buffer(buf_name)
 end
 
 function source:get_debug_name()

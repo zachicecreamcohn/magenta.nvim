@@ -12,6 +12,7 @@ local file_buffers = require('magenta.completion.file_buffers')
 local file_files = require('magenta.completion.file_files')
 local diff_files = require('magenta.completion.diff_files')
 local staged_files = require('magenta.completion.staged_files')
+local constants = require('magenta.completion.constants')
 
 -- Initialize the completion sources
 function M.setup()
@@ -30,7 +31,7 @@ function M.setup()
       local buf_name = vim.api.nvim_buf_get_name(bufnr)
 
       -- Only activate magenta completion for magenta input buffers
-      if buf_name:match('%[Magenta Input%]') then
+      if constants.is_magenta_input_buffer(buf_name) then
         -- Set buffer variable for identification (used by is_available() as backup)
         vim.api.nvim_buf_set_var(bufnr, 'magenta_input_buffer', true)
 

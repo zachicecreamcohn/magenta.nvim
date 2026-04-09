@@ -35,6 +35,12 @@ export class NvimDriver {
     this.mockSandbox = mockSandbox;
   }
 
+  private getActiveKey(): ThreadId | "overview" {
+    return this.magenta.chat.state.state === "thread-selected"
+      ? this.magenta.chat.state.activeThreadId
+      : "overview";
+  }
+
   async wait(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
@@ -107,12 +113,7 @@ export class NvimDriver {
   }
 
   async inputMagentaText(text: string) {
-    const inputBuffer = this.magenta.sidebar.state.inputBuffer;
-    if (!inputBuffer) {
-      throw new Error(`sidebar inputBuffer not initialized yet`);
-    }
-
-    await inputBuffer.setLines({
+    await this.magenta.activeBuffers.inputBuffer.setLines({
       start: 0 as Row0Indexed,
       end: -1 as Row0Indexed,
       lines: text.split("\n") as Line[],
@@ -201,19 +202,11 @@ export class NvimDriver {
   }
 
   getDisplayBuffer() {
-    const displayBuffer = this.magenta.sidebar.state.displayBuffer;
-    if (!displayBuffer) {
-      throw new Error(`sidebar displayBuffer not initialized yet`);
-    }
-    return displayBuffer;
+    return this.magenta.activeBuffers.displayBuffer;
   }
 
   getInputBuffer() {
-    const inputBuffer = this.magenta.sidebar.state.inputBuffer;
-    if (!inputBuffer) {
-      throw new Error(`sidebar inputBuffer not initialized yet`);
-    }
-    return inputBuffer;
+    return this.magenta.activeBuffers.inputBuffer;
   }
 
   async getDisplayBufferText() {
@@ -477,7 +470,9 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
           const displayBuffer = this.getDisplayBuffer();
           // Capture renderVersion before any async operations so we can
           // detect if a re-render happens at any point during this attempt.
-          const versionBefore = this.magenta.mountedChatApp?.renderVersion ?? 0;
+          const versionBefore =
+            this.magenta.bufferManager.getMountedApp(this.getActiveKey())
+              ?.renderVersion ?? 0;
 
           const lines = await displayBuffer.getLines({
             start: 0 as Row0Indexed,
@@ -500,7 +495,9 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
           await this.nvim.call("nvim_set_current_win", [displayWindow.id]);
           await displayWindow.setCursor(pos0to1(position));
 
-          const versionAfter = this.magenta.mountedChatApp?.renderVersion ?? 0;
+          const versionAfter =
+            this.magenta.bufferManager.getMountedApp(this.getActiveKey())
+              ?.renderVersion ?? 0;
           if (versionBefore !== versionAfter) {
             throw new Error(
               `! Re-render occurred while setting cursor. Retrying.`,
@@ -510,7 +507,9 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
           // Directly resolve and invoke the binding at the known position
           // instead of going through rpcnotify + getCursor, which is
           // vulnerable to re-renders moving the cursor.
-          const mountedNode = this.magenta.mountedChatApp?.getMountedNode();
+          const mountedNode = this.magenta.bufferManager
+            .getMountedApp(this.getActiveKey())
+            ?.getMountedNode();
           if (!mountedNode) {
             throw new Error(`! mountedChatApp not available`);
           }

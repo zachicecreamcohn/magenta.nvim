@@ -99,22 +99,14 @@ export class SidebarInteraction {
    * Get the input buffer
    */
   getInputBuffer() {
-    const inputBuffer = this.magenta.sidebar.state.inputBuffer;
-    if (!inputBuffer) {
-      throw new Error("Sidebar inputBuffer not initialized yet");
-    }
-    return inputBuffer;
+    return this.magenta.activeBuffers.inputBuffer;
   }
 
   /**
    * Get the display buffer
    */
   getDisplayBuffer() {
-    const displayBuffer = this.magenta.sidebar.state.displayBuffer;
-    if (!displayBuffer) {
-      throw new Error("Sidebar displayBuffer not initialized yet");
-    }
-    return displayBuffer;
+    return this.magenta.activeBuffers.displayBuffer;
   }
 
   /**

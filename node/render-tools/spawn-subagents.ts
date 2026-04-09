@@ -150,8 +150,8 @@ function threadBindings(
   return {
     "<CR>": () =>
       dispatch({
-        type: "chat-msg",
-        msg: { type: "select-thread", id: threadId },
+        type: "select-thread-effect",
+        id: threadId,
       }),
   };
 }

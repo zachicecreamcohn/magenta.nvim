@@ -1,3 +1,5 @@
+import type { ThreadId } from "@magenta/core";
+import type { BufferManager } from "./buffer-manager.ts";
 import { type Line, NvimBuffer } from "./nvim/buffer.ts";
 import { getOption } from "./nvim/nvim.ts";
 import type { Nvim } from "./nvim/nvim-node/index.ts";
@@ -133,13 +135,9 @@ export class Sidebar {
   public state:
     | {
         state: "hidden";
-        displayBuffer?: NvimBuffer;
-        inputBuffer?: NvimBuffer;
       }
     | {
         state: "visible";
-        displayBuffer: NvimBuffer;
-        inputBuffer: NvimBuffer;
         displayWindow: NvimWindow;
         displayWidth: number;
         inputWindow: NvimWindow;
@@ -149,6 +147,8 @@ export class Sidebar {
     private nvim: Nvim,
     private getProfile: () => Profile,
     private getTokenCount: () => number,
+    public bufferManager: BufferManager,
+    private getActiveKey: () => ThreadId | "overview",
   ) {
     this.state = {
       state: "hidden",
@@ -186,50 +186,27 @@ export class Sidebar {
     }
   }
 
-  /** returns buffers when they are visible
-   */
   async toggle(
     sidebarPosition: SidebarPositions,
     sidebarPositionOpts: SidebarPositionOpts,
-  ): Promise<
-    | {
-        displayBuffer: NvimBuffer;
-        inputBuffer: NvimBuffer;
-      }
-    | undefined
-  > {
+  ): Promise<boolean> {
     if (this.state.state === "hidden") {
-      return await this.show(sidebarPosition, sidebarPositionOpts);
+      await this.show(sidebarPosition, sidebarPositionOpts);
+      return true;
     } else {
       await this.hide();
-      return undefined;
+      return false;
     }
   }
 
   private async show(
     sidebarPosition: SidebarPositions,
     sidebarPositionOpts: SidebarPositionOpts,
-  ): Promise<{
-    displayBuffer: NvimBuffer;
-    inputBuffer: NvimBuffer;
-  }> {
-    const {
-      displayBuffer: existingDisplayBuffer,
-      inputBuffer: existingInputBuffer,
-    } = this.state;
+  ): Promise<void> {
     this.nvim.logger.debug(`sidebar.show`);
-    let displayBuffer: NvimBuffer;
-    if (existingDisplayBuffer) {
-      displayBuffer = existingDisplayBuffer;
-    } else {
-      displayBuffer = await NvimBuffer.create(false, true, this.nvim);
-      await displayBuffer.setName("[Magenta Chat]");
-      await displayBuffer.setOption("bufhidden", "hide");
-      await displayBuffer.setOption("buftype", "nofile");
-      await displayBuffer.setOption("swapfile", false);
-      await displayBuffer.setDisplayKeymaps();
-    }
 
+    const { displayBuffer, inputBuffer } =
+      await this.bufferManager.ensureActiveIsMounted(this.getActiveKey());
     const { inputHeight, inputWidth, displayHeight, displayWidth } =
       await Sidebar.calculateWindowDimensions(
         sidebarPosition,
@@ -272,19 +249,6 @@ export class Sidebar {
     }
     const displayWindow = new NvimWindow(displayWindowId, this.nvim);
 
-    let inputBuffer: NvimBuffer;
-    if (existingInputBuffer) {
-      inputBuffer = existingInputBuffer;
-    } else {
-      inputBuffer = await NvimBuffer.create(false, true, this.nvim);
-      await inputBuffer.setName("[Magenta Input]");
-      await inputBuffer.setOption("bufhidden", "hide");
-      await inputBuffer.setOption("buftype", "nofile");
-      await inputBuffer.setOption("swapfile", false);
-      await inputBuffer.setOption("filetype", "markdown");
-      await inputBuffer.setSiderbarKeymaps();
-    }
-
     const inputWindowId = (await this.nvim.call("nvim_open_win", [
       inputBuffer.id,
       true, // enter the input window
@@ -298,12 +262,6 @@ export class Sidebar {
 
     const inputWindow = new NvimWindow(inputWindowId, this.nvim);
     await inputWindow.clearjumps();
-
-    await inputBuffer.setLines({
-      start: 0 as Row0Indexed,
-      end: -1 as Row0Indexed,
-      lines: ["" as Line],
-    });
 
     const winOptions = {
       wrap: true,
@@ -328,14 +286,10 @@ export class Sidebar {
     this.nvim.logger.debug(`sidebar.create setting state`);
     this.state = {
       state: "visible",
-      displayBuffer,
-      inputBuffer,
       displayWindow,
       displayWidth,
       inputWindow,
     };
-
-    return { displayBuffer, inputBuffer };
   }
 
   async renderInputHeader() {
@@ -349,8 +303,7 @@ export class Sidebar {
 
   async hide() {
     if (this.state.state === "visible") {
-      const { displayWindow, inputWindow, displayBuffer, inputBuffer } =
-        this.state;
+      const { displayWindow, inputWindow } = this.state;
 
       // Check if the only windows open are magenta windows
       const allWindows = (await this.nvim.call(
@@ -388,8 +341,6 @@ export class Sidebar {
       }
       this.state = {
         state: "hidden",
-        displayBuffer,
-        inputBuffer,
       };
     }
   }
@@ -462,16 +413,7 @@ export class Sidebar {
     return this.state.state === "visible";
   }
 
-  async getMessage(): Promise<string> {
-    if (this.state.state !== "visible") {
-      this.nvim.logger.debug(
-        `sidebar state is ${this.state.state} in getMessage`,
-      );
-      return "";
-    }
-
-    const { inputBuffer } = this.state;
-
+  async getMessage(inputBuffer: NvimBuffer): Promise<string> {
     const lines = await inputBuffer.getLines({
       start: 0 as Row0Indexed,
       end: -1 as Row0Indexed,
