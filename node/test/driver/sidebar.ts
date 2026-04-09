@@ -14,7 +14,6 @@ export class SidebarInteraction {
     private magenta: Magenta,
   ) {}
 
-
   /**
    * Check if sidebar is currently visible
    */

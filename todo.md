@@ -5,7 +5,7 @@
 # Prompt tuning
 
 - often a subagent will yield using <yield> tags in the message, and not a yield tool call. Probably should update the reminder for subagents to yield using the tool.
-- we're still asking explore subagents to read full file contents.
+- the lead agent is still asking explore subagents to read full file contents.
 
 # customization
 
@@ -21,7 +21,6 @@
 
 - make the user messages more visually distinct. Background highlight maybe?
 - we don't need ``` in the display buffer. Just drop those
-- move towards having separate buffers for each thread, so jump navigation works properly
 - collapse threads in the thread overview by default, and only show subthreads when expanded via "="
 - show pending permissions / sandbox failures in the thread overview
 - can we amend the terminal or tmux's view to notify them that the agent is waiting or stopped?
@@ -29,12 +28,11 @@
 - drop the full context listing, instead just show the pending context updates
 - when the AI ends its turn, show a summary of all the edited files, so we can easily navigate to them
 - when we have pending @async messages, we should show the text of the message instead of just the message count
+- fork a conversation from any previous message
 
 # bug fixes, misc
 
 - there's errors/warnings when we switch threads during streaming
-- fork a conversation from any previous message
-
 - this periodic error:
 
 ```
