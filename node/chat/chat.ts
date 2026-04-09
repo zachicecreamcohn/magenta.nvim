@@ -78,18 +78,7 @@ export type Msg =
       error: Error;
     }
   | {
-      type: "new-thread";
-    }
-  | {
-      type: "new-agent-thread";
-      agentName: string;
-    }
-  | {
-      type: "fork-thread";
-      sourceThreadId: ThreadId;
-    }
-  | {
-      type: "select-thread";
+      type: "set-active-thread";
       id: ThreadId;
     }
   | {
@@ -133,14 +122,6 @@ export class Chat implements ThreadManager {
       this.context.getOptions().mcpServers,
       { logger: this.context.nvim.logger },
     );
-
-    setTimeout(() => {
-      this.createNewThread().catch((e: Error) => {
-        this.context.nvim.logger.error(
-          `Failed to create thread: ${e.message}\n${e.stack}`,
-        );
-      });
-    });
   }
 
   update(msg: RootMsg) {
@@ -194,23 +175,6 @@ export class Chat implements ThreadManager {
         };
         this.threadWrappers[msg.thread.id] = wrapper;
 
-        if (!this.state.activeThreadId) {
-          this.state = {
-            state: "thread-selected",
-            activeThreadId: msg.thread.id,
-          };
-        }
-
-        // Scroll to bottom when a new thread is created
-        setTimeout(() => {
-          this.context.dispatch({
-            type: "sidebar-msg",
-            msg: {
-              type: "scroll-to-bottom",
-            },
-          });
-        }, 100);
-
         return;
       }
 
@@ -237,27 +201,7 @@ export class Chat implements ThreadManager {
         return;
       }
 
-      case "new-thread":
-        // wrap in setTimeout to force new eventloop frame, to avoid dispatch-in-dispatch
-        setTimeout(() => {
-          this.createNewThread().catch((e: Error) => {
-            this.context.nvim.logger.error(
-              `Failed to create new thread: ${e.message}\n${e.stack}`,
-            );
-          });
-        });
-        return;
-      case "new-agent-thread":
-        setTimeout(() => {
-          this.createNewAgentThread(msg.agentName).catch((e: Error) => {
-            this.context.nvim.logger.error(
-              `Failed to create agent thread: ${e.message}\n${e.stack}`,
-            );
-          });
-        });
-        return;
-
-      case "select-thread":
+      case "set-active-thread":
         if (msg.id in this.threadWrappers) {
           this.state = {
             state: "thread-selected",
@@ -309,17 +253,6 @@ export class Chat implements ThreadManager {
         };
         return;
 
-      case "fork-thread": {
-        this.handleForkThread({
-          sourceThreadId: msg.sourceThreadId,
-        }).catch((e: Error) => {
-          this.context.nvim.logger.error(
-            `Failed to handle thread fork: ${e.message}\n${e.stack}`,
-          );
-        });
-        return;
-      }
-
       default:
         assertUnreachable(msg);
     }
@@ -357,7 +290,6 @@ export class Chat implements ThreadManager {
     profile,
     contextFiles = [],
     parent,
-    switchToThread,
     inputMessages,
     threadType,
     subagentConfig,
@@ -369,7 +301,6 @@ export class Chat implements ThreadManager {
     profile: Profile;
     contextFiles?: UnresolvedFilePath[];
     parent?: ThreadId;
-    switchToThread: boolean;
     inputMessages?: InputMessage[];
     threadType: ThreadType;
     subagentConfig?: SubagentConfig;
@@ -484,16 +415,6 @@ export class Chat implements ThreadManager {
       },
     });
 
-    if (switchToThread) {
-      this.context.dispatch({
-        type: "chat-msg",
-        msg: {
-          type: "select-thread",
-          id: threadId,
-        },
-      });
-    }
-
     if (inputMessages) {
       this.context.dispatch({
         type: "thread-msg",
@@ -508,7 +429,7 @@ export class Chat implements ThreadManager {
     return thread;
   }
 
-  async createNewThread() {
+  async createNewThread(): Promise<ThreadId> {
     const id = uuidv7() as ThreadId;
 
     await this.createThreadWithContext({
@@ -517,12 +438,13 @@ export class Chat implements ThreadManager {
         this.context.getOptions().profiles,
         this.context.getOptions().activeProfile,
       ),
-      switchToThread: true,
       threadType: "root",
     });
+
+    return id;
   }
 
-  async createNewAgentThread(agentName: string) {
+  async createNewAgentThread(agentName: string): Promise<ThreadId> {
     const agents = loadAgents({
       cwd: this.context.cwd,
       logger: this.context.nvim.logger,
@@ -549,10 +471,11 @@ export class Chat implements ThreadManager {
         this.context.getOptions().profiles,
         this.context.getOptions().activeProfile,
       ),
-      switchToThread: true,
       threadType: "root",
       subagentConfig,
     });
+
+    return id;
   }
 
   private buildChildrenMap(): Map<ThreadId, ThreadId[]> {
@@ -649,11 +572,8 @@ export class Chat implements ThreadManager {
     return withBindings(d`${displayLine}`, {
       "<CR>": () =>
         this.context.dispatch({
-          type: "chat-msg",
-          msg: {
-            type: "select-thread",
-            id: threadId,
-          },
+          type: "select-thread-effect",
+          id: threadId,
         }),
     });
   }
@@ -808,14 +728,6 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       msg: {
         type: "thread-initialized",
         thread,
-      },
-    });
-
-    this.context.dispatch({
-      type: "chat-msg",
-      msg: {
-        type: "select-thread",
-        id: newThreadId,
       },
     });
 
@@ -1051,7 +963,6 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       profile: subagentProfile,
       contextFiles: opts.contextFiles || [],
       parent: parentThreadId,
-      switchToThread: false,
       inputMessages: [{ type: "system", text: opts.prompt }],
       threadType: opts.threadType,
       ...(opts.subagentConfig ? { subagentConfig: opts.subagentConfig } : {}),
@@ -1070,13 +981,12 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     }
     callbacks.push(callback);
   }
-  renderActiveThread() {
-    const threadWrapper =
-      this.state.activeThreadId &&
-      this.threadWrappers[this.state.activeThreadId];
+
+  renderSingleThread(threadId: ThreadId) {
+    const threadWrapper = this.threadWrappers[threadId];
 
     if (!threadWrapper) {
-      throw new Error(`no active thread`);
+      return d`Thread not found`;
     }
 
     switch (threadWrapper.state) {
@@ -1092,11 +1002,8 @@ ${threadViews.map((view) => d`${view}\n`)}`;
           parentView = withBindings(d`Parent thread: ${parentDisplayName}\n`, {
             "<CR>": () =>
               this.context.dispatch({
-                type: "chat-msg",
-                msg: {
-                  type: "select-thread",
-                  id: parent,
-                },
+                type: "select-thread-effect",
+                id: parent,
               }),
           });
         } else {
@@ -1117,14 +1024,6 @@ ${threadViews.map((view) => d`${view}\n`)}`;
         return d`Error: ${threadWrapper.error.message}`;
       default:
         assertUnreachable(threadWrapper);
-    }
-  }
-
-  view() {
-    if (this.state.state === "thread-overview") {
-      return this.renderThreadOverview();
-    } else {
-      return this.renderActiveThread();
     }
   }
 }

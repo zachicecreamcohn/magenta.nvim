@@ -19,10 +19,6 @@ describe("node/tools/diagnostics.test.ts", () => {
 
       await pollUntil(
         async () => {
-          const state = driver.magenta.chatApp.getState();
-          if (state.status !== "running") {
-            throw new Error(`app crashed`);
-          }
           const diagnostics = (await driver.nvim.call("nvim_exec_lua", [
             `return vim.diagnostic.get(nil)`,
             [],

@@ -1,3 +1,4 @@
+import type { ThreadId } from "@magenta/core";
 import type { ChatMsg } from "./chat/chat.ts";
 import type { ThreadMsg } from "./chat/thread.ts";
 
@@ -19,4 +20,8 @@ export type RootMsg =
   | {
       type: "sidebar-msg";
       msg: SidebarMsg;
+    }
+  | {
+      type: "select-thread-effect";
+      id: ThreadId;
     };

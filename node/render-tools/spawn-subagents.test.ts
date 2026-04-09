@@ -989,9 +989,9 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
         await driver.assertDisplayBufferDoesNotContain("✅ 1 agent");
 
         // Resume the child: switch to it, send a message
-        driver.magenta.chat.update({
-          type: "chat-msg",
-          msg: { type: "select-thread", id: childThreadId },
+        driver.magenta.dispatch({
+          type: "select-thread-effect",
+          id: childThreadId,
         });
         await pollUntil(
           () => driver.magenta.chat.getActiveThread().id === childThreadId,
@@ -1109,9 +1109,9 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
           await driver.assertDisplayBufferContains("stopped (aborted)");
 
           // Resume the child
-          driver.magenta.chat.update({
-            type: "chat-msg",
-            msg: { type: "select-thread", id: childThreadId },
+          driver.magenta.dispatch({
+            type: "select-thread-effect",
+            id: childThreadId,
           });
           await pollUntil(
             () => driver.magenta.chat.getActiveThread().id === childThreadId,

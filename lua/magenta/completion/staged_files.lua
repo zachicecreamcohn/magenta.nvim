@@ -7,6 +7,7 @@ end
 
 local git = require('magenta.completion.git')
 local jobctl = require('magenta.completion.jobctl')
+local constants = require('magenta.completion.constants')
 
 -- Staged files completion source
 local source = {}
@@ -17,7 +18,7 @@ local job_state = jobctl.create_job_state()
 function source:is_available()
   local bufnr = vim.api.nvim_get_current_buf()
   local buf_name = vim.api.nvim_buf_get_name(bufnr)
-  return buf_name:match('%[Magenta Input%]') ~= nil
+  return constants.is_magenta_input_buffer(buf_name)
 end
 
 function source:get_debug_name()

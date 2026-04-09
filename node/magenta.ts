@@ -1,9 +1,10 @@
 import * as os from "node:os";
-import type { InputMessage } from "@magenta/core";
+import type { InputMessage, ThreadId } from "@magenta/core";
+import { BufferManager } from "./buffer-manager.ts";
 import { Lsp } from "./capabilities/lsp.ts";
 import { Chat } from "./chat/chat.ts";
 import { CommandRegistry } from "./chat/commands/registry.ts";
-import type { Line } from "./nvim/buffer.ts";
+import type { Line, NvimBuffer } from "./nvim/buffer.ts";
 import { MAGENTA_HIGHLIGHT_NAMESPACE } from "./nvim/buffer.ts";
 import { initializeMagentaHighlightGroups } from "./nvim/extmarks.ts";
 import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
@@ -21,7 +22,6 @@ import { Sidebar } from "./sidebar.ts";
 import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
 import type { Dispatch } from "./tea/tea.ts";
 import * as TEA from "./tea/tea.ts";
-import { pos } from "./tea/view.ts";
 import { assertUnreachable } from "./utils/assertUnreachable.ts";
 import type { HomeDir } from "./utils/files.ts";
 import {
@@ -41,12 +41,12 @@ const MAGENTA_LSP_RESPONSE = "magentaLspResponse";
 
 export class Magenta {
   public sidebar: Sidebar;
-  public chatApp: TEA.App<Chat>;
-  public mountedChatApp: TEA.MountedApp | undefined;
+  public bufferManager: BufferManager;
   public chat: Chat;
   public dispatch: Dispatch<RootMsg>;
   public commandRegistry: CommandRegistry;
   public optionsLoader: DynamicOptionsLoader;
+  public activeBuffers: { displayBuffer: NvimBuffer; inputBuffer: NvimBuffer };
 
   constructor(
     public nvim: Nvim,
@@ -55,6 +55,7 @@ export class Magenta {
     public homeDir: HomeDir,
     optionsLoader: DynamicOptionsLoader,
     private sandbox: Sandbox,
+    bufferManager: BufferManager,
   ) {
     this.optionsLoader = optionsLoader;
     this.commandRegistry = new CommandRegistry();
@@ -66,13 +67,28 @@ export class Magenta {
 
     this.dispatch = (msg: RootMsg) => {
       try {
+        // select-thread-effect: update chat state + fire-and-forget buffer sync.
+        // Used by view bindings that need to trigger thread navigation.
+        if (msg.type === "select-thread-effect") {
+          this.selectThreadEffect(msg.id).catch((e) => {
+            nvim.logger.error(
+              `Error syncing active view: ${e instanceof Error ? `${e.message}\n${e.stack}` : JSON.stringify(e)}`,
+            );
+          });
+        }
+
         this.chat.update(msg);
 
         if (msg.type === "sidebar-msg") {
           this.handleSidebarMsg(msg.msg);
         }
-        if (this.mountedChatApp) {
-          this.mountedChatApp.render(msg);
+
+        // Render only the active buffer's mounted app
+        const activeMountedApp = this.bufferManager.getMountedApp(
+          this.getActiveKey(),
+        );
+        if (activeMountedApp) {
+          activeMountedApp.render();
         }
 
         this.sidebar.renderInputHeader().catch((e) => {
@@ -91,7 +107,6 @@ export class Magenta {
         if (this.sidebar.state.state === "visible") {
           return this.sidebar.state.displayWidth;
         } else {
-          // a placeholder value
           return 100;
         }
       },
@@ -103,11 +118,27 @@ export class Magenta {
       sandbox: this.sandbox,
     });
 
+    this.bufferManager = bufferManager;
+    this.activeBuffers = bufferManager.getOverviewBuffers();
+    this.bufferManager.setAppFactories(
+      (threadId: ThreadId) =>
+        TEA.createApp<Chat>({
+          nvim: this.nvim,
+          initialModel: this.chat,
+          View: () => this.chat.renderSingleThread(threadId),
+        }),
+      () =>
+        TEA.createApp<Chat>({
+          nvim: this.nvim,
+          initialModel: this.chat,
+          View: () => this.chat.renderThreadOverview(),
+        }),
+    );
+
     this.sidebar = new Sidebar(
       this.nvim,
       () => this.getActiveProfile(),
       () => {
-        // Thread may not be initialized yet during first sidebar show
         if (!this.chat.state.activeThreadId) {
           return 0;
         }
@@ -118,13 +149,9 @@ export class Magenta {
         }
         return wrapper.thread.getLastStopTokenCount();
       },
+      this.bufferManager,
+      () => this.getActiveKey(),
     );
-
-    this.chatApp = TEA.createApp<Chat>({
-      nvim: this.nvim,
-      initialModel: this.chat,
-      View: () => this.chat.view(),
-    });
   }
 
   get options(): MagentaOptions {
@@ -134,25 +161,78 @@ export class Magenta {
   getActiveProfile() {
     return getActiveProfile(this.options.profiles, this.options.activeProfile);
   }
+
+  getActiveKey(): ThreadId | "overview" {
+    return this.chat.state.state === "thread-selected"
+      ? this.chat.state.activeThreadId
+      : "overview";
+  }
+
+  async selectThreadEffect(id: ThreadId): Promise<void> {
+    this.dispatch({
+      type: "chat-msg",
+      msg: { type: "set-active-thread", id },
+    });
+    await this.syncActiveView();
+    this.dispatch({
+      type: "sidebar-msg",
+      msg: { type: "scroll-to-bottom" },
+    });
+  }
+
+  async createAndSwitchToNewThread(): Promise<ThreadId> {
+    const threadId = await this.chat.createNewThread();
+    await this.bufferManager.registerThread(threadId);
+    this.dispatch({
+      type: "chat-msg",
+      msg: { type: "set-active-thread", id: threadId },
+    });
+    await this.syncActiveView();
+    return threadId;
+  }
+
+  async createAndSwitchToAgentThread(agentName: string): Promise<ThreadId> {
+    const threadId = await this.chat.createNewAgentThread(agentName);
+    await this.bufferManager.registerThread(threadId);
+    this.dispatch({
+      type: "chat-msg",
+      msg: { type: "set-active-thread", id: threadId },
+    });
+    await this.syncActiveView();
+    return threadId;
+  }
+
+  async forkAndSwitchToThread(sourceThreadId: ThreadId): Promise<ThreadId> {
+    const threadId = await this.chat.handleForkThread({ sourceThreadId });
+    await this.bufferManager.registerThread(threadId);
+    this.dispatch({
+      type: "chat-msg",
+      msg: { type: "set-active-thread", id: threadId },
+    });
+    await this.syncActiveView();
+    return threadId;
+  }
   private handleSidebarMsg(msg: SidebarMsg): void {
     switch (msg.type) {
-      case "setup-resubmit":
-        if (this.sidebar?.state?.inputBuffer) {
-          this.sidebar.state.inputBuffer
-            .setLines({
-              start: 0 as Row0Indexed,
-              end: -1 as Row0Indexed,
-              lines: msg.lastUserMessage.split("\n") as Line[],
-            })
-            .catch((error) => {
-              this.nvim.logger.error(`Error updating sidebar input: ${error}`);
-            });
-        }
+      case "setup-resubmit": {
+        this.activeBuffers.inputBuffer
+          .setLines({
+            start: 0 as Row0Indexed,
+            end: -1 as Row0Indexed,
+            lines: msg.lastUserMessage.split("\n") as Line[],
+          })
+          .catch((error) => {
+            this.nvim.logger.error(`Error updating sidebar input: ${error}`);
+          });
         break;
-      case "scroll-to-last-user-message":
-        if (this.mountedChatApp) {
+      }
+      case "scroll-to-last-user-message": {
+        const activeMountedApp = this.bufferManager.getMountedApp(
+          this.getActiveKey(),
+        );
+        if (activeMountedApp) {
           (async () => {
-            await this.mountedChatApp?.waitForRender();
+            await activeMountedApp.waitForRender();
             await this.sidebar.scrollToLastUserMessage();
           })().catch((error: Error) =>
             this.nvim.logger.error(
@@ -161,10 +241,14 @@ export class Magenta {
           );
         }
         break;
-      case "scroll-to-bottom":
-        if (this.mountedChatApp) {
+      }
+      case "scroll-to-bottom": {
+        const activeMountedApp = this.bufferManager.getMountedApp(
+          this.getActiveKey(),
+        );
+        if (activeMountedApp) {
           (async () => {
-            await this.mountedChatApp?.waitForRender();
+            await activeMountedApp.waitForRender();
             await this.sidebar.scrollToBottom();
           })().catch((error: Error) =>
             this.nvim.logger.error(
@@ -173,8 +257,33 @@ export class Magenta {
           );
         }
         break;
+      }
       default:
         assertUnreachable(msg);
+    }
+  }
+
+  /** After dispatching a chat-msg that changes the active view,
+   * call this to update activeBuffers and switch sidebar windows.
+   */
+  private async syncActiveView(): Promise<void> {
+    const activeKey = this.getActiveKey();
+    if (activeKey === "overview") {
+      this.activeBuffers = this.bufferManager.getOverviewBuffers();
+      if (this.sidebar.state.state === "visible") {
+        const { displayWindow, inputWindow } = this.sidebar.state;
+        await this.bufferManager.switchToOverview(displayWindow, inputWindow);
+      }
+    } else {
+      this.activeBuffers = await this.bufferManager.registerThread(activeKey);
+      if (this.sidebar.state.state === "visible") {
+        const { displayWindow, inputWindow } = this.sidebar.state;
+        await this.bufferManager.switchToThread(
+          activeKey,
+          displayWindow,
+          inputWindow,
+        );
+      }
     }
   }
 
@@ -238,24 +347,17 @@ export class Magenta {
       }
 
       case "toggle": {
-        const buffers = await this.sidebar.toggle(
+        await this.sidebar.toggle(
           this.options.sidebarPosition,
           this.options.sidebarPositionOpts,
         );
-        if (buffers && !this.mountedChatApp) {
-          this.mountedChatApp = await this.chatApp.mount({
-            nvim: this.nvim,
-            buffer: buffers.displayBuffer,
-            startPos: pos(0 as Row0Indexed, 0),
-            endPos: pos(-1 as Row0Indexed, -1),
-          });
-          this.nvim.logger.debug(`Chat mounted.`);
-        }
         break;
       }
 
       case "send": {
-        const text = await this.sidebar.getMessage();
+        const text = await this.sidebar.getMessage(
+          this.activeBuffers.inputBuffer,
+        );
         this.nvim.logger.debug(`current message: ${text}`);
         if (!text) return;
 
@@ -276,17 +378,10 @@ export class Magenta {
       }
 
       case "new-thread": {
+        await this.createAndSwitchToNewThread();
         if (!this.sidebar.isVisible()) {
           await this.command("toggle");
         }
-
-        this.dispatch({
-          type: "chat-msg",
-          msg: {
-            type: "new-thread",
-          },
-        });
-
         break;
       }
       case "agent": {
@@ -298,56 +393,36 @@ export class Magenta {
           break;
         }
 
+        await this.createAndSwitchToAgentThread(agentName);
         if (!this.sidebar.isVisible()) {
           await this.command("toggle");
         }
-
-        this.dispatch({
-          type: "chat-msg",
-          msg: {
-            type: "new-agent-thread",
-            agentName,
-          },
-        });
         break;
       }
 
       case "threads-navigate-up": {
         this.dispatch({
           type: "chat-msg",
-          msg: {
-            type: "threads-navigate-up",
-          },
+          msg: { type: "threads-navigate-up" },
         });
-
-        // Scroll to bottom when navigating to threads overview
-        // (The chat handler will determine if we go to overview or parent)
+        await this.syncActiveView();
         this.dispatch({
           type: "sidebar-msg",
-          msg: {
-            type: "scroll-to-bottom",
-          },
+          msg: { type: "scroll-to-bottom" },
         });
-
         break;
       }
 
       case "threads-overview": {
-        // Backward compatibility - force navigation to overview
         this.dispatch({
           type: "chat-msg",
-          msg: {
-            type: "threads-overview",
-          },
+          msg: { type: "threads-overview" },
         });
-
+        await this.syncActiveView();
         this.dispatch({
           type: "sidebar-msg",
-          msg: {
-            type: "scroll-to-bottom",
-          },
+          msg: { type: "scroll-to-bottom" },
         });
-
         break;
       }
 
@@ -379,12 +454,7 @@ ${lines.join("\n")}
           await this.command("toggle");
         }
 
-        const inputBuffer = this.sidebar.state.inputBuffer;
-        if (!inputBuffer) {
-          throw new Error(`Unable to init inputBuffer`);
-        }
-
-        await inputBuffer.setLines({
+        await this.activeBuffers.inputBuffer.setLines({
           start: -1 as Row0Indexed,
           end: -1 as Row0Indexed,
           lines: content.split("\n") as Line[],
@@ -405,9 +475,10 @@ ${lines.join("\n")}
 
   onKey(args: string[]) {
     const key = args[0];
-    if (this.mountedChatApp) {
+    const mountedApp = this.bufferManager.getMountedApp(this.getActiveKey());
+    if (mountedApp) {
       if (BINDING_KEYS.indexOf(key as BindingKey) > -1) {
-        this.mountedChatApp.onKey(key as BindingKey).catch((err) => {
+        mountedApp.onKey(key as BindingKey).catch((err) => {
           this.nvim.logger.error(err);
           throw err;
         });
@@ -427,10 +498,7 @@ ${lines.join("\n")}
   }
 
   destroy() {
-    if (this.mountedChatApp) {
-      this.mountedChatApp.unmount();
-      this.mountedChatApp = undefined;
-    }
+    // BufferManager's mounted apps will be cleaned up when nvim exits
   }
 
   static async start(nvim: Nvim, homeDir?: HomeDir, sandboxOverride?: Sandbox) {
@@ -526,15 +594,6 @@ ${lines.join("\n")}
         } satisfies Sandbox;
       }));
 
-    const magenta = new Magenta(
-      nvim,
-      lsp,
-      cwd,
-      resolvedHomeDir,
-      optionsLoader,
-      sandbox,
-    );
-
     // Initialize highlight groups in the magenta namespace
     try {
       await nvim.call("nvim_create_namespace", [MAGENTA_HIGHLIGHT_NAMESPACE]);
@@ -545,6 +604,27 @@ ${lines.join("\n")}
         error instanceof Error ? error.message : String(error),
       );
     }
+
+    const bufferManager = await BufferManager.create(nvim);
+
+    const magenta = new Magenta(
+      nvim,
+      lsp,
+      cwd,
+      resolvedHomeDir,
+      optionsLoader,
+      sandbox,
+      bufferManager,
+    );
+
+    // Create the first thread eagerly so there's always an active thread
+    const initialThreadId = await magenta.chat.createNewThread();
+    magenta.activeBuffers =
+      await magenta.bufferManager.registerThread(initialThreadId);
+    magenta.dispatch({
+      type: "chat-msg",
+      msg: { type: "set-active-thread", id: initialThreadId },
+    });
 
     nvim.logger.info(`Magenta initialized. ${JSON.stringify(parsedOptions)}`);
     return magenta;
@@ -559,7 +639,7 @@ ${lines.join("\n")}
     // @fork: create a forked thread, then re-process remaining text on it
     if (text.trim().startsWith("@fork")) {
       const strippedText = text.replace(/^\s*@fork\s*/, "");
-      await this.chat.handleForkThread({ sourceThreadId: thread.id });
+      await this.forkAndSwitchToThread(thread.id);
 
       // If there's remaining text, re-invoke preprocessAndSend on the new active thread
       if (strippedText.trim()) {
