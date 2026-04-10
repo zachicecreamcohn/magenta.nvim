@@ -1,10 +1,10 @@
 import * as BashCommand from "./bashCommand.ts";
 import * as Diagnostics from "./diagnostics.ts";
+import * as Docs from "./docs.ts";
 import * as Edl from "./edl.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as GetFile from "./getFile.ts";
 import * as Hover from "./hover.ts";
-import * as Learn from "./learn.ts";
 import * as SpawnSubagents from "./spawn-subagents.ts";
 import * as ThreadTitle from "./thread-title.ts";
 import type { StaticToolName } from "./tool-registry.ts";
@@ -13,6 +13,7 @@ import * as YieldToParent from "./yield-to-parent.ts";
 export function validateInput(
   toolName: unknown,
   input: { [key: string]: unknown },
+  userDocs?: Docs.UserDoc[],
 ) {
   const toolNameStr = toolName as string;
 
@@ -42,8 +43,8 @@ export function validateInput(
       return YieldToParent.validateInput(input);
     case "edl":
       return Edl.validateInput(input);
-    case "learn":
-      return Learn.validateInput(input);
+    case "docs":
+      return Docs.validateInput(input, userDocs);
     default:
       throw new Error(`Unexpected toolName: ${toolName as string}`);
   }

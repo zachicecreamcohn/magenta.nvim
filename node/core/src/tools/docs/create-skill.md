@@ -19,6 +19,14 @@ Skills can be placed in several locations:
 - **Usage**: Only available in that specific project
 - **Use case**: Project-specific workflows, conventions, or documentation
 
+### Project Reference Docs
+
+- **Location**: `.magenta/docs/` (in your project root)
+- **Format**: Markdown files (`.md`) with YAML frontmatter (`name` and `description` fields)
+- **Usage**: Automatically discovered and added to the `docs` tool's available documents
+- **Use case**: Project-specific reference documentation the agent can look up on demand (e.g. architecture notes, coding conventions, API references)
+- **Note**: Unlike skills (which are included in the system prompt), docs are only loaded when the agent explicitly requests them via the `docs` tool
+
 ## Skill Structure
 
 Each skill lives in its own subdirectory with a `skill.md` file:

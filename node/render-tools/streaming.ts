@@ -23,7 +23,7 @@ export function renderStreamdedTool(
     case "thread_title":
     case "spawn_subagents":
     case "yield_to_parent":
-    case "learn":
+    case "docs":
       break;
     case "edl": {
       const script = extractPartialJsonStringValue(

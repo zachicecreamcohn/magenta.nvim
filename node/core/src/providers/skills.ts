@@ -164,7 +164,9 @@ function parseSkillFile(
   };
 }
 
-function extractYamlFrontmatter(content: string): YamlFrontmatter | undefined {
+export function extractYamlFrontmatter(
+  content: string,
+): YamlFrontmatter | undefined {
   const lines = content.split("\n");
 
   // First line must be just "---"

@@ -16,11 +16,11 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import * as BashCommand from "./bashCommand.ts";
 import * as Diagnostics from "./diagnostics.ts";
+import * as Docs from "./docs.ts";
 import * as Edl from "./edl.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as GetFile from "./getFile.ts";
 import * as Hover from "./hover.ts";
-import * as Learn from "./learn.ts";
 import type { MCPToolManager } from "./mcp/manager.ts";
 import * as MCPTool from "./mcp/tool.ts";
 import { parseToolName } from "./mcp/types.ts";
@@ -41,6 +41,7 @@ export type CreateToolContext = {
   onToolApplied: OnToolApplied;
   diagnosticsProvider: DiagnosticsProvider;
   edlRegisters: EdlRegisters;
+  userDocs: Docs.UserDoc[];
   fileIO: FileIO;
   shell: Shell;
   threadManager: ThreadManager;
@@ -146,8 +147,10 @@ export function createTool(
       });
     }
 
-    case "learn": {
-      return Learn.execute(staticRequest, {});
+    case "docs": {
+      return Docs.execute(staticRequest, {
+        userDocs: context.userDocs,
+      });
     }
 
     default:

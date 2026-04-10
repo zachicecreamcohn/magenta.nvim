@@ -8,7 +8,7 @@ export const STATIC_TOOL_NAMES = [
   "spawn_subagents",
   "yield_to_parent",
   "edl",
-  "learn",
+  "docs",
 ] as const;
 
 export type StaticToolName = (typeof STATIC_TOOL_NAMES)[number];
@@ -21,7 +21,7 @@ export const CHAT_STATIC_TOOL_NAMES: StaticToolName[] = [
   "bash_command",
   "spawn_subagents",
   "edl",
-  "learn",
+  "docs",
 ];
 
 export const COMPACT_STATIC_TOOL_NAMES: StaticToolName[] = ["get_file", "edl"];
@@ -37,7 +37,7 @@ export const SUBAGENT_STATIC_TOOL_NAMES: StaticToolName[] = [
   "bash_command",
   "yield_to_parent",
   "edl",
-  "learn",
+  "docs",
 ];
 
 export const TOOL_CAPABILITIES = [
@@ -63,5 +63,5 @@ export const TOOL_REQUIRED_CAPABILITIES: Record<
   spawn_subagents: new Set(["threads"]),
   thread_title: new Set(),
   yield_to_parent: new Set(),
-  learn: new Set(),
+  docs: new Set(),
 };
