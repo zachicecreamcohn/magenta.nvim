@@ -399,6 +399,10 @@ export class Thread {
         return;
 
       case "permission-pending-change":
+        this.playChimeSound();
+        this.sendTerminalBell();
+        return;
+
       case "tool-progress":
         return;
 
