@@ -10,10 +10,6 @@ CONTENTS                                                    *magenta-contents*
     2. Requirements ............................ |magenta-requirements|
     3. Installation ............................ |magenta-installation|
     4. Quick Start ............................. |magenta-quickstart|
-    5. Configuration ........................... |magenta-config|
-    6. Commands & Keymaps ..................... |magenta-commands-keymaps|
-    7. Tools ................................... |magenta-tools|
-    8. Providers ............................... |magenta-providers|
 
 For detailed configuration options, see |magenta-config.txt|
 For commands and keymaps, see |magenta-commands-keymaps.txt|

@@ -101,7 +101,7 @@ Just regular markdown content without frontmatter.
         const thread = driver.magenta.chat.getActiveThread();
         const systemPrompt = thread.core.state.systemPrompt;
 
-        // The invalid skill should not appear, but built-in skills will still be present
+        // The invalid skill should not appear
         expect(systemPrompt).not.toContain("no-frontmatter");
       },
     );
@@ -137,7 +137,7 @@ Content
         const thread = driver.magenta.chat.getActiveThread();
         const systemPrompt = thread.core.state.systemPrompt;
 
-        // The invalid skill should not appear, but built-in skills will still be present
+        // The invalid skill should not appear
         expect(systemPrompt).not.toContain("only-name");
       },
     );
@@ -247,7 +247,7 @@ Content
         const thread = driver.magenta.chat.getActiveThread();
         const systemPrompt = thread.core.state.systemPrompt;
 
-        // Built-in skills are now served via the learn tool, not the skills section
+        // No skills directories configured, so no skills section
         expect(systemPrompt).not.toContain("Available Skills");
       },
     );
@@ -353,7 +353,7 @@ allowed-tools: Bash(git show:*), Bash(git fetch: *), Bash(git diff:*)
         const thread = driver.magenta.chat.getActiveThread();
         const systemPrompt = thread.core.state.systemPrompt;
 
-        // No user skills exist and built-in skills are now served via the learn tool
+        // No skills directory exists, so no skills section
         expect(systemPrompt).not.toContain("Available Skills");
       },
     );

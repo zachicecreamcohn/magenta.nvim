@@ -5,7 +5,7 @@ import { type ServerName, validateServerName } from "@magenta/core";
 import { PROVIDER_NAMES, type ProviderName } from "./providers/provider.ts";
 import type { NvimCwd } from "./utils/files.ts";
 
-// Get the path to the built-in skills directory
+// Get the path to the built-in agents directory
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 export const BUILTIN_AGENTS_PATH = path.join(
@@ -1019,7 +1019,7 @@ export function parseOptions(
       "autoContext",
     );
 
-    // Parse skills paths - always prepend built-in skills
+    // Parse skills paths
     if ("skillsPaths" in inputOptionsObj) {
       const userSkillsPaths = parseStringArray(
         inputOptionsObj.skillsPaths,

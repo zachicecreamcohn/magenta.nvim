@@ -11,7 +11,7 @@ CONTENTS                                            *magenta-skills-contents*
     3. Skill Structure ....................... |magenta-skills-structure|
     4. skill.md Format ....................... |magenta-skills-format|
     5. TypeScript Scripts .................... |magenta-skills-scripts|
-
+    6. Recommended Skills .................... |magenta-skills-recommended|
 ==============================================================================
 INTRODUCTION                                   *magenta-skills-introduction*
 
@@ -113,5 +113,31 @@ Making scripts executable:~
 >bash
   chmod +x .magenta/skills/your-skill/scripts/your-script.sh
 <
+
+==============================================================================
+RECOMMENDED SKILLS                               *magenta-skills-recommended*
+
+Here are some useful skills you can create for your workflow:
+
+Planning Skill~
+  A planning skill teaches the agent how to create structured
+  implementation plans before starting complex work. This typically
+  includes a learning phase (understanding relevant code), an
+  architecting phase (designing the solution), and a writing phase
+  (documenting the plan to a file).
+
+  Create a planning skill at `~/.magenta/skills/plan/skill.md` with
+  your preferred planning methodology. See the magenta.nvim project's
+  own `.magenta/skills/plan/skill.md` for an example.
+
+Project Conventions Skill~
+  Document your project's coding standards, naming conventions,
+  testing patterns, and architectural decisions so the agent follows
+  them consistently.
+
+Testing Skill~
+  Describe your project's testing framework, how to run tests,
+  common test patterns, and fixtures so the agent writes tests that
+  match your existing style.
 
 vim:tw=78:ts=8:noet:ft=help:norl:

@@ -288,6 +288,9 @@ Create an implementation plan before starting work:
     // Plan is yielded to parent
     // Parent reviews and confirms before proceeding with implementation
 <
+Tip: Create a planning skill at `~/.magenta/skills/plan/skill.md` to teach
+the agent your preferred planning methodology. See |magenta-skills-recommended|
+for details.
 
 DOCKER WORKFLOW                                        *magenta-example-docker*
 
