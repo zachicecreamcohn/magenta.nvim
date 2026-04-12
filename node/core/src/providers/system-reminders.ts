@@ -16,17 +16,14 @@ WRONG: \`command 2>&1 | tail -50\`
 WRONG: \`command | head -100\`
 RIGHT: \`command\``;
 
-const EXPLORE_REMINDER = `\
-Only use the explore agent when you don't already know where to find something. If you know the file or location, use get_file directly instead of spawning an explore agent.
-WRONG: read the full contents of file
-WRONG: spawning explore when you already know the file path
-RIGHT: where is X handled?`;
+const SUBAGENT_REMINDER = `\
+Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Sub-agents have real overhead — use them for ambiguous tasks or parallel work across multiple files.`;
 
 const BASE_REMINDER = `<system-reminder>
 ${SKILLS_REMINDER}
 ${BASH_REMINDER}
 ${EDL_REMINDER}
-${EXPLORE_REMINDER}
+${SUBAGENT_REMINDER}
 </system-reminder>`;
 
 export function getSubsequentReminder(
@@ -41,7 +38,7 @@ export function getSubsequentReminder(
 ${SKILLS_REMINDER}
 ${BASH_REMINDER}
 ${EDL_REMINDER}
-${EXPLORE_REMINDER}
+${SUBAGENT_REMINDER}
 
 CRITICAL: You are in a Docker container. Call yield_to_parent when done. Your changes will be synced back automatically.
 </system-reminder>`;

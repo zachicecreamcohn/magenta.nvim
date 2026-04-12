@@ -4,6 +4,16 @@ Each sub-agent entry can specify its own agentType, prompt, contextFiles, enviro
 
 You can also specify `sharedPrompt` and `sharedContextFiles` at the top level — these are prepended/merged into every sub-agent's individual prompt and contextFiles.
 
+## Key principle
+
+Treat each sub-agent as a coworker joining a project — they have no context on the work so far and you have to fill them in using the prompt. This means there's real overhead to spawning a sub-agent: context must be re-established, and results must be communicated back through the yield result.
+
+**Do not use sub-agents for things you can do directly.** Sub-agents are for performing ambiguous tasks:
+
+- If you need to read a file, use `get_file` — don't spawn an explore agent to read it for you.
+- If you need to make an exact edit, use the `edl` tool — don't spawn a fast-edit agent for one change.
+- If you need to run a command, use `bash_command` — don't spawn an agent to run it.
+
 ## Agent types
 
 `agentType` selects the agent personality and system prompt:
