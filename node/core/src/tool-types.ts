@@ -77,5 +77,4 @@ export type ToolInvocation = {
 export type ValidateInput = (
   toolName: unknown,
   input: { [key: string]: unknown },
-  userDocs?: import("./tools/docs.ts").UserDoc[],
 ) => Result<Record<string, unknown>>;

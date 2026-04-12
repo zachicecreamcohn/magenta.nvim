@@ -41,7 +41,6 @@ export type CreateToolContext = {
   onToolApplied: OnToolApplied;
   diagnosticsProvider: DiagnosticsProvider;
   edlRegisters: EdlRegisters;
-  userDocs: Docs.UserDoc[];
   fileIO: FileIO;
   shell: Shell;
   threadManager: ThreadManager;
@@ -148,9 +147,7 @@ export function createTool(
     }
 
     case "docs": {
-      return Docs.execute(staticRequest, {
-        userDocs: context.userDocs,
-      });
+      return Docs.execute(staticRequest);
     }
 
     default:

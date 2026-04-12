@@ -6,28 +6,28 @@ import { withDriver } from "../test/preamble.ts";
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
 type ContentBlockParam = Anthropic.Messages.ContentBlockParam;
 
-it("docs tool returns plan documentation when agent requests it", async () => {
+it("docs tool returns skills documentation when agent requests it", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
 
-    await driver.inputMagentaText("Help me plan a feature");
+    await driver.inputMagentaText("How do I create a skill?");
     await driver.send();
 
     const stream = await driver.mockAnthropic.awaitPendingStreamWithText(
-      "Help me plan a feature",
+      "How do I create a skill?",
     );
 
-    // Agent decides to use the learn tool to learn about planning
+    // Agent decides to use the learn tool to learn about skills
     stream.respond({
       stopReason: "tool_use",
-      text: "Let me look up the planning guide.",
+      text: "Let me look up the skills guide.",
       toolRequests: [
         {
           status: "ok",
           value: {
-            id: "docs-plan" as ToolRequestId,
+            id: "docs-skills" as ToolRequestId,
             toolName: "docs" as ToolName,
-            input: { name: "plan" },
+            input: { name: "magenta-skills" },
           },
         },
       ],
@@ -51,7 +51,7 @@ it("docs tool returns plan documentation when agent requests it", async () => {
     expect(toolResult).toBeDefined();
     expect(toolResult!.is_error).toBeFalsy();
 
-    // The tool result content should contain the plan documentation
+    // The tool result content should contain the skills documentation
     const resultContent = toolResult!.content;
     const text =
       typeof resultContent === "string"
@@ -62,9 +62,9 @@ it("docs tool returns plan documentation when agent requests it", async () => {
             )
             .map((b) => b.text)
             .join("");
-    expect(text).toContain("Planning Process");
-    expect(text).toContain("Learning Phase");
-    expect(text).toContain("Write the plan");
+    expect(text).toContain("magenta-skills");
+    expect(text).toContain("Skill Locations");
+    expect(text).toContain("skill.md");
   });
 });
 
@@ -88,7 +88,7 @@ it("docs tool returns neovim help doc when agent requests it", async () => {
           value: {
             id: "docs-commands" as ToolRequestId,
             toolName: "docs" as ToolName,
-            input: { name: "magenta-commands" },
+            input: { name: "magenta-commands-keymaps" },
           },
         },
       ],

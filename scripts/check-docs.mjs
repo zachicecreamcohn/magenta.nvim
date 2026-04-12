@@ -16,7 +16,7 @@ const docFiles = readdirSync(docDir)
 
 // Extract help doc names from BUILTIN_DOCS in docs.ts
 const helpDocNames = [];
-const regex = /name: "([^"]+)",\s*description: "[^"]*",\s*source: "help"/g;
+const regex = /name: "([^"]+)",/g;
 let match;
 while ((match = regex.exec(docsTs)) !== null) {
   helpDocNames.push(match[1]);

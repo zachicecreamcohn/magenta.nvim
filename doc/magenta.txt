@@ -11,20 +11,21 @@ CONTENTS                                                    *magenta-contents*
     3. Installation ............................ |magenta-installation|
     4. Quick Start ............................. |magenta-quickstart|
     5. Configuration ........................... |magenta-config|
-    6. Commands ................................ |magenta-commands|
+    6. Commands & Keymaps ..................... |magenta-commands-keymaps|
     7. Tools ................................... |magenta-tools|
     8. Providers ............................... |magenta-providers|
-    9. Changelog ............................... |magenta-changelog|
 
 For detailed configuration options, see |magenta-config.txt|
-For commands and keymaps, see |magenta-commands.txt|
+For commands and keymaps, see |magenta-commands-keymaps.txt|
 For tools and MCP support, see |magenta-tools.txt|
 For provider configuration, see |magenta-providers.txt|
+For the Edit Description Language, see |magenta-edl.txt|
+For sub-agent types and workflows, see |magenta-subagents.txt|
+For dev containers, see |magenta-docker.txt|
+For the security model, see |magenta-security.txt|
+For sandbox permissions, see |magenta-permissions.txt|
+For creating skills, see |magenta-skills.txt|
 
-                                                            *magenta-config*
-                                                          *magenta-commands*
-                                                             *magenta-tools*
-                                                         *magenta-providers*
 
 ==============================================================================
 INTRODUCTION                                            *magenta-introduction*
@@ -94,39 +95,7 @@ QUICK START                                               *magenta-quickstart*
 
 3. Open Neovim and use `<leader>mt` to toggle the sidebar
 
-4. Start chatting! Use `<leader>mf` to add files to context
-
-Basic workflow:~
-  - `<leader>mt` - Toggle chat sidebar
-  - `<leader>mf` - Pick files to add to context
-  - `<leader>mn` - Create new thread
-
-See |magenta-commands| for the full list of commands and keymaps.
+See |magenta-commands-keymaps| for the full list of commands and keymaps.
 
 
-==============================================================================
-CHANGELOG                                                 *magenta-changelog*
-
-Mar 2026:~
-  - Dev containers: Docker sub-agents work on isolated branches in
-    containers. Dockerfile-based provisioning with Docker layer caching.
-Feb 2026:~
-  - Refactored tool architecture: separated execution from rendering,
-    extracted shared capabilities (permissions, file I/O, shell) into a
-    `capabilities/` layer. Decouples tools from neovim, moving towards
-    dev container support.
-  - Auto-compaction with chunked incremental summarization and accurate
-    token counting via `countTokens` API.
-  - Edit Description Language (EDL) tool replaces insert and replace tools.
-  - Explore sub-agent type, blocking sub-agents for better token economy.
-  - Dropped next edit prediction and inline edits in favor of unsupervised
-    agent mode and multi-agent coordination.
-
-Jan 2026:~
-  - Messages stored in native provider format for better cache reliability.
-  - `@fork` now clones the thread; works during streaming/tool use.
-  - Bash output streams to temp files with abbreviated results to model.
-  - `@compact` command for manual thread compaction.
-  - Tree-sitter minimap for large files.
-  - Dropped non-Anthropic providers (openai, bedrock, ollama, copilot).
 vim:tw=78:ts=8:noet:ft=help:norl:

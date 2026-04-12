@@ -1,0 +1,358 @@
+*magenta-edl.txt*	Edit Description Language documentation
+
+===============================================================================
+CONTENTS                                                   *magenta-edl-contents*
+
+  OVERVIEW                        |magenta-edl-overview|
+  COMMANDS                        |magenta-edl-commands|
+  PATTERNS                        |magenta-edl-patterns|
+  HEREDOC BEHAVIOR                |magenta-edl-heredocs|
+  REGISTERS                       |magenta-edl-registers|
+  EXAMPLES                        |magenta-edl-examples|
+  BEST PRACTICES                  |magenta-edl-practices|
+
+===============================================================================
+OVERVIEW                                               *magenta-edl-overview*
+
+EDL (Edit Description Language) is a programmatic file editing language used
+by the agent to make precise code modifications. It uses a select-then-mutate
+paradigm: first select text using patterns, then apply mutations (replace,
+insert, delete) to the selection.
+
+The language supports:
+  - Multiple file editing in a single script
+  - Pattern-based selection (heredoc, regex, positional)
+  - Named registers for text storage and reuse
+  - Auto-saved registers on error for retry workflows
+
+===============================================================================
+COMMANDS                                               *magenta-edl-commands*
+
+File Commands~
+
+  file `path`        Select a file to edit. Resets the selection to the
+                     entire file contents.
+
+  newfile `path`     Create a new file. The file must not already exist.
+
+
+Selection Commands~
+
+  select <pattern>        Select the unique match in the entire document.
+                          Asserts exactly one match exists.
+
+  select_multiple         Select all matches in the entire document.
+  <pattern>
+
+  narrow <pattern>        Narrow selection to the unique match within the
+                          current selection. Asserts exactly one match.
+
+  narrow_multiple         Narrow selection to all matches within the
+  <pattern>               current selection.
+
+  retain_first            From a multi-selection, keep only the first
+                          selected region.
+
+  retain_last             From a multi-selection, keep only the last
+                          selected region.
+
+  select_next <pattern>   Select the next non-overlapping match after the
+                          current selection.
+
+  select_prev <pattern>   Select the previous non-overlapping match before
+                          the current selection.
+
+  extend_forward          Extend the current selection forward to include
+  <pattern>               the next match of the pattern.
+
+  extend_back <pattern>   Extend the current selection backward to include
+                          the previous match of the pattern.
+
+
+Mutation Commands~
+
+  replace <text>          Replace the selection with text (from heredoc,
+                          quoted string, or register name).
+
+  insert_before <text>    Insert text before the selection (from heredoc,
+                          quoted string, or register name).
+
+  insert_after <text>     Insert text after the selection (from heredoc,
+                          quoted string, or register name).
+
+  delete                  Delete the selected text.
+
+  cut <register_name>     Cut the selection into a named register (saves
+                          and deletes the text).
+
+===============================================================================
+PATTERNS                                               *magenta-edl-patterns*
+
+Three pattern types are supported for selection:
+
+Heredoc Syntax~
+
+  <<DELIM
+  pattern text
+  DELIM
+
+  Line-oriented patterns. Match complete lines only. The selection includes
+  the trailing newline. Must specify the entire line content including
+  leading whitespace.
+
+  When the text being matched contains a heredoc delimiter (e.g. <<END),
+  use a different, unique termination code to avoid conflicts:
+>
+    select <<UNIQUE
+    select <<END
+    const x = 1;
+    END
+    UNIQUE
+<
+
+Regex Syntax~
+
+  /pattern/
+
+  For partial-line matching and wildcards. Use when you need to match
+  within a line rather than entire lines. Escape backslashes with another
+  backslash (e.g. /\\/ matches a single backslash).
+
+
+Positional~
+
+  bof             Beginning of file
+  eof             End of file
+
+  Used with extend_forward and extend_back to reach file boundaries.
+
+===============================================================================
+HEREDOC BEHAVIOR                                       *magenta-edl-heredocs*
+
+Heredocs behave differently depending on context:
+
+In Selections (heredoc patterns)~
+
+  - Match complete lines only
+  - Include the trailing newline (or extend to EOF for the last line)
+  - You must specify the entire line content with exact whitespace
+
+In Mutations (heredoc text)~
+
+  - A trailing newline is appended automatically
+  - Text becomes multi-line content
+
+Quoted Strings~
+
+  "text"
+
+  For inline mutations without an appended newline. No automatic newline
+  is added. Escape quotes and backslashes: \" and \\.
+
+Example: Replace part of a line~
+
+  Given: const value = "old-value";
+
+>
+  file `src/config.ts`
+  select <<END
+  const value = "old-value";
+  END
+  narrow /"old-value"/
+  replace "\"new-value\""
+<
+
+  Result: const value = "new-value";
+
+===============================================================================
+REGISTERS                                              *magenta-edl-registers*
+
+Named registers store text for reuse across mutations.
+
+Saving to a Register~
+
+  cut <register_name>
+
+  Saves the current selection into a named register and deletes it from
+  the file. The text can later be used with replace, insert_before, or
+  insert_after.
+
+Using a Register~
+
+  replace <register_name>
+  insert_before <register_name>
+  insert_after <register_name>
+
+  Use the register name (a plain word) instead of heredoc or quoted string.
+
+Auto-Saved Registers on Error~
+
+  When an EDL script fails (e.g. a select finds no matches), any text from
+  unexecuted mutations is automatically saved to registers _saved_1, _saved_2,
+  etc. The error message reports the register names and sizes.
+
+Retry Workflow~
+
+  If a script fails because a pattern didn't match, fix the pattern and
+  reference the auto-saved register:
+
+>
+  # First invocation fails:
+  #   select: no matches for pattern ...
+  #   Text saved to register _saved_1 (1500 chars).
+  #
+  # Second invocation retries with corrected pattern:
+  file `src/component.ts`
+  select <<END
+  corrected pattern here
+  END
+  replace _saved_1
+<
+
+===============================================================================
+EXAMPLES                                               *magenta-edl-examples*
+
+Simple Text Replacement~
+
+>
+  file `src/utils.ts`
+  select <<END
+  const oldValue = 42;
+  END
+  replace <<END
+  const newValue = 100;
+  END
+<
+
+
+Delete to End of File~
+
+>
+  file `src/file.test`
+  select <<END
+  describe("test block", () => {
+  END
+  extend_forward eof
+  delete
+<
+
+
+Insert After a Match~
+
+>
+  file `src/utils.ts`
+  select <<END
+  import { foo } from './foo';
+  END
+  insert_after <<END
+
+  import { bar } from './bar';
+  END
+<
+
+
+Create a New File~
+
+>
+  newfile `src/newModule.ts`
+  insert_after <<END2
+  export function hello() {
+    return "world";
+  }
+  END2
+<
+
+
+Delete a Single Line~
+
+>
+  file `src/config.ts`
+  select <<END
+  const DEBUG = true;
+  END
+  delete
+<
+
+
+Replace Part of a Line~
+
+  File before: const value = "old-value";
+
+>
+  file `src/config.ts`
+  select <<END
+  const value = "old-value";
+  END
+  narrow /"old-value"/
+  replace "\"new-value\""
+<
+
+  File after: const value = "new-value";
+
+
+Multiple Edits in the Same File~
+
+  Each select searches from the beginning of the file:
+
+>
+  file `src/utils.ts`
+  select <<END1
+  const oldName = "foo";
+  END1
+  replace <<END1
+  const newName = "foo";
+  END1
+
+  select <<END2
+  return oldName;
+  END2
+  replace <<END2
+  return newName;
+  END2
+<
+
+
+Select Large Blocks by Boundaries~
+
+  Instead of including the entire block in a single heredoc pattern, use
+  select + extend_forward to mark boundaries:
+
+>
+  file `src/app.test.ts`
+  select <<END
+    describe('authentication', () => {
+  END
+  extend_forward <<ENDFWD
+    });
+  ENDFWD
+<
+
+  This selects from the describe header through its closing `});` without
+  including the entire block body in the pattern.
+
+===============================================================================
+BEST PRACTICES                                       *magenta-edl-practices*
+
+- Prefer heredoc patterns over regex for selecting whole lines. Heredocs
+  are easier to read and less error-prone.
+
+- Use regex when you need to match within a line (wildcards, character
+  classes, partial strings).
+
+- Prefer text matching over line numbers. Line numbers are fragile and
+  error-prone.
+
+- For large blocks, select by boundaries using extend_forward/extend_back
+  rather than including the entire block in a single heredoc pattern.
+
+- Use unique termination codes for heredocs when the content contains
+  heredoc delimiters. Pick a code that does not appear in the text.
+
+- Each select command searches from the beginning of the file. Use multiple
+  select operations for different parts of the file.
+
+- When editing becomes complex, break it into multiple EDL invocations or
+  use registers to move code around (cut to a register, then insert_after).
+
+===============================================================================
+vim:tw=78:ts=8:noet:ft=help:norl:

@@ -1,0 +1,354 @@
+*magenta-subagents.txt*  Sub-agents for focused, parallel task execution
+
+==============================================================================
+CONTENTS                                            *magenta-subagents-contents*
+
+    1. Overview ................................ |magenta-subagents-overview|
+    2. Agent Tiers ............................. |magenta-agent-tiers|
+    3. Built-in Agents ......................... |magenta-builtin-agents|
+    4. Project Agents .......................... |magenta-project-agents|
+    5. Environments ............................ |magenta-agent-environments|
+    6. Example Workflows ....................... |magenta-agent-examples|
+    7. Configuration ........................... |magenta-agent-config|
+
+==============================================================================
+OVERVIEW                                          *magenta-subagents-overview*
+
+Sub-agents are specialized agents spawned to handle focused tasks with
+dedicated context and prompts. They work in parallel and report results back
+to the main agent.
+
+Key benefits:~
+    - Focused Context: Each sub-agent receives only the context needed
+      for its task
+    - Specialized Prompts: Prompts can be tailored to the specific task
+    - Parallel Work: Multiple sub-agents can run simultaneously
+    - Results Reporting: Sub-agents yield results back to parent for
+      further processing
+
+Sub-agents are spawned using the `spawn_subagents` tool with a list of
+agent configurations. Each configuration specifies:
+
+    - `agentType`: Built-in ("explore", "fast-edit", etc.) or custom agent
+    - `prompt`: Task description for the agent
+    - `environment`: "host", "docker", or "docker_unsupervised"
+    - (For docker) `dockerfile`: Path to Dockerfile
+    - (For docker) `workspacePath`: Working directory in container
+
+==============================================================================
+AGENT TIERS                                            *magenta-agent-tiers*
+
+Agents are organized into tiers based on their spawning capabilities:
+
+LEAF AGENTS                                              *magenta-agent-leaf*
+
+Cannot spawn sub-agents. Used for specific focused work.
+
+Examples:~
+    - `explore`: Code discovery and analysis
+    - `fast-edit`: Lightweight, quick edits with fast models
+    - `tests-in-sandbox`: Run tests locally (sandbox mode)
+    - `tests-in-docker`: Run tests in Docker with full capabilities
+
+THREAD AGENTS                                          *magenta-agent-thread*
+
+Can spawn leaf agents in any environment, and thread agents in docker
+environments only. Useful for orchestrating work that needs some parallel
+execution but maintains a single thread of execution.
+
+Examples:~
+    - `default`: General-purpose coding assistant (default agent)
+
+ORCHESTRATOR AGENTS                                  *magenta-agent-orchestrator*
+
+Can spawn leaf and thread agents in any environment, and orchestrator
+agents in docker environments only. Used for complex workflows spanning
+multiple worktrees or coordinating large amounts of parallel work.
+
+Examples:~
+    - `worktree`: Orchestrate work across multiple git worktrees
+
+==============================================================================
+BUILT-IN AGENTS                                      *magenta-builtin-agents*
+
+EXPLORE AGENT                                           *magenta-agent-explore*
+
+Fast code discovery and navigation. Specializes in:
+    - Finding definitions and usages
+    - Understanding code structure
+    - Analyzing relationships between components
+
+Tier: Leaf
+
+Usage:~
+>typescript
+    spawn_subagents({
+      agents: [{
+        agentType: "explore",
+        prompt: "Find all usages of the updateState function and report where it's called from"
+      }]
+    })
+<
+
+FAST-EDIT AGENT                                        *magenta-agent-fast-edit*
+
+Lightweight agent for quick edits using the fast model. Ideal for:
+    - Small refactorings
+    - Format fixes
+    - Simple transformations
+    - Code cleanup
+
+Tier: Leaf
+
+Usage:~
+>typescript
+    spawn_subagents({
+      agents: [{
+        agentType: "fast-edit",
+        prompt: "Fix linting issues in src/utils.ts"
+      }]
+    })
+<
+
+DEFAULT AGENT                                          *magenta-agent-default*
+
+General-purpose coding assistant. Can spawn leaf agents in any environment
+and thread agents in docker. Use when you need to do complex work that
+may require spawning other agents.
+
+Tier: Thread
+
+The default agent is used when no `agentType` is specified in spawn call.
+
+==============================================================================
+PROJECT AGENTS                                      *magenta-project-agents*
+
+Project agents are defined in `.magenta/agents/` or `~/.magenta/agents/`
+directories as markdown files with YAML frontmatter.
+
+Built-in project agents come with magenta.nvim:
+
+TESTS-IN-SANDBOX AGENT                           *magenta-agent-tests-sandbox*
+
+Run the test suite in sandbox mode locally. Skips tests that require Docker
+or elevated privileges.
+
+Tier: Leaf
+
+Configuration:~
+    - Environment: host (local execution)
+    - Fast feedback loop for local development
+
+Usage:~
+>typescript
+    spawn_subagents({
+      agents: [{
+        agentType: "tests-in-sandbox",
+        prompt: "Run the test suite and fix any failures"
+      }]
+    })
+<
+
+TESTS-IN-DOCKER AGENT                           *magenta-agent-tests-docker*
+
+Run the complete test suite in Docker with full capabilities. Includes
+tests that require elevated privileges or docker-in-docker features.
+
+Tier: Leaf
+
+Configuration:~
+    - Environment: docker_unsupervised (autonomous container execution)
+    - Full test coverage including privileged operations
+
+Usage:~
+>typescript
+    spawn_subagents({
+      agents: [{
+        agentType: "tests-in-docker",
+        environment: "docker_unsupervised",
+        prompt: "Run the full test suite"
+      }]
+    })
+<
+
+WORKTREE AGENT                                         *magenta-agent-worktree*
+
+Orchestrate work across multiple git worktrees. Useful for:
+    - Managing feature branches across worktrees
+    - Coordinating parallel development work
+    - Isolated environment per worktree
+
+Tier: Orchestrator
+
+Configuration:~
+    - Can spawn leaf agents across multiple worktrees
+    - Can manage docker environments per worktree
+
+==============================================================================
+ENVIRONMENTS                                      *magenta-agent-environments*
+
+Agents run in different environments depending on the task:
+
+HOST ENVIRONMENT (default)                        *magenta-environment-host*
+
+Runs locally on the host machine. Default for all agents unless specified
+otherwise.
+
+Example:~
+>typescript
+    spawn_subagents({
+      agents: [{
+        agentType: "explore",
+        environment: "host",
+        prompt: "Analyze the codebase structure"
+      }]
+    })
+<
+
+DOCKER ENVIRONMENT                                *magenta-environment-docker*
+
+Runs in an isolated Docker container. Requires:
+
+    - `dockerfile`: Path to Dockerfile (relative to directory)
+    - `workspacePath`: Working directory inside container
+    - `directory` (optional): Host directory to build from (defaults to cwd)
+
+Files are synced between host and container via rsync.
+
+Example:~
+>typescript
+    spawn_subagents({
+      agents: [{
+        agentType: "default",
+        environment: "docker",
+        dockerfile: "docker/Dockerfile",
+        workspacePath: "/workspace",
+        prompt: "Run linting and fix issues"
+      }]
+    })
+<
+
+DOCKER_UNSUPERVISED ENVIRONMENT                *magenta-environment-docker-unsupervised*
+
+Same as docker but the agent runs autonomously without streaming responses
+back. The agent performs its work in the container and reports results.
+
+Use for long-running operations or when you don't need real-time feedback:
+    - Building artifacts
+    - Running long test suites
+    - Batch processing
+
+Example:~
+>typescript
+    spawn_subagents({
+      agents: [{
+        agentType: "tests-in-docker",
+        environment: "docker_unsupervised",
+        dockerfile: "docker/Dockerfile",
+        workspacePath: "/workspace",
+        prompt: "Run full test suite and report results"
+      }]
+    })
+<
+
+See |magenta-docker| for more details on Docker configuration.
+
+==============================================================================
+EXAMPLE WORKFLOWS                                  *magenta-agent-examples*
+
+LEARNING WORKFLOW                                    *magenta-example-learning*
+
+Spawn an explore agent to analyze code, then use findings in main work:
+
+>typescript
+    // Spawn explore agent to analyze
+    spawn_subagents({
+      agents: [{
+        agentType: "explore",
+        prompt: "Analyze how authentication flows through the system. Find all entry points, middleware, and where user state is stored"
+      }]
+    })
+    
+    // Main agent receives analysis and continues work
+    // "Based on the analysis, implement a new permission check..."
+<
+
+PLANNING WORKFLOW                                    *magenta-example-planning*
+
+Create an implementation plan before starting work:
+
+>typescript
+    spawn_subagents({
+      agents: [{
+        agentType: "default",
+        prompt: "Create an implementation plan for adding caching to the database layer. Consider the current architecture, identify all affected components, and outline the approach"
+      }]
+    })
+    
+    // Plan is yielded to parent
+    // Parent reviews and confirms before proceeding with implementation
+<
+
+DOCKER WORKFLOW                                        *magenta-example-docker*
+
+Spawn a docker_unsupervised agent to perform isolated work:
+
+>typescript
+    spawn_subagents({
+      agents: [{
+        agentType: "default",
+        environment: "docker_unsupervised",
+        dockerfile: "docker/Dockerfile",
+        workspacePath: "/workspace",
+        prompt: "Run the test suite, fix failures, and commit changes"
+      }]
+    })
+    
+    // Agent works autonomously in container
+    // Results synced back to host via rsync
+<
+
+PARALLEL WORKFLOW                                    *magenta-example-parallel*
+
+Find files and spawn multiple leaf agents to process them in parallel:
+
+>typescript
+    // Find all files matching pattern
+    const files = findFilesMatching("src/**/*.ts");
+    
+    // Spawn fast-edit agent for each file
+    spawn_subagents({
+      agents: files.map(file => ({
+        agentType: "fast-edit",
+        prompt: `Fix linting issues and format ${file}`
+      }))
+    })
+    
+    // Multiple agents work in parallel
+    // Results collected and reported back
+<
+
+==============================================================================
+CONFIGURATION                                      *magenta-agent-config*
+
+Configure sub-agent behavior in setup options:
+
+                                                *magenta-subagents-concurrency*
+maxConcurrentSubagents ~
+    Type: `number`
+    Default: `3`
+    
+    Maximum number of sub-agents that can run concurrently. When the
+    limit is reached, additional spawn calls are queued and started as
+    agents complete.
+    
+    Example:~
+>lua
+        require('magenta').setup({
+          maxConcurrentSubagents = 6  -- Allow up to 6 parallel agents
+        })
+<
+
+==============================================================================
+
+vim:tw=78:ts=2:et:ft=help:norl:

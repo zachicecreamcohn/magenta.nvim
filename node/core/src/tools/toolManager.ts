@@ -79,7 +79,6 @@ export function getToolSpecs(
   availableCapabilities?: Set<ToolCapability>,
   agents?: AgentsMap,
   subagentConfig?: SubagentConfig,
-  userDocs?: Docs.UserDoc[],
 ): ProviderToolSpec[] {
   let staticToolNames: StaticToolName[] = [];
   switch (threadType) {
@@ -129,7 +128,7 @@ export function getToolSpecs(
     if (toolName === "spawn_subagents") {
       specs.push(SpawnSubagents.getSpec(agents ?? {}, subagentConfig?.tier));
     } else if (toolName === "docs") {
-      specs.push(Docs.getSpec(userDocs));
+      specs.push(Docs.getSpec());
     } else {
       const spec = TOOL_SPEC_MAP[toolName];
       if (spec) {

@@ -39,7 +39,6 @@ import type {
   ToolRequestId,
 } from "./tool-types.ts";
 import { type CreateToolContext, createTool } from "./tools/create-tool.ts";
-import { loadUserDocs, type UserDoc } from "./tools/docs.ts";
 import type { MCPToolManager as MCPToolManagerImpl } from "./tools/mcp/manager.ts";
 import * as ThreadTitle from "./tools/thread-title.ts";
 import type { ToolCapability } from "./tools/tool-registry.ts";
@@ -148,8 +147,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     compactionHistory: CompactionRecord[];
   };
 
-  private userDocs: UserDoc[] | undefined;
-
   public agent: Agent;
   public contextManager: ContextManager;
   public compactionController: CompactionManager | undefined;
@@ -187,13 +184,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     } else {
       this.agent = this.createFreshAgent();
     }
-  }
-
-  private getUserDocs(): UserDoc[] {
-    if (this.userDocs === undefined) {
-      this.userDocs = loadUserDocs(this.context.cwd, this.context.logger);
-    }
-    return this.userDocs;
   }
 
   private contextManagerListeners:
@@ -384,7 +374,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         this.context.availableCapabilities,
         this.context.getAgents(),
         this.context.subagentConfig,
-        this.getUserDocs(),
       ),
       ...(this.context.profile.thinking &&
         (this.context.profile.provider === "anthropic" ||
@@ -541,7 +530,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         },
         diagnosticsProvider: this.context.diagnosticsProvider,
         edlRegisters: this.state.edlRegisters,
-        userDocs: this.getUserDocs(),
         fileIO: this.context.fileIO,
         shell: this.context.shell,
         threadManager: this.context.threadManager,

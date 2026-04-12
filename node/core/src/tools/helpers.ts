@@ -13,7 +13,6 @@ import * as YieldToParent from "./yield-to-parent.ts";
 export function validateInput(
   toolName: unknown,
   input: { [key: string]: unknown },
-  userDocs?: Docs.UserDoc[],
 ) {
   const toolNameStr = toolName as string;
 
@@ -44,7 +43,7 @@ export function validateInput(
     case "edl":
       return Edl.validateInput(input);
     case "docs":
-      return Docs.validateInput(input, userDocs);
+      return Docs.validateInput(input);
     default:
       throw new Error(`Unexpected toolName: ${toolName as string}`);
   }

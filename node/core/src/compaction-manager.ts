@@ -380,7 +380,6 @@ export class CompactionManager extends Emitter<CompactionEvents> {
         },
         diagnosticsProvider: this.context.diagnosticsProvider,
         edlRegisters: this.edlRegisters,
-        userDocs: [],
         fileIO: this.fileIO,
         shell: this.context.shell,
         threadManager: this.context.threadManager,

@@ -1,128 +1,86 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Logger } from "../logger.ts";
 import type {
   ProviderToolResult,
   ProviderToolSpec,
 } from "../providers/provider-types.ts";
-import { extractYamlFrontmatter } from "../providers/skills.ts";
 import type {
   GenericToolRequest,
   ToolInvocation,
   ToolName,
 } from "../tool-types.ts";
-import type { NvimCwd } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const ARTICLES_DIR = join(__dirname, "docs");
 const HELP_DIR = join(__dirname, "../../../../doc");
 
 type BuiltinDoc = {
   name: string;
   description: string;
-  source: "article" | "help";
 };
 
 const BUILTIN_DOCS: BuiltinDoc[] = [
   {
-    name: "create-skill",
-    description:
-      "Guide for creating new skills in magenta.nvim, including file structure, frontmatter format, and TypeScript script execution",
-    source: "article",
-  },
-  {
-    name: "update-permissions",
-    description:
-      "Configure sandbox permissions for filesystem access and network domains. Use when sandbox violations occur.",
-    source: "article",
-  },
-  {
-    name: "plan",
-    description:
-      "Guide for creating implementation plans. Use when breaking down complex work into actionable steps.",
-    source: "article",
-  },
-  {
     name: "magenta",
     description: "Overview, installation, and quick start guide",
-    source: "help",
   },
   {
-    name: "magenta-commands",
-    description: "Commands, keymaps, and input reference",
-    source: "help",
+    name: "magenta-commands-keymaps",
+    description: "Commands, keymaps, input commands, and completions",
   },
   {
     name: "magenta-config",
-    description: "Configuration options, profiles, and project settings",
-    source: "help",
-  },
-  {
-    name: "magenta-tools",
-    description: "Available tools, sub-agents, MCP support, and permissions",
-    source: "help",
+    description:
+      "Configuration options, profiles, sidebar, project settings, and custom commands",
   },
   {
     name: "magenta-providers",
-    description: "Provider configuration and supported models",
-    source: "help",
+    description: "Provider configuration, supported models, and authentication",
+  },
+  {
+    name: "magenta-tools",
+    description: "Available tools list and MCP server configuration",
+  },
+  {
+    name: "magenta-edl",
+    description:
+      "Edit Description Language reference: commands, patterns, registers, and examples",
+  },
+  {
+    name: "magenta-subagents",
+    description: "Sub-agent types, tiers, environments, and example workflows",
+  },
+  {
+    name: "magenta-docker",
+    description:
+      "Dev containers: Dockerfile setup, provisioning lifecycle, file sync, and supervision",
+  },
+  {
+    name: "magenta-security",
+    description:
+      "Security model overview: sandbox, approval system, Docker isolation, and threat model",
+  },
+  {
+    name: "magenta-permissions",
+    description:
+      "Sandbox configuration: filesystem rules, network domains, path matching, and merging behavior",
+  },
+  {
+    name: "magenta-skills",
+    description:
+      "Creating custom skills: file structure, frontmatter format, and TypeScript scripts",
   },
 ];
 
 const DOC_NAMES = BUILTIN_DOCS.map((d) => d.name);
 
-export type UserDoc = {
-  name: string;
-  description: string;
-  filePath: string;
-};
-
 function loadBuiltinDoc(name: string): string {
   const builtin = BUILTIN_DOCS.find((d) => d.name === name);
   if (!builtin) throw new Error(`Unknown doc: ${name}`);
-  if (builtin.source === "article") {
-    return readFileSync(join(ARTICLES_DIR, `${name}.md`), "utf-8");
-  }
   return readFileSync(join(HELP_DIR, `${name}.txt`), "utf-8");
-}
-
-export function loadUserDocs(cwd: NvimCwd, logger: Logger): UserDoc[] {
-  const docsDir = join(cwd, ".magenta", "docs");
-  let files: string[];
-  try {
-    files = readdirSync(docsDir).filter((f) => f.endsWith(".md"));
-  } catch {
-    return [];
-  }
-
-  const docs: UserDoc[] = [];
-  for (const file of files) {
-    const filePath = join(docsDir, file);
-    try {
-      const content = readFileSync(filePath, "utf-8");
-      const frontmatter = extractYamlFrontmatter(content);
-      if (!frontmatter?.name || !frontmatter?.description) {
-        logger.warn(
-          `User doc ${filePath} is missing required frontmatter (name and/or description)`,
-        );
-        continue;
-      }
-      docs.push({
-        name: frontmatter.name,
-        description: frontmatter.description,
-        filePath,
-      });
-    } catch (err) {
-      logger.warn(
-        `Failed to read user doc ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  }
-  return docs;
 }
 
 export type Input = {
@@ -132,14 +90,7 @@ export type Input = {
 export type ToolRequest = GenericToolRequest<"docs", Input>;
 export type StructuredResult = { toolName: "docs" };
 
-export type ExecuteContext = {
-  userDocs: UserDoc[];
-};
-
-export function execute(
-  request: ToolRequest,
-  context: ExecuteContext,
-): ToolInvocation {
+export function execute(request: ToolRequest): ToolInvocation {
   let aborted = false;
 
   const promise = (async (): Promise<ProviderToolResult> => {
@@ -156,12 +107,7 @@ export function execute(
     }
 
     try {
-      const userDoc = context.userDocs.find(
-        (d) => d.name === request.input.name,
-      );
-      const content = userDoc
-        ? readFileSync(userDoc.filePath, "utf-8")
-        : loadBuiltinDoc(request.input.name);
+      const content = loadBuiltinDoc(request.input.name);
       return {
         type: "tool_result",
         id: request.id,
@@ -191,30 +137,24 @@ export function execute(
   };
 }
 
-function buildDescription(userDocs: UserDoc[]): string {
-  const allDocs = [
-    ...BUILTIN_DOCS.map((d) => ({
-      name: d.name,
-      description: d.description,
-    })),
-    ...userDocs.map((d) => ({ name: d.name, description: d.description })),
-  ];
-  return allDocs.map((d) => `- **${d.name}**: ${d.description}`).join("\n");
+function buildDescription(): string {
+  return BUILTIN_DOCS.map((d) => `- **${d.name}**: ${d.description}`).join(
+    "\n",
+  );
 }
 
-export function getSpec(userDocs: UserDoc[] = []): ProviderToolSpec {
-  const allNames = [...DOC_NAMES, ...userDocs.map((d) => d.name)];
+export function getSpec(): ProviderToolSpec {
   return {
     name: "docs" as ToolName,
     description:
-      "Learn about built-in topics. Use this when you need guidance on creating skills, updating sandbox permissions, or creating implementation plans.",
+      "Learn about built-in topics. Use this when you need guidance on tools, configuration, security, skills, or other magenta.nvim features.",
     input_schema: {
       type: "object",
       properties: {
         name: {
           type: "string",
-          enum: allNames,
-          description: `The doc to retrieve:\n${buildDescription(userDocs)}`,
+          enum: DOC_NAMES,
+          description: `The doc to retrieve:\n${buildDescription()}`,
         },
       },
       required: ["name"],
@@ -223,10 +163,9 @@ export function getSpec(userDocs: UserDoc[] = []): ProviderToolSpec {
   };
 }
 
-export function validateInput(
-  input: { [key: string]: unknown },
-  userDocs: UserDoc[] = [],
-): Result<Input> {
+export function validateInput(input: {
+  [key: string]: unknown;
+}): Result<Input> {
   if (typeof input.name !== "string") {
     return {
       status: "error",
@@ -234,11 +173,10 @@ export function validateInput(
     };
   }
 
-  const allNames = [...DOC_NAMES, ...userDocs.map((d) => d.name)];
-  if (!allNames.includes(input.name)) {
+  if (!DOC_NAMES.includes(input.name)) {
     return {
       status: "error",
-      error: `expected req.input.name to be one of: ${allNames.join(", ")}`,
+      error: `expected req.input.name to be one of: ${DOC_NAMES.join(", ")}`,
     };
   }
 
