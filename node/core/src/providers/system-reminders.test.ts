@@ -8,7 +8,7 @@ describe("getSubsequentReminder", () => {
     expect(reminder).toContain("Remember the skills");
     expect(reminder).toContain("bash_command");
     expect(reminder).toContain("EDL");
-    expect(reminder).toContain("explore agent");
+    expect(reminder).toContain("sub-agents");
   });
 
   it("root reminder does not include yield_to_parent", () => {

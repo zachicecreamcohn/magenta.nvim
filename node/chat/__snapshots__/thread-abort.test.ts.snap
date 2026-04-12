@@ -21,10 +21,7 @@ Avoid using large portions of text when using the EDL tool. Large text blocks ar
 When making a selection, select the beginning of the text, then extend_forward to the end. To move code around, use registers via cut.
 
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
-Only use the explore agent when you don't already know where to find something. If you know the file or location, use get_file directly instead of spawning an explore agent.
-WRONG: read the full contents of file
-WRONG: spawning explore when you already know the file path
-RIGHT: where is X handled?
+Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Sub-agents have real overhead — use them for ambiguous tasks or parallel work across multiple files.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -50,10 +47,7 @@ Avoid using large portions of text when using the EDL tool. Large text blocks ar
 When making a selection, select the beginning of the text, then extend_forward to the end. To move code around, use registers via cut.
 
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
-Only use the explore agent when you don't already know where to find something. If you know the file or location, use get_file directly instead of spawning an explore agent.
-WRONG: read the full contents of file
-WRONG: spawning explore when you already know the file path
-RIGHT: where is X handled?
+Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Sub-agents have real overhead — use them for ambiguous tasks or parallel work across multiple files.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -94,10 +88,7 @@ Avoid using large portions of text when using the EDL tool. Large text blocks ar
 When making a selection, select the beginning of the text, then extend_forward to the end. To move code around, use registers via cut.
 
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
-Only use the explore agent when you don't already know where to find something. If you know the file or location, use get_file directly instead of spawning an explore agent.
-WRONG: read the full contents of file
-WRONG: spawning explore when you already know the file path
-RIGHT: where is X handled?
+Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Sub-agents have real overhead — use them for ambiguous tasks or parallel work across multiple files.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -166,10 +157,7 @@ Avoid using large portions of text when using the EDL tool. Large text blocks ar
 When making a selection, select the beginning of the text, then extend_forward to the end. To move code around, use registers via cut.
 
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
-Only use the explore agent when you don't already know where to find something. If you know the file or location, use get_file directly instead of spawning an explore agent.
-WRONG: read the full contents of file
-WRONG: spawning explore when you already know the file path
-RIGHT: where is X handled?
+Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Sub-agents have real overhead — use them for ambiguous tasks or parallel work across multiple files.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -199,10 +187,7 @@ Avoid using large portions of text when using the EDL tool. Large text blocks ar
 When making a selection, select the beginning of the text, then extend_forward to the end. To move code around, use registers via cut.
 
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
-Only use the explore agent when you don't already know where to find something. If you know the file or location, use get_file directly instead of spawning an explore agent.
-WRONG: read the full contents of file
-WRONG: spawning explore when you already know the file path
-RIGHT: where is X handled?
+Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Sub-agents have real overhead — use them for ambiguous tasks or parallel work across multiple files.
 </system-reminder>",
         "type": "text",
       },
@@ -237,10 +222,7 @@ Avoid using large portions of text when using the EDL tool. Large text blocks ar
 When making a selection, select the beginning of the text, then extend_forward to the end. To move code around, use registers via cut.
 
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
-Only use the explore agent when you don't already know where to find something. If you know the file or location, use get_file directly instead of spawning an explore agent.
-WRONG: read the full contents of file
-WRONG: spawning explore when you already know the file path
-RIGHT: where is X handled?
+Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Sub-agents have real overhead — use them for ambiguous tasks or parallel work across multiple files.
 </system-reminder>",
         "type": "text",
       },
@@ -268,10 +250,7 @@ Avoid using large portions of text when using the EDL tool. Large text blocks ar
 When making a selection, select the beginning of the text, then extend_forward to the end. To move code around, use registers via cut.
 
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
-Only use the explore agent when you don't already know where to find something. If you know the file or location, use get_file directly instead of spawning an explore agent.
-WRONG: read the full contents of file
-WRONG: spawning explore when you already know the file path
-RIGHT: where is X handled?
+Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Sub-agents have real overhead — use them for ambiguous tasks or parallel work across multiple files.
 </system-reminder>",
         "type": "text",
       },
@@ -301,10 +280,7 @@ Avoid using large portions of text when using the EDL tool. Large text blocks ar
 When making a selection, select the beginning of the text, then extend_forward to the end. To move code around, use registers via cut.
 
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
-Only use the explore agent when you don't already know where to find something. If you know the file or location, use get_file directly instead of spawning an explore agent.
-WRONG: read the full contents of file
-WRONG: spawning explore when you already know the file path
-RIGHT: where is X handled?
+Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Sub-agents have real overhead — use them for ambiguous tasks or parallel work across multiple files.
 </system-reminder>",
         "type": "text",
       },
@@ -361,10 +337,7 @@ Avoid using large portions of text when using the EDL tool. Large text blocks ar
 When making a selection, select the beginning of the text, then extend_forward to the end. To move code around, use registers via cut.
 
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
-Only use the explore agent when you don't already know where to find something. If you know the file or location, use get_file directly instead of spawning an explore agent.
-WRONG: read the full contents of file
-WRONG: spawning explore when you already know the file path
-RIGHT: where is X handled?
+Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Sub-agents have real overhead — use them for ambiguous tasks or parallel work across multiple files.
 </system-reminder>",
         "type": "text",
       },

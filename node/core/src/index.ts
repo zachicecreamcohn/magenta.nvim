@@ -169,8 +169,13 @@ export {
   type ToolCache,
 } from "./thread-core.ts";
 export type {
+  EndTurnContext,
   SupervisorAction,
   ThreadSupervisor,
+} from "./thread-supervisor.ts";
+export {
+  SubagentSupervisor,
+  UnsupervisedSupervisor,
 } from "./thread-supervisor.ts";
 export type {
   CompletedToolInfo,

@@ -5,7 +5,12 @@ import type {
   ThreadId,
   ThreadType,
 } from "@magenta/core";
-import { FsFileIO, loadAgents, MCPToolManagerImpl } from "@magenta/core";
+import {
+  FsFileIO,
+  loadAgents,
+  MCPToolManagerImpl,
+  SubagentSupervisor,
+} from "@magenta/core";
 import { v7 as uuidv7 } from "uuid";
 import type { Lsp } from "../capabilities/lsp.ts";
 import type {
@@ -407,6 +412,8 @@ export class Chat implements ThreadManager {
           },
         },
       );
+    } else if (threadType === "subagent" || threadType === "docker_root") {
+      thread.supervisor = new SubagentSupervisor();
     }
 
     this.context.dispatch({

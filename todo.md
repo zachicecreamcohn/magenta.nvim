@@ -4,18 +4,13 @@
 
 # Prompt tuning
 
-- often a subagent will yield using <yield> tags in the message, and not a yield tool call. Probably should update the reminder for subagents to yield using the tool.
-- the lead agent is still asking explore subagents to read full file contents.
-- the lead agent is asking fast-edit to use edl... instead of just using edl directly
-
 # customization
 
 - All agents should be customizable via the agents directory, including default, explore etc. If these are present in ~ or the project, they should fully replace the system ones
-- we should consolidate all the learn articles in the neovim docs, and allow the user to specify their own articles discoverable via the learn tool (kinda like skills, but passed to docker subagents)
 
 # docker
 
-- we're still referencing skills and such from the host, which the agent can't actually read
+- we're still referencing some files from the host, which the agent can't actually read
 - contextFiles from the host are not available at the same paths on the docker container (we need to remap them or fail the contextFile inclusion)
 
 # UX

@@ -15,6 +15,7 @@ import type {
 } from "./providers/provider-types.ts";
 import type { SystemPrompt } from "./providers/system-prompt.ts";
 import { ThreadCore, type ThreadCoreContext } from "./thread-core.ts";
+import { SubagentSupervisor } from "./thread-supervisor.ts";
 import type { ToolName, ToolRequestId } from "./tool-types.ts";
 import { validateInput } from "./tools/helpers.ts";
 import type { MCPToolManager } from "./tools/mcp/manager.ts";
@@ -225,5 +226,59 @@ describe("ThreadCore.handleProviderStopped", () => {
       lastUserMsg.content as Anthropic.Messages.ContentBlockParam[]
     ).filter((b): b is Anthropic.Messages.TextBlockParam => b.type === "text");
     expect(textBlocks.some((b) => b.text.includes("truncated"))).toBe(true);
+  });
+});
+
+describe("SubagentSupervisor yield tag detection", () => {
+  it("nudges agent when it writes a <yield_to_parent> XML tag instead of calling the tool", async () => {
+    const { core, mockClient } = createThreadCoreWithMock({
+      threadType: "subagent" as ThreadType,
+    });
+    core.supervisor = new SubagentSupervisor();
+
+    core.sendMessage([{ type: "user", text: "do the task" }]);
+    const stream = await mockClient.awaitStream();
+
+    // Agent writes a <yield> tag in text instead of calling the tool
+    stream.streamText(
+      "<yield_to_parent>Here is the result of my work</yield_to_parent>",
+    );
+    stream.finishResponse("end_turn");
+
+    // The supervisor should detect the tag and send a correction message,
+    // which triggers a new stream
+    const nextStream = await pollUntil(() => {
+      const s = mockClient.streams[mockClient.streams.length - 1];
+      if (s && s !== stream) return s;
+      throw new Error("waiting for next stream");
+    });
+
+    // Verify the correction message mentions the yield_to_parent tool
+    const lastUserMsg = nextStream.messages[nextStream.messages.length - 1];
+    expect(lastUserMsg.role).toBe("user");
+    const textBlocks = (
+      lastUserMsg.content as Anthropic.Messages.ContentBlockParam[]
+    ).filter((b): b is Anthropic.Messages.TextBlockParam => b.type === "text");
+    expect(
+      textBlocks.some((b) => b.text.includes("yield_to_parent tool")),
+    ).toBe(true);
+  });
+
+  it("does not intervene when agent stops without a yield tag", async () => {
+    const { core, mockClient } = createThreadCoreWithMock({
+      threadType: "subagent" as ThreadType,
+    });
+    core.supervisor = new SubagentSupervisor();
+
+    core.sendMessage([{ type: "user", text: "do the task" }]);
+    const stream = await mockClient.awaitStream();
+
+    // Agent responds with normal text and stops
+    stream.streamText("I have completed the task.");
+    stream.finishResponse("end_turn");
+
+    // Wait a tick to ensure no new stream is created
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mockClient.streams.length).toBe(1);
   });
 });

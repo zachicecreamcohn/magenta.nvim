@@ -471,7 +471,10 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     const autoRespondResult = this.maybeAutoRespond();
 
     if (autoRespondResult.type === "no-action-needed" && this.supervisor) {
-      const action = this.supervisor.onEndTurnWithoutYield(stopReason);
+      const action = this.supervisor.onEndTurnWithoutYield({
+        stopReason,
+        lastAssistantMessage: this.getLastAssistantMessage(),
+      });
       if (action.type === "send-message") {
         this.sendMessage([{ type: "system", text: action.text }]).catch(
           this.handleSendMessageError.bind(this),
@@ -816,6 +819,18 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       return { type: "did-autorespond" };
     }
     return { type: "no-action-needed" };
+  }
+
+  private getLastAssistantMessage():
+    | ReadonlyArray<ProviderMessageContent>
+    | undefined {
+    const messages = this.agent.getState().messages;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "assistant") {
+        return messages[i].content;
+      }
+    }
+    return undefined;
   }
 
   private async submitToolResultsAndStop(

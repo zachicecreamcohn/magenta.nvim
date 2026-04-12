@@ -22,7 +22,10 @@ describe("DockerSupervisor", () => {
         "/host/dir",
       );
 
-      const action = supervisor.onEndTurnWithoutYield("end_turn");
+      const action = supervisor.onEndTurnWithoutYield({
+        stopReason: "end_turn",
+        lastAssistantMessage: undefined,
+      });
       expect(action.type).toBe("send-message");
       if (action.type === "send-message") {
         expect(action.text).toContain("yield_to_parent");
@@ -38,13 +41,24 @@ describe("DockerSupervisor", () => {
         { maxRestarts: 2 },
       );
 
-      expect(supervisor.onEndTurnWithoutYield("end_turn").type).toBe(
-        "send-message",
-      );
-      expect(supervisor.onEndTurnWithoutYield("end_turn").type).toBe(
-        "send-message",
-      );
-      expect(supervisor.onEndTurnWithoutYield("end_turn").type).toBe("none");
+      expect(
+        supervisor.onEndTurnWithoutYield({
+          stopReason: "end_turn",
+          lastAssistantMessage: undefined,
+        }).type,
+      ).toBe("send-message");
+      expect(
+        supervisor.onEndTurnWithoutYield({
+          stopReason: "end_turn",
+          lastAssistantMessage: undefined,
+        }).type,
+      ).toBe("send-message");
+      expect(
+        supervisor.onEndTurnWithoutYield({
+          stopReason: "end_turn",
+          lastAssistantMessage: undefined,
+        }).type,
+      ).toBe("none");
     });
 
     it("does not restart when stop reason is aborted", () => {
@@ -54,7 +68,10 @@ describe("DockerSupervisor", () => {
         "/host/dir",
       );
 
-      const action = supervisor.onEndTurnWithoutYield("aborted");
+      const action = supervisor.onEndTurnWithoutYield({
+        stopReason: "aborted",
+        lastAssistantMessage: undefined,
+      });
       expect(action.type).toBe("none");
     });
   });
