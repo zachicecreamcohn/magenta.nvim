@@ -60,13 +60,6 @@ Key files:
 - [tea/tea.ts](https://github.com/dlants/magenta.nvim/blob/main/node/tea/tea.ts) — render cycle
 - [tea/view.ts](https://github.com/dlants/magenta.nvim/blob/main/node/tea/view.ts) — declarative TUI template
 
-# Available Skills
-
-When a skill is relevant to a task, use the `get_file` tool to read the skill.md file. Built-in docs (create-skill, update-permissions, plan) are also available via the `learn` tool.
-
-- **doc-testing** (`.magenta/skills/doc-testing/skill.md`): Comprehensive guide for writing tests in magenta.nvim, including test environment setup, mock providers, driver interactions, and best practices
-- **doc-views** (`.magenta/skills/doc-views/skill.md`): Comprehensive guide for the view system in magenta.nvim, including template literal syntax, component composition, interactive bindings, and TUI-specific rendering patterns
-
 # View System
 
 For comprehensive view system documentation and templating patterns, use `get_file` to access the `doc-views` skill at `.magenta/skills/doc-views/skill.md`.
@@ -164,6 +157,7 @@ ${withBindings(d`[Toggle]`, {
 The project includes a Dockerfile at `docker/Dockerfile` for running subagents in isolated containers. It's based on `node:24-bookworm` and includes git, neovim, Docker CLI (for docker-in-docker via socket mount), and the TypeScript language server.
 
 Docker subagents are launched via the `spawn_subagents` tool. When `environment` is `"docker"` or `"docker_unsupervised"`, the caller must provide:
+
 - `dockerfile` — path to the Dockerfile relative to `directory` (e.g. `"docker/Dockerfile"`)
 - `workspacePath` — the working directory inside the container (e.g. `"/workspace"`)
 - `directory` (optional) — host directory to build from, defaults to cwd
@@ -171,6 +165,7 @@ Docker subagents are launched via the `spawn_subagents` tool. When `environment`
 These fields are passed inline in the tool call. There is no separate config file for container setup.
 
 Key files:
+
 - `docker/Dockerfile` — container image definition
 - `node/core/src/tools/spawn-subagents.ts` — docker provisioning and validation logic
 

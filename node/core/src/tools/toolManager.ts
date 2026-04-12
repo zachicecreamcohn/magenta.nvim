@@ -8,11 +8,11 @@ import type { ToolRequest, ToolRequestId } from "../tool-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import * as BashCommand from "./bashCommand.ts";
 import * as Diagnostics from "./diagnostics.ts";
+import * as Docs from "./docs.ts";
 import * as Edl from "./edl.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as GetFile from "./getFile.ts";
 import * as Hover from "./hover.ts";
-import * as Learn from "./learn.ts";
 import * as SpawnSubagents from "./spawn-subagents.ts";
 import * as ThreadTitle from "./thread-title.ts";
 import {
@@ -42,7 +42,7 @@ export type StaticToolMap = {
   spawn_subagents: { input: SpawnSubagents.Input };
   yield_to_parent: { input: YieldToParent.Input };
   edl: { input: Edl.Input };
-  learn: { input: Learn.Input };
+  docs: { input: Docs.Input };
 };
 
 export type StaticToolRequest = {
@@ -71,7 +71,6 @@ const TOOL_SPEC_MAP: Partial<Record<StaticToolName, ProviderToolSpec>> = {
   yield_to_parent: YieldToParent.spec,
 
   edl: Edl.spec,
-  learn: Learn.spec,
 };
 
 export function getToolSpecs(
@@ -128,6 +127,8 @@ export function getToolSpecs(
   for (const toolName of filteredToolNames) {
     if (toolName === "spawn_subagents") {
       specs.push(SpawnSubagents.getSpec(agents ?? {}, subagentConfig?.tier));
+    } else if (toolName === "docs") {
+      specs.push(Docs.getSpec());
     } else {
       const spec = TOOL_SPEC_MAP[toolName];
       if (spec) {

@@ -38,7 +38,7 @@ I sometimes write about AI, neovim and magenta specifically:
 - Web search server_tool_use with citations
 - MCP (Model Context Protocol) tools
 - Smart context tracking with automatic diffing
-- Claude skills and built-in learn tool
+- Claude skills (planning, testing, conventions) and built-in learn tool
 - Progressive disclosure for large files and bash outputs
 - Prompt caching
 - OS-level sandboxing for shell and file operations
@@ -206,6 +206,17 @@ require('magenta').setup({
 See `:help magenta-providers` for detailed provider configuration.
 
 _Note: Other providers (openai, bedrock, ollama, copilot) were removed in Jan 2026. The new provider architecture is simpler - contributions welcome!_
+
+## Skills
+
+Skills are markdown files that teach the agent project-specific knowledge. Place them in `~/.magenta/skills/` (global) or `.magenta/skills/` (project-local).
+
+Recommended skills to create:
+- **planning** - Teach the agent your preferred planning methodology for complex tasks
+- **testing** - Document your test framework, patterns, and how to run tests
+- **conventions** - Describe your project's coding standards and architecture
+
+See `:help magenta-skills` for details on creating skills.
 
 ## Project Settings
 

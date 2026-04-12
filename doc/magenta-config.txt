@@ -125,93 +125,20 @@ bellOnNotify ~
                                                *magenta-sandbox*
 sandbox ~
     Type: `table`
-    Default: See below
+    Default: See |magenta-permissions|
 
     Configure OS-level sandboxing for shell commands and file I/O.
     When the sandbox is ready, shell commands run in a restricted
     environment (seatbelt on macOS, bubblewrap on Linux). File I/O
     uses pre-flight checks against the same sandbox configuration.
     When the sandbox is unavailable (unsupported platform or missing
-    dependencies), all shell commands and file writes prompt for approval.
+    dependencies), all shell commands and file writes prompt for
+    approval.
 
-    Structure:~
->json
-    {
-      "sandbox": {
-        "filesystem": {
-          "allowWrite": ["./"],
-          "denyWrite": [".env", ".git/hooks/", ".magenta"],
-          "denyRead": [
-            "~/.ssh", "~/.gnupg", "~/.aws", "~/.azure",
-            "~/.config/gcloud", "~/.docker", "~/.kube",
-            "~/.password-store", "~/.netrc", "~/.npmrc",
-            "~/.pypirc", "~/.gem", "~/.config/gh",
-            "~/.bashrc", "~/.bash_profile", "~/.bash_login",
-            "~/.bash_logout", "~/.zshrc", "~/.zprofile",
-            "~/.zshenv", "~/.zlogin", "~/.zlogout",
-            "~/.profile", "~/.config/fish"
-          ],
-          "allowRead": []
-        },
-        "network": {
-          "allowedDomains": [
-            "registry.npmjs.org", "github.com", "*.github.com",
-            "pypi.org", "files.pythonhosted.org", "rubygems.org",
-            "crates.io"
-          ],
-          "deniedDomains": []
-        },
-        "requireApprovalPatterns": ["git\\s+push"]
-      }
-    }
-<
+    See |magenta-permissions| for the full configuration structure,
+    fields, path matching rules, and merging behavior.
+    See |magenta-security| for the overall security model.
 
-    Fields:~
-      - `filesystem.allowWrite`: Paths where writing is allowed. Supports
-        glob patterns (e.g., `"/tmp/*"`) and literal paths (e.g.,
-        `"~/.config"`). Default: `["./"]` (current working directory).
-      - `filesystem.denyWrite`: Paths within allowed areas where writing
-        is denied. Default: `.env`, `.git/hooks/`, `.magenta`.
-      - `filesystem.denyRead`: Paths where reading is denied. Default
-        includes explicit sensitive directories (credentials like `~/.ssh`,
-        `~/.aws`, `~/.gnupg`, and shell configs like `~/.bashrc`,
-        `~/.zshrc`). Literal paths use subpath matching (block the path
-        and everything under it).
-      - `filesystem.allowRead`: Paths to re-allow reading within denied
-        regions. Takes precedence over `denyRead`. Default: empty.
-      - `network.allowedDomains`: Domains that commands can access.
-        Supports wildcards (e.g., `"*.github.com"`).
-      - `network.deniedDomains`: Domains that are explicitly blocked.
-      - `requireApprovalPatterns`: Regex patterns that trigger an
-        approval prompt before the command runs. If a command matches
-        any pattern, the user is prompted before execution — the command
-        is never sandboxed. Prevents partial execution of compound
-        commands (e.g., `git commit && git push`). Default: `[]`.
-
-    Path Matching:~
-      Paths without glob characters (`*`, `?`, `[`) use subpath matching:
-      a rule like `~/.ssh` blocks `~/.ssh`, `~/.ssh/id_rsa`,
-      `~/.ssh/keys/foo`, etc. Paths with glob characters use regex
-      matching where `*` matches any characters except `/`.
-
-    Path Resolution:~
-      - `~/` expands to the user's home directory
-      - `./` expands to the current working directory
-      - Relative paths resolve relative to the current working directory
-      - Absolute paths are used as-is
-
-    Precedence:~
-      `allowRead` takes precedence over `denyRead`. If a path matches both,
-      the allow rule wins, re-enabling read access within denied regions.
-
-    Project vs. Global Merging:~
-      When project-level sandbox settings merge with global settings,
-      all arrays concatenate. For example, `allowWrite` paths from project
-      are appended to global `allowWrite` paths. This includes
-      `requireApprovalPatterns`, which also concatenate. This allows
-      projects to extend permissions without replacing the global
-      baseline.
-<
                                                       *magenta-skillsPaths*
 skillsPaths ~
     Type: `table`
@@ -233,35 +160,13 @@ sidebarKeymaps ~
 <
 
 ==============================================================================
-SKILLS                                                       *magenta-skills*
+SKILLS
 
 Skills provide reusable context and instructions for specific tasks.
 They are discovered automatically from configured directories.
 
-Structure:~
->
-    .claude/
-    └── skills/
-        ├── code-review/
-        │   └── skill.md
-        └── testing/
-            └── skill.md
-<
-
-Each `skill.md` file has YAML frontmatter:
->markdown
-    ---
-    name: your-skill-name
-    description: Brief description of what this skill does
-    ---
-
-    # Detailed Instructions
-
-    Your skill instructions go here...
-<
-
-Skills are presented to the agent at conversation start. The agent can
-use `get_file` to read the full skill content when needed.
+See |magenta-skills| for the full guide on creating skills, including
+file structure, frontmatter format, and TypeScript scripts.
 
 ==============================================================================
 PROJECT SETTINGS                                   *magenta-project-settings*

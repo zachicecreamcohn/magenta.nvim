@@ -1,7 +1,7 @@
-*magenta-commands.txt*   Commands and keymaps for magenta.nvim
+*magenta-commands-keymaps.txt*   Commands and keymaps for magenta.nvim
 
 ==============================================================================
-CONTENTS                                           *magenta-commands-contents*
+CONTENTS                                           *magenta-commands-keymaps-contents*
 
     1. Ex Commands ............................. |magenta-ex-commands|
     2. Default Keymaps ......................... |magenta-default-keymaps|

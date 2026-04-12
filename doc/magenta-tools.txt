@@ -4,10 +4,7 @@
 CONTENTS                                             *magenta-tools-contents*
 
     1. Available Tools ......................... |magenta-available-tools|
-    2. Sub-agents .............................. |magenta-subagents|
-    3. Dev Containers .......................... |magenta-dev-containers|
-    4. MCP Support ............................. |magenta-mcp|
-    5. Sandbox & Permissions ................... |magenta-sandbox-permissions|
+    2. MCP Support ............................. |magenta-mcp|
 
 ==============================================================================
 AVAILABLE TOOLS                                      *magenta-available-tools*
@@ -19,6 +16,7 @@ File Operations:~
   - `get_file` - Get file contents (text, images, PDFs)
   - `edl` - Edit Description Language for programmatic file edits (create, select, replace, insert, delete)
   - `list_directory` - List files in a directory (respects .gitignore)
+  - `docs` - Look up built-in reference documentation
 
 Editor Integration:~
   - `list_buffers` - List current open buffers
@@ -30,163 +28,20 @@ Execution:~
   - `bash_command` - Run shell commands (with permission system)
 
 Agent Coordination:~
-  - `spawn_subagent` - Create specialized sub-agents
-  - `spawn_foreach` - Process arrays in parallel with sub-agents
-  - `wait_for_subagents` - Wait for sub-agents to complete
+  - `spawn_subagents` - Delegate tasks to subagents
   - `yield_to_parent` - Return results to parent agent
 
-See https://github.com/dlants/magenta.nvim/tree/main/node/tools for
+See https://github.com/dlants/magenta.nvim/tree/main/node/core/src/tools for
 the most up-to-date list.
 
-==============================================================================
-SUB-AGENTS                                               *magenta-subagents*
+For detailed documentation on specific tools and features:
+  See |magenta-edl| for the Edit Description Language
+  See |magenta-subagents| for sub-agent types and workflows
+  See |magenta-docker| for dev container setup
+  See |magenta-permissions| for sandbox configuration
+  See |magenta-security| for the overall security model
 
-The main agent can spawn specialized sub-agents to handle tasks more
-effectively. Sub-agents:
 
-  - Get focused context relevant to their specific task
-  - Use specialized system prompts
-  - Can work in parallel
-  - Report results back to the main agent
-
-Agent types:~
-
-Agents have a `tier` that controls their spawning ability:
-
-  `leaf`          Cannot spawn sub-agents. Examples: explore, fast-edit,
-                  tests-in-sandbox, tests-in-docker
-
-  `thread`        Can spawn leaf agents (any environment) and thread
-                  agents (docker only). Example: default
-
-  `orchestrator`  Can spawn leaf and thread agents (any environment),
-                  and orchestrator agents (docker only). Example: worktree
-
-Built-in agents:~
-
-  `explore`   Focused on code discovery and finding where things are
-              defined or used. Tier: leaf.
-
-  `fast-edit` Lightweight, uses fast model for quick transformations.
-              Tier: leaf.
-
-  `default`   General-purpose coding assistant behavior. Tier: thread.
-Project agents:~
-
-  Additional agents can be defined in `.magenta/agents/` (project) or
-  `~/.magenta/agents/` (user) as markdown files with YAML frontmatter.
-
-  `tests-in-sandbox`  Run tests locally in sandbox mode. Tier: leaf.
-  `tests-in-docker`   Run tests in Docker with full capabilities. Tier: leaf.
-  `worktree`          Orchestrate work across worktrees, delegating to
-                      docker subagents. Tier: orchestrator.
-
-Environments:~
-
-  `host` (default)    Runs locally on the host machine.
-  `docker`            Runs in an isolated Docker container. Requires
-                      `dockerfile` and `workspacePath` fields.
-  `docker_unsupervised`
-                      Same as `docker`, but runs autonomously without
-                      user approval for tool use.
-
-Example workflows:~
-
-Learning workflow:
->
-    user: I want to refactor this interface
-    → Main agent spawns 'learn' sub-agent to analyze interface
-    → Sub-agent explores codebase, finds references, understands patterns
-    → Sub-agent yields findings back to main agent
-    → Main agent uses analysis to safely perform refactoring
-<
-
-Planning workflow:
->
-    user: I want to build a new authentication system
-    → Main agent spawns 'plan' sub-agent
-    → Sub-agent analyzes existing patterns, creates plan
-    → Sub-agent yields plan location
-    → Main agent: "Please review plans/auth-system.md"
-<
-
-Docker workflow:
->
-    user: Fix the flaky test in auth.test.ts
-    → Agent spawns docker_unsupervised sub-agent with task description
-    → Container built from project's Dockerfile, files copied in
-    → Agent edits files, runs tests, makes changes inside container
-    → On completion: changed files rsynced back to host directory
-<
-Parallel processing:
->
-    user: Update all imports to use the new module path
-    → Main agent finds all files with old import
-    → Uses spawn_foreach with fast agent type
-    → Multiple fast sub-agents process files simultaneously
-    → Main agent reports: "Updated imports in 15 files"
-<
-
-Configuration:~
->lua
-    maxConcurrentSubagents = 3  -- default
-<
-
-==============================================================================
-DEV CONTAINERS                                        *magenta-dev-containers*
-
-Docker sub-agents run in isolated containers, providing a safe environment
-for unsupervised agent work — the agent cannot affect your local files
-until it yields, at which point changed files are rsynced back.
-
-Requirements:~
-  - Docker installed and running
-  - A Dockerfile in your project (e.g. `docker/Dockerfile`)
-
-Configuration:~
-
-Docker config is specified inline when spawning sub-agents. The agent
-provides two fields in the `spawn_subagents` tool call:
-
-  `dockerfile`      Path to a Dockerfile relative to the working
-                    directory (e.g. `"docker/Dockerfile"`). The directory
-                    is used as the Docker build context.
-
-  `workspacePath`   Where the project lives inside the container
-                    (should match WORKDIR in the Dockerfile).
-
-There is no separate config file for container setup.
-
-Writing a Dockerfile:~
-
-The Dockerfile should install your project's toolchain and dependencies.
-The working directory is provided as the Docker build context, so you can
-COPY files and run install commands. Use Docker's layer caching to keep
-rebuilds fast:
->dockerfile
-    FROM node:24-bookworm
-    # Install system deps
-    RUN apt-get update && apt-get install -y git curl
-    # Install project deps (cached until lockfile changes)
-    WORKDIR /workspace
-    COPY package.json package-lock.json ./
-    RUN npm ci
-    # Copy project files (only this layer rebuilds on code changes)
-    COPY . .
-    # Configure git for agent commits
-    RUN git config --global user.name "magenta-agent" \
-      && git config --global user.email "magenta-agent@localhost"
-    CMD ["tail", "-f", "/dev/null"]
-<
-
-Lifecycle:~
-
-  1. The working directory is copied into a temp location
-  2. Docker image is built from the copy (layer cache reused)
-  3. Container started; agent works via `docker exec`
-  4. Agent can edit files, run tests, and make commits
-  5. On teardown: changed files are rsynced back to the host
-     directory, container and temp directory are cleaned up
 ==============================================================================
 MCP SUPPORT                                                    *magenta-mcp*
 
@@ -251,71 +106,5 @@ Add MCP servers in `.magenta/options.json`:
       }
     }
 <
-
-==============================================================================
-SANDBOX & PERMISSIONS                 *magenta-sandbox-permissions* *magenta-permissions*
-
-Magenta uses OS-level sandboxing to restrict shell commands and file I/O.
-
-How it works:~
-
-  • Shell commands run inside an OS-level sandbox:
-    - macOS: Apple sandbox (seatbelt)
-    - Linux: bubblewrap (bwrap)
-  • File I/O uses application-level pre-flight checks against the same
-    sandbox configuration
-  • When sandbox is available: Commands run sandboxed automatically,
-    without requiring per-command approval
-  • When sandbox is unavailable (unsupported platform or missing deps):
-    All shell commands and file writes prompt for user approval with an
-    inline APPROVE/REJECT UI
-
-Sandbox violations:~
-
-When a command violates the sandbox policy (e.g., attempts to read
-~/.ssh or write outside allowed paths), the agent receives an inline
-prompt showing the blocked command and stderr. The user can then:
-  • APPROVE: Run the command without the sandbox (only if sandbox
-    available; requires user interaction)
-  • REJECT: Fail the command and let the agent try a different approach
-
-Configuration:~
-
-Configure filesystem and network restrictions in:
-  - Project: `.magenta/options.json`
-  - User: `~/.magenta/options.json`
-
-Configuration structure:
->json
-    {
-      "sandbox": {
-        "filesystem": {
-          "allowWrite": ["./"],
-          "denyWrite": [".env", ".git/hooks/"],
-          "denyRead": ["~/.ssh", "~/.gnupg", "~/.aws"],
-          "allowRead": []
-        },
-        "network": {
-          "allowedDomains": ["registry.npmjs.org", "github.com"],
-          "deniedDomains": []
-        }
-      }
-    }
-<
-
-For detailed documentation including:
-  • Path matching (literal vs glob patterns)
-  • Default sandbox configuration
-  • Common scenarios (e.g., allowing npm installs, project-specific paths)
-  • Merging behavior
-
-See: `:help magenta-sandbox` or `node/skills/update-permissions/skill.md`
-
-⚠️ Security Note:~
-The sandbox provides OS-level isolation of shell commands. However, be
-cautious when approving sandbox violations to allow running commands
-outside the sandbox. Malicious actors can use prompt injection to
-manipulate the LLM into executing commands that exfiltrate sensitive
-data. Only approve violations for commands you understand and trust.
 
 vim:tw=78:ts=8:noet:ft=help:norl:

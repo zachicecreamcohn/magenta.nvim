@@ -14,11 +14,11 @@ export type ToolRequest = {
 import type { ProviderToolResult } from "./providers/provider-types.ts";
 import type * as BashCommand from "./tools/bashCommand.ts";
 import type * as Diagnostics from "./tools/diagnostics.ts";
+import type * as Docs from "./tools/docs.ts";
 import type * as Edl from "./tools/edl.ts";
 import type * as FindReferences from "./tools/findReferences.ts";
 import type * as GetFile from "./tools/getFile.ts";
 import type * as Hover from "./tools/hover.ts";
-import type * as Learn from "./tools/learn.ts";
 import type * as SpawnSubagents from "./tools/spawn-subagents.ts";
 import type * as ThreadTitle from "./tools/thread-title.ts";
 import type { StaticToolName } from "./tools/tool-registry.ts";
@@ -43,7 +43,7 @@ export type ToolStructuredResult =
   | Diagnostics.StructuredResult
   | ThreadTitle.StructuredResult
   | YieldToParent.StructuredResult
-  | Learn.StructuredResult
+  | Docs.StructuredResult
   | GenericStructuredResult;
 
 export type CompletedToolInfo = {

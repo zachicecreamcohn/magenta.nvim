@@ -85,8 +85,8 @@ export function renderToolSummary(
       return SpawnSubagentsRender.renderSummary(request, displayContext);
     case "yield_to_parent":
       return YieldToParentRender.renderSummary(request, displayContext);
-    case "learn":
-      return d`learn(${(request.input as { name: string }).name})`;
+    case "docs":
+      return d`docs(${(request.input as { name: string }).name})`;
     default:
       assertUnreachable(toolName);
   }
@@ -188,8 +188,8 @@ export function renderToolResultSummary(
       return d`${statusEmoji} ${SpawnSubagentsRender.renderResultSummary(info)} (${tokEst})`;
     case "yield_to_parent":
       return d`${statusEmoji} ${YieldToParentRender.renderResultSummary(info)} (${tokEst})`;
-    case "learn":
-      return d`${statusEmoji} learn(${(info.request.input as { name: string }).name}) (${tokEst})`;
+    case "docs":
+      return d`${statusEmoji} docs(${(info.request.input as { name: string }).name}) (${tokEst})`;
     case "thread_title":
       return d`${statusEmoji} ${ThreadTitleRender.renderResultSummary(info)}`;
     case "edl":

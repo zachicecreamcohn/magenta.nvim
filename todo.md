@@ -23,7 +23,6 @@
 - we don't need ``` in the display buffer. Just drop those
 - collapse threads in the thread overview by default, and only show subthreads when expanded via "="
 - show pending permissions / sandbox failures in the thread overview
-- can we amend the terminal or tmux's view to notify them that the agent is waiting or stopped?
 - startup time still occasionally slow. Need debugging
 - drop the full context listing, instead just show the pending context updates
 - when the AI ends its turn, show a summary of all the edited files, so we can easily navigate to them
@@ -36,7 +35,7 @@
 
 # bug fixes, misc
 
-- there's errors/warnings when we switch threads during streaming
+- when we error upon a user message send, we should pop the user message off the agent's history, otherwise we end up sending it twice
 - this periodic error:
 
 ```
