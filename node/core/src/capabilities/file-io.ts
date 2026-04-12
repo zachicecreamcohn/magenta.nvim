@@ -7,6 +7,8 @@ export interface FileIO {
   fileExists(path: string): Promise<boolean>;
   mkdir(path: string): Promise<void>;
   stat(path: string): Promise<{ mtimeMs: number; size: number } | undefined>;
+  readdir(path: string): Promise<string[]>;
+  isDirectory(path: string): Promise<boolean>;
 }
 
 export class FsFileIO implements FileIO {
@@ -41,6 +43,19 @@ export class FsFileIO implements FileIO {
       return { mtimeMs: stats.mtimeMs, size: stats.size };
     } catch {
       return undefined;
+    }
+  }
+
+  async readdir(path: string): Promise<string[]> {
+    return fs.readdir(path);
+  }
+
+  async isDirectory(path: string): Promise<boolean> {
+    try {
+      const stats = await fs.stat(path);
+      return stats.isDirectory();
+    } catch {
+      return false;
     }
   }
 }

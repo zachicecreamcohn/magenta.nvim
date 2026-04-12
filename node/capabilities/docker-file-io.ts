@@ -96,4 +96,23 @@ export class DockerFileIO implements FileIO {
       return undefined;
     }
   }
+
+  async readdir(path: string): Promise<string[]> {
+    const { stdout } = await execFile("docker", [
+      "exec",
+      this.container,
+      "ls",
+      path,
+    ]);
+    return stdout.split("\n").filter((s) => s.length > 0);
+  }
+
+  async isDirectory(path: string): Promise<boolean> {
+    try {
+      await execFile("docker", ["exec", this.container, "test", "-d", path]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }

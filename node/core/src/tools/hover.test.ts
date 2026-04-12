@@ -28,6 +28,8 @@ function createMockFileIO(fileContent: string): FileIO {
     fileExists: vi.fn(),
     mkdir: vi.fn(),
     stat: vi.fn(),
+    readdir: vi.fn(),
+    isDirectory: vi.fn(),
   };
 }
 
