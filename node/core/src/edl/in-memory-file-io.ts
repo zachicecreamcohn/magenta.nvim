@@ -54,4 +54,34 @@ export class InMemoryFileIO implements FileIO {
   getFileContents(path: string): string | undefined {
     return this.files.get(path);
   }
+  async readdir(path: string): Promise<string[]> {
+    const prefix = path.endsWith("/") ? path : path + "/";
+    const children = new Set<string>();
+
+    for (const key of this.files.keys()) {
+      if (key.startsWith(prefix)) {
+        // Get the part after the prefix
+        const remaining = key.slice(prefix.length);
+        // Get the first component (directory or file name)
+        const firstComponent = remaining.split("/")[0];
+        if (firstComponent) {
+          children.add(firstComponent);
+        }
+      }
+    }
+
+    return Array.from(children).sort();
+  }
+
+  async isDirectory(path: string): Promise<boolean> {
+    const prefix = path.endsWith("/") ? path : path + "/";
+
+    for (const key of this.files.keys()) {
+      if (key.startsWith(prefix)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
 }

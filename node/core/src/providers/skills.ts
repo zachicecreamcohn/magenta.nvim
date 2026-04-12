@@ -1,10 +1,14 @@
-import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
 
+import type { FileIO } from "../capabilities/file-io.ts";
 import type { Logger } from "../logger.ts";
 import type { ProviderOptions } from "../provider-options.ts";
-import type { AbsFilePath, NvimCwd } from "../utils/files.ts";
+import {
+  type AbsFilePath,
+  expandTilde,
+  type HomeDir,
+  type NvimCwd,
+} from "../utils/files.ts";
 
 export type SkillInfo = {
   skillFile: AbsFilePath;
@@ -21,11 +25,13 @@ type YamlFrontmatter = {
   description?: string;
 };
 
-export function loadSkills(context: {
+export async function loadSkills(context: {
   cwd: NvimCwd;
   logger: Logger;
   options: ProviderOptions;
-}): SkillsMap {
+  fileIO: FileIO;
+  homeDir: HomeDir;
+}): Promise<SkillsMap> {
   const skills: SkillsMap = {};
 
   if (
@@ -39,11 +45,11 @@ export function loadSkills(context: {
     // Process each skills directory in order
     // Later directories override earlier ones
     for (const skillsDir of context.options.skillsPaths) {
-      const skillFiles = findSkillFilesInDirectory(skillsDir, context);
+      const skillFiles = await findSkillFilesInDirectory(skillsDir, context);
 
       for (const skillFile of skillFiles) {
         try {
-          const skillInfo = parseSkillFile(skillFile, context);
+          const skillInfo = await parseSkillFile(skillFile, context);
           if (skillInfo) {
             if (skillInfo.name in skills) {
               context.logger.info(
@@ -67,60 +73,37 @@ export function loadSkills(context: {
   return skills;
 }
 
-function expandTilde(filepath: string): string {
-  if (filepath.startsWith("~/") || filepath === "~") {
-    return path.join(os.homedir(), filepath.slice(1));
-  }
-  return filepath;
-}
-
-function findSkillFilesInDirectory(
+async function findSkillFilesInDirectory(
   skillsDir: string,
   context: {
     cwd: NvimCwd;
     logger: Logger;
+    fileIO: FileIO;
+    homeDir: HomeDir;
   },
-): AbsFilePath[] {
+): Promise<AbsFilePath[]> {
   const skillFiles: AbsFilePath[] = [];
 
   try {
-    // Expand tilde, then resolve the skills directory path
-    // If it's absolute, use it as-is; otherwise resolve relative to cwd
-    const expandedDir = expandTilde(skillsDir);
+    const expandedDir = expandTilde(skillsDir, context.homeDir);
     const skillsDirPath = path.isAbsolute(expandedDir)
       ? expandedDir
       : path.join(context.cwd, expandedDir);
 
-    // Check if the skills directory exists
-    try {
-      const stats = fs.statSync(skillsDirPath);
-      if (!stats.isDirectory()) {
-        context.logger.warn(`Skills path "${skillsDir}" is not a directory`);
-        return skillFiles;
-      }
-    } catch {
-      // Directory doesn't exist, skip silently
+    if (!(await context.fileIO.isDirectory(skillsDirPath))) {
       return skillFiles;
     }
 
-    // Read immediate children of the skills directory
-    const entries = fs.readdirSync(skillsDirPath);
+    const entries = await context.fileIO.readdir(skillsDirPath);
 
     for (const entry of entries) {
       const entryPath = path.join(skillsDirPath, entry);
 
-      // Check if it's a directory
-      try {
-        const stats = fs.statSync(entryPath);
-        if (!stats.isDirectory()) {
-          continue;
-        }
-      } catch {
+      if (!(await context.fileIO.isDirectory(entryPath))) {
         continue;
       }
 
-      // Look for skill.md file (case-insensitive)
-      const files = fs.readdirSync(entryPath);
+      const files = await context.fileIO.readdir(entryPath);
       const skillFile = files.find((file) => file.toLowerCase() === "skill.md");
 
       if (skillFile) {
@@ -137,11 +120,11 @@ function findSkillFilesInDirectory(
   return skillFiles;
 }
 
-function parseSkillFile(
+async function parseSkillFile(
   skillFile: AbsFilePath,
-  context: { logger: Logger },
-): SkillInfo | undefined {
-  const content = fs.readFileSync(skillFile, "utf8");
+  context: { logger: Logger; fileIO: FileIO },
+): Promise<SkillInfo | undefined> {
+  const content = await context.fileIO.readFile(skillFile);
 
   const frontmatter = extractYamlFrontmatter(content);
 

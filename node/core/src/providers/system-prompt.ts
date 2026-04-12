@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { FileIO } from "../capabilities/file-io.ts";
 import type { SubagentConfig, ThreadType } from "../chat-types.ts";
 import type { Logger } from "../logger.ts";
 import type { ProviderOptions } from "../provider-options.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { NvimCwd } from "../utils/files.ts";
+import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import {
   formatSkillsIntroduction,
   loadSkills,
@@ -81,22 +82,25 @@ function getBaseSystemPrompt(
   }
 }
 
-export function createSystemPrompt(
+export async function createSystemPrompt(
   type: ThreadType,
   context: {
     systemInfo: SystemInfo;
     logger: Logger;
     cwd: NvimCwd;
     options: ProviderOptions;
+    fileIO: FileIO;
+    homeDir: HomeDir;
     dockerAvailable?: boolean;
     subagentConfig?: SubagentConfig;
   },
-): SystemPrompt {
+): Promise<SystemPrompt> {
   const basePrompt = getBaseSystemPrompt(type, {
     ...(context.dockerAvailable ? { dockerAvailable: true } : {}),
     subagentConfig: context.subagentConfig,
   });
-  const skills = type === "compact" ? ({} as SkillsMap) : loadSkills(context);
+  const skills =
+    type === "compact" ? ({} as SkillsMap) : await loadSkills(context);
   const systemInfo = context.systemInfo;
 
   const systemInfoText = `

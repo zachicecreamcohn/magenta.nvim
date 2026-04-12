@@ -1,3 +1,4 @@
+import { FsFileIO, type HomeDir } from "@magenta/core";
 import { expect, it } from "vitest";
 import { withDriver } from "../test/preamble.ts";
 import { createSystemPrompt } from "./system-prompt.ts";
@@ -8,6 +9,8 @@ it("applies systemInfoOverrides for docker environments", async () => {
       nvim: driver.magenta.nvim,
       cwd: driver.magenta.cwd,
       options: driver.magenta.options,
+      fileIO: new FsFileIO(),
+      homeDir: driver.magenta.homeDir,
       systemInfoOverrides: {
         platform: "linux (docker)",
         cwd: "/workspace" as typeof driver.magenta.cwd,
@@ -26,6 +29,8 @@ it("docker_root prompt mentions syncing and yield_to_parent", async () => {
       nvim: driver.magenta.nvim,
       cwd: driver.magenta.cwd,
       options: driver.magenta.options,
+      fileIO: new FsFileIO(),
+      homeDir: driver.magenta.homeDir,
     });
 
     expect(systemPrompt).toContain("# Docker Environment");
@@ -42,6 +47,8 @@ it("includes system information in the prompt", async () => {
       nvim: driver.magenta.nvim,
       cwd: driver.magenta.cwd,
       options: driver.magenta.options,
+      fileIO: new FsFileIO(),
+      homeDir: driver.magenta.homeDir,
     });
 
     // Check that system information is included

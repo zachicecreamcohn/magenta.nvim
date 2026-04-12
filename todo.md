@@ -6,6 +6,7 @@
 
 - often a subagent will yield using <yield> tags in the message, and not a yield tool call. Probably should update the reminder for subagents to yield using the tool.
 - the lead agent is still asking explore subagents to read full file contents.
+- the lead agent is asking fast-edit to use edl... instead of just using edl directly
 
 # customization
 

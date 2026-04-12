@@ -4,6 +4,8 @@ import {
   createSystemPrompt as coreCreateSystemPrompt,
   DEFAULT_SUBAGENT_SYSTEM_PROMPT,
   DEFAULT_SYSTEM_PROMPT,
+  type FileIO,
+  type HomeDir,
   type NvimCwd,
   type ProviderOptions,
   type SubagentConfig,
@@ -27,6 +29,8 @@ export async function createSystemPrompt(
     nvim: Nvim;
     cwd: NvimCwd;
     options: ProviderOptions;
+    fileIO: FileIO;
+    homeDir: HomeDir;
     systemInfoOverrides?: Partial<SystemInfo>;
     dockerAvailable?: boolean;
     subagentConfig?: SubagentConfig;
@@ -47,6 +51,8 @@ export async function createSystemPrompt(
     logger: context.nvim.logger,
     cwd: context.cwd,
     options: context.options,
+    fileIO: context.fileIO,
+    homeDir: context.homeDir,
     ...(context.dockerAvailable
       ? { dockerAvailable: context.dockerAvailable }
       : {}),

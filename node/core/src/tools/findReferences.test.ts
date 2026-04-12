@@ -31,6 +31,8 @@ function createMockFileIO(content: string): FileIO {
     fileExists: vi.fn(),
     mkdir: vi.fn(),
     stat: vi.fn(),
+    readdir: vi.fn(),
+    isDirectory: vi.fn(),
   };
 }
 
@@ -42,6 +44,8 @@ function createFailingFileIO(error: Error): FileIO {
     fileExists: vi.fn(),
     mkdir: vi.fn(),
     stat: vi.fn(),
+    readdir: vi.fn(),
+    isDirectory: vi.fn(),
   };
 }
 

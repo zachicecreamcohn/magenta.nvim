@@ -151,4 +151,19 @@ export class SandboxFileIO implements FileIO {
       return undefined;
     }
   }
+
+  async readdir(path: string): Promise<string[]> {
+    const abs = this.resolvePath(path);
+    return fs.readdir(abs);
+  }
+
+  async isDirectory(path: string): Promise<boolean> {
+    const abs = this.resolvePath(path);
+    try {
+      const stats = await fs.stat(abs);
+      return stats.isDirectory();
+    } catch {
+      return false;
+    }
+  }
 }

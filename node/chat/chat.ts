@@ -5,7 +5,7 @@ import type {
   ThreadId,
   ThreadType,
 } from "@magenta/core";
-import { loadAgents, MCPToolManagerImpl } from "@magenta/core";
+import { FsFileIO, loadAgents, MCPToolManagerImpl } from "@magenta/core";
 import { v7 as uuidv7 } from "uuid";
 import type { Lsp } from "../capabilities/lsp.ts";
 import type {
@@ -360,6 +360,8 @@ export class Chat implements ThreadManager {
       nvim: this.context.nvim,
       cwd: environment.cwd,
       options: this.context.getOptions(),
+      fileIO: environment.fileIO,
+      homeDir: environment.homeDir,
       ...(resolvedConfig.type === "docker"
         ? {
             systemInfoOverrides: {
@@ -674,6 +676,8 @@ ${threadViews.map((view) => d`${view}\n`)}`;
         nvim: this.context.nvim,
         cwd: this.context.cwd,
         options: this.context.getOptions(),
+        fileIO: new FsFileIO(),
+        homeDir: this.context.homeDir,
       }),
     ]);
 
