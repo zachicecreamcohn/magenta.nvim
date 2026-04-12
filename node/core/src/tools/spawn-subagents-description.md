@@ -29,6 +29,8 @@ Treat each sub-agent as a coworker joining a project — they have no context on
 - **host** (default) — runs locally on the host machine. Use `directory` to set the working directory for the sub-agent.
 - **docker** / **docker_unsupervised** — run a sub-agent in an isolated Docker container with full shell access. Requires `dockerfile` and `workspacePath` fields on the agent entry. The container is built from a host directory (default: current working directory). When the agent yields, file changes are automatically rsynced back to the host directory.
 
+**Important**: `contextFiles` and `sharedContextFiles` do NOT work for docker/docker_unsupervised environments because the container has a separate filesystem. Instead, include relevant information directly in the prompt, or commit files to a branch so the docker agent can access them via git.
+
 ## Usage patterns
 
 - Before spawning explore agents, state "I need to answer these questions:" and write a high-level list of all the things you need to find out. Then spawn one explore agent per question.

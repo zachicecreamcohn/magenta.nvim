@@ -851,6 +851,69 @@ describe("spawn-subagents docker provisioning", () => {
     expect(text).toContain("Failed: 1");
   });
 
+  it("converts contextFiles to a prompt note for docker subagents", async () => {
+    const spawnThread = vi.fn(() => Promise.resolve("thread_1" as ThreadId));
+    const threadManager = createMockThreadManager({ spawnThread });
+
+    const invocation = SpawnSubagents.execute(
+      makeRequest({
+        sharedContextFiles: ["/shared/common.ts" as UnresolvedFilePath],
+        agents: [
+          {
+            prompt: "do docker work",
+            environment: "docker",
+            directory: tempDir,
+            dockerfile: "Dockerfile",
+            workspacePath: "/workspace",
+            contextFiles: ["/host/path/file.ts" as UnresolvedFilePath],
+          },
+        ],
+      }),
+      {
+        threadManager,
+        threadId: "parent-1" as ThreadId,
+        maxConcurrentSubagents: 10,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+        agents: {},
+      },
+    );
+
+    await vi.waitFor(() => {
+      expect(spawnThread).toHaveBeenCalled();
+    });
+    threadManager.simulateYield("thread_1" as ThreadId, {
+      status: "ok",
+      value: "done",
+    });
+
+    await invocation.promise;
+
+    // contextFiles should NOT be passed to spawnThread for docker entries
+    expect(spawnThread).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        contextFiles: expect.anything(),
+      }),
+    );
+
+    // The prompt should contain a note about the context files
+    expect(spawnThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining("/shared/common.ts"),
+      }),
+    );
+    expect(spawnThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining("/host/path/file.ts"),
+      }),
+    );
+    expect(spawnThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining("do docker work"),
+      }),
+    );
+  });
+
   it("defaults directory to cwd when not specified", async () => {
     const threadManager = createMockThreadManager();
 
