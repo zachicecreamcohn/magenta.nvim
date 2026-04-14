@@ -29,7 +29,6 @@ import type {
   ProviderToolUseRequest,
   Usage,
 } from "./provider-types.ts";
-import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
 
 function mapProviderTextToAnthropicText(
   providerText: ProviderTextContent,
@@ -387,9 +386,8 @@ export class AnthropicProvider implements Provider {
     });
 
     // Build system prompt, prepending Claude Code spoofing for Max auth
-    const baseSystemPrompt = systemPrompt
-      ? systemPrompt
-      : DEFAULT_SYSTEM_PROMPT;
+    const baseSystemPrompt =
+      systemPrompt || "You are a helpful coding assistant.";
 
     const systemBlocks: MessageStreamParams["system"] = [
       {
@@ -489,7 +487,8 @@ export class AnthropicProvider implements Provider {
     ];
 
     // Build system prompt
-    const baseSystemPrompt = systemPrompt || DEFAULT_SYSTEM_PROMPT;
+    const baseSystemPrompt =
+      systemPrompt || "You are a helpful coding assistant.";
     const systemBlocks: Anthropic.Messages.MessageStreamParams["system"] = [
       {
         type: "text" as const,

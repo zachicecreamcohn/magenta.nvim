@@ -153,8 +153,6 @@ export type {
 export {
   COMPACT_SYSTEM_PROMPT,
   createSystemPrompt,
-  DEFAULT_SUBAGENT_SYSTEM_PROMPT,
-  DEFAULT_SYSTEM_PROMPT,
 } from "./providers/system-prompt.ts";
 export { getSubsequentReminder } from "./providers/system-reminders.ts";
 export {

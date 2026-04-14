@@ -16,7 +16,7 @@
 //   ProviderThreadOptions,
 // } from "./provider-types.ts";
 // import type { Nvim } from "../nvim/nvim-node/index.ts";
-// import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
+// import { "You are a helpful coding assistant." } from "./system-prompt.ts";
 // import { validateInput } from "@magenta/core";
 // import type { Result } from "../utils/result.ts";
 // import type { ToolRequestId } from "@magenta/core";
@@ -296,7 +296,7 @@
 //   ): number {
 //     const CHARS_PER_TOKEN = 4;
 //     let charCount = (
-//       options?.systemPrompt ? options.systemPrompt : DEFAULT_SYSTEM_PROMPT
+//       options?.systemPrompt ? options.systemPrompt : "You are a helpful coding assistant."
 //     ).length;
 //     charCount += JSON.stringify(tools).length;
 //     charCount += JSON.stringify(messages).length;
@@ -314,7 +314,7 @@
 //     const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 //       {
 //         role: "system",
-//         content: systemPrompt || DEFAULT_SYSTEM_PROMPT,
+//         content: systemPrompt || "You are a helpful coding assistant.",
 //       },
 //     ];
 //
@@ -478,7 +478,7 @@
 //       const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 //         {
 //           role: "system",
-//           content: systemPrompt || DEFAULT_SYSTEM_PROMPT,
+//           content: systemPrompt || "You are a helpful coding assistant.",
 //         },
 //       ];
 //

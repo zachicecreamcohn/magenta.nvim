@@ -983,7 +983,10 @@ Always check for proper error handling and type safety.
         expect(subagentStream.systemPrompt).toContain(
           "You are a code review agent",
         );
-        expect(subagentStream.systemPrompt).not.toContain("<system_reminder>");
+        expect(subagentStream.systemPrompt).toContain("<system_reminder>");
+        expect(subagentStream.systemPrompt).toContain(
+          "Always check for proper error handling and type safety",
+        );
 
         // Verify fastModel is used
         expect(subagentStream.params.model).toBe("mock-fast");

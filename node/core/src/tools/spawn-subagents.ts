@@ -77,12 +77,8 @@ function resolveSubagentConfig(
 ): SubagentConfig {
   const agentType = entry.agentType;
 
-  if (!agentType || agentType === "default") {
-    return { tier: "thread" as AgentTier };
-  }
-
-  // Look up custom agent by name
-  const agentDef = agents[agentType];
+  // Look up agent by name (including "default")
+  const agentDef = agentType ? agents[agentType] : agents["default"];
   if (agentDef) {
     return {
       agentName: agentDef.name,
@@ -93,8 +89,8 @@ function resolveSubagentConfig(
     };
   }
 
-  // Unknown agent type — treat as default
-  return { agentName: agentType, tier: "leaf" as AgentTier };
+  // Unknown agent type — treat as leaf
+  return { agentName: agentType ?? "default", tier: "leaf" as AgentTier };
 }
 
 export function execute(

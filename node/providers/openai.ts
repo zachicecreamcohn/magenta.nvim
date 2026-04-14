@@ -16,7 +16,7 @@
 // } from "./provider-types.ts";
 // import { assertUnreachable } from "../utils/assertUnreachable.ts";
 // import type { Stream } from "openai/streaming.mjs";
-// import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
+// import { "You are a helpful coding assistant." } from "./system-prompt.ts";
 // import { validateInput } from "@magenta/core";
 // import type { ToolRequest } from "@magenta/core";
 // import type {
@@ -213,7 +213,7 @@
 //     const openaiMessages: OpenAI.Responses.ResponseInputItem[] = [
 //       {
 //         role: "system",
-//         content: systemPrompt || DEFAULT_SYSTEM_PROMPT,
+//         content: systemPrompt || "You are a helpful coding assistant.",
 //       },
 //     ];
 //
