@@ -13,6 +13,7 @@ import {
 } from "@magenta/core";
 import { v7 as uuidv7 } from "uuid";
 import type { Lsp } from "../capabilities/lsp.ts";
+import type { SandboxViolationHandler } from "../capabilities/sandbox-violation-handler.ts";
 import type {
   DockerSpawnConfig,
   ThreadManager,
@@ -60,6 +61,7 @@ type ThreadWrapper = (
 ) & {
   parentThreadId: ThreadId | undefined;
   depth: number;
+  lastActivityTime: number;
 };
 
 type ChatState =
@@ -91,6 +93,10 @@ export type Msg =
     }
   | {
       type: "threads-overview";
+    }
+  | {
+      type: "toggle-thread-expand";
+      id: ThreadId;
     };
 
 export type ChatMsg = {
@@ -102,6 +108,7 @@ export class Chat implements ThreadManager {
   state: ChatState;
   public threadWrappers: { [id: ThreadId]: ThreadWrapper };
   private mcpToolManager: MCPToolManagerImpl;
+  private expandedThreads: Set<ThreadId>;
   private threadYieldCallbacks: Map<ThreadId, Array<() => void>>;
 
   constructor(
@@ -117,6 +124,7 @@ export class Chat implements ThreadManager {
     },
   ) {
     this.threadWrappers = {};
+    this.expandedThreads = new Set();
     this.threadYieldCallbacks = new Map();
     this.state = {
       state: "thread-overview",
@@ -140,6 +148,11 @@ export class Chat implements ThreadManager {
       if (threadState.state === "initialized") {
         const thread = threadState.thread;
         thread.update(msg);
+
+        if (msg.msg.type === "send-message") {
+          const rootId = this.getRootAncestorId(msg.id);
+          this.threadWrappers[rootId].lastActivityTime = Date.now();
+        }
 
         if (msg.msg.type === "abort") {
           // Find all child threads of the parent thread and abort them directly
@@ -178,6 +191,7 @@ export class Chat implements ThreadManager {
           thread: msg.thread,
           parentThreadId: prev.parentThreadId,
           depth: prev.depth,
+          lastActivityTime: prev.lastActivityTime,
         };
         this.threadWrappers[msg.thread.id] = wrapper;
 
@@ -191,6 +205,7 @@ export class Chat implements ThreadManager {
           error: msg.error,
           parentThreadId: thread.parentThreadId,
           depth: thread.depth,
+          lastActivityTime: thread.lastActivityTime,
         };
 
         if (this.state.state === "thread-selected") {
@@ -259,6 +274,14 @@ export class Chat implements ThreadManager {
         };
         return;
 
+      case "toggle-thread-expand":
+        if (this.expandedThreads.has(msg.id)) {
+          this.expandedThreads.delete(msg.id);
+        } else {
+          this.expandedThreads.add(msg.id);
+        }
+        return;
+
       default:
         assertUnreachable(msg);
     }
@@ -318,6 +341,7 @@ export class Chat implements ThreadManager {
       state: "pending",
       parentThreadId: parent,
       depth: parent ? (this.threadWrappers[parent]?.depth ?? 0) + 1 : 0,
+      lastActivityTime: Date.now(),
     };
 
     const resolvedConfig: EnvironmentConfig = environmentConfig ?? {
@@ -488,6 +512,38 @@ export class Chat implements ThreadManager {
     return id;
   }
 
+  private getRootAncestorId(threadId: ThreadId): ThreadId {
+    let current = threadId;
+    let parentId = this.threadWrappers[current]?.parentThreadId;
+    while (parentId !== undefined) {
+      current = parentId;
+      parentId = this.threadWrappers[current]?.parentThreadId;
+    }
+    return current;
+  }
+
+  private collectSubtreeViolationViews(
+    threadId: ThreadId,
+    childrenMap: Map<ThreadId, ThreadId[]>,
+  ): VDOMNode[] {
+    const views: VDOMNode[] = [];
+    const wrapper = this.threadWrappers[threadId];
+    if (
+      wrapper?.state === "initialized" &&
+      wrapper.thread.sandboxViolationHandler
+    ) {
+      const handler = wrapper.thread.sandboxViolationHandler;
+      if (handler.getPendingViolations().size > 0) {
+        views.push(handler.view());
+      }
+    }
+    const children = childrenMap.get(threadId) ?? [];
+    for (const childId of children) {
+      views.push(...this.collectSubtreeViolationViews(childId, childrenMap));
+    }
+    return views;
+  }
+
   private buildChildrenMap(): Map<ThreadId, ThreadId[]> {
     const childrenMap = new Map<ThreadId, ThreadId[]>();
     for (const [idStr, threadWrapper] of Object.entries(this.threadWrappers)) {
@@ -565,6 +621,11 @@ export class Chat implements ThreadManager {
     threadId: ThreadId,
     depth: number,
     activeThreadId: ThreadId | undefined,
+    options?: {
+      hasChildren: boolean;
+      isExpanded: boolean;
+      childCount: number;
+    },
   ): VDOMNode {
     const displayName = this.getThreadDisplayName(threadId);
     const status = this.formatThreadStatus(threadId);
@@ -577,15 +638,37 @@ export class Chat implements ThreadManager {
         : undefined;
     const icon = threadType === "docker_root" ? "🐳 " : "";
 
-    const displayLine = `${indent}${marker} ${icon}${displayName}: ${status}`;
+    const expandIndicator = options?.hasChildren
+      ? options.isExpanded
+        ? "▼ "
+        : "▶ "
+      : "";
+    const childCountSuffix = options?.hasChildren
+      ? ` (${options.childCount} subthreads)`
+      : "";
 
-    return withBindings(d`${displayLine}`, {
+    const displayLine = `${indent}${marker} ${expandIndicator}${icon}${displayName}: ${status}${childCountSuffix}`;
+
+    const bindings: Record<string, () => void> = {
       "<CR>": () =>
         this.context.dispatch({
           type: "select-thread-effect",
           id: threadId,
         }),
-    });
+    };
+
+    if (options?.hasChildren) {
+      bindings["="] = () =>
+        this.context.dispatch({
+          type: "chat-msg",
+          msg: {
+            type: "toggle-thread-expand",
+            id: threadId,
+          },
+        });
+    }
+
+    return withBindings(d`${displayLine}`, bindings);
   }
 
   private renderThreadSubtree(
@@ -602,6 +685,18 @@ export class Chat implements ThreadManager {
     }
   }
 
+  private countSubtreeThreads(
+    threadId: ThreadId,
+    childrenMap: Map<ThreadId, ThreadId[]>,
+  ): number {
+    const children = childrenMap.get(threadId) ?? [];
+    let count = children.length;
+    for (const childId of children) {
+      count += this.countSubtreeThreads(childId, childrenMap);
+    }
+    return count;
+  }
+
   renderThreadOverview() {
     if (Object.keys(this.threadWrappers).length === 0) {
       return d`# Threads
@@ -612,14 +707,51 @@ No threads yet`;
     const childrenMap = this.buildChildrenMap();
     const threadViews: VDOMNode[] = [];
 
+    const rootThreads: { id: ThreadId; lastActivityTime: number }[] = [];
     for (const [idStr, wrapper] of Object.entries(this.threadWrappers)) {
       if (wrapper.parentThreadId === undefined) {
-        this.renderThreadSubtree(
-          idStr as ThreadId,
+        rootThreads.push({
+          id: idStr as ThreadId,
+          lastActivityTime: wrapper.lastActivityTime,
+        });
+      }
+    }
+
+    rootThreads.sort((a, b) => b.lastActivityTime - a.lastActivityTime);
+
+    for (const { id } of rootThreads) {
+      const hasChildren = (childrenMap.get(id)?.length ?? 0) > 0;
+      const isExpanded = this.expandedThreads.has(id);
+      const childCount = hasChildren
+        ? this.countSubtreeThreads(id, childrenMap)
+        : 0;
+
+      threadViews.push(
+        this.renderThread(id, 0, this.state.activeThreadId, {
+          hasChildren,
+          isExpanded,
+          childCount,
+        }),
+      );
+
+      if (hasChildren && isExpanded) {
+        const children = childrenMap.get(id) ?? [];
+        for (const childId of children) {
+          this.renderThreadSubtree(
+            childId,
+            childrenMap,
+            this.state.activeThreadId,
+            threadViews,
+          );
+        }
+      } else if (hasChildren && !isExpanded) {
+        const violationViews = this.collectSubtreeViolationViews(
+          id,
           childrenMap,
-          this.state.activeThreadId,
-          threadViews,
         );
+        for (const violationView of violationViews) {
+          threadViews.push(violationView);
+        }
       }
     }
 
@@ -673,6 +805,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       state: "pending",
       parentThreadId: undefined,
       depth: 0,
+      lastActivityTime: Date.now(),
     };
 
     const [autoContextFiles, systemPrompt] = await Promise.all([
