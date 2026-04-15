@@ -62,7 +62,8 @@ structure:~
         "allowedDomains": ["registry.npmjs.org", "github.com", "*.github.com"],
         "deniedDomains": []
       },
-      "requireApprovalPatterns": ["git\\s+push", "rm\\s+-rf"]
+      "requireApprovalPatterns": ["git\\s+push", "rm\\s+-rf"],
+      "bwrapSandboxViolationPatterns": ["CredentialsProviderError"]
     }
   }
 <
@@ -100,6 +101,15 @@ requireApprovalPatterns~
     before execution — the command is never sandboxed. This prevents partial
     execution of compound commands (e.g., git commit && git push where git
     commit runs before the sandbox blocks git push). Default: [].
+
+bwrapSandboxViolationPatterns~
+    (Linux only) Regex patterns matched against stderr lines to detect
+    sandbox violations caused by bubblewrap. When a sandboxed command fails
+    and stderr matches any pattern, the user is prompted to retry without
+    the sandbox. Default: ["Permission denied", "EPERM",
+    "Operation not permitted", "Read-only file system", "EROFS", "EACCES",
+    "CredentialsProviderError"]. User and project patterns concatenate
+    with the defaults.
 
 ==============================================================================
 PATH MATCHING                                      *magenta-permissions-matching*
@@ -194,6 +204,32 @@ Command should always require approval~
 
     This prompts for approval before running the command — no sandboxed
     execution occurs first.
+
+Sandbox violation detection on Linux (bwrap)~
+    On macOS, the seatbelt sandbox provides a built-in violation log that
+    reports exactly which operations were blocked and why. On Linux,
+    bubblewrap (bwrap) works differently — it creates isolated filesystem
+    namespaces where restricted paths simply do not exist. The sandboxed
+    process sees ordinary ENOENT or EPERM errors indistinguishable from
+    normal failures, and bwrap provides no violation reporting mechanism.
+
+    To detect sandbox-caused failures on Linux, magenta matches stderr
+    output against configurable regex patterns. When a sandboxed command
+    fails and stderr matches any pattern, the user is prompted to approve
+    retrying the command without the sandbox. The default patterns cover
+    common permission errors (EPERM, EACCES, "Permission denied", etc.).
+
+    If a sandboxed command fails due to a missing resource and the error
+    message does not match any default pattern, add a pattern:
+>json
+    {
+      "sandbox": {
+        "bwrapSandboxViolationPatterns": ["MyCustomError"]
+      }
+    }
+<
+    Patterns are JavaScript regex strings tested against each stderr line.
+    Project and user patterns concatenate with the built-in defaults.
 
 ==============================================================================
 MERGING BEHAVIOR                                  *magenta-permissions-merging*

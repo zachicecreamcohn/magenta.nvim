@@ -147,6 +147,7 @@ export type SandboxConfig = {
     allowAllUnixSockets: boolean;
   };
   requireApprovalPatterns: string[];
+  bwrapSandboxViolationPatterns: string[];
 };
 
 export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
@@ -198,6 +199,15 @@ export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
     allowAllUnixSockets: false,
   },
   requireApprovalPatterns: ["git\\s+push"],
+  bwrapSandboxViolationPatterns: [
+    "Permission denied",
+    "EPERM",
+    "Operation not permitted",
+    "Read-only file system",
+    "EROFS",
+    "EACCES",
+    "CredentialsProviderError",
+  ],
 };
 
 export type MagentaOptions = {
@@ -825,6 +835,10 @@ function mergeSandboxConfigs(
       ...base.requireApprovalPatterns,
       ...overlay.requireApprovalPatterns,
     ],
+    bwrapSandboxViolationPatterns: [
+      ...base.bwrapSandboxViolationPatterns,
+      ...overlay.bwrapSandboxViolationPatterns,
+    ],
   };
 }
 
@@ -841,6 +855,7 @@ function parseSandboxConfig(
       allowAllUnixSockets: false,
     },
     requireApprovalPatterns: [],
+    bwrapSandboxViolationPatterns: [],
   };
 
   if (typeof input !== "object" || input === null) {
@@ -924,6 +939,18 @@ function parseSandboxConfig(
     );
   } else if ("requireApprovalPatterns" in obj) {
     logger.warn("sandbox.requireApprovalPatterns must be an array of strings");
+  }
+
+  if (Array.isArray(obj.bwrapSandboxViolationPatterns)) {
+    config.bwrapSandboxViolationPatterns = parseStringArray(
+      obj.bwrapSandboxViolationPatterns,
+      "sandbox.bwrapSandboxViolationPatterns",
+      logger,
+    );
+  } else if ("bwrapSandboxViolationPatterns" in obj) {
+    logger.warn(
+      "sandbox.bwrapSandboxViolationPatterns must be an array of strings",
+    );
   }
 
   return config;

@@ -223,7 +223,10 @@ export class SandboxShell implements Shell {
       postCount === preCount &&
       process.platform === "linux"
     ) {
-      const synthetic = detectLinuxSandboxViolations(command, result);
+      const compiled = compileViolationPatterns(
+        options.sandbox.bwrapSandboxViolationPatterns,
+      );
+      const synthetic = detectLinuxSandboxViolations(command, result, compiled);
       for (const v of synthetic) {
         store.addViolation(v);
       }
@@ -305,19 +308,14 @@ export class SandboxShell implements Shell {
   }
 }
 
-const LINUX_SANDBOX_VIOLATION_PATTERNS = [
-  /Permission denied/i,
-  /EPERM/,
-  /Operation not permitted/i,
-  /Read-only file system/i,
-  /EROFS/,
-  /EACCES/,
-  /CredentialsProviderError/,
-];
+function compileViolationPatterns(patterns: string[]): RegExp[] {
+  return patterns.map((p) => new RegExp(p));
+}
 
 function detectLinuxSandboxViolations(
   command: string,
   result: ShellResult,
+  patterns: RegExp[],
 ): SandboxViolationEvent[] {
   const stderrLines = result.output
     .filter((l) => l.stream === "stderr")
@@ -328,7 +326,7 @@ function detectLinuxSandboxViolations(
   const seen = new Set<string>();
 
   for (const line of stderrLines) {
-    if (LINUX_SANDBOX_VIOLATION_PATTERNS.some((p) => p.test(line))) {
+    if (patterns.some((p) => p.test(line))) {
       if (!seen.has(line)) {
         seen.add(line);
         violations.push({

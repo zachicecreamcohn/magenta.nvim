@@ -117,6 +117,15 @@ const defaultSandboxConfig: SandboxConfig = {
     allowAllUnixSockets: false,
   },
   requireApprovalPatterns: [],
+  bwrapSandboxViolationPatterns: [
+    "Permission denied",
+    "EPERM",
+    "Operation not permitted",
+    "Read-only file system",
+    "EROFS",
+    "EACCES",
+    "CredentialsProviderError",
+  ],
 };
 
 function createContext() {
