@@ -229,6 +229,43 @@ describe("ThreadCore.handleProviderStopped", () => {
   });
 });
 
+describe("ThreadCore.abort on yielded thread", () => {
+  it("abort is a no-op when thread has already yielded", async () => {
+    const { core, mockClient } = createThreadCoreWithMock({
+      threadType: "subagent" as ThreadType,
+    });
+
+    core.sendMessage([{ type: "user", text: "do the task" }]);
+    const stream = await mockClient.awaitStream();
+
+    const toolUseId = "tool-yield-1" as ToolRequestId;
+
+    // Drive the thread to yielded state
+    stream.streamToolUse(toolUseId, "yield_to_parent" as ToolName, {
+      result: "Here is the result of my work",
+    });
+    stream.finishResponse("tool_use");
+
+    await pollUntil(() => {
+      if (core.state.mode.type === "yielded") return true;
+      throw new Error(
+        `waiting for yielded mode, currently: ${core.state.mode.type}`,
+      );
+    });
+
+    expect(core.state.mode.type).toBe("yielded");
+
+    // Now abort — should be a no-op
+    await core.abort();
+
+    // Mode should still be yielded with the original response
+    expect(core.state.mode.type).toBe("yielded");
+    if (core.state.mode.type === "yielded") {
+      expect(core.state.mode.response).toBe("Here is the result of my work");
+    }
+  });
+});
+
 describe("SubagentSupervisor yield tag detection", () => {
   it("nudges agent when it writes a <yield_to_parent> XML tag instead of calling the tool", async () => {
     const { core, mockClient } = createThreadCoreWithMock({

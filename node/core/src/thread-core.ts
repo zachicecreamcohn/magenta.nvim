@@ -602,6 +602,10 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
   }
 
   async abort(): Promise<void> {
+    // A yielded thread has already completed its work — don't overwrite its state.
+    if (this.state.mode.type === "yielded") {
+      return;
+    }
     // Synchronously mark all tool invocations as aborted
     if (this.state.mode.type === "tool_use") {
       for (const [, entry] of this.state.mode.activeTools) {

@@ -148,7 +148,8 @@ export class Chat implements ThreadManager {
           )) {
             if (
               threadWrapper.parentThreadId === thread.id &&
-              threadWrapper.state === "initialized"
+              threadWrapper.state === "initialized" &&
+              threadWrapper.thread.core.state.mode.type !== "yielded"
             ) {
               threadWrapper.thread.update({
                 type: "thread-msg",
