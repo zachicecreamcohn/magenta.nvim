@@ -1,8 +1,9 @@
 import type { ChildProcess } from "node:child_process";
 import type { ThreadId } from "@magenta/core";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { MagentaOptions, SandboxConfig } from "../options.ts";
 import type { SandboxState } from "../sandbox-manager.ts";
+import { pollUntil } from "../utils/async.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import { SandboxShell } from "./sandbox-shell.ts";
 import type { SandboxViolationHandler } from "./sandbox-violation-handler.ts";
@@ -707,6 +708,150 @@ describe("SandboxShell", () => {
       // Violations are ignored for successful commands
       expect(handler.addViolation).not.toHaveBeenCalled();
       expect(result.exitCode).toBe(0);
+      expect(mockCleanupAfterCommand).toHaveBeenCalled();
+    });
+  });
+
+  describe("Linux sandbox violation detection", () => {
+    const originalPlatform = process.platform;
+
+    beforeEach(() => {
+      Object.defineProperty(process, "platform", { value: "linux" });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(process, "platform", { value: originalPlatform });
+    });
+
+    function setupStoreWithSyntheticSupport() {
+      const violations: { line: string; command: string; timestamp: Date }[] =
+        [];
+      mockGetSandboxViolationStore.mockReturnValue({
+        getTotalCount: () => violations.length,
+        getViolations: (limit: number) => violations.slice(-limit),
+        addViolation: (v: {
+          line: string;
+          command: string;
+          timestamp: Date;
+        }) => {
+          violations.push(v);
+        },
+      });
+    }
+
+    test("detects CredentialsProviderError, prompts user, and retries unwrapped on approval", async () => {
+      setupStoreWithSyntheticSupport();
+      mockAnnotateStderrWithSandboxFailures.mockImplementation(
+        (_cmd: string, stderr: string) => stderr,
+      );
+
+      // Set up addViolation so we can resolve it manually
+      let resolveViolation: (result: ShellResult) => void;
+      const handler = createMockViolationHandler();
+      handler.addViolation.mockReturnValue(
+        new Promise<ShellResult>((resolve) => {
+          resolveViolation = resolve;
+        }),
+      );
+
+      // 1. Create the shell and set up the first (sandboxed) process
+      const proc = createMockChildProcess();
+      mockSpawn.mockReturnValueOnce(proc);
+
+      const shell = new SandboxShell(createContext(), mockSandbox, handler);
+      const executePromise = shell.execute("aws s3 ls", createOpts());
+
+      // 2. Wait for the command to be spawned, then verify it was wrapped
+      await pollUntil(() => {
+        if (!mockSpawn.mock.calls.length) throw new Error("waiting for spawn");
+      });
+      expect(mockWrapWithSandbox).toHaveBeenCalledWith("aws s3 ls");
+      expect(mockSpawn).toHaveBeenCalledWith(
+        "bash",
+        ["-c", "sandbox-wrapped:aws s3 ls"],
+        expect.objectContaining({ cwd: "/test/cwd" }),
+      );
+
+      // 3. Simulate the sandboxed process failing with CredentialsProviderError
+      proc._emit(
+        "stderr:data",
+        Buffer.from(
+          "CredentialsProviderError: Could not load credentials from any providers",
+        ),
+      );
+      proc._emit("close", 1, null);
+
+      // 4. Wait for Linux violation detection (includes ~100ms polling timeout)
+      await pollUntil(() => {
+        if (!handler.addViolation.mock.calls.length)
+          throw new Error("waiting for addViolation");
+      });
+      expect(handler.addViolation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          command: "aws s3 ls",
+          violations: expect.arrayContaining([
+            expect.objectContaining({
+              line: expect.stringContaining("CredentialsProviderError"),
+            }),
+          ]),
+        }),
+        expect.any(Function),
+      );
+
+      // 5. Simulate user approval — call the retry callback
+      const retryFn = handler.addViolation.mock
+        .calls[0][1] as () => Promise<ShellResult>;
+      const retryProc = createMockChildProcess();
+      mockSpawn.mockReturnValueOnce(retryProc);
+      const retryPromise = retryFn();
+
+      // 6. Wait for the retry spawn, then verify it runs without sandbox wrapping
+      await pollUntil(() => {
+        if (mockSpawn.mock.calls.length < 2)
+          throw new Error("waiting for retry spawn");
+      });
+      expect(mockSpawn).toHaveBeenLastCalledWith(
+        "bash",
+        ["-c", "aws s3 ls"],
+        expect.objectContaining({ cwd: "/test/cwd" }),
+      );
+
+      // 7. Simulate the unwrapped command succeeding
+      retryProc._emit("stdout:data", Buffer.from("bucket-list-output"));
+      retryProc._emit("close", 0, null);
+
+      const retryResult = await retryPromise;
+      expect(retryResult.exitCode).toBe(0);
+
+      // Resolve the violation handler with the retry result
+      resolveViolation!(retryResult);
+      const result = await executePromise;
+      expect(result.exitCode).toBe(0);
+    });
+
+    test("does not flag non-violation errors on Linux", async () => {
+      setupStoreWithSyntheticSupport();
+
+      const proc = createMockChildProcess();
+      mockSpawn.mockReturnValueOnce(proc);
+
+      const handler = createMockViolationHandler();
+      const shell = new SandboxShell(createContext(), mockSandbox, handler);
+      const executePromise = shell.execute("cat nonexistent", createOpts());
+      await pollUntil(() => {
+        if (!mockSpawn.mock.calls.length) throw new Error("waiting for spawn");
+      });
+
+      proc._emit(
+        "stderr:data",
+        Buffer.from("Error: ENOENT: no such file or directory"),
+      );
+      proc._emit("close", 1, null);
+
+      const result = await executePromise;
+
+      expect(handler.addViolation).not.toHaveBeenCalled();
+      expect(result.exitCode).toBe(1);
       expect(mockCleanupAfterCommand).toHaveBeenCalled();
     });
   });

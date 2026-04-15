@@ -214,7 +214,7 @@ export class SandboxShell implements Shell {
 
     let postCount = store.getTotalCount();
 
-    // On Linux (bubblewrap), the sandbox has no log monitor to populate the
+    // On Linux (bubblewrap / bwrap), the sandbox has no log monitor to populate the
     // violation store. Violations manifest only as EPERM / "Permission denied"
     // errors in stderr. Detect these heuristically and synthesize violation
     // events so the user gets the same approval prompt as on macOS.
@@ -312,6 +312,7 @@ const LINUX_SANDBOX_VIOLATION_PATTERNS = [
   /Read-only file system/i,
   /EROFS/,
   /EACCES/,
+  /CredentialsProviderError/,
 ];
 
 function detectLinuxSandboxViolations(
