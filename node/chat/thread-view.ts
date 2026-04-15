@@ -302,7 +302,11 @@ ${contextView(thread.contextManager, contextViewCtx(thread))}`;
   );
   const pendingMessagesView =
     thread.core.state.pendingMessages.length > 0
-      ? d`\n✉️  ${thread.core.state.pendingMessages.length.toString()} pending message${thread.core.state.pendingMessages.length === 1 ? "" : "s"}`
+      ? d`\n✉️  ${thread.core.state.pendingMessages.length.toString()} pending message${thread.core.state.pendingMessages.length === 1 ? "" : "s"}:
+${thread.core.state.pendingMessages.map(
+  (m) => d`> ${m.text}
+`,
+)}`
       : d``;
 
   // Helper to check if a message is a tool-result-only user message
