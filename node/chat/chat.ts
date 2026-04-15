@@ -97,6 +97,10 @@ export type Msg =
   | {
       type: "toggle-thread-expand";
       id: ThreadId;
+    }
+  | {
+      type: "delete-thread";
+      id: ThreadId;
     };
 
 export type ChatMsg = {
@@ -273,6 +277,12 @@ export class Chat implements ThreadManager {
           activeThreadId: this.state.activeThreadId,
         };
         return;
+
+      case "delete-thread": {
+        const rootId = this.getRootAncestorId(msg.id);
+        this.deleteThreadSubtree(rootId);
+        return;
+      }
 
       case "toggle-thread-expand":
         if (this.expandedThreads.has(msg.id)) {
@@ -522,6 +532,43 @@ export class Chat implements ThreadManager {
     return current;
   }
 
+  private deleteThreadSubtree(rootId: ThreadId): void {
+    const childrenMap = this.buildChildrenMap();
+    const idsToDelete: ThreadId[] = [];
+    const collectIds = (id: ThreadId) => {
+      idsToDelete.push(id);
+      for (const childId of childrenMap.get(id) ?? []) {
+        collectIds(childId);
+      }
+    };
+    collectIds(rootId);
+
+    for (const id of idsToDelete) {
+      const wrapper = this.threadWrappers[id];
+      if (wrapper?.state === "initialized") {
+        wrapper.thread.abortAndWait().catch((e: Error) => {
+          this.context.nvim.logger.error(
+            `Error aborting thread ${id} during delete: ${e.message}`,
+          );
+        });
+      }
+      delete this.threadWrappers[id];
+      this.threadYieldCallbacks.delete(id);
+    }
+
+    this.expandedThreads.delete(rootId);
+
+    if (
+      this.state.activeThreadId &&
+      idsToDelete.includes(this.state.activeThreadId)
+    ) {
+      this.state = {
+        state: "thread-overview",
+        activeThreadId: undefined,
+      };
+    }
+  }
+
   private collectSubtreeViolationViews(
     threadId: ThreadId,
     childrenMap: Map<ThreadId, ThreadId[]>,
@@ -654,6 +701,14 @@ export class Chat implements ThreadManager {
         this.context.dispatch({
           type: "select-thread-effect",
           id: threadId,
+        }),
+      dd: () =>
+        this.context.dispatch({
+          type: "chat-msg",
+          msg: {
+            type: "delete-thread",
+            id: threadId,
+          },
         }),
     };
 

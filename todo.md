@@ -28,7 +28,8 @@
 
 # bug fixes, misc
 
-- when we abort, we should send a message to the agent on the next request letting them know that an abort happened
+- when we abort during a "sandbox blocked" message, it stays up even as the conversation continues
+  - this has broken a few times already, make sure we have a good test for it
 - when we error upon a user message send, we should pop the user message off the agent's history, otherwise we end up sending it twice
 - this periodic error:
 

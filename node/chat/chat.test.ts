@@ -121,4 +121,126 @@ describe("node/chat/chat.test.ts", () => {
       });
     });
   });
+
+  it("deletes entire thread subtree when pressing dd on root thread", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+
+      // Create first parent thread with a child
+      await driver.inputMagentaText("Thread to delete");
+      await driver.send();
+
+      const parentRequest =
+        await driver.mockAnthropic.awaitPendingStreamWithText(
+          "Thread to delete",
+        );
+      parentRequest.respond({
+        stopReason: "tool_use",
+        text: "Spawning a child.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "spawn-del" as ToolRequestId,
+              toolName: "spawn_subagents" as ToolName,
+              input: { agents: [{ prompt: "Child of thread to delete" }] },
+            },
+          },
+        ],
+      });
+
+      await driver.awaitThreadCount(2);
+
+      // Create a second root thread
+      await driver.magenta.command("new-thread");
+      await driver.awaitThreadCount(3);
+      await driver.inputMagentaText("Thread to keep");
+      await driver.send();
+
+      const keepRequest =
+        await driver.mockAnthropic.awaitPendingStreamWithText("Thread to keep");
+      keepRequest.respond({
+        stopReason: "end_turn",
+        text: "Done.",
+        toolRequests: [],
+      });
+
+      // Go to thread overview
+      await driver.magenta.command("threads-overview");
+      await driver.awaitChatState({ state: "thread-overview" });
+
+      // Both root threads should be visible
+      await driver.assertDisplayBufferContains(
+        `▶ Thread to delete: ⏳ executing tools (1 subthreads)`,
+      );
+      await driver.assertDisplayBufferContains(`Thread to keep:`);
+
+      // Press dd on the first root thread to delete it and its subtree
+      await driver.triggerDisplayBufferKeyOnContent(
+        `▶ Thread to delete: ⏳ executing tools (1 subthreads)`,
+        "dd",
+      );
+
+      // The deleted thread and its child should be gone
+      await driver.assertDisplayBufferDoesNotContain("Thread to delete");
+      await driver.assertDisplayBufferDoesNotContain(
+        "Child of thread to delete",
+      );
+
+      // The other thread should still be there
+      await driver.assertDisplayBufferContains(`Thread to keep:`);
+    });
+  });
+
+  it("deletes entire subtree when pressing dd on a child thread", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+
+      await driver.inputMagentaText("Root thread for dd child test");
+      await driver.send();
+
+      const parentRequest =
+        await driver.mockAnthropic.awaitPendingStreamWithText(
+          "Root thread for dd child test",
+        );
+      parentRequest.respond({
+        stopReason: "tool_use",
+        text: "Spawning.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "spawn-c" as ToolRequestId,
+              toolName: "spawn_subagents" as ToolName,
+              input: { agents: [{ prompt: "Child thread for dd test" }] },
+            },
+          },
+        ],
+      });
+
+      await driver.awaitThreadCount(2);
+
+      // Go to overview, expand the root, then dd the child
+      await driver.magenta.command("threads-overview");
+      await driver.awaitChatState({ state: "thread-overview" });
+
+      await driver.triggerDisplayBufferKeyOnContent(
+        `▶ Root thread for dd child test: ⏳ executing tools (1 subthreads)`,
+        "=",
+      );
+
+      await driver.assertDisplayBufferContains(
+        `  - Child thread for dd test: ⏳ streaming response`,
+      );
+
+      // Press dd on the child - should delete the entire root subtree
+      await driver.triggerDisplayBufferKeyOnContent(
+        `  - Child thread for dd test: ⏳ streaming response`,
+        "dd",
+      );
+
+      // Everything should be gone
+      await driver.assertDisplayBufferContains("No threads yet");
+    });
+  });
 });
