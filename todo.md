@@ -28,8 +28,6 @@
 
 # bug fixes, misc
 
-- when we terminate, all subagents end up in aborted state, even when they're done running
-- when we terminate a bash script, we don't send the partial results
 - when we abort, we should send a message to the agent on the next request letting them know that an abort happened
 - when we error upon a user message send, we should pop the user message off the agent's history, otherwise we end up sending it twice
 - this periodic error:

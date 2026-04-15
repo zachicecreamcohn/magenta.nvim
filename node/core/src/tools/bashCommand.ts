@@ -284,12 +284,23 @@ export function execute(
     })
     .then((result): ProviderToolResult => {
       if (aborted) {
+        stopTickInterval();
+        const formattedOutput = formatOutputForToolResult(
+          result.output,
+          result.exitCode,
+          result.signal,
+          result.durationMs,
+          result.logFilePath,
+        );
+        const error = formattedOutput
+          ? `Request was aborted by the user.\n\nOutput before termination:\n${formattedOutput}`
+          : "Request was aborted by the user.";
         return {
           type: "tool_result",
           id: request.id,
           result: {
             status: "error",
-            error: "Request was aborted by the user.",
+            error,
           },
         };
       }
@@ -327,12 +338,29 @@ export function execute(
     })
     .catch((error: Error): ProviderToolResult => {
       if (aborted) {
+        stopTickInterval();
+        const durationMs = progress.startTime
+          ? Date.now() - progress.startTime
+          : 0;
+        const formattedOutput =
+          progress.liveOutput.length > 0
+            ? formatOutputForToolResult(
+                progress.liveOutput,
+                1,
+                undefined,
+                durationMs,
+                undefined,
+              )
+            : "";
+        const errorMsg = formattedOutput
+          ? `Request was aborted by the user.\n\nOutput before termination:\n${formattedOutput}`
+          : "Request was aborted by the user.";
         return {
           type: "tool_result",
           id: request.id,
           result: {
             status: "error",
-            error: "Request was aborted by the user.",
+            error: errorMsg,
           },
         };
       }

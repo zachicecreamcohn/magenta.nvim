@@ -220,11 +220,11 @@ describe("bashCommand unit tests", () => {
     );
 
     invocation.abort();
-    // Resolve the shell after abort
+    // Resolve the shell after abort with partial output
     resolveShell!({
       exitCode: 0,
       signal: "SIGTERM",
-      output: [],
+      output: makeOutputLines(["partial line 1", "partial line 2"]),
       logFilePath: undefined,
       durationMs: 100,
     });
@@ -233,6 +233,47 @@ describe("bashCommand unit tests", () => {
     expect(result.result.status).toBe("error");
     if (result.result.status === "error") {
       expect(result.result.error).toContain("aborted by the user");
+      expect(result.result.error).toContain("Output before termination");
+      expect(result.result.error).toContain("partial line 1");
+      expect(result.result.error).toContain("partial line 2");
+    }
+    expect(shell.terminate).toHaveBeenCalled();
+  });
+
+  it("abort includes partial output from liveOutput on shell error", async () => {
+    let rejectShell: (error: Error) => void;
+    const shell: Shell = {
+      execute: async (_command, opts) => {
+        opts.onStart?.();
+        opts.onOutput?.({ stream: "stdout", text: "error output 1" });
+        opts.onOutput?.({ stream: "stderr", text: "error output 2" });
+        return new Promise<ShellResult>((_resolve, reject) => {
+          rejectShell = reject;
+        });
+      },
+      terminate: vi.fn(),
+    };
+
+    const requestRender = vi.fn();
+    const invocation = BashCommand.execute(
+      {
+        id: "tool_1" as ToolRequestId,
+        toolName: "bash_command" as const,
+        input: { command: "sleep 60" },
+      },
+      { shell, requestRender },
+    );
+
+    invocation.abort();
+    rejectShell!(new Error("Process killed"));
+
+    const result = await invocation.promise;
+    expect(result.result.status).toBe("error");
+    if (result.result.status === "error") {
+      expect(result.result.error).toContain("aborted by the user");
+      expect(result.result.error).toContain("Output before termination");
+      expect(result.result.error).toContain("error output 1");
+      expect(result.result.error).toContain("error output 2");
     }
     expect(shell.terminate).toHaveBeenCalled();
   });
