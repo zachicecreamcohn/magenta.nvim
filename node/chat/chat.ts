@@ -481,7 +481,7 @@ export class Chat implements ThreadManager {
         this.context.getOptions().activeProfile,
       ),
       threadType: "root",
-      subagentConfig,
+      ...(subagentConfig ? { subagentConfig } : {}),
     });
 
     return id;

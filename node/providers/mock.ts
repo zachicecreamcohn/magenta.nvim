@@ -22,7 +22,6 @@ import type {
   StopReason,
   Usage,
 } from "./provider-types.ts";
-import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
 
 function anthropicBlockIncludesText(
   block: Anthropic.Messages.ContentBlockParam,
@@ -91,7 +90,7 @@ export class MockProvider implements Provider {
   ): number {
     const CHARS_PER_TOKEN = 4;
 
-    let charCount = DEFAULT_SYSTEM_PROMPT.length;
+    let charCount = 5000;
     charCount += JSON.stringify(tools).length;
     charCount += JSON.stringify(messages).length;
 

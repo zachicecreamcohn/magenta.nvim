@@ -23,7 +23,7 @@
 //   ProviderThreadOptions,
 // } from "./provider-types.ts";
 // import type { Nvim } from "../nvim/nvim-node/index.ts";
-// import { DEFAULT_SYSTEM_PROMPT } from "./system-prompt.ts";
+// import { "You are a helpful coding assistant." } from "./system-prompt.ts";
 // import { validateInput } from "@magenta/core";
 // import type { Result } from "../utils/result.ts";
 // import type { ToolRequestId, ToolRequest } from "@magenta/core";
@@ -60,7 +60,7 @@
 //     const ollamaMessages: Message[] = [
 //       {
 //         role: "system",
-//         content: systemPrompt || DEFAULT_SYSTEM_PROMPT,
+//         content: systemPrompt || "You are a helpful coding assistant.",
 //       },
 //     ];
 //
@@ -171,7 +171,7 @@
 //     const promise = (async (): Promise<ProviderToolUseResponse> => {
 //       // Ollama doesn't support tool_choice (although it is in the roadmap)
 //       // For now, we can use structured outputs to simulate forced tool use
-//       const systemPromptText = systemPrompt || DEFAULT_SYSTEM_PROMPT;
+//       const systemPromptText = systemPrompt || "You are a helpful coding assistant.";
 //
 //       const response = await this.client.chat({
 //         model: options.model,

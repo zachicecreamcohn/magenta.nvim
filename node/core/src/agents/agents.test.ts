@@ -1,6 +1,11 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Logger } from "../logger.ts";
 import type { ProviderOptions } from "../provider-options.ts";
@@ -390,6 +395,70 @@ Prompt.`,
     });
 
     expect(Object.keys(result)).toHaveLength(0);
+  });
+});
+
+describe("builtin agents", () => {
+  const logger = createTestLogger();
+  const builtinDir = path.join(__dirname);
+
+  it("loads default, root, and docker-root from builtin path", () => {
+    const options: ProviderOptions = {
+      skillsPaths: [],
+      agentsPaths: [builtinDir],
+    };
+
+    const result = loadAgents({
+      cwd: "/tmp" as NvimCwd,
+      logger,
+      options,
+    });
+
+    expect(result["default"]).toBeDefined();
+    expect(result["default"].tier).toBe("thread");
+    expect(result["default"].systemPrompt).toContain("# Role and Context");
+    expect(result["default"].systemReminder).toBeDefined();
+
+    expect(result["subagent"]).toBeDefined();
+    expect(result["subagent"].tier).toBe("thread");
+    expect(result["subagent"].systemPrompt).toContain("# Role");
+
+    expect(result["docker"]).toBeDefined();
+    expect(result["docker"].tier).toBe("thread");
+    expect(result["docker"].systemPrompt).toContain("# Docker Environment");
+    expect(result["docker"].systemReminder).toBeDefined();
+  });
+
+  it("allows user override of default agent", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agents-override-"));
+    try {
+      fs.writeFileSync(
+        path.join(tmpDir, "default.md"),
+        `---
+name: default
+description: Custom default agent
+tier: thread
+---
+
+Custom default prompt.`,
+      );
+
+      const options: ProviderOptions = {
+        skillsPaths: [],
+        agentsPaths: [builtinDir, tmpDir],
+      };
+
+      const result = loadAgents({
+        cwd: "/tmp" as NvimCwd,
+        logger,
+        options,
+      });
+
+      expect(result["default"].description).toBe("Custom default agent");
+      expect(result["default"].systemPrompt).toBe("Custom default prompt.");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });
 

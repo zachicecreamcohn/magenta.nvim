@@ -6,12 +6,9 @@
 
 # customization
 
-- All agents should be customizable via the agents directory, including default, explore etc. If these are present in ~ or the project, they should fully replace the system ones
-
 # docker
 
 - we're still referencing some files from the host, which the agent can't actually read
-- contextFiles from the host are not available at the same paths on the docker container (we need to remap them or fail the contextFile inclusion)
 
 # UX
 
@@ -31,6 +28,9 @@
 
 # bug fixes, misc
 
+- when we terminate, all subagents end up in aborted state, even when they're done running
+- when we terminate a bash script, we don't send the partial results
+- when we abort, we should send a message to the agent on the next request letting them know that an abort happened
 - when we error upon a user message send, we should pop the user message off the agent's history, otherwise we end up sending it twice
 - this periodic error:
 

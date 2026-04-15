@@ -77,12 +77,8 @@ function resolveSubagentConfig(
 ): SubagentConfig {
   const agentType = entry.agentType;
 
-  if (!agentType || agentType === "default") {
-    return { tier: "thread" as AgentTier };
-  }
-
-  // Look up custom agent by name
-  const agentDef = agents[agentType];
+  // Look up agent by name (including "subagent" as fallback)
+  const agentDef = agentType ? agents[agentType] : agents["subagent"];
   if (agentDef) {
     return {
       agentName: agentDef.name,
@@ -93,8 +89,8 @@ function resolveSubagentConfig(
     };
   }
 
-  // Unknown agent type — treat as default
-  return { agentName: agentType, tier: "leaf" as AgentTier };
+  // Unknown agent type — treat as leaf
+  return { agentName: agentType ?? "subagent", tier: "leaf" as AgentTier };
 }
 
 export function execute(
@@ -212,6 +208,16 @@ export function execute(
       return;
     }
 
+    // contextFiles don't work for docker subagents since the container
+    // has a separate filesystem. Strip them and add a note to the prompt.
+    let prompt = entry.prompt ?? "";
+    const contextFiles = entry.contextFiles;
+    if (contextFiles && contextFiles.length > 0) {
+      const fileList = contextFiles.map((f) => `  - ${f}`).join("\n");
+      const note = `Note: The parent agent attempted to include the following context files, but they may not be present on your local Docker filesystem:\n${fileList}\nYou may need to find these files in the workspace or access them via git.\n`;
+      prompt = prompt ? `${note}\n${prompt}` : note;
+    }
+
     const containerConfig: ContainerConfig = {
       dockerfile: entry.dockerfile,
       workspacePath: entry.workspacePath,
@@ -233,10 +239,9 @@ export function execute(
 
     const threadId = await ctx.threadManager.spawnThread({
       parentThreadId: ctx.threadId,
-      prompt: entry.prompt ?? "",
+      prompt,
       threadType: "docker_root",
       subagentConfig,
-      ...(entry.contextFiles ? { contextFiles: entry.contextFiles } : {}),
       dockerSpawnConfig: {
         containerName: provisionResult.containerName,
         imageName: provisionResult.imageName,
@@ -485,7 +490,7 @@ export function getSpec(
     filteredAgentNames = [];
   }
 
-  const allAgentTypes = ["default", ...filteredAgentNames];
+  const allAgentTypes = filteredAgentNames;
 
   const agentsDescription = formatAgentsIntroduction(agents);
   const description = SPAWN_SUBAGENTS_BASE_DESCRIPTION + agentsDescription;
@@ -529,7 +534,7 @@ export function getSpec(
                 type: "string",
                 enum: allAgentTypes,
                 description:
-                  "Agent type for this sub-agent. Selects the agent personality/system-prompt. Use 'default' for general tasks, or a custom agent name.",
+                  "Agent type for this sub-agent. Selects the agent personality/system-prompt. Use 'subagent' for general tasks, or a custom agent name.",
               },
               environment: {
                 type: "string",

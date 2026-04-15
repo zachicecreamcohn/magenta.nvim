@@ -17,7 +17,8 @@ WRONG: \`command | head -100\`
 RIGHT: \`command\``;
 
 const SUBAGENT_REMINDER = `\
-Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Sub-agents have real overhead — use them for ambiguous tasks or parallel work across multiple files.`;
+Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Do not ask subagents "to return the entire contents" of files, tool or skill invocations.
+`;
 
 const BASE_REMINDER = `<system-reminder>
 ${SKILLS_REMINDER}
