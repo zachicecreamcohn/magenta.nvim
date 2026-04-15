@@ -77,8 +77,8 @@ function resolveSubagentConfig(
 ): SubagentConfig {
   const agentType = entry.agentType;
 
-  // Look up agent by name (including "default")
-  const agentDef = agentType ? agents[agentType] : agents["default"];
+  // Look up agent by name (including "subagent" as fallback)
+  const agentDef = agentType ? agents[agentType] : agents["subagent"];
   if (agentDef) {
     return {
       agentName: agentDef.name,
@@ -90,7 +90,7 @@ function resolveSubagentConfig(
   }
 
   // Unknown agent type — treat as leaf
-  return { agentName: agentType ?? "default", tier: "leaf" as AgentTier };
+  return { agentName: agentType ?? "subagent", tier: "leaf" as AgentTier };
 }
 
 export function execute(
@@ -490,7 +490,7 @@ export function getSpec(
     filteredAgentNames = [];
   }
 
-  const allAgentTypes = ["default", ...filteredAgentNames];
+  const allAgentTypes = filteredAgentNames;
 
   const agentsDescription = formatAgentsIntroduction(agents);
   const description = SPAWN_SUBAGENTS_BASE_DESCRIPTION + agentsDescription;
@@ -534,7 +534,7 @@ export function getSpec(
                 type: "string",
                 enum: allAgentTypes,
                 description:
-                  "Agent type for this sub-agent. Selects the agent personality/system-prompt. Use 'default' for general tasks, or a custom agent name.",
+                  "Agent type for this sub-agent. Selects the agent personality/system-prompt. Use 'subagent' for general tasks, or a custom agent name.",
               },
               environment: {
                 type: "string",

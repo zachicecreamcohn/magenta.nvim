@@ -1394,7 +1394,6 @@ describe("getSpec", () => {
     };
     const agentTypeEnum =
       schema.properties.agents.items.properties.agentType.enum;
-    expect(agentTypeEnum).toContain("default");
     expect(agentTypeEnum).toContain("explore");
     expect(agentTypeEnum).toContain("my-agent");
   });

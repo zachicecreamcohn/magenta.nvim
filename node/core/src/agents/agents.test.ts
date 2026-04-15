@@ -416,19 +416,17 @@ describe("builtin agents", () => {
 
     expect(result["default"]).toBeDefined();
     expect(result["default"].tier).toBe("thread");
-    expect(result["default"].systemPrompt).toContain("# Role");
+    expect(result["default"].systemPrompt).toContain("# Role and Context");
+    expect(result["default"].systemReminder).toBeDefined();
 
-    expect(result["root"]).toBeDefined();
-    expect(result["root"].tier).toBe("thread");
-    expect(result["root"].systemPrompt).toContain("# Role and Context");
-    expect(result["root"].systemReminder).toBeDefined();
+    expect(result["subagent"]).toBeDefined();
+    expect(result["subagent"].tier).toBe("thread");
+    expect(result["subagent"].systemPrompt).toContain("# Role");
 
-    expect(result["docker-root"]).toBeDefined();
-    expect(result["docker-root"].tier).toBe("thread");
-    expect(result["docker-root"].systemPrompt).toContain(
-      "# Docker Environment",
-    );
-    expect(result["docker-root"].systemReminder).toBeDefined();
+    expect(result["docker"]).toBeDefined();
+    expect(result["docker"].tier).toBe("thread");
+    expect(result["docker"].systemPrompt).toContain("# Docker Environment");
+    expect(result["docker"].systemReminder).toBeDefined();
   });
 
   it("allows user override of default agent", () => {

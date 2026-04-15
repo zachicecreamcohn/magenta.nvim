@@ -45,10 +45,10 @@ function getBaseSystemPrompt(
   // Fall back to loading agents from disk
   const agentName =
     type === "root"
-      ? "root"
+      ? "default"
       : type === "docker_root"
-        ? "docker-root"
-        : "default";
+        ? "docker"
+        : "subagent";
 
   const agents = loadAgents({
     cwd: opts.cwd,
