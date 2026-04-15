@@ -638,6 +638,11 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       this.rebuildToolCache();
     }
 
+    this.agent.appendUserMessage([
+      { type: "text", text: "[The user aborted the previous request.]" },
+    ]);
+    this.emit("update");
+
     this.update({ type: "set-mode", mode: { type: "normal" } });
   }
 

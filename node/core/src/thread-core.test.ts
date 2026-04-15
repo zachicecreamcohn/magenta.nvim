@@ -266,6 +266,101 @@ describe("ThreadCore.abort on yielded thread", () => {
   });
 });
 
+describe("ThreadCore.abort appends user abort message", () => {
+  it("appends abort message when aborting during streaming", async () => {
+    const { core, mockClient } = createThreadCoreWithMock();
+
+    core.sendMessage([{ type: "user", text: "hello" }]);
+    const stream = await mockClient.awaitStream();
+
+    // Start streaming text but don't finish
+    stream.streamText("Here is a partial response");
+
+    // Abort while streaming
+    await core.abort();
+
+    // The last message should be a user message with the abort text
+    const messages = core.getProviderMessages();
+    const lastMessage = messages[messages.length - 1];
+    expect(lastMessage.role).toBe("user");
+    expect(lastMessage.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "text",
+          text: "[The user aborted the previous request.]",
+        }),
+      ]),
+    );
+  });
+
+  it("appends abort message after tool_result errors when aborting during tool_use", async () => {
+    // Use a fileIO where stat blocks so the tool stays pending
+    let resolveStat!: () => void;
+    const statPromise = new Promise<{ mtimeMs: number; size: number }>(
+      (resolve) => {
+        resolveStat = () => resolve({ mtimeMs: 0, size: 100 });
+      },
+    );
+    const { core, mockClient } = createThreadCoreWithMock({
+      fileIO: {
+        readFile: async () => "file contents",
+        writeFile: async () => {},
+        fileExists: async () => true,
+        stat: async () => statPromise,
+      } as unknown as ThreadCoreContext["fileIO"],
+    });
+
+    core.sendMessage([{ type: "user", text: "hello" }]);
+    const stream = await mockClient.awaitStream();
+
+    const toolUseId = "tool-abort-1" as ToolRequestId;
+
+    // Stream a tool_use block and finish with tool_use stop reason
+    stream.streamToolUse(toolUseId, "get_file" as ToolName, {
+      filePath: "/tmp/test.txt",
+    });
+    stream.finishResponse("tool_use");
+
+    // Wait for tool_use mode
+    await pollUntil(() => {
+      if (core.state.mode.type === "tool_use") return true;
+      throw new Error(
+        `waiting for tool_use mode, currently: ${core.state.mode.type}`,
+      );
+    });
+
+    // Abort while in tool_use mode (tool is still pending)
+    const abortPromise = core.abort();
+    resolveStat();
+    await abortPromise;
+
+    // The last message should be the abort user message
+    const messages = core.getProviderMessages();
+    const lastMessage = messages[messages.length - 1];
+    expect(lastMessage.role).toBe("user");
+    expect(lastMessage.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "text",
+          text: "[The user aborted the previous request.]",
+        }),
+      ]),
+    );
+
+    // There should also be a tool_result error message before the abort message
+    const secondToLast = messages[messages.length - 2];
+    expect(secondToLast.role).toBe("user");
+    expect(secondToLast.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "tool_result",
+          id: toolUseId,
+        }),
+      ]),
+    );
+  });
+});
+
 describe("SubagentSupervisor yield tag detection", () => {
   it("nudges agent when it writes a <yield_to_parent> XML tag instead of calling the tool", async () => {
     const { core, mockClient } = createThreadCoreWithMock({

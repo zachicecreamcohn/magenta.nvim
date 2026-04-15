@@ -33,6 +33,16 @@ Don't spawn sub-agents for things you can do with a single tool call (get_file, 
     "content": [
       {
         "citations": undefined,
+        "text": "[The user aborted the previous request.]",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "citations": undefined,
         "text": "Second message while first is pending",
         "type": "text",
       },
@@ -145,6 +155,16 @@ Don't spawn sub-agents for things you can do with a single tool call (get_file, 
     "content": [
       {
         "citations": undefined,
+        "text": "[The user aborted the previous request.]",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "citations": undefined,
         "text": "Cancel that, run something else",
         "type": "text",
       },
@@ -238,6 +258,15 @@ Don't spawn sub-agents for things you can do with a single tool call (get_file, 
   {
     "content": [
       {
+        "text": "[The user aborted the previous request.]",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
         "text": "Actually, tell me about 5+5",
         "type": "text",
       },
@@ -320,6 +349,15 @@ Don't spawn sub-agents for things you can do with a single tool call (get_file, 
         "is_error": true,
         "tool_use_id": "bash-tool",
         "type": "tool_result",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "text": "[The user aborted the previous request.]",
+        "type": "text",
       },
     ],
     "role": "user",

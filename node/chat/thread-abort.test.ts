@@ -267,6 +267,7 @@ it("inserts error tool results when aborting while stopped waiting for tool use"
       "assistant:text",
       "assistant:tool_use",
       "user:tool_result", // error tool result from abort
+      "user:text", // abort notification
       "user:text",
       "user:text", // system_reminder
     ]);
@@ -433,9 +434,11 @@ it("removes server_tool_use content when aborted before receiving results", asyn
 
     // The server tool use should be removed since no result was received
     const messagesAfterAbort = thread.getProviderMessages();
-    const contentTypesAfterAbort = messagesAfterAbort[
-      messagesAfterAbort.length - 1
-    ].content.map((c) => c.type);
+    // Last message is the abort notification; check the assistant message before it
+    const assistantMessage = messagesAfterAbort.findLast(
+      (m) => m.role === "assistant",
+    )!;
+    const contentTypesAfterAbort = assistantMessage.content.map((c) => c.type);
     expect(contentTypesAfterAbort).toEqual(["text"]);
   });
 });
