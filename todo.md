@@ -14,12 +14,11 @@
 
 - make the user messages more visually distinct. Background highlight maybe?
 - we don't need ``` in the display buffer. Just drop those
-- collapse threads in the thread overview by default, and only show subthreads when expanded via "="
-- show pending permissions / sandbox failures in the thread overview
 - startup time still occasionally slow. Need debugging
 - drop the full context listing, instead just show the pending context updates
 - when the AI ends its turn, show a summary of all the edited files, so we can easily navigate to them
 - when we have pending @async messages, we should show the text of the message instead of just the message count
+- still some erratic scrolling behavior
 
 # features
 
@@ -28,8 +27,12 @@
 
 # bug fixes, misc
 
+- we should be able to @fork during the assistant's turn, tool use, etc... without aborting the thread we're in
 - when we abort during a "sandbox blocked" message, it stays up even as the conversation continues
   - this has broken a few times already, make sure we have a good test for it
+- revisit the buffer handling. Keep getting stuck in buffer not matching the file state
+  - try to write buffer before agent reads, but read from the disk with warning even if it doesn't work
+  - try to read buffer after agent writes, but let the agent write to the file and surface a warning even if it doesn't work
 - when we error upon a user message send, we should pop the user message off the agent's history, otherwise we end up sending it twice
 - this periodic error:
 
