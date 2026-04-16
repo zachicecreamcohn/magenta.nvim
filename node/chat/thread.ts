@@ -107,6 +107,9 @@ export type Msg =
       type: "toggle-compaction-step";
       recordIdx: number;
       stepIdx: number;
+    }
+  | {
+      type: "toggle-sandbox-bypass";
     };
 
 export type ThreadMsg = {
@@ -149,6 +152,7 @@ export class Thread {
   public core: ThreadCore;
   private myDispatch: Dispatch<Msg>;
   public sandboxViolationHandler: SandboxViolationHandler | undefined;
+  public sandboxBypassed = false;
 
   get contextManager(): ContextManager {
     return this.core.contextManager;
@@ -166,6 +170,12 @@ export class Thread {
     this.core.supervisor = value;
   }
 
+  get isSandboxBypassed(): boolean {
+    const parent = this.context.getParentThread?.();
+    if (parent) return parent.isSandboxBypassed;
+    return this.sandboxBypassed;
+  }
+
   constructor(
     public id: ThreadId,
     threadType: ThreadType,
@@ -180,6 +190,7 @@ export class Thread {
       homeDir: HomeDir;
       options: MagentaOptions;
       getDisplayWidth: () => number;
+      getParentThread?: () => Thread | undefined;
       environment: Environment;
       initialFiles?: ContextFiles;
       subagentConfig?: SubagentConfig;
@@ -423,6 +434,17 @@ export class Thread {
         };
         vs.expandedSteps[msg.stepIdx] = !vs.expandedSteps[msg.stepIdx];
         this.state.compactionViewState[msg.recordIdx] = vs;
+        return;
+      }
+
+      case "toggle-sandbox-bypass": {
+        let root: Thread = this;
+        let parentThread = root.context.getParentThread?.();
+        while (parentThread) {
+          root = parentThread;
+          parentThread = root.context.getParentThread?.();
+        }
+        root.sandboxBypassed = !root.sandboxBypassed;
         return;
       }
 

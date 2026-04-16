@@ -137,6 +137,7 @@ function createContext() {
       ({
         sandbox: defaultSandboxConfig,
       }) as MagentaOptions,
+    isBypassed: () => false,
   };
 }
 
@@ -373,6 +374,27 @@ describe("SandboxShell", () => {
       context.cwd,
       context.homeDir,
     );
+  });
+
+  test("bypass skips sandbox wrapping", async () => {
+    setupSpawnSuccess("direct output", 0);
+    const handler = createMockViolationHandler();
+    const context = {
+      ...createContext(),
+      isBypassed: () => true,
+    };
+    const shell = new SandboxShell(context, mockSandbox, handler);
+
+    const result = await shell.execute("echo hello", createOpts());
+
+    expect(mockWrapWithSandbox).not.toHaveBeenCalled();
+    expect(mockSpawn).toHaveBeenCalledWith(
+      "bash",
+      ["-c", "echo hello"],
+      expect.objectContaining({ cwd: "/test/cwd" }),
+    );
+    expect(result.exitCode).toBe(0);
+    expect(handler.promptForApproval).not.toHaveBeenCalled();
   });
 
   test("terminate delegates to running process", () => {

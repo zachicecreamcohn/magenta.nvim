@@ -108,6 +108,21 @@ Credential exfiltration:
   Protection: These paths are in the default denyRead list. The agent
   cannot read them unless explicitly allowed.
 
+SANDBOX BYPASS~
+
+You can temporarily disable the sandbox for the current thread tree using
+`:Magenta sandbox-bypass` or `<leader>ms`. This skips all sandbox wrapping,
+approval prompts, and file write permission checks. The bypass applies to
+the entire thread tree (root thread and all sub-agents).
+
+When active, a red "SANDBOX OFF" indicator appears in the input winbar.
+Run the command again to re-enable sandbox protections.
+
+Use this when you trust the agent's actions and want to eliminate approval
+friction — for example, when iterating quickly on a known-safe codebase.
+Be aware that with bypass active, none of the protections described above
+(sandbox wrapping, approval prompts, write checks) are enforced.
+
 WHAT IT DOES NOT PROTECT AGAINST~
 
 Approved commands run without sandbox:

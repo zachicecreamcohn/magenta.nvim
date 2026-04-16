@@ -19,6 +19,7 @@
 - when the AI ends its turn, show a summary of all the edited files, so we can easily navigate to them
 - when we have pending @async messages, we should show the text of the message instead of just the message count
 - still some erratic scrolling behavior
+- when a thread is titled, we should use that title somehow in the buffer name (instead of just using an opaque id, though still need to make sure it's unique)
 
 # features
 

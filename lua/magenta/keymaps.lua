@@ -66,6 +66,13 @@ M.default_keymaps = function()
     { silent = true, noremap = true, desc = "Create a new worktree orchestrator thread" }
   )
 
+  vim.keymap.set(
+    "n",
+    "<leader>ms",
+    ":Magenta sandbox-bypass<CR>",
+    { silent = true, noremap = true, desc = "Toggle sandbox bypass for current thread tree" }
+  )
+
 end
 
 local mode_to_keymap = {

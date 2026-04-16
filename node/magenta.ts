@@ -162,6 +162,7 @@ export class Magenta {
       },
       this.bufferManager,
       () => this.getActiveKey(),
+      () => this.chat.isSandboxBypassed(this.chat.state.activeThreadId),
     );
   }
 
@@ -436,6 +437,18 @@ export class Magenta {
           type: "sidebar-msg",
           msg: { type: "scroll-to-bottom" },
         });
+        break;
+      }
+
+      case "sandbox-bypass": {
+        const activeThreadId = this.chat.state.activeThreadId;
+        if (activeThreadId) {
+          this.dispatch({
+            type: "thread-msg",
+            id: activeThreadId,
+            msg: { type: "toggle-sandbox-bypass" },
+          });
+        }
         break;
       }
 

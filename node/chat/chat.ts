@@ -335,6 +335,7 @@ export class Chat implements ThreadManager {
     fileIO,
     environmentConfig,
     dockerSpawnConfig,
+    getParentThread,
   }: {
     threadId: ThreadId;
     profile: Profile;
@@ -346,6 +347,7 @@ export class Chat implements ThreadManager {
     fileIO?: FileIO;
     environmentConfig?: EnvironmentConfig;
     dockerSpawnConfig?: DockerSpawnConfig | undefined;
+    getParentThread?: () => Thread | undefined;
   }) {
     this.threadWrappers[threadId] = {
       state: "pending",
@@ -357,6 +359,8 @@ export class Chat implements ThreadManager {
     const resolvedConfig: EnvironmentConfig = environmentConfig ?? {
       type: "local",
     };
+
+    const bypassRef = { get: () => false as boolean };
 
     const [autoContextFiles, environment] = await Promise.all([
       resolveAutoContext({
@@ -385,6 +389,7 @@ export class Chat implements ThreadManager {
                   id: threadId,
                   msg: { type: "permission-pending-change" },
                 }),
+              isBypassed: () => bypassRef.get(),
             }),
           ),
     ]);
@@ -422,7 +427,10 @@ export class Chat implements ThreadManager {
       environment,
       initialFiles,
       ...(subagentConfig ? { subagentConfig } : {}),
+      ...(getParentThread ? { getParentThread } : {}),
     });
+
+    bypassRef.get = () => thread.isSandboxBypassed;
 
     if (contextFiles.length > 0) {
       await thread.contextManager.addFiles(contextFiles);
@@ -890,6 +898,8 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       };
     }
 
+    const forkBypassRef = { get: () => false as boolean };
+
     const forkEnvironment = createLocalEnvironment({
       nvim: this.context.nvim,
       lsp: this.context.lsp,
@@ -905,6 +915,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
           id: newThreadId,
           msg: { type: "permission-pending-change" },
         }),
+      isBypassed: () => forkBypassRef.get(),
     });
 
     const thread = new Thread(
@@ -922,6 +933,9 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       },
       clonedAgent,
     );
+
+    thread.sandboxBypassed = sourceThread.isSandboxBypassed;
+    forkBypassRef.get = () => thread.isSandboxBypassed;
 
     this.context.dispatch({
       type: "chat-msg",
@@ -1005,6 +1019,13 @@ ${threadViews.map((view) => d`${view}\n`)}`;
   }
   getThreadPendingApprovalTools(_threadId: ThreadId): never[] {
     return [];
+  }
+
+  isSandboxBypassed(threadId: ThreadId | undefined): boolean {
+    if (!threadId) return false;
+    const wrapper = this.threadWrappers[threadId];
+    if (!wrapper || wrapper.state !== "initialized") return false;
+    return wrapper.thread.isSandboxBypassed;
   }
 
   getThreadSummary(threadId: ThreadId): {
@@ -1168,6 +1189,10 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       ...(opts.subagentConfig ? { subagentConfig: opts.subagentConfig } : {}),
       environmentConfig,
       dockerSpawnConfig: opts.dockerSpawnConfig,
+      getParentThread: () => {
+        const wrapper = this.threadWrappers[parentThreadId];
+        return wrapper?.state === "initialized" ? wrapper.thread : undefined;
+      },
     });
 
     return thread.id;

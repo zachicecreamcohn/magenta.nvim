@@ -37,11 +37,13 @@ const homeDir = "/test/home" as HomeDir;
 
 function createSandboxIO(
   promptForWriteApproval: (absPath: string) => Promise<void> = vi.fn(),
+  isBypassed: () => boolean = () => false,
 ) {
   return new SandboxFileIO(
     { nvim: {} as never, cwd, homeDir },
     createMockSandbox(),
     promptForWriteApproval,
+    isBypassed,
   );
 }
 
@@ -208,6 +210,12 @@ describe("SandboxFileIO", () => {
       currentSandboxState = { status: "uninitialized" };
       const sio = createSandboxIO();
       expect(sio.isWriteBlocked("/test/cwd/file.ts")).toBe(true);
+    });
+
+    test("writes are not blocked when bypassed", () => {
+      currentSandboxState = { status: "uninitialized" };
+      const sio = createSandboxIO(vi.fn(), () => true);
+      expect(sio.isWriteBlocked("/test/cwd/file.ts")).toBe(false);
     });
   });
 

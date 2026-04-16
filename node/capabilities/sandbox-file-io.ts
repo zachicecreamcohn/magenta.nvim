@@ -24,6 +24,7 @@ export class SandboxFileIO implements FileIO {
     },
     private sandbox: Sandbox,
     private promptForWriteApproval: (absPath: string) => Promise<void>,
+    private isBypassed: () => boolean,
   ) {}
 
   private resolvePath(path: string): AbsFilePath {
@@ -79,6 +80,7 @@ export class SandboxFileIO implements FileIO {
   }
 
   isWriteBlocked(absPath: string): boolean {
+    if (this.isBypassed()) return false;
     if (this.sandbox.getState().status !== "ready") return true;
     const writeConfig = this.sandbox.getFsWriteConfig();
     const inAllowed = writeConfig.allowOnly.some((pattern) =>

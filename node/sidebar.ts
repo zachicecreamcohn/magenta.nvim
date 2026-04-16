@@ -149,6 +149,7 @@ export class Sidebar {
     private getTokenCount: () => number,
     public bufferManager: BufferManager,
     private getActiveKey: () => ThreadId | "overview",
+    private getIsSandboxBypassed: () => boolean,
   ) {
     this.state = {
       state: "hidden",
@@ -170,7 +171,11 @@ export class Sidebar {
         ? `~${Math.round(tokenCount / 1000)}K`
         : `~${tokenCount}`;
 
-    return `${baseTitle} [${tokenDisplay} tokens]`;
+    const bypassIndicator = this.getIsSandboxBypassed()
+      ? " %#ErrorMsg# SANDBOX OFF %#Normal#"
+      : "";
+
+    return `${baseTitle} [${tokenDisplay} tokens]${bypassIndicator}`;
   }
 
   async onWinClosed() {

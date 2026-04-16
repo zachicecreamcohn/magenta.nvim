@@ -36,6 +36,12 @@ EX COMMANDS                                            *magenta-ex-commands*
 :Magenta pick-provider                                  *:Magenta-pick-provider*
     Open picker to select provider and model.
 
+:Magenta sandbox-bypass                                 *:Magenta-sandbox-bypass*
+    Toggle sandbox bypass for the current thread tree. When active,
+    all sandbox wrapping, approval prompts, and write permission checks
+    are skipped. Shown as a red "SANDBOX OFF" indicator in the input
+    winbar. Affects the entire thread tree (root + all sub-agents).
+
 
 ==============================================================================
 DEFAULT KEYMAPS                                      *magenta-default-keymaps*
@@ -48,6 +54,10 @@ Chat and thread management:~
     `<leader>mn`    Create new thread               |:Magenta-new-thread|
     `<leader>mc`    Clear Magenta state             |:Magenta-clear|
     `<leader>ma`    Abort current operation         |:Magenta-abort|
+
+Sandbox:~
+
+    `<leader>ms`    Toggle sandbox bypass           |:Magenta-sandbox-bypass|
 
 Context management:~
 

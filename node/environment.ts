@@ -50,6 +50,7 @@ export function createLocalEnvironment({
   threadId,
   sandbox,
   onPendingChange,
+  isBypassed,
 }: {
   nvim: Nvim;
   lsp: Lsp;
@@ -59,6 +60,7 @@ export function createLocalEnvironment({
   threadId: ThreadId;
   sandbox: Sandbox;
   onPendingChange: () => void;
+  isBypassed: () => boolean;
 }): Environment {
   const violationHandler = new SandboxViolationHandlerImpl(onPendingChange);
 
@@ -66,10 +68,11 @@ export function createLocalEnvironment({
     { nvim, cwd, homeDir },
     sandbox,
     (absPath) => violationHandler.promptForWriteApproval(absPath),
+    isBypassed,
   );
 
   const sandboxShell = new SandboxShell(
-    { cwd, homeDir, threadId, getOptions },
+    { cwd, homeDir, threadId, getOptions, isBypassed },
     sandbox,
     violationHandler,
   );

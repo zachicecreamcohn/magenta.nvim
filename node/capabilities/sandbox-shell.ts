@@ -30,6 +30,7 @@ export class SandboxShell implements Shell {
       homeDir: HomeDir;
       threadId: ThreadId;
       getOptions: () => MagentaOptions;
+      isBypassed: () => boolean;
     },
     private sandbox: Sandbox,
     private violationHandler: SandboxViolationHandler,
@@ -165,6 +166,10 @@ export class SandboxShell implements Shell {
       onStart?: () => void;
     },
   ): Promise<ShellResult> {
+    if (this.context.isBypassed()) {
+      return this.spawnCommand(command, opts);
+    }
+
     if (this.sandbox.getState().status !== "ready") {
       return this.violationHandler.promptForApproval(command, () =>
         this.spawnCommand(command, opts),
