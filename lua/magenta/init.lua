@@ -3,10 +3,28 @@ local Options = require("magenta.options")
 require("magenta.actions")
 local M = {}
 
+local TIMINGS = vim.env.MAGENTA_TIMINGS ~= nil
+
 M.setup = function(opts)
+  local start_time = vim.loop.hrtime()
+  if TIMINGS then
+    vim.notify(string.format("[magenta] setup start: %.3fms", 0), vim.log.levels.INFO)
+  end
+
   Options.set_options(opts)
   M.start(true)
+
+  if TIMINGS then
+    local after_start = (vim.loop.hrtime() - start_time) / 1e6
+    vim.notify(string.format("[magenta] after M.start (node job spawned): %.3fms", after_start), vim.log.levels.INFO)
+  end
+
   require("magenta.keymaps").default_keymaps()
+
+  if TIMINGS then
+    local after_keymaps = (vim.loop.hrtime() - start_time) / 1e6
+    vim.notify(string.format("[magenta] setup complete (keymaps registered): %.3fms", after_keymaps), vim.log.levels.INFO)
+  end
 end
 
 M.testSetup = function()
@@ -27,13 +45,10 @@ M.start = function(silent)
   local __filename = debug.getinfo(1, "S").source:sub(2)
   local plugin_root = vim.fn.fnamemodify(__filename, ":p:h:h:h") .. "/"
 
-  local env = {
-    IS_DEV = false,
-    LOG_LEVEL = "info",
-    -- Forward X11 display for GUI applications (e.g., browser automation)
-    DISPLAY = vim.env.DISPLAY,
-    XAUTHORITY = vim.env.XAUTHORITY,
-  }
+  local env = vim.fn.environ()
+  env.IS_DEV = "false"
+  env.LOG_LEVEL = "info"
+  env.MAGENTA_TIMINGS = vim.env.MAGENTA_TIMINGS
 
   if vim.env.MAGENTA_NODE_INSPECT then
     env.NODE_OPTIONS = "--inspect=" .. vim.env.MAGENTA_NODE_INSPECT
@@ -73,7 +88,14 @@ local visual_commands = {
   "paste-selection",
 }
 
+M._setup_hrtime = nil
+
 M.bridge = function(channelId)
+  if TIMINGS then
+    local bridge_time = vim.loop.hrtime()
+    vim.notify(string.format("[magenta] bridge called (node process connected): %.3fms since epoch", bridge_time / 1e6), vim.log.levels.INFO)
+  end
+
   -- Store the channel ID for later use by other functions
   M.channel_id = channelId
 
