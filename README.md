@@ -11,15 +11,15 @@
 
 Magenta provides transparent tools to empower AI workflows in neovim. It allows fluid shifting of control between the developer and the AI, from AI automation and agent-led feature planning and development.
 
-Developed by [dlants.me](https://dlants.me): I was tempted by other editors due to lack of high-quality agentic coding support in neovim. I missed neovim a lot, though, so I decided to go back and implement my own. I now happily code in neovim using magenta, and find that it's just as good as cursor, windsurf, ampcode & claude code.
+Developed by [dlants.me](https://dlants.me?ref=magenta.nvim): I was tempted by other editors due to lack of high-quality agentic coding support in neovim. I missed neovim a lot, though, so I decided to go back and implement my own. I now happily code in neovim using magenta, and find that it's just as good as cursor, windsurf, ampcode & claude code.
 
 I sometimes write about AI, neovim and magenta specifically:
 
-- [With AI, you barely need a frontend framework](https://dlants.me/vamp.html)
-- [How does AI change software engineering?](https://dlants.me/ai-se.html)
-- [Why I don't think AGI is imminent](https://dlants.me/agi-not-imminent.html)
-- [AI whiplash, and neovim in the age of AI](https://dlants.me/ai-whiplash.html)
-- [AI is not mid](https://dlants.me/ai-mid.html)
+- [With AI, you barely need a frontend framework](https://dlants.me/vamp.html?ref=magenta.nvim)
+- [How does AI change software engineering?](https://dlants.me/ai-se.html?ref=magenta.nvim)
+- [Why I don't think AGI is imminent](https://dlants.me/agi-not-imminent.html?ref=magenta.nvim)
+- [AI whiplash, and neovim in the age of AI](https://dlants.me/ai-whiplash.html?ref=magenta.nvim)
+- [AI is not mid](https://dlants.me/ai-mid.html?ref=magenta.nvim)
 
 🔍 **Also check out [pkb](https://github.com/dlants/pkb)**: A CLI for building a local knowledge base with LLM-based context augmentation and embeddings for semantic search. Can be used as a claude skill.
 
