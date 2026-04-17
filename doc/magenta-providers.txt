@@ -63,6 +63,33 @@ How it works:~
   - Tokens stored in `~/.local/share/magenta/auth.json` (0600 permissions)
   - Refresh tokens managed automatically
 
+                                                    *magenta-claude-keychain*
+CLAUDE CODE KEYCHAIN AUTHENTICATION ~
+
+On macOS, reuse the Anthropic Console API key that Claude Code stores in
+the login Keychain (after authentication with the "Anthropic Console Account" / API-usage-billing
+sign-in mode of Claude Code). Magenta will load the key from the Keychain
+at startup; no environment variable is required.
+>lua
+    {
+      name = "claude-keychain",
+      provider = "anthropic",
+      model = "claude-sonnet-4-5",
+      authType = "keychain"
+      -- No apiKeyEnvVar needed
+    }
+<
+
+How it works:~
+  - Runs `security find-generic-password -s "Claude Code" -a $USER -w`
+    to read the `sk-ant-*` key Claude Code stored in the login Keychain
+  - Requests include the Claude Code system-prompt shim, since some orgs
+    restrict console-managed keys to Claude-Code-shaped traffic
+    will fail without an API key
+
+Requires: You must have signed into Claude Code using the "Anthropic
+Console Account (API usage billing)" option at least once on this machine.
+
 ==============================================================================
 DEPRECATED PROVIDERS                            *magenta-deprecated-providers*
                                                              *magenta-openai*

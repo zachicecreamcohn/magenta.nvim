@@ -75,6 +75,7 @@ The project includes a sample Dockerfile at `docker/Dockerfile`. See
 - Agent tier system: agents have `leaf`, `thread`, or `orchestrator` tiers that control spawn permissions. New `worktree` orchestrator agent replaces the conductor. New `:Magenta agent <name>` command.
 - Test segmentation: `TEST_MODE` env var splits tests into sandbox (local) and full-capabilities (docker) modes. New `tests-in-sandbox` subagent for fast local feedback.
 - Renamed the `docs` tool to `learn` tool.
+- Claude Code keychain auth: new `authType = "keychain"` profile option (macOS) reuses the Anthropic Console API key that Claude Code stores in the login Keychain, for users on the "Anthropic Console Account (API usage billing)" sign-in mode.
 
 ## Mar 2026
 
@@ -202,6 +203,7 @@ require('magenta').setup({
 ## Supported Providers
 
 - **anthropic** - Claude models via [Anthropic SDK](https://github.com/anthropics/anthropic-sdk-typescript)
+  - Supports three auth modes: `authType = "key"` (env var), `authType = "max"` (OAuth with your Claude subscription), and `authType = "keychain"` (macOS only — reads the Anthropic Console API key Claude Code stored in the login Keychain).
 
 See `:help magenta-providers` for detailed provider configuration.
 
