@@ -26,11 +26,12 @@ export type ProviderProfile = {
     | {
         enabled: boolean;
         budgetTokens?: number;
+        displayThinking?: boolean;
       }
     | undefined;
   reasoning?:
     | {
-        effort?: "low" | "medium" | "high";
+        effort?: "low" | "medium" | "high" | "xhigh";
         summary?: "auto" | "concise" | "detailed";
       }
     | undefined;

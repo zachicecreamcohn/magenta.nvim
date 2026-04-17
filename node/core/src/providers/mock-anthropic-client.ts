@@ -114,6 +114,8 @@ export class MockStream {
           model: "mock-model",
           stop_reason: null,
           stop_sequence: null,
+          container: null,
+          stop_details: null,
           usage: {
             input_tokens: 0,
             output_tokens: 0,
@@ -166,7 +168,7 @@ export class MockStream {
     this.pushEvent({
       type: "content_block_start",
       index,
-      content_block: { type: "tool_use", id, name, input: {} },
+      content_block: { type: "tool_use", id, name, input: {}, caller: { type: 'direct' as const } },
     });
     this.pushEvent({
       type: "content_block_delta",
@@ -286,6 +288,8 @@ export class MockStream {
       delta: {
         stop_reason: stopReason as Anthropic.Message["stop_reason"],
         stop_sequence: null,
+        container: null,
+        stop_details: null,
       },
       usage: {
         output_tokens: usage.outputTokens,

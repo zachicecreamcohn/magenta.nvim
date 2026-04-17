@@ -1294,6 +1294,7 @@ it("shows EDL script preview while streaming", async () => {
         id: "edl-preview-test",
         name: "edl",
         input: {},
+        caller: { type: 'direct' as const },
       },
     });
 

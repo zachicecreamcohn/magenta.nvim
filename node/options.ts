@@ -21,7 +21,7 @@ const DEFAULT_MODELS: Record<
   { model: string; fastModel?: string }
 > = {
   anthropic: {
-    model: "claude-opus-4-6",
+    model: "claude-opus-4-7",
     fastModel: "claude-haiku-4-5",
   },
   openai: {
@@ -36,7 +36,7 @@ const DEFAULT_MODELS: Record<
     model: "llama3.1:8b",
   },
   copilot: {
-    model: "claude-opus-4-6",
+    model: "claude-opus-4-7",
     fastModel: "claude-haiku-4-5",
   },
   mock: {
@@ -59,11 +59,12 @@ export type Profile = {
     | {
         enabled: boolean;
         budgetTokens?: number;
+        displayThinking?: boolean;
       }
     | undefined;
   reasoning?:
     | {
-        effort?: "low" | "medium" | "high";
+        effort?: "low" | "medium" | "high" | "xhigh";
         summary?: "auto" | "concise" | "detailed";
       }
     | undefined;
@@ -364,6 +365,9 @@ function parseProfiles(
                 `Invalid budgetTokens in profile ${p.name}, must be a number >= 1024`,
               );
             }
+            if (typeof thinking.displayThinking === "boolean") {
+              out.thinking.displayThinking = thinking.displayThinking;
+            }
           } else {
             logger.warn(
               `Invalid thinking config in profile ${p.name}, must have enabled boolean field`,
@@ -384,7 +388,7 @@ function parseProfiles(
           if ("effort" in reasoning) {
             if (
               typeof reasoning.effort === "string" &&
-              ["low", "medium", "high"].includes(reasoning.effort)
+              ["low", "medium", "high", "xhigh"].includes(reasoning.effort)
             ) {
               out.reasoning.effort = reasoning.effort as
                 | "low"
@@ -392,7 +396,7 @@ function parseProfiles(
                 | "high";
             } else {
               logger.warn(
-                `Invalid effort in profile ${p.name}, must be "low", "medium", or "high"`,
+                `Invalid effort in profile ${p.name}, must be "low", "medium", "high", or "xhigh"`,
               );
             }
           }

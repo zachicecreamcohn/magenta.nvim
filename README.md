@@ -15,6 +15,8 @@ Developed by [dlants.me](https://dlants.me): I was tempted by other editors due 
 
 I sometimes write about AI, neovim and magenta specifically:
 
+- [With AI, you barely need a frontend framework](https://dlants.me/vamp.html)
+- [How does AI change software engineering?](https://dlants.me/ai-se.html)
 - [Why I don't think AGI is imminent](https://dlants.me/agi-not-imminent.html)
 - [AI whiplash, and neovim in the age of AI](https://dlants.me/ai-whiplash.html)
 - [AI is not mid](https://dlants.me/ai-mid.html)
@@ -23,7 +25,7 @@ I sometimes write about AI, neovim and magenta specifically:
 
 **Note**: I mostly develop using the Anthropic provider, so Claude Opus is recommended. I decided to drop support for other providers for now, since I am more interested in exploring the features space. If another provider becomes significantly better or cheaper, I'll probably add it.
 
-📖 **Documentation**: Run `:help magenta.nvim` in Neovim for complete documentation.
+📖 **Documentation**: Run `:help magenta.nvim` or ask magenta for complete documentation.
 
 ## Demos
 
@@ -31,51 +33,61 @@ I sometimes write about AI, neovim and magenta specifically:
 
 [![June 2025 demo](https://img.youtube.com/vi/W_YctNT20NQ/0.jpg)](https://www.youtube.com/watch?v=W_YctNT20NQ)
 
-## Features
+# Why would I use this instead of claude code / another cli agent harness?
 
-- Multi-threading support, forks and compaction
-- Sub-agents for parallel task processing
-- Web search server_tool_use with citations
-- MCP (Model Context Protocol) tools
-- Smart context tracking with automatic diffing
-- Claude skills (planning, testing, conventions) and built-in learn tool
-- Progressive disclosure for large files and bash outputs
-- Prompt caching
-- OS-level sandboxing for shell and file operations
-- Dev containers for isolated agent work (Docker)
+It's neovim, baby! Use your muscle memory to browse agent output, gather context, and edit your prompt. Jump into a buffer to fix errors or redirect the agent — the diff of your edits will be sent to the agent in the next message.
 
-## Dev Containers
+Magenta is fully transparent: you see everything the agent sees — prompts, reminders, tool descriptions — and can customize all of it. Edits use [EDL](https://github.com/dlants/magenta.nvim/blob/main/node/core/src/tools/edl-description.md), a purpose-built DSL that's far more token-efficient than claude code's str_replace. The useful parts of claude code (context management, sub-agents, skills, custom agents) are all present, so you won't miss anything.
 
-Magenta can spawn Docker sub-agents that work in isolated containers.
-This enables safe, unsupervised parallel work — the agent can edit files,
-run tests, and make commits without touching your local setup.
+And also apparently the code quality is a lot better?
 
-Docker config is specified inline when spawning sub-agents via the
-`spawn_subagents` tool. The agent provides:
-- `dockerfile` — path to a Dockerfile relative to the working directory
-- `workspacePath` — the working directory inside the container
+# Why would I use this instead of other neovim AI plugins?
 
-The project includes a sample Dockerfile at `docker/Dockerfile`. See
-`:help magenta-dev-containers` for details.
+I haven't actually used other neovim AI plugins in a while, so take this with a grain of salt. My feeling is that magenta provides a richer set of features, nicer UI and more customizability than other plugins. Using a typescript core means we can leverage the anthropic sdk and libraries like anthropic's sandbox-runtime, which greatly speeds up development. The distinguishing features:
 
-## Roadmap
-
-- Local code embedding & indexing for semantic code search
+- **Edit Description Language (EDL)**: A [small DSL](https://github.com/dlants/magenta.nvim/blob/main/node/core/src/tools/edl-description.md) that's more expressive than string match/replace and often uses far fewer tokens to express edits, since it doesn't have to accurately re-type large swaths of text when making large edits.
+- **OS-level sandboxing**: By default we use anthropic's sandbox-runtime to run the agent in an OS sandbox (seatbelt on macOS, bubblewrap on Linux) with configurable filesystem and network policies. Fewer operations require manual approval, leading to less alert fatigue.
+- **Docker sub-agents**: Spawn isolated agents in Docker containers for parallel, unsupervised work.
+- **Per-thread buffers**: Each thread is its own buffer, so you can use buffer navigation, jump lists, and pickers to jump between threads.
+- **Declarative TUI rendering**: A VDOM-like / react-like system ([code](https://github.com/dlants/magenta.nvim/blob/main/node/tea/view.ts)) for rendering text into neovim buffers supports a rich display with expanding sections, navigation UI, and in-display-window approval dialogues.
+- **UX polish**: Chimes and terminal bells integrate nicely with things like multiplexing neovim sessions in tmux.
+- **Customizable agents**: Agent system prompts are markdown files on disk (`~/.magenta/agents/` or `.magenta/agents/`). Override or create new agent personalities without touching code.
+- **Auto-compaction**: Chunked incremental summarization with accurate token counting keeps long threads manageable without losing important context.
+- **TEA architecture**: State is managed via an [elm-inspired architecture](https://github.com/evancz/elm-architecture-tutorial) ([code](https://github.com/dlants/magenta.nvim/blob/main/node/tea/tea.ts)), making the plugin easy to understand, extend, and [test](https://github.com/dlants/magenta.nvim/blob/main/node/chat/chat.test.ts).
+- **Full end-to-end testing**: A complete [integration test setup](https://github.com/dlants/magenta.nvim/blob/main/node/magenta.test.ts) with TypeScript async/await makes writing readable tests easy. The plugin is well-tested across unit, integration, and docker levels.
+- **TypeScript + official SDKs**: Using the Anthropic SDK directly means streaming, tool use, and caching just work. Async/await makes side-effect chains straightforward.
+- **Smart prompt caching**: Pinned files only move up in message history when they change, maximizing Anthropic's prompt cache hit rate. Cache breakpoints are placed strategically.
+- **Transparency**: Raw tool use requests/responses, stop reasons, and token usage are all visible. You can see everything the agent sees and manipulate it.
+- **File snapshots**: Automatic file state capture before edits enables accurate before/after diffs and better review.
 
 # Updates
 
-<details>
-<summary>Recent updates (click to expand)</summary>
-
 ## Apr 2026
 
-- OS-level sandboxing: integrated `@anthropic-ai/sandbox-runtime` (seatbelt on macOS, bubblewrap on Linux) for shell commands and file I/O pre-flight checks. Configurable sandbox policy with sensible defaults that protect credentials and dotfiles.
+- Per-thread buffers: each thread now gets its own chat and input buffer. Switching threads swaps buffers in place, preserving scroll position and unsent input.
+- Thread overview improvements: collapsible subtrees, sort by recent activity, sandbox violation indicators, and `dd` binding to delete thread subtrees.
+- Terminal bell notifications: ring terminal bell on agent completion and when agent pauses for user permission, so you can work in another window.
+- Customizable agents: agent system prompts are now markdown files on disk (`~/.magenta/agents/` or `.magenta/agents/`), making them easy to customize and override.
+- `docs` tool: renamed from `learn`, now surfaces built-in `:help magenta` docs and discovers user-created documentation.
+- Docker skills loading: skills now load inside Docker subagents via the FileIO interface.
+- Sandbox improvements:
+  - Per-thread-tree sandbox bypass toggle for trusted threads.
+  - `requireApprovalPatterns`: regex patterns (e.g. `git\s+push`) that trigger approval prompts before running a command. Defaults to `["git\\s+push"]`.
+  - Configurable bwrap violation patterns, hot-reloadable.
+  - OS-level sandboxing via `@anthropic-ai/sandbox-runtime` (seatbelt on macOS, bubblewrap on Linux) with sensible defaults protecting credentials and dotfiles.
 - Security: `.magenta/options.json` is now protected from agent tampering.
 - Branchless docker: simplified container provisioning to directory-based (no git branches), with rsync-based file sync on teardown. Docker config is now specified inline in `spawn_subagents` tool calls instead of `.magenta/options.json`.
 - Agent tier system: agents have `leaf`, `thread`, or `orchestrator` tiers that control spawn permissions. New `worktree` orchestrator agent replaces the conductor. New `:Magenta agent <name>` command.
+- Abort improvements: partial stdout/stderr included in bash tool abort responses; user abort message appended to thread.
+- Exponential backoff retry for Anthropic 429/529 rate limit errors.
+- Simplified file I/O: disk-first approach, removed BufferTracker complexity.
+- Expand/collapse for subagent progress and result rows in the chat view.
 - Test segmentation: `TEST_MODE` env var splits tests into sandbox (local) and full-capabilities (docker) modes. New `tests-in-sandbox` subagent for fast local feedback.
 - Renamed the `docs` tool to `learn` tool.
 - Claude Code keychain auth: new `authType = "keychain"` profile option (macOS) reuses the Anthropic Console API key that Claude Code stores in the login Keychain, for users on the "Anthropic Console Account (API usage billing)" sign-in mode.
+
+<details>
+<summary>Older updates (click to expand)</summary>
 
 ## Mar 2026
 
@@ -150,7 +162,7 @@ The project includes a sample Dockerfile at `docker/Dockerfile`. See
 
 # Installation
 
-**Requirements:** Node.js v24+ (`node --version`), [nvim-cmp](https://github.com/hrsh7th/nvim-cmp)
+**Requirements:** Neovim 0.12.1+, Node.js v24+ (`node --version`), [nvim-cmp](https://github.com/hrsh7th/nvim-cmp)
 
 **Recommended:** [fd](https://github.com/sharkdp/fd) and [ripgrep](https://github.com/BurntSushi/ripgrep) for better file discovery
 
@@ -165,24 +177,23 @@ The project includes a sample Dockerfile at `docker/Dockerfile`. See
 },
 ```
 
-## Using vim-plug
+## Using vim.pack (Neovim 0.12.1+)
+
+Neovim 0.12.1 includes a built-in package manager. Add to your `init.lua`:
 
 ```lua
-local vim = vim
-local Plug = vim.fn['plug#']
-
-vim.call('plug#begin')
-Plug('dlants/magenta.nvim', {
-  ['do'] = 'npm ci --production',
+vim.pack.add({
+  "dlants/magenta.nvim",
+  url = "https://github.com/dlants/magenta.nvim",
+  post_checkout = function()
+    vim.system({ "npm", "ci", "--production" }):wait()
+  end,
 })
-vim.call('plug#end')
 
 require('magenta').setup({})
 ```
 
 # Configuration
-
-For complete configuration documentation, run `:help magenta-config` in Neovim.
 
 ## Quick Setup
 
@@ -190,9 +201,9 @@ For complete configuration documentation, run `:help magenta-config` in Neovim.
 require('magenta').setup({
   profiles = {
     {
-      name = "claude-sonnet",
+      name = "claude-opus",
       provider = "anthropic",
-      model = "claude-sonnet-4-5",
+      model = "claude-opus-4-7",
       fastModel = "claude-haiku-4-5",
       apiKeyEnvVar = "ANTHROPIC_API_KEY"
     }
@@ -200,79 +211,16 @@ require('magenta').setup({
 })
 ```
 
-## Supported Providers
+## Key Features
 
-- **anthropic** - Claude models via [Anthropic SDK](https://github.com/anthropics/anthropic-sdk-typescript)
-  - Supports three auth modes: `authType = "key"` (env var), `authType = "max"` (OAuth with your Claude subscription), and `authType = "keychain"` (macOS only — reads the Anthropic Console API key Claude Code stored in the login Keychain).
+For any of the below, you can also just ask magenta to explain.
 
-See `:help magenta-providers` for detailed provider configuration.
-
-_Note: Other providers (openai, bedrock, ollama, copilot) were removed in Jan 2026. The new provider architecture is simpler - contributions welcome!_
-
-## Skills
-
-Skills are markdown files that teach the agent project-specific knowledge. Place them in `~/.magenta/skills/` (global) or `.magenta/skills/` (project-local).
-
-Recommended skills to create:
-- **planning** - Teach the agent your preferred planning methodology for complex tasks
-- **testing** - Document your test framework, patterns, and how to run tests
-- **conventions** - Describe your project's coding standards and architecture
-
-See `:help magenta-skills` for details on creating skills.
-
-## Project Settings
-
-Create `.magenta/options.json` for project-specific configuration:
-
-```json
-{
-  "profiles": [...],
-  "autoContext": ["README.md", "docs/*.md"],
-  "skillsPaths": [".claude/skills"],
-  "mcpServers": { ... }
-}
-```
-
-See `:help magenta-project-settings` for details.
-
-## Sandbox
-
-Magenta uses OS-level sandboxing to restrict shell commands and file I/O access:
-
-- **Shell commands** run inside a macOS/Linux sandbox (seatbelt on macOS, bubblewrap on Linux) that restricts filesystem and network access
-- **File I/O** uses application-level pre-flight checks against the sandbox config
-- **Fallback** on unsupported platforms: all shell commands and file writes prompt for approval
-
-### Configuration
-
-Configure sandbox permissions in `.magenta/options.json` (project) or `~/.magenta/options.json` (user):
-
-```json
-{
-  "sandbox": {
-    "filesystem": {
-      "allowWrite": ["./"],
-      "denyWrite": [".env", ".git/hooks/"],
-      "denyRead": ["~/.ssh", "~/.gnupg", "~/.aws"],
-      "allowRead": ["~/.magenta"]
-    },
-    "network": {
-      "allowedDomains": ["registry.npmjs.org", "github.com"],
-      "deniedDomains": []
-    },
-    "requireApprovalPatterns": ["git\\s+push"]
-  }
-}
-```
-
-**Path matching**: Literal paths (e.g., `~/.ssh`) use subpath matching and block the path plus all children. Glob patterns (e.g., `~/*.rc`) use regex matching.
-
-**Network**: Supports domain wildcards (e.g., `*.github.com`).
-
-**Defaults**: Conservative defaults protect credentials (`~/.ssh`, `~/.gnupg`, `~/.aws`, etc.) and shell configs (`~/.bashrc`, `~/.zshrc`, etc.).
-**Pre-check patterns**: `requireApprovalPatterns` accepts regex patterns that trigger an approval prompt _before_ running a command, bypassing the sandbox entirely. Useful for commands like `git push` that should always require explicit approval.
-
-See `:help magenta-sandbox` for complete documentation.
+- **Profiles & providers** — configure models, API keys, and provider options. [docs](https://github.com/dlants/magenta.nvim/blob/main/doc/magenta-providers.txt) · `:help magenta-providers`
+- **Project settings** — per-project `.magenta/options.json` for profiles, auto-context, skills paths, and MCP servers. [docs](https://github.com/dlants/magenta.nvim/blob/main/doc/magenta-config.txt) · `:help magenta-config`
+- **Skills** — markdown files in `~/.magenta/skills/`, `.magenta/skills/`, `~/.claude/skills/`, or `.claude/skills/` that teach the agent project-specific knowledge. [docs](https://github.com/dlants/magenta.nvim/blob/main/doc/magenta-skills.txt) · `:help magenta-skills`
+- **Sandbox** — OS-level sandboxing (seatbelt/bubblewrap) with configurable filesystem, network, and approval policies. [docs](https://github.com/dlants/magenta.nvim/blob/main/doc/magenta-permissions.txt) · `:help magenta-sandbox`
+- **MCP servers** — connect to local or remote MCP servers for additional tools. [docs](https://github.com/dlants/magenta.nvim/blob/main/doc/magenta-tools.txt) · `:help magenta-mcp`
+- **Docker subagents** — spawn isolated agents in Docker containers for parallel, unsupervised work. [docs](https://github.com/dlants/magenta.nvim/blob/main/doc/magenta-docker.txt) · `:help magenta-docker`
 
 # Usage
 
@@ -290,57 +238,6 @@ For complete documentation:
 - `:help magenta-input-commands` - Input buffer @ commands
 - `:help magenta-tools` - Tools and sub-agents
 - `:help magenta-mcp` - MCP server configuration
-
-# Why it's cool
-
-- The [Edit Description Language](https://github.com/dlants/magenta.nvim/blob/main/node/tools/edl-description.md) is a small DSL that allows the agent to be more flexible and expressive about how it mutates files. This speeds up coding tasks dramatically as the agent can express the edits in a lot fewer tokens, since it doesn't have to re-type nearly identical content to what's already in the file twice!
-- It uses the new [rpc-pased remote plugin setup](https://github.com/dlants/magenta.nvim/issues/1). This means more flexible plugin development (can easily use both lua and typescript), and no need for `:UpdateRemotePlugins`! (h/t [wallpants](https://github.com/wallpants/bunvim)).
-- The state of the plugin is managed via an elm-inspired architecture (The Elm Architecture or [TEA](https://github.com/evancz/elm-architecture-tutorial)) [code](https://github.com/dlants/magenta.nvim/blob/main/node/tea/tea.ts). I think this makes it fairly easy to understand and lays out a clear pattern for extending the feature set, as well as [eases testing](https://github.com/dlants/magenta.nvim/blob/main/node/chat/chat.test.ts). It also unlocks some cool future features (like the ability to persist a structured chat state into a file).
-- I spent a considerable amount of time figuring out a full end-to-end testing setup. Combined with typescript's async/await, it makes writing tests fairly easy and readable. The plugin is already fairly well-tested [code](https://github.com/dlants/magenta.nvim/blob/main/node/magenta.test.ts#L8).
-- In order to use TEA, I had to build a VDOM-like system for rendering text into a buffer. This makes writing view code declarative. [code](https://github.com/dlants/magenta.nvim/blob/main/node/tea/view.ts#L141) [example defining a tool view](https://github.com/dlants/magenta.nvim/blob/main/node/tools/getFile.ts#L139)
-- We can leverage existing sdks to communicate with LLMs, and async/await to manage side-effect chains, which greatly speeds up development. For example, streaming responses was pretty easy to implement, and I think is typically one of the trickier parts of other LLM plugins. [code](https://github.com/dlants/magenta.nvim/blob/main/node/anthropic.ts#L49)
-- Smart prompt caching. Pinned files only move up in the message history when they change, which means the plugin is more likely to be able to use caching. I also implemented anthropic's prompt caching [pr](https://github.com/dlants/magenta.nvim/pull/30) using an cache breakpoints.
-- I made an effort to expose the raw tool use requests and responses, as well as the stop reasons and usage info from interactions with each model. This should make debugging your workflows a lot more straightforward.
-- Robust file snapshots system automatically captures file state before edits, allowing for accurate before/after comparison and better review experiences.
-
-# How is this different from other coding assistants (Jan 2026)?
-
-## claude code
-
-It's neovim baby! Use your hard-won muscle memory to browse the agent output, explore files, gather context, and hand-edit when the agent can't swing it!
-
-I've taken care to implement the best parts of claude code (context management, subagents, skills), so you shouldn't miss anything terribly.
-
-Another thing is that magenta is a lot more transparent about what is happening to your context. For example, one major aspect of claude skills is that claude secretly litters the context with system reminders, to get the agent to actually use skills defined early in the context window. In magenta you can see everything the agent sees, and manipulate it to customize to your use case.
-
-## other neovim plugins
-
-The closest plugins are [avante.nvim](https://github.com/yetone/avante.nvim) and [codecompanion.nvim](https://github.com/olimorris/codecompanion.nvim). I haven't used either in a while, so take this with a grain of salt—both are actively developed and may have added features since I last checked.
-
-That said, I've spent a lot of time building magenta's abstractions around agentic coding. Here's what I think sets it apart:
-
-**Context management**
-
-- **Sub-agents with parallelization**: Spawn multiple agents that work in parallel with focused contexts (`spawn_subagent`, `spawn_foreach`), then coordinate results
-- **Thread forking and compaction**: Fork conversations to explore alternatives, compact long threads to manage context size
-- **System reminders**: Automatic reminders injected after each message to keep the agent on track with skills and project conventions
-- **Progressive disclosure**: Tree-sitter minimaps for large files, bash summarization, claude skills, context tracking that only sends diffs of changed files
-
-**OS-level sandboxing**
-
-- Shell commands run inside a macOS/Linux sandbox that restricts filesystem and network access — no approval fatigue
-- Configurable sandbox policy: `filesystem.allowWrite`, `filesystem.denyRead`, `network.allowedDomains`
-- Graceful fallback: on unsupported platforms, all commands and writes prompt for approval
-
-**Provider features**
-
-- Native support for Anthropic's server-side web search tool with citations
-- Messages stored in native provider format for more confident cache utilization
-
-**Architecture**
-
-- Written in TypeScript using official SDKs, making streaming and tool use more robust
-- Separate input & display buffers for better interactivity during multi-tool operations
 
 # Contributions
 

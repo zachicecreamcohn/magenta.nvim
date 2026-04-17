@@ -758,10 +758,17 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
     };
 
     if (thinking?.enabled) {
-      params.thinking = {
-        type: "enabled",
-        budget_tokens: thinking.budgetTokens || 1024,
-      };
+      if (supportsAdaptiveThinking(model)) {
+        params.thinking = {
+          type: "adaptive",
+          display: thinking.displayThinking ? "summarized" : "omitted",
+        };
+      } else {
+        params.thinking = {
+          type: "enabled",
+          budget_tokens: thinking.budgetTokens || 1024,
+        };
+      }
     }
 
     return params;
@@ -1309,6 +1316,14 @@ export function withCacheControl(
   return messages;
 }
 
+// Opus 4.7+ and Sonnet 4.6+ require adaptive thinking instead of budget_tokens
+function supportsAdaptiveThinking(model: string): boolean {
+  const normalized = normalizeModelName(model);
+  if (normalized.match(/^claude-opus-4-([7-9]|\d{2,})/)) return true;
+  if (normalized.match(/^claude-sonnet-4-([6-9]|\d{2,})/)) return true;
+  return false;
+}
+
 function normalizeModelName(model: string): string {
   const match = model.match(/claude-[a-z0-9.-]+/);
   return match ? match[0] : model;
@@ -1331,7 +1346,7 @@ export function getContextWindowForModel(model: string): number {
 export function getMaxTokensForModel(model: string): number {
   model = normalizeModelName(model);
   // Claude 4.5 models (Opus, Sonnet, Haiku) - use high limits
-  if (model.match(/^claude-(opus-4-5|opus-4-6|sonnet-4-5|haiku-4-5)/)) {
+  if (model.match(/^claude-(opus-4-5|opus-4-6|opus-4-7|sonnet-4-5|haiku-4-5)/)) {
     return 32000;
   }
 

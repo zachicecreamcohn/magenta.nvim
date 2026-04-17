@@ -28,11 +28,13 @@ export class BedrockProvider extends AnthropicProvider {
       if (env.AWS_REGION) {
         clientOptions.awsRegion = env.AWS_REGION;
       }
-      if (env.AWS_ACCESS_KEY_ID) {
+      if (env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY) {
         clientOptions.awsAccessKey = env.AWS_ACCESS_KEY_ID;
-      }
-      if (env.AWS_SECRET_ACCESS_KEY) {
         clientOptions.awsSecretKey = env.AWS_SECRET_ACCESS_KEY;
+      } else if (env.AWS_ACCESS_KEY_ID || env.AWS_SECRET_ACCESS_KEY) {
+        throw new Error(
+          "Both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set together",
+        );
       }
       if (env.AWS_SESSION_TOKEN) {
         clientOptions.awsSessionToken = env.AWS_SESSION_TOKEN;
@@ -47,7 +49,9 @@ export class BedrockProvider extends AnthropicProvider {
       }
     }
 
-    this.client = new AnthropicBedrock(clientOptions) as unknown as Anthropic;
+    this.client = new AnthropicBedrock(
+      clientOptions as ConstructorParameters<typeof AnthropicBedrock>[0],
+    ) as unknown as Anthropic;
     this.includeWebSearch = false;
   }
 }

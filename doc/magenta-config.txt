@@ -56,20 +56,23 @@ Example:~
 <
 
 With thinking/reasoning support:~
+
+Opus 4.7 uses adaptive thinking (automatic budget allocation):
 >lua
     {
       name = "claude-opus",
       provider = "anthropic",
-      model = "claude-opus-4-6",
+      model = "claude-opus-4-7",
       apiKeyEnvVar = "ANTHROPIC_API_KEY",
       thinking = {
         enabled = true,
-        budgetTokens = 1024  -- must be >= 1024
+        displayThinking = false  -- set true to stream thinking summaries
       }
     }
 <
 
-See |magenta-providers| for provider-specific configuration.
+See |magenta-providers| for provider-specific configuration and thinking
+configuration details.
 
 ==============================================================================
 GENERAL OPTIONS                                            *magenta-options*
@@ -192,7 +195,7 @@ Example `.magenta/options.json`:~
         {
           "name": "project-claude",
           "provider": "anthropic",
-          "model": "claude-opus-4-6",
+          "model": "claude-opus-4-7",
           "apiKeyEnvVar": "PROJECT_ANTHROPIC_KEY"
         }
       ],

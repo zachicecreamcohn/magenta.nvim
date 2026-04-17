@@ -649,6 +649,9 @@ ${lines.join("\n")}
   }
 
   static async start(nvim: Nvim, homeDir?: HomeDir, sandboxOverride?: Sandbox) {
+    const startTime = performance.now();
+    const elapsed = () => (performance.now() - startTime).toFixed(1);
+
     const lsp = new Lsp(nvim);
     nvim.onNotification(MAGENTA_COMMAND, async (args: unknown[]) => {
       try {
@@ -700,10 +703,15 @@ ${lines.join("\n")}
       }
     });
 
+    nvim.logger.info(
+      `[magenta-timing] notifications registered: ${elapsed()}ms`,
+    );
+
     const opts = await nvim.call("nvim_exec_lua", [
       `return require('magenta').bridge(${nvim.channelId})`,
       [],
     ]);
+    nvim.logger.info(`[magenta-timing] bridge call returned: ${elapsed()}ms`);
 
     // Parse base options from Lua
     const baseOptions = parseOptions(opts, nvim.logger);
@@ -766,7 +774,13 @@ ${lines.join("\n")}
       );
     }
 
+    nvim.logger.info(
+      `[magenta-timing] sandbox + highlights initialized: ${elapsed()}ms`,
+    );
+
     const bufferManager = await BufferManager.create(nvim);
+
+    nvim.logger.info(`[magenta-timing] bufferManager created: ${elapsed()}ms`);
 
     const magenta = new Magenta(
       nvim,
@@ -787,6 +801,7 @@ ${lines.join("\n")}
       msg: { type: "set-active-thread", id: initialThreadId },
     });
 
+    nvim.logger.info(`[magenta-timing] initial thread created: ${elapsed()}ms`);
     nvim.logger.info(`Magenta initialized. ${JSON.stringify(parsedOptions)}`);
     return magenta;
   }

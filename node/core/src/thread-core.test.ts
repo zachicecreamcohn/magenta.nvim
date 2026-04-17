@@ -154,6 +154,7 @@ describe("ThreadCore.handleProviderStopped", () => {
         id: toolUseId,
         name: "get_file" as ToolName,
         input: {},
+        caller: { type: 'direct' as const },
       },
     });
     stream.emitEvent({
