@@ -35,7 +35,9 @@ Each profile specifies:
   - `provider`: "anthropic"
   - `model`: the specific model to use
   - `fastModel`: (optional) model for lightweight tasks
-  - `authType`: (optional) "key" (default) or "max" for Anthropic OAuth
+  - `authType`: (optional) "key" (default), "max" for Anthropic OAuth,
+    or "keychain" to load a Claude Code Console API key from the macOS
+    Keychain (see |magenta-claude-keychain|)
   - `apiKeyEnvVar`: environment variable containing the API key
   - `baseUrl`: (optional) custom API endpoint
 

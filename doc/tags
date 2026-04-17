@@ -35,6 +35,7 @@ magenta-bellOnNotify	magenta-config.txt	/*magenta-bellOnNotify*
 magenta-builtin-agents	magenta-subagents.txt	/*magenta-builtin-agents*
 magenta-chimeVolume	magenta-config.txt	/*magenta-chimeVolume*
 magenta-claude-max	magenta-providers.txt	/*magenta-claude-max*
+magenta-claude-keychain	magenta-providers.txt	/*magenta-claude-keychain*
 magenta-commands-keymaps-contents	magenta-commands-keymaps.txt	/*magenta-commands-keymaps-contents*
 magenta-commands-keymaps.txt	magenta-commands-keymaps.txt	/*magenta-commands-keymaps.txt*
 magenta-completions	magenta-commands-keymaps.txt	/*magenta-completions*
