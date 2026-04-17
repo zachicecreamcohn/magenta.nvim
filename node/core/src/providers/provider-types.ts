@@ -327,7 +327,14 @@ export interface AgentOptions {
   model: string;
   systemPrompt: string;
   tools: ProviderToolSpec[];
-  thinking?: { enabled: boolean; budgetTokens?: number; displayThinking?: boolean };
-  reasoning?: { effort?: "low" | "medium" | "high" | "xhigh"; summary?: string };
+  thinking?: {
+    enabled: boolean;
+    budgetTokens?: number;
+    displayThinking?: boolean;
+  };
+  reasoning?: {
+    effort?: "low" | "medium" | "high" | "xhigh";
+    summary?: string;
+  };
   skipPostFlightTokenCount?: boolean;
 }

@@ -20,6 +20,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import * as BashCommandRender from "./bashCommand.ts";
 import * as DiagnosticsRender from "./diagnostics.ts";
+import * as DocsRender from "./docs.ts";
 import * as EdlRender from "./edl.ts";
 import * as FindReferencesRender from "./findReferences.ts";
 import * as GetFileRender from "./getFile.ts";
@@ -86,7 +87,7 @@ export function renderToolSummary(
     case "yield_to_parent":
       return YieldToParentRender.renderSummary(request, displayContext);
     case "docs":
-      return d`docs(${(request.input as { name: string }).name})`;
+      return DocsRender.renderSummary(request, displayContext);
     default:
       assertUnreachable(toolName);
   }
@@ -189,7 +190,7 @@ export function renderToolResultSummary(
     case "yield_to_parent":
       return d`${statusEmoji} ${YieldToParentRender.renderResultSummary(info)} (${tokEst})`;
     case "docs":
-      return d`${statusEmoji} docs(${(info.request.input as { name: string }).name}) (${tokEst})`;
+      return d`${statusEmoji} ${DocsRender.renderResultSummary(info)} (${tokEst})`;
     case "thread_title":
       return d`${statusEmoji} ${ThreadTitleRender.renderResultSummary(info)}`;
     case "edl":
@@ -224,6 +225,13 @@ export function renderToolResult(
       );
     case "edl":
       return EdlRender.renderResult(
+        info,
+        context,
+        toolViewState,
+        toolRequestId,
+      );
+    case "docs":
+      return DocsRender.renderResult(
         info,
         context,
         toolViewState,

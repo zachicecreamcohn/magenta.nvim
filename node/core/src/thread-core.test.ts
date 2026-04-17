@@ -88,6 +88,9 @@ function createThreadCoreWithMock(overrides?: Partial<ThreadCoreContext>): {
     diagnosticsProvider: {
       getDiagnostics: async () => [],
     } as unknown as ThreadCoreContext["diagnosticsProvider"],
+    helpTagsProvider: {
+      listTagFiles: async () => [],
+    } as unknown as ThreadCoreContext["helpTagsProvider"],
     availableCapabilities: new Set(),
     environmentConfig: { type: "local" },
     maxConcurrentSubagents: 1,
@@ -154,7 +157,7 @@ describe("ThreadCore.handleProviderStopped", () => {
         id: toolUseId,
         name: "get_file" as ToolName,
         input: {},
-        caller: { type: 'direct' as const },
+        caller: { type: "direct" as const },
       },
     });
     stream.emitEvent({

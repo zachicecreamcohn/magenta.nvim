@@ -791,7 +791,7 @@ describe("streaming block", () => {
         id: toolUseId,
         name: "get_file",
         input: {},
-        caller: { type: 'direct' as const },
+        caller: { type: "direct" as const },
       },
     });
     await stream.settle();
@@ -1556,7 +1556,7 @@ File context here
           id: "tool-1" as ToolRequestId,
           name: "get_file" as ToolName,
           input: {},
-          caller: { type: 'direct' as const },
+          caller: { type: "direct" as const },
         },
       });
       await stream.settle();

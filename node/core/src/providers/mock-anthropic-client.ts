@@ -168,7 +168,13 @@ export class MockStream {
     this.pushEvent({
       type: "content_block_start",
       index,
-      content_block: { type: "tool_use", id, name, input: {}, caller: { type: 'direct' as const } },
+      content_block: {
+        type: "tool_use",
+        id,
+        name,
+        input: {},
+        caller: { type: "direct" as const },
+      },
     });
     this.pushEvent({
       type: "content_block_delta",

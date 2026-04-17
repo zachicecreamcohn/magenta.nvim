@@ -16,7 +16,7 @@ File Operations:~
   - `get_file` - Get file contents (text, images, PDFs)
   - `edl` - Edit Description Language for programmatic file edits (create, select, replace, insert, delete)
   - `list_directory` - List files in a directory (respects .gitignore)
-  - `docs` - Look up built-in reference documentation
+  - `docs` - Search neovim help tags across runtime help files
 
 Editor Integration:~
   - `list_buffers` - List current open buffers

@@ -1,6 +1,7 @@
 import type {
   DiagnosticsProvider,
   FileIO,
+  HelpTagsProvider,
   LspClient,
   ThreadId,
   ToolCapability,
@@ -20,6 +21,7 @@ export interface Environment {
   sandboxViolationHandler?: SandboxViolationHandler | undefined;
   lspClient: LspClient;
   diagnosticsProvider: DiagnosticsProvider;
+  helpTagsProvider: HelpTagsProvider;
   cwd: NvimCwd;
   homeDir: HomeDir;
   availableCapabilities: Set<ToolCapability>;
@@ -33,7 +35,9 @@ import { DockerShell } from "./capabilities/docker-shell.ts";
 import type { Lsp } from "./capabilities/lsp.ts";
 import { NvimLspClient } from "./capabilities/lsp-client-adapter.ts";
 import { NoopDiagnosticsProvider } from "./capabilities/noop-diagnostics-provider.ts";
+import { NoopHelpTagsProvider } from "./capabilities/noop-help-tags-provider.ts";
 import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
+import { NvimHelpTagsProvider } from "./capabilities/nvim-help-tags-provider.ts";
 import { SandboxFileIO } from "./capabilities/sandbox-file-io.ts";
 import { SandboxShell } from "./capabilities/sandbox-shell.ts";
 import { SandboxViolationHandler as SandboxViolationHandlerImpl } from "./capabilities/sandbox-violation-handler.ts";
@@ -81,6 +85,7 @@ export function createLocalEnvironment({
   const diagnosticsProvider = {
     getDiagnostics: () => getDiagnostics(nvim, cwd, homeDir),
   };
+  const helpTagsProvider = new NvimHelpTagsProvider(nvim);
 
   return {
     fileIO: sandboxFileIO,
@@ -88,6 +93,7 @@ export function createLocalEnvironment({
     sandboxViolationHandler: violationHandler,
     lspClient,
     diagnosticsProvider,
+    helpTagsProvider,
     cwd,
     homeDir,
     availableCapabilities: new Set([
@@ -128,6 +134,7 @@ export async function createDockerEnvironment({
   const shell = new DockerShell({ container, cwd: resolvedCwd, threadId });
   const lspClient = new NoopLspClient();
   const diagnosticsProvider = new NoopDiagnosticsProvider();
+  const helpTagsProvider = new NoopHelpTagsProvider();
 
   return {
     fileIO,
@@ -135,6 +142,7 @@ export async function createDockerEnvironment({
     sandboxViolationHandler: undefined,
     lspClient,
     diagnosticsProvider,
+    helpTagsProvider,
     cwd: resolvedCwd as NvimCwd,
     homeDir: resolvedHome as HomeDir,
     availableCapabilities: new Set(["file-io", "shell", "threads"]),

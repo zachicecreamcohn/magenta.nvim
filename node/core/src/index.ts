@@ -11,6 +11,7 @@ export type {
 export type { DiagnosticsProvider } from "./capabilities/diagnostics-provider.ts";
 export type { FileIO } from "./capabilities/file-io.ts";
 export { FsFileIO } from "./capabilities/file-io.ts";
+export type { HelpTagsProvider } from "./capabilities/help-tags-provider.ts";
 export type {
   LspClient,
   LspDefinitionResponse,
@@ -192,6 +193,7 @@ export type {
 export * as BashCommand from "./tools/bashCommand.ts";
 export { type CreateToolContext, createTool } from "./tools/create-tool.ts";
 export * as Diagnostics from "./tools/diagnostics.ts";
+export * as Docs from "./tools/docs.ts";
 export * as Edl from "./tools/edl.ts";
 export * as FindReferences from "./tools/findReferences.ts";
 export * as GetFile from "./tools/getFile.ts";

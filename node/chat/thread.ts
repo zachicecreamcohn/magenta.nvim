@@ -234,6 +234,7 @@ export class Thread {
         shell: env.shell,
         lspClient: env.lspClient,
         diagnosticsProvider: env.diagnosticsProvider,
+        helpTagsProvider: env.helpTagsProvider,
         availableCapabilities: env.availableCapabilities,
         environmentConfig: env.environmentConfig,
         maxConcurrentSubagents: context.options.maxConcurrentSubagents || 3,

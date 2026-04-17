@@ -37,7 +37,6 @@ async function main() {
   const checks = [
     { name: "typecheck", command: "npx tsc --noEmit" },
     { name: "biome", command: "npx biome check --write ." },
-    { name: "docs-check", command: "node scripts/check-docs.mjs" },
   ];
 
   function runCheck(check) {

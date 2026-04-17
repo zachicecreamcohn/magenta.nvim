@@ -5,6 +5,7 @@ import type {
 } from "../capabilities/context-tracker.ts";
 import type { DiagnosticsProvider } from "../capabilities/diagnostics-provider.ts";
 import type { FileIO } from "../capabilities/file-io.ts";
+import type { HelpTagsProvider } from "../capabilities/help-tags-provider.ts";
 import type { LspClient } from "../capabilities/lsp-client.ts";
 import type { Shell } from "../capabilities/shell.ts";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
@@ -40,6 +41,7 @@ export type CreateToolContext = {
   contextTracker: ContextTracker;
   onToolApplied: OnToolApplied;
   diagnosticsProvider: DiagnosticsProvider;
+  helpTagsProvider: HelpTagsProvider;
   edlRegisters: EdlRegisters;
   fileIO: FileIO;
   shell: Shell;
@@ -147,7 +149,10 @@ export function createTool(
     }
 
     case "docs": {
-      return Docs.execute(staticRequest);
+      return Docs.execute(staticRequest, {
+        fileIO: context.fileIO,
+        helpTagsProvider: context.helpTagsProvider,
+      });
     }
 
     default:
