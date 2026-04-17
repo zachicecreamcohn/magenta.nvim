@@ -21,6 +21,12 @@ local defaults = {
       authType = "max"
     },
     {
+      name = "claude-keychain",
+      provider = "anthropic",
+      model = "claude-opus-4-6",
+      authType = "keychain"
+    },
+    {
       name = "gpt-4o",
       provider = "openai",
       model = "gpt-4o",

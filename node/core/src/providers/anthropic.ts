@@ -1,3 +1,5 @@
+import { execSync } from "node:child_process";
+import { userInfo } from "node:os";
 import Anthropic from "@anthropic-ai/sdk";
 import type { AnthropicAuth } from "../anthropic-auth.ts";
 import type { AuthUI } from "../auth-ui.ts";
@@ -60,7 +62,7 @@ type MessageStreamParams = Omit<
 
 export class AnthropicProvider implements Provider {
   protected client: Anthropic;
-  private authType: "key" | "max";
+  private authType: "key" | "max" | "keychain";
   private validateInput: ValidateInput;
   private auth: AnthropicAuth | undefined;
   private pendingOAuthFlow: Promise<void> | undefined;
@@ -73,7 +75,7 @@ export class AnthropicProvider implements Provider {
     options?: {
       baseUrl?: string | undefined;
       apiKeyEnvVar?: string | undefined;
-      authType?: "key" | "max" | undefined;
+      authType?: "key" | "max" | "keychain" | undefined;
       disableParallelToolUseFlag?: boolean;
     },
   ) {
@@ -88,9 +90,14 @@ export class AnthropicProvider implements Provider {
         baseURL: options?.baseUrl,
         fetch: this.createOAuthFetch(),
       });
+    } else if (this.authType === "keychain") {
+      const apiKey = loadApiKeyFromKeychain(logger);
+      this.client = new Anthropic({
+        apiKey,
+        baseURL: options?.baseUrl,
+      });
     } else {
-      const apiKeyEnvVar = options?.apiKeyEnvVar || "ANTHROPIC_API_KEY";
-      const apiKey = process.env[apiKeyEnvVar];
+      const apiKey = process.env[options?.apiKeyEnvVar || "ANTHROPIC_API_KEY"];
 
       this.client = new Anthropic({
         apiKey,
@@ -139,7 +146,6 @@ export class AnthropicProvider implements Provider {
   private async ensureValidToken(): Promise<void> {
     const isAuthenticated = await this.auth!.isAuthenticated();
     if (!isAuthenticated) {
-      // Coalesce concurrent auth attempts into a single OAuth flow
       if (!this.pendingOAuthFlow) {
         this.pendingOAuthFlow = this.triggerOAuthFlow().finally(() => {
           this.pendingOAuthFlow = undefined;
@@ -402,7 +408,7 @@ export class AnthropicProvider implements Provider {
       },
     ];
 
-    if (this.authType === "max") {
+    if (this.authType === "max" || this.authType === "keychain") {
       systemBlocks.unshift({
         type: "text" as const,
         text: CLAUDE_CODE_SPOOF_PROMPT,
@@ -497,7 +503,7 @@ export class AnthropicProvider implements Provider {
       },
     ];
 
-    if (this.authType === "max") {
+    if (this.authType === "max" || this.authType === "keychain") {
       systemBlocks.unshift({
         type: "text" as const,
         text: CLAUDE_CODE_SPOOF_PROMPT,
@@ -687,5 +693,31 @@ export class AnthropicProvider implements Provider {
       logger: this.logger,
       validateInput: this.validateInput,
     });
+  }
+}
+
+function loadApiKeyFromKeychain(logger: Logger): string | undefined {
+  if (process.platform !== "darwin") {
+    logger.warn("Keychain auth is only supported on macOS");
+    return undefined;
+  }
+
+  try {
+    const username = userInfo().username;
+    const apiKey = execSync(
+      `security find-generic-password -s "Claude Code" -a "${username}" -w 2>/dev/null`,
+      { encoding: "utf-8" },
+    ).trim();
+
+    if (apiKey?.startsWith("sk-ant-")) {
+      logger.info("Loaded API key from macOS Keychain (Claude Code)");
+      return apiKey;
+    }
+
+    logger.warn("Could not find Claude Code API key in macOS Keychain");
+    return undefined;
+  } catch (e) {
+    logger.error(`Error loading from keychain: ${e as Error}`);
+    return undefined;
   }
 }

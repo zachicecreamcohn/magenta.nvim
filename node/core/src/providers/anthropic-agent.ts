@@ -19,7 +19,7 @@ import type {
 } from "./provider-types.ts";
 
 export type AnthropicAgentOptions = {
-  authType: "key" | "max";
+  authType: "key" | "max" | "keychain";
   includeWebSearch: boolean;
   disableParallelToolUseFlag: boolean;
   logger: Logger;
@@ -729,7 +729,7 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
       },
     ];
 
-    if (authType === "max") {
+    if (authType === "max" || authType === "keychain") {
       systemBlocks.unshift({
         type: "text" as const,
         text: CLAUDE_CODE_SPOOF_PROMPT,
