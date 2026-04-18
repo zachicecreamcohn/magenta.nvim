@@ -739,14 +739,15 @@ ${lines.join("\n")}
         undefined,
         { warn: (msg) => nvim.logger.warn(`Sandbox: ${msg}`) },
       ).catch((err) => {
-        nvim.logger.error(
-          `Failed to initialize sandbox: ${err instanceof Error ? err.message : String(err)}`,
+        const reason = err instanceof Error ? err.message : String(err);
+        nvim.logger.warn(
+          `Failed to initialize sandbox, continuing without it: ${reason}`,
         );
         // Return an unsupported sandbox on failure
         return {
           getState: () => ({
             status: "unsupported" as const,
-            reason: "initialization failed",
+            reason: `initialization failed: ${reason}`,
           }),
           wrapWithSandbox: (cmd: string) => Promise.resolve(cmd),
           getViolationStore: () => ({
