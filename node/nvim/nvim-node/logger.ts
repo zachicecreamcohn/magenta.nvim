@@ -18,7 +18,10 @@ export function createLogger(client: Client, level: LogLevel, file?: string) {
     transports: [
       new winston.transports.File({
         filename,
-        options: { flags: "w" }, // 'w' flag truncates the file if it exists
+        maxsize: 5 * 1024 * 1024, // 5MB per file
+        maxFiles: 5,
+        tailable: true,
+        options: { flags: "a" }, // append so previous-run logs survive restarts
       }),
     ],
   });
