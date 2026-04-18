@@ -14,6 +14,7 @@ import { initializeMagentaHighlightGroups } from "./nvim/extmarks.ts";
 import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
 import type { Nvim } from "./nvim/nvim-node/index.ts";
 import { findOrCreateNonMagentaWindow } from "./nvim/openFileInNonMagentaWindow.ts";
+import { openTargetUnderCursor } from "./open-target-under-cursor.ts";
 import {
   NvimWindow,
   pos1col1to0,
@@ -132,18 +133,42 @@ export class Magenta {
 
     this.bufferManager = bufferManager;
     this.activeBuffers = bufferManager.getOverviewBuffers();
+    const onUnhandledKey = async ({
+      key,
+    }: {
+      key: BindingKey;
+    }): Promise<void> => {
+      if (key === "<CR>") {
+        try {
+          await openTargetUnderCursor({
+            nvim: this.nvim,
+            cwd: this.cwd,
+            homeDir: this.homeDir,
+            options: this.options,
+          });
+        } catch (err) {
+          this.nvim.logger.error(
+            `openTargetUnderCursor failed: ${err instanceof Error ? err.message : JSON.stringify(err)}`,
+          );
+          throw err;
+        }
+      }
+    };
+
     this.bufferManager.setAppFactories(
       (threadId: ThreadId) =>
         TEA.createApp<Chat>({
           nvim: this.nvim,
           initialModel: this.chat,
           View: () => this.chat.renderSingleThread(threadId),
+          onUnhandledKey,
         }),
       () =>
         TEA.createApp<Chat>({
           nvim: this.nvim,
           initialModel: this.chat,
           View: () => this.chat.renderThreadOverview(),
+          onUnhandledKey,
         }),
     );
 

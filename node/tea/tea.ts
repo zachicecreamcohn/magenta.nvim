@@ -1,3 +1,4 @@
+import type { NvimBuffer } from "../nvim/buffer.ts";
 import { getCurrentWindow } from "../nvim/nvim.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { Row0Indexed } from "../nvim/window.ts";
@@ -35,6 +36,13 @@ export type MountedApp = {
   renderVersion: number;
 };
 
+export type UnhandledKeyHandler = (args: {
+  key: BindingKey;
+  buffer: NvimBuffer;
+  row: Row0Indexed;
+  col: number;
+}) => void | Promise<void>;
+
 export type App<Model> = {
   mount(mount: MountPoint): Promise<MountedApp>;
   getState(): AppState<Model>;
@@ -45,10 +53,12 @@ export function createApp<Model>({
   nvim,
   initialModel,
   View,
+  onUnhandledKey,
 }: {
   nvim: Nvim;
   initialModel: Model;
   View: View<Model>;
+  onUnhandledKey?: UnhandledKeyHandler;
 }): App<Model> {
   let currentState: AppState<Model> = {
     status: "running",
@@ -218,6 +228,21 @@ export function createApp<Model>({
 
             if (bindings?.[key]) {
               bindings[key]();
+            } else if (onUnhandledKey) {
+              try {
+                await onUnhandledKey({
+                  key,
+                  buffer: mount.buffer,
+                  row: (row - 1) as Row0Indexed,
+                  col,
+                });
+              } catch (err) {
+                nvim.logger.error(
+                  err instanceof Error
+                    ? `onUnhandledKey failed: ${err.message}\n${err.stack}`
+                    : `onUnhandledKey failed: ${JSON.stringify(err)}`,
+                );
+              }
             }
           } else {
             nvim.logger.debug(
