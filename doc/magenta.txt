@@ -60,7 +60,7 @@ Using lazy.nvim:~
     {
         "dlants/magenta.nvim",
         lazy = false,
-        build = "npm ci --production",
+        build = "npm run build",
         opts = {},
     }
 <
@@ -72,7 +72,7 @@ Using vim-plug:~
 
     vim.call('plug#begin')
     Plug('dlants/magenta.nvim', {
-      ['do'] = 'npm ci --production',
+      ['do'] = 'npm run build',
     })
     vim.call('plug#end')
 
@@ -92,6 +92,24 @@ QUICK START                                               *magenta-quickstart*
 3. Open Neovim and use `<leader>mt` to toggle the sidebar
 
 See |magenta-commands-keymaps| for the full list of commands and keymaps.
+
+==============================================================================
+DEVELOPMENT                                              *magenta-development*
+
+The install hooks above run `npm run build` to produce a single-file bundle
+at `dist/magenta.mjs`. Neovim invokes this bundle directly, which keeps
+startup fast by avoiding thousands of file opens through the TypeScript
+source tree.
+
+When hacking on the plugin, set `MAGENTA_DEV=1` in your shell (or your
+neovim launcher) to skip the bundle and run the TypeScript source directly
+via `node --experimental-transform-types`:
+>sh
+    MAGENTA_DEV=1 nvim
+<
+If `dist/magenta.mjs` is missing (e.g. you cloned the repo without running
+the build), the plugin automatically falls back to source mode and prints a
+one-line warning.
 
 
 vim:tw=78:ts=8:noet:ft=help:norl:

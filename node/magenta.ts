@@ -32,6 +32,7 @@ import { Sidebar } from "./sidebar.ts";
 import { BINDING_KEYS, type BindingKey } from "./tea/bindings.ts";
 import type { Dispatch } from "./tea/tea.ts";
 import * as TEA from "./tea/tea.ts";
+import { record as recordTiming } from "./timings.ts";
 import { assertUnreachable } from "./utils/assertUnreachable.ts";
 import type { HomeDir } from "./utils/files.ts";
 import {
@@ -649,9 +650,6 @@ ${lines.join("\n")}
   }
 
   static async start(nvim: Nvim, homeDir?: HomeDir, sandboxOverride?: Sandbox) {
-    const startTime = performance.now();
-    const elapsed = () => (performance.now() - startTime).toFixed(1);
-
     const lsp = new Lsp(nvim);
     nvim.onNotification(MAGENTA_COMMAND, async (args: unknown[]) => {
       try {
@@ -703,15 +701,13 @@ ${lines.join("\n")}
       }
     });
 
-    nvim.logger.info(
-      `[magenta-timing] notifications registered: ${elapsed()}ms`,
-    );
+    recordTiming("node: notifications registered");
 
     const opts = await nvim.call("nvim_exec_lua", [
       `return require('magenta').bridge(${nvim.channelId})`,
       [],
     ]);
-    nvim.logger.info(`[magenta-timing] bridge call returned: ${elapsed()}ms`);
+    recordTiming("node: bridge call returned");
 
     // Parse base options from Lua
     const baseOptions = parseOptions(opts, nvim.logger);
@@ -775,13 +771,11 @@ ${lines.join("\n")}
       );
     }
 
-    nvim.logger.info(
-      `[magenta-timing] sandbox + highlights initialized: ${elapsed()}ms`,
-    );
+    recordTiming("node: sandbox + highlights initialized");
 
     const bufferManager = await BufferManager.create(nvim);
 
-    nvim.logger.info(`[magenta-timing] bufferManager created: ${elapsed()}ms`);
+    recordTiming("node: bufferManager created");
 
     const magenta = new Magenta(
       nvim,
@@ -802,7 +796,7 @@ ${lines.join("\n")}
       msg: { type: "set-active-thread", id: initialThreadId },
     });
 
-    nvim.logger.info(`[magenta-timing] initial thread created: ${elapsed()}ms`);
+    recordTiming("node: initial thread created");
     nvim.logger.info(`Magenta initialized. ${JSON.stringify(parsedOptions)}`);
     return magenta;
   }

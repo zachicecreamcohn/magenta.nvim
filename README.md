@@ -172,7 +172,7 @@ I haven't actually used other neovim AI plugins in a while, so take this with a 
 {
     "dlants/magenta.nvim",
     lazy = false,
-    build = "npm ci --production",
+    build = "npm run build",
     opts = {},
 },
 ```
@@ -182,13 +182,15 @@ I haven't actually used other neovim AI plugins in a while, so take this with a 
 Neovim 0.12.1 includes a built-in package manager. Add to your `init.lua`:
 
 ```lua
-vim.pack.add({
-  "dlants/magenta.nvim",
-  url = "https://github.com/dlants/magenta.nvim",
-  post_checkout = function()
-    vim.system({ "npm", "ci", "--production" }):wait()
+vim.api.nvim_create_autocmd("PackChanged", {
+  callback = function(ev)
+    if ev.data.spec.name == "magenta.nvim" and ev.data.kind ~= "delete" then
+      vim.system({ "npm", "run", "build" }, { cwd = ev.data.path }):wait()
+    end
   end,
 })
+
+vim.pack.add({ "https://github.com/dlants/magenta.nvim" })
 
 require('magenta').setup({})
 ```
@@ -238,6 +240,18 @@ For complete documentation:
 - `:help magenta-input-commands` - Input buffer @ commands
 - `:help magenta-tools` - Tools and sub-agents
 - `:help magenta-mcp` - MCP server configuration
+
+# Development
+
+The install hooks above run `npm run build` to produce a single-file bundle at `dist/magenta.mjs`. Neovim invokes this bundle directly, which keeps startup fast by avoiding thousands of file opens through the TypeScript source tree.
+
+When hacking on the plugin, set `MAGENTA_DEV=1` in your shell (or your neovim launcher) to skip the bundle and run the TypeScript source directly via `node --experimental-transform-types`:
+
+```sh
+MAGENTA_DEV=1 nvim
+```
+
+If `dist/magenta.mjs` is missing (e.g. you cloned the repo without running the build), the plugin automatically falls back to source mode and prints a one-line warning.
 
 # Contributions
 

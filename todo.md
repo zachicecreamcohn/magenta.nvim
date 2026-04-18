@@ -5,6 +5,8 @@
 
 # Prompt tuning
 
+- the agent is still prone to re-read the file (even force-re-read) before making further edits... maybe we jsut drop the context.md "this file is in your context already" round trip. Also, maybe _reading_ is just a lot cheaper than _generating_ so we could think about having edl send the full edited section back. Something like "the file now reads <full contents of edited section of file>"
+
 # customization
 
 # docker

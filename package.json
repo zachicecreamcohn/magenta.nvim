@@ -25,6 +25,7 @@
     "@types/diff": "^7.0.2",
     "@types/lodash": "^4.17.20",
     "diff": "^8.0.3",
+    "esbuild": "^0.28.0",
     "file-type": "^21.0.0",
     "glob": "^10.3.10",
     "ignore": "^7.0.0",
@@ -50,6 +51,8 @@
   },
   "scripts": {
     "start": "node --experimental-transform-types node/index.ts",
+    "build": "npm ci --production && node scripts/build.mjs",
+    "bundle": "node scripts/build.mjs",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "postinstall": "patch-package",

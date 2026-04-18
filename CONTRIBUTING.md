@@ -28,7 +28,7 @@ require("lazy").setup {
   "dlants/magenta.nvim",
   dev = true,
   lazy = false,
-  build = "npm ci --production",
+  build = "npm run build",
   config = function()
     require('magenta').setup()
   end
