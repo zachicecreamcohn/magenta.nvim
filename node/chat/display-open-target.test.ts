@@ -1,9 +1,9 @@
 import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
-import { pollUntil } from "../utils/async.ts";
-import { withDriver } from "../test/preamble.ts";
 import { getAllWindows } from "../nvim/nvim.ts";
+import { withDriver } from "../test/preamble.ts";
+import { pollUntil } from "../utils/async.ts";
 
 async function installUiOpenMock(
   nvim: import("../nvim/nvim-node/index.ts").Nvim,
@@ -43,7 +43,7 @@ describe("node/chat/display-open-target.test.ts", () => {
 
         const pos = await driver.assertDisplayBufferContains("./target.txt");
         // Wait a bit for the render to stabilize before triggering the key
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         await driver.triggerDisplayBufferKey(pos, "<CR>");
 
         const targetBufferName = await pollUntil(
@@ -83,7 +83,7 @@ describe("node/chat/display-open-target.test.ts", () => {
         "https://example.com",
       );
       // Wait a bit for the render to stabilize before triggering the key
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       await driver.triggerDisplayBufferKey(pos, "<CR>");
 
       await pollUntil(

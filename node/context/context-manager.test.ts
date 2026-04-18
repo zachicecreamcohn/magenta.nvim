@@ -261,7 +261,7 @@ it("context-files end-to-end", async () => {
     await driver.addContextFiles("poem.txt");
 
     await driver.assertDisplayBufferContains(`\
-# context:
+# pending context updates:
 - \`poem.txt\``);
 
     await driver.inputMagentaText("check out this file");
@@ -394,13 +394,13 @@ it("autoContext loads on startup and after new-thread", async () => {
     // Show sidebar and verify autoContext is loaded
     await driver.showSidebar();
     await driver.assertDisplayBufferContains(
-      `# context:\n- \`test-auto-context.md\``,
+      `# pending context updates:\n- \`test-auto-context.md\``,
     );
 
     // Create new thread and verify autoContext is loaded
     await driver.magenta.command("new-thread");
     await driver.assertDisplayBufferContains(
-      `# context:\n- \`test-auto-context.md\``,
+      `# pending context updates:\n- \`test-auto-context.md\``,
     );
 
     // Check that the content is included in messages when sending
@@ -419,6 +419,41 @@ it("autoContext loads on startup and after new-thread", async () => {
           }),
         ]) as ProviderMessageContent[],
       }),
+    );
+  });
+});
+
+it("out-of-process file change surfaces in the pending-context view", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    const contextManager = driver.magenta.chat.getActiveThread().contextManager;
+
+    const cwd = await getcwd(driver.nvim);
+    const absFilePath = resolveFilePath(
+      cwd,
+      "poem.txt" as UnresolvedFilePath,
+      os.homedir() as HomeDir,
+    );
+
+    await driver.addContextFiles("poem.txt");
+    await contextManager.getContextUpdate();
+
+    await fs.promises.writeFile(
+      absFilePath,
+      "completely different content\nwith several new lines\nadded here\n",
+    );
+
+    await pollUntil(
+      async () => {
+        const content = await driver.getDisplayBufferText();
+        if (!content.includes("# pending context updates:")) {
+          throw new Error("pending context updates heading not yet shown");
+        }
+        if (!content.includes("poem.txt")) {
+          throw new Error("pending entry for poem.txt not shown");
+        }
+      },
+      { timeout: 5000 },
     );
   });
 });

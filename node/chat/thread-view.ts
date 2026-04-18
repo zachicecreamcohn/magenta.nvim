@@ -12,7 +12,7 @@ import {
 } from "@magenta/core";
 import {
   type ContextViewContext,
-  contextView,
+  pendingContextView,
   renderContextUpdate,
 } from "../context/context-manager.ts";
 import type {
@@ -134,7 +134,7 @@ function renderUsage(usage: Usage): VDOMNode {
 /**
  * Helper function to determine if context manager view should be shown
  */
-const shouldShowContextManager = (
+const shouldShowPendingContext = (
   agentStatus: AgentStatus,
   mode: ThreadMode,
   contextManager: ContextManager,
@@ -143,7 +143,7 @@ const shouldShowContextManager = (
     agentStatus.type === "stopped" &&
     agentStatus.stopReason !== "tool_use" &&
     mode.type === "normal" &&
-    !contextManager.isContextEmpty()
+    Object.keys(contextManager.getPendingUpdates()).length > 0
   );
 };
 
@@ -277,18 +277,18 @@ ${LOGO}
 
 magenta is for agentic flow
 
-${contextView(thread.contextManager, contextViewCtx(thread))}`;
+${pendingContextView(thread.contextManager, contextViewCtx(thread))}`;
   }
 
   const latestUsage = thread.agent.getState().latestUsage;
   const statusView = renderStatus(agentStatus, mode, latestUsage);
 
-  const contextManagerView = shouldShowContextManager(
+  const contextManagerView = shouldShowPendingContext(
     agentStatus,
     mode,
     thread.contextManager,
   )
-    ? d`\n${contextView(thread.contextManager, contextViewCtx(thread))}`
+    ? d`\n${pendingContextView(thread.contextManager, contextViewCtx(thread))}`
     : d``;
 
   const sandboxView = thread.sandboxViolationHandler?.getPendingViolations()

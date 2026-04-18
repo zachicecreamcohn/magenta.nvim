@@ -114,8 +114,10 @@ it("getFile adds file to context after reading", async () => {
       text: "I've successfully read the file.",
     });
 
-    await driver.assertDisplayBufferContains("# context:");
-    await driver.assertDisplayBufferContains("- `poem.txt`");
+    const relativeFiles = Object.values(
+      driver.magenta.chat.getActiveThread().contextManager.files,
+    ).map((f) => f.relFilePath);
+    expect(relativeFiles).toContain("poem.txt");
   });
 });
 
@@ -272,10 +274,6 @@ it("should add images to context manager", async () => {
     const fileEntry = Object.values(contextFiles)[0];
     expect(fileEntry.relFilePath).toBe("test.jpg");
     expect(fileEntry.fileTypeInfo.category).toBe("image");
-
-    // Context section should be shown
-    await driver.assertDisplayBufferContains("# context:");
-    await driver.assertDisplayBufferContains("- `test.jpg`");
   });
 });
 
@@ -330,10 +328,6 @@ it("should add PDFs to context manager", async () => {
     const fileEntry = Object.values(contextFiles)[0];
     expect(fileEntry.relFilePath).toBe("sample2.pdf");
     expect(fileEntry.fileTypeInfo.category).toBe("pdf");
-
-    // Context section should be shown
-    await driver.assertDisplayBufferContains("# context:");
-    await driver.assertDisplayBufferContains("- `sample2.pdf`");
   });
 });
 
@@ -372,10 +366,6 @@ it("should continue to add text files to context normally", async () => {
       toolRequests: [],
       text: "I've read the text file successfully.",
     });
-
-    // Text file should be added to context normally
-    await driver.assertDisplayBufferContains("# context:");
-    await driver.assertDisplayBufferContains("- `poem.txt`");
 
     const relativeFiles = Object.values(
       driver.magenta.chat.getActiveThread().contextManager.files,
@@ -487,10 +477,6 @@ it("should handle mixed content types in a single conversation", async () => {
     });
 
     // All files should be in context
-    await driver.assertDisplayBufferContains("# context:");
-    await driver.assertDisplayBufferContains("- `poem.txt`");
-    await driver.assertDisplayBufferContains("- `test.jpg`");
-    await driver.assertDisplayBufferContains("- `sample2.pdf`");
 
     const relativeFiles = Object.values(
       driver.magenta.chat.getActiveThread().contextManager.files,

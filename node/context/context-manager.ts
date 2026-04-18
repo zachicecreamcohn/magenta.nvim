@@ -54,42 +54,69 @@ export function openFile(
   }
 }
 
-export function contextView(core: ContextManager, context: ContextViewContext) {
-  if (core.isContextEmpty()) {
+function renderUpdateIndicator(
+  update: FileUpdates[AbsFilePath]["update"],
+): string {
+  if (update.status !== "ok") {
+    return `[ error: ${update.error} ]`;
+  }
+  switch (update.value.type) {
+    case "diff": {
+      const patch = update.value.patch;
+      const additions = (patch.match(/^\+[^+]/gm) || []).length;
+      const deletions = (patch.match(/^-[^-]/gm) || []).length;
+      return `[ +${additions} / -${deletions} ]`;
+    }
+    case "whole-file": {
+      let lineCount = 0;
+      const lastTextBlock = update.value.content.findLast(
+        (block) => block.type === "text",
+      );
+      if (lastTextBlock && lastTextBlock.type === "text") {
+        lineCount = (lastTextBlock.text.match(/\n/g) || []).length + 1;
+      }
+      return `[ +${lineCount} lines ]`;
+    }
+    case "file-deleted":
+      return "[ deleted ]";
+    default:
+      assertUnreachable(update.value);
+  }
+}
+
+export function pendingContextView(
+  core: ContextManager,
+  context: ContextViewContext,
+) {
+  const pending = core.getPendingUpdates();
+  const keys = Object.keys(pending) as AbsFilePath[];
+  if (keys.length === 0) {
     return "";
   }
 
-  const fileContext = [];
-  for (const absFilePath in core.files) {
-    const fileInfo = core.files[absFilePath as AbsFilePath];
+  const entries = [];
+  for (const absFilePath of keys) {
+    const entry = pending[absFilePath];
     const pathForDisplay = displayPath(
       context.cwd,
-      absFilePath as AbsFilePath,
+      absFilePath,
       context.homeDir,
     );
 
-    const pdfInfo =
-      fileInfo.agentView?.type === "pdf"
-        ? formatPdfInfo({
-            summary: fileInfo.agentView.summary,
-            pages: fileInfo.agentView.pages,
-          })
-        : "";
-
-    fileContext.push(
-      withBindings(
-        d`- ${withInlineCode(d`\`${pathForDisplay}\`${pdfInfo}`)}\n`,
-        {
-          dd: () => core.removeFileContext(absFilePath as AbsFilePath),
-          "<CR>": () => openFile(absFilePath as AbsFilePath, core, context),
-        },
-      ),
+    const indicator = renderUpdateIndicator(entry.update);
+    const line = withBindings(
+      d`- ${withInlineCode(d`\`${pathForDisplay}\``)} ${indicator}\n`,
+      {
+        dd: () => core.removeFileContext(absFilePath),
+        "<CR>": () => openFile(absFilePath, core, context),
+      },
     );
+    entries.push(line);
   }
 
   return d`\
-${withExtmark(d`# context:`, { hl_group: "@markup.heading.1.markdown" })}
-${fileContext}`;
+${withExtmark(d`# pending context updates:`, { hl_group: "@markup.heading.1.markdown" })}
+${entries}`;
 }
 
 export function renderContextUpdate(

@@ -89,6 +89,7 @@ export type ThreadCoreEvents = {
   scrollToLastMessage: [];
   setupResubmit: [lastUserMessage: string];
   aborting: [];
+  pendingUpdatesChanged: [];
 
   contextUpdatesSent: [updates: Record<string, unknown>];
 };
@@ -118,6 +119,8 @@ export interface ThreadCoreContext {
 
 /** Minimum output tokens between system reminders during auto-respond loops */
 const SYSTEM_REMINDER_MIN_TOKEN_INTERVAL = 2000;
+
+const CONTEXT_MANAGER_POLL_INTERVAL_MS = 1000;
 
 export type ThreadCoreAction =
   | { type: "set-title"; title: string }
@@ -166,7 +169,9 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       context.cwd,
       context.homeDir,
       context.initialFiles,
+      CONTEXT_MANAGER_POLL_INTERVAL_MS,
     );
+    this.contextManager.start();
     this.state = {
       threadType: context.threadType,
       systemPrompt: context.systemPrompt,
@@ -189,17 +194,26 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
   }
 
   private contextManagerListeners:
-    | { fileAdded: () => void; fileRemoved: () => void }
+    | {
+        fileAdded: () => void;
+        fileRemoved: () => void;
+        pendingUpdatesChanged: () => void;
+      }
     | undefined;
 
   private listenToContextManager(): void {
     const listeners = {
       fileAdded: () => this.emit("update"),
       fileRemoved: () => this.emit("update"),
+      pendingUpdatesChanged: () => this.emit("pendingUpdatesChanged"),
     };
     this.contextManagerListeners = listeners;
     this.contextManager.on("fileAdded", listeners.fileAdded);
     this.contextManager.on("fileRemoved", listeners.fileRemoved);
+    this.contextManager.on(
+      "pendingUpdatesChanged",
+      listeners.pendingUpdatesChanged,
+    );
   }
 
   private unlistenContextManager(): void {
@@ -211,6 +225,10 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       this.contextManager.off(
         "fileRemoved",
         this.contextManagerListeners.fileRemoved,
+      );
+      this.contextManager.off(
+        "pendingUpdatesChanged",
+        this.contextManagerListeners.pendingUpdatesChanged,
       );
       this.contextManagerListeners = undefined;
     }
@@ -1074,12 +1092,16 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     });
 
     this.unlistenContextManager();
+    this.contextManager.destroy();
     this.contextManager = new ContextManager(
       this.context.logger,
       this.context.fileIO,
       this.context.cwd,
       this.context.homeDir,
+      undefined,
+      CONTEXT_MANAGER_POLL_INTERVAL_MS,
     );
+    this.contextManager.start();
     this.listenToContextManager();
 
     this.agent = this.createFreshAgent();
@@ -1137,5 +1159,32 @@ Come up with a succinct thread title for this prompt. It should be less than 80 
         (result.toolRequest.value.input as ThreadTitle.Input).title,
       );
     }
+  }
+
+  private destroyed = false;
+
+  async destroy(): Promise<void> {
+    if (this.destroyed) return;
+    this.destroyed = true;
+
+    if (this.updateThrottleTimer) {
+      clearTimeout(this.updateThrottleTimer);
+      this.updateThrottleTimer = undefined;
+    }
+
+    try {
+      await this.abort();
+    } catch {
+      // ignore
+    }
+
+    this.unlistenContextManager();
+    this.contextManager.destroy();
+
+    if (this.agent) {
+      this.unlistenAgent(this.agent);
+    }
+
+    this.removeAllListeners();
   }
 }

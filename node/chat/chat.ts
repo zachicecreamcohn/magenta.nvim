@@ -554,9 +554,9 @@ export class Chat implements ThreadManager {
     for (const id of idsToDelete) {
       const wrapper = this.threadWrappers[id];
       if (wrapper?.state === "initialized") {
-        wrapper.thread.abortAndWait().catch((e: Error) => {
+        wrapper.thread.destroy().catch((e: Error) => {
           this.context.nvim.logger.error(
-            `Error aborting thread ${id} during delete: ${e.message}`,
+            `Error destroying thread ${id} during delete: ${e.message}`,
           );
         });
       }

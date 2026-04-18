@@ -14,13 +14,13 @@ import { initializeMagentaHighlightGroups } from "./nvim/extmarks.ts";
 import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
 import type { Nvim } from "./nvim/nvim-node/index.ts";
 import { findOrCreateNonMagentaWindow } from "./nvim/openFileInNonMagentaWindow.ts";
-import { openTargetUnderCursor } from "./open-target-under-cursor.ts";
 import {
   NvimWindow,
   pos1col1to0,
   type Row0Indexed,
   type WindowId,
 } from "./nvim/window.ts";
+import { openTargetUnderCursor } from "./open-target-under-cursor.ts";
 import {
   getActiveProfile,
   type MagentaOptions,
