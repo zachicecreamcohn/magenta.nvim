@@ -634,14 +634,16 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
       `Magenta context-files ${quotedPaths}`,
     ]);
 
-    // Wait for all files to be displayed in the context
+    // Wait for all files to be tracked in the context manager
     await pollUntil(async () => {
-      const content = await this.getDisplayBufferText();
+      const contextManager = this.magenta.chat.getActiveThread().contextManager;
+      const tracked = Object.values(contextManager.files).map(
+        (f) => f.relFilePath,
+      );
       for (const filePath of filePaths) {
-        // Normalize the path to match display format (remove ./ prefix if present)
         const normalizedPath = filePath.replace(/^\.\//, "");
-        if (!content.includes(`- \`${normalizedPath}\``)) {
-          throw new Error(`Context file ${filePath} not yet displayed`);
+        if (!tracked.some((rel) => rel === normalizedPath)) {
+          throw new Error(`Context file ${filePath} not yet tracked`);
         }
       }
     });

@@ -50,6 +50,9 @@ export type Msg =
       type: "toggle-system-prompt";
     }
   | {
+      type: "toggle-context-files-expanded";
+    }
+  | {
       type: "toggle-expand-content";
       messageIdx: number;
       contentIdx: number;
@@ -139,6 +142,7 @@ export type ToolViewState = {
 export class Thread {
   public state: {
     showSystemPrompt: boolean;
+    contextFilesExpanded: boolean;
     messageViewState: { [messageIdx: number]: MessageViewState };
     toolViewState: { [toolRequestId: ToolRequestId]: ToolViewState };
     compactionViewState: {
@@ -209,6 +213,7 @@ export class Thread {
 
     this.state = {
       showSystemPrompt: false,
+      contextFilesExpanded: false,
       messageViewState: {},
       toolViewState: {},
       compactionViewState: {},
@@ -378,6 +383,10 @@ export class Thread {
 
       case "toggle-system-prompt":
         this.state.showSystemPrompt = !this.state.showSystemPrompt;
+        return;
+
+      case "toggle-context-files-expanded":
+        this.state.contextFilesExpanded = !this.state.contextFilesExpanded;
         return;
 
       case "toggle-expand-content": {

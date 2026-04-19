@@ -106,6 +106,9 @@ describe("key bindings", () => {
 
       await driver.addContextFiles("poem 3.txt", "poem2.txt", "poem.txt");
 
+      // Expand the context files list
+      await driver.triggerDisplayBufferKeyOnContent("context:", "=");
+
       // Press dd on the middle file to remove it
       await driver.triggerDisplayBufferKeyOnContent(`- \`poem2.txt\``, "dd");
 
@@ -139,6 +142,7 @@ describe("key bindings", () => {
       // Add file to context using the helper method
       await driver.addContextFiles("poem.txt");
 
+      await driver.triggerDisplayBufferKeyOnContent("context:", "=");
       await driver.triggerDisplayBufferKeyOnContent(`\`poem.txt\``, "<CR>");
 
       await driver.assertWindowCount(
@@ -168,6 +172,7 @@ describe("key bindings", () => {
       // Add file to context using the helper method
       await driver.addContextFiles("poem.txt");
 
+      await driver.triggerDisplayBufferKeyOnContent("context:", "=");
       await driver.triggerDisplayBufferKeyOnContent(`\`poem.txt\``, "<CR>");
       await driver.assertWindowCount(4);
 
@@ -199,6 +204,7 @@ describe("key bindings", () => {
         const displayWindow = driver.getVisibleState().displayWindow;
 
         // Get position of the file line to click on
+        await driver.triggerDisplayBufferKeyOnContent("context:", "=");
         await driver.triggerDisplayBufferKeyOnContent(`\`poem.txt\``, "<CR>");
 
         await driver.assertWindowCount(3, "Enter should open a new window");
@@ -235,6 +241,7 @@ describe("key bindings", () => {
         const displayWindow = driver.getVisibleState().displayWindow;
 
         // Get position of the file line to click on
+        await driver.triggerDisplayBufferKeyOnContent("context:", "=");
         await driver.triggerDisplayBufferKeyOnContent(`\`poem.txt\``, "<CR>");
 
         await driver.assertWindowCount(3, "Enter should open a new window");
@@ -260,9 +267,9 @@ it("context-files end-to-end", async () => {
     await driver.showSidebar();
     await driver.addContextFiles("poem.txt");
 
-    await driver.assertDisplayBufferContains(`\
-# pending context updates:
-- \`poem.txt\``);
+    await driver.assertDisplayBufferContains("context: 1 file (1 pending)");
+    await driver.triggerDisplayBufferKeyOnContent("context:", "=");
+    await driver.assertDisplayBufferContains(`- \`poem.txt\``);
 
     await driver.inputMagentaText("check out this file");
     await driver.send();
@@ -393,15 +400,15 @@ it("autoContext loads on startup and after new-thread", async () => {
   await withDriver({ options: testOptions }, async (driver) => {
     // Show sidebar and verify autoContext is loaded
     await driver.showSidebar();
-    await driver.assertDisplayBufferContains(
-      `# pending context updates:\n- \`test-auto-context.md\``,
-    );
+    await driver.assertDisplayBufferContains("context: 1 file (1 pending)");
+    await driver.triggerDisplayBufferKeyOnContent("context:", "=");
+    await driver.assertDisplayBufferContains(`- \`test-auto-context.md\``);
 
     // Create new thread and verify autoContext is loaded
     await driver.magenta.command("new-thread");
-    await driver.assertDisplayBufferContains(
-      `# pending context updates:\n- \`test-auto-context.md\``,
-    );
+    await driver.assertDisplayBufferContains("context: 1 file (1 pending)");
+    await driver.triggerDisplayBufferKeyOnContent("context:", "=");
+    await driver.assertDisplayBufferContains(`- \`test-auto-context.md\``);
 
     // Check that the content is included in messages when sending
     await driver.inputMagentaText("hello");
@@ -446,11 +453,8 @@ it("out-of-process file change surfaces in the pending-context view", async () =
     await pollUntil(
       async () => {
         const content = await driver.getDisplayBufferText();
-        if (!content.includes("# pending context updates:")) {
-          throw new Error("pending context updates heading not yet shown");
-        }
-        if (!content.includes("poem.txt")) {
-          throw new Error("pending entry for poem.txt not shown");
+        if (!content.includes("(1 pending)")) {
+          throw new Error("pending context summary not yet shown");
         }
       },
       { timeout: 5000 },

@@ -84,28 +84,47 @@ function renderUpdateIndicator(
   }
 }
 
-export function pendingContextView(
+export function contextFilesView(
   core: ContextManager,
   context: ContextViewContext,
+  view: { expanded: boolean; onToggle: () => void },
 ) {
   const pending = core.getPendingUpdates();
-  const keys = Object.keys(pending) as AbsFilePath[];
-  if (keys.length === 0) {
+  const allPaths = Object.keys(core.files) as AbsFilePath[];
+  const fileCount = allPaths.length;
+  if (fileCount === 0) {
     return "";
   }
 
+  const pendingCount = Object.keys(pending).length;
+  const summary =
+    pendingCount > 0
+      ? `context: ${fileCount.toString()} file${fileCount === 1 ? "" : "s"} (${pendingCount.toString()} pending)`
+      : `context: ${fileCount.toString()} file${fileCount === 1 ? "" : "s"}`;
+
+  const marker = view.expanded ? "-" : "+";
+  const header = withBindings(d`${marker} ${summary}`, {
+    "=": () => view.onToggle(),
+  });
+
+  if (!view.expanded) {
+    return d`${header}`;
+  }
+
+  const sortedPaths = [...allPaths].sort();
   const entries = [];
-  for (const absFilePath of keys) {
-    const entry = pending[absFilePath];
+  for (const absFilePath of sortedPaths) {
     const pathForDisplay = displayPath(
       context.cwd,
       absFilePath,
       context.homeDir,
     );
-
-    const indicator = renderUpdateIndicator(entry.update);
+    const pendingEntry = pending[absFilePath];
+    const indicator = pendingEntry
+      ? ` ${renderUpdateIndicator(pendingEntry.update)}`
+      : "";
     const line = withBindings(
-      d`- ${withInlineCode(d`\`${pathForDisplay}\``)} ${indicator}\n`,
+      d`- ${withInlineCode(d`\`${pathForDisplay}\``)}${indicator}\n`,
       {
         dd: () => core.removeFileContext(absFilePath),
         "<CR>": () => openFile(absFilePath, core, context),
@@ -115,7 +134,7 @@ export function pendingContextView(
   }
 
   return d`\
-${withExtmark(d`# pending context updates:`, { hl_group: "@markup.heading.1.markdown" })}
+${header}
 ${entries}`;
 }
 
