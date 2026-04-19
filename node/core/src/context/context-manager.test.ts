@@ -399,3 +399,210 @@ describe("ContextManager - PDF file handling", () => {
     expect(Object.keys(secondUpdates).length).toBe(0);
   });
 });
+
+describe("ContextManager - peekFileUpdate", () => {
+  it("returns a diff without mutating agentView", async () => {
+    const { cm, fileIO } = createTestContextManager({
+      [TEST_PATH]: "initial content",
+    });
+
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "get-file", content: "initial content" },
+      TEXT_FILE_TYPE,
+    );
+    expect(cm.files[TEST_PATH].agentView).toEqual({
+      type: "text",
+      content: "initial content",
+    });
+
+    await fileIO.writeFile(TEST_PATH, "modified content");
+
+    const first = await cm.peekFileUpdate(TEST_PATH);
+    expect(first).toBeDefined();
+    expect(first?.update.status).toBe("ok");
+    if (first?.update.status === "ok") {
+      expect(first.update.value.type).toBe("diff");
+    }
+    expect(cm.files[TEST_PATH].agentView).toEqual({
+      type: "text",
+      content: "initial content",
+    });
+
+    const second = await cm.peekFileUpdate(TEST_PATH);
+    expect(second).toBeDefined();
+    expect(second?.update.status).toBe("ok");
+    if (second?.update.status === "ok") {
+      expect(second.update.value.type).toBe("diff");
+    }
+    expect(cm.files[TEST_PATH].agentView).toEqual({
+      type: "text",
+      content: "initial content",
+    });
+  });
+});
+
+describe("ContextManager - refreshPendingUpdates", () => {
+  it("detects out-of-process change and emits event", async () => {
+    const { cm, fileIO } = createTestContextManager({
+      [TEST_PATH]: "baseline",
+    });
+
+    let statCounter = 1000;
+    fileIO.stat = () => Promise.resolve({ mtimeMs: statCounter, size: 8 });
+
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "get-file", content: "baseline" },
+      TEXT_FILE_TYPE,
+    );
+
+    await new Promise((resolve) => setImmediate(resolve));
+    await cm.refreshPendingUpdates();
+    expect(Object.keys(cm.getPendingUpdates()).length).toBe(0);
+
+    const spy = vi.fn();
+    cm.on("pendingUpdatesChanged", spy);
+
+    await fileIO.writeFile(TEST_PATH, "modified");
+    statCounter += 100;
+    await cm.refreshPendingUpdates();
+
+    const pending = cm.getPendingUpdates();
+    expect(pending[TEST_PATH]).toBeDefined();
+    expect(pending[TEST_PATH].update.status).toBe("ok");
+    if (pending[TEST_PATH].update.status === "ok") {
+      expect(pending[TEST_PATH].update.value.type).toBe("diff");
+    }
+    expect(spy.mock.calls.length).toBe(1);
+  });
+
+  it("skips readFile when stat has not changed", async () => {
+    const { cm, fileIO } = createTestContextManager({
+      [TEST_PATH]: "stable",
+    });
+    const fixedStat = { mtimeMs: 1000, size: 6 };
+    fileIO.stat = vi.fn().mockResolvedValue(fixedStat);
+    const readSpy = vi.spyOn(fileIO, "readFile");
+
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "get-file", content: "stable" },
+      TEXT_FILE_TYPE,
+    );
+
+    await cm.refreshPendingUpdates();
+    const countAfterFirst = readSpy.mock.calls.length;
+
+    await cm.refreshPendingUpdates();
+    expect(readSpy.mock.calls.length).toBe(countAfterFirst);
+  });
+
+  it("clears pending after a real send", async () => {
+    const { cm, fileIO } = createTestContextManager({
+      [TEST_PATH]: "orig",
+    });
+
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "get-file", content: "orig" },
+      TEXT_FILE_TYPE,
+    );
+
+    await fileIO.writeFile(TEST_PATH, "orig and more");
+    await cm.refreshPendingUpdates();
+    expect(Object.keys(cm.getPendingUpdates()).length).toBe(1);
+
+    await cm.getContextUpdate();
+
+    expect(Object.keys(cm.getPendingUpdates()).length).toBe(0);
+  });
+});
+
+describe("ContextManager - background poll", () => {
+  it("does not fire after destroy", async () => {
+    vi.useFakeTimers();
+    try {
+      const fileIO = new InMemoryFileIO({ [TEST_PATH]: "content" });
+      const mockLogger = {
+        error: vi.fn(),
+        warn: vi.fn(),
+        info: vi.fn(),
+        debug: vi.fn(),
+      };
+      const cm = new ContextManager(
+        mockLogger,
+        fileIO,
+        "/test" as NvimCwd,
+        "/home" as HomeDir,
+        {},
+        100,
+      );
+
+      cm.toolApplied(
+        TEST_PATH,
+        { type: "get-file", content: "content" },
+        TEXT_FILE_TYPE,
+      );
+      cm.start();
+
+      const spy = vi.fn();
+      cm.on("pendingUpdatesChanged", spy);
+
+      cm.destroy();
+      const baseline = spy.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(500);
+      expect(spy.mock.calls.length).toBe(baseline);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("fires refresh periodically", async () => {
+    vi.useFakeTimers();
+    try {
+      const fileIO = new InMemoryFileIO({ [TEST_PATH]: "initial" });
+      let statCounter = 1000;
+      fileIO.stat = () => Promise.resolve({ mtimeMs: statCounter, size: 8 });
+
+      const mockLogger = {
+        error: vi.fn(),
+        warn: vi.fn(),
+        info: vi.fn(),
+        debug: vi.fn(),
+      };
+      const cm = new ContextManager(
+        mockLogger,
+        fileIO,
+        "/test" as NvimCwd,
+        "/home" as HomeDir,
+        {},
+        100,
+      );
+
+      cm.toolApplied(
+        TEST_PATH,
+        { type: "get-file", content: "initial" },
+        TEXT_FILE_TYPE,
+      );
+
+      await vi.advanceTimersByTimeAsync(0);
+      await cm.refreshPendingUpdates();
+
+      const spy = vi.fn();
+      cm.on("pendingUpdatesChanged", spy);
+
+      await fileIO.writeFile(TEST_PATH, "changed");
+      statCounter += 100;
+
+      cm.start();
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(spy.mock.calls.length).toBeGreaterThanOrEqual(1);
+
+      cm.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

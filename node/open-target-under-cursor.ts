@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
-import { getCurrentWindow } from "./nvim/nvim.ts";
 import { getTokenAtCursor } from "./nvim/cursorToken.ts";
+import { getCurrentWindow } from "./nvim/nvim.ts";
 import type { Nvim } from "./nvim/nvim-node/index.ts";
 import { openFileInNonMagentaWindow } from "./nvim/openFileInNonMagentaWindow.ts";
 import { openUrl } from "./nvim/openUrl.ts";

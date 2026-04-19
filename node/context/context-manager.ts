@@ -3,7 +3,7 @@ import open from "open";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
 import type { MagentaOptions } from "../options.ts";
-import { d, withBindings, withExtmark, withInlineCode } from "../tea/view.ts";
+import { d, type VDOMNode, withBindings, withInlineCode } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import {
   type AbsFilePath,
@@ -54,42 +54,95 @@ export function openFile(
   }
 }
 
-export function contextView(core: ContextManager, context: ContextViewContext) {
-  if (core.isContextEmpty()) {
+function renderUpdateIndicator(
+  update: FileUpdates[AbsFilePath]["update"],
+): string {
+  if (update.status !== "ok") {
+    return `[ error: ${update.error} ]`;
+  }
+  switch (update.value.type) {
+    case "diff": {
+      const patch = update.value.patch;
+      const additions = (patch.match(/^\+[^+]/gm) || []).length;
+      const deletions = (patch.match(/^-[^-]/gm) || []).length;
+      return `[ +${additions} / -${deletions} ]`;
+    }
+    case "whole-file": {
+      let lineCount = 0;
+      const lastTextBlock = update.value.content.findLast(
+        (block) => block.type === "text",
+      );
+      if (lastTextBlock && lastTextBlock.type === "text") {
+        lineCount = (lastTextBlock.text.match(/\n/g) || []).length + 1;
+      }
+      return `[ +${lineCount} lines ]`;
+    }
+    case "file-deleted":
+      return "[ deleted ]";
+    default:
+      assertUnreachable(update.value);
+  }
+}
+
+export function contextFilesView(
+  core: ContextManager,
+  context: ContextViewContext,
+  view: { expanded: boolean; onToggle: () => void },
+) {
+  const pending = core.getPendingUpdates();
+  const allPaths = Object.keys(core.files) as AbsFilePath[];
+  if (allPaths.length === 0) {
     return "";
   }
 
-  const fileContext = [];
-  for (const absFilePath in core.files) {
-    const fileInfo = core.files[absFilePath as AbsFilePath];
+  const pendingPaths = Object.keys(pending) as AbsFilePath[];
+  const otherPaths = allPaths
+    .filter((p) => !pending[p])
+    .sort() as AbsFilePath[];
+
+  const renderFileLine = (
+    absFilePath: AbsFilePath,
+    indicator: string,
+  ): VDOMNode => {
     const pathForDisplay = displayPath(
       context.cwd,
-      absFilePath as AbsFilePath,
+      absFilePath,
       context.homeDir,
     );
-
-    const pdfInfo =
-      fileInfo.agentView?.type === "pdf"
-        ? formatPdfInfo({
-            summary: fileInfo.agentView.summary,
-            pages: fileInfo.agentView.pages,
-          })
-        : "";
-
-    fileContext.push(
-      withBindings(
-        d`- ${withInlineCode(d`\`${pathForDisplay}\`${pdfInfo}`)}\n`,
-        {
-          dd: () => core.removeFileContext(absFilePath as AbsFilePath),
-          "<CR>": () => openFile(absFilePath as AbsFilePath, core, context),
-        },
-      ),
+    return withBindings(
+      d`- ${withInlineCode(d`\`${pathForDisplay}\``)}${indicator}\n`,
+      {
+        dd: () => core.removeFileContext(absFilePath),
+        "<CR>": () => openFile(absFilePath, core, context),
+      },
     );
+  };
+
+  const pendingLines = pendingPaths
+    .sort()
+    .map((p) =>
+      renderFileLine(p, ` ${renderUpdateIndicator(pending[p].update)}`),
+    );
+
+  if (otherPaths.length === 0) {
+    return d`${pendingLines}`;
   }
 
-  return d`\
-${withExtmark(d`# context:`, { hl_group: "@markup.heading.1.markdown" })}
-${fileContext}`;
+  const marker = view.expanded ? "▼" : "▶";
+  const label =
+    pendingPaths.length > 0
+      ? `${otherPaths.length.toString()} other file${otherPaths.length === 1 ? "" : "s"} in context`
+      : `${otherPaths.length.toString()} file${otherPaths.length === 1 ? "" : "s"} in context`;
+  const toggleLine = withBindings(d`${marker} ${label}\n`, {
+    "=": () => view.onToggle(),
+  });
+
+  if (!view.expanded) {
+    return d`${pendingLines}${toggleLine}`;
+  }
+
+  const otherLines = otherPaths.map((p) => renderFileLine(p, ""));
+  return d`${pendingLines}${toggleLine}${otherLines}`;
 }
 
 export function renderContextUpdate(

@@ -52,11 +52,44 @@ export type FileUpdates = {
   };
 };
 
+function pendingUpdatesEqual(a: FileUpdates, b: FileUpdates): boolean {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const k of aKeys) {
+    const abs = k as AbsFilePath;
+    const av = a[abs];
+    const bv = b[abs];
+    if (!bv) return false;
+    if (av.update.status !== bv.update.status) return false;
+    if (av.update.status === "error" && bv.update.status === "error") {
+      if (av.update.error !== bv.update.error) return false;
+      continue;
+    }
+    if (av.update.status === "ok" && bv.update.status === "ok") {
+      const avv = av.update.value;
+      const bvv = bv.update.value;
+      if (avv.type !== bvv.type) return false;
+      if (avv.type === "diff" && bvv.type === "diff") {
+        if (avv.patch !== bvv.patch) return false;
+      } else if (avv.type === "whole-file" && bvv.type === "whole-file") {
+        if (JSON.stringify(avv.content) !== JSON.stringify(bvv.content)) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+export type FileStat = { mtimeMs: number; size: number };
+
 export type Files = {
   [absFilePath: AbsFilePath]: {
     relFilePath: RelFilePath;
     fileTypeInfo: FileTypeInfo;
     agentView: TrackedFileInfo["agentView"];
+    lastStat?: FileStat | undefined;
   };
 };
 
@@ -64,6 +97,7 @@ export type ContextManagerEvents = {
   fileAdded: [absFilePath: AbsFilePath];
   fileRemoved: [absFilePath: AbsFilePath];
   filesReset: [];
+  pendingUpdatesChanged: [];
 };
 
 export class ContextManager
@@ -71,6 +105,10 @@ export class ContextManager
   implements ContextTracker
 {
   public files: Files;
+  private pendingUpdates: FileUpdates = {};
+  private pollTimer: ReturnType<typeof setInterval> | undefined;
+  private destroyed = false;
+  private readonly pollIntervalMs: number | undefined;
 
   constructor(
     private logger: Logger,
@@ -78,9 +116,91 @@ export class ContextManager
     private cwd: NvimCwd,
     private homeDir: HomeDir,
     initialFiles: Files = {},
+    pollIntervalMs?: number,
   ) {
     super();
     this.files = initialFiles;
+    this.pollIntervalMs = pollIntervalMs;
+  }
+
+  start(): void {
+    if (this.destroyed || this.pollTimer) return;
+    if (this.pollIntervalMs === undefined) return;
+    this.pollTimer = setInterval(() => {
+      void this.refreshPendingUpdates();
+    }, this.pollIntervalMs);
+  }
+
+  stop(): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = undefined;
+    }
+  }
+
+  destroy(): void {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.stop();
+    this.removeAllListeners();
+  }
+
+  getPendingUpdates(): FileUpdates {
+    return this.pendingUpdates;
+  }
+
+  async refreshPendingUpdates(): Promise<void> {
+    if (this.destroyed) return;
+
+    const next: FileUpdates = {};
+    const keys = Object.keys(this.files) as AbsFilePath[];
+
+    for (const absFilePath of keys) {
+      const fileInfo = this.files[absFilePath];
+      if (!fileInfo) continue;
+
+      const relFilePath = relativePath(this.cwd, absFilePath, this.homeDir);
+      const currentStat = await this.fileIO.stat(absFilePath);
+
+      if (currentStat === undefined) {
+        fileInfo.lastStat = undefined;
+        next[absFilePath] = {
+          absFilePath,
+          relFilePath,
+          update: {
+            status: "ok",
+            value: { type: "file-deleted" },
+          },
+        };
+        continue;
+      }
+
+      const prevStat = fileInfo.lastStat;
+      if (
+        prevStat !== undefined &&
+        prevStat.mtimeMs === currentStat.mtimeMs &&
+        prevStat.size === currentStat.size
+      ) {
+        const existing = this.pendingUpdates[absFilePath];
+        if (existing) {
+          next[absFilePath] = existing;
+        }
+        continue;
+      }
+
+      const result = await this.peekFileUpdate(absFilePath);
+      fileInfo.lastStat = currentStat;
+      if (result?.update) {
+        next[absFilePath] = result;
+      }
+    }
+
+    if (!pendingUpdatesEqual(this.pendingUpdates, next)) {
+      this.pendingUpdates = next;
+      this.emit("pendingUpdatesChanged");
+    } else {
+      this.pendingUpdates = next;
+    }
   }
 
   addFileContext(
@@ -99,11 +219,14 @@ export class ContextManager
       agentView: undefined,
     };
     this.emit("fileAdded", absFilePath);
+    this.scheduleRefreshPendingUpdates();
   }
 
   removeFileContext(absFilePath: AbsFilePath): void {
     delete this.files[absFilePath];
+    delete this.pendingUpdates[absFilePath];
     this.emit("fileRemoved", absFilePath);
+    this.scheduleRefreshPendingUpdates();
   }
 
   toolApplied(
@@ -124,9 +247,15 @@ export class ContextManager
 
     this.updateAgentsViewOfFiles(absFilePath, tool);
 
+    const fileInfo = this.files[absFilePath];
+    if (fileInfo) {
+      fileInfo.lastStat = undefined;
+    }
+
     if (isNew) {
       this.emit("fileAdded", absFilePath);
     }
+    this.scheduleRefreshPendingUpdates();
   }
 
   async addFiles(filePaths: UnresolvedFilePath[]): Promise<void> {
@@ -154,13 +283,27 @@ export class ContextManager
       };
       this.emit("fileAdded", absFilePath);
     }
+    this.scheduleRefreshPendingUpdates();
   }
 
   reset(): void {
     for (const absFilePath in this.files) {
-      this.files[absFilePath as AbsFilePath].agentView = undefined;
+      const entry = this.files[absFilePath as AbsFilePath];
+      entry.agentView = undefined;
+      entry.lastStat = undefined;
     }
+    this.pendingUpdates = {};
     this.emit("filesReset");
+    this.scheduleRefreshPendingUpdates();
+  }
+
+  private scheduleRefreshPendingUpdates(): void {
+    if (this.destroyed) return;
+    void this.refreshPendingUpdates().catch((err: Error) => {
+      this.logger.error(
+        `Error refreshing pending updates: ${err.message}\n${err.stack ?? ""}`,
+      );
+    });
   }
 
   isContextEmpty(): boolean {
@@ -177,6 +320,7 @@ export class ContextManager
       keys.map(async (absFilePath) => {
         const result = await this.getFileMessageAndUpdateAgentViewOfFile({
           absFilePath,
+          commit: true,
         });
         return { absFilePath, result };
       }),
@@ -186,8 +330,14 @@ export class ContextManager
     for (const { absFilePath, result } of entries) {
       if (result?.update) {
         results[absFilePath] = result;
+        const fileInfo = this.files[absFilePath];
+        if (fileInfo) {
+          fileInfo.lastStat = undefined;
+        }
       }
     }
+
+    await this.refreshPendingUpdates();
 
     return results;
   }
@@ -266,8 +416,10 @@ From now on, whenever any of these files are updated by the user, you will get a
 
   private async getFileMessageAndUpdateAgentViewOfFile({
     absFilePath,
+    commit,
   }: {
     absFilePath: AbsFilePath;
+    commit: boolean;
   }): Promise<FileUpdates[keyof FileUpdates] | undefined> {
     const relFilePath = relativePath(this.cwd, absFilePath, this.homeDir);
     const fileInfo = this.files[absFilePath];
@@ -277,7 +429,9 @@ From now on, whenever any of these files are updated by the user, you will get a
     }
 
     if (!(await this.fileIO.fileExists(absFilePath))) {
-      delete this.files[absFilePath];
+      if (commit) {
+        delete this.files[absFilePath];
+      }
       return {
         absFilePath,
         relFilePath,
@@ -293,23 +447,41 @@ From now on, whenever any of these files are updated by the user, you will get a
         absFilePath,
         relFilePath,
         fileInfo,
+        commit,
       );
     } else {
-      return this.handleBinaryFileUpdate(absFilePath, relFilePath, fileInfo);
+      return this.handleBinaryFileUpdate(
+        absFilePath,
+        relFilePath,
+        fileInfo,
+        commit,
+      );
     }
+  }
+
+  async peekFileUpdate(
+    absFilePath: AbsFilePath,
+  ): Promise<FileUpdates[keyof FileUpdates] | undefined> {
+    return this.getFileMessageAndUpdateAgentViewOfFile({
+      absFilePath,
+      commit: false,
+    });
   }
 
   private async handleTextFileUpdate(
     absFilePath: AbsFilePath,
     relFilePath: RelFilePath,
     fileInfo: Files[AbsFilePath],
+    commit: boolean,
   ): Promise<FileUpdates[keyof FileUpdates] | undefined> {
     let currentFileContent: string;
     try {
       currentFileContent = await this.fileIO.readFile(absFilePath);
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-        delete this.files[absFilePath];
+        if (commit) {
+          delete this.files[absFilePath];
+        }
         return {
           absFilePath,
           relFilePath,
@@ -334,10 +506,12 @@ From now on, whenever any of these files are updated by the user, you will get a
         ? fileInfo.agentView.content
         : undefined;
 
-    fileInfo.agentView = {
-      type: "text",
-      content: currentFileContent,
-    };
+    if (commit) {
+      fileInfo.agentView = {
+        type: "text",
+        content: currentFileContent,
+      };
+    }
 
     if (!prevContent) {
       return {
@@ -383,6 +557,7 @@ From now on, whenever any of these files are updated by the user, you will get a
     absFilePath: AbsFilePath,
     relFilePath: RelFilePath,
     fileInfo: Files[AbsFilePath],
+    commit: boolean,
   ): Promise<FileUpdates[keyof FileUpdates] | undefined> {
     try {
       if (fileInfo.agentView !== undefined) {
@@ -399,7 +574,9 @@ From now on, whenever any of these files are updated by the user, you will get a
                 const summaryResult =
                   await getSummaryAsProviderContent(absFilePath);
                 if (summaryResult.status === "ok") {
-                  fileInfo.agentView.summary = true;
+                  if (commit) {
+                    fileInfo.agentView.summary = true;
+                  }
                   return {
                     absFilePath,
                     relFilePath,
@@ -442,12 +619,14 @@ From now on, whenever any of these files are updated by the user, you will get a
             const summaryResult =
               await getSummaryAsProviderContent(absFilePath);
             if (summaryResult.status === "ok") {
-              fileInfo.agentView = {
-                type: "pdf",
-                summary: true,
-                pages: [],
-                supportsPageExtraction: true,
-              };
+              if (commit) {
+                fileInfo.agentView = {
+                  type: "pdf",
+                  summary: true,
+                  pages: [],
+                  supportsPageExtraction: true,
+                };
+              }
               return {
                 absFilePath,
                 relFilePath,
@@ -483,7 +662,9 @@ From now on, whenever any of these files are updated by the user, you will get a
         } else if (fileInfo.fileTypeInfo.category === FileCategory.IMAGE) {
           try {
             const buffer = await this.fileIO.readBinaryFile(absFilePath);
-            fileInfo.agentView = { type: "binary" };
+            if (commit) {
+              fileInfo.agentView = { type: "binary" };
+            }
             return {
               absFilePath,
               relFilePath,

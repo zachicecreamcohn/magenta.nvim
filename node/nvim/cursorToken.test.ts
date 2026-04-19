@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { withNvimClient } from "../test/preamble.ts";
-import type { ByteIdx, Row1Indexed } from "./window.ts";
-import { NvimBuffer, type Line } from "./buffer.ts";
-import { getCurrentWindow } from "./nvim.ts";
+import { type Line, NvimBuffer } from "./buffer.ts";
 import { getTokenAtCursor } from "./cursorToken.ts";
-import type { Row0Indexed } from "./window.ts";
+import { getCurrentWindow } from "./nvim.ts";
+import type { ByteIdx, Row0Indexed, Row1Indexed } from "./window.ts";
 
-async function setupLine(nvim: import("./nvim-node/index.ts").Nvim, line: string) {
+async function setupLine(
+  nvim: import("./nvim-node/index.ts").Nvim,
+  line: string,
+) {
   const buffer = await NvimBuffer.create(false, true, nvim);
   await buffer.setLines({
     start: 0 as Row0Indexed,

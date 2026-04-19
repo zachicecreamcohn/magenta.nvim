@@ -26,4 +26,8 @@ export class Emitter<Events extends EventMap> {
       }
     }
   }
+
+  removeAllListeners(): void {
+    this.listeners = {};
+  }
 }

@@ -1,11 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { NvimBuffer } from "../nvim/buffer.ts";
 import { getCurrentWindow } from "../nvim/nvim.ts";
-import type {
-  ByteIdx,
-  Row0Indexed,
-  Row1Indexed,
-} from "../nvim/window.ts";
+import type { ByteIdx, Row0Indexed, Row1Indexed } from "../nvim/window.ts";
 import { withNvimClient } from "../test/preamble.ts";
 import { createApp } from "./tea.ts";
 import { d, pos, withBindings } from "./view.ts";

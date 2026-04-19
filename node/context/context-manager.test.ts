@@ -260,9 +260,7 @@ it("context-files end-to-end", async () => {
     await driver.showSidebar();
     await driver.addContextFiles("poem.txt");
 
-    await driver.assertDisplayBufferContains(`\
-# context:
-- \`poem.txt\``);
+    await driver.assertDisplayBufferContains(`- \`poem.txt\``);
 
     await driver.inputMagentaText("check out this file");
     await driver.send();
@@ -393,15 +391,11 @@ it("autoContext loads on startup and after new-thread", async () => {
   await withDriver({ options: testOptions }, async (driver) => {
     // Show sidebar and verify autoContext is loaded
     await driver.showSidebar();
-    await driver.assertDisplayBufferContains(
-      `# context:\n- \`test-auto-context.md\``,
-    );
+    await driver.assertDisplayBufferContains(`- \`test-auto-context.md\``);
 
     // Create new thread and verify autoContext is loaded
     await driver.magenta.command("new-thread");
-    await driver.assertDisplayBufferContains(
-      `# context:\n- \`test-auto-context.md\``,
-    );
+    await driver.assertDisplayBufferContains(`- \`test-auto-context.md\``);
 
     // Check that the content is included in messages when sending
     await driver.inputMagentaText("hello");
@@ -419,6 +413,38 @@ it("autoContext loads on startup and after new-thread", async () => {
           }),
         ]) as ProviderMessageContent[],
       }),
+    );
+  });
+});
+
+it("out-of-process file change surfaces in the pending-context view", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    const contextManager = driver.magenta.chat.getActiveThread().contextManager;
+
+    const cwd = await getcwd(driver.nvim);
+    const absFilePath = resolveFilePath(
+      cwd,
+      "poem.txt" as UnresolvedFilePath,
+      os.homedir() as HomeDir,
+    );
+
+    await driver.addContextFiles("poem.txt");
+    await contextManager.getContextUpdate();
+
+    await fs.promises.writeFile(
+      absFilePath,
+      "completely different content\nwith several new lines\nadded here\n",
+    );
+
+    await pollUntil(
+      async () => {
+        const content = await driver.getDisplayBufferText();
+        if (!content.match(/- `poem\.txt` \[ \+\d+ \/ -\d+ \]/)) {
+          throw new Error("pending diff entry for poem.txt not yet shown");
+        }
+      },
+      { timeout: 5000 },
     );
   });
 });

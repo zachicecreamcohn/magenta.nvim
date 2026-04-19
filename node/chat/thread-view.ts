@@ -12,7 +12,7 @@ import {
 } from "@magenta/core";
 import {
   type ContextViewContext,
-  contextView,
+  contextFilesView,
   renderContextUpdate,
 } from "../context/context-manager.ts";
 import type {
@@ -134,16 +134,15 @@ function renderUsage(usage: Usage): VDOMNode {
 /**
  * Helper function to determine if context manager view should be shown
  */
-const shouldShowContextManager = (
+const shouldShowContextFiles = (
   agentStatus: AgentStatus,
   mode: ThreadMode,
   contextManager: ContextManager,
 ): boolean => {
   return (
-    agentStatus.type === "stopped" &&
-    agentStatus.stopReason !== "tool_use" &&
+    agentStatus.type !== "streaming" &&
     mode.type === "normal" &&
-    !contextManager.isContextEmpty()
+    Object.keys(contextManager.files).length > 0
   );
 };
 
@@ -277,18 +276,24 @@ ${LOGO}
 
 magenta is for agentic flow
 
-${contextView(thread.contextManager, contextViewCtx(thread))}`;
+${contextFilesView(thread.contextManager, contextViewCtx(thread), {
+  expanded: thread.state.contextFilesExpanded,
+  onToggle: () => dispatch({ type: "toggle-context-files-expanded" }),
+})}`;
   }
 
   const latestUsage = thread.agent.getState().latestUsage;
   const statusView = renderStatus(agentStatus, mode, latestUsage);
 
-  const contextManagerView = shouldShowContextManager(
+  const contextManagerView = shouldShowContextFiles(
     agentStatus,
     mode,
     thread.contextManager,
   )
-    ? d`\n${contextView(thread.contextManager, contextViewCtx(thread))}`
+    ? d`\n${contextFilesView(thread.contextManager, contextViewCtx(thread), {
+        expanded: thread.state.contextFilesExpanded,
+        onToggle: () => dispatch({ type: "toggle-context-files-expanded" }),
+      })}`
     : d``;
 
   const sandboxView = thread.sandboxViolationHandler?.getPendingViolations()

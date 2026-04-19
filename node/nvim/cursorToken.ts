@@ -42,7 +42,9 @@ end)`,
     const start = match.index;
     const end = start + match[0].length;
     if (col >= start && col < end) {
-      nvim.logger.debug(`getTokenAtCursor: returning markdown link target ${JSON.stringify(match[2])}`);
+      nvim.logger.debug(
+        `getTokenAtCursor: returning markdown link target ${JSON.stringify(match[2])}`,
+      );
       return match[2];
     }
   }

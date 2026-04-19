@@ -50,6 +50,9 @@ export type Msg =
       type: "toggle-system-prompt";
     }
   | {
+      type: "toggle-context-files-expanded";
+    }
+  | {
       type: "toggle-expand-content";
       messageIdx: number;
       contentIdx: number;
@@ -139,6 +142,7 @@ export type ToolViewState = {
 export class Thread {
   public state: {
     showSystemPrompt: boolean;
+    contextFilesExpanded: boolean;
     messageViewState: { [messageIdx: number]: MessageViewState };
     toolViewState: { [toolRequestId: ToolRequestId]: ToolViewState };
     compactionViewState: {
@@ -209,6 +213,7 @@ export class Thread {
 
     this.state = {
       showSystemPrompt: false,
+      contextFilesExpanded: false,
       messageViewState: {},
       toolViewState: {},
       compactionViewState: {},
@@ -250,30 +255,79 @@ export class Thread {
       clonedAgent,
     );
 
-    this.core.on("update", () => this.myDispatch({ type: "tool-progress" }));
-    this.core.on("playChime", () => this.playChimeIfNeeded());
-    this.core.on("scrollToLastMessage", () =>
-      this.context.dispatch({
-        type: "sidebar-msg",
-        msg: { type: "scroll-to-last-user-message" },
-      }),
-    );
-    this.core.on("setupResubmit", (lastUserMessage) =>
-      this.context.dispatch({
-        type: "sidebar-msg",
-        msg: { type: "setup-resubmit", lastUserMessage },
-      }),
-    );
+    const coreListeners = {
+      update: () => this.myDispatch({ type: "tool-progress" }),
+      pendingUpdatesChanged: () => this.myDispatch({ type: "tool-progress" }),
+      playChime: () => this.playChimeIfNeeded(),
+      scrollToLastMessage: () =>
+        this.context.dispatch({
+          type: "sidebar-msg",
+          msg: { type: "scroll-to-last-user-message" },
+        }),
+      setupResubmit: (lastUserMessage: string) =>
+        this.context.dispatch({
+          type: "sidebar-msg",
+          msg: { type: "setup-resubmit", lastUserMessage },
+        }),
+      aborting: () => {
+        this.sandboxViolationHandler?.rejectAll();
+      },
+      contextUpdatesSent: (updates: Record<string, unknown>) => {
+        const messageCount = this.core.getProviderMessages().length;
+        this.state.messageViewState[messageCount] = {
+          contextUpdates: updates as FileUpdates,
+        };
+      },
+    };
+    this.coreListeners = coreListeners;
+    this.core.on("update", coreListeners.update);
+    this.core.on("pendingUpdatesChanged", coreListeners.pendingUpdatesChanged);
+    this.core.on("playChime", coreListeners.playChime);
+    this.core.on("scrollToLastMessage", coreListeners.scrollToLastMessage);
+    this.core.on("setupResubmit", coreListeners.setupResubmit);
+    this.core.on("aborting", coreListeners.aborting);
+    this.core.on("contextUpdatesSent", coreListeners.contextUpdatesSent);
+  }
 
-    this.core.on("aborting", () => {
-      this.sandboxViolationHandler?.rejectAll();
-    });
-    this.core.on("contextUpdatesSent", (updates) => {
-      const messageCount = this.core.getProviderMessages().length;
-      this.state.messageViewState[messageCount] = {
-        contextUpdates: updates as FileUpdates,
-      };
-    });
+  private coreListeners:
+    | {
+        update: () => void;
+        pendingUpdatesChanged: () => void;
+        playChime: () => void;
+        scrollToLastMessage: () => void;
+        setupResubmit: (lastUserMessage: string) => void;
+        aborting: () => void;
+        contextUpdatesSent: (updates: Record<string, unknown>) => void;
+      }
+    | undefined;
+
+  private destroyed = false;
+
+  async destroy(): Promise<void> {
+    if (this.destroyed) return;
+    this.destroyed = true;
+
+    if (this.coreListeners) {
+      this.core.off("update", this.coreListeners.update);
+      this.core.off(
+        "pendingUpdatesChanged",
+        this.coreListeners.pendingUpdatesChanged,
+      );
+      this.core.off("playChime", this.coreListeners.playChime);
+      this.core.off(
+        "scrollToLastMessage",
+        this.coreListeners.scrollToLastMessage,
+      );
+      this.core.off("setupResubmit", this.coreListeners.setupResubmit);
+      this.core.off("aborting", this.coreListeners.aborting);
+      this.core.off(
+        "contextUpdatesSent",
+        this.coreListeners.contextUpdatesSent,
+      );
+      this.coreListeners = undefined;
+    }
+
+    await this.core.destroy();
   }
 
   getProviderStatus(): AgentStatus {
@@ -329,6 +383,10 @@ export class Thread {
 
       case "toggle-system-prompt":
         this.state.showSystemPrompt = !this.state.showSystemPrompt;
+        return;
+
+      case "toggle-context-files-expanded":
+        this.state.contextFilesExpanded = !this.state.contextFilesExpanded;
         return;
 
       case "toggle-expand-content": {
