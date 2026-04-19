@@ -836,6 +836,7 @@ I'll read the first file.
 📋 [System Reminder]
 I've read both files for you.
 
-+ context: 2 files
+▶ 2 files in context
+
 Stopped (end_turn)  [input: 1000, output: 5000] "
 `;

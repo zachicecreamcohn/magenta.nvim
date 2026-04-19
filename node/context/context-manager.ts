@@ -3,7 +3,7 @@ import open from "open";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
 import type { MagentaOptions } from "../options.ts";
-import { d, withBindings, withExtmark, withInlineCode } from "../tea/view.ts";
+import { d, type VDOMNode, withBindings, withInlineCode } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import {
   type AbsFilePath,
@@ -91,51 +91,58 @@ export function contextFilesView(
 ) {
   const pending = core.getPendingUpdates();
   const allPaths = Object.keys(core.files) as AbsFilePath[];
-  const fileCount = allPaths.length;
-  if (fileCount === 0) {
+  if (allPaths.length === 0) {
     return "";
   }
 
-  const pendingCount = Object.keys(pending).length;
-  const summary =
-    pendingCount > 0
-      ? `context: ${fileCount.toString()} file${fileCount === 1 ? "" : "s"} (${pendingCount.toString()} pending)`
-      : `context: ${fileCount.toString()} file${fileCount === 1 ? "" : "s"}`;
+  const pendingPaths = Object.keys(pending) as AbsFilePath[];
+  const otherPaths = allPaths
+    .filter((p) => !pending[p])
+    .sort() as AbsFilePath[];
 
-  const marker = view.expanded ? "-" : "+";
-  const header = withBindings(d`${marker} ${summary}`, {
-    "=": () => view.onToggle(),
-  });
-
-  if (!view.expanded) {
-    return d`${header}`;
-  }
-
-  const sortedPaths = [...allPaths].sort();
-  const entries = [];
-  for (const absFilePath of sortedPaths) {
+  const renderFileLine = (
+    absFilePath: AbsFilePath,
+    indicator: string,
+  ): VDOMNode => {
     const pathForDisplay = displayPath(
       context.cwd,
       absFilePath,
       context.homeDir,
     );
-    const pendingEntry = pending[absFilePath];
-    const indicator = pendingEntry
-      ? ` ${renderUpdateIndicator(pendingEntry.update)}`
-      : "";
-    const line = withBindings(
+    return withBindings(
       d`- ${withInlineCode(d`\`${pathForDisplay}\``)}${indicator}\n`,
       {
         dd: () => core.removeFileContext(absFilePath),
         "<CR>": () => openFile(absFilePath, core, context),
       },
     );
-    entries.push(line);
+  };
+
+  const pendingLines = pendingPaths
+    .sort()
+    .map((p) =>
+      renderFileLine(p, ` ${renderUpdateIndicator(pending[p].update)}`),
+    );
+
+  if (otherPaths.length === 0) {
+    return d`${pendingLines}`;
   }
 
-  return d`\
-${header}
-${entries}`;
+  const marker = view.expanded ? "▼" : "▶";
+  const label =
+    pendingPaths.length > 0
+      ? `${otherPaths.length.toString()} other file${otherPaths.length === 1 ? "" : "s"} in context`
+      : `${otherPaths.length.toString()} file${otherPaths.length === 1 ? "" : "s"} in context`;
+  const toggleLine = withBindings(d`${marker} ${label}\n`, {
+    "=": () => view.onToggle(),
+  });
+
+  if (!view.expanded) {
+    return d`${pendingLines}${toggleLine}`;
+  }
+
+  const otherLines = otherPaths.map((p) => renderFileLine(p, ""));
+  return d`${pendingLines}${toggleLine}${otherLines}`;
 }
 
 export function renderContextUpdate(

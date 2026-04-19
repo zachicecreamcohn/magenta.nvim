@@ -1033,8 +1033,6 @@ it("displays deleted context updates correctly", async () => {
     await driver.addContextFiles("temp-delete-test.txt");
 
     // Verify file is in context (with pending whole-file send since never read by agent)
-    await driver.assertDisplayBufferContains("context: 1 file (1 pending)");
-    await driver.triggerDisplayBufferKeyOnContent("context:", "=");
     await driver.assertDisplayBufferContains(`- \`temp-delete-test.txt\``);
 
     // Delete the file from disk
