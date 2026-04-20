@@ -27,6 +27,7 @@ export type ProviderProfile = {
         enabled: boolean;
         budgetTokens?: number;
         displayThinking?: boolean;
+        effort?: "low" | "medium" | "high" | "xhigh" | "max";
       }
     | undefined;
   reasoning?:

@@ -771,6 +771,15 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
       }
     }
 
+    const outputConfig = resolveOutputConfig(
+      model,
+      thinking,
+      this.anthropicOptions.logger,
+    );
+    if (outputConfig) {
+      params.output_config = outputConfig;
+    }
+
     return params;
   }
 
@@ -1314,6 +1323,31 @@ export function withCacheControl(
   }
 
   return messages;
+}
+
+/** Resolve `output_config` for adaptive-thinking models. Emits a single warn
+ * and returns undefined when the current model does not support adaptive
+ * thinking but the caller requested an effort level. */
+export function resolveOutputConfig(
+  model: string,
+  thinking:
+    | {
+        enabled: boolean;
+        budgetTokens?: number;
+        displayThinking?: boolean;
+        effort?: "low" | "medium" | "high" | "xhigh" | "max";
+      }
+    | undefined,
+  logger: Logger,
+): Anthropic.Messages.OutputConfig | undefined {
+  if (!thinking?.effort) return undefined;
+  if (!supportsAdaptiveThinking(model)) {
+    logger.warn(
+      `thinking.effort is only supported on adaptive-thinking models (Opus 4.7+, Sonnet 4.6+); ignoring effort=${thinking.effort} on model ${model}`,
+    );
+    return undefined;
+  }
+  return { effort: thinking.effort };
 }
 
 // Opus 4.7+ and Sonnet 4.6+ require adaptive thinking instead of budget_tokens

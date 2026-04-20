@@ -39,7 +39,8 @@ Opus 4.7 uses adaptive thinking (no explicit budget needed):
       apiKeyEnvVar = "ANTHROPIC_API_KEY",
       thinking = {
         enabled = true,
-        displayThinking = false  -- set true to stream thinking summaries
+        displayThinking = false,  -- set true to stream thinking summaries
+        effort = "max"            -- "low" | "medium" | "high" | "xhigh" | "max"
       }
     }
 <
@@ -64,6 +65,12 @@ Configuration options:~
     models before Opus 4.7; Opus 4.7+ uses adaptive allocation
   - `displayThinking`: (optional, default false) Stream thinking summaries
     to chat. Set true to see the thinking process as it streams
+  - `effort`: (optional) Steer how aggressively Claude thinks and spends
+    tokens on tool calls. One of "low" | "medium" | "high" | "xhigh" | "max".
+    Maps to Anthropic's `output_config.effort`. Applies only to
+    adaptive-thinking models (Opus 4.7+, Sonnet 4.6+); ignored with a
+    warning on older models. See
+    https://platform.claude.com/docs/en/build-with-claude/effort
 
                                                          *magenta-claude-max*
 CLAUDE MAX AUTHENTICATION ~

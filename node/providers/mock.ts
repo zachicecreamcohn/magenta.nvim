@@ -104,6 +104,12 @@ export class MockProvider implements Provider {
     systemPrompt?: string;
     disableCaching?: boolean;
     contextAgent?: Agent;
+    thinking?: {
+      enabled: boolean;
+      budgetTokens?: number;
+      displayThinking?: boolean;
+      effort?: "low" | "medium" | "high" | "xhigh" | "max";
+    };
   }): ProviderToolUseRequest {
     const { model, input, spec, systemPrompt, contextAgent } = options;
     const request: MockForceToolUseRequest = {

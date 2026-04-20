@@ -185,3 +185,51 @@ describe("mergeOptions", () => {
     expect(merged.sandbox).toEqual(base.sandbox);
   });
 });
+
+describe("parseProfiles thinking.effort", () => {
+  it("accepts a valid effort value", () => {
+    const warnings: string[] = [];
+    const logger = {
+      warn: (msg: string) => warnings.push(msg),
+      error: () => {},
+    };
+    const result = parseOptions(
+      {
+        profiles: [
+          {
+            name: "test",
+            provider: "anthropic",
+            model: "claude-opus-4-7",
+            thinking: { enabled: true, effort: "max" },
+          },
+        ],
+      },
+      logger,
+    );
+    expect(result.profiles[0].thinking?.effort).toBe("max");
+    expect(warnings).toEqual([]);
+  });
+
+  it("warns and drops an invalid effort value", () => {
+    const warnings: string[] = [];
+    const logger = {
+      warn: (msg: string) => warnings.push(msg),
+      error: () => {},
+    };
+    const result = parseOptions(
+      {
+        profiles: [
+          {
+            name: "test",
+            provider: "anthropic",
+            model: "claude-opus-4-7",
+            thinking: { enabled: true, effort: "turbo" },
+          },
+        ],
+      },
+      logger,
+    );
+    expect(result.profiles[0].thinking?.effort).toBeUndefined();
+    expect(warnings.some((w) => w.includes("Invalid effort"))).toBe(true);
+  });
+});

@@ -18,6 +18,7 @@ import {
   getRetryDelay,
   isRetryableError,
   MAX_RETRY_DURATION,
+  resolveOutputConfig,
   withCacheControl,
 } from "./anthropic-agent.ts";
 import type {
@@ -454,9 +455,22 @@ export class AnthropicProvider implements Provider {
     systemPrompt?: string;
     disableCaching?: boolean;
     contextAgent?: Agent;
+    thinking?: {
+      enabled: boolean;
+      budgetTokens?: number;
+      displayThinking?: boolean;
+      effort?: "low" | "medium" | "high" | "xhigh" | "max";
+    };
   }): ProviderToolUseRequest {
-    const { model, input, spec, systemPrompt, disableCaching, contextAgent } =
-      options;
+    const {
+      model,
+      input,
+      spec,
+      systemPrompt,
+      disableCaching,
+      contextAgent,
+      thinking,
+    } = options;
     let aborted = false;
 
     // Convert input to native Anthropic content blocks
@@ -511,7 +525,7 @@ export class AnthropicProvider implements Provider {
     }
 
     let retryAbortController: AbortController | undefined;
-    const streamParams = {
+    const streamParams: Anthropic.Messages.MessageStreamParams = {
       model,
       max_tokens: getMaxTokensForModel(model),
       system: systemBlocks,
@@ -529,6 +543,11 @@ export class AnthropicProvider implements Provider {
         disable_parallel_tool_use: this.disableParallelToolUseFlag,
       },
     };
+
+    const outputConfig = resolveOutputConfig(model, thinking, this.logger);
+    if (outputConfig) {
+      streamParams.output_config = outputConfig;
+    }
     let currentRequest = this.client.messages.stream(streamParams);
 
     const processResponse = (response: Anthropic.Message) => {

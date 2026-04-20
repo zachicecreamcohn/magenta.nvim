@@ -60,6 +60,7 @@ export type Profile = {
         enabled: boolean;
         budgetTokens?: number;
         displayThinking?: boolean;
+        effort?: "low" | "medium" | "high" | "xhigh" | "max";
       }
     | undefined;
   reasoning?:
@@ -367,6 +368,25 @@ function parseProfiles(
             }
             if (typeof thinking.displayThinking === "boolean") {
               out.thinking.displayThinking = thinking.displayThinking;
+            }
+            if ("effort" in thinking) {
+              if (
+                typeof thinking.effort === "string" &&
+                ["low", "medium", "high", "xhigh", "max"].includes(
+                  thinking.effort,
+                )
+              ) {
+                out.thinking.effort = thinking.effort as
+                  | "low"
+                  | "medium"
+                  | "high"
+                  | "xhigh"
+                  | "max";
+              } else {
+                logger.warn(
+                  `Invalid effort in profile ${p.name}, must be "low", "medium", "high", "xhigh", or "max"`,
+                );
+              }
             }
           } else {
             logger.warn(

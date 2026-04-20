@@ -169,6 +169,12 @@ export interface Provider {
     systemPrompt?: string;
     disableCaching?: boolean;
     contextAgent?: Agent;
+    thinking?: {
+      enabled: boolean;
+      budgetTokens?: number;
+      displayThinking?: boolean;
+      effort?: "low" | "medium" | "high" | "xhigh" | "max";
+    };
   }): ProviderToolUseRequest;
 
   createAgent(options: AgentOptions): Agent;
@@ -331,6 +337,7 @@ export interface AgentOptions {
     enabled: boolean;
     budgetTokens?: number;
     displayThinking?: boolean;
+    effort?: "low" | "medium" | "high" | "xhigh" | "max";
   };
   reasoning?: {
     effort?: "low" | "medium" | "high" | "xhigh";

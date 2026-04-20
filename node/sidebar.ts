@@ -162,7 +162,11 @@ export class Sidebar {
 
   private getInputWindowTitle(): string {
     const profile = this.getProfile();
-    const thinkingStatus = profile.thinking?.enabled ? " thinking" : "";
+    const thinkingStatus = profile.thinking?.enabled
+      ? profile.thinking.effort
+        ? ` thinking:${profile.thinking.effort}`
+        : " thinking"
+      : "";
     const baseTitle = `Magenta Input (${profile.name}${thinkingStatus})`;
     const tokenCount = this.getTokenCount();
 

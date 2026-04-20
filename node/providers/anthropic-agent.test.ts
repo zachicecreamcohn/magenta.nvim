@@ -22,7 +22,14 @@ type TrackedMessages = {
 
 function createAgent(
   mockClient: MockAnthropicClient | Anthropic,
-  options?: Partial<typeof defaultOptions>,
+  options?: Partial<typeof defaultOptions> & {
+    thinking?: {
+      enabled: boolean;
+      budgetTokens?: number;
+      displayThinking?: boolean;
+      effort?: "low" | "medium" | "high" | "xhigh" | "max";
+    };
+  },
   tracked?: TrackedMessages,
 ): AnthropicAgent {
   const agent = new AnthropicAgent(
@@ -65,6 +72,66 @@ const defaultAnthropicOptions: AnthropicAgentOptions = {
   logger: winston.createLogger(),
   validateInput,
 };
+
+describe("thinking.effort", () => {
+  it("includes output_config.effort on adaptive-thinking models", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient, {
+      model: "claude-opus-4-7",
+      thinking: { enabled: true, effort: "max" },
+    });
+
+    agent.appendUserMessage([{ type: "text", text: "Hi" }]);
+    await delay(0);
+    agent.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+
+    expect(stream.params.output_config?.effort).toBe("max");
+    expect(stream.params.thinking).toEqual({
+      type: "adaptive",
+      display: "omitted",
+    });
+
+    stream.finishResponse("end_turn");
+    await stream.finalMessage();
+  });
+
+  it("drops effort and warns on non-adaptive-thinking models", async () => {
+    const mockClient = new MockAnthropicClient();
+    const warnings: string[] = [];
+    const logger = winston.createLogger();
+    logger.warn = ((msg: string) => {
+      warnings.push(msg);
+      return logger;
+    }) as typeof logger.warn;
+
+    const agent = new AnthropicAgent(
+      {
+        model: "claude-sonnet-4-5",
+        systemPrompt: "You are a helpful assistant.",
+        tools: [] as ProviderToolSpec[],
+        thinking: { enabled: true, effort: "max" },
+      },
+      mockClient as unknown as Anthropic,
+      { ...defaultAnthropicOptions, logger },
+    );
+
+    agent.appendUserMessage([{ type: "text", text: "Hi" }]);
+    await delay(0);
+    agent.continueConversation();
+
+    const stream = await mockClient.awaitStream();
+
+    expect(stream.params.output_config).toBeUndefined();
+    expect(
+      warnings.some((w) => w.includes("thinking.effort is only supported")),
+    ).toBe(true);
+
+    stream.finishResponse("end_turn");
+    await stream.finalMessage();
+  });
+});
 
 describe("appendUserMessage", () => {
   it("does not add assistant message until first content block completes", async () => {
