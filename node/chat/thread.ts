@@ -258,7 +258,12 @@ export class Thread {
     const coreListeners = {
       update: () => this.myDispatch({ type: "tool-progress" }),
       pendingUpdatesChanged: () => this.myDispatch({ type: "tool-progress" }),
-      playChime: () => this.playChimeIfNeeded(),
+      turnEnded: (payload: { reason: "end_turn" | "aborted" | "error" }) => {
+        if (payload.reason === "end_turn" || payload.reason === "error") {
+          this.playChimeSound();
+          this.sendTerminalBell();
+        }
+      },
       scrollToLastMessage: () =>
         this.context.dispatch({
           type: "sidebar-msg",
@@ -282,7 +287,7 @@ export class Thread {
     this.coreListeners = coreListeners;
     this.core.on("update", coreListeners.update);
     this.core.on("pendingUpdatesChanged", coreListeners.pendingUpdatesChanged);
-    this.core.on("playChime", coreListeners.playChime);
+    this.core.on("turnEnded", coreListeners.turnEnded);
     this.core.on("scrollToLastMessage", coreListeners.scrollToLastMessage);
     this.core.on("setupResubmit", coreListeners.setupResubmit);
     this.core.on("aborting", coreListeners.aborting);
@@ -293,7 +298,9 @@ export class Thread {
     | {
         update: () => void;
         pendingUpdatesChanged: () => void;
-        playChime: () => void;
+        turnEnded: (payload: {
+          reason: "end_turn" | "aborted" | "error";
+        }) => void;
         scrollToLastMessage: () => void;
         setupResubmit: (lastUserMessage: string) => void;
         aborting: () => void;
@@ -313,7 +320,7 @@ export class Thread {
         "pendingUpdatesChanged",
         this.coreListeners.pendingUpdatesChanged,
       );
-      this.core.off("playChime", this.coreListeners.playChime);
+      this.core.off("turnEnded", this.coreListeners.turnEnded);
       this.core.off(
         "scrollToLastMessage",
         this.coreListeners.scrollToLastMessage,
@@ -514,19 +521,6 @@ export class Thread {
 
   async abortAndWait(): Promise<void> {
     await this.core.abort();
-  }
-
-  private playChimeIfNeeded(): void {
-    const agentStatus = this.core.agent.getState().status;
-
-    if (
-      agentStatus.type === "stopped" &&
-      agentStatus.stopReason === "end_turn"
-    ) {
-      this.playChimeSound();
-      this.sendTerminalBell();
-      return;
-    }
   }
 
   private sendTerminalBell(): void {

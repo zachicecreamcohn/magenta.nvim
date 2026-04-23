@@ -2,13 +2,16 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  type AbsFilePath,
   type CompactionRecord,
   type CompletedToolInfo,
   type ContextManager,
+  displayPath,
   renderThreadToMarkdown,
   type ThreadMode,
   type ToolName,
   type ToolRequestId,
+  type UnresolvedFilePath,
 } from "@magenta/core";
 import {
   type ContextViewContext,
@@ -244,6 +247,28 @@ function renderCompactionHistory(
     return d`${header}${stepsView}${summaryView}`;
   })}`;
 }
+function editedFilesSummaryView(
+  editedFiles: ReadonlyArray<AbsFilePath>,
+  thread: Thread,
+  dispatch: Dispatch<Msg>,
+): VDOMNode {
+  if (editedFiles.length === 0) return d``;
+
+  const { cwd, homeDir } = thread.context;
+  return d`\n${withExtmark(d`Files edited this turn:\n`, { hl_group: "@comment" })}${editedFiles.map(
+    (filePath) => {
+      const display = displayPath(cwd, filePath, homeDir);
+      return withBindings(d`  ${display}\n`, {
+        "<CR>": () =>
+          dispatch({
+            type: "open-edit-file",
+            filePath: filePath as unknown as UnresolvedFilePath,
+          }),
+      });
+    },
+  )}`;
+}
+
 export const view: View<{
   thread: Thread;
   dispatch: Dispatch<Msg>;
@@ -303,6 +328,11 @@ ${contextFilesView(thread.contextManager, contextViewCtx(thread), {
   const compactionHistoryView = renderCompactionHistory(
     thread.core.state.compactionHistory,
     thread.state.compactionViewState,
+    dispatch,
+  );
+  const editedFilesView = editedFilesSummaryView(
+    thread.core.state.editedFilesThisTurn,
+    thread,
     dispatch,
   );
   const pendingMessagesView =
@@ -400,7 +430,8 @@ ${messagesView}\
 ${streamingBlockView}\
 ${contextManagerView}\
 ${sandboxView}\
-${pendingMessagesView}
+${pendingMessagesView}\
+${editedFilesView}
 ${statusView}`;
 };
 

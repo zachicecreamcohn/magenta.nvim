@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
 import type { ThreadId, ThreadType } from "./chat-types.ts";
+import { InMemoryFileIO } from "./edl/in-memory-file-io.ts";
 import type { Logger } from "./logger.ts";
 import type { ProviderProfile } from "./provider-options.ts";
 import {
@@ -416,5 +417,85 @@ describe("SubagentSupervisor yield tag detection", () => {
     // Wait a tick to ensure no new stream is created
     await new Promise((r) => setTimeout(r, 50));
     expect(mockClient.streams.length).toBe(1);
+  });
+});
+
+describe("ThreadCore.turnEnded event", () => {
+  it("emits turnEnded with reason end_turn when agent stops cleanly", async () => {
+    const { core, mockClient } = createThreadCoreWithMock();
+    const events: Array<{ reason: string }> = [];
+    core.on("turnEnded", (payload) => events.push(payload));
+
+    await core.sendMessage([{ type: "user", text: "hello" }]);
+    const stream = await mockClient.awaitStream();
+    stream.streamText("done");
+    stream.finishResponse("end_turn");
+
+    await pollUntil(() => {
+      if (events.length > 0) return true;
+      throw new Error("waiting for turnEnded");
+    });
+
+    expect(events).toEqual([{ reason: "end_turn" }]);
+  });
+
+  it("emits turnEnded with reason aborted when user aborts", async () => {
+    const { core, mockClient } = createThreadCoreWithMock();
+    const events: Array<{ reason: string }> = [];
+    core.on("turnEnded", (payload) => events.push(payload));
+
+    await core.sendMessage([{ type: "user", text: "hello" }]);
+    const stream = await mockClient.awaitStream();
+    stream.streamText("partial");
+
+    await core.abort();
+
+    expect(events).toEqual([{ reason: "aborted" }]);
+  });
+
+  it("emits turnEnded with reason error when provider fails", async () => {
+    const { core, mockClient } = createThreadCoreWithMock();
+    const events: Array<{ reason: string }> = [];
+    core.on("turnEnded", (payload) => events.push(payload));
+
+    await core.sendMessage([{ type: "user", text: "hello" }]);
+    const stream = await mockClient.awaitStream();
+    stream.respondWithError(new Error("provider failure"));
+
+    await pollUntil(() => {
+      if (events.length > 0) return true;
+      throw new Error("waiting for turnEnded");
+    });
+
+    expect(events).toEqual([{ reason: "error" }]);
+  });
+});
+
+describe("ThreadCore.editedFilesThisTurn", () => {
+  it("starts empty and resets on new sendMessage", async () => {
+    const fileIO = new InMemoryFileIO({ "/tmp/a.txt": "hello" });
+    const { core, mockClient } = createThreadCoreWithMock({
+      fileIO: fileIO as unknown as ThreadCoreContext["fileIO"],
+    });
+
+    expect(core.state.editedFilesThisTurn).toEqual([]);
+
+    await core.sendMessage([{ type: "user", text: "edit a" }]);
+    const stream = await mockClient.awaitStream();
+    stream.streamToolUse("edl-1" as ToolRequestId, "edl" as ToolName, {
+      script: `file \`/tmp/a.txt\`\nnarrow /hello/\nreplace "bye"`,
+    });
+    stream.finishResponse("tool_use");
+
+    await pollUntil(() => {
+      if (core.state.editedFilesThisTurn.length === 1) return true;
+      throw new Error(
+        `waiting for 1 edited file, got ${core.state.editedFilesThisTurn.length}`,
+      );
+    });
+    expect(core.state.editedFilesThisTurn).toEqual(["/tmp/a.txt"]);
+
+    await core.sendMessage([{ type: "user", text: "next turn" }]);
+    expect(core.state.editedFilesThisTurn).toEqual([]);
   });
 });

@@ -45,7 +45,7 @@ import * as ThreadTitle from "./tools/thread-title.ts";
 import type { ToolCapability } from "./tools/tool-registry.ts";
 import { getToolSpecs } from "./tools/toolManager.ts";
 import { assertUnreachable } from "./utils/assertUnreachable.ts";
-import type { HomeDir, NvimCwd } from "./utils/files.ts";
+import type { AbsFilePath, HomeDir, NvimCwd } from "./utils/files.ts";
 
 export type InputMessage =
   | {
@@ -83,6 +83,8 @@ export type EnvironmentConfig =
   | { type: "local"; cwd?: NvimCwd }
   | { type: "docker"; container: string; cwd: string };
 
+export type TurnEndReason = "end_turn" | "aborted" | "error";
+
 export type ThreadCoreEvents = {
   update: [];
   playChime: [];
@@ -90,6 +92,7 @@ export type ThreadCoreEvents = {
   setupResubmit: [lastUserMessage: string];
   aborting: [];
   pendingUpdatesChanged: [];
+  turnEnded: [{ reason: TurnEndReason }];
 
   contextUpdatesSent: [updates: Record<string, unknown>];
 };
@@ -150,6 +153,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     edlRegisters: EdlRegisters;
     outputTokensSinceLastReminder: number;
     compactionHistory: CompactionRecord[];
+    editedFilesThisTurn: AbsFilePath[];
   };
 
   public agent: Agent;
@@ -181,6 +185,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       edlRegisters: { registers: new Map(), nextSavedId: 0 },
       outputTokensSinceLastReminder: 0,
       compactionHistory: [],
+      editedFilesThisTurn: [],
     };
 
     this.listenToContextManager();
@@ -370,6 +375,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         this.state.toolCache = { results: new Map() };
         this.state.edlRegisters = { registers: new Map(), nextSavedId: 0 };
         this.state.outputTokensSinceLastReminder = 0;
+        this.state.editedFilesThisTurn = [];
         break;
       default:
         assertUnreachable(action);
@@ -504,7 +510,10 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     }
 
     if (autoRespondResult.type !== "did-autorespond") {
-      this.emit("playChime");
+      if (stopReason !== "aborted") {
+        this.emit("playChime");
+        this.emit("turnEnded", { reason: "end_turn" });
+      }
     }
   }
 
@@ -550,6 +559,12 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         contextTracker: this.contextManager as ContextTracker,
         onToolApplied: (absFilePath, tool, fileTypeInfo) => {
           this.contextManager.toolApplied(absFilePath, tool, fileTypeInfo);
+          if (
+            tool.type === "edl-edit" &&
+            !this.state.editedFilesThisTurn.includes(absFilePath)
+          ) {
+            this.state.editedFilesThisTurn.push(absFilePath);
+          }
         },
         diagnosticsProvider: this.context.diagnosticsProvider,
         helpTagsProvider: this.context.helpTagsProvider,
@@ -620,6 +635,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       }
     }
     this.context.logger.error(error);
+    this.emit("turnEnded", { reason: "error" });
   }
 
   async abort(): Promise<void> {
@@ -665,6 +681,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     this.emit("update");
 
     this.update({ type: "set-mode", mode: { type: "normal" } });
+    this.emit("turnEnded", { reason: "aborted" });
   }
 
   async sendMessage(inputMessages?: InputMessage[]): Promise<void> {
@@ -673,6 +690,8 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         "This thread's container has been torn down. No further messages can be sent.",
       );
     }
+
+    this.state.editedFilesThisTurn = [];
 
     const { content, hasContent } = this.prepareUserContent(inputMessages);
 

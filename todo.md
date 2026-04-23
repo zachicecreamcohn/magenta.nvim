@@ -15,27 +15,27 @@
 
 # UX
 
-- make the user messages more visually distinct. Background highlight maybe?
+- make the user messages more visually distinct. Let's add some surrounding newlines. And a background highlight maybe?
 - we don't need ``` in the display buffer. Just drop those
-- drop the full context listing, instead just show the pending context updates
 - when the AI ends its turn, show a summary of all the edited files, so we can easily navigate to them
-- when we have pending @async messages, we should show the text of the message instead of just the message count
 - still some erratic scrolling behavior
 - when a thread is titled, we should use that title somehow in the buffer name (instead of just using an opaque id, though still need to make sure it's unique)
-- maybe make the spawn_subagents preview the command as it's streaming in
+- make the spawn_subagents preview the command as it's streaming in
 - = on spawn_subagents is showing "\n" ... we should probably format that more nicely
+- let's make = vs <CR> more consistent. "=" should always toggle expand. "<CR>" should always "enter / select"
+- compaction takes a while and doesn't show progress... we should show something like `X / Y chunks` as it's going along
 
 # misc features
 
 - fork a conversation from any previous message
 - add context tracking for the state of git. When we change branches, commit, etc...
-- change the docs tool to be able to search & retrieve all of neovim docs, not just magenta ones
 - we should be able to @fork during the assistant's turn, tool use, etc... without aborting the thread we're in
 
 # bug fixes, etc
 
 - when we abort during a "sandbox blocked" message, it stays up even as the conversation continues
   - this has broken a few times already, make sure we have a good test for it
+- thread overview and other thread buffers not showing up in the buffer list
 - revisit the buffer handling. Keep getting stuck in buffer not matching the file state
   - try to write buffer before agent reads, but read from the disk with warning even if it doesn't work
   - try to read buffer after agent writes, but let the agent write to the file and surface a warning even if it doesn't work
