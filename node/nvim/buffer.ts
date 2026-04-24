@@ -135,6 +135,13 @@ export class NvimBuffer {
     ]);
   }
 
+  setupPasteHandlers() {
+    return this.nvim.call("nvim_exec_lua", [
+      `require("magenta.keymaps").set_paste_handlers(${this.id}, ${this.nvim.channelId})`,
+      [],
+    ]);
+  }
+
   setDisplayKeymaps() {
     return this.nvim.call("nvim_exec_lua", [
       `require("magenta.keymaps").set_display_buffer_keymaps(${this.id})`,

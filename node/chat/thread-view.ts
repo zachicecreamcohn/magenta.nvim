@@ -702,7 +702,7 @@ function renderMessageContent(
       return d``;
 
     case "image":
-      return d`[Image]\n`;
+      return d``;
 
     case "document":
       return d`[Document${content.title ? `: ${content.title}` : ""}]\n`;

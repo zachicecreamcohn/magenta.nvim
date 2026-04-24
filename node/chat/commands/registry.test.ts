@@ -21,15 +21,22 @@ vi.mock("../../utils/listBuffers.ts", () => ({
   getBuffersList: vi.fn().mockResolvedValue("Mock buffers list"),
 }));
 
-vi.mock("../../utils/files.ts", () => ({
-  resolveFilePath: vi
-    .fn()
-    .mockImplementation((_cwd, path) => `/resolved/${path}`),
-  relativePath: vi
-    .fn()
-    .mockImplementation((_cwd, path: string) => path.replace("/resolved/", "")),
-  detectFileType: vi.fn().mockResolvedValue({ type: "file" }),
-}));
+vi.mock("../../utils/files.ts", async (importOriginal) => {
+  const actual =
+    (await importOriginal()) as typeof import("../../utils/files.ts");
+  return {
+    ...actual,
+    resolveFilePath: vi
+      .fn()
+      .mockImplementation((_cwd, path) => `/resolved/${path}`),
+    relativePath: vi
+      .fn()
+      .mockImplementation((_cwd, path: string) =>
+        path.replace("/resolved/", ""),
+      ),
+    detectFileType: vi.fn().mockResolvedValue({ type: "file" }),
+  };
+});
 
 vi.mock("zx", () => ({
   $: vi.fn(),

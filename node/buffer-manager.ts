@@ -285,6 +285,7 @@ export class BufferManager {
     await buffer.setOption("swapfile", false);
     await buffer.setOption("filetype", "markdown");
     await buffer.setSiderbarKeymaps();
+    await buffer.setupPasteHandlers();
 
     await buffer.setLines({
       start: 0 as Row0Indexed,

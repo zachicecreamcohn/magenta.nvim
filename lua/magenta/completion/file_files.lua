@@ -37,7 +37,8 @@ function source:complete(params, callback)
   local cursor_before_line = params.context.cursor_before_line
   local filter_text = cursor_before_line:sub(params.offset)
 
-  -- Only complete @file: patterns
+  -- Only complete @file: patterns. Strip any opening backticks when the user
+  -- has started a fenced ref so fuzzy matching works on the path body.
   local file_pattern = filter_text:match('^@file:(.*)$')
   if not file_pattern then
     callback({ items = {}, isIncomplete = false })
@@ -45,6 +46,8 @@ function source:complete(params, callback)
   end
 
   local search_term = file_pattern
+  -- Strip leading fence (1 or 2 backticks) from the search term.
+  search_term = search_term:gsub('^``', ''):gsub('^`', '')
 
   callback({
     items = { {
@@ -79,8 +82,21 @@ function source:complete(params, callback)
             end
 
 
+            local has_ws = file_path:find('%s') ~= nil
+            local has_tick = file_path:find('`') ~= nil
+            local formatted
+            if not has_ws and not has_tick then
+              formatted = '@file:' .. file_path
+            elseif not has_tick then
+              formatted = '@file:`' .. file_path .. '`'
+            else
+              local escaped = file_path:gsub('\\', '\\\\'):gsub('`', '\\`')
+              formatted = '@file:``' .. escaped .. '``'
+            end
+
             table.insert(items, {
               label = '@file:' .. file_path,
+              insertText = formatted,
               detail = '[file]',
               kind = file_kind,
               filterText = filter_text,

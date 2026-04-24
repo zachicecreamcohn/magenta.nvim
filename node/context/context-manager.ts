@@ -68,6 +68,12 @@ function renderUpdateIndicator(
       return `[ +${additions} / -${deletions} ]`;
     }
     case "whole-file": {
+      const mediaBlock = update.value.content.find(
+        (block) => block.type === "image" || block.type === "document",
+      );
+      if (mediaBlock) {
+        return mediaBlock.type === "image" ? "[ image ]" : "[ document ]";
+      }
       let lineCount = 0;
       const lastTextBlock = update.value.content.findLast(
         (block) => block.type === "text",
@@ -171,13 +177,17 @@ export function renderContextUpdate(
         }
         case "whole-file": {
           let lineCount = 0;
-          const lastTextBlock = update.update.value.content.findLast(
-            (block) => block.type === "text",
-          );
-          if (lastTextBlock && lastTextBlock.type === "text") {
-            lineCount = (lastTextBlock.text.match(/\n/g) || []).length + 1;
+          let mediaKind: "image" | "document" | undefined;
+          for (const block of update.update.value.content) {
+            if (block.type === "text") {
+              lineCount = (block.text.match(/\n/g) || []).length + 1;
+            } else if (block.type === "image" || block.type === "document") {
+              mediaKind = block.type;
+            }
           }
-          changeIndicator = `[ +${lineCount} ]`;
+          changeIndicator = mediaKind
+            ? `[ ${mediaKind} ]`
+            : `[ +${lineCount} ]`;
           break;
         }
         case "file-deleted": {

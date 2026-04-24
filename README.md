@@ -228,9 +228,10 @@ For any of the below, you can also just ask magenta to explain.
 
 | Keymap       | Description                  |
 | ------------ | ---------------------------- |
-| `<leader>mt` | Toggle chat sidebar          |
-| `<leader>mf` | Pick files to add to context |
-| `<leader>mn` | Create new thread            |
+| `<leader>mt` | Toggle chat sidebar                     |
+| `<leader>mf` | Pick files to add to context            |
+| `<leader>mn` | Create new thread                       |
+| `<leader>mp` | Paste clipboard image (in input buffer) |
 
 **Input commands:** `@fork`, `@file:`, `@diff:`, `@diag`, `@buf`, `@qf`, `@fast`
 

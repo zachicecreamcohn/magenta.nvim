@@ -1,5 +1,6 @@
 import * as os from "node:os";
 import type { InputMessage, ThreadId } from "@magenta/core";
+import { probeAndSaveClipboardImage } from "@magenta/core";
 import { type BufferInfo, BufferManager } from "./buffer-manager.ts";
 import { Lsp } from "./capabilities/lsp.ts";
 import { Chat } from "./chat/chat.ts";
@@ -38,6 +39,7 @@ import { assertUnreachable } from "./utils/assertUnreachable.ts";
 import type { HomeDir } from "./utils/files.ts";
 import {
   detectFileType,
+  formatFileRef,
   type NvimCwd,
   relativePath,
   resolveFilePath,
@@ -51,6 +53,8 @@ const MAGENTA_ON_WINDOW_CLOSED = "magentaWindowClosed";
 const MAGENTA_KEY = "magentaKey";
 const MAGENTA_LSP_RESPONSE = "magentaLspResponse";
 const MAGENTA_BUF_ENTER = "magentaBufEnter";
+const MAGENTA_CLIPBOARD_IMAGE_PASTE = "magentaClipboardImagePaste";
+const MAGENTA_CLIPBOARD_TEXT_PASTE = "magentaClipboardTextPaste";
 
 export class Magenta {
   public sidebar: Sidebar;
@@ -666,6 +670,34 @@ ${lines.join("\n")}
     await targetWindow.setBuffer(foreignBuffer);
   }
 
+  async onClipboardImagePaste(): Promise<void> {
+    const result = await probeAndSaveClipboardImage(this.nvim.logger);
+    if (result.kind !== "image") {
+      this.nvim.logger.warn(
+        "magentaClipboardImagePaste: no image found in clipboard (or probe failed)",
+      );
+      return;
+    }
+    await this.pasteIntoActiveInputBuffer(formatFileRef(result.tmpPath));
+  }
+
+  async onClipboardTextPaste(text: string): Promise<void> {
+    await this.pasteIntoActiveInputBuffer(text);
+  }
+
+  // Open the sidebar if it isn't visible, then append the given content to
+  // the active thread's input buffer. Matches the paste-selection flow.
+  private async pasteIntoActiveInputBuffer(content: string): Promise<void> {
+    if (!this.sidebar.isVisible()) {
+      await this.command("toggle");
+    }
+    await this.activeBuffers.inputBuffer.setLines({
+      start: -1 as Row0Indexed,
+      end: -1 as Row0Indexed,
+      lines: content.split("\n") as Line[],
+    });
+  }
+
   async onWinClosed() {
     await this.sidebar.onWinClosed();
   }
@@ -710,6 +742,31 @@ ${lines.join("\n")}
         lsp.onLspResponse(args);
       } catch (err) {
         nvim.logger.error(JSON.stringify(err));
+      }
+    });
+
+    nvim.onNotification(MAGENTA_CLIPBOARD_IMAGE_PASTE, async () => {
+      try {
+        await magenta.onClipboardImagePaste();
+      } catch (err) {
+        nvim.logger.error(
+          err instanceof Error
+            ? `Error in ClipboardImagePaste handler: ${err.message}\n${err.stack}`
+            : JSON.stringify(err),
+        );
+      }
+    });
+
+    nvim.onNotification(MAGENTA_CLIPBOARD_TEXT_PASTE, async (args) => {
+      try {
+        const data = (args as unknown as { text: string }[])[0];
+        await magenta.onClipboardTextPaste(data.text);
+      } catch (err) {
+        nvim.logger.error(
+          err instanceof Error
+            ? `Error in ClipboardTextPaste handler: ${err.message}\n${err.stack}`
+            : JSON.stringify(err),
+        );
       }
     });
 

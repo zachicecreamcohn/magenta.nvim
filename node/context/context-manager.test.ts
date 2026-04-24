@@ -383,6 +383,50 @@ it("issuing a getFile request adds the file to the context but doesn't send its 
   });
 });
 
+it("image in context is sent as an image block on first message", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.addContextFiles("test.jpg");
+
+    await driver.assertDisplayBufferContains(`- \`test.jpg\``);
+
+    await driver.inputMagentaText("describe this image");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingStream();
+
+    let userMessageContent: ProviderMessageContent[] | undefined;
+    for (const msg of request.messages) {
+      if (
+        msg.role === "user" &&
+        Array.isArray(msg.content) &&
+        (msg.content as ProviderMessageContent[]).some(
+          (c) => c.type === "image",
+        )
+      ) {
+        userMessageContent = msg.content as ProviderMessageContent[];
+        break;
+      }
+    }
+
+    expect(userMessageContent).toBeDefined();
+
+    const textBlock = userMessageContent!.find(
+      (c) => c.type === "text" && c.text.includes("<context_update>"),
+    ) as Extract<ProviderMessageContent, { type: "text" }>;
+    expect(textBlock).toBeDefined();
+    expect(textBlock.text).toContain("test.jpg (image attachment)");
+    expect(textBlock.text).not.toContain("(0 lines)");
+
+    const imageBlock = userMessageContent!.find(
+      (c) => c.type === "image",
+    ) as Extract<ProviderMessageContent, { type: "image" }>;
+    expect(imageBlock).toBeDefined();
+    expect(imageBlock.source.media_type).toBe("image/jpeg");
+    expect(imageBlock.source.data.length).toBeGreaterThan(0);
+  });
+});
+
 it("autoContext loads on startup and after new-thread", async () => {
   const testOptions = {
     autoContext: [`test-auto-context.md`],

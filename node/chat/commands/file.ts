@@ -1,7 +1,9 @@
 import type { ProviderMessageContent } from "../../providers/provider-types.ts";
 import type { UnresolvedFilePath } from "../../utils/files.ts";
 import {
+  AT_FILE_PATTERN,
   detectFileType,
+  extractFileRefPath,
   relativePath,
   resolveFilePath,
 } from "../../utils/files.ts";
@@ -9,9 +11,9 @@ import type { Command } from "./types.ts";
 
 export const fileCommand: Command = {
   name: "@file:",
-  pattern: /@file:(\S+)/g,
+  pattern: AT_FILE_PATTERN,
   async execute(match, context): Promise<ProviderMessageContent[]> {
-    const filePath = match[1] as UnresolvedFilePath;
+    const filePath = extractFileRefPath(match) as UnresolvedFilePath;
     try {
       const absFilePath = resolveFilePath(
         context.cwd,

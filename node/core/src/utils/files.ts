@@ -11,6 +11,81 @@ export type DisplayPath = string & { __display_path: true };
 
 export const MAGENTA_TEMP_DIR = "/tmp/magenta" as AbsFilePath;
 
+/**
+ * Regex for matching `@file:` references. Supports three forms:
+ *   - Bare: `@file:path/without/whitespace`
+ *   - Length-1 fence: `` @file:`path with spaces` `` (body verbatim; must not contain backticks)
+ *   - Length-2 fence: `` @file:``path`` `` (body escape-processed: `\\` → `\`, `` \` `` → `` ` ``, any other `\x` is literal `\x`)
+ *
+ * Capture groups:
+ *   1. length-2 fenced body (escape-processed)
+ *   2. length-1 fenced body (verbatim)
+ *   3. bare path
+ */
+export const AT_FILE_PATTERN =
+  /@file:(?:``((?:\\.|`(?!`)|[^`\\])*)``|`([^`\\]*)`|(\S+))/g;
+
+/**
+ * Unescape a length-2 fence body. Rules:
+ *   - `\\` → `\`
+ *   - `` \` `` → `` ` ``
+ *   - `\x` (any other) → literal `\x` (two chars preserved)
+ *   - trailing lone `\` is preserved as-is
+ */
+export function unescapeFenceBody(body: string): string {
+  let out = "";
+  let i = 0;
+  while (i < body.length) {
+    const ch = body[i];
+    if (ch === "\\" && i + 1 < body.length) {
+      const next = body[i + 1];
+      if (next === "\\" || next === "`") {
+        out += next;
+        i += 2;
+        continue;
+      }
+      out += ch + next;
+      i += 2;
+      continue;
+    }
+    out += ch;
+    i += 1;
+  }
+  return out;
+}
+
+/**
+ * Extract the literal path from an AT_FILE_PATTERN regex match.
+ */
+export function extractFileRefPath(match: RegExpMatchArray): string {
+  const fence2Body = match[1];
+  const fence1Body = match[2];
+  const bare = match[3];
+  if (fence2Body !== undefined) {
+    return unescapeFenceBody(fence2Body);
+  }
+  if (fence1Body !== undefined) {
+    return fence1Body;
+  }
+  return bare;
+}
+
+/**
+ * Format a path as an `@file:` reference, picking the shortest safe form.
+ */
+export function formatFileRef(filePath: string): string {
+  const hasWhitespace = /\s/.test(filePath);
+  const hasBacktick = filePath.includes("`");
+  if (!hasWhitespace && !hasBacktick) {
+    return `@file:${filePath}`;
+  }
+  if (!hasBacktick) {
+    return `@file:\`${filePath}\``;
+  }
+  const escaped = filePath.replace(/\\/g, "\\\\").replace(/`/g, "\\`");
+  return `@file:\`\`${escaped}\`\``;
+}
+
 /** Special nominal type to represent the neovim directory. The node plugin runs in the magenta directory, but when
  * dealing with paths, we always want to do it from the POV of the nvim cwd.
  */

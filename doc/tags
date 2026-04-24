@@ -2,6 +2,7 @@
 :Magenta-clear	magenta-commands-keymaps.txt	/*:Magenta-clear*
 :Magenta-context-files	magenta-commands-keymaps.txt	/*:Magenta-context-files*
 :Magenta-new-thread	magenta-commands-keymaps.txt	/*:Magenta-new-thread*
+:Magenta-paste	magenta-commands-keymaps.txt	/*:Magenta-paste*
 :Magenta-paste-selection	magenta-commands-keymaps.txt	/*:Magenta-paste-selection*
 :Magenta-pick-provider	magenta-commands-keymaps.txt	/*:Magenta-pick-provider*
 :Magenta-send	magenta-commands-keymaps.txt	/*:Magenta-send*
@@ -29,6 +30,7 @@ magenta-agent-thread	magenta-subagents.txt	/*magenta-agent-thread*
 magenta-agent-tiers	magenta-subagents.txt	/*magenta-agent-tiers*
 magenta-agent-worktree	magenta-subagents.txt	/*magenta-agent-worktree*
 magenta-anthropic	magenta-providers.txt	/*magenta-anthropic*
+magenta-attachments	magenta-commands-keymaps.txt	/*magenta-attachments*
 magenta-available-tools	magenta-tools.txt	/*magenta-available-tools*
 magenta-bedrock	magenta-providers.txt	/*magenta-bedrock*
 magenta-bellOnNotify	magenta-config.txt	/*magenta-bellOnNotify*

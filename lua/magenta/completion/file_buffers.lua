@@ -45,6 +45,8 @@ function source:complete(params, callback)
   end
 
   local search_term = file_pattern
+  -- Strip leading fence (1 or 2 backticks) so fuzzy matching works.
+  search_term = search_term:gsub('^``', ''):gsub('^`', '')
 
   callback({
     items = { {
@@ -78,8 +80,21 @@ function source:complete(params, callback)
                 file_kind = cmp.lsp.CompletionItemKind.Folder
               end
 
+              local has_ws = file_path:find('%s') ~= nil
+              local has_tick = file_path:find('`') ~= nil
+              local formatted
+              if not has_ws and not has_tick then
+                formatted = '@file:' .. file_path
+              elseif not has_tick then
+                formatted = '@file:`' .. file_path .. '`'
+              else
+                local escaped = file_path:gsub('\\', '\\\\'):gsub('`', '\\`')
+                formatted = '@file:``' .. escaped .. '``'
+              end
+
               table.insert(items, {
                 label = '@file:' .. file_path,
+                insertText = formatted,
                 detail = '[buffer]',
                 kind = file_kind,
                 filterText = filter_text,

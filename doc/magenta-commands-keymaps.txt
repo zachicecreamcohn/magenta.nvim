@@ -6,8 +6,9 @@ CONTENTS                                           *magenta-commands-keymaps-con
     1. Ex Commands ............................. |magenta-ex-commands|
     2. Default Keymaps ......................... |magenta-default-keymaps|
     3. Input Commands .......................... |magenta-input-commands|
-    4. Display Buffer .......................... |magenta-display-buffer|
-    5. Smart Completions ....................... |magenta-completions|
+    4. File & Image Attachments ................ |magenta-attachments|
+    5. Display Buffer .......................... |magenta-display-buffer|
+    6. Smart Completions ....................... |magenta-completions|
 
 ==============================================================================
 EX COMMANDS                                            *magenta-ex-commands*
@@ -35,6 +36,12 @@ EX COMMANDS                                            *magenta-ex-commands*
 
 :Magenta pick-provider                                  *:Magenta-pick-provider*
     Open picker to select provider and model.
+
+:Magenta paste                                          *:Magenta-paste*
+    Paste into the Magenta input buffer. On macOS, if the system
+    clipboard contains an image, writes it to a tmp file and inserts an
+    `@file:` reference. Otherwise falls back to a normal clipboard paste.
+    Only works when the current buffer is a Magenta input buffer.
 
 :Magenta sandbox-bypass                                 *:Magenta-sandbox-bypass*
     Toggle sandbox bypass for the current thread tree. When active,
@@ -66,9 +73,14 @@ Context management:~
     `<leader>mp`    Paste selection (visual mode)   |:Magenta-paste-selection|
 
 
-Provider selection:~
+Input buffer (buffer-local):~
 
-    `<leader>mp`    Select provider and model       |:Magenta-pick-provider|
+    `<leader>mp`    Paste clipboard image or text   |:Magenta-paste|
+    `<D-v>`         Paste clipboard image or text   |:Magenta-paste|
+
+    Note: most terminal emulators intercept Cmd+V / Ctrl+V before Neovim
+    sees it, so the `<D-v>` mapping only works in GUI builds. Use
+    `<leader>mp` or `:Magenta paste` from inside a terminal.
 
 ==============================================================================
 INPUT COMMANDS                                        *magenta-input-commands*
@@ -103,7 +115,17 @@ Special commands that can be used in the input buffer:
     Add files to context. Supports fuzzy completion.
 >
     @file:src/main.ts @file:README.md Analyze these files
+    @file:`path with spaces.txt`
+    @file:``path/with`backtick.txt``
 <
+    Paths may be backtick-fenced. Use a single-backtick fence when the path
+    contains whitespace but no backticks. Use a double-backtick fence when
+    the path contains backticks; inside the fence, `\\` and `` \` `` escape
+    literal backslashes and backticks.
+
+    See |magenta-attachments| for how to attach files and images via
+    drag-and-drop or clipboard paste.
+
 
 @diff:{path}                                            *magenta-@diff*
     Include git diff for unstaged changes.
@@ -128,6 +150,72 @@ Special commands that can be used in the input buffer:
 >
     @async Also update the tests when you're done
 <
+
+==============================================================================
+FILE & IMAGE ATTACHMENTS                                *magenta-attachments*
+
+Two ergonomic ways to add files and images into the input buffer without
+typing a path by hand.
+
+Drag-and-drop:~
+
+Drop any file from Finder/Explorer/your file manager onto the Magenta
+input window. Magenta inserts an `@file:` reference to the dropped file
+(with proper backtick fencing when the path contains spaces or
+backticks).
+
+How it works: Magenta wraps `vim.paste` and checks whether the pasted
+text resolves to an existing file on disk. If so, it rewrites the paste
+into an `@file:` reference; otherwise the paste passes through
+unchanged. This means ordinary text paste is not affected, and the
+wrapper only activates inside registered Magenta input buffers.
+
+Caveat (macOS screenshot thumbnails):~
+
+Dragging the floating screenshot thumbnail (the preview in the bottom-
+right corner after Cmd+Shift+3 / Cmd+Shift+4) into the terminal does
+NOT work reliably. The screenshot file is not yet on disk while the
+thumbnail is floating — macOS exposes it as a Cocoa "file promise" that
+only materializes when the drop target calls `NSFilePromiseReceiver`.
+Terminal emulators (including Ghostty as of this writing) do not honor
+file promises, so Magenta receives either an empty paste or a path to a
+file that doesn't exist.
+
+Workarounds:
+
+  1. Click the floating thumbnail to dismiss it, wait for the file to
+     save, then drag the saved file from Finder.
+  2. Disable the floating thumbnail entirely: Cmd+Shift+5 > Options >
+     uncheck "Show Floating Thumbnail". Screenshots then save directly
+     to disk and drag normally.
+  3. Use Cmd+Shift+Ctrl+4 (adds Ctrl) to copy the screenshot to the
+     clipboard instead of taking a file screenshot, then use
+     `:Magenta paste` (see below).
+
+Clipboard paste (images and text):~
+
+In the input buffer, invoke `:Magenta paste` (bound to `<leader>mp` and
+`<D-v>` by default). If the system clipboard contains an image, Magenta
+writes it to a tmp file and inserts an `@file:` reference to that file.
+If the clipboard contains text, it falls back to a normal clipboard
+paste. Typical workflow:
+
+  1. Take a screenshot or copy an image from a browser.
+  2. Open the Magenta input buffer.
+  3. Press `<leader>mp` (or run `:Magenta paste`).
+  4. Magenta inserts `@file:/tmp/magenta-clipboard-<timestamp>.png`.
+  5. Send your message; the agent receives the image as context.
+
+Image clipboard detection currently requires macOS (uses `osascript`).
+On other platforms `:Magenta paste` falls back to a normal paste.
+
+Why not Cmd+V / Ctrl+V?~
+
+Most terminal emulators intercept Cmd+V (macOS) or Ctrl+Shift+V (Linux)
+at the OS level before Neovim ever sees the keystroke. There is no
+portable workaround short of using a GUI Neovim build. Map any key you
+like to `:Magenta paste` for a terminal-friendly paste trigger; the
+default is `<leader>mp`.
 
 ==============================================================================
 DISPLAY BUFFER                                        *magenta-display-buffer*

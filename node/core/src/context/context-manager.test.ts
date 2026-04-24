@@ -328,6 +328,32 @@ describe("ContextManager - binary file handling", () => {
     expect(Object.keys(secondUpdates).length).toBe(0);
   });
 
+  it("contextUpdatesToContent includes image as a sibling image block", async () => {
+    const binaryContent = "fake-binary-image-data";
+    const { cm } = createTestContextManager({
+      [IMAGE_PATH]: binaryContent,
+    });
+
+    cm.addFileContext(IMAGE_PATH, IMAGE_REL, IMAGE_FILE_TYPE);
+
+    const updates = await cm.getContextUpdate();
+    const content = cm.contextUpdatesToContent(updates);
+
+    expect(content.length).toBe(2);
+    expect(content[0].type).toBe("text");
+    const textBlock = content[0] as { type: "text"; text: string };
+    expect(textBlock.text).toContain(IMAGE_REL);
+    expect(textBlock.text).toContain("(image attachment)");
+    expect(textBlock.text).not.toContain("(0 lines)");
+
+    expect(content[1].type).toBe("image");
+    const imageBlock = content[1] as ProviderImageContent;
+    expect(imageBlock.source.media_type).toBe("image/jpeg");
+    expect(imageBlock.source.data).toBe(
+      Buffer.from(binaryContent).toString("base64"),
+    );
+  });
+
   it("removing a binary file on disk removes it from context and sends a delete message", async () => {
     const { cm, fileIO } = createTestContextManager({
       [IMAGE_PATH]: "fake-binary-image-data",

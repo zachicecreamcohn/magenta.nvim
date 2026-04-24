@@ -347,6 +347,7 @@ export class ContextManager
   ): ProviderMessageContent[] {
     const textParts: string[] = [];
     const filePathEntries: string[] = [];
+    const mediaParts: ProviderMessageContent[] = [];
 
     for (const path in contextUpdates) {
       const absFilePath = path as AbsFilePath;
@@ -356,13 +357,28 @@ export class ContextManager
         switch (update.update.value.type) {
           case "whole-file": {
             let lineCount = 0;
+            let mediaKind: "image" | "document" | null = null;
             for (const c of update.update.value.content) {
               if (c.type === "text") {
                 textParts.push(c.text);
                 lineCount = (c.text.match(/\n/g) || []).length + 1;
+              } else if (c.type === "image" || c.type === "document") {
+                mediaParts.push(c);
+                mediaKind = c.type;
               }
             }
-            filePathEntries.push(`${update.relFilePath} (${lineCount} lines)`);
+            if (mediaKind) {
+              filePathEntries.push(
+                `${update.relFilePath} (${mediaKind} attachment)`,
+              );
+              textParts.push(`\
+- \`${absFilePath}\`
+${mediaKind === "image" ? "Image" : "Document"} attached below.`);
+            } else {
+              filePathEntries.push(
+                `${update.relFilePath} (${lineCount} lines)`,
+              );
+            }
             break;
           }
           case "diff": {
@@ -397,7 +413,7 @@ Error fetching update: ${update.update.error}`);
       }
     }
 
-    if (textParts.length === 0) {
+    if (textParts.length === 0 && mediaParts.length === 0) {
       return [];
     }
 
@@ -411,6 +427,7 @@ From now on, whenever any of these files are updated by the user, you will get a
         type: "text",
         text: `<context_update>\n${fileList}\n${header}\n${textParts.join("\n")}\n</context_update>`,
       },
+      ...mediaParts,
     ];
   }
 

@@ -940,6 +940,8 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     for (const c of contextContent) {
       if (c.type === "text") {
         content.push({ type: "text", text: c.text });
+      } else if (c.type === "image" || c.type === "document") {
+        content.push(c);
       }
     }
 

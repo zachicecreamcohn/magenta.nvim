@@ -197,6 +197,28 @@ Stars above
   });
 });
 
+it("clipboard text paste opens the sidebar and appends to the active input buffer", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.editFile("poem.txt");
+
+    // Sanity: sidebar isn't visible and we're sitting in a non-magenta buffer.
+    expect(driver.magenta.sidebar.state.state).not.toBe("visible");
+
+    // Simulate the RPC the lua <leader>mp keymap fires after finding text in
+    // the clipboard. Node should toggle the sidebar and route the text into
+    // the active thread's input buffer.
+    await driver.magenta.onClipboardTextPaste("hello from clipboard");
+
+    await pollUntil(() => {
+      if (driver.magenta.sidebar.state.state !== "visible") {
+        throw new Error("sidebar did not become visible");
+      }
+    });
+
+    await driver.assertInputBufferContains("hello from clipboard");
+  });
+});
+
 it("should use project settings to allow bash commands without permission", async () => {
   await withDriver(
     {

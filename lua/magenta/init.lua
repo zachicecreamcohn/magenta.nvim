@@ -149,6 +149,7 @@ local normal_commands = {
   "agent",
   "clear",
   "context-files",
+  "paste",
   "profile",
   "toggle",
   "new-thread",
@@ -182,6 +183,10 @@ M.bridge = function(channelId)
   vim.api.nvim_create_user_command(
     "Magenta",
     function(opts)
+      if opts.args == "paste" then
+        require("magenta.keymaps").do_paste()
+        return
+      end
       safe_rpcnotify(channelId, "magentaCommand", opts.args)
     end,
     {

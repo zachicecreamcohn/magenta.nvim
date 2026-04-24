@@ -253,6 +253,11 @@ export {
 export * as YieldToParent from "./tools/yield-to-parent.ts";
 export { assertUnreachable } from "./utils/assertUnreachable.ts";
 export { Defer, delay, pollUntil, withTimeout } from "./utils/async.ts";
+export type {
+  ClipboardImageLogger,
+  ClipboardProbeResult,
+} from "./utils/clipboard-image.ts";
+export { probeAndSaveClipboardImage } from "./utils/clipboard-image.ts";
 export {
   buildFrequencyTable,
   type Chunk,
@@ -266,15 +271,18 @@ export {
   tokenize,
 } from "./utils/file-summary.ts";
 export {
+  AT_FILE_PATTERN,
   categorizeFileType,
   type DisplayPath,
   detectFileType,
   detectFileTypeViaFileIO,
   displayPath,
   expandTilde,
+  extractFileRefPath,
   FILE_SIZE_LIMITS,
   FileCategory,
   type FileTypeInfo,
+  formatFileRef,
   type HomeDir,
   isLikelyTextFile,
   MAGENTA_TEMP_DIR,
@@ -283,6 +291,7 @@ export {
   relativePath,
   resolveFilePath,
   type UnresolvedFilePath,
+  unescapeFenceBody,
   validateFileSize,
 } from "./utils/files.ts";
 export {

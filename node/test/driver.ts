@@ -201,6 +201,10 @@ export class NvimDriver {
     return this.nvim.call("nvim_exec2", ["Magenta paste-selection", {}]);
   }
 
+  clipboardPaste() {
+    return this.nvim.call("nvim_exec2", ["Magenta paste", {}]);
+  }
+
   getDisplayBuffer() {
     return this.magenta.activeBuffers.displayBuffer;
   }
