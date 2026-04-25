@@ -57,6 +57,19 @@ if (nvim.logger.error) {
   }) as typeof original;
 }
 
+// Exit promptly on SIGTERM/SIGINT (e.g. nvim shutdown sends SIGTERM via
+// jobstop). Without an explicit handler, libuv handles or background work
+// (MCP stdio child processes, keep-alive HTTP sockets, polling timers)
+// can delay exit, causing nvim to wait up to its SIGTERM->SIGKILL timeout
+// (~2s) before quitting.
+const exitOnSignal = (signal: NodeJS.Signals) => {
+  process.on(signal, () => {
+    process.exit(0);
+  });
+};
+exitOnSignal("SIGTERM");
+exitOnSignal("SIGINT");
+
 process.on("uncaughtException", (error) => {
   nvim.logger.error(error);
   setTimeout(() => {

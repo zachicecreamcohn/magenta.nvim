@@ -115,7 +115,7 @@ M.start = function(silent)
     cmd = { "node", bundle_path }
   end
 
-  local job_id =
+  M.job_id =
       vim.fn.jobstart(
         cmd,
         {
@@ -138,8 +138,8 @@ M.start = function(silent)
         }
       )
 
-  if job_id <= 0 then
-    vim.api.nvim_err_writeln("Failed to start magenta server. Error code: " .. job_id)
+  if M.job_id <= 0 then
+    vim.api.nvim_err_writeln("Failed to start magenta server. Error code: " .. M.job_id)
     return
   end
 end
@@ -203,6 +203,22 @@ M.bridge = function(channelId)
         return vim.tbl_filter(function(cmd)
           return cmd:find('^' .. ArgLead)
         end, commands)
+      end
+    }
+  )
+
+  -- Stop the node job early in nvim's shutdown so we're not waiting on
+  -- the SIGTERM->SIGKILL timeout while nvim tries to exit. Combined with
+  -- the SIGTERM handler in node/index.ts, this makes :qa near-instant.
+  vim.api.nvim_create_autocmd(
+    "VimLeavePre",
+    {
+      group = M.bridge_augroup,
+      callback = function()
+        if M.job_id then
+          pcall(vim.fn.jobstop, M.job_id)
+        end
+        M.teardown_bridge()
       end
     }
   )

@@ -7,6 +7,13 @@
 
 - the agent is still prone to re-read the file (even force-re-read) before making further edits... maybe we jsut drop the context.md "this file is in your context already" round trip. Also, maybe _reading_ is just a lot cheaper than _generating_ so we could think about having edl send the full edited section back. Something like "the file now reads <full contents of edited section of file>"
 
+# token efficiency
+
+- I want to revisit the way bash command works.
+  - if the output is short, just pipe it directly to the agent without the "full output at file"
+  - if the output is long, provide a summary as currently. Let's make the threadIds/bash output shorter, so they don't take up as many tokens. Let's also set up a hook system that encourages the parent agent to use a subagent to explore the command output - so it should send a reminder on the first long bash output, and then periodically after (not on every bash command)
+- Let's revisit how we summarize files.
+
 # customization
 
 # docker
