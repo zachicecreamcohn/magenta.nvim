@@ -15,7 +15,6 @@
 
 # UX
 
-- still some erratic scrolling behavior
 - when a thread is titled, we should use that title somehow in the buffer name (instead of just using an opaque id, though still need to make sure it's unique)
 - make the spawn_subagents preview the command as it's streaming in
 - = on spawn_subagents is showing "\n" ... we should probably format that more nicely
@@ -38,9 +37,10 @@
   - try to read buffer after agent writes, but let the agent write to the file and surface a warning even if it doesn't work
 - when we error upon a user message send, we should pop the user message off the agent's history, otherwise we end up sending it twice
 - this periodic error:
-- on linux we keep writing .env and .magenta files?
 
 ```
 [ERROR] job# 3:
 [Thread 019d65c4-5c0a-70bb-9882-732030e3427c] myUpdate: tool-progress
 ```
+
+- overloaded handling / exponential backoff not working correctly
