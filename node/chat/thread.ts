@@ -264,11 +264,6 @@ export class Thread {
           this.sendTerminalBell();
         }
       },
-      scrollToLastMessage: () =>
-        this.context.dispatch({
-          type: "sidebar-msg",
-          msg: { type: "scroll-to-last-user-message" },
-        }),
       setupResubmit: (lastUserMessage: string) =>
         this.context.dispatch({
           type: "sidebar-msg",
@@ -288,7 +283,6 @@ export class Thread {
     this.core.on("update", coreListeners.update);
     this.core.on("pendingUpdatesChanged", coreListeners.pendingUpdatesChanged);
     this.core.on("turnEnded", coreListeners.turnEnded);
-    this.core.on("scrollToLastMessage", coreListeners.scrollToLastMessage);
     this.core.on("setupResubmit", coreListeners.setupResubmit);
     this.core.on("aborting", coreListeners.aborting);
     this.core.on("contextUpdatesSent", coreListeners.contextUpdatesSent);
@@ -301,7 +295,6 @@ export class Thread {
         turnEnded: (payload: {
           reason: "end_turn" | "aborted" | "error";
         }) => void;
-        scrollToLastMessage: () => void;
         setupResubmit: (lastUserMessage: string) => void;
         aborting: () => void;
         contextUpdatesSent: (updates: Record<string, unknown>) => void;
@@ -321,10 +314,6 @@ export class Thread {
         this.coreListeners.pendingUpdatesChanged,
       );
       this.core.off("turnEnded", this.coreListeners.turnEnded);
-      this.core.off(
-        "scrollToLastMessage",
-        this.coreListeners.scrollToLastMessage,
-      );
       this.core.off("setupResubmit", this.coreListeners.setupResubmit);
       this.core.off("aborting", this.coreListeners.aborting);
       this.core.off(
