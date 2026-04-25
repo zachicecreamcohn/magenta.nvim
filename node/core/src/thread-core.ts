@@ -71,7 +71,7 @@ export type ToolCache = {
 export type ThreadMode =
   | { type: "normal" }
   | { type: "tool_use"; activeTools: Map<ToolRequestId, ActiveToolEntry> }
-  | { type: "compacting" }
+  | { type: "compacting"; chunkIndex: number; totalChunks: number }
   | {
       type: "yielded";
       response: string;
@@ -1073,10 +1073,21 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         this.handleCompactionResult(next.result);
       } else if (next.type === "error") {
         this.handleCompactionResult({ type: "error", steps: next.steps });
+      } else if (
+        next.type === "processing-chunk" ||
+        next.type === "waiting-for-tools"
+      ) {
+        this.update({
+          type: "set-mode",
+          mode: {
+            type: "compacting",
+            chunkIndex: next.chunkIndex,
+            totalChunks: next.totalChunks,
+          },
+        });
       }
     });
     this.compactionController = manager;
-    this.update({ type: "set-mode", mode: { type: "compacting" } });
     manager.start(this.getProviderMessages(), nextPrompt);
   }
 

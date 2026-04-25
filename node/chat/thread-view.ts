@@ -84,7 +84,7 @@ const renderStatus = (
     return d`↗️ yielded to parent: ${yieldedResponse}`;
   }
   if (mode.type === "compacting") {
-    return d`📦 Compacting thread...`;
+    return d`📦 Compacting thread... (chunk ${String(mode.chunkIndex + 1)} / ${String(mode.totalChunks)})`;
   }
 
   // Then render based on agent status
