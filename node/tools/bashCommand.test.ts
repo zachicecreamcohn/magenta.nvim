@@ -46,10 +46,8 @@ describe("node/tools/bashCommand.test.ts", () => {
       await driver.assertDisplayBufferContains(
         "⚡ `echo 'Hello from Magenta!'`",
       );
-      await driver.assertDisplayBufferContains("```");
       await driver.assertDisplayBufferContains("stdout:");
       await driver.assertDisplayBufferContains("Hello from Magenta!");
-      await driver.assertDisplayBufferContains("```");
     });
   });
 
@@ -145,7 +143,6 @@ describe("node/tools/bashCommand.test.ts", () => {
       await driver.assertDisplayBufferContains(
         '⚡ `true && echo "hello, world"`',
       );
-      await driver.assertDisplayBufferContains("```");
     });
   });
 

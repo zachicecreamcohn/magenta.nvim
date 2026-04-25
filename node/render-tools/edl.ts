@@ -67,14 +67,10 @@ export function renderInput(
 ): VDOMNode | undefined {
   const input = request.input as Input;
   if (expanded) {
-    return withCode(d`\`\`\`
-${input.script}
-\`\`\``);
+    return withCode(d`${input.script}`);
   }
   const abridged = abridgeScript(input.script);
-  return withCode(d`\`\`\`
-${abridged}
-\`\`\``);
+  return withCode(d`${abridged}`);
 }
 
 export function renderResultSummary(info: CompletedToolInfo): VDOMNode {

@@ -378,12 +378,15 @@ ${thread.core.state.pendingMessages.map(
       prevMessage &&
       isToolResultOnlyMessage(prevMessage);
 
-    const roleHeader =
-      isToolResultWithReminder || isAssistantContinuation
-        ? d``
-        : withExtmark(d`# ${message.role}:\n`, {
-            hl_group: "@markup.heading.1.markdown",
-          });
+    const showRoleHeader =
+      !isToolResultWithReminder && !isAssistantContinuation;
+    const isUserBlock = showRoleHeader && message.role === "user";
+
+    const roleHeader = showRoleHeader
+      ? withExtmark(d`# ${message.role}:\n`, {
+          hl_group: "@markup.heading.1.markdown",
+        })
+      : d``;
 
     // Get view state for this message
     const viewState = thread.state.messageViewState[messageIdx];
@@ -411,10 +414,17 @@ ${thread.core.state.pendingMessages.map(
       );
     });
 
-    return d`\
+    const messageBody = d`\
 ${roleHeader}\
 ${contextUpdateView}\
 ${contentView}`;
+
+    return isUserBlock
+      ? withExtmark(messageBody, {
+          hl_group: "CursorLine",
+          hl_eol: true,
+        })
+      : messageBody;
   });
 
   const streamingBlockView =

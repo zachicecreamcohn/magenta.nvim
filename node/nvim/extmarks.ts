@@ -33,6 +33,7 @@ export const HL_GROUPS = [
   "Underlined",
   "Normal",
   "Function",
+  "CursorLine",
   // Diff highlight groups
   "DiffAdd",
   "DiffDelete",

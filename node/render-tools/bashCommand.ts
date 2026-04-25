@@ -71,11 +71,7 @@ export function renderProgress(
         ? d`(${String(Math.floor((Date.now() - progress.startTime) / 1000))}s / 300s) `
         : d``;
     return formattedOutput
-      ? d`${timing}${withCode(
-          d`\`\`\`
-${formattedOutput}
-\`\`\``,
-        )}`
+      ? d`${timing}${withCode(d`${formattedOutput}`)}`
       : undefined;
   }
 
@@ -184,14 +180,10 @@ function renderResultPreview(
 
   if (exitCode !== undefined && exitCode !== 0) {
     return d`❌ Exit code: ${exitCode.toString()}
-${withCode(d`\`\`\`
-${previewText}
-\`\`\``)}${logFileView}`;
+${withCode(d`${previewText}`)}${logFileView}`;
   }
 
-  return d`${withCode(d`\`\`\`
-${previewText}
-\`\`\``)}${logFileView}`;
+  return d`${withCode(d`${previewText}`)}${logFileView}`;
 }
 
 function renderResultDetail(
@@ -229,9 +221,7 @@ function renderResultDetail(
       : d``;
 
   return d`command: ${withInlineCode(d`\`${input.command}\``)}
-${withCode(d`\`\`\`
-${outputText}
-\`\`\``)}${logFileView}`;
+${withCode(d`${outputText}`)}${logFileView}`;
 }
 
 function formatOutputPreview(
@@ -278,9 +268,7 @@ function renderOutputDetail(
     ? renderLogFileLinkDirect(logFilePath, output.length, context)
     : d``;
 
-  return d`${withCode(d`\`\`\`
-${formattedOutput}
-\`\`\``)}${logFileView}`;
+  return d`${withCode(d`${formattedOutput}`)}${logFileView}`;
 }
 
 function renderLogFileLinkDirect(
