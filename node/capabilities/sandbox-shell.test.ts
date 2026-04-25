@@ -319,7 +319,10 @@ describe("SandboxShell", () => {
       expect.any(Function),
     );
     expect(result).toBe(violationResult);
-    expect(mockCleanupAfterCommand).not.toHaveBeenCalled();
+    // cleanupAfterCommand must be called even on the violation path so that
+    // bwrap mount points (e.g. ghost .env / .magenta files in cwd) get
+    // removed instead of leaking onto the host filesystem.
+    expect(mockCleanupAfterCommand).toHaveBeenCalled();
   });
 
   test("no violation when exit 0", async () => {

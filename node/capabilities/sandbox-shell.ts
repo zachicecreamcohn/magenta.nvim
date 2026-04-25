@@ -200,6 +200,36 @@ export class SandboxShell implements Shell {
 
     const wrapped = await this.sandbox.wrapWithSandbox(command);
 
+    try {
+      return await this.runWrappedAndHandleViolations(
+        command,
+        wrapped,
+        opts,
+        store,
+        preCount,
+        options,
+      );
+    } finally {
+      // Always clean up bwrap mount points (e.g. ghost .env / .magenta files
+      // bwrap creates in cwd as denyWrite mount points). Without try/finally,
+      // violation early-returns and exceptions would skip cleanup and leak
+      // empty files into the working directory.
+      this.sandbox.cleanupAfterCommand();
+    }
+  }
+
+  private async runWrappedAndHandleViolations(
+    command: string,
+    wrapped: string,
+    opts: {
+      toolRequestId: string;
+      onOutput?: (line: OutputLine) => void;
+      onStart?: () => void;
+    },
+    store: ReturnType<Sandbox["getViolationStore"]>,
+    preCount: number,
+    options: MagentaOptions,
+  ): Promise<ShellResult> {
     // Monitor violations during execution and terminate early if a violation
     // is detected and the process doesn't finish within the grace period.
     // This prevents commands from spinning for minutes hitting the same
@@ -255,7 +285,6 @@ export class SandboxShell implements Shell {
       );
     }
 
-    this.sandbox.cleanupAfterCommand();
     return result;
   }
 
