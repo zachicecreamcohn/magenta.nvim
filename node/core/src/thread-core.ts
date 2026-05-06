@@ -95,7 +95,7 @@ export type ThreadCoreEvents = {
   update: [];
   playChime: [];
   scrollToLastMessage: [];
-  setupResubmit: [lastUserMessage: string];
+  setupResubmit: [threadId: ThreadId, lastUserMessage: string];
   aborting: [];
   pendingUpdatesChanged: [];
   turnEnded: [{ reason: TurnEndReason }];
@@ -450,6 +450,11 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     return this.agent.getState().messages ?? [];
   }
 
+  popLastUserMessage(): void {
+    this.agent.popLastUserMessage();
+    this.emit("update");
+  }
+
   getMessages(): ProviderMessage[] {
     return [...this.getProviderMessages()];
   }
@@ -655,7 +660,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         .map((c) => c.text)
         .join("");
       if (textContent) {
-        setTimeout(() => this.emit("setupResubmit", textContent), 1);
+        setTimeout(() => this.emit("setupResubmit", this.id, textContent), 1);
       }
     }
     this.context.logger.error(error);

@@ -732,3 +732,111 @@ describe("ThreadCore bash summary reminder", () => {
     expect(hasReminderInStream4).toBe(true);
   });
 });
+
+describe("ThreadCore non-retryable error resubmit flow", () => {
+  it("emits setupResubmit with threadId and message text after error", async () => {
+    const { core, mockClient } = createThreadCoreWithMock();
+    const events: Array<{ threadId: ThreadId; text: string }> = [];
+    core.on("setupResubmit", (threadId, text) => {
+      events.push({ threadId, text });
+    });
+
+    await core.sendMessage([{ type: "user", text: "find the bug" }]);
+    const stream = await mockClient.awaitStream();
+    stream.respondWithError(new Error("provider failure"));
+
+    await pollUntil(() => {
+      if (events.length > 0) return true;
+      throw new Error("waiting for setupResubmit");
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0].threadId).toBe("test-thread");
+    expect(events[0].text).toContain("find the bug");
+  });
+
+  it("popLastUserMessage removes the orphan user message from agent history", async () => {
+    const { core, mockClient } = createThreadCoreWithMock();
+
+    await core.sendMessage([{ type: "user", text: "hello" }]);
+    const stream = await mockClient.awaitStream();
+    stream.respondWithError(new Error("provider failure"));
+
+    await pollUntil(() => {
+      if (core.agent.getState().status.type === "error") return true;
+      throw new Error("waiting for error state");
+    });
+
+    const messagesBefore = core.getProviderMessages();
+    expect(messagesBefore.length).toBe(1);
+    expect(messagesBefore[0].role).toBe("user");
+
+    core.popLastUserMessage();
+
+    const messagesAfter = core.getProviderMessages();
+    expect(messagesAfter.length).toBe(0);
+  });
+
+  it("popLastUserMessage is a no-op when last message is not a user message", async () => {
+    const { core, mockClient } = createThreadCoreWithMock();
+
+    await core.sendMessage([{ type: "user", text: "hello" }]);
+    const stream = await mockClient.awaitStream();
+    stream.streamText("hi there");
+    stream.finishResponse("end_turn");
+
+    await pollUntil(() => {
+      const msgs = core.getProviderMessages();
+      if (msgs.length === 2 && msgs[1].role === "assistant") return true;
+      throw new Error("waiting for assistant message");
+    });
+
+    const before = core.getProviderMessages().length;
+    core.popLastUserMessage();
+    const after = core.getProviderMessages().length;
+    expect(after).toBe(before);
+  });
+
+  it("popLastUserMessage is a no-op when there are no messages", () => {
+    const { core } = createThreadCoreWithMock();
+    expect(core.getProviderMessages().length).toBe(0);
+    core.popLastUserMessage();
+    expect(core.getProviderMessages().length).toBe(0);
+  });
+
+  it("after error + pop, resubmit does not duplicate the user message", async () => {
+    const { core, mockClient } = createThreadCoreWithMock();
+
+    await core.sendMessage([{ type: "user", text: "find the bug" }]);
+    const firstStream = await mockClient.awaitStream();
+    firstStream.respondWithError(new Error("provider failure"));
+
+    await pollUntil(() => {
+      if (core.agent.getState().status.type === "error") return true;
+      throw new Error("waiting for error state");
+    });
+
+    expect(core.getProviderMessages().length).toBe(1);
+
+    core.popLastUserMessage();
+    expect(core.getProviderMessages().length).toBe(0);
+
+    await core.sendMessage([{ type: "user", text: "find the bug" }]);
+    const secondStream = await pollUntil(() => {
+      const s = mockClient.streams[mockClient.streams.length - 1];
+      if (s && s !== firstStream) return s;
+      throw new Error("waiting for resubmit stream");
+    });
+
+    const userMessages = core
+      .getProviderMessages()
+      .filter((m) => m.role === "user");
+    expect(userMessages.length).toBe(1);
+
+    secondStream.respond({
+      text: "ok",
+      toolRequests: [],
+      stopReason: "end_turn",
+    });
+  });
+});

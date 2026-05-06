@@ -313,6 +313,11 @@ export interface Agent {
 
   appendUserMessage(content: AgentInput[]): void;
 
+  /** If the last message in the agent history is a user message, remove it.
+   * Used after a non-retryable error to prepare for resubmission. No-op if
+   * the last message is not a user message or there are no messages. */
+  popLastUserMessage(): void;
+
   toolResult(
     toolUseId: ToolManager.ToolRequestId,
     result: ProviderToolResult,

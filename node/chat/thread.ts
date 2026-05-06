@@ -288,10 +288,10 @@ export class Thread {
           this.sendTerminalBell();
         }
       },
-      setupResubmit: (lastUserMessage: string) =>
+      setupResubmit: (threadId: ThreadId, lastUserMessage: string) =>
         this.context.dispatch({
           type: "sidebar-msg",
-          msg: { type: "setup-resubmit", lastUserMessage },
+          msg: { type: "setup-resubmit", threadId, lastUserMessage },
         }),
       aborting: () => {
         this.sandboxViolationHandler?.rejectAll();
@@ -539,7 +539,7 @@ export class Thread {
         turnEnded: (payload: {
           reason: "end_turn" | "aborted" | "error";
         }) => void;
-        setupResubmit: (lastUserMessage: string) => void;
+        setupResubmit: (threadId: ThreadId, lastUserMessage: string) => void;
         aborting: () => void;
         contextUpdatesSent: (updates: Record<string, unknown>) => void;
       }
