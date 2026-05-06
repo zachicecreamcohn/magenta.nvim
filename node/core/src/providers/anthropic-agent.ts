@@ -332,14 +332,6 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
     this.updateCachedProviderMessages();
   }
 
-  popLastUserMessage(): void {
-    const lastMessage = this.messages[this.messages.length - 1];
-    if (lastMessage?.role === "user") {
-      this.messages.pop();
-      this.updateCachedProviderMessages();
-    }
-  }
-
   toolResult(toolUseId: ToolRequestId, result: ProviderToolResult): void {
     if (
       this.status.type !== "stopped" ||

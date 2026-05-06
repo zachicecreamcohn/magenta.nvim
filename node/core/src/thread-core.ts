@@ -150,7 +150,15 @@ export type ThreadCoreAction =
   | { type: "push-compaction-record"; record: CompactionRecord }
   | { type: "reset-after-compaction" }
   | { type: "mark-bash-output-abbreviated" }
-  | { type: "reset-bash-reminder" };
+  | { type: "reset-bash-reminder" }
+  | {
+      type: "set-failed-submit";
+      value: { userMessage: string; errorMessage: string } | undefined;
+    }
+  | {
+      type: "set-pre-submit-native-idx";
+      idx: NativeMessageIdx | undefined;
+    };
 
 export class ThreadCore extends Emitter<ThreadCoreEvents> {
   public state: {
@@ -166,6 +174,8 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     pendingBashReminder: boolean;
     bashTokensSinceLastReminder: number;
     firstBashReminderPending: boolean;
+    failedSubmit: { userMessage: string; errorMessage: string } | undefined;
+    preSubmitNativeIdx: NativeMessageIdx | undefined;
   };
 
   public agent: Agent;
@@ -200,6 +210,8 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       pendingBashReminder: false,
       bashTokensSinceLastReminder: 0,
       firstBashReminderPending: true,
+      failedSubmit: undefined,
+      preSubmitNativeIdx: undefined,
     };
 
     this.listenToContextManager();
@@ -403,6 +415,12 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         this.state.bashTokensSinceLastReminder = 0;
         this.state.firstBashReminderPending = false;
         break;
+      case "set-failed-submit":
+        this.state.failedSubmit = action.value;
+        break;
+      case "set-pre-submit-native-idx":
+        this.state.preSubmitNativeIdx = action.idx;
+        break;
       default:
         assertUnreachable(action);
     }
@@ -450,8 +468,19 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     return this.agent.getState().messages ?? [];
   }
 
-  popLastUserMessage(): void {
-    this.agent.popLastUserMessage();
+  /** After a non-retryable error, roll back the agent's history to the
+   * pre-submit snapshot captured by sendMessage. Used by the setup-resubmit
+   * handler when populating the input buffer for the failing thread. */
+  discardFailedSubmit(): void {
+    if (this.state.preSubmitNativeIdx === undefined) {
+      return;
+    }
+    const idx = this.state.preSubmitNativeIdx;
+    this.update(
+      { type: "set-pre-submit-native-idx", idx: undefined },
+      { silent: true },
+    );
+    this.agent.truncateMessages(idx);
     this.emit("update");
   }
 
@@ -650,17 +679,29 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
   }
 
   private handleErrorState(error: Error): void {
-    const messages = this.getProviderMessages();
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage?.role === "user") {
-      const textContent = lastMessage.content
-        .filter(
-          (c): c is Extract<typeof c, { type: "text" }> => c.type === "text",
-        )
-        .map((c) => c.text)
-        .join("");
-      if (textContent) {
-        setTimeout(() => this.emit("setupResubmit", this.id, textContent), 1);
+    const isUserFacing =
+      this.state.threadType === "root" ||
+      this.state.threadType === "docker_root";
+    if (isUserFacing) {
+      const messages = this.getProviderMessages();
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage?.role === "user") {
+        const textContent = lastMessage.content
+          .filter(
+            (c): c is Extract<typeof c, { type: "text" }> => c.type === "text",
+          )
+          .map((c) => c.text)
+          .join("");
+        if (textContent) {
+          this.update(
+            {
+              type: "set-failed-submit",
+              value: { userMessage: textContent, errorMessage: error.message },
+            },
+            { silent: true },
+          );
+          setTimeout(() => this.emit("setupResubmit", this.id, textContent), 1);
+        }
       }
     }
     this.context.logger.error(error);
@@ -724,6 +765,13 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       );
     }
 
+    if (this.state.failedSubmit !== undefined) {
+      this.update(
+        { type: "set-failed-submit", value: undefined },
+        { silent: true },
+      );
+    }
+
     this.state.editedFilesThisTurn = [];
 
     const { content, hasContent } = this.prepareUserContent(inputMessages);
@@ -770,6 +818,13 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       return;
     }
 
+    this.update(
+      {
+        type: "set-pre-submit-native-idx",
+        idx: this.agent.getNativeMessageIdx(),
+      },
+      { silent: true },
+    );
     this.agent.appendUserMessage(contentToSend);
     this.emit("update");
     this.agent.continueConversation();

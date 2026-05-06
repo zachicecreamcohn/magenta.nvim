@@ -292,7 +292,12 @@ export const view: View<{
   // Show logo when empty and not busy
   const isIdle =
     agentStatus.type === "stopped" && agentStatus.stopReason === "end_turn";
-  if (messages.length === 0 && isIdle && mode.type === "normal") {
+  if (
+    messages.length === 0 &&
+    isIdle &&
+    mode.type === "normal" &&
+    thread.core.state.failedSubmit === undefined
+  ) {
     return d`\
 ${titleView}
 ${systemPromptView}
@@ -441,11 +446,25 @@ ${contentView}`;
       ? d`\n${renderStreamingBlock(thread)}\n`
       : d``;
 
+  const failedSubmit = thread.core.state.failedSubmit;
+  const failedSubmitView =
+    failedSubmit !== undefined
+      ? d`${withExtmark(
+          d`${withExtmark(d`# user:\n`, {
+            hl_group: "@markup.heading.1.markdown",
+          })}${failedSubmit.userMessage}\n`,
+          { hl_group: "CursorLine", hl_eol: true },
+        )}${withExtmark(d`Error: ${failedSubmit.errorMessage}\n`, {
+          hl_group: "ErrorMsg",
+        })}`
+      : d``;
+
   return d`\
 ${titleView}
 ${systemPromptView}
 ${compactionHistoryView}
 ${messagesView}\
+${failedSubmitView}\
 ${streamingBlockView}\
 ${contextManagerView}\
 ${sandboxView}\

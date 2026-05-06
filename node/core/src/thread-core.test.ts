@@ -753,36 +753,44 @@ describe("ThreadCore non-retryable error resubmit flow", () => {
     expect(events).toHaveLength(1);
     expect(events[0].threadId).toBe("test-thread");
     expect(events[0].text).toContain("find the bug");
+    expect(core.state.failedSubmit?.userMessage).toContain("find the bug");
+    expect(core.state.failedSubmit?.errorMessage).toBe("provider failure");
   });
 
-  it("popLastUserMessage removes the orphan user message from agent history", async () => {
-    const { core, mockClient } = createThreadCoreWithMock();
+  it("does not set failedSubmit or emit setupResubmit for subagent threads", async () => {
+    const { core, mockClient } = createThreadCoreWithMock({
+      threadType: "subagent" as ThreadType,
+    });
+    const events: Array<{ threadId: ThreadId; text: string }> = [];
+    core.on("setupResubmit", (threadId, text) => {
+      events.push({ threadId, text });
+    });
 
-    await core.sendMessage([{ type: "user", text: "hello" }]);
+    await core.sendMessage([{ type: "user", text: "subagent task" }]);
     const stream = await mockClient.awaitStream();
-    stream.respondWithError(new Error("provider failure"));
+    stream.respondWithError(new Error("subagent provider failure"));
 
     await pollUntil(() => {
       if (core.agent.getState().status.type === "error") return true;
       throw new Error("waiting for error state");
     });
 
-    const messagesBefore = core.getProviderMessages();
-    expect(messagesBefore.length).toBe(1);
-    expect(messagesBefore[0].role).toBe("user");
-
-    core.popLastUserMessage();
-
-    const messagesAfter = core.getProviderMessages();
-    expect(messagesAfter.length).toBe(0);
+    expect(events).toHaveLength(0);
+    expect(core.state.failedSubmit).toBeUndefined();
+    expect(core.getProviderMessages().length).toBe(1);
+    expect(core.agent.getState().status.type).toBe("error");
   });
 
-  it("popLastUserMessage is a no-op when last message is not a user message", async () => {
+  it("captures preSubmitNativeIdx before appending the user message", async () => {
     const { core, mockClient } = createThreadCoreWithMock();
 
-    await core.sendMessage([{ type: "user", text: "hello" }]);
+    expect(core.state.preSubmitNativeIdx).toBeUndefined();
+
+    await core.sendMessage([{ type: "user", text: "first message" }]);
+    expect(core.state.preSubmitNativeIdx).toBe(-1);
+
     const stream = await mockClient.awaitStream();
-    stream.streamText("hi there");
+    stream.streamText("hi");
     stream.finishResponse("end_turn");
 
     await pollUntil(() => {
@@ -791,20 +799,59 @@ describe("ThreadCore non-retryable error resubmit flow", () => {
       throw new Error("waiting for assistant message");
     });
 
-    const before = core.getProviderMessages().length;
-    core.popLastUserMessage();
-    const after = core.getProviderMessages().length;
-    expect(after).toBe(before);
+    await core.sendMessage([{ type: "user", text: "second message" }]);
+    expect(core.state.preSubmitNativeIdx).toBe(1);
   });
 
-  it("popLastUserMessage is a no-op when there are no messages", () => {
+  it("after non-retryable error, preSubmitNativeIdx remains set and orphan user message remains in history", async () => {
+    const { core, mockClient } = createThreadCoreWithMock();
+
+    await core.sendMessage([{ type: "user", text: "find the bug" }]);
+    const stream = await mockClient.awaitStream();
+    stream.respondWithError(new Error("provider failure"));
+
+    await pollUntil(() => {
+      if (core.agent.getState().status.type === "error") return true;
+      throw new Error("waiting for error state");
+    });
+
+    expect(core.state.preSubmitNativeIdx).toBe(-1);
+    expect(core.state.failedSubmit?.userMessage).toContain("find the bug");
+
+    const messages = core.getProviderMessages();
+    expect(messages.length).toBe(1);
+    expect(messages[0].role).toBe("user");
+  });
+
+  it("discardFailedSubmit truncates agent history back to pre-submit and clears preSubmitNativeIdx but keeps failedSubmit", async () => {
+    const { core, mockClient } = createThreadCoreWithMock();
+
+    await core.sendMessage([{ type: "user", text: "find the bug" }]);
+    const stream = await mockClient.awaitStream();
+    stream.respondWithError(new Error("provider failure"));
+
+    await pollUntil(() => {
+      if (core.agent.getState().status.type === "error") return true;
+      throw new Error("waiting for error state");
+    });
+
+    core.discardFailedSubmit();
+
+    expect(core.getProviderMessages().length).toBe(0);
+    expect(core.state.preSubmitNativeIdx).toBeUndefined();
+    expect(core.state.failedSubmit?.userMessage).toContain("find the bug");
+  });
+
+  it("discardFailedSubmit is a no-op when preSubmitNativeIdx is undefined", () => {
     const { core } = createThreadCoreWithMock();
+    expect(core.state.preSubmitNativeIdx).toBeUndefined();
     expect(core.getProviderMessages().length).toBe(0);
-    core.popLastUserMessage();
+    core.discardFailedSubmit();
     expect(core.getProviderMessages().length).toBe(0);
+    expect(core.state.preSubmitNativeIdx).toBeUndefined();
   });
 
-  it("after error + pop, resubmit does not duplicate the user message", async () => {
+  it("after error + discardFailedSubmit, resubmit does not duplicate the user message and resets state", async () => {
     const { core, mockClient } = createThreadCoreWithMock();
 
     await core.sendMessage([{ type: "user", text: "find the bug" }]);
@@ -817,9 +864,12 @@ describe("ThreadCore non-retryable error resubmit flow", () => {
     });
 
     expect(core.getProviderMessages().length).toBe(1);
+    expect(core.state.preSubmitNativeIdx).toBe(-1);
 
-    core.popLastUserMessage();
+    core.discardFailedSubmit();
     expect(core.getProviderMessages().length).toBe(0);
+    expect(core.state.preSubmitNativeIdx).toBeUndefined();
+    expect(core.state.failedSubmit?.userMessage).toContain("find the bug");
 
     await core.sendMessage([{ type: "user", text: "find the bug" }]);
     const secondStream = await pollUntil(() => {
@@ -832,6 +882,8 @@ describe("ThreadCore non-retryable error resubmit flow", () => {
       .getProviderMessages()
       .filter((m) => m.role === "user");
     expect(userMessages.length).toBe(1);
+    expect(core.state.failedSubmit).toBeUndefined();
+    expect(core.state.preSubmitNativeIdx).toBe(-1);
 
     secondStream.respond({
       text: "ok",

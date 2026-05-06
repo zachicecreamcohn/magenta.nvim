@@ -330,12 +330,11 @@ export class Magenta {
           );
           break;
         }
-        wrapper.thread.core.popLastUserMessage();
-
         const buffers = this.bufferManager.getThreadBuffers(msg.threadId);
         if (!buffers) {
           break;
         }
+        wrapper.thread.core.discardFailedSubmit();
         buffers.inputBuffer
           .setLines({
             start: 0 as Row0Indexed,
