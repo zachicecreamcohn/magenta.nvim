@@ -593,7 +593,6 @@ export class Thread {
   }
 
   private myUpdate(msg: Msg): void {
-    console.error(`[Thread ${this.id}] myUpdate: ${msg.type}`);
     switch (msg.type) {
       case "send-message":
         this.core
