@@ -1,6 +1,10 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { SubagentConfig, ThreadSupervisor } from "@magenta/core";
+import type {
+  ProviderToolResult,
+  SubagentConfig,
+  ThreadSupervisor,
+} from "@magenta/core";
 import {
   type ContextFiles,
   type ContextManager,
@@ -14,9 +18,10 @@ import {
   type ToolRequestId,
 } from "@magenta/core";
 import player from "play-sound";
+import type { Lsp } from "../capabilities/lsp.ts";
 import type { SandboxViolationHandler } from "../capabilities/sandbox-violation-handler.ts";
 import type { FileUpdates } from "../context/context-manager.ts";
-import type { Environment } from "../environment.ts";
+import { createLocalEnvironment, type Environment } from "../environment.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
 import type { MagentaOptions, Profile } from "../options.ts";
@@ -28,6 +33,7 @@ import {
 } from "../providers/provider.ts";
 import type { SystemPrompt } from "../providers/system-prompt.ts";
 import type { RootMsg } from "../root-msg.ts";
+import type { Sandbox } from "../sandbox-manager.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { HomeDir, NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
@@ -157,6 +163,7 @@ export class Thread {
         expandedSteps: { [stepIdx: number]: boolean };
       };
     };
+    toolResultMap: Map<ToolRequestId, ProviderToolResult>;
   };
 
   public core: ThreadCore;
@@ -206,6 +213,7 @@ export class Thread {
       subagentConfig?: SubagentConfig;
     },
     clonedAgent?: Agent,
+    preBuiltCore?: ThreadCore,
   ) {
     this.myDispatch = (msg) =>
       this.context.dispatch({
@@ -223,46 +231,56 @@ export class Thread {
       messageViewState: {},
       toolViewState: {},
       compactionViewState: {},
+      toolResultMap: new Map(),
     };
 
     const isDocker = env.environmentConfig.type === "docker";
 
-    this.core = new ThreadCore(
-      id,
-      {
-        logger: context.nvim.logger,
-        profile: context.profile,
-        cwd: isDocker ? env.cwd : context.cwd,
-        homeDir: isDocker ? env.homeDir : context.homeDir,
-        threadType,
-        ...(context.subagentConfig
-          ? { subagentConfig: context.subagentConfig }
-          : {}),
-        systemPrompt,
-        mcpToolManager: context.mcpToolManager,
-        threadManager: context.chat,
-        fileIO: env.fileIO,
-        shell: env.shell,
-        lspClient: env.lspClient,
-        diagnosticsProvider: env.diagnosticsProvider,
-        helpTagsProvider: env.helpTagsProvider,
-        availableCapabilities: env.availableCapabilities,
-        environmentConfig: env.environmentConfig,
-        maxConcurrentSubagents: context.options.maxConcurrentSubagents || 3,
-        getAgents: () =>
-          loadAgents({
-            cwd: isDocker ? env.cwd : context.cwd,
-            logger: context.nvim.logger,
-            options: context.options,
-          }),
-        getProvider: (profile) => getProvider(context.nvim, profile),
-        ...(context.initialFiles ? { initialFiles: context.initialFiles } : {}),
-      },
-      clonedAgent,
-    );
+    if (preBuiltCore) {
+      this.core = preBuiltCore;
+    } else {
+      this.core = new ThreadCore(
+        id,
+        {
+          logger: context.nvim.logger,
+          profile: context.profile,
+          cwd: isDocker ? env.cwd : context.cwd,
+          homeDir: isDocker ? env.homeDir : context.homeDir,
+          threadType,
+          ...(context.subagentConfig
+            ? { subagentConfig: context.subagentConfig }
+            : {}),
+          systemPrompt,
+          mcpToolManager: context.mcpToolManager,
+          threadManager: context.chat,
+          fileIO: env.fileIO,
+          shell: env.shell,
+          lspClient: env.lspClient,
+          diagnosticsProvider: env.diagnosticsProvider,
+          helpTagsProvider: env.helpTagsProvider,
+          availableCapabilities: env.availableCapabilities,
+          environmentConfig: env.environmentConfig,
+          maxConcurrentSubagents: context.options.maxConcurrentSubagents || 3,
+          getAgents: () =>
+            loadAgents({
+              cwd: isDocker ? env.cwd : context.cwd,
+              logger: context.nvim.logger,
+              options: context.options,
+            }),
+          getProvider: (profile) => getProvider(context.nvim, profile),
+          ...(context.initialFiles
+            ? { initialFiles: context.initialFiles }
+            : {}),
+        },
+        clonedAgent,
+      );
+    }
 
     const coreListeners = {
-      update: () => this.myDispatch({ type: "tool-progress" }),
+      update: () => {
+        this.rebuildToolResultMap();
+        this.myDispatch({ type: "tool-progress" });
+      },
       pendingUpdatesChanged: () => this.myDispatch({ type: "tool-progress" }),
       turnEnded: (payload: { reason: "end_turn" | "aborted" | "error" }) => {
         if (payload.reason === "end_turn" || payload.reason === "error") {
@@ -292,6 +310,226 @@ export class Thread {
     this.core.on("setupResubmit", coreListeners.setupResubmit);
     this.core.on("aborting", coreListeners.aborting);
     this.core.on("contextUpdatesSent", coreListeners.contextUpdatesSent);
+
+    this.rebuildToolResultMap();
+  }
+
+  /** Walks the agent's provider messages and rebuilds the tool result map.
+   * Preserves any pre-existing structuredResult for surviving tool result IDs,
+   * since the provider strips structuredResult when serializing to native form
+   * but the rich view rendering relies on it. */
+  rebuildToolResultMap(): void {
+    const next = new Map<ToolRequestId, ProviderToolResult>();
+    const prev = this.state.toolResultMap;
+    for (const message of this.core.getProviderMessages()) {
+      if (message.role !== "user") continue;
+      for (const content of message.content) {
+        if (content.type === "tool_result") {
+          const cached = prev.get(content.id);
+          if (
+            cached?.result.status === "ok" &&
+            content.result.status === "ok"
+          ) {
+            next.set(content.id, {
+              ...content,
+              result: {
+                ...content.result,
+                structuredResult: cached.result.structuredResult,
+              },
+            });
+          } else {
+            next.set(content.id, content);
+          }
+        }
+      }
+    }
+    // Include results from active tool entries whose results haven't yet been
+    // submitted back to the agent (e.g. mid tool_use turn while other tools
+    // are still running). The rendering layer needs these to display custom
+    // result summaries as soon as the tool completes.
+    const mode = this.core.state.mode;
+    if (mode.type === "tool_use") {
+      for (const entry of mode.activeTools.values()) {
+        if (entry.result && !next.has(entry.request.id)) {
+          next.set(entry.request.id, entry.result);
+        }
+      }
+    }
+    this.state.toolResultMap = next;
+  }
+
+  /** Build an independent fork of `sourceThread` frozen at `nativeMessageIdx`.
+   * The cloned agent is created exactly once (by ThreadCore.clone). The source
+   * is not aborted, no auto-context is re-resolved, and no system prompt is
+   * regenerated. The result is a new Thread with its own environment and
+   * Layer 3 view state, ready to continue from the snapshot. */
+  static async cloneFromNativeMessageIdx(args: {
+    sourceThread: Thread;
+    newThreadId: ThreadId;
+    nativeMessageIdx: NativeMessageIdx;
+    chat: Chat;
+    mcpToolManager: MCPToolManagerImpl;
+    dispatch: Dispatch<RootMsg>;
+    nvim: Nvim;
+    cwd: NvimCwd;
+    homeDir: HomeDir;
+    lsp: Lsp;
+    sandbox: Sandbox;
+    getOptions: () => MagentaOptions;
+    getDisplayWidth: () => number;
+  }): Promise<Thread> {
+    const {
+      sourceThread,
+      newThreadId,
+      nativeMessageIdx,
+      chat,
+      mcpToolManager,
+      dispatch,
+      nvim,
+      cwd,
+      homeDir,
+      lsp,
+      sandbox,
+      getOptions,
+      getDisplayWidth,
+    } = args;
+
+    const sourceEnvConfig = sourceThread.context.environment.environmentConfig;
+    if (sourceEnvConfig.type !== "local") {
+      throw new Error(
+        `Thread.cloneFromNativeMessageIdx only supports local-source forks for MVP (got ${sourceEnvConfig.type}). Docker-source forks are a follow-up.`,
+      );
+    }
+
+    const bypassRef = { get: () => false as boolean };
+
+    const environment = createLocalEnvironment({
+      nvim,
+      lsp,
+      cwd,
+      homeDir,
+      getOptions,
+      threadId: newThreadId,
+      sandbox,
+      onPendingChange: () =>
+        dispatch({
+          type: "thread-msg",
+          id: newThreadId,
+          msg: { type: "permission-pending-change" },
+        }),
+      isBypassed: () => bypassRef.get(),
+    });
+
+    const sourceCore = sourceThread.core;
+    const profile = sourceThread.context.profile;
+    const sourceCoreState = sourceCore.state;
+
+    const core = await ThreadCore.clone({
+      sourceCore,
+      newId: newThreadId,
+      nativeMessageIdx,
+      context: {
+        logger: nvim.logger,
+        profile,
+        cwd: environment.cwd,
+        homeDir: environment.homeDir,
+        threadType: sourceCoreState.threadType,
+        ...(sourceThread.context.subagentConfig
+          ? { subagentConfig: sourceThread.context.subagentConfig }
+          : {}),
+        systemPrompt: sourceCoreState.systemPrompt,
+        mcpToolManager,
+        threadManager: chat,
+        fileIO: environment.fileIO,
+        shell: environment.shell,
+        lspClient: environment.lspClient,
+        diagnosticsProvider: environment.diagnosticsProvider,
+        helpTagsProvider: environment.helpTagsProvider,
+        availableCapabilities: environment.availableCapabilities,
+        environmentConfig: environment.environmentConfig,
+        maxConcurrentSubagents: getOptions().maxConcurrentSubagents || 3,
+        getAgents: () =>
+          loadAgents({
+            cwd: environment.cwd,
+            logger: nvim.logger,
+            options: getOptions(),
+          }),
+        getProvider: (p) => getProvider(nvim, p),
+      },
+    });
+
+    const thread = new Thread(
+      newThreadId,
+      sourceCoreState.threadType,
+      sourceCoreState.systemPrompt,
+      {
+        dispatch,
+        chat,
+        mcpToolManager,
+        profile,
+        nvim,
+        cwd,
+        homeDir,
+        options: getOptions(),
+        getDisplayWidth,
+        environment,
+        ...(sourceThread.context.subagentConfig
+          ? { subagentConfig: sourceThread.context.subagentConfig }
+          : {}),
+      },
+      undefined,
+      core,
+    );
+
+    thread.sandboxBypassed = sourceThread.isSandboxBypassed;
+    bypassRef.get = () => thread.isSandboxBypassed;
+
+    const survivingToolResults = sourceThread.state.toolResultMap;
+    const newMap = new Map<ToolRequestId, ProviderToolResult>();
+    for (const message of core.getProviderMessages()) {
+      if (message.role !== "user") continue;
+      for (const content of message.content) {
+        if (content.type === "tool_result") {
+          const cached = survivingToolResults.get(content.id);
+          if (
+            cached?.result.status === "ok" &&
+            content.result.status === "ok"
+          ) {
+            newMap.set(content.id, {
+              ...content,
+              result: {
+                ...content.result,
+                structuredResult: cached.result.structuredResult,
+              },
+            });
+          } else {
+            newMap.set(content.id, content);
+          }
+        }
+      }
+    }
+    thread.state.toolResultMap = newMap;
+
+    for (const [idxStr, viewState] of Object.entries(
+      sourceThread.state.messageViewState,
+    )) {
+      const idx = Number(idxStr);
+      if (idx <= nativeMessageIdx) {
+        thread.state.messageViewState[idx] = {
+          ...(viewState.contextUpdates
+            ? { contextUpdates: { ...viewState.contextUpdates } }
+            : {}),
+          ...(viewState.expandedUpdates
+            ? { expandedUpdates: { ...viewState.expandedUpdates } }
+            : {}),
+          ...(viewState.expandedContent
+            ? { expandedContent: { ...viewState.expandedContent } }
+            : {}),
+        };
+      }
+    }
+
+    return thread;
   }
 
   private coreListeners:

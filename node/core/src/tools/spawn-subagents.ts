@@ -454,7 +454,13 @@ function buildResult(
     id: requestId,
     result: {
       status: "ok",
-      value: [{ type: "text", text: resultText, nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX }],
+      value: [
+        {
+          type: "text",
+          text: resultText,
+          nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+        },
+      ],
       structuredResult: {
         toolName: "spawn_subagents" as const,
         agents,

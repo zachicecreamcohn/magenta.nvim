@@ -192,7 +192,13 @@ export function execute(
         id: request.id,
         result: {
           status: "ok",
-          value: [{ type: "text", text, nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX }],
+          value: [
+            {
+              type: "text",
+              text,
+              nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+            },
+          ],
           structuredResult: {
             toolName: "docs" as const,
             matchCount: totalMatches,

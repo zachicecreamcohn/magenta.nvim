@@ -101,6 +101,47 @@ export type ContextManagerEvents = {
   pendingUpdatesChanged: [];
 };
 
+/** Build a `Files` map for a cloned `ContextManager` based on the source's
+ * tracked files. For text files, re-read the current on-disk contents and use
+ * them as the agentView so the first context update on the cloned thread
+ * produces no diff. For binary/pdf files, copy the source's agentView as-is.
+ * Files that no longer exist on disk are skipped. */
+export async function buildClonedFiles(
+  sourceFiles: Files,
+  fileIO: FileIO,
+): Promise<Files> {
+  const next: Files = {};
+  for (const key of Object.keys(sourceFiles)) {
+    const absFilePath = key as AbsFilePath;
+    const source = sourceFiles[absFilePath];
+    if (!source) continue;
+    if (!(await fileIO.fileExists(absFilePath))) continue;
+    const lastStat = await fileIO.stat(absFilePath);
+    if (source.fileTypeInfo.category === FileCategory.TEXT) {
+      let currentContent: string;
+      try {
+        currentContent = await fileIO.readFile(absFilePath);
+      } catch {
+        continue;
+      }
+      next[absFilePath] = {
+        relFilePath: source.relFilePath,
+        fileTypeInfo: source.fileTypeInfo,
+        agentView: { type: "text", content: currentContent },
+        lastStat,
+      };
+    } else {
+      next[absFilePath] = {
+        relFilePath: source.relFilePath,
+        fileTypeInfo: source.fileTypeInfo,
+        agentView: source.agentView,
+        lastStat,
+      };
+    }
+  }
+  return next;
+}
+
 export class ContextManager
   extends Emitter<ContextManagerEvents>
   implements ContextTracker
@@ -541,8 +582,16 @@ From now on, whenever any of these files are updated by the user, you will get a
           value: {
             type: "whole-file",
             content: [
-              { type: "text", text: `File \`${relFilePath}\``, nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX },
-              { type: "text", text: currentFileContent, nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX },
+              {
+                type: "text",
+                text: `File \`${relFilePath}\``,
+                nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+              },
+              {
+                type: "text",
+                text: currentFileContent,
+                nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+              },
             ],
           },
         },

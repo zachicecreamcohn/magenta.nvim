@@ -1,5 +1,5 @@
-import type { ProviderMessageContent } from "../../providers/provider-types.ts";
 import { PLACEHOLDER_NATIVE_MESSAGE_IDX } from "@magenta/core";
+import type { ProviderMessageContent } from "../../providers/provider-types.ts";
 import type { UnresolvedFilePath } from "../../utils/files.ts";
 import {
   AT_FILE_PATTERN,

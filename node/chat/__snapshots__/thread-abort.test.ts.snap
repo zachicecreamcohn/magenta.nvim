@@ -205,7 +205,7 @@ Don't spawn sub-agents for things you can do with a single tool call (get_file, 
 ]
 `;
 
-exports[`forks a thread while streaming by aborting the stream first 1`] = `
+exports[`forks a thread while streaming without aborting source 1`] = `
 [
   {
     "content": [
@@ -275,7 +275,7 @@ Don't spawn sub-agents for things you can do with a single tool call (get_file, 
 ]
 `;
 
-exports[`forks a thread while waiting for tool use by aborting pending tools first 1`] = `
+exports[`forks a thread while waiting for tool use without aborting source 1`] = `
 [
   {
     "content": [
@@ -324,19 +324,11 @@ Don't spawn sub-agents for things you can do with a single tool call (get_file, 
   {
     "content": [
       {
-        "content": "Request was aborted by the user.",
+        "content": "The thread was forked before the tool could execute.",
         "is_error": true,
+        "nativeMessageIdx": -1,
         "tool_use_id": "bash-tool",
         "type": "tool_result",
-      },
-    ],
-    "role": "user",
-  },
-  {
-    "content": [
-      {
-        "text": "[The user aborted the previous request.]",
-        "type": "text",
       },
     ],
     "role": "user",

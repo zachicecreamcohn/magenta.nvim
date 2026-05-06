@@ -280,7 +280,13 @@ You already have the most up-to-date information about the contents of this file
           );
         }
 
-        result = [{ type: "text", text: processedResult.text, nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX }];
+        result = [
+          {
+            type: "text",
+            text: processedResult.text,
+            nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+          },
+        ];
         lineCount = processedResult.text.split("\n").length;
       } else if (fileTypeInfo.category === FileCategory.PDF) {
         const existingFileInfo = context.contextTracker.files[absFilePath];

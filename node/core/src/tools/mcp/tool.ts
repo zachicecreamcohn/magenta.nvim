@@ -1,4 +1,7 @@
-import { PLACEHOLDER_NATIVE_MESSAGE_IDX, type ProviderToolResult } from "../../providers/provider-types.ts";
+import {
+  PLACEHOLDER_NATIVE_MESSAGE_IDX,
+  type ProviderToolResult,
+} from "../../providers/provider-types.ts";
 import type {
   ToolInvocation,
   ToolName,

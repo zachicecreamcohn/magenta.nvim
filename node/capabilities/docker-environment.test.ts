@@ -6,11 +6,11 @@ import type {
   HomeDir,
   MCPToolManager,
   NvimCwd,
+  ProviderToolResultContent,
   ThreadId,
   ToolRequestId,
   UnresolvedFilePath,
 } from "@magenta/core";
-import type { ProviderToolResultContent } from "@magenta/core";
 import {
   ContextManager,
   FileCategory,

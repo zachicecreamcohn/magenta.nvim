@@ -464,7 +464,13 @@ export class CompactionManager extends Emitter<CompactionEvents> {
       .replace("{{summary}}", summaryContent)
       .replace("{{chunk}}", chunks[chunkIndex]);
 
-    agent.appendUserMessage([{ type: "text", text: prompt, nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX }]);
+    agent.appendUserMessage([
+      {
+        type: "text",
+        text: prompt,
+        nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+      },
+    ]);
     agent.continueConversation();
   }
 }

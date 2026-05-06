@@ -7,7 +7,6 @@ import type {
   ThreadType,
 } from "@magenta/core";
 import {
-  FsFileIO,
   loadAgents,
   MCPToolManagerImpl,
   SubagentSupervisor,
@@ -35,12 +34,7 @@ import type { Sandbox } from "../sandbox-manager.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import { d, type VDOMNode, withBindings } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type {
-  AbsFilePath,
-  HomeDir,
-  NvimCwd,
-  UnresolvedFilePath,
-} from "../utils/files.ts";
+import type { HomeDir, NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
 import { Thread } from "./thread.ts";
 import { DockerSupervisor } from "./thread-supervisor.ts";
@@ -849,27 +843,10 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     }
 
     const sourceThread = sourceThreadWrapper.thread;
-    const sourceAgent = sourceThread.agent;
-
-    // Abort any in-progress operations and wait for completion
-    // This handles both streaming and tool_use states
-    const agentStatus = sourceAgent.getState().status;
-    if (
-      agentStatus.type === "streaming" ||
-      (agentStatus.type === "stopped" && agentStatus.stopReason === "tool_use")
-    ) {
-      await sourceThread.abortAndWait();
-    }
+    const idx =
+      truncateAtMessageIdx ?? sourceThread.agent.getNativeMessageIdx();
 
     const newThreadId = uuidv7() as ThreadId;
-
-    const clonedAgent = sourceAgent.clone();
-
-    if (truncateAtMessageIdx !== undefined) {
-      clonedAgent.truncateMessages(truncateAtMessageIdx);
-    }
-
-    // Create the new thread with the cloned agent
     this.threadWrappers[newThreadId] = {
       state: "pending",
       parentThreadId: undefined,
@@ -877,71 +854,21 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       lastActivityTime: Date.now(),
     };
 
-    const [autoContextFiles, systemPrompt] = await Promise.all([
-      resolveAutoContext({
-        ...this.context,
-        options: this.context.getOptions(),
-      }),
-      createSystemPrompt("root", {
-        nvim: this.context.nvim,
-        cwd: this.context.cwd,
-        options: this.context.getOptions(),
-        fileIO: new FsFileIO(),
-        homeDir: this.context.homeDir,
-      }),
-    ]);
-
-    const initialFiles = autoContextFilesToInitialFiles(autoContextFiles);
-
-    // Copy context files from source thread
-    for (const [absFilePath, fileContext] of Object.entries(
-      sourceThread.contextManager.files,
-    )) {
-      initialFiles[absFilePath as AbsFilePath] = {
-        relFilePath: fileContext.relFilePath,
-        fileTypeInfo: fileContext.fileTypeInfo,
-        agentView: undefined,
-      };
-    }
-
-    const forkBypassRef = { get: () => false as boolean };
-
-    const forkEnvironment = createLocalEnvironment({
+    const thread = await Thread.cloneFromNativeMessageIdx({
+      sourceThread,
+      newThreadId,
+      nativeMessageIdx: idx,
+      chat: this,
+      mcpToolManager: this.mcpToolManager,
+      dispatch: this.context.dispatch,
       nvim: this.context.nvim,
-      lsp: this.context.lsp,
-
       cwd: this.context.cwd,
       homeDir: this.context.homeDir,
-      getOptions: this.context.getOptions,
-      threadId: newThreadId,
+      lsp: this.context.lsp,
       sandbox: this.context.sandbox,
-      onPendingChange: () =>
-        this.context.dispatch({
-          type: "thread-msg",
-          id: newThreadId,
-          msg: { type: "permission-pending-change" },
-        }),
-      isBypassed: () => forkBypassRef.get(),
+      getOptions: this.context.getOptions,
+      getDisplayWidth: this.context.getDisplayWidth,
     });
-
-    const thread = new Thread(
-      newThreadId,
-      "root",
-      systemPrompt,
-      {
-        ...this.context,
-        options: this.context.getOptions(),
-        mcpToolManager: this.mcpToolManager,
-        profile: sourceThread.context.profile,
-        chat: this,
-        environment: forkEnvironment,
-        initialFiles,
-      },
-      clonedAgent,
-    );
-
-    thread.sandboxBypassed = sourceThread.isSandboxBypassed;
-    forkBypassRef.get = () => thread.isSandboxBypassed;
 
     this.context.dispatch({
       type: "chat-msg",

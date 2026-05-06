@@ -9,11 +9,23 @@ describe("renderThreadToMarkdown", () => {
     const messages: ProviderMessage[] = [
       {
         role: "user",
-        content: [{ type: "text", text: "Hello", nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX }],
+        content: [
+          {
+            type: "text",
+            text: "Hello",
+            nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+          },
+        ],
       },
       {
         role: "assistant",
-        content: [{ type: "text", text: "Hi there!", nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX }],
+        content: [
+          {
+            type: "text",
+            text: "Hi there!",
+            nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+          },
+        ],
       },
     ];
 
@@ -29,8 +41,17 @@ describe("renderThreadToMarkdown", () => {
       {
         role: "assistant",
         content: [
-          { type: "thinking", thinking: "Let me think...", signature: "sig", nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX },
-          { type: "text", text: "Here is my answer", nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX },
+          {
+            type: "thinking",
+            thinking: "Let me think...",
+            signature: "sig",
+            nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+          },
+          {
+            type: "text",
+            text: "Here is my answer",
+            nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+          },
         ],
       },
     ];
@@ -45,8 +66,16 @@ describe("renderThreadToMarkdown", () => {
       {
         role: "assistant",
         content: [
-          { type: "redacted_thinking", data: "secret", nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX },
-          { type: "text", text: "visible text", nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX },
+          {
+            type: "redacted_thinking",
+            data: "secret",
+            nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+          },
+          {
+            type: "text",
+            text: "visible text",
+            nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+          },
         ],
       },
     ];
@@ -61,8 +90,16 @@ describe("renderThreadToMarkdown", () => {
       {
         role: "user",
         content: [
-          { type: "text", text: "My question", nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX },
-          { type: "system_reminder", text: "Remember to be helpful", nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX },
+          {
+            type: "text",
+            text: "My question",
+            nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+          },
+          {
+            type: "system_reminder",
+            text: "Remember to be helpful",
+            nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+          },
         ],
       },
     ];
@@ -219,7 +256,13 @@ File \`context.md\`
             id: "tool_1" as ToolRequestId,
             result: {
               status: "ok",
-              value: [{ type: "text", text: "File contents here", nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX }],
+              value: [
+                {
+                  type: "text",
+                  text: "File contents here",
+                  nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+                },
+              ],
               structuredResult: { toolName: "get_file" as ToolName },
             },
             nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
@@ -469,7 +512,13 @@ File \`context.md\`
             id: "tool_1" as ToolRequestId,
             result: {
               status: "ok",
-              value: [{ type: "text", text: "hello", nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX }],
+              value: [
+                {
+                  type: "text",
+                  text: "hello",
+                  nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+                },
+              ],
               structuredResult: { toolName: "get_file" as ToolName },
             },
             nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
@@ -487,15 +536,33 @@ File \`context.md\`
     const messages: ProviderMessage[] = [
       {
         role: "user",
-        content: [{ type: "text", text: "Hello", nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX }],
+        content: [
+          {
+            type: "text",
+            text: "Hello",
+            nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+          },
+        ],
       },
       {
         role: "assistant",
-        content: [{ type: "text", text: "Hi there!", nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX }],
+        content: [
+          {
+            type: "text",
+            text: "Hi there!",
+            nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+          },
+        ],
       },
       {
         role: "user",
-        content: [{ type: "text", text: "Goodbye", nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX }],
+        content: [
+          {
+            type: "text",
+            text: "Goodbye",
+            nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+          },
+        ],
       },
     ];
 

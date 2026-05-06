@@ -823,7 +823,7 @@ export function findToolResult(
   thread: Thread,
   toolRequestId: ToolRequestId,
 ): ProviderToolResult | undefined {
-  return thread.core.state.toolCache.results.get(toolRequestId);
+  return thread.state.toolResultMap.get(toolRequestId);
 }
 
 function renderStreamingBlock(thread: Thread): string | VDOMNode {

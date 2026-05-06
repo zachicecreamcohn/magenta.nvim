@@ -1,6 +1,6 @@
+import { PLACEHOLDER_NATIVE_MESSAGE_IDX } from "@magenta/core";
 import { getQuickfixList, quickfixListToString } from "../../nvim/nvim.ts";
 import type { ProviderMessageContent } from "../../providers/provider-types.ts";
-import { PLACEHOLDER_NATIVE_MESSAGE_IDX } from "@magenta/core";
 import type { Command } from "./types.ts";
 
 const createQuickfixCommand = (name: string, pattern: RegExp): Command => ({

@@ -60,6 +60,7 @@ export type {
   TeardownResult,
 } from "./container/types.ts";
 export {
+  buildClonedFiles,
   ContextManager,
   type ContextManagerEvents,
   type DiffUpdate,
@@ -171,7 +172,6 @@ export {
   type ThreadCoreContext,
   type ThreadCoreEvents,
   type ThreadMode,
-  type ToolCache,
 } from "./thread-core.ts";
 export type {
   EndTurnContext,

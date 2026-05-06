@@ -76,7 +76,8 @@ export function execute(
             error: "Request was aborted by the user.",
           },
           nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
-        };      }
+        };
+      }
 
       if (result.status === "ok") {
         context.edlRegisters.registers = result.edlRegisters.registers;
@@ -124,7 +125,11 @@ export function execute(
                 text: `${EDL_DISPLAY_PREFIX}${JSON.stringify(displayData)}`,
                 nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
               },
-              { type: "text", text: result.formatted, nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX },
+              {
+                type: "text",
+                text: result.formatted,
+                nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+              },
             ],
             structuredResult: {
               toolName: "edl",

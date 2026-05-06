@@ -318,7 +318,13 @@ export function execute(
         id: request.id,
         result: {
           status: "ok",
-          value: [{ type: "text", text: formattedOutput, nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX }],
+          value: [
+            {
+              type: "text",
+              text: formattedOutput,
+              nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+            },
+          ],
           structuredResult: {
             toolName: "bash_command" as const,
             exitCode: result.exitCode,

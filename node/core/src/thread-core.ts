@@ -13,7 +13,11 @@ import type {
   CompactionStep,
 } from "./compaction-controller.ts";
 import { CompactionManager } from "./compaction-manager.ts";
-import { ContextManager, type Files } from "./context/context-manager.ts";
+import {
+  buildClonedFiles,
+  ContextManager,
+  type Files,
+} from "./context/context-manager.ts";
 import type { EdlRegisters } from "./edl/index.ts";
 import { Emitter } from "./emitter.ts";
 import type { Logger } from "./logger.ts";
@@ -23,6 +27,7 @@ import type {
   Agent,
   AgentInput,
   AgentStatus,
+  NativeMessageIdx,
   Provider,
   ProviderMessage,
   ProviderMessageContent,
@@ -66,10 +71,7 @@ export type ActiveToolEntry = {
   progress: unknown;
   toolName: ToolName;
   request: ToolRequest;
-};
-
-export type ToolCache = {
-  results: Map<ToolRequestId, ProviderToolResult>;
+  result?: ProviderToolResult;
 };
 
 export type ThreadMode =
@@ -135,9 +137,8 @@ const CONTEXT_MANAGER_POLL_INTERVAL_MS = 1000;
 export type ThreadCoreAction =
   | { type: "set-title"; title: string }
   | { type: "set-mode"; mode: ThreadMode }
-  | { type: "rebuild-tool-cache" }
   | {
-      type: "cache-tool-result";
+      type: "set-active-tool-result";
       id: ToolRequestId;
       result: ProviderToolResult;
     }
@@ -158,7 +159,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     systemPrompt: SystemPrompt;
     pendingMessages: InputMessage[];
     mode: ThreadMode;
-    toolCache: ToolCache;
     edlRegisters: EdlRegisters;
     outputTokensSinceLastReminder: number;
     compactionHistory: CompactionRecord[];
@@ -193,7 +193,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       systemPrompt: context.systemPrompt,
       pendingMessages: [],
       mode: { type: "normal" },
-      toolCache: { results: new Map() },
       edlRegisters: { registers: new Map(), nextSavedId: 0 },
       outputTokensSinceLastReminder: 0,
       compactionHistory: [],
@@ -206,16 +205,35 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     this.listenToContextManager();
 
     if (clonedAgent) {
-      this.agent = clonedAgent.clone();
+      this.agent = clonedAgent;
       this.listenToAgent(this.agent);
-      // Rebuild the tool result cache from the cloned agent's messages so
-      // existing tool_use blocks in the new thread's view can find their
-      // tool_results. Without this, the view renders "tool result not found"
-      // warnings for every tool_use carried over from the source thread.
-      this.update({ type: "rebuild-tool-cache" }, { silent: true });
     } else {
       this.agent = this.createFreshAgent();
     }
+  }
+
+  /** Build an independent copy of `sourceCore` that resumes the conversation
+   * frozen at `nativeMessageIdx`. The cloned agent is created exactly once
+   * here and ownership is transferred to the new ThreadCore. The source is
+   * not aborted and shares no mutable state with the result. */
+  static async clone(args: {
+    sourceCore: ThreadCore;
+    newId: ThreadId;
+    nativeMessageIdx: NativeMessageIdx;
+    context: ThreadCoreContext;
+  }): Promise<ThreadCore> {
+    const { sourceCore, newId, nativeMessageIdx, context } = args;
+    const agent = sourceCore.agent.clone();
+    agent.truncateMessages(nativeMessageIdx);
+    const initialFiles = await buildClonedFiles(
+      sourceCore.contextManager.files,
+      context.fileIO,
+    );
+    const contextWithFiles: ThreadCoreContext = {
+      ...context,
+      initialFiles,
+    };
+    return new ThreadCore(newId, contextWithFiles, agent);
   }
 
   private contextManagerListeners:
@@ -340,36 +358,13 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       case "set-mode":
         this.state.mode = action.mode;
         break;
-      case "rebuild-tool-cache": {
-        const results = new Map<ToolRequestId, ProviderToolResult>();
-        const oldResults = this.state.toolCache.results;
-        for (const message of this.getProviderMessages()) {
-          if (message.role !== "user") continue;
-          for (const content of message.content) {
-            if (content.type === "tool_result") {
-              const cached = oldResults.get(content.id);
-              if (
-                cached?.result.status === "ok" &&
-                content.result.status === "ok"
-              ) {
-                results.set(content.id, {
-                  ...content,
-                  result: {
-                    ...content.result,
-                    structuredResult: cached.result.structuredResult,
-                  },
-                });
-              } else {
-                results.set(content.id, content);
-              }
-            }
+      case "set-active-tool-result":
+        if (this.state.mode.type === "tool_use") {
+          const entry = this.state.mode.activeTools.get(action.id);
+          if (entry) {
+            entry.result = action.result;
           }
         }
-        this.state.toolCache = { results };
-        break;
-      }
-      case "cache-tool-result":
-        this.state.toolCache.results.set(action.id, action.result);
         break;
       case "increment-output-tokens":
         this.state.outputTokensSinceLastReminder += action.tokens;
@@ -393,7 +388,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         this.state.compactionHistory.push(action.record);
         break;
       case "reset-after-compaction":
-        this.state.toolCache = { results: new Map() };
         this.state.edlRegisters = { registers: new Map(), nextSavedId: 0 };
         this.state.outputTokensSinceLastReminder = 0;
         this.state.editedFilesThisTurn = [];
@@ -481,10 +475,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
 
   setTitle(title: string): void {
     this.update({ type: "set-title", title });
-  }
-
-  private rebuildToolCache(): void {
-    this.update({ type: "rebuild-tool-cache" }, { silent: true });
   }
 
   private handleProviderStopped(
@@ -620,14 +610,14 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       void invocation.promise
         .then((result) => {
           this.update({
-            type: "cache-tool-result",
+            type: "set-active-tool-result",
             id: request.id,
             result,
           });
         })
         .catch((err: Error) => {
           this.update({
-            type: "cache-tool-result",
+            type: "set-active-tool-result",
             id: request.id,
             result: {
               type: "tool_result",
@@ -693,7 +683,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     if (this.state.mode.type === "tool_use") {
       for (const [toolId, entry] of this.state.mode.activeTools) {
         entry.handle.abort();
-        if (!this.state.toolCache.results.has(toolId)) {
+        if (!entry.result) {
           this.agent.toolResult(toolId, {
             type: "tool_result",
             id: toolId,
@@ -707,7 +697,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       }
 
       this.agent.abortToolUse();
-      this.rebuildToolCache();
     }
 
     this.agent.appendUserMessage([
@@ -877,14 +866,13 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
           continue;
         }
 
-        const cachedResult = this.state.toolCache.results.get(toolId);
-        if (!cachedResult) {
+        if (!entry.result) {
           return { type: "waiting-for-tool-input" };
         }
 
         completedTools.push({
           id: toolId,
-          result: cachedResult,
+          result: entry.result,
         });
       }
 
@@ -892,7 +880,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         this.submitToolResultsAndStop(completedTools, yieldResult).catch(
           this.handleSendMessageError.bind(this),
         );
-        this.rebuildToolCache();
         return { type: "yielded-to-parent" };
       }
 
@@ -902,7 +889,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       this.sendToolResultsAndContinue(completedTools, pendingMessages).catch(
         this.handleSendMessageError.bind(this),
       );
-      this.rebuildToolCache();
       return { type: "did-autorespond" };
     } else if (
       agentStatus.type === "stopped" &&

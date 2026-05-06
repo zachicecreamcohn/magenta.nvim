@@ -13,7 +13,9 @@ describe("yield-to-parent unit tests", () => {
     const { result } = await invocation.promise;
     expect(result.status).toBe("ok");
     if (result.status === "ok") {
-      expect(result.value).toMatchObject([{ type: "text", text: "the answer" }]);
+      expect(result.value).toMatchObject([
+        { type: "text", text: "the answer" },
+      ]);
     }
   });
 
@@ -49,7 +51,9 @@ describe("yield-to-parent unit tests", () => {
     const { result } = await invocation.promise;
     expect(result.status).toBe("ok");
     if (result.status === "ok") {
-      expect(result.value).toMatchObject([{ type: "text", text: "still works" }]);
+      expect(result.value).toMatchObject([
+        { type: "text", text: "still works" },
+      ]);
     }
   });
 });

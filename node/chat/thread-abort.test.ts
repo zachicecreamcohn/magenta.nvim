@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 import { withDriver } from "../test/preamble.ts";
 import { delay, pollUntil } from "../utils/async.ts";
 
-it("forks a thread while streaming by aborting the stream first", async () => {
+it("forks a thread while streaming without aborting source", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
 
@@ -29,31 +29,10 @@ it("forks a thread while streaming by aborting the stream first", async () => {
     // Fork by pressing F on the prior assistant message ("2+2 equals 4.")
     await driver.pressOnDisplayMessage("2+2 equals 4.", "F");
 
-    // The streaming request should be aborted (asynchronous via fork)
-    await pollUntil(
-      () => {
-        if (!streamingRequest.aborted) {
-          throw new Error("stream not yet aborted");
-        }
-      },
-      { timeout: 2000, message: "waiting for stream to abort" },
-    );
-    expect(streamingRequest.aborted).toBe(true);
-
-    // The original thread should now be stopped/aborted
-    await pollUntil(
-      () => {
-        const status = originalThread.agent.getState().status;
-        if (status.type !== "stopped" || status.stopReason !== "aborted") {
-          throw new Error(`agent status: ${JSON.stringify(status)}`);
-        }
-      },
-      { timeout: 2000, message: "waiting for agent to be stopped/aborted" },
-    );
-    expect(originalThread.agent.getState().status).toEqual({
-      type: "stopped",
-      stopReason: "aborted",
-    });
+    // Per the plan, fork no longer aborts the source. Confirm the streaming
+    // request is still live and the source agent is still streaming.
+    expect(streamingRequest.aborted).toBe(false);
+    expect(originalThread.agent.getState().status.type).toBe("streaming");
 
     // Wait for the new thread to become active
     await pollUntil(() => {
@@ -76,10 +55,17 @@ it("forks a thread while streaming by aborting the stream first", async () => {
     // Verify the new thread is active
     const newThread = driver.magenta.chat.getActiveThread();
     expect(newThread.id).not.toBe(originalThreadId);
+
+    // Allow the original streaming request to complete cleanly.
+    streamingRequest.respond({
+      stopReason: "end_turn",
+      text: "3+3 equals 6.",
+      toolRequests: [],
+    });
   });
 });
 
-it("forks a thread while waiting for tool use by aborting pending tools first", async () => {
+it("forks a thread while waiting for tool use without aborting source", async () => {
   await withDriver({}, async (driver) => {
     driver.mockSandbox.setState({ status: "unsupported", reason: "disabled" });
     await driver.showSidebar();
@@ -129,23 +115,24 @@ it("forks a thread while waiting for tool use by aborting pending tools first", 
     await driver.inputMagentaText("Do something else instead");
     await driver.send();
 
-    // The fork should abort the pending tool use, then clone
+    // The fork's cloned messages convert the pending tool_use into an error
+    // tool_result via cleanupClonedMessages — without aborting the source.
     const forkedStream = await driver.mockAnthropic.awaitPendingStream({
       message: "forked thread request",
     });
 
-    // Verify the cloned messages include the error tool result from the abort
     expect(forkedStream.messages).toMatchSnapshot();
 
     // Verify the new thread is active
     const newThread = driver.magenta.chat.getActiveThread();
     expect(newThread.id).not.toBe(originalThreadId);
 
-    // Verify original thread was aborted
-    expect(originalThread.core.state.mode.type).toBe("normal");
+    // Per the plan, fork no longer aborts the source. The original thread
+    // is still in tool_use mode awaiting approval.
+    expect(originalThread.core.state.mode.type).toBe("tool_use");
     expect(originalThread.agent.getState().status).toEqual({
       type: "stopped",
-      stopReason: "aborted",
+      stopReason: "tool_use",
     });
   });
 });

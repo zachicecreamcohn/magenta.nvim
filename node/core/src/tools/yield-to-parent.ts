@@ -1,4 +1,7 @@
-import { PLACEHOLDER_NATIVE_MESSAGE_IDX, type ProviderToolSpec } from "../providers/provider-types.ts";
+import {
+  PLACEHOLDER_NATIVE_MESSAGE_IDX,
+  type ProviderToolSpec,
+} from "../providers/provider-types.ts";
 import type {
   GenericToolRequest,
   ToolInvocation,
@@ -21,7 +24,13 @@ export function execute(request: ToolRequest): ToolInvocation {
       id: request.id,
       result: {
         status: "ok" as const,
-        value: [{ type: "text" as const, text: request.input.result, nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX }],
+        value: [
+          {
+            type: "text" as const,
+            text: request.input.result,
+            nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+          },
+        ],
         structuredResult: { toolName: "yield_to_parent" as const },
       },
       nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,

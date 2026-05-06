@@ -253,7 +253,13 @@ export function execute(
         id: request.id,
         result: {
           status: "ok",
-          value: [{ type: "text", text: content, nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX }],
+          value: [
+            {
+              type: "text",
+              text: content,
+              nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+            },
+          ],
           structuredResult: { toolName: "hover" },
         },
         nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
