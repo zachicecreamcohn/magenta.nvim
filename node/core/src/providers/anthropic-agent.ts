@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { APIError } from "@anthropic-ai/sdk";
+import { AnthropicError, APIError } from "@anthropic-ai/sdk";
 import type { MessageStream } from "@anthropic-ai/sdk/lib/MessageStream.mjs";
 import { Emitter } from "../emitter.ts";
 import type { Logger } from "../logger.ts";
@@ -73,9 +73,22 @@ export const RETRY_DELAYS = [1000, 5000, 10000, 30000];
 export const MAX_RETRY_DURATION = 300_000;
 
 export function isRetryableError(error: Error): boolean {
-  return (
-    error instanceof APIError && (error.status === 429 || error.status === 529)
-  );
+  if (
+    error instanceof APIError &&
+    (error.status === 429 || error.status === 529)
+  ) {
+    return true;
+  }
+  // AWS Bedrock occasionally emits a stream `error` event before `message_start`,
+  // which the Anthropic SDK surfaces as this AnthropicError. It is transient
+  // (typically throttling/internal errors during stream connect), so retry.
+  if (
+    error instanceof AnthropicError &&
+    /Unexpected event order, got .* before "message_start"/.test(error.message)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export function getRetryDelay(attempt: number): number {
