@@ -196,14 +196,20 @@ it("handles errors during streaming response", async () => {
     const errorMessage = "Simulated error during streaming";
     stream.respondWithError(new Error(errorMessage));
 
-    // Verify the error is handled and displayed to the user
+    // After a non-retryable error, the agent's pre-submit history is rolled
+    // back via truncateMessages. The failed user message and the error are
+    // rendered as standalone blocks so the user can see what they tried to
+    // send and why it failed; the input buffer is re-populated for easy
+    // resubmission.
     await driver.assertDisplayBufferContains(
       "Test error handling during response",
     );
-
-    // Verify error message is displayed in the UI
     await driver.assertDisplayBufferContains("Error");
     await driver.assertDisplayBufferContains(errorMessage);
+
+    await driver.assertInputBufferContains(
+      "Test error handling during response",
+    );
   });
 });
 

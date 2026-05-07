@@ -323,7 +323,19 @@ export class Magenta {
   private handleSidebarMsg(msg: SidebarMsg): void {
     switch (msg.type) {
       case "setup-resubmit": {
-        this.activeBuffers.inputBuffer
+        const wrapper = this.chat.threadWrappers[msg.threadId];
+        if (!wrapper || wrapper.state !== "initialized") {
+          this.nvim.logger.warn(
+            `setup-resubmit: thread ${msg.threadId} not found or not initialized`,
+          );
+          break;
+        }
+        const buffers = this.bufferManager.getThreadBuffers(msg.threadId);
+        if (!buffers) {
+          break;
+        }
+        wrapper.thread.core.discardFailedSubmit();
+        buffers.inputBuffer
           .setLines({
             start: 0 as Row0Indexed,
             end: -1 as Row0Indexed,

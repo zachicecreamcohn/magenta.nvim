@@ -5,6 +5,7 @@ import type { ThreadMsg } from "./chat/thread.ts";
 export type SidebarMsg =
   | {
       type: "setup-resubmit";
+      threadId: ThreadId;
       lastUserMessage: string;
     }
   | {
