@@ -18,14 +18,14 @@ const PREVIEW_MAX_LINE_LENGTH = 80;
 function abridgeScript(script: string): string {
   const lines = script.split("\n");
   const preview = lines
-    .slice(0, PREVIEW_MAX_LINES)
+    .slice(-PREVIEW_MAX_LINES)
     .map((line) =>
       line.length > PREVIEW_MAX_LINE_LENGTH
         ? `${line.substring(0, PREVIEW_MAX_LINE_LENGTH)}...`
         : line,
     );
   if (lines.length > PREVIEW_MAX_LINES) {
-    preview.push(`... (${lines.length - PREVIEW_MAX_LINES} more lines)`);
+    preview.unshift(`... (${lines.length - PREVIEW_MAX_LINES} more lines)`);
   }
   return preview.join("\n");
 }

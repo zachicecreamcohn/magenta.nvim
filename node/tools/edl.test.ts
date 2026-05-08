@@ -147,6 +147,13 @@ replace "goodbye"`;
 
         // Preview should NOT show the full long line
         await driver.assertDisplayBufferDoesNotContain(longLine);
+
+        // Preview should show the LAST N lines (end of the script)
+        await driver.assertDisplayBufferContains("narrow /hello/");
+        await driver.assertDisplayBufferContains(`replace "goodbye"`);
+
+        // Preview should NOT show the earliest lines (start of the script)
+        await driver.assertDisplayBufferDoesNotContain("# comment line 0 ");
       },
     );
   });
