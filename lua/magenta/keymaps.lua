@@ -60,6 +60,13 @@ M.default_keymaps = function()
 
   vim.keymap.set(
     "n",
+    "<leader>mP",
+    Actions.pick_profile,
+    { silent = true, noremap = true, desc = "Pick Magenta profile" }
+  )
+
+  vim.keymap.set(
+    "n",
     "<leader>mn",
     ":Magenta new-thread<CR>",
     { silent = true, noremap = true, desc = "Create a new thread" }
