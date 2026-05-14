@@ -55,6 +55,7 @@ export type Profile = {
   authType?: "key" | "max" | "keychain"; // New field for authentication type
   promptCaching?: boolean; // Primarily used by Bedrock provider
   env?: Record<string, string>; // Environment variables to set before provider initialization (e.g., AWS_PROFILE, AWS_REGION)
+  tokenRefreshCommand?: string; // Shell command to run when an auth error occurs (e.g., "aws sso login --profile myprofile"); currently Bedrock-only
   thinking?:
     | {
         enabled: boolean;
@@ -319,6 +320,19 @@ function parseProfiles(
         } else {
           logger.warn(
             `Invalid promptCaching in profile ${p.name}, ignoring field`,
+          );
+        }
+      }
+
+      if ("tokenRefreshCommand" in p) {
+        if (
+          typeof p.tokenRefreshCommand === "string" &&
+          p.tokenRefreshCommand.length > 0
+        ) {
+          out.tokenRefreshCommand = p.tokenRefreshCommand;
+        } else {
+          logger.warn(
+            `Invalid tokenRefreshCommand in profile ${p.name}, must be a non-empty string`,
           );
         }
       }

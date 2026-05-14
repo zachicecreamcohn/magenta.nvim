@@ -21,6 +21,7 @@ import {
   resolveOutputConfig,
   withCacheControl,
 } from "./anthropic-agent.ts";
+import { isAuthError, type RefreshAuth } from "./auth-refresh.ts";
 import type {
   Agent,
   AgentInput,
@@ -68,6 +69,7 @@ export class AnthropicProvider implements Provider {
   private auth: AnthropicAuth | undefined;
   private pendingOAuthFlow: Promise<void> | undefined;
   protected isBedrock: boolean = false;
+  protected refreshAuth: RefreshAuth | undefined;
 
   constructor(
     protected logger: Logger,
@@ -664,9 +666,30 @@ export class AnthropicProvider implements Provider {
             await currentRequest.finalMessage();
           return processResponse(response);
         } catch (error) {
+          if (aborted || !(error instanceof Error)) {
+            throw error;
+          }
+
+          // Auth-error path: try to refresh credentials and retry immediately,
+          // independent of the 429/529 retry budget. The 30s guard inside
+          // refreshAuth prevents tight loops.
+          if (this.refreshAuth && isAuthError(error)) {
+            try {
+              await this.refreshAuth();
+              currentRequest = this.client.messages.stream(streamParams);
+              continue;
+            } catch (refreshErr) {
+              const refreshMessage =
+                refreshErr instanceof Error
+                  ? refreshErr.message
+                  : String(refreshErr);
+              throw new Error(
+                `Auth refresh failed: ${refreshMessage}. Original error: ${error.message}`,
+              );
+            }
+          }
+
           if (
-            aborted ||
-            !(error instanceof Error) ||
             !isRetryableError(error) ||
             Date.now() - retryStart >= MAX_RETRY_DURATION
           ) {
@@ -718,6 +741,7 @@ export class AnthropicProvider implements Provider {
       logger: this.logger,
       validateInput: this.validateInput,
       bedrock: this.isBedrock,
+      refreshAuth: this.refreshAuth,
     });
   }
 }

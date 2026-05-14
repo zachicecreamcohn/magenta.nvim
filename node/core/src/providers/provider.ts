@@ -45,6 +45,7 @@ export function getProvider(
       case "bedrock":
         provider = new BedrockProvider(logger, validateInput, anthropicAuth, {
           env: profile.env,
+          tokenRefreshCommand: profile.tokenRefreshCommand,
         });
         break;
       case "openai":

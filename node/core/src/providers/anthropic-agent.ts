@@ -5,6 +5,7 @@ import { Emitter } from "../emitter.ts";
 import type { Logger } from "../logger.ts";
 import type { ToolName, ToolRequestId, ValidateInput } from "../tool-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { isAuthError, type RefreshAuth } from "./auth-refresh.ts";
 import type {
   Agent,
   AgentEvents,
@@ -28,6 +29,8 @@ export type AnthropicAgentOptions = {
   // AWS Bedrock does not support adaptive thinking or output_config.
   // When true, magenta falls back to thinking.type=enabled with budget_tokens.
   bedrock?: boolean;
+  // When set, invoked on auth errors to refresh credentials before retrying.
+  refreshAuth?: RefreshAuth | undefined;
 };
 
 // Internal streaming block type for all Anthropic block types
@@ -484,6 +487,27 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
         }
 
         // result.type === "error"
+        // Auth-error path: try to refresh credentials and retry immediately,
+        // independent of the 429/529 retry budget. The 30s guard inside
+        // refreshAuth prevents tight loops.
+        const refreshAuth = this.anthropicOptions.refreshAuth;
+        if (refreshAuth && isAuthError(result.error)) {
+          try {
+            await refreshAuth();
+            continue;
+          } catch (refreshErr) {
+            const refreshMessage =
+              refreshErr instanceof Error
+                ? refreshErr.message
+                : String(refreshErr);
+            const combined = new Error(
+              `Auth refresh failed: ${refreshMessage}. Original error: ${result.error.message}`,
+            );
+            this.update({ type: "stream-error", error: combined });
+            return;
+          }
+        }
+
         const elapsed = Date.now() - startTime.getTime();
         if (!isRetryableError(result.error) || elapsed >= MAX_RETRY_DURATION) {
           this.update({ type: "stream-error", error: result.error });
