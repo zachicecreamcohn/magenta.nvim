@@ -10,6 +10,7 @@
 # token efficiency
 
 - Let's revisit how we summarize files.
+- summarize large files even when they're pulled in via contextFiles
 
 # customization
 

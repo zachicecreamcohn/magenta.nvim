@@ -241,7 +241,7 @@ export class Magenta {
     await this.syncActiveView();
     this.dispatch({
       type: "sidebar-msg",
-      msg: { type: "scroll-to-bottom" },
+      msg: { type: "set-cursor-to-bottom" },
     });
   }
 
@@ -362,17 +362,17 @@ export class Magenta {
         }
         break;
       }
-      case "scroll-to-bottom": {
+      case "set-cursor-to-bottom": {
         const activeMountedApp = this.bufferManager.getMountedApp(
           this.getActiveKey(),
         );
         if (activeMountedApp) {
           (async () => {
             await activeMountedApp.waitForRender();
-            await this.sidebar.scrollToBottom();
+            await this.sidebar.setCursorToBottom();
           })().catch((error: Error) =>
             this.nvim.logger.error(
-              `Error scrolling to bottom: ${`${error.message}\n${error.stack}`}`,
+              `Error setting cursor to bottom: ${`${error.message}\n${error.stack}`}`,
             ),
           );
         }
@@ -530,7 +530,7 @@ export class Magenta {
         await this.syncActiveView();
         this.dispatch({
           type: "sidebar-msg",
-          msg: { type: "scroll-to-bottom" },
+          msg: { type: "set-cursor-to-bottom" },
         });
         break;
       }
@@ -543,7 +543,7 @@ export class Magenta {
         await this.syncActiveView();
         this.dispatch({
           type: "sidebar-msg",
-          msg: { type: "scroll-to-bottom" },
+          msg: { type: "set-cursor-to-bottom" },
         });
         break;
       }

@@ -293,6 +293,11 @@ export class Thread {
           type: "sidebar-msg",
           msg: { type: "setup-resubmit", threadId, lastUserMessage },
         }),
+      scrollToLastMessage: () =>
+        this.context.dispatch({
+          type: "sidebar-msg",
+          msg: { type: "scroll-to-last-user-message" },
+        }),
       aborting: () => {
         this.sandboxViolationHandler?.rejectAll();
       },
@@ -308,6 +313,7 @@ export class Thread {
     this.core.on("pendingUpdatesChanged", coreListeners.pendingUpdatesChanged);
     this.core.on("turnEnded", coreListeners.turnEnded);
     this.core.on("setupResubmit", coreListeners.setupResubmit);
+    this.core.on("scrollToLastMessage", coreListeners.scrollToLastMessage);
     this.core.on("aborting", coreListeners.aborting);
     this.core.on("contextUpdatesSent", coreListeners.contextUpdatesSent);
 
@@ -540,6 +546,7 @@ export class Thread {
           reason: "end_turn" | "aborted" | "error";
         }) => void;
         setupResubmit: (threadId: ThreadId, lastUserMessage: string) => void;
+        scrollToLastMessage: () => void;
         aborting: () => void;
         contextUpdatesSent: (updates: Record<string, unknown>) => void;
       }
@@ -559,6 +566,10 @@ export class Thread {
       );
       this.core.off("turnEnded", this.coreListeners.turnEnded);
       this.core.off("setupResubmit", this.coreListeners.setupResubmit);
+      this.core.off(
+        "scrollToLastMessage",
+        this.coreListeners.scrollToLastMessage,
+      );
       this.core.off("aborting", this.coreListeners.aborting);
       this.core.off(
         "contextUpdatesSent",

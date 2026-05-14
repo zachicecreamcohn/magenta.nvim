@@ -248,7 +248,7 @@ export class Chat implements ThreadManager {
               this.context.dispatch({
                 type: "sidebar-msg",
                 msg: {
-                  type: "scroll-to-last-user-message",
+                  type: "set-cursor-to-bottom",
                 },
               });
             }, 100);

@@ -371,31 +371,16 @@ export class Sidebar {
         await displayWindow.zt();
       }
 
-      const lastLineIdx = lines.length - 1;
-      await displayWindow.setCursor({
-        row: lastLineIdx + 1,
-        col: lines[lastLineIdx].length,
-      } as Position1Indexed);
+      // Place cursor at the end of the buffer without scrolling - use neovim
+      // commands so this stays consistent even as the buffer is streaming.
+      await displayWindow.cursorToEnd();
     }
   }
 
-  async scrollToBottom() {
+  async setCursorToBottom() {
     const { displayWindow } = await this.getWindowIfVisible();
     if (displayWindow) {
-      const displayBuffer = await displayWindow.buffer();
-      const lines = await displayBuffer.getLines({
-        start: 0 as Row0Indexed,
-        end: -1 as Row0Indexed,
-      });
-      const lastLineIdx = lines.length - 1;
-
-      // Move to the last line
-      await displayWindow.setCursor({
-        row: lastLineIdx + 1,
-        col: lines[lastLineIdx].length,
-      } as Position1Indexed);
-
-      // Execute zb to position cursor at bottom of window
+      await displayWindow.cursorToEnd();
       await displayWindow.zb();
     }
   }
