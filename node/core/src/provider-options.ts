@@ -22,6 +22,7 @@ export type ProviderProfile = {
   authType?: "key" | "max" | "keychain";
   promptCaching?: boolean;
   env?: Record<string, string>;
+  tokenRefreshCommand?: string;
   thinking?:
     | {
         enabled: boolean;

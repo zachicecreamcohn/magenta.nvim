@@ -7,9 +7,11 @@ import type { AnthropicAuth } from "../anthropic-auth.ts";
 import type { Logger } from "../logger.ts";
 import type { ValidateInput } from "../tool-types.ts";
 import { AnthropicProvider } from "./anthropic.ts";
+import { makeRefreshAuth } from "./auth-refresh.ts";
 
 export type BedrockProviderOptions = {
   env?: Record<string, string> | undefined;
+  tokenRefreshCommand?: string | undefined;
 };
 
 export class BedrockProvider extends AnthropicProvider {
@@ -20,6 +22,7 @@ export class BedrockProvider extends AnthropicProvider {
     options: BedrockProviderOptions,
   ) {
     super(logger, undefined, validateInput, anthropicAuth, {});
+    this.isBedrock = true;
 
     const env = options.env;
     const clientOptions: ClientOptions = {};
@@ -53,5 +56,9 @@ export class BedrockProvider extends AnthropicProvider {
       clientOptions as ConstructorParameters<typeof AnthropicBedrock>[0],
     ) as unknown as Anthropic;
     this.includeWebSearch = false;
+
+    if (options.tokenRefreshCommand) {
+      this.refreshAuth = makeRefreshAuth(options.tokenRefreshCommand, logger);
+    }
   }
 }

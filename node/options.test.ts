@@ -192,6 +192,79 @@ describe("mergeOptions", () => {
   });
 });
 
+describe("parseProfiles tokenRefreshCommand", () => {
+  it("accepts a non-empty string", () => {
+    const warnings: string[] = [];
+    const logger = {
+      warn: (msg: string) => warnings.push(msg),
+      error: () => {},
+    };
+    const result = parseOptions(
+      {
+        profiles: [
+          {
+            name: "bedrock",
+            provider: "bedrock",
+            model: "us.anthropic.claude-sonnet-4-5-v1:0",
+            tokenRefreshCommand: "aws sso login --profile myprofile",
+          },
+        ],
+      },
+      logger,
+    );
+    expect(result.profiles[0].tokenRefreshCommand).toBe(
+      "aws sso login --profile myprofile",
+    );
+    expect(warnings).toEqual([]);
+  });
+
+  it("warns and drops a non-string value", () => {
+    const warnings: string[] = [];
+    const logger = {
+      warn: (msg: string) => warnings.push(msg),
+      error: () => {},
+    };
+    const result = parseOptions(
+      {
+        profiles: [
+          {
+            name: "bedrock",
+            provider: "bedrock",
+            model: "us.anthropic.claude-sonnet-4-5-v1:0",
+            tokenRefreshCommand: 42,
+          },
+        ],
+      },
+      logger,
+    );
+    expect(result.profiles[0].tokenRefreshCommand).toBeUndefined();
+    expect(warnings.some((w) => w.includes("tokenRefreshCommand"))).toBe(true);
+  });
+
+  it("warns and drops an empty string", () => {
+    const warnings: string[] = [];
+    const logger = {
+      warn: (msg: string) => warnings.push(msg),
+      error: () => {},
+    };
+    const result = parseOptions(
+      {
+        profiles: [
+          {
+            name: "bedrock",
+            provider: "bedrock",
+            model: "us.anthropic.claude-sonnet-4-5-v1:0",
+            tokenRefreshCommand: "",
+          },
+        ],
+      },
+      logger,
+    );
+    expect(result.profiles[0].tokenRefreshCommand).toBeUndefined();
+    expect(warnings.some((w) => w.includes("tokenRefreshCommand"))).toBe(true);
+  });
+});
+
 describe("parseProfiles thinking.effort", () => {
   it("accepts a valid effort value", () => {
     const warnings: string[] = [];
