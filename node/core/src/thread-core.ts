@@ -447,6 +447,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       ),
       ...(this.context.profile.thinking &&
         (this.context.profile.provider === "anthropic" ||
+          this.context.profile.provider === "bedrock" ||
           this.context.profile.provider === "mock") && {
           thinking: this.context.profile.thinking,
         }),

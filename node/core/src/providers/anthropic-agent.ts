@@ -1507,12 +1507,7 @@ export function resolveOutputConfig(
   isBedrock = false,
 ): Anthropic.Messages.OutputConfig | undefined {
   if (!thinking?.effort) return undefined;
-  if (isBedrock) {
-    // AWS Bedrock has no output_config support; effort is mapped to
-    // budget_tokens for the legacy thinking.type=enabled path.
-    return undefined;
-  }
-  if (!supportsAdaptiveThinking(model)) {
+  if (!supportsAdaptiveThinking(model, isBedrock)) {
     logger.warn(
       `thinking.effort is only supported on adaptive-thinking models (Opus 4.7+, Sonnet 4.6+); ignoring effort=${thinking.effort} on model ${model}`,
     );
@@ -1544,10 +1539,9 @@ export function effortToBudgetTokens(
 }
 
 // Opus 4.7+ and Sonnet 4.6+ require adaptive thinking instead of budget_tokens.
-// AWS Bedrock does not yet support adaptive thinking, so callers running on
-// Bedrock should pass isBedrock=true to force the legacy budget_tokens path.
-function supportsAdaptiveThinking(model: string, isBedrock = false): boolean {
-  if (isBedrock) return false;
+// The isBedrock parameter is retained for older Bedrock-hosted models that
+// still need the legacy path, but Opus 4.7+ on Bedrock now requires adaptive.
+function supportsAdaptiveThinking(model: string, _isBedrock = false): boolean {
   const normalized = normalizeModelName(model);
   if (normalized.match(/^claude-opus-4-([7-9]|\d{2,})/)) return true;
   if (normalized.match(/^claude-sonnet-4-([6-9]|\d{2,})/)) return true;
