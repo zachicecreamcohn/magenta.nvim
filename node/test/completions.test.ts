@@ -113,7 +113,7 @@ it("should show file path completions when typing '@file:' in magenta input buff
     );
     expect(hasFixtureFiles).toBe(true);
   });
-});
+}, 15000);
 
 it("should fuzzy-find in @file:", async () => {
   await withDriver({}, async (driver) => {

@@ -1207,19 +1207,18 @@ wait
           { timeout: 5000 },
         );
 
-        // Verify all processes are running (not zombie/dead)
+        // Verify all processes are running (not zombie/dead).
+        // Uses `ps` for cross-platform support (Linux + macOS).
         const isRunning = (p: number) => {
           try {
-            const stat = spawnSync("cat", [`/proc/${p}/status`], {
+            const stat = spawnSync("ps", ["-p", String(p), "-o", "stat="], {
               encoding: "utf-8",
               stdio: "pipe",
             });
             if (stat.status !== 0) return false;
-            const stateMatch = stat.stdout.match(/State:\s+(\S)/);
+            const state = stat.stdout.trim().charAt(0);
             // Z = zombie, X = dead — these are not truly running
-            return stateMatch
-              ? stateMatch[1] !== "Z" && stateMatch[1] !== "X"
-              : false;
+            return state !== "" && state !== "Z" && state !== "X";
           } catch {
             return false;
           }

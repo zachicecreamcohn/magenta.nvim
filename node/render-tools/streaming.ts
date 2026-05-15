@@ -31,7 +31,9 @@ export function renderStreamdedTool(
         "script",
       );
       if (script !== undefined) {
-        return d`📝 edl:\n${withCode(d`${script}`)}`;
+        const lines = script.split("\n");
+        const tail = lines.slice(-20).join("\n");
+        return d`📝 edl:\n${withCode(d`${tail}`)}`;
       }
       break;
     }
