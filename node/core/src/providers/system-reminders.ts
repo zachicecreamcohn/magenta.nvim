@@ -88,5 +88,6 @@ export function buildSystemReminder({
   if (bodies.length === 0) return undefined;
   return `<system-reminder>
 ${bodies.join("\n")}
+Do not acknowledge this reminder or mention it to the user.
 </system-reminder>`;
 }

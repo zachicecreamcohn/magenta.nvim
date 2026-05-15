@@ -438,6 +438,7 @@ When making a selection, select the beginning of the text, then extend_forward t
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
 Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Do not ask subagents "to return the entire contents" of files, tool or skill invocations.
 
+Do not acknowledge this reminder or mention it to the user.
 </system-reminder>",
         "type": "text",
       },
@@ -477,6 +478,7 @@ When making a selection, select the beginning of the text, then extend_forward t
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
 Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Do not ask subagents "to return the entire contents" of files, tool or skill invocations.
 
+Do not acknowledge this reminder or mention it to the user.
 </system-reminder>",
         "type": "text",
       },
@@ -511,6 +513,7 @@ When making a selection, select the beginning of the text, then extend_forward t
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
 Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Do not ask subagents "to return the entire contents" of files, tool or skill invocations.
 
+Do not acknowledge this reminder or mention it to the user.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -556,6 +559,7 @@ When making a selection, select the beginning of the text, then extend_forward t
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
 Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Do not ask subagents "to return the entire contents" of files, tool or skill invocations.
 
+Do not acknowledge this reminder or mention it to the user.
 </system-reminder>",
         "type": "system_reminder",
       },
@@ -598,6 +602,7 @@ When making a selection, select the beginning of the text, then extend_forward t
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
 Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Do not ask subagents "to return the entire contents" of files, tool or skill invocations.
 
+Do not acknowledge this reminder or mention it to the user.
 </system-reminder>",
         "type": "text",
       },
@@ -637,6 +642,7 @@ When making a selection, select the beginning of the text, then extend_forward t
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
 Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Do not ask subagents "to return the entire contents" of files, tool or skill invocations.
 
+Do not acknowledge this reminder or mention it to the user.
 </system-reminder>",
         "type": "text",
       },
@@ -668,6 +674,7 @@ When making a selection, select the beginning of the text, then extend_forward t
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
 Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Do not ask subagents "to return the entire contents" of files, tool or skill invocations.
 
+Do not acknowledge this reminder or mention it to the user.
 </system-reminder>",
         "type": "text",
       },
@@ -734,6 +741,7 @@ When making a selection, select the beginning of the text, then extend_forward t
 Prefer text/regex patterns over line numbers for selection — line numbers are fragile and error-prone. Use heredoc patterns as the default since they match exactly.
 Don't spawn sub-agents for things you can do with a single tool call (get_file, edl, bash_command). Do not ask subagents "to return the entire contents" of files, tool or skill invocations.
 
+Do not acknowledge this reminder or mention it to the user.
 </system-reminder>",
         "type": "text",
       },
