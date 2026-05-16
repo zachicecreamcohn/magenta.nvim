@@ -79,6 +79,9 @@ function renderUpdateIndicator(
         (block) => block.type === "text",
       );
       if (lastTextBlock && lastTextBlock.type === "text") {
+        if (lastTextBlock.text.startsWith("[File too large for full context")) {
+          return "[ summary ]";
+        }
         lineCount = (lastTextBlock.text.match(/\n/g) || []).length + 1;
       }
       return `[ +${lineCount} lines ]`;
@@ -115,8 +118,11 @@ export function contextFilesView(
       absFilePath,
       context.homeDir,
     );
+    const fileInfo = core.files[absFilePath];
+    const summaryBadge =
+      fileInfo?.agentView?.type === "summary" ? " (summary)" : "";
     return withBindings(
-      d`- ${withInlineCode(d`\`${pathForDisplay}\``)}${indicator}\n`,
+      d`- ${withInlineCode(d`\`${pathForDisplay}\``)}${summaryBadge}${indicator}\n`,
       {
         dd: () => core.removeFileContext(absFilePath),
         "<CR>": () => openFile(absFilePath, core, context),
@@ -178,8 +184,12 @@ export function renderContextUpdate(
         case "whole-file": {
           let lineCount = 0;
           let mediaKind: "image" | "document" | undefined;
+          let isSummary = false;
           for (const block of update.update.value.content) {
             if (block.type === "text") {
+              if (block.text.startsWith("[File too large for full context")) {
+                isSummary = true;
+              }
               lineCount = (block.text.match(/\n/g) || []).length + 1;
             } else if (block.type === "image" || block.type === "document") {
               mediaKind = block.type;
@@ -187,7 +197,9 @@ export function renderContextUpdate(
           }
           changeIndicator = mediaKind
             ? `[ ${mediaKind} ]`
-            : `[ +${lineCount} ]`;
+            : isSummary
+              ? "[ summary ]"
+              : `[ +${lineCount} ]`;
           break;
         }
         case "file-deleted": {

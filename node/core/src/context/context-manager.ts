@@ -10,6 +10,7 @@ import type { Logger } from "../logger.ts";
 import type { ProviderMessageContent } from "../providers/provider-types.ts";
 import { PLACEHOLDER_NATIVE_MESSAGE_IDX } from "../providers/provider-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { formatSummary, summarizeFile } from "../utils/file-summary.ts";
 import {
   type AbsFilePath,
   detectFileType,
@@ -24,6 +25,9 @@ import {
 } from "../utils/files.ts";
 import { getSummaryAsProviderContent } from "../utils/pdf-pages.ts";
 import type { Result } from "../utils/result.ts";
+
+const CONTEXT_FILE_MAX_CHARACTERS = 80_000;
+const CONTEXT_FILE_SUMMARY_BUDGET = 10_000;
 
 export type Patch = string & { __patch: true };
 
@@ -118,6 +122,15 @@ export async function buildClonedFiles(
     if (!(await fileIO.fileExists(absFilePath))) continue;
     const lastStat = await fileIO.stat(absFilePath);
     if (source.fileTypeInfo.category === FileCategory.TEXT) {
+      if (source.agentView?.type === "summary") {
+        next[absFilePath] = {
+          relFilePath: source.relFilePath,
+          fileTypeInfo: source.fileTypeInfo,
+          agentView: { type: "summary" },
+          lastStat,
+        };
+        continue;
+      }
       let currentContent: string;
       try {
         currentContent = await fileIO.readFile(absFilePath);
@@ -561,6 +574,45 @@ From now on, whenever any of these files are updated by the user, you will get a
       };
     }
 
+    if (fileInfo.agentView?.type === "summary") {
+      return undefined;
+    }
+
+    if (currentFileContent.length > CONTEXT_FILE_MAX_CHARACTERS) {
+      const summary = summarizeFile(currentFileContent, {
+        charBudget: CONTEXT_FILE_SUMMARY_BUDGET,
+      });
+      const summaryText = formatSummary(summary);
+      const notice = `[File too large for full context (${currentFileContent.length} chars). Showing summary. Use the get_file tool with startLine/numLines to read specific ranges.]`;
+
+      if (commit) {
+        fileInfo.agentView = { type: "summary" };
+      }
+
+      return {
+        absFilePath,
+        relFilePath,
+        update: {
+          status: "ok",
+          value: {
+            type: "whole-file",
+            content: [
+              {
+                type: "text",
+                text: `File \`${relFilePath}\``,
+                nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+              },
+              {
+                type: "text",
+                text: `${notice}\n${summaryText}`,
+                nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+              },
+            ],
+          },
+        },
+      };
+    }
+
     const prevContent =
       fileInfo.agentView?.type === "text"
         ? fileInfo.agentView.content
@@ -633,6 +685,10 @@ From now on, whenever any of these files are updated by the user, you will get a
           case "text":
             throw new Error(
               `Unexpected text agentView type in handleBinaryFileUpdate`,
+            );
+          case "summary":
+            throw new Error(
+              `Unexpected summary agentView type in handleBinaryFileUpdate`,
             );
           case "binary":
             return;

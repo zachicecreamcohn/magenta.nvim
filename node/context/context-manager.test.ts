@@ -461,6 +461,81 @@ it("autoContext loads on startup and after new-thread", async () => {
   });
 });
 
+it("large context files are summarized and rendered with a (summary) badge", async () => {
+  await withDriver(
+    {
+      setupFiles: async (tmpDir) => {
+        const path = await import("node:path");
+        const fsPromises = await import("node:fs/promises");
+        const lines: string[] = [];
+        for (let i = 0; i < 4000; i++) {
+          lines.push(`line ${i}: ${"x".repeat(40)}`);
+        }
+        await fsPromises.writeFile(
+          path.join(tmpDir, "huge.txt"),
+          lines.join("\n"),
+        );
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+      await driver.addContextFiles("huge.txt");
+
+      await driver.assertDisplayBufferContains("- `huge.txt` [ summary ]");
+
+      await driver.inputMagentaText("describe this file");
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+
+      request.respond({
+        stopReason: "end_turn",
+        text: "ok",
+        toolRequests: [],
+      });
+
+      const contextManager =
+        driver.magenta.chat.getActiveThread().contextManager;
+      const cwd = await getcwd(driver.nvim);
+      const absHuge = resolveFilePath(
+        cwd,
+        "huge.txt" as UnresolvedFilePath,
+        os.homedir() as HomeDir,
+      );
+      await pollUntil(() => {
+        if (contextManager.files[absHuge]?.agentView?.type !== "summary") {
+          throw new Error("agentView not yet set to summary");
+        }
+      });
+
+      await driver.triggerDisplayBufferKeyOnContent("1 file in context", "=");
+
+      await driver.assertDisplayBufferContains("- `huge.txt` (summary)");
+
+      let userMessageContent: ProviderMessageContent[] | undefined;
+      for (const msg of request.messages) {
+        if (
+          msg.role === "user" &&
+          Array.isArray(msg.content) &&
+          (msg.content as ProviderMessageContent[]).some(
+            (c) => c.type === "text" && c.text.includes("<context_update>"),
+          )
+        ) {
+          userMessageContent = msg.content as ProviderMessageContent[];
+          break;
+        }
+      }
+
+      expect(userMessageContent).toBeDefined();
+      const textBlock = userMessageContent!.find(
+        (c) => c.type === "text" && c.text.includes("<context_update>"),
+      ) as Extract<ProviderMessageContent, { type: "text" }>;
+      expect(textBlock.text).toContain("[File too large for full context");
+      expect(textBlock.text).toContain("[File summary:");
+    },
+  );
+});
+
 it("out-of-process file change surfaces in the pending-context view", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();

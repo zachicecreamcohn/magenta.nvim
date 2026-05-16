@@ -10,6 +10,7 @@ export interface TrackedFileInfo {
         pages: number[];
         supportsPageExtraction: boolean;
       }
+    | { type: "summary" }
     | undefined;
 }
 

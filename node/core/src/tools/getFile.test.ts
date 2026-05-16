@@ -579,6 +579,86 @@ describe("GetFileTool unit tests", () => {
     }
   });
 
+  it("numLines requesting more than the hard cap is truncated with a continuation hint", async () => {
+    const filePath = path.join(tmpDir, "big.txt");
+    const lines: string[] = [];
+    for (let i = 0; i < 20000; i++) {
+      lines.push(`line ${i}: ${"x".repeat(40)}`);
+    }
+    await fs.writeFile(filePath, lines.join("\n"), "utf-8");
+
+    const { invocation } = createTool({
+      filePath: "big.txt" as UnresolvedFilePath,
+      startLine: 1,
+      numLines: 100_000,
+    });
+
+    const result = await getResult(invocation);
+    expect(result.result.status).toBe("ok");
+    if (result.result.status === "ok") {
+      const text = (result.result.value[0] as { type: "text"; text: string })
+        .text;
+      expect(text.length).toBeLessThanOrEqual(40_000 + 500);
+      expect(text).toMatch(/Output truncated at \d+ char hard cap/);
+      expect(text).toMatch(/Use startLine=\d+ to continue/);
+    }
+  });
+
+  it("force=true does not bypass the hard cap", async () => {
+    const filePath = path.join(tmpDir, "forced-big.txt");
+    const lines: string[] = [];
+    for (let i = 0; i < 5000; i++) {
+      lines.push(`line ${i}: ${"y".repeat(40)}`);
+    }
+    await fs.writeFile(filePath, lines.join("\n"), "utf-8");
+
+    const absFilePath = filePath as AbsFilePath;
+    const { invocation } = createTool(
+      { filePath: "forced-big.txt" as UnresolvedFilePath, force: true },
+      {
+        contextFiles: {
+          [absFilePath]: {
+            relFilePath: "forced-big.txt",
+            fileTypeInfo: {
+              category: "text",
+              mimeType: "text/plain",
+              extension: ".txt",
+            },
+            agentView: { type: "summary" },
+          },
+        },
+      },
+    );
+
+    const result = await getResult(invocation);
+    expect(result.result.status).toBe("ok");
+    if (result.result.status === "ok") {
+      const text = (result.result.value[0] as { type: "text"; text: string })
+        .text;
+      expect(text.length).toBeLessThanOrEqual(40_000 + 500);
+      expect(text).toContain("[File summary:");
+    }
+  });
+
+  it("small files return verbatim content", async () => {
+    const filePath = path.join(tmpDir, "tiny.txt");
+    const content = "alpha\nbeta\ngamma\ndelta\nepsilon";
+    await fs.writeFile(filePath, content, "utf-8");
+
+    const { invocation } = createTool({
+      filePath: "tiny.txt" as UnresolvedFilePath,
+    });
+
+    const result = await getResult(invocation);
+    expect(result.result.status).toBe("ok");
+    if (result.result.status === "ok") {
+      const text = (result.result.value[0] as { type: "text"; text: string })
+        .text;
+      expect(text).toBe(content);
+      expect(text).not.toContain("[File summary:");
+    }
+  });
+
   it("large file with unknown extension returns file summary", async () => {
     const lines: string[] = [];
     for (let i = 0; i < 1000; i++) {
