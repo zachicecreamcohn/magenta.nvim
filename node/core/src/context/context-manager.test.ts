@@ -379,6 +379,106 @@ describe("ContextManager - binary file handling", () => {
   });
 });
 
+describe("ContextManager - large file summarization", () => {
+  function buildLargeContent(targetChars: number): string {
+    const lines: string[] = [];
+    lines.push("interface UserAccount {");
+    lines.push("  id: string;");
+    lines.push("  email: string;");
+    lines.push("}");
+    let i = 0;
+    let totalChars = 0;
+    while (totalChars < targetChars) {
+      lines.push(`function processAccount${i}(account: UserAccount): string {`);
+      lines.push(`  const greeting = "Hello, " + account.email;`);
+      lines.push(`  console.log("Processing account ${i}:", greeting);`);
+      lines.push(`  return greeting;`);
+      lines.push(`}`);
+      lines.push("");
+      i++;
+      totalChars = lines.reduce((s, l) => s + l.length + 1, 0);
+    }
+    return lines.join("\n");
+  }
+
+  it("emits a summary whole-file update for an over-cap file", async () => {
+    const largeContent = buildLargeContent(150_000);
+    const { cm } = createTestContextManager({
+      [TEST_PATH]: largeContent,
+    });
+
+    cm.addFileContext(TEST_PATH, TEST_REL, TEXT_FILE_TYPE);
+
+    const updates = await cm.getContextUpdate();
+    const update = updates[TEST_PATH];
+    expect(update).toBeDefined();
+    expect(update.update.status).toBe("ok");
+    if (update.update.status !== "ok") throw new Error("Expected ok");
+    expect(update.update.value.type).toBe("whole-file");
+
+    const wholeFile = update.update.value as WholeFileUpdate;
+    const textBlocks = wholeFile.content.filter((c) => c.type === "text");
+    expect(textBlocks).toHaveLength(2);
+    expect(textBlocks[0].text).toBe("File `file.txt`");
+    expect(textBlocks[1].text).toContain("[File too large for full context");
+    expect(textBlocks[1].text).toContain("[File summary:");
+
+    const totalChars = textBlocks.reduce((sum, b) => sum + b.text.length, 0);
+    expect(totalChars).toBeLessThan(100_000);
+    expect(cm.files[TEST_PATH].agentView).toEqual({ type: "summary" });
+  });
+
+  it("does not re-emit summary for an unchanged over-cap file", async () => {
+    const largeContent = buildLargeContent(150_000);
+    const { cm } = createTestContextManager({
+      [TEST_PATH]: largeContent,
+    });
+
+    cm.addFileContext(TEST_PATH, TEST_REL, TEXT_FILE_TYPE);
+
+    await cm.getContextUpdate();
+    const secondUpdates = await cm.getContextUpdate();
+    expect(Object.keys(secondUpdates).length).toBe(0);
+  });
+
+  it("does not emit a diff when a summarized file is modified on disk", async () => {
+    const largeContent = buildLargeContent(150_000);
+    const { cm, fileIO } = createTestContextManager({
+      [TEST_PATH]: largeContent,
+    });
+
+    cm.addFileContext(TEST_PATH, TEST_REL, TEXT_FILE_TYPE);
+    await cm.getContextUpdate();
+
+    await fileIO.writeFile(TEST_PATH, `${largeContent}\nappended line`);
+
+    const updates = await cm.getContextUpdate();
+    expect(updates[TEST_PATH]).toBeUndefined();
+    expect(cm.files[TEST_PATH].agentView).toEqual({ type: "summary" });
+  });
+
+  it("small files are not summarized", async () => {
+    const { cm } = createTestContextManager({
+      [TEST_PATH]: "small content",
+    });
+
+    cm.addFileContext(TEST_PATH, TEST_REL, TEXT_FILE_TYPE);
+
+    const updates = await cm.getContextUpdate();
+    const update = updates[TEST_PATH];
+    expect(update.update.status).toBe("ok");
+    if (update.update.status !== "ok") throw new Error("Expected ok");
+    expect(update.update.value.type).toBe("whole-file");
+    const wholeFile = update.update.value as WholeFileUpdate;
+    const textBlocks = wholeFile.content.filter((c) => c.type === "text");
+    expect(textBlocks[1].text).toBe("small content");
+    expect(cm.files[TEST_PATH].agentView).toEqual({
+      type: "text",
+      content: "small content",
+    });
+  });
+});
+
 describe("ContextManager - PDF file handling", () => {
   const PDF_PATH = "/test/doc.pdf" as AbsFilePath;
   const PDF_REL = "doc.pdf" as RelFilePath;

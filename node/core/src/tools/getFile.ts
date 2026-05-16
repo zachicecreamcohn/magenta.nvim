@@ -38,7 +38,9 @@ export type StructuredResult = {
   lineCount: number;
 };
 
-const MAX_FILE_CHARACTERS = 40000;
+const HARD_MAX_OUTPUT_CHARACTERS = 40000;
+const MAX_FILE_CHARACTERS = HARD_MAX_OUTPUT_CHARACTERS;
+const SUMMARY_CONTENT_BUDGET = 30000;
 const MAX_LINE_CHARACTERS = 2000;
 const DEFAULT_LINES_FOR_LARGE_FILE = 100;
 
@@ -63,7 +65,9 @@ function processTextContentStandalone(
   }
 
   let hasAbridgedLines = false;
+  let hitHardCap = false;
   const outputLines: string[] = [];
+  let runningChars = 0;
 
   let effectiveNumLines: number | undefined;
   if (isLargeFile) {
@@ -86,7 +90,13 @@ function processTextContentStandalone(
       hasAbridgedLines = true;
     }
 
+    if (runningChars + line.length + 1 > HARD_MAX_OUTPUT_CHARACTERS) {
+      hitHardCap = true;
+      break;
+    }
+
     outputLines.push(line);
+    runningChars += line.length + 1;
   }
 
   const endIndex = startIndex + outputLines.length;
@@ -100,7 +110,10 @@ function processTextContentStandalone(
     text = header + text;
 
     if (endIndex < totalLines) {
-      text += `\n\n[${totalLines - endIndex} more lines not shown. Use startLine=${endIndex + 1} to continue.]`;
+      const reason = hitHardCap
+        ? `Output truncated at ${HARD_MAX_OUTPUT_CHARACTERS} char hard cap. `
+        : "";
+      text += `\n\n[${reason}${totalLines - endIndex} more lines not shown. Use startLine=${endIndex + 1} to continue.]`;
     }
   }
 
@@ -256,7 +269,7 @@ You already have the most up-to-date information about the contents of this file
         if (isLargeFile && startIndex === 0) {
           const content = lines.join("\n");
           const summary = summarizeFile(content, {
-            charBudget: MAX_FILE_CHARACTERS,
+            charBudget: SUMMARY_CONTENT_BUDGET,
           });
           summaryText = formatSummary(summary);
         }
@@ -474,7 +487,10 @@ Supports:
 - Images (JPEG, PNG, GIF, WebP) - returned as base64 encoded content
 - PDF documents - returned as base64 encoded content
 
-For large text files, content may be truncated. Use startLine and numLines to navigate.
+Output is hard-capped at 40,000 characters (~10k tokens). This cap cannot be bypassed by force or numLines.
+For files that exceed the cap:
+- When no startLine/numLines is given, a high-signal summary is returned.
+- Use startLine and numLines to page through specific ranges. If your numLines is too large, output is truncated and a continuation hint with the next startLine is provided.
 Very long lines (>2000 chars) will be abridged.
 
 File size limits: 1MB for text files, 10MB for images, 32MB for PDFs.`,
