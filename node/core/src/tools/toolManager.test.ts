@@ -10,38 +10,18 @@ describe("getToolSpecs capability filtering", () => {
     const names = specs.map((s) => s.name);
     expect(names).toContain("hover");
     expect(names).toContain("bash_command");
-    expect(names).toContain("diagnostics");
     expect(names).toContain("get_file");
   });
 
   it("excludes lsp tools when lsp capability is missing", () => {
-    const caps: Set<ToolCapability> = new Set([
-      "file-io",
-      "shell",
-      "diagnostics",
-      "threads",
-    ]);
+    const caps: Set<ToolCapability> = new Set(["file-io", "shell", "threads"]);
     const specs = getToolSpecs("root", noopMcpToolManager, caps);
     const names = specs.map((s) => s.name);
     expect(names).not.toContain("hover");
     expect(names).not.toContain("find_references");
     expect(names).toContain("bash_command");
-    expect(names).toContain("diagnostics");
     expect(names).toContain("get_file");
     expect(names).toContain("edl");
-  });
-
-  it("excludes diagnostics when diagnostics capability is missing", () => {
-    const caps: Set<ToolCapability> = new Set([
-      "file-io",
-      "shell",
-      "lsp",
-      "threads",
-    ]);
-    const specs = getToolSpecs("root", noopMcpToolManager, caps);
-    const names = specs.map((s) => s.name);
-    expect(names).not.toContain("diagnostics");
-    expect(names).toContain("hover");
   });
 
   it("includes tools with no required capabilities regardless of filter", () => {
@@ -62,7 +42,6 @@ describe("getToolSpecs capability filtering", () => {
     expect(names).toContain("bash_command");
     expect(names).toContain("edl");
     expect(names).not.toContain("hover");
-    expect(names).not.toContain("diagnostics");
     // yield_to_parent has no required capabilities
     expect(names).toContain("yield_to_parent");
   });

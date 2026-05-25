@@ -17,10 +17,10 @@ describe("docker_root tool specs", () => {
     expect(names).toContain("yield_to_parent");
   });
 
-  it("excludes lsp and diagnostics when those capabilities are missing", () => {
-    const dockerCapabilities = new Set<
-      "lsp" | "shell" | "diagnostics" | "threads" | "file-io"
-    >(["file-io", "shell", "threads"]);
+  it("excludes lsp tools when those capabilities are missing", () => {
+    const dockerCapabilities = new Set<"lsp" | "shell" | "threads" | "file-io">(
+      ["file-io", "shell", "threads"],
+    );
 
     const specs = getToolSpecs(
       "docker_root",
@@ -31,7 +31,6 @@ describe("docker_root tool specs", () => {
 
     expect(names).not.toContain("hover");
     expect(names).not.toContain("find_references");
-    expect(names).not.toContain("diagnostics");
     expect(names).toContain("get_file");
     expect(names).toContain("bash_command");
     expect(names).toContain("yield_to_parent");

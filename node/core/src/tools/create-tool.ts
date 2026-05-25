@@ -3,7 +3,6 @@ import type {
   ContextTracker,
   OnToolApplied,
 } from "../capabilities/context-tracker.ts";
-import type { DiagnosticsProvider } from "../capabilities/diagnostics-provider.ts";
 import type { FileIO } from "../capabilities/file-io.ts";
 import type { HelpTagsProvider } from "../capabilities/help-tags-provider.ts";
 import type { LspClient } from "../capabilities/lsp-client.ts";
@@ -16,7 +15,6 @@ import type { ToolInvocation, ToolRequest } from "../tool-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import * as BashCommand from "./bashCommand.ts";
-import * as Diagnostics from "./diagnostics.ts";
 import * as Docs from "./docs.ts";
 import * as Edl from "./edl.ts";
 import * as FindReferences from "./findReferences.ts";
@@ -40,7 +38,6 @@ export type CreateToolContext = {
   maxConcurrentSubagents: number;
   contextTracker: ContextTracker;
   onToolApplied: OnToolApplied;
-  diagnosticsProvider: DiagnosticsProvider;
   helpTagsProvider: HelpTagsProvider;
   edlRegisters: EdlRegisters;
   fileIO: FileIO;
@@ -103,12 +100,6 @@ export function createTool(
         homeDir: context.homeDir,
         lspClient: context.lspClient,
         fileIO: context.fileIO,
-      });
-    }
-
-    case "diagnostics": {
-      return Diagnostics.execute(staticRequest, {
-        diagnosticsProvider: context.diagnosticsProvider,
       });
     }
 

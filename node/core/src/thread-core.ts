@@ -1,6 +1,5 @@
 import type { AgentsMap } from "./agents/agents.ts";
 import type { ContextTracker } from "./capabilities/context-tracker.ts";
-import type { DiagnosticsProvider } from "./capabilities/diagnostics-provider.ts";
 import type { FileIO } from "./capabilities/file-io.ts";
 import type { HelpTagsProvider } from "./capabilities/help-tags-provider.ts";
 import type { LspClient } from "./capabilities/lsp-client.ts";
@@ -116,7 +115,6 @@ export interface ThreadCoreContext {
   fileIO: FileIO;
   shell: Shell;
   lspClient: LspClient;
-  diagnosticsProvider: DiagnosticsProvider;
   helpTagsProvider: HelpTagsProvider;
   availableCapabilities: Set<ToolCapability>;
   environmentConfig: EnvironmentConfig;
@@ -624,7 +622,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
             this.state.editedFilesThisTurn.push(absFilePath);
           }
         },
-        diagnosticsProvider: this.context.diagnosticsProvider,
         helpTagsProvider: this.context.helpTagsProvider,
         edlRegisters: this.state.edlRegisters,
         fileIO: this.context.fileIO,
@@ -1191,7 +1188,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       cwd: this.context.cwd,
       homeDir: this.context.homeDir,
       lspClient: this.context.lspClient,
-      diagnosticsProvider: this.context.diagnosticsProvider,
       helpTagsProvider: this.context.helpTagsProvider,
       availableCapabilities: this.context.availableCapabilities,
       contextManager: this.contextManager,

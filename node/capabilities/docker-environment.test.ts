@@ -180,7 +180,6 @@ describe.runIf(FULL_CAPABILITIES)("Docker Environment", () => {
       expect(env.availableCapabilities.has("shell")).toBe(true);
       expect(env.availableCapabilities.has("threads")).toBe(true);
       expect(env.availableCapabilities.has("lsp")).toBe(false);
-      expect(env.availableCapabilities.has("diagnostics")).toBe(false);
     });
 
     it("stores environmentConfig", async () => {
@@ -206,7 +205,7 @@ describe.runIf(FULL_CAPABILITIES)("Docker Environment", () => {
   });
 
   describe("Tool filtering", () => {
-    it("excludes LSP and diagnostics tools for Docker capabilities", async () => {
+    it("excludes LSP tools for Docker capabilities", async () => {
       const env = await createDockerEnvironment({
         container: containerId,
         threadId: mockThreadId,
@@ -224,13 +223,12 @@ describe.runIf(FULL_CAPABILITIES)("Docker Environment", () => {
       expect(toolNames).toContain("bash_command");
       expect(toolNames).toContain("spawn_subagents");
 
-      // Should exclude LSP and diagnostics tools
+      // Should exclude LSP tools
       expect(toolNames).not.toContain("hover");
       expect(toolNames).not.toContain("find_references");
-      expect(toolNames).not.toContain("diagnostics");
     });
 
-    it("subagent tool list also excludes LSP and diagnostics", async () => {
+    it("subagent tool list also excludes LSP", async () => {
       const env = await createDockerEnvironment({
         container: containerId,
         threadId: mockThreadId,
@@ -247,7 +245,6 @@ describe.runIf(FULL_CAPABILITIES)("Docker Environment", () => {
       expect(toolNames).toContain("yield_to_parent");
       expect(toolNames).not.toContain("hover");
       expect(toolNames).not.toContain("find_references");
-      expect(toolNames).not.toContain("diagnostics");
     });
 
     describe("GetFile through DockerFileIO", () => {

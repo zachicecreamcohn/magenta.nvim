@@ -87,9 +87,6 @@ function createThreadCoreWithMock(overrides?: Partial<ThreadCoreContext>): {
       exec: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
     } as unknown as ThreadCoreContext["shell"],
     lspClient: {} as unknown as ThreadCoreContext["lspClient"],
-    diagnosticsProvider: {
-      getDiagnostics: async () => [],
-    } as unknown as ThreadCoreContext["diagnosticsProvider"],
     helpTagsProvider: {
       listTagFiles: async () => [],
     } as unknown as ThreadCoreContext["helpTagsProvider"],

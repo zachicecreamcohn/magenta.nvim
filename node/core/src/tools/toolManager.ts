@@ -7,7 +7,6 @@ import type {
 import type { ToolRequest, ToolRequestId } from "../tool-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import * as BashCommand from "./bashCommand.ts";
-import * as Diagnostics from "./diagnostics.ts";
 import * as Docs from "./docs.ts";
 import * as Edl from "./edl.ts";
 import * as FindReferences from "./findReferences.ts";
@@ -36,7 +35,6 @@ export type StaticToolMap = {
   get_file: { input: GetFile.Input };
   hover: { input: Hover.Input };
   find_references: { input: FindReferences.Input };
-  diagnostics: { input: Diagnostics.Input };
   bash_command: { input: BashCommand.Input };
   thread_title: { input: ThreadTitle.Input };
   spawn_subagents: { input: SpawnSubagents.Input };
@@ -66,7 +64,6 @@ const TOOL_SPEC_MAP: Partial<Record<StaticToolName, ProviderToolSpec>> = {
   find_references: FindReferences.spec,
 
   bash_command: BashCommand.spec,
-  diagnostics: Diagnostics.spec,
   thread_title: ThreadTitle.spec,
   yield_to_parent: YieldToParent.spec,
 

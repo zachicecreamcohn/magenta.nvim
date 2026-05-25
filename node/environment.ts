@@ -1,5 +1,4 @@
 import type {
-  DiagnosticsProvider,
   FileIO,
   HelpTagsProvider,
   LspClient,
@@ -20,7 +19,6 @@ export interface Environment {
   shell: Shell;
   sandboxViolationHandler?: SandboxViolationHandler | undefined;
   lspClient: LspClient;
-  diagnosticsProvider: DiagnosticsProvider;
   helpTagsProvider: HelpTagsProvider;
   cwd: NvimCwd;
   homeDir: HomeDir;
@@ -34,7 +32,6 @@ import { DockerFileIO } from "./capabilities/docker-file-io.ts";
 import { DockerShell } from "./capabilities/docker-shell.ts";
 import type { Lsp } from "./capabilities/lsp.ts";
 import { NvimLspClient } from "./capabilities/lsp-client-adapter.ts";
-import { NoopDiagnosticsProvider } from "./capabilities/noop-diagnostics-provider.ts";
 import { NoopHelpTagsProvider } from "./capabilities/noop-help-tags-provider.ts";
 import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
 import { NvimHelpTagsProvider } from "./capabilities/nvim-help-tags-provider.ts";
@@ -43,7 +40,6 @@ import { SandboxShell } from "./capabilities/sandbox-shell.ts";
 import { SandboxViolationHandler as SandboxViolationHandlerImpl } from "./capabilities/sandbox-violation-handler.ts";
 import type { Nvim } from "./nvim/nvim-node/index.ts";
 import type { MagentaOptions } from "./options.ts";
-import { getDiagnostics } from "./utils/diagnostics.ts";
 
 export function createLocalEnvironment({
   nvim,
@@ -82,9 +78,6 @@ export function createLocalEnvironment({
   );
 
   const lspClient = new NvimLspClient(lsp, nvim, cwd, homeDir);
-  const diagnosticsProvider = {
-    getDiagnostics: () => getDiagnostics(nvim, cwd, homeDir),
-  };
   const helpTagsProvider = new NvimHelpTagsProvider(nvim);
 
   return {
@@ -92,17 +85,10 @@ export function createLocalEnvironment({
     shell: sandboxShell,
     sandboxViolationHandler: violationHandler,
     lspClient,
-    diagnosticsProvider,
     helpTagsProvider,
     cwd,
     homeDir,
-    availableCapabilities: new Set([
-      "lsp",
-      "shell",
-      "diagnostics",
-      "threads",
-      "file-io",
-    ]),
+    availableCapabilities: new Set(["lsp", "shell", "threads", "file-io"]),
     environmentConfig: { type: "local" },
   };
 }
@@ -133,7 +119,6 @@ export async function createDockerEnvironment({
   const fileIO = new DockerFileIO({ container });
   const shell = new DockerShell({ container, cwd: resolvedCwd, threadId });
   const lspClient = new NoopLspClient();
-  const diagnosticsProvider = new NoopDiagnosticsProvider();
   const helpTagsProvider = new NoopHelpTagsProvider();
 
   return {
@@ -141,7 +126,6 @@ export async function createDockerEnvironment({
     shell,
     sandboxViolationHandler: undefined,
     lspClient,
-    diagnosticsProvider,
     helpTagsProvider,
     cwd: resolvedCwd as NvimCwd,
     homeDir: resolvedHome as HomeDir,

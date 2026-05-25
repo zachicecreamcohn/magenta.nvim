@@ -19,7 +19,6 @@ import { d, type VDOMNode } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import * as BashCommandRender from "./bashCommand.ts";
-import * as DiagnosticsRender from "./diagnostics.ts";
 import * as DocsRender from "./docs.ts";
 import * as EdlRender from "./edl.ts";
 import * as FindReferencesRender from "./findReferences.ts";
@@ -74,8 +73,6 @@ export function renderToolSummary(
       return HoverRender.renderSummary(request, displayContext);
     case "find_references":
       return FindReferencesRender.renderSummary(request, displayContext);
-    case "diagnostics":
-      return DiagnosticsRender.renderSummary(request, displayContext);
     case "thread_title":
       return ThreadTitleRender.renderSummary(request, displayContext);
     case "edl":
@@ -183,8 +180,6 @@ export function renderToolResultSummary(
       return d`${statusEmoji} ${HoverRender.renderResultSummary(info, displayContext)} (${tokEst})`;
     case "find_references":
       return d`${statusEmoji} ${FindReferencesRender.renderResultSummary(info, displayContext)} (${tokEst})`;
-    case "diagnostics":
-      return d`${statusEmoji} ${DiagnosticsRender.renderResultSummary(info)} (${tokEst})`;
     case "spawn_subagents":
       return d`${statusEmoji} ${SpawnSubagentsRender.renderResultSummary(info)} (${tokEst})`;
     case "yield_to_parent":

@@ -1,5 +1,4 @@
 import * as BashCommand from "./bashCommand.ts";
-import * as Diagnostics from "./diagnostics.ts";
 import * as Docs from "./docs.ts";
 import * as Edl from "./edl.ts";
 import * as FindReferences from "./findReferences.ts";
@@ -30,8 +29,6 @@ export function validateInput(
       return Hover.validateInput(input);
     case "find_references":
       return FindReferences.validateInput(input);
-    case "diagnostics":
-      return Diagnostics.validateInput();
     case "bash_command":
       return BashCommand.validateInput(input);
     case "thread_title":

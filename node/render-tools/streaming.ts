@@ -18,7 +18,6 @@ export function renderStreamdedTool(
     case "get_file":
     case "hover":
     case "find_references":
-    case "diagnostics":
     case "bash_command":
     case "thread_title":
     case "spawn_subagents":
