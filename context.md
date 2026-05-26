@@ -152,23 +152,6 @@ ${withBindings(d`[Toggle]`, {
 }
 ```
 
-# Docker Environment
-
-The project includes a Dockerfile at `docker/Dockerfile` for running subagents in isolated containers. It's based on `node:24-bookworm` and includes git, neovim, Docker CLI (for docker-in-docker via socket mount), and the TypeScript language server.
-
-Docker subagents are launched via the `spawn_subagents` tool. When `environment` is `"docker"` or `"docker_unsupervised"`, the caller must provide:
-
-- `dockerfile` — path to the Dockerfile relative to `directory` (e.g. `"docker/Dockerfile"`)
-- `workspacePath` — the working directory inside the container (e.g. `"/workspace"`)
-- `directory` (optional) — host directory to build from, defaults to cwd
-
-These fields are passed inline in the tool call. There is no separate config file for container setup.
-
-Key files:
-
-- `docker/Dockerfile` — container image definition
-- `node/core/src/tools/spawn-subagents.ts` — docker provisioning and validation logic
-
 # Testing
 
 For comprehensive testing documentation, patterns, and best practices, use `get_file` to access the `doc-testing` skill at `.magenta/skills/doc-testing/skill.md`.
@@ -183,18 +166,7 @@ Quick reference:
 
 ## Test Modes
 
-Tests are segmented by the `TEST_MODE` env var (`"all"` | `"sandbox"`). Default is `"all"`.
-
-- `TEST_MODE=sandbox npx vitest run` — the default for local development. Skips tests requiring docker or process tree management.
-- `npx vitest run` — runs all tests including privileged ones (default `TEST_MODE=all`). Use via the `tests-in-docker` subagent.
-
-Tests that need elevated privileges use `describe.runIf(FULL_CAPABILITIES)` or `it.runIf(FULL_CAPABILITIES)`, where `FULL_CAPABILITIES` is exported from `node/core/src/test/capabilities.ts` (re-exported from `node/test/capabilities.ts` for root project tests).
-
-Tests that require a working Docker daemon on the same filesystem (e.g. docker-sync tests) use `HOST_DOCKER_AVAILABLE`, which is true only when `FULL_CAPABILITIES` is true AND the process is NOT inside a Docker container. These tests must be run directly on the host (`npx vitest run`), not via the `tests-in-docker` subagent.
-
-**Local development**: Run `TEST_MODE=sandbox npx vitest run` on the host. This skips docker and process-management tests that can't run locally.
-
-**Full test suite**: Use the `tests-in-docker` subagent, which runs inside a docker container with `TEST_MODE=all` (the default) and has access to docker and full process management. Note: `HOST_DOCKER_AVAILABLE` tests (docker-sync) are skipped in docker — run those on the host directly.
+- `npx vitest run` — runs all tests.
 
 # Type checks
 
@@ -207,40 +179,6 @@ To run just the core tests: `npx vitest run node/core/`
 # Linting and Formatting
 
 Use `npx biome check .` to run linting and formatting checks. Use `npx biome check --write .` to auto-fix issues.
-
-# Development Workflow
-
-When given a task:
-
-1. **Create a branch** — Create a new branch for the task if one doesn't already exist.
-2. **Ask about planning** — Ask the user whether a planning step is needed before implementation.
-3. **Work in docker subagents** — All work should be done using `docker_unsupervised` subagents, unless otherwise requested:
-   - If a planning step is requested, spawn a separate docker subagent to produce the plan, then present it to the user for feedback before proceeding.
-   - All implementation work must be done in `docker_unsupervised` subagents.
-   - Pass the branch name and have the prompt include the plan location to the docker subagent so it checks out the correct branch.
-   - **CRITICAL**: The docker subagent will not have access to your file system. So make sure anything you want the agent to see is committed to the subagent's base branch!
-4. **Run tests** — Use test subagents to run tests and report results:
-   - **Sandbox (local, fast):** Use `tests-in-sandbox` for quick local feedback. Skips docker/process tests.
-   - **Full suite (docker):** Use `tests-in-docker` for the complete test suite including privileged tests.
-
-   ```
-   // Sandbox (default for local dev)
-   spawn_subagents({
-     agents: [{
-       prompt: "Run the full test suite and fix any failures.",
-       agentType: "tests-in-sandbox",
-     }]
-   })
-
-   // Full capabilities (in docker)
-   spawn_subagents({
-     agents: [{
-       prompt: "Run the full test suite and fix any failures.",
-       agentType: "tests-in-docker",
-       environment: "docker_unsupervised"
-     }]
-   })
-   ```
 
 # Notes
 

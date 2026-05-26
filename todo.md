@@ -6,7 +6,6 @@
 # Prompt tuning
 
 - the agent is still prone to re-read the file (even force-re-read) before making further edits... maybe we jsut drop the context.md "this file is in your context already" round trip. Also, maybe _reading_ is just a lot cheaper than _generating_ so we could think about having edl send the full edited section back. Something like "the file now reads <full contents of edited section of file>"
-- system reminder should tell the agent not to "acknowledge" the reminder
 - try trimming things down in general...
 
 # token efficiency
@@ -24,7 +23,6 @@
 
 # UX
 
-- scrolling. When we send a message, we should scroll the user input to the top (as currently), but then put the cursor on the last line of the buffer (Streaming...), so it scrolls down as the text grows
 - Animate the dot on "streaming" independent of partial stream results
 - when a thread is titled, we should use that title somehow in the buffer name (instead of just using an opaque id, though still need to make sure it's unique)
 - make the spawn_subagents preview the command as it's streaming in
@@ -32,8 +30,6 @@
 - deleting a thread display or input buffer (via :bd) should remove that thread from magenta state
 - = on spawn_subagents is showing "\n" ... we should probably format that more nicely
 - let's make = vs <CR> more consistent. "=" should always toggle expand. "<CR>" should always "enter / select". We should always have the carrot to visually indicate that the section is expandable
-- when the list of edited files gets long, collapse it to a "N edited files" summary + carrot
-- trim the stream display (for edl especially) to the last N lines, so it doesn't collapse down and mess with scroll when it finishes.
 - tmux integration (update tab title with active thread title, thread state)
 - toggling sandbox to off should auto-approve any current dialogues
 
