@@ -79,6 +79,8 @@ local defaults = {
   -- So you only need to add lowercase versions of each file.
   -- So for example, you do not need both context.md and CONTEXT.MD
   autoContext = {
+    "~/.magenta/context.md",
+    "~/.claude/context.md",
     "context.md",
     "claude.md",
     ".magenta/*.md"

@@ -461,6 +461,60 @@ it("autoContext loads on startup and after new-thread", async () => {
   });
 });
 
+it("autoContext loads home context.md before project context.md", async () => {
+  const testOptions = {
+    autoContext: ["~/.magenta/context.md", "test-auto-context.md"],
+  };
+
+  await withDriver(
+    {
+      options: testOptions,
+      setupHome: async (homeDir) => {
+        const fsPromises = await import("node:fs/promises");
+        const pathMod = await import("node:path");
+        const magentaDir = pathMod.join(homeDir, ".magenta");
+        await fsPromises.mkdir(magentaDir, { recursive: true });
+        await fsPromises.writeFile(
+          pathMod.join(magentaDir, "context.md"),
+          "HOME_CONTEXT_CONTENT",
+        );
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+      await driver.assertDisplayBufferContains(`- \`test-auto-context.md\``);
+
+      await driver.inputMagentaText("hello");
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+
+      let contextText: string | undefined;
+      for (const msg of request.messages) {
+        if (msg.role !== "user" || !Array.isArray(msg.content)) continue;
+        for (const c of msg.content) {
+          if (
+            c.type === "text" &&
+            c.text.includes("HOME_CONTEXT_CONTENT") &&
+            c.text.includes("test-auto-context.md")
+          ) {
+            contextText = c.text;
+          }
+        }
+      }
+
+      expect(contextText).toBeDefined();
+      const homeIdx = contextText!.indexOf("HOME_CONTEXT_CONTENT");
+      const projectIdx = contextText!.indexOf(
+        "This is test auto-context content",
+      );
+      expect(homeIdx).toBeGreaterThan(-1);
+      expect(projectIdx).toBeGreaterThan(-1);
+      expect(homeIdx).toBeLessThan(projectIdx);
+    },
+  );
+});
+
 it("large context files are summarized and rendered with a (summary) badge", async () => {
   await withDriver(
     {

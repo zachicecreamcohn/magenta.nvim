@@ -6,6 +6,7 @@ import type { MagentaOptions } from "../options.ts";
 import {
   type AbsFilePath,
   detectFileType,
+  expandTilde,
   FileCategory,
   type FileTypeInfo,
   type HomeDir,
@@ -56,15 +57,14 @@ async function findFilesCrossPlatform(
   nvim: Nvim,
   homeDir: HomeDir,
 ): Promise<Array<{ absFilePath: AbsFilePath; relFilePath: RelFilePath }>> {
-  const allMatchedPaths: Array<{
-    absFilePath: AbsFilePath;
-    relFilePath: RelFilePath;
-  }> = [];
+  type Match = { absFilePath: AbsFilePath; relFilePath: RelFilePath };
 
-  await Promise.all(
-    globPatterns.map(async (pattern) => {
+  const perPatternMatches = await Promise.all(
+    globPatterns.map(async (pattern): Promise<Match[]> => {
+      const matchesForPattern: Match[] = [];
       try {
-        const matches = await glob(pattern, {
+        const expandedPattern = expandTilde(pattern, homeDir);
+        const matches = await glob(expandedPattern, {
           cwd,
           nocase: true,
           nodir: true,
@@ -77,7 +77,7 @@ async function findFilesCrossPlatform(
             homeDir,
           );
           if (fs.existsSync(absFilePath)) {
-            allMatchedPaths.push({
+            matchesForPattern.push({
               absFilePath,
               relFilePath: relativePath(cwd, absFilePath, homeDir),
             });
@@ -88,8 +88,11 @@ async function findFilesCrossPlatform(
           `Error processing glob pattern "${pattern}": ${(err as Error).message}`,
         );
       }
+      return matchesForPattern;
     }),
   );
+
+  const allMatchedPaths: Match[] = perPatternMatches.flat();
 
   const uniqueFiles = new Map<
     string,
@@ -119,32 +122,31 @@ async function filterSupportedFiles(
   matchedFiles: Array<{ absFilePath: AbsFilePath; relFilePath: RelFilePath }>,
   nvim: Nvim,
 ): Promise<AutoContextFile[]> {
-  const supportedFiles: AutoContextFile[] = [];
-
-  await Promise.all(
-    matchedFiles.map(async (fileInfo) => {
+  const results = await Promise.all(
+    matchedFiles.map(async (fileInfo): Promise<AutoContextFile | undefined> => {
       try {
         const fileTypeInfo = await detectFileType(fileInfo.absFilePath);
         if (!fileTypeInfo) {
           nvim.logger.error(`File ${fileInfo.relFilePath} does not exist.`);
-          return;
+          return undefined;
         }
         if (fileTypeInfo.category !== FileCategory.UNSUPPORTED) {
-          supportedFiles.push({ ...fileInfo, fileTypeInfo });
-        } else {
-          nvim.logger.warn(
-            `Skipping ${fileInfo.relFilePath} from auto-context: ${fileTypeInfo.category} files are not supported in context (detected MIME type: ${fileTypeInfo.mimeType})`,
-          );
+          return { ...fileInfo, fileTypeInfo };
         }
+        nvim.logger.warn(
+          `Skipping ${fileInfo.relFilePath} from auto-context: ${fileTypeInfo.category} files are not supported in context (detected MIME type: ${fileTypeInfo.mimeType})`,
+        );
+        return undefined;
       } catch (error) {
         nvim.logger.error(
           `Failed to detect file type for ${fileInfo.relFilePath} during auto-context loading: ${(error as Error).message}`,
         );
+        return undefined;
       }
     }),
   );
 
-  return supportedFiles;
+  return results.filter((f): f is AutoContextFile => f !== undefined);
 }
 export function autoContextFilesToInitialFiles(
   files: AutoContextFile[],
