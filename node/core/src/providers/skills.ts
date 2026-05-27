@@ -100,39 +100,64 @@ async function findSkillFilesInDirectory(
     homeDir: HomeDir;
   },
 ): Promise<AbsFilePath[]> {
-  const skillFiles: AbsFilePath[] = [];
+  const expandedDir = expandTilde(skillsDir, context.homeDir);
 
-  try {
-    const expandedDir = expandTilde(skillsDir, context.homeDir);
-    const skillsDirPath = path.isAbsolute(expandedDir)
-      ? expandedDir
-      : path.join(context.cwd, expandedDir);
+  // Build the list of directories to scan.
+  // For absolute paths, scan that one directory.
+  // For relative paths, walk from filesystem root down to cwd, applying the
+  // relative path at each ancestor. This way more deeply-nested directories
+  // (closer to cwd) override skills from parent directories via the override
+  // logic in loadSkills.
+  const directoriesToScan: string[] = [];
 
-    if (!(await context.fileIO.isDirectory(skillsDirPath))) {
-      return skillFiles;
+  if (path.isAbsolute(expandedDir)) {
+    directoriesToScan.push(expandedDir);
+  } else {
+    const ancestors: string[] = [];
+    let current: string = context.cwd;
+    while (true) {
+      ancestors.push(path.join(current, expandedDir));
+      const parent = path.dirname(current);
+      if (parent === current) {
+        break;
+      }
+      current = parent;
     }
+    // Reverse so outermost (filesystem root) is first, innermost (cwd) is last
+    directoriesToScan.push(...ancestors.reverse());
+  }
 
-    const entries = await context.fileIO.readdir(skillsDirPath);
-
-    for (const entry of entries) {
-      const entryPath = path.join(skillsDirPath, entry);
-
-      if (!(await context.fileIO.isDirectory(entryPath))) {
+  const skillFiles: AbsFilePath[] = [];
+  for (const skillsDirPath of directoriesToScan) {
+    try {
+      if (!(await context.fileIO.isDirectory(skillsDirPath))) {
         continue;
       }
 
-      const files = await context.fileIO.readdir(entryPath);
-      const skillFile = files.find((file) => file.toLowerCase() === "skill.md");
+      const entries = await context.fileIO.readdir(skillsDirPath);
 
-      if (skillFile) {
-        const absPath = path.join(entryPath, skillFile);
-        skillFiles.push(absPath as AbsFilePath);
+      for (const entry of entries) {
+        const entryPath = path.join(skillsDirPath, entry);
+
+        if (!(await context.fileIO.isDirectory(entryPath))) {
+          continue;
+        }
+
+        const files = await context.fileIO.readdir(entryPath);
+        const skillFile = files.find(
+          (file) => file.toLowerCase() === "skill.md",
+        );
+
+        if (skillFile) {
+          const absPath = path.join(entryPath, skillFile);
+          skillFiles.push(absPath as AbsFilePath);
+        }
       }
+    } catch (err) {
+      context.logger.error(
+        `Error processing skills directory "${skillsDirPath}": ${(err as Error).message}`,
+      );
     }
-  } catch (err) {
-    context.logger.error(
-      `Error processing skills directory "${skillsDir}": ${(err as Error).message}`,
-    );
   }
 
   return skillFiles;
