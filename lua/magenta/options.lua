@@ -85,6 +85,10 @@ local defaults = {
     "claude.md",
     ".magenta/*.md"
   },
+  hierarchyContextFileNames = {
+    "context.md",
+    "agent.md"
+  },
   skillsPaths = {
     "~/.magenta/skills",
     "~/.claude/skills",

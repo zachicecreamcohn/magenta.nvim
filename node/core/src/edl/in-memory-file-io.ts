@@ -55,7 +55,7 @@ export class InMemoryFileIO implements FileIO {
     return this.files.get(path);
   }
   async readdir(path: string): Promise<string[]> {
-    const prefix = path.endsWith("/") ? path : path + "/";
+    const prefix = path.endsWith("/") ? path : `${path}/`;
     const children = new Set<string>();
 
     for (const key of this.files.keys()) {
@@ -74,7 +74,7 @@ export class InMemoryFileIO implements FileIO {
   }
 
   async isDirectory(path: string): Promise<boolean> {
-    const prefix = path.endsWith("/") ? path : path + "/";
+    const prefix = path.endsWith("/") ? path : `${path}/`;
 
     for (const key of this.files.keys()) {
       if (key.startsWith(prefix)) {

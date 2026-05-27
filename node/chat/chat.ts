@@ -19,6 +19,7 @@ import type {
 } from "../capabilities/thread-manager.ts";
 import {
   autoContextFilesToInitialFiles,
+  discoverHierarchyContext,
   resolveAutoContext,
 } from "../context/auto-context.ts";
 import {
@@ -34,7 +35,12 @@ import type { Sandbox } from "../sandbox-manager.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import { d, type VDOMNode, withBindings } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { HomeDir, NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
+import type {
+  AbsFilePath,
+  HomeDir,
+  NvimCwd,
+  UnresolvedFilePath,
+} from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
 import { Thread } from "./thread.ts";
 import { DockerSupervisor } from "./thread-supervisor.ts";
@@ -318,6 +324,32 @@ export class Chat implements ThreadManager {
     return undefined;
   }
 
+  private triggerHierarchyDiscovery(
+    thread: Thread,
+    absFilePath: AbsFilePath,
+  ): void {
+    discoverHierarchyContext(absFilePath, {
+      nvim: this.context.nvim,
+      cwd: this.context.cwd,
+      homeDir: this.context.homeDir,
+      options: this.context.getOptions(),
+    })
+      .then((discovered) => {
+        for (const file of discovered) {
+          thread.contextManager.addFileContext(
+            file.absFilePath,
+            file.relFilePath,
+            file.fileTypeInfo,
+          );
+        }
+      })
+      .catch((err: Error) => {
+        this.context.nvim.logger.error(
+          `Error discovering hierarchy context for ${absFilePath}: ${err.message}`,
+        );
+      });
+  }
+
   private async createThreadWithContext({
     threadId,
     profile,
@@ -425,6 +457,16 @@ export class Chat implements ThreadManager {
     });
 
     bypassRef.get = () => thread.isSandboxBypassed;
+
+    thread.contextManager.on("fileAdded", (absFilePath) => {
+      this.triggerHierarchyDiscovery(thread, absFilePath);
+    });
+
+    for (const absFilePath of Object.keys(
+      thread.contextManager.files,
+    ) as AbsFilePath[]) {
+      this.triggerHierarchyDiscovery(thread, absFilePath);
+    }
 
     if (contextFiles.length > 0) {
       await thread.contextManager.addFiles(contextFiles);
@@ -868,6 +910,10 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       sandbox: this.context.sandbox,
       getOptions: this.context.getOptions,
       getDisplayWidth: this.context.getDisplayWidth,
+    });
+
+    thread.contextManager.on("fileAdded", (absFilePath) => {
+      this.triggerHierarchyDiscovery(thread, absFilePath);
     });
 
     this.context.dispatch({

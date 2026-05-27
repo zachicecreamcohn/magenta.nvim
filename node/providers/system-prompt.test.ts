@@ -1,4 +1,4 @@
-import { FsFileIO, type HomeDir } from "@magenta/core";
+import { FsFileIO } from "@magenta/core";
 import { expect, it } from "vitest";
 import { withDriver } from "../test/preamble.ts";
 import { createSystemPrompt } from "./system-prompt.ts";

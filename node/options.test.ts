@@ -29,6 +29,7 @@ function makeBaseOptions(overrides?: Partial<MagentaOptions>): MagentaOptions {
     maxConcurrentSubagents: 3,
     sandbox: structuredClone(DEFAULT_SANDBOX_CONFIG),
     autoContext: [],
+    hierarchyContextFileNames: ["context.md", "agent.md"],
     skillsPaths: [],
     suppressProjectSkills: [],
     agentsPaths: [],

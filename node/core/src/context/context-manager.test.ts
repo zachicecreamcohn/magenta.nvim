@@ -51,6 +51,34 @@ const TEXT_FILE_TYPE = {
 };
 
 describe("ContextManager unit tests", () => {
+  it("addFileContext is idempotent for already-tracked files", async () => {
+    const { cm } = createTestContextManager({
+      [TEST_PATH]: "hello world",
+    });
+
+    cm.toolApplied(
+      TEST_PATH,
+      { type: "get-file", content: "hello world" },
+      TEXT_FILE_TYPE,
+    );
+
+    expect(cm.files[TEST_PATH].agentView).toEqual({
+      type: "text",
+      content: "hello world",
+    });
+
+    const spy = vi.fn();
+    cm.on("fileAdded", spy);
+
+    cm.addFileContext(TEST_PATH, TEST_REL, TEXT_FILE_TYPE);
+
+    expect(cm.files[TEST_PATH].agentView).toEqual({
+      type: "text",
+      content: "hello world",
+    });
+    expect(spy).not.toHaveBeenCalled();
+  });
+
   it("get_file sets agentView", async () => {
     const { cm } = createTestContextManager({
       [TEST_PATH]: "hello world",

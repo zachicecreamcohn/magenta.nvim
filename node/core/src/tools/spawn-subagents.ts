@@ -79,7 +79,7 @@ function resolveSubagentConfig(
   const agentType = entry.agentType;
 
   // Look up agent by name (including "subagent" as fallback)
-  const agentDef = agentType ? agents[agentType] : agents["subagent"];
+  const agentDef = agentType ? agents[agentType] : agents.subagent;
   if (agentDef) {
     return {
       agentName: agentDef.name,

@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import * as os from "node:os";
+import * as path from "node:path";
 import type {
   ProviderMessage,
   ProviderMessageContent,
+  ThreadId,
   ToolName,
   ToolRequestId,
 } from "@magenta/core";
@@ -618,6 +620,308 @@ it("out-of-process file change surfaces in the pending-context view", async () =
         }
       },
       { timeout: 5000 },
+    );
+  });
+});
+
+async function setupHierarchy(tmpDir: string): Promise<void> {
+  await fs.promises.mkdir(path.join(tmpDir, "nested", "dir"), {
+    recursive: true,
+  });
+  await fs.promises.writeFile(
+    path.join(tmpDir, "nested", "dir", "file.txt"),
+    "leaf content",
+  );
+  await fs.promises.writeFile(
+    path.join(tmpDir, "nested", "context.md"),
+    "nested context",
+  );
+}
+
+describe("hierarchy context discovery", () => {
+  it("user's @file: adds parent context.md", async () => {
+    await withDriver(
+      {
+        setupFiles: setupHierarchy,
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText("@file:nested/dir/file.txt");
+        await driver.send();
+
+        const stream = await driver.mockAnthropic.awaitPendingStream();
+        stream.respond({
+          stopReason: "end_turn",
+          text: "ok",
+          toolRequests: [],
+        });
+
+        const contextManager =
+          driver.magenta.chat.getActiveThread().contextManager;
+        await pollUntil(() => {
+          const paths = Object.values(contextManager.files).map(
+            (f) => f.relFilePath as string,
+          );
+          if (!paths.includes("nested/dir/file.txt")) {
+            throw new Error(
+              `nested/dir/file.txt not yet tracked, got: ${paths.join(",")}`,
+            );
+          }
+          if (!paths.includes("nested/context.md")) {
+            throw new Error(
+              `nested/context.md not yet tracked, got: ${paths.join(",")}`,
+            );
+          }
+        });
+      },
+    );
+  });
+
+  it("agent's get_file adds parent context.md", async () => {
+    await withDriver(
+      {
+        setupFiles: setupHierarchy,
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        const contextManager =
+          driver.magenta.chat.getActiveThread().contextManager;
+
+        await driver.inputMagentaText("Please read the leaf file");
+        await driver.send();
+
+        const request = await driver.mockAnthropic.awaitPendingStream();
+        request.respond({
+          stopReason: "tool_use",
+          text: "Reading file",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "get_leaf" as ToolRequestId,
+                toolName: "get_file" as ToolName,
+                input: {
+                  filePath: "nested/dir/file.txt" as UnresolvedFilePath,
+                },
+              },
+            },
+          ],
+        });
+
+        await pollUntil(() => {
+          const paths = Object.values(contextManager.files).map(
+            (f) => f.relFilePath as string,
+          );
+          if (!paths.includes("nested/dir/file.txt")) {
+            throw new Error("leaf file not yet tracked");
+          }
+          if (!paths.includes("nested/context.md")) {
+            throw new Error("nested/context.md not yet discovered");
+          }
+        });
+      },
+    );
+  });
+
+  it("subagent spawn triggers discovery for contextFiles", async () => {
+    await withDriver(
+      {
+        setupFiles: setupHierarchy,
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText("Use spawn_subagents");
+        await driver.send();
+
+        const stream1 = await driver.mockAnthropic.awaitPendingStream();
+        stream1.respond({
+          stopReason: "tool_use",
+          text: "Spawning",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "spawn_test" as ToolRequestId,
+                toolName: "spawn_subagents" as ToolName,
+                input: {
+                  agents: [
+                    {
+                      prompt: "Subagent task with leaf",
+                      contextFiles: [
+                        "nested/dir/file.txt" as UnresolvedFilePath,
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        });
+
+        await driver.mockAnthropic.awaitPendingStreamWithText(
+          "Subagent task with leaf",
+        );
+
+        const chat = driver.magenta.chat;
+        const childThreadId = Object.keys(chat.threadWrappers).find(
+          (id) =>
+            chat.threadWrappers[id as ThreadId].parentThreadId !== undefined,
+        ) as ThreadId | undefined;
+        expect(childThreadId).toBeDefined();
+        const childWrapper = chat.threadWrappers[childThreadId!];
+        if (childWrapper.state !== "initialized") {
+          throw new Error("expected subagent thread to be initialized");
+        }
+
+        const subContextManager = childWrapper.thread.contextManager;
+        await pollUntil(() => {
+          const paths = Object.values(subContextManager.files).map(
+            (f) => f.relFilePath as string,
+          );
+          if (!paths.includes("nested/dir/file.txt")) {
+            throw new Error("subagent does not have leaf file yet");
+          }
+          if (!paths.includes("nested/context.md")) {
+            throw new Error("subagent did not discover nested/context.md");
+          }
+        });
+      },
+    );
+  });
+
+  it("initialFiles (autoContext) triggers discovery", async () => {
+    await withDriver(
+      {
+        options: { autoContext: ["nested/dir/file.txt"] },
+        setupFiles: setupHierarchy,
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        const contextManager =
+          driver.magenta.chat.getActiveThread().contextManager;
+        await pollUntil(() => {
+          const paths = Object.values(contextManager.files).map(
+            (f) => f.relFilePath as string,
+          );
+          if (!paths.includes("nested/dir/file.txt")) {
+            throw new Error("leaf file not loaded");
+          }
+          if (!paths.includes("nested/context.md")) {
+            throw new Error("nested/context.md not discovered");
+          }
+        });
+      },
+    );
+  });
+
+  it("cloned thread inherits parent's discovered context files", async () => {
+    await withDriver(
+      {
+        setupFiles: setupHierarchy,
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        await driver.addContextFiles("nested/dir/file.txt");
+
+        const parentThread = driver.magenta.chat.getActiveThread();
+        await pollUntil(() => {
+          const paths = Object.values(parentThread.contextManager.files).map(
+            (f) => f.relFilePath as string,
+          );
+          if (!paths.includes("nested/context.md")) {
+            throw new Error("parent did not discover nested/context.md");
+          }
+        });
+
+        const forkedThreadId = await driver.magenta.chat.handleForkThread({
+          sourceThreadId: parentThread.id,
+        });
+
+        const forkedWrapper =
+          driver.magenta.chat.threadWrappers[forkedThreadId];
+        if (forkedWrapper.state !== "initialized") {
+          throw new Error("forked thread should be initialized");
+        }
+
+        const forkedFiles = Object.values(
+          forkedWrapper.thread.contextManager.files,
+        ).map((f) => f.relFilePath as string);
+        expect(forkedFiles).toContain("nested/dir/file.txt");
+        expect(forkedFiles).toContain("nested/context.md");
+      },
+    );
+  });
+
+  it("discovery cascade is idempotent - no duplicate fileAdded events", async () => {
+    await withDriver(
+      {
+        setupFiles: async (tmpDir) => {
+          await fs.promises.mkdir(path.join(tmpDir, "a", "b", "c"), {
+            recursive: true,
+          });
+          await fs.promises.writeFile(
+            path.join(tmpDir, "a", "b", "c", "leaf.txt"),
+            "leaf",
+          );
+          await fs.promises.writeFile(
+            path.join(tmpDir, "a", "b", "context.md"),
+            "B context",
+          );
+          await fs.promises.writeFile(
+            path.join(tmpDir, "a", "context.md"),
+            "A context",
+          );
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        const contextManager =
+          driver.magenta.chat.getActiveThread().contextManager;
+
+        const addedEvents: string[] = [];
+        contextManager.on("fileAdded", (absFilePath) => {
+          addedEvents.push(absFilePath);
+        });
+
+        await driver.addContextFiles("a/b/c/leaf.txt");
+
+        await pollUntil(() => {
+          const paths = Object.values(contextManager.files).map(
+            (f) => f.relFilePath as string,
+          );
+          if (
+            !paths.includes("a/b/c/leaf.txt") ||
+            !paths.includes("a/b/context.md") ||
+            !paths.includes("a/context.md")
+          ) {
+            throw new Error("not all files discovered yet");
+          }
+        });
+
+        const uniqueAdded = new Set(addedEvents);
+        expect(uniqueAdded.size).toBe(addedEvents.length);
+      },
+    );
+  });
+
+  it("hierarchyContextFileNames: [] disables discovery", async () => {
+    await withDriver(
+      {
+        options: { hierarchyContextFileNames: [] },
+        setupFiles: setupHierarchy,
+      },
+      async (driver) => {
+        await driver.showSidebar();
+        await driver.addContextFiles("nested/dir/file.txt");
+
+        const contextManager =
+          driver.magenta.chat.getActiveThread().contextManager;
+        const paths = Object.values(contextManager.files).map(
+          (f) => f.relFilePath,
+        );
+        expect(paths).toContain("nested/dir/file.txt");
+        expect(paths).not.toContain("nested/context.md");
+      },
     );
   });
 });

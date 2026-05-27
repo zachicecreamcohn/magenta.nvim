@@ -268,6 +268,9 @@ export class ContextManager
         `Cannot add ${relFilePath} to context: ${fileTypeInfo.category} files are not supported in context (detected MIME type: ${fileTypeInfo.mimeType})`,
       );
     }
+    if (this.files[absFilePath]) {
+      return;
+    }
     this.files[absFilePath] = {
       relFilePath,
       fileTypeInfo,
@@ -328,6 +331,10 @@ export class ContextManager
 
       if (fileTypeInfo.category === FileCategory.UNSUPPORTED) {
         this.logger.warn(`Skipping ${filePath}: unsupported file type`);
+        continue;
+      }
+
+      if (this.files[absFilePath]) {
         continue;
       }
 

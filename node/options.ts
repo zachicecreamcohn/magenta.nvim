@@ -220,6 +220,7 @@ export type MagentaOptions = {
   sidebarPositionOpts: SidebarPositionOpts;
   sandbox: SandboxConfig;
   autoContext: string[];
+  hierarchyContextFileNames: string[];
   skillsPaths: string[];
   suppressProjectSkills: string[];
   agentsPaths: string[];
@@ -1028,6 +1029,7 @@ export function parseOptions(
     maxConcurrentSubagents: 3,
     sandbox: { ...DEFAULT_SANDBOX_CONFIG },
     autoContext: [],
+    hierarchyContextFileNames: ["context.md", "agent.md"],
     skillsPaths: [
       "~/.claude/skills",
       "~/.magenta/skills",
@@ -1087,6 +1089,15 @@ export function parseOptions(
       inputOptionsObj.autoContext,
       "autoContext",
     );
+
+    // Parse hierarchy context file names
+    if ("hierarchyContextFileNames" in inputOptionsObj) {
+      options.hierarchyContextFileNames = parseStringArray(
+        inputOptionsObj.hierarchyContextFileNames,
+        "hierarchyContextFileNames",
+        logger,
+      );
+    }
 
     // Parse skills paths
     if ("skillsPaths" in inputOptionsObj) {
@@ -1219,6 +1230,15 @@ export function parseProjectOptions(
     options.autoContext = parseStringArray(
       inputOptionsObj.autoContext,
       "autoContext",
+      logger,
+    );
+  }
+
+  // Parse hierarchy context file names
+  if ("hierarchyContextFileNames" in inputOptionsObj) {
+    options.hierarchyContextFileNames = parseStringArray(
+      inputOptionsObj.hierarchyContextFileNames,
+      "hierarchyContextFileNames",
       logger,
     );
   }
@@ -1385,6 +1405,11 @@ export function mergeOptions(
       ...baseOptions.autoContext,
       ...projectSettings.autoContext,
     ];
+  }
+
+  if (projectSettings.hierarchyContextFileNames) {
+    merged.hierarchyContextFileNames =
+      projectSettings.hierarchyContextFileNames;
   }
 
   if (projectSettings.skillsPaths) {

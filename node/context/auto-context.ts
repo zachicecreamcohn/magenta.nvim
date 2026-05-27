@@ -148,6 +148,76 @@ async function filterSupportedFiles(
 
   return results.filter((f): f is AutoContextFile => f !== undefined);
 }
+export async function discoverHierarchyContext(
+  absFilePath: AbsFilePath,
+  ctx: {
+    nvim: Nvim;
+    cwd: NvimCwd;
+    homeDir: HomeDir;
+    options: MagentaOptions;
+  },
+): Promise<AutoContextFile[]> {
+  const { nvim, cwd, homeDir, options } = ctx;
+  const names = options.hierarchyContextFileNames;
+  if (!names || names.length === 0) {
+    return [];
+  }
+
+  const targetNames = new Set(names.map((n) => n.toLowerCase()));
+
+  const results: AutoContextFile[] = [];
+  let current = path.dirname(absFilePath);
+  while (true) {
+    let entries: string[];
+    try {
+      entries = await fs.promises.readdir(current);
+    } catch (err) {
+      nvim.logger.debug(
+        `discoverHierarchyContext: unable to read ${current}: ${(err as Error).message}`,
+      );
+      const parent = path.dirname(current);
+      if (parent === current) {
+        break;
+      }
+      current = parent;
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (!targetNames.has(entry.toLowerCase())) {
+        continue;
+      }
+      const matchAbs = path.join(current, entry) as AbsFilePath;
+      try {
+        const fileTypeInfo = await detectFileType(matchAbs);
+        if (!fileTypeInfo) {
+          continue;
+        }
+        if (fileTypeInfo.category === FileCategory.UNSUPPORTED) {
+          continue;
+        }
+        results.push({
+          absFilePath: matchAbs,
+          relFilePath: relativePath(cwd, matchAbs, homeDir),
+          fileTypeInfo,
+        });
+      } catch (err) {
+        nvim.logger.debug(
+          `discoverHierarchyContext: failed to detect file type for ${matchAbs}: ${(err as Error).message}`,
+        );
+      }
+    }
+
+    const parent = path.dirname(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+
+  return results;
+}
+
 export function autoContextFilesToInitialFiles(
   files: AutoContextFile[],
 ): Files {

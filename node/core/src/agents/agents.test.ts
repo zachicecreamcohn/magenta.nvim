@@ -414,19 +414,19 @@ describe("builtin agents", () => {
       options,
     });
 
-    expect(result["default"]).toBeDefined();
-    expect(result["default"].tier).toBe("thread");
-    expect(result["default"].systemPrompt).toContain("# Role and Context");
-    expect(result["default"].systemReminder).toBeDefined();
+    expect(result.default).toBeDefined();
+    expect(result.default.tier).toBe("thread");
+    expect(result.default.systemPrompt).toContain("# Role and Context");
+    expect(result.default.systemReminder).toBeDefined();
 
-    expect(result["subagent"]).toBeDefined();
-    expect(result["subagent"].tier).toBe("thread");
-    expect(result["subagent"].systemPrompt).toContain("# Role");
+    expect(result.subagent).toBeDefined();
+    expect(result.subagent.tier).toBe("thread");
+    expect(result.subagent.systemPrompt).toContain("# Role");
 
-    expect(result["docker"]).toBeDefined();
-    expect(result["docker"].tier).toBe("thread");
-    expect(result["docker"].systemPrompt).toContain("# Docker Environment");
-    expect(result["docker"].systemReminder).toBeDefined();
+    expect(result.docker).toBeDefined();
+    expect(result.docker.tier).toBe("thread");
+    expect(result.docker.systemPrompt).toContain("# Docker Environment");
+    expect(result.docker.systemReminder).toBeDefined();
   });
 
   it("allows user override of default agent", () => {
@@ -454,8 +454,8 @@ Custom default prompt.`,
         options,
       });
 
-      expect(result["default"].description).toBe("Custom default agent");
-      expect(result["default"].systemPrompt).toBe("Custom default prompt.");
+      expect(result.default.description).toBe("Custom default agent");
+      expect(result.default.systemPrompt).toBe("Custom default prompt.");
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
