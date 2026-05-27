@@ -22,7 +22,7 @@ function containsYieldTag(
 ): boolean {
   if (!content) return false;
   for (const block of content) {
-    if (block.type === "text" && /<yield[\w_]*[\s/>]/i.test(block.text)) {
+    if (block.type === "text" && /<\/?yield[\w_]*[\s/>]/i.test(block.text)) {
       return true;
     }
   }
@@ -37,7 +37,7 @@ export class SubagentSupervisor implements ThreadSupervisor {
     if (containsYieldTag(context.lastAssistantMessage)) {
       return {
         type: "send-message",
-        text: "You wrote a <yield> XML tag in your text, but that does nothing. You must call the yield_to_parent tool to return results to the parent agent.",
+        text: "You wrote a yield XML tag in your text. XML tags in your response are not parsed as tool calls. You must invoke the yield_to_parent tool (via a proper tool call) to return results to the parent agent.",
       };
     }
     return { type: "none" };
@@ -74,7 +74,7 @@ export class UnsupervisedSupervisor implements ThreadSupervisor {
     if (containsYieldTag(context.lastAssistantMessage)) {
       return {
         type: "send-message",
-        text: "You wrote a <yield> XML tag in your text, but that does nothing. You must call the yield_to_parent tool to return results to the parent agent.",
+        text: "You wrote a yield XML tag in your text. XML tags in your response are not parsed as tool calls. You must invoke the yield_to_parent tool (via a proper tool call) to return results to the parent agent.",
       };
     }
 
