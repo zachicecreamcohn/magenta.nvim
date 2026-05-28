@@ -1352,6 +1352,46 @@ describe("validation: new fields", () => {
   });
 });
 
+describe("resolveSubagentConfig", () => {
+  it("propagates effort from AgentInfo to SubagentConfig", () => {
+    const agents = {
+      think: {
+        name: "think",
+        description: "deep reasoning",
+        systemPrompt: "think hard",
+        systemReminder: undefined,
+        fastModel: undefined,
+        effort: "max" as const,
+        tier: "leaf" as const,
+      },
+    };
+    const config = SpawnSubagents.resolveSubagentConfig(
+      { agentType: "think" },
+      agents,
+    );
+    expect(config.effort).toBe("max");
+  });
+
+  it("passes undefined effort through as undefined", () => {
+    const agents = {
+      explore: {
+        name: "explore",
+        description: "explore",
+        systemPrompt: "",
+        systemReminder: undefined,
+        fastModel: true,
+        effort: undefined,
+        tier: "leaf" as const,
+      },
+    };
+    const config = SpawnSubagents.resolveSubagentConfig(
+      { agentType: "explore" },
+      agents,
+    );
+    expect(config.effort).toBeUndefined();
+  });
+});
+
 describe("getSpec", () => {
   it("does not include fast, docker, docker_unsupervised in agentType enum", () => {
     const spec = SpawnSubagents.getSpec({});
@@ -1375,6 +1415,7 @@ describe("getSpec", () => {
         systemPrompt: "",
         systemReminder: undefined,
         fastModel: true,
+        effort: undefined,
         tier: "leaf" as const,
       },
       "my-agent": {
@@ -1383,6 +1424,7 @@ describe("getSpec", () => {
         systemPrompt: "",
         systemReminder: undefined,
         fastModel: undefined,
+        effort: undefined,
         tier: "leaf" as const,
       },
     };

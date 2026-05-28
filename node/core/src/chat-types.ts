@@ -1,4 +1,5 @@
 import type { AgentTier } from "./agents/agents.ts";
+import type { ThinkingEffort } from "./provider-options.ts";
 
 export type Role = "user" | "assistant";
 
@@ -14,4 +15,5 @@ export type SubagentConfig = {
   systemPrompt?: string | undefined;
   systemReminder?: string | undefined;
   tier?: AgentTier | undefined;
+  effort?: ThinkingEffort | undefined;
 };

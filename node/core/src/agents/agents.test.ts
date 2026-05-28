@@ -60,6 +60,7 @@ You are a test agent.`,
       systemPrompt: "# Test Agent\n\nYou are a test agent.",
       systemReminder: undefined,
       fastModel: undefined,
+      effort: undefined,
       tier: "leaf",
     });
   });
@@ -125,6 +126,42 @@ Slow prompt.`,
     const result = parseAgentFile(agentFile, { logger });
     expect(result).toBeDefined();
     expect(result!.fastModel).toBe(false);
+  });
+
+  it("parses effort field", () => {
+    const agentFile = path.join(tmpDir, "thinker.md");
+    fs.writeFileSync(
+      agentFile,
+      `---
+name: thinker
+description: A thinker
+effort: max
+---
+
+Think.`,
+    );
+
+    const result = parseAgentFile(agentFile, { logger });
+    expect(result).toBeDefined();
+    expect(result!.effort).toBe("max");
+  });
+
+  it("ignores invalid effort value", () => {
+    const agentFile = path.join(tmpDir, "bad-effort.md");
+    fs.writeFileSync(
+      agentFile,
+      `---
+name: bad-effort
+description: bad
+effort: bogus
+---
+
+Body.`,
+    );
+
+    const result = parseAgentFile(agentFile, { logger });
+    expect(result).toBeDefined();
+    expect(result!.effort).toBeUndefined();
   });
 
   it("returns undefined for missing frontmatter", () => {
@@ -476,6 +513,7 @@ describe("formatAgentsIntroduction", () => {
         systemPrompt: "prompt",
         systemReminder: undefined,
         fastModel: undefined,
+        effort: undefined,
         tier: "leaf" as const,
       },
     };

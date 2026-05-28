@@ -443,12 +443,31 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         this.context.getAgents(),
         this.context.subagentConfig,
       ),
-      ...(this.context.profile.thinking &&
-        (this.context.profile.provider === "anthropic" ||
-          this.context.profile.provider === "bedrock" ||
-          this.context.profile.provider === "mock") && {
-          thinking: this.context.profile.thinking,
-        }),
+      ...((this.context.profile.provider === "anthropic" ||
+        this.context.profile.provider === "bedrock" ||
+        this.context.profile.provider === "mock") &&
+        (() => {
+          const effortOverride = this.context.subagentConfig?.effort;
+          const baseThinking = this.context.profile.thinking;
+          if (effortOverride) {
+            return {
+              thinking: {
+                enabled: true,
+                ...(baseThinking?.displayThinking !== undefined
+                  ? { displayThinking: baseThinking.displayThinking }
+                  : {}),
+                ...(baseThinking?.budgetTokens !== undefined
+                  ? { budgetTokens: baseThinking.budgetTokens }
+                  : {}),
+                effort: effortOverride,
+              },
+            };
+          }
+          if (baseThinking) {
+            return { thinking: baseThinking };
+          }
+          return {};
+        })()),
       ...(this.context.profile.reasoning &&
         (this.context.profile.provider === "openai" ||
           this.context.profile.provider === "mock") && {

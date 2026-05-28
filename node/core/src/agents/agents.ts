@@ -3,7 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import type { Logger } from "../logger.ts";
-import type { ProviderOptions } from "../provider-options.ts";
+import type { ProviderOptions, ThinkingEffort } from "../provider-options.ts";
 import type { NvimCwd } from "../utils/files.ts";
 
 export type AgentInfo = {
@@ -12,6 +12,7 @@ export type AgentInfo = {
   systemPrompt: string;
   systemReminder: string | undefined;
   fastModel: boolean | undefined;
+  effort: ThinkingEffort | undefined;
   tier: AgentTier;
 };
 export type AgentTier = "leaf" | "thread" | "orchestrator";
@@ -24,9 +25,9 @@ type AgentFrontmatter = {
   name?: string;
   description?: string;
   fastModel?: boolean;
+  effort?: ThinkingEffort;
   tier?: AgentTier;
 };
-
 export function loadAgents(context: {
   cwd: NvimCwd;
   logger: Logger;
@@ -160,6 +161,7 @@ export function parseAgentFile(
     systemPrompt,
     systemReminder,
     fastModel: frontmatter.fastModel,
+    effort: frontmatter.effort,
     tier: frontmatter.tier ?? "leaf",
   };
 }
@@ -195,6 +197,16 @@ function extractAgentFrontmatter(
       result[key] = value;
     } else if (key === "fastModel") {
       result.fastModel = value === "true";
+    } else if (key === "effort") {
+      if (
+        value === "low" ||
+        value === "medium" ||
+        value === "high" ||
+        value === "xhigh" ||
+        value === "max"
+      ) {
+        result.effort = value;
+      }
     } else if (key === "tier") {
       if (value === "leaf" || value === "thread" || value === "orchestrator") {
         result.tier = value;

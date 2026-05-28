@@ -12,6 +12,8 @@ export type ProviderName =
   | "copilot"
   | "mock";
 
+export type ThinkingEffort = "low" | "medium" | "high" | "xhigh" | "max";
+
 export type ProviderProfile = {
   name: string;
   provider: ProviderName;

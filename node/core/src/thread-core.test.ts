@@ -730,6 +730,100 @@ describe("ThreadCore bash summary reminder", () => {
   });
 });
 
+describe("ThreadCore createFreshAgent thinking effort override", () => {
+  it("applies subagentConfig.effort to thinking when creating agent", () => {
+    const captured: AgentOptions[] = [];
+    const spyProvider: Provider = {
+      createAgent(options: AgentOptions): Agent {
+        captured.push(options);
+        const mockClient = new MockAnthropicClient();
+        return new AnthropicAgent(
+          options,
+          mockClient as unknown as Anthropic,
+          defaultAnthropicOptions,
+        );
+      },
+      forceToolUse() {
+        throw new Error("Not implemented in mock");
+      },
+    };
+
+    createThreadCoreWithMock({
+      profile: {
+        provider: "anthropic",
+        model: "claude-3-5-sonnet-20241022",
+        thinking: { enabled: true, effort: "low" },
+      } as ProviderProfile,
+      subagentConfig: { effort: "max" },
+      getProvider: () => spyProvider,
+    });
+
+    expect(captured.length).toBe(1);
+    expect(captured[0].thinking).toBeDefined();
+    expect(captured[0].thinking?.effort).toBe("max");
+    expect(captured[0].thinking?.enabled).toBe(true);
+  });
+
+  it("force-enables thinking when profile.thinking is unset but subagent has effort", () => {
+    const captured: AgentOptions[] = [];
+    const spyProvider: Provider = {
+      createAgent(options: AgentOptions): Agent {
+        captured.push(options);
+        const mockClient = new MockAnthropicClient();
+        return new AnthropicAgent(
+          options,
+          mockClient as unknown as Anthropic,
+          defaultAnthropicOptions,
+        );
+      },
+      forceToolUse() {
+        throw new Error("Not implemented in mock");
+      },
+    };
+
+    createThreadCoreWithMock({
+      profile: {
+        provider: "anthropic",
+        model: "claude-3-5-sonnet-20241022",
+      } as ProviderProfile,
+      subagentConfig: { effort: "max" },
+      getProvider: () => spyProvider,
+    });
+
+    expect(captured[0].thinking?.effort).toBe("max");
+    expect(captured[0].thinking?.enabled).toBe(true);
+  });
+
+  it("uses profile.thinking unchanged when no subagentConfig.effort override", () => {
+    const captured: AgentOptions[] = [];
+    const spyProvider: Provider = {
+      createAgent(options: AgentOptions): Agent {
+        captured.push(options);
+        const mockClient = new MockAnthropicClient();
+        return new AnthropicAgent(
+          options,
+          mockClient as unknown as Anthropic,
+          defaultAnthropicOptions,
+        );
+      },
+      forceToolUse() {
+        throw new Error("Not implemented in mock");
+      },
+    };
+
+    createThreadCoreWithMock({
+      profile: {
+        provider: "anthropic",
+        model: "claude-3-5-sonnet-20241022",
+        thinking: { enabled: true, effort: "high" },
+      } as ProviderProfile,
+      getProvider: () => spyProvider,
+    });
+
+    expect(captured[0].thinking?.effort).toBe("high");
+  });
+});
+
 describe("ThreadCore non-retryable error resubmit flow", () => {
   it("emits setupResubmit with threadId and message text after error", async () => {
     const { core, mockClient } = createThreadCoreWithMock();

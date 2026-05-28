@@ -72,7 +72,7 @@ export type StructuredResult = {
   }>;
 };
 
-function resolveSubagentConfig(
+export function resolveSubagentConfig(
   entry: SubagentEntry,
   agents: AgentsMap,
 ): SubagentConfig {
@@ -87,6 +87,7 @@ function resolveSubagentConfig(
       systemPrompt: agentDef.systemPrompt,
       systemReminder: agentDef.systemReminder,
       tier: agentDef.tier,
+      effort: agentDef.effort,
     };
   }
 
