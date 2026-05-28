@@ -205,7 +205,7 @@ require('magenta').setup({
     {
       name = "claude-opus",
       provider = "anthropic",
-      model = "claude-opus-4-7",
+      model = "claude-opus-4-8",
       fastModel = "claude-haiku-4-5",
       apiKeyEnvVar = "ANTHROPIC_API_KEY"
     }

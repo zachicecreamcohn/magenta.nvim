@@ -21,7 +21,7 @@ const DEFAULT_MODELS: Record<
   { model: string; fastModel?: string }
 > = {
   anthropic: {
-    model: "claude-opus-4-7",
+    model: "claude-opus-4-8",
     fastModel: "claude-haiku-4-5",
   },
   openai: {
@@ -36,7 +36,7 @@ const DEFAULT_MODELS: Record<
     model: "llama3.1:8b",
   },
   copilot: {
-    model: "claude-opus-4-7",
+    model: "claude-opus-4-8",
     fastModel: "claude-haiku-4-5",
   },
   mock: {
