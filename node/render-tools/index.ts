@@ -18,6 +18,7 @@ import type { Dispatch } from "../tea/tea.ts";
 import { d, type VDOMNode } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
+import { formatTokens } from "../utils/tokens.ts";
 import * as BashCommandRender from "./bashCommand.ts";
 import * as DocsRender from "./docs.ts";
 import * as EdlRender from "./edl.ts";
@@ -50,10 +51,7 @@ function formatTokenEstimate(result: ProviderToolResult): string {
     result.result.status === "error"
       ? result.result.error
       : JSON.stringify(result.result.value);
-  const tokens = Math.ceil(content.length / 4);
-  return tokens >= 1000
-    ? `~${(tokens / 1000).toFixed(1)}k tok`
-    : `~${tokens} tok`;
+  return formatTokens(content.length);
 }
 
 export function renderToolSummary(

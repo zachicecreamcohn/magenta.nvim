@@ -12,6 +12,7 @@ import {
   type HomeDir,
   type NvimCwd,
 } from "../utils/files.ts";
+import { formatTokens } from "../utils/tokens.ts";
 
 export type {
   ContextFiles as Files,
@@ -74,7 +75,7 @@ function renderUpdateIndicator(
       if (mediaBlock) {
         return mediaBlock.type === "image" ? "[ image ]" : "[ document ]";
       }
-      let lineCount = 0;
+      let charCount = 0;
       const lastTextBlock = update.value.content.findLast(
         (block) => block.type === "text",
       );
@@ -82,9 +83,9 @@ function renderUpdateIndicator(
         if (lastTextBlock.text.startsWith("[File too large for full context")) {
           return "[ summary ]";
         }
-        lineCount = (lastTextBlock.text.match(/\n/g) || []).length + 1;
+        charCount = lastTextBlock.text.length;
       }
-      return `[ +${lineCount} lines ]`;
+      return `[ +${formatTokens(charCount)} ]`;
     }
     case "file-deleted":
       return "[ deleted ]";

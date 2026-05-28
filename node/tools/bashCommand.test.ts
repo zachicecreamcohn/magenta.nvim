@@ -659,7 +659,7 @@ describe("bash command output logging", () => {
       expect(content).toContain("LINE100:");
 
       // Should contain log file reference
-      expect(content).toContain("Full output (100 lines):");
+      expect(content).toContain("Full output (");
       expect(content).toContain("bashCommand.log");
     });
   });
@@ -798,10 +798,7 @@ describe("bash command output logging", () => {
 
       // Find and click the "Full output" link
       // Find and click the "Full output" link
-      await driver.triggerDisplayBufferKeyOnContent(
-        "Full output (100 lines):",
-        "<CR>",
-      );
+      await driver.triggerDisplayBufferKeyOnContent("Full output (", "<CR>");
 
       // Verify a new window was opened with the log file
       const logWindow = await driver.findWindow(async (w) => {

@@ -18,6 +18,7 @@ import {
   withInlineCode,
 } from "../tea/view.ts";
 import type { HomeDir, NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
+import { formatTokens } from "../utils/tokens.ts";
 
 type BashProgress = BashCommand.BashProgress;
 
@@ -87,27 +88,22 @@ export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
 
   let exitCode: number | undefined;
   let signal: string | undefined;
-  let lineCount: number | undefined;
 
   if (info.structuredResult.toolName === "bash_command") {
     const sr = info.structuredResult as BashCommand.StructuredResult;
     exitCode = sr.exitCode;
     signal = sr.signal;
-    lineCount = sr.logFileLineCount;
   }
 
-  const lineCountStr =
-    lineCount !== undefined ? `, ${lineCount.toString()} lines` : "";
-
   if (signal) {
-    return d`Terminated by ${signal}${lineCountStr}`;
+    return d`Terminated by ${signal}`;
   }
 
   if (exitCode !== undefined && exitCode !== 0) {
-    return d`exit ${exitCode.toString()}${lineCountStr}`;
+    return d`exit ${exitCode.toString()}`;
   }
 
-  return d`exit 0${lineCountStr}`;
+  return d`exit 0`;
 }
 
 export function renderResult(
@@ -264,8 +260,9 @@ function renderOutputDetail(
     formattedOutput += `${line.text}\n`;
   }
 
+  const charCount = output.reduce((acc, line) => acc + line.text.length + 1, 0);
   const logFileView = logFilePath
-    ? renderLogFileLinkDirect(logFilePath, output.length, context)
+    ? renderLogFileLinkDirect(logFilePath, charCount, context)
     : d``;
 
   return d`${withCode(d`${formattedOutput}`)}${logFileView}`;
@@ -273,11 +270,11 @@ function renderOutputDetail(
 
 function renderLogFileLinkDirect(
   logFilePath: string,
-  lineCount: number,
+  charCount: number,
   context: RenderContext,
 ): VDOMNode {
   return withBindings(
-    d`\nFull output (${lineCount.toString()} lines): ${withInlineCode(d`\`${logFilePath}\``)}`,
+    d`\nFull output (${formatTokens(charCount)}): ${withInlineCode(d`\`${logFilePath}\``)}`,
     {
       "<CR>": () => {
         openFileInNonMagentaWindow(

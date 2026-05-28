@@ -1,7 +1,6 @@
 import type {
   CompletedToolInfo,
   DisplayContext,
-  GetFile,
   ToolRequest as UnionToolRequest,
 } from "@magenta/core";
 import { d, type VDOMNode, withInlineCode } from "../tea/view.ts";
@@ -57,7 +56,7 @@ export function renderSummary(
 
 export function renderResultSummary(
   info: CompletedToolInfo,
-  _displayContext: DisplayContext,
+  displayContext: DisplayContext,
 ): VDOMNode {
   const result = info.result.result;
 
@@ -65,9 +64,5 @@ export function renderResultSummary(
     return d`${result.error}`;
   }
 
-  let lineCount = 0;
-  if (info.structuredResult.toolName === "get_file") {
-    lineCount = (info.structuredResult as GetFile.StructuredResult).lineCount;
-  }
-  return d`${lineCount.toString()} lines`;
+  return formatGetFileDisplay(info.request.input as Input, displayContext);
 }

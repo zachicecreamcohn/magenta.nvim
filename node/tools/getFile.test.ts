@@ -254,7 +254,7 @@ it("should add images to context manager", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains("✅ 0 lines");
+    await driver.assertDisplayBufferContains("✅ `test.jpg`");
 
     // Handle the auto-respond message
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
@@ -308,7 +308,7 @@ it("should add PDFs to context manager", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains("✅ 0 lines");
+    await driver.assertDisplayBufferContains("✅ `sample2.pdf`");
 
     // Handle the auto-respond message
     const toolResultRequest = await driver.mockAnthropic.awaitPendingStream();
@@ -432,7 +432,7 @@ it("should handle mixed content types in a single conversation", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains("✅ 0 lines");
+    await driver.assertDisplayBufferContains("✅ `test.jpg`");
 
     // Handle second auto-respond message
     const toolResultRequest2 = await driver.mockAnthropic.awaitPendingStream();
@@ -466,7 +466,7 @@ it("should handle mixed content types in a single conversation", async () => {
       ],
     });
 
-    await driver.assertDisplayBufferContains("✅ 0 lines");
+    await driver.assertDisplayBufferContains("✅ `sample2.pdf`");
 
     // Handle final auto-respond message
     const toolResultRequest3 = await driver.mockAnthropic.awaitPendingStream();

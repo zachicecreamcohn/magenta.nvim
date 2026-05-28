@@ -13,6 +13,7 @@ import type { RootMsg } from "../root-msg.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import { d, type VDOMNode, withBindings } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { formatTokens } from "../utils/tokens.ts";
 
 type Input = SpawnSubagents.Input;
 type SubagentEntry = SpawnSubagents.SubagentEntry;
@@ -92,9 +93,8 @@ function resolveAgentRowFromThread(
       statusDetail = `stopped (${summary.status.reason})`;
       break;
     case "yielded": {
-      const lineCount = summary.status.response.split("\n").length;
       statusIcon = "✅";
-      statusDetail = `${lineCount.toString()} lines`;
+      statusDetail = formatTokens(summary.status.response.length);
       break;
     }
     case "error": {
@@ -124,7 +124,7 @@ function resolveAgentRowFromResult(
 
   const statusIcon = agent.ok ? "✅" : "❌";
   const statusDetail = agent.responseBody
-    ? `${agent.responseBody.split("\n").length.toString()} lines`
+    ? formatTokens(agent.responseBody.length)
     : undefined;
   return { entry, statusIcon, statusDetail, threadId: agent.threadId };
 }
