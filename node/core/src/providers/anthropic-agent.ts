@@ -1197,7 +1197,7 @@ export function convertAnthropicMessagesToProvider(
           );
 
     const result: ProviderMessage = {
-      role: msg.role,
+      role: msg.role === "system" ? "user" : msg.role,
       content,
     };
 

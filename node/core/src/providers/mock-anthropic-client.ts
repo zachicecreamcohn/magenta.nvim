@@ -125,6 +125,7 @@ export class MockStream {
             inference_geo: null,
             server_tool_use: null,
             service_tier: null,
+            output_tokens_details: null,
           },
         },
       });
@@ -303,6 +304,7 @@ export class MockStream {
         cache_creation_input_tokens: usage.cacheMisses ?? null,
         cache_read_input_tokens: usage.cacheHits ?? null,
         server_tool_use: null,
+        output_tokens_details: null,
       },
     });
     this.pushEvent({ type: "message_stop" });
