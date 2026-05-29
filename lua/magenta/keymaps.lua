@@ -107,6 +107,13 @@ M.set_sidebar_buffer_keymaps = function(bufnr)
   end
 end
 
+-- Tracks display buffers so we can detect when clipboard text was yanked from
+-- one of them. When the user yanks (into the unnamed/+ register) inside a
+-- display buffer, we stash the text here; M.do_paste compares against it to
+-- decide whether to quote the pasted content.
+local display_bufnrs = {}
+local last_display_yank = nil
+
 -- Module-scoped state for paste handlers. We wrap vim.paste once (globally),
 -- but only transform input in buffers we've registered here. This lets
 -- multiple per-thread input buffers share the same wrapper.
@@ -204,7 +211,8 @@ M.do_paste = function()
   if text == nil or text == "" then
     return
   end
-  vim.rpcnotify(magenta_channel_id, "magentaClipboardTextPaste", { text = text })
+  local from_display = last_display_yank ~= nil and text == last_display_yank
+  vim.rpcnotify(magenta_channel_id, "magentaClipboardTextPaste", { text = text, fromDisplay = from_display })
 end
 
 M.set_paste_handlers = function(bufnr, channel_id)
@@ -235,6 +243,26 @@ M.set_paste_handlers = function(bufnr, channel_id)
 end
 
 M.set_display_buffer_keymaps = function(bufnr)
+  display_bufnrs[bufnr] = true
+
+  vim.api.nvim_create_autocmd("TextYankPost", {
+    buffer = bufnr,
+    callback = function()
+      local ev = vim.v.event
+      if ev.regname == "" or ev.regname == "+" or ev.regname == "*" then
+        last_display_yank = table.concat(ev.regcontents or {}, "\n")
+      end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd("BufWipeout", {
+    buffer = bufnr,
+    once = true,
+    callback = function()
+      display_bufnrs[bufnr] = nil
+    end,
+  })
+
   for mode, values in pairs(Options.options.displayKeymaps) do
     for key, action in pairs(values) do
       vim.keymap.set(

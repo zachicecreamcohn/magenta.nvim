@@ -61,6 +61,13 @@ const MAGENTA_BUF_ENTER = "magentaBufEnter";
 const MAGENTA_CLIPBOARD_IMAGE_PASTE = "magentaClipboardImagePaste";
 const MAGENTA_CLIPBOARD_TEXT_PASTE = "magentaClipboardTextPaste";
 
+function formatAsQuote(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => `> ${line}`)
+    .join("\n");
+}
+
 export class Magenta {
   public sidebar: Sidebar;
   public bufferManager: BufferManager;
@@ -572,17 +579,23 @@ export class Magenta {
           endPos: pos1col1to0(endPos),
         });
 
-        const absFilePath = resolveFilePath(
-          this.cwd,
-          await currentBuffer.getName(),
-          this.homeDir,
-        );
-        const content = `
+        const bufInfo = this.bufferManager.lookupBuffer(currentBuffer.id);
+        let content: string;
+        if (bufInfo?.role === "display") {
+          content = "\n" + formatAsQuote(lines.join("\n")) + "\n";
+        } else {
+          const absFilePath = resolveFilePath(
+            this.cwd,
+            await currentBuffer.getName(),
+            this.homeDir,
+          );
+          content = `
 Here is a snippet from the file \`${absFilePath}\`, lines ${startPos.row}-${endPos.row}:
 \`\`\`${getMarkdownExt(absFilePath)}
 ${lines.join("\n")}
 \`\`\`
 `;
+        }
 
         if (!this.sidebar.isVisible()) {
           await this.command("toggle");
@@ -764,8 +777,12 @@ ${lines.join("\n")}
     await this.pasteIntoActiveInputBuffer(formatFileRef(result.tmpPath));
   }
 
-  async onClipboardTextPaste(text: string): Promise<void> {
-    await this.pasteIntoActiveInputBuffer(text);
+  async onClipboardTextPaste(
+    text: string,
+    fromDisplay?: boolean,
+  ): Promise<void> {
+    const content = fromDisplay ? formatAsQuote(text) : text;
+    await this.pasteIntoActiveInputBuffer(content);
   }
 
   // Open the sidebar if it isn't visible, then append the given content to
@@ -842,8 +859,10 @@ ${lines.join("\n")}
 
     nvim.onNotification(MAGENTA_CLIPBOARD_TEXT_PASTE, async (args) => {
       try {
-        const data = (args as unknown as { text: string }[])[0];
-        await magenta.onClipboardTextPaste(data.text);
+        const data = (
+          args as unknown as { text: string; fromDisplay?: boolean }[]
+        )[0];
+        await magenta.onClipboardTextPaste(data.text, data.fromDisplay);
       } catch (err) {
         nvim.logger.error(
           err instanceof Error

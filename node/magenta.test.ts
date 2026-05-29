@@ -197,6 +197,36 @@ Stars above
   });
 });
 
+it("paste-selection from the display buffer quotes the selection", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText(`hello`);
+    await driver.send();
+    const request = await driver.mockAnthropic.awaitPendingStream();
+    request.respond({
+      stopReason: "end_turn",
+      text: "alpha beta\ngamma delta",
+      toolRequests: [],
+    });
+
+    const startPos = await driver.assertDisplayBufferContains("alpha beta");
+
+    // Focus the display window so selectRange operates on the display buffer.
+    const { displayWindow } = driver.getVisibleState();
+    await driver.nvim.call("nvim_set_current_win", [displayWindow.id]);
+
+    await driver.selectRange(startPos, {
+      row: startPos.row + 1,
+      col: "gamma delta".length,
+    } as Position0Indexed);
+
+    await driver.pasteSelection();
+
+    await driver.assertInputBufferContains(`> alpha beta
+> gamma delta`);
+  });
+});
+
 it("clipboard text paste opens the sidebar and appends to the active input buffer", async () => {
   await withDriver({}, async (driver) => {
     await driver.editFile("poem.txt");
