@@ -3,9 +3,10 @@ import * as path from "node:path";
 import type { ToolName, ToolRequestId } from "@magenta/core";
 import { describe, expect, test } from "vitest";
 import type { Line } from "../nvim/buffer.ts";
-import { getAllBuffers } from "../nvim/nvim.ts";
+import { getAllBuffers, getAllWindows } from "../nvim/nvim.ts";
 import type { Row0Indexed } from "../nvim/window.ts";
 import { withDriver } from "../test/preamble.ts";
+import { pollUntil } from "../utils/async.ts";
 
 describe("edl tool", () => {
   test("shows mutation summary in display", async () => {
@@ -53,7 +54,62 @@ replace "goodbye"`;
     );
   });
 
-  test("toggles between preview and detail view", async () => {
+  test("= expands the per-file EDL segment", async () => {
+    await withDriver(
+      {
+        setupFiles: async (tmpDir) => {
+          await fs.writeFile(path.join(tmpDir, "test.txt"), "hello world\n");
+        },
+      },
+      async (driver, dirs) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText("run edl script");
+        await driver.send();
+
+        const filePath = path.join(dirs.tmpDir, "test.txt");
+        const filler = Array.from(
+          { length: 15 },
+          (_, i) => `# filler ${i}`,
+        ).join("\n");
+        const script = `file \`${filePath}\`
+# UNIQUE_SEGMENT_MARKER
+${filler}
+narrow /hello/
+replace "goodbye"`;
+
+        const stream = await driver.mockAnthropic.awaitPendingStream();
+        stream.respond({
+          stopReason: "tool_use",
+          text: "I'll run an EDL script",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "tool_1" as ToolRequestId,
+                toolName: "edl" as ToolName,
+                input: { script },
+              },
+            },
+          ],
+        });
+
+        await driver.assertDisplayBufferContains("✅ edl:");
+
+        // The per-file marker is not shown until the segment is expanded
+        await driver.assertDisplayBufferDoesNotContain("UNIQUE_SEGMENT_MARKER");
+
+        // Expand the per-file segment with =
+        await driver.triggerDisplayBufferKeyOnContent("1 replace", "=");
+        await driver.assertDisplayBufferContains("UNIQUE_SEGMENT_MARKER");
+
+        // Collapse again
+        await driver.triggerDisplayBufferKeyOnContent("1 replace", "=");
+        await driver.assertDisplayBufferDoesNotContain("UNIQUE_SEGMENT_MARKER");
+      },
+    );
+  });
+
+  test("<CR> navigates to the edited file", async () => {
     await withDriver(
       {
         setupFiles: async (tmpDir) => {
@@ -87,13 +143,25 @@ replace "goodbye"`;
         });
 
         await driver.assertDisplayBufferContains("✅ edl:");
-
-        // Toggle to detail view
         await driver.triggerDisplayBufferKeyOnContent("1 replace", "<CR>");
 
-        // Detail should show full trace output
-        await driver.assertDisplayBufferContains("Trace:");
-        await driver.assertDisplayBufferContains("Mutations:");
+        const targetBufferName = await pollUntil(
+          async () => {
+            const windows = await getAllWindows(driver.nvim);
+            for (const w of windows) {
+              const isMagenta = await w.getVar("magenta");
+              if (isMagenta) continue;
+              const buf = await w.buffer();
+              const name = await buf.getName();
+              if (/test\.txt$/.test(name)) {
+                return name;
+              }
+            }
+            throw new Error("test.txt not yet opened in non-magenta window");
+          },
+          { timeout: 2000 },
+        );
+        expect(targetBufferName).toMatch(/test\.txt$/);
       },
     );
   });
@@ -204,11 +272,6 @@ END`;
         // Expanded input should show full script
         await driver.assertDisplayBufferContains("narrow /hello/");
         await driver.assertDisplayBufferContains("replace <<END");
-
-        // Toggle result to expanded view to see trace output
-        await driver.triggerDisplayBufferKeyOnContent("1 replace", "<CR>");
-        await driver.assertDisplayBufferContains("Trace:");
-        await driver.assertDisplayBufferContains("Mutations:");
       },
     );
   });

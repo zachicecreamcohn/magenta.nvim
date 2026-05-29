@@ -1,6 +1,6 @@
 import type { FileIO } from "../capabilities/file-io.ts";
 import { ExecutionError, Executor } from "./executor.ts";
-import { ParseError, parse } from "./parser.ts";
+import { lexWithPos, ParseError, parse } from "./parser.ts";
 import type {
   FileMutationSummary,
   Pos,
@@ -106,6 +106,38 @@ export function analyzeFileAccess(script: string): FileAccessInfo[] {
     ...access,
   }));
 }
+export type ScriptFileSegment = { path: string; segment: string };
+
+/**
+ * Display-only, tolerant per-file splitter. Given a (possibly partial/streaming)
+ * script, returns one entry per `file`/`newfile` directive with the raw script
+ * substring belonging to that directive (up to the next directive). Heredoc-aware
+ * and never throws. Commands before the first directive are dropped.
+ */
+export function splitScriptByFile(script: string): ScriptFileSegment[] {
+  const boundaries: { path: string; start: number }[] = [];
+  const tokens = Array.from(lexWithPos(script));
+
+  for (let i = 0; i < tokens.length; i++) {
+    const { token } = tokens[i];
+    if (
+      token.type === "word" &&
+      (token.value === "file" || token.value === "newfile")
+    ) {
+      const pathTok = tokens[i + 1]?.token;
+      if (pathTok && (pathTok.type === "path" || pathTok.type === "word")) {
+        boundaries.push({ path: pathTok.value, start: tokens[i].start });
+      }
+    }
+  }
+
+  return boundaries.map((b, idx) => {
+    const end =
+      idx + 1 < boundaries.length ? boundaries[idx + 1].start : script.length;
+    return { path: b.path, segment: script.slice(b.start, end) };
+  });
+}
+
 function formatPos(pos: Pos): string {
   return `${pos.line}:${pos.col}`;
 }

@@ -3,6 +3,7 @@ import {
   assertUnreachable,
   extractPartialJsonStringValue,
   type StaticToolName,
+  splitScriptByFile,
 } from "@magenta/core";
 import { d, type VDOMNode, withCode } from "../tea/view.ts";
 
@@ -30,8 +31,13 @@ export function renderStreamdedTool(
         "script",
       );
       if (script !== undefined) {
+        const segments = splitScriptByFile(script);
         const lines = script.split("\n");
-        const tail = lines.slice(-20).join("\n");
+        const tail = lines.slice(-10).join("\n");
+        if (segments.length > 0) {
+          const fileList = segments.map((s) => `  ${s.path}`).join("\n");
+          return d`📝 edl: editing ${String(segments.length)} file${segments.length !== 1 ? "s" : ""}:\n${fileList}\n${withCode(d`${tail}`)}`;
+        }
         return d`📝 edl:\n${withCode(d`${tail}`)}`;
       }
       break;

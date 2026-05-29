@@ -1,12 +1,15 @@
-import type {
-  CompletedToolInfo,
-  DisplayContext,
-  Edl,
-  ToolRequestId,
-  ToolRequest as UnionToolRequest,
+import {
+  type CompletedToolInfo,
+  type DisplayContext,
+  type Edl,
+  splitScriptByFile,
+  type ToolRequestId,
+  type ToolRequest as UnionToolRequest,
 } from "@magenta/core";
-import type { ToolViewState } from "../chat/thread.ts";
+import type { Msg as ThreadMsg, ToolViewState } from "../chat/thread.ts";
+import type { Dispatch } from "../tea/tea.ts";
 import { d, type VDOMNode, withBindings, withCode } from "../tea/view.ts";
+import type { UnresolvedFilePath } from "../utils/files.ts";
 
 type Input = {
   script: string;
@@ -108,49 +111,78 @@ export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
 export function renderResult(
   info: CompletedToolInfo,
   context: {
-    threadDispatch: (msg: {
-      type: "toggle-tool-result";
-      toolRequestId: ToolRequestId;
-    }) => void;
+    threadDispatch: Dispatch<ThreadMsg>;
   },
   toolViewState: ToolViewState,
   toolRequestId: ToolRequestId,
 ): VDOMNode | undefined {
   const expanded = toolViewState.resultExpanded;
-  const toggleBinding = {
-    "<CR>": () =>
-      context.threadDispatch({
-        type: "toggle-tool-result",
-        toolRequestId,
-      }),
-  };
 
   if (expanded) {
-    return withBindings(d`${extractFormattedResult(info)}`, toggleBinding);
+    return withBindings(d`${extractFormattedResult(info)}`, {
+      "<CR>": () =>
+        context.threadDispatch({
+          type: "toggle-tool-result",
+          toolRequestId,
+        }),
+    });
   }
 
   const data = extractEdlDisplayData(info);
   if (!data || isError(info.result)) return undefined;
 
-  const lines: string[] = [];
+  const input = info.request.input as Input;
+  const segmentsByPath = new Map<string, string>();
+  for (const { path, segment } of splitScriptByFile(input.script)) {
+    segmentsByPath.set(
+      path,
+      segmentsByPath.has(path)
+        ? `${segmentsByPath.get(path)!}${segment}`
+        : segment,
+    );
+  }
+
+  const rows: VDOMNode[] = [];
 
   for (const { path, summary } of data.mutations) {
     const parts: string[] = [];
     if (summary.replacements > 0) parts.push(`${summary.replacements} replace`);
     if (summary.insertions > 0) parts.push(`${summary.insertions} insert`);
     if (summary.deletions > 0) parts.push(`${summary.deletions} delete`);
-    lines.push(
-      `  ${path}: ${parts.join(", ")} (+${summary.linesAdded}/-${summary.linesRemoved})`,
+    const rowText = `  ${path}: ${parts.join(", ")} (+${summary.linesAdded}/-${summary.linesRemoved})`;
+
+    const itemExpanded = toolViewState.resultItemExpanded?.[path] || false;
+    const segment = segmentsByPath.get(path);
+
+    const content =
+      itemExpanded && segment
+        ? d`${rowText}\n${withCode(d`${segment}`)}`
+        : d`${rowText}`;
+
+    rows.push(
+      withBindings(d`${content}\n`, {
+        "<CR>": () =>
+          context.threadDispatch({
+            type: "open-edit-file",
+            filePath: path as UnresolvedFilePath,
+          }),
+        "=": () =>
+          context.threadDispatch({
+            type: "toggle-tool-result-item",
+            toolRequestId,
+            itemKey: path,
+          }),
+      }),
     );
   }
 
   if (data.finalSelectionCount !== undefined) {
-    lines.push(
-      `  Final selection: ${data.finalSelectionCount} range${data.finalSelectionCount !== 1 ? "s" : ""}`,
+    rows.push(
+      d`  Final selection: ${String(data.finalSelectionCount)} range${data.finalSelectionCount !== 1 ? "s" : ""}\n`,
     );
   }
 
-  if (lines.length === 0) return undefined;
+  if (rows.length === 0) return undefined;
 
-  return withBindings(d`${lines.join("\n")}`, toggleBinding);
+  return d`${rows}`;
 }

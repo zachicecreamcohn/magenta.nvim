@@ -77,7 +77,12 @@ export {
   resolveIndex,
 } from "./edl/executor.ts";
 export { InMemoryFileIO } from "./edl/in-memory-file-io.ts";
-export { type EdlRegisters, runScript } from "./edl/index.ts";
+export {
+  type EdlRegisters,
+  runScript,
+  type ScriptFileSegment,
+  splitScriptByFile,
+} from "./edl/index.ts";
 export { parse } from "./edl/parser.ts";
 export type { FileMutationSummary } from "./edl/types.ts";
 export { Emitter, type EventMap } from "./emitter.ts";

@@ -1320,10 +1320,10 @@ it("shows EDL script preview while streaming", async () => {
       },
     });
 
-    // Assert the display shows the unescaped script with newlines separating commands
-    await driver.assertDisplayBufferContains(
-      "📝 edl:\nfile `src/utils.ts`\nselect",
-    );
+    // Assert the display shows a file summary and the streaming tail
+    await driver.assertDisplayBufferContains("📝 edl: editing 1 file:");
+    await driver.assertDisplayBufferContains("src/utils.ts");
+    await driver.assertDisplayBufferContains("select");
 
     // Stream more of the script
     stream.emitEvent({

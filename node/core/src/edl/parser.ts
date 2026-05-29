@@ -202,6 +202,150 @@ export function* lex(script: string): Generator<Token> {
   }
 }
 
+export type PositionedToken = { token: Token; start: number };
+
+/**
+ * Tolerant variant of `lex` that yields each token together with its start
+ * offset in the script, and stops gracefully (returns) instead of throwing on
+ * truncated/incomplete input. Display-only; never used by the executor.
+ */
+export function* lexWithPos(script: string): Generator<PositionedToken> {
+  let pos = 0;
+
+  while (pos < script.length) {
+    while (pos < script.length && /\s/.test(script[pos])) pos++;
+    if (pos >= script.length) break;
+
+    const start = pos;
+    const ch = script[pos];
+
+    if (ch === "#") {
+      while (pos < script.length && script[pos] !== "\n") pos++;
+      continue;
+    }
+
+    if (ch === "/") {
+      pos++;
+      const patStart = pos;
+      while (pos < script.length) {
+        const c = script[pos];
+        if (c === "\n") break;
+        if (c === "\\") {
+          pos += 2;
+          continue;
+        }
+        if (c === "/") break;
+        pos++;
+      }
+      if (pos >= script.length || script[pos] !== "/") return;
+      const pattern = script.slice(patStart, pos);
+      pos++;
+      const flagStart = pos;
+      while (pos < script.length && FLAG_CHARS.has(script[pos])) pos++;
+      yield {
+        token: { type: "regex", pattern, flags: script.slice(flagStart, pos) },
+        start,
+      };
+      continue;
+    }
+
+    if (ch === "`") {
+      pos++;
+      const pathStart = pos;
+      while (pos < script.length && script[pos] !== "`") pos++;
+      if (pos >= script.length) return;
+      yield {
+        token: { type: "path", value: script.slice(pathStart, pos) },
+        start,
+      };
+      pos++;
+      continue;
+    }
+
+    if (ch === "<" && script[pos + 1] === "<") {
+      pos += 2;
+      let delimiter: string;
+      if (script[pos] === "'") {
+        pos++;
+        const delimStart = pos;
+        while (
+          pos < script.length &&
+          script[pos] !== "'" &&
+          script[pos] !== "\n"
+        )
+          pos++;
+        if (pos >= script.length || script[pos] !== "'") return;
+        delimiter = script.slice(delimStart, pos);
+        pos++;
+        if (delimiter.length === 0) return;
+      } else {
+        const delimStart = pos;
+        while (pos < script.length && /\w/.test(script[pos])) pos++;
+        if (pos === delimStart) return;
+        delimiter = script.slice(delimStart, pos);
+      }
+      while (pos < script.length && script[pos] !== "\n") {
+        if (!/\s/.test(script[pos])) return;
+        pos++;
+      }
+      if (pos < script.length) pos++;
+
+      const contentStart = pos;
+      let found = false;
+      while (pos < script.length) {
+        const lineStart = pos;
+        while (pos < script.length && script[pos] !== "\n") pos++;
+        if (script.slice(lineStart, pos) === delimiter) {
+          const value = script.slice(
+            contentStart,
+            lineStart > contentStart ? lineStart - 1 : lineStart,
+          );
+          if (pos < script.length) pos++;
+          yield { token: { type: "heredoc", value }, start };
+          found = true;
+          break;
+        }
+        if (pos < script.length) pos++;
+      }
+      if (!found) return;
+      continue;
+    }
+
+    if (ch === '"') {
+      pos++;
+      let value = "";
+      while (pos < script.length && script[pos] !== '"') {
+        if (script[pos] === "\\") {
+          pos++;
+          if (pos >= script.length) return;
+          const escaped = script[pos];
+          if (escaped === '"' || escaped === "\\") {
+            value += escaped;
+          } else {
+            return;
+          }
+        } else if (script[pos] === "\n") {
+          return;
+        } else {
+          value += script[pos];
+        }
+        pos++;
+      }
+      if (pos >= script.length) return;
+      pos++;
+      yield { token: { type: "quoted", value }, start };
+      continue;
+    }
+
+    const wordStart = pos;
+    while (pos < script.length && !/\s/.test(script[pos])) pos++;
+    yield {
+      token: { type: "word", value: script.slice(wordStart, pos) },
+      start,
+    };
+  }
+}
+
 function tryParsePositionalPattern(s: string): PositionalPattern | undefined {
   if (s === "bof") return { type: "bof" };
   if (s === "eof") return { type: "eof" };
