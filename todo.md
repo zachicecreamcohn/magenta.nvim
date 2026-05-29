@@ -13,10 +13,6 @@
 - Let's revisit how we summarize files.
 - summarize large files even when they're pulled in via contextFiles
 
-# customization
-
-- look for context.md files and skills all the way up the dir chain, not just in cwd
-
 # docker
 
 - we're still referencing some files from the host, which the agent can't actually read

@@ -62,6 +62,7 @@ type ThreadWrapper = (
   parentThreadId: ThreadId | undefined;
   depth: number;
   lastActivityTime: number;
+  lastViewedTime: number;
 };
 
 type ChatState =
@@ -158,6 +159,10 @@ export class Chat implements ThreadManager {
           this.threadWrappers[rootId].lastActivityTime = Date.now();
         }
 
+        if (msg.msg.type === "turn-ended") {
+          this.threadWrappers[msg.id].lastActivityTime = Date.now();
+        }
+
         if (msg.msg.type === "abort") {
           // Find all child threads of the parent thread and abort them directly
           for (const [threadId, threadWrapper] of Object.entries(
@@ -196,6 +201,7 @@ export class Chat implements ThreadManager {
           parentThreadId: prev.parentThreadId,
           depth: prev.depth,
           lastActivityTime: prev.lastActivityTime,
+          lastViewedTime: prev.lastViewedTime,
         };
         this.threadWrappers[msg.thread.id] = wrapper;
 
@@ -210,6 +216,7 @@ export class Chat implements ThreadManager {
           parentThreadId: thread.parentThreadId,
           depth: thread.depth,
           lastActivityTime: thread.lastActivityTime,
+          lastViewedTime: thread.lastViewedTime,
         };
 
         if (this.state.state === "thread-selected") {
@@ -228,6 +235,7 @@ export class Chat implements ThreadManager {
 
       case "set-active-thread":
         if (msg.id in this.threadWrappers) {
+          this.threadWrappers[msg.id].lastViewedTime = Date.now();
           this.state = {
             state: "thread-selected",
             activeThreadId: msg.id,
@@ -380,6 +388,7 @@ export class Chat implements ThreadManager {
       parentThreadId: parent,
       depth: parent ? (this.threadWrappers[parent]?.depth ?? 0) + 1 : 0,
       lastActivityTime: Date.now(),
+      lastViewedTime: Date.now(),
     };
 
     const resolvedConfig: EnvironmentConfig = environmentConfig ?? {
@@ -729,6 +738,11 @@ export class Chat implements ThreadManager {
         : undefined;
     const icon = threadType === "docker_root" ? "🐳 " : "";
 
+    const hasUnviewedActivity =
+      threadWrapper !== undefined &&
+      threadWrapper.lastActivityTime > threadWrapper.lastViewedTime;
+    const bell = hasUnviewedActivity ? "🔔 " : "";
+
     const expandIndicator = options?.hasChildren
       ? options.isExpanded
         ? "▼ "
@@ -738,7 +752,7 @@ export class Chat implements ThreadManager {
       ? ` (${options.childCount} subthreads)`
       : "";
 
-    const displayLine = `${indent}${marker} ${expandIndicator}${icon}${displayName}: ${status}${childCountSuffix}`;
+    const displayLine = `${indent}${marker} ${bell}${expandIndicator}${icon}${displayName}: ${status}${childCountSuffix}`;
 
     const bindings: Record<string, () => void> = {
       "<CR>": () =>
@@ -806,17 +820,16 @@ No threads yet`;
     const childrenMap = this.buildChildrenMap();
     const threadViews: VDOMNode[] = [];
 
-    const rootThreads: { id: ThreadId; lastActivityTime: number }[] = [];
+    const rootThreads: { id: ThreadId }[] = [];
     for (const [idStr, wrapper] of Object.entries(this.threadWrappers)) {
       if (wrapper.parentThreadId === undefined) {
-        rootThreads.push({
-          id: idStr as ThreadId,
-          lastActivityTime: wrapper.lastActivityTime,
-        });
+        rootThreads.push({ id: idStr as ThreadId });
       }
     }
 
-    rootThreads.sort((a, b) => b.lastActivityTime - a.lastActivityTime);
+    // ThreadIds are uuidv7 (time-ordered), so sorting by id descending yields
+    // most-recently-created first. This order is stable regardless of activity.
+    rootThreads.sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
 
     for (const { id } of rootThreads) {
       const hasChildren = (childrenMap.get(id)?.length ?? 0) > 0;
@@ -894,6 +907,7 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       parentThreadId: undefined,
       depth: 0,
       lastActivityTime: Date.now(),
+      lastViewedTime: Date.now(),
     };
 
     const thread = await Thread.cloneFromNativeMessageIdx({

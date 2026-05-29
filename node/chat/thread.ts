@@ -110,6 +110,9 @@ export type Msg =
       type: "tool-progress";
     }
   | {
+      type: "turn-ended";
+    }
+  | {
       type: "toggle-compaction-record";
       recordIdx: number;
     }
@@ -282,6 +285,7 @@ export class Thread {
       },
       pendingUpdatesChanged: () => this.myDispatch({ type: "tool-progress" }),
       turnEnded: (payload: { reason: "end_turn" | "aborted" | "error" }) => {
+        this.myDispatch({ type: "turn-ended" });
         if (payload.reason === "end_turn" || payload.reason === "error") {
           this.playChimeSound();
           this.sendTerminalBell();
@@ -722,6 +726,9 @@ export class Thread {
         return;
 
       case "tool-progress":
+        return;
+
+      case "turn-ended":
         return;
 
       case "toggle-compaction-record": {
