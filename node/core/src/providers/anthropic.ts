@@ -372,6 +372,13 @@ export class AnthropicProvider implements Provider {
               });
               break;
 
+            case "fork_notification":
+              content.push({
+                type: "text",
+                text: c.text,
+              });
+              break;
+
             default:
               assertUnreachable(c);
           }

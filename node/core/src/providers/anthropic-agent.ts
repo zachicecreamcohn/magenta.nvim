@@ -1234,6 +1234,14 @@ function convertBlockToProvider(
           nativeMessageIdx,
         };
       }
+      // Detect fork_notification blocks (converted to text with <fork-notification> tags)
+      if (block.text.includes("<fork-notification>")) {
+        return {
+          type: "fork_notification",
+          text: block.text,
+          nativeMessageIdx,
+        };
+      }
       return {
         type: "text",
         text: block.text,

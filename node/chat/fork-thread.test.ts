@@ -3,6 +3,7 @@ import type { NativeMessageIdx, ToolName, ToolRequestId } from "@magenta/core";
 import { expect, it, vi } from "vitest";
 import { getcwd } from "../nvim/nvim.ts";
 import { withDriver } from "../test/preamble.ts";
+import { pollUntil } from "../utils/async.ts";
 
 it("no <context_update> on first turn after fork when files unchanged", async () => {
   await withDriver({}, async (driver) => {
@@ -215,6 +216,128 @@ it("source agent is unaffected by clone", async () => {
     if (statusAfter.type === "stopped" && statusBefore.type === "stopped") {
       expect(statusAfter.stopReason).toBe(statusBefore.stopReason);
     }
+  });
+});
+
+it("fork appends an id-free fork_notification and records forkedFrom", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    await driver.inputMagentaText("hello");
+    await driver.send();
+    const r1 = await driver.mockAnthropic.awaitPendingStream();
+    r1.respond({
+      stopReason: "end_turn",
+      text: "hi",
+      toolRequests: [],
+    });
+
+    await driver.assertDisplayBufferContains("hi");
+
+    const sourceThreadId = driver.magenta.chat.state.activeThreadId!;
+    const sourceThread = driver.magenta.chat.getActiveThread();
+    const idx = sourceThread.agent.getNativeMessageIdx();
+
+    await driver.magenta.forkAtMessageAndSwitch(sourceThreadId, idx);
+
+    const forkThread = driver.magenta.chat.getActiveThread();
+    const messages = forkThread.getProviderMessages();
+
+    const markerIdx = messages.findIndex((m) =>
+      m.content.some((c) => c.type === "fork_notification"),
+    );
+    expect(markerIdx).toBeGreaterThanOrEqual(0);
+
+    const markerContent = messages[markerIdx].content.find(
+      (c) => c.type === "fork_notification",
+    );
+    expect(markerContent).toBeDefined();
+    if (markerContent && markerContent.type === "fork_notification") {
+      expect(markerContent.text).not.toContain(sourceThreadId);
+    }
+
+    expect(forkThread.state.messageViewState[markerIdx]?.forkedFrom).toBe(
+      sourceThreadId,
+    );
+  });
+});
+
+it("child shows 'forked from' and <CR> navigates to parent", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    await driver.inputMagentaText("hello");
+    await driver.send();
+    const r1 = await driver.mockAnthropic.awaitPendingStream();
+    r1.respond({
+      stopReason: "end_turn",
+      text: "hi",
+      toolRequests: [],
+    });
+
+    await driver.assertDisplayBufferContains("hi");
+
+    const sourceThreadId = driver.magenta.chat.state.activeThreadId!;
+    const sourceThread = driver.magenta.chat.getActiveThread();
+    const idx = sourceThread.agent.getNativeMessageIdx();
+
+    await driver.magenta.forkAtMessageAndSwitch(sourceThreadId, idx);
+
+    await driver.assertDisplayBufferContains("forked from");
+
+    await driver.pressOnDisplayMessage("forked from", "<CR>");
+
+    await pollUntil(() => {
+      if (driver.magenta.chat.state.activeThreadId !== sourceThreadId) {
+        throw new Error("active thread did not switch to parent");
+      }
+    });
+  });
+});
+
+it("parent shows 'forked to' (not in agent messages) and <CR> navigates to child", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    await driver.inputMagentaText("hello");
+    await driver.send();
+    const r1 = await driver.mockAnthropic.awaitPendingStream();
+    r1.respond({
+      stopReason: "end_turn",
+      text: "hi",
+      toolRequests: [],
+    });
+
+    await driver.assertDisplayBufferContains("hi");
+
+    const sourceThreadId = driver.magenta.chat.state.activeThreadId!;
+    const sourceThread = driver.magenta.chat.getActiveThread();
+    const idx = sourceThread.agent.getNativeMessageIdx();
+
+    const childThreadId = await driver.magenta.forkAtMessageAndSwitch(
+      sourceThreadId,
+      idx,
+    );
+
+    const parentHasMarker = sourceThread
+      .getProviderMessages()
+      .some((m) => m.content.some((c) => c.type === "fork_notification"));
+    expect(parentHasMarker).toBe(false);
+
+    driver.magenta.dispatch({
+      type: "select-thread-effect",
+      id: sourceThreadId,
+    });
+
+    await driver.assertDisplayBufferContains("forked to thread");
+
+    await driver.pressOnDisplayMessage("forked to thread", "<CR>");
+
+    await pollUntil(() => {
+      if (driver.magenta.chat.state.activeThreadId !== childThreadId) {
+        throw new Error("active thread did not switch to child");
+      }
+    });
   });
 });
 

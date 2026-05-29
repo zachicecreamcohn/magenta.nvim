@@ -43,11 +43,13 @@ it("normal mode F on a previous assistant message creates a fork ending there", 
     const newThread = driver.magenta.chat.getActiveThread();
     expect(newThread.id).not.toBe(originalThreadId);
 
-    // The new thread should have native messages [user, assistant]
+    // The new thread should have native messages [user, assistant] plus the
+    // appended fork-notification user message.
     const native = newThread.agent
       .getState()
       .messages.filter((m) => m.role !== "user" || m.content.length > 0);
-    expect(native).toHaveLength(2);
+    expect(native).toHaveLength(3);
+    expect(native[native.length - 1].role).toBe("user");
 
     // Input buffer should be empty
     const inputBuffer = driver.getInputBuffer();
@@ -99,7 +101,7 @@ it("normal mode F on a user message keeps that user message", async () => {
 
     const newThread = driver.magenta.chat.getActiveThread();
     const messages = newThread.agent.getState().messages;
-    expect(messages).toHaveLength(3);
+    expect(messages).toHaveLength(4);
     const last = messages[messages.length - 1];
     expect(last.role).toBe("user");
   });
@@ -208,8 +210,9 @@ it("F on first user message keeps just that message and resets input", async () 
 
     const newThread = driver.magenta.chat.getActiveThread();
     const messages = newThread.agent.getState().messages;
-    expect(messages).toHaveLength(1);
+    expect(messages).toHaveLength(2);
     expect(messages[0].role).toBe("user");
+    expect(messages[messages.length - 1].role).toBe("user");
 
     const inputBuffer = driver.getInputBuffer();
     const lines = await inputBuffer.getLines({

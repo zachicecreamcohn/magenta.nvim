@@ -350,6 +350,25 @@ ${thread.core.state.pendingMessages.map(
       : d``;
 
   // Helper to check if a message is composed entirely of auto-generated content
+
+  const forkedToView =
+    thread.state.forkedTo.length > 0
+      ? d`\n${thread.state.forkedTo.map((fork) =>
+          withBindings(
+            withExtmark(
+              d`↳ forked to thread ${fork.childThreadId.slice(-8)}\n`,
+              { hl_group: "@comment" },
+            ),
+            {
+              "<CR>": () =>
+                thread.context.dispatch({
+                  type: "select-thread-effect",
+                  id: fork.childThreadId,
+                }),
+            },
+          ),
+        )}`
+      : d``;
   // (tool results, system reminders, context updates) — used to suppress the
   // "# user:" header for messages that contain no user-authored text.
   const isToolResultOnlyMessage = (msg: ProviderMessage): boolean =>
@@ -358,7 +377,8 @@ ${thread.core.state.pendingMessages.map(
       (c) =>
         c.type === "tool_result" ||
         c.type === "system_reminder" ||
-        c.type === "context_update",
+        c.type === "context_update" ||
+        c.type === "fork_notification",
     );
 
   // Render messages from provider thread
@@ -380,9 +400,12 @@ ${thread.core.state.pendingMessages.map(
         (c) =>
           c.type === "tool_result" ||
           c.type === "system_reminder" ||
-          c.type === "context_update",
+          c.type === "context_update" ||
+          c.type === "fork_notification",
       ) &&
-      message.content.some((c) => c.type === "system_reminder");
+      message.content.some(
+        (c) => c.type === "system_reminder" || c.type === "fork_notification",
+      );
 
     // Skip "# assistant:" header if this is a continuation of a tool-use turn
     // (i.e., previous message was a tool-result-only user message)
@@ -469,6 +492,7 @@ ${streamingBlockView}\
 ${contextManagerView}\
 ${sandboxView}\
 ${pendingMessagesView}\
+${forkedToView}\
 ${editedFilesView}
 ${statusView}`;
 };
@@ -826,6 +850,25 @@ function renderMessageContentBlock(
         );
       }
       return d`🌐 Search results\n`;
+    }
+
+    case "fork_notification": {
+      const viewState = thread.state.messageViewState[messageIdx];
+      const parentThreadId = viewState?.forkedFrom;
+      const shortId = parentThreadId ? parentThreadId.slice(-8) : "unknown";
+      const line = withExtmark(d`↰ forked from ${shortId}\n`, {
+        hl_group: "@comment",
+      });
+      if (!parentThreadId) {
+        return line;
+      }
+      return withBindings(line, {
+        "<CR>": () =>
+          thread.context.dispatch({
+            type: "select-thread-effect",
+            id: parentThreadId,
+          }),
+      });
     }
 
     case "context_update":

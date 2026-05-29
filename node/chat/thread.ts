@@ -139,6 +139,7 @@ export type ThreadMsg = {
 /** View state for a single message, stored separately from provider thread content */
 export type MessageViewState = {
   contextUpdates?: FileUpdates;
+  forkedFrom?: ThreadId;
   expandedUpdates?: { [absFilePath: string]: boolean };
   expandedContent?: { [contentIdx: number]: boolean };
 };
@@ -167,6 +168,7 @@ export class Thread {
       };
     };
     toolResultMap: Map<ToolRequestId, ProviderToolResult>;
+    forkedTo: { childThreadId: ThreadId; atMessageIdx: NativeMessageIdx }[];
   };
 
   public core: ThreadCore;
@@ -235,6 +237,7 @@ export class Thread {
       toolViewState: {},
       compactionViewState: {},
       toolResultMap: new Map(),
+      forkedTo: [],
     };
 
     const isDocker = env.environmentConfig.type === "docker";

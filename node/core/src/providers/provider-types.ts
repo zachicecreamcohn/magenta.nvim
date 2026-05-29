@@ -89,6 +89,12 @@ export type ProviderContextUpdateContent = {
   nativeMessageIdx: NativeMessageIdx;
 };
 
+export type ProviderForkNotificationContent = {
+  type: "fork_notification";
+  text: string;
+  nativeMessageIdx: NativeMessageIdx;
+};
+
 export type ProviderImageContent = {
   type: "image";
   source: {
@@ -170,7 +176,8 @@ export type ProviderMessageContent =
   | ProviderThinkingContent
   | ProviderRedactedThinkingContent
   | ProviderSystemReminderContent
-  | ProviderContextUpdateContent;
+  | ProviderContextUpdateContent
+  | ProviderForkNotificationContent;
 
 export interface Provider {
   forceToolUse(options: {

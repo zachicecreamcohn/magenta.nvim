@@ -251,6 +251,15 @@ Do not acknowledge this reminder or mention it to the user.
   {
     "content": [
       {
+        "text": "<fork-notification>The user forked this thread at this point. They may want to switch gears or ask follow-up questions from here.</fork-notification>",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
         "text": "Actually, tell me about 5+5",
         "type": "text",
       },
@@ -336,6 +345,15 @@ Do not acknowledge this reminder or mention it to the user.
         "nativeMessageIdx": -1,
         "tool_use_id": "bash-tool",
         "type": "tool_result",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "text": "<fork-notification>The user forked this thread at this point. They may want to switch gears or ask follow-up questions from here.</fork-notification>",
+        "type": "text",
       },
     ],
     "role": "user",

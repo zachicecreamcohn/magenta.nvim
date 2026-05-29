@@ -9,6 +9,7 @@ import type {
 import {
   loadAgents,
   MCPToolManagerImpl,
+  PLACEHOLDER_NATIVE_MESSAGE_IDX,
   SubagentSupervisor,
 } from "@magenta/core";
 import { v7 as uuidv7 } from "uuid";
@@ -930,6 +931,23 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       this.triggerHierarchyDiscovery(thread, absFilePath);
     });
 
+    const markerIdx = thread.core.getProviderMessages().length;
+    thread.agent.appendUserMessage([
+      {
+        type: "text",
+        text: "<fork-notification>The user forked this thread at this point. They may want to switch gears or ask follow-up questions from here.</fork-notification>",
+        nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+      },
+    ]);
+    thread.state.messageViewState[markerIdx] = {
+      ...thread.state.messageViewState[markerIdx],
+      forkedFrom: sourceThreadId,
+    };
+
+    sourceThread.state.forkedTo.push({
+      childThreadId: newThreadId,
+      atMessageIdx: idx,
+    });
     this.context.dispatch({
       type: "chat-msg",
       msg: {
