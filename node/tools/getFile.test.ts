@@ -65,8 +65,8 @@ it("should expand get_file tool input on <CR>", async () => {
       ],
     });
 
-    // Press <CR> on the summary to expand input details
-    await driver.triggerDisplayBufferKeyOnContent(`👀 \`poem.txt\``, "<CR>");
+    // Press = on the summary to expand input details
+    await driver.triggerDisplayBufferKeyOnContent(`👀 \`poem.txt\``, "=");
 
     // Verify the JSON input is now visible (not file content, since get_file has no result detail)
     await driver.assertDisplayBufferContains('"filePath": "./poem.txt"');

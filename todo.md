@@ -25,14 +25,11 @@
 - thread display buffers should be listed
 - deleting a thread display or input buffer (via :bd) should remove that thread from magenta state
 - = on spawn_subagents is showing "\n" ... we should probably format that more nicely
-- let's make = vs <CR> more consistent. "=" should always toggle expand. "<CR>" should always "enter / select". We should always have the carrot to visually indicate that the section is expandable
 - tmux integration (update tab title with active thread title, thread state)
 - toggling sandbox to off should auto-approve any current dialogues
 
 # misc features
 
-- fork a conversation from any previous message. Also get rid of @fork - let's just make fork a Magenta command or a message binding (so it doesn't interact with sendMessage)
-  - we should be able to @fork during the assistant's turn, tool use, etc... without aborting the thread we're in
 - add context tracking for the state of git. When we change branches, commit, etc...
 - asking aside/followup questions about things is a bit awkward... it would be cool to allow one to select a part of the display buffer, and then ask a question about it, with the output appearing within the flow of the original thread
 - support for oil buffers for adding files to context
@@ -47,13 +44,5 @@
   - try to write buffer before agent reads, but read from the disk with warning even if it doesn't work
   - try to read buffer after agent writes, but let the agent write to the file and surface a warning even if it doesn't work
 - when we error upon a user message send, we should pop the user message off the agent's history, otherwise we end up sending it twice
-- this periodic error:
-
-```
-[ERROR] job# 3:
-[Thread 019d65c4-5c0a-70bb-9882-732030e3427c] myUpdate: tool-progress
-```
-
 - overloaded handling / exponential backoff not working correctly
 - when we terminate/error, the reset for the message places it in the wrong buffer (currently open one, not the one corresponding to the thread that the error happened in)
-- figure out why bedrock is not doing thinking now

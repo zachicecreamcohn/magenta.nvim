@@ -1174,7 +1174,7 @@ it("handles thinking and redacted thinking blocks", async () => {
     await driver.assertDisplayBufferContains("💭 [Redacted Thinking]");
 
     // Test expanding the thinking block
-    await driver.triggerDisplayBufferKeyOnContent("💭 [Thinking]", "<CR>");
+    await driver.triggerDisplayBufferKeyOnContent("💭 [Thinking]", "=");
 
     // Verify expanded thinking block - check pieces separately
     await driver.assertDisplayBufferContains("# user:");
@@ -1189,7 +1189,7 @@ it("handles thinking and redacted thinking blocks", async () => {
     await driver.assertDisplayBufferContains("💭 [Redacted Thinking]");
 
     // Test collapsing the thinking block
-    await driver.triggerDisplayBufferKeyOnContent("💭 [Thinking]", "<CR>");
+    await driver.triggerDisplayBufferKeyOnContent("💭 [Thinking]", "=");
 
     // Verify collapsed thinking block again - check pieces separately
     await driver.assertDisplayBufferContains("# user:");

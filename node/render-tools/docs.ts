@@ -49,7 +49,7 @@ export function renderResult(
   toolRequestId: ToolRequestId,
 ): VDOMNode | undefined {
   const toggleBinding = {
-    "<CR>": () =>
+    "=": () =>
       context.threadDispatch({
         type: "toggle-tool-result",
         toolRequestId,

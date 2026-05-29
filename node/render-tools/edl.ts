@@ -120,7 +120,7 @@ export function renderResult(
 
   if (expanded) {
     return withBindings(d`${extractFormattedResult(info)}`, {
-      "<CR>": () =>
+      "=": () =>
         context.threadDispatch({
           type: "toggle-tool-result",
           toolRequestId,

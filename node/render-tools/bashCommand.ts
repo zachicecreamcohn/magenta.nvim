@@ -118,7 +118,7 @@ export function renderResult(
     : renderResultPreview(info, context);
   if (!content) return undefined;
   return withBindings(content, {
-    "<CR>": () =>
+    "=": () =>
       context.threadDispatch({
         type: "toggle-tool-result",
         toolRequestId,

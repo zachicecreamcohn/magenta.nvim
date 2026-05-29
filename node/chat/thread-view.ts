@@ -163,7 +163,7 @@ const renderSystemPrompt = (
         hl_group: "@comment",
       }),
       {
-        "<CR>": () => {
+        "=": () => {
           dispatch({ type: "toggle-system-prompt" });
         },
       },
@@ -180,7 +180,7 @@ const renderSystemPrompt = (
         hl_group: "@comment",
       }),
       {
-        "<CR>": () => {
+        "=": () => {
           dispatch({ type: "toggle-system-prompt" });
         },
       },
@@ -210,7 +210,7 @@ function renderCompactionHistory(
         { hl_group: "@comment" },
       ),
       {
-        "<CR>": () => dispatch({ type: "toggle-compaction-record", recordIdx }),
+        "=": () => dispatch({ type: "toggle-compaction-record", recordIdx }),
       },
     );
 
@@ -224,7 +224,7 @@ function renderCompactionHistory(
           { hl_group: "@comment" },
         ),
         {
-          "<CR>": () =>
+          "=": () =>
             dispatch({
               type: "toggle-compaction-step",
               recordIdx,
@@ -553,7 +553,7 @@ function renderMessageContentBlock(
             hl_group: "@comment",
           }),
           {
-            "<CR>": () => {
+            "=": () => {
               dispatch({
                 type: "toggle-expand-content",
                 messageIdx,
@@ -566,7 +566,7 @@ function renderMessageContentBlock(
         return withBindings(
           withExtmark(d`💭 [Thinking]\n`, { hl_group: "@comment" }),
           {
-            "<CR>": () =>
+            "=": () =>
               dispatch({
                 type: "toggle-expand-content",
                 messageIdx,
@@ -590,7 +590,7 @@ function renderMessageContentBlock(
             hl_group: "@comment",
           }),
           {
-            "<CR>": () => {
+            "=": () => {
               dispatch({
                 type: "toggle-expand-content",
                 messageIdx,
@@ -604,7 +604,7 @@ function renderMessageContentBlock(
         return withBindings(
           withExtmark(d`📋 [System Reminder]\n`, { hl_group: "@comment" }),
           {
-            "<CR>": () =>
+            "=": () =>
               dispatch({
                 type: "toggle-expand-content",
                 messageIdx,
@@ -656,7 +656,7 @@ function renderMessageContentBlock(
       const summaryView = withBindings(
         d`${renderToolSummary(request, displayContext)}`,
         {
-          "<CR>": () =>
+          "=": () =>
             dispatch({
               type: "toggle-tool-input-summary",
               toolRequestId: request.id,
@@ -668,7 +668,7 @@ function renderMessageContentBlock(
       // Section 2: Input summary expansion (JSON.stringify of input)
       const inputSummaryView = toolViewState?.inputSummaryExpanded
         ? withBindings(d`\n${JSON.stringify(request.input, null, 2)}`, {
-            "<CR>": () =>
+            "=": () =>
               dispatch({
                 type: "toggle-tool-input-summary",
                 toolRequestId: request.id,
@@ -684,7 +684,7 @@ function renderMessageContentBlock(
       );
       const inputView = inputContent
         ? withBindings(d`\n${inputContent}`, {
-            "<CR>": () =>
+            "=": () =>
               dispatch({
                 type: "toggle-tool-input",
                 toolRequestId: request.id,
@@ -712,7 +712,7 @@ function renderMessageContentBlock(
         );
         if (progressContent) {
           progressView = withBindings(d`\n${progressContent}`, {
-            "<CR>": () =>
+            "=": () =>
               dispatch({
                 type: "toggle-tool-progress",
                 toolRequestId: request.id,
@@ -746,7 +746,7 @@ function renderMessageContentBlock(
         resultSummaryView = withBindings(
           d`\n${renderToolResultSummary(completedInfo, displayContext)}`,
           {
-            "<CR>": () =>
+            "=": () =>
               dispatch({
                 type: "toggle-tool-result-summary",
                 toolRequestId: request.id,
@@ -761,7 +761,7 @@ function renderMessageContentBlock(
               ? JSON.stringify(toolResult.result.value, null, 2)
               : JSON.stringify({ error: toolResult.result.error }, null, 2);
           resultSummaryExpansionView = withBindings(d`\n${resultJson}`, {
-            "<CR>": () =>
+            "=": () =>
               dispatch({
                 type: "toggle-tool-result-summary",
                 toolRequestId: request.id,
@@ -829,7 +829,7 @@ function renderMessageContentBlock(
               d`  [${r.title}](${r.url})${r.page_age ? ` (${r.page_age})` : ""}\n`,
           );
           return withBindings(d`🌐 Search results\n${results}\n`, {
-            "<CR>": () =>
+            "=": () =>
               dispatch({
                 type: "toggle-expand-content",
                 messageIdx,
@@ -840,7 +840,7 @@ function renderMessageContentBlock(
         return withBindings(
           d`🌐 ${searchResults.length.toString()} search result${searchResults.length === 1 ? "" : "s"}\n`,
           {
-            "<CR>": () =>
+            "=": () =>
               dispatch({
                 type: "toggle-expand-content",
                 messageIdx,

@@ -750,13 +750,13 @@ describe("bash command output logging", () => {
       await driver.assertDisplayBufferDoesNotContain("command:");
 
       // Toggle to detail view by pressing Enter on the output preview
-      await driver.triggerDisplayBufferKeyOnContent("stdout:", "<CR>");
+      await driver.triggerDisplayBufferKeyOnContent("stdout:", "=");
 
       // After toggling, should show full detail with command header
       await driver.assertDisplayBufferContains("command:");
 
       // Toggle back to preview view
-      await driver.triggerDisplayBufferKeyOnContent("command:", "<CR>");
+      await driver.triggerDisplayBufferKeyOnContent("command:", "=");
 
       // Should be back in preview mode (no command header)
       await driver.assertDisplayBufferDoesNotContain("command:");

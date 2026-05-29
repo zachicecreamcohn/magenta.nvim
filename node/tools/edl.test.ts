@@ -267,7 +267,7 @@ END`;
         await driver.assertDisplayBufferContains("narrow /hello/");
 
         // Toggle input to expanded view (shows full script)
-        await driver.triggerDisplayBufferKeyOnContent("narrow /hello/", "<CR>");
+        await driver.triggerDisplayBufferKeyOnContent("narrow /hello/", "=");
 
         // Expanded input should show full script
         await driver.assertDisplayBufferContains("narrow /hello/");
