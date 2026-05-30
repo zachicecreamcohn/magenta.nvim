@@ -434,6 +434,15 @@ ${thread.core.state.pendingMessages.map(
           viewState.contextUpdates,
           thread.contextManager,
           contextViewCtx(thread),
+          {
+            expandedUpdates: viewState.expandedUpdates ?? {},
+            onToggle: (filePath) =>
+              dispatch({
+                type: "toggle-expand-update",
+                messageIdx,
+                filePath,
+              }),
+          },
         )
       : d``;
 

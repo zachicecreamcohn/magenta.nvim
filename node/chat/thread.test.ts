@@ -1655,6 +1655,50 @@ it("followup user message text is visible with context updates", async () => {
     expect(displayText).toMatchSnapshot("followup-with-context-updates");
   });
 });
+it("expands context update diff with = binding", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    await driver.addContextFiles("poem.txt");
+    await driver.inputMagentaText("Help me with this poem");
+    await driver.send();
+
+    const stream1 = await driver.mockAnthropic.awaitPendingStream();
+    stream1.respond({
+      stopReason: "end_turn",
+      text: "What would you like me to do?",
+      toolRequests: [],
+    });
+
+    await driver.assertDisplayBufferContains("What would you like me to do?");
+
+    const cwd = await getcwd(driver.nvim);
+    await fs.promises.writeFile(
+      `${cwd}/poem.txt`,
+      "sunshine poem\nwith extra lines",
+    );
+
+    await driver.inputMagentaText("Now make the poem longer please");
+    await driver.send();
+
+    const stream2 = await driver.mockAnthropic.awaitPendingStream();
+    stream2.respond({
+      stopReason: "end_turn",
+      text: "I'll make the poem longer.",
+      toolRequests: [],
+    });
+
+    await driver.assertDisplayBufferContains("Context Updates:");
+
+    // Expand the diff using the "=" binding on the file line
+    const pos = await driver.assertDisplayBufferContains(
+      "`poem.txt` [ +2 / -4 ]",
+    );
+    await driver.triggerDisplayBufferKey(pos, "=");
+
+    await driver.assertDisplayBufferContains("+with extra lines");
+  });
+});
 it("handles malformed tool_use by sending error tool_result and continuing", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();

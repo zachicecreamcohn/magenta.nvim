@@ -162,6 +162,10 @@ export function renderContextUpdate(
   contextUpdates: FileUpdates | undefined,
   core: ContextManager,
   context: ContextViewContext,
+  view: {
+    expandedUpdates: { [absFilePath: string]: boolean };
+    onToggle: (absFilePath: AbsFilePath) => void;
+  },
 ) {
   if (!(contextUpdates && Object.keys(contextUpdates).length)) {
     return "";
@@ -227,11 +231,34 @@ export function renderContextUpdate(
         context.homeDir,
       );
 
+      const expanded = view.expandedUpdates[absFilePath];
+      let expandedBody: VDOMNode = d``;
+      if (expanded) {
+        const value = update.update.value;
+        if (value.type === "diff") {
+          expandedBody = d`${value.patch}\n`;
+        } else if (value.type === "whole-file") {
+          const hasMedia = value.content.some(
+            (block) => block.type === "image" || block.type === "document",
+          );
+          if (hasMedia) {
+            expandedBody = d`binary format\n`;
+          } else {
+            const text = value.content
+              .filter((block) => block.type === "text")
+              .map((block) => block.text)
+              .join("");
+            expandedBody = d`${text}\n`;
+          }
+        }
+      }
+
       const filePathLink = withBindings(d`- \`${pathForDisplay}\`${pdfInfo}`, {
         "<CR>": () => openFile(absFilePath, core, context),
+        "=": () => view.onToggle(absFilePath),
       });
 
-      fileUpdates.push(d`${filePathLink} ${changeIndicator}\n`);
+      fileUpdates.push(d`${filePathLink} ${changeIndicator}\n${expandedBody}`);
     } else {
       fileUpdates.push(
         d`- \`${absFilePath}\` [Error: ${update.update.error}]\n`,
