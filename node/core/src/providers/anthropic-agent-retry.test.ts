@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { APIError } from "@anthropic-ai/sdk";
+import { AnthropicError, APIError } from "@anthropic-ai/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Logger } from "../logger.ts";
 import { validateInput } from "../tools/helpers.ts";
@@ -180,6 +180,45 @@ describe("AnthropicAgent retry logic", () => {
 
     expect(events.stopped.length).toBe(1);
     expect(events.stopped[0].stopReason).toBe("end_turn");
+    expect(events.errors.length).toBe(0);
+  });
+
+  it("retries on transient SSE JSON parse errors", async () => {
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+    const events = trackEvents(agent);
+
+    agent.appendUserMessage([
+      {
+        type: "text",
+        text: "hello",
+        nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+      },
+    ]);
+    agent.continueConversation();
+
+    // First attempt: SDK surfaces a malformed SSE frame as an AnthropicError
+    let stream = await mockClient.awaitStream();
+    stream.respondWithError(
+      new AnthropicError(
+        "Expected ',' or '}' after property value in JSON at position 99 (line 1 column 100)",
+      ),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+
+    const status = agent.getState().status;
+    expect(status.type).toBe("streaming");
+    if (status.type === "streaming") {
+      expect(status.retryStatus).toBeDefined();
+    }
+
+    // Advance past retry delay, then succeed
+    await vi.advanceTimersByTimeAsync(1000);
+    stream = await mockClient.awaitStream();
+    stream.respond({ text: "done", toolRequests: [], stopReason: "end_turn" });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(events.stopped.length).toBe(1);
     expect(events.errors.length).toBe(0);
   });
 

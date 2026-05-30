@@ -85,6 +85,7 @@ export function isRetryableError(error: Error): boolean {
   ) {
     return true;
   }
+
   // AWS Bedrock occasionally emits a stream `error` event before `message_start`,
   // which the Anthropic SDK surfaces as this AnthropicError. It is transient
   // (typically throttling/internal errors during stream connect), so retry.
@@ -94,7 +95,25 @@ export function isRetryableError(error: Error): boolean {
   ) {
     return true;
   }
+  // Transient SSE-decode failures: the Anthropic SDK strictly JSON.parses each
+  // raw SSE event, and upstream transports (proxies, Bedrock, Azure Foundry)
+  // occasionally deliver truncated or merged frames. These surface as a
+  // SyntaxError that the SDK wraps in an AnthropicError. They are not
+  // reproducible content errors, so retrying the turn is safe.
+  if (isSSEParseError(error)) {
+    return true;
+  }
   return false;
+}
+
+const SSE_JSON_PARSE_MESSAGE =
+  /Unexpected end of JSON input|in JSON at position|after JSON|Unexpected token .* in JSON|Could not parse message into JSON/;
+
+export function isSSEParseError(error: Error): boolean {
+  return (
+    (error instanceof SyntaxError || error instanceof AnthropicError) &&
+    SSE_JSON_PARSE_MESSAGE.test(error.message)
+  );
 }
 
 export function getRetryDelay(attempt: number): number {

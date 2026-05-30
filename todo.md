@@ -1,3 +1,6 @@
+- openai agent
+- agent(prompt, yield_schema) api, exposed via typescript scripts & lua
+
 # Sandboxes
 
 - we should patch sandbox runtime some more to allow projects to further customize their setup. I haven't been able to get puppeteer tests against localhost to work through the sandbox for example (though running in docker works, thankfully).
@@ -31,7 +34,6 @@
 - add context tracking for the state of git. When we change branches, commit, etc...
 - asking aside/followup questions about things is a bit awkward... it would be cool to allow one to select a part of the display buffer, and then ask a question about it, with the output appearing within the flow of the original thread
 - support for oil buffers for adding files to context
-- enable thinking summary
 
 # bug fixes, etc
 
@@ -44,3 +46,6 @@
 - when we error upon a user message send, we should pop the user message off the agent's history, otherwise we end up sending it twice
 - overloaded handling / exponential backoff not working correctly
 - when we terminate/error, the reset for the message places it in the wrong buffer (currently open one, not the one corresponding to the thread that the error happened in)
+
+- this token counting bug:
+  Full output (~5 tok): `/tmp/magenta/threads/019e7a92-f92a-73be-a919-a7e706cfae9c/tools/toolu_01P9m7eaCFDv6btvs4USGMDJ/bashCommand.log`
