@@ -276,7 +276,6 @@ export class Sidebar {
       wrap: true,
       linebreak: true,
       cursorline: true,
-      winfixwidth: true,
     };
 
     for (const [key, value] of Object.entries(winOptions)) {
