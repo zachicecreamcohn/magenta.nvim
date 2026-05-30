@@ -21,10 +21,8 @@
 
 - Animate the dot on "streaming" independent of partial stream results
 - when a thread is titled, we should use that title somehow in the buffer name (instead of just using an opaque id, though still need to make sure it's unique)
-- make the spawn_subagents preview the command as it's streaming in
 - thread display buffers should be listed
 - deleting a thread display or input buffer (via :bd) should remove that thread from magenta state
-- = on spawn_subagents is showing "\n" ... we should probably format that more nicely
 - tmux integration (update tab title with active thread title, thread state)
 - toggling sandbox to off should auto-approve any current dialogues
 

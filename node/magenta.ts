@@ -582,7 +582,7 @@ export class Magenta {
         const bufInfo = this.bufferManager.lookupBuffer(currentBuffer.id);
         let content: string;
         if (bufInfo?.role === "display") {
-          content = "\n" + formatAsQuote(lines.join("\n")) + "\n";
+          content = `\n${formatAsQuote(lines.join("\n"))}\n`;
         } else {
           const absFilePath = resolveFilePath(
             this.cwd,

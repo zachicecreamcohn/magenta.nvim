@@ -31,6 +31,7 @@ import type {
   ProviderMessage,
   ProviderMessageContent,
   ProviderToolResult,
+  ProviderToolSpec,
   StopReason,
   Usage,
 } from "./providers/provider-types.ts";
@@ -427,6 +428,16 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     }
   }
 
+  getToolSpecs(): ProviderToolSpec[] {
+    return getToolSpecs(
+      this.state.threadType,
+      this.context.mcpToolManager,
+      this.context.availableCapabilities,
+      this.context.getAgents(),
+      this.context.subagentConfig,
+    );
+  }
+
   private createFreshAgent(): Agent {
     // Clean up listeners from old agent if replacing
     if (this.agentListeners && this.agent) {
@@ -436,13 +447,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     const agent = provider.createAgent({
       model: this.context.profile.model,
       systemPrompt: this.state.systemPrompt,
-      tools: getToolSpecs(
-        this.state.threadType,
-        this.context.mcpToolManager,
-        this.context.availableCapabilities,
-        this.context.getAgents(),
-        this.context.subagentConfig,
-      ),
+      tools: this.getToolSpecs(),
       ...((this.context.profile.provider === "anthropic" ||
         this.context.profile.provider === "bedrock" ||
         this.context.profile.provider === "mock") &&

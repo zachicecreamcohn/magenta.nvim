@@ -7,6 +7,8 @@ import {
   type CompletedToolInfo,
   type ContextManager,
   displayPath,
+  formatToolSpecs,
+  type ProviderToolSpec,
   renderThreadToMarkdown,
   type ThreadMode,
   type ToolName,
@@ -188,6 +190,31 @@ const renderSystemPrompt = (
   }
 };
 
+const renderToolDefinitions = (
+  specs: ProviderToolSpec[],
+  showToolDefinitions: boolean,
+  dispatch: Dispatch<Msg>,
+): VDOMNode => {
+  const toggle = () => dispatch({ type: "toggle-tool-definitions" });
+  if (showToolDefinitions) {
+    return withBindings(
+      withExtmark(
+        d`🔧 [Tool Definitions (${specs.length.toString()})]\n${formatToolSpecs(specs)}`,
+        {
+          hl_group: "@comment",
+        },
+      ),
+      { "=": toggle },
+    );
+  }
+  return withBindings(
+    withExtmark(d`🔧 [Tool Definitions (${specs.length.toString()})]`, {
+      hl_group: "@comment",
+    }),
+    { "=": toggle },
+  );
+};
+
 function renderCompactionHistory(
   history: CompactionRecord[],
   viewState: Thread["state"]["compactionViewState"],
@@ -285,6 +312,12 @@ export const view: View<{
     dispatch,
   );
 
+  const toolDefinitionsView = renderToolDefinitions(
+    thread.core.getToolSpecs(),
+    thread.state.showToolDefinitions,
+    dispatch,
+  );
+
   const messages = thread.getProviderMessages();
   const agentStatus = thread.agent.getState().status;
   const mode = thread.core.state.mode;
@@ -301,6 +334,7 @@ export const view: View<{
     return d`\
 ${titleView}
 ${systemPromptView}
+${toolDefinitionsView}
 
 ${LOGO}
 
@@ -494,6 +528,7 @@ ${contentView}`;
   return d`\
 ${titleView}
 ${systemPromptView}
+${toolDefinitionsView}
 ${compactionHistoryView}
 ${messagesView}\
 ${failedSubmitView}\
