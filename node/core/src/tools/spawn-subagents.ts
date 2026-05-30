@@ -49,6 +49,285 @@ export type Input = {
 
 export type ToolRequest = GenericToolRequest<"spawn_subagents", Input>;
 
+export type PartialSubagentEntry = {
+  agentType?: string;
+  environment?: string;
+  directory?: string;
+  dockerfile?: string;
+  workspacePath?: string;
+  prompt?: string;
+  contextFiles?: string[];
+};
+
+export type PartialSpawnSubagentsInput = {
+  sharedPrompt?: string;
+  sharedContextFiles?: string[];
+  agents: PartialSubagentEntry[];
+};
+
+/**
+ * Tolerant recursive-descent parser that turns a partial (possibly truncated)
+ * JSON string for a spawn_subagents input into a best-effort view object.
+ * Never throws on any prefix of a valid input — returns whatever is known so far,
+ * including a trailing partial string token.
+ */
+export function parsePartialSpawnSubagentsInput(
+  inputJson: string,
+): PartialSpawnSubagentsInput {
+  const s = inputJson;
+  const result: PartialSpawnSubagentsInput = { agents: [] };
+  const EOF = Symbol("eof");
+  let pos = 0;
+
+  function skipWs(): void {
+    while (pos < s.length && /\s/.test(s[pos])) pos++;
+    if (pos >= s.length) throw EOF;
+  }
+
+  function parseString(): string {
+    skipWs();
+    if (s[pos] !== '"') throw EOF;
+    pos++; // opening quote
+    let value = "";
+    while (pos < s.length) {
+      const c = s[pos++];
+      if (c === "\\") {
+        if (pos >= s.length) return value; // truncated escape
+        const e = s[pos++];
+        switch (e) {
+          case "n":
+            value += "\n";
+            break;
+          case "t":
+            value += "\t";
+            break;
+          case "r":
+            value += "\r";
+            break;
+          case '"':
+            value += '"';
+            break;
+          case "\\":
+            value += "\\";
+            break;
+          case "/":
+            value += "/";
+            break;
+          case "u": {
+            const hex = s.slice(pos, pos + 4);
+            if (hex.length < 4) return value; // truncated unicode escape
+            value += String.fromCharCode(parseInt(hex, 16));
+            pos += 4;
+            break;
+          }
+          default:
+            value += e;
+        }
+      } else if (c === '"') {
+        return value; // closed
+      } else {
+        value += c;
+      }
+    }
+    return value; // truncated, no closing quote
+  }
+
+  function parseStringArray(target: string[]): void {
+    skipWs();
+    if (s[pos] !== "[") throw EOF;
+    pos++;
+    for (;;) {
+      skipWs();
+      if (s[pos] === "]") {
+        pos++;
+        return;
+      }
+      if (s[pos] === ",") {
+        pos++;
+        continue;
+      }
+      if (s[pos] === '"') {
+        target.push(parseString());
+      } else {
+        throw EOF;
+      }
+    }
+  }
+
+  function skipValue(): void {
+    skipWs();
+    const c = s[pos];
+    if (c === '"') {
+      parseString();
+      return;
+    }
+    if (c === "[") {
+      skipArray();
+      return;
+    }
+    if (c === "{") {
+      skipObject();
+      return;
+    }
+    while (pos < s.length && !",]}".includes(s[pos]) && !/\s/.test(s[pos])) {
+      pos++;
+    }
+    if (pos >= s.length) throw EOF;
+  }
+
+  function skipArray(): void {
+    pos++; // [
+    for (;;) {
+      skipWs();
+      if (s[pos] === "]") {
+        pos++;
+        return;
+      }
+      if (s[pos] === ",") {
+        pos++;
+        continue;
+      }
+      skipValue();
+    }
+  }
+
+  function skipObject(): void {
+    pos++; // {
+    for (;;) {
+      skipWs();
+      if (s[pos] === "}") {
+        pos++;
+        return;
+      }
+      if (s[pos] === ",") {
+        pos++;
+        continue;
+      }
+      if (s[pos] !== '"') throw EOF;
+      parseString(); // key
+      skipWs();
+      if (s[pos] === ":") pos++;
+      skipValue();
+    }
+  }
+
+  function parseAgentEntry(entry: PartialSubagentEntry): void {
+    pos++; // {
+    for (;;) {
+      skipWs();
+      if (s[pos] === "}") {
+        pos++;
+        return;
+      }
+      if (s[pos] === ",") {
+        pos++;
+        continue;
+      }
+      if (s[pos] !== '"') throw EOF;
+      const key = parseString();
+      skipWs();
+      if (s[pos] === ":") pos++;
+      switch (key) {
+        case "prompt":
+          entry.prompt = parseString();
+          break;
+        case "agentType":
+          entry.agentType = parseString();
+          break;
+        case "environment":
+          entry.environment = parseString();
+          break;
+        case "directory":
+          entry.directory = parseString();
+          break;
+        case "dockerfile":
+          entry.dockerfile = parseString();
+          break;
+        case "workspacePath":
+          entry.workspacePath = parseString();
+          break;
+        case "contextFiles": {
+          const arr: string[] = [];
+          entry.contextFiles = arr; // attach before filling
+          parseStringArray(arr);
+          break;
+        }
+        default:
+          skipValue();
+      }
+    }
+  }
+
+  function parseAgents(target: PartialSubagentEntry[]): void {
+    skipWs();
+    if (s[pos] !== "[") throw EOF;
+    pos++;
+    for (;;) {
+      skipWs();
+      if (s[pos] === "]") {
+        pos++;
+        return;
+      }
+      if (s[pos] === ",") {
+        pos++;
+        continue;
+      }
+      if (s[pos] === "{") {
+        const entry: PartialSubagentEntry = {};
+        target.push(entry); // attach before filling
+        parseAgentEntry(entry);
+      } else {
+        throw EOF;
+      }
+    }
+  }
+
+  function parseTopLevel(): void {
+    skipWs();
+    if (s[pos] !== "{") return;
+    pos++;
+    for (;;) {
+      skipWs();
+      if (s[pos] === "}") {
+        pos++;
+        return;
+      }
+      if (s[pos] === ",") {
+        pos++;
+        continue;
+      }
+      if (s[pos] !== '"') throw EOF;
+      const key = parseString();
+      skipWs();
+      if (s[pos] === ":") pos++;
+      switch (key) {
+        case "sharedPrompt":
+          result.sharedPrompt = parseString();
+          break;
+        case "sharedContextFiles": {
+          const arr: string[] = [];
+          result.sharedContextFiles = arr; // attach before filling
+          parseStringArray(arr);
+          break;
+        }
+        case "agents":
+          parseAgents(result.agents);
+          break;
+        default:
+          skipValue();
+      }
+    }
+  }
+
+  try {
+    parseTopLevel();
+  } catch (e) {
+    if (e !== EOF) throw e;
+  }
+
+  return result;
+}
+
 export type SubagentElementProgress =
   | { status: "pending" }
   | { status: "provisioning"; message: string }

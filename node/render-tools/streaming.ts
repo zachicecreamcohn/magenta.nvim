@@ -2,10 +2,12 @@ import {
   type AgentStreamingBlock,
   assertUnreachable,
   extractPartialJsonStringValue,
+  SpawnSubagents,
   type StaticToolName,
   splitScriptByFile,
 } from "@magenta/core";
 import { d, type VDOMNode, withCode } from "../tea/view.ts";
+import { renderSpawnLayout } from "./spawn-subagents.ts";
 
 export function renderStreamdedTool(
   streamingBlock: Extract<AgentStreamingBlock, { type: "tool_use" }>,
@@ -21,10 +23,15 @@ export function renderStreamdedTool(
     case "find_references":
     case "bash_command":
     case "thread_title":
-    case "spawn_subagents":
     case "yield_to_parent":
     case "docs":
       break;
+    case "spawn_subagents": {
+      const input = SpawnSubagents.parsePartialSpawnSubagentsInput(
+        streamingBlock.inputJson,
+      );
+      return d`🤖 spawn_subagents:\n${renderSpawnLayout(input)}`;
+    }
     case "edl": {
       const script = extractPartialJsonStringValue(
         streamingBlock.inputJson,

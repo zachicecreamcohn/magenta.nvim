@@ -20,6 +20,7 @@ export class MockStream {
   private _abortController = new AbortController();
   private _pushedEventCount = 0;
   private _processedEventCount = 0;
+  private _partialToolIndex?: number;
 
   constructor(public params: Anthropic.Messages.MessageStreamParams) {
     const readable = new ReadableStream<Uint8Array>({
@@ -183,6 +184,57 @@ export class MockStream {
       delta: { type: "input_json_delta", partial_json: JSON.stringify(input) },
     });
     this.pushEvent({ type: "content_block_stop", index });
+  }
+
+  /** Start a tool_use block and stream the given partial JSON chunks WITHOUT
+   *  emitting content_block_stop, leaving the block as the live streaming block.
+   *  Use to test streaming-input previews. Follow up with
+   *  `continueToolUsePartial` to append more chunks to the same block. */
+  streamToolUsePartial(
+    id: ToolRequestId,
+    name: ToolName,
+    chunks: string[],
+  ): void {
+    this.ensureMessageStart();
+    const index = this.blockCounter++;
+    this._partialToolIndex = index;
+
+    this.pushEvent({
+      type: "content_block_start",
+      index,
+      content_block: {
+        type: "tool_use",
+        id,
+        name,
+        input: {},
+        caller: { type: "direct" as const },
+      },
+    });
+    for (const chunk of chunks) {
+      this.pushEvent({
+        type: "content_block_delta",
+        index,
+        delta: { type: "input_json_delta", partial_json: chunk },
+      });
+    }
+  }
+
+  /** Append more partial JSON chunks to the block started by
+   *  `streamToolUsePartial`, without closing it. */
+  continueToolUsePartial(chunks: string[]): void {
+    const index = this._partialToolIndex;
+    if (index === undefined) {
+      throw new Error(
+        "continueToolUsePartial called before streamToolUsePartial",
+      );
+    }
+    for (const chunk of chunks) {
+      this.pushEvent({
+        type: "content_block_delta",
+        index,
+        delta: { type: "input_json_delta", partial_json: chunk },
+      });
+    }
   }
 
   streamThinking(thinking: string, signature: string = ""): void {

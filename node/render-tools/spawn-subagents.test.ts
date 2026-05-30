@@ -1,7 +1,10 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { ToolName, ToolRequestId } from "@magenta/core";
 import { describe, expect, it } from "vitest";
 import { LOGO } from "../chat/thread-view.ts";
+import { getAllWindows } from "../nvim/nvim.ts";
 import { withDriver } from "../test/preamble.ts";
 import { pollUntil } from "../utils/async.ts";
 
@@ -25,6 +28,139 @@ function hasUserMessageWithText(
 }
 
 describe("node/render-tools/spawn-subagents.test.ts", () => {
+  it("renders a structured preview while spawn_subagents input streams in", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+
+      await driver.inputMagentaText("Please stream a spawn preview.");
+      await driver.send();
+
+      const stream = await driver.mockAnthropic.awaitPendingStreamWithText(
+        "Please stream a spawn preview.",
+      );
+
+      const fullInput = JSON.stringify({
+        sharedPrompt: "do the shared thing for every agent",
+        sharedContextFiles: ["shared/context.ts"],
+        agents: [
+          {
+            agentType: "subagent",
+            prompt: "the first agent task prompt",
+            contextFiles: ["agent/one.ts"],
+          },
+        ],
+      });
+
+      const mid = Math.floor(fullInput.length / 2);
+
+      stream.streamToolUsePartial(
+        "stream-preview" as ToolRequestId,
+        "spawn_subagents" as ToolName,
+        [fullInput.slice(0, mid)],
+      );
+      await stream.settle();
+
+      await driver.assertDisplayBufferContains("🤖 spawn_subagents:");
+      await driver.assertDisplayBufferContains("sharedPrompt:");
+
+      stream.continueToolUsePartial([fullInput.slice(mid)]);
+      await stream.settle();
+
+      await driver.assertDisplayBufferContains("agents:");
+      await driver.assertDisplayBufferContains("the first agent task prompt");
+      await driver.assertDisplayBufferContains("contextFiles:");
+      await driver.assertDisplayBufferContains("agent/one.ts");
+
+      stream.abort();
+    });
+  });
+
+  it("<CR> on a context-file row opens that file", async () => {
+    await withDriver(
+      {
+        setupFiles: async (tmpDir) => {
+          await fs.writeFile(
+            path.join(tmpDir, "ctx.txt"),
+            "context file contents\n",
+          );
+        },
+      },
+      async (driver, dirs) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText("Spawn an agent with a context file.");
+        await driver.send();
+
+        const ctxPath = path.join(dirs.tmpDir, "ctx.txt");
+
+        const request1 = await driver.mockAnthropic.awaitPendingStreamWithText(
+          "Spawn an agent with a context file.",
+        );
+        request1.respond({
+          stopReason: "tool_use",
+          text: "I'll spawn a sub-agent.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "spawn-ctx-file" as ToolRequestId,
+                toolName: "spawn_subagents" as ToolName,
+                input: {
+                  agents: [
+                    {
+                      prompt: "Use the context file and yield.",
+                      contextFiles: [ctxPath],
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        });
+
+        const childStream =
+          await driver.mockAnthropic.awaitPendingStreamWithText(
+            "Use the context file and yield.",
+          );
+        childStream.respond({
+          stopReason: "tool_use",
+          text: "Done.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "yield-ctx" as ToolRequestId,
+                toolName: "yield_to_parent" as ToolName,
+                input: { result: "used the context file" },
+              },
+            },
+          ],
+        });
+
+        await driver.assertDisplayBufferContains("✅ 1 agent");
+        await driver.assertDisplayBufferContains("contextFiles:");
+        await driver.triggerDisplayBufferKeyOnContent(ctxPath, "<CR>");
+
+        const targetBufferName = await pollUntil(
+          async () => {
+            const windows = await getAllWindows(driver.nvim);
+            for (const w of windows) {
+              const isMagenta = await w.getVar("magenta");
+              if (isMagenta) continue;
+              const buf = await w.buffer();
+              const name = await buf.getName();
+              if (/ctx\.txt$/.test(name)) {
+                return name;
+              }
+            }
+            throw new Error("ctx.txt not yet opened in non-magenta window");
+          },
+          { timeout: 2000 },
+        );
+        expect(targetBufferName).toMatch(/ctx\.txt$/);
+      },
+    );
+  });
+
   it("spawns subagent, runs command, yields result to parent", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
@@ -176,9 +312,11 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
         ],
       });
 
-      // Verify the first agent shows as completed
+      // Verify the first agent shows as completed (✅) while the second is
+      // still in progress (⏳)
+      await driver.assertDisplayBufferContains("- ✅");
       await driver.assertDisplayBufferContains(
-        "✅ Echo 'Hello from subagent 1'",
+        "Echo 'Hello from subagent 1' and yield the result.",
       );
 
       // Second subagent yields successfully
@@ -348,19 +486,19 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
       // Verify hierarchical display - subtrees are collapsed by default
       await driver.assertDisplayBufferContains("# Threads");
       await driver.assertDisplayBufferContains(
-        `- ▶ This is the parent thread: ⏳ executing tools (1 subthreads)`,
+        `- 🔔 ▶ This is the parent thread: ⏳ executing tools (1 subthreads)`,
       );
       await driver.assertDisplayBufferContains(
-        `* ▶ This is another parent thread: ⏳ executing tools (1 subthreads)`,
+        `* 🔔 ▶ This is another parent thread: ⏳ executing tools (1 subthreads)`,
       );
 
       // Expand the first root thread to see children
       await driver.triggerDisplayBufferKeyOnContent(
-        `- ▶ This is the parent thread: ⏳ executing tools (1 subthreads)`,
+        `- 🔔 ▶ This is the parent thread: ⏳ executing tools (1 subthreads)`,
         "=",
       );
       await driver.assertDisplayBufferContains(
-        `- ▼ This is the parent thread: ⏳ executing tools (1 subthreads)`,
+        `- 🔔 ▼ This is the parent thread: ⏳ executing tools (1 subthreads)`,
       );
       await driver.assertDisplayBufferContains(
         `  - This is a child thread task: ⏳ streaming response`,
@@ -466,22 +604,22 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
 
       // Verify hierarchy shows collapsed root threads with expand indicators
       await driver.assertDisplayBufferContains(
-        `- ▶ Parent with yielding child: ⏳ streaming response (1 subthreads)`,
+        `- 🔔 ▶ Parent with yielding child: ⏳ streaming response (1 subthreads)`,
       );
       await driver.assertDisplayBufferContains(
-        `* ▶ Parent with stopping child: ⏳ executing tools (1 subthreads)`,
+        `* 🔔 ▶ Parent with stopping child: ⏳ executing tools (1 subthreads)`,
       );
 
       // Expand a root to see child states
       await driver.triggerDisplayBufferKeyOnContent(
-        `* ▶ Parent with stopping child: ⏳ executing tools (1 subthreads)`,
+        `* 🔔 ▶ Parent with stopping child: ⏳ executing tools (1 subthreads)`,
         "=",
       );
       await driver.assertDisplayBufferContains(
-        `* ▼ Parent with stopping child: ⏳ executing tools (1 subthreads)`,
+        `* 🔔 ▼ Parent with stopping child: ⏳ executing tools (1 subthreads)`,
       );
       await driver.assertDisplayBufferContains(
-        `  - Just stop without yielding: ⏹️ stopped (end_turn)`,
+        `  - 🔔 Just stop without yielding: ⏹️ stopped (end_turn)`,
       );
     });
   });
@@ -522,7 +660,7 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
 
       // Expand the root thread to see children
       await driver.triggerDisplayBufferKeyOnContent(
-        `* ▶ Parent thread message: ⏳ executing tools (1 subthreads)`,
+        `* 🔔 ▶ Parent thread message: ⏳ executing tools (1 subthreads)`,
         "=",
       );
 
@@ -541,7 +679,7 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
 
       await driver.magenta.command("threads-overview");
       await driver.triggerDisplayBufferKeyOnContent(
-        `- ▼ Parent thread message: ⏳ executing tools (1 subthreads)`,
+        `- 🔔 ▼ Parent thread message: ⏳ executing tools (1 subthreads)`,
         "<CR>",
       );
 
@@ -598,7 +736,7 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
 
       // Verify different status displays
       await driver.assertDisplayBufferContains(
-        `- Test message: ⏹️ stopped (end_turn)`,
+        `- 🔔 Test message: ⏹️ stopped (end_turn)`,
       );
     });
   });
@@ -727,7 +865,10 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
       const thread2 = driver.getThreadId(1);
 
       // Click on the result row to navigate to the subagent thread
-      await driver.triggerDisplayBufferKeyOnContent("✅ Child thread", "<CR>");
+      await driver.triggerDisplayBufferKeyOnContent(
+        "Child thread for navigation test",
+        "<CR>",
+      );
 
       // Verify we navigated to the subagent thread
       await pollUntil(
@@ -831,7 +972,7 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
                 agents: [
                   {
                     prompt:
-                      "This is a long prompt that should appear when expanded but not in the truncated progress row.",
+                      "HEADMARKEREXPAND this prompt is intentionally long enough that the beginning is trimmed from the tail preview shown in the collapsed progress row.",
                   },
                 ],
               },
@@ -844,24 +985,21 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
       await driver.awaitThreadCount(2);
       await driver.assertDisplayBufferContains("⏳");
 
-      // The full prompt should NOT be visible yet (it's truncated)
-      await driver.assertDisplayBufferDoesNotContain(
-        "should appear when expanded",
-      );
+      // The head of the prompt should NOT be visible yet (only the tail
+      // preview shows, which trims the beginning)
+      await driver.assertDisplayBufferDoesNotContain("HEADMARKEREXPAND");
 
       // Press = on the progress row to expand it
       await driver.triggerDisplayBufferKeyOnContent("⏳", "=");
 
-      // Now the full prompt should be visible
-      await driver.assertDisplayBufferContains("should appear when expanded");
+      // Now the full prompt (including its head) should be visible
+      await driver.assertDisplayBufferContains("HEADMARKEREXPAND");
 
       // Press = again to collapse
       await driver.triggerDisplayBufferKeyOnContent("⏳", "=");
 
-      // The full prompt should be hidden again
-      await driver.assertDisplayBufferDoesNotContain(
-        "should appear when expanded",
-      );
+      // The head should be hidden again
+      await driver.assertDisplayBufferDoesNotContain("HEADMARKEREXPAND");
     });
   });
 
@@ -931,7 +1069,10 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
       );
 
       // Press = on the result row to expand
-      await driver.triggerDisplayBufferKeyOnContent("✅ This is the full", "=");
+      await driver.triggerDisplayBufferKeyOnContent(
+        "This is the full prompt text that should show",
+        "=",
+      );
 
       // Now both prompt and response should be visible
       await driver.assertDisplayBufferContains("**Prompt:**");
@@ -944,7 +1085,10 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
       );
 
       // Press = again to collapse
-      await driver.triggerDisplayBufferKeyOnContent("✅ This is the full", "=");
+      await driver.triggerDisplayBufferKeyOnContent(
+        "This is the full prompt text that should show",
+        "=",
+      );
 
       // Prompt and response should be hidden
       await driver.assertDisplayBufferDoesNotContain("**Prompt:**");

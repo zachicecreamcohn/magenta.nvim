@@ -5,6 +5,7 @@ import type {
   ThreadId,
   ToolRequestId,
   ToolRequest as UnionToolRequest,
+  UnresolvedFilePath,
 } from "@magenta/core";
 import { renderPendingApprovals } from "../capabilities/render-pending-approvals.ts";
 import type { Chat } from "../chat/chat.ts";
@@ -17,25 +18,116 @@ import { formatTokens } from "../utils/tokens.ts";
 
 type Input = SpawnSubagents.Input;
 type SubagentEntry = SpawnSubagents.SubagentEntry;
+type PartialInput = SpawnSubagents.PartialSpawnSubagentsInput;
+type PartialEntry = SpawnSubagents.PartialSubagentEntry;
 
-function truncate(text: string, maxLen: number = 50): string {
-  const singleLine = text.replace(/\n/g, " ");
-  return singleLine.length > maxLen
-    ? `${singleLine.substring(0, maxLen)}...`
-    : singleLine;
+const PROMPT_TAIL_MAX = 100;
+
+function promptTail(text: string): string {
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  const tail =
+    collapsed.length > PROMPT_TAIL_MAX
+      ? `…${collapsed.slice(collapsed.length - PROMPT_TAIL_MAX)}`
+      : collapsed;
+  return `(${formatTokens(text.length)}) ${tail}`;
 }
 
-function agentTypeLabel(entry: SubagentEntry): string {
-  const t = entry.agentType;
-  if (!t || t === "default") return "";
-  return ` (${t})`;
-}
-
-function isDockerEntry(entry: SubagentEntry): boolean {
+function isDockerEntry(entry: PartialEntry): boolean {
   return (
     entry.environment === "docker" ||
     entry.environment === "docker_unsupervised"
   );
+}
+
+function agentMetaLine(entry: PartialEntry, statusIcon?: string): string {
+  const parts: string[] = [];
+  if (isDockerEntry(entry)) parts.push("🐳");
+  if (statusIcon) parts.push(statusIcon);
+  if (entry.agentType && entry.agentType !== "default")
+    parts.push(entry.agentType);
+  if (entry.environment && entry.environment !== "host")
+    parts.push(`[${entry.environment}]`);
+  if (entry.dockerfile) parts.push(`dockerfile=${entry.dockerfile}`);
+  if (entry.directory) parts.push(`dir=${entry.directory}`);
+  if (entry.workspacePath) parts.push(`ws=${entry.workspacePath}`);
+  if (parts.length === 0) parts.push("agent");
+  return parts.join(" ");
+}
+
+type AgentExtras = {
+  statusIcon?: string | undefined;
+  statusDetail?: string | undefined;
+  pendingApprovals?: VDOMNode | undefined;
+  expandedContent?: VDOMNode | undefined;
+  bindings?: Record<string, () => void> | undefined;
+};
+
+function renderFileRows(
+  files: string[],
+  indent: string,
+  fileBinding?: (path: string) => Record<string, () => void>,
+): VDOMNode {
+  return d`${files.map((path) => {
+    const row = d`${indent}- ${path}\n`;
+    return fileBinding ? withBindings(row, fileBinding(path)) : row;
+  })}`;
+}
+
+function renderAgentBlock(
+  entry: PartialEntry,
+  extras: AgentExtras | undefined,
+  fileBinding?: (path: string) => Record<string, () => void>,
+): VDOMNode {
+  const metaLine = agentMetaLine(entry, extras?.statusIcon);
+  const detail = extras?.statusDetail ? ` : ${extras.statusDetail}` : "";
+  const blockParts: VDOMNode[] = [d`  - ${metaLine}${detail}\n`];
+
+  if (entry.prompt) {
+    blockParts.push(d`    prompt: ${promptTail(entry.prompt)}\n`);
+  }
+  if (entry.contextFiles && entry.contextFiles.length > 0) {
+    blockParts.push(d`    contextFiles:\n`);
+    blockParts.push(renderFileRows(entry.contextFiles, "      ", fileBinding));
+  }
+  if (extras?.pendingApprovals) {
+    blockParts.push(d`${extras.pendingApprovals}\n`);
+  }
+  if (extras?.expandedContent) {
+    blockParts.push(d`${extras.expandedContent}\n`);
+  }
+
+  const block = d`${blockParts}`;
+  return extras?.bindings ? withBindings(block, extras.bindings) : block;
+}
+
+export function renderSpawnLayout(
+  input: PartialInput,
+  opts?: {
+    agentExtras?: (idx: number) => AgentExtras;
+    fileBinding?: (path: string) => Record<string, () => void>;
+  },
+): VDOMNode {
+  const parts: VDOMNode[] = [];
+
+  if (input.sharedPrompt) {
+    parts.push(d`sharedPrompt: ${promptTail(input.sharedPrompt)}\n`);
+  }
+  if (input.sharedContextFiles && input.sharedContextFiles.length > 0) {
+    parts.push(d`sharedContextFiles:\n`);
+    parts.push(
+      renderFileRows(input.sharedContextFiles, "  ", opts?.fileBinding),
+    );
+  }
+  if (input.agents.length > 0) {
+    parts.push(d`agents:\n`);
+    input.agents.forEach((entry, idx) => {
+      parts.push(
+        renderAgentBlock(entry, opts?.agentExtras?.(idx), opts?.fileBinding),
+      );
+    });
+  }
+
+  return d`${parts}`;
 }
 
 type AgentRowRenderInfo = {
@@ -129,18 +221,6 @@ function resolveAgentRowFromResult(
   return { entry, statusIcon, statusDetail, threadId: agent.threadId };
 }
 
-function renderAgentRowContent(info: AgentRowRenderInfo): VDOMNode {
-  const label = truncate(info.entry.prompt ?? "");
-  const typeLabel = agentTypeLabel(info.entry);
-  const detail = info.statusDetail ? `: ${info.statusDetail}` : "";
-  const dockerPrefix = isDockerEntry(info.entry) ? "🐳 " : "";
-  const content = d`${dockerPrefix}${info.statusIcon}${typeLabel} ${label}${detail}`;
-
-  return info.pendingApprovals
-    ? d`${content}\n${info.pendingApprovals}`
-    : content;
-}
-
 function threadBindings(
   info: AgentRowRenderInfo,
   dispatch: Dispatch<RootMsg>,
@@ -165,16 +245,31 @@ export function renderSummary(
   return d`🤖 spawn_subagents: ${count.toString()} agent${count === 1 ? "" : "s"}`;
 }
 
+function fileBindingFactory(
+  threadDispatch: Dispatch<ThreadMsg>,
+): (path: string) => Record<string, () => void> {
+  return (path: string) => ({
+    "<CR>": () =>
+      threadDispatch({
+        type: "open-edit-file",
+        filePath: path as UnresolvedFilePath,
+      }),
+  });
+}
+
 export function renderInput(
   _request: UnionToolRequest,
   _displayContext: DisplayContext,
   _expanded: boolean,
 ): VDOMNode | undefined {
+  // The structured layout is rendered by renderProgress (in-flight) and
+  // renderResult (completed); the streaming phase is covered by
+  // renderStreamdedTool. Returning undefined avoids duplicating it here.
   return undefined;
 }
 
 export function renderProgress(
-  _request: UnionToolRequest,
+  request: UnionToolRequest,
   progress: SpawnSubagents.SpawnSubagentsProgress | undefined,
   context: {
     dispatch: Dispatch<RootMsg>;
@@ -189,28 +284,38 @@ export function renderProgress(
     return undefined;
   }
 
-  const rows = progress.elements.map((element, idx) => {
-    const info = resolveAgentRowFromProgress(element, context.chat);
-    const row = renderAgentRowContent(info);
-    const agentKey = String(idx);
-    const itemExpanded =
-      toolViewState.progressItemExpanded?.[agentKey] || false;
+  const input = request.input as Input;
+  const fileBinding = fileBindingFactory(context.threadDispatch);
 
-    const expandedContent =
-      itemExpanded && info.entry.prompt ? d`${row}\n${info.entry.prompt}` : row;
+  return renderSpawnLayout(input, {
+    fileBinding,
+    agentExtras: (idx) => {
+      const element = progress.elements[idx];
+      const info = resolveAgentRowFromProgress(element, context.chat);
+      const agentKey = String(idx);
+      const itemExpanded =
+        toolViewState.progressItemExpanded?.[agentKey] || false;
+      const entry = input.agents[idx];
+      const expandedContent =
+        itemExpanded && entry?.prompt ? d`${entry.prompt}` : undefined;
 
-    return withBindings(d`${expandedContent}\n`, {
-      ...threadBindings(info, context.dispatch),
-      "=": () =>
-        context.threadDispatch({
-          type: "toggle-tool-progress-item",
-          toolRequestId,
-          itemKey: agentKey,
-        }),
-    });
+      return {
+        statusIcon: info.statusIcon,
+        statusDetail: info.statusDetail,
+        pendingApprovals: info.pendingApprovals,
+        expandedContent,
+        bindings: {
+          ...threadBindings(info, context.dispatch),
+          "=": () =>
+            context.threadDispatch({
+              type: "toggle-tool-progress-item",
+              toolRequestId,
+              itemKey: agentKey,
+            }),
+        },
+      };
+    },
   });
-
-  return d`${rows}`;
 }
 
 export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
@@ -252,36 +357,47 @@ export function renderResult(
   if (info.structuredResult.toolName !== "spawn_subagents") return undefined;
   const sr = info.structuredResult as SpawnSubagents.StructuredResult;
 
-  const rows = sr.agents.map((agent, idx) => {
-    const entry = input.agents[idx] ?? { prompt: agent.prompt };
-    const agentKey = String(idx);
-    const itemExpanded = toolViewState.resultItemExpanded?.[agentKey] || false;
-    const rowInfo = resolveAgentRowFromResult(agent, entry, context.chat);
-    const row = renderAgentRowContent(rowInfo);
+  const fileBinding = fileBindingFactory(context.threadDispatch);
 
-    let expandedContent: VDOMNode = row;
-    if (itemExpanded) {
-      const promptText = entry.prompt ?? agent.prompt;
-      const responseText = agent.responseBody;
-      if (promptText && responseText) {
-        expandedContent = d`${row}\n**Prompt:**\n${promptText}\n\n**Response:**\n${responseText}`;
-      } else if (promptText) {
-        expandedContent = d`${row}\n**Prompt:**\n${promptText}`;
-      } else if (responseText) {
-        expandedContent = d`${row}\n${responseText}`;
+  return renderSpawnLayout(input, {
+    fileBinding,
+    agentExtras: (idx) => {
+      const agent = sr.agents[idx];
+      if (!agent) return {};
+      const entry = input.agents[idx] ?? { prompt: agent.prompt };
+      const agentKey = String(idx);
+      const itemExpanded =
+        toolViewState.resultItemExpanded?.[agentKey] || false;
+      const rowInfo = resolveAgentRowFromResult(agent, entry, context.chat);
+
+      let expandedContent: VDOMNode | undefined;
+      if (itemExpanded) {
+        const promptText = entry.prompt ?? agent.prompt;
+        const responseText = agent.responseBody;
+        if (promptText && responseText) {
+          expandedContent = d`**Prompt:**\n${promptText}\n\n**Response:**\n${responseText}`;
+        } else if (promptText) {
+          expandedContent = d`**Prompt:**\n${promptText}`;
+        } else if (responseText) {
+          expandedContent = d`${responseText}`;
+        }
       }
-    }
 
-    return withBindings(d`${expandedContent}\n`, {
-      ...threadBindings(rowInfo, context.dispatch),
-      "=": () =>
-        context.threadDispatch({
-          type: "toggle-tool-result-item",
-          toolRequestId,
-          itemKey: agentKey,
-        }),
-    });
+      return {
+        statusIcon: rowInfo.statusIcon,
+        statusDetail: rowInfo.statusDetail,
+        pendingApprovals: rowInfo.pendingApprovals,
+        expandedContent,
+        bindings: {
+          ...threadBindings(rowInfo, context.dispatch),
+          "=": () =>
+            context.threadDispatch({
+              type: "toggle-tool-result-item",
+              toolRequestId,
+              itemKey: agentKey,
+            }),
+        },
+      };
+    },
   });
-
-  return d`${rows}`;
 }
