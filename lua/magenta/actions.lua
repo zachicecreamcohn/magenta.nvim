@@ -126,6 +126,23 @@ M.pick_profile = function()
 end
 
 M.add_buffer_to_context = function()
+  if vim.bo.filetype == "oil" then
+    local ok, oil = pcall(require, "oil")
+    if ok then
+      local entry = oil.get_cursor_entry()
+      local dir = oil.get_current_dir()
+      if entry and dir then
+        if entry.type ~= "file" then
+          vim.notify("Magenta: entry under cursor is not a file", vim.log.levels.WARN)
+          return
+        end
+        local path = dir .. entry.name
+        vim.cmd("Magenta context-files " .. vim.fn.shellescape(path))
+        return
+      end
+    end
+  end
+
   local current_file = vim.fn.expand("%:p")
   vim.cmd("Magenta context-files " .. vim.fn.shellescape(current_file))
 end
