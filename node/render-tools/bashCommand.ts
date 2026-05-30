@@ -153,10 +153,10 @@ function renderResultPreview(
     info.structuredResult.toolName === "bash_command"
       ? (() => {
           const sr = info.structuredResult as BashCommand.StructuredResult;
-          return sr.logFilePath && sr.logFileLineCount !== undefined
+          return sr.logFilePath && sr.logFileCharCount !== undefined
             ? renderLogFileLinkDirect(
                 sr.logFilePath,
-                sr.logFileLineCount,
+                sr.logFileCharCount,
                 context,
               )
             : d``;
@@ -206,10 +206,10 @@ function renderResultDetail(
     info.structuredResult.toolName === "bash_command"
       ? (() => {
           const sr = info.structuredResult as BashCommand.StructuredResult;
-          return sr.logFilePath && sr.logFileLineCount !== undefined
+          return sr.logFilePath && sr.logFileCharCount !== undefined
             ? renderLogFileLinkDirect(
                 sr.logFilePath,
-                sr.logFileLineCount,
+                sr.logFileCharCount,
                 context,
               )
             : d``;

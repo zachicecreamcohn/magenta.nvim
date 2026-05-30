@@ -94,6 +94,7 @@ export type StructuredResult = {
   signal: string | undefined;
   logFilePath: string | undefined;
   logFileLineCount: number | undefined;
+  logFileCharCount: number | undefined;
   outputText: string;
   wasAbbreviated: boolean;
 };
@@ -332,6 +333,12 @@ export function execute(
             logFilePath: result.logFilePath,
             logFileLineCount: result.logFilePath
               ? result.output.length
+              : undefined,
+            logFileCharCount: result.logFilePath
+              ? result.output.reduce(
+                  (acc, line) => acc + line.text.length + 1,
+                  0,
+                )
               : undefined,
             outputText: formattedOutput.replace(
               /\n?Full output \(\d+ lines\): .+$/m,
