@@ -359,7 +359,7 @@ export class Magenta {
         );
         if (activeMountedApp) {
           (async () => {
-            await activeMountedApp.waitForRender();
+            await activeMountedApp.waitForNextRender();
             await this.sidebar.scrollToLastUserMessage();
           })().catch((error: Error) =>
             this.nvim.logger.error(

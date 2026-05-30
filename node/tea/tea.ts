@@ -39,6 +39,7 @@ export type MountedApp = {
   unmount(): void;
   getMountedNode(): MountedVDOM;
   waitForRender(): Promise<void>;
+  waitForNextRender(): Promise<void>;
   renderVersion: number;
 };
 
@@ -206,6 +207,13 @@ export function createApp<Model>({
         async waitForRender() {
           if (renderDefer) {
             await renderDefer.promise;
+          }
+        },
+
+        async waitForNextRender() {
+          const startVersion = renderVersion;
+          while (renderVersion === startVersion && renderPromise) {
+            await renderPromise;
           }
         },
 
