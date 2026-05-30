@@ -101,6 +101,10 @@ describe("node/chat/chat.test.ts", () => {
         stopReason: "tool_use",
       });
 
+      // Ensure thread 2's turn has been fully processed before navigating away,
+      // so it isn't flagged with an unviewed-activity bell.
+      await driver.assertDisplayBufferContains("Response to second thread");
+
       await driver.magenta.command("threads-overview");
 
       await driver.assertDisplayBufferContains("# Threads");
@@ -119,6 +123,50 @@ describe("node/chat/chat.test.ts", () => {
         state: "thread-selected",
         id: thread1,
       });
+    });
+  });
+
+  it("does not show a bell on the thread you were just viewing", async () => {
+    await withDriver({}, async (driver) => {
+      await driver.showSidebar();
+
+      // Send a message in the active thread and let a turn complete, which
+      // updates the thread's lastActivityTime.
+      await driver.inputMagentaText("Message in viewed thread");
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStreamWithText(
+        "Message in viewed thread",
+      );
+      request.respond({
+        stopReason: "end_turn",
+        text: "Response in viewed thread",
+        toolRequests: [],
+      });
+
+      await driver.mockAnthropic.respondToForceToolUse({
+        toolRequest: {
+          status: "ok",
+          value: {
+            id: "title-bell" as ToolRequestId,
+            toolName: "thread_title" as ToolName,
+            input: { title: "Viewed Thread" },
+          },
+        },
+        stopReason: "tool_use",
+      });
+
+      // Ensure the turn (and its lastActivityTime update) has been processed
+      // while we're still viewing the thread.
+      await driver.assertDisplayBufferContains("Response in viewed thread");
+
+      // Navigate away to the overview. Because we were viewing this thread the
+      // whole time, it should not show an unviewed-activity bell.
+      await driver.magenta.command("threads-overview");
+      await driver.awaitChatState({ state: "thread-overview" });
+
+      await driver.assertDisplayBufferContains("Viewed Thread:");
+      await driver.assertDisplayBufferDoesNotContain("🔔");
     });
   });
 

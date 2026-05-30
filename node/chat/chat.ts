@@ -192,6 +192,18 @@ export class Chat implements ThreadManager {
     }
   }
 
+  /** Record that we've stopped viewing the currently-selected thread, so that
+   * any activity from this point on counts as unviewed. */
+  private markActiveThreadViewed() {
+    if (
+      this.state.state === "thread-selected" &&
+      this.state.activeThreadId in this.threadWrappers
+    ) {
+      this.threadWrappers[this.state.activeThreadId].lastViewedTime =
+        Date.now();
+    }
+  }
+
   private myUpdate(msg: Msg) {
     switch (msg.type) {
       case "thread-initialized": {
@@ -236,6 +248,7 @@ export class Chat implements ThreadManager {
 
       case "set-active-thread":
         if (msg.id in this.threadWrappers) {
+          this.markActiveThreadViewed();
           this.threadWrappers[msg.id].lastViewedTime = Date.now();
           this.state = {
             state: "thread-selected",
@@ -245,6 +258,7 @@ export class Chat implements ThreadManager {
         return;
 
       case "threads-navigate-up":
+        this.markActiveThreadViewed();
         // If we're viewing a thread and it has a parent, navigate to parent
         if (
           this.state.state === "thread-selected" &&
@@ -280,6 +294,7 @@ export class Chat implements ThreadManager {
         return;
 
       case "threads-overview":
+        this.markActiveThreadViewed();
         // Force navigation to thread overview regardless of current state
         this.state = {
           state: "thread-overview",
