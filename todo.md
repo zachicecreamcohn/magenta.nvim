@@ -37,10 +37,6 @@
 
 - when we abort during a "sandbox blocked" message, it stays up even as the conversation continues
   - this has broken a few times already, make sure we have a good test for it
-- thread overview and other thread buffers not showing up in the buffer list
-- revisit the buffer handling. Keep getting stuck in buffer not matching the file state
-  - try to write buffer before agent reads, but read from the disk with warning even if it doesn't work
-  - try to read buffer after agent writes, but let the agent write to the file and surface a warning even if it doesn't work
 - when we error upon a user message send, we should pop the user message off the agent's history, otherwise we end up sending it twice
 - overloaded handling / exponential backoff not working correctly
 - when we terminate/error, the reset for the message places it in the wrong buffer (currently open one, not the one corresponding to the thread that the error happened in)
