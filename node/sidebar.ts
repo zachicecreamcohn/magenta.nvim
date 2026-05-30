@@ -303,6 +303,12 @@ export class Sidebar {
 
   async renderInputHeader() {
     if (this.state.state === "visible") {
+      // The input window may have been closed out from under us (e.g. by `:bd`
+      // on a magenta buffer, which can also close its window). Guard against
+      // touching an invalid window id.
+      if (!(await this.state.inputWindow.valid())) {
+        return;
+      }
       await this.state.inputWindow.setOption(
         "winbar",
         this.getInputWindowTitle(),

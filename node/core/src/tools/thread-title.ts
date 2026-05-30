@@ -80,14 +80,14 @@ export function execute(
 
 export const spec: ProviderToolSpec = {
   name: "thread_title" as ToolName,
-  description: `Set a title for the current conversation thread based on the user's message.`,
+  description: `Set a concise title for the current conversation thread based on the user's message. The title is shown in the buffer name, so keep it to a few words on a single line.`,
   input_schema: {
     type: "object",
     properties: {
       title: {
         type: "string",
         description:
-          "A short, descriptive title for the conversation thread. Should be shorter than 80 characters.",
+          "A short, descriptive title for the conversation thread. Must be a single line (no newlines) and a few words long (ideally around 40 characters or fewer).",
       },
     },
     required: ["title"],

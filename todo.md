@@ -22,10 +22,8 @@
 
 # UX
 
+- stop fixing the sidebar width. Just make it a normal split
 - Animate the dot on "streaming" independent of partial stream results
-- when a thread is titled, we should use that title somehow in the buffer name (instead of just using an opaque id, though still need to make sure it's unique)
-- thread display buffers should be listed
-- deleting a thread display or input buffer (via :bd) should remove that thread from magenta state
 - tmux integration (update tab title with active thread title, thread state)
 - toggling sandbox to off should auto-approve any current dialogues
 
@@ -46,6 +44,8 @@
 - when we error upon a user message send, we should pop the user message off the agent's history, otherwise we end up sending it twice
 - overloaded handling / exponential backoff not working correctly
 - when we terminate/error, the reset for the message places it in the wrong buffer (currently open one, not the one corresponding to the thread that the error happened in)
-
-- this token counting bug:
-  Full output (~5 tok): `/tmp/magenta/threads/019e7a92-f92a-73be-a919-a7e706cfae9c/tools/toolu_01P9m7eaCFDv6btvs4USGMDJ/bashCommand.log`
+- this error:
+  Received content_block_start at index 0 while block 0 is still open
+  Error: Received content_block_start at index 0 while block 0 is still open
+  at file:///Users/denis.lantsman/src/magenta.nvim/dist/magenta.mjs:46267:36
+  at process.processTicksAndRejections (node:internal/process/task_queues:104:5)

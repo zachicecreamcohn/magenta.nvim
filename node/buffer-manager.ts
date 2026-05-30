@@ -10,6 +10,29 @@ import { pos } from "./tea/view.ts";
  */
 export const MAGENTA_INPUT_BUFFER_PREFIX = "Magenta Input";
 
+/** Sanitize a thread title for use in a buffer name: single line, collapsed
+ * whitespace, truncated. */
+function sanitizeTitle(title: string): string {
+  const cleaned = title.replace(/\s+/g, " ").trim();
+  const MAX = 40;
+  return cleaned.length > MAX ? cleaned.slice(0, MAX).trimEnd() : cleaned;
+}
+
+function displayBufferName(
+  title: string | undefined,
+  bufferId: string,
+): string {
+  const sanitized = title ? sanitizeTitle(title) : "";
+  const lead = sanitized || "Thread";
+  return `${lead} [Magenta ${bufferId}]`;
+}
+
+function inputBufferName(title: string | undefined, bufferId: string): string {
+  const sanitized = title ? sanitizeTitle(title) : "";
+  const lead = sanitized || "Thread";
+  return `${lead} [${MAGENTA_INPUT_BUFFER_PREFIX} ${bufferId}]`;
+}
+
 type BufferEntry =
   | {
       state: "registered";
@@ -57,7 +80,7 @@ export class BufferManager {
 
   static async create(nvim: Nvim): Promise<BufferManager> {
     const [buffer, inputBuffer] = await Promise.all([
-      BufferManager.createDisplayBuffer(nvim, "[Magenta Threads]"),
+      BufferManager.createDisplayBuffer(nvim, "[Magenta Threads]", false),
       BufferManager.createReadOnlyInputBuffer(nvim, "[Magenta Overview Input]"),
     ]);
     const overviewEntry: BufferEntry = {
@@ -85,11 +108,12 @@ export class BufferManager {
     const [buffer, inputBuffer] = await Promise.all([
       BufferManager.createDisplayBuffer(
         this.nvim,
-        `[Magenta Thread ${bufferId}]`,
+        displayBufferName(undefined, bufferId),
+        true,
       ),
       BufferManager.createInputBuffer(
         this.nvim,
-        `[${MAGENTA_INPUT_BUFFER_PREFIX} ${bufferId}]`,
+        inputBufferName(undefined, bufferId),
       ),
     ]);
 
@@ -176,6 +200,66 @@ export class BufferManager {
     return { displayBuffer: entry.buffer, inputBuffer: entry.inputBuffer };
   }
 
+  /** Rename a thread's display and input buffers to reflect its title. */
+  async setThreadTitle(threadId: ThreadId, title: string): Promise<void> {
+    const entry = this.threadEntries.get(threadId);
+    if (!entry) return;
+    const bufferId = threadId.replace(/-/g, "");
+    await Promise.all([
+      entry.buffer.setName(displayBufferName(title, bufferId)),
+      entry.inputBuffer.setName(inputBufferName(title, bufferId)),
+    ]);
+  }
+
+  /** Remove a thread's buffers and state. Idempotent: a no-op if already gone.
+   * Deletes both backing NvimBuffers best-effort. */
+  async removeThread(threadId: ThreadId): Promise<void> {
+    const entry = this.threadEntries.get(threadId);
+    if (!entry) return;
+    this.threadEntries.delete(threadId);
+    this.bufNrToInfo.delete(entry.buffer.id);
+    this.bufNrToInfo.delete(entry.inputBuffer.id);
+    await Promise.all(
+      [entry.buffer, entry.inputBuffer].map((buf) =>
+        buf
+          .delete({ force: true })
+          .catch((e: Error) =>
+            this.nvim.logger.error(
+              `Error deleting buffer for thread ${threadId}: ${e.message}`,
+            ),
+          ),
+      ),
+    );
+  }
+
+  /** Recreate the overview buffers after they were externally deleted.
+   * Resets the overview to an unmounted state so the next mount rebinds it. */
+  async recreateOverview(): Promise<void> {
+    const dead = [this.overviewEntry.buffer, this.overviewEntry.inputBuffer];
+    this.bufNrToInfo.delete(this.overviewEntry.buffer.id);
+    this.bufNrToInfo.delete(this.overviewEntry.inputBuffer.id);
+    // Fully wipe the dead buffers so their (canonical) names are released
+    // before we recreate buffers with the same names.
+    await Promise.all(
+      dead.map((buf) =>
+        buf.delete({ force: true }).catch(() => {
+          // best-effort; the buffer may already be gone
+        }),
+      ),
+    );
+    const [buffer, inputBuffer] = await Promise.all([
+      BufferManager.createDisplayBuffer(this.nvim, "[Magenta Threads]", false),
+      BufferManager.createReadOnlyInputBuffer(
+        this.nvim,
+        "[Magenta Overview Input]",
+      ),
+    ]);
+    this.overviewEntry = { state: "registered", buffer, inputBuffer };
+    this.bufNrToInfo.set(buffer.id, { key: "overview", role: "display" });
+    this.bufNrToInfo.set(inputBuffer.id, { key: "overview", role: "input" });
+  }
+
+  /** Look up which thread/overview a buffer belongs to and its role. */
   /** Look up which thread/overview a buffer belongs to and its role. */
   lookupBuffer(bufNr: BufNr): BufferInfo | undefined {
     return this.bufNrToInfo.get(bufNr);
@@ -251,8 +335,9 @@ export class BufferManager {
   private static async createDisplayBuffer(
     nvim: Nvim,
     name: string,
+    listed: boolean,
   ): Promise<NvimBuffer> {
-    const buffer = await NvimBuffer.create(false, true, nvim);
+    const buffer = await NvimBuffer.create(listed, true, nvim);
     await buffer.setName(name);
     await buffer.setOption("bufhidden", "hide");
     await buffer.setOption("buftype", "nofile");
@@ -278,7 +363,7 @@ export class BufferManager {
     nvim: Nvim,
     name: string,
   ): Promise<NvimBuffer> {
-    const buffer = await NvimBuffer.create(false, true, nvim);
+    const buffer = await NvimBuffer.create(true, true, nvim);
     await buffer.setName(name);
     await buffer.setOption("bufhidden", "hide");
     await buffer.setOption("buftype", "nofile");

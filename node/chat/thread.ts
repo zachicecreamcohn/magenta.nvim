@@ -177,6 +177,7 @@ export class Thread {
 
   public core: ThreadCore;
   private myDispatch: Dispatch<Msg>;
+  private lastAppliedTitle: string | undefined;
   public sandboxViolationHandler: SandboxViolationHandler | undefined;
   public sandboxBypassed = false;
 
@@ -289,6 +290,15 @@ export class Thread {
     const coreListeners = {
       update: () => {
         this.rebuildToolResultMap();
+        const title = this.core.state.title;
+        if (title !== undefined && title !== this.lastAppliedTitle) {
+          this.lastAppliedTitle = title;
+          this.context.dispatch({
+            type: "set-thread-title-effect",
+            id: this.core.id,
+            title,
+          });
+        }
         this.myDispatch({ type: "tool-progress" });
       },
       pendingUpdatesChanged: () => this.myDispatch({ type: "tool-progress" }),

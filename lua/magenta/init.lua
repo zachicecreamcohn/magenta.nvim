@@ -247,6 +247,17 @@ M.bridge = function(channelId)
     }
   )
 
+  vim.api.nvim_create_autocmd(
+    { "BufDelete", "BufWipeout" },
+    {
+      group = M.bridge_augroup,
+      pattern = "*",
+      callback = function(args)
+        safe_rpcnotify(channelId, "magentaBufDelete", { bufnr = args.buf })
+      end
+    }
+  )
+
   M.listenToBufKey = function(bufnr, vimKey, mode)
     mode = mode or "n"
     if mode == "v" or mode == "x" then

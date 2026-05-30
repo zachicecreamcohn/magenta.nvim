@@ -103,6 +103,10 @@ export type Msg =
   | {
       type: "delete-thread";
       id: ThreadId;
+    }
+  | {
+      type: "delete-thread-subtree";
+      id: ThreadId;
     };
 
 export type ChatMsg = {
@@ -127,6 +131,7 @@ export class Chat implements ThreadManager {
       nvim: Nvim;
       lsp: Lsp;
       sandbox: Sandbox;
+      removeThreadBuffers?: (ids: ThreadId[]) => void;
     },
   ) {
     this.threadWrappers = {};
@@ -305,6 +310,11 @@ export class Chat implements ThreadManager {
       case "delete-thread": {
         const rootId = this.getRootAncestorId(msg.id);
         this.deleteThreadSubtree(rootId);
+        return;
+      }
+
+      case "delete-thread-subtree": {
+        this.deleteThreadSubtree(msg.id);
         return;
       }
 
@@ -624,6 +634,8 @@ export class Chat implements ThreadManager {
       delete this.threadWrappers[id];
       this.threadYieldCallbacks.delete(id);
     }
+
+    this.context.removeThreadBuffers?.(idsToDelete);
 
     this.expandedThreads.delete(rootId);
 

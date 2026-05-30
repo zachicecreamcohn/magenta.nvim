@@ -58,6 +58,7 @@ const MAGENTA_ON_WINDOW_CLOSED = "magentaWindowClosed";
 const MAGENTA_KEY = "magentaKey";
 const MAGENTA_LSP_RESPONSE = "magentaLspResponse";
 const MAGENTA_BUF_ENTER = "magentaBufEnter";
+const MAGENTA_BUF_DELETE = "magentaBufDelete";
 const MAGENTA_CLIPBOARD_IMAGE_PASTE = "magentaClipboardImagePaste";
 const MAGENTA_CLIPBOARD_TEXT_PASTE = "magentaClipboardTextPaste";
 
@@ -102,6 +103,14 @@ export class Magenta {
           this.selectThreadEffect(msg.id).catch((e) => {
             nvim.logger.error(
               `Error syncing active view: ${e instanceof Error ? `${e.message}\n${e.stack}` : JSON.stringify(e)}`,
+            );
+          });
+        }
+
+        if (msg.type === "set-thread-title-effect") {
+          this.bufferManager.setThreadTitle(msg.id, msg.title).catch((e) => {
+            nvim.logger.error(
+              `Error setting thread title: ${e instanceof Error ? `${e.message}\n${e.stack}` : JSON.stringify(e)}`,
             );
           });
         }
@@ -163,6 +172,15 @@ export class Magenta {
       getOptions: () => this.options,
       lsp: this.lsp,
       sandbox: this.sandbox,
+      removeThreadBuffers: (ids) => {
+        for (const id of ids) {
+          bufferManager.removeThread(id).catch((e: Error) => {
+            this.nvim.logger.error(
+              `Error removing buffers for thread ${id}: ${e.message}`,
+            );
+          });
+        }
+      },
     });
 
     this.bufferManager = bufferManager;
@@ -673,6 +691,29 @@ ${lines.join("\n")}
     }
   }
 
+  /** A buffer was deleted (`:bd`/`:bw`). If it backs a thread, remove that
+   * thread and its descendants (no escalation to the root ancestor). If it
+   * backs the overview, recover by recreating the overview buffers. */
+  async onBufDelete(bufNr: BufNr): Promise<void> {
+    const bufInfo = this.bufferManager.lookupBuffer(bufNr);
+    if (!bufInfo) return;
+
+    if (bufInfo.key === "overview") {
+      const wasActive = this.getActiveKey() === "overview";
+      await this.bufferManager.recreateOverview();
+      this.activeBuffers = this.bufferManager.getOverviewBuffers();
+      if (wasActive) {
+        await this.syncActiveView();
+      }
+      return;
+    }
+
+    this.dispatch({
+      type: "chat-msg",
+      msg: { type: "delete-thread-subtree", id: bufInfo.key },
+    });
+  }
+
   /** Any magenta buffer was opened (in any window). Treat as a "select thread" action.
    * If it was in a non-magenta window, revert the open first.
    * Then switch the sidebar to show the correct thread/overview.
@@ -880,6 +921,19 @@ ${lines.join("\n")}
         nvim.logger.error(
           err instanceof Error
             ? `Error in BufEnter handler: ${err.message}\n${err.stack}`
+            : JSON.stringify(err),
+        );
+      }
+    });
+
+    nvim.onNotification(MAGENTA_BUF_DELETE, async (args) => {
+      try {
+        const data = (args as unknown as { bufnr: number }[])[0];
+        await magenta.onBufDelete(data.bufnr as BufNr);
+      } catch (err) {
+        nvim.logger.error(
+          err instanceof Error
+            ? `Error in BufDelete handler: ${err.message}\n${err.stack}`
             : JSON.stringify(err),
         );
       }

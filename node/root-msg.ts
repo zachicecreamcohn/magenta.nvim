@@ -25,4 +25,9 @@ export type RootMsg =
   | {
       type: "select-thread-effect";
       id: ThreadId;
+    }
+  | {
+      type: "set-thread-title-effect";
+      id: ThreadId;
+      title: string;
     };

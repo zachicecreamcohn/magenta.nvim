@@ -1336,7 +1336,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
 The user has provided the following prompt:
 ${userMessage}
 
-Come up with a succinct thread title for this prompt. It should be less than 80 characters long.
+Come up with a succinct thread title for this prompt. It must be a single line (no newlines) and a few words long (ideally around 40 characters or fewer).
 `,
           nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
         },
