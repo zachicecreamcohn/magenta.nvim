@@ -311,6 +311,52 @@ describe("AnthropicAgent retry logic", () => {
     expect(events.stopped.length).toBe(0);
   });
 
+  it("recovers when a retryable error interrupts a stream mid-block", async () => {
+    // Regression: a previous attempt that errored after opening a content
+    // block (but before closing it) used to leave currentBlockIndex set, so
+    // the next attempt's content_block_start collided with the still-open
+    // block and threw "content_block_start ... while block N is still open".
+    const mockClient = new MockAnthropicClient();
+    const agent = createAgent(mockClient);
+    const events = trackEvents(agent);
+
+    agent.appendUserMessage([
+      {
+        type: "text",
+        text: "hello",
+        nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+      },
+    ]);
+    agent.continueConversation();
+
+    // First attempt: open block 0, then error mid-block with a retryable status
+    let stream = await mockClient.awaitStream();
+    stream.emitEvent({
+      type: "content_block_start",
+      index: 0,
+      content_block: { type: "text", text: "", citations: null },
+    });
+    await stream.settle();
+    stream.respondWithError(make529Error());
+    await vi.advanceTimersByTimeAsync(0);
+
+    const status = agent.getState().status;
+    expect(status.type).toBe("streaming");
+    if (status.type === "streaming") {
+      expect(status.retryStatus).toBeDefined();
+    }
+
+    // Second attempt: fresh stream reopens block 0 and succeeds
+    await vi.advanceTimersByTimeAsync(1000);
+    stream = await mockClient.awaitStream();
+    stream.respond({ text: "done", toolRequests: [], stopReason: "end_turn" });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(events.errors.length).toBe(0);
+    expect(events.stopped.length).toBe(1);
+    expect(events.stopped[0].stopReason).toBe("end_turn");
+  });
+
   it("abort during retry wait cancels immediately", async () => {
     const mockClient = new MockAnthropicClient();
     const agent = createAgent(mockClient);

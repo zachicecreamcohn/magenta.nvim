@@ -40,8 +40,3 @@
 - when we error upon a user message send, we should pop the user message off the agent's history, otherwise we end up sending it twice
 - overloaded handling / exponential backoff not working correctly
 - when we terminate/error, the reset for the message places it in the wrong buffer (currently open one, not the one corresponding to the thread that the error happened in)
-- this error:
-  Received content_block_start at index 0 while block 0 is still open
-  Error: Received content_block_start at index 0 while block 0 is still open
-  at file:///Users/denis.lantsman/src/magenta.nvim/dist/magenta.mjs:46267:36
-  at process.processTicksAndRejections (node:internal/process/task_queues:104:5)

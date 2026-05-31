@@ -5,6 +5,7 @@ import {
   convertAnthropicMessagesToProvider,
   getContextWindowForModel,
   getMaxTokensForModel,
+  stripTrailingThinkingBlocks,
 } from "./anthropic-agent.ts";
 
 describe("getMaxTokensForModel", () => {
@@ -53,6 +54,48 @@ Second reminder body
     expect(block.type).toBe("system_reminder");
     if (block.type !== "system_reminder") throw new Error("type narrow");
     expect(block.text).toBe(combined);
+  });
+});
+
+describe("stripTrailingThinkingBlocks", () => {
+  it("drops a trailing thinking block but keeps preceding content", () => {
+    const messages: Anthropic.MessageParam[] = [
+      {
+        role: "assistant",
+        content: [
+          { type: "text", text: "hi" },
+          { type: "thinking", thinking: "...", signature: "sig" },
+        ],
+      },
+    ];
+    const result = stripTrailingThinkingBlocks(messages);
+    expect(result).toHaveLength(1);
+    expect(result[0].content).toEqual([{ type: "text", text: "hi" }]);
+  });
+
+  it("drops an assistant message that contains only thinking blocks", () => {
+    const messages: Anthropic.MessageParam[] = [
+      { role: "user", content: "go" },
+      {
+        role: "assistant",
+        content: [{ type: "thinking", thinking: "...", signature: "sig" }],
+      },
+    ];
+    const result = stripTrailingThinkingBlocks(messages);
+    expect(result).toEqual([{ role: "user", content: "go" }]);
+  });
+
+  it("leaves messages without trailing thinking untouched", () => {
+    const messages: Anthropic.MessageParam[] = [
+      {
+        role: "assistant",
+        content: [
+          { type: "thinking", thinking: "...", signature: "sig" },
+          { type: "text", text: "answer" },
+        ],
+      },
+    ];
+    expect(stripTrailingThinkingBlocks(messages)).toEqual(messages);
   });
 });
 

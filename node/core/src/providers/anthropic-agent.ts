@@ -60,6 +60,7 @@ type MessageStopInfo = {
 /** Actions that trigger state transitions in the agent */
 type Action =
   | { type: "start-streaming" }
+  | { type: "reset-attempt" }
   | {
       type: "block-started";
       index: number;
@@ -103,6 +104,14 @@ export function isRetryableError(error: Error): boolean {
   if (isSSEParseError(error)) {
     return true;
   }
+  // Stream-ordering invariant violations from our own block-tracking state
+  // machine. These fire when upstream transports drop or reorder SSE frames
+  // (e.g. a content_block_start without the preceding content_block_stop).
+  // They are transient transport anomalies, not reproducible content errors,
+  // so retrying the turn is safe.
+  if (isStreamOrderError(error)) {
+    return true;
+  }
   return false;
 }
 
@@ -114,6 +123,12 @@ export function isSSEParseError(error: Error): boolean {
     (error instanceof SyntaxError || error instanceof AnthropicError) &&
     SSE_JSON_PARSE_MESSAGE.test(error.message)
   );
+}
+
+const STREAM_ORDER_MESSAGE = /Received content_block_(start|delta|stop)/;
+
+export function isStreamOrderError(error: Error): boolean {
+  return STREAM_ORDER_MESSAGE.test(error.message);
 }
 
 export function getRetryDelay(attempt: number): number {
@@ -176,6 +191,24 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
         });
 
         break;
+
+      case "reset-attempt": {
+        // A previous streaming attempt may have errored mid-block, leaving a
+        // partially-accumulated assistant message in this.messages and an open
+        // block index. Before retrying we discard that partial state so the
+        // fresh stream starts from a clean slate (otherwise the new
+        // content_block_start collides with the still-open block index).
+        if (this.currentAssistantMessage) {
+          const idx = this.messages.indexOf(this.currentAssistantMessage);
+          if (idx !== -1) {
+            this.messages.splice(idx, 1);
+          }
+        }
+        this.currentAssistantMessage = undefined;
+        this.currentAnthropicBlock = undefined;
+        this.currentBlockIndex = -1;
+        break;
+      }
 
       case "block-started":
         if (this.currentBlockIndex !== -1) {
@@ -443,7 +476,9 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
       | { type: "aborted" }
       | { type: "error"; error: Error }
     > => {
-      const messagesWithCache = withCacheControl(this.messages);
+      const messagesWithCache = withCacheControl(
+        stripTrailingThinkingBlocks(this.messages),
+      );
       this.currentRequest = this.client.messages.stream({
         ...this.params,
         messages: messagesWithCache,
@@ -491,6 +526,7 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
         // Clear retryStatus when starting a new attempt
         this.status = { type: "streaming", startTime };
         if (attempt > 0) {
+          this.update({ type: "reset-attempt" });
           this.emit("didUpdate");
         }
 
@@ -580,7 +616,9 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
     if (typeof this.client.messages.countTokens !== "function") {
       return;
     }
-    const messagesWithCache = withCacheControl(this.messages);
+    const messagesWithCache = withCacheControl(
+      stripTrailingThinkingBlocks(this.messages),
+    );
     const countParams: Anthropic.Messages.MessageCountTokensParams = {
       model: this.params.model,
       messages: messagesWithCache,
@@ -1468,6 +1506,41 @@ function convertBlockToProvider(
  * prefix.
  * https://www.anthropic.com/news/token-saving-updates
  */
+/** The Anthropic API rejects assistant messages whose final block is a
+ * `thinking` (or `redacted_thinking`) block. This happens when a stream is
+ * interrupted (abort/error) after a thinking block but before any text or
+ * tool_use block, and the message is later re-sent (e.g. on manual retry).
+ * Strip trailing thinking blocks, dropping any assistant message that becomes
+ * empty as a result. */
+export function stripTrailingThinkingBlocks(
+  messages: Anthropic.MessageParam[],
+): Anthropic.MessageParam[] {
+  const result: Anthropic.MessageParam[] = [];
+  for (const message of messages) {
+    if (message.role !== "assistant" || typeof message.content === "string") {
+      result.push(message);
+      continue;
+    }
+
+    let end = message.content.length;
+    while (
+      end > 0 &&
+      (message.content[end - 1].type === "thinking" ||
+        message.content[end - 1].type === "redacted_thinking")
+    ) {
+      end--;
+    }
+
+    if (end === message.content.length) {
+      result.push(message);
+    } else if (end > 0) {
+      result.push({ ...message, content: message.content.slice(0, end) });
+    }
+    // end === 0: assistant message had only thinking blocks; drop it entirely.
+  }
+  return result;
+}
+
 export function withCacheControl(
   messages: Anthropic.MessageParam[],
 ): Anthropic.MessageParam[] {
