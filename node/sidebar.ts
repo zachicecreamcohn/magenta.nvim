@@ -14,6 +14,7 @@ import type {
   SidebarPositionOpts,
   SidebarPositions,
 } from "./options.ts";
+import { formatTokenCount } from "./utils/tokens.ts";
 
 /** Resolves responsive positions based on terminal orientation */
 function resolveResponsivePosition(
@@ -170,16 +171,11 @@ export class Sidebar {
     const baseTitle = `Magenta Input (${profile.name}${thinkingStatus})`;
     const tokenCount = this.getTokenCount();
 
-    const tokenDisplay =
-      tokenCount >= 1000
-        ? `~${Math.round(tokenCount / 1000)}K`
-        : `~${tokenCount}`;
-
     const bypassIndicator = this.getIsSandboxBypassed()
       ? " %#ErrorMsg# SANDBOX OFF %#Normal#"
       : "";
 
-    return `${baseTitle} [${tokenDisplay} tokens]${bypassIndicator}`;
+    return `${baseTitle} [${formatTokenCount(tokenCount)}]${bypassIndicator}`;
   }
 
   async onWinClosed() {

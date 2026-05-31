@@ -46,6 +46,7 @@ import {
   withExtmark,
 } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { formatTokens } from "../utils/tokens.ts";
 import type { Msg, Thread, ToolViewState } from "./thread.ts";
 
 function contextViewCtx(thread: Thread): ContextViewContext {
@@ -171,11 +172,7 @@ const renderSystemPrompt = (
       },
     );
   } else {
-    const estimatedTokens = Math.round(systemPrompt.length / 4 / 1000) * 1000;
-    const tokenDisplay =
-      estimatedTokens >= 1000
-        ? `~${(estimatedTokens / 1000).toString()}K`
-        : `~${estimatedTokens.toString()}`;
+    const tokenDisplay = formatTokens(systemPrompt.length);
 
     return withBindings(
       withExtmark(d`⚙️ [System Prompt ${tokenDisplay}]`, {
@@ -207,10 +204,14 @@ const renderToolDefinitions = (
       { "=": toggle },
     );
   }
+  const tokenDisplay = formatTokens(formatToolSpecs(specs).length);
   return withBindings(
-    withExtmark(d`🔧 [Tool Definitions (${specs.length.toString()})]`, {
-      hl_group: "@comment",
-    }),
+    withExtmark(
+      d`🔧 [Tool Definitions (${specs.length.toString()}) ${tokenDisplay}]`,
+      {
+        hl_group: "@comment",
+      },
+    ),
     { "=": toggle },
   );
 };
