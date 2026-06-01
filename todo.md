@@ -40,3 +40,4 @@
 - when we error upon a user message send, we should pop the user message off the agent's history, otherwise we end up sending it twice
 - overloaded handling / exponential backoff not working correctly
 - when we terminate/error, the reset for the message places it in the wrong buffer (currently open one, not the one corresponding to the thread that the error happened in)
+- forked indicator on the source thread floats down, rather than staying fixed at the forked message

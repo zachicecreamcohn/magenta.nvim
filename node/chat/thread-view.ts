@@ -8,8 +8,10 @@ import {
   type ContextManager,
   displayPath,
   formatToolSpecs,
+  type NativeMessageIdx,
   type ProviderToolSpec,
   renderThreadToMarkdown,
+  type ThreadId,
   type ThreadMode,
   type ToolName,
   type ToolRequestId,
@@ -386,23 +388,40 @@ ${thread.core.state.pendingMessages.map(
 
   // Helper to check if a message is composed entirely of auto-generated content
 
-  const forkedToView =
-    thread.state.forkedTo.length > 0
-      ? d`\n${thread.state.forkedTo.map((fork) =>
-          withBindings(
-            withExtmark(
-              d`↳ forked to thread ${fork.childThreadId.slice(-8)}\n`,
-              { hl_group: "@comment" },
-            ),
-            {
-              "<CR>": () =>
-                thread.context.dispatch({
-                  type: "select-thread-effect",
-                  id: fork.childThreadId,
-                }),
-            },
-          ),
-        )}`
+  const renderForkIndicator = (fork: {
+    childThreadId: ThreadId;
+    atMessageIdx: NativeMessageIdx;
+  }) =>
+    withBindings(
+      withExtmark(d`↳ forked to thread ${fork.childThreadId.slice(-8)}\n`, {
+        hl_group: "@comment",
+      }),
+      {
+        "<CR>": () =>
+          thread.context.dispatch({
+            type: "select-thread-effect",
+            id: fork.childThreadId,
+          }),
+      },
+    );
+
+  const forkedToAtIdx = (messageIdx: number) => {
+    const forks = thread.state.forkedTo.filter(
+      (fork) => fork.atMessageIdx === messageIdx,
+    );
+    return forks.length > 0
+      ? d`${forks.map((fork) => renderForkIndicator(fork))}`
+      : d``;
+  };
+
+  // Forks whose atMessageIdx is past the last rendered message are appended at
+  // the end so they aren't lost.
+  const trailingForkedToView =
+    thread.state.forkedTo.filter((fork) => fork.atMessageIdx >= messages.length)
+      .length > 0
+      ? d`\n${thread.state.forkedTo
+          .filter((fork) => fork.atMessageIdx >= messages.length)
+          .map((fork) => renderForkIndicator(fork))}`
       : d``;
   // (tool results, system reminders, context updates) — used to suppress the
   // "# user:" header for messages that contain no user-authored text.
@@ -500,12 +519,14 @@ ${roleHeader}\
 ${contextUpdateView}\
 ${contentView}`;
 
-    return isUserBlock
+    const renderedBody = isUserBlock
       ? withExtmark(messageBody, {
           hl_group: "CursorLine",
           hl_eol: true,
         })
       : messageBody;
+
+    return d`${renderedBody}${forkedToAtIdx(messageIdx)}`;
   });
 
   const streamingBlockView =
@@ -537,7 +558,7 @@ ${streamingBlockView}\
 ${contextManagerView}\
 ${sandboxView}\
 ${pendingMessagesView}\
-${forkedToView}\
+${trailingForkedToView}\
 ${editedFilesView}
 ${statusView}`;
 };
