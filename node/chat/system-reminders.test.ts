@@ -1,8 +1,13 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { ToolName, ToolRequestId } from "@magenta/core";
 import { expect, test } from "vitest";
 import { MockProvider } from "../providers/mock.ts";
 import { withDriver } from "../test/preamble.ts";
+
+const SKILL_WITH_REMINDER =
+  "# Skill\n\n<system_reminder>\nalways pet the cat\n</system_reminder>\n";
 
 type ContentBlockParam = Anthropic.Messages.ContentBlockParam;
 type TextBlockParam = Anthropic.Messages.TextBlockParam;
@@ -395,4 +400,67 @@ test("multiple user messages each get their own system reminder", async () => {
     const reminder2 = findSystemReminderText(userMessage2.content);
     expect(reminder2).toBeDefined();
   });
+});
+
+test("reading a markdown file with a system_reminder block folds it into subsequent reminders", async () => {
+  await withDriver(
+    {
+      setupFiles: async (tmpDir) => {
+        await fs.writeFile(path.join(tmpDir, "skill.md"), SKILL_WITH_REMINDER);
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+      await driver.inputMagentaText("Use a skill");
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      request.respond({
+        stopReason: "tool_use",
+        text: "reading the skill",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "tool_1" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: { filePath: "./skill.md" },
+            },
+          },
+        ],
+        usage: { inputTokens: 100, outputTokens: 5000 },
+      });
+
+      const autoRespondRequest =
+        await driver.mockAnthropic.awaitPendingStream();
+      const lastMessage =
+        autoRespondRequest.messages[autoRespondRequest.messages.length - 1];
+      const systemReminder = findSystemReminderText(lastMessage.content);
+      expect(systemReminder).toBeDefined();
+      expect(systemReminder!.text).toContain("always pet the cat");
+    },
+  );
+});
+
+test("a markdown context file's block is active while in context", async () => {
+  await withDriver(
+    {
+      setupFiles: async (tmpDir) => {
+        await fs.writeFile(path.join(tmpDir, "skill.md"), SKILL_WITH_REMINDER);
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+      await driver.magenta.command("context-files './skill.md'");
+
+      await driver.inputMagentaText("Hello");
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      const userMessage = request.messages[request.messages.length - 1];
+      const systemReminder = findSystemReminderText(userMessage.content);
+      expect(systemReminder).toBeDefined();
+      expect(systemReminder!.text).toContain("always pet the cat");
+    },
+  );
 });

@@ -659,6 +659,69 @@ describe("GetFileTool unit tests", () => {
     }
   });
 
+  it("markdown file with a system_reminder block surfaces it in the structured result", async () => {
+    const filePath = path.join(tmpDir, "skill.md");
+    await fs.writeFile(
+      filePath,
+      "# Skill\n\n<system_reminder>\nalways do the thing\n</system_reminder>\n",
+      "utf-8",
+    );
+
+    const { invocation } = createTool({
+      filePath: "skill.md" as UnresolvedFilePath,
+    });
+
+    const result = await getResult(invocation);
+    expect(result.result.status).toBe("ok");
+    if (result.result.status === "ok") {
+      expect(result.result.structuredResult).toMatchObject({
+        toolName: "get_file",
+        filePath: filePath as AbsFilePath,
+        systemReminder: "always do the thing",
+      });
+    }
+  });
+
+  it("markdown file without a block has undefined systemReminder", async () => {
+    const filePath = path.join(tmpDir, "plain.md");
+    await fs.writeFile(filePath, "# Just a doc\n\nno reminder here\n", "utf-8");
+
+    const { invocation } = createTool({
+      filePath: "plain.md" as UnresolvedFilePath,
+    });
+
+    const result = await getResult(invocation);
+    expect(result.result.status).toBe("ok");
+    if (result.result.status === "ok") {
+      expect(result.result.structuredResult).toMatchObject({
+        toolName: "get_file",
+        systemReminder: undefined,
+      });
+    }
+  });
+
+  it("non-markdown file is never scanned for a reminder", async () => {
+    const filePath = path.join(tmpDir, "notmd.txt");
+    await fs.writeFile(
+      filePath,
+      "<system_reminder>\nshould be ignored\n</system_reminder>\n",
+      "utf-8",
+    );
+
+    const { invocation } = createTool({
+      filePath: "notmd.txt" as UnresolvedFilePath,
+    });
+
+    const result = await getResult(invocation);
+    expect(result.result.status).toBe("ok");
+    if (result.result.status === "ok") {
+      expect(result.result.structuredResult).toMatchObject({
+        toolName: "get_file",
+        systemReminder: undefined,
+      });
+    }
+  });
+
   it("large file with unknown extension returns file summary", async () => {
     const lines: string[] = [];
     for (let i = 0; i < 1000; i++) {

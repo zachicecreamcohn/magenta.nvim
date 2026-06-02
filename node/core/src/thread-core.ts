@@ -1,4 +1,4 @@
-import type { AgentsMap } from "./agents/agents.ts";
+import { type AgentsMap, extractSystemReminderBlock } from "./agents/agents.ts";
 import type { ContextTracker } from "./capabilities/context-tracker.ts";
 import type { FileIO } from "./capabilities/file-io.ts";
 import type { HelpTagsProvider } from "./capabilities/help-tags-provider.ts";
@@ -149,6 +149,7 @@ export type ThreadCoreAction =
   | { type: "push-compaction-record"; record: CompactionRecord }
   | { type: "reset-after-compaction" }
   | { type: "mark-bash-output-abbreviated" }
+  | { type: "activate-reminder"; text: string }
   | { type: "reset-bash-reminder" }
   | {
       type: "set-failed-submit";
@@ -175,6 +176,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     firstBashReminderPending: boolean;
     failedSubmit: { userMessage: string; errorMessage: string } | undefined;
     preSubmitNativeIdx: NativeMessageIdx | undefined;
+    activeReminders: Set<string>;
   };
 
   public agent: Agent;
@@ -211,6 +213,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       firstBashReminderPending: true,
       failedSubmit: undefined,
       preSubmitNativeIdx: undefined,
+      activeReminders: new Set(),
     };
 
     this.listenToContextManager();
@@ -405,9 +408,13 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         this.state.pendingBashReminder = false;
         this.state.bashTokensSinceLastReminder = 0;
         this.state.firstBashReminderPending = true;
+        this.state.activeReminders = new Set();
         break;
       case "mark-bash-output-abbreviated":
         this.state.pendingBashReminder = true;
+        break;
+      case "activate-reminder":
+        this.state.activeReminders.add(action.text);
         break;
       case "reset-bash-reminder":
         this.state.pendingBashReminder = false;
@@ -796,10 +803,10 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
 
     this.state.editedFilesThisTurn = [];
 
-    const { content, hasContent } = this.prepareUserContent(inputMessages);
-
     const { content: contextContent, updates: contextUpdates } =
       await this.getAndPrepareContextUpdates();
+
+    const { content, hasContent } = this.prepareUserContent(inputMessages);
 
     if (!hasContent && contextContent.length === 0) {
       return;
@@ -1069,6 +1076,21 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     return { content, updates: contextUpdates };
   }
 
+  /** The union of transient get_file-read reminders and reminders derived from
+   * markdown files currently in context, deduped on text. */
+  private getActiveReminders(): string[] {
+    const reminders = new Set(this.state.activeReminders);
+    for (const key of Object.keys(this.contextManager.files)) {
+      const fileInfo = this.contextManager.files[key as AbsFilePath];
+      if (!fileInfo) continue;
+      if (!key.toLowerCase().endsWith(".md")) continue;
+      if (fileInfo.agentView?.type !== "text") continue;
+      const reminder = extractSystemReminderBlock(fileInfo.agentView.content);
+      if (reminder) reminders.add(reminder);
+    }
+    return [...reminders];
+  }
+
   private async sendToolResultsAndContinue(
     toolResults: Array<{ id: ToolRequestId; result: ProviderToolResult }>,
     pendingMessages: InputMessage[],
@@ -1084,6 +1106,16 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         ) {
           this.update(
             { type: "mark-bash-output-abbreviated" },
+            { silent: true },
+          );
+        }
+        if (
+          structured.toolName === "get_file" &&
+          "systemReminder" in structured &&
+          structured.systemReminder
+        ) {
+          this.update(
+            { type: "activate-reminder", text: structured.systemReminder },
             { silent: true },
           );
         }
@@ -1119,6 +1151,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         threadType: this.state.threadType,
         subagentConfig: this.context.subagentConfig,
         kinds: reminderKinds,
+        extraReminders: this.getActiveReminders(),
       });
       if (reminder) {
         contentToSend.push({
@@ -1174,6 +1207,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         threadType: this.state.threadType,
         subagentConfig: this.context.subagentConfig,
         kinds: ["subsequent"],
+        extraReminders: this.getActiveReminders(),
       });
       if (reminder) {
         messageContent.push({

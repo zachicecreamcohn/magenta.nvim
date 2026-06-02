@@ -120,6 +120,38 @@ Required Frontmatter Fields~
 The rest of the file is standard markdown documentation that Claude can
 reference during the agentic workflow.
 
+System Reminder Blocks~
+
+A skill.md file (and, more generally, any markdown file) may include a
+`<system_reminder>...</system_reminder>` block:
+
+>
+  # Your Skill Documentation
+
+  <system_reminder>
+  Always run the project linter before yielding.
+  </system_reminder>
+<
+
+When the agent reads such a file with the `get_file` tool, the contents of
+the block are folded into the recurring `<system-reminder>` text that is
+re-injected on subsequent turns. The same happens while a markdown file
+holding such a block is kept as a context file. This keeps the guidance
+"alive" across turns rather than burying it once when the file is read.
+
+Notes:
+  - Identical reminder text is included only once, whether it came from a
+    repeated read or from two different files.
+  - These reminders are dropped at compaction: compaction rebuilds an empty
+    context, so both transient reads and context-file blocks must be
+    re-activated afterwards by reading the file again or re-adding it to
+    context.
+  - For very large files, `get_file` summarizes/pages the content, so a block
+    could be truncated. Reminder-bearing docs (skills) are small, so this is
+    not a concern in practice.
+  - This parallels the `<system_reminder>` mechanism available in agent
+    definition files.
+
 ==============================================================================
 SCRIPTS                                            *magenta-skills-scripts*
 

@@ -87,6 +87,25 @@ describe("buildSystemReminder", () => {
     expect(reminder).toContain("Custom subagent guidance");
   });
 
+  it("appends extraReminders to the subsequent body", () => {
+    const reminder = buildSystemReminder({
+      threadType: "root",
+      kinds: ["subsequent"],
+      extraReminders: ["always pet the cat"],
+    });
+    expect(reminder).toBeDefined();
+    expect(reminder).toContain("always pet the cat");
+  });
+
+  it("does not include extraReminders for compact threads", () => {
+    const reminder = buildSystemReminder({
+      threadType: "compact",
+      kinds: ["subsequent"],
+      extraReminders: ["always pet the cat"],
+    });
+    expect(reminder).toBeUndefined();
+  });
+
   it("returns undefined for compact thread regardless of requested kinds", () => {
     expect(
       buildSystemReminder({

@@ -1,3 +1,4 @@
+import { extractSystemReminderBlock } from "../agents/agents.ts";
 import type {
   ContextTracker,
   OnToolApplied,
@@ -17,6 +18,7 @@ import type {
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { formatSummary, summarizeFile } from "../utils/file-summary.ts";
 import {
+  type AbsFilePath,
   detectFileTypeViaFileIO,
   FILE_SIZE_LIMITS,
   FileCategory,
@@ -36,6 +38,8 @@ export type ToolRequest = GenericToolRequest<"get_file", Input>;
 export type StructuredResult = {
   toolName: "get_file";
   lineCount: number;
+  filePath: AbsFilePath;
+  systemReminder: string | undefined;
 };
 
 const HARD_MAX_OUTPUT_CHARACTERS = 40000;
@@ -171,7 +175,12 @@ You already have the most up-to-date information about the contents of this file
                 nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
               },
             ],
-            structuredResult: { toolName: "get_file", lineCount: 0 },
+            structuredResult: {
+              toolName: "get_file",
+              lineCount: 0,
+              filePath: absFilePath,
+              systemReminder: undefined,
+            },
           },
           nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
         };
@@ -235,10 +244,15 @@ You already have the most up-to-date information about the contents of this file
 
       let result: ProviderToolResultContent[];
       let lineCount = 0;
+      let systemReminder: string | undefined;
 
       if (fileTypeInfo.category === FileCategory.TEXT) {
         const rawContent = await context.fileIO.readFile(absFilePath);
         if (aborted) return abortResult;
+
+        if (absFilePath.toLowerCase().endsWith(".md")) {
+          systemReminder = extractSystemReminderBlock(rawContent);
+        }
 
         const lines = rawContent.split("\n");
         const totalLines = lines.length;
@@ -322,7 +336,12 @@ You already have the most up-to-date information about the contents of this file
                     nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
                   },
                 ],
-                structuredResult: { toolName: "get_file", lineCount: 0 },
+                structuredResult: {
+                  toolName: "get_file",
+                  lineCount: 0,
+                  filePath: absFilePath,
+                  systemReminder: undefined,
+                },
               },
               nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
             };
@@ -378,7 +397,12 @@ You already have the most up-to-date information about the contents of this file
                     nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
                   },
                 ],
-                structuredResult: { toolName: "get_file", lineCount: 0 },
+                structuredResult: {
+                  toolName: "get_file",
+                  lineCount: 0,
+                  filePath: absFilePath,
+                  systemReminder: undefined,
+                },
               },
               nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
             };
@@ -451,7 +475,12 @@ You already have the most up-to-date information about the contents of this file
         result: {
           status: "ok",
           value: result,
-          structuredResult: { toolName: "get_file", lineCount },
+          structuredResult: {
+            toolName: "get_file",
+            lineCount,
+            filePath: absFilePath,
+            systemReminder,
+          },
         },
         nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
       };

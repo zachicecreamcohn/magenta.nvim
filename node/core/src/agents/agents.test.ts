@@ -12,6 +12,7 @@ import type { ProviderOptions } from "../provider-options.ts";
 import type { NvimCwd } from "../utils/files.ts";
 import {
   type AgentsMap,
+  extractSystemReminderBlock,
   formatAgentsIntroduction,
   loadAgents,
   parseAgentFile,
@@ -496,6 +497,29 @@ Custom default prompt.`,
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("extractSystemReminderBlock", () => {
+  it("returns the inner text of a well-formed block", () => {
+    const body =
+      "prompt text\n<system_reminder>\nremember this\n</system_reminder>\nmore";
+    expect(extractSystemReminderBlock(body)).toBe("remember this");
+  });
+
+  it("returns undefined when there is no block", () => {
+    expect(extractSystemReminderBlock("just a prompt")).toBeUndefined();
+  });
+
+  it("returns undefined for multiple blocks", () => {
+    const body =
+      "<system_reminder>a</system_reminder><system_reminder>b</system_reminder>";
+    expect(extractSystemReminderBlock(body)).toBeUndefined();
+  });
+
+  it("returns undefined for a malformed (reversed) block", () => {
+    const body = "</system_reminder>oops<system_reminder>";
+    expect(extractSystemReminderBlock(body)).toBeUndefined();
   });
 });
 

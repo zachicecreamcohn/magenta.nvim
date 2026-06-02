@@ -1,3 +1,5 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import type { ToolName, ToolRequestId } from "@magenta/core";
 import { expect, it } from "vitest";
 import { withDriver } from "../test/preamble.ts";
@@ -1104,6 +1106,111 @@ it("compact drops all context files after compaction", async () => {
 
       // Context files should always be empty after compaction
       expect(Object.keys(thread.contextManager.files)).toHaveLength(0);
+    },
+  );
+});
+
+it("compaction drops active reminders (transient reads and context-file blocks)", async () => {
+  await withDriver(
+    {
+      setupFiles: async (tmpDir) => {
+        await fs.writeFile(
+          path.join(tmpDir, "ctx.md"),
+          "# Ctx\n\n<system_reminder>\ncontext cat reminder\n</system_reminder>\n",
+        );
+        await fs.writeFile(
+          path.join(tmpDir, "transient.md"),
+          "# Transient\n\n<system_reminder>\ntransient cat reminder\n</system_reminder>\n",
+        );
+      },
+    },
+    async (driver) => {
+      await driver.showSidebar();
+      await driver.magenta.command("context-files './ctx.md'");
+
+      await driver.inputMagentaText("Use a skill");
+      await driver.send();
+
+      const request = await driver.mockAnthropic.awaitPendingStream();
+      request.respond({
+        stopReason: "tool_use",
+        text: "reading the transient skill",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "tool_1" as ToolRequestId,
+              toolName: "get_file" as ToolName,
+              input: { filePath: "./transient.md" },
+            },
+          },
+        ],
+        usage: { inputTokens: 100, outputTokens: 5000 },
+      });
+
+      const autoRespond = await driver.mockAnthropic.awaitPendingStream();
+      autoRespond.respond({
+        stopReason: "end_turn",
+        text: "done reading",
+        toolRequests: [],
+      });
+
+      await driver.inputMagentaText("@compact continue please");
+      await driver.send();
+
+      const compactSubagentStream =
+        await driver.mockAnthropic.awaitPendingStream({
+          message: "compact subagent stream",
+        });
+      const edlScript = `file \`/summary.md\`\nselect bof-eof\nreplace <<COMPACT_SUMMARY\n# Summary\nread skills\nCOMPACT_SUMMARY`;
+      compactSubagentStream.respond({
+        stopReason: "tool_use",
+        text: "compacting",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "edl_1" as ToolRequestId,
+              toolName: "edl" as ToolName,
+              input: { script: edlScript },
+            },
+          },
+        ],
+      });
+
+      const afterEdlStream = await driver.mockAnthropic.awaitPendingStream({
+        message: "compact subagent after EDL",
+      });
+      afterEdlStream.respond({
+        stopReason: "end_turn",
+        text: "compacted",
+        toolRequests: [],
+      });
+
+      const afterCompactStream = await driver.mockAnthropic.awaitPendingStream({
+        message: "after compact continuation",
+      });
+      const lastMessage =
+        afterCompactStream.messages[afterCompactStream.messages.length - 1];
+      if (typeof lastMessage.content === "string") {
+        throw new Error("Expected array content");
+      }
+      const reminder = lastMessage.content.find(
+        (c) => c.type === "text" && c.text.includes("<system-reminder>"),
+      );
+      expect(reminder).toBeDefined();
+      if (reminder && reminder.type === "text") {
+        // Compaction rebuilds an empty ContextManager and clears the transient
+        // read set, so neither reminder survives.
+        expect(reminder.text).not.toContain("context cat reminder");
+        expect(reminder.text).not.toContain("transient cat reminder");
+      }
+
+      afterCompactStream.respond({
+        stopReason: "end_turn",
+        text: "all set",
+        toolRequests: [],
+      });
     },
   );
 });

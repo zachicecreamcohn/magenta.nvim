@@ -361,6 +361,43 @@ Remember to use skills when appropriate. Do so by using the get_file tool to rea
 - Planning: "Remember to write your plan to plans/<name>.md and yield to parent when done."
 - All: "CRITICAL: Use yield_to_parent tool when task is complete."
 
+## Markdown-Sourced Reminders (skills & context files)
+
+In addition to the static per-thread reminder bodies, markdown files can
+contribute "live" reminders that are folded into the recurring "subsequent"
+`<system-reminder>` block.
+
+There are three sources of reminder text:
+
+1. **Agent-prompt block (static)** — a `<system_reminder>` block in an agent
+   definition file. Extracted at thread construction (`extractSystemReminder`
+   in `node/core/src/agents/agents.ts`) and passed via `subagentConfig`. This
+   path is unchanged by the markdown mechanism below.
+2. **Transient `get_file` reads (dynamic)** — when `get_file` reads a markdown
+   file (`.md`, case-insensitive), it extracts a `<system_reminder>` block via
+   the shared `extractSystemReminderBlock` helper and surfaces it on the
+   `get_file` `StructuredResult` (`filePath` + `systemReminder`). `ThreadCore`
+   sees this in `sendToolResultsAndContinue` and dispatches `activate-reminder`,
+   adding the text to `state.activeReminders` (an insertion-ordered `Set`).
+3. **Markdown context files (dynamic, derived)** — any markdown file currently
+   in `contextManager.files` whose text `agentView` contains a block. These are
+   recomputed on demand from the context manager rather than stored.
+
+`ThreadCore.getActiveReminders()` returns the union of (2) and (3), deduped on
+**text**. It is passed as `extraReminders` to `buildSystemReminder`, which
+appends it to the "subsequent" body only (never "compact", never the bash
+summary body).
+
+**Compaction reset**: `reset-after-compaction` clears `state.activeReminders`.
+Compaction also rebuilds an empty `ContextManager` (no initial files), so the
+context-derived source (3) is empty afterward too. Net effect: all
+markdown-sourced reminders are dropped at compaction and must be re-activated
+by reading the file again or re-adding it to context.
+
+Ordering note: `sendMessage` runs `getAndPrepareContextUpdates()` before
+`prepareUserContent()` so that a freshly-added context file's `agentView` is
+populated before reminders are built on that same turn.
+
 ## Key Files Reference
 
 - `node/chat/thread.ts` - Thread class, message handling, `prepareUserMessage()`, `sendMessage()`

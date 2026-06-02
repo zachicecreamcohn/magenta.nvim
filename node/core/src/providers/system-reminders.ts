@@ -70,16 +70,23 @@ export function buildSystemReminder({
   threadType,
   subagentConfig,
   kinds,
+  extraReminders,
 }: {
   threadType: ThreadType;
   subagentConfig?: SubagentConfig | undefined;
   kinds: ReminderKind[];
+  extraReminders?: string[] | undefined;
 }): string | undefined {
   const bodies: string[] = [];
   for (const kind of kinds) {
     if (kind === "subsequent") {
-      const body = getSubsequentReminderBody(threadType, subagentConfig);
-      if (body !== undefined) bodies.push(body);
+      let body = getSubsequentReminderBody(threadType, subagentConfig);
+      if (body !== undefined) {
+        if (extraReminders && extraReminders.length > 0) {
+          body = `${body}\n${extraReminders.join("\n")}`;
+        }
+        bodies.push(body);
+      }
     } else if (kind === "bashSummary") {
       const body = getBashSummaryReminderBody(threadType);
       if (body !== undefined) bodies.push(body);

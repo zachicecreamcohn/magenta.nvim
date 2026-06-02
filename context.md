@@ -184,6 +184,8 @@ Use `npx biome check .` to run linting and formatting checks. Use `npx biome che
 
 To avoid complexity, keep variable names on the lua side camelCase, to match the variables defined in typescript.
 
+Any markdown file (notably a skill's `skill.md`) may contain a `<system_reminder>` block; when the agent reads it via `get_file` or while it is held as a context file, the block is folded into the recurring system reminder. These markdown-sourced reminders are dropped at compaction.
+
 Do not use dynamic `import()` expressions. Use static `import` statements at the top of the file instead.
 We only want to use a single bottom value, so use undefined whenever you can and avoid null. When external libraries use null, only use null at the boundary, and convert to undefined as early as possible, so the internals of the plugin only use undefined.
 

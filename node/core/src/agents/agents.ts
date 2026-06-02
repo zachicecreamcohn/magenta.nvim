@@ -241,6 +241,10 @@ function extractBody(content: string): string {
     .trim();
 }
 
+export function extractSystemReminderBlock(body: string): string | undefined {
+  return extractSystemReminder(body).systemReminder;
+}
+
 function extractSystemReminder(body: string): {
   systemPrompt: string;
   systemReminder: string | undefined;
