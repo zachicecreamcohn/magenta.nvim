@@ -244,4 +244,51 @@ describe("CommandRegistry", () => {
     expect(result.processedText).toBe("@testfoo text");
     expect(result.additionalContent).toEqual([]);
   });
+
+  it("collects a command's systemReminder once even if it matches twice", async () => {
+    const registry = new CommandRegistry();
+    registry.registerCustomCommand({
+      name: "@remind",
+      text: "Reminder command text",
+      systemReminder: "Persistent reminder text",
+    });
+
+    const context = createMockContext();
+    const result = await registry.processMessage(
+      "@remind and again @remind",
+      context,
+    );
+
+    expect(result.reminders).toEqual(["Persistent reminder text"]);
+  });
+
+  it("contributes no reminders for commands without a systemReminder", async () => {
+    const registry = new CommandRegistry();
+    const context = createMockContext();
+
+    const result = await registry.processMessage("@diag some text", context);
+
+    expect(result.reminders).toEqual([]);
+  });
+
+  it("expands @implementplan and activates its plan-maintenance reminder", async () => {
+    const registry = new CommandRegistry();
+    const context = createMockContext();
+
+    const result = await registry.processMessage("@implementplan", context);
+
+    expect(result.additionalContent.length).toBeGreaterThan(0);
+    expect(result.additionalContent[0]).toMatchObject({ type: "text" });
+    expect(result.reminders.length).toBe(1);
+  });
+
+  it("does not match @implementplanned", async () => {
+    const registry = new CommandRegistry();
+    const context = createMockContext();
+
+    const result = await registry.processMessage("@implementplanned", context);
+
+    expect(result.reminders).toEqual([]);
+    expect(result.additionalContent).toEqual([]);
+  });
 });

@@ -102,6 +102,7 @@ export type CustomCommand = {
   name: string;
   text: string;
   description?: string;
+  systemReminder?: string;
 };
 
 export type HSplitWindowDimensions = {
@@ -711,6 +712,16 @@ function parseCustomCommands(
 
       if (typeof command.description === "string") {
         customCommand.description = command.description;
+      }
+
+      if (command.systemReminder !== undefined) {
+        if (typeof command.systemReminder === "string") {
+          customCommand.systemReminder = command.systemReminder;
+        } else {
+          logger.warn(
+            `Custom command '${commandName}' systemReminder must be a string; ignoring`,
+          );
+        }
       }
 
       customCommands.push(customCommand);

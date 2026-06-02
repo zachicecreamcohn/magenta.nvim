@@ -45,6 +45,7 @@ export type Msg =
       type: "send-message";
       messages: InputMessage[];
       async?: boolean;
+      reminders?: string[];
     }
   | {
       type: "abort";
@@ -626,6 +627,11 @@ export class Thread {
   private myUpdate(msg: Msg): void {
     switch (msg.type) {
       case "send-message":
+        if (msg.reminders) {
+          for (const text of msg.reminders) {
+            this.core.update({ type: "activate-reminder", text });
+          }
+        }
         this.core
           .handleSendMessageRequest(msg.messages, msg.async)
           .catch((e: Error) => this.context.nvim.logger.error(e));

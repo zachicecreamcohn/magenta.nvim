@@ -1048,8 +1048,10 @@ ${lines.join("\n")}
     // @compact: tell the thread to start compaction
     if (text.trim().startsWith("@compact")) {
       const rawNextPrompt = text.replace(/^\s*@compact\s*/, "").trim();
+      // Reminders collected here are intentionally dropped: compaction clears
+      // activeReminders, so activating them on this thread would have no effect.
       const nextMessages = rawNextPrompt
-        ? await this.processCommands(rawNextPrompt, thread)
+        ? (await this.processCommands(rawNextPrompt, thread)).messages
         : undefined;
       const nextPrompt = nextMessages?.map((m) => m.text).join("\n");
       this.dispatch({
@@ -1068,7 +1070,10 @@ ${lines.join("\n")}
     const isAsync = text.trim().startsWith("@async");
     const cleanText = isAsync ? text.replace(/^\s*@async\s*/, "") : text;
 
-    const messages = await this.processCommands(cleanText, thread);
+    const { messages, reminders } = await this.processCommands(
+      cleanText,
+      thread,
+    );
 
     this.dispatch({
       type: "thread-msg",
@@ -1077,6 +1082,7 @@ ${lines.join("\n")}
         type: "send-message",
         messages,
         ...(isAsync ? { async: true } : {}),
+        ...(reminders.length ? { reminders } : {}),
       },
     });
   }
@@ -1085,8 +1091,8 @@ ${lines.join("\n")}
   private async processCommands(
     text: string,
     thread: import("./chat/thread.ts").Thread,
-  ): Promise<InputMessage[]> {
-    const { processedText, additionalContent } =
+  ): Promise<{ messages: InputMessage[]; reminders: string[] }> {
+    const { processedText, additionalContent, reminders } =
       await this.commandRegistry.processMessage(text, {
         nvim: this.nvim,
         cwd: thread.context.environment.cwd,
@@ -1104,6 +1110,6 @@ ${lines.join("\n")}
       }
     }
 
-    return messages;
+    return { messages, reminders };
   }
 }

@@ -6,6 +6,7 @@ import { compactCommand } from "./compact.ts";
 import { diagCommand, diagnosticsCommand } from "./diagnostics.ts";
 import { diffCommand, stagedCommand } from "./diff.ts";
 import { fileCommand } from "./file.ts";
+import { implementPlanCommand } from "./implementplan.ts";
 import { qfCommand, quickfixCommand } from "./quickfix.ts";
 import type { Command, MessageContext } from "./types.ts";
 
@@ -20,6 +21,7 @@ export class CommandRegistry {
     const builtinCommands: Command[] = [
       compactCommand,
       fileCommand,
+      implementPlanCommand,
       diffCommand,
       stagedCommand,
       diagCommand,
@@ -71,6 +73,10 @@ export class CommandRegistry {
       command.description = config.description;
     }
 
+    if (config.systemReminder !== undefined) {
+      command.systemReminder = config.systemReminder;
+    }
+
     this.registerCommand(command);
   }
 
@@ -91,8 +97,10 @@ export class CommandRegistry {
   ): Promise<{
     processedText: string;
     additionalContent: ProviderMessageContent[];
+    reminders: string[];
   }> {
     const additionalContent: ProviderMessageContent[] = [];
+    const reminders = new Set<string>();
     let processedText = text;
 
     // Handle @async specially - strip it from the beginning
@@ -107,9 +115,16 @@ export class CommandRegistry {
       while ((match = regex.exec(processedText)) !== null) {
         const content = await command.execute(match, context);
         additionalContent.push(...content);
+        if (command.systemReminder !== undefined) {
+          reminders.add(command.systemReminder);
+        }
       }
     }
 
-    return { processedText, additionalContent };
+    return {
+      processedText,
+      additionalContent,
+      reminders: Array.from(reminders),
+    };
   }
 }

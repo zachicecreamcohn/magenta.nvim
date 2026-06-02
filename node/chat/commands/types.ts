@@ -11,6 +11,8 @@ export interface MessageContext {
 export interface Command {
   name: string;
   description?: string;
+  // Optional persistent system reminder activated when this command matches.
+  systemReminder?: string;
   // Pattern to match the command (e.g., /^@nedit\b/ for simple commands, /^@file:(.+)/ for parameterized)
   pattern: RegExp;
   execute(

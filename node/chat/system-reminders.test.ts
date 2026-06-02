@@ -442,6 +442,45 @@ test("reading a markdown file with a system_reminder block folds it into subsequ
   );
 });
 
+test("@implementplan activates a persistent plan-maintenance reminder", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    await driver.inputMagentaText("@implementplan");
+    await driver.send();
+
+    const request = await driver.mockAnthropic.awaitPendingStream();
+    const userMessage = request.messages[request.messages.length - 1];
+    const systemReminder = findSystemReminderText(userMessage.content);
+    expect(systemReminder).toBeDefined();
+    expect(systemReminder!.text).toContain("keep the plan file updated");
+
+    // The reminder persists into subsequent turns
+    request.respond({
+      stopReason: "tool_use",
+      text: "Implementing",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: "tool_1" as ToolRequestId,
+            toolName: "get_file" as ToolName,
+            input: { filePath: "./poem.txt" },
+          },
+        },
+      ],
+      usage: { inputTokens: 100, outputTokens: 5000 },
+    });
+
+    const autoRespondRequest = await driver.mockAnthropic.awaitPendingStream();
+    const lastMessage =
+      autoRespondRequest.messages[autoRespondRequest.messages.length - 1];
+    const followupReminder = findSystemReminderText(lastMessage.content);
+    expect(followupReminder).toBeDefined();
+    expect(followupReminder!.text).toContain("keep the plan file updated");
+  });
+});
+
 test("a markdown context file's block is active while in context", async () => {
   await withDriver(
     {

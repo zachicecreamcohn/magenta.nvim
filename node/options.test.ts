@@ -266,6 +266,44 @@ describe("parseProfiles tokenRefreshCommand", () => {
   });
 });
 
+describe("parseCustomCommands systemReminder", () => {
+  it("surfaces a string systemReminder on the parsed command", () => {
+    const warnings: string[] = [];
+    const logger = {
+      warn: (msg: string) => warnings.push(msg),
+      error: () => {},
+    };
+    const result = parseOptions(
+      {
+        customCommands: [
+          { name: "@foo", text: "foo", systemReminder: "remember foo" },
+        ],
+        profiles: [{ name: "test", provider: "mock" }],
+      },
+      logger,
+    );
+    expect(result.customCommands[0].systemReminder).toBe("remember foo");
+    expect(warnings).toEqual([]);
+  });
+
+  it("warns and drops a non-string systemReminder", () => {
+    const warnings: string[] = [];
+    const logger = {
+      warn: (msg: string) => warnings.push(msg),
+      error: () => {},
+    };
+    const result = parseOptions(
+      {
+        customCommands: [{ name: "@foo", text: "foo", systemReminder: 42 }],
+        profiles: [{ name: "test", provider: "mock" }],
+      },
+      logger,
+    );
+    expect(result.customCommands[0].systemReminder).toBeUndefined();
+    expect(warnings.some((w) => w.includes("systemReminder"))).toBe(true);
+  });
+});
+
 describe("parseProfiles thinking.effort", () => {
   it("accepts a valid effort value", () => {
     const warnings: string[] = [];
