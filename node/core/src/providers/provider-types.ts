@@ -249,7 +249,16 @@ export type RetryStatus = {
 };
 
 export type AgentStatus =
-  | { type: "streaming"; startTime: Date; retryStatus?: RetryStatus }
+  | {
+      type: "streaming";
+      startTime: Date;
+      /** Timestamp of the most recent sign of life from the server during the
+       * current turn: set when each attempt's request is sent, and advanced on
+       * every received stream event. Used to show a "waiting" timer during dead
+       * air (no events for >3s). */
+      lastEventTime: Date;
+      retryStatus?: RetryStatus;
+    }
   | { type: "stopped"; stopReason: StopReason }
   | { type: "error"; error: Error };
 

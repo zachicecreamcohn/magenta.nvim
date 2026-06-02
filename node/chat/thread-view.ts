@@ -63,6 +63,11 @@ function contextViewCtx(thread: Thread): ContextViewContext {
 /**
  * Helper function to render the animation frame for in-progress operations
  */
+const shortErrorMessage = (error: Error): string => {
+  const msg = error.message.split("\n")[0].trim();
+  return msg.length > 80 ? `${msg.slice(0, 77)}...` : msg;
+};
+
 const getAnimationFrame = (sendDate: Date): string => {
   const frameIndex =
     Math.floor((Date.now() - sendDate.getTime()) / 333) %
@@ -75,7 +80,7 @@ const getAnimationFrame = (sendDate: Date): string => {
  * Helper function to render the status message
  * Composes agent status with thread mode for complete display
  */
-const renderStatus = (
+export const renderStatus = (
   agentStatus: AgentStatus,
   mode: ThreadMode,
   latestUsage: Usage | undefined,
@@ -94,7 +99,7 @@ const renderStatus = (
 
   // Then render based on agent status
   switch (agentStatus.type) {
-    case "streaming":
+    case "streaming": {
       if (agentStatus.retryStatus) {
         const secsLeft = Math.max(
           1,
@@ -102,9 +107,16 @@ const renderStatus = (
             (agentStatus.retryStatus.nextRetryAt.getTime() - Date.now()) / 1000,
           ),
         );
-        return d`⏳ Server overloaded, retrying in ${String(secsLeft)}s... (attempt ${String(agentStatus.retryStatus.attempt)})`;
+        const reason = shortErrorMessage(agentStatus.retryStatus.error);
+        return d`⏳ Retrying in ${String(secsLeft)}s (attempt ${String(agentStatus.retryStatus.attempt)}) — ${reason}`;
+      }
+      const waitedMs = Date.now() - agentStatus.lastEventTime.getTime();
+      if (waitedMs > 3000) {
+        const waitedSecs = Math.floor(waitedMs / 1000);
+        return d`Streaming response ${getAnimationFrame(agentStatus.startTime)} (waiting ${String(waitedSecs)}s)`;
       }
       return d`Streaming response ${getAnimationFrame(agentStatus.startTime)}`;
+    }
     case "stopped":
       return renderStopReason(agentStatus.stopReason, latestUsage);
     case "error":

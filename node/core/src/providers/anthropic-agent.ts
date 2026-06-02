@@ -160,6 +160,9 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
   private streamingEndPromise: Promise<void> | undefined;
   private streamingEndResolver: (() => void) | undefined;
   private retryAbortController: AbortController | undefined;
+  /** Heartbeat that forces a re-render ~1/sec while a turn is in flight, so
+   * time-based status (waiting timer, retry countdown) updates during dead air. */
+  private tickInterval: ReturnType<typeof setInterval> | undefined;
 
   constructor(
     private options: AgentOptions,
@@ -181,9 +184,21 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
   }
 
   private update(action: Action): void {
+    if (
+      (action.type === "block-started" ||
+        action.type === "block-delta" ||
+        action.type === "block-finished") &&
+      this.status.type === "streaming"
+    ) {
+      this.status.lastEventTime = new Date();
+    }
     switch (action.type) {
       case "start-streaming":
-        this.status = { type: "streaming", startTime: new Date() };
+        this.status = {
+          type: "streaming",
+          startTime: new Date(),
+          lastEventTime: new Date(),
+        };
         this.currentBlockIndex = -1;
         this.currentAssistantMessage = undefined;
         this.streamingEndPromise = new Promise((resolve) => {
@@ -459,7 +474,21 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
     this.emitAsync("stopped", "aborted", undefined);
   }
 
+  private startTicker(): void {
+    // Clear any existing ticker first so we can never overlap two intervals.
+    this.stopTicker();
+    this.tickInterval = setInterval(() => this.emit("didUpdate"), 1000);
+  }
+
+  private stopTicker(): void {
+    if (this.tickInterval !== undefined) {
+      clearInterval(this.tickInterval);
+      this.tickInterval = undefined;
+    }
+  }
+
   private resolveStreamingEnd(): void {
+    this.stopTicker();
     if (this.streamingEndResolver) {
       this.streamingEndResolver();
       this.streamingEndResolver = undefined;
@@ -469,6 +498,7 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
 
   continueConversation(): void {
     this.update({ type: "start-streaming" });
+    this.startTicker();
     const startTime = (this.status as { startTime: Date }).startTime;
 
     const attemptStream = (): Promise<
@@ -524,7 +554,11 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
       let attempt = 0;
       while (true) {
         // Clear retryStatus when starting a new attempt
-        this.status = { type: "streaming", startTime };
+        this.status = {
+          type: "streaming",
+          startTime,
+          lastEventTime: new Date(),
+        };
         if (attempt > 0) {
           this.update({ type: "reset-attempt" });
           this.emit("didUpdate");
@@ -574,6 +608,7 @@ export class AnthropicAgent extends Emitter<AgentEvents> implements Agent {
         this.status = {
           type: "streaming",
           startTime,
+          lastEventTime: new Date(),
           retryStatus: {
             attempt: attempt + 1,
             nextRetryAt,
