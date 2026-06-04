@@ -55,7 +55,7 @@ import {
   type UnresolvedFilePath,
 } from "./utils/files.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
-import { type Status, WebServer } from "./web-server.ts";
+import { type Status, type ThreadInfo, WebServer } from "./web-server.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
@@ -79,6 +79,29 @@ function sandboxPromptLabel(prompt: PendingViolation["prompt"]): string {
       return `Write to ${prompt.absPath}`;
     default:
       return assertUnreachable(prompt);
+  }
+}
+
+/** Short, human-readable status label for a thread, surfaced in the web
+ * client's thread list. Mirrors the sidebar's status wording loosely. */
+function threadStatusLabel(
+  status: ReturnType<Chat["getThreadSummary"]>["status"],
+): string {
+  switch (status.type) {
+    case "missing":
+      return "not found";
+    case "pending":
+      return "initializing";
+    case "running":
+      return `running: ${status.activity}`;
+    case "stopped":
+      return `stopped (${status.reason})`;
+    case "yielded":
+      return "yielded";
+    case "error":
+      return `error: ${status.message}`;
+    default:
+      return assertUnreachable(status);
   }
 }
 
@@ -296,6 +319,22 @@ export class Magenta {
               this.getActiveSandboxViolationHandler()?.reject(action.id);
               return;
             }
+            case "new-thread": {
+              this.createAndSwitchToNewThread().catch((e) => {
+                this.nvim.logger.error(
+                  `Error creating thread from web client: ${e instanceof Error ? `${e.message}\n${e.stack}` : JSON.stringify(e)}`,
+                );
+              });
+              return;
+            }
+            case "select-thread": {
+              this.selectThreadEffect(action.id as ThreadId).catch((e) => {
+                this.nvim.logger.error(
+                  `Error selecting thread from web client: ${e instanceof Error ? `${e.message}\n${e.stack}` : JSON.stringify(e)}`,
+                );
+              });
+              return;
+            }
             default:
               assertUnreachable(action);
           }
@@ -307,7 +346,7 @@ export class Magenta {
             this.chat.getThreadSummary(activeThreadId).status.type ===
               "running";
 
-          const status: Status = { running };
+          const status: Status = { running, threads: [] };
 
           const handler = this.getActiveSandboxViolationHandler();
           if (handler) {
@@ -320,6 +359,20 @@ export class Magenta {
               };
             }
           }
+
+          const activeId = this.chat.state.activeThreadId;
+          status.threads = Object.keys(this.chat.threadWrappers).map(
+            (idStr): ThreadInfo => {
+              const id = idStr as unknown as ThreadId;
+              const summary = this.chat.getThreadSummary(id);
+              return {
+                id: idStr,
+                title: summary.title ?? this.chat.getThreadDisplayName(id),
+                status: threadStatusLabel(summary.status),
+                active: id === activeId,
+              };
+            },
+          );
 
           return status;
         },

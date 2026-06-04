@@ -11,9 +11,17 @@ import type { Nvim } from "./nvim/nvim-node/index.ts";
 
 // Status describes the currently-available actions for the web client. Slice 2
 // only needs `running`; later slices extend it (e.g. pendingApproval).
+export type ThreadInfo = {
+  id: string;
+  title: string;
+  status: string;
+  active: boolean;
+};
+
 export type Status = {
   running: boolean;
   pendingApproval?: { id: string; toolName: string };
+  threads: ThreadInfo[];
 };
 
 // Action describes an upstream command from the web client. Slice 3 only needs
@@ -22,7 +30,9 @@ export type Action =
   | { type: "send"; text: string }
   | { type: "abort" }
   | { type: "approve"; id: string }
-  | { type: "reject"; id: string };
+  | { type: "reject"; id: string }
+  | { type: "new-thread" }
+  | { type: "select-thread"; id: string };
 
 type Snapshot = {
   chatText: string;
@@ -150,6 +160,12 @@ export class WebServer {
     }
     if (obj.type === "abort") {
       return { type: "abort" };
+    }
+    if (obj.type === "new-thread") {
+      return { type: "new-thread" };
+    }
+    if (obj.type === "select-thread" && typeof obj.id === "string") {
+      return { type: "select-thread", id: obj.id };
     }
     if (
       (obj.type === "approve" || obj.type === "reject") &&
