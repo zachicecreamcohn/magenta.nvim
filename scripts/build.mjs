@@ -37,6 +37,18 @@ const cmd = [
 console.log(`> ${cmd}`);
 execSync(cmd, { stdio: "inherit", cwd: root });
 
+const webCmd = [
+  "esbuild",
+  "node/web-client/index.ts",
+  "--bundle",
+  "--platform=browser",
+  "--format=esm",
+  `--outfile=${join("dist", "web-client.js")}`,
+].join(" ");
+
+console.log(`> ${webCmd}`);
+execSync(webCmd, { stdio: "inherit", cwd: root });
+
 // Copy runtime assets that get read via import.meta.url at runtime.
 // In the bundle, import.meta.url is dist/magenta.mjs, so:
 //   - edl.ts, spawn-subagents.ts (in node/core/src/tools/) -> dist/*.md
@@ -51,6 +63,7 @@ const assetCopies = [
   ],
   ["node/core/src/compact-system-prompt.md", "dist/compact-system-prompt.md"],
   ["node/chat/logo.txt", "dist/logo.txt"],
+  ["node/web-client/index.html", "dist/index.html"],
 ];
 
 for (const [src, dst] of assetCopies) {
@@ -67,4 +80,4 @@ for (const entry of readdirSync(agentsSrc)) {
   }
 }
 
-console.log("bundle + assets written to dist/");
+console.log("bundle + web-client + assets written to dist/");

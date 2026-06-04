@@ -98,6 +98,7 @@ local defaults = {
   suppressProjectSkills = {},
   maxConcurrentSubagents = 3,
   chimeVolume = 0.3,
+  webServerPort = 8765,
   bellOnNotify = true,
   getFileAutoAllowGlobs = {
     "node_modules/**/*"

@@ -51,6 +51,7 @@ import {
   type UnresolvedFilePath,
 } from "./utils/files.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
+import { WebServer } from "./web-server.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
@@ -77,6 +78,7 @@ export class Magenta {
   public commandRegistry: CommandRegistry;
   public optionsLoader: DynamicOptionsLoader;
   public activeBuffers: { displayBuffer: NvimBuffer; inputBuffer: NvimBuffer };
+  private webServer: WebServer | undefined;
 
   constructor(
     public nvim: Nvim,
@@ -242,6 +244,11 @@ export class Magenta {
       () => this.getActiveKey(),
       () => this.chat.isSandboxBypassed(this.chat.state.activeThreadId),
     );
+
+    if (this.options.webServerPort !== undefined) {
+      this.webServer = new WebServer(this.options.webServerPort, this.nvim);
+      this.webServer.start();
+    }
   }
 
   get options(): MagentaOptions {
@@ -845,6 +852,7 @@ ${lines.join("\n")}
 
   destroy() {
     // BufferManager's mounted apps will be cleaned up when nvim exits
+    this.webServer?.close();
   }
 
   static async start(nvim: Nvim, homeDir?: HomeDir, sandboxOverride?: Sandbox) {

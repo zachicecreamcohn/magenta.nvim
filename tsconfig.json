@@ -30,6 +30,7 @@
     "**/test/tmp",
     "node/nvim/nvim-node/cli/**",
     "node/core/**",
+    "node/web-client/**",
     "node/packages/**"
   ]
 }

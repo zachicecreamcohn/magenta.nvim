@@ -3,7 +3,8 @@
   "module": "magenta.ts",
   "type": "module",
   "workspaces": [
-    "node/core"
+    "node/core",
+    "node/web-client"
   ],
   "devDependencies": {
     "@biomejs/biome": "2.4.6",
