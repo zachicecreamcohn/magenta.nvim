@@ -56,8 +56,8 @@ Build end-to-end (nvim → server → browser) slices so each is manually testab
 2. **[DONE] See the chat.** `GET /events` SSE + render tap; vamp client renders `chatText` in a scrolling window (read-only mirror). Test: type in nvim, watch it appear in the browser live.
 3. **[DONE] Send a prompt.** Textarea + Send → `POST /action {type:"send"}` → `preprocessAndSend`. Test: send a prompt from the browser, watch the agent respond in the mirror.
 4. **[DONE] Abort.** Add `status.running` to the SSE payload + Abort button + `POST {type:"abort"}`. Test: send a long prompt, abort it from the browser.
-5. **[TODO — next] Approve tools.** Add `status.pendingApproval` + Approve/Reject buttons + those POST actions. Test: trigger a tool that needs approval, approve from the browser.
-6. **[TODO] Tailscale hardening.** Detect the `100.x.y.z` interface and bind only to it. Test: connect from a phone over Tailscale.
+5. **[DONE] Approve tools.** Add `status.pendingApproval` + Approve/Reject buttons + those POST actions. Test: trigger a tool that needs approval, approve from the browser.
+6. **[TODO — next] Tailscale hardening.** Detect the `100.x.y.z` interface and bind only to it. Test: connect from a phone over Tailscale.
 
 ## Progress log
 
@@ -105,6 +105,16 @@ Real `running` status + remote abort.
 - **Client.** `node/web-client/index.ts` adds an Abort button in the input row, shown only when `status.running` via `bindVisible`; click POSTs `/action {type:"abort"}` through the existing `postAction` helper. `Action`/`Msg` unions extended.
 
 Verified: `npx tsgo -b`, web-client typecheck, `biome check`, `npm run bundle` all clean; confirmed live (long prompt → Abort button appears → click stops the run in the mirror).
+
+### Slice 5 — Approve tools (DONE, branch zach/remote-magenta)
+
+Remote tool-approval (sandbox violation) prompts.
+
+- **Status.** `Status` gains `pendingApproval?: { id: string; toolName: string }`. `node/magenta.ts`'s `getStatus` now resolves the active thread's `SandboxViolationHandler` (via a new private `getActiveSandboxViolationHandler()` — reads `chat.state.activeThreadId`, the `threadWrappers[id]` initialized wrapper, and `thread.sandboxViolationHandler`), takes the first of `handler.getPendingViolations()`, and surfaces `{ id, toolName }`. `toolName` comes from a new `sandboxPromptLabel()` helper that maps each `PendingViolation["prompt"]` kind (`violation` → command, `approval-prompt` → command, `write-approval` → `Write to <absPath>`) to a label.
+- **Actions.** `Action` union extended with `{ type: "approve"; id: string }` and `{ type: "reject"; id: string }`; `parseAction` accepts them (string `id` required). `onAction` routes them to `getActiveSandboxViolationHandler()?.approve(id)` / `.reject(id)`. Switch stays exhaustive via `assertUnreachable`.
+- **Client.** `node/web-client/index.ts` adds an approval row (label + Approve/Reject buttons) above the input row, gated on `status.pendingApproval !== undefined` via `bindVisible`; the label shows `pendingApproval.toolName`. `Msg`/`Action` unions gain `approve`/`reject`; the handlers read the id from `state.status.pendingApproval` at click time (no stale capture) and POST `/action { type, id }`.
+
+Verified: `npx tsgo -b`, web-client typecheck, `biome check` all clean; committed (dea6331).
 
 # UI (vamp, in `node/web-client/`)
 
