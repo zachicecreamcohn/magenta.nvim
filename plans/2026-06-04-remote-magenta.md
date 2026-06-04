@@ -57,7 +57,8 @@ Build end-to-end (nvim → server → browser) slices so each is manually testab
 3. **[DONE] Send a prompt.** Textarea + Send → `POST /action {type:"send"}` → `preprocessAndSend`. Test: send a prompt from the browser, watch the agent respond in the mirror.
 4. **[DONE] Abort.** Add `status.running` to the SSE payload + Abort button + `POST {type:"abort"}`. Test: send a long prompt, abort it from the browser.
 5. **[DONE] Approve tools.** Add `status.pendingApproval` + Approve/Reject buttons + those POST actions. Test: trigger a tool that needs approval, approve from the browser.
-6. **[TODO — next] Tailscale hardening.** Detect the `100.x.y.z` interface and bind only to it. Test: connect from a phone over Tailscale.
+6. **[DONE] Thread manager sidebar.** Add `status.threads` + a side panel (visible on desktop, toggle-open overlay on mobile) listing threads with a New thread button; `select-thread`/`new-thread` POST actions. Test: switch and create threads from the browser.
+7. **[TODO — next] Tailscale hardening.** Detect the `100.x.y.z` interface and bind only to it. Test: connect from a phone over Tailscale.
 
 ## Progress log
 
@@ -116,6 +117,16 @@ Remote tool-approval (sandbox violation) prompts.
 
 Verified: `npx tsgo -b`, web-client typecheck, `biome check` all clean; committed (dea6331).
 
+### Slice 6 — Thread manager sidebar (DONE, branch zach/remote-magenta)
+
+Remote thread list + switching/creation.
+
+- **Status.** `Status` gains `threads: ThreadInfo[]` where `ThreadInfo = { id; title; status; active }`. `node/web-server.ts` exports `ThreadInfo`. `getStatus` in `node/magenta.ts` maps `Object.keys(chat.threadWrappers)`: title via `getThreadSummary().title ?? getThreadDisplayName(id)`, a short status string via a new `threadStatusLabel()` helper (maps the summary status union to text), and `active` = matches `chat.state.activeThreadId`.
+- **Actions.** `Action` union extended with `{ type: "new-thread" }` and `{ type: "select-thread"; id }`; `parseAction` accepts them. `onAction` routes `new-thread` → `createAndSwitchToNewThread()` and `select-thread` → `selectThreadEffect(id as ThreadId)` (both fire-and-forget with error logging) — the same paths the local `:Magenta new`/buffer-open trigger. Switch stays exhaustive via `assertUnreachable`.
+- **Client.** `node/web-client/index.ts` restructured into a top bar (☰ menu button + connection status) over a `main` row holding the sidebar + content column. New `ThreadItemView` (child view) rendered via `bindList`/`showKeyed` keyed on thread id; clicking dispatches `select-thread`, the New thread button dispatches `new-thread`. Mobile-first CSS: desktop (`min-width:641px`) shows the sidebar always and hides the menu button/backdrop; mobile slides the sidebar in as an overlay (`sidebarOpen` class) with a tap-to-close backdrop. `State` gains `sidebarOpen`; selecting/creating a thread closes the drawer.
+
+Verified: `npx tsgo -b`, web-client typecheck, `biome check`, `npm run bundle` all clean; committed (47aa7e9).
+
 # UI (vamp, in `node/web-client/`)
 
 New workspace under `node/` (outside `@magenta/core` and the nvim root) with a vendored `vamp.ts`. Mobile-first.
@@ -124,10 +135,10 @@ MVP layout:
 - Full-height scrolling chat window showing the mirrored `chatText`.
 - A row of **action buttons above the textarea**, hidden until needed: **Abort** shown when `status.running`; **Approve**/**Reject** shown when `status.pendingApproval` is set (the button POSTs the relevant `id`). Markdown-ish text is preserved as-is for now.
 - A `<textarea>` + Send at the bottom that POSTs `{ type: "send", text }`.
+- A **thread sidebar** with a New thread button + thread list (title/status, active marker); desktop-permanent, mobile slide-in overlay toggled by a ☰ button.
 
 # Polish (v2, later)
 
 - Re-render from the underlying controller state in vamp instead of mirroring rendered text.
 - Inline approval controls that match how magenta's buffer renders them, instead of a separate action-button row.
-- Collapsible side panel for thread switching.
 - `@`-command autocomplete in the input.
