@@ -1,5 +1,10 @@
 import { readFile } from "node:fs/promises";
-import { createServer, type Server, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Nvim } from "./nvim/nvim-node/index.ts";
@@ -9,6 +14,10 @@ import type { Nvim } from "./nvim/nvim-node/index.ts";
 export type Status = {
   running: boolean;
 };
+
+// Action describes an upstream command from the web client. Slice 3 only needs
+// `send`; later slices extend this union (abort, approve, reject).
+export type Action = { type: "send"; text: string };
 
 type Snapshot = {
   chatText: string;
@@ -35,13 +44,21 @@ export class WebServer {
   constructor(
     private port: number,
     private nvim: Nvim,
+    private onAction: (action: Action) => void,
   ) {
     this.server = createServer((req, res) => {
       const path = req.url
         ? new URL(req.url, "http://localhost").pathname
         : "/";
 
-      if (path === "/events") {
+      const method = req.method ?? "GET";
+
+      if (method === "POST" && path === "/action") {
+        this.handleAction(req, res);
+        return;
+      }
+
+      if (method === "GET" && path === "/events") {
         this.handleEvents(res);
         return;
       }
@@ -67,6 +84,75 @@ export class WebServer {
         },
       );
     });
+  }
+
+  private handleAction(req: IncomingMessage, res: ServerResponse): void {
+    const chunks: Buffer[] = [];
+    let tooLarge = false;
+    req.on("data", (chunk: Buffer) => {
+      chunks.push(chunk);
+      // Guard against unbounded request bodies (1MB cap is plenty for a prompt).
+      if (chunks.reduce((n, c) => n + c.length, 0) > 1_000_000) {
+        tooLarge = true;
+        req.destroy();
+      }
+    });
+    req.on("end", () => {
+      if (tooLarge) {
+        this.respondError(res, 413, "request body too large");
+        return;
+      }
+
+      const body = Buffer.concat(chunks).toString("utf8");
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(body);
+      } catch {
+        this.respondError(res, 400, "invalid JSON");
+        return;
+      }
+
+      const action = this.parseAction(parsed);
+      if (!action) {
+        this.respondError(res, 400, "unknown action");
+        return;
+      }
+
+      try {
+        this.onAction(action);
+      } catch (err) {
+        this.nvim.logger.error(
+          `WebServer: onAction threw: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        this.respondError(res, 500, "internal error");
+        return;
+      }
+
+      res.writeHead(204);
+      res.end();
+    });
+    req.on("error", (err) => {
+      this.nvim.logger.error(`WebServer: request error: ${err.message}`);
+    });
+  }
+
+  private parseAction(value: unknown): Action | undefined {
+    if (typeof value !== "object" || value === null) return undefined;
+    const obj = value as { type?: unknown; text?: unknown };
+    if (obj.type === "send" && typeof obj.text === "string") {
+      return { type: "send", text: obj.text };
+    }
+    return undefined;
+  }
+
+  private respondError(
+    res: ServerResponse,
+    status: number,
+    message: string,
+  ): void {
+    this.nvim.logger.warn(`WebServer: /action ${status}: ${message}`);
+    res.writeHead(status, { "content-type": "text/plain" });
+    res.end(message);
   }
 
   private handleEvents(res: ServerResponse): void {

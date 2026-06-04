@@ -246,7 +246,23 @@ export class Magenta {
     );
 
     if (this.options.webServerPort !== undefined) {
-      const webServer = new WebServer(this.options.webServerPort, this.nvim);
+      const webServer = new WebServer(
+        this.options.webServerPort,
+        this.nvim,
+        (action) => {
+          switch (action.type) {
+            case "send":
+              this.preprocessAndSend(action.text).catch((e) => {
+                this.nvim.logger.error(
+                  `Error sending message from web client: ${e instanceof Error ? `${e.message}\n${e.stack}` : JSON.stringify(e)}`,
+                );
+              });
+              return;
+            default:
+              assertUnreachable(action.type);
+          }
+        },
+      );
       this.webServer = webServer;
       this.webServer.start();
       // Mirror every flattened render out to connected web clients.

@@ -54,8 +54,8 @@ Build end-to-end (nvim → server → browser) slices so each is manually testab
 
 1. **[DONE] Hello.** In-process HTTP server bound to `0.0.0.0` (dev), serving a static vamp page at `/`. Test: open in laptop browser. Proves the web-client workspace, vamp build/serve, in-process server, and options wiring.
 2. **[DONE] See the chat.** `GET /events` SSE + render tap; vamp client renders `chatText` in a scrolling window (read-only mirror). Test: type in nvim, watch it appear in the browser live.
-3. **[TODO — next] Send a prompt.** Textarea + Send → `POST /action {type:"send"}` → `preprocessAndSend`. Test: send a prompt from the browser, watch the agent respond in the mirror.
-4. **[TODO] Abort.** Add `status.running` to the SSE payload + Abort button + `POST {type:"abort"}`. Test: send a long prompt, abort it from the browser.
+3. **[DONE] Send a prompt.** Textarea + Send → `POST /action {type:"send"}` → `preprocessAndSend`. Test: send a prompt from the browser, watch the agent respond in the mirror.
+4. **[TODO — next] Abort.** Add `status.running` to the SSE payload + Abort button + `POST {type:"abort"}`. Test: send a long prompt, abort it from the browser.
 5. **[TODO] Approve tools.** Add `status.pendingApproval` + Approve/Reject buttons + those POST actions. Test: trigger a tool that needs approval, approve from the browser.
 6. **[TODO] Tailscale hardening.** Detect the `100.x.y.z` interface and bind only to it. Test: connect from a phone over Tailscale.
 
@@ -85,6 +85,16 @@ Delivered a read-only live mirror of the chat transcript:
 Bug fixed during this slice: initial tap placement in `render.ts` captured per-render fragments, so the client showed only the last line; moved to the top-level render in `tea.ts` (see above).
 
 Verified: `npx tsgo -b`, web-client typecheck, `biome check`, and `npm run bundle` all clean; confirmed live in the browser (full scrollable transcript, appends live).
+
+### Slice 3 — Send a prompt (DONE, branch zach/remote-magenta)
+
+Upstream interaction: send a prompt from the browser into the same path local nvim input takes.
+
+- **Server.** `node/web-server.ts` adds `export type Action = { type: "send"; text: string }` (union, extensible for abort/approve/reject) and a `POST /action` endpoint (`handleAction`/`parseAction`/`respondError`). Routes on method+path; reads + JSON-parses + shape-validates the body; **204** on success, **400** invalid JSON/unknown action, **413** body >1MB, **500** if the handler throws. Never throws out of the request handler. The `WebServer` constructor gained an `onAction: (action: Action) => void` param so the server stays decoupled from `Magenta` internals.
+- **Routing.** `node/magenta.ts` passes an `onAction` handler that switches on `action.type`; for `send` it calls the existing **private** `this.preprocessAndSend(action.text)` (unchanged — same @fork/@compact/@async + command-expansion path a local user triggers), logging rejections; `assertUnreachable` default. The agent's response surfaces via the existing SSE mirror.
+- **Client.** `node/web-client/index.ts` adds a bottom input row (`<textarea>` + Send button) below the transcript; `Msg` union gains `input`/`send`; sends via `fetch("/action", { method: "POST", ... })`. Enter sends, Shift+Enter inserts a newline; Send is `bindDisabled` when the trimmed input is empty; the textarea is cleared after a successful send (DOM reconciled in `sync()`).
+
+Verified: `npx tsgo -b`, web-client typecheck, `biome check`, `npm run bundle` all clean; confirmed live in the browser (sent a prompt, agent responded in the mirror).
 
 # UI (vamp, in `node/web-client/`)
 

@@ -8,6 +8,8 @@ import {
   type View,
 } from "./vamp.js";
 
+type Action = { type: "send"; text: string };
+
 type Status = {
   running: boolean;
 };
@@ -21,18 +23,32 @@ type State = {
   connected: boolean;
   chatText: string;
   status: Status;
+  input: string;
 };
 
 type Msg =
   | { type: "snapshot"; snapshot: Snapshot }
-  | { type: "connection"; open: boolean };
+  | { type: "connection"; open: boolean }
+  | { type: "input"; text: string }
+  | { type: "send" };
 
 function initialState(): State {
   return {
     connected: false,
     chatText: "",
     status: { running: false },
+    input: "",
   };
+}
+
+function postAction(action: Action): void {
+  fetch("/action", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(action),
+  }).catch((err) => {
+    console.error("failed to POST /action", err);
+  });
 }
 
 function update(state: State, msg: Msg): void {
@@ -44,12 +60,25 @@ function update(state: State, msg: Msg): void {
     case "connection":
       state.connected = msg.open;
       break;
+    case "input":
+      state.input = msg.text;
+      break;
+    case "send": {
+      const text = state.input.trim();
+      if (!text) break;
+      postAction({ type: "send", text });
+      state.input = "";
+      break;
+    }
   }
 }
 
 const rootClass = cls("root");
 const statusClass = cls("status");
 const chatClass = cls("chat");
+const inputRowClass = cls("inputRow");
+const textareaClass = cls("textarea");
+const sendButtonClass = cls("sendButton");
 
 mountStyle(`
 html, body { margin: 0; height: 100%; }
@@ -76,6 +105,39 @@ html, body { margin: 0; height: 100%; }
   word-break: break-word;
   -webkit-overflow-scrolling: touch;
 }
+.${inputRowClass} {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-top: 1px solid #333;
+  background: #1a1a1a;
+}
+.${textareaClass} {
+  flex: 1 1 auto;
+  resize: none;
+  min-height: 2.5rem;
+  max-height: 8rem;
+  padding: 0.5rem;
+  font: inherit;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background: #111;
+  color: #eee;
+}
+.${sendButtonClass} {
+  flex: 0 0 auto;
+  padding: 0 1rem;
+  font: inherit;
+  border: none;
+  border-radius: 4px;
+  background: #b048b0;
+  color: #fff;
+}
+.${sendButtonClass}:disabled {
+  background: #444;
+  color: #888;
+}
 `);
 
 class RootView implements View<State, Msg> {
@@ -83,21 +145,30 @@ class RootView implements View<State, Msg> {
   private b: Binder<State>;
   private chatRef: Ref;
 
+  private inputRef: Ref;
+
   constructor(
     container: HTMLElement,
-    _dispatch: (msg: Msg) => void,
+    dispatch: (msg: Msg) => void,
     initialState: State,
   ) {
     this.container = container;
 
     const statusRef = ref("status");
     const chatRef = ref("chat");
+    const inputRef = ref("input");
+    const sendRef = ref("send");
     this.chatRef = chatRef;
+    this.inputRef = inputRef;
 
     container.innerHTML = sanitize`
       <div class="${rootClass}">
         <div class="${statusClass}" data-ref="${statusRef}"></div>
         <pre class="${chatClass}" data-ref="${chatRef}"></pre>
+        <div class="${inputRowClass}">
+          <textarea class="${textareaClass}" data-ref="${inputRef}" placeholder="Send a message..."></textarea>
+          <button class="${sendButtonClass}" data-ref="${sendRef}">Send</button>
+        </div>
       </div>
     `;
 
@@ -106,10 +177,31 @@ class RootView implements View<State, Msg> {
       s.connected ? "connected" : "disconnected",
     );
     this.b.bindText(chatRef, (s) => s.chatText);
+    this.b.bindDisabled(sendRef, (s) => s.input.trim().length === 0);
+
+    const textarea = this.b.ref<HTMLTextAreaElement>(inputRef);
+    textarea.addEventListener("input", () => {
+      dispatch({ type: "input", text: textarea.value });
+    });
+    textarea.addEventListener("keydown", (e: KeyboardEvent) => {
+      // Enter sends; Shift+Enter inserts a newline.
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        dispatch({ type: "send" });
+      }
+    });
+    this.b.ref(sendRef).addEventListener("click", () => {
+      dispatch({ type: "send" });
+    });
   }
 
   sync(state: State): void {
     const chat = this.b.ref(this.chatRef);
+    const textarea = this.b.ref<HTMLTextAreaElement>(this.inputRef);
+    // Keep the textarea DOM in sync with state (e.g. cleared after send).
+    if (textarea.value !== state.input) {
+      textarea.value = state.input;
+    }
 
     // Only stick to the bottom if the user is already near it, so scrolling up
     // to read earlier output doesn't get yanked back down on new content.
