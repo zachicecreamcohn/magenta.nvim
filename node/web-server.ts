@@ -1,8 +1,19 @@
 import { readFile } from "node:fs/promises";
-import { createServer, type Server } from "node:http";
+import { createServer, type Server, type ServerResponse } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Nvim } from "./nvim/nvim-node/index.ts";
+
+// Status describes the currently-available actions for the web client. Slice 2
+// only needs `running`; later slices extend it (e.g. pendingApproval).
+export type Status = {
+  running: boolean;
+};
+
+type Snapshot = {
+  chatText: string;
+  status: Status;
+};
 
 // At runtime in the bundle, import.meta.url resolves to dist/magenta.mjs, so
 // these assets live alongside it in dist/ (see scripts/build.mjs).
@@ -18,6 +29,8 @@ const ASSETS: { [path: string]: { file: string; contentType: string } } = {
 
 export class WebServer {
   private server: Server;
+  private clients = new Set<ServerResponse>();
+  private latestChatText = "";
 
   constructor(
     private port: number,
@@ -27,6 +40,12 @@ export class WebServer {
       const path = req.url
         ? new URL(req.url, "http://localhost").pathname
         : "/";
+
+      if (path === "/events") {
+        this.handleEvents(res);
+        return;
+      }
+
       const asset = ASSETS[path];
       if (!asset) {
         res.writeHead(404, { "content-type": "text/plain" });
@@ -50,6 +69,39 @@ export class WebServer {
     });
   }
 
+  private handleEvents(res: ServerResponse): void {
+    res.writeHead(200, {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache",
+      connection: "keep-alive",
+    });
+
+    this.clients.add(res);
+    res.on("close", () => {
+      this.clients.delete(res);
+    });
+
+    // Immediately push the current snapshot so a new client is up to date.
+    this.writeSnapshot(res, this.snapshot());
+  }
+
+  private snapshot(): Snapshot {
+    // running/pendingApproval land in later slices; slice 2 is a read-only mirror.
+    return { chatText: this.latestChatText, status: { running: false } };
+  }
+
+  private writeSnapshot(res: ServerResponse, snapshot: Snapshot): void {
+    res.write(`data: ${JSON.stringify(snapshot)}\n\n`);
+  }
+
+  pushSnapshot(chatText: string): void {
+    this.latestChatText = chatText;
+    const snapshot = this.snapshot();
+    for (const client of this.clients) {
+      this.writeSnapshot(client, snapshot);
+    }
+  }
+
   start(): void {
     this.server.listen(this.port, "0.0.0.0", () => {
       this.nvim.logger.info(
@@ -59,6 +111,10 @@ export class WebServer {
   }
 
   close(): void {
+    for (const client of this.clients) {
+      client.end();
+    }
+    this.clients.clear();
     this.server.close();
   }
 }

@@ -37,8 +37,8 @@ import {
   type BindingCtx,
   type BindingKey,
 } from "./tea/bindings.ts";
-import type { Dispatch } from "./tea/tea.ts";
 import * as TEA from "./tea/tea.ts";
+import { type Dispatch, setRenderTap } from "./tea/tea.ts";
 import { record as recordTiming } from "./timings.ts";
 import { assertUnreachable } from "./utils/assertUnreachable.ts";
 import type { HomeDir } from "./utils/files.ts";
@@ -246,8 +246,11 @@ export class Magenta {
     );
 
     if (this.options.webServerPort !== undefined) {
-      this.webServer = new WebServer(this.options.webServerPort, this.nvim);
+      const webServer = new WebServer(this.options.webServerPort, this.nvim);
+      this.webServer = webServer;
       this.webServer.start();
+      // Mirror every flattened render out to connected web clients.
+      setRenderTap((content) => webServer.pushSnapshot(content));
     }
   }
 
@@ -852,6 +855,7 @@ ${lines.join("\n")}
 
   destroy() {
     // BufferManager's mounted apps will be cleaned up when nvim exits
+    setRenderTap(undefined);
     this.webServer?.close();
   }
 

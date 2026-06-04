@@ -52,12 +52,39 @@ Derived from thread/tool state on each render. The client uses it to decide whic
 
 Build end-to-end (nvim → server → browser) slices so each is manually testable, then widen. Infra risk is front-loaded; Tailscale is deferred so dev testing needs no Tailscale.
 
-1. **Hello.** In-process HTTP server bound to `0.0.0.0` (dev), serving a static vamp page at `/`. Test: open in laptop browser. Proves the web-client workspace, vamp build/serve, in-process server, and options wiring.
-2. **See the chat.** `GET /events` SSE + render tap; vamp client renders `chatText` in a scrolling window (read-only mirror). Test: type in nvim, watch it appear in the browser live.
-3. **Send a prompt.** Textarea + Send → `POST /action {type:"send"}` → `preprocessAndSend`. Test: send a prompt from the browser, watch the agent respond in the mirror.
-4. **Abort.** Add `status.running` to the SSE payload + Abort button + `POST {type:"abort"}`. Test: send a long prompt, abort it from the browser.
-5. **Approve tools.** Add `status.pendingApproval` + Approve/Reject buttons + those POST actions. Test: trigger a tool that needs approval, approve from the browser.
-6. **Tailscale hardening.** Detect the `100.x.y.z` interface and bind only to it. Test: connect from a phone over Tailscale.
+1. **[DONE] Hello.** In-process HTTP server bound to `0.0.0.0` (dev), serving a static vamp page at `/`. Test: open in laptop browser. Proves the web-client workspace, vamp build/serve, in-process server, and options wiring.
+2. **[DONE] See the chat.** `GET /events` SSE + render tap; vamp client renders `chatText` in a scrolling window (read-only mirror). Test: type in nvim, watch it appear in the browser live.
+3. **[TODO — next] Send a prompt.** Textarea + Send → `POST /action {type:"send"}` → `preprocessAndSend`. Test: send a prompt from the browser, watch the agent respond in the mirror.
+4. **[TODO] Abort.** Add `status.running` to the SSE payload + Abort button + `POST {type:"abort"}`. Test: send a long prompt, abort it from the browser.
+5. **[TODO] Approve tools.** Add `status.pendingApproval` + Approve/Reject buttons + those POST actions. Test: trigger a tool that needs approval, approve from the browser.
+6. **[TODO] Tailscale hardening.** Detect the `100.x.y.z` interface and bind only to it. Test: connect from a phone over Tailscale.
+
+## Progress log
+
+### Slice 1 — Hello (DONE, commit 4660931 on branch zach/remote-magenta)
+
+Delivered:
+
+- New `@magenta/web-client` npm workspace (`node/web-client/`) with `package.json`, browser `tsconfig.json` (DOM libs, not composite), a vendored `vamp.ts` (verbatim from dlants/vamp), `index.ts` (minimal vamp `RootView` rendering a hello heading), and `index.html` loading `/web-client.js` into `#root`.
+- `node/web-server.ts` — `WebServer` class using `node:http` only (no new deps). Binds `0.0.0.0` on the configured port; serves `GET /` → `index.html` and `/web-client.js` from the dist dir (resolved via `import.meta.url`); 404 otherwise. Has `start()`/`close()`.
+- Wired into `node/magenta.ts`: `WebServer` is constructed + started at the end of the `Magenta` constructor when `options.webServerPort !== undefined`, and closed in `destroy()`.
+- Options: `webServerPort?: number` on `MagentaOptions` (`node/options.ts`), parsed in the main `parseOptions` path (positive-integer validation, warn otherwise); lua default `webServerPort = 8765` in `lua/magenta/options.lua`.
+- Build: `scripts/build.mjs` gained a second esbuild invocation bundling `node/web-client/index.ts` → `dist/web-client.js` (`--platform=browser --format=esm`), and copies `index.html` → `dist/index.html`. `node/web-client/**` excluded from the root `tsconfig.json` (built separately).
+
+Verified: `npx tsgo -b`, `npx tsgo -p node/web-client/tsconfig.json --noEmit`, `npm run bundle` all clean; page renders "magenta remote — hello" in the browser via nvim-launched server. Build note: run `npm run bundle` (not bare `node scripts/build.mjs`) so `esbuild` resolves from `node_modules/.bin`.
+
+### Slice 2 — See the chat (DONE, branch zach/remote-magenta)
+
+Delivered a read-only live mirror of the chat transcript:
+
+- **Render tap (full transcript only).** `node/tea/tea.ts` owns an optional `renderTap` + `setRenderTap(tap)`, fired from the *top-level* render cycle (after `root.render()`, plus the error-recovery re-mount path) with `flattenMountedNode(root._getMountedNode())` — the complete app tree. `node/tea/view.ts` gained `flattenMountedNode()` (recursive string/node/array flatten). The tap is deliberately NOT in the low-level `render()` in `node/tea/render.ts`, which is also used for incremental sub-tree updates and would emit fragments. The tea layer stays generic (no web-server import); the root layer wires it.
+- **Server.** `node/web-server.ts` adds a `GET /events` SSE endpoint (text/event-stream, keep-alive), a connected-client set, `pushSnapshot(chatText)`, latest-snapshot replay on connect, and client cleanup on close. Exported `Status = { running: boolean }` (extensible for slices 4/5; `running` hardcoded `false` for now). Payload per message: JSON `{ chatText, status }`.
+- **Wiring.** `node/magenta.ts` imports `setRenderTap` from `./tea/tea.ts`; in the `webServerPort` block it registers `setRenderTap((content) => webServer.pushSnapshot(content))`, and clears it (`setRenderTap(undefined)`) + closes the server in `destroy()`.
+- **Client.** `node/web-client/index.ts` is now a full vamp app: opens `EventSource('/events')`, parses snapshots into state, renders `chatText` in a full-height scrolling read-only `<pre>` via XSS-safe `bindText`, mobile-first CSS. Auto-scroll sticks to the bottom only when already near it (within 40px) so you can scroll up through history without being yanked down.
+
+Bug fixed during this slice: initial tap placement in `render.ts` captured per-render fragments, so the client showed only the last line; moved to the top-level render in `tea.ts` (see above).
+
+Verified: `npx tsgo -b`, web-client typecheck, `biome check`, and `npm run bundle` all clean; confirmed live in the browser (full scrollable transcript, appends live).
 
 # UI (vamp, in `node/web-client/`)
 

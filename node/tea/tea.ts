@@ -12,6 +12,7 @@ import {
 } from "./bindings.ts";
 import {
   d,
+  flattenMountedNode,
   type MountedVDOM,
   type MountedView,
   type MountPoint,
@@ -19,6 +20,20 @@ import {
   prettyPrintMountedNode,
   type VDOMNode,
 } from "./view.ts";
+
+// Optional tap invoked with the full flattened content of the whole app on each
+// top-level render cycle. The root layer wires this up (e.g. to mirror the chat
+// over the network); the tea layer stays generic and has no knowledge of who
+// listens. This fires only from the top-level render path below — NOT from the
+// low-level render() in render.ts, which is also used for incremental sub-tree
+// updates and would therefore only see fragments. undefined means no listener.
+let renderTap: ((content: string) => void) | undefined;
+
+export function setRenderTap(
+  tap: ((content: string) => void) | undefined,
+): void {
+  renderTap = tap;
+}
 
 export type Dispatch<Msg> = (msg: Msg) => void;
 export type View<Model> = ({ model }: { model: Model }) => VDOMNode;
@@ -92,6 +107,13 @@ export function createApp<Model>({
           try {
             await root.render({ currentState });
             renderVersion++;
+            if (renderTap) {
+              // Fire the tap with the FULL flattened content of the whole app.
+              // root.render() renders the entire app tree, and flattening the
+              // resulting mounted node always yields the complete transcript,
+              // so the tap never sees partial/incremental render fragments.
+              renderTap(flattenMountedNode(root._getMountedNode()));
+            }
           } catch (err) {
             nvim.logger.error(
               err instanceof Error
@@ -120,6 +142,9 @@ export function createApp<Model>({
                   props: { currentState },
                 });
                 renderVersion++;
+                if (renderTap) {
+                  renderTap(flattenMountedNode(root._getMountedNode()));
+                }
                 nvim.logger.info("Successfully re-mounted view after error");
               } catch (remountErr) {
                 nvim.logger.error(
