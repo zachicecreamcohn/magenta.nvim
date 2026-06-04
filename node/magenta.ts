@@ -3,6 +3,10 @@ import type { InputMessage, NativeMessageIdx, ThreadId } from "@magenta/core";
 import { probeAndSaveClipboardImage } from "@magenta/core";
 import { type BufferInfo, BufferManager } from "./buffer-manager.ts";
 import { Lsp } from "./capabilities/lsp.ts";
+import type {
+  PendingViolation,
+  SandboxViolationHandler,
+} from "./capabilities/sandbox-violation-handler.ts";
 import { Chat } from "./chat/chat.ts";
 import { CommandRegistry } from "./chat/commands/registry.ts";
 import {
@@ -51,7 +55,7 @@ import {
   type UnresolvedFilePath,
 } from "./utils/files.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
-import { WebServer } from "./web-server.ts";
+import { type Status, WebServer } from "./web-server.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
@@ -62,6 +66,21 @@ const MAGENTA_BUF_ENTER = "magentaBufEnter";
 const MAGENTA_BUF_DELETE = "magentaBufDelete";
 const MAGENTA_CLIPBOARD_IMAGE_PASTE = "magentaClipboardImagePaste";
 const MAGENTA_CLIPBOARD_TEXT_PASTE = "magentaClipboardTextPaste";
+
+/** Derive a human-readable label for a pending sandbox approval prompt, used
+ * as the `toolName` surfaced to the web client. */
+function sandboxPromptLabel(prompt: PendingViolation["prompt"]): string {
+  switch (prompt.kind) {
+    case "violation":
+      return prompt.violation.command;
+    case "approval-prompt":
+      return prompt.command;
+    case "write-approval":
+      return `Write to ${prompt.absPath}`;
+    default:
+      return assertUnreachable(prompt);
+  }
+}
 
 function formatAsQuote(text: string): string {
   return text
@@ -269,6 +288,14 @@ export class Magenta {
               }
               return;
             }
+            case "approve": {
+              this.getActiveSandboxViolationHandler()?.approve(action.id);
+              return;
+            }
+            case "reject": {
+              this.getActiveSandboxViolationHandler()?.reject(action.id);
+              return;
+            }
             default:
               assertUnreachable(action);
           }
@@ -279,7 +306,22 @@ export class Magenta {
             activeThreadId !== undefined &&
             this.chat.getThreadSummary(activeThreadId).status.type ===
               "running";
-          return { running };
+
+          const status: Status = { running };
+
+          const handler = this.getActiveSandboxViolationHandler();
+          if (handler) {
+            const pending = handler.getPendingViolations();
+            const first = [...pending.values()][0];
+            if (first) {
+              status.pendingApproval = {
+                id: first.id,
+                toolName: sandboxPromptLabel(first.prompt),
+              };
+            }
+          }
+
+          return status;
         },
       );
       this.webServer = webServer;
@@ -301,6 +343,19 @@ export class Magenta {
     return this.chat.state.state === "thread-selected"
       ? this.chat.state.activeThreadId
       : "overview";
+  }
+
+  /** Resolve the active thread's sandbox-violation handler (the source of
+   * tool-approval prompts), or undefined if there's no active/initialized
+   * thread or the handler isn't set. */
+  private getActiveSandboxViolationHandler():
+    | SandboxViolationHandler
+    | undefined {
+    const activeThreadId = this.chat.state.activeThreadId;
+    if (activeThreadId === undefined) return undefined;
+    const wrapper = this.chat.threadWrappers[activeThreadId];
+    if (wrapper?.state !== "initialized") return undefined;
+    return wrapper.thread.sandboxViolationHandler;
   }
 
   async selectThreadEffect(id: ThreadId): Promise<void> {

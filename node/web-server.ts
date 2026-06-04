@@ -13,11 +13,16 @@ import type { Nvim } from "./nvim/nvim-node/index.ts";
 // only needs `running`; later slices extend it (e.g. pendingApproval).
 export type Status = {
   running: boolean;
+  pendingApproval?: { id: string; toolName: string };
 };
 
 // Action describes an upstream command from the web client. Slice 3 only needs
 // `send`; later slices extend this union (abort, approve, reject).
-export type Action = { type: "send"; text: string } | { type: "abort" };
+export type Action =
+  | { type: "send"; text: string }
+  | { type: "abort" }
+  | { type: "approve"; id: string }
+  | { type: "reject"; id: string };
 
 type Snapshot = {
   chatText: string;
@@ -139,12 +144,18 @@ export class WebServer {
 
   private parseAction(value: unknown): Action | undefined {
     if (typeof value !== "object" || value === null) return undefined;
-    const obj = value as { type?: unknown; text?: unknown };
+    const obj = value as { type?: unknown; text?: unknown; id?: unknown };
     if (obj.type === "send" && typeof obj.text === "string") {
       return { type: "send", text: obj.text };
     }
     if (obj.type === "abort") {
       return { type: "abort" };
+    }
+    if (
+      (obj.type === "approve" || obj.type === "reject") &&
+      typeof obj.id === "string"
+    ) {
+      return { type: obj.type, id: obj.id };
     }
     return undefined;
   }

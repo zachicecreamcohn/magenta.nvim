@@ -8,10 +8,15 @@ import {
   type View,
 } from "./vamp.js";
 
-type Action = { type: "send"; text: string } | { type: "abort" };
+type Action =
+  | { type: "send"; text: string }
+  | { type: "abort" }
+  | { type: "approve"; id: string }
+  | { type: "reject"; id: string };
 
 type Status = {
   running: boolean;
+  pendingApproval?: { id: string; toolName: string };
 };
 
 type Snapshot = {
@@ -31,7 +36,9 @@ type Msg =
   | { type: "connection"; open: boolean }
   | { type: "input"; text: string }
   | { type: "send" }
-  | { type: "abort" };
+  | { type: "abort" }
+  | { type: "approve" }
+  | { type: "reject" };
 
 function initialState(): State {
   return {
@@ -74,6 +81,16 @@ function update(state: State, msg: Msg): void {
     case "abort":
       postAction({ type: "abort" });
       break;
+    case "approve": {
+      const pending = state.status.pendingApproval;
+      if (pending) postAction({ type: "approve", id: pending.id });
+      break;
+    }
+    case "reject": {
+      const pending = state.status.pendingApproval;
+      if (pending) postAction({ type: "reject", id: pending.id });
+      break;
+    }
   }
 }
 
@@ -84,6 +101,10 @@ const inputRowClass = cls("inputRow");
 const textareaClass = cls("textarea");
 const sendButtonClass = cls("sendButton");
 const abortButtonClass = cls("abortButton");
+const approvalRowClass = cls("approvalRow");
+const approvalLabelClass = cls("approvalLabel");
+const approveButtonClass = cls("approveButton");
+const rejectButtonClass = cls("rejectButton");
 
 mountStyle(`
 html, body { margin: 0; height: 100%; }
@@ -152,6 +173,41 @@ html, body { margin: 0; height: 100%; }
   background: #b04848;
   color: #fff;
 }
+.${approvalRowClass} {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-top: 1px solid #333;
+  background: #2a221a;
+}
+.${approvalLabelClass} {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #e8c98a;
+}
+.${approveButtonClass} {
+  flex: 0 0 auto;
+  padding: 0.5rem 1rem;
+  font: inherit;
+  border: none;
+  border-radius: 4px;
+  background: #4a9d4a;
+  color: #fff;
+}
+.${rejectButtonClass} {
+  flex: 0 0 auto;
+  padding: 0.5rem 1rem;
+  font: inherit;
+  border: none;
+  border-radius: 4px;
+  background: #b04848;
+  color: #fff;
+}
 `);
 
 class RootView implements View<State, Msg> {
@@ -173,6 +229,10 @@ class RootView implements View<State, Msg> {
     const inputRef = ref("input");
     const sendRef = ref("send");
     const abortRef = ref("abort");
+    const approvalRowRef = ref("approvalRow");
+    const approvalLabelRef = ref("approvalLabel");
+    const approveRef = ref("approve");
+    const rejectRef = ref("reject");
     this.chatRef = chatRef;
     this.inputRef = inputRef;
 
@@ -180,6 +240,11 @@ class RootView implements View<State, Msg> {
       <div class="${rootClass}">
         <div class="${statusClass}" data-ref="${statusRef}"></div>
         <pre class="${chatClass}" data-ref="${chatRef}"></pre>
+        <div class="${approvalRowClass}" data-ref="${approvalRowRef}">
+          <span class="${approvalLabelClass}" data-ref="${approvalLabelRef}"></span>
+          <button class="${rejectButtonClass}" data-ref="${rejectRef}">Reject</button>
+          <button class="${approveButtonClass}" data-ref="${approveRef}">Approve</button>
+        </div>
         <div class="${inputRowClass}">
           <textarea class="${textareaClass}" data-ref="${inputRef}" placeholder="Send a message..."></textarea>
           <button class="${abortButtonClass}" data-ref="${abortRef}">Abort</button>
@@ -212,6 +277,24 @@ class RootView implements View<State, Msg> {
     this.b.bindVisible(abortRef, (s) => s.status.running);
     this.b.ref(abortRef).addEventListener("click", () => {
       dispatch({ type: "abort" });
+    });
+
+    // Approval row: shown only when there's a pending tool approval. The label
+    // shows the pending tool/command; the id is read from state at click time
+    // (via the dispatch → update path), so we don't capture a stale id here.
+    this.b.bindVisible(
+      approvalRowRef,
+      (s) => s.status.pendingApproval !== undefined,
+    );
+    this.b.bindText(
+      approvalLabelRef,
+      (s) => s.status.pendingApproval?.toolName ?? "",
+    );
+    this.b.ref(approveRef).addEventListener("click", () => {
+      dispatch({ type: "approve" });
+    });
+    this.b.ref(rejectRef).addEventListener("click", () => {
+      dispatch({ type: "reject" });
     });
   }
 
