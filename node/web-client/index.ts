@@ -8,7 +8,7 @@ import {
   type View,
 } from "./vamp.js";
 
-type Action = { type: "send"; text: string };
+type Action = { type: "send"; text: string } | { type: "abort" };
 
 type Status = {
   running: boolean;
@@ -30,7 +30,8 @@ type Msg =
   | { type: "snapshot"; snapshot: Snapshot }
   | { type: "connection"; open: boolean }
   | { type: "input"; text: string }
-  | { type: "send" };
+  | { type: "send" }
+  | { type: "abort" };
 
 function initialState(): State {
   return {
@@ -70,6 +71,9 @@ function update(state: State, msg: Msg): void {
       state.input = "";
       break;
     }
+    case "abort":
+      postAction({ type: "abort" });
+      break;
   }
 }
 
@@ -79,6 +83,7 @@ const chatClass = cls("chat");
 const inputRowClass = cls("inputRow");
 const textareaClass = cls("textarea");
 const sendButtonClass = cls("sendButton");
+const abortButtonClass = cls("abortButton");
 
 mountStyle(`
 html, body { margin: 0; height: 100%; }
@@ -138,6 +143,15 @@ html, body { margin: 0; height: 100%; }
   background: #444;
   color: #888;
 }
+.${abortButtonClass} {
+  flex: 0 0 auto;
+  padding: 0 1rem;
+  font: inherit;
+  border: none;
+  border-radius: 4px;
+  background: #b04848;
+  color: #fff;
+}
 `);
 
 class RootView implements View<State, Msg> {
@@ -158,6 +172,7 @@ class RootView implements View<State, Msg> {
     const chatRef = ref("chat");
     const inputRef = ref("input");
     const sendRef = ref("send");
+    const abortRef = ref("abort");
     this.chatRef = chatRef;
     this.inputRef = inputRef;
 
@@ -167,6 +182,7 @@ class RootView implements View<State, Msg> {
         <pre class="${chatClass}" data-ref="${chatRef}"></pre>
         <div class="${inputRowClass}">
           <textarea class="${textareaClass}" data-ref="${inputRef}" placeholder="Send a message..."></textarea>
+          <button class="${abortButtonClass}" data-ref="${abortRef}">Abort</button>
           <button class="${sendButtonClass}" data-ref="${sendRef}">Send</button>
         </div>
       </div>
@@ -192,6 +208,10 @@ class RootView implements View<State, Msg> {
     });
     this.b.ref(sendRef).addEventListener("click", () => {
       dispatch({ type: "send" });
+    });
+    this.b.bindVisible(abortRef, (s) => s.status.running);
+    this.b.ref(abortRef).addEventListener("click", () => {
+      dispatch({ type: "abort" });
     });
   }
 

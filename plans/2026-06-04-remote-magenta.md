@@ -55,8 +55,8 @@ Build end-to-end (nvim → server → browser) slices so each is manually testab
 1. **[DONE] Hello.** In-process HTTP server bound to `0.0.0.0` (dev), serving a static vamp page at `/`. Test: open in laptop browser. Proves the web-client workspace, vamp build/serve, in-process server, and options wiring.
 2. **[DONE] See the chat.** `GET /events` SSE + render tap; vamp client renders `chatText` in a scrolling window (read-only mirror). Test: type in nvim, watch it appear in the browser live.
 3. **[DONE] Send a prompt.** Textarea + Send → `POST /action {type:"send"}` → `preprocessAndSend`. Test: send a prompt from the browser, watch the agent respond in the mirror.
-4. **[TODO — next] Abort.** Add `status.running` to the SSE payload + Abort button + `POST {type:"abort"}`. Test: send a long prompt, abort it from the browser.
-5. **[TODO] Approve tools.** Add `status.pendingApproval` + Approve/Reject buttons + those POST actions. Test: trigger a tool that needs approval, approve from the browser.
+4. **[DONE] Abort.** Add `status.running` to the SSE payload + Abort button + `POST {type:"abort"}`. Test: send a long prompt, abort it from the browser.
+5. **[TODO — next] Approve tools.** Add `status.pendingApproval` + Approve/Reject buttons + those POST actions. Test: trigger a tool that needs approval, approve from the browser.
 6. **[TODO] Tailscale hardening.** Detect the `100.x.y.z` interface and bind only to it. Test: connect from a phone over Tailscale.
 
 ## Progress log
@@ -95,6 +95,16 @@ Upstream interaction: send a prompt from the browser into the same path local nv
 - **Client.** `node/web-client/index.ts` adds a bottom input row (`<textarea>` + Send button) below the transcript; `Msg` union gains `input`/`send`; sends via `fetch("/action", { method: "POST", ... })`. Enter sends, Shift+Enter inserts a newline; Send is `bindDisabled` when the trimmed input is empty; the textarea is cleared after a successful send (DOM reconciled in `sync()`).
 
 Verified: `npx tsgo -b`, web-client typecheck, `biome check`, `npm run bundle` all clean; confirmed live in the browser (sent a prompt, agent responded in the mirror).
+
+### Slice 4 — Abort (DONE, branch zach/remote-magenta)
+
+Real `running` status + remote abort.
+
+- **Real status.** The SSE `status.running` is now live (was hardcoded `false`). `WebServer` gained a `getStatus: () => Status` constructor callback; `snapshot()` calls it on every push. `node/magenta.ts` provides it, computing `running` from the active thread: `const id = this.chat.state.activeThreadId; running = id !== undefined && this.chat.getThreadSummary(id).status.type === "running"`. `Chat.getThreadSummary()` (node/chat/chat.ts:1069) reports `type:"running"` while streaming a response or executing tools — the abortable states. Server stays decoupled (Magenta injects the value).
+- **Abort action.** `Action` union extended with `{ type: "abort" }`; `parseAction` accepts it. `onAction`'s `case "abort"` reuses the EXACT dispatch the local `command()` abort triggers — `this.dispatch({ type: "thread-msg", id: activeThreadId, msg: { type: "abort" } })` — guarded on `activeThreadId !== undefined`. Switch exhaustiveness is now `assertUnreachable(action)`.
+- **Client.** `node/web-client/index.ts` adds an Abort button in the input row, shown only when `status.running` via `bindVisible`; click POSTs `/action {type:"abort"}` through the existing `postAction` helper. `Action`/`Msg` unions extended.
+
+Verified: `npx tsgo -b`, web-client typecheck, `biome check`, `npm run bundle` all clean; confirmed live (long prompt → Abort button appears → click stops the run in the mirror).
 
 # UI (vamp, in `node/web-client/`)
 

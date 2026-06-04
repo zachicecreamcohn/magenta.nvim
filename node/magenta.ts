@@ -258,9 +258,28 @@ export class Magenta {
                 );
               });
               return;
+            case "abort": {
+              const activeThreadId = this.chat.state.activeThreadId;
+              if (activeThreadId !== undefined) {
+                this.dispatch({
+                  type: "thread-msg",
+                  id: activeThreadId,
+                  msg: { type: "abort" },
+                });
+              }
+              return;
+            }
             default:
-              assertUnreachable(action.type);
+              assertUnreachable(action);
           }
+        },
+        () => {
+          const activeThreadId = this.chat.state.activeThreadId;
+          const running =
+            activeThreadId !== undefined &&
+            this.chat.getThreadSummary(activeThreadId).status.type ===
+              "running";
+          return { running };
         },
       );
       this.webServer = webServer;

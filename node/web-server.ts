@@ -17,7 +17,7 @@ export type Status = {
 
 // Action describes an upstream command from the web client. Slice 3 only needs
 // `send`; later slices extend this union (abort, approve, reject).
-export type Action = { type: "send"; text: string };
+export type Action = { type: "send"; text: string } | { type: "abort" };
 
 type Snapshot = {
   chatText: string;
@@ -45,6 +45,7 @@ export class WebServer {
     private port: number,
     private nvim: Nvim,
     private onAction: (action: Action) => void,
+    private getStatus: () => Status,
   ) {
     this.server = createServer((req, res) => {
       const path = req.url
@@ -142,6 +143,9 @@ export class WebServer {
     if (obj.type === "send" && typeof obj.text === "string") {
       return { type: "send", text: obj.text };
     }
+    if (obj.type === "abort") {
+      return { type: "abort" };
+    }
     return undefined;
   }
 
@@ -172,8 +176,7 @@ export class WebServer {
   }
 
   private snapshot(): Snapshot {
-    // running/pendingApproval land in later slices; slice 2 is a read-only mirror.
-    return { chatText: this.latestChatText, status: { running: false } };
+    return { chatText: this.latestChatText, status: this.getStatus() };
   }
 
   private writeSnapshot(res: ServerResponse, snapshot: Snapshot): void {
