@@ -5,9 +5,11 @@ import {
   type Server,
   type ServerResponse,
 } from "node:http";
+import type { AddressInfo } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Nvim } from "./nvim/nvim-node/index.ts";
+import { detectReachableHost } from "./utils/network.ts";
 
 // Status describes the currently-available actions for the web client. Slice 2
 // only needs `running`; later slices extend it (e.g. pendingApproval).
@@ -34,6 +36,14 @@ export type Action =
   | { type: "new-thread" }
   | { type: "select-thread"; id: string };
 
+// The single served URL for this process's web server (one server per process).
+// Set once the port resolves; read by the thread view to render a header.
+let servedUrl: string | undefined;
+
+export function getServedUrl(): string | undefined {
+  return servedUrl;
+}
+
 type Snapshot = {
   chatText: string;
   status: Status;
@@ -55,9 +65,9 @@ export class WebServer {
   private server: Server;
   private clients = new Set<ServerResponse>();
   private latestChatText = "";
+  private resolvedPort: number | undefined = undefined;
 
   constructor(
-    private port: number,
     private nvim: Nvim,
     private onAction: (action: Action) => void,
     private getStatus: () => Status,
@@ -218,11 +228,26 @@ export class WebServer {
     }
   }
 
+  getPort(): number | undefined {
+    return this.resolvedPort;
+  }
+
   start(): void {
-    this.server.listen(this.port, "0.0.0.0", () => {
-      this.nvim.logger.info(
-        `Magenta web server listening on http://0.0.0.0:${this.port}`,
-      );
+    this.server.listen(0, "0.0.0.0", () => {
+      const address: string | AddressInfo | null = this.server.address();
+      if (
+        address !== null &&
+        typeof address === "object" &&
+        typeof address.port === "number"
+      ) {
+        this.resolvedPort = address.port;
+        servedUrl = `http://${detectReachableHost()}:${address.port}`;
+        this.nvim.logger.info(`Magenta web server listening on ${servedUrl}`);
+      } else {
+        this.nvim.logger.error(
+          `WebServer: failed to resolve listening port from address: ${JSON.stringify(address)}`,
+        );
+      }
     });
   }
 
@@ -232,5 +257,6 @@ export class WebServer {
     }
     this.clients.clear();
     this.server.close();
+    servedUrl = undefined;
   }
 }

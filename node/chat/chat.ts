@@ -34,7 +34,7 @@ import { createSystemPrompt } from "../providers/system-prompt.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { Sandbox } from "../sandbox-manager.ts";
 import type { Dispatch } from "../tea/tea.ts";
-import { d, type VDOMNode, withBindings } from "../tea/view.ts";
+import { d, type VDOMNode, withBindings, withExtmark } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type {
   AbsFilePath,
@@ -43,6 +43,7 @@ import type {
   UnresolvedFilePath,
 } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
+import { getServedUrl } from "../web-server.ts";
 import { Thread } from "./thread.ts";
 import { DockerSupervisor } from "./thread-supervisor.ts";
 import { view as threadView } from "./thread-view.ts";
@@ -839,9 +840,14 @@ export class Chat implements ThreadManager {
   }
 
   renderThreadOverview() {
+    const servedUrl = getServedUrl();
+    const servedView = servedUrl
+      ? withExtmark(d`served on ${servedUrl}\n`, { hl_group: "@comment" })
+      : d``;
+
     if (Object.keys(this.threadWrappers).length === 0) {
       return d`# Threads
-
+${servedView}
 No threads yet`;
     }
 
@@ -896,7 +902,7 @@ No threads yet`;
     }
 
     return d`# Threads
-
+${servedView}
 ${threadViews.map((view) => d`${view}\n`)}`;
   }
 

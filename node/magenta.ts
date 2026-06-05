@@ -287,9 +287,8 @@ export class Magenta {
       () => this.chat.isSandboxBypassed(this.chat.state.activeThreadId),
     );
 
-    if (this.options.webServerPort !== undefined) {
+    {
       const webServer = new WebServer(
-        this.options.webServerPort,
         this.nvim,
         (action) => {
           switch (action.type) {

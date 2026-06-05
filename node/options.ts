@@ -231,7 +231,6 @@ export type MagentaOptions = {
   lspDebounceMs?: number;
   debug?: boolean;
   chimeVolume?: number;
-  webServerPort?: number;
   bellOnNotify?: boolean;
 };
 
@@ -1173,18 +1172,6 @@ export function parseOptions(
       options.chimeVolume = inputOptionsObj.chimeVolume;
     } else if ("chimeVolume" in inputOptionsObj) {
       logger.warn("chimeVolume must be a number between 0.0 and 1.0");
-    }
-
-    // Parse web server port
-    if (
-      "webServerPort" in inputOptionsObj &&
-      typeof inputOptionsObj.webServerPort === "number" &&
-      Number.isInteger(inputOptionsObj.webServerPort) &&
-      inputOptionsObj.webServerPort > 0
-    ) {
-      options.webServerPort = inputOptionsObj.webServerPort;
-    } else if ("webServerPort" in inputOptionsObj) {
-      logger.warn("webServerPort must be a positive integer");
     }
 
     // Parse MCP servers (throw errors for invalid MCP servers in main config)
