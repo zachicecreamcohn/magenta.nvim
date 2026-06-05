@@ -27,6 +27,7 @@ import * as FindReferencesRender from "./findReferences.ts";
 import * as GetFileRender from "./getFile.ts";
 import * as HoverRender from "./hover.ts";
 import * as MCPToolRender from "./mcp-tool.ts";
+import * as RunScriptRender from "./run-script.ts";
 import * as SpawnSubagentsRender from "./spawn-subagents.ts";
 import * as ThreadTitleRender from "./thread-title.ts";
 
@@ -216,6 +217,8 @@ export function renderToolResult(
         toolViewState,
         toolRequestId,
       );
+    case "run_script":
+      return RunScriptRender.renderResult(info, context);
     case "spawn_subagents":
       return SpawnSubagentsRender.renderResult(
         info,

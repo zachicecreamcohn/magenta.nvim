@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
-import type { ThreadId } from "@magenta/core";
+import type { ScriptCatalogEntry, ThreadId } from "@magenta/core";
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { v7 as uuidv7 } from "uuid";
 import type {
@@ -114,6 +114,13 @@ export class ScriptManager {
 
   getCatalog(): ScriptMeta[] {
     return [...this.catalog.values()].map((c) => c.meta);
+  }
+
+  getScriptCatalog(): ScriptCatalogEntry[] {
+    return [...this.catalog.values()].map((c) => ({
+      ...c.meta,
+      file: c.file,
+    }));
   }
 
   private fork(file: string): ChildProcess {

@@ -16,6 +16,7 @@ const catalog: ScriptCatalogEntry[] = [
       properties: { x: { type: "string" } },
       required: ["x"],
     },
+    file: "/scripts/foo.ts",
   },
 ];
 

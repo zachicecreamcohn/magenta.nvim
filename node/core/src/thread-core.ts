@@ -181,6 +181,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     failedSubmit: { userMessage: string; errorMessage: string } | undefined;
     preSubmitNativeIdx: NativeMessageIdx | undefined;
     activeReminders: Set<string>;
+    toolSpecs: ProviderToolSpec[];
   };
 
   public agent: Agent;
@@ -218,7 +219,9 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       failedSubmit: undefined,
       preSubmitNativeIdx: undefined,
       activeReminders: new Set(),
+      toolSpecs: [],
     };
+    this.refreshToolSpecs();
 
     this.listenToContextManager();
 
@@ -439,8 +442,8 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     }
   }
 
-  getToolSpecs(): ProviderToolSpec[] {
-    return getToolSpecs(
+  refreshToolSpecs(): void {
+    this.state.toolSpecs = getToolSpecs(
       this.state.threadType,
       this.context.mcpToolManager,
       this.context.availableCapabilities,
@@ -451,11 +454,16 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     );
   }
 
+  getToolSpecs(): ProviderToolSpec[] {
+    return this.state.toolSpecs;
+  }
+
   private createFreshAgent(): Agent {
     // Clean up listeners from old agent if replacing
     if (this.agentListeners && this.agent) {
       this.unlistenAgent(this.agent);
     }
+    this.refreshToolSpecs();
     const provider = this.context.getProvider(this.context.profile);
     const agent = provider.createAgent({
       model: this.context.profile.model,

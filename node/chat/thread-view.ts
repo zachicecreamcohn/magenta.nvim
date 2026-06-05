@@ -328,7 +328,7 @@ export const view: View<{
   );
 
   const toolDefinitionsView = renderToolDefinitions(
-    thread.core.getToolSpecs(),
+    thread.core.state.toolSpecs,
     thread.state.showToolDefinitions,
     dispatch,
   );

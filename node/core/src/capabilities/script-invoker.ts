@@ -4,6 +4,7 @@ export type ScriptCatalogEntry = {
   name: string;
   description: string;
   parameterSchema: Record<string, unknown>;
+  file: string;
 };
 
 /**

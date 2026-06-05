@@ -198,7 +198,7 @@ export class Magenta {
     });
     this.chat.scriptInvoker = {
       discover: () => this.scriptManager.discover(),
-      getScriptCatalog: () => this.scriptManager.getCatalog(),
+      getScriptCatalog: () => this.scriptManager.getScriptCatalog(),
       invokeScript: ({ scriptName, parameters, triggeringThreadId }) => {
         this.scriptManager.invokeScript(scriptName, parameters, {
           sandboxBypassed: this.chat.isSandboxBypassed(triggeringThreadId),
