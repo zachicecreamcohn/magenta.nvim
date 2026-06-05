@@ -1,7 +1,5 @@
 # top of mind
 
-- the tool prompt expansion currently shows a static view. Instead we should query the current thread's tools
-  - the tool view should multi-collapse, so we only see the list of tools, and can expand each tool (when the tool line is expanded)
 - openai agent
 - agent(prompt, yield_schema) api, exposed via typescript scripts & lua
 

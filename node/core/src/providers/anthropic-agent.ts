@@ -87,6 +87,16 @@ export function isRetryableError(error: Error): boolean {
     return true;
   }
 
+  // Mid-stream `error` events (e.g. "overloaded_error") are surfaced by the
+  // Anthropic SDK as an APIError with an undefined `status` but with the
+  // error body's type set on `error.type`. These are transient, so retry.
+  if (
+    error instanceof APIError &&
+    (error.type === "overloaded_error" || error.type === "api_error")
+  ) {
+    return true;
+  }
+
   // AWS Bedrock occasionally emits a stream `error` event before `message_start`,
   // which the Anthropic SDK surfaces as this AnthropicError. It is transient
   // (typically throttling/internal errors during stream connect), so retry.

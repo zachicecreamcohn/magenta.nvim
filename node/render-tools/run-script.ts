@@ -18,9 +18,10 @@ export function renderResult(
 
   return withBindings(d`\n📄 ${entry.file}`, {
     "<CR>": () => {
-      openFileInNonMagentaWindow(entry.file as UnresolvedFilePath, context).catch(
-        (e: Error) => context.nvim.logger.error(e.message),
-      );
+      openFileInNonMagentaWindow(
+        entry.file as UnresolvedFilePath,
+        context,
+      ).catch((e: Error) => context.nvim.logger.error(e.message));
     },
   });
 }
