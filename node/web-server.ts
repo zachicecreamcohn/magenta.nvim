@@ -47,6 +47,8 @@ export function getServedUrl(): string | undefined {
 type Snapshot = {
   chatText: string;
   status: Status;
+  indexPort: number | undefined;
+  indexHost: string | undefined;
 };
 
 // At runtime in the bundle, import.meta.url resolves to dist/magenta.mjs, so
@@ -75,6 +77,7 @@ export class WebServer {
     private nvim: Nvim,
     private onAction: (action: Action) => void,
     private getStatus: () => Status,
+    private indexPort: number | undefined,
   ) {
     this.server = createServer((req, res) => {
       const path = req.url
@@ -217,7 +220,13 @@ export class WebServer {
   }
 
   private snapshot(): Snapshot {
-    return { chatText: this.latestChatText, status: this.getStatus() };
+    return {
+      chatText: this.latestChatText,
+      status: this.getStatus(),
+      indexPort: this.indexPort,
+      indexHost:
+        this.indexPort !== undefined ? detectReachableHost() : undefined,
+    };
   }
 
   private writeSnapshot(res: ServerResponse, snapshot: Snapshot): void {

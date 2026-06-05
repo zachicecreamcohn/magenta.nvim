@@ -385,6 +385,7 @@ export class Magenta {
 
           return status;
         },
+        this.options.webIndexPort,
       );
       this.webServer = webServer;
       this.webServer.start();

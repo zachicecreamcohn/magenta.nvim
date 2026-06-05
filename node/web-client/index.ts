@@ -33,6 +33,8 @@ type Status = {
 type Snapshot = {
   chatText: string;
   status: Status;
+  indexPort: number | undefined;
+  indexHost: string | undefined;
 };
 
 type State = {
@@ -41,6 +43,8 @@ type State = {
   status: Status;
   input: string;
   sidebarOpen: boolean;
+  indexPort: number | undefined;
+  indexHost: string | undefined;
 };
 
 type Msg =
@@ -63,6 +67,8 @@ function initialState(): State {
     status: { running: false, threads: [] },
     input: "",
     sidebarOpen: false,
+    indexPort: undefined,
+    indexHost: undefined,
   };
 }
 
@@ -81,6 +87,8 @@ function update(state: State, msg: Msg): void {
     case "snapshot":
       state.chatText = msg.snapshot.chatText;
       state.status = msg.snapshot.status;
+      state.indexPort = msg.snapshot.indexPort;
+      state.indexHost = msg.snapshot.indexHost;
       break;
     case "connection":
       state.connected = msg.open;
@@ -146,6 +154,7 @@ const inputRowClass = cls("inputRow");
 const textareaClass = cls("textarea");
 const sendButtonClass = cls("sendButton");
 const abortButtonClass = cls("abortButton");
+const indexLinkClass = cls("indexLink");
 const approvalRowClass = cls("approvalRow");
 const approvalLabelClass = cls("approvalLabel");
 const approveButtonClass = cls("approveButton");
@@ -179,6 +188,17 @@ html, body { margin: 0; height: 100%; }
   border-radius: 4px;
   background: #2a2a2a;
   color: #eee;
+}
+.${indexLinkClass} {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 0.25rem 0.5rem;
+  font-size: 12px;
+  color: #888;
+  text-decoration: none;
+}
+.${indexLinkClass}:hover {
+  color: #ccc;
 }
 .${mainClass} {
   flex: 1 1 auto;
@@ -306,6 +326,7 @@ html, body { margin: 0; height: 100%; }
   max-height: 8rem;
   padding: 0.5rem;
   font: inherit;
+  font-size: max(16px, 1em);
   border: 1px solid #444;
   border-radius: 4px;
   background: #111;
@@ -447,6 +468,7 @@ class RootView implements View<State, Msg> {
     const approvalLabelRef = ref("approvalLabel");
     const approveRef = ref("approve");
     const rejectRef = ref("reject");
+    const indexLinkRef = ref("indexLink");
     this.chatRef = chatRef;
     this.inputRef = inputRef;
 
@@ -455,6 +477,7 @@ class RootView implements View<State, Msg> {
         <div class="${topBarClass}">
           <button class="${menuButtonClass}" data-ref="${menuRef}">☰</button>
           <span class="${statusClass}" data-ref="${statusRef}"></span>
+          <a class="${indexLinkClass}" data-ref="${indexLinkRef}" href="#">all instances</a>
         </div>
         <div class="${mainClass}" data-ref="${mainRef}">
           <div class="${sidebarClass}" data-ref="${sidebarRef}">
@@ -484,6 +507,12 @@ class RootView implements View<State, Msg> {
     this.b = new Binder(container, initialState);
     this.b.bindText(statusRef, (s) =>
       s.connected ? "connected" : "disconnected",
+    );
+    this.b.bindVisible(indexLinkRef, (s) => s.indexPort !== undefined);
+    this.b.bindAttr(indexLinkRef, "href", (s) =>
+      s.indexPort !== undefined && s.indexHost !== undefined
+        ? `http://${s.indexHost}:${s.indexPort}/`
+        : undefined,
     );
 
     // Sidebar: always visible on desktop (CSS); on mobile it slides in when
