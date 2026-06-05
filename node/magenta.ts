@@ -374,11 +374,19 @@ export class Magenta {
             (idStr): ThreadInfo => {
               const id = idStr as unknown as ThreadId;
               const summary = this.chat.getThreadSummary(id);
+              const wrapper = this.chat.threadWrappers[id];
+              const parentId = wrapper?.parentThreadId;
+              const agentName =
+                wrapper?.state === "initialized"
+                  ? wrapper.thread.context.subagentConfig?.agentName
+                  : undefined;
               return {
                 id: idStr,
                 title: summary.title ?? this.chat.getThreadDisplayName(id),
                 status: threadStatusLabel(summary.status),
                 active: id === activeId,
+                parentId,
+                agentName,
               };
             },
           );

@@ -765,7 +765,16 @@ export class Chat implements ThreadManager {
       threadWrapper?.state === "initialized"
         ? threadWrapper.thread.core.state.threadType
         : undefined;
-    const icon = threadType === "docker_root" ? "🐳 " : "";
+    const icon =
+      threadType === "docker_root"
+        ? "🐳 "
+        : threadType === "subagent"
+          ? `🤖 [${
+              threadWrapper?.state === "initialized"
+                ? (threadWrapper.thread.context.subagentConfig?.agentName ?? "subagent")
+                : "subagent"
+            }] `
+          : "";
 
     const hasUnviewedActivity =
       threadWrapper !== undefined &&

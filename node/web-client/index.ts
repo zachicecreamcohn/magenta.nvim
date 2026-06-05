@@ -22,6 +22,8 @@ type ThreadInfo = {
   title: string;
   status: string;
   active: boolean;
+  parentId: string | undefined;
+  agentName: string | undefined;
 };
 
 type Status = {
@@ -144,7 +146,9 @@ const newThreadButtonClass = cls("newThreadButton");
 const threadListClass = cls("threadList");
 const threadItemClass = cls("threadItem");
 const threadItemActiveClass = cls("threadItemActive");
+const threadItemSubagentClass = cls("threadItemSubagent");
 const threadTitleClass = cls("threadTitle");
+const threadAgentNameClass = cls("threadAgentName");
 const threadStatusClass = cls("threadStatus");
 const contentClass = cls("content");
 const backdropClass = cls("backdrop");
@@ -246,6 +250,17 @@ html, body { margin: 0; height: 100%; background: #1a1a1a; color: #f0f0f0; }
 .${threadItemActiveClass} {
   background: #2a1f2a;
   border-left: 3px solid #b048b0;
+}
+.${threadItemSubagentClass} {
+  border-left: 2px solid #444;
+  background: #151515;
+}
+.${threadAgentNameClass} {
+  display: inline-block;
+  font-size: 11px;
+  color: #b048b0;
+  margin-right: 0.3rem;
+  opacity: 0.85;
 }
 .${threadTitleClass} {
   display: block;
@@ -392,7 +407,7 @@ html, body { margin: 0; height: 100%; background: #1a1a1a; color: #f0f0f0; }
 }
 `);
 
-type ThreadItemState = { thread: ThreadInfo };
+type ThreadItemState = { thread: ThreadInfo; depth: number };
 type ThreadItemMsg = { type: "click" };
 
 class ThreadItemView implements View<ThreadItemState, ThreadItemMsg> {
@@ -407,21 +422,33 @@ class ThreadItemView implements View<ThreadItemState, ThreadItemMsg> {
     this.container = container;
 
     const itemRef = ref("threadItem");
+    const agentNameRef = ref("threadAgentName");
     const titleRef = ref("threadTitle");
     const statusRef = ref("threadStatus");
 
     container.innerHTML = sanitize`
       <div class="${threadItemClass}" data-ref="${itemRef}">
-        <span class="${threadTitleClass}" data-ref="${titleRef}"></span>
+        <span class="${threadTitleClass}">
+          <span class="${threadAgentNameClass}" data-ref="${agentNameRef}"></span
+          ><span data-ref="${titleRef}"></span>
+        </span>
         <span class="${threadStatusClass}" data-ref="${statusRef}"></span>
       </div>
     `;
 
     this.b = new Binder(container, initialState);
-    this.b.bindClass(itemRef, (s) =>
-      s.thread.active
-        ? `${threadItemClass} ${threadItemActiveClass}`
-        : threadItemClass,
+    this.b.bindClass(itemRef, (s) => {
+      const isSubagent = s.thread.agentName !== undefined;
+      const classes = [threadItemClass];
+      if (s.thread.active) classes.push(threadItemActiveClass);
+      if (isSubagent) classes.push(threadItemSubagentClass);
+      return classes.join(" ");
+    });
+    this.b.bindAttr(itemRef, "style", (s) =>
+      s.depth > 0 ? `padding-left: ${0.6 + s.depth * 1.2}rem` : undefined,
+    );
+    this.b.bindText(agentNameRef, (s) =>
+      s.thread.agentName ? `🤖 [${s.thread.agentName}] ` : "",
     );
     this.b.bindText(titleRef, (s) => s.thread.title);
     this.b.bindText(statusRef, (s) => s.thread.status);
@@ -531,13 +558,39 @@ class RootView implements View<State, Msg> {
     this.b.ref(newThreadRef).addEventListener("click", () => {
       dispatch({ type: "new-thread" });
     });
-    this.b.bindList(threadListRef, "li", (s) =>
-      s.status.threads.map((thread) =>
-        showKeyed(thread.id, ThreadItemView, { thread }, () =>
+    this.b.bindList(threadListRef, "li", (s) => {
+      // Build a depth map and tree-ordered list from the flat thread array.
+      const byId = new Map(s.status.threads.map((t) => [t.id, t]));
+      const depthOf = (id: string): number => {
+        let depth = 0;
+        let current: ThreadInfo | undefined = byId.get(id);
+        while (current?.parentId !== undefined) {
+          depth++;
+          current = byId.get(current.parentId);
+        }
+        return depth;
+      };
+      // Tree-walk: roots (no parentId) sorted newest-first, children appended after parent.
+      const ordered: ThreadInfo[] = [];
+      const visited = new Set<string>();
+      const appendSubtree = (thread: ThreadInfo) => {
+        if (visited.has(thread.id)) return;
+        visited.add(thread.id);
+        ordered.push(thread);
+        s.status.threads
+          .filter((t) => t.parentId === thread.id)
+          .forEach(appendSubtree);
+      };
+      s.status.threads
+        .filter((t) => t.parentId === undefined)
+        .sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
+        .forEach(appendSubtree);
+      return ordered.map((thread) =>
+        showKeyed(thread.id, ThreadItemView, { thread, depth: depthOf(thread.id) }, () =>
           dispatch({ type: "select-thread", id: thread.id }),
         ),
-      ),
-    );
+      );
+    });
 
     this.b.bindText(chatRef, (s) => s.chatText);
     this.b.bindDisabled(sendRef, (s) => s.input.trim().length === 0);

@@ -18,6 +18,8 @@ export type ThreadInfo = {
   title: string;
   status: string;
   active: boolean;
+  parentId: string | undefined;
+  agentName: string | undefined;
 };
 
 export type Status = {
@@ -63,10 +65,14 @@ const ASSETS: { [path: string]: { file: string; contentType: string } } = {
   },
 };
 
+const PUSH_INTERVAL_MS = 50;
+
 export class WebServer {
   private server: Server;
   private clients = new Set<ServerResponse>();
   private latestChatText = "";
+  private pendingChatText: string | undefined = undefined;
+  private pushTimer: NodeJS.Timeout | undefined = undefined;
   private resolvedPort: number | undefined = undefined;
   private listeningResolve: ((port: number) => void) | undefined;
   private listening = new Promise<number>((resolve) => {
@@ -221,7 +227,7 @@ export class WebServer {
 
   private snapshot(): Snapshot {
     return {
-      chatText: this.latestChatText,
+      chatText: this.pendingChatText ?? this.latestChatText,
       status: this.getStatus(),
       indexPort: this.indexPort,
       indexHost:
@@ -234,10 +240,22 @@ export class WebServer {
   }
 
   pushSnapshot(chatText: string): void {
-    this.latestChatText = chatText;
-    const snapshot = this.snapshot();
-    for (const client of this.clients) {
-      this.writeSnapshot(client, snapshot);
+    if (chatText === this.latestChatText && this.pendingChatText === undefined) {
+      return;
+    }
+    this.pendingChatText = chatText;
+    if (this.pushTimer === undefined) {
+      this.pushTimer = setTimeout(() => {
+        this.pushTimer = undefined;
+        const text = this.pendingChatText;
+        if (text === undefined) return;
+        this.pendingChatText = undefined;
+        this.latestChatText = text;
+        const snapshot = this.snapshot();
+        for (const client of this.clients) {
+          this.writeSnapshot(client, snapshot);
+        }
+      }, PUSH_INTERVAL_MS);
     }
   }
 
@@ -271,6 +289,10 @@ export class WebServer {
   }
 
   close(): void {
+    if (this.pushTimer !== undefined) {
+      clearTimeout(this.pushTimer);
+      this.pushTimer = undefined;
+    }
     for (const client of this.clients) {
       client.end();
     }
