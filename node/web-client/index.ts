@@ -586,8 +586,11 @@ class RootView implements View<State, Msg> {
         .sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
         .forEach(appendSubtree);
       return ordered.map((thread) =>
-        showKeyed(thread.id, ThreadItemView, { thread, depth: depthOf(thread.id) }, () =>
-          dispatch({ type: "select-thread", id: thread.id }),
+        showKeyed(
+          thread.id,
+          ThreadItemView,
+          { thread, depth: depthOf(thread.id) },
+          () => dispatch({ type: "select-thread", id: thread.id }),
         ),
       );
     });

@@ -746,6 +746,13 @@ export class Chat implements ThreadManager {
     return "[Untitled]";
   }
 
+  /** Validate an untrusted string (e.g. from the web client) against the set
+   * of known threads, returning a branded ThreadId only if it exists. */
+  resolveThreadId(id: string): ThreadId | undefined {
+    const candidate = id as ThreadId;
+    return candidate in this.threadWrappers ? candidate : undefined;
+  }
+
   private renderThread(
     threadId: ThreadId,
     depth: number,
@@ -771,7 +778,8 @@ export class Chat implements ThreadManager {
         : threadType === "subagent"
           ? `🤖 [${
               threadWrapper?.state === "initialized"
-                ? (threadWrapper.thread.context.subagentConfig?.agentName ?? "subagent")
+                ? (threadWrapper.thread.context.subagentConfig?.agentName ??
+                  "subagent")
                 : "subagent"
             }] `
           : "";

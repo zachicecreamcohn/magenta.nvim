@@ -337,7 +337,14 @@ export class Magenta {
               return;
             }
             case "select-thread": {
-              this.selectThreadEffect(action.id as ThreadId).catch((e) => {
+              const threadId = this.chat.resolveThreadId(action.id);
+              if (threadId === undefined) {
+                this.nvim.logger.warn(
+                  `Ignoring select-thread from web client for unknown thread: ${action.id}`,
+                );
+                return;
+              }
+              this.selectThreadEffect(threadId).catch((e) => {
                 this.nvim.logger.error(
                   `Error selecting thread from web client: ${e instanceof Error ? `${e.message}\n${e.stack}` : JSON.stringify(e)}`,
                 );
@@ -370,26 +377,24 @@ export class Magenta {
           }
 
           const activeId = this.chat.state.activeThreadId;
-          status.threads = Object.keys(this.chat.threadWrappers).map(
-            (idStr): ThreadInfo => {
-              const id = idStr as unknown as ThreadId;
-              const summary = this.chat.getThreadSummary(id);
-              const wrapper = this.chat.threadWrappers[id];
-              const parentId = wrapper?.parentThreadId;
-              const agentName =
-                wrapper?.state === "initialized"
-                  ? wrapper.thread.context.subagentConfig?.agentName
-                  : undefined;
-              return {
-                id: idStr,
-                title: summary.title ?? this.chat.getThreadDisplayName(id),
-                status: threadStatusLabel(summary.status),
-                active: id === activeId,
-                parentId,
-                agentName,
-              };
-            },
-          );
+          const threadIds = Object.keys(this.chat.threadWrappers) as ThreadId[];
+          status.threads = threadIds.map((id): ThreadInfo => {
+            const summary = this.chat.getThreadSummary(id);
+            const wrapper = this.chat.threadWrappers[id];
+            const parentId = wrapper?.parentThreadId;
+            const agentName =
+              wrapper?.state === "initialized"
+                ? wrapper.thread.context.subagentConfig?.agentName
+                : undefined;
+            return {
+              id,
+              title: summary.title ?? this.chat.getThreadDisplayName(id),
+              status: threadStatusLabel(summary.status),
+              active: id === activeId,
+              parentId,
+              agentName,
+            };
+          });
 
           return status;
         },

@@ -1058,6 +1058,7 @@ export function parseOptions(
     ],
     mcpServers: {},
     customCommands: [],
+    webIndexPort: 8764,
   };
 
   if (typeof inputOptions === "object" && inputOptions != null) {

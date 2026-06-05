@@ -240,7 +240,10 @@ export class WebServer {
   }
 
   pushSnapshot(chatText: string): void {
-    if (chatText === this.latestChatText && this.pendingChatText === undefined) {
+    if (
+      chatText === this.latestChatText &&
+      this.pendingChatText === undefined
+    ) {
       return;
     }
     this.pendingChatText = chatText;

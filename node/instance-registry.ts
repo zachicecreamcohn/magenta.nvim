@@ -16,8 +16,7 @@ export { detectReachableHost };
 const HEARTBEAT_MS = 5000;
 const STALE_MS = 15000;
 
-// One file per instance, named `<pid>.json`, written only by that instance via
-// an atomic temp-write + rename. Readers tolerate missing/half-written files.
+// One file per instance, named `<pid>.json`, written only by that
 export type InstanceEntry = {
   pid: number;
   cwd: string;
@@ -28,8 +27,6 @@ export type InstanceEntry = {
   heartbeatAt: number;
 };
 
-// XDG_RUNTIME_DIR (Linux, user-private) when available, else os.tmpdir() (the
-// per-user dir on macOS). Subdir is created 0o700 since entries reveal cwds.
 export function registryDir(): string {
   const base = process.env.XDG_RUNTIME_DIR ?? tmpdir();
   return join(base, "magenta", "instances");
@@ -37,6 +34,8 @@ export function registryDir(): string {
 
 function pidAlive(pid: number): boolean {
   try {
+    // Signal 0 is a platform-independent existence test (incl. Windows, where
+    // libuv special-cases it): no-op if the process exists, throws otherwise.
     process.kill(pid, 0);
     return true;
   } catch (err) {
