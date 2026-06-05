@@ -6,6 +6,7 @@ import { validateInput } from "../tools/helpers.ts";
 import {
   AnthropicAgent,
   type AnthropicAgentOptions,
+  isRetryableError,
 } from "./anthropic-agent.ts";
 import { MockAnthropicClient } from "./mock-anthropic-client.ts";
 import type { ProviderToolSpec } from "./provider-types.ts";
@@ -88,6 +89,52 @@ function trackEvents(agent: AnthropicAgent) {
 
   return events;
 }
+
+describe("isRetryableError", () => {
+  it("retries mid-stream overloaded_error (undefined status)", () => {
+    const error = new APIError(
+      undefined,
+      {
+        type: "error",
+        error: { type: "overloaded_error", message: "Overloaded" },
+      },
+      "Overloaded",
+      new Headers(),
+      "overloaded_error",
+    );
+    expect(isRetryableError(error)).toBe(true);
+  });
+
+  it("retries mid-stream api_error (undefined status)", () => {
+    const error = new APIError(
+      undefined,
+      { type: "error", error: { type: "api_error", message: "Internal" } },
+      "Internal",
+      new Headers(),
+      "api_error",
+    );
+    expect(isRetryableError(error)).toBe(true);
+  });
+
+  it("retries 429 and 529 status errors", () => {
+    expect(isRetryableError(make429Error())).toBe(true);
+    expect(isRetryableError(make529Error())).toBe(true);
+  });
+
+  it("does not retry non-retryable errors", () => {
+    const error = new APIError(
+      400,
+      {
+        type: "error",
+        error: { type: "invalid_request_error", message: "bad" },
+      },
+      "bad",
+      new Headers(),
+      "invalid_request_error",
+    );
+    expect(isRetryableError(error)).toBe(false);
+  });
+});
 
 describe("AnthropicAgent retry logic", () => {
   beforeEach(() => {
