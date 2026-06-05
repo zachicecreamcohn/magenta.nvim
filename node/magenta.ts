@@ -31,6 +31,7 @@ import {
 import { DynamicOptionsLoader } from "./options-loader.ts";
 import type { RootMsg, SidebarMsg } from "./root-msg.ts";
 import { initializeSandbox, type Sandbox } from "./sandbox-manager.ts";
+import { ScriptManager } from "./scripts/script-manager.ts";
 import { Sidebar } from "./sidebar.ts";
 import {
   BINDING_KEYS,
@@ -39,6 +40,7 @@ import {
 } from "./tea/bindings.ts";
 import type { Dispatch } from "./tea/tea.ts";
 import * as TEA from "./tea/tea.ts";
+import { d } from "./tea/view.ts";
 import { record as recordTiming } from "./timings.ts";
 import { assertUnreachable } from "./utils/assertUnreachable.ts";
 import type { HomeDir } from "./utils/files.ts";
@@ -73,6 +75,7 @@ export class Magenta {
   public sidebar: Sidebar;
   public bufferManager: BufferManager;
   public chat: Chat;
+  public scriptManager: ScriptManager;
   public dispatch: Dispatch<RootMsg>;
   public commandRegistry: CommandRegistry;
   public optionsLoader: DynamicOptionsLoader;
@@ -134,6 +137,7 @@ export class Magenta {
         }
 
         this.chat.update(msg);
+        this.scriptManager.update(msg);
 
         if (msg.type === "sidebar-msg") {
           this.handleSidebarMsg(msg.msg);
@@ -183,6 +187,24 @@ export class Magenta {
       },
     });
 
+    this.scriptManager = new ScriptManager({
+      dispatch: this.dispatch,
+      chat: this.chat,
+      nvim: this.nvim,
+      cwd: this.cwd,
+      homeDir: this.homeDir,
+      getScriptsPaths: () => this.options.scriptsPaths,
+      getOptions: () => this.options,
+    });
+    this.chat.scriptInvoker = {
+      discover: () => this.scriptManager.discover(),
+      getScriptCatalog: () => this.scriptManager.getCatalog(),
+      invokeScript: ({ scriptName, parameters, triggeringThreadId }) => {
+        this.scriptManager.invokeScript(scriptName, parameters, {
+          sandboxBypassed: this.chat.isSandboxBypassed(triggeringThreadId),
+        });
+      },
+    };
     this.bufferManager = bufferManager;
     this.activeBuffers = bufferManager.getOverviewBuffers();
     const onUnhandledKey = async ({
@@ -219,7 +241,8 @@ export class Magenta {
         TEA.createApp<Chat>({
           nvim: this.nvim,
           initialModel: this.chat,
-          View: () => this.chat.renderThreadOverview(),
+          View: () =>
+            d`${this.chat.renderThreadOverview()}${this.scriptManager.view()}`,
           onUnhandledKey,
         }),
     );
@@ -844,6 +867,7 @@ ${lines.join("\n")}
   }
 
   destroy() {
+    this.scriptManager.terminateAll();
     // BufferManager's mounted apps will be cleaned up when nvim exits
   }
 

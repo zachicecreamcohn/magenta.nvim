@@ -20,6 +20,7 @@
   "references": [{ "path": "node/core" }],
   "include": [
     "node/**/*",
+    "sdk/**/*",
     "package.json",
     "eslint.confing.ms",
     "vitest.config.ts"

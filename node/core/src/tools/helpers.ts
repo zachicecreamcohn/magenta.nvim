@@ -4,6 +4,7 @@ import * as Edl from "./edl.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as GetFile from "./getFile.ts";
 import * as Hover from "./hover.ts";
+import * as RunScript from "./run-script.ts";
 import * as SpawnSubagents from "./spawn-subagents.ts";
 import * as ThreadTitle from "./thread-title.ts";
 import type { StaticToolName } from "./tool-registry.ts";
@@ -41,6 +42,8 @@ export function validateInput(
       return Edl.validateInput(input);
     case "docs":
       return Docs.validateInput(input);
+    case "run_script":
+      return RunScript.validateInput(input);
     default:
       throw new Error(`Unexpected toolName: ${toolName as string}`);
   }

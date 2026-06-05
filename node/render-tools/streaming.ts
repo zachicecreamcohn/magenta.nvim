@@ -25,6 +25,7 @@ export function renderStreamdedTool(
     case "thread_title":
     case "yield_to_parent":
     case "docs":
+    case "run_script":
       break;
     case "spawn_subagents": {
       const input = SpawnSubagents.parsePartialSpawnSubagentsInput(

@@ -1,9 +1,43 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import {
+  FsFileIO,
+  type Logger,
+  loadSkills,
+  type ProviderOptions,
+} from "@magenta/core";
 import { describe, expect, it } from "vitest";
+import { BUILTIN_SKILLS_PATH } from "../options.ts";
 import { withDriver } from "../test/preamble.ts";
+import type { HomeDir, NvimCwd } from "../utils/files.ts";
 
 describe("Skills", () => {
+  it("discovers the built-in authoring-scripts skill and it documents the harness", async () => {
+    const skills = await loadSkills({
+      cwd: "/nonexistent" as NvimCwd,
+      homeDir: "/nonexistent" as HomeDir,
+      logger: {
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+        trace: () => {},
+      } as unknown as Logger,
+      fileIO: new FsFileIO(),
+      options: { skillsPaths: [BUILTIN_SKILLS_PATH] } as ProviderOptions,
+    });
+
+    expect(skills["authoring-scripts"]).toBeDefined();
+
+    const body = await fs.promises.readFile(
+      skills["authoring-scripts"].skillFile,
+      "utf-8",
+    );
+    expect(body).toContain("registerScript");
+    expect(body).toContain("./magenta-sdk/testing.ts");
+    expect(body).toContain("runScript");
+  });
+
   it("loads skills from a directory with skill.md", async () => {
     await withDriver(
       {

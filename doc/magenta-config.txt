@@ -156,6 +156,15 @@ skillsPaths ~
 
     Directories containing skill subdirectories.
 
+                                                     *magenta-scriptsPaths*
+scriptsPaths ~
+    Type: `table`
+    Default: `{ "~/.magenta/scripts", ".magenta/scripts" }`
+
+    Directories scanned for magenta scripts (`*.ts` files registering a
+    script via the SDK). Both user-level and project-level directories are
+    supported; later paths override earlier ones on name collisions.
+
                                             *magenta-suppressProjectSkills*
 suppressProjectSkills ~
     Type: `table`

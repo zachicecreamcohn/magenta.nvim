@@ -8,6 +8,7 @@ export const STATIC_TOOL_NAMES = [
   "yield_to_parent",
   "edl",
   "docs",
+  "run_script",
 ] as const;
 
 export type StaticToolName = (typeof STATIC_TOOL_NAMES)[number];
@@ -20,6 +21,7 @@ export const CHAT_STATIC_TOOL_NAMES: StaticToolName[] = [
   "spawn_subagents",
   "edl",
   "docs",
+  "run_script",
 ];
 
 export const COMPACT_STATIC_TOOL_NAMES: StaticToolName[] = ["get_file", "edl"];
@@ -42,6 +44,7 @@ export const TOOL_CAPABILITIES = [
   "shell",
   "threads",
   "file-io",
+  "scripts",
 ] as const;
 
 export type ToolCapability = (typeof TOOL_CAPABILITIES)[number];
@@ -59,4 +62,5 @@ export const TOOL_REQUIRED_CAPABILITIES: Record<
   thread_title: new Set(),
   yield_to_parent: new Set(),
   docs: new Set(),
+  run_script: new Set(["scripts"]),
 };

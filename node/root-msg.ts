@@ -1,6 +1,7 @@
 import type { ThreadId } from "@magenta/core";
 import type { ChatMsg } from "./chat/chat.ts";
 import type { ThreadMsg } from "./chat/thread.ts";
+import type { ScriptMsg } from "./scripts/script-manager.ts";
 
 export type SidebarMsg =
   | {
@@ -18,6 +19,7 @@ export type SidebarMsg =
 export type RootMsg =
   | ThreadMsg
   | ChatMsg
+  | ScriptMsg
   | {
       type: "sidebar-msg";
       msg: SidebarMsg;

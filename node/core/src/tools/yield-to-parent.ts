@@ -1,3 +1,4 @@
+import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import {
   PLACEHOLDER_NATIVE_MESSAGE_IDX,
   type ProviderToolSpec,
@@ -10,7 +11,8 @@ import type {
 import type { Result } from "../utils/result.ts";
 
 export type Input = {
-  result: string;
+  result?: string;
+  [key: string]: unknown;
 };
 
 export type StructuredResult = { toolName: "yield_to_parent" };
@@ -27,7 +29,10 @@ export function execute(request: ToolRequest): ToolInvocation {
         value: [
           {
             type: "text" as const,
-            text: request.input.result,
+            text:
+              typeof request.input.result === "string"
+                ? request.input.result
+                : JSON.stringify(request.input),
             nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
           },
         ],
@@ -36,6 +41,24 @@ export function execute(request: ToolRequest): ToolInvocation {
       nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
     }),
     abort: () => {},
+  };
+}
+
+const DEFAULT_INPUT_SCHEMA: JSONSchemaType = {
+  type: "object",
+  properties: {
+    result: {
+      type: "string",
+      description: "The result or information to return to the parent agent",
+    },
+  },
+  required: ["result"],
+};
+
+export function getSpec(yieldSchema?: JSONSchemaType): ProviderToolSpec {
+  return {
+    ...spec,
+    input_schema: yieldSchema ?? DEFAULT_INPUT_SCHEMA,
   };
 }
 
@@ -64,7 +87,7 @@ After using this tool, the sub-agent thread will be terminated.`,
 export function validateInput(input: {
   [key: string]: unknown;
 }): Result<Input> {
-  if (typeof input.result !== "string") {
+  if ("result" in input && typeof input.result !== "string") {
     return {
       status: "error",
       error: `expected req.input.result to be a string but it was ${JSON.stringify(input.result)}`,

@@ -1,4 +1,6 @@
+import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import type { AgentsMap } from "../agents/agents.ts";
+import type { ScriptCatalogEntry } from "../capabilities/script-invoker.ts";
 import type { SubagentConfig, ThreadId, ThreadType } from "../chat-types.ts";
 import type {
   ProviderToolSpec as MCPProviderToolSpec,
@@ -12,6 +14,7 @@ import * as Edl from "./edl.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as GetFile from "./getFile.ts";
 import * as Hover from "./hover.ts";
+import * as RunScript from "./run-script.ts";
 import * as SpawnSubagents from "./spawn-subagents.ts";
 import * as ThreadTitle from "./thread-title.ts";
 import {
@@ -41,6 +44,7 @@ export type StaticToolMap = {
   yield_to_parent: { input: YieldToParent.Input };
   edl: { input: Edl.Input };
   docs: { input: Docs.Input };
+  run_script: { input: RunScript.Input };
 };
 
 export type StaticToolRequest = {
@@ -76,6 +80,8 @@ export function getToolSpecs(
   availableCapabilities?: Set<ToolCapability>,
   agents?: AgentsMap,
   subagentConfig?: SubagentConfig,
+  yieldSchema?: JSONSchemaType,
+  scriptCatalog?: ScriptCatalogEntry[],
 ): ProviderToolSpec[] {
   let staticToolNames: StaticToolName[] = [];
   switch (threadType) {
@@ -126,6 +132,13 @@ export function getToolSpecs(
       specs.push(SpawnSubagents.getSpec(agents ?? {}, subagentConfig?.tier));
     } else if (toolName === "docs") {
       specs.push(Docs.getSpec());
+    } else if (toolName === "yield_to_parent") {
+      specs.push(YieldToParent.getSpec(yieldSchema));
+    } else if (toolName === "run_script") {
+      const catalog = scriptCatalog ?? [];
+      if (catalog.length > 0) {
+        specs.push(RunScript.getSpec(catalog));
+      }
     } else {
       const spec = TOOL_SPEC_MAP[toolName];
       if (spec) {

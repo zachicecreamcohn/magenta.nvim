@@ -15,6 +15,14 @@ export const BUILTIN_AGENTS_PATH = path.join(
   "agents",
 );
 
+// The plugin's own skills directory, shipped at the repo/install root.
+export const BUILTIN_SKILLS_PATH = path.join(__dirname, "..", "skills");
+
+// The bundled SDK directory, shipped at the repo/install root. Defined here
+// (a depth-1 module) with a single `..` so it resolves to `<root>/sdk` both
+// from source (`node/options.ts`) and from the bundle (`dist/magenta.mjs`).
+export const BUILTIN_SDK_PATH = path.join(__dirname, "..", "sdk");
+
 // Default models by provider
 const DEFAULT_MODELS: Record<
   ProviderName,
@@ -223,6 +231,7 @@ export type MagentaOptions = {
   autoContext: string[];
   hierarchyContextFileNames: string[];
   skillsPaths: string[];
+  scriptsPaths: string[];
   suppressProjectSkills: string[];
   agentsPaths: string[];
   maxConcurrentSubagents: number;
@@ -1042,11 +1051,13 @@ export function parseOptions(
     autoContext: [],
     hierarchyContextFileNames: ["context.md", "agent.md"],
     skillsPaths: [
+      BUILTIN_SKILLS_PATH,
       "~/.claude/skills",
       "~/.magenta/skills",
       ".magenta/skills",
       ".claude/skills",
     ],
+    scriptsPaths: ["~/.magenta/scripts", ".magenta/scripts"],
     suppressProjectSkills: [],
     agentsPaths: [
       BUILTIN_AGENTS_PATH,
@@ -1117,6 +1128,14 @@ export function parseOptions(
         "skillsPaths",
       );
       options.skillsPaths = userSkillsPaths;
+    }
+
+    // Parse scripts paths
+    if ("scriptsPaths" in inputOptionsObj) {
+      options.scriptsPaths = parseStringArray(
+        inputOptionsObj.scriptsPaths,
+        "scriptsPaths",
+      );
     }
 
     // Parse suppressProjectSkills
@@ -1259,6 +1278,15 @@ export function parseProjectOptions(
     options.skillsPaths = parseStringArray(
       inputOptionsObj.skillsPaths,
       "skillsPaths",
+      logger,
+    );
+  }
+
+  // Parse scripts paths
+  if ("scriptsPaths" in inputOptionsObj) {
+    options.scriptsPaths = parseStringArray(
+      inputOptionsObj.scriptsPaths,
+      "scriptsPaths",
       logger,
     );
   }
@@ -1427,6 +1455,13 @@ export function mergeOptions(
     merged.skillsPaths = [
       ...baseOptions.skillsPaths,
       ...projectSettings.skillsPaths,
+    ];
+  }
+
+  if (projectSettings.scriptsPaths) {
+    merged.scriptsPaths = [
+      ...baseOptions.scriptsPaths,
+      ...projectSettings.scriptsPaths,
     ];
   }
 

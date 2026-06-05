@@ -88,7 +88,13 @@ export function createLocalEnvironment({
     helpTagsProvider,
     cwd,
     homeDir,
-    availableCapabilities: new Set(["lsp", "shell", "threads", "file-io"]),
+    availableCapabilities: new Set([
+      "lsp",
+      "shell",
+      "threads",
+      "file-io",
+      "scripts",
+    ]),
     environmentConfig: { type: "local" },
   };
 }

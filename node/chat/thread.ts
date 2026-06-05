@@ -17,6 +17,7 @@ import {
   type ThreadType,
   type ToolRequestId,
 } from "@magenta/core";
+import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import player from "play-sound";
 import type { Lsp } from "../capabilities/lsp.ts";
 import type { SandboxViolationHandler } from "../capabilities/sandbox-violation-handler.ts";
@@ -38,6 +39,11 @@ import type { Dispatch } from "../tea/tea.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { HomeDir, NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { Chat } from "./chat.ts";
+
+export type SandboxRoot = {
+  readonly isSandboxBypassed: boolean;
+  toggle?: () => void;
+};
 
 export type Msg =
   | { type: "set-title"; title: string }
@@ -199,6 +205,8 @@ export class Thread {
   }
 
   get isSandboxBypassed(): boolean {
+    const sandboxRoot = this.context.getSandboxRoot?.();
+    if (sandboxRoot) return sandboxRoot.isSandboxBypassed;
     const parent = this.context.getParentThread?.();
     if (parent) return parent.isSandboxBypassed;
     return this.sandboxBypassed;
@@ -219,6 +227,8 @@ export class Thread {
       options: MagentaOptions;
       getDisplayWidth: () => number;
       getParentThread?: () => Thread | undefined;
+      getSandboxRoot?: () => SandboxRoot | undefined;
+      yieldSchema?: JSONSchemaType;
       environment: Environment;
       initialFiles?: ContextFiles;
       subagentConfig?: SubagentConfig;
@@ -266,6 +276,7 @@ export class Thread {
           systemPrompt,
           mcpToolManager: context.mcpToolManager,
           threadManager: context.chat,
+          getScriptInvoker: () => context.chat.scriptInvoker,
           fileIO: env.fileIO,
           shell: env.shell,
           lspClient: env.lspClient,
@@ -273,6 +284,7 @@ export class Thread {
           availableCapabilities: env.availableCapabilities,
           environmentConfig: env.environmentConfig,
           maxConcurrentSubagents: context.options.maxConcurrentSubagents || 3,
+          ...(context.yieldSchema ? { yieldSchema: context.yieldSchema } : {}),
           getAgents: () =>
             loadAgents({
               cwd: isDocker ? env.cwd : context.cwd,
@@ -785,6 +797,11 @@ export class Thread {
         while (parentThread) {
           root = parentThread;
           parentThread = root.context.getParentThread?.();
+        }
+        const sandboxRoot = root.context.getSandboxRoot?.();
+        if (sandboxRoot?.toggle) {
+          sandboxRoot.toggle();
+          return;
         }
         root.sandboxBypassed = !root.sandboxBypassed;
         return;

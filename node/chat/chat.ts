@@ -2,6 +2,7 @@ import type {
   FileIO,
   InputMessage,
   NativeMessageIdx,
+  ScriptInvoker,
   SubagentConfig,
   ThreadId,
   ThreadType,
@@ -12,6 +13,7 @@ import {
   PLACEHOLDER_NATIVE_MESSAGE_IDX,
   SubagentSupervisor,
 } from "@magenta/core";
+import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { v7 as uuidv7 } from "uuid";
 import type { Lsp } from "../capabilities/lsp.ts";
 import type {
@@ -33,6 +35,7 @@ import type { MagentaOptions, Profile } from "../options.ts";
 import { createSystemPrompt } from "../providers/system-prompt.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { Sandbox } from "../sandbox-manager.ts";
+import type { ScriptInvocationId } from "../scripts/script-manager.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import { d, type VDOMNode, withBindings } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
@@ -43,6 +46,7 @@ import type {
   UnresolvedFilePath,
 } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
+import type { SandboxRoot } from "./thread.ts";
 import { Thread } from "./thread.ts";
 import { DockerSupervisor } from "./thread-supervisor.ts";
 import { view as threadView } from "./thread-view.ts";
@@ -61,6 +65,7 @@ type ThreadWrapper = (
     }
 ) & {
   parentThreadId: ThreadId | undefined;
+  scriptInvocationId?: ScriptInvocationId;
   depth: number;
   lastActivityTime: number;
   lastViewedTime: number;
@@ -117,6 +122,7 @@ export type ChatMsg = {
 export class Chat implements ThreadManager {
   state: ChatState;
   public threadWrappers: { [id: ThreadId]: ThreadWrapper };
+  public scriptInvoker: ScriptInvoker | undefined = undefined;
   private mcpToolManager: MCPToolManagerImpl;
   private expandedThreads: Set<ThreadId>;
   private threadYieldCallbacks: Map<ThreadId, Array<() => void>>;
@@ -217,6 +223,9 @@ export class Chat implements ThreadManager {
           state: "initialized",
           thread: msg.thread,
           parentThreadId: prev.parentThreadId,
+          ...(prev.scriptInvocationId
+            ? { scriptInvocationId: prev.scriptInvocationId }
+            : {}),
           depth: prev.depth,
           lastActivityTime: prev.lastActivityTime,
           lastViewedTime: prev.lastViewedTime,
@@ -232,6 +241,9 @@ export class Chat implements ThreadManager {
           state: "error",
           error: msg.error,
           parentThreadId: thread.parentThreadId,
+          ...(thread.scriptInvocationId
+            ? { scriptInvocationId: thread.scriptInvocationId }
+            : {}),
           depth: thread.depth,
           lastActivityTime: thread.lastActivityTime,
           lastViewedTime: thread.lastViewedTime,
@@ -396,6 +408,9 @@ export class Chat implements ThreadManager {
     environmentConfig,
     dockerSpawnConfig,
     getParentThread,
+    getSandboxRoot,
+    yieldSchema,
+    scriptInvocationId,
   }: {
     threadId: ThreadId;
     profile: Profile;
@@ -408,10 +423,14 @@ export class Chat implements ThreadManager {
     environmentConfig?: EnvironmentConfig;
     dockerSpawnConfig?: DockerSpawnConfig | undefined;
     getParentThread?: () => Thread | undefined;
+    getSandboxRoot?: () => SandboxRoot | undefined;
+    yieldSchema?: JSONSchemaType;
+    scriptInvocationId?: ScriptInvocationId;
   }) {
     this.threadWrappers[threadId] = {
       state: "pending",
       parentThreadId: parent,
+      ...(scriptInvocationId ? { scriptInvocationId } : {}),
       depth: parent ? (this.threadWrappers[parent]?.depth ?? 0) + 1 : 0,
       lastActivityTime: Date.now(),
       lastViewedTime: Date.now(),
@@ -453,6 +472,7 @@ export class Chat implements ThreadManager {
               isBypassed: () => bypassRef.get(),
             }),
           ),
+      this.scriptInvoker?.discover(),
     ]);
 
     const initialFiles = autoContextFilesToInitialFiles(autoContextFiles);
@@ -489,6 +509,8 @@ export class Chat implements ThreadManager {
       initialFiles,
       ...(subagentConfig ? { subagentConfig } : {}),
       ...(getParentThread ? { getParentThread } : {}),
+      ...(getSandboxRoot ? { getSandboxRoot } : {}),
+      ...(yieldSchema ? { yieldSchema } : {}),
     });
 
     bypassRef.get = () => thread.isSandboxBypassed;
@@ -672,6 +694,39 @@ export class Chat implements ThreadManager {
     return views;
   }
 
+  /**
+   * Render a script-owned thread and its subtree, indented starting at the
+   * given base depth (the script row sits above at depth 0). Used by the
+   * Scripts section in the overview.
+   */
+  renderScriptThreadSubtree(threadId: ThreadId, baseDepth: number): VDOMNode[] {
+    const childrenMap = this.buildChildrenMap();
+    const views: VDOMNode[] = [];
+    this.renderScriptSubtreeInner(threadId, childrenMap, baseDepth, views);
+    return views;
+  }
+
+  private renderScriptSubtreeInner(
+    threadId: ThreadId,
+    childrenMap: Map<ThreadId, ThreadId[]>,
+    depth: number,
+    views: VDOMNode[],
+  ) {
+    if (!this.threadWrappers[threadId]) return;
+    views.push(this.renderThread(threadId, depth, this.state.activeThreadId));
+    for (const childId of childrenMap.get(threadId) ?? []) {
+      this.renderScriptSubtreeInner(childId, childrenMap, depth + 1, views);
+    }
+  }
+
+  /**
+   * Collect pending-permission views for a script-owned thread's subtree, so a
+   * collapsed script row never hides a blocking permission prompt.
+   */
+  collectScriptSubtreeViolationViews(threadId: ThreadId): VDOMNode[] {
+    return this.collectSubtreeViolationViews(threadId, this.buildChildrenMap());
+  }
+
   private buildChildrenMap(): Map<ThreadId, ThreadId[]> {
     const childrenMap = new Map<ThreadId, ThreadId[]>();
     for (const [idStr, threadWrapper] of Object.entries(this.threadWrappers)) {
@@ -850,7 +905,12 @@ No threads yet`;
 
     const rootThreads: { id: ThreadId }[] = [];
     for (const [idStr, wrapper] of Object.entries(this.threadWrappers)) {
-      if (wrapper.parentThreadId === undefined) {
+      // Script-owned threads are rendered nested under their script invocation
+      // in the Scripts section, not as top-level threads here.
+      if (
+        wrapper.parentThreadId === undefined &&
+        wrapper.scriptInvocationId === undefined
+      ) {
         rootThreads.push({ id: idStr as ThreadId });
       }
     }
@@ -1231,6 +1291,41 @@ ${threadViews.map((view) => d`${view}\n`)}`;
         const wrapper = this.threadWrappers[parentThreadId];
         return wrapper?.state === "initialized" ? wrapper.thread : undefined;
       },
+    });
+
+    return thread.id;
+  }
+
+  async spawnScriptThread(opts: {
+    scriptInvocationId: ScriptInvocationId;
+    prompt: string;
+    yieldSchema: JSONSchemaType;
+    getSandboxRoot: () => SandboxRoot | undefined;
+    profile?: Profile;
+    cwd?: string;
+  }): Promise<ThreadId> {
+    const threadId = uuidv7() as ThreadId;
+    const profile =
+      opts.profile ??
+      getActiveProfile(
+        this.context.getOptions().profiles,
+        this.context.getOptions().activeProfile,
+      );
+
+    const environmentConfig: EnvironmentConfig = {
+      type: "local",
+      ...(opts.cwd ? { cwd: opts.cwd as NvimCwd } : {}),
+    };
+
+    const thread = await this.createThreadWithContext({
+      threadId,
+      profile,
+      inputMessages: [{ type: "system", text: opts.prompt }],
+      threadType: "subagent",
+      environmentConfig,
+      scriptInvocationId: opts.scriptInvocationId,
+      yieldSchema: opts.yieldSchema,
+      getSandboxRoot: opts.getSandboxRoot,
     });
 
     return thread.id;

@@ -95,6 +95,10 @@ local defaults = {
     ".magenta/skills",
     ".claude/skills"
   },
+  scriptsPaths = {
+    "~/.magenta/scripts",
+    ".magenta/scripts"
+  },
   suppressProjectSkills = {},
   maxConcurrentSubagents = 3,
   chimeVolume = 0.3,

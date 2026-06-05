@@ -3,6 +3,7 @@ import {
   type CompletedToolInfo,
   type DisplayContext,
   isMCPTool,
+  type RunScript,
   type SpawnSubagents,
   type StaticToolName,
   type ToolRequest,
@@ -83,6 +84,10 @@ export function renderToolSummary(
       return YieldToParentRender.renderSummary(request, displayContext);
     case "docs":
       return DocsRender.renderSummary(request, displayContext);
+    case "run_script": {
+      const input = request.input as RunScript.Input;
+      return d`🚀 run_script: ${input.scriptName}`;
+    }
     default:
       assertUnreachable(toolName);
   }
@@ -188,6 +193,8 @@ export function renderToolResultSummary(
       return d`${statusEmoji} ${ThreadTitleRender.renderResultSummary(info)}`;
     case "edl":
       return d`${statusEmoji} ${EdlRender.renderResultSummary(info)} (${tokEst})`;
+    case "run_script":
+      return d`${statusEmoji} run_script (${tokEst})`;
     default:
       assertUnreachable(toolName);
   }

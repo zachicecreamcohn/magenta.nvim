@@ -31,6 +31,7 @@ function makeBaseOptions(overrides?: Partial<MagentaOptions>): MagentaOptions {
     autoContext: [],
     hierarchyContextFileNames: ["context.md", "agent.md"],
     skillsPaths: [],
+    scriptsPaths: [],
     suppressProjectSkills: [],
     agentsPaths: [],
     mcpServers: {},

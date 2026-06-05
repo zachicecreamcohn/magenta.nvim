@@ -136,6 +136,37 @@ describe("ThreadCore.handleProviderStopped", () => {
     }
   });
 
+  it("custom yieldSchema yields a structured JSON value", async () => {
+    const { core, mockClient } = createThreadCoreWithMock({
+      threadType: "subagent" as ThreadType,
+      yieldSchema: {
+        type: "object",
+        properties: { count: { type: "number" } },
+        required: ["count"],
+      },
+    });
+
+    core.sendMessage([{ type: "user", text: "do the task" }]);
+    const stream = await mockClient.awaitStream();
+
+    const toolUseId = "tool-yield-structured" as ToolRequestId;
+    stream.streamToolUse(toolUseId, "yield_to_parent" as ToolName, {
+      count: 3,
+    });
+    stream.finishResponse("max_tokens");
+
+    await pollUntil(() => {
+      if (core.state.mode.type === "yielded") return true;
+      throw new Error(
+        `waiting for yielded mode, currently: ${core.state.mode.type}`,
+      );
+    });
+
+    expect(core.state.mode.type).toBe("yielded");
+    if (core.state.mode.type === "yielded") {
+      expect(JSON.parse(core.state.mode.response)).toEqual({ count: 3 });
+    }
+  });
   it("max_tokens with truncated (incomplete) tool_use block sends error tool_result and auto-continues", async () => {
     const { core, mockClient } = createThreadCoreWithMock();
 

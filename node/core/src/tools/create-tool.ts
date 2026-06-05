@@ -6,6 +6,7 @@ import type {
 import type { FileIO } from "../capabilities/file-io.ts";
 import type { HelpTagsProvider } from "../capabilities/help-tags-provider.ts";
 import type { LspClient } from "../capabilities/lsp-client.ts";
+import type { ScriptInvoker } from "../capabilities/script-invoker.ts";
 import type { Shell } from "../capabilities/shell.ts";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
 import type { ThreadId } from "../chat-types.ts";
@@ -23,6 +24,7 @@ import * as Hover from "./hover.ts";
 import type { MCPToolManager } from "./mcp/manager.ts";
 import * as MCPTool from "./mcp/tool.ts";
 import { parseToolName } from "./mcp/types.ts";
+import * as RunScript from "./run-script.ts";
 import * as SpawnSubagents from "./spawn-subagents.ts";
 import * as ThreadTitle from "./thread-title.ts";
 import type { StaticToolRequest } from "./toolManager.ts";
@@ -43,6 +45,7 @@ export type CreateToolContext = {
   fileIO: FileIO;
   shell: Shell;
   threadManager: ThreadManager;
+  scriptInvoker?: ScriptInvoker | undefined;
   requestRender: () => void;
   getAgents: () => AgentsMap;
 };
@@ -127,6 +130,13 @@ export function createTool(
 
     case "yield_to_parent": {
       return YieldToParent.execute(staticRequest);
+    }
+
+    case "run_script": {
+      return RunScript.execute(staticRequest, {
+        scriptInvoker: context.scriptInvoker,
+        threadId: context.threadId,
+      });
     }
 
     case "edl": {

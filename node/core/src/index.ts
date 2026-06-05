@@ -18,6 +18,10 @@ export type {
   LspRange,
   LspReferencesResponse,
 } from "./capabilities/lsp-client.ts";
+export type {
+  ScriptCatalogEntry,
+  ScriptInvoker,
+} from "./capabilities/script-invoker.ts";
 export type { OutputLine, Shell, ShellResult } from "./capabilities/shell.ts";
 export type {
   DockerSpawnConfig,
@@ -240,6 +244,7 @@ export {
   type ServerName,
   validateServerName,
 } from "./tools/mcp/types.ts";
+export * as RunScript from "./tools/run-script.ts";
 export * as SpawnSubagents from "./tools/spawn-subagents.ts";
 export * as ThreadTitle from "./tools/thread-title.ts";
 export {

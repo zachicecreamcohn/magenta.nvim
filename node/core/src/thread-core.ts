@@ -1,8 +1,10 @@
+import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { type AgentsMap, extractSystemReminderBlock } from "./agents/agents.ts";
 import type { ContextTracker } from "./capabilities/context-tracker.ts";
 import type { FileIO } from "./capabilities/file-io.ts";
 import type { HelpTagsProvider } from "./capabilities/help-tags-provider.ts";
 import type { LspClient } from "./capabilities/lsp-client.ts";
+import type { ScriptInvoker } from "./capabilities/script-invoker.ts";
 import type { Shell } from "./capabilities/shell.ts";
 import type { ThreadManager } from "./capabilities/thread-manager.ts";
 import type { SubagentConfig, ThreadId, ThreadType } from "./chat-types.ts";
@@ -113,6 +115,7 @@ export interface ThreadCoreContext {
   systemPrompt: SystemPrompt;
   mcpToolManager: MCPToolManagerImpl;
   threadManager: ThreadManager;
+  getScriptInvoker?: () => ScriptInvoker | undefined;
   fileIO: FileIO;
   shell: Shell;
   lspClient: LspClient;
@@ -123,6 +126,7 @@ export interface ThreadCoreContext {
   getAgents: () => AgentsMap;
   getProvider: (profile: ProviderProfile) => Provider;
   initialFiles?: Files;
+  yieldSchema?: JSONSchemaType;
 }
 
 /** Minimum output tokens between system reminders during auto-respond loops */
@@ -442,6 +446,8 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       this.context.availableCapabilities,
       this.context.getAgents(),
       this.context.subagentConfig,
+      this.context.yieldSchema,
+      this.context.getScriptInvoker?.()?.getScriptCatalog(),
     );
   }
 
@@ -658,6 +664,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         fileIO: this.context.fileIO,
         shell: this.context.shell,
         threadManager: this.context.threadManager,
+        scriptInvoker: this.context.getScriptInvoker?.(),
         requestRender: () => this.emit("update"),
         getAgents: () => this.context.getAgents(),
       };
@@ -930,7 +937,10 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       let yieldResult: string | undefined;
       for (const [toolId, entry] of mode.activeTools) {
         if (entry.toolName === "yield_to_parent") {
-          yieldResult = (entry.request.input as { result: string }).result;
+          yieldResult =
+            this.context.yieldSchema !== undefined
+              ? JSON.stringify(entry.request.input)
+              : (entry.request.input as { result: string }).result;
           completedTools.push({
             id: toolId,
             result: {

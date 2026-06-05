@@ -1,3 +1,7 @@
+# top of mind
+
+- the tool prompt expansion currently shows a static view. Instead we should query the current thread's tools
+  - the tool view should multi-collapse, so we only see the list of tools, and can expand each tool (when the tool line is expanded)
 - openai agent
 - agent(prompt, yield_schema) api, exposed via typescript scripts & lua
 
@@ -22,8 +26,6 @@
 
 # UX
 
-- stop fixing the sidebar width. Just make it a normal split
-- Animate the dot on "streaming" independent of partial stream results
 - tmux integration (update tab title with active thread title, thread state)
 - toggling sandbox to off should auto-approve any current dialogues
 
@@ -31,13 +33,20 @@
 
 - add context tracking for the state of git. When we change branches, commit, etc...
 - asking aside/followup questions about things is a bit awkward... it would be cool to allow one to select a part of the display buffer, and then ask a question about it, with the output appearing within the flow of the original thread
-- support for oil buffers for adding files to context
 
 # bug fixes, etc
 
 - when we abort during a "sandbox blocked" message, it stays up even as the conversation continues
   - this has broken a few times already, make sure we have a good test for it
-- when we error upon a user message send, we should pop the user message off the agent's history, otherwise we end up sending it twice
-- overloaded handling / exponential backoff not working correctly
 - when we terminate/error, the reset for the message places it in the wrong buffer (currently open one, not the one corresponding to the thread that the error happened in)
-- forked indicator on the source thread floats down, rather than staying fixed at the forked message
+- built-in commands like @implementplan not showing up in completions
+
+- overloaded handling / exponential backoff not working correctly
+
+```
+Error {"type":"error","error":{"details":null,"type":"overloaded_error","message":"Overloaded"},"request_id":"req_011CbkdfePwYzofutmdgV7RY"}
+Error: {"type":"error","error":{"details":null,"type":"overloaded_error","message":"Overloaded"},"request_id":"req_011CbkdfePwYzofutmdgV7RY"}
+    at _Stream.iterator (file:///Users/denis.lantsman/src/magenta.nvim/dist/magenta.mjs:38643:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async _MessageStream._createMessage (file:///Users/denis.lantsman/src/magenta.nvim/dist/magenta.mjs:46365:28)
+```
