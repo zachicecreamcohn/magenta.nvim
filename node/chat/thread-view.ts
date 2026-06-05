@@ -316,12 +316,7 @@ export const view: View<{
   dispatch: Dispatch<Msg>;
 }> = ({ thread, dispatch }) => {
   const threadType = thread.core.state.threadType;
-  const dockerPrefix = threadType === "docker_root" ? "🐳 " : "";
-  const subagentPrefix =
-    threadType === "subagent"
-      ? `🤖 [${thread.context.subagentConfig?.agentName ?? "subagent"}] `
-      : "";
-  const titlePrefix = `${dockerPrefix}${subagentPrefix}`;
+  const titlePrefix = threadType === "docker_root" ? "🐳 " : "";
   const titleView = thread.core.state.title
     ? d`# ${titlePrefix}${thread.core.state.title}`
     : d`# ${titlePrefix}[ Untitled ]`;
