@@ -161,7 +161,7 @@ const approveButtonClass = cls("approveButton");
 const rejectButtonClass = cls("rejectButton");
 
 mountStyle(`
-html, body { margin: 0; height: 100%; }
+html, body { margin: 0; height: 100%; background: #1a1a1a; color: #f0f0f0; }
 .${rootClass} {
   display: flex;
   flex-direction: column;
@@ -300,9 +300,11 @@ html, body { margin: 0; height: 100%; }
 }
 .${statusClass} {
   flex: 1 1 auto;
-  color: #ccc;
+  color: #f0f0f0;
 }
 .${chatClass} {
+  background: #1a1a1a;
+  color: #f0f0f0;
   flex: 1 1 auto;
   overflow-y: auto;
   margin: 0;
@@ -310,8 +312,7 @@ html, body { margin: 0; height: 100%; }
   white-space: pre-wrap;
   word-break: break-word;
   -webkit-overflow-scrolling: touch;
-}
-.${inputRowClass} {
+}.${inputRowClass} {
   flex: 0 0 auto;
   display: flex;
   gap: 0.5rem;
