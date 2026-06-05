@@ -66,6 +66,10 @@ export class WebServer {
   private clients = new Set<ServerResponse>();
   private latestChatText = "";
   private resolvedPort: number | undefined = undefined;
+  private listeningResolve: ((port: number) => void) | undefined;
+  private listening = new Promise<number>((resolve) => {
+    this.listeningResolve = resolve;
+  });
 
   constructor(
     private nvim: Nvim,
@@ -232,6 +236,11 @@ export class WebServer {
     return this.resolvedPort;
   }
 
+  // Resolves with the OS-assigned port once `listen(0)` has bound.
+  whenListening(): Promise<number> {
+    return this.listening;
+  }
+
   start(): void {
     this.server.listen(0, "0.0.0.0", () => {
       const address: string | AddressInfo | null = this.server.address();
@@ -243,6 +252,7 @@ export class WebServer {
         this.resolvedPort = address.port;
         servedUrl = `http://${detectReachableHost()}:${address.port}`;
         this.nvim.logger.info(`Magenta web server listening on ${servedUrl}`);
+        this.listeningResolve?.(address.port);
       } else {
         this.nvim.logger.error(
           `WebServer: failed to resolve listening port from address: ${JSON.stringify(address)}`,

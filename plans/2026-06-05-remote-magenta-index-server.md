@@ -266,7 +266,14 @@ export class IndexServer {
 Each slice is independently, manually testable, ideally with two real nvim sessions in
 tmux. Front-load the registry + election infra; defer Tailscale (like Part 1).
 
-## Slice 1 — Self-registration + options
+## Status
+
+Slices 1–4 implemented on branch `zach/remote-magenta`. `detectReachableHost()`
+lives in `node/utils/network.ts` (added during Part 1's served-URL header) and is
+re-exported from `node/instance-registry.ts`. Slice 5 (Tailscale) deferred — both
+servers still bind `0.0.0.0` and advertise `detectReachableHost()`.
+
+## Slice 1 — Self-registration + options [DONE]
 
 - Add `webIndexPort?: number` to `MagentaOptions` (`node/options.ts`) — positive-integer
   validation with a warn, mirroring how the old `webServerPort` was parsed in both
@@ -280,7 +287,7 @@ tmux. Front-load the registry + election infra; defer Tailscale (like Part 1).
   `\<pid\>.json` files with correct `cwd`/`host`/`port`/`pid`. `:q` one → its file
   disappears (sync exit unlink). `kill -9` one → its file remains (to be pruned in slice 2).
 
-## Slice 2 — Read + prune (liveness)
+## Slice 2 — Read + prune (liveness) [DONE]
 
 - Implement `readLiveInstances(dir)`: list `*.json`, parse-tolerantly, prune entries failing
   `pidAlive(pid) && fresh(heartbeatAt)`, best-effort `unlink` the dead ones, return sorted
@@ -291,7 +298,7 @@ tmux. Front-load the registry + election infra; defer Tailscale (like Part 1).
 - **Test (manual):** leave the `kill -9` leftover from slice 1; call the reader (temporary
   log line or debug command) and confirm the stale entry is pruned.
 
-## Slice 3 — Index server + leader election
+## Slice 3 — Index server + leader election [DONE]
 
 - New `node/index-server.ts`: `IndexServer` with the `ELECTION_INTERVAL_MS` opportunistic
   bind loop, `EADDRINUSE` handling, and a request handler serving `GET /instances` JSON
@@ -303,7 +310,7 @@ tmux. Front-load the registry + election infra; defer Tailscale (like Part 1).
   ~3s the other answers `/instances` on the same port (`curl` again). Start a third session;
   it appears in the JSON.
 
-## Slice 4 — Vamp index page
+## Slice 4 — Vamp index page [DONE]
 
 - New `node/web-client/index-page.ts` + `node/web-client/index-page.html`; extend
   `scripts/build.mjs` (third esbuild + html copy). Serve `GET /` and `GET /index-page.js`
@@ -314,7 +321,7 @@ tmux. Front-load the registry + election infra; defer Tailscale (like Part 1).
   click one → that instance's Part-1 chat UI loads. Kill the leader; the page shows
   reconnecting, then recovers and still lists the survivors.
 
-## Slice 5 — Tailscale hardening (with Part 1 slice 7)
+## Slice 5 — Tailscale hardening (with Part 1 slice 7) [TODO]
 
 - `detectReachableHost()` returns the `100.x` Tailscale address; bind BOTH the per-instance
   `WebServer` and the `IndexServer` to it (replace the dev `0.0.0.0`), and store that host

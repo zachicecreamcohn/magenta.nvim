@@ -1,4 +1,5 @@
 import * as os from "node:os";
+import { basename } from "node:path";
 import type { InputMessage, NativeMessageIdx, ThreadId } from "@magenta/core";
 import { probeAndSaveClipboardImage } from "@magenta/core";
 import { type BufferInfo, BufferManager } from "./buffer-manager.ts";
@@ -9,6 +10,13 @@ import type {
 } from "./capabilities/sandbox-violation-handler.ts";
 import { Chat } from "./chat/chat.ts";
 import { CommandRegistry } from "./chat/commands/registry.ts";
+import { IndexServer } from "./index-server.ts";
+import {
+  detectReachableHost,
+  InstanceRegistry,
+  readLiveInstances,
+  registryDir,
+} from "./instance-registry.ts";
 import {
   type BufNr,
   type Line,
@@ -121,6 +129,8 @@ export class Magenta {
   public optionsLoader: DynamicOptionsLoader;
   public activeBuffers: { displayBuffer: NvimBuffer; inputBuffer: NvimBuffer };
   private webServer: WebServer | undefined;
+  private instanceRegistry: InstanceRegistry | undefined;
+  private indexServer: IndexServer | undefined;
 
   constructor(
     public nvim: Nvim,
@@ -380,7 +390,38 @@ export class Magenta {
       this.webServer.start();
       // Mirror every flattened render out to connected web clients.
       setRenderTap((content) => webServer.pushSnapshot(content));
+
+      const indexPort = this.options.webIndexPort;
+      if (indexPort !== undefined) {
+        webServer.whenListening().then(
+          (port) => this.startInstanceServices(indexPort, port),
+          (e: unknown) => {
+            this.nvim.logger.error(
+              `Error waiting for web server to listen: ${e instanceof Error ? `${e.message}\n${e.stack}` : JSON.stringify(e)}`,
+            );
+          },
+        );
+      }
     }
+  }
+
+  private startInstanceServices(indexPort: number, webPort: number): void {
+    const host = detectReachableHost();
+
+    this.instanceRegistry = new InstanceRegistry(this.nvim, {
+      pid: process.pid,
+      cwd: this.cwd,
+      title: basename(this.cwd),
+      host,
+      port: webPort,
+      startedAt: Date.now(),
+    });
+    this.instanceRegistry.start();
+
+    this.indexServer = new IndexServer(this.nvim, indexPort, "0.0.0.0", () =>
+      readLiveInstances(registryDir()),
+    );
+    this.indexServer.start();
   }
 
   get options(): MagentaOptions {
@@ -999,6 +1040,8 @@ ${lines.join("\n")}
     // BufferManager's mounted apps will be cleaned up when nvim exits
     setRenderTap(undefined);
     this.webServer?.close();
+    this.indexServer?.close();
+    this.instanceRegistry?.stop();
   }
 
   static async start(nvim: Nvim, homeDir?: HomeDir, sandboxOverride?: Sandbox) {
