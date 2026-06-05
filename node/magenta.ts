@@ -1,10 +1,22 @@
 import * as os from "node:os";
+import { basename } from "node:path";
 import type { InputMessage, NativeMessageIdx, ThreadId } from "@magenta/core";
 import { probeAndSaveClipboardImage } from "@magenta/core";
 import { type BufferInfo, BufferManager } from "./buffer-manager.ts";
 import { Lsp } from "./capabilities/lsp.ts";
+import type {
+  PendingViolation,
+  SandboxViolationHandler,
+} from "./capabilities/sandbox-violation-handler.ts";
 import { Chat } from "./chat/chat.ts";
 import { CommandRegistry } from "./chat/commands/registry.ts";
+import { IndexServer } from "./index-server.ts";
+import {
+  detectReachableHost,
+  InstanceRegistry,
+  readLiveInstances,
+  registryDir,
+} from "./instance-registry.ts";
 import {
   type BufNr,
   type Line,
@@ -37,8 +49,8 @@ import {
   type BindingCtx,
   type BindingKey,
 } from "./tea/bindings.ts";
-import type { Dispatch } from "./tea/tea.ts";
 import * as TEA from "./tea/tea.ts";
+import { type Dispatch, setRenderTap } from "./tea/tea.ts";
 import { record as recordTiming } from "./timings.ts";
 import { assertUnreachable } from "./utils/assertUnreachable.ts";
 import type { HomeDir } from "./utils/files.ts";
@@ -51,6 +63,7 @@ import {
   type UnresolvedFilePath,
 } from "./utils/files.ts";
 import { getMarkdownExt } from "./utils/markdown.ts";
+import { type Status, type ThreadInfo, WebServer } from "./web-server.ts";
 
 // these constants should match lua/magenta/init.lua
 const MAGENTA_COMMAND = "magentaCommand";
@@ -61,6 +74,44 @@ const MAGENTA_BUF_ENTER = "magentaBufEnter";
 const MAGENTA_BUF_DELETE = "magentaBufDelete";
 const MAGENTA_CLIPBOARD_IMAGE_PASTE = "magentaClipboardImagePaste";
 const MAGENTA_CLIPBOARD_TEXT_PASTE = "magentaClipboardTextPaste";
+
+/** Derive a human-readable label for a pending sandbox approval prompt, used
+ * as the `toolName` surfaced to the web client. */
+function sandboxPromptLabel(prompt: PendingViolation["prompt"]): string {
+  switch (prompt.kind) {
+    case "violation":
+      return prompt.violation.command;
+    case "approval-prompt":
+      return prompt.command;
+    case "write-approval":
+      return `Write to ${prompt.absPath}`;
+    default:
+      return assertUnreachable(prompt);
+  }
+}
+
+/** Short, human-readable status label for a thread, surfaced in the web
+ * client's thread list. Mirrors the sidebar's status wording loosely. */
+function threadStatusLabel(
+  status: ReturnType<Chat["getThreadSummary"]>["status"],
+): string {
+  switch (status.type) {
+    case "missing":
+      return "not found";
+    case "pending":
+      return "initializing";
+    case "running":
+      return `running: ${status.activity}`;
+    case "stopped":
+      return `stopped (${status.reason})`;
+    case "yielded":
+      return "yielded";
+    case "error":
+      return `error: ${status.message}`;
+    default:
+      return assertUnreachable(status);
+  }
+}
 
 function formatAsQuote(text: string): string {
   return text
@@ -77,6 +128,9 @@ export class Magenta {
   public commandRegistry: CommandRegistry;
   public optionsLoader: DynamicOptionsLoader;
   public activeBuffers: { displayBuffer: NvimBuffer; inputBuffer: NvimBuffer };
+  private webServer: WebServer | undefined;
+  private instanceRegistry: InstanceRegistry | undefined;
+  private indexServer: IndexServer | undefined;
 
   constructor(
     public nvim: Nvim,
@@ -242,6 +296,146 @@ export class Magenta {
       () => this.getActiveKey(),
       () => this.chat.isSandboxBypassed(this.chat.state.activeThreadId),
     );
+
+    {
+      const webServer = new WebServer(
+        this.nvim,
+        (action) => {
+          switch (action.type) {
+            case "send":
+              this.preprocessAndSend(action.text).catch((e) => {
+                this.nvim.logger.error(
+                  `Error sending message from web client: ${e instanceof Error ? `${e.message}\n${e.stack}` : JSON.stringify(e)}`,
+                );
+              });
+              return;
+            case "abort": {
+              const activeThreadId = this.chat.state.activeThreadId;
+              if (activeThreadId !== undefined) {
+                this.dispatch({
+                  type: "thread-msg",
+                  id: activeThreadId,
+                  msg: { type: "abort" },
+                });
+              }
+              return;
+            }
+            case "approve": {
+              this.getActiveSandboxViolationHandler()?.approve(action.id);
+              return;
+            }
+            case "reject": {
+              this.getActiveSandboxViolationHandler()?.reject(action.id);
+              return;
+            }
+            case "new-thread": {
+              this.createAndSwitchToNewThread().catch((e) => {
+                this.nvim.logger.error(
+                  `Error creating thread from web client: ${e instanceof Error ? `${e.message}\n${e.stack}` : JSON.stringify(e)}`,
+                );
+              });
+              return;
+            }
+            case "select-thread": {
+              const threadId = this.chat.resolveThreadId(action.id);
+              if (threadId === undefined) {
+                this.nvim.logger.warn(
+                  `Ignoring select-thread from web client for unknown thread: ${action.id}`,
+                );
+                return;
+              }
+              this.selectThreadEffect(threadId).catch((e) => {
+                this.nvim.logger.error(
+                  `Error selecting thread from web client: ${e instanceof Error ? `${e.message}\n${e.stack}` : JSON.stringify(e)}`,
+                );
+              });
+              return;
+            }
+            default:
+              assertUnreachable(action);
+          }
+        },
+        () => {
+          const activeThreadId = this.chat.state.activeThreadId;
+          const running =
+            activeThreadId !== undefined &&
+            this.chat.getThreadSummary(activeThreadId).status.type ===
+              "running";
+
+          const status: Status = { running, threads: [] };
+
+          const handler = this.getActiveSandboxViolationHandler();
+          if (handler) {
+            const pending = handler.getPendingViolations();
+            const first = [...pending.values()][0];
+            if (first) {
+              status.pendingApproval = {
+                id: first.id,
+                toolName: sandboxPromptLabel(first.prompt),
+              };
+            }
+          }
+
+          const activeId = this.chat.state.activeThreadId;
+          const threadIds = Object.keys(this.chat.threadWrappers) as ThreadId[];
+          status.threads = threadIds.map((id): ThreadInfo => {
+            const summary = this.chat.getThreadSummary(id);
+            const wrapper = this.chat.threadWrappers[id];
+            const parentId = wrapper?.parentThreadId;
+            const agentName =
+              wrapper?.state === "initialized"
+                ? wrapper.thread.context.subagentConfig?.agentName
+                : undefined;
+            return {
+              id,
+              title: summary.title ?? this.chat.getThreadDisplayName(id),
+              status: threadStatusLabel(summary.status),
+              active: id === activeId,
+              parentId,
+              agentName,
+            };
+          });
+
+          return status;
+        },
+        this.options.webIndexPort,
+      );
+      this.webServer = webServer;
+      this.webServer.start();
+      // Mirror every flattened render out to connected web clients.
+      setRenderTap((content) => webServer.pushSnapshot(content));
+
+      const indexPort = this.options.webIndexPort;
+      if (indexPort !== undefined) {
+        webServer.whenListening().then(
+          (port) => this.startInstanceServices(indexPort, port),
+          (e: unknown) => {
+            this.nvim.logger.error(
+              `Error waiting for web server to listen: ${e instanceof Error ? `${e.message}\n${e.stack}` : JSON.stringify(e)}`,
+            );
+          },
+        );
+      }
+    }
+  }
+
+  private startInstanceServices(indexPort: number, webPort: number): void {
+    const host = detectReachableHost();
+
+    this.instanceRegistry = new InstanceRegistry(this.nvim, {
+      pid: process.pid,
+      cwd: this.cwd,
+      title: basename(this.cwd),
+      host,
+      port: webPort,
+      startedAt: Date.now(),
+    });
+    this.instanceRegistry.start();
+
+    this.indexServer = new IndexServer(this.nvim, indexPort, "0.0.0.0", () =>
+      readLiveInstances(registryDir()),
+    );
+    this.indexServer.start();
   }
 
   get options(): MagentaOptions {
@@ -256,6 +450,19 @@ export class Magenta {
     return this.chat.state.state === "thread-selected"
       ? this.chat.state.activeThreadId
       : "overview";
+  }
+
+  /** Resolve the active thread's sandbox-violation handler (the source of
+   * tool-approval prompts), or undefined if there's no active/initialized
+   * thread or the handler isn't set. */
+  private getActiveSandboxViolationHandler():
+    | SandboxViolationHandler
+    | undefined {
+    const activeThreadId = this.chat.state.activeThreadId;
+    if (activeThreadId === undefined) return undefined;
+    const wrapper = this.chat.threadWrappers[activeThreadId];
+    if (wrapper?.state !== "initialized") return undefined;
+    return wrapper.thread.sandboxViolationHandler;
   }
 
   async selectThreadEffect(id: ThreadId): Promise<void> {
@@ -845,6 +1052,10 @@ ${lines.join("\n")}
 
   destroy() {
     // BufferManager's mounted apps will be cleaned up when nvim exits
+    setRenderTap(undefined);
+    this.webServer?.close();
+    this.indexServer?.close();
+    this.instanceRegistry?.stop();
   }
 
   static async start(nvim: Nvim, homeDir?: HomeDir, sandboxOverride?: Sandbox) {

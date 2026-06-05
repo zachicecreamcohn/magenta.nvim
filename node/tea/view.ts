@@ -117,6 +117,24 @@ export function prettyPrintMountedNode(root: MountedVDOM) {
   return output.join("\n");
 }
 
+/** Flatten a mounted VDOM tree back into its full text content. String nodes
+ * carry their content directly; node/array nodes concatenate their children.
+ * This always reflects the complete tree, so it is suitable for mirroring the
+ * full buffer transcript (unlike a single render() call, which may only render
+ * an incrementally-updated sub-range).
+ */
+export function flattenMountedNode(node: MountedVDOM): string {
+  switch (node.type) {
+    case "string":
+      return node.content;
+    case "node":
+    case "array":
+      return node.children.map(flattenMountedNode).join("");
+    default:
+      assertUnreachable(node);
+  }
+}
+
 function prettyPrintPos(pos: Position0Indexed) {
   return `[${pos.row}, ${pos.col}]`;
 }

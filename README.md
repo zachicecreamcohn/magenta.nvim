@@ -62,6 +62,10 @@ I haven't actually used other neovim AI plugins in a while, so take this with a 
 
 # Updates
 
+## Jun 2026
+
+- Remote Web UI: each magenta instance now serves an interactive browser UI (built with [vamp](https://github.com/dlants/vamp) over HTTP. Send messages, approve/deny tool calls, switch threads, etc. from a device on your local network. A shared index page (default port 8764) lists all running instances with automatic leader election when an instance exits.
+
 ## Apr 2026
 
 - Per-thread buffers: each thread now gets its own chat and input buffer. Switching threads swaps buffers in place, preserving scroll position and unsent input.
@@ -223,6 +227,7 @@ For any of the below, you can also just ask magenta to explain.
 - **Sandbox** — OS-level sandboxing (seatbelt/bubblewrap) with configurable filesystem, network, and approval policies. [docs](https://github.com/dlants/magenta.nvim/blob/main/doc/magenta-permissions.txt) · `:help magenta-sandbox`
 - **MCP servers** — connect to local or remote MCP servers for additional tools. [docs](https://github.com/dlants/magenta.nvim/blob/main/doc/magenta-tools.txt) · `:help magenta-mcp`
 - **Docker subagents** — spawn isolated agents in Docker containers for parallel, unsupervised work. [docs](https://github.com/dlants/magenta.nvim/blob/main/doc/magenta-docker.txt) · `:help magenta-docker`
+- **Remote Web UI** — control magenta from a browser over your local network. Each neovim instance automatically serves an HTTP UI; a shared index page (default port `8764`, configurable via `webIndexPort`) lists all running instances
 
 # Usage
 

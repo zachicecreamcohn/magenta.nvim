@@ -231,6 +231,7 @@ export type MagentaOptions = {
   lspDebounceMs?: number;
   debug?: boolean;
   chimeVolume?: number;
+  webIndexPort?: number;
   bellOnNotify?: boolean;
 };
 
@@ -1057,6 +1058,7 @@ export function parseOptions(
     ],
     mcpServers: {},
     customCommands: [],
+    webIndexPort: 8764,
   };
 
   if (typeof inputOptions === "object" && inputOptions != null) {
@@ -1172,6 +1174,18 @@ export function parseOptions(
       options.chimeVolume = inputOptionsObj.chimeVolume;
     } else if ("chimeVolume" in inputOptionsObj) {
       logger.warn("chimeVolume must be a number between 0.0 and 1.0");
+    }
+
+    // Parse web index server port
+    if (
+      "webIndexPort" in inputOptionsObj &&
+      typeof inputOptionsObj.webIndexPort === "number" &&
+      Number.isInteger(inputOptionsObj.webIndexPort) &&
+      inputOptionsObj.webIndexPort > 0
+    ) {
+      options.webIndexPort = inputOptionsObj.webIndexPort;
+    } else if ("webIndexPort" in inputOptionsObj) {
+      logger.warn("webIndexPort must be a positive integer");
     }
 
     // Parse MCP servers (throw errors for invalid MCP servers in main config)
@@ -1319,6 +1333,17 @@ export function parseProjectOptions(
   }
 
   if (
+    "webIndexPort" in inputOptionsObj &&
+    typeof inputOptionsObj.webIndexPort === "number" &&
+    Number.isInteger(inputOptionsObj.webIndexPort) &&
+    inputOptionsObj.webIndexPort > 0
+  ) {
+    options.webIndexPort = inputOptionsObj.webIndexPort;
+  } else if ("webIndexPort" in inputOptionsObj) {
+    logger.warn("webIndexPort must be a positive integer");
+  }
+
+  if (
     "bellOnNotify" in inputOptionsObj &&
     typeof inputOptionsObj.bellOnNotify === "boolean"
   ) {
@@ -1459,6 +1484,10 @@ export function mergeOptions(
 
   if (projectSettings.chimeVolume !== undefined) {
     merged.chimeVolume = projectSettings.chimeVolume;
+  }
+
+  if (projectSettings.webIndexPort !== undefined) {
+    merged.webIndexPort = projectSettings.webIndexPort;
   }
 
   if (projectSettings.bellOnNotify !== undefined) {

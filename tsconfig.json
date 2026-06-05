@@ -11,7 +11,7 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ESNext",
-    "types": [],
+    "types": ["node"],
     "verbatimModuleSyntax": true,
     "exactOptionalPropertyTypes": true
     // "noPropertyAccessFromIndexSignature": true,
@@ -30,6 +30,7 @@
     "**/test/tmp",
     "node/nvim/nvim-node/cli/**",
     "node/core/**",
+    "node/web-client/**",
     "node/packages/**"
   ]
 }
