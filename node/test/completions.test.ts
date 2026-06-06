@@ -81,6 +81,8 @@ it("should show keyword completions when typing '@' in magenta input buffer", as
     expect(entryWords).toContain("@buf");
     expect(entryWords).toContain("@file:");
     expect(entryWords).toContain("@diff:");
+    expect(entryWords).toContain("@compact");
+    expect(entryWords).toContain("@implementplan");
   });
 });
 

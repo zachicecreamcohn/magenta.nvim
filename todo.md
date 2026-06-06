@@ -37,4 +37,3 @@
 - when we abort during a "sandbox blocked" message, it stays up even as the conversation continues
   - this has broken a few times already, make sure we have a good test for it
 - when we terminate/error, the reset for the message places it in the wrong buffer (currently open one, not the one corresponding to the thread that the error happened in)
-- built-in commands like @implementplan not showing up in completions

@@ -16,6 +16,8 @@ local BUILTIN_KEYWORDS = {
   { label = '@buffers',     kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add all open buffers to context' },
   { label = '@quickfix',    kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add quickfix entries to context' },
   { label = '@diagnostics', kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add diagnostics to context' },
+  { label = '@compact',       kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Compact the conversation thread and continue with a new prompt' },
+  { label = '@implementplan', kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Instruct the agent to implement the current plan' },
   { label = '@fork',        kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Fork the thread' },
   { label = '@async',       kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Process message asynchronously without interrupting current operation' },
   { label = '@file:',       kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add file to context (supports fuzzy path completion)' },
