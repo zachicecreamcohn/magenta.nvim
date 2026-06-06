@@ -276,7 +276,7 @@ export class Thread {
           systemPrompt,
           mcpToolManager: context.mcpToolManager,
           threadManager: context.chat,
-          getScriptInvoker: () => context.chat.scriptInvoker,
+          getScriptRunner: () => context.chat.scriptRunner,
           fileIO: env.fileIO,
           shell: env.shell,
           lspClient: env.lspClient,

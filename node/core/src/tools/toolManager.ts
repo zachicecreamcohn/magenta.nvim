@@ -1,6 +1,6 @@
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import type { AgentsMap } from "../agents/agents.ts";
-import type { ScriptCatalogEntry } from "../capabilities/script-invoker.ts";
+import type { ScriptCatalogEntry } from "../capabilities/script-runner.ts";
 import type { SubagentConfig, ThreadId, ThreadType } from "../chat-types.ts";
 import type {
   ProviderToolSpec as MCPProviderToolSpec,

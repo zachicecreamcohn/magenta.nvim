@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type {
   ScriptCatalogEntry,
-  ScriptInvoker,
-} from "../capabilities/script-invoker.ts";
+  ScriptRunner,
+} from "../capabilities/script-runner.ts";
 import type { ThreadId } from "../chat-types.ts";
 import type { ToolRequestId } from "../tool-types.ts";
 import * as RunScript from "./run-script.ts";
@@ -68,10 +68,10 @@ describe("run_script tool", () => {
 
   function makeInvoker() {
     const calls: { scriptName: string; parameters: unknown }[] = [];
-    const invoker: ScriptInvoker = {
+    const invoker: ScriptRunner = {
       discover: () => Promise.resolve(),
       getScriptCatalog: () => catalog,
-      invokeScript: ({ scriptName, parameters }) =>
+      runScript: ({ scriptName, parameters }) =>
         calls.push({ scriptName, parameters }),
     };
     return { invoker, calls };
@@ -88,7 +88,7 @@ describe("run_script tool", () => {
   it("returns the parameter schema and does not invoke when parameters are omitted", async () => {
     const { invoker, calls } = makeInvoker();
     const result = await RunScript.execute(makeRequest({ scriptName: "foo" }), {
-      scriptInvoker: invoker,
+      scriptRunner: invoker,
       threadId: "thread-1" as ThreadId,
     }).promise;
     expect(calls).toHaveLength(0);
@@ -102,7 +102,7 @@ describe("run_script tool", () => {
     const { invoker, calls } = makeInvoker();
     const result = await RunScript.execute(
       makeRequest({ scriptName: "foo", parameters: { x: 123 } }),
-      { scriptInvoker: invoker, threadId: "thread-1" as ThreadId },
+      { scriptRunner: invoker, threadId: "thread-1" as ThreadId },
     ).promise;
     expect(result.result.status).toBe("error");
     expect(calls).toHaveLength(0);
@@ -111,7 +111,7 @@ describe("run_script tool", () => {
     const { invoker, calls } = makeInvoker();
     const result = await RunScript.execute(
       makeRequest({ scriptName: "foo", parameters: { x: "thing" } }),
-      { scriptInvoker: invoker, threadId: "thread-1" as ThreadId },
+      { scriptRunner: invoker, threadId: "thread-1" as ThreadId },
     ).promise;
     expect(result.result.status).toBe("ok");
     expect(calls).toEqual([{ scriptName: "foo", parameters: { x: "thing" } }]);

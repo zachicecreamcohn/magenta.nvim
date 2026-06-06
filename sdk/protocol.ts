@@ -1,6 +1,6 @@
 /**
  * Shared IPC protocol types exchanged over the child-process IPC channel
- * between the SDK (child) and magenta's ScriptManager (parent).
+ * between the script process (SDK) and the magenta process (ScriptManager).
  *
  * This module is fully self-contained: it imports nothing (no node/core, no
  * root project, no third-party package). The root project imports these types
@@ -31,11 +31,11 @@ export type ScriptMeta = {
   parameterSchema: JSONSchema;
 };
 
-/** Messages sent from the SDK (child) to ScriptManager (parent). */
-export type ChildToParent =
+/** Messages sent from the script process to the magenta process. */
+export type ScriptToMagenta =
   | { type: "register"; scripts: ScriptMeta[] }
   | {
-      type: "invoke-thread";
+      type: "create-thread";
       requestId: number;
       prompt: string;
       yieldSchema: JSONSchema;
@@ -45,7 +45,7 @@ export type ChildToParent =
   | { type: "done" }
   | { type: "error"; message: string };
 
-/** Messages sent from ScriptManager (parent) to the SDK (child). */
-export type ParentToChild =
-  | { type: "invoke"; scriptName: string; parameters: unknown }
+/** Messages sent from the magenta process to the script process. */
+export type MagentaToScript =
+  | { type: "run-script"; scriptName: string; parameters: unknown }
   | { type: "thread-result"; requestId: number; result: Result<unknown> };

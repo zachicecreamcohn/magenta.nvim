@@ -6,7 +6,7 @@ import type {
 import type { FileIO } from "../capabilities/file-io.ts";
 import type { HelpTagsProvider } from "../capabilities/help-tags-provider.ts";
 import type { LspClient } from "../capabilities/lsp-client.ts";
-import type { ScriptInvoker } from "../capabilities/script-invoker.ts";
+import type { ScriptRunner } from "../capabilities/script-runner.ts";
 import type { Shell } from "../capabilities/shell.ts";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
 import type { ThreadId } from "../chat-types.ts";
@@ -45,7 +45,7 @@ export type CreateToolContext = {
   fileIO: FileIO;
   shell: Shell;
   threadManager: ThreadManager;
-  scriptInvoker?: ScriptInvoker | undefined;
+  scriptRunner?: ScriptRunner | undefined;
   requestRender: () => void;
   getAgents: () => AgentsMap;
 };
@@ -134,7 +134,7 @@ export function createTool(
 
     case "run_script": {
       return RunScript.execute(staticRequest, {
-        scriptInvoker: context.scriptInvoker,
+        scriptRunner: context.scriptRunner,
         threadId: context.threadId,
       });
     }

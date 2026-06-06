@@ -1,7 +1,6 @@
 # top of mind
 
 - openai agent
-- agent(prompt, yield_schema) api, exposed via typescript scripts & lua
 
 # Sandboxes
 

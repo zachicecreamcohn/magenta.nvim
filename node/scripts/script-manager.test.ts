@@ -109,7 +109,7 @@ it("invokes a script that spawns a thread and resolves with the structured yield
         ),
       ).toBe(true);
 
-      const id = scriptManager.invokeScript(
+      const id = scriptManager.runScript(
         "foo",
         { x: "thing" },
         { sandboxBypassed: false },
@@ -173,7 +173,7 @@ it("marks the invocation error when the runner throws", async () => {
         scriptManager.getCatalog().some((s) => s.name === "foo"),
       );
 
-      const id = scriptManager.invokeScript(
+      const id = scriptManager.runScript(
         "foo",
         {},
         { sandboxBypassed: false },
@@ -216,7 +216,7 @@ it("group-kills the subprocess tree on terminate", async () => {
         scriptManager.getCatalog().some((s) => s.name === "foo"),
       );
 
-      const id = scriptManager.invokeScript(
+      const id = scriptManager.runScript(
         "foo",
         {},
         { sandboxBypassed: false },
@@ -267,7 +267,7 @@ it("renders running invocations, logs, and spawned threads in the Scripts overvi
         scriptManager.getCatalog().some((s) => s.name === "foo"),
       );
 
-      const id = scriptManager.invokeScript(
+      const id = scriptManager.runScript(
         "foo",
         { x: "thing" },
         { sandboxBypassed: false },
@@ -325,7 +325,7 @@ it("toggles sandbox bypass for the whole invocation from the script root row", a
         scriptManager.getCatalog().some((s) => s.name === "foo"),
       );
 
-      const id = scriptManager.invokeScript(
+      const id = scriptManager.runScript(
         "foo",
         { x: "thing" },
         { sandboxBypassed: false },
@@ -382,7 +382,7 @@ it("expands and collapses the script row to show/hide spawned threads", async ()
         scriptManager.getCatalog().some((s) => s.name === "foo"),
       );
 
-      const id = scriptManager.invokeScript(
+      const id = scriptManager.runScript(
         "foo",
         { x: "thing" },
         { sandboxBypassed: false },
@@ -440,7 +440,7 @@ it("surfaces a spawned thread's pending permission under a collapsed script row 
         scriptManager.getCatalog().some((s) => s.name === "foo"),
       );
 
-      const id = scriptManager.invokeScript(
+      const id = scriptManager.runScript(
         "foo",
         { x: "thing" },
         { sandboxBypassed: false },

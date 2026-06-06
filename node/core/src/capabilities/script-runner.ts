@@ -13,7 +13,7 @@ export type ScriptCatalogEntry = {
  * triggering thread's lifecycle (fire-and-forget); the triggering thread id is
  * passed so the root can seed the new script invocation's sandbox state.
  */
-export interface ScriptInvoker {
+export interface ScriptRunner {
   /**
    * Re-scan the configured script paths and rebuild the catalog. Awaited
    * during thread creation so each new thread starts with an up-to-date
@@ -21,7 +21,7 @@ export interface ScriptInvoker {
    */
   discover(): Promise<void>;
   getScriptCatalog(): ScriptCatalogEntry[];
-  invokeScript(opts: {
+  runScript(opts: {
     scriptName: string;
     parameters: unknown;
     triggeringThreadId: ThreadId;

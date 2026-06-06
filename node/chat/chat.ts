@@ -2,7 +2,7 @@ import type {
   FileIO,
   InputMessage,
   NativeMessageIdx,
-  ScriptInvoker,
+  ScriptRunner,
   SubagentConfig,
   ThreadId,
   ThreadType,
@@ -122,7 +122,7 @@ export type ChatMsg = {
 export class Chat implements ThreadManager {
   state: ChatState;
   public threadWrappers: { [id: ThreadId]: ThreadWrapper };
-  public scriptInvoker: ScriptInvoker | undefined = undefined;
+  public scriptRunner: ScriptRunner | undefined = undefined;
   private mcpToolManager: MCPToolManagerImpl;
   private expandedThreads: Set<ThreadId>;
   private threadYieldCallbacks: Map<ThreadId, Array<() => void>>;
@@ -472,7 +472,7 @@ export class Chat implements ThreadManager {
               isBypassed: () => bypassRef.get(),
             }),
           ),
-      this.scriptInvoker?.discover(),
+      this.scriptRunner?.discover(),
     ]);
 
     const initialFiles = autoContextFilesToInitialFiles(autoContextFiles);

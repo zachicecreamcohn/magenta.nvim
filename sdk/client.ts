@@ -1,7 +1,7 @@
 import type {
-  ChildToParent,
   JSONSchema,
-  ParentToChild,
+  MagentaToScript,
+  ScriptToMagenta,
   ThreadOptions,
 } from "./protocol.ts";
 import { getRegistry } from "./registry.ts";
@@ -13,11 +13,10 @@ const pendingThreads = new Map<
   { resolve: (value: unknown) => void; reject: (error: Error) => void }
 >();
 
-function send(msg: ChildToParent): void {
-  process.send?.(msg);
-}
+type Send = (msg: ScriptToMagenta) => void;
 
-function invokeThread<T>(
+function createThread<T>(
+  send: Send,
   prompt: string,
   yieldSchema: JSONSchema,
   options?: ThreadOptions,
@@ -29,7 +28,7 @@ function invokeThread<T>(
       reject,
     });
     send({
-      type: "invoke-thread",
+      type: "create-thread",
       requestId,
       prompt,
       yieldSchema,
@@ -38,9 +37,12 @@ function invokeThread<T>(
   });
 }
 
-async function handleMessage(msg: ParentToChild): Promise<void> {
+async function handleMagentaMessage(
+  send: Send,
+  msg: MagentaToScript,
+): Promise<void> {
   switch (msg.type) {
-    case "invoke": {
+    case "run-script": {
       const script = getRegistry().get(msg.scriptName);
       if (!script) {
         send({ type: "error", message: `unknown script ${msg.scriptName}` });
@@ -48,7 +50,12 @@ async function handleMessage(msg: ParentToChild): Promise<void> {
       }
       const log = (message: string) => send({ type: "log", message });
       try {
-        await script.runner(msg.parameters, invokeThread, log);
+        const thread = <T>(
+          prompt: string,
+          yieldSchema: JSONSchema,
+          options?: ThreadOptions,
+        ): Promise<T> => createThread<T>(send, prompt, yieldSchema, options);
+        await script.runner(msg.parameters, thread, log);
         send({ type: "done" });
       } catch (err) {
         send({
@@ -84,8 +91,10 @@ export function activate(): void {
   if (typeof process.send !== "function") return;
   activated = true;
 
-  process.on("message", (raw: ParentToChild) => {
-    handleMessage(raw).catch((err) => {
+  const send: Send = process.send.bind(process);
+
+  process.on("message", (magentaMsg: MagentaToScript) => {
+    handleMagentaMessage(send, magentaMsg).catch((err) => {
       send({
         type: "error",
         message: err instanceof Error ? err.message : String(err),

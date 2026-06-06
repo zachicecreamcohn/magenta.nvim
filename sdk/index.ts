@@ -1,11 +1,11 @@
 import { activate } from "./client.ts";
 
 export type {
-  ChildToParent,
   JSONSchema,
-  ParentToChild,
+  MagentaToScript,
   Result,
   ScriptMeta,
+  ScriptToMagenta,
   ThreadOptions,
 } from "./protocol.ts";
 export type { LogFn, Runner, ThreadFn } from "./registry.ts";

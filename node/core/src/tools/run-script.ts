@@ -1,7 +1,7 @@
 import type {
   ScriptCatalogEntry,
-  ScriptInvoker,
-} from "../capabilities/script-invoker.ts";
+  ScriptRunner,
+} from "../capabilities/script-runner.ts";
 import type { ThreadId } from "../chat-types.ts";
 import type {
   ProviderToolResult,
@@ -81,17 +81,17 @@ export function validateInput(input: {
 export function execute(
   request: ToolRequest,
   context: {
-    scriptInvoker: ScriptInvoker | undefined;
+    scriptRunner: ScriptRunner | undefined;
     threadId: ThreadId;
   },
 ): ToolInvocation {
   const promise = (async (): Promise<ProviderToolResult> => {
     await Promise.resolve();
-    const { scriptInvoker } = context;
-    if (!scriptInvoker) {
+    const { scriptRunner } = context;
+    if (!scriptRunner) {
       return errorResult(request.id, "scripts are not available");
     }
-    const entry = scriptInvoker
+    const entry = scriptRunner
       .getScriptCatalog()
       .find((c) => c.name === request.input.scriptName);
     if (!entry) {
@@ -137,7 +137,7 @@ export function execute(
     }
 
     try {
-      scriptInvoker.invokeScript({
+      scriptRunner.runScript({
         scriptName: request.input.scriptName,
         parameters: request.input.parameters,
         triggeringThreadId: context.threadId,

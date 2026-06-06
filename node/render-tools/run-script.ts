@@ -9,7 +9,7 @@ export function renderResult(
   context: RenderContext,
 ): VDOMNode | undefined {
   const input = info.request.input as RunScript.Input;
-  const entry = context.chat.scriptInvoker
+  const entry = context.chat.scriptRunner
     ?.getScriptCatalog()
     .find((c) => c.name === input.scriptName);
   if (!entry) {

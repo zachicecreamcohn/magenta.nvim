@@ -12,9 +12,9 @@ import type { ScriptCatalogEntry, ThreadId } from "@magenta/core";
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { v7 as uuidv7 } from "uuid";
 import type {
-  ChildToParent,
-  ParentToChild,
+  MagentaToScript,
   ScriptMeta,
+  ScriptToMagenta,
   Result as SdkResult,
 } from "../../sdk/protocol.ts";
 import {
@@ -232,7 +232,7 @@ export class ScriptManager {
         resolve([]);
       }, REGISTRATION_TIMEOUT_MS);
       child.once("message", (raw) => {
-        const msg = raw as ChildToParent;
+        const msg = raw as ScriptToMagenta;
         clearTimeout(timeout);
         terminateProcess(child);
         resolve(msg.type === "register" ? msg.scripts : []);
@@ -251,7 +251,7 @@ export class ScriptManager {
     });
   }
 
-  invokeScript(
+  runScript(
     scriptName: string,
     parameters: unknown,
     opts: { sandboxBypassed: boolean },
@@ -278,7 +278,7 @@ export class ScriptManager {
     this.invocations.set(id, invocation);
 
     child.on("message", (raw) => {
-      this.handleChildMessage(id, raw as ChildToParent);
+      this.handleChildMessage(id, raw as ScriptToMagenta);
     });
     child.on("exit", () => this.handleChildExit(id));
 
@@ -286,7 +286,7 @@ export class ScriptManager {
     return id;
   }
 
-  private send(invocation: ScriptInvocation, msg: ParentToChild): void {
+  private send(invocation: ScriptInvocation, msg: MagentaToScript): void {
     invocation.child.send(msg);
   }
 
@@ -304,14 +304,17 @@ export class ScriptManager {
     };
   }
 
-  private handleChildMessage(id: ScriptInvocationId, msg: ChildToParent): void {
+  private handleChildMessage(
+    id: ScriptInvocationId,
+    msg: ScriptToMagenta,
+  ): void {
     const invocation = this.invocations.get(id);
     if (!invocation) return;
 
     switch (msg.type) {
       case "register":
         this.send(invocation, {
-          type: "invoke",
+          type: "run-script",
           scriptName: invocation.scriptName,
           parameters: invocation.parameters,
         });
@@ -322,7 +325,7 @@ export class ScriptManager {
         this.myDispatch({ type: "invocation-updated", id });
         return;
 
-      case "invoke-thread": {
+      case "create-thread": {
         const requestId = msg.requestId;
         this.context.chat
           .spawnScriptThread({

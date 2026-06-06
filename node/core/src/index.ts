@@ -20,8 +20,8 @@ export type {
 } from "./capabilities/lsp-client.ts";
 export type {
   ScriptCatalogEntry,
-  ScriptInvoker,
-} from "./capabilities/script-invoker.ts";
+  ScriptRunner,
+} from "./capabilities/script-runner.ts";
 export type { OutputLine, Shell, ShellResult } from "./capabilities/shell.ts";
 export type {
   DockerSpawnConfig,
