@@ -5,9 +5,25 @@ description: How to author magenta scripts that run as subprocesses, spawn agent
 
 # Authoring magenta scripts
 
-Magenta scripts are TypeScript files placed in `.magenta/scripts/*.ts`. Each script
+Magenta scripts are TypeScript files placed in `.magenta/scripts/`. Each script
 runs as a child process of the magenta node process and can drive real,
 sidebar-visible agent threads.
+
+## Discovery: the `index.ts` entry point
+
+Magenta discovers scripts by forking a single `index.ts` file in each scripts
+directory — that is the only file it ever executes. `index.ts` must import every
+script module so their top-level `registerScript()` calls run:
+
+```ts
+// .magenta/scripts/index.ts
+import "./code-review.ts";
+import "./implement-plan.ts";
+```
+
+Any other `.ts` files (individual script modules, shared libraries) are never
+forked directly; they only run because `index.ts` (or another module) imports
+them. This keeps discovery and thread creation predictable.
 
 ## Where scripts live and how to import the SDK
 
@@ -39,6 +55,10 @@ The runner receives:
   with `prompt`, equipped with a `yield_to_parent` tool whose input schema is
   `yieldSchema`. Resolves to the structured value the agent yields. Use the
   generic to type the result: `await thread<{ done: boolean }>(...)`.
+  `options` may include:
+  - `contextFiles`: absolute paths to seed into the thread's context.
+  - `systemReminder`: a recurring system reminder injected into the thread.
+  - `cwd`, `profile`, `model`, `tools`.
 - `log(message)`: reports progress; surfaced in the magenta Scripts section.
 
 ## Minimal end-to-end example

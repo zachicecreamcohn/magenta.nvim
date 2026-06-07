@@ -1303,6 +1303,8 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     getSandboxRoot: () => SandboxRoot | undefined;
     profile?: Profile;
     cwd?: string;
+    contextFiles?: string[];
+    systemReminder?: string;
   }): Promise<ThreadId> {
     const threadId = uuidv7() as ThreadId;
     const profile =
@@ -1320,9 +1322,15 @@ ${threadViews.map((view) => d`${view}\n`)}`;
     const thread = await this.createThreadWithContext({
       threadId,
       profile,
+      ...(opts.contextFiles
+        ? { contextFiles: opts.contextFiles as UnresolvedFilePath[] }
+        : {}),
       inputMessages: [{ type: "system", text: opts.prompt }],
       threadType: "subagent",
       environmentConfig,
+      ...(opts.systemReminder
+        ? { subagentConfig: { systemReminder: opts.systemReminder } }
+        : {}),
       scriptInvocationId: opts.scriptInvocationId,
       yieldSchema: opts.yieldSchema,
       getSandboxRoot: opts.getSandboxRoot,

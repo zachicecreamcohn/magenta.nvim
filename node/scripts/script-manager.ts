@@ -1,7 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import {
+  existsSync,
   mkdirSync,
-  readdirSync,
   readlinkSync,
   rmSync,
   symlinkSync,
@@ -202,23 +202,19 @@ export class ScriptManager {
     await Promise.resolve();
     this.catalog.clear();
     for (const dir of this.resolveScriptsDirs()) {
-      let files: string[];
-      try {
-        files = readdirSync(dir).filter(
-          (f) => f.endsWith(".ts") && !f.endsWith(".test.ts"),
-        );
-      } catch {
-        continue;
-      }
+      // Discovery is driven by a single `index.ts` entry point per scripts
+      // directory. That file is responsible for importing every script module
+      // so all `registerScript` calls run. Other `.ts` files (shared libs,
+      // individual script modules) are never forked directly, which keeps
+      // discovery and thread creation predictable.
+      const indexFile = path.join(dir, "index.ts");
+      if (!existsSync(indexFile)) continue;
 
       this.ensureShim(dir);
 
-      for (const f of files) {
-        const file = path.join(dir, f);
-        const metas = await this.captureRegistration(file);
-        for (const meta of metas) {
-          this.catalog.set(meta.name, { file, meta });
-        }
+      const metas = await this.captureRegistration(indexFile);
+      for (const meta of metas) {
+        this.catalog.set(meta.name, { file: indexFile, meta });
       }
     }
     this.myDispatch({ type: "catalog-updated" });
@@ -327,12 +323,20 @@ export class ScriptManager {
 
       case "create-thread": {
         const requestId = msg.requestId;
+        const options = msg.options;
         this.context.chat
           .spawnScriptThread({
             scriptInvocationId: id,
             prompt: msg.prompt,
             yieldSchema: msg.yieldSchema as JSONSchemaType,
             getSandboxRoot: () => this.getSandboxRoot(id),
+            ...(options?.cwd ? { cwd: options.cwd } : {}),
+            ...(options?.contextFiles
+              ? { contextFiles: options.contextFiles }
+              : {}),
+            ...(options?.systemReminder
+              ? { systemReminder: options.systemReminder }
+              : {}),
           })
           .then((threadId) => {
             invocation.threadIds.push(threadId);

@@ -23,6 +23,10 @@ export type ThreadOptions = {
   model?: string;
   tools?: string[];
   cwd?: string;
+  /** Files to seed into the thread's context (absolute, or relative to cwd). */
+  contextFiles?: string[];
+  /** A recurring system reminder injected into the thread. */
+  systemReminder?: string;
 };
 
 export type ScriptMeta = {

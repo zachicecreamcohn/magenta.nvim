@@ -10,7 +10,7 @@ async function setupScript(tmpDir: string, body: string): Promise<void> {
   // ensureShim() at startup; the script imports through it.
   const scriptsDir = path.join(tmpDir, ".magenta", "scripts");
   await fs.mkdir(scriptsDir, { recursive: true });
-  await fs.writeFile(path.join(scriptsDir, "foo.ts"), body);
+  await fs.writeFile(path.join(scriptsDir, "index.ts"), body);
 }
 
 async function pollUntil(fn: () => boolean, timeoutMs = 10000): Promise<void> {
@@ -42,7 +42,7 @@ registerScript(
 );
 `;
 
-it("ignores non-registering library files without stalling discovery", async () => {
+it("discovers via index.ts and ignores sibling library files", async () => {
   await withDriver(
     {
       setupFiles: async (tmpDir) => {
@@ -71,7 +71,7 @@ it("discovers scripts from the global ~/.magenta/scripts path", async () => {
       setupHome: async (homeDir) => {
         const scriptsDir = path.join(homeDir, ".magenta", "scripts");
         await fs.mkdir(scriptsDir, { recursive: true });
-        await fs.writeFile(path.join(scriptsDir, "foo.ts"), FOO_SCRIPT);
+        await fs.writeFile(path.join(scriptsDir, "index.ts"), FOO_SCRIPT);
       },
     },
     async (driver) => {
@@ -142,6 +142,59 @@ it("invokes a script that spawns a thread and resolves with the structured yield
       expect(inv.threadIds.length).toBe(1);
       expect(inv.logs).toContain("starting");
       expect(inv.logs.some((l) => l.includes('"ok":true'))).toBe(true);
+    },
+  );
+});
+
+const CONTEXT_SCRIPT = `
+import { registerScript } from "./magenta-sdk/index.ts";
+
+registerScript(
+  "ctx",
+  "spawns a thread with a context file and a system reminder",
+  { type: "object", properties: {}, required: [] },
+  async (_params, thread, log) => {
+    const file = "seed.txt";
+    await thread(
+      "do the work",
+      { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"] },
+      { contextFiles: [file], systemReminder: "REMEMBER_SENTINEL_XYZ" },
+    );
+    log("done");
+  },
+);
+`;
+
+it("passes contextFiles and systemReminder through to the spawned thread", async () => {
+  await withDriver(
+    {
+      setupFiles: async (tmpDir) => {
+        const scriptsDir = path.join(tmpDir, ".magenta", "scripts");
+        await fs.mkdir(scriptsDir, { recursive: true });
+        await fs.writeFile(path.join(scriptsDir, "index.ts"), CONTEXT_SCRIPT);
+        await fs.writeFile(
+          path.join(tmpDir, "seed.txt"),
+          "SEED_CONTENT_SENTINEL\n",
+        );
+      },
+    },
+    async (driver) => {
+      const scriptManager = driver.magenta.scriptManager;
+      await pollUntil(() =>
+        scriptManager.getCatalog().some((s) => s.name === "ctx"),
+      );
+
+      scriptManager.runScript("ctx", {}, { sandboxBypassed: false });
+
+      const stream = await driver.mockAnthropic.awaitPendingStream({
+        predicate: (s) =>
+          JSON.stringify(s.messages).includes("SEED_CONTENT_SENTINEL"),
+        message: "waiting for thread seeded with the context file",
+      });
+
+      const serialized = `${stream.systemPrompt ?? ""}${JSON.stringify(stream.messages)}`;
+      expect(serialized).toContain("SEED_CONTENT_SENTINEL");
+      expect(serialized).toContain("REMEMBER_SENTINEL_XYZ");
     },
   );
 });

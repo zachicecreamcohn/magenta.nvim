@@ -7,7 +7,7 @@ import { withDriver } from "../test/preamble.ts";
 async function setupScript(tmpDir: string, body: string): Promise<void> {
   const scriptsDir = path.join(tmpDir, ".magenta", "scripts");
   await fs.mkdir(scriptsDir, { recursive: true });
-  await fs.writeFile(path.join(scriptsDir, "foo.ts"), body);
+  await fs.writeFile(path.join(scriptsDir, "index.ts"), body);
 }
 
 async function pollUntil(fn: () => boolean, timeoutMs = 10000): Promise<void> {
