@@ -183,11 +183,11 @@ export function renderContextUpdate(
           const patch = update.update.value.patch;
           const additions = (patch.match(/^\+[^+]/gm) || []).length;
           const deletions = (patch.match(/^-[^-]/gm) || []).length;
-          changeIndicator = `[ +${additions} / -${deletions} ]`;
+          changeIndicator = `[ +${additions} / -${deletions}, ${formatTokens(patch.length)} ]`;
           break;
         }
         case "whole-file": {
-          let lineCount = 0;
+          let charCount = 0;
           let mediaKind: "image" | "document" | undefined;
           let isSummary = false;
           for (const block of update.update.value.content) {
@@ -195,7 +195,7 @@ export function renderContextUpdate(
               if (block.text.startsWith("[File too large for full context")) {
                 isSummary = true;
               }
-              lineCount = (block.text.match(/\n/g) || []).length + 1;
+              charCount += block.text.length;
             } else if (block.type === "image" || block.type === "document") {
               mediaKind = block.type;
             }
@@ -203,8 +203,8 @@ export function renderContextUpdate(
           changeIndicator = mediaKind
             ? `[ ${mediaKind} ]`
             : isSummary
-              ? "[ summary ]"
-              : `[ +${lineCount} ]`;
+              ? `[ summary, ${formatTokens(charCount)} ]`
+              : `[ ${formatTokens(charCount)} ]`;
           break;
         }
         case "file-deleted": {
@@ -225,12 +225,6 @@ export function renderContextUpdate(
             })
           : "";
 
-      const pathForDisplay = displayPath(
-        context.cwd,
-        absFilePath,
-        context.homeDir,
-      );
-
       const expanded = view.expandedUpdates[absFilePath];
       let expandedBody: VDOMNode = d``;
       if (expanded) {
@@ -247,18 +241,21 @@ export function renderContextUpdate(
             const text = value.content
               .filter((block) => block.type === "text")
               .map((block) => block.text)
-              .join("");
+              .join("\n");
             expandedBody = d`${text}\n`;
           }
         }
       }
 
-      const filePathLink = withBindings(d`- \`${pathForDisplay}\`${pdfInfo}`, {
-        "<CR>": () => openFile(absFilePath, core, context),
-        "=": () => view.onToggle(absFilePath),
-      });
+      const fileLine = withBindings(
+        d`- \`${absFilePath}\`${pdfInfo} ${changeIndicator}`,
+        {
+          "<CR>": () => openFile(absFilePath, core, context),
+          "=": () => view.onToggle(absFilePath),
+        },
+      );
 
-      fileUpdates.push(d`${filePathLink} ${changeIndicator}\n${expandedBody}`);
+      fileUpdates.push(d`${fileLine}\n${expandedBody}`);
     } else {
       fileUpdates.push(
         d`- \`${absFilePath}\` [Error: ${update.update.error}]\n`,
