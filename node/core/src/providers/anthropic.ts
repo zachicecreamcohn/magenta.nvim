@@ -62,12 +62,16 @@ type MessageStreamParams = Omit<
   };
 };
 
+// Coalesces concurrent interactive OAuth flows across all provider instances
+// that share the same auth object (e.g. the agent stream and the thread-title
+// forceToolUse request). Without this, each would prompt the user separately.
+const pendingOAuthFlows = new WeakMap<AnthropicAuth, Promise<void>>();
+
 export class AnthropicProvider implements Provider {
   protected client: Anthropic;
   private authType: "key" | "max" | "keychain";
   private validateInput: ValidateInput;
   private auth: AnthropicAuth | undefined;
-  private pendingOAuthFlow: Promise<void> | undefined;
   protected isBedrock: boolean = false;
   protected refreshAuth: RefreshAuth | undefined;
 
@@ -150,12 +154,15 @@ export class AnthropicProvider implements Provider {
   private async ensureValidToken(): Promise<void> {
     const isAuthenticated = await this.auth!.isAuthenticated();
     if (!isAuthenticated) {
-      if (!this.pendingOAuthFlow) {
-        this.pendingOAuthFlow = this.triggerOAuthFlow().finally(() => {
-          this.pendingOAuthFlow = undefined;
+      const auth = this.auth!;
+      let pending = pendingOAuthFlows.get(auth);
+      if (!pending) {
+        pending = this.triggerOAuthFlow().finally(() => {
+          pendingOAuthFlows.delete(auth);
         });
+        pendingOAuthFlows.set(auth, pending);
       }
-      await this.pendingOAuthFlow;
+      await pending;
     }
   }
 

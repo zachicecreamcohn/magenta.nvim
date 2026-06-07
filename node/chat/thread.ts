@@ -67,6 +67,10 @@ export type Msg =
       type: "toggle-tool-definitions";
     }
   | {
+      type: "toggle-tool-definition";
+      toolName: string;
+    }
+  | {
       type: "toggle-context-files-expanded";
     }
   | {
@@ -169,6 +173,7 @@ export class Thread {
   public state: {
     showSystemPrompt: boolean;
     showToolDefinitions: boolean;
+    expandedToolDefinitions: { [toolName: string]: boolean };
     contextFilesExpanded: boolean;
     messageViewState: { [messageIdx: number]: MessageViewState };
     toolViewState: { [toolRequestId: ToolRequestId]: ToolViewState };
@@ -249,6 +254,7 @@ export class Thread {
     this.state = {
       showSystemPrompt: false,
       showToolDefinitions: false,
+      expandedToolDefinitions: {},
       contextFilesExpanded: false,
       messageViewState: {},
       toolViewState: {},
@@ -675,6 +681,14 @@ export class Thread {
 
       case "toggle-tool-definitions":
         this.state.showToolDefinitions = !this.state.showToolDefinitions;
+        if (!this.state.showToolDefinitions) {
+          this.state.expandedToolDefinitions = {};
+        }
+        return;
+
+      case "toggle-tool-definition":
+        this.state.expandedToolDefinitions[msg.toolName] =
+          !this.state.expandedToolDefinitions[msg.toolName];
         return;
 
       case "toggle-context-files-expanded":

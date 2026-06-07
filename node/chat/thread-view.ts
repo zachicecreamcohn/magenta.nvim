@@ -7,6 +7,7 @@ import {
   type CompletedToolInfo,
   type ContextManager,
   displayPath,
+  formatToolSpec,
   formatToolSpecs,
   type NativeMessageIdx,
   type ProviderToolSpec,
@@ -204,30 +205,40 @@ const renderSystemPrompt = (
 const renderToolDefinitions = (
   specs: ProviderToolSpec[],
   showToolDefinitions: boolean,
+  expandedToolDefinitions: { [toolName: string]: boolean },
   dispatch: Dispatch<Msg>,
 ): VDOMNode => {
   const toggle = () => dispatch({ type: "toggle-tool-definitions" });
-  if (showToolDefinitions) {
-    return withBindings(
-      withExtmark(
-        d`🔧 [Tool Definitions (${specs.length.toString()})]\n${formatToolSpecs(specs)}`,
-        {
-          hl_group: "@comment",
-        },
-      ),
-      { "=": toggle },
-    );
-  }
-  const tokenDisplay = formatTokens(formatToolSpecs(specs).length);
-  return withBindings(
+  const totalTokens = formatTokens(formatToolSpecs(specs).length);
+  const header = withBindings(
     withExtmark(
-      d`🔧 [Tool Definitions (${specs.length.toString()}) ${tokenDisplay}]`,
-      {
-        hl_group: "@comment",
-      },
+      d`🔧 [Tool Definitions (${specs.length.toString()}) ${totalTokens}]`,
+      { hl_group: "@comment" },
     ),
     { "=": toggle },
   );
+
+  if (!showToolDefinitions) {
+    return header;
+  }
+
+  const toolViews = specs.map((spec) => {
+    const expanded = expandedToolDefinitions[spec.name] || false;
+    const tokenDisplay = formatTokens(formatToolSpec(spec).length);
+    const toolHeader = withBindings(
+      withExtmark(d`# ${spec.name} ${tokenDisplay}\n`, {
+        hl_group: "@comment",
+      }),
+      {
+        "=": () =>
+          dispatch({ type: "toggle-tool-definition", toolName: spec.name }),
+      },
+    );
+    if (!expanded) return toolHeader;
+    return d`${toolHeader}${withExtmark(d`${formatToolSpec(spec)}\n`, { hl_group: "@comment" })}`;
+  });
+
+  return d`${header}\n${toolViews}`;
 };
 
 function renderCompactionHistory(
@@ -330,6 +341,7 @@ export const view: View<{
   const toolDefinitionsView = renderToolDefinitions(
     thread.core.state.toolSpecs,
     thread.state.showToolDefinitions,
+    thread.state.expandedToolDefinitions,
     dispatch,
   );
 

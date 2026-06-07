@@ -209,7 +209,7 @@ export { type CreateToolContext, createTool } from "./tools/create-tool.ts";
 export * as Docs from "./tools/docs.ts";
 export * as Edl from "./tools/edl.ts";
 export * as FindReferences from "./tools/findReferences.ts";
-export { formatToolSpecs } from "./tools/format-tool-spec.ts";
+export { formatToolSpec, formatToolSpecs } from "./tools/format-tool-spec.ts";
 export * as GetFile from "./tools/getFile.ts";
 export {
   extractPartialJsonStringValue,
