@@ -1338,6 +1338,51 @@ it("shows EDL script preview while streaming", async () => {
     await driver.assertDisplayBufferContains("extend_forward");
   });
 });
+it("shows bash_command preview while streaming", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText("Run a command for me");
+    await driver.send();
+
+    const stream = await driver.mockAnthropic.awaitPendingStream();
+    const toolIndex = stream.nextBlockIndex();
+
+    stream.emitEvent({
+      type: "content_block_start",
+      index: toolIndex,
+      content_block: {
+        type: "tool_use",
+        id: "bash-preview-test",
+        name: "bash_command",
+        input: {},
+        caller: { type: "direct" as const },
+      },
+    });
+
+    stream.emitEvent({
+      type: "content_block_delta",
+      index: toolIndex,
+      delta: {
+        type: "input_json_delta",
+        partial_json: '{"command": "echo hello',
+      },
+    });
+
+    await driver.assertDisplayBufferContains("⚡");
+    await driver.assertDisplayBufferContains("echo hello");
+
+    stream.emitEvent({
+      type: "content_block_delta",
+      index: toolIndex,
+      delta: {
+        type: "input_json_delta",
+        partial_json: ' && echo world"}',
+      },
+    });
+
+    await driver.assertDisplayBufferContains("echo world");
+  });
+});
 it("handles @async messages by queueing them and sending on next tool response", async () => {
   await withDriver({}, async (driver) => {
     driver.mockSandbox.setState({ status: "unsupported", reason: "disabled" });

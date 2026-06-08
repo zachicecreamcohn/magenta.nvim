@@ -9,6 +9,24 @@ import {
 import { d, type VDOMNode, withCode } from "../tea/view.ts";
 import { renderSpawnLayout } from "./spawn-subagents.ts";
 
+const PREVIEW_MAX_LINES = 10;
+const PREVIEW_MAX_LINE_LENGTH = 80;
+
+function abridgeStreamedText(text: string): string {
+  const lines = text.split("\n");
+  const preview = lines
+    .slice(-PREVIEW_MAX_LINES)
+    .map((line) =>
+      line.length > PREVIEW_MAX_LINE_LENGTH
+        ? `${line.substring(0, PREVIEW_MAX_LINE_LENGTH)}...`
+        : line,
+    );
+  if (lines.length > PREVIEW_MAX_LINES) {
+    preview.unshift(`... (${lines.length - PREVIEW_MAX_LINES} more lines)`);
+  }
+  return preview.join("\n");
+}
+
 export function renderStreamdedTool(
   streamingBlock: Extract<AgentStreamingBlock, { type: "tool_use" }>,
 ): string | VDOMNode {
@@ -21,7 +39,6 @@ export function renderStreamdedTool(
     case "get_file":
     case "hover":
     case "find_references":
-    case "bash_command":
     case "thread_title":
     case "yield_to_parent":
     case "docs":
@@ -32,6 +49,16 @@ export function renderStreamdedTool(
         streamingBlock.inputJson,
       );
       return d`🤖 spawn_subagents:\n${renderSpawnLayout(input)}`;
+    }
+    case "bash_command": {
+      const command = extractPartialJsonStringValue(
+        streamingBlock.inputJson,
+        "command",
+      );
+      if (command !== undefined) {
+        return d`⚡\n${withCode(d`${abridgeStreamedText(command)}`)}`;
+      }
+      break;
     }
     case "edl": {
       const script = extractPartialJsonStringValue(
