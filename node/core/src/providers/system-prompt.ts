@@ -1,5 +1,6 @@
 import { loadAgents } from "../agents/agents.ts";
 import type { FileIO } from "../capabilities/file-io.ts";
+import { formatGitInfo, type GitState } from "../capabilities/git-client.ts";
 import type { SubagentConfig, ThreadType } from "../chat-types.ts";
 import type { Logger } from "../logger.ts";
 import type { ProviderOptions } from "../provider-options.ts";
@@ -17,6 +18,7 @@ export interface SystemInfo {
   platform: string;
   neovimVersion: string;
   cwd: NvimCwd;
+  git?: GitState | undefined;
 }
 
 export const COMPACT_SYSTEM_PROMPT =
@@ -101,7 +103,8 @@ export async function createSystemPrompt(
 - Current time: ${systemInfo.timestamp}
 - Operating system: ${systemInfo.platform}
 - Neovim version: ${systemInfo.neovimVersion}
-- Current working directory: ${systemInfo.cwd}`;
+- Current working directory: ${systemInfo.cwd}
+${formatGitInfo(systemInfo.git)}`;
 
   const skillsText = formatSkillsIntroduction(skills, systemInfo.cwd);
 

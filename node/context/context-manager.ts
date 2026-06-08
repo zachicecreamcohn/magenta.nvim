@@ -1,4 +1,9 @@
-import type { ContextManager, FileUpdates } from "@magenta/core";
+import {
+  type ContextManager,
+  type FileUpdates,
+  formatGitHead,
+  type GitContextUpdate,
+} from "@magenta/core";
 import open from "open";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
@@ -156,6 +161,20 @@ export function contextFilesView(
 
   const otherLines = otherPaths.map((p) => renderFileLine(p, ""));
   return d`${pendingLines}${toggleLine}${otherLines}`;
+}
+
+export function renderGitUpdate(
+  gitUpdate: GitContextUpdate | undefined,
+): VDOMNode {
+  if (!gitUpdate) {
+    return d``;
+  }
+  const { current } = gitUpdate;
+  if (!current) {
+    return d`󰊢 git: no longer in a git repository\n`;
+  }
+  const branch = current.branch ?? "(detached HEAD)";
+  return d`󰊢 git: ${branch} @ ${formatGitHead(current)}\n`;
 }
 
 export function renderContextUpdate(

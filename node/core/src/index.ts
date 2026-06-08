@@ -10,6 +10,14 @@ export type {
 } from "./capabilities/context-tracker.ts";
 export type { FileIO } from "./capabilities/file-io.ts";
 export { FsFileIO } from "./capabilities/file-io.ts";
+export {
+  formatGitHead,
+  formatGitInfo,
+  type GitClient,
+  type GitCommandRunner,
+  type GitState,
+  parseGitState,
+} from "./capabilities/git-client.ts";
 export type { HelpTagsProvider } from "./capabilities/help-tags-provider.ts";
 export type {
   LspClient,
@@ -74,6 +82,11 @@ export {
   type Patch,
   type WholeFileUpdate,
 } from "./context/context-manager.ts";
+export {
+  type GitContextUpdate,
+  GitTracker,
+  gitUpdateToText,
+} from "./context/git-tracker.ts";
 export type { Dispatch } from "./dispatch.ts";
 export {
   Executor,

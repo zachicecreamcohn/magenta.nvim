@@ -2,6 +2,7 @@ import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { type AgentsMap, extractSystemReminderBlock } from "./agents/agents.ts";
 import type { ContextTracker } from "./capabilities/context-tracker.ts";
 import type { FileIO } from "./capabilities/file-io.ts";
+import type { GitClient, GitState } from "./capabilities/git-client.ts";
 import type { HelpTagsProvider } from "./capabilities/help-tags-provider.ts";
 import type { LspClient } from "./capabilities/lsp-client.ts";
 import type { ScriptRunner } from "./capabilities/script-runner.ts";
@@ -19,6 +20,11 @@ import {
   ContextManager,
   type Files,
 } from "./context/context-manager.ts";
+import {
+  type GitContextUpdate,
+  GitTracker,
+  gitUpdateToText,
+} from "./context/git-tracker.ts";
 import type { EdlRegisters } from "./edl/index.ts";
 import { Emitter } from "./emitter.ts";
 import type { Logger } from "./logger.ts";
@@ -103,6 +109,7 @@ export type ThreadCoreEvents = {
   turnEnded: [{ reason: TurnEndReason }];
 
   contextUpdatesSent: [updates: Record<string, unknown>];
+  gitContextUpdateSent: [update: GitContextUpdate];
 };
 
 export interface ThreadCoreContext {
@@ -118,6 +125,8 @@ export interface ThreadCoreContext {
   getScriptRunner?: () => ScriptRunner | undefined;
   fileIO: FileIO;
   shell: Shell;
+  gitClient: GitClient;
+  initialGitState?: GitState | undefined;
   lspClient: LspClient;
   helpTagsProvider: HelpTagsProvider;
   availableCapabilities: Set<ToolCapability>;
@@ -186,6 +195,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
 
   public agent: Agent;
   public contextManager: ContextManager;
+  public gitTracker: GitTracker;
   public compactionController: CompactionManager | undefined;
   public supervisor: ThreadSupervisor | undefined;
 
@@ -204,6 +214,11 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       CONTEXT_MANAGER_POLL_INTERVAL_MS,
     );
     this.contextManager.start();
+    this.gitTracker = new GitTracker(
+      context.gitClient,
+      context.initialGitState,
+      context.logger,
+    );
     this.state = {
       threadType: context.threadType,
       systemPrompt: context.systemPrompt,
@@ -253,6 +268,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     const contextWithFiles: ThreadCoreContext = {
       ...context,
       initialFiles,
+      initialGitState: sourceCore.gitTracker.getAgentView(),
     };
     return new ThreadCore(newId, contextWithFiles, agent);
   }
@@ -818,8 +834,11 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
 
     this.state.editedFilesThisTurn = [];
 
-    const { content: contextContent, updates: contextUpdates } =
-      await this.getAndPrepareContextUpdates();
+    const {
+      content: contextContent,
+      updates: contextUpdates,
+      gitUpdate,
+    } = await this.getAndPrepareContextUpdates();
 
     const { content, hasContent } = this.prepareUserContent(inputMessages);
 
@@ -829,6 +848,9 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
 
     if (contextUpdates) {
       this.emit("contextUpdatesSent", contextUpdates);
+    }
+    if (gitUpdate) {
+      this.emit("gitContextUpdateSent", gitUpdate);
     }
 
     const contentToSend: AgentInput[] = [...contextContent];
@@ -1070,15 +1092,26 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
   private async getAndPrepareContextUpdates(): Promise<{
     content: AgentInput[];
     updates: Record<string, unknown> | undefined;
+    gitUpdate: GitContextUpdate | undefined;
   }> {
+    const content: AgentInput[] = [];
+
+    const gitUpdate = await this.gitTracker.getUpdate();
+    if (gitUpdate) {
+      content.push({
+        type: "text",
+        text: gitUpdateToText(gitUpdate),
+        nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+      });
+    }
+
     const contextUpdates = await this.contextManager.getContextUpdate();
     if (Object.keys(contextUpdates).length === 0) {
-      return { content: [], updates: undefined };
+      return { content, updates: undefined, gitUpdate };
     }
 
     const contextContent =
       this.contextManager.contextUpdatesToContent(contextUpdates);
-    const content: AgentInput[] = [];
     for (const c of contextContent) {
       if (c.type === "text") {
         content.push({
@@ -1091,7 +1124,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       }
     }
 
-    return { content, updates: contextUpdates };
+    return { content, updates: contextUpdates, gitUpdate };
   }
 
   /** The union of transient get_file-read reminders and reminders derived from
@@ -1147,8 +1180,11 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       return;
     }
 
-    const { content: contextContent, updates: contextUpdates } =
-      await this.getAndPrepareContextUpdates();
+    const {
+      content: contextContent,
+      updates: contextUpdates,
+      gitUpdate,
+    } = await this.getAndPrepareContextUpdates();
 
     const contentToSend: AgentInput[] = [...contextContent];
 
@@ -1188,6 +1224,9 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
 
     if (contextUpdates) {
       this.emit("contextUpdatesSent", contextUpdates);
+    }
+    if (gitUpdate) {
+      this.emit("gitContextUpdateSent", gitUpdate);
     }
 
     if (this.shouldAutoCompact()) {

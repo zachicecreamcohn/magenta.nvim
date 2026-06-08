@@ -1,6 +1,8 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
+  GitContextUpdate,
+  GitState,
   ProviderToolResult,
   SubagentConfig,
   ThreadSupervisor,
@@ -153,6 +155,7 @@ export type ThreadMsg = {
 /** View state for a single message, stored separately from provider thread content */
 export type MessageViewState = {
   contextUpdates?: FileUpdates;
+  gitUpdate?: GitContextUpdate;
   forkedFrom?: ThreadId;
   expandedUpdates?: { [absFilePath: string]: boolean };
   expandedContent?: { [contentIdx: number]: boolean };
@@ -236,6 +239,7 @@ export class Thread {
       yieldSchema?: JSONSchemaType;
       environment: Environment;
       initialFiles?: ContextFiles;
+      initialGitState?: GitState | undefined;
       subagentConfig?: SubagentConfig;
     },
     clonedAgent?: Agent,
@@ -285,6 +289,10 @@ export class Thread {
           getScriptRunner: () => context.chat.scriptRunner,
           fileIO: env.fileIO,
           shell: env.shell,
+          gitClient: env.gitClient,
+          ...(context.initialGitState !== undefined
+            ? { initialGitState: context.initialGitState }
+            : {}),
           lspClient: env.lspClient,
           helpTagsProvider: env.helpTagsProvider,
           availableCapabilities: env.availableCapabilities,
@@ -344,7 +352,15 @@ export class Thread {
       contextUpdatesSent: (updates: Record<string, unknown>) => {
         const messageCount = this.core.getProviderMessages().length;
         this.state.messageViewState[messageCount] = {
+          ...this.state.messageViewState[messageCount],
           contextUpdates: updates as FileUpdates,
+        };
+      },
+      gitContextUpdateSent: (update: GitContextUpdate) => {
+        const messageCount = this.core.getProviderMessages().length;
+        this.state.messageViewState[messageCount] = {
+          ...this.state.messageViewState[messageCount],
+          gitUpdate: update,
         };
       },
     };
@@ -356,6 +372,7 @@ export class Thread {
     this.core.on("scrollToLastMessage", coreListeners.scrollToLastMessage);
     this.core.on("aborting", coreListeners.aborting);
     this.core.on("contextUpdatesSent", coreListeners.contextUpdatesSent);
+    this.core.on("gitContextUpdateSent", coreListeners.gitContextUpdateSent);
 
     this.rebuildToolResultMap();
   }
@@ -488,6 +505,7 @@ export class Thread {
         threadManager: chat,
         fileIO: environment.fileIO,
         shell: environment.shell,
+        gitClient: environment.gitClient,
         lspClient: environment.lspClient,
         helpTagsProvider: environment.helpTagsProvider,
         availableCapabilities: environment.availableCapabilities,
@@ -564,6 +582,7 @@ export class Thread {
           ...(viewState.contextUpdates
             ? { contextUpdates: { ...viewState.contextUpdates } }
             : {}),
+          ...(viewState.gitUpdate ? { gitUpdate: viewState.gitUpdate } : {}),
           ...(viewState.expandedUpdates
             ? { expandedUpdates: { ...viewState.expandedUpdates } }
             : {}),
@@ -588,6 +607,7 @@ export class Thread {
         scrollToLastMessage: () => void;
         aborting: () => void;
         contextUpdatesSent: (updates: Record<string, unknown>) => void;
+        gitContextUpdateSent: (update: GitContextUpdate) => void;
       }
     | undefined;
 
@@ -613,6 +633,10 @@ export class Thread {
       this.core.off(
         "contextUpdatesSent",
         this.coreListeners.contextUpdatesSent,
+      );
+      this.core.off(
+        "gitContextUpdateSent",
+        this.coreListeners.gitContextUpdateSent,
       );
       this.coreListeners = undefined;
     }

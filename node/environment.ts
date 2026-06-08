@@ -1,5 +1,6 @@
 import type {
   FileIO,
+  GitClient,
   HelpTagsProvider,
   LspClient,
   ThreadId,
@@ -17,6 +18,7 @@ export type EnvironmentConfig =
 export interface Environment {
   fileIO: FileIO;
   shell: Shell;
+  gitClient: GitClient;
   sandboxViolationHandler?: SandboxViolationHandler | undefined;
   lspClient: LspClient;
   helpTagsProvider: HelpTagsProvider;
@@ -30,6 +32,7 @@ import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 import { DockerFileIO } from "./capabilities/docker-file-io.ts";
 import { DockerShell } from "./capabilities/docker-shell.ts";
+import { DockerGitClient, LocalGitClient } from "./capabilities/git-client.ts";
 import type { Lsp } from "./capabilities/lsp.ts";
 import { NvimLspClient } from "./capabilities/lsp-client-adapter.ts";
 import { NoopHelpTagsProvider } from "./capabilities/noop-help-tags-provider.ts";
@@ -83,6 +86,7 @@ export function createLocalEnvironment({
   return {
     fileIO: sandboxFileIO,
     shell: sandboxShell,
+    gitClient: new LocalGitClient(cwd),
     sandboxViolationHandler: violationHandler,
     lspClient,
     helpTagsProvider,
@@ -130,6 +134,7 @@ export async function createDockerEnvironment({
   return {
     fileIO,
     shell,
+    gitClient: new DockerGitClient(container, resolvedCwd),
     sandboxViolationHandler: undefined,
     lspClient,
     helpTagsProvider,

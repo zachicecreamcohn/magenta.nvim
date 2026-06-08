@@ -482,20 +482,20 @@ export class Chat implements ThreadManager {
       environment.sandboxViolationHandler = undefined;
     }
 
+    const initialGitState = await environment.gitClient.getState();
+
     const systemPrompt = await createSystemPrompt(threadType, {
       nvim: this.context.nvim,
       cwd: environment.cwd,
       options: this.context.getOptions(),
       fileIO: environment.fileIO,
       homeDir: environment.homeDir,
-      ...(resolvedConfig.type === "docker"
-        ? {
-            systemInfoOverrides: {
-              platform: "linux (docker)",
-              cwd: environment.cwd,
-            },
-          }
-        : {}),
+      systemInfoOverrides: {
+        git: initialGitState,
+        ...(resolvedConfig.type === "docker"
+          ? { platform: "linux (docker)", cwd: environment.cwd }
+          : {}),
+      },
       ...(subagentConfig ? { subagentConfig } : {}),
     });
 
@@ -507,6 +507,7 @@ export class Chat implements ThreadManager {
       chat: this,
       environment,
       initialFiles,
+      initialGitState,
       ...(subagentConfig ? { subagentConfig } : {}),
       ...(getParentThread ? { getParentThread } : {}),
       ...(getSandboxRoot ? { getSandboxRoot } : {}),

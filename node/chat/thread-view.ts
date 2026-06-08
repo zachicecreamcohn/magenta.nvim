@@ -22,6 +22,7 @@ import {
   type ContextViewContext,
   contextFilesView,
   renderContextUpdate,
+  renderGitUpdate,
 } from "../context/context-manager.ts";
 import type {
   AgentStatus,
@@ -524,6 +525,8 @@ ${thread.core.state.pendingMessages.map(
         )
       : d``;
 
+    const gitUpdateView = renderGitUpdate(viewState?.gitUpdate);
+
     // Render content blocks
     const contentView = message.content.map((content, contentIdx) => {
       const isLastBlock = contentIdx === message.content.length - 1;
@@ -540,6 +543,7 @@ ${thread.core.state.pendingMessages.map(
 
     const messageBody = d`\
 ${roleHeader}\
+${gitUpdateView}\
 ${contextUpdateView}\
 ${contentView}`;
 
