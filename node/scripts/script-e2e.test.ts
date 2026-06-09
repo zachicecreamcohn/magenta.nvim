@@ -2,12 +2,14 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { ToolName, ToolRequestId } from "@magenta/core";
 import { expect, it } from "vitest";
+import { BUILTIN_SDK_PATH } from "../options.ts";
 import { withDriver } from "../test/preamble.ts";
 
 async function setupScript(tmpDir: string, body: string): Promise<void> {
-  const scriptsDir = path.join(tmpDir, ".magenta", "scripts");
-  await fs.mkdir(scriptsDir, { recursive: true });
-  await fs.writeFile(path.join(scriptsDir, "index.ts"), body);
+  const pkgDir = path.join(tmpDir, ".magenta", "scripts", "pkg");
+  await fs.mkdir(pkgDir, { recursive: true });
+  await fs.writeFile(path.join(pkgDir, "index.ts"), body);
+  await fs.symlink(BUILTIN_SDK_PATH, path.join(pkgDir, "magenta-sdk"));
 }
 
 async function pollUntil(fn: () => boolean, timeoutMs = 10000): Promise<void> {

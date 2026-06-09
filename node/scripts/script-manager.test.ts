@@ -2,15 +2,22 @@ import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
 import type { ToolName, ToolRequestId } from "@magenta/core";
 import { expect, it } from "vitest";
+import { BUILTIN_SDK_PATH } from "../options.ts";
 import { pollForToolResult, withDriver } from "../test/preamble.ts";
 import type { ScriptInvocationId } from "./script-manager.ts";
 
+// Magenta no longer manages the magenta-sdk shim; the user/agent is expected to
+// create the `magenta-sdk` symlink when authoring a script package. Tests do
+// the same here.
+async function createSdkSymlink(pkgDir: string): Promise<void> {
+  await fs.symlink(BUILTIN_SDK_PATH, path.join(pkgDir, "magenta-sdk"));
+}
+
 async function setupScript(tmpDir: string, body: string): Promise<void> {
-  // The SDK shim (.magenta/scripts/magenta-sdk) is created by ScriptManager's
-  // ensureShim() at startup; the script imports through it.
-  const scriptsDir = path.join(tmpDir, ".magenta", "scripts");
-  await fs.mkdir(scriptsDir, { recursive: true });
-  await fs.writeFile(path.join(scriptsDir, "index.ts"), body);
+  const pkgDir = path.join(tmpDir, ".magenta", "scripts", "pkg");
+  await fs.mkdir(pkgDir, { recursive: true });
+  await fs.writeFile(path.join(pkgDir, "index.ts"), body);
+  await createSdkSymlink(pkgDir);
 }
 
 async function pollUntil(fn: () => boolean, timeoutMs = 10000): Promise<void> {
@@ -47,9 +54,9 @@ it("discovers via index.ts and ignores sibling library files", async () => {
     {
       setupFiles: async (tmpDir) => {
         await setupScript(tmpDir, FOO_SCRIPT);
-        const scriptsDir = path.join(tmpDir, ".magenta", "scripts");
+        const pkgDir = path.join(tmpDir, ".magenta", "scripts", "pkg");
         await fs.writeFile(
-          path.join(scriptsDir, "shared-lib.ts"),
+          path.join(pkgDir, "shared-lib.ts"),
           "export const helper = () => 42;\n",
         );
       },
@@ -69,9 +76,10 @@ it("discovers scripts from the global ~/.magenta/scripts path", async () => {
   await withDriver(
     {
       setupHome: async (homeDir) => {
-        const scriptsDir = path.join(homeDir, ".magenta", "scripts");
-        await fs.mkdir(scriptsDir, { recursive: true });
-        await fs.writeFile(path.join(scriptsDir, "index.ts"), FOO_SCRIPT);
+        const pkgDir = path.join(homeDir, ".magenta", "scripts", "pkg");
+        await fs.mkdir(pkgDir, { recursive: true });
+        await fs.writeFile(path.join(pkgDir, "index.ts"), FOO_SCRIPT);
+        await createSdkSymlink(pkgDir);
       },
     },
     async (driver) => {
@@ -103,6 +111,7 @@ it("invokes a script that spawns a thread and resolves with the structured yield
             driver.magenta.cwd,
             ".magenta",
             "scripts",
+            "pkg",
             "magenta-sdk",
             "index.ts",
           ),
@@ -169,9 +178,10 @@ it("passes contextFiles and systemReminder through to the spawned thread", async
   await withDriver(
     {
       setupFiles: async (tmpDir) => {
-        const scriptsDir = path.join(tmpDir, ".magenta", "scripts");
-        await fs.mkdir(scriptsDir, { recursive: true });
-        await fs.writeFile(path.join(scriptsDir, "index.ts"), CONTEXT_SCRIPT);
+        const pkgDir = path.join(tmpDir, ".magenta", "scripts", "pkg");
+        await fs.mkdir(pkgDir, { recursive: true });
+        await fs.writeFile(path.join(pkgDir, "index.ts"), CONTEXT_SCRIPT);
+        await createSdkSymlink(pkgDir);
         await fs.writeFile(
           path.join(tmpDir, "seed.txt"),
           "SEED_CONTENT_SENTINEL\n",

@@ -1127,7 +1127,7 @@ export function parseOptions(
         inputOptionsObj.skillsPaths,
         "skillsPaths",
       );
-      options.skillsPaths = userSkillsPaths;
+      options.skillsPaths = [BUILTIN_SKILLS_PATH, ...userSkillsPaths];
     }
 
     // Parse scripts paths

@@ -1,12 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import {
-  existsSync,
-  mkdirSync,
-  readlinkSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import type { ScriptCatalogEntry, ThreadId } from "@magenta/core";
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
@@ -25,7 +18,7 @@ import type { Chat } from "../chat/chat.ts";
 import type { SandboxRoot } from "../chat/thread.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
-import { BUILTIN_SDK_PATH, type MagentaOptions } from "../options.ts";
+import type { MagentaOptions } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import { d, type VDOMNode, withBindings } from "../tea/view.ts";
@@ -132,51 +125,6 @@ export class ScriptManager {
   }
 
   /**
-   * Ensure a stable, statically-importable path to the installed SDK inside the
-   * project's `.magenta/scripts/`, regardless of where the plugin is installed.
-   * Prefers a symlink `magenta-sdk` -> `<install>/sdk`; falls back to a
-   * generated re-export directory when symlinks are unavailable. Both expose
-   * the same import path `./magenta-sdk/index.ts`.
-   */
-  ensureShim(scriptsDir: string): void {
-    const shim = path.join(scriptsDir, "magenta-sdk");
-    try {
-      const existing = (() => {
-        try {
-          return readlinkSync(shim);
-        } catch {
-          return undefined;
-        }
-      })();
-      if (existing === BUILTIN_SDK_PATH) return;
-      rmSync(shim, { force: true, recursive: true });
-      symlinkSync(BUILTIN_SDK_PATH, shim);
-      return;
-    } catch {
-      // Fall through to the generated re-export shim.
-    }
-
-    try {
-      rmSync(shim, { force: true, recursive: true });
-      mkdirSync(shim, { recursive: true });
-      const index = path.join(BUILTIN_SDK_PATH, "index.ts");
-      const testing = path.join(BUILTIN_SDK_PATH, "testing.ts");
-      writeFileSync(
-        path.join(shim, "index.ts"),
-        `export * from ${JSON.stringify(index)};\n`,
-      );
-      writeFileSync(
-        path.join(shim, "testing.ts"),
-        `export * from ${JSON.stringify(testing)};\n`,
-      );
-    } catch (e) {
-      this.context.nvim.logger.error(
-        `Failed to write magenta-sdk shim: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
-  }
-
-  /**
    * Resolve the configured `scriptsPaths` to absolute directories, expanding
    * `~` and resolving relative entries against the cwd. Later paths take
    * precedence on name collisions (project scripts override global ones), so we
@@ -202,19 +150,33 @@ export class ScriptManager {
     await Promise.resolve();
     this.catalog.clear();
     for (const dir of this.resolveScriptsDirs()) {
-      // Discovery is driven by a single `index.ts` entry point per scripts
-      // directory. That file is responsible for importing every script module
-      // so all `registerScript` calls run. Other `.ts` files (shared libs,
-      // individual script modules) are never forked directly, which keeps
-      // discovery and thread creation predictable.
-      const indexFile = path.join(dir, "index.ts");
-      if (!existsSync(indexFile)) continue;
+      if (!existsSync(dir)) continue;
 
-      this.ensureShim(dir);
+      // Each scripts directory holds independent script installations, one per
+      // subdirectory, with a single `index.ts` entry point. That file is
+      // responsible for importing every script module so all `registerScript`
+      // calls run. Other `.ts` files (shared libs, individual script modules)
+      // are never forked directly, which keeps discovery and thread creation
+      // predictable.
+      let entries: { name: string; isDir: boolean }[];
+      try {
+        entries = readdirSync(dir, { withFileTypes: true }).map((e) => ({
+          name: e.name,
+          isDir: e.isDirectory(),
+        }));
+      } catch {
+        continue;
+      }
 
-      const metas = await this.captureRegistration(indexFile);
-      for (const meta of metas) {
-        this.catalog.set(meta.name, { file: indexFile, meta });
+      for (const entry of entries) {
+        if (!entry.isDir) continue;
+        const indexFile = path.join(dir, entry.name, "index.ts");
+        if (!existsSync(indexFile)) continue;
+
+        const metas = await this.captureRegistration(indexFile);
+        for (const meta of metas) {
+          this.catalog.set(meta.name, { file: indexFile, meta });
+        }
       }
     }
     this.myDispatch({ type: "catalog-updated" });
