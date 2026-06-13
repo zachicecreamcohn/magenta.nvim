@@ -213,6 +213,37 @@ it("handles errors during streaming response", async () => {
   });
 });
 
+it("folds pending messages into failed-submit on error", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText("Original message");
+    await driver.send();
+
+    const stream = await driver.mockAnthropic.awaitPendingStream();
+
+    // Queue an @async message while the request is in flight
+    await driver.inputMagentaText("@async Queued pending message");
+    await driver.send();
+
+    const thread = driver.magenta.chat.getActiveThread();
+    expect(thread.core.state.pendingMessages).toHaveLength(1);
+
+    const errorMessage = "Simulated error with pending messages";
+    stream.respondWithError(new Error(errorMessage));
+
+    await driver.assertInputBufferContains("Original message");
+    await driver.assertInputBufferContains("Queued pending message");
+
+    expect(thread.core.state.pendingMessages).toHaveLength(0);
+    expect(thread.core.state.failedSubmit?.userMessage).toContain(
+      "Original message",
+    );
+    expect(thread.core.state.failedSubmit?.userMessage).toContain(
+      "Queued pending message",
+    );
+  });
+});
+
 it("forks a thread with multiple messages into a new thread", async () => {
   await withDriver({}, async (driver) => {
     // 1. Open the sidebar

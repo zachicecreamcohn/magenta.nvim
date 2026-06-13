@@ -179,6 +179,19 @@ leading blank line, and the queue ends empty.
 
 ## Stage 3: Core — fold pending messages into failed-submit on error
 
+**Status: DONE.** In `handleErrorState` (`thread-core.ts`), inside the existing
+`isUserFacing` guard, join `type: "user"` pending messages with `\n`, drain the
+queue (invariant: queue empty after error), and fold the pending text onto the
+last user message's text (`baseText\npendingText`, or pendingText alone when the
+last message has no text). The combined `userMessage` flows through the existing
+`set-failed-submit` + `setupResubmit` machinery, so resubmit recovers everything
+in one shot. Integration test added in `thread.test.ts` ("folds pending messages
+into failed-submit on error"): queues an `@async` message, errors the stream, and
+asserts both the original and pending text land in the input buffer and
+`failedSubmit.userMessage`, and the queue ends empty. Pre-existing snapshot/render
+failures in `thread.test.ts` (6 failing, 3 snapshots) are unrelated (confirmed
+still failing on base commit afcfc26 via git stash).
+
 - Goal: when the stream errors with queued pending messages, the pending text is
   appended to `failedSubmit.userMessage` and the queue is drained, so the
   existing resubmit flow recovers everything together.

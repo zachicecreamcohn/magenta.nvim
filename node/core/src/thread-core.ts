@@ -744,24 +744,35 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       this.state.threadType === "root" ||
       this.state.threadType === "docker_root";
     if (isUserFacing) {
+      const pendingText = this.state.pendingMessages
+        .filter((m) => m.type === "user")
+        .map((m) => m.text)
+        .join("\n");
+      this.update({ type: "drain-pending-messages" });
+
       const messages = this.getProviderMessages();
       const lastMessage = messages[messages.length - 1];
       if (lastMessage?.role === "user") {
-        const textContent = lastMessage.content
+        const baseText = lastMessage.content
           .filter(
             (c): c is Extract<typeof c, { type: "text" }> => c.type === "text",
           )
           .map((c) => c.text)
           .join("");
-        if (textContent) {
+        const userMessage = pendingText
+          ? baseText
+            ? `${baseText}\n${pendingText}`
+            : pendingText
+          : baseText;
+        if (userMessage) {
           this.update(
             {
               type: "set-failed-submit",
-              value: { userMessage: textContent, errorMessage: error.message },
+              value: { userMessage, errorMessage: error.message },
             },
             { silent: true },
           );
-          setTimeout(() => this.emit("setupResubmit", this.id, textContent), 1);
+          setTimeout(() => this.emit("setupResubmit", this.id, userMessage), 1);
         }
       }
     }
