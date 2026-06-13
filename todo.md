@@ -4,6 +4,8 @@
 - pending messages should be highlighted as a user message. Extra long pending messages should be trimmed in preview / expandable so they don't take up too much visual space by default
 - edit a previous user message. E on a user message pops it into the input buffer, and resets the thread to that point, so you can change the message and resubmit
 - openai agent
+- script overview bells should only ring when one of the threads stopped running, or the entire script is done. Not on a yield from a single subthread. Script bells should propagate to neovim / the terminal
+- more obvious visual distinction in script summary of what's a log message and what's a subthread
 
 # Sandboxes
 

@@ -244,6 +244,37 @@ it("folds pending messages into failed-submit on error", async () => {
   });
 });
 
+it("recovers pending messages alone when error arrives after assistant content", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText("Original message");
+    await driver.send();
+
+    const stream = await driver.mockAnthropic.awaitPendingStream();
+
+    // Queue an @async message while the request is in flight
+    await driver.inputMagentaText("@async Queued pending message");
+    await driver.send();
+
+    const thread = driver.magenta.chat.getActiveThread();
+    expect(thread.core.state.pendingMessages).toHaveLength(1);
+
+    // Stream assistant content so the last message is an assistant message,
+    // then error. The original user message must not be folded back in, but
+    // the pending message must still be recovered.
+    stream.streamText("Partial assistant response");
+    await driver.assertDisplayBufferContains("Partial assistant response");
+    stream.respondWithError(new Error("Simulated mid-stream error"));
+
+    await driver.assertInputBufferContains("Queued pending message");
+
+    expect(thread.core.state.pendingMessages).toHaveLength(0);
+    expect(thread.core.state.failedSubmit?.userMessage).toBe(
+      "Queued pending message",
+    );
+  });
+});
+
 it("forks a thread with multiple messages into a new thread", async () => {
   await withDriver({}, async (driver) => {
     // 1. Open the sidebar

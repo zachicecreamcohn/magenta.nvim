@@ -192,6 +192,18 @@ asserts both the original and pending text land in the input buffer and
 failures in `thread.test.ts` (6 failing, 3 snapshots) are unrelated (confirmed
 still failing on base commit afcfc26 via git stash).
 
+**Review follow-up.** `handleErrorState` now restores pending text regardless of
+the last message's role: `baseText` is only taken from the last message when it
+is a `user` message, otherwise it is empty, and `userMessage` is composed as
+`pendingText ? (baseText ? baseText\\npendingText : pendingText) : baseText`.
+This closes the data-loss branch where an error arrives after the assistant has
+already streamed content (last message is `assistant`): pending messages are
+still recovered into `failedSubmit`/`setupResubmit` rather than silently dropped.
+Added integration test ("recovers pending messages alone when error arrives
+after assistant content") which streams assistant content before erroring and
+asserts the queued `@async` message is recovered alone (covering both the
+assistant-last branch and the empty-baseText/pending-only composition branch).
+
 - Goal: when the stream errors with queued pending messages, the pending text is
   appended to `failedSubmit.userMessage` and the queue is drained, so the
   existing resubmit flow recovers everything together.

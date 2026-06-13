@@ -752,28 +752,30 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
 
       const messages = this.getProviderMessages();
       const lastMessage = messages[messages.length - 1];
-      if (lastMessage?.role === "user") {
-        const baseText = lastMessage.content
-          .filter(
-            (c): c is Extract<typeof c, { type: "text" }> => c.type === "text",
-          )
-          .map((c) => c.text)
-          .join("");
-        const userMessage = pendingText
-          ? baseText
-            ? `${baseText}\n${pendingText}`
-            : pendingText
-          : baseText;
-        if (userMessage) {
-          this.update(
-            {
-              type: "set-failed-submit",
-              value: { userMessage, errorMessage: error.message },
-            },
-            { silent: true },
-          );
-          setTimeout(() => this.emit("setupResubmit", this.id, userMessage), 1);
-        }
+      const baseText =
+        lastMessage?.role === "user"
+          ? lastMessage.content
+              .filter(
+                (c): c is Extract<typeof c, { type: "text" }> =>
+                  c.type === "text",
+              )
+              .map((c) => c.text)
+              .join("")
+          : "";
+      const userMessage = pendingText
+        ? baseText
+          ? `${baseText}\n${pendingText}`
+          : pendingText
+        : baseText;
+      if (userMessage) {
+        this.update(
+          {
+            type: "set-failed-submit",
+            value: { userMessage, errorMessage: error.message },
+          },
+          { silent: true },
+        );
+        setTimeout(() => this.emit("setupResubmit", this.id, userMessage), 1);
       }
     }
     this.context.logger.error(error);
