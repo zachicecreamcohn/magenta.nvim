@@ -114,12 +114,17 @@ it("end-to-end: agent invokes run_script, subprocess spawns a thread, yields, an
       await driver.assertDisplayBufferContains("foo (done)");
 
       // 7. The row starts collapsed (whole invocation body hidden); expanding
-      // reveals the log line and a link to the yielded spawned thread.
+      // reveals the log line and a link to the spawned thread, but the yield
+      // result stays hidden until the thread line itself is expanded.
       await driver.assertDisplayBufferDoesNotContain("starting");
       await driver.assertDisplayBufferDoesNotContain("yielded");
       await driver.triggerDisplayBufferKeyOnContent("foo (done)", "=");
       await driver.assertDisplayBufferContains("starting");
-      await driver.assertDisplayBufferContains("yielded");
+      await driver.assertDisplayBufferDoesNotContain("⮑ yielded:");
+
+      // 8. Expanding the spawned thread line reveals its yield result.
+      await driver.triggerDisplayBufferKeyOnContent("work on thing", "=");
+      await driver.assertDisplayBufferContains("⮑ yielded:");
     },
   );
 });

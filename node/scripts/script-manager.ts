@@ -35,6 +35,7 @@ export type Msg =
   | { type: "catalog-updated" }
   | { type: "invocation-updated"; id: ScriptInvocationId }
   | { type: "toggle-invocation-expand"; id: ScriptInvocationId }
+  | { type: "toggle-thread-yield"; id: ThreadId }
   | { type: "toggle-invocation-sandbox"; id: ScriptInvocationId };
 
 export type ScriptMsg = {
@@ -69,6 +70,7 @@ export class ScriptManager {
   private catalog: Map<string, { file: string; meta: ScriptMeta }> = new Map();
   public invocations: Map<ScriptInvocationId, ScriptInvocation> = new Map();
   private expandedInvocations: Set<ScriptInvocationId> = new Set();
+  private expandedThreads: Set<ThreadId> = new Set();
   private myDispatch: Dispatch<Msg>;
 
   constructor(
@@ -97,6 +99,13 @@ export class ScriptManager {
           this.expandedInvocations.delete(msg.msg.id);
         } else {
           this.expandedInvocations.add(msg.msg.id);
+        }
+        return;
+      case "toggle-thread-yield":
+        if (this.expandedThreads.has(msg.msg.id)) {
+          this.expandedThreads.delete(msg.msg.id);
+        } else {
+          this.expandedThreads.add(msg.msg.id);
         }
         return;
       case "toggle-invocation-sandbox": {
@@ -467,14 +476,31 @@ export class ScriptManager {
             continue;
           }
 
-          for (const view of this.context.chat.renderScriptThreadSubtree(
+          const threadViews = this.context.chat.renderScriptThreadSubtree(
             entry.threadId,
             1,
-          )) {
-            rows.push(d`\n${view}`);
-          }
+          );
+          const threadId = entry.threadId;
+          threadViews.forEach((view, idx) => {
+            if (idx === 0) {
+              rows.push(
+                d`\n${withBindings(view, {
+                  ...view.bindings,
+                  "=": () =>
+                    this.myDispatch({
+                      type: "toggle-thread-yield",
+                      id: threadId,
+                    }),
+                })}`,
+              );
+            } else {
+              rows.push(d`\n${view}`);
+            }
+          });
 
-          rows.push(this.renderThreadYield(entry.threadId));
+          if (this.expandedThreads.has(threadId)) {
+            rows.push(this.renderThreadYield(threadId));
+          }
         }
       } else {
         for (const entry of inv.entries) {
