@@ -21,6 +21,7 @@ For dev containers, see |magenta-docker.txt|
 For the security model, see |magenta-security.txt|
 For sandbox permissions, see |magenta-permissions.txt|
 For creating skills, see |magenta-skills.txt|
+For authoring scripts, see |magenta-scripts.txt|
 
 
 ==============================================================================

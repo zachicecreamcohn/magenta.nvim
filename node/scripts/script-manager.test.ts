@@ -361,14 +361,17 @@ it("renders running invocations, logs, and spawned threads in the Scripts overvi
 
       await driver.assertDisplayBufferContains("# Scripts");
       await driver.assertDisplayBufferContains("foo");
-      await driver.assertDisplayBufferContains("starting");
 
       const inv = scriptManager.invocations.get(id);
       if (!inv) throw new Error("missing invocation");
 
-      // The script row starts collapsed; expand it to reveal the spawned thread
-      // nested underneath.
+      // The script row starts collapsed, hiding the whole invocation body
+      // (parameters, logs, spawned threads). Expanding reveals them.
+      await driver.assertDisplayBufferDoesNotContain("starting");
+
       await driver.triggerDisplayBufferKeyOnContent("foo (done)", "=");
+      await driver.assertDisplayBufferContains("starting");
+      await driver.assertDisplayBufferContains(`parameters: {"x":"thing"}`);
       await driver.assertDisplayBufferContains("yielded");
     },
   );

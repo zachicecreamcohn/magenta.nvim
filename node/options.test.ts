@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  BUILTIN_SKILLS_PATH,
   DEFAULT_SANDBOX_CONFIG,
   loadProjectSettings,
   loadUserSettings,
@@ -378,6 +379,31 @@ describe("suppressProjectSkills", () => {
       noopLogger,
     );
     expect(result.suppressProjectSkills).toEqual(["plan"]);
+  });
+
+  it("parseOptions prepends BUILTIN_SKILLS_PATH when user provides skillsPaths", () => {
+    const result = parseOptions(
+      {
+        profiles: [{ name: "test", provider: "mock" }],
+        skillsPaths: ["~/.magenta/skills", ".magenta/skills"],
+      },
+      noopLogger,
+    );
+    expect(result.skillsPaths).toEqual([
+      BUILTIN_SKILLS_PATH,
+      "~/.magenta/skills",
+      ".magenta/skills",
+    ]);
+  });
+
+  it("parseOptions includes BUILTIN_SKILLS_PATH by default", () => {
+    const result = parseOptions(
+      {
+        profiles: [{ name: "test", provider: "mock" }],
+      },
+      noopLogger,
+    );
+    expect(result.skillsPaths).toContain(BUILTIN_SKILLS_PATH);
   });
 
   it("parseOptions defaults suppressProjectSkills to empty array", () => {

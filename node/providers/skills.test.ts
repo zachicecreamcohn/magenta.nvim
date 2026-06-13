@@ -12,7 +12,7 @@ import { withDriver } from "../test/preamble.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 
 describe("Skills", () => {
-  it("discovers the built-in authoring-scripts skill and it documents the harness", async () => {
+  it("discovers the built-in authoring-magenta-scripts skill and it documents the harness", async () => {
     const skills = await loadSkills({
       cwd: "/nonexistent" as NvimCwd,
       homeDir: "/nonexistent" as HomeDir,
@@ -27,10 +27,10 @@ describe("Skills", () => {
       options: { skillsPaths: [BUILTIN_SKILLS_PATH] } as ProviderOptions,
     });
 
-    expect(skills["authoring-scripts"]).toBeDefined();
+    expect(skills["authoring-magenta-scripts"]).toBeDefined();
 
     const body = await fs.promises.readFile(
-      skills["authoring-scripts"].skillFile,
+      skills["authoring-magenta-scripts"].skillFile,
       "utf-8",
     );
     expect(body).toContain("registerScript");

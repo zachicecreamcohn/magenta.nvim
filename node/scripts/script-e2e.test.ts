@@ -112,11 +112,13 @@ it("end-to-end: agent invokes run_script, subprocess spawns a thread, yields, an
       await driver.magenta.command("threads-overview");
       await driver.assertDisplayBufferContains("# Scripts");
       await driver.assertDisplayBufferContains("foo (done)");
-      await driver.assertDisplayBufferContains("starting");
 
-      // 7. Expanding the script row reveals a link to the yielded spawned thread.
+      // 7. The row starts collapsed (whole invocation body hidden); expanding
+      // reveals the log line and a link to the yielded spawned thread.
+      await driver.assertDisplayBufferDoesNotContain("starting");
       await driver.assertDisplayBufferDoesNotContain("yielded");
       await driver.triggerDisplayBufferKeyOnContent("foo (done)", "=");
+      await driver.assertDisplayBufferContains("starting");
       await driver.assertDisplayBufferContains("yielded");
     },
   );

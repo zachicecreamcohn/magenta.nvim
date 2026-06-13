@@ -1,5 +1,7 @@
 # top of mind
 
+- edit a previous user message. E on a user message pops it into the input buffer, and resets the thread to that point, so you can change the message and resubmit
+- pending messages. When the stream errors or is aborted, they should move back into the input buffer (for an abort), or be appended to the previous message (for an error)
 - openai agent
 
 # Sandboxes
@@ -28,11 +30,11 @@
 
 # misc features
 
-- add context tracking for the state of git. When we change branches, commit, etc...
 - asking aside/followup questions about things is a bit awkward... it would be cool to allow one to select a part of the display buffer, and then ask a question about it, with the output appearing within the flow of the original thread
 
 # bug fixes, etc
 
+- "forked to/from thread" persists after compact. We should remove it from the thread on compact
 - when we abort during a "sandbox blocked" message, it stays up even as the conversation continues
   - this has broken a few times already, make sure we have a good test for it
 - when we terminate/error, the reset for the message places it in the wrong buffer (currently open one, not the one corresponding to the thread that the error happened in)

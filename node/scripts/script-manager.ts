@@ -44,6 +44,10 @@ export type ScriptMsg = {
 
 export type ScriptInvocationStatus = "running" | "done" | "error";
 
+export type ScriptInvocationEntry =
+  | { type: "log"; message: string }
+  | { type: "thread"; threadId: ThreadId };
+
 export type ScriptInvocation = {
   id: ScriptInvocationId;
   scriptName: string;
@@ -52,6 +56,7 @@ export type ScriptInvocation = {
   status: ScriptInvocationStatus;
   logs: string[];
   threadIds: ThreadId[];
+  entries: ScriptInvocationEntry[];
   sandboxBypassed: boolean;
   child: ChildProcess;
   pendingThreads: Map<number, ThreadId>;
@@ -229,6 +234,7 @@ export class ScriptManager {
       status: "running",
       logs: [],
       threadIds: [],
+      entries: [],
       sandboxBypassed: opts.sandboxBypassed,
       child,
       pendingThreads: new Map(),
@@ -280,6 +286,7 @@ export class ScriptManager {
 
       case "log":
         invocation.logs.push(msg.message);
+        invocation.entries.push({ type: "log", message: msg.message });
         this.myDispatch({ type: "invocation-updated", id });
         return;
 
@@ -302,6 +309,7 @@ export class ScriptManager {
           })
           .then((threadId) => {
             invocation.threadIds.push(threadId);
+            invocation.entries.push({ type: "thread", threadId });
             invocation.pendingThreads.set(requestId, threadId);
             this.context.chat.onThreadYielded(threadId, () => {
               const result = this.context.chat.getThreadResult(threadId);
@@ -333,6 +341,10 @@ export class ScriptManager {
       case "error":
         invocation.status = "error";
         invocation.logs.push(`error: ${msg.message}`);
+        invocation.entries.push({
+          type: "log",
+          message: `error: ${msg.message}`,
+        });
         this.myDispatch({ type: "invocation-updated", id });
         this.terminateInvocation(id);
         return;
@@ -407,6 +419,17 @@ export class ScriptManager {
     }).catch((e: Error) => this.context.nvim.logger.error(e.message));
   }
 
+  private renderThreadYield(threadId: ThreadId): VDOMNode {
+    const result = this.context.chat.getThreadResult(threadId);
+    if (result.status !== "done") {
+      return d``;
+    }
+    if (result.result.status === "ok") {
+      return d`\n  ⮑ yielded: ${result.result.value}`;
+    }
+    return d`\n  ⮑ error: ${result.result.error}`;
+  }
+
   view(): VDOMNode {
     if (this.invocations.size === 0) {
       return d``;
@@ -417,9 +440,8 @@ export class ScriptManager {
       const icon =
         inv.status === "running" ? "⏳" : inv.status === "done" ? "✅" : "❌";
       const sandboxIndicator = inv.sandboxBypassed ? "🔓" : "🔒";
-      const hasThreads = inv.threadIds.length > 0;
       const isExpanded = this.expandedInvocations.has(inv.id);
-      const expandIndicator = hasThreads ? (isExpanded ? "▼ " : "▶ ") : "";
+      const expandIndicator = isExpanded ? "▼ " : "▶ ";
 
       rows.push(
         withBindings(
@@ -437,23 +459,28 @@ export class ScriptManager {
         ),
       );
 
-      for (const line of inv.logs) {
-        rows.push(d`\n  • ${line}`);
-      }
+      if (isExpanded) {
+        rows.push(d`\n  parameters: ${JSON.stringify(inv.parameters)}`);
+        for (const entry of inv.entries) {
+          if (entry.type === "log") {
+            rows.push(d`\n  • ${entry.message}`);
+            continue;
+          }
 
-      if (hasThreads && isExpanded) {
-        for (const threadId of inv.threadIds) {
           for (const view of this.context.chat.renderScriptThreadSubtree(
-            threadId,
+            entry.threadId,
             1,
           )) {
             rows.push(d`\n${view}`);
           }
+
+          rows.push(this.renderThreadYield(entry.threadId));
         }
-      } else if (hasThreads && !isExpanded) {
-        for (const threadId of inv.threadIds) {
+      } else {
+        for (const entry of inv.entries) {
+          if (entry.type !== "thread") continue;
           for (const view of this.context.chat.collectScriptSubtreeViolationViews(
-            threadId,
+            entry.threadId,
           )) {
             rows.push(d`\n${view}`);
           }

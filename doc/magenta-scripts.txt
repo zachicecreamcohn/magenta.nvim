@@ -1,0 +1,174 @@
+*magenta-scripts.txt*        Authoring Magenta Scripts          *magenta-scripts*
+
+                          MAGENTA.NVIM SCRIPTS
+                     Automations that drive agent threads
+
+==============================================================================
+CONTENTS                                            *magenta-scripts-contents*
+
+    1. Introduction .......................... |magenta-scripts-introduction|
+    2. Where Scripts Live .................... |magenta-scripts-locations|
+    3. Discovery (index.ts) .................. |magenta-scripts-discovery|
+    4. Importing the SDK ..................... |magenta-scripts-sdk|
+    5. registerScript Contract ............... |magenta-scripts-register|
+    6. The Runner ............................ |magenta-scripts-runner|
+    7. Example ............................... |magenta-scripts-example|
+    8. Testing ............................... |magenta-scripts-testing|
+
+==============================================================================
+INTRODUCTION                                   *magenta-scripts-introduction*
+
+Scripts are TypeScript automations that run as a child process of the magenta
+node process. Unlike skills (|magenta-skills|), which inject knowledge into
+the system prompt, a script is code that orchestrates one or more real,
+sidebar-visible agent threads and reports progress back to magenta.
+
+Scripts are triggered by the agent via the script-running tool, or run
+outside the lifecycle of a single thread. They report progress in the
+"Scripts" section of the magenta overview.
+
+==============================================================================
+WHERE SCRIPTS LIVE                                *magenta-scripts-locations*
+
+Each script package lives in its own subdirectory of the project's
+\`.magenta/scripts/\` directory, so multiple independent installations can
+coexist:
+
+>
+  .magenta/scripts/
+  └── my-package/
+      ├── magenta-sdk/      # SDK shim maintained by magenta
+      ├── index.ts          # entry point (required)
+      ├── code-review.ts    # a script module
+      └── implement-plan.ts # another script module
+<
+
+==============================================================================
+DISCOVERY                                         *magenta-scripts-discovery*
+
+Magenta discovers scripts by forking each package's \`index.ts\` file — that is
+the only file it ever executes per package. \`index.ts\` must import every
+script module so their top-level \`registerScript()\` calls run:
+
+>typescript
+  // .magenta/scripts/my-package/index.ts
+  import "./code-review.ts";
+  import "./implement-plan.ts";
+<
+
+Any other \`.ts\` files (script modules, shared libraries) are never forked
+directly; they only run because \`index.ts\` (or another module) imports them.
+This keeps discovery and thread creation predictable.
+
+==============================================================================
+IMPORTING THE SDK                                       *magenta-scripts-sdk*
+
+Import the SDK through the stable shim that magenta maintains inside each
+package directory via \`./magenta-sdk\`:
+
+>typescript
+  import { registerScript } from "./magenta-sdk/index.ts";
+<
+
+Do not import from any other path — the shim resolves to the installed
+plugin's SDK regardless of where the plugin lives on disk.
+
+==============================================================================
+REGISTERSCRIPT CONTRACT                            *magenta-scripts-register*
+
+>typescript
+  registerScript(name, description, parameterSchema, runner);
+<
+
+  name             Unique script name (how agents invoke it).
+  description      Shown to agents so they know when to use it.
+  parameterSchema  A JSON Schema describing the \`parameters\` the runner
+                   receives.
+  runner           An async function that does the work
+                   (see |magenta-scripts-runner|).
+
+==============================================================================
+THE RUNNER                                           *magenta-scripts-runner*
+
+The runner has the signature \`runner(parameters, thread, log)\`:
+
+  parameters       The validated input object.
+
+  thread(prompt, yieldSchema, options?)
+                   Spawns a real magenta thread seeded with \`prompt\`,
+                   equipped with a \`yield_to_parent\` tool whose input schema
+                   is \`yieldSchema\`. Resolves to the structured value the
+                   agent yields. Use the generic to type the result:
+                   \`await thread<{ done: boolean }>(...)\`.
+
+                   \`options\` may include:
+                     contextFiles     Absolute paths to seed into the
+                                      thread's context.
+                     systemReminder   A recurring system reminder injected
+                                      into the thread.
+                     cwd, profile, model, tools
+
+  log(message)     Reports progress; surfaced in the magenta Scripts section.
+
+==============================================================================
+EXAMPLE                                             *magenta-scripts-example*
+
+>typescript
+  import { registerScript } from "./magenta-sdk/index.ts";
+
+  registerScript(
+    "summarize-file",
+    "Summarizes a file and returns a one-line summary",
+    {
+      type: "object",
+      properties: { path: { type: "string" } },
+      required: ["path"],
+    },
+    async (params: { path: string }, thread, log) => {
+      log(\`summarizing \${params.path}\`);
+      const result = await thread<{ summary: string }>(
+        \`Read \${params.path} and summarize it in one sentence.\`,
+        {
+          type: "object",
+          properties: { summary: { type: "string" } },
+          required: ["summary"],
+        },
+      );
+      log(\`summary: \${result.summary}\`);
+    },
+  );
+<
+
+==============================================================================
+TESTING                                             *magenta-scripts-testing*
+
+Use the in-process test harness from \`./magenta-sdk/testing.ts\`. It drives
+the runner with test-double \`thread\`/\`log\` — no subprocess and no magenta
+required. Statically import the script module first so its \`registerScript\`
+call runs.
+
+>typescript
+  import { expect, it } from "vitest";
+  import { runScript } from "./magenta-sdk/testing.ts";
+  import "./summarize-file.ts"; // registers the script
+
+  it("summarizes", async () => {
+    const { handle, donePromise } = runScript("summarize-file", {
+      path: "README.md",
+    });
+
+    const call = await handle.nextThread();
+    expect(call.prompt).toContain("README.md");
+    call.yield({ summary: "It is a readme." });
+
+    await donePromise;
+    expect(handle.logs).toContain("summary: It is a readme.");
+  });
+<
+
+\`handle.nextThread()\` resolves with each pending \`thread()\` call (in order),
+exposing \`prompt\`, \`yieldSchema\`, \`options\`, and \`yield(value)\` /
+\`reject(error)\` to settle that specific call. \`handle.logs\` captures \`log()\`
+output.
+
+vim:tw=78:ts=8:noet:ft=help:norl:
