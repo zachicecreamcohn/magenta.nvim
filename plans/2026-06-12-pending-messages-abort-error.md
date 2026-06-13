@@ -157,6 +157,13 @@ aborts, and asserts both the typed text and the recovered pending text are
 present and the queue is empty. Pre-existing snapshot/render failures in
 `thread.test.ts` are unrelated (confirmed still failing on base commit aa3adf1).
 
+**Review follow-up.** Added a second integration test ("recovers pending
+messages into empty input buffer on abort") covering the `hasExistingText ===
+false` branch of the `append-to-input` handler: aborting with an empty input
+buffer places the recovered pending text on the first line with no stray
+leading blank line, and the queue ends empty.
+
+
   existing contents, not overwriting in-progress typing.
 - Implementation sketch: add an `append` flag to `setup-resubmit` (or a new
   `SidebarMsg` variant) in `node/root-msg.ts`; update `handleSidebarMsg`

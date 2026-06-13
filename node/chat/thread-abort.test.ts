@@ -468,6 +468,49 @@ it("appends pending messages to input buffer on abort", async () => {
   });
 });
 
+it("recovers pending messages into empty input buffer on abort", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    await driver.inputMagentaText("First message");
+    await driver.send();
+
+    const request1 = await driver.mockAnthropic.awaitPendingStream();
+
+    // Queue an @async message while the first request is in flight
+    await driver.inputMagentaText("@async Queued pending message");
+    await driver.send();
+
+    const thread = driver.magenta.chat.getActiveThread();
+    expect(thread.core.state.pendingMessages).toHaveLength(1);
+
+    // Do not type anything into the input buffer; abort with an empty buffer
+    await driver.abort();
+
+    request1.respond({
+      stopReason: "end_turn",
+      text: "ignored",
+      toolRequests: [],
+    });
+
+    await pollUntil(async () => {
+      const lines = await driver.getInputBuffer().getLines({
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
+      });
+      // The pending text should replace the empty placeholder line with no
+      // stray leading blank line.
+      if (lines[0] !== "Queued pending message") {
+        throw new Error(
+          `expected pending text on the first line, got: ${JSON.stringify(lines)}`,
+        );
+      }
+    });
+
+    expect(thread.core.state.pendingMessages).toHaveLength(0);
+  });
+});
+
 it("removes server_tool_use content when aborted before receiving results", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
