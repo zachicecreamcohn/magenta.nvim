@@ -143,6 +143,20 @@ test failures are unrelated (confirmed failing on base commit).
 ## Stage 2: Root — append pending text to input buffer on abort
 
 - Goal: the abort event from Stage 1 lands in the input buffer **appended** to
+**Status: DONE.** Added `append-to-input` `SidebarMsg` variant (`node/root-msg.ts`)
+carrying `threadId` + `text` (chose a new variant over an `append` flag on
+`setup-resubmit` to avoid entangling the resubmit semantics, which also calls
+`discardFailedSubmit`). `handleSidebarMsg` (`node/magenta.ts`) reads existing
+input-buffer lines and appends the recovered text only when there is existing
+non-whitespace text (otherwise it just sets the lines, avoiding a leading blank
+line). Wired a `recoverPendingMessages` coreListener in `Thread`
+(`node/chat/thread.ts`) that dispatches the new `append-to-input` sidebar msg.
+Integration test added in `thread-abort.test.ts` ("appends pending messages to
+input buffer on abort"): queues an `@async` message, types in-progress text,
+aborts, and asserts both the typed text and the recovered pending text are
+present and the queue is empty. Pre-existing snapshot/render failures in
+`thread.test.ts` are unrelated (confirmed still failing on base commit aa3adf1).
+
   existing contents, not overwriting in-progress typing.
 - Implementation sketch: add an `append` flag to `setup-resubmit` (or a new
   `SidebarMsg` variant) in `node/root-msg.ts`; update `handleSidebarMsg`

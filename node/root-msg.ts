@@ -10,6 +10,11 @@ export type SidebarMsg =
       lastUserMessage: string;
     }
   | {
+      type: "append-to-input";
+      threadId: ThreadId;
+      text: string;
+    }
+  | {
       type: "scroll-to-last-user-message";
     }
   | {

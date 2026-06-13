@@ -341,6 +341,11 @@ export class Thread {
           type: "sidebar-msg",
           msg: { type: "setup-resubmit", threadId, lastUserMessage },
         }),
+      recoverPendingMessages: (threadId: ThreadId, text: string) =>
+        this.context.dispatch({
+          type: "sidebar-msg",
+          msg: { type: "append-to-input", threadId, text },
+        }),
       scrollToLastMessage: () =>
         this.context.dispatch({
           type: "sidebar-msg",
@@ -369,6 +374,10 @@ export class Thread {
     this.core.on("pendingUpdatesChanged", coreListeners.pendingUpdatesChanged);
     this.core.on("turnEnded", coreListeners.turnEnded);
     this.core.on("setupResubmit", coreListeners.setupResubmit);
+    this.core.on(
+      "recoverPendingMessages",
+      coreListeners.recoverPendingMessages,
+    );
     this.core.on("scrollToLastMessage", coreListeners.scrollToLastMessage);
     this.core.on("aborting", coreListeners.aborting);
     this.core.on("contextUpdatesSent", coreListeners.contextUpdatesSent);
@@ -604,6 +613,7 @@ export class Thread {
           reason: "end_turn" | "aborted" | "error";
         }) => void;
         setupResubmit: (threadId: ThreadId, lastUserMessage: string) => void;
+        recoverPendingMessages: (threadId: ThreadId, text: string) => void;
         scrollToLastMessage: () => void;
         aborting: () => void;
         contextUpdatesSent: (updates: Record<string, unknown>) => void;
@@ -625,6 +635,10 @@ export class Thread {
       );
       this.core.off("turnEnded", this.coreListeners.turnEnded);
       this.core.off("setupResubmit", this.coreListeners.setupResubmit);
+      this.core.off(
+        "recoverPendingMessages",
+        this.coreListeners.recoverPendingMessages,
+      );
       this.core.off(
         "scrollToLastMessage",
         this.coreListeners.scrollToLastMessage,

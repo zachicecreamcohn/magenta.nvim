@@ -394,6 +394,33 @@ export class Magenta {
           });
         break;
       }
+      case "append-to-input": {
+        const buffers = this.bufferManager.getThreadBuffers(msg.threadId);
+        if (!buffers) {
+          break;
+        }
+        (async () => {
+          const existingLines = await buffers.inputBuffer.getLines({
+            start: 0 as Row0Indexed,
+            end: -1 as Row0Indexed,
+          });
+          const hasExistingText = existingLines.some(
+            (line) => line.trim().length > 0,
+          );
+          const appendedLines = msg.text.split("\n") as Line[];
+          const newLines = hasExistingText
+            ? ([...existingLines, ...appendedLines] as Line[])
+            : appendedLines;
+          await buffers.inputBuffer.setLines({
+            start: 0 as Row0Indexed,
+            end: -1 as Row0Indexed,
+            lines: newLines,
+          });
+        })().catch((error) => {
+          this.nvim.logger.error(`Error appending to sidebar input: ${error}`);
+        });
+        break;
+      }
       case "scroll-to-last-user-message": {
         const activeMountedApp = this.bufferManager.getMountedApp(
           this.getActiveKey(),

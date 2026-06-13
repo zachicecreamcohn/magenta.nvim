@@ -1,5 +1,6 @@
 import type { ToolName, ToolRequestId } from "@magenta/core";
 import { expect, it } from "vitest";
+import type { Row0Indexed } from "../nvim/window.ts";
 import { withDriver } from "../test/preamble.ts";
 import { delay, pollUntil } from "../utils/async.ts";
 
@@ -419,6 +420,54 @@ it("clears pending permissions when sending a new message during tool_use", asyn
     await driver.assertDisplayBufferContains("Ok, doing something else.");
   });
 });
+it("appends pending messages to input buffer on abort", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+
+    await driver.inputMagentaText("First message");
+    await driver.send();
+
+    const request1 = await driver.mockAnthropic.awaitPendingStream();
+
+    // Queue an @async message while the first request is in flight
+    await driver.inputMagentaText("@async Queued pending message");
+    await driver.send();
+
+    const thread = driver.magenta.chat.getActiveThread();
+    expect(thread.core.state.pendingMessages).toHaveLength(1);
+
+    // Type some in-progress text into the input buffer
+    await driver.inputMagentaText("In progress typing");
+
+    // Abort the in-flight turn
+    await driver.abort();
+
+    // Respond to the aborted request - should be ignored
+    request1.respond({
+      stopReason: "end_turn",
+      text: "ignored",
+      toolRequests: [],
+    });
+
+    await pollUntil(async () => {
+      const lines = await driver.getInputBuffer().getLines({
+        start: 0 as Row0Indexed,
+        end: -1 as Row0Indexed,
+      });
+      const content = lines.join("\n");
+      if (!content.includes("Queued pending message")) {
+        throw new Error(`pending text not appended yet: ${content}`);
+      }
+      if (!content.includes("In progress typing")) {
+        throw new Error(`existing text was clobbered: ${content}`);
+      }
+    });
+
+    // Queue must be empty after abort
+    expect(thread.core.state.pendingMessages).toHaveLength(0);
+  });
+});
+
 it("removes server_tool_use content when aborted before receiving results", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
