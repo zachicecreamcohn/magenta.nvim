@@ -311,6 +311,62 @@ it("renders a long pending message trimmed with expand/collapse toggle", async (
   });
 });
 
+it("clears pending expand state when the queue drains", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText("Original message");
+    await driver.send();
+
+    const request1 = await driver.mockAnthropic.awaitPendingStream();
+
+    const longText = Array.from({ length: 60 }, (_, i) => `word${i + 1}`).join(
+      " ",
+    );
+    await driver.inputMagentaText(`@async ${longText}`);
+    await driver.send();
+
+    const thread = driver.magenta.chat.getActiveThread();
+    expect(thread.core.state.pendingMessages).toHaveLength(1);
+
+    // Expand the queued message so index 0 is marked expanded.
+    await driver.triggerDisplayBufferKeyOnContent("[expand]", "=");
+    await driver.assertDisplayBufferContains("word60");
+    expect(thread.state.pendingMessagesExpanded[0]).toBe(true);
+
+    // End the turn so the queued message drains and is sent.
+    request1.respond({
+      stopReason: "end_turn",
+      text: "done",
+      toolRequests: [],
+    });
+
+    const request2 = await driver.mockAnthropic.awaitPendingStream();
+    await pollUntil(() => {
+      if (thread.core.state.pendingMessages.length !== 0) {
+        throw new Error("queue not drained yet");
+      }
+    });
+    // Draining the queue must clear stale expand state keyed by index.
+    expect(thread.state.pendingMessagesExpanded).toEqual({});
+
+    // Queue another long message at the same index while the new turn streams.
+    await driver.inputMagentaText(`@async ${longText}`);
+    await driver.send();
+
+    expect(thread.core.state.pendingMessages).toHaveLength(1);
+    // The newly-queued message must render collapsed by default (state was
+    // cleared on drain, so index 0 is not stale-expanded).
+    await driver.assertDisplayBufferContains("[expand]");
+    expect(thread.state.pendingMessagesExpanded).toEqual({});
+
+    request2.respond({
+      stopReason: "end_turn",
+      text: "done2",
+      toolRequests: [],
+    });
+  });
+});
+
 it("forks a thread with multiple messages into a new thread", async () => {
   await withDriver({}, async (driver) => {
     // 1. Open the sidebar
@@ -1518,6 +1574,10 @@ it("handles @async messages by queueing them and sending on next tool response",
 
     // Wait for the pending message indicator to appear in the display
     await driver.assertDisplayBufferContains("✉️ queued:");
+    // Short pending messages render in full with no expand/collapse toggle.
+    await driver.assertDisplayBufferContains("This should be queued");
+    await driver.assertDisplayBufferDoesNotContain("[expand]");
+    await driver.assertDisplayBufferDoesNotContain("[collapse]");
 
     // Approve the file read to complete the tool execution
     await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");

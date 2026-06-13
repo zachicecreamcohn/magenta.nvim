@@ -235,6 +235,18 @@ trimmed with expand/collapse toggle"). Updated the existing "@async ... next too
 response" test assertion from "pending message" to "✉️ queued:" to match the new
 header. Pre-existing snapshot/render failures across the suite are unrelated
 (confirmed identical failure set via git stash on base commit c518103).
+**Review follow-up (test coverage).** Added an integration test ("clears
+pending expand state when the queue drains") in `thread.test.ts` that expands a
+queued long message, lets the queue drain (responds `end_turn` so it is sent),
+asserts `pendingMessagesExpanded` resets to `{}`, then queues another message at
+the same index and asserts it renders collapsed by default — exercising the
+load-bearing `tool-progress` reset branch (`thread.ts:829`) and the keyed-by-
+index staleness it guards against. Also extended the existing "@async ... next
+tool response" test to assert short pending messages render in full with no
+`[expand]`/`[collapse]` toggle (covering the `needsTrim === false` branch in
+`renderPendingMessage`). Confirmed the 6 pre-existing thread.test.ts
+snapshot/render failures are unchanged via git stash on base commit 042158d
+(6 failed / 28 passed on base vs 6 failed / 29 passed with the new tests).
   marker; long ones show a trimmed preview with an `[expand]`/`[collapse]` toggle.
 - Implementation sketch: rewrite `pendingMessagesView` in `thread-view.ts` to use
   `withExtmark(..., { hl_group: "CursorLine", hl_eol: true })` and a preview/full
