@@ -105,6 +105,7 @@ export type ThreadCoreEvents = {
   scrollToLastMessage: [];
   setupResubmit: [threadId: ThreadId, lastUserMessage: string];
   aborting: [];
+  recoverPendingMessages: [threadId: ThreadId, text: string];
   pendingUpdatesChanged: [];
   turnEnded: [{ reason: TurnEndReason }];
 
@@ -814,8 +815,26 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     ]);
     this.emit("update");
 
+    this.recoverPendingMessagesOnAbort();
+
     this.update({ type: "set-mode", mode: { type: "normal" } });
     this.emit("turnEnded", { reason: "aborted" });
+  }
+
+  private recoverPendingMessagesOnAbort(): void {
+    const pendingText = this.state.pendingMessages
+      .filter((m) => m.type === "user")
+      .map((m) => m.text)
+      .join("\n");
+
+    this.update({ type: "drain-pending-messages" });
+
+    const isUserFacing =
+      this.state.threadType === "root" ||
+      this.state.threadType === "docker_root";
+    if (isUserFacing && pendingText) {
+      this.emit("recoverPendingMessages", this.id, pendingText);
+    }
   }
 
   async sendMessage(inputMessages?: InputMessage[]): Promise<void> {

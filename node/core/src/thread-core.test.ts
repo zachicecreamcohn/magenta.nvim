@@ -398,6 +398,76 @@ describe("ThreadCore.abort appends user abort message", () => {
   });
 });
 
+describe("ThreadCore.abort recovers pending messages", () => {
+  it("drains pending messages and emits recoverPendingMessages on abort", async () => {
+    const { core, mockClient } = createThreadCoreWithMock();
+    const recovered: Array<{ threadId: ThreadId; text: string }> = [];
+    core.on("recoverPendingMessages", (threadId, text) => {
+      recovered.push({ threadId, text });
+    });
+
+    core.sendMessage([{ type: "user", text: "hello" }]);
+    const stream = await mockClient.awaitStream();
+    stream.streamText("partial response");
+
+    core.update({
+      type: "push-pending-messages",
+      messages: [
+        { type: "user", text: "queued one" },
+        { type: "user", text: "queued two" },
+      ],
+    });
+
+    await core.abort();
+
+    expect(core.state.pendingMessages).toEqual([]);
+    expect(recovered).toHaveLength(1);
+    expect(recovered[0].threadId).toBe("test-thread");
+    expect(recovered[0].text).toBe("queued one\nqueued two");
+  });
+
+  it("does not emit recoverPendingMessages when there are no pending messages", async () => {
+    const { core, mockClient } = createThreadCoreWithMock();
+    const recovered: Array<{ threadId: ThreadId; text: string }> = [];
+    core.on("recoverPendingMessages", (threadId, text) => {
+      recovered.push({ threadId, text });
+    });
+
+    core.sendMessage([{ type: "user", text: "hello" }]);
+    const stream = await mockClient.awaitStream();
+    stream.streamText("partial response");
+
+    await core.abort();
+
+    expect(recovered).toHaveLength(0);
+    expect(core.state.pendingMessages).toEqual([]);
+  });
+
+  it("does not emit recoverPendingMessages for subagent threads", async () => {
+    const { core, mockClient } = createThreadCoreWithMock({
+      threadType: "subagent" as ThreadType,
+    });
+    const recovered: Array<{ threadId: ThreadId; text: string }> = [];
+    core.on("recoverPendingMessages", (threadId, text) => {
+      recovered.push({ threadId, text });
+    });
+
+    core.sendMessage([{ type: "user", text: "do the task" }]);
+    const stream = await mockClient.awaitStream();
+    stream.streamText("partial response");
+
+    core.update({
+      type: "push-pending-messages",
+      messages: [{ type: "user", text: "queued" }],
+    });
+
+    await core.abort();
+
+    expect(recovered).toHaveLength(0);
+    expect(core.state.pendingMessages).toEqual([]);
+  });
+});
+
 describe("SubagentSupervisor yield tag detection", () => {
   it("nudges agent when it writes a <yield_to_parent> XML tag instead of calling the tool", async () => {
     const { core, mockClient } = createThreadCoreWithMock({
