@@ -1316,6 +1316,11 @@ it("handles thinking and redacted thinking blocks", async () => {
       "This thinking contains sensitive information that has been redacted.",
     );
 
+    // Real responses always follow thinking with text/tool_use. Without a
+    // trailing non-thinking block, the assistant message would be stripped
+    // before being re-sent (Anthropic rejects messages ending in thinking).
+    stream.streamText("Here are some considerations.");
+
     stream.finishResponse("end_turn");
 
     // Assert initial collapsed state of thinking block - check pieces separately
@@ -1368,7 +1373,7 @@ it("handles thinking and redacted thinking blocks", async () => {
     const assistantContent = assistantMessage!.content;
     expect(Array.isArray(assistantContent)).toBe(true);
     if (!Array.isArray(assistantContent)) throw new Error("Expected array");
-    expect(assistantContent).toHaveLength(2);
+    expect(assistantContent).toHaveLength(3);
 
     // Check thinking block is included with full content
     const thinkingContent = assistantContent[0];
@@ -1801,6 +1806,9 @@ it("followup user message text is visible after tool-use cycle", async () => {
     // Verify the assistant response to the followup is also visible
     await driver.assertDisplayBufferContains("I'll edit the poem for you.");
 
+    // Wait for the stream to fully settle so the snapshot is deterministic.
+    await driver.assertDisplayBufferContains("Stopped (end_turn)");
+
     // Snapshot the full display for verification
     const displayText = sanitizeDisplayForSnapshot(
       await driver.getDisplayBufferText(),
@@ -1851,6 +1859,9 @@ it("followup user message text is visible with context updates", async () => {
     // Verify the assistant response to the followup is also visible
     await driver.assertDisplayBufferContains("I'll make the poem longer.");
 
+    // Wait for the stream to fully settle so the snapshot is deterministic.
+    await driver.assertDisplayBufferContains("Stopped (end_turn)");
+
     // Snapshot the full display for verification
     const displayText = sanitizeDisplayForSnapshot(
       await driver.getDisplayBufferText(),
@@ -1895,7 +1906,7 @@ it("expands context update diff with = binding", async () => {
 
     // Expand the diff using the "=" binding on the file line
     const pos = await driver.assertDisplayBufferContains(
-      "`poem.txt` [ +2 / -4 ]",
+      "`poem.txt` [ +2 / -4,",
     );
     await driver.triggerDisplayBufferKey(pos, "=");
 

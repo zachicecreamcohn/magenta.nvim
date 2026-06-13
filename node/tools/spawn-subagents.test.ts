@@ -93,7 +93,10 @@ it("navigates to spawned subagent thread when pressing Enter on completed summar
     });
 
     // Navigate to the subagent thread by pressing Enter on the completed result row
-    await driver.triggerDisplayBufferKeyOnContent("✅ Do the task", "<CR>");
+    await driver.triggerDisplayBufferKeyOnContent(
+      "Do the task and yield the result",
+      "<CR>",
+    );
 
     await pollUntil(
       () => driver.magenta.chat.getActiveThread().id !== parentThreadId,
@@ -481,7 +484,9 @@ describe("foreach-style parallel agents", () => {
           ],
         });
 
-        await driver.assertDisplayBufferContains("✅ Process element1");
+        await driver.assertDisplayBufferContains(
+          "Process element1 and yield the result",
+        );
 
         subagent2Stream.respond({
           stopReason: "tool_use",
@@ -673,7 +678,7 @@ describe("foreach-style parallel agents", () => {
 
         subagent1Stream.respondWithError(new Error("Simulated subagent error"));
 
-        await driver.assertDisplayBufferContains("❌ error_task");
+        await driver.assertDisplayBufferContains("prompt: (~3 tok) error_task");
 
         const subagent2Stream =
           await driver.mockAnthropic.awaitPendingStreamWithText("success_task");
@@ -766,7 +771,7 @@ describe("per-agent expansion", () => {
       });
 
       // Wait for result to appear
-      await driver.assertDisplayBufferContains("✅ Do a task");
+      await driver.assertDisplayBufferContains("Do a task and report back");
 
       // Verify yielded text is NOT shown initially
       const displayBuffer = driver.getDisplayBuffer();
@@ -778,7 +783,10 @@ describe("per-agent expansion", () => {
       expect(contentBefore).not.toContain("The answer is 42");
 
       // Press = to expand the agent detail
-      await driver.triggerDisplayBufferKeyOnContent("✅ Do a task", "=");
+      await driver.triggerDisplayBufferKeyOnContent(
+        "Do a task and report back",
+        "=",
+      );
 
       // Verify yielded text IS shown after expansion
       await driver.assertDisplayBufferContains("The answer is 42");
@@ -855,10 +863,24 @@ describe("per-agent expansion", () => {
         });
 
         // Wait for completed results
-        await driver.assertDisplayBufferContains("✅ First task");
+        await driver.assertDisplayBufferContains("First task agent");
+
+        // Let the parent thread finish so the display buffer is stable
+        const parentResume =
+          await driver.mockAnthropic.awaitPendingStreamWithText(
+            "All sub-agents completed",
+          );
+        parentResume.respond({
+          stopReason: "end_turn",
+          text: "All done.",
+          toolRequests: [],
+        });
 
         // Press = on first agent to expand it
-        await driver.triggerDisplayBufferKeyOnContent("First task agent", "=");
+        await driver.triggerDisplayBufferKeyOnContent(
+          "prompt: (~4 tok) First task agent",
+          "=",
+        );
 
         // Verify first agent's yielded text is shown
         await driver.assertDisplayBufferContains("Result from first agent");

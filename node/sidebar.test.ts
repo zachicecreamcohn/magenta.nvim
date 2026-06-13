@@ -301,10 +301,10 @@ describe("node/sidebar.test.ts", () => {
 
 // Helper function to extract token count from winbar title
 function extractTokenCount(winbar: string): number {
-  const match = winbar.match(/\[~?(\d+)K?\s+tokens\]/);
+  const match = winbar.match(/\[~?(\d+)(k)?\s+tok\]/);
   if (!match) return 0;
 
-  if (match[1] && match[0].includes("K")) {
+  if (match[1] && match[2] === "k") {
     return parseInt(match[1], 10) * 1000;
   }
   return parseInt(match[1], 10);

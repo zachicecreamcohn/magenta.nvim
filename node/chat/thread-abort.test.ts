@@ -46,10 +46,13 @@ it("forks a thread while streaming without aborting source", async () => {
     await driver.inputMagentaText("Actually, tell me about 5+5");
     await driver.send();
 
-    // A new thread should be created and receive the forked message
-    const forkedStream = await driver.mockAnthropic.awaitPendingStream({
-      message: "forked thread request",
-    });
+    // A new thread should be created and receive the forked message.
+    // The source thread is still streaming (fork no longer aborts it), so
+    // match the forked stream explicitly by its follow-up message text.
+    const forkedStream = await driver.mockAnthropic.awaitPendingStreamWithText(
+      "Actually, tell me about 5+5",
+      { message: "forked thread request" },
+    );
 
     expect(forkedStream.messages).toMatchSnapshot();
 

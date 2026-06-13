@@ -6,6 +6,8 @@
 - openai agent
 - script overview bells should only ring when one of the threads stopped running, or the entire script is done. Not on a yield from a single subthread. Script bells should propagate to neovim / the terminal
 - more obvious visual distinction in script summary of what's a log message and what's a subthread
+- multiple invocations of the script should show up separately on the thread overview, each individually collapsible
+- multi-level expansion for scripts in the thread overview. Don't show yielded content by default
 
 # Sandboxes
 

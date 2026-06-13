@@ -268,7 +268,7 @@ Content
     );
   });
 
-  it("shows no skills section when no user skills are configured", async () => {
+  it("shows only the built-in skill when no user skills are configured", async () => {
     await withDriver(
       {
         options: {
@@ -281,8 +281,10 @@ Content
         const thread = driver.magenta.chat.getActiveThread();
         const systemPrompt = thread.core.state.systemPrompt;
 
-        // No skills directories configured, so no skills section
-        expect(systemPrompt).not.toContain("Available Skills");
+        // The built-in skill is always discovered, so the section is present,
+        // but no user-configured skills should appear.
+        expect(systemPrompt).toContain("Available Skills");
+        expect(systemPrompt).toContain("authoring-magenta-scripts");
       },
     );
   });
@@ -387,8 +389,10 @@ allowed-tools: Bash(git show:*), Bash(git fetch: *), Bash(git diff:*)
         const thread = driver.magenta.chat.getActiveThread();
         const systemPrompt = thread.core.state.systemPrompt;
 
-        // No skills directory exists, so no skills section
-        expect(systemPrompt).not.toContain("Available Skills");
+        // The user-configured directory does not exist, but the built-in
+        // skill is still discovered, so the section is present.
+        expect(systemPrompt).toContain("Available Skills");
+        expect(systemPrompt).toContain("authoring-magenta-scripts");
       },
     );
   });

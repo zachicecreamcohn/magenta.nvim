@@ -486,19 +486,19 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
       // Verify hierarchical display - subtrees are collapsed by default
       await driver.assertDisplayBufferContains("# Threads");
       await driver.assertDisplayBufferContains(
-        `- 🔔 ▶ This is the parent thread: ⏳ executing tools (1 subthreads)`,
+        `- ▶ This is the parent thread: ⏳ executing tools (1 subthreads)`,
       );
       await driver.assertDisplayBufferContains(
-        `* 🔔 ▶ This is another parent thread: ⏳ executing tools (1 subthreads)`,
+        `* ▶ This is another parent thread: ⏳ executing tools (1 subthreads)`,
       );
 
       // Expand the first root thread to see children
       await driver.triggerDisplayBufferKeyOnContent(
-        `- 🔔 ▶ This is the parent thread: ⏳ executing tools (1 subthreads)`,
+        `- ▶ This is the parent thread: ⏳ executing tools (1 subthreads)`,
         "=",
       );
       await driver.assertDisplayBufferContains(
-        `- 🔔 ▼ This is the parent thread: ⏳ executing tools (1 subthreads)`,
+        `- ▼ This is the parent thread: ⏳ executing tools (1 subthreads)`,
       );
       await driver.assertDisplayBufferContains(
         `  - This is a child thread task: ⏳ streaming response`,
@@ -604,19 +604,19 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
 
       // Verify hierarchy shows collapsed root threads with expand indicators
       await driver.assertDisplayBufferContains(
-        `- 🔔 ▶ Parent with yielding child: ⏳ streaming response (1 subthreads)`,
+        `- ▶ Parent with yielding child: ⏳ streaming response (1 subthreads)`,
       );
       await driver.assertDisplayBufferContains(
-        `* 🔔 ▶ Parent with stopping child: ⏳ executing tools (1 subthreads)`,
+        `* ▶ Parent with stopping child: ⏳ executing tools (1 subthreads)`,
       );
 
       // Expand a root to see child states
       await driver.triggerDisplayBufferKeyOnContent(
-        `* 🔔 ▶ Parent with stopping child: ⏳ executing tools (1 subthreads)`,
+        `* ▶ Parent with stopping child: ⏳ executing tools (1 subthreads)`,
         "=",
       );
       await driver.assertDisplayBufferContains(
-        `* 🔔 ▼ Parent with stopping child: ⏳ executing tools (1 subthreads)`,
+        `* ▼ Parent with stopping child: ⏳ executing tools (1 subthreads)`,
       );
       await driver.assertDisplayBufferContains(
         `  - 🔔 Just stop without yielding: ⏹️ stopped (end_turn)`,
@@ -660,7 +660,7 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
 
       // Expand the root thread to see children
       await driver.triggerDisplayBufferKeyOnContent(
-        `* 🔔 ▶ Parent thread message: ⏳ executing tools (1 subthreads)`,
+        `* ▶ Parent thread message: ⏳ executing tools (1 subthreads)`,
         "=",
       );
 
@@ -679,7 +679,7 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
 
       await driver.magenta.command("threads-overview");
       await driver.triggerDisplayBufferKeyOnContent(
-        `- 🔔 ▼ Parent thread message: ⏳ executing tools (1 subthreads)`,
+        `- ▼ Parent thread message: ⏳ executing tools (1 subthreads)`,
         "<CR>",
       );
 
@@ -736,7 +736,7 @@ describe("node/render-tools/spawn-subagents.test.ts", () => {
 
       // Verify different status displays
       await driver.assertDisplayBufferContains(
-        `- 🔔 Test message: ⏹️ stopped (end_turn)`,
+        `- Test message: ⏹️ stopped (end_turn)`,
       );
     });
   });

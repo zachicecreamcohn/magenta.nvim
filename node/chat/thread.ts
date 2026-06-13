@@ -1,5 +1,3 @@
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import type {
   GitContextUpdate,
   GitState,
@@ -20,7 +18,6 @@ import {
   type ToolRequestId,
 } from "@magenta/core";
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
-import player from "play-sound";
 import type { Lsp } from "../capabilities/lsp.ts";
 import type { SandboxViolationHandler } from "../capabilities/sandbox-violation-handler.ts";
 import type { FileUpdates } from "../context/context-manager.ts";
@@ -41,6 +38,7 @@ import type { Dispatch } from "../tea/tea.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { HomeDir, NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { Chat } from "./chat.ts";
+import { notifyUser } from "./notify.ts";
 
 export type SandboxRoot = {
   readonly isSandboxBypassed: boolean;
@@ -338,8 +336,10 @@ export class Thread {
       turnEnded: (payload: { reason: "end_turn" | "aborted" | "error" }) => {
         this.myDispatch({ type: "turn-ended" });
         if (payload.reason === "end_turn" || payload.reason === "error") {
-          this.playChimeSound();
-          this.sendTerminalBell();
+          notifyUser({
+            nvim: this.context.nvim,
+            options: this.context.options,
+          });
         }
       },
       setupResubmit: (threadId: ThreadId, lastUserMessage: string) =>
@@ -824,8 +824,7 @@ export class Thread {
         return;
 
       case "permission-pending-change":
-        this.playChimeSound();
-        this.sendTerminalBell();
+        notifyUser({ nvim: this.context.nvim, options: this.context.options });
         return;
 
       case "tool-progress":
@@ -884,52 +883,5 @@ export class Thread {
 
   async abortAndWait(): Promise<void> {
     await this.core.abort();
-  }
-
-  private sendTerminalBell(): void {
-    if (this.context.options.bellOnNotify === false) {
-      return;
-    }
-    this.context.nvim.call("nvim_chan_send", [2, "\x07"]).catch((err) => {
-      this.context.nvim.logger.error(
-        `Failed to send terminal bell: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    });
-  }
-
-  private playChimeSound(): void {
-    const actualVolume = this.context.options.chimeVolume;
-
-    if (!actualVolume) {
-      return;
-    }
-
-    try {
-      const play = player();
-      const chimeFile = join(
-        dirname(fileURLToPath(import.meta.url)),
-        "..",
-        "..",
-        "chime.wav",
-      );
-
-      const playOptions = {
-        afplay: ["-v", actualVolume.toString()],
-        aplay: ["-v", `${Math.round(actualVolume * 100).toString()}%`],
-        mpg123: ["-f", Math.round(actualVolume * 32768).toString()],
-      };
-
-      play.play(chimeFile, playOptions, (err: Error | null) => {
-        if (err) {
-          this.context.nvim.logger.error(
-            `Failed to play chime sound: ${err.message}`,
-          );
-        }
-      });
-    } catch (error) {
-      this.context.nvim.logger.error(
-        `Error setting up chime sound: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
   }
 }

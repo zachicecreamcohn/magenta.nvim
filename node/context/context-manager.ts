@@ -194,6 +194,11 @@ export function renderContextUpdate(
   for (const path in contextUpdates) {
     const absFilePath = path as AbsFilePath;
     const update = contextUpdates[absFilePath];
+    const pathForDisplay = displayPath(
+      context.cwd,
+      absFilePath,
+      context.homeDir,
+    );
 
     if (update.update.status === "ok") {
       let changeIndicator = "";
@@ -267,7 +272,7 @@ export function renderContextUpdate(
       }
 
       const fileLine = withBindings(
-        d`- \`${absFilePath}\`${pdfInfo} ${changeIndicator}`,
+        d`- \`${pathForDisplay}\`${pdfInfo} ${changeIndicator}`,
         {
           "<CR>": () => openFile(absFilePath, core, context),
           "=": () => view.onToggle(absFilePath),
@@ -277,7 +282,7 @@ export function renderContextUpdate(
       fileUpdates.push(d`${fileLine}\n${expandedBody}`);
     } else {
       fileUpdates.push(
-        d`- \`${absFilePath}\` [Error: ${update.update.error}]\n`,
+        d`- \`${pathForDisplay}\` [Error: ${update.update.error}]\n`,
       );
     }
   }

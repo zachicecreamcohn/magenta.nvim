@@ -1,5 +1,7 @@
 local M = {}
 
+local constants = require('magenta.completion.constants')
+
 -- Create fzf command for git files
 M.create_git_fzf_command = function(git_files, search_term)
   -- Create a temporary list of file paths
@@ -50,7 +52,7 @@ M.get_open_buffer_paths = function()
     -- Only include loaded, listed buffers with names
     if vim.api.nvim_buf_is_loaded(bufnr) and vim.bo[bufnr].buflisted then
       local buf_name = vim.api.nvim_buf_get_name(bufnr)
-      if buf_name and buf_name ~= '' then
+      if buf_name and buf_name ~= '' and not constants.is_magenta_buffer(buf_name) then
         -- Convert to relative path from cwd
         local relative_path = vim.fn.fnamemodify(buf_name, ':.')
         -- Remove leading './' if present

@@ -108,20 +108,10 @@ function source:complete(params, callback)
         end
       end,
       on_completion = function()
-        if #items == 0 then
-          callback({
-            items = { {
-              label = '@file:',
-              detail = '[buffer]',
-              filterText = filter_text,
-              data = { path = nil, is_buffer = true },
-              kind = cmp.lsp.CompletionItemKind.File
-            } },
-            isIncomplete = true
-          })
-        else
-          callback({ items = items, isIncomplete = true })
-        end
+        -- When no open buffers match, return empty items rather than a
+        -- placeholder. The file_files source keeps the menu open and shows
+        -- real matches, so a stray '@file:' entry here would just be noise.
+        callback({ items = items, isIncomplete = true })
       end
     })
   else

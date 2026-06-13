@@ -177,7 +177,8 @@ RIGHT: where is X is handled?
 
 exports[`followup user message text is visible after tool-use cycle > followup-message-after-tool-use 1`] = `
 "# [ Untitled ]
-⚙️ [System Prompt ~2K]
+⚙️ [System Prompt ~2k tok]
+🔧 [Tool Definitions (7) ~6k tok]
 
 # user:
 Read a file for me
@@ -185,7 +186,7 @@ Read a file for me
 # assistant:
 I'll read the file for you.
 👀 \`poem.txt\`
-✅ 5 lines (~48 tok)
+✅ \`poem.txt\` (~48 tok)
 [input: 1000, output: 5000]
 📋 [System Reminder]
 I've read the file. It contains a poem about moonlight.
@@ -195,18 +196,19 @@ Now edit the poem to be about sunshine
 # assistant:
 I'll edit the poem for you.
 
+▶ 1 file in context
 
-
-Streaming response ⠁"
+Stopped (end_turn)  [input: 1000, output: 5000] "
 `;
 
 exports[`followup user message text is visible with context updates > followup-with-context-updates 1`] = `
 "# [ Untitled ]
-⚙️ [System Prompt ~2K]
+⚙️ [System Prompt ~2k tok]
+🔧 [Tool Definitions (7) ~6k tok]
 
 # user:
 Context Updates:
-- \`poem.txt\` [ +5 ]
+- \`poem.txt\` [ ~39 tok ]
 
 Help me with this poem
 📋 [System Reminder]
@@ -214,16 +216,16 @@ Help me with this poem
 I can see the poem. What would you like me to do?
 # user:
 Context Updates:
-- \`poem.txt\` [ +2 / -4 ]
+- \`poem.txt\` [ +2 / -4, ~87 tok ]
 
 Now make the poem longer please
 📋 [System Reminder]
 # assistant:
 I'll make the poem longer.
 
+▶ 1 file in context
 
-
-Streaming response ⠁"
+Stopped (end_turn)  [input: 1000, output: 5000] "
 `;
 
 exports[`forks a thread while streaming by aborting the stream first 1`] = `
@@ -772,7 +774,8 @@ Do not acknowledge this reminder or mention it to the user.
 
 exports[`renders successive tool uses with single assistant header and inline metadata > successive-tool-uses-display 1`] = `
 "# [ Untitled ]
-⚙️ [System Prompt ~2K]
+⚙️ [System Prompt ~2k tok]
+🔧 [Tool Definitions (7) ~6k tok]
 
 # user:
 Read two files for me
@@ -780,12 +783,12 @@ Read two files for me
 # assistant:
 I'll read the first file.
 👀 \`poem.txt\`
-✅ 5 lines (~48 tok)
+✅ \`poem.txt\` (~48 tok)
 [input: 1000, output: 5000]
 📋 [System Reminder]
 💭 [Thinking]
 👀 \`poem2.txt\`
-✅ 5 lines (~48 tok)
+✅ \`poem2.txt\` (~48 tok)
 [input: 1000, output: 5000]
 📋 [System Reminder]
 I've read both files for you.
