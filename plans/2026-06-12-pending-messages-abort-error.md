@@ -122,7 +122,9 @@ which joins `type: "user"` pending messages with `\n`, always drains the queue
 when there is text. Decision: drain happens regardless of thread type to keep
 the empty-queue invariant; emit is gated by `isUserFacing`. Root wiring of the
 new event is deferred to Stage 2. Unit tests added in `thread-core.test.ts`
-("ThreadCore.abort recovers pending messages"). Pre-existing snapshot/render
+("ThreadCore.abort recovers pending messages"), including a test mixing
+a `user` + `system` pending message to cover the `type === "user"` filter
+branch (system messages are excluded from recovered text). Pre-existing snapshot/render
 test failures are unrelated (confirmed failing on base commit).
 
 - Goal: aborting an in-flight turn that has queued `@async` messages drains the

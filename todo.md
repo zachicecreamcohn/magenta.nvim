@@ -1,7 +1,8 @@
 # top of mind
 
-- edit a previous user message. E on a user message pops it into the input buffer, and resets the thread to that point, so you can change the message and resubmit
 - pending messages. When the stream errors or is aborted, they should move back into the input buffer (for an abort), or be appended to the previous message (for an error)
+- pending messages should be highlighted as a user message. Extra long pending messages should be trimmed in preview / expandable so they don't take up too much visual space by default
+- edit a previous user message. E on a user message pops it into the input buffer, and resets the thread to that point, so you can change the message and resubmit
 - openai agent
 
 # Sandboxes

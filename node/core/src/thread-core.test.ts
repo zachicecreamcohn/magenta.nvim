@@ -443,6 +443,27 @@ describe("ThreadCore.abort recovers pending messages", () => {
     expect(core.state.pendingMessages).toEqual([]);
   });
 
+  it("excludes system pending messages from recovered text", async () => {
+    const { core, mockClient } = createThreadCoreWithMock();
+    const recovered: Array<{ threadId: ThreadId; text: string }> = [];
+    core.on("recoverPendingMessages", (threadId, text) => {
+      recovered.push({ threadId, text });
+    });
+    core.sendMessage([{ type: "user", text: "hello" }]);
+    const stream = await mockClient.awaitStream();
+    stream.streamText("partial response");
+    core.update({
+      type: "push-pending-messages",
+      messages: [
+        { type: "user", text: "queued user" },
+        { type: "system", text: "queued system" },
+      ],
+    });
+    await core.abort();
+    expect(core.state.pendingMessages).toEqual([]);
+    expect(recovered).toHaveLength(1);
+    expect(recovered[0].text).toBe("queued user");
+  });
   it("does not emit recoverPendingMessages for subagent threads", async () => {
     const { core, mockClient } = createThreadCoreWithMock({
       threadType: "subagent" as ThreadType,
