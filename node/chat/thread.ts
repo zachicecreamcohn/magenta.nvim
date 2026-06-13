@@ -76,6 +76,10 @@ export type Msg =
       type: "toggle-context-files-expanded";
     }
   | {
+      type: "toggle-pending-message";
+      index: number;
+    }
+  | {
       type: "toggle-expand-content";
       messageIdx: number;
       contentIdx: number;
@@ -178,6 +182,7 @@ export class Thread {
     showToolDefinitions: boolean;
     expandedToolDefinitions: { [toolName: string]: boolean };
     contextFilesExpanded: boolean;
+    pendingMessagesExpanded: { [index: number]: boolean };
     messageViewState: { [messageIdx: number]: MessageViewState };
     toolViewState: { [toolRequestId: ToolRequestId]: ToolViewState };
     compactionViewState: {
@@ -260,6 +265,7 @@ export class Thread {
       showToolDefinitions: false,
       expandedToolDefinitions: {},
       contextFilesExpanded: false,
+      pendingMessagesExpanded: {},
       messageViewState: {},
       toolViewState: {},
       compactionViewState: {},
@@ -733,6 +739,11 @@ export class Thread {
         this.state.contextFilesExpanded = !this.state.contextFilesExpanded;
         return;
 
+      case "toggle-pending-message":
+        this.state.pendingMessagesExpanded[msg.index] =
+          !this.state.pendingMessagesExpanded[msg.index];
+        return;
+
       case "toggle-expand-content": {
         const viewState = this.state.messageViewState[msg.messageIdx] || {};
         viewState.expandedContent = viewState.expandedContent || {};
@@ -818,6 +829,9 @@ export class Thread {
         return;
 
       case "tool-progress":
+        if (this.core.state.pendingMessages.length === 0) {
+          this.state.pendingMessagesExpanded = {};
+        }
         return;
 
       case "turn-ended":

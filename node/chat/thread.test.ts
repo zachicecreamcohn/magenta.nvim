@@ -275,6 +275,42 @@ it("recovers pending messages alone when error arrives after assistant content",
   });
 });
 
+it("renders a long pending message trimmed with expand/collapse toggle", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText("Original message");
+    await driver.send();
+
+    await driver.mockAnthropic.awaitPendingStream();
+
+    const longText = Array.from({ length: 60 }, (_, i) => `word${i + 1}`).join(
+      " ",
+    );
+    await driver.inputMagentaText(`@async ${longText}`);
+    await driver.send();
+
+    const thread = driver.magenta.chat.getActiveThread();
+    expect(thread.core.state.pendingMessages).toHaveLength(1);
+
+    await driver.assertDisplayBufferContains("✉️ queued:");
+    await driver.assertDisplayBufferContains("word1");
+    await driver.assertDisplayBufferContains("[expand]");
+    // Text past the preview threshold is hidden by default.
+    await driver.assertDisplayBufferDoesNotContain("word60");
+
+    await driver.triggerDisplayBufferKeyOnContent("[expand]", "=");
+
+    await driver.assertDisplayBufferContains("word60");
+    await driver.assertDisplayBufferContains("[collapse]");
+    // View-only toggle must not mutate the queue.
+    expect(thread.core.state.pendingMessages).toHaveLength(1);
+
+    await driver.triggerDisplayBufferKeyOnContent("[collapse]", "=");
+    await driver.assertDisplayBufferContains("[expand]");
+    await driver.assertDisplayBufferDoesNotContain("word60");
+  });
+});
+
 it("forks a thread with multiple messages into a new thread", async () => {
   await withDriver({}, async (driver) => {
     // 1. Open the sidebar
@@ -1481,7 +1517,7 @@ it("handles @async messages by queueing them and sending on next tool response",
     await driver.send();
 
     // Wait for the pending message indicator to appear in the display
-    await driver.assertDisplayBufferContains("pending message");
+    await driver.assertDisplayBufferContains("✉️ queued:");
 
     // Approve the file read to complete the tool execution
     await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");

@@ -323,6 +323,50 @@ function editedFilesSummaryView(
   )}`;
 }
 
+const PENDING_PREVIEW_LINES = 3;
+const PENDING_PREVIEW_CHARS = 200;
+
+function renderPendingMessage(
+  text: string,
+  index: number,
+  thread: Thread,
+  dispatch: Dispatch<Msg>,
+): VDOMNode {
+  const expanded = thread.state.pendingMessagesExpanded[index] || false;
+  const lines = text.split("\n");
+  const needsTrim =
+    lines.length > PENDING_PREVIEW_LINES || text.length > PENDING_PREVIEW_CHARS;
+
+  let body: VDOMNode;
+  let toggle: VDOMNode = d``;
+  if (needsTrim && !expanded) {
+    let preview = lines.slice(0, PENDING_PREVIEW_LINES).join("\n");
+    if (preview.length > PENDING_PREVIEW_CHARS) {
+      preview = preview.slice(0, PENDING_PREVIEW_CHARS);
+    }
+    body = d`${preview}…\n`;
+    toggle = withBindings(
+      withExtmark(d`[expand]\n`, { hl_group: "@comment" }),
+      { "=": () => dispatch({ type: "toggle-pending-message", index }) },
+    );
+  } else {
+    body = d`${text}\n`;
+    if (needsTrim) {
+      toggle = withBindings(
+        withExtmark(d`[collapse]\n`, { hl_group: "@comment" }),
+        { "=": () => dispatch({ type: "toggle-pending-message", index }) },
+      );
+    }
+  }
+
+  return withExtmark(
+    d`${withExtmark(d`# ✉️ queued:\n`, {
+      hl_group: "@markup.heading.1.markdown",
+    })}${body}${toggle}`,
+    { hl_group: "CursorLine", hl_eol: true },
+  );
+}
+
 export const view: View<{
   thread: Thread;
   dispatch: Dispatch<Msg>;
@@ -404,11 +448,9 @@ ${contextFilesView(thread.contextManager, contextViewCtx(thread), {
   );
   const pendingMessagesView =
     thread.core.state.pendingMessages.length > 0
-      ? d`\n✉️  ${thread.core.state.pendingMessages.length.toString()} pending message${thread.core.state.pendingMessages.length === 1 ? "" : "s"}:
-${thread.core.state.pendingMessages.map(
-  (m) => d`> ${m.text}
-`,
-)}`
+      ? d`\n${thread.core.state.pendingMessages.map((m, index) =>
+          renderPendingMessage(m.text, index, thread, dispatch),
+        )}`
       : d``;
 
   // Helper to check if a message is composed entirely of auto-generated content

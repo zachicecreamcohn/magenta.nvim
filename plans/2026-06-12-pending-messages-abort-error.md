@@ -220,6 +220,21 @@ assistant-last branch and the empty-baseText/pending-only composition branch).
 ## Stage 4: View — render pending messages as user blocks with expand/collapse
 
 - Goal: pending messages render with the user-block highlight and a `✉️` queued
+
+**Status: DONE.** Rewrote `pendingMessagesView` in `thread-view.ts` to render each
+pending message as a user block via `withExtmark(..., { hl_group: "CursorLine",
+hl_eol: true })` with a `# ✉️ queued:` header. Added `renderPendingMessage` helper
+that trims long messages (preview = first 3 lines or 200 chars, whichever is
+shorter) with an `[expand]`/`[collapse]` toggle bound to `=`. Expand state lives
+in new view-only thread state `pendingMessagesExpanded: { [index: number]: boolean }`
+(toggled via new `toggle-pending-message` Msg variant) and is cleared in the
+`tool-progress` handler whenever `core.state.pendingMessages` is empty, so stale
+indices don't leak after a drain. Toggle is view-only and never mutates the queue.
+Integration test added in `thread.test.ts` ("renders a long pending message
+trimmed with expand/collapse toggle"). Updated the existing "@async ... next tool
+response" test assertion from "pending message" to "✉️ queued:" to match the new
+header. Pre-existing snapshot/render failures across the suite are unrelated
+(confirmed identical failure set via git stash on base commit c518103).
   marker; long ones show a trimmed preview with an `[expand]`/`[collapse]` toggle.
 - Implementation sketch: rewrite `pendingMessagesView` in `thread-view.ts` to use
   `withExtmark(..., { hl_group: "CursorLine", hl_eol: true })` and a preview/full
