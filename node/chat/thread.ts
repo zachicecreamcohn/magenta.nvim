@@ -336,10 +336,13 @@ export class Thread {
       turnEnded: (payload: { reason: "end_turn" | "aborted" | "error" }) => {
         this.myDispatch({ type: "turn-ended" });
         if (payload.reason === "end_turn" || payload.reason === "error") {
-          notifyUser({
-            nvim: this.context.nvim,
-            options: this.context.options,
-          });
+          notifyUser(
+            {
+              nvim: this.context.nvim,
+              options: this.context.options,
+            },
+            "thread-turn-end",
+          );
         }
       },
       setupResubmit: (threadId: ThreadId, lastUserMessage: string) =>
@@ -824,7 +827,10 @@ export class Thread {
         return;
 
       case "permission-pending-change":
-        notifyUser({ nvim: this.context.nvim, options: this.context.options });
+        notifyUser(
+          { nvim: this.context.nvim, options: this.context.options },
+          "thread-attention",
+        );
         return;
 
       case "tool-progress":

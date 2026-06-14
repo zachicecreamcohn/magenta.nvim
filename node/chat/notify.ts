@@ -9,6 +9,18 @@ export type NotifyContext = {
   options: MagentaOptions;
 };
 
+export type NotifyReason =
+  | "thread-attention"
+  | "thread-turn-end"
+  | "script-finished";
+
+/** Test-observable record of every notification raised via notifyUser. */
+export const notificationLog: { reason: NotifyReason }[] = [];
+
+export function resetNotificationLog(): void {
+  notificationLog.length = 0;
+}
+
 /**
  * Notify the user that something needs their attention: play the chime sound
  * (respecting `chimeVolume`) and ring the bell (respecting `bellOnNotify`).
@@ -19,7 +31,8 @@ export type NotifyContext = {
  * is neovim's standard way of producing an error-bell programmatically (there
  * is no dedicated "beep" API); it respects the user's 'belloff' setting.
  */
-export function notifyUser(context: NotifyContext): void {
+export function notifyUser(context: NotifyContext, reason: NotifyReason): void {
+  notificationLog.push({ reason });
   playChimeSound(context);
   sendBell(context);
 }

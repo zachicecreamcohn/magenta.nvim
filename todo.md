@@ -1,6 +1,5 @@
 # top of mind
 
-- magenta is crashing occasionally. Debug that...
 - edit a previous user message. E on a user message pops it into the input buffer, and resets the thread to that point, so you can change the message and resubmit
 - openai agent
 

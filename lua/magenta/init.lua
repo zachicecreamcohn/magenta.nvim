@@ -11,13 +11,41 @@ local M = {}
 -- orphaned autocmds/commands don't keep firing against a dead channel and
 -- spamming errors (issue: BufEnter/WinClosed/:Magenta would otherwise
 -- continue invoking rpcnotify against an invalid channel indefinitely).
-M.teardown_bridge = function()
+-- Prints the debug recipe to :messages so that, when the bridge is torn
+-- down unexpectedly (node process still alive but :Magenta gone), the
+-- user has the commands handy to investigate next time.
+local function log_teardown_debug_hint()
+  vim.notify(table.concat({
+    "magenta: bridge torn down. To debug:",
+    "  :lua local m=require('magenta') print('channel_id='..tostring(m.channel_id), 'job_id='..tostring(m.job_id))",
+    "  :lua print(vim.inspect(vim.fn.jobwait({require('magenta').job_id}, 0)))  -- -1 = node still running",
+    "  :messages  -- look for the teardown reason + stack trace above",
+    "To recover without restarting nvim:",
+    "  :lua local m=require('magenta'); if m.job_id then pcall(vim.fn.jobstop, m.job_id) end; m.start(true)",
+  }, "\n"), vim.log.levels.WARN)
+end
+
+-- `reason` describes who triggered the teardown. `expected` marks routine
+-- teardowns (nvim exiting, re-registering a fresh bridge) that should not
+-- emit the noisy debug hint. Unexpected teardowns (channel death/mismatch,
+-- node crash) log a stack trace and the debug recipe.
+M.teardown_bridge = function(reason, expected)
+  local had_bridge = M.channel_id ~= nil or M.bridge_augroup ~= nil
   if M.bridge_augroup then
     pcall(vim.api.nvim_del_augroup_by_id, M.bridge_augroup)
     M.bridge_augroup = nil
   end
   pcall(vim.api.nvim_del_user_command, "Magenta")
   M.channel_id = nil
+
+  if had_bridge and not expected then
+    vim.notify(
+      "magenta: tearing down bridge (reason: " .. tostring(reason or "unknown") .. ")\n"
+        .. debug.traceback("", 2),
+      vim.log.levels.WARN
+    )
+    log_teardown_debug_hint()
+  end
 end
 
 -- Guarded rpcnotify: returns true on success, false if the channel is
@@ -26,12 +54,12 @@ end
 -- noisy "Invalid channel" errors on every subsequent event.
 local function safe_rpcnotify(channel_id, method, ...)
   if not channel_id or M.channel_id ~= channel_id then
-    M.teardown_bridge()
+    M.teardown_bridge("channel mismatch in safe_rpcnotify (method=" .. tostring(method) .. ")")
     return false
   end
-  local ok = pcall(vim.rpcnotify, channel_id, method, ...)
+  local ok, err = pcall(vim.rpcnotify, channel_id, method, ...)
   if not ok then
-    M.teardown_bridge()
+    M.teardown_bridge("rpcnotify failed (method=" .. tostring(method) .. ", err=" .. tostring(err) .. ")")
   end
   return ok
 end
@@ -107,6 +135,7 @@ M.start = function(silent)
   if use_source then
     cmd = {
       "node",
+      "--disable-warning=ExperimentalWarning",
       "--experimental-transform-types",
       "--import", plugin_root .. "node/boot.mjs",
       plugin_root .. "node/index.ts",
@@ -126,7 +155,7 @@ M.start = function(silent)
             return function(job_id, exit_code, event)
               -- Clean up autocmds/user command bound to the now-dead
               -- channel so nvim stays usable after a node crash.
-              M.teardown_bridge()
+              M.teardown_bridge("node job exited (code=" .. tostring(exit_code) .. ")")
               if log_exit then
                 log_exit(job_id, exit_code, event)
               end
@@ -165,7 +194,7 @@ M.bridge = function(channelId)
 
   -- If a previous node process was running, clear its autocmds and
   -- command before we register new ones with the fresh channel id.
-  M.teardown_bridge()
+  M.teardown_bridge("re-registering bridge", true)
 
   -- Store the channel ID for later use by other functions
   M.channel_id = channelId
@@ -218,7 +247,7 @@ M.bridge = function(channelId)
         if M.job_id then
           pcall(vim.fn.jobstop, M.job_id)
         end
-        M.teardown_bridge()
+        M.teardown_bridge("VimLeavePre", true)
       end
     }
   )

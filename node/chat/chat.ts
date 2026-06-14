@@ -175,6 +175,10 @@ export class Chat implements ThreadManager {
           this.threadWrappers[msg.id].lastActivityTime = Date.now();
         }
 
+        if (msg.msg.type === "permission-pending-change") {
+          this.threadWrappers[msg.id].lastActivityTime = Date.now();
+        }
+
         if (msg.msg.type === "abort") {
           // Find all child threads of the parent thread and abort them directly
           for (const [threadId, threadWrapper] of Object.entries(
@@ -695,6 +699,27 @@ export class Chat implements ThreadManager {
     return views;
   }
 
+  /** A thread wants the user's attention if it has unviewed activity (a
+   * completed turn or a pending permission approval) and has not yielded. */
+  threadNeedsAttention(threadId: ThreadId): boolean {
+    const wrapper = this.threadWrappers[threadId];
+    if (wrapper === undefined || wrapper.state !== "initialized") return false;
+    const core = wrapper.thread.core;
+    // A yielded thread has finished its work; a streaming thread is actively
+    // working. Neither needs the user's attention.
+    if (core.state.mode.type === "yielded") return false;
+    if (core.getProviderStatus().type === "streaming") return false;
+    return wrapper.lastActivityTime > wrapper.lastViewedTime;
+  }
+
+  /** Whether any thread in a script-owned subtree wants attention. */
+  scriptSubtreeNeedsAttention(threadId: ThreadId): boolean {
+    const childrenMap = this.buildChildrenMap();
+    const visit = (id: ThreadId): boolean =>
+      this.threadNeedsAttention(id) || (childrenMap.get(id) ?? []).some(visit);
+    return visit(threadId);
+  }
+
   /**
    * Render a script-owned thread and its subtree, indented starting at the
    * given base depth (the script row sits above at depth 0). Used by the
@@ -846,10 +871,7 @@ export class Chat implements ThreadManager {
     const sandboxIndicator =
       depth === 0 && isSandboxBypassed ? withError(d` SANDBOX OFF `) : d``;
 
-    const hasUnviewedActivity =
-      threadWrapper !== undefined &&
-      threadWrapper.lastActivityTime > threadWrapper.lastViewedTime;
-    const bell = hasUnviewedActivity ? "🔔 " : "";
+    const bell = this.threadNeedsAttention(threadId) ? "🔔 " : "";
 
     const expandIndicator = options?.hasChildren
       ? options.isExpanded

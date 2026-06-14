@@ -15,6 +15,7 @@ import {
   terminateProcess,
 } from "../capabilities/shell-utils.ts";
 import type { Chat } from "../chat/chat.ts";
+import { notifyUser } from "../chat/notify.ts";
 import type { SandboxRoot } from "../chat/thread.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
@@ -130,11 +131,19 @@ export class ScriptManager {
   }
 
   private fork(file: string): ChildProcess {
-    return spawn(process.execPath, ["--experimental-transform-types", file], {
-      stdio: ["inherit", "inherit", "inherit", "ipc"],
-      detached: true,
-      env: { ...process.env, MAGENTA_SDK_CHILD: "1" },
-    });
+    return spawn(
+      process.execPath,
+      [
+        "--disable-warning=ExperimentalWarning",
+        "--experimental-transform-types",
+        file,
+      ],
+      {
+        stdio: ["inherit", "inherit", "inherit", "ipc"],
+        detached: true,
+        env: { ...process.env, MAGENTA_SDK_CHILD: "1" },
+      },
+    );
   }
 
   /**
@@ -355,12 +364,14 @@ export class ScriptManager {
 
       case "done":
         invocation.status = "done";
+        this.notifyFinished();
         this.myDispatch({ type: "invocation-updated", id });
         this.terminateInvocation(id);
         return;
 
       case "error":
         invocation.status = "error";
+        this.notifyFinished();
         invocation.logs.push(`error: ${msg.message}`);
         invocation.entries.push({
           type: "log",
@@ -431,6 +442,13 @@ export class ScriptManager {
     }
   }
 
+  private notifyFinished(): void {
+    notifyUser(
+      { nvim: this.context.nvim, options: this.context.getOptions() },
+      "script-finished",
+    );
+  }
+
   private openScriptFile(file: string): void {
     openFileInNonMagentaWindow(file as AbsFilePath, {
       nvim: this.context.nvim,
@@ -465,10 +483,18 @@ export class ScriptManager {
         : d``;
       const isExpanded = this.expandedInvocations.has(inv.id);
       const expandIndicator = isExpanded ? "▼ " : "▶ ";
+      const needsAttention =
+        inv.status !== "running" ||
+        inv.entries.some(
+          (e) =>
+            e.type === "thread" &&
+            this.context.chat.scriptSubtreeNeedsAttention(e.threadId),
+        );
+      const bell = needsAttention ? "🔔 " : "";
 
       rows.push(
         withBindings(
-          d`\n${icon} ${expandIndicator}${sandboxIndicator}${inv.scriptName} (${inv.status})\n  ${inv.file}`,
+          d`\n${icon} ${expandIndicator}${bell}${sandboxIndicator}${inv.scriptName} (${inv.status})\n  ${inv.file}`,
           {
             "=": () =>
               this.myDispatch({ type: "toggle-invocation-expand", id: inv.id }),
