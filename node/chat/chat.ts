@@ -37,7 +37,7 @@ import type { RootMsg } from "../root-msg.ts";
 import type { Sandbox } from "../sandbox-manager.ts";
 import type { ScriptInvocationId } from "../scripts/script-manager.ts";
 import type { Dispatch } from "../tea/tea.ts";
-import { d, type VDOMNode, withBindings } from "../tea/view.ts";
+import { d, type VDOMNode, withBindings, withError } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type {
   AbsFilePath,
@@ -724,6 +724,23 @@ export class Chat implements ThreadManager {
    * Collect pending-permission views for a script-owned thread's subtree, so a
    * collapsed script row never hides a blocking permission prompt.
    */
+  approveAllPendingInSubtree(threadId: ThreadId): void {
+    this.approveSubtreePending(threadId, this.buildChildrenMap());
+  }
+
+  private approveSubtreePending(
+    threadId: ThreadId,
+    childrenMap: Map<ThreadId, ThreadId[]>,
+  ): void {
+    const wrapper = this.threadWrappers[threadId];
+    if (wrapper?.state === "initialized") {
+      wrapper.thread.sandboxViolationHandler?.approveAll();
+    }
+    for (const childId of childrenMap.get(threadId) ?? []) {
+      this.approveSubtreePending(childId, childrenMap);
+    }
+  }
+
   collectScriptSubtreeViolationViews(threadId: ThreadId): VDOMNode[] {
     return this.collectSubtreeViolationViews(threadId, this.buildChildrenMap());
   }
@@ -822,6 +839,13 @@ export class Chat implements ThreadManager {
         : undefined;
     const icon = threadType === "docker_root" ? "🐳 " : "";
 
+    const isSandboxBypassed =
+      threadWrapper?.state === "initialized"
+        ? threadWrapper.thread.isSandboxBypassed
+        : false;
+    const sandboxIndicator =
+      depth === 0 && isSandboxBypassed ? withError(d` SANDBOX OFF `) : d``;
+
     const hasUnviewedActivity =
       threadWrapper !== undefined &&
       threadWrapper.lastActivityTime > threadWrapper.lastViewedTime;
@@ -836,7 +860,7 @@ export class Chat implements ThreadManager {
       ? ` (${options.childCount} subthreads)`
       : "";
 
-    const displayLine = `${indent}${marker} ${bell}${expandIndicator}${icon}${displayName}: ${status}${childCountSuffix}`;
+    const displayLine = d`${indent}${marker} ${bell}${expandIndicator}${icon}${sandboxIndicator}${displayName}: ${status}${childCountSuffix}`;
 
     const bindings: Record<string, () => void> = {
       "<CR>": () =>
@@ -854,6 +878,13 @@ export class Chat implements ThreadManager {
         }),
     };
 
+    bindings.t = () =>
+      this.context.dispatch({
+        type: "thread-msg",
+        id: threadId,
+        msg: { type: "toggle-sandbox-bypass" },
+      });
+
     if (options?.hasChildren) {
       bindings["="] = () =>
         this.context.dispatch({
@@ -865,7 +896,7 @@ export class Chat implements ThreadManager {
         });
     }
 
-    return withBindings(d`${displayLine}`, bindings);
+    return withBindings(displayLine, bindings);
   }
 
   private renderThreadSubtree(

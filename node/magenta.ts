@@ -624,11 +624,18 @@ export class Magenta {
       }
 
       case "sandbox-bypass": {
-        const activeThreadId = this.chat.state.activeThreadId;
-        if (activeThreadId) {
+        const activeKey = this.getActiveKey();
+        if (activeKey === "overview") {
+          // In the overview, toggle whatever thread or script is under the
+          // cursor by routing through the "t" binding.
+          const mountedApp = this.bufferManager.getMountedApp(activeKey);
+          if (mountedApp) {
+            await mountedApp.onKey("t");
+          }
+        } else {
           this.dispatch({
             type: "thread-msg",
-            id: activeThreadId,
+            id: activeKey,
             msg: { type: "toggle-sandbox-bypass" },
           });
         }

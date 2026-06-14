@@ -425,11 +425,12 @@ it("toggles sandbox bypass for the whole invocation from the script root row", a
 
       await driver.magenta.command("threads-overview");
       await driver.assertDisplayBufferContains("foo (done)");
-      // 🔒 indicates sandboxed; toggling with `t` flips the invocation flag.
+      // toggling with `t` flips the invocation sandbox flag.
       await driver.triggerDisplayBufferKeyOnContent("foo (done)", "t");
 
       await pollUntil(() => inv.sandboxBypassed === true);
       expect(driver.magenta.chat.isSandboxBypassed(threadId)).toBe(true);
+      await driver.assertDisplayBufferContains("SANDBOX OFF");
     },
   );
 });

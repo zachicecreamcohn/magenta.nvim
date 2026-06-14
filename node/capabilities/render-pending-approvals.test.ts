@@ -135,6 +135,99 @@ describe("pending approvals surfaced in parent thread", () => {
     });
   });
 
+  it("toggling sandbox off auto-approves pending approvals in the subtree", async () => {
+    await withDriver({}, async (driver) => {
+      driver.mockSandbox.setState({
+        status: "unsupported",
+        reason: "disabled",
+      });
+      await driver.showSidebar();
+
+      await driver.inputMagentaText("Spawn a subagent to run a command.");
+      await driver.send();
+
+      const parentStream =
+        await driver.mockAnthropic.awaitPendingStreamWithText(
+          "Spawn a subagent",
+        );
+
+      parentStream.respond({
+        stopReason: "tool_use",
+        text: "I'll spawn a subagent.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "spawn-1" as ToolRequestId,
+              toolName: "spawn_subagents" as ToolName,
+              input: {
+                agents: [{ prompt: "Run mkdir to create a directory" }],
+              },
+            },
+          },
+        ],
+      });
+
+      const subagentStream = await driver.mockAnthropic.awaitPendingStream({
+        predicate: (stream) =>
+          stream.messages.some((msg) => {
+            if (msg.role !== "user") return false;
+            const content = msg.content;
+            if (typeof content === "string")
+              return content.includes("Run mkdir");
+            if (Array.isArray(content)) {
+              return content.some(
+                (block) =>
+                  block.type === "text" && block.text.includes("Run mkdir"),
+              );
+            }
+            return false;
+          }),
+        message: "waiting for subagent stream",
+      });
+
+      subagentStream.respond({
+        stopReason: "tool_use",
+        text: "I'll run the mkdir command.",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "bash-1" as ToolRequestId,
+              toolName: "bash_command" as ToolName,
+              input: {
+                command: "mkdir test-auto-approve-dir",
+              },
+            },
+          },
+        ],
+      });
+
+      await driver.assertDisplayBufferContains("May I run command");
+      await driver.assertDisplayBufferContains("> YES");
+
+      // Toggle the sandbox off (bypass) on the active thread tree; pending
+      // approvals in the subtree should auto-approve.
+      await driver.magenta.command("sandbox-bypass");
+
+      await driver.assertDisplayBufferDoesNotContain("> YES");
+
+      // The auto-approved command should run and produce a tool_result.
+      await driver.mockAnthropic.awaitPendingStream({
+        predicate: (stream) =>
+          stream.messages.some(
+            (m) =>
+              m.role === "user" &&
+              Array.isArray(m.content) &&
+              m.content.some(
+                (b) => b.type === "tool_result" && b.tool_use_id === "bash-1",
+              ),
+          ),
+        message: "waiting for subagent stream with bash-1 tool_result",
+      });
+    });
+  });
+
   it("spawn_subagents with multiple agents surfaces pending approvals", async () => {
     await withDriver(
       { options: { maxConcurrentSubagents: 1 } },

@@ -21,7 +21,7 @@ import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.t
 import type { MagentaOptions } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { Dispatch } from "../tea/tea.ts";
-import { d, type VDOMNode, withBindings } from "../tea/view.ts";
+import { d, type VDOMNode, withBindings, withError } from "../tea/view.ts";
 import {
   type AbsFilePath,
   expandTilde,
@@ -109,8 +109,7 @@ export class ScriptManager {
         }
         return;
       case "toggle-invocation-sandbox": {
-        const inv = this.invocations.get(msg.msg.id);
-        if (inv) inv.sandboxBypassed = !inv.sandboxBypassed;
+        this.toggleInvocationSandbox(msg.msg.id);
         return;
       }
       case "catalog-updated":
@@ -263,6 +262,19 @@ export class ScriptManager {
     invocation.child.send(msg);
   }
 
+  private toggleInvocationSandbox(id: ScriptInvocationId): void {
+    const inv = this.invocations.get(id);
+    if (!inv) return;
+    inv.sandboxBypassed = !inv.sandboxBypassed;
+    if (inv.sandboxBypassed) {
+      for (const entry of inv.entries) {
+        if (entry.type === "thread") {
+          this.context.chat.approveAllPendingInSubtree(entry.threadId);
+        }
+      }
+    }
+  }
+
   private getSandboxRoot(id: ScriptInvocationId): SandboxRoot | undefined {
     const invocation = this.invocations.get(id);
     if (!invocation) return undefined;
@@ -271,7 +283,7 @@ export class ScriptManager {
         return invocation.sandboxBypassed;
       },
       toggle: () => {
-        invocation.sandboxBypassed = !invocation.sandboxBypassed;
+        this.toggleInvocationSandbox(id);
         this.myDispatch({ type: "invocation-updated", id });
       },
     };
@@ -448,13 +460,15 @@ export class ScriptManager {
     for (const inv of this.invocations.values()) {
       const icon =
         inv.status === "running" ? "⏳" : inv.status === "done" ? "✅" : "❌";
-      const sandboxIndicator = inv.sandboxBypassed ? "🔓" : "🔒";
+      const sandboxIndicator = inv.sandboxBypassed
+        ? withError(d` SANDBOX OFF `)
+        : d``;
       const isExpanded = this.expandedInvocations.has(inv.id);
       const expandIndicator = isExpanded ? "▼ " : "▶ ";
 
       rows.push(
         withBindings(
-          d`\n${icon} ${expandIndicator}${sandboxIndicator} ${inv.scriptName} (${inv.status})\n  ${inv.file}`,
+          d`\n${icon} ${expandIndicator}${sandboxIndicator}${inv.scriptName} (${inv.status})\n  ${inv.file}`,
           {
             "=": () =>
               this.myDispatch({ type: "toggle-invocation-expand", id: inv.id }),

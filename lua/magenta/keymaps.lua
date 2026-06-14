@@ -82,7 +82,7 @@ M.default_keymaps = function()
     "n",
     "<leader>ms",
     ":Magenta sandbox-bypass<CR>",
-    { silent = true, noremap = true, desc = "Toggle sandbox bypass for current thread tree" }
+    { silent = true, noremap = true, desc = "Toggle sandbox bypass for the thread/script under the cursor" }
   )
 
 end

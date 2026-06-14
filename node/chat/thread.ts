@@ -866,9 +866,12 @@ export class Thread {
         const sandboxRoot = root.context.getSandboxRoot?.();
         if (sandboxRoot?.toggle) {
           sandboxRoot.toggle();
-          return;
+        } else {
+          root.sandboxBypassed = !root.sandboxBypassed;
         }
-        root.sandboxBypassed = !root.sandboxBypassed;
+        if (root.isSandboxBypassed) {
+          root.context.chat.approveAllPendingInSubtree(root.id);
+        }
         return;
       }
 
