@@ -144,6 +144,7 @@ function renderContentBlock(
     case "thinking":
     case "redacted_thinking":
     case "system_reminder":
+    case "system_info":
     case "fork_notification":
       return "";
 

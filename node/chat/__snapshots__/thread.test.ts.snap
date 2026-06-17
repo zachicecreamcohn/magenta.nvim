@@ -181,8 +181,9 @@ exports[`followup user message text is visible after tool-use cycle > followup-m
 🔧 [Tool Definitions (7) ~6k tok]
 
 # user:
-Read a file for me
 📋 [System Reminder]
+🖥️  [System Info]
+Read a file for me
 # assistant:
 I'll read the file for you.
 👀 \`poem.txt\`
@@ -191,8 +192,8 @@ I'll read the file for you.
 📋 [System Reminder]
 I've read the file. It contains a poem about moonlight.
 # user:
-Now edit the poem to be about sunshine
 📋 [System Reminder]
+Now edit the poem to be about sunshine
 # assistant:
 I'll edit the poem for you.
 
@@ -210,16 +211,17 @@ exports[`followup user message text is visible with context updates > followup-w
 Context Updates:
 - \`poem.txt\` [ ~39 tok ]
 
-Help me with this poem
 📋 [System Reminder]
+🖥️  [System Info]
+Help me with this poem
 # assistant:
 I can see the poem. What would you like me to do?
 # user:
 Context Updates:
 - \`poem.txt\` [ +2 / -4, ~87 tok ]
 
-Now make the poem longer please
 📋 [System Reminder]
+Now make the poem longer please
 # assistant:
 I'll make the poem longer.
 
@@ -444,6 +446,10 @@ Do not acknowledge this reminder or mention it to the user.
 </system-reminder>",
         "type": "text",
       },
+      {
+        "text": "<system-info><normalized></system-info>",
+        "type": "text",
+      },
     ],
     "role": "user",
   },
@@ -504,7 +510,6 @@ exports[`forks a thread with multiple messages into a new thread > forked-thread
   {
     "content": [
       {
-        "citations": undefined,
         "nativeMessageIdx": 0,
         "text": "What is the capital of France?",
         "type": "text",
@@ -528,13 +533,17 @@ Do not acknowledge this reminder or mention it to the user.
 </system-reminder>",
         "type": "system_reminder",
       },
+      {
+        "nativeMessageIdx": 0,
+        "text": "<system-info><normalized></system-info>",
+        "type": "system_info",
+      },
     ],
     "role": "user",
   },
   {
     "content": [
       {
-        "citations": undefined,
         "nativeMessageIdx": 1,
         "text": "The capital of France is Paris.",
         "type": "text",
@@ -560,7 +569,6 @@ Do not acknowledge this reminder or mention it to the user.
   {
     "content": [
       {
-        "citations": undefined,
         "nativeMessageIdx": 3,
         "text": "Tell me about Italy",
         "type": "text",
@@ -590,7 +598,6 @@ Do not acknowledge this reminder or mention it to the user.
   {
     "content": [
       {
-        "citations": undefined,
         "nativeMessageIdx": 4,
         "text": "Italy's capital is Rome. It's known for its rich history, art, and cuisine.",
         "type": "text",
@@ -625,6 +632,10 @@ Don't spawn sub-agents for things you can do with a single tool call (get_file, 
 
 Do not acknowledge this reminder or mention it to the user.
 </system-reminder>",
+        "type": "text",
+      },
+      {
+        "text": "<system-info><normalized></system-info>",
         "type": "text",
       },
     ],
@@ -697,6 +708,10 @@ Don't spawn sub-agents for things you can do with a single tool call (get_file, 
 
 Do not acknowledge this reminder or mention it to the user.
 </system-reminder>",
+        "type": "text",
+      },
+      {
+        "text": "<system-info><normalized></system-info>",
         "type": "text",
       },
     ],
@@ -778,8 +793,9 @@ exports[`renders successive tool uses with single assistant header and inline me
 🔧 [Tool Definitions (7) ~6k tok]
 
 # user:
-Read two files for me
 📋 [System Reminder]
+🖥️  [System Info]
+Read two files for me
 # assistant:
 I'll read the first file.
 👀 \`poem.txt\`

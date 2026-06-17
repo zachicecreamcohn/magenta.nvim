@@ -498,6 +498,7 @@ ${contextFilesView(thread.contextManager, contextViewCtx(thread), {
       (c) =>
         c.type === "tool_result" ||
         c.type === "system_reminder" ||
+        c.type === "system_info" ||
         c.type === "context_update" ||
         c.type === "fork_notification",
     );
@@ -521,6 +522,7 @@ ${contextFilesView(thread.contextManager, contextViewCtx(thread), {
         (c) =>
           c.type === "tool_result" ||
           c.type === "system_reminder" ||
+          c.type === "system_info" ||
           c.type === "context_update" ||
           c.type === "fork_notification",
       ) &&
@@ -569,9 +571,26 @@ ${contextFilesView(thread.contextManager, contextViewCtx(thread), {
 
     const gitUpdateView = renderGitUpdate(viewState?.gitUpdate);
 
-    // Render content blocks
-    const contentView = message.content.map((content, contentIdx) => {
-      const isLastBlock = contentIdx === message.content.length - 1;
+    // Render content blocks. For user messages we render auto-generated meta
+    // blocks (system_reminder, system_info) before the user's own text so the
+    // user's message stays the most prominent (last) thing on screen, even
+    // though the underlying message keeps the user text first for the API.
+    const orderedContentIndices = message.content.map((_, idx) => idx);
+    if (message.role === "user") {
+      orderedContentIndices.sort((a, b) => {
+        const isMeta = (c: (typeof message.content)[number]) =>
+          c.type === "system_reminder" || c.type === "system_info";
+        const aMeta = isMeta(message.content[a]) ? 0 : 1;
+        const bMeta = isMeta(message.content[b]) ? 0 : 1;
+        if (aMeta !== bMeta) return aMeta - bMeta;
+        return a - b;
+      });
+    }
+    const lastContentIdx =
+      orderedContentIndices[orderedContentIndices.length - 1];
+    const contentView = orderedContentIndices.map((contentIdx) => {
+      const content = message.content[contentIdx];
+      const isLastBlock = contentIdx === lastContentIdx;
       return renderMessageContent(
         content,
         messageIdx,
@@ -739,6 +758,39 @@ function renderMessageContentBlock(
         // Render inline (no newline) so checkpoint can follow on same line
         return withBindings(
           withExtmark(d`📋 [System Reminder]\n`, { hl_group: "@comment" }),
+          {
+            "=": () =>
+              dispatch({
+                type: "toggle-expand-content",
+                messageIdx,
+                contentIdx,
+              }),
+          },
+        );
+      }
+    }
+
+    case "system_info": {
+      const viewState = thread.state.messageViewState[messageIdx];
+      const isExpanded = viewState?.expandedContent?.[contentIdx] || false;
+
+      if (isExpanded) {
+        return withBindings(
+          withExtmark(d`🖥️  [System Info]\n${content.text}\n`, {
+            hl_group: "@comment",
+          }),
+          {
+            "=": () =>
+              dispatch({
+                type: "toggle-expand-content",
+                messageIdx,
+                contentIdx,
+              }),
+          },
+        );
+      } else {
+        return withBindings(
+          withExtmark(d`🖥️  [System Info]\n`, { hl_group: "@comment" }),
           {
             "=": () =>
               dispatch({

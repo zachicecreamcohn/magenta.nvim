@@ -74,7 +74,6 @@ function getBaseSystemPrompt(
 export async function createSystemPrompt(
   type: ThreadType,
   context: {
-    systemInfo: SystemInfo;
     logger: Logger;
     cwd: NvimCwd;
     options: ProviderOptions;
@@ -95,25 +94,27 @@ export async function createSystemPrompt(
   );
   const skills =
     type === "compact" ? ({} as SkillsMap) : await loadSkills(context);
-  const systemInfo = context.systemInfo;
 
-  const systemInfoText = `
-
-# System Information
-- Current time: ${systemInfo.timestamp}
-- Operating system: ${systemInfo.platform}
-- Neovim version: ${systemInfo.neovimVersion}
-- Current working directory: ${systemInfo.cwd}
-${formatGitInfo(systemInfo.git)}`;
-
-  const skillsText = formatSkillsIntroduction(skills, systemInfo.cwd);
+  const skillsText = formatSkillsIntroduction(skills);
 
   const reminderText = systemReminder
     ? `\n<system_reminder>\n${systemReminder}\n</system_reminder>`
     : "";
 
-  return (basePrompt +
-    systemInfoText +
-    skillsText +
-    reminderText) as SystemPrompt;
+  return (basePrompt + skillsText + reminderText) as SystemPrompt;
+}
+
+// The system info (timestamp, cwd, git state) is volatile and would bust the
+// cached system-prompt + tools prefix if included in the system prompt. Instead
+// we prepend it to the first user message of a thread so the system prefix stays
+// byte-identical across threads.
+export function formatSystemInfo(systemInfo: SystemInfo): string {
+  return `<system-info>
+# System Information
+- Current time: ${systemInfo.timestamp}
+- Operating system: ${systemInfo.platform}
+- Neovim version: ${systemInfo.neovimVersion}
+- Current working directory: ${systemInfo.cwd}
+${formatGitInfo(systemInfo.git)}
+</system-info>`;
 }

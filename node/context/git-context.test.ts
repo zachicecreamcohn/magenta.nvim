@@ -38,7 +38,7 @@ function findUserText(
   return undefined;
 }
 
-it("reports initial git state in the system prompt", async () => {
+it("reports initial git state in the first user message", async () => {
   await withDriver(
     { setupFiles: async (tmpDir) => initRepo(tmpDir) },
     async (driver) => {
@@ -47,9 +47,10 @@ it("reports initial git state in the system prompt", async () => {
       await driver.send();
 
       const request = await driver.mockAnthropic.awaitPendingStream();
-      expect(request.systemPrompt).toContain("Git branch: main");
-      expect(request.systemPrompt).toContain("Git HEAD:");
-      expect(request.systemPrompt).toContain("initial commit");
+      const systemInfo = findUserText(request.messages, "# System Information");
+      expect(systemInfo).toContain("Git branch: main");
+      expect(systemInfo).toContain("Git HEAD:");
+      expect(systemInfo).toContain("initial commit");
 
       request.respond({ stopReason: "end_turn", text: "hi", toolRequests: [] });
     },

@@ -17,6 +17,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { getAllWindows, getcwd } from "../nvim/nvim.ts";
 import { withDriver } from "../test/preamble.ts";
+import { sanitizeMessagesForSnapshot } from "../test/sanitize-snapshot.ts";
 import type { DiffUpdate } from "./context-manager.ts";
 
 it("returns diff when file is edited on disk", async () => {
@@ -267,7 +268,7 @@ it("context-files end-to-end", async () => {
     await driver.inputMagentaText("check out this file");
     await driver.send();
     const request = await driver.mockAnthropic.awaitPendingUserRequest();
-    expect(request.messages).toMatchSnapshot();
+    expect(sanitizeMessagesForSnapshot(request.messages)).toMatchSnapshot();
   });
 });
 
@@ -364,6 +365,7 @@ it("issuing a getFile request adds the file to the context but doesn't send its 
     expect(flattenedMessages).toEqual([
       "user;text;Please analyze the image test.jpg",
       "user;system_reminder;",
+      "user;system_info;",
       "assistant;text;I'll analyze the image",
       "assistant;tool_use;",
       "user;tool_result;",

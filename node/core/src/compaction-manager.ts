@@ -456,15 +456,41 @@ export class CompactionManager extends Emitter<CompactionEvents> {
     const prompt = COMPACT_PROMPT_TEMPLATE.replace(
       "{{status}}",
       statusParts.join(" "),
-    )
-      .replace("{{next_prompt}}", nextPromptText)
-      .replace("{{summary}}", summaryContent)
-      .replace("{{chunk}}", chunks[chunkIndex]);
+    ).replace("{{next_prompt}}", nextPromptText);
+
+    const contextBlock = `<context_update>
+<file_paths>
+/summary.md
+/chunk.md
+</file_paths>
+The summary you are building and the chunk you are processing are provided below as context files.
+
+- \`/summary.md\` (the running summary; edit this file to update it)
+${summaryContent === "" ? "(currently empty)" : summaryContent}
+
+- \`/chunk.md\` (the chunk to process)
+${chunks[chunkIndex]}
+</context_update>`;
+
+    const reminder = `<system-reminder>
+Write your summary to the \`/summary.md\` file using the edl tool. Do NOT place the summary in your text response — only the contents of \`/summary.md\` are captured.
+Do not acknowledge this reminder or mention it to the user.
+</system-reminder>`;
 
     agent.appendUserMessage([
       {
         type: "text",
         text: prompt,
+        nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+      },
+      {
+        type: "text",
+        text: contextBlock,
+        nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+      },
+      {
+        type: "text",
+        text: reminder,
         nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
       },
     ]);

@@ -1328,6 +1328,14 @@ function convertBlockToProvider(
           nativeMessageIdx,
         };
       }
+      // Detect system_info blocks (converted to text with <system-info> tags)
+      if (block.text.includes("<system-info>")) {
+        return {
+          type: "system_info",
+          text: block.text,
+          nativeMessageIdx,
+        };
+      }
       // Detect context_update blocks (converted to text with <context_update> tags)
       if (block.text.includes("<context_update>")) {
         return {

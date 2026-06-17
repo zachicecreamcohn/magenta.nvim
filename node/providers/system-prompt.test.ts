@@ -1,9 +1,26 @@
-import { FsFileIO } from "@magenta/core";
+import { FsFileIO, formatSystemInfo } from "@magenta/core";
 import { expect, it } from "vitest";
 import { withDriver } from "../test/preamble.ts";
-import { createSystemPrompt } from "./system-prompt.ts";
+import { buildSystemInfo, createSystemPrompt } from "./system-prompt.ts";
 
-it("applies systemInfoOverrides for docker environments", async () => {
+it("applies systemInfoOverrides when building system info", async () => {
+  await withDriver({}, async (driver) => {
+    const systemInfo = await buildSystemInfo({
+      nvim: driver.magenta.nvim,
+      cwd: driver.magenta.cwd,
+      systemInfoOverrides: {
+        platform: "linux (docker)",
+        cwd: "/workspace" as typeof driver.magenta.cwd,
+      },
+    });
+
+    const text = formatSystemInfo(systemInfo);
+    expect(text).toContain("- Operating system: linux (docker)");
+    expect(text).toContain("- Current working directory: /workspace");
+  });
+});
+
+it("docker prompt mentions the docker environment", async () => {
   await withDriver({}, async (driver) => {
     const systemPrompt = await createSystemPrompt("docker_root", {
       nvim: driver.magenta.nvim,
@@ -11,14 +28,8 @@ it("applies systemInfoOverrides for docker environments", async () => {
       options: driver.magenta.options,
       fileIO: new FsFileIO(),
       homeDir: driver.magenta.homeDir,
-      systemInfoOverrides: {
-        platform: "linux (docker)",
-        cwd: "/workspace" as typeof driver.magenta.cwd,
-      },
     });
 
-    expect(systemPrompt).toContain("- Operating system: linux (docker)");
-    expect(systemPrompt).toContain("- Current working directory: /workspace");
     expect(systemPrompt).toContain("# Docker Environment");
   });
 });
@@ -41,7 +52,7 @@ it("docker_root prompt mentions syncing and yield_to_parent", async () => {
   });
 });
 
-it("includes system information in the prompt", async () => {
+it("system info is not part of the cached system prompt", async () => {
   await withDriver({}, async (driver) => {
     const systemPrompt = await createSystemPrompt("root", {
       nvim: driver.magenta.nvim,
@@ -51,23 +62,25 @@ it("includes system information in the prompt", async () => {
       homeDir: driver.magenta.homeDir,
     });
 
-    // Check that system information is included
-    expect(systemPrompt).toContain("# System Information");
-    expect(systemPrompt).toContain("- Current time:");
-    expect(systemPrompt).toContain("- Operating system:");
-    expect(systemPrompt).toContain("- Neovim version:");
-    expect(systemPrompt).toContain("- Current working directory:");
+    expect(systemPrompt).not.toContain("# System Information");
+    expect(systemPrompt).not.toContain("- Current time:");
+  });
+});
 
-    // Verify the platform is included
-    expect(systemPrompt).toMatch(/- Operating system: (darwin|linux|win32)/);
+it("formats system information for the first user message", async () => {
+  await withDriver({}, async (driver) => {
+    const systemInfo = await buildSystemInfo({
+      nvim: driver.magenta.nvim,
+      cwd: driver.magenta.cwd,
+    });
 
-    // Verify the timestamp format
-    expect(systemPrompt).toMatch(
-      /- Current time: \w+ \w+ \d+ \d+ \d+:\d+:\d+ GMT/,
-    );
-
-    // Verify cwd is included
-    expect(systemPrompt).toContain(
+    const text = formatSystemInfo(systemInfo);
+    expect(text).toContain("# System Information");
+    expect(text).toContain("- Operating system:");
+    expect(text).toContain("- Neovim version:");
+    expect(text).toMatch(/- Operating system: (darwin|linux|win32)/);
+    expect(text).toMatch(/- Current time: \w+ \w+ \d+ \d+ \d+:\d+:\d+ GMT/);
+    expect(text).toContain(
       `- Current working directory: ${driver.magenta.cwd}`,
     );
   });

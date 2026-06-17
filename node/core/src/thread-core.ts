@@ -44,7 +44,11 @@ import type {
   Usage,
 } from "./providers/provider-types.ts";
 import { PLACEHOLDER_NATIVE_MESSAGE_IDX } from "./providers/provider-types.ts";
-import type { SystemPrompt } from "./providers/system-prompt.ts";
+import {
+  formatSystemInfo,
+  type SystemInfo,
+  type SystemPrompt,
+} from "./providers/system-prompt.ts";
 import {
   buildSystemReminder,
   type ReminderKind,
@@ -121,6 +125,7 @@ export interface ThreadCoreContext {
   threadType: ThreadType;
   subagentConfig?: SubagentConfig;
   systemPrompt: SystemPrompt;
+  systemInfo: SystemInfo;
   mcpToolManager: MCPToolManagerImpl;
   threadManager: ThreadManager;
   getScriptRunner?: () => ScriptRunner | undefined;
@@ -179,6 +184,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     title?: string;
     threadType: ThreadType;
     systemPrompt: SystemPrompt;
+    systemInfo: SystemInfo;
     pendingMessages: InputMessage[];
     mode: ThreadMode;
     edlRegisters: EdlRegisters;
@@ -223,6 +229,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     this.state = {
       threadType: context.threadType,
       systemPrompt: context.systemPrompt,
+      systemInfo: context.systemInfo,
       pendingMessages: [],
       mode: { type: "normal" },
       edlRegisters: { registers: new Map(), nextSavedId: 0 },
@@ -885,6 +892,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       this.emit("gitContextUpdateSent", gitUpdate);
     }
 
+    const isFirstMessage = this.getProviderMessages().length === 0;
     const contentToSend: AgentInput[] = [...contextContent];
 
     for (const c of content) {
@@ -905,6 +913,14 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
           nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
         });
       }
+    }
+
+    if (isFirstMessage) {
+      contentToSend.push({
+        type: "text",
+        text: formatSystemInfo(this.context.systemInfo),
+        nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+      });
     }
 
     if (this.shouldAutoCompact()) {
@@ -1281,7 +1297,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     hasContent: boolean;
   } {
     const messageContent: ProviderMessageContent[] = [];
-
     for (const m of inputMessages || []) {
       messageContent.push({
         type: "text",
@@ -1289,7 +1304,6 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
       });
     }
-
     if (inputMessages?.length) {
       this.update({ type: "reset-output-tokens" }, { silent: true });
       const reminder = buildSystemReminder({

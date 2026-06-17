@@ -179,6 +179,7 @@ export type {
 export {
   COMPACT_SYSTEM_PROMPT,
   createSystemPrompt,
+  formatSystemInfo,
 } from "./providers/system-prompt.ts";
 export {
   buildSystemReminder,

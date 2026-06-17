@@ -78,7 +78,8 @@ it("compact flow: user initiates @compact, spawns compact thread, compacts and c
     expect(userMsg).toBeDefined();
     const textContent = userMsg!.content
       .filter(
-        (c): c is Extract<typeof c, { type: "text" }> => c.type === "text",
+        (c): c is Extract<typeof c, { type: "text" | "context_update" }> =>
+          c.type === "text" || c.type === "context_update",
       )
       .map((c) => c.text)
       .join("");
@@ -488,7 +489,8 @@ it("forks a thread with @compact to clone and compact in one step", async () => 
     expect(userMsg).toBeDefined();
     const textContent = userMsg!.content
       .filter(
-        (c): c is Extract<typeof c, { type: "text" }> => c.type === "text",
+        (c): c is Extract<typeof c, { type: "text" | "context_update" }> =>
+          c.type === "text" || c.type === "context_update",
       )
       .map((c) => c.text)
       .join("");
@@ -615,7 +617,8 @@ it("auto-compact triggers when inputTokenCount exceeds 80% of context window", a
     expect(userMsg).toBeDefined();
     const textContent = userMsg!.content
       .filter(
-        (c): c is Extract<typeof c, { type: "text" }> => c.type === "text",
+        (c): c is Extract<typeof c, { type: "text" | "context_update" }> =>
+          c.type === "text" || c.type === "context_update",
       )
       .map((c) => c.text)
       .join("");
@@ -761,7 +764,8 @@ it("compaction history records steps from multi-chunk compaction", async () => {
     expect(chunk1UserMsg).toBeDefined();
     const chunk1Text = chunk1UserMsg!.content
       .filter(
-        (c): c is Extract<typeof c, { type: "text" }> => c.type === "text",
+        (c): c is Extract<typeof c, { type: "text" | "context_update" }> =>
+          c.type === "text" || c.type === "context_update",
       )
       .map((c) => c.text)
       .join("");
@@ -804,7 +808,8 @@ it("compaction history records steps from multi-chunk compaction", async () => {
     expect(chunk2UserMsg).toBeDefined();
     const chunk2Text = chunk2UserMsg!.content
       .filter(
-        (c): c is Extract<typeof c, { type: "text" }> => c.type === "text",
+        (c): c is Extract<typeof c, { type: "text" | "context_update" }> =>
+          c.type === "text" || c.type === "context_update",
       )
       .map((c) => c.text)
       .join("");

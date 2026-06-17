@@ -70,6 +70,12 @@ function createThreadCoreWithMock(overrides?: Partial<ThreadCoreContext>): {
     homeDir: "/home" as ThreadCoreContext["homeDir"],
     threadType: "root" as ThreadType,
     systemPrompt: "test system prompt" as unknown as SystemPrompt,
+    systemInfo: {
+      timestamp: "Mon Jan 01 2024 00:00:00 GMT+0000",
+      platform: "linux",
+      neovimVersion: "0.10.0",
+      cwd: "/tmp" as ThreadCoreContext["cwd"],
+    },
     mcpToolManager: {
       serverMap: {},
       getToolSpecs: () => [],

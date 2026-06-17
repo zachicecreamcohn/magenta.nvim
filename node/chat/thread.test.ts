@@ -7,6 +7,7 @@ import { expect, it } from "vitest";
 import { $, within } from "zx";
 import { getcwd } from "../nvim/nvim.ts";
 import { withDriver } from "../test/preamble.ts";
+import { sanitizeMessagesForSnapshot } from "../test/sanitize-snapshot.ts";
 import { pollUntil } from "../utils/async.ts";
 import type { HomeDir, UnresolvedFilePath } from "../utils/files.ts";
 import { resolveFilePath } from "../utils/files.ts";
@@ -19,17 +20,6 @@ function sanitizeDisplayForSnapshot(text: string): string {
 }
 
 /** Replace dynamic thread IDs and timing info in messages with a placeholder for stable snapshots */
-function sanitizeMessagesForSnapshot<T>(messages: T): T {
-  let json = JSON.stringify(messages);
-  // Replace thread IDs like 019bab33-8c7c-76a9-bc7c-9f94103502c8 with placeholder
-  json = json.replace(
-    /\/tmp\/magenta\/threads\/[a-f0-9-]+\//g,
-    "/tmp/magenta/threads/<thread-id>/",
-  );
-  // Replace timing info like "exit code 0 (16ms)" with stable placeholder
-  json = json.replace(/\((\d+)ms\)/g, "(<timing>ms)");
-  return JSON.parse(json) as T;
-}
 
 it("chat render and a few updates", async () => {
   await withDriver({}, async (driver) => {
@@ -171,6 +161,7 @@ it("getMessages correctly interleaves tool requests and responses", async () => 
     ).toEqual([
       "user:text",
       "user:system_reminder",
+      "user:system_info",
       "assistant:text",
       "assistant:tool_use",
       "user:tool_result",
@@ -443,7 +434,9 @@ it("forks a thread with multiple messages into a new thread", async () => {
 
     // 8. Verify the forked thread has the full conversation history
     const messages = newThread.getMessages();
-    expect(messages).toMatchSnapshot("forked-thread-messages");
+    expect(sanitizeMessagesForSnapshot(messages)).toMatchSnapshot(
+      "forked-thread-messages",
+    );
   });
 });
 
@@ -499,7 +492,8 @@ it("processes @diag keyword to include diagnostics in message", {
     expect(messages.length).toBe(2);
 
     // The user message should have four content blocks: original text + diagnostics + system_reminder + checkpoint
-    expect(messages[0].content.length).toBe(3);
+    expect(messages[0].content.length).toBe(4);
+    expect(messages[0].content[3].type).toBe("system_info");
     const content0 = messages[0].content[0];
     expect(content0.type).toBe("text");
     expect((content0 as Extract<typeof content0, { type: "text" }>).text).toBe(
@@ -568,7 +562,8 @@ it("processes @diagnostics keyword to include diagnostics in message", {
     expect(messages.length).toBe(2);
 
     // The user message should have three content blocks: original text + diagnostics + system_reminder
-    expect(messages[0].content.length).toBe(3);
+    expect(messages[0].content.length).toBe(4);
+    expect(messages[0].content[3].type).toBe("system_info");
     const content0 = messages[0].content[0];
     expect(content0.type).toBe("text");
     expect((content0 as Extract<typeof content0, { type: "text" }>).text).toBe(
@@ -624,7 +619,8 @@ it("processes @qf keyword to include quickfix list in message", {
     expect(messages.length).toBe(2);
 
     // The user message should have three content blocks: original text + quickfix list + system_reminder
-    expect(messages[0].content.length).toBe(3);
+    expect(messages[0].content.length).toBe(4);
+    expect(messages[0].content[3].type).toBe("system_info");
     const content0 = messages[0].content[0];
     expect(content0.type).toBe("text");
     expect((content0 as Extract<typeof content0, { type: "text" }>).text).toBe(
@@ -687,7 +683,8 @@ it("processes @quickfix keyword to include quickfix list in message", {
     expect(messages.length).toBe(2);
 
     // The user message should have three content blocks: original text + quickfix list + system_reminder
-    expect(messages[0].content.length).toBe(3);
+    expect(messages[0].content.length).toBe(4);
+    expect(messages[0].content[3].type).toBe("system_info");
     const content0 = messages[0].content[0];
     expect(content0.type).toBe("text");
     expect((content0 as Extract<typeof content0, { type: "text" }>).text).toBe(
@@ -738,7 +735,8 @@ it("handles empty quickfix list with @qf command", {
     expect(messages.length).toBe(2);
 
     // The user message should have three content blocks: original text + empty quickfix list + system_reminder
-    expect(messages[0].content.length).toBe(3);
+    expect(messages[0].content.length).toBe(4);
+    expect(messages[0].content[3].type).toBe("system_info");
     const content1 = messages[0].content[1];
     expect(content1.type).toBe("text");
     expect((content1 as Extract<typeof content1, { type: "text" }>).text).toBe(
@@ -783,7 +781,8 @@ it("processes @buf keyword to include buffers list in message", {
     expect(messages.length).toBe(2);
 
     // The user message should have three content blocks: original text + buffers list + system_reminder
-    expect(messages[0].content.length).toBe(3);
+    expect(messages[0].content.length).toBe(4);
+    expect(messages[0].content[3].type).toBe("system_info");
     const content0 = messages[0].content[0];
     expect(content0.type).toBe("text");
     expect((content0 as Extract<typeof content0, { type: "text" }>).text).toBe(
@@ -839,7 +838,8 @@ it("processes @buffers keyword to include buffers list in message", {
     expect(messages.length).toBe(2);
 
     // The user message should have three content blocks: original text + buffers list + system_reminder
-    expect(messages[0].content.length).toBe(3);
+    expect(messages[0].content.length).toBe(4);
+    expect(messages[0].content[3].type).toBe("system_info");
     const content0 = messages[0].content[0];
     expect(content0.type).toBe("text");
     expect((content0 as Extract<typeof content0, { type: "text" }>).text).toBe(
@@ -887,7 +887,8 @@ it("handles empty buffers list with @buf command", {
     expect(messages.length).toBe(2);
 
     // The user message should have three content blocks: original text + buffers list + system_reminder
-    expect(messages[0].content.length).toBe(3);
+    expect(messages[0].content.length).toBe(4);
+    expect(messages[0].content[3].type).toBe("system_info");
     const content1 = messages[0].content[1];
     expect(content1.type).toBe("text");
     expect(
@@ -1606,6 +1607,7 @@ it("handles @async messages by queueing them and sending on next tool response",
     ).toEqual([
       "user:text",
       "user:text", // system_reminder converted to text
+      "user:text", // system_info converted to text
       "assistant:text",
       "assistant:tool_use",
       "user:tool_result",
@@ -1646,7 +1648,7 @@ it("handles @async messages and sends them on end turn", async () => {
 
     // Now the queued message should be sent automatically
     const request2 = await driver.mockAnthropic.awaitPendingStream();
-    expect(request2.messages).toMatchSnapshot();
+    expect(sanitizeMessagesForSnapshot(request2.messages)).toMatchSnapshot();
   });
 });
 

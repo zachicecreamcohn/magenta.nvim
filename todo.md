@@ -24,6 +24,7 @@
 
 # UX
 
+- improve edl display... the script preview's not really useful. Focus on files touched, failed mutations, etc...
 - tmux integration (update tab title with active thread title, thread state)
 - toggling sandbox to off should auto-approve any current dialogues
 
@@ -37,3 +38,12 @@
 - when we abort during a "sandbox blocked" message, it stays up even as the conversation continues
   - this has broken a few times already, make sure we have a good test for it
 - when we terminate/error, the reset for the message places it in the wrong buffer (currently open one, not the one corresponding to the thread that the error happened in)
+
+- error:
+  2026-06-16T09:32:11  WARN Unexpected error:
+  stream ended without producing a Message with role=assistant
+  Error: stream ended without producing a Message with role=assistant
+  at \_MessageStream.\_MessageStream_getFinalMessage2 (file:///home/aurelia/.local/share/nvim/site/pack/core/opt/magenta/dist/magenta.mjs:46546:17)
+  at \_MessageStream.finalMessage (file:///home/aurelia/.local/share/nvim/site/pack/core/opt/magenta/dist/magenta.mjs:46469:109)
+  at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+  at async runWithRetry (file:///home/aurelia/.local/share/nvim/site/pack/core/opt/magenta/dist/magenta.mjs:144452:24)

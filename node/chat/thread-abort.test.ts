@@ -2,6 +2,7 @@ import type { ToolName, ToolRequestId } from "@magenta/core";
 import { expect, it } from "vitest";
 import type { Row0Indexed } from "../nvim/window.ts";
 import { withDriver } from "../test/preamble.ts";
+import { sanitizeMessagesForSnapshot } from "../test/sanitize-snapshot.ts";
 import { delay, pollUntil } from "../utils/async.ts";
 
 it("forks a thread while streaming without aborting source", async () => {
@@ -54,7 +55,9 @@ it("forks a thread while streaming without aborting source", async () => {
       { message: "forked thread request" },
     );
 
-    expect(forkedStream.messages).toMatchSnapshot();
+    expect(
+      sanitizeMessagesForSnapshot(forkedStream.messages),
+    ).toMatchSnapshot();
 
     // Verify the new thread is active
     const newThread = driver.magenta.chat.getActiveThread();
@@ -125,7 +128,9 @@ it("forks a thread while waiting for tool use without aborting source", async ()
       message: "forked thread request",
     });
 
-    expect(forkedStream.messages).toMatchSnapshot();
+    expect(
+      sanitizeMessagesForSnapshot(forkedStream.messages),
+    ).toMatchSnapshot();
 
     // Verify the new thread is active
     const newThread = driver.magenta.chat.getActiveThread();
@@ -188,7 +193,7 @@ it("aborts request when sending new message while waiting for response", async (
     // Check the thread message structure - should only have the second exchange
     const thread = driver.magenta.chat.getActiveThread();
     const messages = thread.getMessages();
-    expect(messages).toMatchSnapshot();
+    expect(sanitizeMessagesForSnapshot(messages)).toMatchSnapshot();
   });
 });
 
@@ -238,7 +243,7 @@ it("aborts tool use when sending new message while tool is executing", async () 
     // Check the thread message structure
     const thread = driver.magenta.chat.getActiveThread();
     const messages = thread.getMessages();
-    expect(messages).toMatchSnapshot();
+    expect(sanitizeMessagesForSnapshot(messages)).toMatchSnapshot();
   });
 });
 
@@ -288,6 +293,7 @@ it("inserts error tool results when aborting while stopped waiting for tool use"
     expect(messagePattern).toEqual([
       "user:text",
       "user:text", // system_reminder
+      "user:text", // system_info
       "assistant:text",
       "assistant:tool_use",
       "user:tool_result", // error tool result from abort

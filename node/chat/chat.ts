@@ -32,7 +32,10 @@ import {
 } from "../environment.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { MagentaOptions, Profile } from "../options.ts";
-import { createSystemPrompt } from "../providers/system-prompt.ts";
+import {
+  buildSystemInfo,
+  createSystemPrompt,
+} from "../providers/system-prompt.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { Sandbox } from "../sandbox-manager.ts";
 import type { ScriptInvocationId } from "../scripts/script-manager.ts";
@@ -488,18 +491,23 @@ export class Chat implements ThreadManager {
 
     const initialGitState = await environment.gitClient.getState();
 
-    const systemPrompt = await createSystemPrompt(threadType, {
+    const systemInfo = await buildSystemInfo({
       nvim: this.context.nvim,
       cwd: environment.cwd,
-      options: this.context.getOptions(),
-      fileIO: environment.fileIO,
-      homeDir: environment.homeDir,
       systemInfoOverrides: {
         git: initialGitState,
         ...(resolvedConfig.type === "docker"
           ? { platform: "linux (docker)", cwd: environment.cwd }
           : {}),
       },
+    });
+
+    const systemPrompt = await createSystemPrompt(threadType, {
+      nvim: this.context.nvim,
+      cwd: environment.cwd,
+      options: this.context.getOptions(),
+      fileIO: environment.fileIO,
+      homeDir: environment.homeDir,
       ...(subagentConfig ? { subagentConfig } : {}),
     });
 
@@ -512,6 +520,7 @@ export class Chat implements ThreadManager {
       environment,
       initialFiles,
       initialGitState,
+      systemInfo,
       ...(subagentConfig ? { subagentConfig } : {}),
       ...(getParentThread ? { getParentThread } : {}),
       ...(getSandboxRoot ? { getSandboxRoot } : {}),

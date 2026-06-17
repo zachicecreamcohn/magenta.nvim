@@ -229,21 +229,16 @@ export function extractYamlFrontmatter(
   return result;
 }
 
-export function formatSkillsIntroduction(
-  skills: SkillsMap,
-  cwd: NvimCwd,
-): string {
+export function formatSkillsIntroduction(skills: SkillsMap): string {
   if (Object.keys(skills).length === 0) {
     return "";
   }
 
   const skillsList = Object.values(skills)
-    .map((skill) => {
-      // Use relative path if inside cwd, absolute path otherwise
-      const relPath = path.relative(cwd, skill.skillFile);
-      const displayPath = relPath.startsWith("..") ? skill.skillFile : relPath;
-      return `- **${skill.name}** (\`${displayPath}\`): ${skill.description}`;
-    })
+    .map(
+      (skill) =>
+        `- **${skill.name}** (\`${skill.skillFile}\`): ${skill.description}`,
+    )
     .join("\n");
 
   return `

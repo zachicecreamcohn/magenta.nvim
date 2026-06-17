@@ -83,6 +83,12 @@ export type ProviderSystemReminderContent = {
   nativeMessageIdx: NativeMessageIdx;
 };
 
+export type ProviderSystemInfoContent = {
+  type: "system_info";
+  text: string;
+  nativeMessageIdx: NativeMessageIdx;
+};
+
 export type ProviderContextUpdateContent = {
   type: "context_update";
   text: string;
@@ -176,6 +182,7 @@ export type ProviderMessageContent =
   | ProviderThinkingContent
   | ProviderRedactedThinkingContent
   | ProviderSystemReminderContent
+  | ProviderSystemInfoContent
   | ProviderContextUpdateContent
   | ProviderForkNotificationContent;
 

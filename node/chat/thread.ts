@@ -31,7 +31,7 @@ import {
   getProvider,
   type ProviderMessage,
 } from "../providers/provider.ts";
-import type { SystemPrompt } from "../providers/system-prompt.ts";
+import type { SystemInfo, SystemPrompt } from "../providers/system-prompt.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { Sandbox } from "../sandbox-manager.ts";
 import type { Dispatch } from "../tea/tea.ts";
@@ -244,6 +244,7 @@ export class Thread {
       initialFiles?: ContextFiles;
       initialGitState?: GitState | undefined;
       subagentConfig?: SubagentConfig;
+      systemInfo: SystemInfo;
     },
     clonedAgent?: Agent,
     preBuiltCore?: ThreadCore,
@@ -288,6 +289,7 @@ export class Thread {
             ? { subagentConfig: context.subagentConfig }
             : {}),
           systemPrompt,
+          systemInfo: context.systemInfo,
           mcpToolManager: context.mcpToolManager,
           threadManager: context.chat,
           getScriptRunner: () => context.chat.scriptRunner,
@@ -519,6 +521,7 @@ export class Thread {
           ? { subagentConfig: sourceThread.context.subagentConfig }
           : {}),
         systemPrompt: sourceCoreState.systemPrompt,
+        systemInfo: sourceCoreState.systemInfo,
         mcpToolManager,
         threadManager: chat,
         fileIO: environment.fileIO,
@@ -554,6 +557,7 @@ export class Thread {
         options: getOptions(),
         getDisplayWidth,
         environment,
+        systemInfo: sourceCoreState.systemInfo,
         ...(sourceThread.context.subagentConfig
           ? { subagentConfig: sourceThread.context.subagentConfig }
           : {}),

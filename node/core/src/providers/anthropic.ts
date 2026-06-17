@@ -372,6 +372,13 @@ export class AnthropicProvider implements Provider {
               });
               break;
 
+            case "system_info":
+              content.push({
+                type: "text",
+                text: c.text,
+              });
+              break;
+
             case "context_update":
               content.push({
                 type: "text",

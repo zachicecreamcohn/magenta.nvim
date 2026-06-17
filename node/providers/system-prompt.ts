@@ -17,6 +17,24 @@ export { COMPACT_SYSTEM_PROMPT };
 
 export type { SystemInfo, SystemPrompt } from "@magenta/core";
 
+export async function buildSystemInfo(context: {
+  nvim: Nvim;
+  cwd: NvimCwd;
+  systemInfoOverrides?: Partial<SystemInfo>;
+}): Promise<SystemInfo> {
+  const neovimVersion = (await context.nvim.call("nvim_eval", [
+    "v:version",
+  ])) as string;
+
+  return {
+    timestamp: new Date().toString(),
+    platform: platform(),
+    neovimVersion,
+    cwd: context.cwd,
+    ...context.systemInfoOverrides,
+  };
+}
+
 export async function createSystemPrompt(
   type: ThreadType,
   context: {
@@ -25,23 +43,11 @@ export async function createSystemPrompt(
     options: ProviderOptions;
     fileIO: FileIO;
     homeDir: HomeDir;
-    systemInfoOverrides?: Partial<SystemInfo>;
     dockerAvailable?: boolean;
     subagentConfig?: SubagentConfig;
   },
 ): Promise<SystemPrompt> {
-  const neovimVersion = (await context.nvim.call("nvim_eval", [
-    "v:version",
-  ])) as string;
-
   return coreCreateSystemPrompt(type, {
-    systemInfo: {
-      timestamp: new Date().toString(),
-      platform: platform(),
-      neovimVersion,
-      cwd: context.cwd,
-      ...context.systemInfoOverrides,
-    },
     logger: context.nvim.logger,
     cwd: context.cwd,
     options: context.options,

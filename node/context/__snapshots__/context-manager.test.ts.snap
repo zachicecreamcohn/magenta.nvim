@@ -25,9 +25,6 @@ Paint their stories in the night.
         "type": "text",
       },
       {
-        "cache_control": {
-          "type": "ephemeral",
-        },
         "text": "<system-reminder>
 Remember the skills in <available-skills> and the learn tool for built-in documentation.
 If a skill seems like it could be relevant, use the get_file tool to read the full skill.md file for the skill.
@@ -43,6 +40,13 @@ Don't spawn sub-agents for things you can do with a single tool call (get_file, 
 
 Do not acknowledge this reminder or mention it to the user.
 </system-reminder>",
+        "type": "text",
+      },
+      {
+        "cache_control": {
+          "type": "ephemeral",
+        },
+        "text": "<system-info><normalized></system-info>",
         "type": "text",
       },
     ],
