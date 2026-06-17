@@ -20,8 +20,6 @@ export class ExecutionError extends Error {
   }
 }
 
-const MAX_SNIPPET_LENGTH = 120;
-
 function formatPattern(pattern: Pattern): string {
   switch (pattern.type) {
     case "regex":
@@ -302,27 +300,28 @@ export class Executor {
     }
   }
   addTrace(command: string, ranges: Range[], doc: Document): void {
-    const texts = ranges.map((r) => doc.getText(r));
-    const snippet =
-      texts.length === 1
-        ? Executor.formatSnippet(texts[0])
-        : texts.map((t) => Executor.formatSnippet(t)).join(" | ");
-    this.trace.push({ command, ranges: [...ranges], snippet });
+    this.trace.push({
+      command,
+      ranges: [...ranges],
+      snippet: Executor.describeSelection(ranges, doc),
+    });
   }
 
-  static formatSnippet(text: string): string {
-    const lines = text.split("\n");
-    if (lines.length === 1) {
-      const line = lines[0];
-      if (line.length > MAX_SNIPPET_LENGTH) {
-        const half = Math.floor((MAX_SNIPPET_LENGTH - 3) / 2);
-        return `${line.slice(0, half)}...${line.slice(line.length - half)}`;
-      }
-      return line;
-    }
-    const first = lines[0];
-    const last = lines[lines.length - 1];
-    return `${first}\n...\n${last}`;
+  static describeSelection(ranges: Range[], doc: Document): string {
+    if (ranges.length === 0) return "no selection";
+    const lineCount = ranges.reduce(
+      (acc, r) => acc + Executor.countLines(doc.getText(r)),
+      0,
+    );
+    return `${ranges.length} range${ranges.length !== 1 ? "s" : ""}, ${lineCount} line${lineCount !== 1 ? "s" : ""}`;
+  }
+
+  static describeLines(count: number, verb: string): string {
+    return `${count} line${count !== 1 ? "s" : ""} ${verb}`;
+  }
+
+  addTraceWithSnippet(command: string, ranges: Range[], snippet: string): void {
+    this.trace.push({ command, ranges: [...ranges], snippet });
   }
 
   static countLines(text: string): number {
@@ -702,7 +701,11 @@ export class Executor {
           file.mutations.insertions++;
           file.mutations.linesAdded += Executor.countLines(text);
         }
-        this.addTrace("insert_before", this.selection, file.doc);
+        this.addTraceWithSnippet(
+          "insert_before",
+          this.selection,
+          Executor.describeLines(Executor.countLines(text), "inserted"),
+        );
         break;
       }
 
@@ -734,7 +737,11 @@ export class Executor {
           file.mutations.insertions++;
           file.mutations.linesAdded += Executor.countLines(text);
         }
-        this.addTrace("insert_after", this.selection, file.doc);
+        this.addTraceWithSnippet(
+          "insert_after",
+          this.selection,
+          Executor.describeLines(Executor.countLines(text), "inserted"),
+        );
         break;
       }
 

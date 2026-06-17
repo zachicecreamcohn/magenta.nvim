@@ -23,11 +23,11 @@ exports[`runScript > returns error with message and trace on execution failure 1
           },
           {
             "command": "narrow",
-            "snippet": "hello",
+            "snippet": "1 range, 1 line",
           },
           {
             "command": "retain_first",
-            "snippet": "hello",
+            "snippet": "1 range, 1 line",
           },
         ],
       },
@@ -55,11 +55,11 @@ exports[`runScript > returns error with message and trace on execution failure 1
       },
       {
         "command": "narrow",
-        "snippet": "hello",
+        "snippet": "1 range, 1 line",
       },
       {
         "command": "retain_first",
-        "snippet": "hello",
+        "snippet": "1 range, 1 line",
       },
     ],
     "warnings": [],
@@ -70,8 +70,8 @@ exports[`runScript > returns error with message and trace on execution failure 1
   },
   "formatted": "Trace:
   file <tmpDir>/test.txt → switched to <tmpDir>/test.txt (2 lines)
-  narrow → hello
-  retain_first → hello
+  narrow → 1 range, 1 line
+  retain_first → 1 range, 1 line
 
 Mutations:
 No files modified.
@@ -84,8 +84,8 @@ File errors:
   <tmpDir>/test.txt: narrow: no matches for pattern /nonexistent/ (0 mutations not applied)
     Trace:
       file <tmpDir>/test.txt → switched to <tmpDir>/test.txt (2 lines)
-      narrow → hello
-      retain_first → hello",
+      narrow → 1 range, 1 line
+      retain_first → 1 range, 1 line",
   "status": "ok",
 }
 `;
@@ -117,11 +117,11 @@ exports[`runScript > returns ok with no mutations when script only selects 1`] =
       },
       {
         "command": "narrow",
-        "snippet": "hello",
+        "snippet": "1 range, 1 line",
       },
       {
         "command": "retain_first",
-        "snippet": "hello",
+        "snippet": "1 range, 1 line",
       },
     ],
     "warnings": [],
@@ -132,8 +132,8 @@ exports[`runScript > returns ok with no mutations when script only selects 1`] =
   },
   "formatted": "Trace:
   file <tmpDir>/test.txt → switched to <tmpDir>/test.txt (2 lines)
-  narrow → hello
-  retain_first → hello
+  narrow → 1 range, 1 line
+  retain_first → 1 range, 1 line
 
 Mutations:
 No files modified.
@@ -185,15 +185,15 @@ exports[`runScript > returns ok with trace, mutations, and final selection 1`] =
       },
       {
         "command": "narrow",
-        "snippet": "world",
+        "snippet": "1 range, 1 line",
       },
       {
         "command": "retain_first",
-        "snippet": "world",
+        "snippet": "1 range, 1 line",
       },
       {
         "command": "replace",
-        "snippet": "planet",
+        "snippet": "1 range, 1 line",
       },
     ],
     "warnings": [],
@@ -204,9 +204,9 @@ exports[`runScript > returns ok with trace, mutations, and final selection 1`] =
   },
   "formatted": "Trace:
   file <tmpDir>/test.txt → switched to <tmpDir>/test.txt (2 lines)
-  narrow → world
-  retain_first → world
-  replace → planet
+  narrow → 1 range, 1 line
+  retain_first → 1 range, 1 line
+  replace → 1 range, 1 line
 
 Mutations:
   <tmpDir>/test.txt: 1 replacements, +1/-1 lines
