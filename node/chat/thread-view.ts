@@ -784,6 +784,14 @@ function renderMessageContentBlock(
         ? { t: () => activeEntry?.handle.abort() }
         : {};
 
+      // A tool is "in flight" while its input is still streaming in or while it
+      // is executing - i.e. until a result has been recorded. Some tools (edl)
+      // show a streaming preview only while in flight.
+      const completedResult = isActive
+        ? undefined
+        : findToolResult(thread, request.id);
+      const inFlight = isActive || !completedResult;
+
       // Show usage in details if this is the last block in the message
       const usageInDetails =
         isLastBlock && messageUsage ? d`\n${renderUsage(messageUsage)}` : d``;
@@ -817,6 +825,7 @@ function renderMessageContentBlock(
         request,
         displayContext,
         toolViewState?.inputExpanded || false,
+        inFlight,
       );
       const inputView = inputContent
         ? withBindings(d`\n${inputContent}`, {
@@ -864,7 +873,7 @@ function renderMessageContentBlock(
       let resultView: VDOMNode = d``;
 
       if (!activeEntry) {
-        const toolResult = findToolResult(thread, request.id);
+        const toolResult = completedResult;
         if (!toolResult) {
           return d`⚠️ tool result for ${request.id} not found\n`;
         }

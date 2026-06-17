@@ -765,6 +765,28 @@ export class Executor {
     return undefined;
   }
 
+  private static readonly MUTATION_COMMANDS = new Set([
+    "replace",
+    "delete",
+    "insert_before",
+    "insert_after",
+    "cut",
+  ]);
+
+  private countMutationCommands(
+    commands: Command[],
+    startIdx: number,
+    endIdx: number,
+  ): number {
+    let count = 0;
+    for (let j = startIdx; j < endIdx; j++) {
+      if (Executor.MUTATION_COMMANDS.has(commands[j].type)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
   private saveCommandTexts(
     commands: Command[],
     startIdx: number,
@@ -810,10 +832,16 @@ export class Executor {
             const skipEnd = nextIdx === -1 ? commands.length : nextIdx;
 
             const savedRegisters = this.saveCommandTexts(commands, i, skipEnd);
+            const failedMutations = this.countMutationCommands(
+              commands,
+              i,
+              skipEnd,
+            );
 
             fileErrors.push({
               path: errorPath,
               error: e.message,
+              failedMutations,
               trace: [...e.trace],
               savedRegisters,
             });

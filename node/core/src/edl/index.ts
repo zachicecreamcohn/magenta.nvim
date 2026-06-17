@@ -25,6 +25,7 @@ export type RangeInfo = {
 export type FileErrorInfo = {
   path: string;
   error: string;
+  failedMutations: number;
   trace: { command: string; snippet: string }[];
   savedRegisters: { name: string; sizeChars: number }[];
 };
@@ -164,7 +165,9 @@ function formatFileErrors(
   if (fileErrors.length === 0) return undefined;
   const lines: string[] = [];
   for (const fe of fileErrors) {
-    lines.push(`  ${fe.path}: ${fe.error}`);
+    lines.push(
+      `  ${fe.path}: ${fe.error} (${fe.failedMutations} mutation${fe.failedMutations !== 1 ? "s" : ""} not applied)`,
+    );
     if (fe.trace.length > 0) {
       lines.push(
         `    Trace:\n${fe.trace.map((t) => `      ${t.command} → ${t.snippet}`).join("\n")}`,
@@ -249,6 +252,7 @@ export async function runScript(
       fileErrors: result.fileErrors.map((fe) => ({
         path: fe.path,
         error: fe.error,
+        failedMutations: fe.failedMutations,
         trace: fe.trace.map((t) => ({
           command: t.command,
           snippet: t.snippet,

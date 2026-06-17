@@ -120,8 +120,8 @@ replace "goodbye"`;
     const { status, text } = await getResultText(invocation);
 
     expect(status).toBe("ok");
-    expect(text).toContain('"replacements":1');
-    expect(text).toContain('"fileErrorCount":0');
+    expect(text).toContain("1 replacements");
+    expect(text).not.toContain("File errors:");
 
     const fileContent = await fs.readFile(filePath, "utf-8");
     expect(fileContent).toBe("goodbye world\n");
@@ -152,6 +152,6 @@ narrow /nonexistent pattern that does not exist/`;
     const { status, text } = await getResultText(invocation);
 
     expect(status).toBe("ok");
-    expect(text).toContain('"fileErrorCount":1');
+    expect(text).toContain("File errors:");
   });
 });

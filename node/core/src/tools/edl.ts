@@ -31,10 +31,13 @@ const EDL_DESCRIPTION = readFileSync(
   "utf-8",
 );
 
+export type EdlTraceEntry = { command: string; snippet: string };
+
 export type EdlDisplayData = {
   mutations: { path: string; summary: FileMutationSummary }[];
-  fileErrorCount: number;
+  fileErrors: { path: string; error: string; failedMutations: number }[];
   finalSelectionCount: number | undefined;
+  trace: EdlTraceEntry[];
 };
 
 export type StructuredResult = {
@@ -43,7 +46,6 @@ export type StructuredResult = {
   formattedResult: string;
 };
 
-export const EDL_DISPLAY_PREFIX = "__EDL_DISPLAY__";
 export type ToolRequest = GenericToolRequest<"edl", Input>;
 
 export function execute(
@@ -108,10 +110,15 @@ export function execute(
             path: m.path,
             summary: m.summary,
           })),
-          fileErrorCount: result.data.fileErrors.length,
+          fileErrors: result.data.fileErrors.map((fe) => ({
+            path: fe.path,
+            error: fe.error,
+            failedMutations: fe.failedMutations,
+          })),
           finalSelectionCount: result.data.finalSelection
             ? result.data.finalSelection.ranges.length
             : undefined,
+          trace: result.data.trace,
         };
 
         return {
@@ -120,11 +127,6 @@ export function execute(
           result: {
             status: "ok",
             value: [
-              {
-                type: "text",
-                text: `${EDL_DISPLAY_PREFIX}${JSON.stringify(displayData)}`,
-                nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
-              },
               {
                 type: "text",
                 text: result.formatted,

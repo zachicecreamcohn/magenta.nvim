@@ -98,6 +98,7 @@ export function renderToolInput(
   request: ToolRequest,
   displayContext: DisplayContext,
   expanded: boolean,
+  inFlight: boolean,
 ): VDOMNode | undefined {
   const toolName = request.toolName as StaticToolName;
 
@@ -109,7 +110,7 @@ export function renderToolInput(
     case "bash_command":
       return BashCommandRender.renderInput(request, displayContext, expanded);
     case "edl":
-      return EdlRender.renderInput(request, displayContext, expanded);
+      return EdlRender.renderInput(request, displayContext, expanded, inFlight);
     case "spawn_subagents":
       return SpawnSubagentsRender.renderInput(
         request,

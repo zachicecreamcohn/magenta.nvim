@@ -33,6 +33,7 @@ export type SavedRegisterInfo = {
 export type FileError = {
   path: string;
   error: string;
+  failedMutations: number;
   trace: TraceEntry[];
   savedRegisters: SavedRegisterInfo[];
 };

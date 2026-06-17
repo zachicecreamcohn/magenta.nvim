@@ -1,15 +1,28 @@
-import {
-  type CompletedToolInfo,
-  type DisplayContext,
-  type Edl,
-  splitScriptByFile,
-  type ToolRequestId,
-  type ToolRequest as UnionToolRequest,
+import type {
+  CompletedToolInfo,
+  DisplayContext,
+  Edl,
+  ToolRequestId,
+  ToolRequest as UnionToolRequest,
 } from "@magenta/core";
 import type { Msg as ThreadMsg, ToolViewState } from "../chat/thread.ts";
 import type { Dispatch } from "../tea/tea.ts";
-import { d, type VDOMNode, withBindings, withCode } from "../tea/view.ts";
-import type { UnresolvedFilePath } from "../utils/files.ts";
+import {
+  d,
+  type VDOMNode,
+  withBindings,
+  withCode,
+  withError,
+  withInlineCode,
+  withMuted,
+} from "../tea/view.ts";
+import {
+  displayPath,
+  type HomeDir,
+  type NvimCwd,
+  resolveFilePath,
+  type UnresolvedFilePath,
+} from "../utils/files.ts";
 
 type Input = {
   script: string;
@@ -67,10 +80,17 @@ export function renderInput(
   request: UnionToolRequest,
   _displayContext: DisplayContext,
   expanded: boolean,
+  inFlight: boolean,
 ): VDOMNode | undefined {
   const input = request.input as Input;
   if (expanded) {
     return withCode(d`${input.script}`);
+  }
+  // Once the tool has finished, hide the streaming preview so the request
+  // collapses to a single line. The raw script remains available via the
+  // input-summary expansion.
+  if (!inFlight) {
+    return undefined;
   }
   const abridged = abridgeScript(input.script);
   return withCode(d`${abridged}`);
@@ -89,7 +109,7 @@ export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
       0,
     );
     const filesCount = data.mutations.length;
-    const fileErrorCount = data.fileErrorCount;
+    const fileErrorCount = data.fileErrors.length;
     const errorSuffix =
       fileErrorCount > 0
         ? ` (${String(fileErrorCount)} file error${fileErrorCount !== 1 ? "s" : ""})`
@@ -108,38 +128,63 @@ export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
   return d`edl script`;
 }
 
+function renderTrace(data: Edl.EdlDisplayData): VDOMNode {
+  const lines: VDOMNode[] = [];
+
+  if (data.trace.length > 0) {
+    lines.push(withMuted(d`Trace:\n`));
+    for (const t of data.trace) {
+      lines.push(d`  ${withInlineCode(d`${t.command}`)} → ${t.snippet}\n`);
+    }
+  }
+
+  if (data.fileErrors.length > 0) {
+    if (lines.length > 0) lines.push(d`\n`);
+    lines.push(withMuted(d`Errors:\n`));
+    for (const fe of data.fileErrors) {
+      lines.push(
+        d`  ❌ ${withInlineCode(d`${fe.path}`)} ${withError(d`(${String(fe.failedMutations)} mutation${fe.failedMutations !== 1 ? "s" : ""} failed)`)}: ${fe.error}\n`,
+      );
+    }
+  }
+
+  if (lines.length === 0) {
+    lines.push(withMuted(d`(no trace)\n`));
+  }
+
+  return d`${lines}`;
+}
+
 export function renderResult(
   info: CompletedToolInfo,
   context: {
     threadDispatch: Dispatch<ThreadMsg>;
+    cwd: NvimCwd;
+    homeDir: HomeDir;
   },
   toolViewState: ToolViewState,
   toolRequestId: ToolRequestId,
 ): VDOMNode | undefined {
   const expanded = toolViewState.resultExpanded;
+  const data = extractEdlDisplayData(info);
 
-  if (expanded) {
-    return withBindings(d`${extractFormattedResult(info)}`, {
-      "=": () =>
-        context.threadDispatch({
-          type: "toggle-tool-result",
-          toolRequestId,
-        }),
+  const toggleExpanded = () =>
+    context.threadDispatch({
+      type: "toggle-tool-result",
+      toolRequestId,
     });
+
+  if (!data || isError(info.result)) {
+    if (expanded) {
+      return withBindings(withCode(d`${extractFormattedResult(info)}`), {
+        "=": toggleExpanded,
+      });
+    }
+    return undefined;
   }
 
-  const data = extractEdlDisplayData(info);
-  if (!data || isError(info.result)) return undefined;
-
-  const input = info.request.input as Input;
-  const segmentsByPath = new Map<string, string>();
-  for (const { path, segment } of splitScriptByFile(input.script)) {
-    segmentsByPath.set(
-      path,
-      segmentsByPath.has(path)
-        ? `${segmentsByPath.get(path)!}${segment}`
-        : segment,
-    );
+  if (expanded) {
+    return withBindings(renderTrace(data), { "=": toggleExpanded });
   }
 
   const rows: VDOMNode[] = [];
@@ -149,36 +194,60 @@ export function renderResult(
     if (summary.replacements > 0) parts.push(`${summary.replacements} replace`);
     if (summary.insertions > 0) parts.push(`${summary.insertions} insert`);
     if (summary.deletions > 0) parts.push(`${summary.deletions} delete`);
-    const rowText = `  ${path}: ${parts.join(", ")} (+${summary.linesAdded}/-${summary.linesRemoved})`;
 
-    const itemExpanded = toolViewState.resultItemExpanded?.[path] || false;
-    const segment = segmentsByPath.get(path);
-
-    const content =
-      itemExpanded && segment
-        ? d`${rowText}\n${withCode(d`${segment}`)}`
-        : d`${rowText}`;
+    const absPath = resolveFilePath(
+      context.cwd,
+      path as UnresolvedFilePath,
+      context.homeDir,
+    );
+    const shownPath = displayPath(context.cwd, absPath, context.homeDir);
 
     rows.push(
-      withBindings(d`${content}\n`, {
-        "<CR>": () =>
-          context.threadDispatch({
-            type: "open-edit-file",
-            filePath: path as UnresolvedFilePath,
-          }),
-        "=": () =>
-          context.threadDispatch({
-            type: "toggle-tool-result-item",
-            toolRequestId,
-            itemKey: path,
-          }),
-      }),
+      withBindings(
+        d`${withInlineCode(d`${shownPath}`)} ${parts.join(", ")} ${withMuted(d`(+${String(summary.linesAdded)}/-${String(summary.linesRemoved)})`)}\n`,
+        {
+          "<CR>": () =>
+            context.threadDispatch({
+              type: "open-edit-file",
+              filePath: path as UnresolvedFilePath,
+            }),
+          "=": toggleExpanded,
+        },
+      ),
+    );
+  }
+
+  for (const { path, error, failedMutations } of data.fileErrors) {
+    const absPath = resolveFilePath(
+      context.cwd,
+      path as UnresolvedFilePath,
+      context.homeDir,
+    );
+    const shownPath = displayPath(context.cwd, absPath, context.homeDir);
+
+    rows.push(
+      withBindings(
+        d`❌ ${withInlineCode(d`${shownPath}`)} ${withError(d`${String(failedMutations)} mutation${failedMutations !== 1 ? "s" : ""} failed`)}: ${error}\n`,
+        {
+          "<CR>": () =>
+            context.threadDispatch({
+              type: "open-edit-file",
+              filePath: path as UnresolvedFilePath,
+            }),
+          "=": toggleExpanded,
+        },
+      ),
     );
   }
 
   if (data.finalSelectionCount !== undefined) {
     rows.push(
-      d`  Final selection: ${String(data.finalSelectionCount)} range${data.finalSelectionCount !== 1 ? "s" : ""}\n`,
+      withBindings(
+        withMuted(
+          d`Final selection: ${String(data.finalSelectionCount)} range${data.finalSelectionCount !== 1 ? "s" : ""}\n`,
+        ),
+        { "=": toggleExpanded },
+      ),
     );
   }
 

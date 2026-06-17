@@ -54,7 +54,7 @@ replace "goodbye"`;
     );
   });
 
-  test("= expands the per-file EDL segment", async () => {
+  test("= expands the result into an edl trace (not the script)", async () => {
     await withDriver(
       {
         setupFiles: async (tmpDir) => {
@@ -67,13 +67,8 @@ replace "goodbye"`;
         await driver.send();
 
         const filePath = path.join(dirs.tmpDir, "test.txt");
-        const filler = Array.from(
-          { length: 15 },
-          (_, i) => `# filler ${i}`,
-        ).join("\n");
         const script = `file \`${filePath}\`
 # UNIQUE_SEGMENT_MARKER
-${filler}
 narrow /hello/
 replace "goodbye"`;
 
@@ -95,16 +90,17 @@ replace "goodbye"`;
 
         await driver.assertDisplayBufferContains("✅ edl:");
 
-        // The per-file marker is not shown until the segment is expanded
+        // The raw script is not shown in the result rows
         await driver.assertDisplayBufferDoesNotContain("UNIQUE_SEGMENT_MARKER");
 
-        // Expand the per-file segment with =
+        // Expanding the result shows a trace, not the script
         await driver.triggerDisplayBufferKeyOnContent("1 replace", "=");
-        await driver.assertDisplayBufferContains("UNIQUE_SEGMENT_MARKER");
+        await driver.assertDisplayBufferContains("Trace:");
+        await driver.assertDisplayBufferDoesNotContain("UNIQUE_SEGMENT_MARKER");
 
         // Collapse again
-        await driver.triggerDisplayBufferKeyOnContent("1 replace", "=");
-        await driver.assertDisplayBufferDoesNotContain("UNIQUE_SEGMENT_MARKER");
+        await driver.triggerDisplayBufferKeyOnContent("Trace:", "=");
+        await driver.assertDisplayBufferContains("1 replace");
       },
     );
   });
@@ -166,7 +162,7 @@ replace "goodbye"`;
     );
   });
 
-  test("preview shows abridged script for long scripts", async () => {
+  test("hides the script preview once the tool completes", async () => {
     await withDriver(
       {
         setupFiles: async (tmpDir) => {
@@ -179,13 +175,8 @@ replace "goodbye"`;
         await driver.send();
 
         const filePath = path.join(dirs.tmpDir, "test.txt");
-        const longLine = "a".repeat(100);
-        const extraLines = Array.from(
-          { length: 12 },
-          (_, i) => `# comment line ${i} ${longLine}`,
-        ).join("\n");
         const script = `file \`${filePath}\`
-${extraLines}
+# PREVIEW_ONLY_MARKER
 narrow /hello/
 replace "goodbye"`;
 
@@ -207,21 +198,8 @@ replace "goodbye"`;
 
         await driver.assertDisplayBufferContains("✅ edl:");
 
-        // Preview should show truncated lines (ending with ...)
-        await driver.assertDisplayBufferContains("aaa...");
-
-        // Preview should show the "more lines" indicator
-        await driver.assertDisplayBufferContains("more lines)");
-
-        // Preview should NOT show the full long line
-        await driver.assertDisplayBufferDoesNotContain(longLine);
-
-        // Preview should show the LAST N lines (end of the script)
-        await driver.assertDisplayBufferContains("narrow /hello/");
-        await driver.assertDisplayBufferContains(`replace "goodbye"`);
-
-        // Preview should NOT show the earliest lines (start of the script)
-        await driver.assertDisplayBufferDoesNotContain("# comment line 0 ");
+        // Once completed, the streaming script preview is hidden
+        await driver.assertDisplayBufferDoesNotContain("PREVIEW_ONLY_MARKER");
       },
     );
   });
@@ -263,13 +241,11 @@ END`;
 
         await driver.assertDisplayBufferContains("✅ edl:");
 
-        // Preview should show the script
-        await driver.assertDisplayBufferContains("narrow /hello/");
+        // After completion the preview is hidden
+        await driver.assertDisplayBufferDoesNotContain("narrow /hello/");
 
-        // Toggle input to expanded view (shows full script)
-        await driver.triggerDisplayBufferKeyOnContent("narrow /hello/", "=");
-
-        // Expanded input should show full script
+        // Expanding the request summary shows the raw input (full script)
+        await driver.triggerDisplayBufferKeyOnContent("📝 edl script", "=");
         await driver.assertDisplayBufferContains("narrow /hello/");
         await driver.assertDisplayBufferContains("replace <<END");
       },
