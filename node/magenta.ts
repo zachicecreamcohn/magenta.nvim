@@ -603,10 +603,12 @@ export class Magenta {
           msg: { type: "threads-navigate-up" },
         });
         await this.syncActiveView();
-        this.dispatch({
-          type: "sidebar-msg",
-          msg: { type: "set-cursor-to-bottom" },
-        });
+        if (this.getActiveKey() !== "overview") {
+          this.dispatch({
+            type: "sidebar-msg",
+            msg: { type: "set-cursor-to-bottom" },
+          });
+        }
         break;
       }
 
@@ -616,10 +618,6 @@ export class Magenta {
           msg: { type: "threads-overview" },
         });
         await this.syncActiveView();
-        this.dispatch({
-          type: "sidebar-msg",
-          msg: { type: "set-cursor-to-bottom" },
-        });
         break;
       }
 

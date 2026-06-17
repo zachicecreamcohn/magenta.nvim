@@ -49,6 +49,7 @@ import type {
   UnresolvedFilePath,
 } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
+import { formatTokenCount } from "../utils/tokens.ts";
 import type { SandboxRoot } from "./thread.ts";
 import { Thread } from "./thread.ts";
 import { DockerSupervisor } from "./thread-supervisor.ts";
@@ -748,7 +749,11 @@ export class Chat implements ThreadManager {
     views: VDOMNode[],
   ) {
     if (!this.threadWrappers[threadId]) return;
-    views.push(this.renderThread(threadId, depth, this.state.activeThreadId));
+    views.push(
+      this.renderThread(threadId, depth, this.state.activeThreadId, undefined, {
+        showTokenCount: true,
+      }),
+    );
     for (const childId of childrenMap.get(threadId) ?? []) {
       this.renderScriptSubtreeInner(childId, childrenMap, depth + 1, views);
     }
@@ -861,6 +866,9 @@ export class Chat implements ThreadManager {
       isExpanded: boolean;
       childCount: number;
     },
+    extra?: {
+      showTokenCount: boolean;
+    },
   ): VDOMNode {
     const displayName = this.getThreadDisplayName(threadId);
     const status = this.formatThreadStatus(threadId);
@@ -891,7 +899,15 @@ export class Chat implements ThreadManager {
       ? ` (${options.childCount} subthreads)`
       : "";
 
-    const displayLine = d`${indent}${marker} ${bell}${expandIndicator}${icon}${sandboxIndicator}${displayName}: ${status}${childCountSuffix}`;
+    let tokenSuffix = "";
+    if (extra?.showTokenCount && threadWrapper?.state === "initialized") {
+      const tokenCount = threadWrapper.thread.core.getLastStopTokenCount();
+      if (tokenCount > 0) {
+        tokenSuffix = ` [${formatTokenCount(tokenCount)}]`;
+      }
+    }
+
+    const displayLine = d`${indent}${marker} ${bell}${expandIndicator}${icon}${sandboxIndicator}${displayName}: ${status}${childCountSuffix}${tokenSuffix}`;
 
     const bindings: Record<string, () => void> = {
       "<CR>": () =>

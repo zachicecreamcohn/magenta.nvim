@@ -475,7 +475,10 @@ export class ScriptManager {
     }
 
     const rows: VDOMNode[] = [];
-    for (const inv of this.invocations.values()) {
+    const sortedInvocations = [...this.invocations.values()].sort((a, b) =>
+      a.id < b.id ? 1 : a.id > b.id ? -1 : 0,
+    );
+    for (const inv of sortedInvocations) {
       const icon =
         inv.status === "running" ? "⏳" : inv.status === "done" ? "✅" : "❌";
       const sandboxIndicator = inv.sandboxBypassed
