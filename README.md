@@ -257,3 +257,11 @@ If `dist/magenta.mjs` is missing (e.g. you cloned the repo without running the b
 # Contributions
 
 See [the contributions guide](https://github.com/dlants/magenta.nvim/blob/main/CONTRIBUTING.md)
+
+# Related plugins
+
+Other neovim plugins by [dlants](https://github.com/dlants):
+
+- [needle](https://github.com/dlants/needle) — a fast, signal-aware fuzzy picker.
+- [shuck](https://github.com/dlants/shuck) — a streamed shell-command picker (live-grep replacement).
+- [glean](https://github.com/dlants/glean) — a git diff reviewer in a single foldable buffer.
