@@ -52,6 +52,15 @@ end
 -- missing/dead. On failure (e.g. the node process has exited but an
 -- autocmd is still firing), tears down the bridge so we stop producing
 -- noisy "Invalid channel" errors on every subsequent event.
+-- True if the node job is still running (jobwait returns -1 for live jobs).
+local function node_job_alive()
+  if not M.job_id then
+    return false
+  end
+  local ok, result = pcall(vim.fn.jobwait, { M.job_id }, 0)
+  return ok and result[1] == -1
+end
+
 local function safe_rpcnotify(channel_id, method, ...)
   if not channel_id or M.channel_id ~= channel_id then
     M.teardown_bridge("channel mismatch in safe_rpcnotify (method=" .. tostring(method) .. ")")
@@ -59,6 +68,20 @@ local function safe_rpcnotify(channel_id, method, ...)
   end
   local ok, err = pcall(vim.rpcnotify, channel_id, method, ...)
   if not ok then
+    -- A single rpcnotify failure is not necessarily fatal: it can be raised
+    -- from an unrelated context (e.g. an nvim-notify window-close handler
+    -- firing during a transient error) while the node process is still alive
+    -- and the bridge is otherwise healthy. Only tear down when the node job
+    -- has actually exited; otherwise warn and keep the bridge so we don't
+    -- kill a working session over a spurious "Invalid channel" error.
+    if node_job_alive() then
+      vim.notify(
+        "magenta: rpcnotify failed but node job is alive; keeping bridge"
+          .. " (method=" .. tostring(method) .. ", err=" .. tostring(err) .. ")",
+        vim.log.levels.WARN
+      )
+      return false
+    end
     M.teardown_bridge("rpcnotify failed (method=" .. tostring(method) .. ", err=" .. tostring(err) .. ")")
   end
   return ok

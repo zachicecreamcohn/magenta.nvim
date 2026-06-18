@@ -163,7 +163,25 @@ export class NvimBuffer {
   }
 
   setName(name: string) {
-    return this.nvim.call("nvim_buf_set_name", [this.id, name]);
+    // nvim_buf_set_name uses `:file` semantics: renaming a buffer that already
+    // has a name leaves behind a new empty buffer holding the OLD name. These
+    // orphans accumulate and cause E95 ("Buffer with this name already exists")
+    // when a later setName targets a name an orphan still holds. Wipe the
+    // orphan after renaming to keep names unique.
+    return this.nvim.call("nvim_exec_lua", [
+      `\
+local bufId, name = ...
+local oldName = vim.api.nvim_buf_get_name(bufId)
+vim.api.nvim_buf_set_name(bufId, name)
+if oldName ~= "" then
+  for _, orphan in ipairs(vim.api.nvim_list_bufs()) do
+    if orphan ~= bufId and vim.api.nvim_buf_get_name(orphan) == oldName then
+      pcall(vim.api.nvim_buf_delete, orphan, { force = true })
+    end
+  end
+end`,
+      [this.id, name],
+    ]);
   }
 
   async attemptEdit() {
