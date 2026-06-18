@@ -65,6 +65,43 @@ describe("nvimLua unit tests", () => {
     expect(result.text).toContain("boom");
   });
 
+  it("returns an aborted error when abort is called before resolve", async () => {
+    let resolve!: (value: unknown) => void;
+    const executor: LuaExecutor = {
+      execLua: () => new Promise((r) => (resolve = r)),
+    };
+    const invocation = createTool("return 1", executor);
+    invocation.abort();
+    resolve({ a: 1 });
+    const result = await getResultText(invocation);
+    expect(result.status).toBe("error");
+    expect(result.text).toContain("aborted");
+  });
+
+  it("returns an aborted error when abort is called before reject", async () => {
+    let reject!: (error: unknown) => void;
+    const executor: LuaExecutor = {
+      execLua: () => new Promise((_, r) => (reject = r)),
+    };
+    const invocation = createTool("error('boom')", executor);
+    invocation.abort();
+    reject(new Error("boom"));
+    const result = await getResultText(invocation);
+    expect(result.status).toBe("error");
+    expect(result.text).toContain("aborted");
+  });
+
+  it("falls back to String() for non-serializable return values", async () => {
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    const executor: LuaExecutor = {
+      execLua: () => Promise.resolve(circular),
+    };
+    const result = await getResultText(createTool("return {}", executor));
+    expect(result.status).toBe("ok");
+    expect(result.text).toContain("[object Object]");
+  });
+
   it("validateInput rejects non-string code", () => {
     expect(NvimLua.validateInput({ code: 42 }).status).toBe("error");
     expect(NvimLua.validateInput({ code: "return 1" }).status).toBe("ok");
