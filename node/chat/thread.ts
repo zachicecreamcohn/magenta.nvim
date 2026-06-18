@@ -301,6 +301,9 @@ export class Thread {
             : {}),
           lspClient: env.lspClient,
           helpTagsProvider: env.helpTagsProvider,
+          ...(env.luaExecutor !== undefined
+            ? { luaExecutor: env.luaExecutor }
+            : {}),
           availableCapabilities: env.availableCapabilities,
           environmentConfig: env.environmentConfig,
           maxConcurrentSubagents: context.options.maxConcurrentSubagents || 3,
@@ -529,6 +532,9 @@ export class Thread {
         gitClient: environment.gitClient,
         lspClient: environment.lspClient,
         helpTagsProvider: environment.helpTagsProvider,
+        ...(environment.luaExecutor !== undefined
+          ? { luaExecutor: environment.luaExecutor }
+          : {}),
         availableCapabilities: environment.availableCapabilities,
         environmentConfig: environment.environmentConfig,
         maxConcurrentSubagents: getOptions().maxConcurrentSubagents || 3,

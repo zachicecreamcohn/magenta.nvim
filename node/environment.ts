@@ -3,6 +3,7 @@ import type {
   GitClient,
   HelpTagsProvider,
   LspClient,
+  LuaExecutor,
   ThreadId,
   ToolCapability,
 } from "@magenta/core";
@@ -22,6 +23,7 @@ export interface Environment {
   sandboxViolationHandler?: SandboxViolationHandler | undefined;
   lspClient: LspClient;
   helpTagsProvider: HelpTagsProvider;
+  luaExecutor?: LuaExecutor | undefined;
   cwd: NvimCwd;
   homeDir: HomeDir;
   availableCapabilities: Set<ToolCapability>;
@@ -38,6 +40,7 @@ import { NvimLspClient } from "./capabilities/lsp-client-adapter.ts";
 import { NoopHelpTagsProvider } from "./capabilities/noop-help-tags-provider.ts";
 import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
 import { NvimHelpTagsProvider } from "./capabilities/nvim-help-tags-provider.ts";
+import { NvimLuaExecutor } from "./capabilities/nvim-lua-executor.ts";
 import { SandboxFileIO } from "./capabilities/sandbox-file-io.ts";
 import { SandboxShell } from "./capabilities/sandbox-shell.ts";
 import { SandboxViolationHandler as SandboxViolationHandlerImpl } from "./capabilities/sandbox-violation-handler.ts";
@@ -81,6 +84,7 @@ export function createLocalEnvironment({
   );
 
   const lspClient = new NvimLspClient(lsp, nvim, cwd, homeDir);
+  const luaExecutor = new NvimLuaExecutor(nvim);
   const helpTagsProvider = new NvimHelpTagsProvider(nvim);
 
   return {
@@ -90,6 +94,7 @@ export function createLocalEnvironment({
     sandboxViolationHandler: violationHandler,
     lspClient,
     helpTagsProvider,
+    luaExecutor,
     cwd,
     homeDir,
     availableCapabilities: new Set([
@@ -98,6 +103,7 @@ export function createLocalEnvironment({
       "threads",
       "file-io",
       "scripts",
+      "nvim",
     ]),
     environmentConfig: { type: "local" },
   };

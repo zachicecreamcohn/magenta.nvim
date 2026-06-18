@@ -26,6 +26,7 @@ export type {
   LspRange,
   LspReferencesResponse,
 } from "./capabilities/lsp-client.ts";
+export type { LuaExecutor } from "./capabilities/lua-executor.ts";
 export type {
   ScriptCatalogEntry,
   ScriptRunner,
