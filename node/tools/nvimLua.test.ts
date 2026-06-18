@@ -49,6 +49,41 @@ it("nvim_lua evaluates code and returns the result", async () => {
   });
 });
 
+it("nvim_lua handles a nil return value", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.inputMagentaText("run some lua");
+    await driver.send();
+
+    const toolRequestId = "lua-nil" as ToolRequestId;
+    const request = await driver.mockAnthropic.awaitPendingStream();
+    request.respond({
+      stopReason: "tool_use",
+      text: "ok",
+      toolRequests: [
+        {
+          status: "ok",
+          value: {
+            id: toolRequestId,
+            toolName: "nvim_lua" as ToolName,
+            input: { code: "local x = 1" },
+          },
+        },
+      ],
+    });
+
+    const request2 = await driver.mockAnthropic.awaitPendingStream();
+    request2.respond({
+      stopReason: "end_turn",
+      text: "done",
+      toolRequests: [],
+    });
+
+    const result = await pollForToolResult(driver, toolRequestId);
+    expect(okText(result)).toBe("Executed successfully, no return value.");
+  });
+});
+
 it("nvim_lua side effects are observable in neovim", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
