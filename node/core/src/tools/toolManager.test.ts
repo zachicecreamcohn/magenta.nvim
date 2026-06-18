@@ -34,6 +34,27 @@ describe("getToolSpecs capability filtering", () => {
     expect(names).not.toContain("spawn_subagents");
   });
 
+  it("includes nvim_lua for root only when nvim capability is present", () => {
+    const withNvim: Set<ToolCapability> = new Set([
+      "file-io",
+      "shell",
+      "threads",
+      "lsp",
+      "nvim",
+    ]);
+    const withSpecs = getToolSpecs("root", noopMcpToolManager, withNvim);
+    expect(withSpecs.map((s) => s.name)).toContain("nvim_lua");
+
+    const withoutNvim: Set<ToolCapability> = new Set([
+      "file-io",
+      "shell",
+      "threads",
+      "lsp",
+    ]);
+    const withoutSpecs = getToolSpecs("root", noopMcpToolManager, withoutNvim);
+    expect(withoutSpecs.map((s) => s.name)).not.toContain("nvim_lua");
+  });
+
   it("works with subagent thread type", () => {
     const caps: Set<ToolCapability> = new Set(["file-io", "shell"]);
     const specs = getToolSpecs("subagent", noopMcpToolManager, caps);

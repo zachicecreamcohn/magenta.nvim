@@ -5,6 +5,7 @@ import type { FileIO } from "./capabilities/file-io.ts";
 import type { GitClient, GitState } from "./capabilities/git-client.ts";
 import type { HelpTagsProvider } from "./capabilities/help-tags-provider.ts";
 import type { LspClient } from "./capabilities/lsp-client.ts";
+import type { LuaExecutor } from "./capabilities/lua-executor.ts";
 import type { ScriptRunner } from "./capabilities/script-runner.ts";
 import type { Shell } from "./capabilities/shell.ts";
 import type { ThreadManager } from "./capabilities/thread-manager.ts";
@@ -135,6 +136,7 @@ export interface ThreadCoreContext {
   initialGitState?: GitState | undefined;
   lspClient: LspClient;
   helpTagsProvider: HelpTagsProvider;
+  luaExecutor?: LuaExecutor | undefined;
   availableCapabilities: Set<ToolCapability>;
   environmentConfig: EnvironmentConfig;
   maxConcurrentSubagents: number;
@@ -697,6 +699,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         shell: this.context.shell,
         threadManager: this.context.threadManager,
         scriptRunner: this.context.getScriptRunner?.(),
+        luaExecutor: this.context.luaExecutor,
         requestRender: () => this.emit("update"),
         getAgents: () => this.context.getAgents(),
       };

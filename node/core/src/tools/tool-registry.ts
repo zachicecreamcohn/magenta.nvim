@@ -9,6 +9,7 @@ export const STATIC_TOOL_NAMES = [
   "edl",
   "docs",
   "run_script",
+  "nvim_lua",
 ] as const;
 
 export type StaticToolName = (typeof STATIC_TOOL_NAMES)[number];
@@ -22,6 +23,7 @@ export const CHAT_STATIC_TOOL_NAMES: StaticToolName[] = [
   "edl",
   "docs",
   "run_script",
+  "nvim_lua",
 ];
 
 export const COMPACT_STATIC_TOOL_NAMES: StaticToolName[] = ["get_file", "edl"];
@@ -45,6 +47,7 @@ export const TOOL_CAPABILITIES = [
   "threads",
   "file-io",
   "scripts",
+  "nvim",
 ] as const;
 
 export type ToolCapability = (typeof TOOL_CAPABILITIES)[number];
@@ -63,4 +66,5 @@ export const TOOL_REQUIRED_CAPABILITIES: Record<
   yield_to_parent: new Set(),
   docs: new Set(),
   run_script: new Set(["scripts"]),
+  nvim_lua: new Set(["nvim"]),
 };

@@ -89,6 +89,8 @@ export function renderToolSummary(
       const input = request.input as RunScript.Input;
       return d`🚀 run_script: ${input.scriptName}`;
     }
+    case "nvim_lua":
+      return d`🌙 nvim_lua`;
     default:
       assertUnreachable(toolName);
   }
@@ -197,6 +199,8 @@ export function renderToolResultSummary(
       return d`${statusEmoji} ${EdlRender.renderResultSummary(info)} (${tokEst})`;
     case "run_script":
       return d`${statusEmoji} run_script (${tokEst})`;
+    case "nvim_lua":
+      return d`${statusEmoji} nvim_lua (${tokEst})`;
     default:
       assertUnreachable(toolName);
   }

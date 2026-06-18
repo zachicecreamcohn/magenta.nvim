@@ -4,6 +4,7 @@ import * as Edl from "./edl.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as GetFile from "./getFile.ts";
 import * as Hover from "./hover.ts";
+import * as NvimLua from "./nvimLua.ts";
 import * as RunScript from "./run-script.ts";
 import * as SpawnSubagents from "./spawn-subagents.ts";
 import * as ThreadTitle from "./thread-title.ts";
@@ -44,6 +45,8 @@ export function validateInput(
       return Docs.validateInput(input);
     case "run_script":
       return RunScript.validateInput(input);
+    case "nvim_lua":
+      return NvimLua.validateInput(input);
     default:
       throw new Error(`Unexpected toolName: ${toolName as string}`);
   }

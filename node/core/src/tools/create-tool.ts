@@ -6,6 +6,7 @@ import type {
 import type { FileIO } from "../capabilities/file-io.ts";
 import type { HelpTagsProvider } from "../capabilities/help-tags-provider.ts";
 import type { LspClient } from "../capabilities/lsp-client.ts";
+import type { LuaExecutor } from "../capabilities/lua-executor.ts";
 import type { ScriptRunner } from "../capabilities/script-runner.ts";
 import type { Shell } from "../capabilities/shell.ts";
 import type { ThreadManager } from "../capabilities/thread-manager.ts";
@@ -24,6 +25,7 @@ import * as Hover from "./hover.ts";
 import type { MCPToolManager } from "./mcp/manager.ts";
 import * as MCPTool from "./mcp/tool.ts";
 import { parseToolName } from "./mcp/types.ts";
+import * as NvimLua from "./nvimLua.ts";
 import * as RunScript from "./run-script.ts";
 import * as SpawnSubagents from "./spawn-subagents.ts";
 import * as ThreadTitle from "./thread-title.ts";
@@ -34,6 +36,7 @@ export type CreateToolContext = {
   threadId: ThreadId;
   logger: Logger;
   lspClient: LspClient;
+  luaExecutor?: LuaExecutor | undefined;
   mcpToolManager: MCPToolManager;
   cwd: NvimCwd;
   homeDir: HomeDir;
@@ -146,6 +149,15 @@ export function createTool(
         fileIO: context.fileIO,
         edlRegisters: context.edlRegisters,
         onToolApplied: context.onToolApplied,
+      });
+    }
+
+    case "nvim_lua": {
+      if (!context.luaExecutor) {
+        throw new Error("nvim_lua tool requires a luaExecutor capability");
+      }
+      return NvimLua.execute(staticRequest, {
+        luaExecutor: context.luaExecutor,
       });
     }
 

@@ -14,6 +14,7 @@ import * as Edl from "./edl.ts";
 import * as FindReferences from "./findReferences.ts";
 import * as GetFile from "./getFile.ts";
 import * as Hover from "./hover.ts";
+import * as NvimLua from "./nvimLua.ts";
 import * as RunScript from "./run-script.ts";
 import * as SpawnSubagents from "./spawn-subagents.ts";
 import * as ThreadTitle from "./thread-title.ts";
@@ -45,6 +46,7 @@ export type StaticToolMap = {
   edl: { input: Edl.Input };
   docs: { input: Docs.Input };
   run_script: { input: RunScript.Input };
+  nvim_lua: { input: NvimLua.Input };
 };
 
 export type StaticToolRequest = {
@@ -72,6 +74,7 @@ const TOOL_SPEC_MAP: Partial<Record<StaticToolName, ProviderToolSpec>> = {
   yield_to_parent: YieldToParent.spec,
 
   edl: Edl.spec,
+  nvim_lua: NvimLua.spec,
 };
 
 export function getToolSpecs(
