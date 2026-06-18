@@ -3,6 +3,7 @@ import {
   type CompletedToolInfo,
   type DisplayContext,
   isMCPTool,
+  type NvimLua,
   type RunScript,
   type SpawnSubagents,
   type StaticToolName,
@@ -16,7 +17,7 @@ import type { MagentaOptions } from "../options.ts";
 import type { ProviderToolResult } from "../providers/provider-types.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { Dispatch } from "../tea/tea.ts";
-import { d, type VDOMNode } from "../tea/view.ts";
+import { d, type VDOMNode, withInlineCode } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import { formatTokens } from "../utils/tokens.ts";
@@ -89,8 +90,11 @@ export function renderToolSummary(
       const input = request.input as RunScript.Input;
       return d`🚀 run_script: ${input.scriptName}`;
     }
-    case "nvim_lua":
-      return d`🌙 nvim_lua`;
+    case "nvim_lua": {
+      const input = request.input as NvimLua.Input;
+      const firstLine = input.code.split("\n")[0];
+      return d`🌙 ${withInlineCode(d`\`${firstLine}\``)}`;
+    }
     default:
       assertUnreachable(toolName);
   }

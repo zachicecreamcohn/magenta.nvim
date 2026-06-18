@@ -259,6 +259,7 @@ export {
   type ServerName,
   validateServerName,
 } from "./tools/mcp/types.ts";
+export * as NvimLua from "./tools/nvimLua.ts";
 export * as RunScript from "./tools/run-script.ts";
 export * as SpawnSubagents from "./tools/spawn-subagents.ts";
 export * as ThreadTitle from "./tools/thread-title.ts";

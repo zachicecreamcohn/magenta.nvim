@@ -23,6 +23,7 @@ Editor Integration:~
   - `diagnostics` - Get LSP diagnostics
   - `find_references` - Find LSP references for a symbol
   - `hover` - Get LSP hover info for a symbol
+  - `nvim_lua` - Execute Lua code in the host neovim instance and return the result
 
 Execution:~
   - `bash_command` - Run shell commands (with permission system)
