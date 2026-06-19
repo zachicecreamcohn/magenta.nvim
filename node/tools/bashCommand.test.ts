@@ -463,7 +463,7 @@ describe("node/tools/bashCommand.test.ts", () => {
       // Lines longer than MAX_OUTPUT_TOKENS_FOR_ONE_LINE * 4 (800 chars) will be abbreviated
       const longString = "A".repeat(5000);
       await driver.inputMagentaText(
-        `Run this command: yes "${longString}" | head -50`,
+        `Run this command: for i in $(seq 50); do echo "${longString}"; done`,
       );
       await driver.send();
 
@@ -480,7 +480,7 @@ describe("node/tools/bashCommand.test.ts", () => {
               id: toolRequestId,
               toolName: "bash_command" as ToolName,
               input: {
-                command: `yes "${longString}" | head -50`,
+                command: `for i in $(seq 50); do echo "${longString}"; done`,
               },
             },
           },
@@ -513,7 +513,9 @@ describe("node/tools/bashCommand.test.ts", () => {
       expect(content).toContain("lines omitted");
 
       // Should have log file reference
-      expect(content).toMatch(/Full output \(\d+ lines\):/);
+      expect(content).toContain(
+        "the result was abbreviated. To see full output",
+      );
       expect(content).toContain("bashCommand.log");
     });
   });
@@ -659,7 +661,9 @@ describe("bash command output logging", () => {
       expect(content).toContain("LINE100:");
 
       // Should contain log file reference
-      expect(content).toContain("Full output (");
+      expect(content).toContain(
+        "the result was abbreviated. To see full output",
+      );
       expect(content).toContain("bashCommand.log");
     });
   });

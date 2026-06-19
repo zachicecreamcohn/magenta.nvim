@@ -153,7 +153,9 @@ function renderResultPreview(
     info.structuredResult.toolName === "bash_command"
       ? (() => {
           const sr = info.structuredResult as BashCommand.StructuredResult;
-          return sr.logFilePath && sr.logFileCharCount !== undefined
+          return sr.wasAbbreviated &&
+            sr.logFilePath &&
+            sr.logFileCharCount !== undefined
             ? renderLogFileLinkDirect(
                 sr.logFilePath,
                 sr.logFileCharCount,
@@ -206,7 +208,9 @@ function renderResultDetail(
     info.structuredResult.toolName === "bash_command"
       ? (() => {
           const sr = info.structuredResult as BashCommand.StructuredResult;
-          return sr.logFilePath && sr.logFileCharCount !== undefined
+          return sr.wasAbbreviated &&
+            sr.logFilePath &&
+            sr.logFileCharCount !== undefined
             ? renderLogFileLinkDirect(
                 sr.logFilePath,
                 sr.logFileCharCount,

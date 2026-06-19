@@ -116,6 +116,27 @@ export function validateInput(args: { [key: string]: unknown }): Result<Input> {
   };
 }
 
+function formatTokens(charCount: number): string {
+  const tokens = Math.ceil(charCount / 4);
+  return tokens >= 1000
+    ? `~${Math.round(tokens / 1000).toString()}k tok`
+    : `~${tokens.toString()} tok`;
+}
+
+const TRIM_REMINDER =
+  "\nNote: a trailing `| head`/`| tail` was removed from your command. The bash_command tool already trims long output for you, so you don't need to pipe into head or tail.\n";
+
+export function stripTrailingHeadTail(command: string): {
+  command: string;
+  wasTrimmed: boolean;
+} {
+  const trimmed = command.replace(/\s*\|\s*(?:head|tail)\b[^|]*$/, "");
+  if (trimmed !== command) {
+    return { command: trimmed, wasTrimmed: true };
+  }
+  return { command, wasTrimmed: false };
+}
+
 const MAX_OUTPUT_TOKENS_FOR_AGENT = 2000;
 const MAX_CHARS_PER_LINE = 800;
 const CHARACTERS_PER_TOKEN = 4;
@@ -139,7 +160,6 @@ function formatOutputForToolResult(
   durationMs: number,
   logFilePath: string | undefined,
 ): { formattedOutput: string; wasAbbreviated: boolean } {
-  const totalLines = output.length;
   const totalBudgetChars = MAX_OUTPUT_TOKENS_FOR_AGENT * CHARACTERS_PER_TOKEN;
 
   let totalRawChars = 0;
@@ -230,7 +250,7 @@ function formatOutputForToolResult(
   }
 
   if (logFilePath) {
-    formattedOutput += `\nFull output (${totalLines} lines): ${logFilePath}`;
+    formattedOutput += `\n⚠️  the result was abbreviated. To see full output (${formatTokens(totalRawChars)}): ${logFilePath}`;
   }
 
   return { formattedOutput, wasAbbreviated: true };
@@ -255,6 +275,10 @@ export function execute(
     startTime: undefined,
   };
 
+  const { command: sanitizedCommand, wasTrimmed } = stripTrailingHeadTail(
+    request.input.command,
+  );
+
   let aborted = false;
   let tickInterval: ReturnType<typeof setInterval> | undefined;
 
@@ -266,7 +290,7 @@ export function execute(
   }
 
   const promise = context.shell
-    .execute(request.input.command, {
+    .execute(sanitizedCommand, {
       toolRequestId: request.id,
       onOutput: (line) => {
         progress.liveOutput.push(line);
@@ -306,13 +330,17 @@ export function execute(
       }
       stopTickInterval();
 
-      const { formattedOutput, wasAbbreviated } = formatOutputForToolResult(
+      const formatted = formatOutputForToolResult(
         result.output,
         result.exitCode,
         result.signal,
         result.durationMs,
         result.logFilePath,
       );
+      const wasAbbreviated = formatted.wasAbbreviated;
+      const formattedOutput = wasTrimmed
+        ? formatted.formattedOutput + TRIM_REMINDER
+        : formatted.formattedOutput;
 
       return {
         type: "tool_result",
@@ -341,7 +369,7 @@ export function execute(
                 )
               : undefined,
             outputText: formattedOutput.replace(
-              /\n?Full output \(\d+ lines\): .+$/m,
+              /\n?⚠️ {2}the result was abbreviated\. To see full output \([^)]*\): .+$/m,
               "",
             ),
             wasAbbreviated,
