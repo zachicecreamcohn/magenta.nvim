@@ -126,6 +126,33 @@ function formatTokens(charCount: number): string {
 const TRIM_REMINDER =
   "\nNote: a trailing `| head`/`| tail` was removed from your command. The bash_command tool already trims long output for you, so you don't need to pipe into head or tail.\n";
 
+const RG_REPLACE_WARNING =
+  "This command was NOT run. It looks like you passed a short `-r` flag to `rg`. " +
+  "For ripgrep, `-r` is the short form of `--replace` and it consumes the rest of the flag bundle (and/or the next argument) as a replacement string — e.g. `-rn` means `--replace=n`, not `-r -n`. " +
+  "`-r` does NOT mean recursive; rg recurses by default. " +
+  "If you wanted line numbers use `-n`, for files-with-matches use `-l`. " +
+  "If you genuinely want replacement, use the long `--replace` form instead.";
+
+export function detectRgShortReplaceFlag(command: string): boolean {
+  const segments = command.split(/&&|\|\||[;|\n]/);
+  for (const segment of segments) {
+    const tokens = segment.trim().split(/\s+/).filter(Boolean);
+    let i = 0;
+    while (i < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) {
+      i++;
+    }
+    if (i >= tokens.length) continue;
+    const program = tokens[i].split("/").pop();
+    if (program !== "rg") continue;
+    for (const tok of tokens.slice(i + 1)) {
+      if (/^-[A-Za-z]*r[A-Za-z]*$/.test(tok)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export function stripTrailingHeadTail(command: string): {
   command: string;
   wasTrimmed: boolean;
@@ -278,6 +305,22 @@ export function execute(
   const { command: sanitizedCommand, wasTrimmed } = stripTrailingHeadTail(
     request.input.command,
   );
+
+  if (detectRgShortReplaceFlag(sanitizedCommand)) {
+    return {
+      promise: Promise.resolve({
+        type: "tool_result",
+        id: request.id,
+        result: {
+          status: "error",
+          error: RG_REPLACE_WARNING,
+        },
+        nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+      }),
+      abort: () => {},
+      progress,
+    };
+  }
 
   let aborted = false;
   let tickInterval: ReturnType<typeof setInterval> | undefined;
